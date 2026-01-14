@@ -278,7 +278,7 @@ export function ChatInterface({ id, initialMessages = [] }: ChatInterfaceProps) 
                                     </div>
                                 ) : (
                                     <div className="group flex flex-col items-end gap-1">
-                                        <MessageContent className="bg-muted text-foreground max-w-[85%] rounded-2xl px-4 py-2 sm:max-w-[75%]">
+                                        <MessageContent className="bg-muted text-foreground max-w-[85%] rounded-2xl px-4 py-2 sm:max-w-[75%] break-words">
                                             {content}
                                         </MessageContent>
                                         <MessageActions
@@ -395,6 +395,6 @@ export function ChatInterface({ id, initialMessages = [] }: ChatInterfaceProps) 
                     </div>
                 </div>
             </div>
-        </ChatContainerRoot>
+        </ChatContainerRoot >
     )
 }

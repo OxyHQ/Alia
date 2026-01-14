@@ -19,10 +19,10 @@ import { useState } from "react"
 export type ToolPart = {
   type: string
   state:
-    | "input-streaming"
-    | "input-available"
-    | "output-available"
-    | "output-error"
+  | "input-streaming"
+  | "input-available"
+  | "output-available"
+  | "output-error"
   input?: Record<string, unknown>
   output?: Record<string, unknown>
   toolCallId?: string
@@ -161,11 +161,11 @@ const Tool = ({ toolPart, defaultOpen = false, className }: ToolProps) => {
                 <h4 className="text-muted-foreground mb-2 text-sm font-medium">
                   Input
                 </h4>
-                <div className="bg-background rounded border p-2 font-mono text-sm">
+                <div className="bg-background rounded border p-2 font-mono text-sm overflow-hidden">
                   {Object.entries(input).map(([key, value]) => (
-                    <div key={key} className="mb-1">
-                      <span className="text-muted-foreground">{key}:</span>{" "}
-                      <span>{formatValue(value)}</span>
+                    <div key={key} className="mb-1 flex gap-2">
+                      <span className="text-muted-foreground shrink-0">{key}:</span>
+                      <span className="break-all min-w-0">{formatValue(value)}</span>
                     </div>
                   ))}
                 </div>
