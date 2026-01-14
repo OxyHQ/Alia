@@ -55,6 +55,30 @@ const INITIAL_COMPONENTS: Partial<Components> = {
   pre: function PreComponent({ children }) {
     return <>{children}</>
   },
+  p: function ParagraphComponent({ children }) {
+    return <p className="mb-4 last:mb-0 leading-relaxed">{children}</p>
+  },
+  h1: function H1Component({ children }) {
+    return <h1 className="text-2xl font-bold mt-6 mb-4">{children}</h1>
+  },
+  h2: function H2Component({ children }) {
+    return <h2 className="text-xl font-semibold mt-5 mb-3">{children}</h2>
+  },
+  h3: function H3Component({ children }) {
+    return <h3 className="text-lg font-semibold mt-4 mb-2">{children}</h3>
+  },
+  ul: function ULComponent({ children }) {
+    return <ul className="list-disc list-inside my-4 space-y-2">{children}</ul>
+  },
+  ol: function OLComponent({ children }) {
+    return <ol className="list-decimal list-inside my-4 space-y-2">{children}</ol>
+  },
+  li: function LIComponent({ children }) {
+    return <li className="my-1">{children}</li>
+  },
+  hr: function HRComponent() {
+    return <hr className="my-6 border-muted-foreground/20" />
+  },
 }
 
 const MemoizedMarkdownBlock = memo(
