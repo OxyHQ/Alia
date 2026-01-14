@@ -2,6 +2,7 @@
 
 import * as React from "react"
 import { Area, AreaChart, CartesianGrid, XAxis } from "recharts"
+import { useTranslations } from 'next-intl'
 
 import {
     Card,
@@ -65,14 +66,15 @@ const chartConfig = {
 
 export function UsageChart() {
     const [timeRange, setTimeRange] = React.useState("90d")
+    const t = useTranslations('admin.chart')
 
     return (
         <Card className="h-full">
             <CardHeader className="flex items-center gap-2 space-y-0 border-b py-5 sm:flex-row">
                 <div className="grid flex-1 gap-1 text-center sm:text-left">
-                    <CardTitle>Volumen de Peticiones</CardTitle>
+                    <CardTitle>{t('title')}</CardTitle>
                     <CardDescription>
-                        Distribución de tráfico por proveedor
+                        {t('description')}
                     </CardDescription>
                 </div>
                 <Select value={timeRange} onValueChange={setTimeRange}>
@@ -80,17 +82,17 @@ export function UsageChart() {
                         className="w-[160px] rounded-lg sm:ml-auto"
                         aria-label="Select a value"
                     >
-                        <SelectValue placeholder="Last 3 months" />
+                        <SelectValue placeholder={t('last3Months')} />
                     </SelectTrigger>
                     <SelectContent className="rounded-xl">
                         <SelectItem value="90d" className="rounded-lg">
-                            Last 3 months
+                            {t('last3Months')}
                         </SelectItem>
                         <SelectItem value="30d" className="rounded-lg">
-                            Last 30 days
+                            {t('last30Days')}
                         </SelectItem>
                         <SelectItem value="7d" className="rounded-lg">
-                            Last 7 days
+                            {t('last7Days')}
                         </SelectItem>
                     </SelectContent>
                 </Select>

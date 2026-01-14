@@ -28,6 +28,7 @@ import { toast } from 'sonner'
 import { Toaster } from "@/components/ui/sonner"
 import { UsageChart } from "@/components/usage-chart"
 import { KeysTable } from "@/components/keys-table"
+import { useTranslations } from 'next-intl'
 
 interface KeyData {
     provider: string
@@ -47,6 +48,10 @@ export default function AdminDashboard() {
     const [keys, setKeys] = useState<KeyData[]>([])
     const [isLoading, setIsLoading] = useState(true)
     const [isAddOpen, setIsAddOpen] = useState(false)
+    const t = useTranslations('admin.dashboard')
+    const tForm = useTranslations('admin.form')
+    const tMsgs = useTranslations('admin.messages')
+    const tCommon = useTranslations('common')
 
     // New Key Form State
     const [newKey, setNewKey] = useState({
@@ -116,7 +121,7 @@ export default function AdminDashboard() {
             })
 
             if (res.ok) {
-                toast.success('Key añadida correctamente')
+                toast.success(tMsgs('keyAdded'))
                 setIsAddOpen(false)
                 fetchKeys()
                 setNewKey({
@@ -129,15 +134,15 @@ export default function AdminDashboard() {
                 })
             } else {
                 const err = await res.json()
-                toast.error('Error: ' + err.error)
+                toast.error(`${tCommon('error')}: ${err.error}`)
             }
         } catch (e) {
-            toast.error('Error de conexión')
+            toast.error(tMsgs('errorConnection'))
         }
     }
 
     const handleDeleteKey = async (key: string) => {
-        if (!confirm('¿Seguro que quieres eliminar esta key?')) return
+        if (!confirm(tMsgs('deleteConfirm'))) return
 
         try {
             const res = await fetch('/api/admin/keys', {
@@ -147,11 +152,11 @@ export default function AdminDashboard() {
             })
 
             if (res.ok) {
-                toast.success('Key eliminada')
+                toast.success(tMsgs('keyDeleted'))
                 fetchKeys()
             }
         } catch {
-            toast.error('Error eliminando key')
+            toast.error(tMsgs('errorDeleting'))
         }
     }
 
@@ -163,32 +168,32 @@ export default function AdminDashboard() {
             <div className="flex items-center justify-between px-2">
                 <div className="grid gap-1">
                     <h1 className="text-2xl font-bold tracking-tight">
-                        Dashboard
+                        {t('title')}
                     </h1>
-                    <p className="text-muted-foreground text-sm">Resumen de rendimiento y gestión de proveedores</p>
+                    <p className="text-muted-foreground text-sm">{t('subtitle')}</p>
                 </div>
                 <div className="flex items-center gap-2">
                     <Button onClick={fetchKeys} variant="outline" size="sm" className="h-8 gap-1">
                         <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin' : ''}`} />
-                        <span className="sr-only sm:not-sr-only sm:whitespace-nowrap">Refrescar</span>
+                        <span className="sr-only sm:not-sr-only sm:whitespace-nowrap">{t('refresh')}</span>
                     </Button>
                     <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
                         <DialogTrigger asChild>
                             <Button size="sm" className="h-8 gap-1">
                                 <HugeiconsIcon icon={PlusSignIcon} strokeWidth={2} className="w-3.5 h-3.5" />
-                                <span className="sr-only sm:not-sr-only sm:whitespace-nowrap">Añadir Key</span>
+                                <span className="sr-only sm:not-sr-only sm:whitespace-nowrap">{t('addKey')}</span>
                             </Button>
                         </DialogTrigger>
                         <DialogContent>
                             <DialogHeader>
-                                <DialogTitle>Añadir Nueva API Key</DialogTitle>
-                                <DialogDescription>Configura el proveedor y los límites de la key.</DialogDescription>
+                                <DialogTitle>{t('addKeyTitle')}</DialogTitle>
+                                <DialogDescription>{t('addKeyDescription')}</DialogDescription>
                             </DialogHeader>
 
                             <FieldSet>
                                 <FieldGroup>
                                     <Field>
-                                        <FieldLabel htmlFor="provider">Provider</FieldLabel>
+                                        <FieldLabel htmlFor="provider">{tForm('provider')}</FieldLabel>
                                         <Input
                                             id="provider"
                                             value={newKey.provider}
@@ -196,7 +201,7 @@ export default function AdminDashboard() {
                                         />
                                     </Field>
                                     <Field>
-                                        <FieldLabel htmlFor="modelId">Model ID</FieldLabel>
+                                        <FieldLabel htmlFor="modelId">{tForm('modelId')}</FieldLabel>
                                         <Input
                                             id="modelId"
                                             value={newKey.modelId}
@@ -204,7 +209,7 @@ export default function AdminDashboard() {
                                         />
                                     </Field>
                                     <Field>
-                                        <FieldLabel htmlFor="key">API Key</FieldLabel>
+                                        <FieldLabel htmlFor="key">{tForm('apiKey')}</FieldLabel>
                                         <Input
                                             id="key"
                                             value={newKey.key}
@@ -213,7 +218,7 @@ export default function AdminDashboard() {
                                         />
                                     </Field>
                                     <Field>
-                                        <FieldLabel htmlFor="rpm">Limit RPM</FieldLabel>
+                                        <FieldLabel htmlFor="rpm">{tForm('limitRpm')}</FieldLabel>
                                         <Input
                                             id="rpm"
                                             type="number"
@@ -223,9 +228,9 @@ export default function AdminDashboard() {
                                     </Field>
                                     <Field orientation="horizontal">
                                         <div className="flex flex-col gap-1">
-                                            <FieldLabel htmlFor="isPaid">Es de Pago</FieldLabel>
+                                            <FieldLabel htmlFor="isPaid">{tForm('isPaid')}</FieldLabel>
                                             <FieldDescription>
-                                                Marcar si esta clave pertenece a un plan de pago.
+                                                {tForm('isPaidDescription')}
                                             </FieldDescription>
                                         </div>
                                         <Switch
@@ -238,7 +243,7 @@ export default function AdminDashboard() {
                             </FieldSet>
 
                             <DialogFooter>
-                                <Button onClick={handleAddKey}>Guardar</Button>
+                                <Button onClick={handleAddKey}>{t('save')}</Button>
                             </DialogFooter>
                         </DialogContent>
                     </Dialog>
@@ -249,19 +254,19 @@ export default function AdminDashboard() {
             <div className="grid gap-4 md:grid-cols-3">
                 <Card x-chunk="dashboard-01-chunk-0">
                     <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <CardTitle className="text-sm font-medium">Total Keys</CardTitle>
+                        <CardTitle className="text-sm font-medium">{t('totalKeys')}</CardTitle>
                         <KeyIcon className="h-4 w-4 text-muted-foreground" />
                     </CardHeader>
                     <CardContent>
                         <div className="text-2xl font-bold">{keys.length}</div>
                         <p className="text-xs text-muted-foreground">
-                            {keys.filter(k => !k.isPaid).length} Gratuitas · {keys.filter(k => k.isPaid).length} De Pago
+                            {keys.filter(k => !k.isPaid).length} {t('free')} · {keys.filter(k => k.isPaid).length} {t('paid')}
                         </p>
                     </CardContent>
                 </Card>
                 <Card x-chunk="dashboard-01-chunk-1">
                     <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <CardTitle className="text-sm font-medium">Uso RPM Actual</CardTitle>
+                        <CardTitle className="text-sm font-medium">{t('currentRpm')}</CardTitle>
                         <Activity className="h-4 w-4 text-muted-foreground" />
                     </CardHeader>
                     <CardContent>
@@ -269,19 +274,19 @@ export default function AdminDashboard() {
                             {keys.reduce((acc, k) => acc + (k.usage?.rpm || 0), 0)}
                         </div>
                         <p className="text-xs text-muted-foreground">
-                            Peticiones por minuto activas
+                            {t('activeRequests')}
                         </p>
                     </CardContent>
                 </Card>
                 <Card x-chunk="dashboard-01-chunk-2">
                     <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <CardTitle className="text-sm font-medium">Estado Global</CardTitle>
+                        <CardTitle className="text-sm font-medium">{t('globalStatus')}</CardTitle>
                         <AlertCircle className="h-4 w-4 text-muted-foreground" />
                     </CardHeader>
                     <CardContent>
-                        <div className="text-2xl font-bold text-primary">Operativo</div>
+                        <div className="text-2xl font-bold text-primary">{t('operational')}</div>
                         <p className="text-xs text-muted-foreground">
-                            Todos los sistemas funcionando
+                            {t('allSystemsGo')}
                         </p>
                     </CardContent>
                 </Card>
@@ -295,29 +300,29 @@ export default function AdminDashboard() {
                 <div className="col-span-3">
                     <Card className="h-full">
                         <CardHeader>
-                            <CardTitle>Métricas del Sistema</CardTitle>
-                            <CardDescription>Monitorización en tiempo real</CardDescription>
+                            <CardTitle>{t('systemMetrics')}</CardTitle>
+                            <CardDescription>{t('realTimeMonitoring')}</CardDescription>
                         </CardHeader>
                         <CardContent>
                             <div className="space-y-6">
                                 <div className="flex items-center justify-between">
                                     <div className="space-y-1">
-                                        <p className="text-sm font-medium leading-none">Latencia Proxy</p>
-                                        <p className="text-xs text-muted-foreground">Overhead interno</p>
+                                        <p className="text-sm font-medium leading-none">{t('proxyLatency')}</p>
+                                        <p className="text-xs text-muted-foreground">{t('internalOverhead')}</p>
                                     </div>
                                     <div className="font-mono text-sm font-bold">~12ms</div>
                                 </div>
                                 <div className="flex items-center justify-between">
                                     <div className="space-y-1">
-                                        <p className="text-sm font-medium leading-none">Tasa de Errores</p>
-                                        <p className="text-xs text-muted-foreground">Última hora</p>
+                                        <p className="text-sm font-medium leading-none">{t('errorRate')}</p>
+                                        <p className="text-xs text-muted-foreground">{t('lastHour')}</p>
                                     </div>
                                     <div className="font-mono text-sm text-green-600">0.0%</div>
                                 </div>
                                 <div className="flex items-center justify-between">
                                     <div className="space-y-1">
-                                        <p className="text-sm font-medium leading-none">Saturación de Keys</p>
-                                        <p className="text-xs text-muted-foreground">Keys al límite de RPM</p>
+                                        <p className="text-sm font-medium leading-none">{t('keySaturation')}</p>
+                                        <p className="text-xs text-muted-foreground">{t('keysAtLimit')}</p>
                                     </div>
                                     <div className="flex items-center gap-2">
                                         <span className="font-mono text-sm font-bold">
@@ -337,8 +342,8 @@ export default function AdminDashboard() {
             {/* Keys Table */}
             <div className="space-y-4">
                 <div>
-                    <h2 className="text-lg font-semibold tracking-tight">Gestión de API Keys</h2>
-                    <p className="text-sm text-muted-foreground">Pool de claves activas y consumo en tiempo real</p>
+                    <h2 className="text-lg font-semibold tracking-tight">{t('keyManagement')}</h2>
+                    <p className="text-sm text-muted-foreground">{t('activePool')}</p>
                 </div>
                 <KeysTable data={keys} onDelete={handleDeleteKey} />
             </div>

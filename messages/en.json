@@ -135,5 +135,66 @@
         "recentConversations": "Recent conversations",
         "actions": "Actions",
         "startTemporaryChat": "Start temporary chat"
+    },
+    "admin": {
+        "dashboard": {
+            "title": "Dashboard",
+            "subtitle": "Performance summary and provider management",
+            "refresh": "Refresh",
+            "addKey": "Add Key",
+            "addKeyTitle": "Add New API Key",
+            "addKeyDescription": "Configure provider and key limits.",
+            "totalKeys": "Total Keys",
+            "free": "Free",
+            "paid": "Paid",
+            "currentRpm": "Current RPM Usage",
+            "activeRequests": "Active requests per minute",
+            "globalStatus": "Global Status",
+            "operational": "Operational",
+            "allSystemsGo": "All systems functioning",
+            "systemMetrics": "System Metrics",
+            "realTimeMonitoring": "Real-time monitoring",
+            "proxyLatency": "Proxy Latency",
+            "internalOverhead": "Internal overhead",
+            "errorRate": "Error Rate",
+            "lastHour": "Last hour",
+            "keySaturation": "Key Saturation",
+            "keysAtLimit": "Keys at RPM limit",
+            "keyManagement": "API Key Management",
+            "activePool": "Active key pool and real-time consumption",
+            "save": "Save",
+            "cancel": "Cancel"
+        },
+        "form": {
+            "provider": "Provider",
+            "modelId": "Model ID",
+            "apiKey": "API Key",
+            "limitRpm": "Limit RPM",
+            "isPaid": "Is Paid",
+            "isPaidDescription": "Check if this key belongs to a paid plan."
+        },
+        "table": {
+            "provider": "Provider",
+            "model": "Model",
+            "keyMasked": "Key (Masked)",
+            "tier": "Tier",
+            "usageMinute": "Usage (Minute)",
+            "actions": "Actions",
+            "reqs": "Reqs"
+        },
+        "chart": {
+            "title": "Request Volume",
+            "description": "Traffic distribution by provider",
+            "last3Months": "Last 3 months",
+            "last30Days": "Last 30 days",
+            "last7Days": "Last 7 days"
+        },
+        "messages": {
+            "keyAdded": "Key added successfully",
+            "keyDeleted": "Key deleted",
+            "deleteConfirm": "Are you sure you want to delete this key?",
+            "errorConnection": "Connection error",
+            "errorDeleting": "Error deleting key"
+        }
     }
 }
