@@ -234,7 +234,11 @@ export function ChatInterface({ id, initialMessages = [] }: ChatInterfaceProps) 
                             >
                                 {isAssistant ? (
                                     <div className="group flex w-full flex-col gap-0">
-                                        <RichMessage content={content || (isLoading && isLastMessage ? '...' : '')} role="assistant" />
+                                        <RichMessage
+                                            content={content || (isLoading && isLastMessage ? '...' : '')}
+                                            role="assistant"
+                                            message={msg}
+                                        />
 
                                         <MessageActions
                                             className={cn(

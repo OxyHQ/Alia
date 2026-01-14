@@ -1,13 +1,13 @@
 // Internal Alia Chat API - uses AI SDK natively for the frontend
 // This is separate from /api/v1/chat/completions which is OpenAI-compatible for external clients
 
-import { streamText, convertToModelMessages, UIMessage, stepCountIs } from 'ai'
+import { streamText, convertToModelMessages, UIMessage, stepCountIs, type ToolSet } from 'ai'
 import { createGoogleGenerativeAI } from '@ai-sdk/google'
 import { createOpenAI } from '@ai-sdk/openai'
 import { createAnthropic } from '@ai-sdk/anthropic'
 import { getBestAvailableKey, loadKeys } from '@/lib/load-balancer'
 import type { KeyConfig } from '@/lib/types'
-import { getCurrentDateTool, createGoogleSearchTool } from '@/lib/tools'
+import { getCurrentDateTool, createGoogleSearchTool, getTimelineTool, searchKnowledgeBaseTool } from '@/lib/tools'
 
 const keyPool = loadKeys()
 
@@ -55,11 +55,62 @@ function getAIModel(keyConfig: KeyConfig) {
   }
 }
 
-// Get Google API key for search tool (prefer Google keys)
 function getGoogleApiKey(): string | null {
   const googleKey = keyPool.find(k => k.provider === 'google')
   return googleKey?.key || null
 }
+
+const ALIA_SYSTEM_PROMPT = `Eres Alia, un asistente de IA inteligente, amigable y servicial. Tu objetivo es ayudar al usuario de la manera más eficiente y visualmente atractiva posible.
+
+═══════════════════════════════════════════════════════════════════
+REGLAS DE FORMATO VISUAL (OBLIGATORIO)
+═══════════════════════════════════════════════════════════════════
+
+Para que la interfaz muestre elementos ricos, DEBES usar los siguientes bloques de formato siempre que sea apropiado:
+
+1. LISTAS COMPACTAS [COMPACTLIST]:
+Usa esto SIEMPRE que presentes una lista de resultados, documentos, enlaces o ítems. NUNCA uses listas normales de markdown para resultados.
+Formato:
+[COMPACTLIST title="Título de la lista"]
+- {"title": "Nombre del ítem", "href": "/url/opcional", "meta": "información adicional"}
+- {"title": "Otro ítem", "meta": "Solo meta"}
+[/COMPACTLIST]
+
+2. BANNERS E INFOBOXES [BANNER]:
+Usa esto para avisos importantes. Formato: [BANNER type="info|success|warning|danger" title="Título"]Contenido[/BANNER]
+
+3. COMPARACIONES [COMPARISON]:
+Formato:
+[COMPARISON title="Título"]
+LEFT: {"title": "A", "content": "B", "source": "C", "tone": "danger"}
+RIGHT: {"title": "X", "content": "Y", "source": "Z", "tone": "success"}
+CONCLUSION: Resumen.
+[/COMPARISON]
+
+4. CRONOLOGÍAS [TIMELINE]:
+Usa esto para eventos temporales. Formato:
+[TIMELINE title="Título"]
+- {"date": "Fecha", "title": "Título", "description": "Desc"}
+[/TIMELINE]
+
+5. INDICADORES DE CREDIBILIDAD [CREDIBILITY]:
+Formato: [CREDIBILITY level="1-5" source="Fuente" warning="Aviso" /]
+
+═══════════════════════════════════════════════════════════════════
+HERRAMIENTAS
+═══════════════════════════════════════════════════════════════════
+
+- getCurrentDate: Obtener fecha/hora hoy.
+- googleSearch: Buscar en internet (info reciente/externa).
+- getTimeline: Obtener cronología de eventos.
+- searchKnowledgeBase: Buscar en base de datos interna.
+
+REGLAS:
+- Responde siempre en el mismo idioma que el usuario.
+- Siempre usa [COMPACTLIST] para enumerar resultados de búsqueda.
+- Si hay contradicciones, usa [COMPARISON].
+- Si el usuario pregunta por fechas o historia, usa getTimeline y el bloque [TIMELINE].
+`;
 
 export async function POST(req: Request) {
   try {
@@ -70,63 +121,33 @@ export async function POST(req: Request) {
       return Response.json({ error: 'No messages provided' }, { status: 400 })
     }
     
-    // Get best available key from pool
     const keyConfig = getBestAvailableKey(keyPool)
-    if (!keyConfig) {
-      return Response.json({ error: 'All providers are rate limited. Please try again later.' }, { status: 503 })
-    }
+    if (!keyConfig) return Response.json({ error: 'No keys available' }, { status: 503 })
     
-    const keyPreview = keyConfig.key.slice(0, 8) + '...'
-    console.log(`🔹 [Alia/Chat] Using ${keyConfig.provider}/${keyConfig.modelId} [${keyPreview}]`)
-    
-    // Get the AI model
     const model = getAIModel(keyConfig)
-    
-    // Convert UI messages to model format
     const modelMessages = await convertToModelMessages(messages)
     
-    // Build tools object
     const googleApiKey = getGoogleApiKey()
-    const tools = {
+    const tools: ToolSet = {
       getCurrentDate: getCurrentDateTool,
+      getTimeline: getTimelineTool,
+      searchKnowledgeBase: searchKnowledgeBaseTool,
       ...(googleApiKey ? { googleSearch: createGoogleSearchTool(googleApiKey) } : {})
     }
     
-    // Stream the response using AI SDK
     const result = streamText({
       model,
       messages: modelMessages,
       tools,
-      stopWhen: stepCountIs(5), // Allow up to 5 tool call rounds
-      system: `Eres Alia, un asistente de IA amigable y servicial. 
-      
-Tienes acceso a las siguientes herramientas:
-- getCurrentDate: Para obtener la fecha y hora actual
-${googleApiKey ? '- googleSearch: Para buscar información actualizada en internet' : ''}
-
-Responde siempre en el mismo idioma que el usuario. Sé conciso pero útil.
-Cuando uses herramientas, explica brevemente lo que estás haciendo.`,
+      stopWhen: stepCountIs(5),
+      system: ALIA_SYSTEM_PROMPT,
+      temperature: 0.4,
     })
     
-    // Return as UI Message Stream Response (AI SDK handles the protocol)
     return result.toUIMessageStreamResponse()
     
   } catch (e: any) {
     console.error('❌ [Alia/Chat] Error:', e)
     return Response.json({ error: e.message }, { status: 500 })
   }
-}
-
-export async function GET() {
-  const googleApiKey = getGoogleApiKey()
-  
-  return Response.json({
-    status: '🟢 Online',
-    service: 'Alia AI Chat',
-    description: 'Internal API for Alia frontend',
-    tools: {
-      getCurrentDate: true,
-      googleSearch: !!googleApiKey
-    }
-  })
 }
