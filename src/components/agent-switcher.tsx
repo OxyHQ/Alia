@@ -44,7 +44,7 @@ export function AgentSwitcher({
                             size="lg"
                             className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
                         >
-                            <div className="bg-sidebar-primary text-sidebar-primary-foreground flex aspect-square size-8 items-center justify-center rounded-lg">
+                            <div className="bg-sidebar-primary text-sidebar-primary-foreground flex aspect-square size-8 items-center justify-center squircle">
                                 <activeAgent.logo className="size-4" />
                             </div>
                             <div className="grid flex-1 text-left text-sm leading-tight">
@@ -69,7 +69,7 @@ export function AgentSwitcher({
                                 onClick={() => setActiveAgent(agent)}
                                 className="gap-2 p-2"
                             >
-                                <div className="flex size-6 items-center justify-center rounded-md border">
+                                <div className="flex size-6 items-center justify-center squircle border">
                                     <agent.logo className="size-3.5 shrink-0" />
                                 </div>
                                 {agent.name}
@@ -78,7 +78,7 @@ export function AgentSwitcher({
                         ))}
                         <DropdownMenuSeparator />
                         <DropdownMenuItem className="gap-2 p-2">
-                            <div className="flex size-6 items-center justify-center rounded-md border bg-transparent">
+                            <div className="flex size-6 items-center justify-center squircle border bg-transparent">
                                 <Plus className="size-4" />
                             </div>
                             <div className="text-muted-foreground font-medium">Crear Agente Personalizado</div>

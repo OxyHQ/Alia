@@ -45,7 +45,7 @@ const data = {
     user: {
         name: "Usuario",
         email: "user@alia.onl",
-        avatar: "/avatars/shadcn.jpg",
+        avatar: "https://github.com/shadcn.png",
     },
     agents: [
         {

@@ -1,0 +1,139 @@
+{
+    "common": {
+        "search": "Search",
+        "settings": "Settings",
+        "delete": "Delete",
+        "edit": "Edit",
+        "save": "Save",
+        "cancel": "Cancel",
+        "or": "Or",
+        "loading": "Loading...",
+        "error": "Error",
+        "more": "More",
+        "copy": "Copy",
+        "upvote": "Upvote",
+        "downvote": "Downvote"
+    },
+    "sidebar": {
+        "agents": "Alia Agents",
+        "createAgent": "Create Custom Agent",
+        "newChat": "New Chat",
+        "agentsMenu": "Agents",
+        "adminDashboard": "Admin Dashboard",
+        "recentHistory": "Recent History",
+        "deleteConfirmation": "Delete conversation?"
+    },
+    "agents": {
+        "alia": {
+            "name": "Alia",
+            "description": "Intelligent assistant for everything"
+        },
+        "developer": {
+            "name": "Alia Developer",
+            "description": "Programming and systems expert"
+        },
+        "socialManager": {
+            "name": "Alia Social Manager",
+            "description": "Social media and content strategist"
+        },
+        "business": {
+            "name": "Alia Business",
+            "description": "Business and market analyst"
+        }
+    },
+    "chat": {
+        "welcomeTitle": "Alia",
+        "welcomeSubtitle": "How can I help you today?",
+        "temporaryMode": "Temporary Mode",
+        "messagePlaceholder": "Message Alia",
+        "disclaimer": "Alia can make mistakes. Check important info.",
+        "resetChat": "Reset chat",
+        "prompts": {
+            "summarize": {
+                "title": "Summarize text",
+                "text": "Summarize this article in 3 key points:"
+            },
+            "email": {
+                "title": "Draft email",
+                "text": "Write a formal email requesting a meeting for..."
+            },
+            "ideas": {
+                "title": "Explore ideas",
+                "text": "Give me 5 creative ideas for a marketing campaign about..."
+            },
+            "code": {
+                "title": "Python code",
+                "text": "Write a Python script to analyze a CSV file."
+            }
+        }
+    },
+    "user": {
+        "user": "User",
+        "upgradeToPro": "Upgrade to Pro",
+        "account": "Account",
+        "billing": "Billing",
+        "notifications": "Notifications",
+        "logOut": "Log out"
+    },
+    "settings": {
+        "title": "Alia Settings",
+        "description": "Manage your account, billing, and preferences.",
+        "settingsTitle": "Settings",
+        "sections": {
+            "account": "Account",
+            "billing": "Billing",
+            "notifications": "Notifications",
+            "security": "Security",
+            "devices": "Devices"
+        },
+        "info": "Information",
+        "version": "Alia v1.0.4-build",
+        "account": {
+            "title": "Account",
+            "description": "Manage your profile information and email.",
+            "name": "Name",
+            "nameDefault": "Alia User",
+            "email": "Email",
+            "saveChanges": "Save changes"
+        },
+        "billing": {
+            "title": "Billing",
+            "description": "Manage your subscription and payment methods.",
+            "currentPlan": "Current Plan",
+            "aliaPro": "Alia Pro",
+            "nextPayment": "Your next payment of",
+            "willBeOn": "will be on February 14, 2026.",
+            "manageSubscription": "Manage subscription",
+            "viewInvoices": "View invoices",
+            "paymentMethods": "Payment methods",
+            "visaEnding": "Visa ending in",
+            "expires": "Expires"
+        },
+        "placeholder": {
+            "underConstruction": "This section is under construction."
+        }
+    },
+    "login": {
+        "welcome": "Welcome to Alia",
+        "noAccount": "Don't have an account?",
+        "signUp": "Sign up",
+        "email": "Email",
+        "login": "Login",
+        "continueWithApple": "Continue with Apple",
+        "continueWithGoogle": "Continue with Google",
+        "termsIntro": "By clicking continue, you agree to our",
+        "termsOfService": "Terms of Service",
+        "and": "and",
+        "privacyPolicy": "Privacy Policy"
+    },
+    "commandMenu": {
+        "placeholder": "Type a command or search...",
+        "noResults": "No results found.",
+        "suggestions": "Suggestions",
+        "newConversation": "New conversation",
+        "settings": "Settings",
+        "recentConversations": "Recent conversations",
+        "actions": "Actions",
+        "startTemporaryChat": "Start temporary chat"
+    }
+}

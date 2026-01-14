@@ -183,7 +183,7 @@ export function ChatInterface({ id, initialMessages = [] }: ChatInterfaceProps) 
                     {messages.length === 0 && (
                         <div className="flex flex-col items-center justify-center min-h-[50vh] text-center space-y-8 mt-4">
                             <div className="space-y-2">
-                                <div className="relative flex h-16 w-16 items-center justify-center rounded-2xl overflow-hidden mb-4 shadow-sm">
+                                <div className="relative flex h-16 w-16 items-center justify-center squircle overflow-hidden mb-4 shadow-sm mx-auto">
                                     {/* eslint-disable-next-line @next/next/no-img-element */}
                                     <img src="/icon-512-maskable.png" alt="Alia Logo" className="h-full w-full object-cover" />
                                 </div>
