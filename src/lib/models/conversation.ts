@@ -9,6 +9,7 @@ export interface IMessage {
 export interface IConversation extends Document {
   title: string;
   messages: IMessage[];
+  userId?: string; // ID del usuario propietario
   createdAt: Date;
   updatedAt: Date;
 }
@@ -22,8 +23,9 @@ const MessageSchema = new Schema<IMessage>({
 const ConversationSchema = new Schema<IConversation>({
   title: { type: String, required: true, default: 'Nueva Conversación' },
   messages: [MessageSchema],
+  userId: { type: Schema.Types.ObjectId, ref: 'User', required: false }, // Se añade referencia al usuario
 }, {
-  timestamps: true // Esto maneja createdAt y updatedAt automáticamente
+  timestamps: true
 });
 
 // Evitar recompilación del modelo en hot-reload

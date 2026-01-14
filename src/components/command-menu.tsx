@@ -15,6 +15,7 @@ import {
     History
 } from "lucide-react"
 import { useRouter } from "next/navigation"
+import { useTranslations } from 'next-intl'
 
 import {
     CommandDialog,
@@ -36,6 +37,7 @@ export function CommandMenu() {
     const [open, setOpen] = React.useState(false)
     const [conversations, setConversations] = React.useState<Conversation[]>([])
     const router = useRouter()
+    const t = useTranslations('commandMenu')
 
     React.useEffect(() => {
         const down = (e: KeyboardEvent) => {
@@ -79,28 +81,28 @@ export function CommandMenu() {
 
     return (
         <CommandDialog open={open} onOpenChange={setOpen}>
-            <CommandInput placeholder="Escribe un comando o busca..." />
+            <CommandInput placeholder={t('placeholder')} />
             <CommandList className="max-h-[min(450px,80vh)]">
-                <CommandEmpty>No se encontraron resultados.</CommandEmpty>
-                <CommandGroup heading="Sugerencias">
+                <CommandEmpty>{t('noResults')}</CommandEmpty>
+                <CommandGroup heading={t('suggestions')}>
                     <CommandItem
                         onSelect={() => runCommand(() => router.push("/"))}
                     >
                         <Plus className="mr-2 h-4 w-4" />
-                        <span>Nueva conversación</span>
+                        <span>{t('newConversation')}</span>
                         <CommandShortcut>⌘N</CommandShortcut>
                     </CommandItem>
                     <CommandItem
                         onSelect={() => runCommand(() => router.push("/settings"))}
                     >
                         <Settings className="mr-2 h-4 w-4" />
-                        <span>Configuración</span>
+                        <span>{t('settings')}</span>
                         <CommandShortcut>⌘S</CommandShortcut>
                     </CommandItem>
                 </CommandGroup>
                 <CommandSeparator />
                 {conversations.length > 0 && (
-                    <CommandGroup heading="Conversaciones recientes">
+                    <CommandGroup heading={t('recentConversations')}>
                         {conversations.map((conv) => (
                             <CommandItem
                                 key={conv._id}
@@ -113,14 +115,14 @@ export function CommandMenu() {
                     </CommandGroup>
                 )}
                 <CommandSeparator />
-                <CommandGroup heading="Acciones">
+                <CommandGroup heading={t('actions')}>
                     <CommandItem onSelect={() => runCommand(() => {
                         localStorage.setItem('alia-temporary-chat', 'true')
                         window.dispatchEvent(new Event('alia-temporary-chat-changed'))
                         router.push('/')
                     })}>
                         <Zap className="mr-2 h-4 w-4 text-yellow-500" />
-                        <span>Iniciar chat temporal</span>
+                        <span>{t('startTemporaryChat')}</span>
                     </CommandItem>
                 </CommandGroup>
             </CommandList>

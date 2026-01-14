@@ -36,6 +36,7 @@ import {
 import { useChat } from '@ai-sdk/react'
 import { DefaultChatTransport } from 'ai'
 import { RichMessage } from '@/components/rich-message'
+import { useTranslations } from 'next-intl'
 
 interface ChatInterfaceProps {
     id?: string
@@ -49,6 +50,8 @@ export function ChatInterface({ id, initialMessages = [] }: ChatInterfaceProps) 
     const [selectedModel, setSelectedModel] = useState("v1")
     const [isTemporary, setIsTemporary] = useState(false)
     const [input, setInput] = useState('')
+    const t = useTranslations('chat')
+    const tCommon = useTranslations('common')
 
     const getMessageText = useCallback((msg: any) => {
         if (typeof msg.content === 'string' && msg.content) return msg.content
@@ -187,13 +190,13 @@ export function ChatInterface({ id, initialMessages = [] }: ChatInterfaceProps) 
                                     {/* eslint-disable-next-line @next/next/no-img-element */}
                                     <img src="/icon-512-maskable.png" alt="Alia Logo" className="h-full w-full object-cover" />
                                 </div>
-                                <h1 className="text-3xl font-bold tracking-tight">Alia</h1>
-                                <h2 className="text-xl font-medium text-muted-foreground">¿En qué puedo ayudarte hoy?</h2>
+                                <h1 className="text-3xl font-bold tracking-tight">{t('welcomeTitle')}</h1>
+                                <h2 className="text-xl font-medium text-muted-foreground">{t('welcomeSubtitle')}</h2>
                                 {isTemporary && (
                                     <div className="flex justify-center mt-2 animate-in fade-in zoom-in duration-300">
                                         <Badge variant="secondary" className="px-2">
                                             <Ghost data-icon="inline-start" className="size-3 fill-current" />
-                                            Modo Temporal
+                                            {t('temporaryMode')}
                                         </Badge>
                                     </div>
                                 )}
@@ -201,10 +204,10 @@ export function ChatInterface({ id, initialMessages = [] }: ChatInterfaceProps) 
 
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 w-full max-w-2xl px-4">
                                 {[
-                                    { title: "Resumir texto", text: "Resume este artículo en 3 puntos clave:" },
-                                    { title: "Redactar correo", text: "Escribe un correo formal solicitando una reunión para..." },
-                                    { title: "Explorar ideas", text: "Dame 5 ideas creativas para una campaña de marketing sobre..." },
-                                    { title: "Código Python", text: "Escribe un script en Python para analizar un archivo CSV." }
+                                    { title: t('prompts.summarize.title'), text: t('prompts.summarize.text') },
+                                    { title: t('prompts.email.title'), text: t('prompts.email.text') },
+                                    { title: t('prompts.ideas.title'), text: t('prompts.ideas.text') },
+                                    { title: t('prompts.code.title'), text: t('prompts.code.text') }
                                 ].map((prompt, i) => (
                                     <button
                                         key={i}
@@ -246,7 +249,7 @@ export function ChatInterface({ id, initialMessages = [] }: ChatInterfaceProps) 
                                                 isLastMessage && !isLoading && "opacity-100"
                                             )}
                                         >
-                                            <MessageAction tooltip="Copy" delayDuration={100}>
+                                            <MessageAction tooltip={tCommon('copy')} delayDuration={100}>
                                                 <Button
                                                     variant="ghost"
                                                     size="icon"
@@ -256,7 +259,7 @@ export function ChatInterface({ id, initialMessages = [] }: ChatInterfaceProps) 
                                                     <Copy className="h-4 w-4" />
                                                 </Button>
                                             </MessageAction>
-                                            <MessageAction tooltip="Upvote" delayDuration={100}>
+                                            <MessageAction tooltip={tCommon('upvote')} delayDuration={100}>
                                                 <Button
                                                     variant="ghost"
                                                     size="icon"
@@ -265,7 +268,7 @@ export function ChatInterface({ id, initialMessages = [] }: ChatInterfaceProps) 
                                                     <ThumbsUp className="h-4 w-4" />
                                                 </Button>
                                             </MessageAction>
-                                            <MessageAction tooltip="Downvote" delayDuration={100}>
+                                            <MessageAction tooltip={tCommon('downvote')} delayDuration={100}>
                                                 <Button
                                                     variant="ghost"
                                                     size="icon"
@@ -286,7 +289,7 @@ export function ChatInterface({ id, initialMessages = [] }: ChatInterfaceProps) 
                                                 "flex gap-0 opacity-0 transition-opacity duration-150 group-hover:opacity-100"
                                             )}
                                         >
-                                            <MessageAction tooltip="Edit" delayDuration={100}>
+                                            <MessageAction tooltip={tCommon('edit')} delayDuration={100}>
                                                 <Button
                                                     variant="ghost"
                                                     size="icon"
@@ -295,7 +298,7 @@ export function ChatInterface({ id, initialMessages = [] }: ChatInterfaceProps) 
                                                     <Pencil className="h-4 w-4" />
                                                 </Button>
                                             </MessageAction>
-                                            <MessageAction tooltip="Delete" delayDuration={100}>
+                                            <MessageAction tooltip={tCommon('delete')} delayDuration={100}>
                                                 <Button
                                                     variant="ghost"
                                                     size="icon"
@@ -304,7 +307,7 @@ export function ChatInterface({ id, initialMessages = [] }: ChatInterfaceProps) 
                                                     <Trash className="h-4 w-4" />
                                                 </Button>
                                             </MessageAction>
-                                            <MessageAction tooltip="Copy" delayDuration={100}>
+                                            <MessageAction tooltip={tCommon('copy')} delayDuration={100}>
                                                 <Button
                                                     variant="ghost"
                                                     size="icon"
@@ -322,8 +325,8 @@ export function ChatInterface({ id, initialMessages = [] }: ChatInterfaceProps) 
                     })}
                     {error && (
                         <div className="p-4 rounded-lg bg-destructive/10 text-destructive text-sm border border-destructive/20">
-                            <strong>Error:</strong> {error.message}
-                            <Button variant="link" size="sm" className="text-destructive font-bold ml-2 h-auto p-0" onClick={() => setMessages([])}>Reiniciar chat</Button>
+                            <strong>{tCommon('error')}:</strong> {error.message}
+                            <Button variant="link" size="sm" className="text-destructive font-bold ml-2 h-auto p-0" onClick={() => setMessages([])}>{t('resetChat')}</Button>
                         </div>
                     )}
                 </div>
@@ -340,7 +343,7 @@ export function ChatInterface({ id, initialMessages = [] }: ChatInterfaceProps) 
                             className="rounded-3xl border shadow-[0_9px_9px_0px_rgba(0,0,0,0.01),0_2px_5px_0px_rgba(0,0,0,0.06)] px-3 py-1 bg-background"
                         >
                             <PromptInputTextarea
-                                placeholder="Message Alia"
+                                placeholder={t('messagePlaceholder')}
                                 className="min-h-[44px] text-base md:text-base py-3"
                                 value={input}
                                 onChange={(e) => setInput(e.target.value)}
@@ -361,7 +364,7 @@ export function ChatInterface({ id, initialMessages = [] }: ChatInterfaceProps) 
                                         type="button"
                                     >
                                         <Globe className="h-4 w-4" />
-                                        <span>Search</span>
+                                        <span>{tCommon('search')}</span>
                                     </Button>
                                     <Button
                                         variant="ghost"
@@ -391,7 +394,7 @@ export function ChatInterface({ id, initialMessages = [] }: ChatInterfaceProps) 
                         </PromptInput>
                     </form>
                     <div className="text-center mt-2">
-                        <p className="text-xs text-muted-foreground">Alia can make mistakes. Check important info.</p>
+                        <p className="text-xs text-muted-foreground">{t('disclaimer')}</p>
                     </div>
                 </div>
             </div>

@@ -1,5 +1,6 @@
 import * as React from "react"
 import { GalleryVerticalEnd } from "lucide-react"
+import { useTranslations } from 'next-intl'
 
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
@@ -15,6 +16,9 @@ export function LoginForm({
     className,
     ...props
 }: React.ComponentProps<"div">) {
+    const t = useTranslations('login')
+    const tCommon = useTranslations('common')
+
     return (
         <div className={cn("flex flex-col gap-6", className)} {...props}>
             <form>
@@ -30,13 +34,13 @@ export function LoginForm({
                             </div>
                             <span className="sr-only">Alia</span>
                         </a>
-                        <h1 className="text-xl font-bold">Welcome to Alia</h1>
+                        <h1 className="text-xl font-bold">{t('welcome')}</h1>
                         <FieldDescription>
-                            Don&apos;t have an account? <a href="#">Sign up</a>
+                            {t('noAccount')} <a href="#">{t('signUp')}</a>
                         </FieldDescription>
                     </div>
                     <Field>
-                        <FieldLabel htmlFor="email">Email</FieldLabel>
+                        <FieldLabel htmlFor="email">{t('email')}</FieldLabel>
                         <Input
                             id="email"
                             type="email"
@@ -45,14 +49,14 @@ export function LoginForm({
                         />
                     </Field>
                     <Field>
-                        <Button type="submit">Login</Button>
+                        <Button type="submit">{t('login')}</Button>
                     </Field>
                     <div className="relative my-4">
                         <div className="absolute inset-0 flex items-center">
                             <span className="w-full border-t" />
                         </div>
                         <div className="relative flex justify-center text-xs uppercase">
-                            <span className="bg-background px-2 text-muted-foreground">Or</span>
+                            <span className="bg-background px-2 text-muted-foreground">{tCommon('or')}</span>
                         </div>
                     </div>
                     <Field className="grid gap-4 sm:grid-cols-2">
@@ -63,7 +67,7 @@ export function LoginForm({
                                     fill="currentColor"
                                 />
                             </svg>
-                            Continue with Apple
+                            {t('continueWithApple')}
                         </Button>
                         <Button variant="outline" type="button">
                             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
@@ -72,14 +76,13 @@ export function LoginForm({
                                     fill="currentColor"
                                 />
                             </svg>
-                            Continue with Google
+                            {t('continueWithGoogle')}
                         </Button>
                     </Field>
                 </FieldGroup>
             </form>
             <FieldDescription className="px-6 text-center">
-                By clicking continue, you agree to our <a href="#">Terms of Service</a>{" "}
-                and <a href="#">Privacy Policy</a>.
+                {t('termsIntro')} <a href="#">{t('termsOfService')}</a> {t('and')} <a href="#">{t('privacyPolicy')}</a>.
             </FieldDescription>
         </div>
     )
