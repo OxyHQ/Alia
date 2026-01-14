@@ -47,6 +47,11 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
 
     const update: any = {};
     if (body.title) update.title = body.title;
+    if (body.folderId !== undefined) update.folderId = body.folderId || null;
+    if (body.icon !== undefined) update.icon = body.icon;
+    if (body.iconColor !== undefined) update.iconColor = body.iconColor;
+    if (body.isFavorite !== undefined) update.isFavorite = body.isFavorite;
+    if (body.isPublic !== undefined) update.isPublic = body.isPublic;
     
     let conversation;
 

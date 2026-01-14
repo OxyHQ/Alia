@@ -2,10 +2,15 @@
 
 import * as React from "react"
 import {
-    MoreHorizontal,
-    Ghost,
-    Search
-} from "lucide-react"
+    MoreHorizontalIcon,
+    UserIcon,
+    Search01Icon
+} from "@hugeicons/core-free-icons"
+import { createIcon } from "@/components/ui/hugeicon"
+
+const MoreHorizontal = createIcon(MoreHorizontalIcon)
+const Ghost = createIcon(UserIcon)
+const Search = createIcon(Search01Icon)
 
 import { Button } from "@/components/ui/button"
 import {

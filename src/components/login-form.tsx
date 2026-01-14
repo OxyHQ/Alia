@@ -1,7 +1,10 @@
 "use client"
 
 import * as React from "react"
-import { GalleryVerticalEnd } from "lucide-react"
+import { GalleryVerticalEndIcon as GalleryVerticalEndIconData } from "@hugeicons/core-free-icons"
+import { createIcon } from "@/components/ui/hugeicon"
+
+const GalleryVerticalEnd = createIcon(GalleryVerticalEndIconData)
 import { useTranslations } from 'next-intl'
 
 import { cn } from "@/lib/utils"

@@ -21,7 +21,7 @@ export async function GET() {
       userId,
       messages: { $not: { $size: 0 } }
     })
-      .select('title updatedAt createdAt') 
+      .select('title updatedAt createdAt folderId icon iconColor isFavorite isPublic') 
       .sort({ updatedAt: -1 })
       .limit(20);
       

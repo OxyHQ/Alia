@@ -434,11 +434,11 @@ function FormExample() {
                   <ComboboxContent>
                     <ComboboxEmpty>No frameworks found.</ComboboxEmpty>
                     <ComboboxList>
-                      {frameworks.map((item) => (
+                      {(item) => (
                         <ComboboxItem key={item} value={item}>
                           {item}
                         </ComboboxItem>
-                      ))}
+                      )}
                     </ComboboxList>
                   </ComboboxContent>
                 </Combobox>

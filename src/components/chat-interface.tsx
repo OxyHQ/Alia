@@ -5,19 +5,39 @@ import { useSession } from 'next-auth/react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import {
-    Plus,
-    Globe,
-    MoreHorizontal,
-    ArrowUp,
-    Ghost,
-    Copy,
-    Pencil,
-    ThumbsUp,
-    ThumbsDown,
-    Trash,
-    Zap,
-    Square
-} from 'lucide-react'
+    Add01Icon,
+    Globe02Icon,
+    MoreHorizontalIcon,
+    ArrowUp01Icon,
+    UserIcon,
+    Copy01Icon,
+    PencilEdit02Icon,
+    ThumbsUpIcon,
+    ThumbsDownIcon,
+    Delete02Icon,
+    FlashIcon,
+    SquareIcon,
+    AlertCircleIcon,
+    CheckmarkCircle01Icon,
+    InformationCircleIcon
+} from '@hugeicons/core-free-icons'
+import { createIcon } from '@/components/ui/hugeicon'
+
+const Plus = createIcon(Add01Icon)
+const Globe = createIcon(Globe02Icon)
+const MoreHorizontal = createIcon(MoreHorizontalIcon)
+const ArrowUp = createIcon(ArrowUp01Icon)
+const Ghost = createIcon(UserIcon)
+const Copy = createIcon(Copy01Icon)
+const Pencil = createIcon(PencilEdit02Icon)
+const ThumbsUp = createIcon(ThumbsUpIcon)
+const ThumbsDown = createIcon(ThumbsDownIcon)
+const Trash = createIcon(Delete02Icon)
+const Zap = createIcon(FlashIcon)
+const Square = createIcon(SquareIcon)
+const AlertTriangle = createIcon(AlertCircleIcon)
+const CheckCircle2 = createIcon(CheckmarkCircle01Icon)
+const Info = createIcon(InformationCircleIcon)
 import { useRouter } from 'next/navigation'
 import { cn } from "@/lib/utils"
 import {
@@ -205,7 +225,9 @@ export function ChatInterface({ id, initialMessages = [] }: ChatInterfaceProps) 
 
     const handleCopy = (content: string) => {
         navigator.clipboard.writeText(content)
-        toast.success(tCommon('copiedToClipboard'))
+        toast.success(tCommon('copy'), {
+            description: tCommon('copiedToClipboard'),
+        })
     }
 
     const handleVote = async (index: number, vote: 'up' | 'down') => {
@@ -221,6 +243,14 @@ export function ChatInterface({ id, initialMessages = [] }: ChatInterfaceProps) 
             i === index ? { ...m, vote: newVote } : m
         )
         setMessages(updatedMessages as any)
+
+        // Feedback
+        if (newVote) {
+            toast(newVote === 'up' ? tCommon('upvote') : tCommon('downvote'), {
+                description: t('feedbackSent'),
+                icon: newVote === 'up' ? <ThumbsUp className="size-4" /> : <ThumbsDown className="size-4" />
+            })
+        }
 
         if (!isAuthenticated) {
             const localConvs = JSON.parse(localStorage.getItem('alia-conversations') || '[]')

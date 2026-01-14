@@ -2,13 +2,21 @@
 
 import * as React from "react"
 import {
-    BadgeCheck,
-    Bell,
-    ChevronsUpDown,
-    CreditCard,
-    LogOut,
-    Sparkles,
-} from "lucide-react"
+    CheckmarkBadge01Icon,
+    Notification01Icon,
+    ArrowUpDownIcon,
+    CreditCardIcon,
+    Logout01Icon,
+    SparklesIcon,
+} from "@hugeicons/core-free-icons"
+import { createIcon } from "@/components/ui/hugeicon"
+
+const BadgeCheck = createIcon(CheckmarkBadge01Icon)
+const Bell = createIcon(Notification01Icon)
+const ChevronsUpDown = createIcon(ArrowUpDownIcon)
+const CreditCard = createIcon(CreditCardIcon)
+const LogOut = createIcon(Logout01Icon)
+const Sparkles = createIcon(SparklesIcon)
 import { useTranslations } from 'next-intl'
 
 import {

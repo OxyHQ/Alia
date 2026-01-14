@@ -2,14 +2,39 @@
 
 import * as React from "react"
 import {
-    Settings2,
-    Sparkles,
-    Users,
-    Bot,
-    Code,
-    Share2,
-    Briefcase
-} from "lucide-react"
+    Settings02Icon,
+    SparklesIcon,
+    UserGroupIcon,
+    ArtificialIntelligence01Icon,
+    CodeIcon,
+    Share05Icon,
+    Briefcase01Icon,
+    Chat01Icon,
+    MoreHorizontalIcon,
+    Delete02Icon,
+    CheckmarkBadge01Icon,
+    Notification01Icon,
+    ArrowUpDownIcon,
+    CreditCardIcon,
+    Logout01Icon,
+} from "@hugeicons/core-free-icons"
+import { createIcon } from "@/components/ui/hugeicon"
+
+const Settings2 = createIcon(Settings02Icon)
+const Sparkles = createIcon(SparklesIcon)
+const Users = createIcon(UserGroupIcon)
+const Bot = createIcon(ArtificialIntelligence01Icon)
+const Code = createIcon(CodeIcon)
+const Share2 = createIcon(Share05Icon)
+const Briefcase = createIcon(Briefcase01Icon)
+const MessageSquare = createIcon(Chat01Icon)
+const MoreHorizontal = createIcon(MoreHorizontalIcon)
+const Trash2 = createIcon(Delete02Icon)
+const BadgeCheck = createIcon(CheckmarkBadge01Icon)
+const Bell = createIcon(Notification01Icon)
+const ChevronsUpDown = createIcon(ArrowUpDownIcon)
+const CreditCard = createIcon(CreditCardIcon)
+const LogOut = createIcon(Logout01Icon)
 import { useTranslations } from 'next-intl'
 
 import { NavHistory } from "@/components/nav-history"

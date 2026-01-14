@@ -8,7 +8,10 @@ import {
   HoverCardTrigger,
 } from "@/components/ui/hover-card"
 import { cn } from "@/lib/utils"
-import { ExternalLink } from "lucide-react"
+import { LinkExternal01Icon } from "@hugeicons/core-free-icons"
+import { createIcon } from "@/components/ui/hugeicon"
+
+const ExternalLink = createIcon(LinkExternal01Icon)
 
 export type SourceProps = {
   href?: string

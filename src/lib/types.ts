@@ -51,3 +51,39 @@ export interface Provider {
     config?: ProviderConfig
   ) => Promise<ReadableStream>;
 }
+
+// ============== FOLDERS & CHAT HISTORY ==============
+
+export type FolderColor = "gray" | "red" | "orange" | "yellow" | "green" | "blue" | "purple" | "pink";
+
+export const FOLDER_COLORS: { value: FolderColor; label: string }[] = [
+  { value: "gray", label: "Gris" },
+  { value: "red", label: "Rojo" },
+  { value: "orange", label: "Naranja" },
+  { value: "yellow", label: "Amarillo" },
+  { value: "green", label: "Verde" },
+  { value: "blue", label: "Azul" },
+  { value: "purple", label: "Morado" },
+  { value: "pink", label: "Rosa" },
+];
+
+export interface ChatFolder {
+  id: string;
+  name: string;
+  color: FolderColor;
+  icon?: string;
+  parentId?: string | null;
+  isOpen?: boolean; // UI state
+}
+
+export interface ChatHistory {
+  id: string;
+  title: string;
+  updatedAt: string;
+  folderId?: string | null;
+  icon?: string;
+  iconColor?: string;
+  isFavorite?: boolean;
+  isPublic?: boolean;
+  messages?: any[]; // Only if needed locally
+}

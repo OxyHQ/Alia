@@ -8,12 +8,19 @@ import {
 } from "@/components/ui/collapsible"
 import { cn } from "@/lib/utils"
 import {
-  CheckCircle,
-  ChevronDown,
-  Loader2,
-  Settings,
-  XCircle,
-} from "lucide-react"
+  CheckmarkCircle01Icon,
+  ArrowDown01Icon,
+  Loading03Icon,
+  Settings02Icon,
+  CancelCircleIcon,
+} from "@hugeicons/core-free-icons"
+import { createIcon } from "@/components/ui/hugeicon"
+
+const CheckCircle = createIcon(CheckmarkCircle01Icon)
+const ChevronDown = createIcon(ArrowDown01Icon)
+const Loader2 = createIcon(Loading03Icon)
+const Settings = createIcon(Settings02Icon)
+const XCircle = createIcon(CancelCircleIcon)
 import { useState } from "react"
 
 export type ToolPart = {

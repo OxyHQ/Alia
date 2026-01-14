@@ -1,12 +1,17 @@
 "use client"
 
 import {
-    Folder,
-    Forward,
-    MoreHorizontal,
-    Trash2,
-    type LucideIcon,
-} from "lucide-react"
+    Folder01Icon,
+    Share05Icon,
+    MoreHorizontalIcon,
+    Delete02Icon,
+} from "@hugeicons/core-free-icons"
+import { createIcon } from "@/components/ui/hugeicon"
+
+const Folder = createIcon(Folder01Icon)
+const Forward = createIcon(Share05Icon)
+const MoreHorizontal = createIcon(MoreHorizontalIcon)
+const Trash2 = createIcon(Delete02Icon)
 
 import {
     DropdownMenu,
@@ -31,7 +36,7 @@ export function NavProjects({
     projects: {
         name: string
         url: string
-        icon: LucideIcon
+        icon: React.ElementType
     }[]
 }) {
     const { isMobile } = useSidebar()

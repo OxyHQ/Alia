@@ -10,7 +10,10 @@ import {
 } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Trash2 } from 'lucide-react'
+import { Delete02Icon as Delete02IconData } from '@hugeicons/core-free-icons'
+import { createIcon } from '@/components/ui/hugeicon'
+
+const Delete02Icon = createIcon(Delete02IconData)
 import { useTranslations } from 'next-intl'
 
 interface KeyData {
@@ -86,7 +89,7 @@ export function KeysTable({ data, onDelete }: KeysTableProps) {
                                     size="icon"
                                     onClick={() => onDelete(key.key)}
                                 >
-                                    <Trash2 className="w-4 h-4 text-muted-foreground hover:text-destructive" />
+                                    <Delete02Icon className="w-4 h-4 text-muted-foreground hover:text-destructive" />
                                 </Button>
                             </TableCell>
                         </TableRow>
