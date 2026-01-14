@@ -28,7 +28,13 @@ export type CredibilityBlock = {
 
 export type CompactListBlock = {
     title?: string;
-    items: Array<{ title: string; href?: string; meta?: string }>;
+    items: Array<{ title: string; href?: string; meta?: string; image?: string }>;
+};
+
+export type ImageBlock = {
+    url: string;
+    title?: string;
+    caption?: string;
 };
 
 const BANNER_REGEX = /\[BANNER(?:\s+type="([^"]+)")?(?:\s+title="([^"]*)")?\]([\s\S]*?)\[\/BANNER\]/gi;
@@ -37,6 +43,7 @@ const COMPARISON_REGEX = /\[COMPARISON(?:\s+title="([^"]*)")?\]([\s\S]*?)\[\/COM
 const TIMELINE_REGEX = /\[TIMELINE(?:\s+title="([^"]*)")?\]([\s\S]*?)\[\/TIMELINE\]/gi;
 const CREDIBILITY_REGEX = /\[CREDIBILITY\s+level="([1-5])"\s+source="([^"]+)"(?:\s+warning="([^"]*)")?\s*\/\]/gi;
 const COMPACTLIST_REGEX = /\[COMPACTLIST(?:\s+title="([^"]*)")?\]([\s\S]*?)\[\/COMPACTLIST\]/gi;
+const IMAGE_BLOCK_REGEX = /\[IMAGE\s+url="([^"]+)"(?:\s+title="([^"]*)")?(?:\s+caption="([^"]*)")?\s*\/\]/gi;
 
 export function extractBanners(text: string): { 
     banners: BannerBlock[]; 
@@ -44,6 +51,7 @@ export function extractBanners(text: string): {
     timelines: TimelineBlock[]; 
     credibility: CredibilityBlock[]; 
     compactLists: CompactListBlock[]; 
+    images: ImageBlock[];
     body: string 
 } {
     const banners: BannerBlock[] = [];
@@ -51,6 +59,7 @@ export function extractBanners(text: string): {
     const timelines: TimelineBlock[] = [];
     const credibility: CredibilityBlock[] = [];
     const compactLists: CompactListBlock[] = [];
+    const images: ImageBlock[] = [];
     let cleanedBody = text;
 
     const matches = [
@@ -148,7 +157,7 @@ export function extractBanners(text: string): {
 
         // Parse list items: - {"title": "...", "href": "...", "meta": "..."}  or  - Simple text
         const itemLines = inner.match(/-\s*(.+)$/gm) || [];
-        const items: Array<{ title: string; href?: string; meta?: string }> = [];
+        const items: Array<{ title: string; href?: string; meta?: string; image?: string }> = [];
 
         itemLines.forEach((line) => {
             const content = line.replace(/^-\s*/, "").trim();
@@ -161,6 +170,7 @@ export function extractBanners(text: string): {
                         title: parsed.title || content,
                         href: parsed.href,
                         meta: parsed.meta,
+                        image: parsed.image,
                     });
                 } catch {
                     // Not valid JSON, treat as plain text
@@ -177,7 +187,18 @@ export function extractBanners(text: string): {
         cleanedBody = cleanedBody.replace(match[0], "");
     });
 
+    // Extract IMAGE blocks
+    const imgMatches = [...text.matchAll(IMAGE_BLOCK_REGEX)];
+    imgMatches.forEach((match) => {
+        const url = match[1];
+        const title = match[2] ? match[2].trim() : undefined;
+        const caption = match[3] ? match[3].trim() : undefined;
+
+        images.push({ url, title, caption });
+        cleanedBody = cleanedBody.replace(match[0], "");
+    });
+
     cleanedBody = cleanedBody.replace(/\n{3,}/g, "\n\n").trim();
 
-    return { banners, comparisons, timelines, credibility, compactLists, body: cleanedBody };
+    return { banners, comparisons, timelines, credibility, compactLists, images, body: cleanedBody };
 }
