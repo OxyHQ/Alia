@@ -47,10 +47,12 @@ import {
 import { extractBanners } from '@/lib/message-parser'
 import {
     Message as UIMessage,
+    MessageAvatar,
     MessageAction,
     MessageActions,
     MessageContent,
 } from "@/components/prompt-kit/message"
+import { DotsLoader } from "@/components/prompt-kit/loader"
 import {
     PromptInput,
     PromptInputTextarea
@@ -350,7 +352,7 @@ export function ChatInterface({ id, initialMessages = [] }: ChatInterfaceProps) 
                                     <button
                                         key={i}
                                         onClick={() => handleSubmit(undefined, prompt.text)}
-                                        className="flex flex-col items-start p-4 space-y-1 text-left transition-colors border rounded-xl hover:bg-muted/50 focus:bg-muted/50"
+                                        className="flex flex-col items-start p-4 space-y-1 text-left transition-colors border rounded-xl hover:bg-muted/50 focus:bg-muted/50 cursor-pointer"
                                     >
                                         <span className="font-medium text-sm">{prompt.title}</span>
                                         <span className="text-muted-foreground text-xs line-clamp-1">{prompt.text}</span>
@@ -369,19 +371,25 @@ export function ChatInterface({ id, initialMessages = [] }: ChatInterfaceProps) 
                             <UIMessage
                                 key={msg.id || i}
                                 className={cn(
-                                    "mx-auto flex w-full max-w-3xl flex-col gap-2 px-0",
-                                    isAssistant ? "items-start" : "items-end"
+                                    "mx-auto flex w-full max-w-3xl gap-2 px-0",
+                                    !isAssistant && "justify-end"
                                 )}
                             >
                                 {isAssistant ? (
-                                    <div className="group flex w-full flex-col gap-0">
-                                        <RichMessage
-                                            content={content || (isLoading && isLastMessage ? '...' : '')}
-                                            role="assistant"
-                                            message={msg}
+                                    <>
+                                        <MessageAvatar
+                                            src="/icon-512-maskable.png"
+                                            alt="Alia"
+                                            fallback="A"
                                         />
+                                        <div className="group flex w-full flex-col gap-0">
+                                            <RichMessage
+                                                content={content || (isLoading && isLastMessage ? '...' : '')}
+                                                role="assistant"
+                                                message={msg}
+                                            />
 
-                                        <MessageActions
+                                            <MessageActions
                                             className={cn(
                                                 "-ml-2.5 flex gap-0 opacity-0 transition-opacity duration-150 group-hover:opacity-100",
                                                 isLastMessage && !isLoading && "opacity-100"
@@ -423,11 +431,12 @@ export function ChatInterface({ id, initialMessages = [] }: ChatInterfaceProps) 
                                                     <ThumbsDown className={cn("h-4 w-4", (msg as any).vote === 'down' && "fill-current")} />
                                                 </Button>
                                             </MessageAction>
-                                        </MessageActions>
-                                    </div>
+                                            </MessageActions>
+                                        </div>
+                                    </>
                                 ) : (
-                                    <div className="group flex flex-col items-end gap-1">
-                                        <MessageContent className="bg-muted text-foreground max-w-[85%] rounded-2xl px-4 py-2 sm:max-w-[75%] break-words">
+                                    <div className="group flex w-full flex-col items-end gap-1">
+                                        <MessageContent className="bg-muted text-primary max-w-[85%] rounded-3xl px-5 py-2.5 whitespace-pre-wrap sm:max-w-[75%] break-words">
                                             {content}
                                         </MessageContent>
                                         <MessageActions
@@ -469,6 +478,18 @@ export function ChatInterface({ id, initialMessages = [] }: ChatInterfaceProps) 
                             </UIMessage>
                         )
                     })}
+                    {isLoading && (
+                        <UIMessage className="mx-auto flex w-full max-w-3xl gap-2 px-0">
+                            <MessageAvatar
+                                src="/icon-512-maskable.png"
+                                alt="Alia"
+                                fallback="A"
+                            />
+                            <div className="flex items-center">
+                                <DotsLoader />
+                            </div>
+                        </UIMessage>
+                    )}
                     {error && (
                         <div className="p-4 rounded-lg bg-destructive/10 text-destructive text-sm border border-destructive/20">
                             <strong>{tCommon('error')}:</strong> {error.message}

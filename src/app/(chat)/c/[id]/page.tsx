@@ -15,11 +15,14 @@ export default async function ConversationPage({ params }: { params: { id: strin
             const conversation = await Conversation.findById(id).lean() as any;
 
             if (conversation) {
-                messages = (conversation.messages || []).map((m: any) => ({
-                    role: m.role,
-                    content: m.content,
-                    vote: m.vote
-                }));
+                messages = (conversation.messages || [])
+                    .sort((a: any, b: any) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime())
+                    .map((m: any, index: number) => ({
+                        id: `msg-${index}-${Date.now()}`,
+                        role: m.role,
+                        content: m.content,
+                        vote: m.vote
+                    }));
             }
         } catch (e) {
             console.error("Error fetching conversation from DB:", e);

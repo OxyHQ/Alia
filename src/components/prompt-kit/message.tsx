@@ -4,6 +4,7 @@ import * as React from "react"
 import { cn } from "@/lib/utils"
 import { Markdown } from "@/components/ui/markdown"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 
 function Message({
     className,
@@ -11,9 +12,34 @@ function Message({
     ...props
 }: React.ComponentProps<"div">) {
     return (
-        <div className={cn("flex flex-col gap-2", className)} {...props}>
+        <div className={cn("flex gap-3", className)} {...props}>
             {children}
         </div>
+    )
+}
+
+interface MessageAvatarProps {
+    src: string
+    alt: string
+    fallback?: string
+    delayMs?: number
+    className?: string
+}
+
+function MessageAvatar({
+    src,
+    alt,
+    fallback,
+    delayMs,
+    className,
+}: MessageAvatarProps) {
+    return (
+        <Avatar className={cn("h-8 w-8 shrink-0", className)}>
+            <AvatarImage src={src} alt={alt} />
+            {fallback && (
+                <AvatarFallback delayMs={delayMs}>{fallback}</AvatarFallback>
+            )}
+        </Avatar>
     )
 }
 
@@ -73,4 +99,4 @@ function MessageAction({
     )
 }
 
-export { Message, MessageContent, MessageActions, MessageAction }
+export { Message, MessageAvatar, MessageContent, MessageActions, MessageAction }
