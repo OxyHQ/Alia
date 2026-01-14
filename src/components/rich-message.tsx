@@ -94,7 +94,7 @@ export function RichMessage({ content, role, id, message }: RichMessageProps) {
                             <div className="flex items-center gap-2 mb-1">
                                 <h4 className="font-semibold leading-tight">{banner.title || "Aviso"}</h4>
                             </div>
-                            <p className="text-sm opacity-90 whitespace-pre-wrap">{banner.content}</p>
+                            <p className="text-base opacity-90 whitespace-pre-wrap leading-relaxed">{banner.content}</p>
                         </div>
                     ))}
                 </div>
@@ -133,13 +133,13 @@ export function RichMessage({ content, role, id, message }: RichMessageProps) {
                                     <div className="flex items-center gap-2 mb-2 font-medium">
                                         <span className="text-sm break-words leading-tight">{comp.left.title}</span>
                                     </div>
-                                    <p className="text-sm text-muted-foreground whitespace-pre-wrap">{comp.left.content}</p>
+                                    <p className="text-[15px] text-muted-foreground whitespace-pre-wrap leading-relaxed">{comp.left.content}</p>
                                 </div>
                                 <div className={cn("p-4 min-w-0", comp.right.tone === 'success' ? 'bg-green-50/30' : 'bg-muted/10')}>
                                     <div className="flex items-center gap-2 mb-2 font-medium">
                                         <span className="text-sm break-words leading-tight">{comp.right.title}</span>
                                     </div>
-                                    <p className="text-sm text-muted-foreground whitespace-pre-wrap">{comp.right.content}</p>
+                                    <p className="text-[15px] text-muted-foreground whitespace-pre-wrap leading-relaxed">{comp.right.content}</p>
                                 </div>
                             </div>
                             {comp.conclusion && (
@@ -168,8 +168,8 @@ export function RichMessage({ content, role, id, message }: RichMessageProps) {
                                             <div className="absolute left-0 top-1.5 h-4 w-4 rounded-full border-2 border-primary bg-background z-10" />
                                             <div className="flex flex-col min-w-0 gap-1">
                                                 <Badge variant="outline" className="text-xs w-fit shrink-0">{event.date}</Badge>
-                                                <span className="font-medium text-sm leading-tight break-words">{event.title}</span>
-                                                {event.description && <p className="text-xs text-muted-foreground whitespace-pre-wrap leading-normal">{event.description}</p>}
+                                                <span className="font-medium text-[15px] leading-tight break-words">{event.title}</span>
+                                                {event.description && <p className="text-sm text-muted-foreground whitespace-pre-wrap leading-relaxed">{event.description}</p>}
                                             </div>
                                         </div>
                                     ))}

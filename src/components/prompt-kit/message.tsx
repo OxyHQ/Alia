@@ -29,11 +29,11 @@ function MessageContent({
     ...props
 }: MessageContentProps) {
     return (
-        <div className={cn("text-sm", className)} {...props}>
+        <div className={cn(className)} {...props}>
             {markdown ? (
                 <Markdown>{children}</Markdown>
             ) : (
-                <p className="whitespace-pre-wrap">{children}</p>
+                <p className="whitespace-pre-wrap leading-relaxed">{children}</p>
             )}
         </div>
     )
