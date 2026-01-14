@@ -27,6 +27,20 @@ import {
 } from "@/components/ui/sidebar"
 
 // Data for the sidebar
+const AliaLogo = (props: React.ComponentProps<"img">) => {
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { className, ...rest } = props
+    return (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+            src="/icon-512-maskable.png"
+            alt="Alia"
+            className="size-full object-cover"
+            {...rest}
+        />
+    )
+}
+
 const data = {
     user: {
         name: "Usuario",
@@ -36,7 +50,7 @@ const data = {
     agents: [
         {
             name: "Alia",
-            logo: Bot,
+            logo: AliaLogo,
             description: "Asistente inteligente para todo",
         },
         {

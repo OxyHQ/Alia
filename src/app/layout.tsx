@@ -21,6 +21,11 @@ const inter = Inter({ subsets: ["latin"], variable: "--font-sans" });
 export const metadata: Metadata = {
   title: "Alia - AI Agent Platform",
   description: "Tu plataforma de agentes de IA especializados.",
+  icons: {
+    icon: "/icon-512-maskable.png",
+    shortcut: "/icon-512-maskable.png",
+    apple: "/icon-512-maskable.png",
+  },
 };
 
 import { CommandMenu } from "@/components/command-menu"

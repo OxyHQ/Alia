@@ -79,8 +79,8 @@ export function loadKeys(): KeyConfig[] {
   };
 
   const configParams = {
-    google: { modelId: "gemini-2.5-flash", rpm: 30, rpd: 1000 },
-    groq: { modelId: "llama-3.3-70b-versatile", rpm: 30 },
+    google: { modelId: "gemini-2.0-flash", rpm: 30, rpd: 1000 },
+    groq: { modelId: "llama3-70b-8192", rpm: 30 },
     openai: { modelId: "gpt-4o", rpm: 500, isPaid: true }
   } as Record<string, any>;
 

@@ -8,7 +8,6 @@ import {
     FieldDescription,
     FieldGroup,
     FieldLabel,
-    FieldSeparator,
 } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 
@@ -25,12 +24,13 @@ export function LoginForm({
                             href="#"
                             className="flex flex-col items-center gap-2 font-medium"
                         >
-                            <div className="flex size-8 items-center justify-center rounded-md">
-                                <GalleryVerticalEnd className="size-6" />
+                            <div className="flex size-8 items-center justify-center rounded-md overflow-hidden">
+                                {/* eslint-disable-next-line @next/next/no-img-element */}
+                                <img src="/icon-512-maskable.png" alt="Alia" className="size-full object-cover" />
                             </div>
-                            <span className="sr-only">Acme Inc.</span>
+                            <span className="sr-only">Alia</span>
                         </a>
-                        <h1 className="text-xl font-bold">Welcome to Acme Inc.</h1>
+                        <h1 className="text-xl font-bold">Welcome to Alia</h1>
                         <FieldDescription>
                             Don&apos;t have an account? <a href="#">Sign up</a>
                         </FieldDescription>
@@ -47,7 +47,14 @@ export function LoginForm({
                     <Field>
                         <Button type="submit">Login</Button>
                     </Field>
-                    <FieldSeparator>Or</FieldSeparator>
+                    <div className="relative my-4">
+                        <div className="absolute inset-0 flex items-center">
+                            <span className="w-full border-t" />
+                        </div>
+                        <div className="relative flex justify-center text-xs uppercase">
+                            <span className="bg-background px-2 text-muted-foreground">Or</span>
+                        </div>
+                    </div>
                     <Field className="grid gap-4 sm:grid-cols-2">
                         <Button variant="outline" type="button">
                             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
