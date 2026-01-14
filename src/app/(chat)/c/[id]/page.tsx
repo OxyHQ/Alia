@@ -6,27 +6,25 @@ import { notFound } from 'next/navigation'
 export default async function ConversationPage({ params }: { params: { id: string } }) {
     const { id } = await Promise.resolve(params); // Next 15 compat
 
-    if (!id.match(/^[0-9a-fA-F]{24}$/)) {
-        return notFound();
-    }
+    let messages: { role: string; content: string }[] = [];
 
-    try {
-        await connectDB();
-        const conversation = await Conversation.findById(id).lean();
+    // Only try to fetch from DB if it looks like a Mongo ID
+    if (id.match(/^[0-9a-fA-F]{24}$/)) {
+        try {
+            await connectDB();
+            const conversation = await Conversation.findById(id).lean() as any;
 
-        if (!conversation) {
-            return notFound();
+            if (conversation) {
+                messages = (conversation.messages || []).map((m: any) => ({
+                    role: m.role,
+                    content: m.content,
+                    vote: m.vote
+                }));
+            }
+        } catch (e) {
+            console.error("Error fetching conversation from DB:", e);
         }
-
-        // Serializar fechas y datos para Client Component
-        const messages = (conversation.messages || []).map((m: any) => ({
-            role: m.role,
-            content: m.content
-        }));
-
-        return <ChatInterface id={id} initialMessages={messages} />
-    } catch (e) {
-        console.error(e);
-        return notFound();
     }
+
+    return <ChatInterface id={id} initialMessages={messages} />
 }

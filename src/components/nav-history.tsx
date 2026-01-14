@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
+import { useSession } from "next-auth/react"
 import { MessageSquare, MoreHorizontal, Trash2 } from "lucide-react"
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
@@ -29,12 +30,20 @@ interface Conversation {
 
 export function NavHistory() {
     const [conversations, setConversations] = useState<Conversation[]>([])
+    const { data: session, status: authStatus } = useSession()
+    const isAuthenticated = authStatus === 'authenticated'
     const pathname = usePathname()
     const router = useRouter()
     const t = useTranslations('sidebar')
     const tCommon = useTranslations('common')
 
     const fetchConversations = async () => {
+        if (!isAuthenticated) {
+            const localConvs = JSON.parse(localStorage.getItem('alia-conversations') || '[]')
+            setConversations(localConvs)
+            return
+        }
+
         try {
             const res = await fetch('/api/conversations')
             if (res.ok) {
@@ -59,6 +68,17 @@ export function NavHistory() {
         e.stopPropagation();
 
         if (!confirm(t('deleteConfirmation'))) return
+
+        if (!isAuthenticated) {
+            const localConvs = JSON.parse(localStorage.getItem('alia-conversations') || '[]')
+            const filtered = localConvs.filter((c: any) => c._id !== id)
+            localStorage.setItem('alia-conversations', JSON.stringify(filtered))
+            fetchConversations()
+            if (pathname === `/c/${id}`) {
+                router.push('/')
+            }
+            return
+        }
 
         try {
             await fetch(`/api/conversations/${id}`, { method: 'DELETE' })
