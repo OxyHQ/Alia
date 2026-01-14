@@ -33,8 +33,10 @@ import {
 } from "@/components/ui/sidebar"
 import { SettingsDialog } from "@/components/settings-dialog"
 
+import { useSession, signOut } from "next-auth/react"
+
 export function NavUser({
-    user,
+    user: initialUser,
 }: {
     user: {
         name: string
@@ -42,15 +44,25 @@ export function NavUser({
         avatar: string
     }
 }) {
+    const { data: session } = useSession()
     const { isMobile } = useSidebar()
     const [settingsOpen, setSettingsOpen] = React.useState(false)
     const [initialSection, setInitialSection] = React.useState<"account" | "billing">("account")
     const t = useTranslations('user')
 
+    const user = session?.user ? {
+        name: session.user.name || initialUser.name,
+        email: session.user.email || initialUser.email,
+        avatar: session.user.image || initialUser.avatar
+    } : initialUser
+
     const openSettings = (section: "account" | "billing") => {
         setInitialSection(section)
         setSettingsOpen(true)
     }
+
+    // Si no hay sesión, podríamos mostrar un botón de "Iniciar sesión"
+    // Pero por ahora, NavUser se muestra siempre, así que usaremos los datos de la sesión si existen.
 
     return (
         <div className="relative">
@@ -64,7 +76,9 @@ export function NavUser({
                             >
                                 <Avatar className="h-8 w-8 rounded-lg">
                                     <AvatarImage src={user.avatar} alt={user.name} />
-                                    <AvatarFallback className="rounded-lg">CN</AvatarFallback>
+                                    <AvatarFallback className="rounded-lg">
+                                        {user.name?.slice(0, 2).toUpperCase() || "AI"}
+                                    </AvatarFallback>
                                 </Avatar>
                                 <div className="grid flex-1 text-left text-sm leading-tight">
                                     <span className="truncate font-medium">{user.name}</span>
@@ -83,7 +97,9 @@ export function NavUser({
                                 <div className="flex items-center gap-2 px-1 py-1.5 text-left text-sm">
                                     <Avatar className="h-8 w-8 rounded-lg">
                                         <AvatarImage src={user.avatar} alt={user.name} />
-                                        <AvatarFallback className="rounded-lg">CN</AvatarFallback>
+                                        <AvatarFallback className="rounded-lg">
+                                            {user.name?.slice(0, 2).toUpperCase() || "AI"}
+                                        </AvatarFallback>
                                     </Avatar>
                                     <div className="grid flex-1 text-left text-sm leading-tight">
                                         <span className="truncate font-medium">{user.name}</span>
@@ -114,7 +130,7 @@ export function NavUser({
                                 </DropdownMenuItem>
                             </DropdownMenuGroup>
                             <DropdownMenuSeparator />
-                            <DropdownMenuItem>
+                            <DropdownMenuItem onSelect={() => signOut()}>
                                 <LogOut />
                                 {t('logOut')}
                             </DropdownMenuItem>

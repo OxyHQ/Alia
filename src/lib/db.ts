@@ -29,10 +29,19 @@ export async function connectDB() {
   if (!cached.promise) {
     const opts = {
       bufferCommands: false,
+      maxPoolSize: 10,
+      serverSelectionTimeoutMS: 5000,
+      socketTimeoutMS: 45000,
     };
 
-    cached.promise = mongoose.connect(MONGODB_URI, opts).then((mongoose) => {
-      return mongoose;
+    console.log('🔄 Conectando a MongoDB...');
+    cached.promise = mongoose.connect(MONGODB_URI, opts).then((mongooseInstance) => {
+      console.log('✅ MongoDB conectado exitosamente');
+      return mongooseInstance;
+    }).catch((err) => {
+      console.error('❌ Error conectando a MongoDB:', err);
+      cached.promise = null; // Resetear promesa para permitir reintentos
+      throw err;
     });
   }
 
@@ -44,4 +53,9 @@ export async function connectDB() {
   }
 
   return cached.conn;
+}
+
+// Función auxiliar para verificar si la conexión está activa
+export function isConnected() {
+  return mongoose.connection.readyState === 1;
 }

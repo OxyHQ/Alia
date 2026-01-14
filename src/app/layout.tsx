@@ -32,6 +32,7 @@ export const metadata: Metadata = {
 };
 
 import { CommandMenu } from "@/components/command-menu"
+import { Providers } from "@/components/providers";
 
 export default async function RootLayout({
   children,
@@ -45,36 +46,38 @@ export default async function RootLayout({
     <html lang={locale} className={cn("dark", inter.variable)}>
       <body className={`${inter.className} antialiased`}>
         <NextIntlClientProvider messages={messages}>
-          <SidebarProvider>
-            <CommandMenu />
-            <AppSidebar />
-            <SidebarInset>
-              <header className="flex h-14 shrink-0 items-center gap-2">
-                <div className="flex flex-1 items-center gap-2 px-3">
-                  <SidebarTrigger />
-                  <Separator
-                    orientation="vertical"
-                    className="mr-2 data-[orientation=vertical]:h-4"
-                  />
-                  <Breadcrumb>
-                    <BreadcrumbList>
-                      <BreadcrumbItem>
-                        <BreadcrumbPage className="line-clamp-1">
-                          Alia
-                        </BreadcrumbPage>
-                      </BreadcrumbItem>
-                    </BreadcrumbList>
-                  </Breadcrumb>
+          <Providers>
+            <SidebarProvider>
+              <CommandMenu />
+              <AppSidebar />
+              <SidebarInset>
+                <header className="flex h-14 shrink-0 items-center gap-2">
+                  <div className="flex flex-1 items-center gap-2 px-3">
+                    <SidebarTrigger />
+                    <Separator
+                      orientation="vertical"
+                      className="mr-2 data-[orientation=vertical]:h-4"
+                    />
+                    <Breadcrumb>
+                      <BreadcrumbList>
+                        <BreadcrumbItem>
+                          <BreadcrumbPage className="line-clamp-1">
+                            Alia
+                          </BreadcrumbPage>
+                        </BreadcrumbItem>
+                      </BreadcrumbList>
+                    </Breadcrumb>
+                  </div>
+                  <div className="ml-auto px-3">
+                    <NavActions />
+                  </div>
+                </header>
+                <div className="flex flex-1 flex-col min-h-0">
+                  {children}
                 </div>
-                <div className="ml-auto px-3">
-                  <NavActions />
-                </div>
-              </header>
-              <div className="flex flex-1 flex-col min-h-0">
-                {children}
-              </div>
-            </SidebarInset>
-          </SidebarProvider>
+              </SidebarInset>
+            </SidebarProvider>
+          </Providers>
         </NextIntlClientProvider>
       </body>
     </html>
