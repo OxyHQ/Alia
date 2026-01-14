@@ -33,7 +33,7 @@ function MessageContent({
             {markdown ? (
                 <Markdown>{children}</Markdown>
             ) : (
-                <p className="whitespace-pre-wrap leading-relaxed">{children}</p>
+                <p className="whitespace-pre-wrap leading-[1.75]">{children}</p>
             )}
         </div>
     )

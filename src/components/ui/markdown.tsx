@@ -56,7 +56,7 @@ const INITIAL_COMPONENTS: Partial<Components> = {
     return <>{children}</>
   },
   p: function ParagraphComponent({ children }) {
-    return <p className="mb-4 last:mb-0 leading-relaxed">{children}</p>
+    return <p className="mb-4 last:mb-0 leading-[1.75]">{children}</p>
   },
   h1: function H1Component({ children }) {
     return <h1 className="text-2xl font-bold mt-6 mb-4">{children}</h1>
