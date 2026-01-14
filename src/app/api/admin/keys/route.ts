@@ -2,11 +2,12 @@ import { NextRequest } from 'next/server'
 import { getAllKeys, addKey, deleteKey, getKeyUsage } from '@/lib/load-balancer'
 
 export async function GET() {
-  const keys = getAllKeys()
-  const keysWithUsage = keys.map(k => {
-    const usage = getKeyUsage(k.key)
+  const keys = await getAllKeys()
+  const keysWithUsage = await Promise.all(keys.map(async (k: any) => {
+    const usage = await getKeyUsage(k.key)
+    const kObj = k.toObject ? k.toObject() : k;
     return {
-      ...k,
+      ...kObj,
       keyMasked: k.key.slice(0, 4) + '...' + k.key.slice(-4),
       usage: usage ? {
         rpm: usage.requestsMinute,
@@ -15,7 +16,7 @@ export async function GET() {
         tpd: usage.tokensDay
       } : null
     }
-  })
+  }))
   
   return Response.json(keysWithUsage)
 }
@@ -28,7 +29,7 @@ export async function POST(req: NextRequest) {
       return Response.json({ error: 'Faltan campos requeridos' }, { status: 400 })
     }
 
-    const newKey = addKey({
+    const newKey = await addKey({
       provider: body.provider,
       key: body.key,
       modelId: body.modelId,
@@ -48,7 +49,7 @@ export async function DELETE(req: NextRequest) {
     const { key } = await req.json()
     if (!key) return Response.json({ error: 'Key requerida' }, { status: 400 })
     
-    deleteKey(key)
+    await deleteKey(key)
     return Response.json({ success: true })
   } catch (e: any) {
     return Response.json({ error: e.message }, { status: 400 })

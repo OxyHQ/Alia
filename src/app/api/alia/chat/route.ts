@@ -9,8 +9,6 @@ import { getBestAvailableKey, loadKeys } from '@/lib/load-balancer'
 import type { KeyConfig } from '@/lib/types'
 import { getCurrentDateTool, createGoogleSearchTool, getTimelineTool, searchKnowledgeBaseTool, scrapeURLTool } from '@/lib/tools'
 
-const keyPool = loadKeys()
-
 // Create AI SDK provider based on key
 function getAIModel(keyConfig: KeyConfig) {
   const apiKey = keyConfig.key
@@ -53,11 +51,6 @@ function getAIModel(keyConfig: KeyConfig) {
     default:
       throw new Error(`Provider "${keyConfig.provider}" not supported for Alia chat`)
   }
-}
-
-function getGoogleApiKey(): string | null {
-  const googleKey = keyPool.find(k => k.provider === 'google')
-  return googleKey?.key || null
 }
 
 const ALIA_SYSTEM_PROMPT = `
@@ -161,13 +154,14 @@ export async function POST(req: Request) {
       return Response.json({ error: 'No messages provided' }, { status: 400 })
     }
     
-    const keyConfig = getBestAvailableKey(keyPool)
+    const keyPool = await loadKeys()
+    const keyConfig = await getBestAvailableKey(keyPool)
     if (!keyConfig) return Response.json({ error: 'No keys available' }, { status: 503 })
     
     const model = getAIModel(keyConfig)
     const modelMessages = await convertToModelMessages(messages)
     
-    const googleApiKey = getGoogleApiKey()
+    const googleApiKey = keyPool.find(k => k.provider === 'google')?.key || null
     const tools: ToolSet = {
       getCurrentDate: getCurrentDateTool,
       getTimeline: getTimelineTool,
@@ -194,7 +188,8 @@ export async function POST(req: Request) {
 }
 
 export async function GET() {
-  const googleApiKey = getGoogleApiKey()
+  const keyPool = await loadKeys()
+  const googleApiKey = keyPool.find(k => k.provider === 'google')?.key || null
   return Response.json({
     status: '🟢 Online',
     service: 'Alia AI Chat',

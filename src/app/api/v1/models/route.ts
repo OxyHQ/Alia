@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { loadKeys } from '@/lib/load-balancer'
 
 export async function GET() {
-  const keys = loadKeys()
+  const keys = await loadKeys()
   
   // Create a list of models based on uniquely available modelIds in the keys
   const modelIds = Array.from(new Set(keys.map(k => k.modelId)))
