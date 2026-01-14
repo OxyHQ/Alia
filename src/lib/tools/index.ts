@@ -3,3 +3,4 @@
 
 export { getCurrentDateTool } from './date';
 export { createGoogleSearchTool, type WebSearchResult, type WebSearchResponse } from './google-search';
+export { getTimelineTool, searchKnowledgeBaseTool } from './alias-tools';
