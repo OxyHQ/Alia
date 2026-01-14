@@ -1,7 +1,7 @@
 // Internal Alia Chat API - uses AI SDK natively for the frontend
 // This is separate from /api/v1/chat/completions which is OpenAI-compatible for external clients
 
-import { streamText, convertToModelMessages, UIMessage } from 'ai'
+import { streamText, convertToModelMessages, UIMessage, stepCountIs } from 'ai'
 import { createGoogleGenerativeAI } from '@ai-sdk/google'
 import { createOpenAI } from '@ai-sdk/openai'
 import { createAnthropic } from '@ai-sdk/anthropic'
@@ -30,7 +30,6 @@ function getAIModel(keyConfig: KeyConfig) {
       return anthropic(modelId || 'claude-sonnet-4-20250514')
     }
     case 'groq': {
-      // Groq uses OpenAI-compatible API
       const groq = createOpenAI({ 
         apiKey,
         baseURL: 'https://api.groq.com/openai/v1'
@@ -88,13 +87,9 @@ export async function POST(req: Request) {
     
     // Build tools object
     const googleApiKey = getGoogleApiKey()
-    const tools: Record<string, ReturnType<typeof getCurrentDateTool>> = {
+    const tools = {
       getCurrentDate: getCurrentDateTool,
-    }
-    
-    // Add Google Search if we have a Google API key
-    if (googleApiKey) {
-      tools.googleSearch = createGoogleSearchTool(googleApiKey)
+      ...(googleApiKey ? { googleSearch: createGoogleSearchTool(googleApiKey) } : {})
     }
     
     // Stream the response using AI SDK
@@ -102,8 +97,7 @@ export async function POST(req: Request) {
       model,
       messages: modelMessages,
       tools,
-      maxSteps: 5, // Allow multiple tool calls
-      // Default system prompt for Alia
+      stopWhen: stepCountIs(5), // Allow up to 5 tool call rounds
       system: `Eres Alia, un asistente de IA amigable y servicial. 
       
 Tienes acceso a las siguientes herramientas:
