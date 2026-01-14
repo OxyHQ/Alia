@@ -16,8 +16,11 @@ export async function GET() {
     await connectDB();
     const userId = (session.user as any).id;
 
-    // Obtener conversaciones del usuario
-    const conversations = await Conversation.find({ userId })
+    // Obtener conversaciones del usuario que tengan al menos un mensaje
+    const conversations = await Conversation.find({ 
+      userId,
+      messages: { $not: { $size: 0 } }
+    })
       .select('title updatedAt createdAt') 
       .sort({ updatedAt: -1 })
       .limit(20);
@@ -50,9 +53,10 @@ export async function POST(req: NextRequest) {
     
     // Si viene con mensaje inicial
     const initialMessages = body.messages || [];
-    const title = body.title || (initialMessages.length > 0 ? initialMessages[0].content.slice(0, 30) : 'Nueva Conversación');
+    const title = body.suggestedTitle || body.title || (initialMessages.length > 0 ? initialMessages[0].content.slice(0, 30) : 'Nueva Conversación');
 
     const conversation = await Conversation.create({
+      _id: body.id || undefined, // Permitir usar ID pre-asignado por el cliente
       title,
       messages: initialMessages,
       userId

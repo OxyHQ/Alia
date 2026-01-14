@@ -39,8 +39,10 @@ export function NavHistory() {
 
     const fetchConversations = async () => {
         if (!isAuthenticated) {
-            const localConvs = JSON.parse(localStorage.getItem('alia-conversations') || '[]')
-            setConversations(localConvs)
+            const localConvsString = localStorage.getItem('alia-conversations') || '[]'
+            const localConvs = JSON.parse(localConvsString)
+            const filteredConvs = localConvs.filter((c: any) => c.messages && c.messages.length > 0)
+            setConversations(filteredConvs)
             return
         }
 

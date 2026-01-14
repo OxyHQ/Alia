@@ -44,6 +44,7 @@ const TIMELINE_REGEX = /\[TIMELINE(?:\s+title="([^"]*)")?\]([\s\S]*?)\[\/TIMELIN
 const CREDIBILITY_REGEX = /\[CREDIBILITY\s+level="([1-5])"\s+source="([^"]+)"(?:\s+warning="([^"]*)")?\s*\/\]/gi;
 const COMPACTLIST_REGEX = /\[COMPACTLIST(?:\s+title="([^"]*)")?\]([\s\S]*?)\[\/COMPACTLIST\]/gi;
 const IMAGE_BLOCK_REGEX = /\[IMAGE\s+url="([^"]+)"(?:\s+title="([^"]*)")?(?:\s+caption="([^"]*)")?\s*\/\]/gi;
+const TITLE_REGEX = /\[TITLE\]([\s\S]*?)\[\/TITLE\]/gi;
 
 export function extractBanners(text: string): { 
     banners: BannerBlock[]; 
@@ -52,6 +53,7 @@ export function extractBanners(text: string): {
     credibility: CredibilityBlock[]; 
     compactLists: CompactListBlock[]; 
     images: ImageBlock[];
+    suggestedTitle?: string;
     body: string 
 } {
     const banners: BannerBlock[] = [];
@@ -60,7 +62,15 @@ export function extractBanners(text: string): {
     const credibility: CredibilityBlock[] = [];
     const compactLists: CompactListBlock[] = [];
     const images: ImageBlock[] = [];
+    let suggestedTitle: string | undefined = undefined;
     let cleanedBody = text;
+
+    // Extract suggested title
+    const titleMatch = [...text.matchAll(TITLE_REGEX)][0];
+    if (titleMatch) {
+        suggestedTitle = titleMatch[1].trim();
+        cleanedBody = cleanedBody.replace(titleMatch[0], "");
+    }
 
     const matches = [
         ...text.matchAll(BANNER_REGEX),
@@ -200,5 +210,5 @@ export function extractBanners(text: string): {
 
     cleanedBody = cleanedBody.replace(/\n{3,}/g, "\n\n").trim();
 
-    return { banners, comparisons, timelines, credibility, compactLists, images, body: cleanedBody };
+    return { banners, comparisons, timelines, credibility, compactLists, images, suggestedTitle, body: cleanedBody };
 }

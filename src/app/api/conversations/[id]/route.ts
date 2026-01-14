@@ -51,13 +51,24 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     let conversation;
 
     if (body.newMessage) {
+        const updateDoc: any = { 
+            $push: { messages: body.newMessage },
+            $set: { updatedAt: new Date() },
+            ...update
+        };
+
+        // Si la IA sugiere un título y el usuario NO lo ha cambiado manualmente, lo actualizamos.
+        if (body.suggestedTitle) {
+            // Buscamos la conversación para ver si es manual
+            const current = await Conversation.findOne({ _id: id, userId });
+            if (current && !current.isManualTitle) {
+                updateDoc.$set.title = body.suggestedTitle;
+            }
+        }
+
         conversation = await Conversation.findOneAndUpdate(
             { _id: id, userId }, 
-            { 
-                $push: { messages: body.newMessage },
-                $set: { updatedAt: new Date() },
-                ...update
-            },
+            updateDoc,
             { new: true }
         );
     } else if (body.messageIndex !== undefined && body.vote) {
