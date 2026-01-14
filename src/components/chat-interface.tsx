@@ -34,6 +34,7 @@ import {
     PromptInputTextarea
 } from '@/components/ui/prompt-input'
 import { useChat } from '@ai-sdk/react'
+import { DefaultChatTransport } from 'ai'
 import { RichMessage } from '@/components/rich-message'
 
 interface ChatInterfaceProps {
@@ -70,10 +71,11 @@ export function ChatInterface({ id, initialMessages = [] }: ChatInterfaceProps) 
         status,
         error
     } = useChat({
-        // @ts-ignore - api option might be missing in type definition but used at runtime, or we force it via fetch
-        api: '/api/chat',
-        initialMessages,
-        body: { model: selectedModel },
+        transport: new DefaultChatTransport({
+            api: '/api/alia/chat',
+            body: { model: selectedModel },
+        }),
+        messages: initialMessages,
 
         onFinish: async ({ message }: { message: any }) => {
             const content = getMessageText(message)
@@ -158,13 +160,11 @@ export function ChatInterface({ id, initialMessages = [] }: ChatInterfaceProps) 
 
         try {
             if (overrideContent) {
-                // @ts-ignore
-                await sendMessage({ role: 'user', content: overrideContent })
+                await sendMessage({ text: overrideContent })
             } else {
                 const text = input
                 setInput('') // Clear immediately for UX
-                // @ts-ignore
-                await sendMessage({ role: 'user', content: text })
+                await sendMessage({ text })
             }
 
             if (!isTemporary) {

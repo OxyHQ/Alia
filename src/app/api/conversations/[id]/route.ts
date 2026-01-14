@@ -2,9 +2,8 @@ import { NextRequest } from 'next/server';
 import { connectDB } from '@/lib/db';
 import { Conversation } from '@/lib/models/conversation';
 
-// Nota: En Next 15, params es una Promise, pero en 14 es un objeto.
-// Ajustaré para compatibilidad genérica, esperando await params si es necesario.
-export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
+// Nota: En Next 15+, params es una Promise.
+export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     await connectDB();
     const { id } = await Promise.resolve(params); // Next 15 safe compat
@@ -26,7 +25,7 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
   }
 }
 
-export async function PUT(req: NextRequest, { params }: { params: { id: string } }) {
+export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     await connectDB();
     const { id } = await Promise.resolve(params);
@@ -65,7 +64,7 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
   }
 }
 
-export async function DELETE(req: NextRequest, { params }: { params: { id: string } }) {
+export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
     try {
         await connectDB();
         const { id } = await Promise.resolve(params);
