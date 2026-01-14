@@ -12,7 +12,8 @@
         "more": "More",
         "copy": "Copy",
         "upvote": "Upvote",
-        "downvote": "Downvote"
+        "downvote": "Downvote",
+        "errorOccurred": "An error occurred"
     },
     "sidebar": {
         "agents": "Alia Agents",
@@ -118,9 +119,12 @@
         "noAccount": "Don't have an account?",
         "signUp": "Sign up",
         "email": "Email",
+        "password": "Password",
         "login": "Login",
-        "continueWithApple": "Continue with Apple",
-        "continueWithGoogle": "Continue with Google",
+        "apple": "Apple",
+        "google": "Google",
+        "loginSuccess": "Login successful",
+        "invalidCredentials": "Invalid email or password",
         "termsIntro": "By clicking continue, you agree to our",
         "termsOfService": "Terms of Service",
         "and": "and",
@@ -191,6 +195,7 @@
         },
         "messages": {
             "keyAdded": "Key added successfully",
+            "keyAdded_desc": "API key for {provider} successfully added.",
             "keyDeleted": "Key deleted",
             "deleteConfirm": "Are you sure you want to delete this key?",
             "errorConnection": "Connection error",
