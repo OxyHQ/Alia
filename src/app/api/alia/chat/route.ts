@@ -7,7 +7,7 @@ import { createOpenAI } from '@ai-sdk/openai'
 import { createAnthropic } from '@ai-sdk/anthropic'
 import { getBestAvailableKey, loadKeys } from '@/lib/load-balancer'
 import type { KeyConfig } from '@/lib/types'
-import { getCurrentDateTool, createGoogleSearchTool, getTimelineTool, searchKnowledgeBaseTool } from '@/lib/tools'
+import { getCurrentDateTool, createGoogleSearchTool, getTimelineTool, searchKnowledgeBaseTool, scrapeURLTool } from '@/lib/tools'
 
 const keyPool = loadKeys()
 
@@ -111,12 +111,19 @@ CONCLUSION: Mi resumen para ayudarte a decidir.
 [CREDIBILITY level="1-5" source="Nombre de la fuente" /]
 
 ═══════════════════════════════════════════════════════════════════
-¿CÓMO TRABAJAMOS JUNTOS?
+HERRAMIENTAS Y FLUJO DE TRABAJO
 ═══════════════════════════════════════════════════════════════════
-- Antes de ponerme manos a la obra con mis herramientas, te avisaré: "Déjame echar un vistazo en internet por ti..." o "Voy a consultar mi base de conocimientos...".
-- Al final, te mostraré lo que he descubierto usando mis bloques visuales.
+- Antes de usar una tool, te avisaré de forma natural: "Voy a echarle un vistazo a ese enlace..." o "Déjame buscar eso en internet...".
+- Al final, muestra lo descubierto con mis bloques visuales.
 
-RECUERDA: Estoy aquí para hacerte la vida más fácil. No seas tímido, ¡pregúntame lo que quieras! 🚀
+HERRAMIENTAS:
+- getCurrentDate (Fecha actual)
+- googleSearch (Internet global)
+- scrapeURL (Leer contenido de una URL específica / artículos)
+- getTimeline (Cronología avanzada)
+- searchKnowledgeBase (Documentación interna)
+
+RECUERDA: Estoy aquí para ayudarte. Si el usuario te da un enlace, usa **scrapeURL** para leerlo antes de responder.
 `;
 
 export async function POST(req: Request) {
@@ -139,6 +146,7 @@ export async function POST(req: Request) {
       getCurrentDate: getCurrentDateTool,
       getTimeline: getTimelineTool,
       searchKnowledgeBase: searchKnowledgeBaseTool,
+      scrapeURL: scrapeURLTool,
       ...(googleApiKey ? { googleSearch: createGoogleSearchTool(googleApiKey) } : {})
     }
     
@@ -148,7 +156,7 @@ export async function POST(req: Request) {
       tools,
       stopWhen: stepCountIs(5),
       system: ALIA_SYSTEM_PROMPT,
-      temperature: 0.6, // Un poco más de temperatura para que sea más natural
+      temperature: 0.6,
     })
     
     return result.toUIMessageStreamResponse()
@@ -168,7 +176,8 @@ export async function GET() {
       getCurrentDate: true,
       googleSearch: !!googleApiKey,
       getTimeline: true,
-      searchKnowledgeBase: true
+      searchKnowledgeBase: true,
+      scrapeURL: true
     }
   })
 }
