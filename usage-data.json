@@ -1,10 +1,10 @@
 {
   "google-5DE7ng": {
-    "requestsMinute": 2,
-    "tokensMinute": 2000,
-    "minuteReset": 1768394114531,
-    "requestsDay": 12,
-    "tokensDay": 12000,
+    "requestsMinute": 1,
+    "tokensMinute": 1000,
+    "minuteReset": 1768394794024,
+    "requestsDay": 20,
+    "tokensDay": 20000,
     "dayReset": 1768454985371
   }
 }
