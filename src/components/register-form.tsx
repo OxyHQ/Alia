@@ -17,11 +17,11 @@ import { signIn } from "next-auth/react"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
 
-export function LoginForm({
+export function RegisterForm({
     className,
     ...props
 }: React.ComponentProps<"div">) {
-    const t = useTranslations('login')
+    const t = useTranslations('register')
     const tCommon = useTranslations('common')
     const router = useRouter()
     const [isLoading, setIsLoading] = React.useState(false)
@@ -31,10 +31,36 @@ export function LoginForm({
         setIsLoading(true)
 
         const formData = new FormData(event.currentTarget)
+        const name = formData.get("name") as string
         const email = formData.get("email") as string
         const password = formData.get("password") as string
+        const confirmPassword = formData.get("confirmPassword") as string
+
+        if (password !== confirmPassword) {
+            toast.error(t('passwordMismatch'))
+            setIsLoading(false)
+            return
+        }
 
         try {
+            const response = await fetch("/api/auth/register", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify({ name, email, password }),
+            })
+
+            const data = await response.json()
+
+            if (!response.ok) {
+                toast.error(data.error || t('registrationFailed'))
+                return
+            }
+
+            toast.success(t('registrationSuccess'))
+
+            // Auto sign in after registration
             const result = await signIn("credentials", {
                 email,
                 password,
@@ -42,13 +68,11 @@ export function LoginForm({
             })
 
             if (result?.error) {
-                toast.error(t('invalidCredentials'))
-                return
+                router.push("/login")
+            } else {
+                router.push("/")
+                router.refresh()
             }
-
-            toast.success(t('loginSuccess'))
-            router.push("/")
-            router.refresh()
         } catch (error) {
             toast.error(tCommon('errorOccurred'))
         } finally {
@@ -73,9 +97,20 @@ export function LoginForm({
                         </a>
                         <h1 className="text-xl font-bold">{t('welcome')}</h1>
                         <FieldDescription>
-                            {t('noAccount')} <a href="/register" className="underline underline-offset-4">{t('signUp')}</a>
+                            {t('haveAccount')} <a href="/login" className="underline underline-offset-4">{t('signIn')}</a>
                         </FieldDescription>
                     </div>
+                    <Field>
+                        <FieldLabel htmlFor="name">{t('name')}</FieldLabel>
+                        <Input
+                            id="name"
+                            name="name"
+                            type="text"
+                            placeholder={t('namePlaceholder')}
+                            required
+                            disabled={isLoading}
+                        />
+                    </Field>
                     <Field>
                         <FieldLabel htmlFor="email">{t('email')}</FieldLabel>
                         <Input
@@ -88,15 +123,30 @@ export function LoginForm({
                         />
                     </Field>
                     <Field>
-                        <div className="flex items-center">
-                            <FieldLabel htmlFor="password">{t('password')}</FieldLabel>
-                            <a href="/forgot-password" className="ml-auto text-xs underline underline-offset-4">{t('forgotPassword')}</a>
-                        </div>
-                        <Input id="password" name="password" type="password" required disabled={isLoading} />
+                        <FieldLabel htmlFor="password">{t('password')}</FieldLabel>
+                        <Input
+                            id="password"
+                            name="password"
+                            type="password"
+                            required
+                            disabled={isLoading}
+                            minLength={6}
+                        />
+                    </Field>
+                    <Field>
+                        <FieldLabel htmlFor="confirmPassword">{t('confirmPassword')}</FieldLabel>
+                        <Input
+                            id="confirmPassword"
+                            name="confirmPassword"
+                            type="password"
+                            required
+                            disabled={isLoading}
+                            minLength={6}
+                        />
                     </Field>
                     <Field>
                         <Button type="submit" className="w-full" disabled={isLoading}>
-                            {isLoading ? tCommon('loading') : t('login')}
+                            {isLoading ? tCommon('loading') : t('register')}
                         </Button>
                     </Field>
                     <div className="relative my-4">

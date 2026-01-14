@@ -36,7 +36,6 @@ const KeyIcon = createIcon(Key01Icon)
 const AlertCircle = createIcon(AlertCircleIcon)
 const PlusSignIcon = createIcon(Add01Icon)
 import { toast } from 'sonner'
-import { Toaster } from "@/components/ui/sonner"
 import { UsageChart } from "@/components/usage-chart"
 import { KeysTable } from "@/components/keys-table"
 import { useTranslations } from 'next-intl'
@@ -173,8 +172,6 @@ export default function AdminDashboard() {
 
     return (
         <div className="flex flex-1 flex-col gap-4 px-4 py-4 md:gap-8 md:py-8 overflow-y-auto">
-            <Toaster />
-
             {/* Header Area */}
             <div className="flex items-center justify-between px-2">
                 <div className="grid gap-1">

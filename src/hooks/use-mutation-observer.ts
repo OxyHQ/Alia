@@ -1,7 +1,7 @@
 import * as React from "react"
 
-export const useMutationObserver = (
-  ref: React.RefObject<HTMLElement>,
+export const useMutationObserver = <T extends HTMLElement>(
+  ref: React.RefObject<T | null>,
   callback: MutationCallback,
   options: MutationObserverInit = {
     attributes: true,

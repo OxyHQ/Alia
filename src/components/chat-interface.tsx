@@ -225,9 +225,7 @@ export function ChatInterface({ id, initialMessages = [] }: ChatInterfaceProps) 
 
     const handleCopy = (content: string) => {
         navigator.clipboard.writeText(content)
-        toast.success(tCommon('copy'), {
-            description: tCommon('copiedToClipboard'),
-        })
+        toast.success(tCommon('copiedToClipboard'))
     }
 
     const handleVote = async (index: number, vote: 'up' | 'down') => {

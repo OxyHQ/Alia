@@ -33,6 +33,7 @@ export const metadata: Metadata = {
 
 import { CommandMenu } from "@/components/command-menu"
 import { Providers } from "@/components/providers";
+import { Toaster } from "@/components/ui/sonner";
 
 export default async function RootLayout({
   children,
@@ -77,6 +78,7 @@ export default async function RootLayout({
                 </div>
               </SidebarInset>
             </SidebarProvider>
+            <Toaster />
           </Providers>
         </NextIntlClientProvider>
       </body>

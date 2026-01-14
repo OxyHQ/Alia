@@ -18,7 +18,7 @@ export function PresetActions() {
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
                 <DropdownMenuItem>Content filter preferences</DropdownMenuItem>
-                <DropdownMenuItem className="text-red-600">
+                <DropdownMenuItem variant="destructive">
                     Delete preset
                 </DropdownMenuItem>
             </DropdownMenuContent>

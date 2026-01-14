@@ -131,13 +131,46 @@
 @layer base {
   * {
     @apply border-border outline-ring/50;
-    @apply border-border outline-ring/50;
-    @apply border-border outline-ring/50;
   }
   body {
     @apply bg-background text-foreground;
-    @apply bg-background text-foreground;
-    @apply bg-background text-foreground;
+  }
+
+  /* Cursor styles for interactive elements */
+  button:not(:disabled),
+  a:not([aria-disabled="true"]),
+  [role="button"]:not([aria-disabled="true"]),
+  [role="link"],
+  [role="tab"],
+  [role="menuitem"],
+  [role="option"],
+  [role="switch"],
+  [role="checkbox"],
+  [role="radio"],
+  [role="combobox"],
+  label[for],
+  select,
+  summary,
+  input[type="button"]:not(:disabled),
+  input[type="submit"]:not(:disabled),
+  input[type="reset"]:not(:disabled),
+  input[type="checkbox"]:not(:disabled),
+  input[type="radio"]:not(:disabled),
+  [data-slot="button"]:not([disabled]),
+  [data-slot="sidebar-menu-button"]:not([disabled]),
+  [data-slot="dropdown-menu-item"]:not([data-disabled]),
+  [data-slot="command-item"]:not([data-disabled]),
+  [data-slot="tabs-trigger"]:not([disabled]),
+  [data-slot="accordion-trigger"] {
+    cursor: pointer;
+  }
+
+  button:disabled,
+  a[aria-disabled="true"],
+  [role="button"][aria-disabled="true"],
+  [disabled],
+  [data-disabled="true"] {
+    cursor: not-allowed;
   }
 }
 
