@@ -180,7 +180,7 @@ export function RegisterForm({
                 </FieldGroup>
             </form>
             <FieldDescription className="px-6 text-center">
-                {t('termsIntro')} <a href="#">{t('termsOfService')}</a> {t('and')} <a href="#">{t('privacyPolicy')}</a>.
+                {t('termsIntro')} <a href="/terms" className="underline underline-offset-4">{t('termsOfService')}</a> {t('and')} <a href="/privacy" className="underline underline-offset-4">{t('privacyPolicy')}</a>.
             </FieldDescription>
         </div>
     )
