@@ -1,7 +1,11 @@
 "use client"
 
 import * as React from "react"
-import { ChevronsUpDown, Plus } from "lucide-react"
+import { ArrowUpDownIcon, Add01Icon } from '@hugeicons/core-free-icons'
+import { createIcon } from '@/components/ui/hugeicon'
+
+const ChevronsUpDown = createIcon(ArrowUpDownIcon)
+const Plus = createIcon(Add01Icon)
 import { useTranslations } from 'next-intl'
 
 import {

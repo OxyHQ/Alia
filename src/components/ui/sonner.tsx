@@ -1,12 +1,19 @@
 "use client"
 
 import {
-  CircleCheckIcon,
-  InfoIcon,
-  Loader2Icon,
-  OctagonXIcon,
-  TriangleAlertIcon,
-} from "lucide-react"
+  CheckmarkCircle01Icon,
+  InformationCircleIcon,
+  Loading03Icon,
+  CancelCircleIcon,
+  AlertCircleIcon,
+} from "@hugeicons/core-free-icons"
+import { createIcon } from "@/components/ui/hugeicon"
+
+const CircleCheckIcon = createIcon(CheckmarkCircle01Icon)
+const InfoIcon = createIcon(InformationCircleIcon)
+const Loader2Icon = createIcon(Loading03Icon)
+const OctagonXIcon = createIcon(CancelCircleIcon)
+const TriangleAlertIcon = createIcon(AlertCircleIcon)
 import { useTheme } from "next-themes"
 import { Toaster as Sonner, type ToasterProps } from "sonner"
 

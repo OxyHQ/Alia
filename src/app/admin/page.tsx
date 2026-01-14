@@ -21,9 +21,20 @@ import {
     FieldSet,
 } from '@/components/ui/field'
 import { Switch } from '@/components/ui/switch'
-import { RefreshCw, Activity, Key as KeyIcon, AlertCircle } from 'lucide-react'
-import { HugeiconsIcon } from "@hugeicons/react"
-import { PlusSignIcon } from "@hugeicons/core-free-icons"
+import {
+    RefreshIcon,
+    Activity02Icon,
+    Key01Icon,
+    AlertCircleIcon,
+    Add01Icon
+} from "@hugeicons/core-free-icons"
+import { createIcon } from "@/components/ui/hugeicon"
+
+const RefreshCw = createIcon(RefreshIcon)
+const Activity = createIcon(Activity02Icon)
+const KeyIcon = createIcon(Key01Icon)
+const AlertCircle = createIcon(AlertCircleIcon)
+const PlusSignIcon = createIcon(Add01Icon)
 import { toast } from 'sonner'
 import { Toaster } from "@/components/ui/sonner"
 import { UsageChart } from "@/components/usage-chart"
@@ -180,7 +191,7 @@ export default function AdminDashboard() {
                     <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
                         <DialogTrigger asChild>
                             <Button size="sm" className="h-8 gap-1">
-                                <HugeiconsIcon icon={PlusSignIcon} strokeWidth={2} className="w-3.5 h-3.5" />
+                                <PlusSignIcon strokeWidth={2} className="w-3.5 h-3.5" />
                                 <span className="sr-only sm:not-sr-only sm:whitespace-nowrap">{t('addKey')}</span>
                             </Button>
                         </DialogTrigger>

@@ -12,6 +12,13 @@ export interface IConversation extends Document {
   isManualTitle?: boolean;
   messages: IMessage[];
   userId?: string; // ID del usuario propietario
+  // Folder & Appearance
+  folderId?: string;
+  icon?: string;
+  iconColor?: string;
+  isFavorite?: boolean;
+  isPublic?: boolean;
+  
   createdAt: Date;
   updatedAt: Date;
 }
@@ -27,7 +34,14 @@ const ConversationSchema = new Schema<IConversation>({
   title: { type: String, required: true, default: 'Nueva Conversación' },
   isManualTitle: { type: Boolean, default: false },
   messages: [MessageSchema],
-  userId: { type: Schema.Types.ObjectId, ref: 'User', required: false }, // Se añade referencia al usuario
+  userId: { type: Schema.Types.ObjectId, ref: 'User', required: false },
+  
+  // New fields
+  folderId: { type: Schema.Types.ObjectId, ref: 'Folder' },
+  icon: { type: String },
+  iconColor: { type: String },
+  isFavorite: { type: Boolean, default: false },
+  isPublic: { type: Boolean, default: false },
 }, {
   timestamps: true
 });
