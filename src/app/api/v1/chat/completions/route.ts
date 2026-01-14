@@ -1,4 +1,4 @@
-import { NextRequest } from 'next/server'
+import { NextResponse, NextRequest } from 'next/server'
 import { getBestAvailableKey, loadKeys } from '@/lib/load-balancer'
 import { getProvider } from '@/lib/providers'
 
@@ -6,15 +6,17 @@ const keyPool = loadKeys()
 
 export async function POST(req: NextRequest) {
   try {
+    console.log('📬 [API/POST] Request received')
     const body = await req.json()
+    console.log('📦 [API/POST] Body:', JSON.stringify(body).slice(0, 100) + '...')
     
     if (!Array.isArray(body.messages) || !body.messages.length) {
-      return Response.json({ error: 'Se requiere "messages"' }, { status: 400 })
+      return NextResponse.json({ error: 'Se requiere "messages"' }, { status: 400 })
     }
 
     const key = getBestAvailableKey(keyPool)
     if (!key) {
-      return Response.json({ error: 'Todos los proveedores saturados' }, { status: 503 })
+      return NextResponse.json({ error: 'Todos los proveedores saturados' }, { status: 503 })
     }
 
     const provider = getProvider(key.provider)
@@ -37,13 +39,14 @@ export async function POST(req: NextRequest) {
       }
     })
   } catch (e: unknown) {
-    console.error('❌', e)
+    console.error('❌ [API/POST] Error:', e)
     const message = e instanceof Error ? e.message : 'Unknown error'
-    return Response.json({ error: message }, { status: 500 })
+    return NextResponse.json({ error: message }, { status: 500 })
   }
 }
 
 export async function GET() {
+  console.log('📡 [API/GET] Request received')
   const stats = {
     total: keyPool.length,
     free: keyPool.filter(k => !k.isPaid).length,
@@ -51,7 +54,7 @@ export async function GET() {
     providers: [...new Set(keyPool.map(k => k.provider))]
   }
   
-  return Response.json({
+  return NextResponse.json({
     status: '🟢 Online',
     service: 'Alia AI Agent System',
     keys: stats,

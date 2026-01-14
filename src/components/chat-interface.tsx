@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useMemo, useCallback } from 'react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import {
@@ -33,7 +33,8 @@ import {
     PromptInput,
     PromptInputTextarea
 } from '@/components/ui/prompt-input'
-import { useChat } from 'ai/react'
+import { useChat } from '@ai-sdk/react'
+import { RichMessage } from '@/components/rich-message'
 
 interface ChatInterfaceProps {
     id?: string
@@ -46,35 +47,50 @@ export function ChatInterface({ id, initialMessages = [] }: ChatInterfaceProps) 
     const [conversationId, setConversationId] = useState<string | undefined>(id)
     const [selectedModel, setSelectedModel] = useState("v1")
     const [isTemporary, setIsTemporary] = useState(false)
+    const [input, setInput] = useState('')
 
+    const getMessageText = useCallback((msg: any) => {
+        if (typeof msg.content === 'string' && msg.content) return msg.content
+        if (Array.isArray(msg.parts)) {
+            return msg.parts
+                .filter((part: any) => part.type === "text")
+                .map((part: any) => part.text)
+                .join("")
+        }
+        return ""
+    }, [])
+
+
+    // removed useMemo to ensure updates are always caught and reference issues avoided
     const {
         messages,
-        input,
-        handleInputChange,
-        handleSubmit: sdkSubmit,
-        isLoading,
-        stop,
-        append,
         setMessages,
-        setInput
+        sendMessage,
+        stop,
+        status,
+        error
     } = useChat({
-        api: '/api/v1/chat/completions',
-        initialMessages: initialMessages,
-        body: {
-            model: selectedModel
-        },
-        onFinish: async (message) => {
+        // @ts-ignore - api option might be missing in type definition but used at runtime, or we force it via fetch
+        api: '/api/chat',
+        initialMessages,
+        body: { model: selectedModel },
+
+        onFinish: async ({ message }: { message: any }) => {
+            const content = getMessageText(message)
             if (!isTemporary && conversationId) {
-                // Save assistant message to DB
-                await saveMessageToDB('assistant', message.content, conversationId);
+                await saveMessageToDB('assistant', content, conversationId);
             }
+        },
+        onError: (err: Error) => {
+            console.error('❌ [useChat] Error:', err)
         }
     })
+
+    const isLoading = status === 'submitted' || status === 'streaming'
 
     useEffect(() => {
         const savedModel = localStorage.getItem('alia-selected-model')
         if (savedModel) setSelectedModel(savedModel)
-
         const savedTemp = localStorage.getItem('alia-temporary-chat') === 'true'
         setIsTemporary(savedTemp)
 
@@ -82,7 +98,6 @@ export function ChatInterface({ id, initialMessages = [] }: ChatInterfaceProps) 
             const current = localStorage.getItem('alia-selected-model')
             if (current) setSelectedModel(current)
         }
-
         const handleTempChange = () => {
             const current = localStorage.getItem('alia-temporary-chat') === 'true'
             setIsTemporary(current)
@@ -108,9 +123,7 @@ export function ChatInterface({ id, initialMessages = [] }: ChatInterfaceProps) 
                 const res = await fetch('/api/conversations', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        messages: [{ role, content }]
-                    })
+                    body: JSON.stringify({ messages: [{ role, content }] })
                 })
                 if (res.ok) {
                     const data = await res.json()
@@ -128,9 +141,7 @@ export function ChatInterface({ id, initialMessages = [] }: ChatInterfaceProps) 
                 await fetch(`/api/conversations/${currentConvId}`, {
                     method: 'PUT',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        newMessage: { role, content }
-                    })
+                    body: JSON.stringify({ newMessage: { role, content } })
                 })
                 window.dispatchEvent(new Event('chat-updated'));
             } catch (e) {
@@ -142,19 +153,26 @@ export function ChatInterface({ id, initialMessages = [] }: ChatInterfaceProps) 
 
     const handleSubmit = async (e?: React.FormEvent, overrideContent?: string) => {
         if (e) e.preventDefault()
-
         const contentToSend = overrideContent || input
         if (!contentToSend.trim() || isLoading) return
 
-        if (overrideContent) {
-            append({ role: 'user', content: overrideContent })
-        } else {
-            sdkSubmit()
-        }
+        try {
+            if (overrideContent) {
+                // @ts-ignore
+                await sendMessage({ role: 'user', content: overrideContent })
+            } else {
+                const text = input
+                setInput('') // Clear immediately for UX
+                // @ts-ignore
+                await sendMessage({ role: 'user', content: text })
+            }
 
-        if (!isTemporary) {
-            const currentId = await saveMessageToDB('user', contentToSend, conversationId);
-            if (!conversationId && currentId) setConversationId(currentId);
+            if (!isTemporary) {
+                const currentId = await saveMessageToDB('user', contentToSend, conversationId);
+                if (!conversationId && currentId) setConversationId(currentId);
+            }
+        } catch (err) {
+            console.error('🔥 [handleSubmit] Error:', err)
         }
     }
 
@@ -165,8 +183,9 @@ export function ChatInterface({ id, initialMessages = [] }: ChatInterfaceProps) 
                     {messages.length === 0 && (
                         <div className="flex flex-col items-center justify-center min-h-[50vh] text-center space-y-8 mt-4">
                             <div className="space-y-2">
-                                <div className="inline-flex p-4 rounded-full bg-primary/10 mb-2">
-                                    <Zap className="w-8 h-8 text-primary" />
+                                <div className="relative flex h-16 w-16 items-center justify-center rounded-2xl overflow-hidden mb-4 shadow-sm">
+                                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                                    <img src="/icon-512-maskable.png" alt="Alia Logo" className="h-full w-full object-cover" />
                                 </div>
                                 <h1 className="text-3xl font-bold tracking-tight">Alia</h1>
                                 <h2 className="text-xl font-medium text-muted-foreground">¿En qué puedo ayudarte hoy?</h2>
@@ -200,9 +219,10 @@ export function ChatInterface({ id, initialMessages = [] }: ChatInterfaceProps) 
                         </div>
                     )}
 
-                    {messages.map((msg, i) => {
+                    {messages.map((msg: any, i: number) => {
                         const isAssistant = msg.role === 'assistant'
                         const isLastMessage = i === messages.length - 1
+                        const content = getMessageText(msg)
 
                         return (
                             <UIMessage
@@ -214,12 +234,8 @@ export function ChatInterface({ id, initialMessages = [] }: ChatInterfaceProps) 
                             >
                                 {isAssistant ? (
                                     <div className="group flex w-full flex-col gap-0">
-                                        <MessageContent
-                                            className="text-foreground prose dark:prose-invert w-full flex-1 rounded-lg bg-transparent p-0"
-                                            markdown
-                                        >
-                                            {msg.content || '...'}
-                                        </MessageContent>
+                                        <RichMessage content={content || (isLoading && isLastMessage ? '...' : '')} role="assistant" />
+
                                         <MessageActions
                                             className={cn(
                                                 "-ml-2.5 flex gap-0 opacity-0 transition-opacity duration-150 group-hover:opacity-100",
@@ -231,7 +247,7 @@ export function ChatInterface({ id, initialMessages = [] }: ChatInterfaceProps) 
                                                     variant="ghost"
                                                     size="icon"
                                                     className="rounded-full h-8 w-8 text-muted-foreground"
-                                                    onClick={() => navigator.clipboard.writeText(msg.content)}
+                                                    onClick={() => navigator.clipboard.writeText(content)}
                                                 >
                                                     <Copy className="h-4 w-4" />
                                                 </Button>
@@ -259,7 +275,7 @@ export function ChatInterface({ id, initialMessages = [] }: ChatInterfaceProps) 
                                 ) : (
                                     <div className="group flex flex-col items-end gap-1">
                                         <MessageContent className="bg-muted text-foreground max-w-[85%] rounded-2xl px-4 py-2 sm:max-w-[75%]">
-                                            {msg.content}
+                                            {content}
                                         </MessageContent>
                                         <MessageActions
                                             className={cn(
@@ -289,7 +305,7 @@ export function ChatInterface({ id, initialMessages = [] }: ChatInterfaceProps) 
                                                     variant="ghost"
                                                     size="icon"
                                                     className="rounded-full h-8 w-8 text-muted-foreground"
-                                                    onClick={() => navigator.clipboard.writeText(msg.content)}
+                                                    onClick={() => navigator.clipboard.writeText(content)}
                                                 >
                                                     <Copy className="h-4 w-4" />
                                                 </Button>
@@ -300,6 +316,12 @@ export function ChatInterface({ id, initialMessages = [] }: ChatInterfaceProps) 
                             </UIMessage>
                         )
                     })}
+                    {error && (
+                        <div className="p-4 rounded-lg bg-destructive/10 text-destructive text-sm border border-destructive/20">
+                            <strong>Error:</strong> {error.message}
+                            <Button variant="link" size="sm" className="text-destructive font-bold ml-2 h-auto p-0" onClick={() => setMessages([])}>Reiniciar chat</Button>
+                        </div>
+                    )}
                 </div>
             </ChatContainerContent>
 
@@ -317,7 +339,7 @@ export function ChatInterface({ id, initialMessages = [] }: ChatInterfaceProps) 
                                 placeholder="Message Alia"
                                 className="min-h-[44px] text-base md:text-base py-3"
                                 value={input}
-                                onChange={handleInputChange}
+                                onChange={(e) => setInput(e.target.value)}
                             />
                             <div className="flex items-center justify-between gap-2 mt-2 mb-1">
                                 <div className="flex items-center gap-1.5">
@@ -325,7 +347,6 @@ export function ChatInterface({ id, initialMessages = [] }: ChatInterfaceProps) 
                                         variant="ghost"
                                         size="icon"
                                         className="h-8 w-8 rounded-full text-muted-foreground hover:text-foreground"
-                                        aria-label="Attach files"
                                         type="button"
                                     >
                                         <Plus className="h-4 w-4" />
@@ -333,7 +354,6 @@ export function ChatInterface({ id, initialMessages = [] }: ChatInterfaceProps) 
                                     <Button
                                         variant="outline"
                                         className="h-8 rounded-full text-muted-foreground hover:text-foreground px-3 gap-2 font-normal text-xs"
-                                        aria-label="Search the web"
                                         type="button"
                                     >
                                         <Globe className="h-4 w-4" />
@@ -343,7 +363,6 @@ export function ChatInterface({ id, initialMessages = [] }: ChatInterfaceProps) 
                                         variant="ghost"
                                         size="icon"
                                         className="h-8 w-8 rounded-full text-muted-foreground hover:text-foreground"
-                                        aria-label="View tools"
                                         type="button"
                                     >
                                         <MoreHorizontal className="h-4 w-4" />
@@ -357,7 +376,9 @@ export function ChatInterface({ id, initialMessages = [] }: ChatInterfaceProps) 
                                     className="h-8 w-8 rounded-full"
                                 >
                                     {isLoading ? (
-                                        <Square className="h-3 w-3 fill-current" onClick={stop} />
+                                        <div onClick={(e) => { e.preventDefault(); e.stopPropagation(); stop(); }}>
+                                            <Square className="h-3 w-3 fill-current" />
+                                        </div>
                                     ) : (
                                         <ArrowUp className="h-4 w-4" />
                                     )}
