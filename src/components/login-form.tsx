@@ -24,7 +24,7 @@ export function LoginForm({
                             href="#"
                             className="flex flex-col items-center gap-2 font-medium"
                         >
-                            <div className="flex size-8 items-center justify-center rounded-md overflow-hidden">
+                            <div className="flex size-8 items-center justify-center squircle overflow-hidden">
                                 {/* eslint-disable-next-line @next/next/no-img-element */}
                                 <img src="/icon-512-maskable.png" alt="Alia" className="size-full object-cover" />
                             </div>
