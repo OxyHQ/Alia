@@ -1,0 +1,26 @@
+{
+  "keys": [
+    {
+      "provider": "google",
+      "modelId": "gemini-2.5-flash",
+      "key": "AIzaSyDdgBX-pzpepHZVf-fZbERNuE2FU5DE7ng",
+      "rpm": 30,
+      "rpd": 1000,
+      "isPaid": false
+    },
+    {
+      "provider": "groq",
+      "modelId": "llama-3.3-70b-versatile",
+      "key": "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",
+      "rpm": 30,
+      "isPaid": false
+    },
+    {
+      "provider": "openai",
+      "modelId": "gpt-4o",
+      "key": "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",
+      "rpm": 500,
+      "isPaid": true
+    }
+  ]
+}
