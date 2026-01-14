@@ -1,13 +1,24 @@
 import { NextRequest } from 'next/server';
 import { connectDB } from '@/lib/db';
 import { Conversation } from '@/lib/models/conversation';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/lib/auth';
 
 export async function GET() {
   try {
+    const session = await getServerSession(authOptions);
+
+    if (!session || !session.user) {
+      // Si no hay sesión, devolvemos array vacío. El frontend manejará localStorage.
+      return Response.json([]);
+    }
+
     await connectDB();
-    // Obtener las últimas 20 conversaciones, ordenadas por actualización
-    const conversations = await Conversation.find()
-      .select('title updatedAt createdAt') // Solo campos necesarios para lista
+    const userId = (session.user as any).id;
+
+    // Obtener conversaciones del usuario
+    const conversations = await Conversation.find({ userId })
+      .select('title updatedAt createdAt') 
       .sort({ updatedAt: -1 })
       .limit(20);
       
@@ -19,7 +30,22 @@ export async function GET() {
 
 export async function POST(req: NextRequest) {
   try {
+    const session = await getServerSession(authOptions);
+    
+    // Si no hay sesión, no guardamos en DB.
+    // Podríamos devolver un error o simplemente simular éxito sin guardar.
+    // Para ser explícitos: devolvemos que se requiere auth para guardar en nube.
+    if (!session || !session.user) {
+        return Response.json({ message: 'Saved locally only' }, { status: 200 }); // O 401 si queremos forzar? Mejor 200 y que el front decida.
+        // Pero espera, el prompt dice: "si el usuario no ha iniciado sesion las conversaciones solo se guardan en local".
+        // Esto implica que el Backend NO debe guardar nada.
+        // Asumo que el frontend intentará llamar a la API. Si la API responde que no hay usuario, el frontend debe saber que es local.
+        // O mejor: el frontend detecta que no hay usuario y NO llama a la API.
+        // Pero si la llama por error, protegemos aquí.
+    }
+
     await connectDB();
+    const userId = (session.user as any).id;
     const body = await req.json();
     
     // Si viene con mensaje inicial
@@ -28,7 +54,8 @@ export async function POST(req: NextRequest) {
 
     const conversation = await Conversation.create({
       title,
-      messages: initialMessages
+      messages: initialMessages,
+      userId
     });
 
     return Response.json(conversation);
