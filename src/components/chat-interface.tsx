@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useRef, useEffect, useMemo, useCallback } from 'react'
+import { useSession } from 'next-auth/react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import {
@@ -50,6 +51,8 @@ export function ChatInterface({ id, initialMessages = [] }: ChatInterfaceProps) 
     const [selectedModel, setSelectedModel] = useState("v1")
     const [isTemporary, setIsTemporary] = useState(false)
     const [input, setInput] = useState('')
+    const { data: session, status: authStatus } = useSession()
+    const isAuthenticated = authStatus === 'authenticated'
     const t = useTranslations('chat')
     const tCommon = useTranslations('common')
 
@@ -116,6 +119,17 @@ export function ChatInterface({ id, initialMessages = [] }: ChatInterfaceProps) 
         }
     }, [])
 
+    // Load local messages if not authenticated and we have an ID
+    useEffect(() => {
+        if (!isAuthenticated && id && messages.length === 0) {
+            const localConvs = JSON.parse(localStorage.getItem('alia-conversations') || '[]')
+            const conv = localConvs.find((c: any) => c._id === id)
+            if (conv) {
+                setMessages(conv.messages)
+            }
+        }
+    }, [id, isAuthenticated, setMessages, messages.length])
+
     useEffect(() => {
         if (scrollRef.current) {
             scrollRef.current.scrollTop = scrollRef.current.scrollHeight
@@ -123,6 +137,37 @@ export function ChatInterface({ id, initialMessages = [] }: ChatInterfaceProps) 
     }, [messages])
 
     const saveMessageToDB = async (role: string, content: string, currentConvId?: string) => {
+        if (!isAuthenticated) {
+            // Local Storage Persistence
+            const localConvsString = localStorage.getItem('alia-conversations') || '[]'
+            let localConvs = JSON.parse(localConvsString)
+
+            if (!currentConvId && role === 'user') {
+                const newId = `local-${Date.now()}`
+                const newConv = {
+                    _id: newId,
+                    title: content.slice(0, 50) + (content.length > 50 ? '...' : ''),
+                    messages: [{ id: `m-${Date.now()}`, role, content }],
+                    updatedAt: new Date().toISOString()
+                }
+                localConvs.unshift(newConv)
+                localStorage.setItem('alia-conversations', JSON.stringify(localConvs))
+                setConversationId(newId)
+                window.history.replaceState(null, '', `/c/${newId}`)
+                window.dispatchEvent(new Event('chat-updated'))
+                return newId
+            } else if (currentConvId) {
+                const index = localConvs.findIndex((c: any) => c._id === currentConvId)
+                if (index !== -1) {
+                    localConvs[index].messages.push({ id: `m-${Date.now()}`, role, content })
+                    localConvs[index].updatedAt = new Date().toISOString()
+                    localStorage.setItem('alia-conversations', JSON.stringify(localConvs))
+                    window.dispatchEvent(new Event('chat-updated'))
+                }
+            }
+            return currentConvId
+        }
+
         if (!currentConvId && role === 'user') {
             try {
                 const res = await fetch('/api/conversations', {

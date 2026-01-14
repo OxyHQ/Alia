@@ -60,6 +60,13 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
             },
             { new: true }
         );
+    } else if (body.messageIndex !== undefined && body.vote) {
+        const updateField = `messages.${body.messageIndex}.vote`;
+        conversation = await Conversation.findOneAndUpdate(
+            { _id: id, userId },
+            { $set: { [updateField]: body.vote } },
+            { new: true }
+        );
     } else {
         conversation = await Conversation.findOneAndUpdate(
             { _id: id, userId }, 
