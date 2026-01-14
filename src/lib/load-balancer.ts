@@ -1,75 +1,48 @@
 import type { KeyConfig } from './types';
-import { readFileSync, writeFileSync, existsSync } from 'fs';
-import path from 'path';
+import { connectDB } from './db';
+import { ApiKey } from './models/api-key';
+import { ApiUsage } from './models/api-usage';
 
 // ============== CONFIG ==============
-const CONFIG_FILE = path.join(process.cwd(), 'config.json');
-const USAGE_FILE = path.join(process.cwd(), 'usage-data.json');
 const MINUTE_MS = 60 * 1000;
 const DAY_MS = 24 * 60 * 60 * 1000;
-const SAVE_INTERVAL_MS = 10 * 1000;
-
-interface ProviderConfig {
-  modelId: string;
-  rpm?: number;
-  rpd?: number;
-  tpm?: number;
-  tpd?: number;
-  isPaid?: boolean;
-}
 
 interface UsageInfo {
   requestsMinute: number;
   tokensMinute: number;
-  minuteReset: number;
   requestsDay: number;
   tokensDay: number;
-  dayReset: number;
 }
-
-let usageTracker = new Map<string, UsageInfo>();
 
 // ============== GESTIÓN DE KEYS ==============
-const KEYS_JSON_FILE = path.join(process.cwd(), 'keys.json');
 
-// Estructura del archivo keys.json
-interface KeysFile {
-  keys: KeyConfig[];
-}
-
-// Cargar keys inicialmente
-let loadedKeys: KeyConfig[] = [];
-
-// Función para guardar keys a disco
-function saveKeysToDisk() {
-  try {
-    const data: KeysFile = { keys: loadedKeys };
-    writeFileSync(KEYS_JSON_FILE, JSON.stringify(data, null, 2));
-    console.log(`💾 Keys guardadas en ${KEYS_JSON_FILE}`);
-  } catch (e) {
-    console.error('❌ Error guardando keys:', e);
-  }
-}
-
-export function loadKeys(): KeyConfig[] {
-  // 1. Intentar cargar de keys.json (persistencia)
-  if (existsSync(KEYS_JSON_FILE)) {
-    try {
-      const data = JSON.parse(readFileSync(KEYS_JSON_FILE, 'utf-8'));
-      if (data.keys && Array.isArray(data.keys)) {
-        loadedKeys = data.keys;
-        console.log(`📋 Cargadas ${loadedKeys.length} keys desde keys.json`);
-        return loadedKeys;
-      }
-    } catch (e) {
-      console.error('❌ Error leyendo keys.json', e);
+export async function loadKeys(): Promise<KeyConfig[]> {
+  await connectDB();
+  const keys = await ApiKey.find({ isActive: true });
+  
+  // Si no hay keys en DB, intentar cargar desde .env (migración inicial)
+  if (keys.length === 0) {
+    console.log('⚠️ No hay keys en MongoDB, intentando cargar desde .env...');
+    const initialKeys = getKeysFromEnv();
+    if (initialKeys.length > 0) {
+      await ApiKey.insertMany(initialKeys);
+      return initialKeys;
     }
   }
 
-  // 2. Si no hay keys.json, cargar desde .env (migración inicial)
-  console.log('⚠️ keys.json no existe o inválido, cargando desde .env...');
-  
-  // Mapeo de variables de entorno
+  return keys.map(k => ({
+    provider: k.provider,
+    modelId: k.modelId,
+    key: k.key,
+    isPaid: k.isPaid,
+    rpm: k.rpm,
+    rpd: k.rpd,
+    tpm: k.tpm,
+    tpd: k.tpd
+  }));
+}
+
+function getKeysFromEnv(): KeyConfig[] {
   const envMapping: Record<string, string> = {
     google: 'GOOGLE_KEYS',
     groq: 'GROQ_KEYS',
@@ -104,67 +77,54 @@ export function loadKeys(): KeyConfig[] {
       }
     }
   }
-
-  loadedKeys = initialKeys;
-  // Guardar inmediatamente si cargamos de ENV para persistir
-  if (loadedKeys.length > 0) {
-    saveKeysToDisk();
-  }
-  
-  return loadedKeys;
+  return initialKeys;
 }
 
-export function getAllKeys() {
-  // Asegurarnos de tener las últimas
-  if (loadedKeys.length === 0) loadKeys();
-  return loadedKeys;
+export async function getAllKeys() {
+  await connectDB();
+  return await ApiKey.find();
 }
 
-export function addKey(newKey: KeyConfig) {
-  // Validar duplicados
-  const exists = loadedKeys.some(k => k.key === newKey.key);
+export async function addKey(newKey: KeyConfig) {
+  await connectDB();
+  const exists = await ApiKey.findOne({ key: newKey.key });
   if (exists) throw new Error('La key ya existe');
   
-  loadedKeys.push(newKey);
-  saveKeysToDisk();
-  return newKey;
+  return await ApiKey.create(newKey);
 }
 
-export function deleteKey(keyVideo: string) {
-  loadedKeys = loadedKeys.filter(k => k.key !== keyVideo);
-  saveKeysToDisk();
+export async function deleteKey(keyStr: string) {
+  await connectDB();
+  await ApiKey.deleteOne({ key: keyStr });
 }
 
-export function getKeyUsage(keyStr: string) {
-  const matchingKey = loadedKeys.find(k => k.key === keyStr);
-  if (!matchingKey) return null;
-  const id = getKeyId(matchingKey);
-  return usageTracker.get(id);
-}
+export async function getKeyUsage(keyStr: string): Promise<UsageInfo | null> {
+  await connectDB();
+  const keyMatch = await ApiKey.findOne({ key: keyStr });
+  if (!keyMatch) return null;
 
-// ============== PERSISTENCIA ==============
-function loadUsageFromDisk(): void {
-  try {
-    if (existsSync(USAGE_FILE)) {
-      const data = JSON.parse(readFileSync(USAGE_FILE, 'utf-8'));
-      usageTracker = new Map(Object.entries(data));
-      console.log(`💾 Estado restaurado (${usageTracker.size} keys)`);
-    }
-  } catch (e) {
-    // Sin estado previo
-  }
-}
+  const now = new Date();
+  const minuteAgo = new Date(now.getTime() - MINUTE_MS);
+  const dayAgo = new Date(now.getTime() - DAY_MS);
 
-function saveUsageToDisk(): void {
-  try {
-    writeFileSync(USAGE_FILE, JSON.stringify(Object.fromEntries(usageTracker), null, 2));
-  } catch (e) {}
-}
+  const [minuteUsage, dayUsage] = await Promise.all([
+    ApiUsage.aggregate([
+      { $match: { keyId: keyMatch._id, timestamp: { $gte: minuteAgo } } },
+      { $group: { _id: null, count: { $sum: 1 }, tokens: { $sum: '$tokens' } } }
+    ]),
+    ApiUsage.aggregate([
+      { $match: { keyId: keyMatch._id, timestamp: { $gte: dayAgo } } },
+      { $group: { _id: null, count: { $sum: 1 }, tokens: { $sum: '$tokens' } } }
+    ])
+  ]);
 
-loadUsageFromDisk();
-setInterval(saveUsageToDisk, SAVE_INTERVAL_MS);
-process.on('SIGINT', () => { saveUsageToDisk(); process.exit(0); });
-process.on('SIGTERM', () => { saveUsageToDisk(); process.exit(0); });
+  return {
+    requestsMinute: minuteUsage[0]?.count || 0,
+    tokensMinute: minuteUsage[0]?.tokens || 0,
+    requestsDay: dayUsage[0]?.count || 0,
+    tokensDay: dayUsage[0]?.tokens || 0
+  };
+}
 
 // ============== HELPERS ==============
 function progressBar(current: number, max: number): string {
@@ -174,54 +134,47 @@ function progressBar(current: number, max: number): string {
   return `[${'█'.repeat(filled)}${'░'.repeat(10 - filled)}] ${pct}%`;
 }
 
-function getKeyId(k: KeyConfig): string {
-  return `${k.provider}-${k.key.slice(-6)}`;
-}
+async function canUseKey(k: any, tokens = 1000): Promise<{ ok: boolean, usage: UsageInfo }> {
+  const usage = await getKeyUsage(k.key);
+  if (!usage) return { ok: false, usage: { requestsMinute: 0, tokensMinute: 0, requestsDay: 0, tokensDay: 0 } };
 
-function getOrCreateUsage(id: string, now: number): UsageInfo {
-  let u = usageTracker.get(id);
-  if (!u) {
-    u = { requestsMinute: 0, tokensMinute: 0, minuteReset: now + MINUTE_MS,
-          requestsDay: 0, tokensDay: 0, dayReset: now + DAY_MS };
-    usageTracker.set(id, u);
-  }
-  if (now > u.minuteReset) { u.requestsMinute = 0; u.tokensMinute = 0; u.minuteReset = now + MINUTE_MS; }
-  if (now > u.dayReset) { u.requestsDay = 0; u.tokensDay = 0; u.dayReset = now + DAY_MS; }
-  return u;
-}
-
-function canUseKey(k: KeyConfig, u: UsageInfo, tokens = 1000): boolean {
-  return (!k.rpm || u.requestsMinute < k.rpm) &&
-         (!k.rpd || u.requestsDay < k.rpd) &&
-         (!k.tpm || u.tokensMinute + tokens <= k.tpm) &&
-         (!k.tpd || u.tokensDay + tokens <= k.tpd);
+  const ok = (!k.rpm || usage.requestsMinute < k.rpm) &&
+             (!k.rpd || usage.requestsDay < k.rpd) &&
+             (!k.tpm || usage.tokensMinute + tokens <= k.tpm) &&
+             (!k.tpd || usage.tokensDay + tokens <= k.tpd);
+             
+  return { ok, usage };
 }
 
 // ============== MAIN ==============
-export function getBestAvailableKey(keyPool: KeyConfig[], tokens = 1000): KeyConfig | null {
-  const now = Date.now();
-  const free = keyPool.filter(k => !k.isPaid);
-  const paid = keyPool.filter(k => k.isPaid);
+export async function getBestAvailableKey(keyPool: KeyConfig[], tokens = 1000): Promise<KeyConfig | null> {
+  await connectDB();
+  
+  // Obtener todas las keys de la DB para tener sus IDs y límites actualizados
+  const dbKeys = await ApiKey.find({ isActive: true });
+  
+  const free = dbKeys.filter(k => !k.isPaid);
+  const paid = dbKeys.filter(k => k.isPaid);
 
   for (const k of free) {
-    const u = getOrCreateUsage(getKeyId(k), now);
-    if (canUseKey(k, u, tokens)) {
-      u.requestsMinute++; u.requestsDay++; u.tokensMinute += tokens; u.tokensDay += tokens;
-      console.log(`🆓 ${k.provider}/${k.modelId} [${k.key.slice(-6)}] | RPM: ${u.requestsMinute}/${k.rpm || '∞'} ${progressBar(u.requestsMinute, k.rpm || 0)}`);
-      return k;
+    const { ok, usage } = await canUseKey(k, tokens);
+    if (ok) {
+      await ApiUsage.create({ keyId: k._id, provider: k.provider, tokens });
+      console.log(`🆓 ${k.provider}/${k.modelId} [${k.key.slice(-6)}] | RPM: ${usage.requestsMinute + 1}/${k.rpm || '∞'} ${progressBar(usage.requestsMinute + 1, k.rpm || 0)}`);
+      return k.toObject();
     }
   }
 
   for (const k of paid) {
-    const u = getOrCreateUsage(getKeyId(k), now);
-    if (canUseKey(k, u, tokens)) {
-      u.requestsMinute++; u.requestsDay++; u.tokensMinute += tokens; u.tokensDay += tokens;
-      console.log(`💳 ${k.provider}/${k.modelId} [${k.key.slice(-6)}] | RPM: ${u.requestsMinute}/${k.rpm || '∞'}`);
-      return k;
+    const { ok, usage } = await canUseKey(k, tokens);
+    if (ok) {
+      await ApiUsage.create({ keyId: k._id, provider: k.provider, tokens });
+      console.log(`💳 ${k.provider}/${k.modelId} [${k.key.slice(-6)}] | RPM: ${usage.requestsMinute + 1}/${k.rpm || '∞'}`);
+      return k.toObject();
     }
   }
 
-  console.log('🔥 Todas saturadas');
+  console.log('🔥 Todas las keys saturadas');
   return null;
 }
 

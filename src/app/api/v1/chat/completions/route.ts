@@ -2,8 +2,6 @@ import { NextResponse, NextRequest } from 'next/server'
 import { getBestAvailableKey, loadKeys } from '@/lib/load-balancer'
 import { getProvider } from '@/lib/providers'
 
-const keyPool = loadKeys()
-
 export async function POST(req: NextRequest) {
   try {
     console.log('📬 [API/POST] Request received')
@@ -14,7 +12,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Se requiere "messages"' }, { status: 400 })
     }
 
-    const key = getBestAvailableKey(keyPool)
+    const keyPool = await loadKeys()
+    const key = await getBestAvailableKey(keyPool)
     if (!key) {
       return NextResponse.json({ error: 'Todos los proveedores saturados' }, { status: 503 })
     }
@@ -47,6 +46,7 @@ export async function POST(req: NextRequest) {
 
 export async function GET() {
   console.log('📡 [API/GET] Request received')
+  const keyPool = await loadKeys()
   const stats = {
     total: keyPool.length,
     free: keyPool.filter(k => !k.isPaid).length,
