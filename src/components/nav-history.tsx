@@ -4,6 +4,7 @@ import { useEffect, useState } from "react"
 import { MessageSquare, MoreHorizontal, Trash2 } from "lucide-react"
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
+import { useTranslations } from 'next-intl'
 
 import {
     DropdownMenu,
@@ -30,6 +31,8 @@ export function NavHistory() {
     const [conversations, setConversations] = useState<Conversation[]>([])
     const pathname = usePathname()
     const router = useRouter()
+    const t = useTranslations('sidebar')
+    const tCommon = useTranslations('common')
 
     const fetchConversations = async () => {
         try {
@@ -46,7 +49,6 @@ export function NavHistory() {
     useEffect(() => {
         fetchConversations()
 
-        // Escuchar eventos para recargar historial
         const handleUpdate = () => fetchConversations()
         window.addEventListener('chat-updated', handleUpdate)
         return () => window.removeEventListener('chat-updated', handleUpdate)
@@ -54,9 +56,9 @@ export function NavHistory() {
 
     const handleDelete = async (id: string, e: React.MouseEvent) => {
         e.preventDefault();
-        e.stopPropagation(); // Evitar click en enlace
+        e.stopPropagation();
 
-        if (!confirm('Eliminar conversación?')) return
+        if (!confirm(t('deleteConfirmation'))) return
 
         try {
             await fetch(`/api/conversations/${id}`, { method: 'DELETE' })
@@ -71,7 +73,7 @@ export function NavHistory() {
 
     return (
         <SidebarGroup className="group-data-[collapsible=icon]:hidden">
-            <SidebarGroupLabel>Recent History</SidebarGroupLabel>
+            <SidebarGroupLabel>{t('recentHistory')}</SidebarGroupLabel>
             <SidebarMenu>
                 {conversations.map((item) => (
                     <SidebarMenuItem key={item._id}>
@@ -85,7 +87,7 @@ export function NavHistory() {
                             <DropdownMenuTrigger asChild>
                                 <SidebarMenuAction showOnHover>
                                     <MoreHorizontal />
-                                    <span className="sr-only">More</span>
+                                    <span className="sr-only">{tCommon('more')}</span>
                                 </SidebarMenuAction>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent
@@ -95,7 +97,7 @@ export function NavHistory() {
                             >
                                 <DropdownMenuItem onClick={(e) => handleDelete(item._id, e as any)} className="text-red-500 focus:text-red-500">
                                     <Trash2 className="text-red-500 mr-2 h-4 w-4" />
-                                    <span>Delete</span>
+                                    <span>{tCommon('delete')}</span>
                                 </DropdownMenuItem>
                             </DropdownMenuContent>
                         </DropdownMenu>
