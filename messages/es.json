@@ -135,5 +135,66 @@
         "recentConversations": "Conversaciones recientes",
         "actions": "Acciones",
         "startTemporaryChat": "Iniciar chat temporal"
+    },
+    "admin": {
+        "dashboard": {
+            "title": "Panel de Control",
+            "subtitle": "Resumen de rendimiento y gestión de proveedores",
+            "refresh": "Refrescar",
+            "addKey": "Añadir Key",
+            "addKeyTitle": "Añadir Nueva API Key",
+            "addKeyDescription": "Configura el proveedor y los límites de la key.",
+            "totalKeys": "Total Keys",
+            "free": "Gratuitas",
+            "paid": "De Pago",
+            "currentRpm": "Uso RPM Actual",
+            "activeRequests": "Peticiones por minuto activas",
+            "globalStatus": "Estado Global",
+            "operational": "Operativo",
+            "allSystemsGo": "Todos los sistemas funcionando",
+            "systemMetrics": "Métricas del Sistema",
+            "realTimeMonitoring": "Monitorización en tiempo real",
+            "proxyLatency": "Latencia Proxy",
+            "internalOverhead": "Overhead interno",
+            "errorRate": "Tasa de Errores",
+            "lastHour": "Última hora",
+            "keySaturation": "Saturación de Keys",
+            "keysAtLimit": "Keys al límite de RPM",
+            "keyManagement": "Gestión de API Keys",
+            "activePool": "Pool de claves activas y consumo en tiempo real",
+            "save": "Guardar",
+            "cancel": "Cancelar"
+        },
+        "form": {
+            "provider": "Proveedor",
+            "modelId": "ID del Modelo",
+            "apiKey": "Clave API",
+            "limitRpm": "Límite RPM",
+            "isPaid": "Es de Pago",
+            "isPaidDescription": "Marcar si esta clave pertenece a un plan de pago."
+        },
+        "table": {
+            "provider": "Proveedor",
+            "model": "Modelo",
+            "keyMasked": "Clave (Oculta)",
+            "tier": "Nivel",
+            "usageMinute": "Uso (Minuto)",
+            "actions": "Acciones",
+            "reqs": "Solicitudes"
+        },
+        "chart": {
+            "title": "Volumen de Peticiones",
+            "description": "Distribución de tráfico por proveedor",
+            "last3Months": "Últimos 3 meses",
+            "last30Days": "Últimos 30 días",
+            "last7Days": "Últimos 7 días"
+        },
+        "messages": {
+            "keyAdded": "Key añadida correctamente",
+            "keyDeleted": "Key eliminada",
+            "deleteConfirm": "¿Seguro que quieres eliminar esta key?",
+            "errorConnection": "Error de conexión",
+            "errorDeleting": "Error eliminando key"
+        }
     }
 }

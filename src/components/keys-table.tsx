@@ -11,6 +11,7 @@ import {
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Trash2 } from 'lucide-react'
+import { useTranslations } from 'next-intl'
 
 interface KeyData {
     provider: string
@@ -32,17 +33,20 @@ interface KeysTableProps {
 }
 
 export function KeysTable({ data, onDelete }: KeysTableProps) {
+    const t = useTranslations('admin.table')
+    const tAdmin = useTranslations('admin.dashboard')
+
     return (
         <div className="rounded-md border">
             <Table>
                 <TableHeader>
                     <TableRow>
-                        <TableHead>Provider</TableHead>
-                        <TableHead>Model</TableHead>
-                        <TableHead>Key (Masked)</TableHead>
-                        <TableHead>Tier</TableHead>
-                        <TableHead>Uso (Minuto)</TableHead>
-                        <TableHead className="text-right">Acciones</TableHead>
+                        <TableHead>{t('provider')}</TableHead>
+                        <TableHead>{t('model')}</TableHead>
+                        <TableHead>{t('keyMasked')}</TableHead>
+                        <TableHead>{t('tier')}</TableHead>
+                        <TableHead>{t('usageMinute')}</TableHead>
+                        <TableHead className="text-right">{t('actions')}</TableHead>
                     </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -57,13 +61,13 @@ export function KeysTable({ data, onDelete }: KeysTableProps) {
                             <TableCell className="font-mono text-xs text-muted-foreground">{key.keyMasked}</TableCell>
                             <TableCell>
                                 {key.isPaid ?
-                                    <Badge variant="secondary">PAID</Badge> :
-                                    <Badge variant="outline">FREE</Badge>}
+                                    <Badge variant="secondary">{tAdmin('paid').toUpperCase()}</Badge> :
+                                    <Badge variant="outline">{tAdmin('free').toUpperCase()}</Badge>}
                             </TableCell>
                             <TableCell>
                                 <div className="space-y-1">
                                     <div className="flex items-center justify-between text-xs">
-                                        <span className="text-muted-foreground">Reqs:</span>
+                                        <span className="text-muted-foreground">{t('reqs')}:</span>
                                         <span className={key.usage?.rpm && key.rpm && key.usage.rpm >= key.rpm ? 'text-destructive font-bold' : ''}>
                                             {key.usage?.rpm || 0} / {key.rpm || '∞'}
                                         </span>
