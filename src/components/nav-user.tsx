@@ -9,6 +9,7 @@ import {
     LogOut,
     Sparkles,
 } from "lucide-react"
+import { useTranslations } from 'next-intl'
 
 import {
     Avatar,
@@ -44,6 +45,7 @@ export function NavUser({
     const { isMobile } = useSidebar()
     const [settingsOpen, setSettingsOpen] = React.useState(false)
     const [initialSection, setInitialSection] = React.useState<"account" | "billing">("account")
+    const t = useTranslations('user')
 
     const openSettings = (section: "account" | "billing") => {
         setInitialSection(section)
@@ -93,28 +95,28 @@ export function NavUser({
                             <DropdownMenuGroup>
                                 <DropdownMenuItem onSelect={() => openSettings("billing")}>
                                     <Sparkles />
-                                    Upgrade to Pro
+                                    {t('upgradeToPro')}
                                 </DropdownMenuItem>
                             </DropdownMenuGroup>
                             <DropdownMenuSeparator />
                             <DropdownMenuGroup>
                                 <DropdownMenuItem onSelect={() => openSettings("account")}>
                                     <BadgeCheck />
-                                    Account
+                                    {t('account')}
                                 </DropdownMenuItem>
                                 <DropdownMenuItem onSelect={() => openSettings("billing")}>
                                     <CreditCard />
-                                    Billing
+                                    {t('billing')}
                                 </DropdownMenuItem>
                                 <DropdownMenuItem>
                                     <Bell />
-                                    Notifications
+                                    {t('notifications')}
                                 </DropdownMenuItem>
                             </DropdownMenuGroup>
                             <DropdownMenuSeparator />
                             <DropdownMenuItem>
                                 <LogOut />
-                                Log out
+                                {t('logOut')}
                             </DropdownMenuItem>
                         </DropdownMenuContent>
                     </DropdownMenu>
