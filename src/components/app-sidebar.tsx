@@ -10,6 +10,7 @@ import {
     Share2,
     Briefcase
 } from "lucide-react"
+import { useTranslations } from 'next-intl'
 
 import { NavHistory } from "@/components/nav-history"
 import { NavUser } from "@/components/nav-user"
@@ -41,66 +42,69 @@ const AliaLogo = (props: React.ComponentProps<"img">) => {
     )
 }
 
-const data = {
-    user: {
-        name: "Usuario",
+export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
+    const t = useTranslations('sidebar')
+    const tAgents = useTranslations('agents')
+    const tUser = useTranslations('user')
+
+    const user = {
+        name: tUser('user'),
         email: "user@alia.onl",
         avatar: "https://github.com/shadcn.png",
-    },
-    agents: [
-        {
-            name: "Alia",
-            logo: AliaLogo,
-            description: "Asistente inteligente para todo",
-        },
-        {
-            name: "Alia Developer",
-            logo: Code,
-            description: "Experto en programación y sistemas",
-        },
-        {
-            name: "Alia Social Manager",
-            logo: Share2,
-            description: "Estratega de redes y contenido",
-        },
-        {
-            name: "Alia Business",
-            logo: Briefcase,
-            description: "Analista de negocios y mercado",
-        },
-    ],
-}
+    }
 
-export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
+    const agents = [
+        {
+            name: tAgents('alia.name'),
+            logo: AliaLogo,
+            description: tAgents('alia.description'),
+        },
+        {
+            name: tAgents('developer.name'),
+            logo: Code,
+            description: tAgents('developer.description'),
+        },
+        {
+            name: tAgents('socialManager.name'),
+            logo: Share2,
+            description: tAgents('socialManager.description'),
+        },
+        {
+            name: tAgents('business.name'),
+            logo: Briefcase,
+            description: tAgents('business.description'),
+        },
+    ]
+
     return (
         <Sidebar collapsible="icon" {...props}>
             <SidebarHeader>
-                <AgentSwitcher agents={data.agents} />
+                <AgentSwitcher agents={agents} />
             </SidebarHeader>
             <SidebarContent>
                 <SidebarGroup>
                     <SidebarMenu>
                         <SidebarMenuItem>
-                            <SidebarMenuButton asChild tooltip="Nuevo Chat">
+                            <SidebarMenuButton asChild tooltip={t('newChat')}>
                                 <a href="/">
                                     <Sparkles />
-                                    <span>Nuevo Chat</span>
+                                    <span>{t('newChat')}</span>
                                 </a>
                             </SidebarMenuButton>
                         </SidebarMenuItem>
                         <SidebarMenuItem>
-                            <SidebarMenuButton asChild tooltip="Agentes">
+                            <SidebarMenuButton asChild tooltip={t('agentsMenu')}>
                                 <a href="/agents">
                                     <Users />
-                                    <span>Agentes</span>
+                                    <span>{t('agentsMenu')}</span>
                                 </a>
                             </SidebarMenuButton>
                         </SidebarMenuItem>
                         <SidebarMenuItem>
-                            <SidebarMenuButton asChild tooltip="Admin Dashboard">
+                            <SidebarMenuButton asChild tooltip={t('adminDashboard')}>
                                 <a href="/admin">
                                     <Settings2 />
-                                    <span>Admin Dashboard</span>
+                                    <span>{t('adminDashboard')}</span>
                                 </a>
                             </SidebarMenuButton>
                         </SidebarMenuItem>
@@ -110,7 +114,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                 <NavHistory />
             </SidebarContent>
             <SidebarFooter>
-                <NavUser user={data.user} />
+                <NavUser user={user} />
             </SidebarFooter>
             <SidebarRail />
         </Sidebar>
