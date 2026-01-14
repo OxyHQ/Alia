@@ -7,6 +7,7 @@ import { createOpenAI } from '@ai-sdk/openai'
 import { createAnthropic } from '@ai-sdk/anthropic'
 import { getBestAvailableKey, loadKeys } from '@/lib/load-balancer'
 import type { KeyConfig } from '@/lib/types'
+import { getCurrentDateTool, createGoogleSearchTool } from '@/lib/tools'
 
 const keyPool = loadKeys()
 
@@ -55,6 +56,12 @@ function getAIModel(keyConfig: KeyConfig) {
   }
 }
 
+// Get Google API key for search tool (prefer Google keys)
+function getGoogleApiKey(): string | null {
+  const googleKey = keyPool.find(k => k.provider === 'google')
+  return googleKey?.key || null
+}
+
 export async function POST(req: Request) {
   try {
     const body = await req.json()
@@ -79,12 +86,32 @@ export async function POST(req: Request) {
     // Convert UI messages to model format
     const modelMessages = await convertToModelMessages(messages)
     
+    // Build tools object
+    const googleApiKey = getGoogleApiKey()
+    const tools: Record<string, ReturnType<typeof getCurrentDateTool>> = {
+      getCurrentDate: getCurrentDateTool,
+    }
+    
+    // Add Google Search if we have a Google API key
+    if (googleApiKey) {
+      tools.googleSearch = createGoogleSearchTool(googleApiKey)
+    }
+    
     // Stream the response using AI SDK
     const result = streamText({
       model,
       messages: modelMessages,
+      tools,
+      maxSteps: 5, // Allow multiple tool calls
       // Default system prompt for Alia
-      system: 'Eres Alia, un asistente de IA amigable y servicial. Responde en el mismo idioma que el usuario.',
+      system: `Eres Alia, un asistente de IA amigable y servicial. 
+      
+Tienes acceso a las siguientes herramientas:
+- getCurrentDate: Para obtener la fecha y hora actual
+${googleApiKey ? '- googleSearch: Para buscar información actualizada en internet' : ''}
+
+Responde siempre en el mismo idioma que el usuario. Sé conciso pero útil.
+Cuando uses herramientas, explica brevemente lo que estás haciendo.`,
     })
     
     // Return as UI Message Stream Response (AI SDK handles the protocol)
@@ -97,9 +124,15 @@ export async function POST(req: Request) {
 }
 
 export async function GET() {
+  const googleApiKey = getGoogleApiKey()
+  
   return Response.json({
     status: '🟢 Online',
     service: 'Alia AI Chat',
-    description: 'Internal API for Alia frontend. For OpenAI-compatible API, use /api/v1/chat/completions'
+    description: 'Internal API for Alia frontend',
+    tools: {
+      getCurrentDate: true,
+      googleSearch: !!googleApiKey
+    }
   })
 }
