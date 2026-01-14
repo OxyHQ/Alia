@@ -17,29 +17,36 @@ interface UsageInfo {
 // ============== GESTIÓN DE KEYS ==============
 
 export async function loadKeys(): Promise<KeyConfig[]> {
-  await connectDB();
-  const keys = await ApiKey.find({ isActive: true });
-  
-  // Si no hay keys en DB, intentar cargar desde .env (migración inicial)
-  if (keys.length === 0) {
-    console.log('⚠️ No hay keys en MongoDB, intentando cargar desde .env...');
-    const initialKeys = getKeysFromEnv();
-    if (initialKeys.length > 0) {
-      await ApiKey.insertMany(initialKeys);
-      return initialKeys;
+  try {
+    await connectDB();
+    const keys = await ApiKey.find({ isActive: true });
+    
+    // Si no hay keys en DB, intentar cargar desde .env (migración inicial)
+    if (keys.length === 0) {
+      console.log('⚠️ No hay keys en MongoDB, intentando cargar desde .env...');
+      const initialKeys = getKeysFromEnv();
+      if (initialKeys.length > 0) {
+        // No esperamos (await) aquí para evitar que el primer usuario espere por la escritura si la DB es lenta,
+        // o lo envolvemos en un catch para ignorar fallos de escritura en este punto.
+        ApiKey.insertMany(initialKeys).catch(err => console.error('❌ Falló la migración inicial a DB:', err.message));
+        return initialKeys;
+      }
     }
-  }
 
-  return keys.map(k => ({
-    provider: k.provider,
-    modelId: k.modelId,
-    key: k.key,
-    isPaid: k.isPaid,
-    rpm: k.rpm,
-    rpd: k.rpd,
-    tpm: k.tpm,
-    tpd: k.tpd
-  }));
+    return keys.map(k => ({
+      provider: k.provider,
+      modelId: k.modelId,
+      key: k.key,
+      isPaid: k.isPaid,
+      rpm: k.rpm,
+      rpd: k.rpd,
+      tpm: k.tpm,
+      tpd: k.tpd
+    }));
+  } catch (e) {
+    console.error('⚠️ Error cargando keys de DB, cargando desde .env:', e);
+    return getKeysFromEnv();
+  }
 }
 
 function getKeysFromEnv(): KeyConfig[] {
@@ -136,7 +143,7 @@ function progressBar(current: number, max: number): string {
 
 async function canUseKey(k: any, tokens = 1000): Promise<{ ok: boolean, usage: UsageInfo }> {
   const usage = await getKeyUsage(k.key);
-  if (!usage) return { ok: false, usage: { requestsMinute: 0, tokensMinute: 0, requestsDay: 0, tokensDay: 0 } };
+  if (!usage) return { ok: true, usage: { requestsMinute: 0, tokensMinute: 0, requestsDay: 0, tokensDay: 0 } };
 
   const ok = (!k.rpm || usage.requestsMinute < k.rpm) &&
              (!k.rpd || usage.requestsDay < k.rpd) &&
@@ -148,29 +155,43 @@ async function canUseKey(k: any, tokens = 1000): Promise<{ ok: boolean, usage: U
 
 // ============== MAIN ==============
 export async function getBestAvailableKey(keyPool: KeyConfig[], tokens = 1000): Promise<KeyConfig | null> {
-  await connectDB();
+  let dbKeys: any[] = [];
+  try {
+    await connectDB();
+    dbKeys = await ApiKey.find({ isActive: true });
+  } catch (e) {
+    console.error('⚠️ Error al buscar keys en DB, usando pool de memoria:', e);
+  }
   
-  // Obtener todas las keys de la DB para tener sus IDs y límites actualizados
-  const dbKeys = await ApiKey.find({ isActive: true });
+  // Si la DB no tiene keys (o falló), usamos el pool que nos pasaron
+  const workingKeys = dbKeys.length > 0 ? dbKeys : keyPool;
   
-  const free = dbKeys.filter(k => !k.isPaid);
-  const paid = dbKeys.filter(k => k.isPaid);
+  const free = workingKeys.filter(k => !k.isPaid);
+  const paid = workingKeys.filter(k => k.isPaid);
 
   for (const k of free) {
     const { ok, usage } = await canUseKey(k, tokens);
     if (ok) {
-      await ApiUsage.create({ keyId: k._id, provider: k.provider, tokens });
+      try {
+        await ApiUsage.create({ keyId: k._id, provider: k.provider, tokens });
+      } catch (e: any) {
+        console.error('⚠️ Error al registrar uso en DB:', e.message);
+      }
       console.log(`🆓 ${k.provider}/${k.modelId} [${k.key.slice(-6)}] | RPM: ${usage.requestsMinute + 1}/${k.rpm || '∞'} ${progressBar(usage.requestsMinute + 1, k.rpm || 0)}`);
-      return k.toObject();
+      return k.toObject ? k.toObject() : k;
     }
   }
 
   for (const k of paid) {
     const { ok, usage } = await canUseKey(k, tokens);
     if (ok) {
-      await ApiUsage.create({ keyId: k._id, provider: k.provider, tokens });
+      try {
+        await ApiUsage.create({ keyId: k._id, provider: k.provider, tokens });
+      } catch (e: any) {
+        console.error('⚠️ Error al registrar uso en DB:', e.message);
+      }
       console.log(`💳 ${k.provider}/${k.modelId} [${k.key.slice(-6)}] | RPM: ${usage.requestsMinute + 1}/${k.rpm || '∞'}`);
-      return k.toObject();
+      return k.toObject ? k.toObject() : k;
     }
   }
 

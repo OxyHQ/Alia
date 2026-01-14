@@ -58,6 +58,7 @@ export const authOptions: NextAuthOptions = {
     },
   },
   pages: {
-    signIn: '/login', // Ruta personalizada para login (la crearemos o usaremos la default por ahora si no existe)
+    signIn: '/login',
   },
+  secret: process.env.NEXTAUTH_SECRET,
 };
