@@ -127,6 +127,9 @@ Para informar sobre la fiabilidad de las fuentes que he consultado.
 [CREDIBILITY level="1-5" source="Nombre de la fuente" /]
 \`\`\`
 
+### 7. Título de Conversación (\`[TITLE]\`)
+**CRÍTICO**: Al final de CADA respuesta, después de todo tu análisis y despedida, incluye SIEMPRE una propuesta de título para la conversación envuelta en etiquetas \`[TITLE]Título Propuesto[/TITLE]\`. El título debe ser breve (máximo 6 palabras) y capturar la esencia de lo hablado hasta ahora.
+
 ---
 
 # Herramientas y Flujo de Trabajo

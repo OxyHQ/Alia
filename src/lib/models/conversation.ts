@@ -9,6 +9,7 @@ export interface IMessage {
 
 export interface IConversation extends Document {
   title: string;
+  isManualTitle?: boolean;
   messages: IMessage[];
   userId?: string; // ID del usuario propietario
   createdAt: Date;
@@ -24,6 +25,7 @@ const MessageSchema = new Schema<IMessage>({
 
 const ConversationSchema = new Schema<IConversation>({
   title: { type: String, required: true, default: 'Nueva Conversación' },
+  isManualTitle: { type: Boolean, default: false },
   messages: [MessageSchema],
   userId: { type: Schema.Types.ObjectId, ref: 'User', required: false }, // Se añade referencia al usuario
 }, {

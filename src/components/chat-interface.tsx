@@ -24,6 +24,7 @@ import {
     ChatContainerContent,
     ChatContainerRoot,
 } from "@/components/prompt-kit/chat-container"
+import { extractBanners } from '@/lib/message-parser'
 import {
     Message as UIMessage,
     MessageAction,
@@ -38,6 +39,7 @@ import { useChat } from '@ai-sdk/react'
 import { DefaultChatTransport } from 'ai'
 import { RichMessage } from '@/components/rich-message'
 import { useTranslations } from 'next-intl'
+import { toast } from 'sonner'
 
 interface ChatInterfaceProps {
     id?: string
@@ -84,9 +86,11 @@ export function ChatInterface({ id, initialMessages = [] }: ChatInterfaceProps) 
         messages: initialMessages,
 
         onFinish: async ({ message }: { message: any }) => {
-            const content = getMessageText(message)
+            const rawContent = getMessageText(message)
+            const { suggestedTitle, body: content } = extractBanners(rawContent)
+
             if (!isTemporary && conversationId) {
-                await saveMessageToDB('assistant', content, conversationId);
+                await saveMessageToDB('assistant', rawContent, conversationId, suggestedTitle);
             }
         },
         onError: (err: Error) => {
@@ -136,70 +140,131 @@ export function ChatInterface({ id, initialMessages = [] }: ChatInterfaceProps) 
         }
     }, [messages])
 
-    const saveMessageToDB = async (role: string, content: string, currentConvId?: string) => {
+    const saveMessageToDB = async (role: string, content: string, currentConvId?: string, suggestedTitle?: string) => {
+        if (!currentConvId && role === 'user') {
+            currentConvId = generateId()
+            setConversationId(currentConvId)
+            window.history.replaceState(null, '', `/c/${currentConvId}`)
+        }
+
         if (!isAuthenticated) {
-            // Local Storage Persistence
             const localConvsString = localStorage.getItem('alia-conversations') || '[]'
             let localConvs = JSON.parse(localConvsString)
 
-            if (!currentConvId && role === 'user') {
-                const newId = `local-${Date.now()}`
+            const index = localConvs.findIndex((c: any) => c._id === currentConvId)
+            if (index !== -1) {
+                localConvs[index].messages.push({ id: `m-${Date.now()}`, role, content })
+                if (suggestedTitle && !localConvs[index].isManualTitle) {
+                    localConvs[index].title = suggestedTitle
+                }
+                localConvs[index].updatedAt = new Date().toISOString()
+            } else {
                 const newConv = {
-                    _id: newId,
-                    title: content.slice(0, 50) + (content.length > 50 ? '...' : ''),
+                    _id: currentConvId,
+                    title: suggestedTitle || content.slice(0, 50) + (content.length > 50 ? '...' : ''),
                     messages: [{ id: `m-${Date.now()}`, role, content }],
                     updatedAt: new Date().toISOString()
                 }
                 localConvs.unshift(newConv)
-                localStorage.setItem('alia-conversations', JSON.stringify(localConvs))
-                setConversationId(newId)
-                window.history.replaceState(null, '', `/c/${newId}`)
-                window.dispatchEvent(new Event('chat-updated'))
-                return newId
-            } else if (currentConvId) {
-                const index = localConvs.findIndex((c: any) => c._id === currentConvId)
-                if (index !== -1) {
-                    localConvs[index].messages.push({ id: `m-${Date.now()}`, role, content })
-                    localConvs[index].updatedAt = new Date().toISOString()
-                    localStorage.setItem('alia-conversations', JSON.stringify(localConvs))
-                    window.dispatchEvent(new Event('chat-updated'))
-                }
             }
+            localStorage.setItem('alia-conversations', JSON.stringify(localConvs))
+            window.dispatchEvent(new Event('chat-updated'))
             return currentConvId
         }
 
-        if (!currentConvId && role === 'user') {
-            try {
-                const res = await fetch('/api/conversations', {
+        // Authenticated Persistence
+        try {
+            // If it's the first message of the conversation, use POST to create
+            // We use messages.length <= 1 because the user message might already be in state
+            if (role === 'user' && messages.length <= 1) {
+                await fetch('/api/conversations', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ messages: [{ role, content }] })
+                    body: JSON.stringify({
+                        id: currentConvId,
+                        messages: [{ role, content }],
+                        suggestedTitle
+                    })
                 })
-                if (res.ok) {
-                    const data = await res.json()
-                    setConversationId(data._id)
-                    window.history.replaceState(null, '', `/c/${data._id}`)
-                    window.dispatchEvent(new Event('chat-updated'));
-                    return data._id
-                }
-            } catch (e) {
-                console.error("Error creating conversation", e)
-            }
-            return null
-        } else if (currentConvId) {
-            try {
+            } else {
                 await fetch(`/api/conversations/${currentConvId}`, {
                     method: 'PUT',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ newMessage: { role, content } })
+                    body: JSON.stringify({
+                        newMessage: { role, content },
+                        suggestedTitle
+                    })
                 })
-                window.dispatchEvent(new Event('chat-updated'));
-            } catch (e) {
-                console.error("Error saving message", e)
             }
+            window.dispatchEvent(new Event('chat-updated'));
+        } catch (e) {
+            console.error("Error saving message to DB", e)
         }
         return currentConvId
     }
+
+    const handleCopy = (content: string) => {
+        navigator.clipboard.writeText(content)
+        toast.success(tCommon('copiedToClipboard'))
+    }
+
+    const handleVote = async (index: number, vote: 'up' | 'down') => {
+        if (!conversationId) return
+
+        const currentMessages = [...messages] as any[]
+        const msg = currentMessages[index]
+        if (!msg) return
+
+        // Toggle vote
+        const newVote = msg.vote === vote ? undefined : vote
+        const updatedMessages = currentMessages.map((m, i) =>
+            i === index ? { ...m, vote: newVote } : m
+        )
+        setMessages(updatedMessages as any)
+
+        if (!isAuthenticated) {
+            const localConvs = JSON.parse(localStorage.getItem('alia-conversations') || '[]')
+            const convIndex = localConvs.findIndex((c: any) => c._id === conversationId)
+            if (convIndex !== -1) {
+                localConvs[convIndex].messages = updatedMessages
+                localStorage.setItem('alia-conversations', JSON.stringify(localConvs))
+            }
+        } else {
+            try {
+                await fetch(`/api/conversations/${conversationId}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ messageIndex: index, vote: newVote })
+                })
+            } catch (e) {
+                console.error("Error voting", e)
+            }
+        }
+    }
+
+    // Generate a Mongo-compatible ID or UUID
+    const generateId = () => {
+        if (isAuthenticated) {
+            // Mongo-like 24 char hex
+            return Array.from({ length: 24 }, () => Math.floor(Math.random() * 16).toString(16)).join('')
+        }
+        return `local-${Date.now()}`
+    }
+
+    // Auto-allocate ID on start if missing and not temporary
+    useEffect(() => {
+        const allocateId = async () => {
+            if (id || isTemporary || status !== 'ready') return
+
+            const newId = generateId()
+            setConversationId(newId)
+            router.replace(`/c/${newId}`)
+        }
+
+        if (authStatus !== 'loading') {
+            allocateId()
+        }
+    }, [id, isTemporary, isAuthenticated, authStatus, router, t, status])
 
     const handleSubmit = async (e?: React.FormEvent, overrideContent?: string) => {
         if (e) e.preventDefault()
@@ -299,7 +364,7 @@ export function ChatInterface({ id, initialMessages = [] }: ChatInterfaceProps) 
                                                     variant="ghost"
                                                     size="icon"
                                                     className="rounded-full h-8 w-8 text-muted-foreground"
-                                                    onClick={() => navigator.clipboard.writeText(content)}
+                                                    onClick={() => handleCopy(content)}
                                                 >
                                                     <Copy className="h-4 w-4" />
                                                 </Button>
@@ -308,18 +373,26 @@ export function ChatInterface({ id, initialMessages = [] }: ChatInterfaceProps) 
                                                 <Button
                                                     variant="ghost"
                                                     size="icon"
-                                                    className="rounded-full h-8 w-8 text-muted-foreground"
+                                                    className={cn(
+                                                        "rounded-full h-8 w-8",
+                                                        (msg as any).vote === 'up' ? "text-primary bg-primary/10" : "text-muted-foreground"
+                                                    )}
+                                                    onClick={() => handleVote(i, 'up')}
                                                 >
-                                                    <ThumbsUp className="h-4 w-4" />
+                                                    <ThumbsUp className={cn("h-4 w-4", (msg as any).vote === 'up' && "fill-current")} />
                                                 </Button>
                                             </MessageAction>
                                             <MessageAction tooltip={tCommon('downvote')} delayDuration={100}>
                                                 <Button
                                                     variant="ghost"
                                                     size="icon"
-                                                    className="rounded-full h-8 w-8 text-muted-foreground"
+                                                    className={cn(
+                                                        "rounded-full h-8 w-8",
+                                                        (msg as any).vote === 'down' ? "text-destructive bg-destructive/10" : "text-muted-foreground"
+                                                    )}
+                                                    onClick={() => handleVote(i, 'down')}
                                                 >
-                                                    <ThumbsDown className="h-4 w-4" />
+                                                    <ThumbsDown className={cn("h-4 w-4", (msg as any).vote === 'down' && "fill-current")} />
                                                 </Button>
                                             </MessageAction>
                                         </MessageActions>
@@ -357,7 +430,7 @@ export function ChatInterface({ id, initialMessages = [] }: ChatInterfaceProps) 
                                                     variant="ghost"
                                                     size="icon"
                                                     className="rounded-full h-8 w-8 text-muted-foreground"
-                                                    onClick={() => navigator.clipboard.writeText(content)}
+                                                    onClick={() => handleCopy(content)}
                                                 >
                                                     <Copy className="h-4 w-4" />
                                                 </Button>
