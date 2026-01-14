@@ -1,0 +1,139 @@
+{
+    "common": {
+        "search": "Buscar",
+        "settings": "Ajustes",
+        "delete": "Eliminar",
+        "edit": "Editar",
+        "save": "Guardar",
+        "cancel": "Cancelar",
+        "or": "O",
+        "loading": "Cargando...",
+        "error": "Error",
+        "more": "Más",
+        "copy": "Copiar",
+        "upvote": "Me gusta",
+        "downvote": "No me gusta"
+    },
+    "sidebar": {
+        "agents": "Agentes de Alia",
+        "createAgent": "Crear Agente Personalizado",
+        "newChat": "Nuevo Chat",
+        "agentsMenu": "Agentes",
+        "adminDashboard": "Panel de Admin",
+        "recentHistory": "Historial Reciente",
+        "deleteConfirmation": "¿Eliminar conversación?"
+    },
+    "agents": {
+        "alia": {
+            "name": "Alia",
+            "description": "Asistente inteligente para todo"
+        },
+        "developer": {
+            "name": "Alia Developer",
+            "description": "Experto en programación y sistemas"
+        },
+        "socialManager": {
+            "name": "Alia Social Manager",
+            "description": "Estratega de redes y contenido"
+        },
+        "business": {
+            "name": "Alia Business",
+            "description": "Analista de negocios y mercado"
+        }
+    },
+    "chat": {
+        "welcomeTitle": "Alia",
+        "welcomeSubtitle": "¿En qué puedo ayudarte hoy?",
+        "temporaryMode": "Modo Temporal",
+        "messagePlaceholder": "Escribe a Alia",
+        "disclaimer": "Alia puede cometer errores. Verifica la información importante.",
+        "resetChat": "Reiniciar chat",
+        "prompts": {
+            "summarize": {
+                "title": "Resumir texto",
+                "text": "Resume este artículo en 3 puntos clave:"
+            },
+            "email": {
+                "title": "Redactar correo",
+                "text": "Escribe un correo formal solicitando una reunión para..."
+            },
+            "ideas": {
+                "title": "Explorar ideas",
+                "text": "Dame 5 ideas creativas para una campaña de marketing sobre..."
+            },
+            "code": {
+                "title": "Código Python",
+                "text": "Escribe un script en Python para analizar un archivo CSV."
+            }
+        }
+    },
+    "user": {
+        "user": "Usuario",
+        "upgradeToPro": "Actualizar a Pro",
+        "account": "Cuenta",
+        "billing": "Facturación",
+        "notifications": "Notificaciones",
+        "logOut": "Cerrar sesión"
+    },
+    "settings": {
+        "title": "Ajustes de Alia",
+        "description": "Gestiona tu cuenta, facturación y preferencias.",
+        "settingsTitle": "Ajustes",
+        "sections": {
+            "account": "Cuenta",
+            "billing": "Facturación",
+            "notifications": "Notificaciones",
+            "security": "Seguridad",
+            "devices": "Dispositivos"
+        },
+        "info": "Información",
+        "version": "Alia v1.0.4-build",
+        "account": {
+            "title": "Cuenta",
+            "description": "Gestiona tu información de perfil y correo electrónico.",
+            "name": "Nombre",
+            "nameDefault": "Usuario de Alia",
+            "email": "Correo Electrónico",
+            "saveChanges": "Guardar cambios"
+        },
+        "billing": {
+            "title": "Facturación",
+            "description": "Gestiona tu suscripción y métodos de pago.",
+            "currentPlan": "Plan Actual",
+            "aliaPro": "Alia Pro",
+            "nextPayment": "Tu próximo pago de",
+            "willBeOn": "será el 14 de Febrero, 2026.",
+            "manageSubscription": "Gestionar suscripción",
+            "viewInvoices": "Ver facturas",
+            "paymentMethods": "Métodos de pago",
+            "visaEnding": "Visa terminada en",
+            "expires": "Expira"
+        },
+        "placeholder": {
+            "underConstruction": "Esta sección está en construcción."
+        }
+    },
+    "login": {
+        "welcome": "Bienvenido a Alia",
+        "noAccount": "¿No tienes cuenta?",
+        "signUp": "Regístrate",
+        "email": "Correo electrónico",
+        "login": "Iniciar sesión",
+        "continueWithApple": "Continuar con Apple",
+        "continueWithGoogle": "Continuar con Google",
+        "termsIntro": "Al hacer clic en continuar, aceptas nuestros",
+        "termsOfService": "Términos de Servicio",
+        "and": "y",
+        "privacyPolicy": "Política de Privacidad"
+    },
+    "commandMenu": {
+        "placeholder": "Escribe un comando o busca...",
+        "noResults": "No se encontraron resultados.",
+        "suggestions": "Sugerencias",
+        "newConversation": "Nueva conversación",
+        "settings": "Configuración",
+        "recentConversations": "Conversaciones recientes",
+        "actions": "Acciones",
+        "startTemporaryChat": "Iniciar chat temporal"
+    }
+}
