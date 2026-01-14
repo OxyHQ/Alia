@@ -2,6 +2,7 @@
 
 import * as React from "react"
 import { ChevronsUpDown, Plus } from "lucide-react"
+import { useTranslations } from 'next-intl'
 
 import {
     DropdownMenu,
@@ -30,6 +31,7 @@ export function AgentSwitcher({
 }) {
     const { isMobile } = useSidebar()
     const [activeAgent, setActiveAgent] = React.useState(agents[0])
+    const t = useTranslations('sidebar')
 
     if (!activeAgent) {
         return null
@@ -61,7 +63,7 @@ export function AgentSwitcher({
                         sideOffset={4}
                     >
                         <DropdownMenuLabel className="text-muted-foreground text-xs">
-                            Agentes de Alia
+                            {t('agents')}
                         </DropdownMenuLabel>
                         {agents.map((agent, index) => (
                             <DropdownMenuItem
@@ -81,7 +83,7 @@ export function AgentSwitcher({
                             <div className="flex size-6 items-center justify-center squircle border bg-transparent">
                                 <Plus className="size-4" />
                             </div>
-                            <div className="text-muted-foreground font-medium">Crear Agente Personalizado</div>
+                            <div className="text-muted-foreground font-medium">{t('createAgent')}</div>
                         </DropdownMenuItem>
                     </DropdownMenuContent>
                 </DropdownMenu>
