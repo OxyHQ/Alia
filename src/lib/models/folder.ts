@@ -11,7 +11,7 @@ export interface IFolder extends Document {
 
 const FolderSchema = new Schema<IFolder>({
   name: { type: String, required: true },
-  userId: { type: Schema.Types.ObjectId, ref: 'User', required: true },
+  userId: { type: String, required: true },
   color: { type: String, default: 'gray' },
   icon: { type: String },
 }, {

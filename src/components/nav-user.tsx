@@ -8,6 +8,7 @@ import {
     CreditCardIcon,
     Logout01Icon,
     SparklesIcon,
+    Login01Icon,
 } from "@hugeicons/core-free-icons"
 import { createIcon } from "@/components/ui/hugeicon"
 
@@ -17,6 +18,7 @@ const ChevronsUpDown = createIcon(ArrowUpDownIcon)
 const CreditCard = createIcon(CreditCardIcon)
 const LogOut = createIcon(Logout01Icon)
 const Sparkles = createIcon(SparklesIcon)
+const LogIn = createIcon(Login01Icon)
 import { useTranslations } from 'next-intl'
 
 import {
@@ -41,7 +43,8 @@ import {
 } from "@/components/ui/sidebar"
 import { SettingsDialog } from "@/components/settings-dialog"
 
-import { useSession, signOut } from "next-auth/react"
+import { useSession, signOut, signIn } from "next-auth/react"
+import { useRouter } from "next/navigation"
 
 export function NavUser({
     user: initialUser,
@@ -52,11 +55,12 @@ export function NavUser({
         avatar: string
     }
 }) {
-    const { data: session } = useSession()
+    const { data: session, status } = useSession()
     const { isMobile } = useSidebar()
     const [settingsOpen, setSettingsOpen] = React.useState(false)
     const [initialSection, setInitialSection] = React.useState<"account" | "billing">("account")
     const t = useTranslations('user')
+    const router = useRouter()
 
     const user = session?.user ? {
         name: session.user.name || initialUser.name,
@@ -69,9 +73,36 @@ export function NavUser({
         setSettingsOpen(true)
     }
 
-    // Si no hay sesión, podríamos mostrar un botón de "Iniciar sesión"
-    // Pero por ahora, NavUser se muestra siempre, así que usaremos los datos de la sesión si existen.
+    const handleSignIn = () => {
+        router.push('/login')
+    }
 
+    // If no session, show sign-in button
+    if (status === 'unauthenticated') {
+        return (
+            <div className="relative">
+                <SidebarMenu>
+                    <SidebarMenuItem>
+                        <SidebarMenuButton
+                            size="lg"
+                            onClick={handleSignIn}
+                            className="hover:bg-sidebar-accent hover:text-sidebar-accent-foreground cursor-pointer"
+                        >
+                            <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground">
+                                <LogIn className="size-4" />
+                            </div>
+                            <div className="grid flex-1 text-left text-sm leading-tight">
+                                <span className="truncate font-medium">{t('signIn')}</span>
+                                <span className="truncate text-xs">{t('signInPrompt')}</span>
+                            </div>
+                        </SidebarMenuButton>
+                    </SidebarMenuItem>
+                </SidebarMenu>
+            </div>
+        )
+    }
+
+    // If session exists, show user dropdown
     return (
         <div className="relative">
             <SidebarMenu>

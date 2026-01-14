@@ -1,10 +1,6 @@
 "use client"
 
 import * as React from "react"
-import { GalleryVerticalEndIcon as GalleryVerticalEndIconData } from "@hugeicons/core-free-icons"
-import { createIcon } from "@/components/ui/hugeicon"
-
-const GalleryVerticalEnd = createIcon(GalleryVerticalEndIconData)
 import { useTranslations } from 'next-intl'
 
 import { cn } from "@/lib/utils"
@@ -94,7 +90,7 @@ export function LoginForm({
                     <Field>
                         <div className="flex items-center">
                             <FieldLabel htmlFor="password">{t('password')}</FieldLabel>
-                            {/* <a href="#" className="ml-auto text-xs underline underline-offset-4">{t('forgotPassword')}</a> */}
+                            <a href="/forgot-password" className="ml-auto text-xs underline underline-offset-4">{t('forgotPassword')}</a>
                         </div>
                         <Input id="password" name="password" type="password" required disabled={isLoading} />
                     </Field>

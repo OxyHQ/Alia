@@ -261,7 +261,7 @@ export function RichMessage({ content, role, id, message }: RichMessageProps) {
                                             )}
                                             {item.meta && <span className="text-xs text-muted-foreground block truncate">{item.meta}</span>}
                                         </div>
-                                        {item.href && <ExternalLink className="h-3 w-3 shrink-0 mt-1 opacity-30" />}
+                                        {item.href && <LinkExternal className="h-3 w-3 shrink-0 mt-1 opacity-30" />}
                                     </div>
                                 ))}
                             </CardContent>
