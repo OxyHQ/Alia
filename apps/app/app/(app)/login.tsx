@@ -60,28 +60,34 @@ export default function LoginScreen() {
         <Button
           variant="outline"
           onPress={() => handleSocialLogin('google')}
-          className="h-11 rounded-full flex-row items-center justify-center gap-2"
+          className="h-11 rounded-full"
         >
-          <MaterialCommunityIcons name="google" size={18} color="currentColor" />
-          <Text className="text-sm font-medium">Continue with Google</Text>
+          <View className="flex-row items-center gap-2">
+            <MaterialCommunityIcons name="google" size={18} color="#0F172A" />
+            <Text className="text-sm font-medium">Continue with Google</Text>
+          </View>
         </Button>
 
         <Button
           variant="outline"
           onPress={() => handleSocialLogin('microsoft')}
-          className="h-11 rounded-full flex-row items-center justify-center gap-2"
+          className="h-11 rounded-full"
         >
-          <MaterialCommunityIcons name="microsoft" size={18} color="currentColor" />
-          <Text className="text-sm font-medium">Continue with Microsoft</Text>
+          <View className="flex-row items-center gap-2">
+            <MaterialCommunityIcons name="microsoft" size={18} color="#0F172A" />
+            <Text className="text-sm font-medium">Continue with Microsoft</Text>
+          </View>
         </Button>
 
         <Button
           variant="outline"
           onPress={() => handleSocialLogin('apple')}
-          className="h-11 rounded-full flex-row items-center justify-center gap-2"
+          className="h-11 rounded-full"
         >
-          <MaterialCommunityIcons name="apple" size={18} color="currentColor" />
-          <Text className="text-sm font-medium">Continue with Apple</Text>
+          <View className="flex-row items-center gap-2">
+            <MaterialCommunityIcons name="apple" size={18} color="#0F172A" />
+            <Text className="text-sm font-medium">Continue with Apple</Text>
+          </View>
         </Button>
       </View>
 
