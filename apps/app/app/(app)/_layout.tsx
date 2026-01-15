@@ -6,15 +6,8 @@ import { useWindowDimensions } from 'react-native';
 import { useAuthStore } from '@/lib/stores/auth-store';
 
 export default function AppLayout() {
-  // Use selector to avoid worklet serialization issues
-  const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
   const dimensions = useWindowDimensions();
   const isLargeScreen = dimensions.width >= 768;
-
-  // Redirect to login if not authenticated
-  if (!isAuthenticated) {
-    return <Redirect href="/login" />;
-  }
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
@@ -63,6 +56,27 @@ export default function AppLayout() {
           options={{
             drawerLabel: 'Account',
             title: 'Account',
+          }}
+        />
+        <Drawer.Screen
+          name="login"
+          options={{
+            drawerItemStyle: { display: 'none' },
+            title: 'Sign In',
+          }}
+        />
+        <Drawer.Screen
+          name="register"
+          options={{
+            drawerItemStyle: { display: 'none' },
+            title: 'Sign Up',
+          }}
+        />
+        <Drawer.Screen
+          name="forgot-password"
+          options={{
+            drawerItemStyle: { display: 'none' },
+            title: 'Forgot Password',
           }}
         />
       </Drawer>

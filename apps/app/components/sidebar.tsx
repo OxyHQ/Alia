@@ -34,6 +34,7 @@ export const Sidebar = React.memo(function Sidebar() {
   const chatId = useStore((state) => state.chatId);
   const conversations = useStore((state) => state.conversations);
   const user = useAuthStore((state) => state.user);
+  const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
   const logout = useAuthStore((state) => state.logout);
 
   const handleNewChat = React.useCallback(() => {
@@ -67,8 +68,16 @@ export const Sidebar = React.memo(function Sidebar() {
 
   const handleLogout = React.useCallback(() => {
     logout();
-    router.replace("/login");
+    router.replace("/(app)/login");
   }, [router, logout]);
+
+  const handleLogin = React.useCallback(() => {
+    router.push("/(app)/login");
+  }, [router]);
+
+  const handleRegister = React.useCallback(() => {
+    router.push("/(app)/register");
+  }, [router]);
 
   // Get user initials for avatar
   const getUserInitials = React.useCallback(() => {
@@ -185,62 +194,84 @@ export const Sidebar = React.memo(function Sidebar() {
         </ScrollView>
       </View>
 
-      {/* Footer with User */}
+      {/* Footer with User or Auth Buttons */}
       <View className="border-t border-border/50 p-3">
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Pressable className="flex-row items-center gap-3 rounded-xl p-2 active:bg-muted">
-              <Avatar className="h-8 w-8">
-                {user?.image ? (
-                  <AvatarImage source={{ uri: user.image }} />
-                ) : null}
-                <AvatarFallback className="bg-primary">
-                  <Text className="text-xs text-primary-foreground">{getUserInitials()}</Text>
-                </AvatarFallback>
-              </Avatar>
-              <View className="flex-1">
-                <Text className="text-sm font-medium text-foreground">
-                  {user?.name || "User"}
-                </Text>
-                <Text className="text-xs text-muted-foreground">
-                  {user?.email || ""}
-                </Text>
+        {isAuthenticated ? (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Pressable className="flex-row items-center gap-3 rounded-xl p-2 active:bg-muted">
+                <Avatar className="h-8 w-8">
+                  {user?.image ? (
+                    <AvatarImage source={{ uri: user.image }} />
+                  ) : null}
+                  <AvatarFallback className="bg-primary">
+                    <Text className="text-xs text-primary-foreground">{getUserInitials()}</Text>
+                  </AvatarFallback>
+                </Avatar>
+                <View className="flex-1">
+                  <Text className="text-sm font-medium text-foreground">
+                    {user?.name || "User"}
+                  </Text>
+                  <Text className="text-xs text-muted-foreground">
+                    {user?.email || ""}
+                  </Text>
+                </View>
+              </Pressable>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent
+              side="top"
+              align="start"
+              className="w-64"
+            >
+              <View className="flex flex-col space-y-1 p-2">
+                <Text className="text-sm font-medium text-foreground">{user?.name || "User"}</Text>
+                <Text className="text-xs text-muted-foreground">{user?.email || ""}</Text>
               </View>
-            </Pressable>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent
-            side="top"
-            align="start"
-            className="w-64"
-          >
-            <View className="flex flex-col space-y-1 p-2">
-              <Text className="text-sm font-medium text-foreground">{user?.name || "User"}</Text>
-              <Text className="text-xs text-muted-foreground">{user?.email || ""}</Text>
-            </View>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem>
-              <Sparkle size={16} className="text-muted-foreground" />
-              <Text className="text-sm">Upgrade to Pro</Text>
-            </DropdownMenuItem>
-            <DropdownMenuItem onPress={handleAccount}>
-              <UserCircle size={16} className="text-muted-foreground" />
-              <Text className="text-sm">Account</Text>
-            </DropdownMenuItem>
-            <DropdownMenuItem>
-              <CreditCard size={16} className="text-muted-foreground" />
-              <Text className="text-sm">Billing</Text>
-            </DropdownMenuItem>
-            <DropdownMenuItem>
-              <Bell size={16} className="text-muted-foreground" />
-              <Text className="text-sm">Notifications</Text>
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem variant="destructive" onPress={handleLogout}>
-              <LogOut size={16} className="text-destructive" />
-              <Text className="text-sm">Log out</Text>
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem>
+                <Sparkle size={16} className="text-muted-foreground" />
+                <Text className="text-sm">Upgrade to Pro</Text>
+              </DropdownMenuItem>
+              <DropdownMenuItem onPress={handleAccount}>
+                <UserCircle size={16} className="text-muted-foreground" />
+                <Text className="text-sm">Account</Text>
+              </DropdownMenuItem>
+              <DropdownMenuItem>
+                <CreditCard size={16} className="text-muted-foreground" />
+                <Text className="text-sm">Billing</Text>
+              </DropdownMenuItem>
+              <DropdownMenuItem>
+                <Bell size={16} className="text-muted-foreground" />
+                <Text className="text-sm">Notifications</Text>
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem variant="destructive" onPress={handleLogout}>
+                <LogOut size={16} className="text-destructive" />
+                <Text className="text-sm">Log out</Text>
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        ) : (
+          <View className="gap-2">
+            <Button
+              onPress={handleLogin}
+              className="h-11 rounded-xl w-full"
+            >
+              <Text className="text-sm font-semibold text-primary-foreground">
+                Sign in
+              </Text>
+            </Button>
+            <Button
+              onPress={handleRegister}
+              variant="outline"
+              className="h-11 rounded-xl w-full"
+            >
+              <Text className="text-sm font-medium">
+                Sign up
+              </Text>
+            </Button>
+          </View>
+        )}
       </View>
     </View>
   );
