@@ -9,6 +9,11 @@ import { createAnthropic } from '@ai-sdk/anthropic';
 import { getBestAvailableKey, loadKeys } from '../lib/load-balancer.js';
 import type { KeyConfig } from '../lib/types.js';
 import { getCurrentDateTool, createGoogleSearchTool, getTimelineTool, searchKnowledgeBaseTool, scrapeURLTool } from '../lib/tools/index.js';
+import { optionalAuth } from '../middleware/auth.js';
+import { User } from '../models/user.js';
+import { UserMemory } from '../models/user-memory.js';
+import type { IUserMemory } from '../models/user-memory.js';
+import type { IUser } from '../models/user.js';
 
 const router = Router();
 
@@ -54,6 +59,63 @@ function getAIModel(keyConfig: KeyConfig) {
     default:
       throw new Error(`Provider "${keyConfig.provider}" not supported for Alia chat`);
   }
+}
+
+// Function to build personalized system prompt
+function buildSystemPrompt(user?: IUser, memory?: IUserMemory): string {
+  let prompt = ALIA_SYSTEM_PROMPT;
+
+  // Add user personalization if authenticated
+  if (user && memory) {
+    const userContext: string[] = [];
+
+    // Add user name
+    if (user.name?.first) {
+      userContext.push(`The user's name is ${user.name.full || user.name.first}.`);
+    }
+
+    // Add language preference
+    if (memory.preferences?.language) {
+      userContext.push(`IMPORTANT: The user prefers to communicate in ${memory.preferences.language}. Always respond in ${memory.preferences.language} unless specifically asked to use another language.`);
+    }
+
+    // Add user context
+    if (memory.context?.occupation) {
+      userContext.push(`The user works as a ${memory.context.occupation}.`);
+    }
+    if (memory.context?.location) {
+      userContext.push(`The user is located in ${memory.context.location}.`);
+    }
+    if (memory.context?.bio) {
+      userContext.push(`About the user: ${memory.context.bio}`);
+    }
+
+    // Add preferences
+    if (memory.preferences?.tone) {
+      userContext.push(`The user prefers a ${memory.preferences.tone} tone in responses.`);
+    }
+    if (memory.preferences?.responseLength) {
+      userContext.push(`The user prefers ${memory.preferences.responseLength} responses.`);
+    }
+    if (memory.preferences?.interests && memory.preferences.interests.length > 0) {
+      userContext.push(`The user is interested in: ${memory.preferences.interests.join(', ')}.`);
+    }
+
+    // Add memories
+    if (memory.memories && memory.memories.length > 0) {
+      const memoryItems = memory.memories
+        .map(m => `- ${m.key}: ${m.value}`)
+        .join('\n');
+      userContext.push(`\nThings to remember about the user:\n${memoryItems}`);
+    }
+
+    // Prepend user context to the system prompt
+    if (userContext.length > 0) {
+      prompt = `# USER CONTEXT\n\n${userContext.join('\n')}\n\n---\n\n${prompt}`;
+    }
+  }
+
+  return prompt;
 }
 
 const ALIA_SYSTEM_PROMPT = `
@@ -151,13 +213,27 @@ Para informar sobre la fiabilidad de las fuentes que he consultado.
 Estoy aquí para explorar contigo cualquier tema con la profundidad que merece.
 `;
 
-router.post('/', async (req, res) => {
+router.post('/', optionalAuth, async (req, res) => {
   try {
     const { messages } = req.body as { messages: CoreMessage[] };
 
     if (!messages || !messages.length) {
       res.status(400).json({ error: 'No messages provided' });
       return;
+    }
+
+    // Fetch user data and memory if authenticated
+    let user: IUser | null = null;
+    let memory: IUserMemory | null = null;
+
+    if (req.user) {
+      try {
+        user = await User.findById(req.user.id);
+        memory = await UserMemory.findOne({ userId: req.user.id });
+      } catch (error) {
+        console.error('Error fetching user data:', error);
+        // Continue without user context if there's an error
+      }
     }
 
     const keyPool = await loadKeys();
@@ -179,6 +255,9 @@ router.post('/', async (req, res) => {
       ...(googleApiKey ? { googleSearch: createGoogleSearchTool(googleApiKey) } : {})
     };
 
+    // Build personalized system prompt
+    const systemPrompt = buildSystemPrompt(user || undefined, memory || undefined);
+
     // Set headers for SSE streaming
     res.setHeader('Content-Type', 'text/event-stream');
     res.setHeader('Cache-Control', 'no-cache');
@@ -189,7 +268,7 @@ router.post('/', async (req, res) => {
       messages,
       tools,
       stopWhen: stepCountIs(5),
-      system: ALIA_SYSTEM_PROMPT,
+      system: systemPrompt,
       temperature: 0.6,
     });
 

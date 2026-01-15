@@ -159,6 +159,13 @@ const ChatConversationPage = () => {
     Alert.alert('Canvas', 'Canvas mode for collaborative editing coming soon!');
   };
 
+  const handleEditMessage = (messageId: string, newContent: string) => {
+    const updatedMessages = messages.map(msg =>
+      msg.id === messageId ? { ...msg, content: newContent } : msg
+    );
+    setMessages(updatedMessages);
+  };
+
   const scrollViewRef = useRef<GHScrollView>(null) as React.RefObject<GHScrollView>;
 
   // Load conversation messages when chatId is set from URL
@@ -208,6 +215,7 @@ const ChatConversationPage = () => {
             scrollViewRef={scrollViewRef}
             isLoading={isLoading}
             onSuggestionPress={handleSuggestionPress}
+            onEditMessage={handleEditMessage}
           />
 
           <View className="p-4 bg-background border-t border-border">

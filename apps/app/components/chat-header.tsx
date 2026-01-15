@@ -1,9 +1,11 @@
-import { View } from "react-native";
+import { View, useWindowDimensions } from "react-native";
 import { Text } from "@/components/ui/text";
-import { Crown, Search, MoreHorizontal } from "lucide-react-native";
+import { Crown, Search, MoreHorizontal, Menu } from "lucide-react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Button } from "@/components/ui/button";
 import { ModelSelector } from "@/components/model-selector";
+import { useNavigation } from "expo-router";
+import { DrawerNavigationProp } from "@react-navigation/drawer";
 
 interface ChatHeaderProps {
   title: string;
@@ -23,19 +25,37 @@ export function ChatHeader({
   onMorePress,
 }: ChatHeaderProps) {
   const insets = useSafeAreaInsets();
+  const dimensions = useWindowDimensions();
+  const navigation = useNavigation<DrawerNavigationProp<any>>();
+  const isLargeScreen = dimensions.width >= 768;
+
+  const handleDrawerToggle = () => {
+    navigation.toggleDrawer();
+  };
 
   return (
     <View
       className="flex-row items-center justify-between px-4"
       style={{ paddingTop: insets.top, height: 56 + insets.top }}
     >
-      <Text className="text-lg font-semibold text-foreground">{title}</Text>
-
       <View className="flex-row items-center gap-2">
+        {!isLargeScreen && (
+          <Button
+            variant="ghost"
+            size="icon"
+            onPress={handleDrawerToggle}
+            className="h-9 w-9 rounded-lg"
+          >
+            <Menu size={20} className="text-muted-foreground" />
+          </Button>
+        )}
         <ModelSelector
           selectedModel={selectedModel}
           onModelChange={onModelChange}
         />
+      </View>
+
+      <View className="flex-row items-center gap-2">
 
         <Button
           variant="ghost"
