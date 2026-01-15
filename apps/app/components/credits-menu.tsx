@@ -8,6 +8,9 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
+import { useCreditsStore } from "@/lib/stores/credits-store";
+import { useEffect } from "react";
+import { useAuthStore } from "@/lib/stores/auth-store";
 
 interface CreditsMenuProps {
   credits?: number;
@@ -16,12 +19,17 @@ interface CreditsMenuProps {
   refreshTime?: string;
 }
 
-export function CreditsMenu({
-  credits = 1000,
-  freeCredits = 1000,
-  dailyRefresh = 300,
-  refreshTime = "23:00",
-}: CreditsMenuProps) {
+export function CreditsMenu({}: CreditsMenuProps) {
+  const { credits, freeCredits, dailyRefresh, fetchCredits } = useCreditsStore();
+  const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
+
+  // Fetch credits on mount if authenticated
+  useEffect(() => {
+    if (isAuthenticated) {
+      fetchCredits();
+    }
+  }, [isAuthenticated, fetchCredits]);
+
   const handleUpgrade = () => {
     // TODO: Implement upgrade flow
     console.log("Upgrade clicked");
@@ -31,6 +39,11 @@ export function CreditsMenu({
     // TODO: Navigate to usage page
     console.log("View usage clicked");
   };
+
+  // Hide credits menu if user is not signed in
+  if (!isAuthenticated) {
+    return null;
+  }
 
   return (
     <DropdownMenu>
@@ -93,7 +106,7 @@ export function CreditsMenu({
             </View>
             <View className="flex-row items-baseline justify-between">
               <Text className="text-sm text-muted-foreground">
-                Refresh to {dailyRefresh} at {refreshTime} every day
+                Refresh to {dailyRefresh} at 00:00 every day
               </Text>
               <Text className="text-2xl font-bold text-foreground">
                 {dailyRefresh}

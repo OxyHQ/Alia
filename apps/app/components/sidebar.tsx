@@ -20,6 +20,7 @@ import {
   Library,
   FolderOpen,
   Plus,
+  BrainCircuit,
 } from "lucide-react-native";
 import { useStore } from "@/lib/globalStore";
 import { generateUUID } from "@/lib/utils";
@@ -93,6 +94,10 @@ export const Sidebar = React.memo(function Sidebar() {
     router.push("/(app)/library");
   }, [router]);
 
+  const handleRoles = React.useCallback(() => {
+    router.push("/(app)/roles");
+  }, [router]);
+
   const handleSelectProject = React.useCallback((id: string | null) => {
     setCurrentProject(id);
   }, [setCurrentProject]);
@@ -143,6 +148,14 @@ export const Sidebar = React.memo(function Sidebar() {
 
       {/* Navigation Links */}
       <View className="px-3 md:px-2 pb-3 md:pb-2 gap-1">
+        <Button
+          variant="ghost"
+          className="h-10 md:h-8 flex-row items-center justify-start gap-2 rounded-full px-3 md:px-2 w-full"
+          onPress={handleRoles}
+        >
+          <BrainCircuit size={16} className="text-muted-foreground" />
+          <Text className="text-sm md:text-xs">Roles</Text>
+        </Button>
         <Button
           variant="ghost"
           className="h-10 md:h-8 flex-row items-center justify-start gap-2 rounded-full px-3 md:px-2 w-full"

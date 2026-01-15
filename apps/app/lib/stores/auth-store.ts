@@ -19,6 +19,13 @@ interface AuthState {
   updateUser: (user: Partial<User>) => void;
 }
 
+// Lazy getter for credits store to avoid circular dependency
+const getCreditsStore = () => {
+  // Dynamic import to break the cycle
+  const { useCreditsStore } = require('./credits-store');
+  return useCreditsStore;
+};
+
 export const useAuthStore = create<AuthState>()(
   persist(
     (set) => ({
@@ -26,19 +33,29 @@ export const useAuthStore = create<AuthState>()(
       token: null,
       isAuthenticated: false,
 
-      login: (user, token) =>
+      login: (user, token) => {
         set({
           user,
           token,
           isAuthenticated: true,
-        }),
+        });
+        // Fetch credits after login
+        setTimeout(() => {
+          getCreditsStore().getState().fetchCredits();
+        }, 0);
+      },
 
-      logout: () =>
+      logout: () => {
         set({
           user: null,
           token: null,
           isAuthenticated: false,
-        }),
+        });
+        // Reset credits on logout
+        setTimeout(() => {
+          getCreditsStore().getState().reset();
+        }, 0);
+      },
 
       updateUser: (userData) =>
         set((state) => ({
