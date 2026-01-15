@@ -17,11 +17,15 @@ import {
   LogOut,
   LogIn,
   UserPlus,
+  Library,
+  FolderOpen,
+  Plus,
 } from "lucide-react-native";
 import { useStore } from "@/lib/globalStore";
 import { generateUUID } from "@/lib/utils";
 import { useRouter } from "expo-router";
 import { useAuthStore } from "@/lib/stores/auth-store";
+import { useProjectsStore } from "@/lib/stores/projects-store";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -38,6 +42,10 @@ export const Sidebar = React.memo(function Sidebar() {
   const user = useAuthStore((state) => state.user);
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
   const logout = useAuthStore((state) => state.logout);
+  const projects = useProjectsStore((state) => state.projects);
+  const currentProjectId = useProjectsStore((state) => state.currentProjectId);
+  const setCurrentProject = useProjectsStore((state) => state.setCurrentProject);
+  const createProject = useProjectsStore((state) => state.createProject);
 
   const handleNewChat = React.useCallback(() => {
     const newChatId = generateUUID();
@@ -80,6 +88,19 @@ export const Sidebar = React.memo(function Sidebar() {
   const handleRegister = React.useCallback(() => {
     router.push("/(app)/register");
   }, [router]);
+
+  const handleLibrary = React.useCallback(() => {
+    router.push("/(app)/library");
+  }, [router]);
+
+  const handleSelectProject = React.useCallback((id: string | null) => {
+    setCurrentProject(id);
+  }, [setCurrentProject]);
+
+  const handleNewProject = React.useCallback(async () => {
+    const projectName = `Project ${projects.length + 1}`;
+    await createProject(projectName);
+  }, [createProject, projects.length]);
 
   // Get user initials for avatar
   const getUserInitials = React.useCallback(() => {
@@ -132,6 +153,14 @@ export const Sidebar = React.memo(function Sidebar() {
         <Button
           variant="ghost"
           className="h-10 md:h-8 flex-row items-center justify-start gap-2 rounded-full px-3 md:px-2 w-full"
+          onPress={handleLibrary}
+        >
+          <Library size={16} className="text-muted-foreground" />
+          <Text className="text-sm md:text-xs">Library</Text>
+        </Button>
+        <Button
+          variant="ghost"
+          className="h-10 md:h-8 flex-row items-center justify-start gap-2 rounded-full px-3 md:px-2 w-full"
           onPress={handleSettings}
         >
           <Settings2 size={16} className="text-muted-foreground" />
@@ -141,20 +170,98 @@ export const Sidebar = React.memo(function Sidebar() {
         </Button>
       </View>
 
+      {/* Projects Section */}
+      <View className="px-3 md:px-2 pb-2 md:pb-1.5">
+        <View className="flex-row items-center justify-between px-2 py-1.5 md:py-1">
+          <Text className="text-sm md:text-xs font-medium text-muted-foreground">
+            Projects
+          </Text>
+          <Pressable
+            onPress={handleNewProject}
+            className="h-5 w-5 md:h-4 md:w-4 rounded active:opacity-70"
+          >
+            <Plus size={14} className="text-muted-foreground" />
+          </Pressable>
+        </View>
+        <View className="gap-1">
+          {/* All Chats - Special project for unorganized chats */}
+          <Pressable
+            onPress={() => handleSelectProject(null)}
+            className={cn(
+              "flex-row items-center gap-2 rounded-full py-2.5 md:py-2 px-3 md:px-2.5 transition-colors",
+              currentProjectId === null
+                ? "bg-muted border border-border"
+                : "active:bg-muted/50"
+            )}
+          >
+            <View
+              className="h-2 w-2 rounded-full"
+              style={{ backgroundColor: "#6b7280" }}
+            />
+            <Text
+              className={cn(
+                "flex-1 text-sm md:text-xs text-foreground",
+                currentProjectId === null && "font-medium"
+              )}
+            >
+              All Chats
+            </Text>
+          </Pressable>
+
+          {/* Project list */}
+          {projects.map((project) => (
+            <Pressable
+              key={project.id}
+              onPress={() => handleSelectProject(project.id)}
+              className={cn(
+                "flex-row items-center gap-2 rounded-full py-2.5 md:py-2 px-3 md:px-2.5 transition-colors",
+                currentProjectId === project.id
+                  ? "bg-muted border border-border"
+                  : "active:bg-muted/50"
+              )}
+            >
+              <View
+                className="h-2 w-2 rounded-full"
+                style={{ backgroundColor: project.color }}
+              />
+              <Text
+                className={cn(
+                  "flex-1 text-sm md:text-xs text-foreground",
+                  currentProjectId === project.id && "font-medium"
+                )}
+                numberOfLines={1}
+              >
+                {project.name}
+              </Text>
+            </Pressable>
+          ))}
+        </View>
+      </View>
+
       {/* Recent History */}
       <View className="flex-1 px-3 md:px-2">
         <Text className="px-2 py-2 md:py-1.5 text-sm md:text-xs font-medium text-muted-foreground">
-          Recent History
+          {currentProjectId ? projects.find((p) => p.id === currentProjectId)?.name : "Recent History"}
         </Text>
         <ScrollView showsVerticalScrollIndicator={false} className="gap-1">
-          {conversations.length === 0 ? (
-            <View className="items-center justify-center py-8">
-              <Text className="text-sm md:text-xs text-muted-foreground">
-                No conversations yet
-              </Text>
-            </View>
-          ) : (
-            conversations.map((conv) => (
+          {(() => {
+            // Filter conversations based on current project
+            const filteredConversations = currentProjectId
+              ? conversations.filter((conv) =>
+                  projects
+                    .find((p) => p.id === currentProjectId)
+                    ?.conversationIds.includes(conv.id)
+                )
+              : conversations;
+
+            return filteredConversations.length === 0 ? (
+              <View className="items-center justify-center py-8">
+                <Text className="text-sm md:text-xs text-muted-foreground">
+                  No conversations yet
+                </Text>
+              </View>
+            ) : (
+              filteredConversations.map((conv) => (
               <Pressable
                 key={conv.id}
                 onPress={() => handleSelectConversation(conv.id)}
@@ -193,8 +300,9 @@ export const Sidebar = React.memo(function Sidebar() {
                   />
                 </Button>
               </Pressable>
-            ))
-          )}
+              ))
+            );
+          })()}
         </ScrollView>
       </View>
 

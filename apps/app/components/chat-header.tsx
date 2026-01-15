@@ -1,9 +1,10 @@
 import { View, useWindowDimensions } from "react-native";
 import { Text } from "@/components/ui/text";
-import { Crown, Search, MoreHorizontal, Menu } from "lucide-react-native";
+import { Crown, Search, MoreHorizontal, Menu, Ghost } from "lucide-react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Button } from "@/components/ui/button";
 import { ModelSelector } from "@/components/model-selector";
+import { CreditsMenu } from "@/components/credits-menu";
 import { useNavigation } from "expo-router";
 import { DrawerNavigationProp } from "@react-navigation/drawer";
 
@@ -12,6 +13,7 @@ interface ChatHeaderProps {
   selectedModel?: string;
   onModelChange?: (modelId: string) => void;
   onHostModePress?: () => void;
+  onGhostModePress?: () => void;
   onSearchPress?: () => void;
   onMorePress?: () => void;
 }
@@ -21,6 +23,7 @@ export function ChatHeader({
   selectedModel,
   onModelChange,
   onHostModePress,
+  onGhostModePress,
   onSearchPress,
   onMorePress,
 }: ChatHeaderProps) {
@@ -56,6 +59,16 @@ export function ChatHeader({
       </View>
 
       <View className="flex-row items-center gap-2">
+        <CreditsMenu />
+
+        <Button
+          variant="ghost"
+          size="icon"
+          onPress={onGhostModePress}
+          className="h-9 w-9 rounded-lg"
+        >
+          <Ghost size={20} className="text-muted-foreground" />
+        </Button>
 
         <Button
           variant="ghost"

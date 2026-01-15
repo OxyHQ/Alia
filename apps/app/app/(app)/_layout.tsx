@@ -4,10 +4,18 @@ import { Sidebar } from '@/components/sidebar';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { useWindowDimensions } from 'react-native';
 import { useAuthStore } from '@/lib/stores/auth-store';
+import { useProjectsStore } from '@/lib/stores/projects-store';
+import { useEffect } from 'react';
 
 export default function AppLayout() {
   const dimensions = useWindowDimensions();
   const isLargeScreen = dimensions.width >= 768;
+  const loadProjects = useProjectsStore((state) => state.loadProjects);
+
+  // Load projects on mount
+  useEffect(() => {
+    loadProjects();
+  }, [loadProjects]);
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
@@ -77,6 +85,13 @@ export default function AppLayout() {
           options={{
             drawerItemStyle: { display: 'none' },
             title: 'Forgot Password',
+          }}
+        />
+        <Drawer.Screen
+          name="library"
+          options={{
+            drawerItemStyle: { display: 'none' },
+            title: 'Library',
           }}
         />
       </Drawer>
