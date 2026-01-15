@@ -1,7 +1,7 @@
 import { Platform } from 'react-native';
 
 // Centralized configuration constants
-export const DEV_API_BASE_URL = 'http://localhost:3001';
+export const DEV_API_BASE_URL = 'http://nate:3001';
 export const STAGING_API_BASE_URL = 'https://staging-api.alia.onl';
 export const PROD_API_BASE_URL = 'https://api.alia.onl';
 

@@ -1,13 +1,13 @@
-import { View, ScrollView } from "react-native";
+import { View, ScrollView, Pressable, Image } from "react-native";
 import { CustomMarkdown } from "@/components/ui/markdown";
 import { Text } from "@/components/ui/text";
 import WeatherCard from "@/components/weather";
 import { WelcomeMessage } from "@/components/welcome-message";
-import React, { forwardRef } from "react";
+import React, { forwardRef, useEffect } from "react";
 import { cn } from "@/lib/utils";
 import { LottieLoader } from "@/components/lottie-loader";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Bot, User, Search, Link, Calendar, Database, Globe } from "lucide-react-native";
+import { Bot, Search, Link, Calendar, Database, Globe, Copy, ThumbsUp, ThumbsDown, Pencil } from "lucide-react-native";
 import Animated, { FadeInUp } from "react-native-reanimated";
 
 type ToolInvocation = {
@@ -75,6 +75,34 @@ function getMessageText(message: Message): string {
 
 export const ChatInterface = forwardRef<ScrollView, ChatInterfaceProps>(
   ({ messages, scrollViewRef, isLoading, onSuggestionPress }, ref) => {
+    // Auto-scroll to bottom when messages change or during streaming
+    useEffect(() => {
+      // Scroll whenever messages change or loading state changes
+      const timer = setTimeout(() => {
+        if (ref && 'current' in ref && ref.current) {
+          ref.current.scrollToEnd({ animated: true });
+        }
+      }, 150);
+      return () => clearTimeout(timer);
+    }, [messages, isLoading, ref]);
+
+    // Also scroll when messages length changes (user sends message)
+    useEffect(() => {
+      if (messages.length > 0) {
+        const timer = setTimeout(() => {
+          if (ref && 'current' in ref && ref.current) {
+            ref.current.scrollToEnd({ animated: true });
+          }
+        }, 200);
+        return () => clearTimeout(timer);
+      }
+    }, [messages.length, ref]);
+
+    const containerClassName = cn(
+      "max-w-3xl mx-auto w-full",
+      messages.length === 0 && "flex-1 justify-center"
+    );
+
     return (
       <ScrollView
         ref={ref}
@@ -82,10 +110,10 @@ export const ChatInterface = forwardRef<ScrollView, ChatInterfaceProps>(
         contentContainerStyle={{ flexGrow: 1 }}
         showsVerticalScrollIndicator={false}
       >
-        <View className="max-w-3xl mx-auto w-full">
+        <View className={containerClassName}>
           {!messages.length && <WelcomeMessage onSuggestionPress={onSuggestionPress} />}
 
-          <View className="gap-6">
+          <View className="gap-3">
             {messages.map((m, index) => {
               const messageText = getMessageText(m);
 
@@ -104,23 +132,16 @@ export const ChatInterface = forwardRef<ScrollView, ChatInterfaceProps>(
                       return (
                         <View
                           key={t.toolCallId}
-                          className="mb-4 flex-row items-start gap-2"
+                          className="mb-2 flex-row items-center justify-start"
                         >
-                          <Avatar className="h-8 w-8">
-                            <AvatarFallback className="bg-primary/10">
-                              <Bot size={16} className="text-primary" />
-                            </AvatarFallback>
-                          </Avatar>
-                          <View className="flex-1 rounded-2xl bg-muted/50 p-4">
-                            <View className="flex-row items-center gap-2">
-                              <LottieLoader width={20} height={20} />
-                              <ToolIcon size={16} className="text-muted-foreground" />
-                              <Text className="text-sm text-muted-foreground">
-                                {toolLabel}
-                                {t.args?.query ? `: ${t.args.query}` : ''}
-                                {t.args?.url ? `: ${t.args.url}` : ''}
-                              </Text>
-                            </View>
+                          <View className="rounded-full bg-muted/50 px-3 py-1.5 flex-row items-center gap-1.5">
+                            <LottieLoader width={14} height={14} />
+                            <ToolIcon size={12} className="text-muted-foreground" />
+                            <Text className="text-xs text-muted-foreground">
+                              {toolLabel}
+                              {t.args?.query ? `: ${t.args.query.substring(0, 30)}${t.args.query.length > 30 ? '...' : ''}` : ''}
+                              {t.args?.url ? `: ${t.args.url.substring(0, 30)}${t.args.url.length > 30 ? '...' : ''}` : ''}
+                            </Text>
                           </View>
                         </View>
                       );
@@ -131,20 +152,13 @@ export const ChatInterface = forwardRef<ScrollView, ChatInterfaceProps>(
                       return (
                         <View
                           key={t.toolCallId}
-                          className="mb-4 flex-row items-start gap-2"
+                          className="mb-2 flex-row items-center justify-start"
                         >
-                          <Avatar className="h-8 w-8">
-                            <AvatarFallback className="bg-primary/10">
-                              <Bot size={16} className="text-primary" />
-                            </AvatarFallback>
-                          </Avatar>
-                          <View className="flex-1 rounded-2xl bg-primary/5 border border-primary/20 p-4">
-                            <View className="flex-row items-center gap-2">
-                              <ToolIcon size={16} className="text-primary" />
-                              <Text className="text-sm font-medium text-foreground">
-                                {toolLabel} completed
-                              </Text>
-                            </View>
+                          <View className="rounded-full bg-primary/10 border border-primary/20 px-3 py-1.5 flex-row items-center gap-1.5">
+                            <ToolIcon size={12} className="text-primary" />
+                            <Text className="text-xs font-medium text-primary">
+                              {toolLabel}
+                            </Text>
                           </View>
                         </View>
                       );
@@ -155,43 +169,49 @@ export const ChatInterface = forwardRef<ScrollView, ChatInterfaceProps>(
 
                   {/* Message Content */}
                   {messageText.length > 0 && (
-                    <View
-                      className={cn(
-                        "flex-row gap-2",
-                        m.role === "user" ? "justify-end" : "justify-start"
-                      )}
-                    >
-                      {m.role === "assistant" && (
-                        <Avatar className="h-8 w-8 mt-1">
-                          <AvatarFallback className="bg-primary/10">
-                            <Bot size={16} className="text-primary" />
-                          </AvatarFallback>
-                        </Avatar>
-                      )}
-
-                      <View
-                        className={cn(
-                          "max-w-[85%] sm:max-w-[75%] rounded-[24px] px-5 py-2.5",
-                          m.role === "user"
-                            ? "bg-muted"
-                            : "bg-background border border-border"
-                        )}
-                      >
-                        {m.role === "user" ? (
-                          <Text className="text-base text-primary leading-6">
-                            {messageText}
-                          </Text>
-                        ) : (
-                          <CustomMarkdown content={messageText} />
-                        )}
-                      </View>
-
-                      {m.role === "user" && (
-                        <Avatar className="h-8 w-8 mt-1">
-                          <AvatarFallback className="bg-primary">
-                            <User size={16} className="text-primary-foreground" />
-                          </AvatarFallback>
-                        </Avatar>
+                    <View className="w-full">
+                      {m.role === "assistant" ? (
+                        // Assistant message: logo on top, text below
+                        <View className="flex-col items-start gap-0.5">
+                          <Image
+                            source={require("@/assets/images/logo.png")}
+                            style={{ width: 48, height: 20 }}
+                            resizeMode="contain"
+                          />
+                          <View className="w-full">
+                            <CustomMarkdown content={messageText} />
+                          </View>
+                          {/* Action Buttons for Assistant Messages */}
+                          <View className="flex-row gap-1">
+                            <Pressable className="p-1.5 rounded-lg hover:bg-muted active:bg-muted">
+                              <Copy size={14} className="text-muted-foreground" />
+                            </Pressable>
+                            <Pressable className="p-1.5 rounded-lg hover:bg-muted active:bg-muted">
+                              <ThumbsUp size={14} className="text-muted-foreground" />
+                            </Pressable>
+                            <Pressable className="p-1.5 rounded-lg hover:bg-muted active:bg-muted">
+                              <ThumbsDown size={14} className="text-muted-foreground" />
+                            </Pressable>
+                          </View>
+                        </View>
+                      ) : (
+                        // User message: bubble only
+                        <View className="flex-col items-end gap-0.5">
+                          <View className="max-w-[85%] sm:max-w-[75%] rounded-[24px] px-5 py-2.5 bg-muted">
+                            <Text className="text-base text-foreground leading-7">
+                              {messageText}
+                            </Text>
+                          </View>
+                          {/* Action Buttons for User Messages */}
+                          <View className="flex-row gap-1">
+                            <Pressable className="p-1.5 rounded-lg hover:bg-muted active:bg-muted">
+                              <Copy size={14} className="text-muted-foreground" />
+                            </Pressable>
+                            <Pressable className="p-1.5 rounded-lg hover:bg-muted active:bg-muted">
+                              <Pencil size={14} className="text-muted-foreground" />
+                            </Pressable>
+                          </View>
+                        </View>
                       )}
                     </View>
                   )}

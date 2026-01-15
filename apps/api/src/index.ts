@@ -1,7 +1,8 @@
 import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
-import mongoose from 'mongoose';
+import { fileURLToPath } from 'url';
+import { dirname, join } from 'path';
 
 // Importar rutas
 import healthRouter from './routes/health.js';
@@ -11,7 +12,12 @@ import foldersRouter from './routes/folders.js';
 import chatRouter from './routes/chat.js';
 import v1Router from './routes/v1.js';
 
-dotenv.config();
+// Fix for ES Modules __dirname
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+
+// Load .env from the api directory (not the monorepo root)
+dotenv.config({ path: join(__dirname, '../.env') });
 
 const app = express();
 const PORT = process.env.API_PORT || 3001;
@@ -40,11 +46,7 @@ app.use(cors({
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Conectar a MongoDB
-const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/alia';
-mongoose.connect(MONGODB_URI)
-  .then(() => console.log('📦 Connected to MongoDB'))
-  .catch((err) => console.error('MongoDB connection error:', err));
+// MongoDB connection is handled by db.ts when needed
 
 // Rutas
 app.use('/api/health', healthRouter);

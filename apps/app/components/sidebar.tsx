@@ -36,7 +36,8 @@ export const Sidebar = React.memo(function Sidebar() {
   const handleNewChat = React.useCallback(() => {
     const newChatId = generateUUID();
     useStore.getState().setChatId({ id: newChatId, from: "newChat" });
-  }, []);
+    router.push("/");
+  }, [router]);
 
   const handleLogoPress = React.useCallback(() => {
     router.push("/");

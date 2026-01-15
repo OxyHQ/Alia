@@ -68,7 +68,10 @@ const rules = {
         <Code>{children}</Code>
       </Pre>
     ) : (
-      <Code className="rounded-md bg-zinc-100 px-1 py-0.5 text-sm dark:bg-zinc-800">
+      <Code
+        className="bg-muted/50 px-1.5 py-0 text-[11px]"
+        style={{ borderRadius: 999 }}
+      >
         {children}
       </Code>
     );
@@ -93,8 +96,11 @@ const rules = {
       {children}
     </A>
   ),
+  paragraph: (node, children) => {
+    return <P className="text-base leading-7">{children}</P>;
+  },
   text: (node) => {
-    return <P className="">{node.content}</P>;
+    return node.content;
   },
   body: (node, children) => {
     return <Div className="">{children}</Div>;

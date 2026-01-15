@@ -1,63 +1,48 @@
 import mongoose from 'mongoose';
 
-const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/alia';
-
-if (!MONGODB_URI) {
-  throw new Error('Please define the MONGODB_URI environment variable inside .env');
-}
-
-interface MongooseCache {
-  conn: typeof mongoose | null;
-  promise: Promise<typeof mongoose> | null;
-}
-
-declare global {
-  var mongoose: MongooseCache;
-}
-
-let cached = global.mongoose;
-
-if (!cached) {
-  cached = global.mongoose = { conn: null, promise: null };
-}
+// Singleton promise to ensure only one connection attempt at a time
+let connectionPromise: Promise<typeof mongoose> | null = null;
 
 export async function connectDB() {
-  // If already connected via the main mongoose instance, return it
+  // Read MONGODB_URI here, after dotenv.config() has been called
+  const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/alia';
+
+  if (!MONGODB_URI) {
+    throw new Error('Please define the MONGODB_URI environment variable inside .env');
+  }
+
+  // If already connected, return the mongoose instance
   if (mongoose.connection.readyState === 1) {
     return mongoose;
   }
 
-  if (cached.conn) {
-    return cached.conn;
+  // If a connection attempt is in progress, wait for it
+  if (connectionPromise) {
+    return connectionPromise;
   }
 
-  if (!cached.promise) {
-    const opts = {
-      bufferCommands: false,
-      maxPoolSize: 10,
-      serverSelectionTimeoutMS: 5000,
-      socketTimeoutMS: 45000,
-    };
+  // Create a new connection
+  const opts = {
+    bufferCommands: false,
+    maxPoolSize: 10,
+    serverSelectionTimeoutMS: 5000,
+    socketTimeoutMS: 45000,
+  };
 
-    console.log('🔄 Conectando a MongoDB...');
-    cached.promise = mongoose.connect(MONGODB_URI, opts).then((mongooseInstance) => {
+  console.log('🔄 Conectando a MongoDB...');
+
+  connectionPromise = mongoose.connect(MONGODB_URI, opts)
+    .then((mongooseInstance) => {
       console.log('✅ MongoDB conectado exitosamente');
       return mongooseInstance;
-    }).catch((err) => {
+    })
+    .catch((err) => {
       console.error('❌ Error conectando a MongoDB:', err);
-      cached.promise = null; // Resetear promesa para permitir reintentos
+      connectionPromise = null; // Reset to allow retry
       throw err;
     });
-  }
 
-  try {
-    cached.conn = await cached.promise;
-  } catch (e) {
-    cached.promise = null;
-    throw e;
-  }
-
-  return cached.conn;
+  return connectionPromise;
 }
 
 // Función auxiliar para verificar si la conexión está activa
