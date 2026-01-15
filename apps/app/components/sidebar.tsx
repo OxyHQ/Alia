@@ -19,6 +19,7 @@ import {
 import { useStore } from "@/lib/globalStore";
 import { generateUUID } from "@/lib/utils";
 import { useRouter } from "expo-router";
+import { useAuthStore } from "@/lib/stores/auth-store";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -32,25 +33,52 @@ export const Sidebar = React.memo(function Sidebar() {
   // Use selectors to avoid worklet serialization issues
   const chatId = useStore((state) => state.chatId);
   const conversations = useStore((state) => state.conversations);
+  const user = useAuthStore((state) => state.user);
+  const logout = useAuthStore((state) => state.logout);
 
   const handleNewChat = React.useCallback(() => {
     const newChatId = generateUUID();
     useStore.getState().setChatId({ id: newChatId, from: "newChat" });
-    router.push("/");
+    router.push(`/(app)/c/${newChatId}`);
   }, [router]);
 
   const handleLogoPress = React.useCallback(() => {
-    router.push("/");
+    const newChatId = generateUUID();
+    useStore.getState().setChatId({ id: newChatId, from: "newChat" });
+    router.push(`/(app)/c/${newChatId}`);
   }, [router]);
 
   const handleSelectConversation = React.useCallback((id: string) => {
-    router.push(`/c/${id}`);
+    router.push(`/(app)/c/${id}`);
   }, [router]);
 
   const handleDeleteConversation = React.useCallback((id: string, e: any) => {
     e.stopPropagation();
     useStore.getState().deleteConversation(id);
   }, []);
+
+  const handleSettings = React.useCallback(() => {
+    router.push("/(app)/settings");
+  }, [router]);
+
+  const handleAccount = React.useCallback(() => {
+    router.push("/(app)/settings/account");
+  }, [router]);
+
+  const handleLogout = React.useCallback(() => {
+    logout();
+    router.replace("/login");
+  }, [router, logout]);
+
+  // Get user initials for avatar
+  const getUserInitials = React.useCallback(() => {
+    if (!user?.name) return "U";
+    const names = user.name.split(" ");
+    if (names.length >= 2) {
+      return `${names[0][0]}${names[1][0]}`.toUpperCase();
+    }
+    return names[0][0].toUpperCase();
+  }, [user]);
 
   return (
     <View className="flex-1 bg-background">
@@ -91,10 +119,11 @@ export const Sidebar = React.memo(function Sidebar() {
         <Button
           variant="ghost"
           className="flex-row items-center justify-start gap-2 rounded-lg px-2 w-full"
+          onPress={handleSettings}
         >
           <Settings2 size={16} className="text-muted-foreground" />
           <Text className="text-sm">
-            Admin Dashboard
+            Settings
           </Text>
         </Button>
       </View>
@@ -162,17 +191,19 @@ export const Sidebar = React.memo(function Sidebar() {
           <DropdownMenuTrigger asChild>
             <Pressable className="flex-row items-center gap-3 rounded-xl p-2 active:bg-muted">
               <Avatar className="h-8 w-8">
-                <AvatarImage source={{ uri: "https://github.com/shadcn.png" }} />
+                {user?.image ? (
+                  <AvatarImage source={{ uri: user.image }} />
+                ) : null}
                 <AvatarFallback className="bg-primary">
-                  <Text className="text-xs text-primary-foreground">U</Text>
+                  <Text className="text-xs text-primary-foreground">{getUserInitials()}</Text>
                 </AvatarFallback>
               </Avatar>
               <View className="flex-1">
                 <Text className="text-sm font-medium text-foreground">
-                  User
+                  {user?.name || "User"}
                 </Text>
                 <Text className="text-xs text-muted-foreground">
-                  user@alia.onl
+                  {user?.email || ""}
                 </Text>
               </View>
             </Pressable>
@@ -183,15 +214,15 @@ export const Sidebar = React.memo(function Sidebar() {
             className="w-64"
           >
             <View className="flex flex-col space-y-1 p-2">
-              <Text className="text-sm font-medium text-foreground">User</Text>
-              <Text className="text-xs text-muted-foreground">user@alia.onl</Text>
+              <Text className="text-sm font-medium text-foreground">{user?.name || "User"}</Text>
+              <Text className="text-xs text-muted-foreground">{user?.email || ""}</Text>
             </View>
             <DropdownMenuSeparator />
             <DropdownMenuItem>
               <Sparkle size={16} className="text-muted-foreground" />
               <Text className="text-sm">Upgrade to Pro</Text>
             </DropdownMenuItem>
-            <DropdownMenuItem>
+            <DropdownMenuItem onPress={handleAccount}>
               <UserCircle size={16} className="text-muted-foreground" />
               <Text className="text-sm">Account</Text>
             </DropdownMenuItem>
@@ -204,7 +235,7 @@ export const Sidebar = React.memo(function Sidebar() {
               <Text className="text-sm">Notifications</Text>
             </DropdownMenuItem>
             <DropdownMenuSeparator />
-            <DropdownMenuItem variant="destructive">
+            <DropdownMenuItem variant="destructive" onPress={handleLogout}>
               <LogOut size={16} className="text-destructive" />
               <Text className="text-sm">Log out</Text>
             </DropdownMenuItem>

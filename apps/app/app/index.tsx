@@ -23,7 +23,7 @@ const ChatPage = () => {
       useStore.getState().setChatId({ id: newId, from: "newChat" });
 
       // Navigate to the conversation page
-      router.replace(`/c/${newId}`);
+      router.replace(`/(app)/c/${newId}`);
     };
 
     redirectToNewChat();

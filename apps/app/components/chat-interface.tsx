@@ -1,14 +1,15 @@
-import { View, ScrollView, Pressable, Image } from "react-native";
+import { View, ScrollView, Pressable, Image, TextInput } from "react-native";
 import { CustomMarkdown } from "@/components/ui/markdown";
 import { Text } from "@/components/ui/text";
 import WeatherCard from "@/components/weather";
 import { WelcomeMessage } from "@/components/welcome-message";
-import React, { forwardRef, useEffect } from "react";
+import React, { forwardRef, useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
 import { LottieLoader } from "@/components/lottie-loader";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Bot, Search, Link, Calendar, Database, Globe, Copy, ThumbsUp, ThumbsDown, Pencil } from "lucide-react-native";
+import { Bot, Search, Link, Calendar, Database, Globe, Copy, ThumbsUp, ThumbsDown, Pencil, Check } from "lucide-react-native";
 import Animated, { FadeInUp } from "react-native-reanimated";
+import * as Clipboard from "expo-clipboard";
 
 type ToolInvocation = {
   toolName: string;
@@ -55,6 +56,8 @@ type ChatInterfaceProps = {
   scrollViewRef: React.RefObject<ScrollView>;
   isLoading?: boolean;
   onSuggestionPress?: (message: string) => void;
+  onEditMessage?: (messageId: string, newContent: string) => void;
+  onCopyMessage?: (content: string) => void;
 };
 
 // Helper function to extract text content from a message
@@ -74,7 +77,37 @@ function getMessageText(message: Message): string {
 }
 
 export const ChatInterface = forwardRef<ScrollView, ChatInterfaceProps>(
-  ({ messages, scrollViewRef, isLoading, onSuggestionPress }, ref) => {
+  ({ messages, scrollViewRef, isLoading, onSuggestionPress, onEditMessage, onCopyMessage }, ref) => {
+    const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
+    const [editedContent, setEditedContent] = useState("");
+    const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
+
+    const handleCopyMessage = async (messageId: string, content: string) => {
+      await Clipboard.setStringAsync(content);
+      setCopiedMessageId(messageId);
+      setTimeout(() => setCopiedMessageId(null), 2000);
+      if (onCopyMessage) {
+        onCopyMessage(content);
+      }
+    };
+
+    const handleStartEdit = (messageId: string, content: string) => {
+      setEditingMessageId(messageId);
+      setEditedContent(content);
+    };
+
+    const handleSaveEdit = (messageId: string) => {
+      if (onEditMessage && editedContent.trim()) {
+        onEditMessage(messageId, editedContent);
+      }
+      setEditingMessageId(null);
+      setEditedContent("");
+    };
+
+    const handleCancelEdit = () => {
+      setEditingMessageId(null);
+      setEditedContent("");
+    };
     // Auto-scroll to bottom when messages change or during streaming
     useEffect(() => {
       // Scroll whenever messages change or loading state changes
@@ -84,19 +117,7 @@ export const ChatInterface = forwardRef<ScrollView, ChatInterfaceProps>(
         }
       }, 150);
       return () => clearTimeout(timer);
-    }, [messages, isLoading, ref]);
-
-    // Also scroll when messages length changes (user sends message)
-    useEffect(() => {
-      if (messages.length > 0) {
-        const timer = setTimeout(() => {
-          if (ref && 'current' in ref && ref.current) {
-            ref.current.scrollToEnd({ animated: true });
-          }
-        }, 200);
-        return () => clearTimeout(timer);
-      }
-    }, [messages.length, ref]);
+    }, [messages.length, isLoading]);
 
     const containerClassName = cn(
       "max-w-3xl mx-auto w-full",
@@ -183,8 +204,15 @@ export const ChatInterface = forwardRef<ScrollView, ChatInterfaceProps>(
                           </View>
                           {/* Action Buttons for Assistant Messages */}
                           <View className="flex-row gap-1">
-                            <Pressable className="p-1.5 rounded-lg hover:bg-muted active:bg-muted">
-                              <Copy size={14} className="text-muted-foreground" />
+                            <Pressable
+                              className="p-1.5 rounded-lg hover:bg-muted active:bg-muted"
+                              onPress={() => handleCopyMessage(m.id, messageText)}
+                            >
+                              {copiedMessageId === m.id ? (
+                                <Check size={14} className="text-green-500" />
+                              ) : (
+                                <Copy size={14} className="text-muted-foreground" />
+                              )}
                             </Pressable>
                             <Pressable className="p-1.5 rounded-lg hover:bg-muted active:bg-muted">
                               <ThumbsUp size={14} className="text-muted-foreground" />
@@ -197,20 +225,58 @@ export const ChatInterface = forwardRef<ScrollView, ChatInterfaceProps>(
                       ) : (
                         // User message: bubble only
                         <View className="flex-col items-end gap-0.5">
-                          <View className="max-w-[85%] sm:max-w-[75%] rounded-[24px] px-5 py-2.5 bg-muted">
-                            <Text className="text-base text-foreground leading-7">
-                              {messageText}
-                            </Text>
-                          </View>
+                          {editingMessageId === m.id ? (
+                            <View className="max-w-[85%] sm:max-w-[75%] rounded-[24px] px-5 py-2.5 bg-muted">
+                              <TextInput
+                                value={editedContent}
+                                onChangeText={setEditedContent}
+                                multiline
+                                className="text-base text-foreground leading-7"
+                                autoFocus
+                              />
+                              <View className="flex-row gap-2 mt-2">
+                                <Pressable
+                                  className="px-3 py-1.5 rounded-lg bg-primary"
+                                  onPress={() => handleSaveEdit(m.id)}
+                                >
+                                  <Text className="text-xs text-primary-foreground">Save</Text>
+                                </Pressable>
+                                <Pressable
+                                  className="px-3 py-1.5 rounded-lg bg-muted-foreground"
+                                  onPress={handleCancelEdit}
+                                >
+                                  <Text className="text-xs text-background">Cancel</Text>
+                                </Pressable>
+                              </View>
+                            </View>
+                          ) : (
+                            <View className="max-w-[85%] sm:max-w-[75%] rounded-[24px] px-5 py-2.5 bg-muted">
+                              <Text className="text-base text-foreground leading-7">
+                                {messageText}
+                              </Text>
+                            </View>
+                          )}
                           {/* Action Buttons for User Messages */}
-                          <View className="flex-row gap-1">
-                            <Pressable className="p-1.5 rounded-lg hover:bg-muted active:bg-muted">
-                              <Copy size={14} className="text-muted-foreground" />
-                            </Pressable>
-                            <Pressable className="p-1.5 rounded-lg hover:bg-muted active:bg-muted">
-                              <Pencil size={14} className="text-muted-foreground" />
-                            </Pressable>
-                          </View>
+                          {editingMessageId !== m.id && (
+                            <View className="flex-row gap-1">
+                              <Pressable
+                                className="p-1.5 rounded-lg hover:bg-muted active:bg-muted"
+                                onPress={() => handleCopyMessage(m.id, messageText)}
+                              >
+                                {copiedMessageId === m.id ? (
+                                  <Check size={14} className="text-green-500" />
+                                ) : (
+                                  <Copy size={14} className="text-muted-foreground" />
+                                )}
+                              </Pressable>
+                              <Pressable
+                                className="p-1.5 rounded-lg hover:bg-muted active:bg-muted"
+                                onPress={() => handleStartEdit(m.id, messageText)}
+                              >
+                                <Pencil size={14} className="text-muted-foreground" />
+                              </Pressable>
+                            </View>
+                          )}
                         </View>
                       )}
                     </View>

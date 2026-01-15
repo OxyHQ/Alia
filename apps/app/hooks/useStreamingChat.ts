@@ -1,6 +1,7 @@
 import { useState, useCallback } from 'react';
 import { fetch as expoFetch } from 'expo/fetch';
 import * as Haptics from 'expo-haptics';
+import { useAuthStore } from '@/lib/stores/auth-store';
 
 export interface ToolInvocation {
   toolCallId: string;
@@ -34,6 +35,7 @@ export function useStreamingChat(apiUrl: string) {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<Error | null>(null);
   const [conversationTitle, setConversationTitle] = useState<string | null>(null);
+  const token = useAuthStore((state) => state.token);
 
   const append = useCallback(async (message: Message) => {
     setIsLoading(true);
@@ -54,11 +56,18 @@ export function useStreamingChat(apiUrl: string) {
     setMessages((prev) => [...prev, assistantMessage]);
 
     try {
+      // Build headers with optional auth token
+      const headers: HeadersInit = {
+        'Content-Type': 'application/json',
+      };
+
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+
       const response = await expoFetch(apiUrl, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers,
         body: JSON.stringify({
           messages: [...messages, userMessage].map((m) => ({
             role: m.role,
@@ -223,7 +232,7 @@ export function useStreamingChat(apiUrl: string) {
     } finally {
       setIsLoading(false);
     }
-  }, [apiUrl, messages]);
+  }, [apiUrl, messages, token]);
 
   const stop = useCallback(() => {
     // TODO: Implement abort controller

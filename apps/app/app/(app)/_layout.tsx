@@ -1,11 +1,11 @@
 import { Drawer } from 'expo-router/drawer';
-import { Redirect } from 'expo-router';
+import { Redirect, Slot } from 'expo-router';
 import { Sidebar } from '@/components/sidebar';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { useWindowDimensions } from 'react-native';
 import { useAuthStore } from '@/lib/stores/auth-store';
 
-export default function ChatLayout() {
+export default function AppLayout() {
   // Use selector to avoid worklet serialization issues
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
   const dimensions = useWindowDimensions();
@@ -38,10 +38,31 @@ export default function ChatLayout() {
         }}
       >
         <Drawer.Screen
-          name="index"
+          name="c/[id]/index"
           options={{
             drawerLabel: 'Chat',
             title: 'Chat',
+          }}
+        />
+        <Drawer.Screen
+          name="settings/index"
+          options={{
+            drawerLabel: 'Settings',
+            title: 'Settings',
+          }}
+        />
+        <Drawer.Screen
+          name="settings/memory"
+          options={{
+            drawerLabel: 'Memory',
+            title: 'Memory',
+          }}
+        />
+        <Drawer.Screen
+          name="settings/account"
+          options={{
+            drawerLabel: 'Account',
+            title: 'Account',
           }}
         />
       </Drawer>

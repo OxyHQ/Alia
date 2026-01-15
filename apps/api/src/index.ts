@@ -10,6 +10,8 @@ import authRouter from './routes/auth.js';
 import conversationsRouter from './routes/conversations.js';
 import foldersRouter from './routes/folders.js';
 import chatRouter from './routes/chat.js';
+import memoryRouter from './routes/memory.js';
+import uploadRouter from './routes/upload.js';
 import v1Router from './routes/v1.js';
 
 // Fix for ES Modules __dirname
@@ -53,6 +55,8 @@ app.use('/api/health', healthRouter);
 app.use('/api/auth', authRouter);
 app.use('/api/conversations', conversationsRouter);
 app.use('/api/folders', foldersRouter);
+app.use('/api/memory', memoryRouter);
+app.use('/api/upload', uploadRouter);
 app.use('/api/alia/chat', chatRouter);
 app.use('/api/v1', v1Router);
 
@@ -66,6 +70,8 @@ app.get('/api', (req, res) => {
       '/api/auth',
       '/api/conversations',
       '/api/folders',
+      '/api/memory',
+      '/api/upload',
       '/api/alia/chat',
       '/api/v1'
     ]
