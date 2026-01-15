@@ -83,8 +83,8 @@ export default function ForgotPasswordScreen() {
       ) : (
         // Form State
         <>
-          <View className="mb-6">
-            <Text className="text-3xl font-bold text-foreground tracking-tight mb-1">
+          <View className="space-y-2 mb-6">
+            <Text className="text-3xl font-bold text-foreground tracking-tight">
               Reset password
             </Text>
             <Text className="text-base text-muted-foreground">
