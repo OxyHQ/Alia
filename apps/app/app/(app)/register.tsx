@@ -1,9 +1,7 @@
 import React, { useState } from 'react';
-import { View, Text, KeyboardAvoidingView, Platform, ScrollView, Alert } from 'react-native';
-import { useRouter } from 'expo-router';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Text as UIText } from '@/components/ui/text';
+import { View, Text, Alert, Pressable } from 'react-native';
+import { useRouter, Link } from 'expo-router';
+import { AuthContainer, AuthLogo, AuthInput, AuthButton, AuthError } from '@/components/auth';
 import apiClient from '@/lib/api/client';
 import { useAuthStore } from '@/lib/stores/auth-store';
 
@@ -57,8 +55,8 @@ export default function RegisterScreen() {
       // Store user and token in auth store (persisted to AsyncStorage)
       login(user, token);
 
-      // Navigate to chat screen
-      router.replace('/(chat)');
+      // Navigate to home screen
+      router.replace('/');
     } catch (error: any) {
       console.error('Register error:', error);
       const errorMessage = error.response?.data?.error || 'Failed to register. Please try again.';
@@ -74,37 +72,25 @@ export default function RegisterScreen() {
   };
 
   return (
-    <KeyboardAvoidingView
-      className="flex-1 bg-background"
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-    >
-      <ScrollView
-        className="flex-1"
-        contentContainerStyle={{ flexGrow: 1, justifyContent: 'center', paddingHorizontal: 24 }}
-        keyboardShouldPersistTaps="handled"
-      >
-        <View className="mb-8">
-          <Text className="text-4xl font-bold text-foreground mb-2">
-            Crear Cuenta
-          </Text>
-          <Text className="text-muted-foreground text-base">
-            Regístrate para comenzar
-          </Text>
-        </View>
+    <AuthContainer>
+      <AuthLogo />
 
-        <View className="space-y-4">
-          {error ? (
-            <View className="bg-destructive/10 border border-destructive rounded-lg p-3">
-              <Text className="text-destructive text-sm">{error}</Text>
-            </View>
-          ) : null}
-
-          <View>
-            <Text className="text-sm font-medium text-foreground mb-2">
-              First Name
+          {/* Header */}
+          <View className="mb-6">
+            <Text className="text-3xl font-bold text-foreground tracking-tight mb-1">
+              Create Account
             </Text>
-            <Input
-              placeholder="John"
+            <Text className="text-base text-muted-foreground">
+              Sign up to get started
+            </Text>
+          </View>
+
+          {/* Form */}
+          <View className="gap-3">
+            <AuthError message={error} />
+
+            <AuthInput
+              placeholder="First Name"
               value={firstName}
               onChangeText={(text) => {
                 setFirstName(text);
@@ -113,14 +99,9 @@ export default function RegisterScreen() {
               autoCapitalize="words"
               editable={!loading}
             />
-          </View>
 
-          <View>
-            <Text className="text-sm font-medium text-foreground mb-2">
-              Last Name (Optional)
-            </Text>
-            <Input
-              placeholder="Doe"
+            <AuthInput
+              placeholder="Last Name (Optional)"
               value={lastName}
               onChangeText={(text) => {
                 setLastName(text);
@@ -129,14 +110,9 @@ export default function RegisterScreen() {
               autoCapitalize="words"
               editable={!loading}
             />
-          </View>
 
-          <View>
-            <Text className="text-sm font-medium text-foreground mb-2">
-              Email
-            </Text>
-            <Input
-              placeholder="john@example.com"
+            <AuthInput
+              placeholder="Email"
               value={email}
               onChangeText={(text) => {
                 setEmail(text);
@@ -147,14 +123,9 @@ export default function RegisterScreen() {
               autoComplete="email"
               editable={!loading}
             />
-          </View>
 
-          <View>
-            <Text className="text-sm font-medium text-foreground mb-2">
-              Password (min 8 characters)
-            </Text>
-            <Input
-              placeholder="••••••••"
+            <AuthInput
+              placeholder="Password (min 8 characters)"
               value={password}
               onChangeText={(text) => {
                 setPassword(text);
@@ -163,14 +134,9 @@ export default function RegisterScreen() {
               secureTextEntry
               editable={!loading}
             />
-          </View>
 
-          <View>
-            <Text className="text-sm font-medium text-foreground mb-2">
-              Confirm Password
-            </Text>
-            <Input
-              placeholder="••••••••"
+            <AuthInput
+              placeholder="Confirm Password"
               value={confirmPassword}
               onChangeText={(text) => {
                 setConfirmPassword(text);
@@ -180,28 +146,38 @@ export default function RegisterScreen() {
               editable={!loading}
               onSubmitEditing={handleRegister}
             />
+
+            <AuthButton
+              onPress={handleRegister}
+              disabled={loading || !email || !password || !firstName}
+              isLoading={loading}
+              loadingText="Creating account..."
+              className="mt-3"
+            >
+              Continue
+            </AuthButton>
           </View>
 
-          <Button
-            onPress={handleRegister}
-            disabled={loading || !email || !password || !firstName}
-            className="mt-6"
-          >
-            <UIText>{loading ? 'Creating account...' : 'Sign up'}</UIText>
-          </Button>
+          {/* Footer */}
+          <View className="mt-6">
+            <View className="flex-row items-center justify-center gap-1">
+              <Text className="text-muted-foreground text-sm">
+                Already have an account?
+              </Text>
+              <Link href="/(app)/login" asChild>
+                <Pressable>
+                  <Text className="text-primary text-sm font-medium">Sign in</Text>
+                </Pressable>
+              </Link>
+            </View>
+          </View>
 
-          <Button
-            variant="ghost"
-            onPress={() => router.back()}
-            className="mt-2"
-          >
-            <Text className="text-muted-foreground text-center">
-              ¿Ya tienes cuenta?{' '}
-              <Text className="text-primary font-semibold">Inicia Sesión</Text>
+          {/* Privacy note */}
+          <View className="mt-8">
+            <Text className="text-xs text-muted-foreground text-center leading-4">
+              By continuing, you agree to Alia's Terms of Service and Privacy Policy
             </Text>
-          </Button>
-        </View>
-      </ScrollView>
-    </KeyboardAvoidingView>
+          </View>
+    </AuthContainer>
   );
 }
