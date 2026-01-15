@@ -75,18 +75,18 @@ export default function RegisterScreen() {
     <AuthContainer>
       <AuthLogo />
 
-          {/* Header */}
-          <View className="mb-6">
-            <Text className="text-3xl font-bold text-foreground tracking-tight mb-1">
-              Create Account
-            </Text>
-            <Text className="text-base text-muted-foreground">
-              Sign up to get started
-            </Text>
-          </View>
+      {/* Header */}
+      <View className="space-y-2 mb-6">
+        <Text className="text-3xl font-bold text-foreground tracking-tight">
+          Create Account
+        </Text>
+        <Text className="text-base text-muted-foreground">
+          Sign up to get started
+        </Text>
+      </View>
 
-          {/* Form */}
-          <View className="gap-3">
+      {/* Form */}
+      <View className="gap-3">
             <AuthError message={error} />
 
             <AuthInput
@@ -147,37 +147,37 @@ export default function RegisterScreen() {
               onSubmitEditing={handleRegister}
             />
 
-            <AuthButton
-              onPress={handleRegister}
-              disabled={loading || !email || !password || !firstName}
-              isLoading={loading}
-              loadingText="Creating account..."
-              className="mt-3"
-            >
-              Continue
-            </AuthButton>
-          </View>
+        <AuthButton
+          onPress={handleRegister}
+          disabled={loading || !email || !password || !firstName}
+          isLoading={loading}
+          loadingText="Creating account..."
+          className="mt-3"
+        >
+          Continue
+        </AuthButton>
+      </View>
 
-          {/* Footer */}
-          <View className="mt-6">
-            <View className="flex-row items-center justify-center gap-1">
-              <Text className="text-muted-foreground text-sm">
-                Already have an account?
-              </Text>
-              <Link href="/(app)/login" asChild>
-                <Pressable>
-                  <Text className="text-primary text-sm font-medium">Sign in</Text>
-                </Pressable>
-              </Link>
-            </View>
-          </View>
+      {/* Footer */}
+      <View className="mt-6">
+        <View className="flex-row items-center justify-center gap-1">
+          <Text className="text-muted-foreground text-sm">
+            Already have an account?
+          </Text>
+          <Link href="/(app)/login" asChild>
+            <Pressable>
+              <Text className="text-primary text-sm font-medium">Sign in</Text>
+            </Pressable>
+          </Link>
+        </View>
+      </View>
 
-          {/* Privacy note */}
-          <View className="mt-8">
-            <Text className="text-xs text-muted-foreground text-center leading-4">
-              By continuing, you agree to Alia's Terms of Service and Privacy Policy
-            </Text>
-          </View>
+      {/* Privacy note */}
+      <View className="mt-8">
+        <Text className="text-xs text-muted-foreground text-center leading-4">
+          By continuing, you agree to Alia's Terms of Service and Privacy Policy
+        </Text>
+      </View>
     </AuthContainer>
   );
 }
