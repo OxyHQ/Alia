@@ -1,28 +1,23 @@
 import React, { useState } from 'react';
-import { View, Text, Platform } from 'react-native';
-import { useRouter } from 'expo-router';
-import { AuthContainer, AuthLogo, AuthInput, AuthButton, AuthError } from '@/components/auth';
+import { View, Text } from 'react-native';
+import { AuthContainer, AuthLogo, AuthInput, AuthButton } from '@/components/auth';
 import { Button } from '@/components/ui/button';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import apiClient from '@/lib/api/client';
-import { useAuthStore } from '@/lib/stores/auth-store';
+import { toast } from '@/components/sonner';
 
 export default function LoginScreen() {
-  const router = useRouter();
   const [email, setEmail] = useState('');
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
 
   const handleContinue = async () => {
     if (!email.trim()) {
-      setError('Please enter your email address');
+      toast.error('Please enter your email address');
       return;
     }
 
     // For now, navigate to a password screen or implement passwordless flow
     // This is a placeholder - you'll need to implement the actual auth flow
     setLoading(true);
-    setError('');
 
     try {
       // TODO: Implement email continuation logic
@@ -30,7 +25,7 @@ export default function LoginScreen() {
       console.log('Continue with email:', email);
     } catch (error: any) {
       console.error('Login error:', error);
-      setError('Failed to continue. Please try again.');
+      toast.error('Failed to continue. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -38,7 +33,7 @@ export default function LoginScreen() {
 
   const handleSocialLogin = (provider: string) => {
     // TODO: Implement social login
-    console.log('Login with', provider);
+    toast.info(`${provider.charAt(0).toUpperCase() + provider.slice(1)} login will be available soon`);
   };
 
   return (
@@ -100,15 +95,10 @@ export default function LoginScreen() {
 
       {/* Email Form */}
       <View className="gap-2">
-        <AuthError message={error} />
-
         <AuthInput
           placeholder="Enter your email address"
           value={email}
-          onChangeText={(text) => {
-            setEmail(text);
-            setError('');
-          }}
+          onChangeText={setEmail}
           autoCapitalize="none"
           keyboardType="email-address"
           editable={!loading}

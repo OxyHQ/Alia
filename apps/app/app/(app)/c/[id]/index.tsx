@@ -1,6 +1,6 @@
 import { generateUUID } from "@/lib/utils";
 import { useEffect, useRef, useState } from "react";
-import { View, Alert, Platform } from "react-native";
+import { View, Alert, Platform, Pressable } from "react-native";
 import { useStreamingChat } from "@/hooks/useStreamingChat";
 import { ChatInterface } from "@/components/chat-interface";
 import { ChatHeader } from "@/components/chat-header";
@@ -8,10 +8,11 @@ import { PromptInput, PromptInputTextarea, PromptInputActions } from "@/componen
 import { Button } from "@/components/ui/button";
 import type { ScrollView as GHScrollView } from "react-native-gesture-handler";
 import { useStore } from "@/lib/globalStore";
-import { Plus, Globe, ArrowUp, Square, Search, ShoppingBag, ImageIcon, Sparkles, MoreHorizontal, BookOpen, ExternalLink, PenTool } from "lucide-react-native";
+import { Plus, Globe, ArrowUp, Square, Search, ShoppingBag, ImageIcon, Sparkles, MoreHorizontal, BookOpen, ExternalLink, PenTool, X, FileText } from "lucide-react-native";
 import { generateAPIUrl } from "@/lib/generate-api-url";
 import { useImagePicker } from "@/hooks/useImagePicker";
 import * as DocumentPicker from 'expo-document-picker';
+import { AttachmentPreview } from "@/components/attachment-preview";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -23,12 +24,17 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Text } from "@/components/ui/text";
 import { useLocalSearchParams } from "expo-router";
+import { useRolesStore } from "@/lib/stores/roles-store";
 
 const ChatConversationPage = () => {
-  const { id, initialMessage } = useLocalSearchParams<{ id: string; initialMessage?: string }>();
+  const { id, initialMessage, roleId } = useLocalSearchParams<{ id: string; initialMessage?: string; roleId?: string }>();
+  const roles = useRolesStore((state) => state.roles);
+  const [activeRoleId, setActiveRoleId] = useState<string | undefined>(roleId);
+  const activeRole = activeRoleId ? roles.find(r => r.id === activeRoleId) : undefined;
 
   // Use selectors to avoid worklet serialization issues
   const chatId = useStore((state) => state.chatId);
+  const selectedImageUris = useStore((state) => state.selectedImageUris);
   const [selectedModel, setSelectedModel] = useState("alia-v1");
   const [searchMode, setSearchMode] = useState(false);
   const [agentMode, setAgentMode] = useState(false);
@@ -59,7 +65,7 @@ const ChatConversationPage = () => {
     setMessages,
     stop,
     conversationTitle,
-  } = useStreamingChat(apiUrl);
+  } = useStreamingChat(apiUrl, activeRole);
 
   const handleSubmit = () => {
     if (!inputValue.trim() || isLoading) return;
@@ -83,41 +89,53 @@ const ChatConversationPage = () => {
     });
   };
 
-  const handleAddPhotos = () => {
-    Alert.alert(
-      'Add photos & files',
-      'Choose an option',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Add photos',
-          onPress: async () => {
-            const imageUris = await pickImage();
-            if (imageUris) {
-              imageUris.forEach((uri) => useStore.getState().addImageUri(uri));
-            }
-          },
-        },
-        {
-          text: 'Add files',
-          onPress: async () => {
-            try {
-              const result = await DocumentPicker.getDocumentAsync({
-                type: '*/*',
-                copyToCacheDirectory: true,
-              });
-              if (!result.canceled) {
-                console.log('File selected:', result);
-                Alert.alert('File selected', result.assets[0].name);
-              }
-            } catch (err) {
-              console.error('Error picking document:', err);
-            }
-          },
-        },
-      ]
-    );
+  const handleAddPhotos = async () => {
+    try {
+      const imageUris = await pickImage();
+      if (imageUris && imageUris.length > 0) {
+        imageUris.forEach((uri) => useStore.getState().addImageUri(uri));
+      }
+    } catch (err) {
+      console.error('Error picking images:', err);
+    }
   };
+
+  const handleAddDocument = async () => {
+    try {
+      const result = await DocumentPicker.getDocumentAsync({
+        type: '*/*',
+        multiple: true,
+        copyToCacheDirectory: true,
+      });
+
+      if (!result.canceled && result.assets.length > 0) {
+        result.assets.forEach((asset) => {
+          // Add document URI - we'll detect the type in the preview component
+          useStore.getState().addImageUri(asset.uri);
+        });
+      }
+    } catch (err) {
+      console.error('Error picking documents:', err);
+      Alert.alert('Error', 'Failed to pick documents. Please try again.');
+    }
+  };
+
+  const handleRemoveAttachment = (uri: string) => {
+    useStore.getState().removeImageUri(uri);
+  };
+
+  // Convert URIs to attachment format with type detection
+  const attachments = selectedImageUris.map((uri) => {
+    // Detect if it's an image based on extension
+    const isImage = /\.(jpg|jpeg|png|gif|webp|bmp)$/i.test(uri);
+    const fileName = uri.split('/').pop() || 'Unknown file';
+
+    return {
+      uri,
+      type: (isImage ? 'image' : 'document') as const,
+      name: !isImage ? fileName : undefined,
+    };
+  });
 
   const handleSearchToggle = () => {
     const newValue = !searchMode;
@@ -208,6 +226,7 @@ const ChatConversationPage = () => {
         selectedModel={selectedModel}
         onModelChange={setSelectedModel}
       />
+
       <View className="flex-1">
         <View className="flex-1 flex-col justify-between">
           <ChatInterface
@@ -220,14 +239,27 @@ const ChatConversationPage = () => {
 
           <View className="p-4 bg-background border-t border-border">
             <View className="mx-auto w-full max-w-3xl flex-row items-end gap-2">
-              <Button
-                variant="outline"
-                size="icon"
-                className="h-10 w-10 rounded-full text-muted-foreground hover:text-foreground"
-                onPress={handleAddPhotos}
-              >
-                <Plus size={20} className="text-muted-foreground" />
-              </Button>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    className="h-10 w-10 rounded-full text-muted-foreground hover:text-foreground"
+                  >
+                    <Plus size={20} className="text-muted-foreground" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start" className="w-48">
+                  <DropdownMenuItem onPress={handleAddPhotos}>
+                    <ImageIcon size={16} className="text-muted-foreground" />
+                    <Text>Add photos</Text>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onPress={handleAddDocument}>
+                    <FileText size={16} className="text-muted-foreground" />
+                    <Text>Add document</Text>
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
               <View className="flex-1">
                 <PromptInput
                   value={inputValue}
@@ -236,6 +268,12 @@ const ChatConversationPage = () => {
                   isLoading={isLoading}
                   disabled={isLoading}
                 >
+                  {/* Attachment Preview */}
+                  <AttachmentPreview
+                    attachments={attachments}
+                    onRemove={handleRemoveAttachment}
+                  />
+
                   <PromptInputTextarea
                     value={inputValue}
                     onChangeText={setInputValue}
@@ -251,6 +289,20 @@ const ChatConversationPage = () => {
                       >
                         <Globe size={16} className={searchMode ? "text-primary-foreground" : "text-muted-foreground"} />
                       </Button>
+
+                      {/* Role Chip */}
+                      {activeRole && (
+                        <View className="h-8 rounded-full px-3 bg-primary/10 flex-row items-center gap-1.5">
+                          <Sparkles size={12} className="text-primary" />
+                          <Text className="text-xs font-medium text-primary" numberOfLines={1}>
+                            {activeRole.name}
+                          </Text>
+                          <Pressable onPress={() => setActiveRoleId(undefined)} className="active:opacity-70">
+                            <X size={12} className="text-primary" />
+                          </Pressable>
+                        </View>
+                      )}
+
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
                           <Button
@@ -309,7 +361,7 @@ const ChatConversationPage = () => {
                     <Button
                       size="icon"
                       onPress={isLoading ? stop : handleSubmit}
-                      disabled={!inputValue.trim() && !isLoading}
+                      disabled={(!inputValue.trim() && attachments.length === 0) && !isLoading}
                       className="h-8 w-8 rounded-full"
                     >
                       {isLoading ? (

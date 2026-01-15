@@ -10,9 +10,16 @@ export interface IUser extends Document {
     last?: string;
   };
   image?: string;
+  credits: {
+    free: number;          // Current free credits balance
+    freeLimit: number;     // Max free credits (resets to this daily)
+    dailyRefresh: number;  // Amount to refresh daily
+    lastRefresh: Date;     // Last time credits were refreshed
+  };
   createdAt: Date;
   updatedAt: Date;
   comparePassword(candidatePassword: string): Promise<boolean>;
+  refreshCreditsIfNeeded(): Promise<void>;
 }
 
 const UserSchema = new Schema<IUser>({
@@ -24,6 +31,12 @@ const UserSchema = new Schema<IUser>({
     last: { type: String },
   },
   image: { type: String },
+  credits: {
+    free: { type: Number, default: 1000 },
+    freeLimit: { type: Number, default: 1000 },
+    dailyRefresh: { type: Number, default: 300 },
+    lastRefresh: { type: Date, default: Date.now },
+  },
 }, {
   timestamps: true,
   toJSON: { virtuals: true }, // Asegurar que los virtuales se incluyan al convertir a JSON
@@ -59,6 +72,21 @@ UserSchema.methods.comparePassword = async function(candidatePassword: string): 
     return false;
   }
   return bcrypt.compare(candidatePassword, this.password);
+};
+
+// Method to refresh credits if a day has passed
+UserSchema.methods.refreshCreditsIfNeeded = async function(): Promise<void> {
+  const now = new Date();
+  const lastRefresh = new Date(this.credits.lastRefresh);
+
+  // Check if it's a new day (more than 24 hours since last refresh)
+  const hoursSinceRefresh = (now.getTime() - lastRefresh.getTime()) / (1000 * 60 * 60);
+
+  if (hoursSinceRefresh >= 24) {
+    this.credits.free = this.credits.freeLimit;
+    this.credits.lastRefresh = now;
+    await this.save();
+  }
 };
 
 // Evitar recompilación del modelo en hot-reload

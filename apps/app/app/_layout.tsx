@@ -8,6 +8,7 @@ import { queryClient } from '@/lib/query-client';
 import { setupAuthInterceptors } from '@/lib/api/client';
 import { PortalHost } from '@rn-primitives/portal';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { Toaster } from '@/components/sonner';
 import 'react-native-reanimated';
 import '../global.css';
 
@@ -58,6 +59,7 @@ export default function RootLayout() {
           <Stack.Screen name="(app)" options={{ headerShown: false }} />
         </Stack>
         <PortalHost />
+        <Toaster position="bottom-center" />
       </QueryClientProvider>
     </SafeAreaProvider>
   );

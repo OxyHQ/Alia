@@ -2,6 +2,7 @@ import { useState, useCallback } from 'react';
 import { fetch as expoFetch } from 'expo/fetch';
 import * as Haptics from 'expo-haptics';
 import { useAuthStore } from '@/lib/stores/auth-store';
+import { useCreditsStore } from '@/lib/stores/credits-store';
 
 export interface ToolInvocation {
   toolCallId: string;
@@ -30,12 +31,13 @@ function extractTitle(content: string): { content: string; title: string | null 
   return { content, title: null };
 }
 
-export function useStreamingChat(apiUrl: string) {
+export function useStreamingChat(apiUrl: string, activeRole?: any) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<Error | null>(null);
   const [conversationTitle, setConversationTitle] = useState<string | null>(null);
   const token = useAuthStore((state) => state.token);
+  const updateCredits = useCreditsStore((state) => state.updateCredits);
 
   const append = useCallback(async (message: Message) => {
     setIsLoading(true);
@@ -65,14 +67,41 @@ export function useStreamingChat(apiUrl: string) {
         headers['Authorization'] = `Bearer ${token}`;
       }
 
+      // Build system message with role context if active
+      let systemMessage = '';
+      if (activeRole) {
+        systemMessage = `You are acting in the role of "${activeRole.name}".
+
+Role Description: ${activeRole.description}
+
+Reasoning Approach: ${activeRole.reasoning}
+Writing Style: ${activeRole.writingStyle}
+Tone: ${activeRole.tone}
+Priorities: ${activeRole.priorities.join(', ')}
+
+Use this role to guide your responses, maintaining the specified tone, style, and priorities throughout the conversation.`;
+      }
+
+      // Build messages array with system message if present
+      const messagesToSend = systemMessage
+        ? [
+            { role: 'system', content: systemMessage },
+            ...messages,
+            userMessage,
+          ].map((m) => ({
+            role: m.role,
+            content: m.content,
+          }))
+        : [...messages, userMessage].map((m) => ({
+            role: m.role,
+            content: m.content,
+          }));
+
       const response = await expoFetch(apiUrl, {
         method: 'POST',
         headers,
         body: JSON.stringify({
-          messages: [...messages, userMessage].map((m) => ({
-            role: m.role,
-            content: m.content,
-          })),
+          messages: messagesToSend,
         }),
       });
 
@@ -217,6 +246,12 @@ export function useStreamingChat(apiUrl: string) {
                   return updated;
                 });
               }
+
+              // Handle credit updates
+              if (parsed.type === 'credit-update') {
+                console.log('[Credit Update]', parsed);
+                updateCredits(parsed.credits);
+              }
             } catch (e) {
               // Ignore parse errors
             }
@@ -232,7 +267,7 @@ export function useStreamingChat(apiUrl: string) {
     } finally {
       setIsLoading(false);
     }
-  }, [apiUrl, messages, token]);
+  }, [apiUrl, messages, token, activeRole]);
 
   const stop = useCallback(() => {
     // TODO: Implement abort controller

@@ -230,6 +230,20 @@ router.post('/', optionalAuth, async (req, res) => {
       try {
         user = await User.findById(req.user.id);
         memory = await UserMemory.findOne({ userId: req.user.id });
+
+        if (user) {
+          // Refresh credits if needed
+          await user.refreshCreditsIfNeeded();
+
+          // Check if user has enough credits
+          if (user.credits.free <= 0) {
+            res.status(402).json({
+              error: 'Insufficient credits',
+              credits: user.credits.free
+            });
+            return;
+          }
+        }
       } catch (error) {
         console.error('Error fetching user data:', error);
         // Continue without user context if there's an error
@@ -273,13 +287,42 @@ router.post('/', optionalAuth, async (req, res) => {
     });
 
     // Stream all events including tool calls
+    let totalTokensUsed = 0;
     for await (const chunk of result.fullStream) {
       // Debug: log chunk type
       console.log('[Chat Stream]', chunk.type);
 
+      // Track token usage
+      if (chunk.type === 'finish' && (chunk as any).usage) {
+        totalTokensUsed = (chunk as any).usage.totalTokens || 0;
+      }
+
       // Send each event as SSE
       const event = JSON.stringify(chunk);
       res.write(`data: ${event}\n\n`);
+    }
+
+    // Deduct credits for authenticated users
+    if (user && req.user) {
+      try {
+        // Calculate credits to deduct (1 credit per ~1000 tokens, minimum 1)
+        const creditsToDeduct = Math.max(1, Math.ceil(totalTokensUsed / 1000));
+
+        // Deduct credits
+        user.credits.free = Math.max(0, user.credits.free - creditsToDeduct);
+        await user.save();
+
+        // Send credit update event
+        const creditUpdate = {
+          type: 'credit-update',
+          credits: user.credits.free,
+          creditsUsed: creditsToDeduct,
+          totalTokens: totalTokensUsed,
+        };
+        res.write(`data: ${JSON.stringify(creditUpdate)}\n\n`);
+      } catch (error) {
+        console.error('Error deducting credits:', error);
+      }
     }
 
     // Send completion marker
