@@ -1,8 +1,7 @@
 import React, { useState } from 'react';
 import { View, Text, Platform, Alert, Pressable } from 'react-native';
 import { useRouter } from 'expo-router';
-import { AuthContainer, AuthInput, AuthButton, AuthError } from '@/components/auth';
-import { Mail } from 'lucide-react-native';
+import { AuthContainer, AuthLogo, AuthInput, AuthButton, AuthError } from '@/components/auth';
 import apiClient from '@/lib/api/client';
 
 export default function ForgotPasswordScreen() {
@@ -51,14 +50,9 @@ export default function ForgotPasswordScreen() {
 
   return (
     <AuthContainer>
-      {/* Mail Icon - unique to forgot password */}
-      <View className="items-center mb-8">
-        <View className="w-28 h-28 rounded-full bg-primary/10 items-center justify-center mb-4">
-          <Mail size={44} className="text-primary" />
-        </View>
-      </View>
+      <AuthLogo />
 
-          {sent ? (
+      {sent ? (
             // Success State
             <View className="items-center">
               <Text className="text-2xl font-bold text-foreground tracking-tight mb-2 text-center">
@@ -86,55 +80,47 @@ export default function ForgotPasswordScreen() {
                 </Text>
               </Pressable>
             </View>
-          ) : (
-            // Form State
-            <>
-              <View className="mb-6">
-                <Text className="text-3xl font-bold text-foreground tracking-tight mb-1">
-                  Reset password
-                </Text>
-                <Text className="text-sm text-muted-foreground leading-5">
-                  Enter your email address and we'll send you instructions to reset your password
-                </Text>
-              </View>
+      ) : (
+        // Form State
+        <>
+          <View className="mb-6">
+            <Text className="text-3xl font-bold text-foreground tracking-tight mb-1">
+              Reset password
+            </Text>
+            <Text className="text-base text-muted-foreground">
+              Enter your email to reset your password
+            </Text>
+          </View>
 
-              <View className="gap-3">
-                <AuthError message={error} />
+          <View className="gap-3">
+            <AuthError message={error} />
 
-                <AuthInput
-                  placeholder="Email"
-                  value={email}
-                  onChangeText={(text) => {
-                    setEmail(text);
-                    setError('');
-                  }}
-                  autoCapitalize="none"
-                  keyboardType="email-address"
-                  editable={!loading}
-                  onSubmitEditing={handleResetPassword}
-                />
+            <AuthInput
+              placeholder="Email"
+              value={email}
+              onChangeText={(text) => {
+                setEmail(text);
+                setError('');
+              }}
+              autoCapitalize="none"
+              keyboardType="email-address"
+              editable={!loading}
+              onSubmitEditing={handleResetPassword}
+            />
 
-                <AuthButton
-                  onPress={handleResetPassword}
-                  disabled={loading || !email}
-                  isLoading={loading}
-                  loadingText="Sending..."
-                  className="mt-2"
-                >
-                  Continue
-                </AuthButton>
-              </View>
-            </>
-          )}
-
-      {/* Privacy note */}
-      {!sent && (
-        <View className="mt-8">
-          <Text className="text-xs text-muted-foreground text-center leading-4">
-            This is a secure page. We protect your information.
-          </Text>
-        </View>
+            <AuthButton
+              onPress={handleResetPassword}
+              disabled={loading || !email}
+              isLoading={loading}
+              loadingText="Sending..."
+              className="mt-3"
+            >
+              Continue
+            </AuthButton>
+          </View>
+        </>
       )}
+
     </AuthContainer>
   );
 }
