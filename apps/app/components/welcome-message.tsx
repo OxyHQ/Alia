@@ -66,31 +66,24 @@ export const WelcomeMessage = ({ onSuggestionPress }: WelcomeMessageProps) => {
   ];
 
   return (
-    <View className="flex-1 items-center justify-center px-4 py-8">
-      {/* Logo and Title */}
-      <View className="items-center space-y-2 mb-8">
-        <View className="h-16 w-16 overflow-hidden rounded-full bg-primary/10 mb-4">
-          <Image
-            source={require("@/assets/icon-512-maskable.png")}
-            style={{ width: "100%", height: "100%" }}
-            resizeMode="cover"
-          />
-        </View>
-        <Text className="text-3xl font-bold tracking-tight text-foreground">
-          {isAuthenticated ? greeting : "Alia"}
-        </Text>
-        <Text className="text-xl font-medium text-muted-foreground">
-          {isAuthenticated ? subtitle : "How can I help you today?"}
-        </Text>
-      </View>
-
-      {/* Suggestion Grid */}
+    <View className="flex-1 items-center justify-center px-4">
       <View className="w-full max-w-2xl">
-        <View className="flex-row flex-wrap gap-4">
+        {/* Title */}
+        <View className="items-start space-y-2 mb-8">
+          <Text className="text-3xl font-bold tracking-tight text-foreground">
+            {isAuthenticated ? greeting : "Alia"}
+          </Text>
+          <Text className="text-xl font-medium text-muted-foreground">
+            {isAuthenticated ? subtitle : "How can I help you today?"}
+          </Text>
+        </View>
+
+        {/* Suggestion Grid */}
+        <View className="flex-row flex-wrap gap-2">
           {suggestions.map((item, index) => (
             <Pressable
               key={index}
-              className="flex-1 min-w-[45%] flex-col items-start rounded-xl border border-border bg-card p-4 active:bg-muted/50"
+              className="flex-1 min-w-[35%] flex-col items-start rounded-3xl border border-border bg-card p-4 active:bg-muted/50"
               onPress={() => onSuggestionPress?.(item.description)}
             >
               <Text className="text-sm font-medium text-card-foreground mb-1">

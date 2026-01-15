@@ -95,7 +95,10 @@ export function useStreamingChat(apiUrl: string) {
             const updated = [...prev];
             const lastMessage = updated[updated.length - 1];
             if (lastMessage.role === 'assistant') {
-              lastMessage.content = content;
+              updated[updated.length - 1] = {
+                ...lastMessage,
+                content: content,
+              };
             }
             return updated;
           });
@@ -122,11 +125,11 @@ export function useStreamingChat(apiUrl: string) {
               console.log('[SSE Event]', parsed.type, parsed);
 
               // Handle text deltas
-              if (parsed.type === 'text-delta' && parsed.textDelta) {
-                fullContent += parsed.textDelta;
+              if (parsed.type === 'text-delta' && parsed.text) {
+                fullContent += parsed.text;
 
                 // Subtle haptic feedback every 15 characters
-                charCount += parsed.textDelta.length;
+                charCount += parsed.text.length;
                 if (charCount >= 15) {
                   charCount = 0;
                   Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
@@ -136,7 +139,10 @@ export function useStreamingChat(apiUrl: string) {
                   const updated = [...prev];
                   const lastMessage = updated[updated.length - 1];
                   if (lastMessage.role === 'assistant') {
-                    lastMessage.content += parsed.textDelta;
+                    updated[updated.length - 1] = {
+                      ...lastMessage,
+                      content: lastMessage.content + parsed.text,
+                    };
                   }
                   return updated;
                 });
@@ -148,7 +154,7 @@ export function useStreamingChat(apiUrl: string) {
                   const updated = [...prev];
                   const lastMessage = updated[updated.length - 1];
                   if (lastMessage.role === 'assistant') {
-                    const toolInvocations = lastMessage.toolInvocations || [];
+                    const toolInvocations = [...(lastMessage.toolInvocations || [])];
                     const existingIndex = toolInvocations.findIndex(
                       (t) => t.toolCallId === parsed.toolCallId
                     );
@@ -166,7 +172,10 @@ export function useStreamingChat(apiUrl: string) {
                       toolInvocations.push(newInvocation);
                     }
 
-                    lastMessage.toolInvocations = toolInvocations;
+                    updated[updated.length - 1] = {
+                      ...lastMessage,
+                      toolInvocations,
+                    };
                   }
                   return updated;
                 });
@@ -178,7 +187,7 @@ export function useStreamingChat(apiUrl: string) {
                   const updated = [...prev];
                   const lastMessage = updated[updated.length - 1];
                   if (lastMessage.role === 'assistant') {
-                    const toolInvocations = lastMessage.toolInvocations || [];
+                    const toolInvocations = [...(lastMessage.toolInvocations || [])];
                     const existingIndex = toolInvocations.findIndex(
                       (t) => t.toolCallId === parsed.toolCallId
                     );
@@ -191,7 +200,10 @@ export function useStreamingChat(apiUrl: string) {
                       };
                     }
 
-                    lastMessage.toolInvocations = toolInvocations;
+                    updated[updated.length - 1] = {
+                      ...lastMessage,
+                      toolInvocations,
+                    };
                   }
                   return updated;
                 });

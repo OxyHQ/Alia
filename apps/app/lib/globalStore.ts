@@ -4,7 +4,7 @@ import type { Message } from "@ai-sdk/react";
 
 type ChatIdState = {
   id: string;
-  from: "history" | "newChat" | "sidebar";
+  from: "history" | "newChat" | "sidebar" | "url";
 } | null;
 
 export interface Conversation {
@@ -26,13 +26,14 @@ interface StoreState {
   setBottomChatHeightHandler: (value: boolean) => void;
   bottomChatHeightHandler: boolean;
   chatId: ChatIdState;
-  setChatId: (value: { id: string; from: "history" | "newChat" | "sidebar" }) => void;
+  setChatId: (value: { id: string; from: "history" | "newChat" | "sidebar" | "url" }) => void;
   setFocusKeyboard: (value: boolean) => void;
   focusKeyboard: boolean;
 
   // Conversations
   conversations: Conversation[];
   loadConversations: () => Promise<void>;
+  createEmptyConversation: (id: string) => Promise<void>;
   saveConversation: (id: string, messages: Message[], title?: string) => Promise<void>;
   deleteConversation: (id: string) => Promise<void>;
   loadConversationMessages: (id: string) => Message[];
@@ -81,6 +82,35 @@ export const useStore = create<StoreState>((set, get) => ({
       }
     } catch (error) {
       console.error("Error loading conversations:", error);
+    }
+  },
+
+  createEmptyConversation: async (id: string) => {
+    try {
+      const state = get();
+      // Check if conversation already exists
+      const existingIndex = state.conversations.findIndex((c) => c.id === id);
+      if (existingIndex >= 0) {
+        // Conversation already exists, don't create a duplicate
+        return;
+      }
+
+      const conversation: Conversation = {
+        id,
+        title: "Nueva conversación",
+        lastMessage: undefined,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        messages: [],
+      };
+
+      const newConversations = [conversation, ...state.conversations];
+
+      // Save to AsyncStorage
+      await AsyncStorage.setItem(CONVERSATIONS_STORAGE_KEY, JSON.stringify(newConversations));
+      set({ conversations: newConversations });
+    } catch (error) {
+      console.error("Error creating empty conversation:", error);
     }
   },
 

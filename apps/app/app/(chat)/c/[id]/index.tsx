@@ -73,6 +73,16 @@ const ChatConversationPage = () => {
     useStore.getState().clearImageUris();
   };
 
+  const handleSuggestionPress = (message: string) => {
+    if (isLoading) return;
+
+    useStore.getState().setBottomChatHeightHandler(true);
+    append({
+      role: 'user',
+      content: message,
+    });
+  };
+
   const handleAddPhotos = () => {
     Alert.alert(
       'Add photos & files',
@@ -197,6 +207,7 @@ const ChatConversationPage = () => {
             messages={messages}
             scrollViewRef={scrollViewRef}
             isLoading={isLoading}
+            onSuggestionPress={handleSuggestionPress}
           />
 
           <View className="p-4 bg-background border-t border-border">
@@ -215,6 +226,7 @@ const ChatConversationPage = () => {
                   onValueChange={setInputValue}
                   onSubmit={handleSubmit}
                   isLoading={isLoading}
+                  disabled={isLoading}
                 >
                   <PromptInputTextarea
                     value={inputValue}
