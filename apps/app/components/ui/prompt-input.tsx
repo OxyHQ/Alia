@@ -6,8 +6,11 @@ import React, {
   useRef,
   useState,
 } from "react";
-import { View, Pressable, type TextInput as RNTextInput, KeyboardAvoidingView, Platform } from "react-native";
+import { View, Pressable, type TextInput as RNTextInput, KeyboardAvoidingView, Platform, Modal } from "react-native";
 import { ChatTextInput } from "./chat-text-input";
+import { Button } from "./button";
+import { Text } from "./text";
+import { Maximize2, X, ArrowUp } from "lucide-react-native";
 
 type PromptInputContextType = {
   isLoading: boolean;
@@ -17,6 +20,9 @@ type PromptInputContextType = {
   onSubmit?: () => void;
   disabled?: boolean;
   textareaRef: React.RefObject<RNTextInput | null>;
+  currentHeight: number;
+  setCurrentHeight: (height: number) => void;
+  isFullscreen: boolean;
 };
 
 const PromptInputContext = createContext<PromptInputContextType>({
@@ -27,6 +33,9 @@ const PromptInputContext = createContext<PromptInputContextType>({
   onSubmit: undefined,
   disabled: false,
   textareaRef: React.createRef<RNTextInput>(),
+  currentHeight: 44,
+  setCurrentHeight: () => {},
+  isFullscreen: false,
 });
 
 function usePromptInput() {
@@ -56,12 +65,17 @@ function PromptInput({
   ...props
 }: PromptInputProps) {
   const [internalValue, setInternalValue] = useState(value || "");
+  const [currentHeight, setCurrentHeight] = useState(44);
+  const [showFullscreen, setShowFullscreen] = useState(false);
   const textareaRef = useRef<RNTextInput>(null);
+  const fullscreenTextareaRef = useRef<RNTextInput>(null);
 
   const handleChange = (newValue: string) => {
     setInternalValue(newValue);
     onValueChange?.(newValue);
   };
+
+  const showExpandIcon = currentHeight > 100;
 
   return (
     <PromptInputContext.Provider
@@ -73,6 +87,9 @@ function PromptInput({
         onSubmit,
         disabled,
         textareaRef,
+        currentHeight,
+        setCurrentHeight,
+        isFullscreen: showFullscreen,
       }}
     >
       <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"}>
@@ -84,16 +101,51 @@ function PromptInput({
         >
           <View
             className={cn(
-              "rounded-[24px] border border-border bg-background px-3 py-1",
+              "rounded-[24px] border border-border bg-background px-3 py-1 relative",
               disabled && "opacity-60",
               className
             )}
             {...props}
           >
+            {/* Expand to fullscreen icon */}
+            {showExpandIcon && !disabled && (
+              <Pressable
+                onPress={() => setShowFullscreen(true)}
+                className="absolute top-2 right-2 z-10 bg-background rounded-full p-1.5 border border-border active:opacity-70"
+              >
+                <Maximize2 size={16} className="text-muted-foreground" />
+              </Pressable>
+            )}
             {children}
           </View>
         </Pressable>
       </KeyboardAvoidingView>
+
+      {/* Fullscreen Editor Modal */}
+      <Modal
+        visible={showFullscreen}
+        animationType="slide"
+        presentationStyle="fullScreen"
+        onRequestClose={() => setShowFullscreen(false)}
+      >
+        <View className="flex-1 bg-background pt-16">
+          {/* Top right - Minimize icon */}
+          <Pressable
+            onPress={() => setShowFullscreen(false)}
+            className="absolute top-16 right-4 z-10 p-2 active:opacity-70"
+          >
+            <Maximize2 size={20} className="text-foreground" />
+          </Pressable>
+
+          {/* Fullscreen prompt input - clean, no border or rounded corners */}
+          <View className="flex-1 flex-col justify-end px-4 pb-4">
+            <View className="flex-1" />
+            <View className="bg-background px-3 py-1">
+              {children}
+            </View>
+          </View>
+        </View>
+      </Modal>
     </PromptInputContext.Provider>
   );
 }
@@ -108,7 +160,7 @@ function PromptInputTextarea({
   placeholder,
   ...props
 }: PromptInputTextareaProps) {
-  const { value, setValue, onSubmit, disabled, textareaRef } =
+  const { value, setValue, onSubmit, disabled, textareaRef, setCurrentHeight, isFullscreen } =
     usePromptInput();
 
   return (
@@ -118,6 +170,8 @@ function PromptInputTextarea({
       onChangeText={setValue}
       onSubmitEditing={onSubmit}
       onEnterPress={onSubmit}
+      onHeightChange={setCurrentHeight}
+      disableEnterToSubmit={isFullscreen}
       className={cn(
         "min-h-[44px] w-full border-0 bg-transparent py-3 text-foreground shadow-none",
         className
