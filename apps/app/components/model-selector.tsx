@@ -19,6 +19,11 @@ interface Model {
 
 const MODELS: Model[] = [
   {
+    id: "alia-v1-lite",
+    name: "Alia V1 Lite",
+    description: "Lightweight and blazing fast"
+  },
+  {
     id: "alia-v1",
     name: "Alia V1",
     description: "Fast and efficient model"
