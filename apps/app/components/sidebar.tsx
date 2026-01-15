@@ -15,6 +15,8 @@ import {
   CreditCard,
   Bell,
   LogOut,
+  LogIn,
+  UserPlus,
 } from "lucide-react-native";
 import { useStore } from "@/lib/globalStore";
 import { generateUUID } from "@/lib/utils";
@@ -92,60 +94,62 @@ export const Sidebar = React.memo(function Sidebar() {
   return (
     <View className="flex-1 bg-background">
       {/* Header with Logo */}
-      <View className="border-b border-border/50 p-4">
+      <View className="border-b border-border/50 p-4 md:p-3">
         <Pressable onPress={handleLogoPress} style={({ pressed }) => ({ opacity: pressed ? 0.7 : 1 })}>
           <Image
             source={require("@/assets/images/logo.png")}
-            style={{ width: "100%", height: 60 }}
+            style={{ width: "100%", height: 48 }}
             resizeMode="contain"
           />
         </Pressable>
       </View>
 
       {/* New Chat Button */}
-      <View className="p-3">
+      <View className="p-3 md:p-2">
         <Button
           onPress={handleNewChat}
           variant="outline"
-          className="flex-row items-center justify-center gap-2 rounded-xl w-full"
+          className="h-11 md:h-9 rounded-full w-full"
         >
-          <Sparkles size={16} className="text-primary" />
-          <Text className="text-sm font-medium">
-            New Chat
-          </Text>
+          <View className="flex-row items-center gap-2">
+            <Sparkles size={16} className="text-primary" />
+            <Text className="text-sm md:text-xs font-medium">
+              New Chat
+            </Text>
+          </View>
         </Button>
       </View>
 
       {/* Navigation Links */}
-      <View className="px-3 pb-3 gap-1">
+      <View className="px-3 md:px-2 pb-3 md:pb-2 gap-1">
         <Button
           variant="ghost"
-          className="flex-row items-center justify-start gap-2 rounded-lg px-2 w-full"
+          className="h-10 md:h-8 flex-row items-center justify-start gap-2 rounded-full px-3 md:px-2 w-full"
         >
           <Users size={16} className="text-muted-foreground" />
-          <Text className="text-sm">Agents</Text>
+          <Text className="text-sm md:text-xs">Agents</Text>
         </Button>
         <Button
           variant="ghost"
-          className="flex-row items-center justify-start gap-2 rounded-lg px-2 w-full"
+          className="h-10 md:h-8 flex-row items-center justify-start gap-2 rounded-full px-3 md:px-2 w-full"
           onPress={handleSettings}
         >
           <Settings2 size={16} className="text-muted-foreground" />
-          <Text className="text-sm">
+          <Text className="text-sm md:text-xs">
             Settings
           </Text>
         </Button>
       </View>
 
       {/* Recent History */}
-      <View className="flex-1 px-3">
-        <Text className="px-2 py-2 text-xs font-medium text-muted-foreground">
+      <View className="flex-1 px-3 md:px-2">
+        <Text className="px-2 py-2 md:py-1.5 text-sm md:text-xs font-medium text-muted-foreground">
           Recent History
         </Text>
         <ScrollView showsVerticalScrollIndicator={false} className="gap-1">
           {conversations.length === 0 ? (
             <View className="items-center justify-center py-8">
-              <Text className="text-xs text-muted-foreground">
+              <Text className="text-sm md:text-xs text-muted-foreground">
                 No conversations yet
               </Text>
             </View>
@@ -155,7 +159,7 @@ export const Sidebar = React.memo(function Sidebar() {
                 key={conv.id}
                 onPress={() => handleSelectConversation(conv.id)}
                 className={cn(
-                  "group relative flex-row items-center gap-2 rounded-lg p-2.5 transition-colors",
+                  "group relative flex-row items-center gap-2 rounded-full py-2.5 md:py-2 px-3 md:px-2.5 transition-colors",
                   chatId?.id === conv.id
                     ? "bg-muted border border-border"
                     : "active:bg-muted/50"
@@ -170,7 +174,7 @@ export const Sidebar = React.memo(function Sidebar() {
                 />
                 <Text
                   className={cn(
-                    "flex-1 text-sm text-foreground",
+                    "flex-1 text-sm md:text-xs text-foreground",
                     chatId?.id === conv.id && "font-medium"
                   )}
                   numberOfLines={1}
@@ -181,7 +185,7 @@ export const Sidebar = React.memo(function Sidebar() {
                   variant="ghost"
                   size="icon"
                   onPress={(e) => handleDeleteConversation(conv.id, e)}
-                  className="h-6 w-6 rounded opacity-0 group-hover:opacity-100"
+                  className="h-6 md:h-5 w-6 md:w-5 rounded opacity-0 group-hover:opacity-100"
                 >
                   <Trash2
                     size={14}
@@ -195,24 +199,24 @@ export const Sidebar = React.memo(function Sidebar() {
       </View>
 
       {/* Footer with User or Auth Buttons */}
-      <View className="border-t border-border/50 p-3">
+      <View className="border-t border-border/50 p-3 md:p-2">
         {isAuthenticated ? (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Pressable className="flex-row items-center gap-3 rounded-xl p-2 active:bg-muted">
-                <Avatar className="h-8 w-8">
+              <Pressable className="flex-row items-center gap-3 md:gap-2 rounded-full p-2 md:p-1.5 active:bg-muted">
+                <Avatar className="h-8 w-8 md:h-7 md:w-7">
                   {user?.image ? (
                     <AvatarImage source={{ uri: user.image }} />
                   ) : null}
                   <AvatarFallback className="bg-primary">
-                    <Text className="text-xs text-primary-foreground">{getUserInitials()}</Text>
+                    <Text className="text-xs md:text-[10px] text-primary-foreground">{getUserInitials()}</Text>
                   </AvatarFallback>
                 </Avatar>
                 <View className="flex-1">
-                  <Text className="text-sm font-medium text-foreground">
+                  <Text className="text-sm md:text-xs font-medium text-foreground">
                     {user?.name || "User"}
                   </Text>
-                  <Text className="text-xs text-muted-foreground">
+                  <Text className="text-xs md:text-[10px] text-muted-foreground">
                     {user?.email || ""}
                   </Text>
                 </View>
@@ -252,23 +256,29 @@ export const Sidebar = React.memo(function Sidebar() {
             </DropdownMenuContent>
           </DropdownMenu>
         ) : (
-          <View className="gap-2">
+          <View className="gap-2 md:gap-1.5">
             <Button
               onPress={handleLogin}
-              className="h-11 rounded-xl w-full"
+              className="h-11 md:h-9 rounded-full w-full"
             >
-              <Text className="text-sm font-semibold text-primary-foreground">
-                Sign in
-              </Text>
+              <View className="flex-row items-center gap-2 md:gap-1.5">
+                <LogIn size={16} className="text-primary-foreground" />
+                <Text className="text-sm md:text-xs font-semibold text-primary-foreground">
+                  Sign in
+                </Text>
+              </View>
             </Button>
             <Button
               onPress={handleRegister}
               variant="outline"
-              className="h-11 rounded-xl w-full"
+              className="h-11 md:h-9 rounded-full w-full"
             >
-              <Text className="text-sm font-medium">
-                Sign up
-              </Text>
+              <View className="flex-row items-center gap-2 md:gap-1.5">
+                <UserPlus size={16} className="text-foreground" />
+                <Text className="text-sm md:text-xs font-medium">
+                  Sign up
+                </Text>
+              </View>
             </Button>
           </View>
         )}
