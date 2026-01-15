@@ -1,0 +1,93 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --font-sans: Inter, sans-serif;
+    --radius: 1rem;
+
+    /* Light mode colors */
+    --background: 0 0% 100%;
+    --foreground: 0 0% 0%;
+    --card: 0 0% 98%;
+    --card-foreground: 0 0% 0%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 0 0% 0%;
+
+    --primary: 288 77% 62%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 0 0% 96%;
+    --secondary-foreground: 0 0% 0%;
+    --muted: 0 0% 96%;
+    --muted-foreground: 0 0% 45%;
+    --accent: 0 0% 96%;
+    --accent-foreground: 0 0% 0%;
+
+    --destructive: 0 84% 60%;
+    --border: 0 0% 90%;
+    --input: 0 0% 90%;
+    --ring: 288 77% 62%;
+
+    --chart-1: 288 77% 85%;
+    --chart-2: 288 77% 75%;
+    --chart-3: 288 77% 65%;
+    --chart-4: 288 77% 55%;
+    --chart-5: 288 77% 45%;
+
+    --sidebar: 0 0% 98%;
+    --sidebar-foreground: 0 0% 0%;
+    --sidebar-primary: 288 77% 62%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 0 0% 96%;
+    --sidebar-accent-foreground: 0 0% 0%;
+    --sidebar-border: 0 0% 90%;
+    --sidebar-ring: 288 77% 62%;
+  }
+
+  .dark {
+    --background: 230 62% 4%;
+    --foreground: 0 0% 100%;
+    --card: 217 26% 17%;
+    --card-foreground: 0 0% 100%;
+    --popover: 217 26% 17%;
+    --popover-foreground: 0 0% 100%;
+
+    --primary: 288 77% 62%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 217 26% 17%;
+    --secondary-foreground: 0 0% 100%;
+    --muted: 217 26% 17%;
+    --muted-foreground: 0 0% 70%;
+    --accent: 217 26% 17%;
+    --accent-foreground: 0 0% 100%;
+
+    --destructive: 0 84% 60%;
+    --border: 0 0% 100% / 10%;
+    --input: 0 0% 100% / 15%;
+    --ring: 288 77% 62%;
+
+    --chart-1: 288 77% 85%;
+    --chart-2: 288 77% 75%;
+    --chart-3: 288 77% 65%;
+    --chart-4: 288 77% 55%;
+    --chart-5: 288 77% 45%;
+
+    --sidebar: 217 26% 17%;
+    --sidebar-foreground: 0 0% 100%;
+    --sidebar-primary: 288 77% 62%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 217 26% 17%;
+    --sidebar-accent-foreground: 0 0% 100%;
+    --sidebar-border: 0 0% 100% / 10%;
+    --sidebar-ring: 288 77% 62%;
+  }
+}
+
+@layer utilities {
+  .squircle {
+    border-radius: 20%;
+  }
+}

@@ -1,0 +1,42 @@
+{
+  "expo": {
+    "name": "Alia",
+    "slug": "alia",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon-512.png",
+    "scheme": "alia",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
+    "splash": {
+      "image": "./assets/icon-512.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#040711"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "onl.alia.app"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/icon-512-maskable.png",
+        "monochromeImage": "./assets/adaptive-icon-monochrome.png",
+        "backgroundColor": "#ca52e9"
+      },
+      "package": "onl.alia.app",
+      "edgeToEdgeEnabled": true,
+      "predictiveBackGestureEnabled": false
+    },
+    "web": {
+      "bundler": "metro",
+      "output": "static",
+      "favicon": "./assets/icon-192.png"
+    },
+    "plugins": [
+      "expo-router"
+    ],
+    "experiments": {
+      "typedRoutes": true
+    }
+  }
+}
