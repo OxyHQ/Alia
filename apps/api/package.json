@@ -29,7 +29,7 @@
     "next-auth": "^4.24.13",
     "tsx": "^4.19.2",
     "zod": "^3.24.1",
-    "esbuild": "^0.24.2"
+    "esbuild": "^0.27.2"
   },
   "devDependencies": {
     "@swc/cli": "^0.5.2",
