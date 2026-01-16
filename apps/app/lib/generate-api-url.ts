@@ -1,25 +1,25 @@
 import Constants from 'expo-constants';
 import { Platform } from 'react-native';
-import { DEV_API_BASE_URL } from './config';
+import config from './config';
 
-export const generateAPIUrl = (relativePath: string) => {
+/**
+ * Generate full API URL from a relative path
+ * Uses the centralized config which respects EXPO_PUBLIC_API_URL from .env
+ *
+ * @param relativePath - Relative API path (e.g., '/auth/login', '/alia/chat')
+ * @returns Full API URL
+ */
+export const generateAPIUrl = (relativePath: string): string => {
   const path = relativePath.startsWith('/') ? relativePath : `/${relativePath}`;
 
-  // For web in development, always use localhost
-  if (Platform.OS === 'web' && __DEV__) {
-    return `${DEV_API_BASE_URL}${path}`;
+  // For native apps in development, use Expo's dynamic URL
+  if (__DEV__ && Platform.OS !== 'web') {
+    const origin = Constants.experienceUrl?.replace('exp://', 'http://');
+    if (origin) {
+      return origin.concat(path);
+    }
   }
 
-  // For native apps in development
-  if (__DEV__) {
-    const origin = Constants.experienceUrl?.replace('exp://', 'http://') || 'http://localhost:8081';
-    return origin.concat(path);
-  }
-
-  // For production
-  if (!process.env.EXPO_PUBLIC_API_BASE_URL) {
-    throw new Error('EXPO_PUBLIC_API_BASE_URL environment variable required in production');
-  }
-
-  return process.env.EXPO_PUBLIC_API_BASE_URL.concat(path);
+  // Use the centralized config (respects EXPO_PUBLIC_API_URL and environment)
+  return `${config.apiUrl}${path}`;
 };

@@ -1,25 +1,38 @@
 import { Platform } from 'react-native';
 
-// Centralized configuration constants
+/**
+ * Centralized API configuration
+ * Priority:
+ * 1. EXPO_PUBLIC_API_URL environment variable (from .env)
+ * 2. Fallback to environment-based defaults
+ */
+
+// Default API URLs for different environments
 export const DEV_API_BASE_URL = 'http://nate:3001';
 export const STAGING_API_BASE_URL = 'https://staging-api.alia.onl';
 export const PROD_API_BASE_URL = 'https://api.alia.onl';
 
 const ENV = {
   dev: {
-    apiUrl: `${DEV_API_BASE_URL}/api`,
+    apiUrl: DEV_API_BASE_URL,
   },
   staging: {
-    apiUrl: `${STAGING_API_BASE_URL}/api`,
+    apiUrl: STAGING_API_BASE_URL,
   },
   prod: {
-    apiUrl: `${PROD_API_BASE_URL}/api`,
+    apiUrl: PROD_API_BASE_URL,
   },
 };
 
 const getEnvVars = () => {
-  // En desarrollo, usar la URL de dev
-  // En producción, EAS Build establecerá la variable
+  // Priority 1: Use EXPO_PUBLIC_API_URL if set in .env
+  if (process.env.EXPO_PUBLIC_API_URL) {
+    return {
+      apiUrl: process.env.EXPO_PUBLIC_API_URL,
+    };
+  }
+
+  // Priority 2: Use environment-based defaults
   const env = __DEV__ ? 'development' : 'production';
 
   if (env === 'production') {
@@ -29,7 +42,7 @@ const getEnvVars = () => {
   // For web platform in development, always use localhost
   if (Platform.OS === 'web' && __DEV__) {
     return {
-      apiUrl: `${DEV_API_BASE_URL}/api`,
+      apiUrl: DEV_API_BASE_URL,
     };
   }
 

@@ -2,7 +2,6 @@ import { clsx, type ClassValue } from "clsx";
 import { Platform } from "react-native";
 import { twMerge } from "tailwind-merge";
 import type { Message as DBMessage, Document } from "@/lib/db/schema";
-import Constants from "expo-constants";
 
 // Local type definitions (previously from 'ai' package)
 export interface ToolInvocation {
@@ -100,25 +99,6 @@ export function generateUUID(): string {
     const v = c === "x" ? r : (r & 0x3) | 0x8;
     return v.toString(16);
   });
-}
-
-export function generateAPIUrl(relativePath: string): string {
-  // If we have a full API URL configured, use it
-  if (process.env.EXPO_PUBLIC_API_URL) {
-    const path = relativePath.startsWith("/") ? relativePath : `/${relativePath}`;
-    return process.env.EXPO_PUBLIC_API_URL + path;
-  }
-
-  // For development with Expo
-  if (process.env.NODE_ENV === "development" && Constants.expoConfig?.hostUri) {
-    const [host] = Constants.expoConfig.hostUri.split(":").slice(0, -1);
-    const path = relativePath.startsWith("/") ? relativePath : `/${relativePath}`;
-    return `http://${host}:8081${path}`;
-  }
-
-  // Fallback
-  const path = relativePath.startsWith("/") ? relativePath : `/${relativePath}`;
-  return `http://localhost:8081${path}`;
 }
 
 function addToolMessageToChat({
