@@ -25,7 +25,7 @@ export async function connectDB() {
   const opts = {
     bufferCommands: false,
     maxPoolSize: 10,
-    serverSelectionTimeoutMS: 5000,
+    serverSelectionTimeoutMS: 10000, // Increased from 5s to 10s for production
     socketTimeoutMS: 45000,
   };
 

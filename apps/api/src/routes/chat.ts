@@ -232,13 +232,24 @@ Estoy aquí para explorar contigo cualquier tema con la profundidad que merece, 
 `;
 
 router.post('/', optionalAuth, async (req, res) => {
+  // Set a timeout for the entire request (90 seconds)
+  const requestTimeout = setTimeout(() => {
+    if (!res.headersSent) {
+      console.error('[Alia/Chat] Request timeout after 90s');
+      res.status(504).json({ error: 'Request timeout - server took too long to respond' });
+    }
+  }, 90000);
+
   try {
     const { messages } = req.body as { messages: CoreMessage[] };
 
     if (!messages || !messages.length) {
+      clearTimeout(requestTimeout);
       res.status(400).json({ error: 'No messages provided' });
       return;
     }
+
+    console.log('[Alia/Chat] Request received, loading keys...');
 
     // Extract device info from headers if available
     let deviceInfo: DeviceInfo | null = null;
@@ -290,10 +301,29 @@ router.post('/', optionalAuth, async (req, res) => {
       }
     }
 
-    const keyPool = await loadKeys();
-    const keyConfig = await getBestAvailableKey(keyPool);
+    let keyPool;
+    let keyConfig;
+
+    try {
+      console.log('[Alia/Chat] Loading API keys...');
+      keyPool = await loadKeys();
+      console.log(`[Alia/Chat] Loaded ${keyPool.length} keys`);
+
+      keyConfig = await getBestAvailableKey(keyPool);
+      console.log('[Alia/Chat] Selected key:', keyConfig ? `${keyConfig.provider}/${keyConfig.modelId}` : 'none');
+    } catch (keyError: any) {
+      console.error('[Alia/Chat] Error loading keys:', keyError.message);
+      clearTimeout(requestTimeout);
+      res.status(503).json({
+        error: 'Failed to load API keys',
+        details: keyError.message
+      });
+      return;
+    }
 
     if (!keyConfig) {
+      console.log('[Alia/Chat] No available keys');
+      clearTimeout(requestTimeout);
       res.status(503).json({ error: 'No keys available' });
       return;
     }
@@ -374,9 +404,11 @@ router.post('/', optionalAuth, async (req, res) => {
     // Send completion marker
     res.write('data: [DONE]\n\n');
     res.end();
+    clearTimeout(requestTimeout);
 
   } catch (e: any) {
     console.error('[Alia/Chat] Error:', e);
+    clearTimeout(requestTimeout);
     if (!res.headersSent) {
       res.status(500).json({ error: e.message });
     } else {
