@@ -49,6 +49,9 @@ export const googleProvider: Provider = {
 
     // Convertir tools - filter out invalid tools
     const validTools = tools?.filter(t => t && t.function && t.function.name) || [];
+    if (tools && tools.length > 0) {
+      console.log(`[Google] Received ${tools.length} tools, ${validTools.length} valid after filtering`);
+    }
     const geminiTools = validTools.length > 0 ? [{
       functionDeclarations: validTools.map(t => ({
         name: t.function.name,
