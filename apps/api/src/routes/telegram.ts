@@ -384,14 +384,25 @@ router.post('/link', async (req, res) => {
     // Send confirmation message to Telegram
     try {
       const botToken = process.env.TELEGRAM_BOT_TOKEN;
-      if (botToken && telegramUser.chatId) {
-        const userName = user.name || 'there';
+      if (!botToken) {
+        console.warn('[Telegram] Bot token not configured, skipping notification');
+      } else if (!telegramUser.chatId) {
+        console.warn('[Telegram] No chat ID for user:', telegramUser.telegramId);
+      } else {
+        // Extract user name properly
+        const userName = user.name?.full || user.name?.first || telegramUser.firstName || 'there';
         const message =
-          `✅ <b>Authentication Successful!</b>\n\n` +
-          `Welcome ${userName}! Your Telegram account is now linked to Alia.\n\n` +
-          `You can start chatting with me right away. Just send me any message!`;
+          `✅ <b>¡Autenticación Exitosa!</b>\n\n` +
+          `¡Bienvenido ${userName}! Tu cuenta de Telegram ahora está vinculada a Alia.\n\n` +
+          `Puedes empezar a chatear conmigo ahora mismo. ¡Solo envíame cualquier mensaje! 💬`;
 
-        await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+        console.log('[Telegram] Sending authentication success message to:', {
+          telegramId: telegramUser.telegramId,
+          chatId: telegramUser.chatId,
+          userName
+        });
+
+        const response = await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -401,7 +412,12 @@ router.post('/link', async (req, res) => {
           }),
         });
 
-        console.log('[Telegram] Sent authentication success message to user:', telegramUser.telegramId);
+        const result = await response.json();
+        if (!response.ok) {
+          console.error('[Telegram] Failed to send message:', result);
+        } else {
+          console.log('[Telegram] Successfully sent authentication message to user:', telegramUser.telegramId);
+        }
       }
     } catch (notifyError) {
       console.error('[Telegram] Failed to send notification:', notifyError);
