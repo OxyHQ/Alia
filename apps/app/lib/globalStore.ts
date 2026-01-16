@@ -1,11 +1,25 @@
 import { create } from "zustand";
-import AsyncStorage from "@react-native-async-storage/async-storage";
-import type { Message } from "@ai-sdk/react";
+import * as SecureStore from 'expo-secure-store';
+import { generateAPIUrl } from "./generate-api-url";
+import { useAuthStore } from "./stores/auth-store";
 
 type ChatIdState = {
   id: string;
   from: "history" | "newChat" | "sidebar" | "url";
 } | null;
+
+export interface Message {
+  id?: string;
+  role: 'user' | 'assistant' | 'system';
+  content: string;
+  toolInvocations?: {
+    toolCallId: string;
+    toolName: string;
+    state: 'partial-call' | 'call' | 'result';
+    args?: any;
+    result?: any;
+  }[];
+}
 
 export interface Conversation {
   id: string;
@@ -30,8 +44,8 @@ interface StoreState {
   setFocusKeyboard: (value: boolean) => void;
   focusKeyboard: boolean;
 
-  // Conversations
   conversations: Conversation[];
+  conversationsLoaded: boolean;
   loadConversations: () => Promise<void>;
   createEmptyConversation: (id: string) => Promise<void>;
   saveConversation: (id: string, messages: Message[], title?: string) => Promise<void>;
@@ -40,6 +54,21 @@ interface StoreState {
 }
 
 const CONVERSATIONS_STORAGE_KEY = "alia-conversations";
+
+function isAuthenticated(): boolean {
+  return !!useAuthStore.getState().token;
+}
+
+function getAPIHeaders(): HeadersInit {
+  const token = useAuthStore.getState().token;
+  const headers: HeadersInit = {
+    'Content-Type': 'application/json',
+  };
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+  return headers;
+}
 
 export const useStore = create<StoreState>((set, get) => ({
   scrollY: 0,
@@ -64,36 +93,57 @@ export const useStore = create<StoreState>((set, get) => ({
   focusKeyboard: false,
   setFocusKeyboard: (value: boolean) => set({ focusKeyboard: value }),
 
-  // Conversations
   conversations: [],
+  conversationsLoaded: false,
 
   loadConversations: async () => {
+    const state = get();
+    if (state.conversationsLoaded) return;
+
     try {
-      const stored = await AsyncStorage.getItem(CONVERSATIONS_STORAGE_KEY);
-      if (stored) {
-        const parsed = JSON.parse(stored);
-        // Convert date strings back to Date objects
-        const conversations = parsed.map((conv: any) => ({
-          ...conv,
-          createdAt: new Date(conv.createdAt),
-          updatedAt: new Date(conv.updatedAt),
-        }));
-        set({ conversations });
+      if (isAuthenticated()) {
+        const apiUrl = generateAPIUrl('/api/conversations');
+        const response = await fetch(apiUrl, {
+          method: 'GET',
+          headers: getAPIHeaders(),
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          const conversations = data.conversations.map((conv: any) => ({
+            ...conv,
+            createdAt: new Date(conv.createdAt),
+            updatedAt: new Date(conv.updatedAt),
+          }));
+          set({ conversations, conversationsLoaded: true });
+        } else {
+          console.error('Failed to load conversations:', response.status);
+          set({ conversationsLoaded: true });
+        }
+      } else {
+        const stored = await SecureStore.getItemAsync(CONVERSATIONS_STORAGE_KEY);
+        if (stored) {
+          const parsed = JSON.parse(stored);
+          const conversations = parsed.map((conv: any) => ({
+            ...conv,
+            createdAt: new Date(conv.createdAt),
+            updatedAt: new Date(conv.updatedAt),
+          }));
+          set({ conversations, conversationsLoaded: true });
+        } else {
+          set({ conversationsLoaded: true });
+        }
       }
     } catch (error) {
       console.error("Error loading conversations:", error);
+      set({ conversationsLoaded: true });
     }
   },
 
   createEmptyConversation: async (id: string) => {
     try {
       const state = get();
-      // Check if conversation already exists
-      const existingIndex = state.conversations.findIndex((c) => c.id === id);
-      if (existingIndex >= 0) {
-        // Conversation already exists, don't create a duplicate
-        return;
-      }
+      if (state.conversations.findIndex((c) => c.id === id) >= 0) return;
 
       const conversation: Conversation = {
         id,
@@ -106,11 +156,13 @@ export const useStore = create<StoreState>((set, get) => ({
 
       const newConversations = [conversation, ...state.conversations];
 
-      // Save to AsyncStorage
-      await AsyncStorage.setItem(CONVERSATIONS_STORAGE_KEY, JSON.stringify(newConversations));
+      if (!isAuthenticated()) {
+        await SecureStore.setItemAsync(CONVERSATIONS_STORAGE_KEY, JSON.stringify(newConversations));
+      }
+
       set({ conversations: newConversations });
     } catch (error) {
-      console.error("Error creating empty conversation:", error);
+      console.error("Error creating conversation:", error);
     }
   },
 
@@ -118,33 +170,62 @@ export const useStore = create<StoreState>((set, get) => ({
     try {
       const state = get();
       const existingIndex = state.conversations.findIndex((c) => c.id === id);
-
-      // Generate title from first user message if not provided
       const conversationTitle = title || messages.find((m) => m.role === "user")?.content?.slice(0, 50) || "Nueva conversación";
       const lastMessage = messages[messages.length - 1]?.content?.slice(0, 100);
 
-      const conversation: Conversation = {
-        id,
-        title: conversationTitle,
-        lastMessage,
-        createdAt: existingIndex >= 0 ? state.conversations[existingIndex].createdAt : new Date(),
-        updatedAt: new Date(),
-        messages,
-      };
+      if (isAuthenticated()) {
+        const apiUrl = generateAPIUrl('/api/conversations');
+        const response = await fetch(apiUrl, {
+          method: 'POST',
+          headers: getAPIHeaders(),
+          body: JSON.stringify({
+            conversationId: id,
+            title: conversationTitle,
+            messages
+          })
+        });
 
-      let newConversations: Conversation[];
-      if (existingIndex >= 0) {
-        // Update existing conversation
-        newConversations = [...state.conversations];
-        newConversations[existingIndex] = conversation;
+        if (response.ok) {
+          const data = await response.json();
+          const conversation: Conversation = {
+            id: data.id,
+            title: data.title,
+            lastMessage: data.lastMessage,
+            createdAt: new Date(data.createdAt),
+            updatedAt: new Date(data.updatedAt),
+            messages
+          };
+
+          const newConversations = [...state.conversations];
+          if (existingIndex >= 0) {
+            newConversations[existingIndex] = conversation;
+          } else {
+            newConversations.unshift(conversation);
+          }
+          set({ conversations: newConversations });
+        } else {
+          console.error('Failed to save conversation:', response.status);
+        }
       } else {
-        // Add new conversation at the beginning
-        newConversations = [conversation, ...state.conversations];
-      }
+        const conversation: Conversation = {
+          id,
+          title: conversationTitle,
+          lastMessage,
+          createdAt: existingIndex >= 0 ? state.conversations[existingIndex].createdAt : new Date(),
+          updatedAt: new Date(),
+          messages,
+        };
 
-      // Save to AsyncStorage
-      await AsyncStorage.setItem(CONVERSATIONS_STORAGE_KEY, JSON.stringify(newConversations));
-      set({ conversations: newConversations });
+        const newConversations = [...state.conversations];
+        if (existingIndex >= 0) {
+          newConversations[existingIndex] = conversation;
+        } else {
+          newConversations.unshift(conversation);
+        }
+
+        await SecureStore.setItemAsync(CONVERSATIONS_STORAGE_KEY, JSON.stringify(newConversations));
+        set({ conversations: newConversations });
+      }
     } catch (error) {
       console.error("Error saving conversation:", error);
     }
@@ -154,8 +235,23 @@ export const useStore = create<StoreState>((set, get) => ({
     try {
       const state = get();
       const newConversations = state.conversations.filter((c) => c.id !== id);
-      await AsyncStorage.setItem(CONVERSATIONS_STORAGE_KEY, JSON.stringify(newConversations));
-      set({ conversations: newConversations });
+
+      if (isAuthenticated()) {
+        const apiUrl = generateAPIUrl(`/api/conversations/${id}`);
+        const response = await fetch(apiUrl, {
+          method: 'DELETE',
+          headers: getAPIHeaders(),
+        });
+
+        if (response.ok) {
+          set({ conversations: newConversations });
+        } else {
+          console.error('Failed to delete conversation:', response.status);
+        }
+      } else {
+        await SecureStore.setItemAsync(CONVERSATIONS_STORAGE_KEY, JSON.stringify(newConversations));
+        set({ conversations: newConversations });
+      }
     } catch (error) {
       console.error("Error deleting conversation:", error);
     }

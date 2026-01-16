@@ -13,7 +13,6 @@ interface CreditsState {
   // Actions
   fetchCredits: () => Promise<void>;
   updateCredits: (credits: number) => void;
-  decrementCredits: (amount: number) => void;
   reset: () => void;
 }
 
@@ -60,12 +59,6 @@ export const useCreditsStore = create<CreditsState>((set, get) => ({
 
   updateCredits: (credits: number) => {
     set({ credits });
-  },
-
-  decrementCredits: (amount: number) => {
-    set((state) => ({
-      credits: Math.max(0, state.credits - amount),
-    }));
   },
 
   reset: () => {

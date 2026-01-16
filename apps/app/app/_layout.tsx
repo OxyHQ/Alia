@@ -24,6 +24,10 @@ export const unstable_settings = {
 // Prevent the splash screen from auto-hiding before asset loading is complete.
 SplashScreen.preventAutoHideAsync();
 
+// Setup API client interceptors immediately at module load time
+// This ensures all API calls have proper authentication headers
+setupAuthInterceptors();
+
 export default function RootLayout() {
   const [loaded, error] = useFonts({
     SpaceMono: require('../assets/fonts/SpaceMono-Regular.ttf'),
@@ -40,8 +44,6 @@ export default function RootLayout() {
   useEffect(() => {
     if (loaded) {
       SplashScreen.hideAsync();
-      // Setup API client interceptors after fonts are loaded
-      setupAuthInterceptors();
     }
   }, [loaded]);
 

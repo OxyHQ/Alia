@@ -14,6 +14,7 @@ interface ChatHeaderProps {
   onModelChange?: (modelId: string) => void;
   onHostModePress?: () => void;
   onGhostModePress?: () => void;
+  ghostModeActive?: boolean;
   onSearchPress?: () => void;
   onMorePress?: () => void;
 }
@@ -24,6 +25,7 @@ export function ChatHeader({
   onModelChange,
   onHostModePress,
   onGhostModePress,
+  ghostModeActive = false,
   onSearchPress,
   onMorePress,
 }: ChatHeaderProps) {
@@ -65,9 +67,9 @@ export function ChatHeader({
           variant="ghost"
           size="icon"
           onPress={onGhostModePress}
-          className="h-9 w-9 rounded-lg"
+          className={ghostModeActive ? "h-9 w-9 rounded-lg bg-accent" : "h-9 w-9 rounded-lg"}
         >
-          <Ghost size={20} className="text-muted-foreground" />
+          <Ghost size={20} className={ghostModeActive ? "text-accent-foreground" : "text-muted-foreground"} />
         </Button>
 
         <Button

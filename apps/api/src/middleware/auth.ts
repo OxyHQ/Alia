@@ -76,18 +76,9 @@ export async function optionalAuth(
       ? authHeader.substring(7)
       : null;
 
-    console.log('[optionalAuth] Token check:', {
-      hasAuthHeader: !!authHeader,
-      hasToken: !!token,
-      tokenPreview: token ? token.substring(0, 20) + '...' : null
-    });
-
     if (token) {
       const payload: JWTPayload = verifyToken(token);
-      console.log('[optionalAuth] Token verified:', payload);
-
       const user = await User.findById(payload.userId);
-      console.log('[optionalAuth] User found:', !!user, user?._id);
 
       if (user) {
         req.user = {
@@ -99,8 +90,7 @@ export async function optionalAuth(
 
     next();
   } catch (error) {
-    // Log errors in optional auth for debugging
-    console.error('[optionalAuth] Error:', error instanceof Error ? error.message : error);
+    console.error('Optional auth error:', error instanceof Error ? error.message : error);
     next();
   }
 }
