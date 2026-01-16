@@ -13,11 +13,44 @@ router.post('/', async (req: Request, res: Response) => {
   try {
     console.log('📬 [API/POST] Request received');
     const body = req.body;
-    console.log('📦 [API/POST] Body:', JSON.stringify(body).slice(0, 100) + '...');
+    console.log('📦 [API/POST] Body:', JSON.stringify(body));
+    console.log('📦 [API/POST] Messages type:', typeof body?.messages, 'Array?', Array.isArray(body?.messages));
+
+    // Validate request body
+    if (!body || typeof body !== 'object') {
+      console.error('❌ Invalid body: not an object');
+      res.status(400).json({
+        error: 'Invalid request body',
+        details: 'Request body must be a JSON object'
+      });
+      return;
+    }
 
     // Validate messages
-    if (!Array.isArray(body.messages) || !body.messages.length) {
-      res.status(400).json({ error: 'Se requiere "messages"' });
+    if (!body.messages) {
+      console.error('❌ Missing messages field');
+      res.status(400).json({
+        error: 'Missing required field: messages',
+        details: 'Request body must include a "messages" array'
+      });
+      return;
+    }
+
+    if (!Array.isArray(body.messages)) {
+      console.error('❌ Messages is not an array:', typeof body.messages);
+      res.status(400).json({
+        error: 'Invalid messages field',
+        details: '"messages" must be an array'
+      });
+      return;
+    }
+
+    if (body.messages.length === 0) {
+      console.error('❌ Messages array is empty');
+      res.status(400).json({
+        error: 'Empty messages array',
+        details: '"messages" array must contain at least one message'
+      });
       return;
     }
 
