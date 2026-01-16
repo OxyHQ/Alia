@@ -5,6 +5,7 @@
   "private": true,
   "workspaces": [
     "apps/api",
+    "apps/telegram-bot",
     "packages/*"
   ],
   "scripts": {
