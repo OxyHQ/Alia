@@ -56,7 +56,7 @@ export default function LoginScreen() {
 
       // Navigate to returnTo URL if provided, otherwise home screen
       if (returnTo && typeof returnTo === 'string') {
-        router.replace(returnTo);
+        router.replace(returnTo as any);
       } else {
         router.replace('/');
       }
