@@ -29,6 +29,11 @@ const MODELS: Model[] = [
     description: "Fast and efficient model"
   },
   {
+    id: "alia-v1-codea",
+    name: "Alia V1 Codea",
+    description: "Optimized for code generation"
+  },
+  {
     id: "alia-v1-pro",
     name: "Alia V1 Pro",
     description: "Enhanced reasoning and accuracy"

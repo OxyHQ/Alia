@@ -80,14 +80,56 @@ export function useConversations() {
   return useQuery({
     queryKey: ['conversations'],
     queryFn: fetchConversations,
+    staleTime: 1000 * 60 * 5, // 5 minutes
+    retry: 2,
   });
 }
 
-// Hook to get a single conversation's messages
-export function useConversationMessages(id: string) {
-  const { data: conversations } = useConversations();
-  const conversation = conversations?.find((c) => c.id === id);
-  return conversation?.messages || [];
+// Fetch a single conversation with messages from API
+async function fetchConversation(id: string): Promise<Conversation> {
+  if (isAuthenticated()) {
+    const apiUrl = generateAPIUrl(`/conversations/${id}`);
+    const response = await fetch(apiUrl, {
+      method: 'GET',
+      headers: getAPIHeaders(),
+    });
+
+    if (!response.ok) {
+      throw new Error('Failed to fetch conversation');
+    }
+
+    const data = await response.json();
+    return {
+      ...data,
+      createdAt: new Date(data.createdAt),
+      updatedAt: new Date(data.updatedAt),
+    };
+  } else {
+    // Local storage - get from conversations array
+    const stored = await SecureStore.getItemAsync(CONVERSATIONS_STORAGE_KEY);
+    if (stored) {
+      const parsed = JSON.parse(stored);
+      const conversation = parsed.find((c: any) => c.id === id);
+      if (conversation) {
+        return {
+          ...conversation,
+          createdAt: new Date(conversation.createdAt),
+          updatedAt: new Date(conversation.updatedAt),
+        };
+      }
+    }
+    throw new Error('Conversation not found');
+  }
+}
+
+// Hook to get a single conversation with messages
+export function useConversation(id: string) {
+  return useQuery({
+    queryKey: ['conversation', id],
+    queryFn: () => fetchConversation(id),
+    enabled: !!id,
+    staleTime: 1000 * 60 * 2, // 2 minutes
+  });
 }
 
 // Save conversation mutation
@@ -95,6 +137,7 @@ export function useSaveConversation() {
   const queryClient = useQueryClient();
 
   return useMutation({
+    retry: 1,
     mutationFn: async ({
       id,
       messages,
@@ -158,18 +201,22 @@ export function useSaveConversation() {
       }
     },
     onSuccess: (data) => {
-      // Update the conversations cache
+      // Update both the conversations list cache and individual conversation cache
       queryClient.setQueryData<Conversation[]>(['conversations'], (old) => {
-        if (!old) return [data];
+        if (!old) return [{ ...data, messages: [] }];
         const existingIndex = old.findIndex((c) => c.id === data.id);
         const newConversations = [...old];
+        const conversationMetadata = { ...data, messages: [] }; // List doesn't need messages
         if (existingIndex >= 0) {
-          newConversations[existingIndex] = data;
+          newConversations[existingIndex] = conversationMetadata;
         } else {
-          newConversations.unshift(data);
+          newConversations.unshift(conversationMetadata);
         }
         return newConversations;
       });
+
+      // Update individual conversation cache with full data including messages
+      queryClient.setQueryData(['conversation', data.id], data);
     },
   });
 }
@@ -179,6 +226,7 @@ export function useDeleteConversation() {
   const queryClient = useQueryClient();
 
   return useMutation({
+    retry: 1,
     mutationFn: async (id: string) => {
       if (isAuthenticated()) {
         const apiUrl = generateAPIUrl(`/conversations/${id}`);
