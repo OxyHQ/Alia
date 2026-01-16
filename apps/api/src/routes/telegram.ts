@@ -369,7 +369,8 @@ router.post('/link', async (req, res) => {
       return res.status(401).json({ error: 'Invalid session token' });
     }
 
-    const user = await meResponse.json();
+    const meData = await meResponse.json();
+    const user = meData.user || meData; // Handle nested user object
 
     // Link the accounts
     telegramUser.userId = user._id || user.id;
@@ -384,7 +385,7 @@ router.post('/link', async (req, res) => {
     try {
       const botToken = process.env.TELEGRAM_BOT_TOKEN;
       if (botToken && telegramUser.chatId) {
-        const userName = user.firstName || user.name || 'there';
+        const userName = user.name || 'there';
         const message =
           `✅ <b>Authentication Successful!</b>\n\n` +
           `Welcome ${userName}! Your Telegram account is now linked to Alia.\n\n` +
