@@ -1,1 +1,1 @@
-export * from 'sonner/dist';
+export * from 'sonner';
