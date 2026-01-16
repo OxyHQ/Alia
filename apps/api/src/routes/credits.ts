@@ -1,11 +1,11 @@
 import { Router } from 'express';
-import { auth } from '../middleware/auth.js';
+import { authenticateToken } from '../middleware/auth.js';
 import { User } from '../models/user.js';
 
 const router = Router();
 
 // Get user's current credits
-router.get('/', auth, async (req, res) => {
+router.get('/', authenticateToken, async (req, res) => {
   try {
     const user = await User.findById(req.user!.id);
 
