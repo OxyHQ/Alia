@@ -13,9 +13,10 @@ A Telegram bot that allows users to chat with Alia AI assistant directly from Te
 ## Prerequisites
 
 - Node.js 18+ and npm
-- MongoDB instance
 - Telegram Bot Token (from [@BotFather](https://t.me/BotFather))
 - Running Alia API server (apps/api)
+
+**Note**: The bot communicates entirely through the API server. It doesn't need direct database access.
 
 ## Setup
 
@@ -40,10 +41,7 @@ Edit `.env` and add your configuration:
 # Telegram Bot Token from BotFather
 TELEGRAM_BOT_TOKEN=your_bot_token_here
 
-# MongoDB connection (should be same as API server)
-MONGODB_URI=mongodb://localhost:27017/alia
-
-# API Server URL
+# API Server URL (Required)
 API_BASE_URL=http://localhost:3001
 ```
 
