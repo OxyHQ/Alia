@@ -42,6 +42,167 @@ const TelegramUserSchema = new mongoose.Schema(
 
 const TelegramUser = mongoose.model('TelegramUser', TelegramUserSchema);
 
+// Helper to generate auth token
+function generateAuthToken(): string {
+  const crypto = require('crypto');
+  return crypto.randomBytes(3).toString('hex').toUpperCase();
+}
+
+// Get or create telegram user
+router.post('/users', async (req, res) => {
+  try {
+    const { telegramId, chatId, username, firstName, lastName } = req.body;
+
+    if (!telegramId || !chatId) {
+      return res.status(400).json({ error: 'telegramId and chatId are required' });
+    }
+
+    // Find existing or create new
+    let telegramUser = await TelegramUser.findOne({ telegramId });
+
+    if (!telegramUser) {
+      telegramUser = new TelegramUser({
+        telegramId,
+        chatId,
+        username,
+        firstName,
+        lastName,
+      });
+      await telegramUser.save();
+    } else {
+      // Update fields if changed
+      if (chatId) telegramUser.chatId = chatId;
+      if (username) telegramUser.username = username;
+      if (firstName) telegramUser.firstName = firstName;
+      if (lastName) telegramUser.lastName = lastName;
+      await telegramUser.save();
+    }
+
+    res.json({
+      telegramId: telegramUser.telegramId,
+      chatId: telegramUser.chatId,
+      username: telegramUser.username,
+      firstName: telegramUser.firstName,
+      lastName: telegramUser.lastName,
+      isAuthenticated: telegramUser.isAuthenticated,
+      conversationId: telegramUser.conversationId,
+      sessionToken: telegramUser.sessionToken,
+    });
+  } catch (error) {
+    console.error('Create/update telegram user error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Get telegram user by telegram ID
+router.get('/users/:telegramId', async (req, res) => {
+  try {
+    const { telegramId } = req.params;
+
+    const telegramUser = await TelegramUser.findOne({ telegramId });
+
+    if (!telegramUser) {
+      return res.status(404).json({ error: 'Telegram user not found' });
+    }
+
+    res.json({
+      telegramId: telegramUser.telegramId,
+      chatId: telegramUser.chatId,
+      username: telegramUser.username,
+      firstName: telegramUser.firstName,
+      lastName: telegramUser.lastName,
+      isAuthenticated: telegramUser.isAuthenticated,
+      conversationId: telegramUser.conversationId,
+      sessionToken: telegramUser.sessionToken,
+      linkedAt: telegramUser.linkedAt,
+    });
+  } catch (error) {
+    console.error('Get telegram user error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Create auth request for telegram user
+router.post('/auth-request', async (req, res) => {
+  try {
+    const { telegramId } = req.body;
+
+    if (!telegramId) {
+      return res.status(400).json({ error: 'telegramId is required' });
+    }
+
+    const telegramUser = await TelegramUser.findOne({ telegramId });
+
+    if (!telegramUser) {
+      return res.status(404).json({ error: 'Telegram user not found' });
+    }
+
+    // Generate auth token valid for 15 minutes
+    const authToken = generateAuthToken();
+    telegramUser.authToken = authToken;
+    telegramUser.authTokenExpiry = new Date(Date.now() + 15 * 60 * 1000);
+    await telegramUser.save();
+
+    const appUrl = process.env.APP_URL || process.env.WEB_URL || 'http://localhost:3000';
+    const authUrl = `${process.env.API_BASE_URL || 'http://localhost:3001'}/telegram/verify?token=${authToken}`;
+
+    res.json({
+      authToken,
+      authUrl,
+      expiresAt: telegramUser.authTokenExpiry,
+    });
+  } catch (error) {
+    console.error('Auth request error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Update conversation ID for telegram user
+router.post('/users/:telegramId/conversation', async (req, res) => {
+  try {
+    const { telegramId } = req.params;
+    const { conversationId } = req.body;
+
+    const telegramUser = await TelegramUser.findOne({ telegramId });
+
+    if (!telegramUser) {
+      return res.status(404).json({ error: 'Telegram user not found' });
+    }
+
+    telegramUser.conversationId = conversationId;
+    await telegramUser.save();
+
+    res.json({ success: true, conversationId });
+  } catch (error) {
+    console.error('Update conversation error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Logout telegram user
+router.post('/users/:telegramId/logout', async (req, res) => {
+  try {
+    const { telegramId } = req.params;
+
+    const telegramUser = await TelegramUser.findOne({ telegramId });
+
+    if (!telegramUser) {
+      return res.status(404).json({ error: 'Telegram user not found' });
+    }
+
+    telegramUser.isAuthenticated = false;
+    telegramUser.sessionToken = undefined;
+    telegramUser.userId = undefined as any;
+    telegramUser.conversationId = undefined;
+    await telegramUser.save();
+
+    res.json({ success: true, message: 'Logged out successfully' });
+  } catch (error) {
+    console.error('Logout error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 // Verification endpoint - redirects to app/web for authentication
 router.get('/verify', async (req, res) => {
   const { token } = req.query;
