@@ -7,10 +7,10 @@ services:
       branch: main
       deploy_on_push: true
 
-    # Build configuration
+    # Build configuration (runs from monorepo root)
     build_command: npm ci && npm run build:api
 
-    # Run configuration
+    # Run configuration (runs from monorepo root)
     run_command: npm run start:api
 
     # Environment
@@ -30,11 +30,11 @@ services:
       failure_threshold: 3
 
     # HTTP port
-    http_port: 3001
+    http_port: 8080
 
     # Environment variables (set these in DO dashboard)
     envs:
       - key: NODE_ENV
         value: production
       - key: PORT
-        value: "3001"
+        value: "8080"
