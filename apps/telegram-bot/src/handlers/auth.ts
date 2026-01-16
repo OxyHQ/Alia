@@ -1,4 +1,5 @@
 import { Context } from 'telegraf';
+import { Markup } from 'telegraf';
 import { apiClient } from '../services/api-client';
 
 // Helper function to send authentication request
@@ -40,11 +41,16 @@ export async function sendAuthRequest(ctx: Context): Promise<boolean> {
     const authData = await apiClient.requestTelegramAuth(telegramId);
 
     await ctx.reply(
-      `👋 Hi! To chat with me, please authenticate your Alia account.\n\n` +
-      `Click the link below to sign in:\n${authData.authUrl}\n\n` +
-      `After signing in, return here and send me a message!\n\n` +
-      `_This link expires in 15 minutes._`,
-      { parse_mode: 'Markdown' }
+      `👋 <b>Welcome to Alia AI!</b>\n\n` +
+      `To get started, please authenticate your account.\n\n` +
+      `Click the button below to sign in through the Alia app.\n\n` +
+      `<i>⏱ This link expires in 15 minutes</i>`,
+      {
+        parse_mode: 'HTML',
+        ...Markup.inlineKeyboard([
+          [Markup.button.url('🔐 Sign In to Alia', authData.authUrl)],
+        ])
+      }
     );
 
     return false; // User is not authenticated
@@ -82,15 +88,25 @@ export async function handleStart(ctx: Context) {
     if (telegramUser.isAuthenticated && telegramUser.sessionToken) {
       // Verify token is still valid
       try {
-        await apiClient.getMe(telegramUser.sessionToken);
+        const user = await apiClient.getMe(telegramUser.sessionToken);
         await ctx.reply(
-          `Welcome back! You're already authenticated.\n\n` +
-          `Just send me a message to start chatting!\n\n` +
-          `Commands:\n` +
-          `/help - Show available commands\n` +
-          `/status - Check your account status\n` +
-          `/new - Start a new conversation\n` +
-          `/logout - Disconnect your account`
+          `👋 <b>Welcome back, ${user.firstName || user.name || 'there'}!</b>\n\n` +
+          `✅ You're already authenticated and ready to chat.\n\n` +
+          `Just send me any message to start a conversation!`,
+          {
+            parse_mode: 'HTML',
+            ...Markup.inlineKeyboard([
+              [
+                Markup.button.callback('📊 Account Status', 'status'),
+                Markup.button.callback('🆕 New Chat', 'new')
+              ],
+              [
+                Markup.button.callback('📚 History', 'history'),
+                Markup.button.callback('❓ Help', 'help')
+              ],
+              [Markup.button.callback('🚪 Logout', 'logout')]
+            ])
+          }
         );
         return;
       } catch (error) {
