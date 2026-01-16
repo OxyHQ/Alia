@@ -148,6 +148,38 @@ router.get('/verify', async (req, res) => {
   }
 });
 
+// Check if a token is valid (for app to verify before showing login)
+router.get('/check-token/:token', async (req, res) => {
+  try {
+    const { token } = req.params;
+
+    if (!token) {
+      return res.status(400).json({ error: 'Token is required' });
+    }
+
+    // Find telegram user with this auth token
+    const telegramUser = await TelegramUser.findOne({
+      authToken: token.toUpperCase(),
+      authTokenExpiry: { $gt: new Date() },
+    });
+
+    if (!telegramUser) {
+      return res.json({
+        valid: false,
+        error: 'Token not found or expired',
+      });
+    }
+
+    res.json({
+      valid: true,
+      expiresAt: telegramUser.authTokenExpiry,
+    });
+  } catch (error) {
+    console.error('Token check error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 // Link telegram account with authenticated user
 router.post('/link', async (req, res) => {
   try {
