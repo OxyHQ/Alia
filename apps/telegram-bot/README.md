@@ -216,6 +216,13 @@ npm start
    - `TELEGRAM_BOT_TOKEN`: Your bot token from BotFather
    - `API_BASE_URL`: Your API server URL (e.g., `https://api.alia.com`)
 
+**IMPORTANT: API Server Environment Variables**
+
+Your API server also needs this environment variable for telegram authentication to work:
+- `APP_URL`: Your app URL (e.g., `https://alia.onl`)
+
+This is used to generate the authentication redirect link that users click.
+
 **Why build from root?** This is an npm workspaces monorepo, so dependencies must be installed from the root directory.
 
 ### Using PM2 on VPS
