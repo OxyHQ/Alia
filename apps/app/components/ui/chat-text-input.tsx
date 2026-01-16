@@ -7,7 +7,6 @@ import {
   type NativeSyntheticEvent as RNSyntheticEvent,
   type TextInputContentSizeChangeEventData,
 } from "react-native";
-import { MarkdownTextInput } from "react-native-live-markdown";
 import { cn } from "@/lib/utils";
 
 type ChatTextInputProps = React.ComponentPropsWithoutRef<typeof TextInput> & {
