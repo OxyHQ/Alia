@@ -32,7 +32,20 @@
     "loginFailed": "Login Failed",
     "loginError": "Login Error",
     "failedToLogin": "Failed to login. Please try again.",
-    "socialLoginSoon": "{{provider}} login will be available soon"
+    "socialLoginSoon": "{{provider}} login will be available soon",
+    "createAccount": "Create Account",
+    "signUpToGetStarted": "Sign up to get started",
+    "firstName": "First Name",
+    "lastName": "Last Name (Optional)",
+    "passwordMin8": "Password (min 8 characters)",
+    "confirmPassword": "Confirm Password",
+    "continue": "Continue",
+    "creatingAccount": "Creating account...",
+    "passwordsDoNotMatch": "Passwords do not match",
+    "passwordTooShort": "Password must be at least 8 characters",
+    "registrationError": "Registration Error",
+    "registrationFailed": "Registration Failed",
+    "failedToRegister": "Failed to register. Please try again."
   },
   "settings": {
     "title": "Settings",

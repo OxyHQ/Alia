@@ -4,11 +4,13 @@ import { useRouter, Link } from 'expo-router';
 import { AuthContainer, AuthLogo, AuthInput, AuthButton, AuthError } from '@/components/auth';
 import apiClient from '@/lib/api/client';
 import { useAuthStore } from '@/lib/stores/auth-store';
+import { useTranslation } from '@/hooks/useTranslation';
 
 export default function RegisterScreen() {
   const router = useRouter();
   // Use selector to avoid worklet serialization issues
   const login = useAuthStore((state) => state.login);
+  const { t } = useTranslation();
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [email, setEmail] = useState('');
@@ -22,20 +24,20 @@ export default function RegisterScreen() {
 
     // Validate passwords match
     if (password !== confirmPassword) {
-      const errorMsg = 'Passwords do not match';
+      const errorMsg = t('auth.passwordsDoNotMatch');
       setError(errorMsg);
       if (Platform.OS !== 'web') {
-        Alert.alert('Registration Error', errorMsg);
+        Alert.alert(t('auth.registrationError'), errorMsg);
       }
       return;
     }
 
     // Validate password length
     if (password.length < 8) {
-      const errorMsg = 'Password must be at least 8 characters';
+      const errorMsg = t('auth.passwordTooShort');
       setError(errorMsg);
       if (Platform.OS !== 'web') {
-        Alert.alert('Registration Error', errorMsg);
+        Alert.alert(t('auth.registrationError'), errorMsg);
       }
       return;
     }
@@ -59,12 +61,12 @@ export default function RegisterScreen() {
       router.replace('/');
     } catch (error: any) {
       console.error('Register error:', error);
-      const errorMessage = error.response?.data?.error || 'Failed to register. Please try again.';
+      const errorMessage = error.response?.data?.error || t('auth.failedToRegister');
       setError(errorMessage);
 
       // Also show alert on mobile
       if (Platform.OS !== 'web') {
-        Alert.alert('Registration Failed', errorMessage);
+        Alert.alert(t('auth.registrationFailed'), errorMessage);
       }
     } finally {
       setLoading(false);
@@ -78,10 +80,10 @@ export default function RegisterScreen() {
       {/* Header */}
       <View className="space-y-2 mb-6">
         <Text className="text-3xl font-bold text-foreground tracking-tight">
-          Create Account
+          {t('auth.createAccount')}
         </Text>
         <Text className="text-base text-muted-foreground">
-          Sign up to get started
+          {t('auth.signUpToGetStarted')}
         </Text>
       </View>
 
@@ -90,7 +92,7 @@ export default function RegisterScreen() {
             <AuthError message={error} />
 
             <AuthInput
-              placeholder="First Name"
+              placeholder={t('auth.firstName')}
               value={firstName}
               onChangeText={(text) => {
                 setFirstName(text);
@@ -101,7 +103,7 @@ export default function RegisterScreen() {
             />
 
             <AuthInput
-              placeholder="Last Name (Optional)"
+              placeholder={t('auth.lastName')}
               value={lastName}
               onChangeText={(text) => {
                 setLastName(text);
@@ -112,7 +114,7 @@ export default function RegisterScreen() {
             />
 
             <AuthInput
-              placeholder="Email"
+              placeholder={t('auth.email')}
               value={email}
               onChangeText={(text) => {
                 setEmail(text);
@@ -125,7 +127,7 @@ export default function RegisterScreen() {
             />
 
             <AuthInput
-              placeholder="Password (min 8 characters)"
+              placeholder={t('auth.passwordMin8')}
               value={password}
               onChangeText={(text) => {
                 setPassword(text);
@@ -136,7 +138,7 @@ export default function RegisterScreen() {
             />
 
             <AuthInput
-              placeholder="Confirm Password"
+              placeholder={t('auth.confirmPassword')}
               value={confirmPassword}
               onChangeText={(text) => {
                 setConfirmPassword(text);
@@ -151,10 +153,10 @@ export default function RegisterScreen() {
           onPress={handleRegister}
           disabled={loading || !email || !password || !firstName}
           isLoading={loading}
-          loadingText="Creating account..."
+          loadingText={t('auth.creatingAccount')}
           className="mt-3"
         >
-          Continue
+          {t('auth.continue')}
         </AuthButton>
       </View>
 
@@ -162,11 +164,11 @@ export default function RegisterScreen() {
       <View className="mt-6">
         <View className="flex-row items-center justify-center gap-1">
           <Text className="text-muted-foreground text-sm">
-            Already have an account?
+            {t('auth.alreadyHaveAccount')}
           </Text>
           <Link href="/(app)/login" asChild>
             <Pressable>
-              <Text className="text-primary text-sm font-medium">Sign in</Text>
+              <Text className="text-primary text-sm font-medium">{t('auth.signIn')}</Text>
             </Pressable>
           </Link>
         </View>
@@ -175,7 +177,7 @@ export default function RegisterScreen() {
       {/* Privacy note */}
       <View className="mt-8">
         <Text className="text-xs text-muted-foreground text-center leading-4">
-          By continuing, you agree to Alia's Terms of Service and Privacy Policy
+          {t('auth.termsAndPrivacy')}
         </Text>
       </View>
     </AuthContainer>
