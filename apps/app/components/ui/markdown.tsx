@@ -1,6 +1,7 @@
 import React from "react";
 import { View } from "react-native";
 import Markdown from "react-native-markdown-display";
+import { useColorScheme } from "@/lib/useColorScheme";
 import {
   H1 as ExpoH1,
   H2 as ExpoH2,
@@ -278,12 +279,23 @@ function renderBlock(blockType: string, data: any, key: number) {
 
 export function CustomMarkdown({ content }: { content: string }) {
   const blocks = parseSpecialBlocks(content);
+  const { colorScheme } = useColorScheme();
+
+  // Define base text color for markdown based on color scheme
+  const markdownStyles = {
+    body: {
+      color: colorScheme === 'dark' ? '#ffffff' : '#0a0a0a',
+    },
+    text: {
+      color: colorScheme === 'dark' ? '#ffffff' : '#0a0a0a',
+    },
+  };
 
   return (
     <View>
       {blocks.map((block, idx) => {
         if (block.type === 'text') {
-          return <Markdown key={idx} rules={rules}>{block.content}</Markdown>;
+          return <Markdown key={idx} rules={rules} style={markdownStyles}>{block.content}</Markdown>;
         } else if (block.type === 'block' && block.blockType) {
           return renderBlock(block.blockType, block.data, idx);
         }
