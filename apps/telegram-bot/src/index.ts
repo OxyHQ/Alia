@@ -1,7 +1,7 @@
 import 'dotenv/config';
 import { Telegraf } from 'telegraf';
 import { connectToDatabase } from './services/db';
-import { handleStart, handleLogin, handleLogout, handleStatus } from './handlers/auth';
+import { handleStart, handleLogout, handleStatus } from './handlers/auth';
 import { handleMessage, handleNewConversation, handleHistory } from './handlers/chat';
 import { handleHelp } from './handlers/commands';
 
