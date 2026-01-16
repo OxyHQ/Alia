@@ -3,6 +3,26 @@ import { getLocales } from 'expo-localization';
 import i18n from '@/lib/i18n';
 
 /**
+ * Get the device's current locale
+ * Returns full locale code (e.g., "en-US") or falls back to language code (e.g., "en")
+ */
+function getDeviceLocale(): string {
+  const locales = getLocales();
+  if (!locales || locales.length === 0) {
+    return 'en-US';
+  }
+
+  // Try to use full locale code (e.g., "en-US")
+  const fullLocale = locales[0]?.languageTag;
+  if (fullLocale) {
+    return fullLocale;
+  }
+
+  // Fallback to language code (e.g., "en")
+  return locales[0]?.languageCode ?? 'en';
+}
+
+/**
  * Custom hook for using translations in components
  * Provides reactive translation updates when locale changes
  */
@@ -11,7 +31,7 @@ export function useTranslation() {
 
   useEffect(() => {
     // Update locale from device settings
-    const deviceLocale = getLocales()[0]?.languageCode ?? 'en';
+    const deviceLocale = getDeviceLocale();
     if (deviceLocale !== i18n.locale) {
       i18n.locale = deviceLocale;
       setLocale(deviceLocale);
@@ -30,7 +50,7 @@ export function useTranslation() {
 
   /**
    * Change the current locale
-   * @param newLocale - New locale code (e.g., 'en', 'es')
+   * @param newLocale - New locale code (e.g., 'en-US', 'es-ES')
    */
   const changeLocale = (newLocale: string) => {
     i18n.locale = newLocale;
