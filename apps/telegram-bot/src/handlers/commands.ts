@@ -1,31 +1,42 @@
 import { Context } from 'telegraf';
+import { Markup } from 'telegraf';
 
 export async function handleHelp(ctx: Context) {
   const helpMessage = `
-🤖 *Alia AI Bot - Help*
+🤖 <b>Alia AI Bot - Help Guide</b>
 
-*Getting Started:*
-/start - Get authentication link
-/status - Check your account status
-/logout - Disconnect your account
+<b>📌 Getting Started:</b>
+• /start - Authenticate your account
+• /status - Check account & credits
+• /logout - Disconnect your account
 
-*Chat Commands:*
-Just send me a message to chat with Alia!
-/new - Start a new conversation
-/history - View your conversation history
+<b>💬 Chatting:</b>
+• Just send me any message to chat!
+• /new - Start a fresh conversation
+• /history - View past conversations
 
-*Other Commands:*
-/help - Show this help message
+<b>❓ Need Help?</b>
+• /help - Show this help message
 
-*How to Use:*
-1. Send any message or /start
-2. Click the authentication link to sign in
-3. Return to Telegram and start chatting!
+<b>🎯 How It Works:</b>
+1️⃣ Send /start to begin
+2️⃣ Click the sign-in button
+3️⃣ Authenticate in the Alia app
+4️⃣ Return and start chatting!
 
-*Example:*
-You: Hello, who are you?
-Alia: I'm Alia, your AI assistant! How can I help you today?
+<b>💡 Example:</b>
+<i>You:</i> Hello, who are you?
+<i>Alia:</i> I'm Alia, your AI assistant! How can I help you today?
 `;
 
-  await ctx.reply(helpMessage, { parse_mode: 'Markdown' });
+  await ctx.reply(helpMessage, {
+    parse_mode: 'HTML',
+    ...Markup.inlineKeyboard([
+      [
+        Markup.button.callback('🚀 Get Started', 'start'),
+        Markup.button.callback('📊 My Status', 'status')
+      ],
+      [Markup.button.url('🌐 Visit Alia App', 'https://alia.onl')]
+    ])
+  });
 }

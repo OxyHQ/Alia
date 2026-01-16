@@ -1,4 +1,5 @@
 import { Context } from 'telegraf';
+import { Markup } from 'telegraf';
 import { apiClient } from '../services/api-client';
 import { v4 as uuidv4 } from 'uuid';
 import { sendAuthRequest } from './auth';
@@ -141,14 +142,28 @@ export async function handleMessage(ctx: Context) {
     // Check if it's an authentication error
     if (error.response?.status === 401 || error.message?.includes('401')) {
       await ctx.reply(
-        '❌ Your session has expired.\n\n' +
-        'Please /logout and /start again to re-authenticate.'
+        '🔒 <b>Session Expired</b>\n\n' +
+        'Your authentication session has expired.\n' +
+        'Please logout and sign in again.',
+        {
+          parse_mode: 'HTML',
+          ...Markup.inlineKeyboard([
+            [Markup.button.callback('🔐 Sign In Again', 'start')]
+          ])
+        }
       );
     } else {
       await ctx.reply(
-        `❌ Sorry, I encountered an error processing your message.\n\n` +
-        `Error: ${error.message || 'Unknown error'}\n\n` +
-        `Please try again or contact support if the issue persists.`
+        `❌ <b>Error Processing Message</b>\n\n` +
+        `${error.message || 'An unexpected error occurred'}\n\n` +
+        `<i>Please try again in a moment.</i>`,
+        {
+          parse_mode: 'HTML',
+          ...Markup.inlineKeyboard([
+            [Markup.button.callback('🔄 Try Again', 'retry')],
+            [Markup.button.callback('📊 Check Status', 'status')]
+          ])
+        }
       );
     }
   }
@@ -174,8 +189,15 @@ export async function handleNewConversation(ctx: Context) {
     await apiClient.updateTelegramConversation(telegramId, newConversationId);
 
     await ctx.reply(
-      '✅ New conversation started!\n\n' +
-      'Send me a message to begin chatting.'
+      '✨ <b>New Conversation Started!</b>\n\n' +
+      'Your previous conversation has been saved.\n' +
+      'Send me any message to begin chatting in this new conversation.',
+      {
+        parse_mode: 'HTML',
+        ...Markup.inlineKeyboard([
+          [Markup.button.callback('📚 View History', 'history')]
+        ])
+      }
     );
   } catch (error) {
     console.error('New conversation error:', error);
@@ -202,23 +224,38 @@ export async function handleHistory(ctx: Context) {
       const conversations = await apiClient.getConversations(telegramUser.sessionToken);
 
       if (!conversations || conversations.length === 0) {
-        await ctx.reply('You have no conversation history yet.');
+        await ctx.reply(
+          '📚 <b>No Conversations Yet</b>\n\n' +
+          'Start chatting with me to create your first conversation!',
+          {
+            parse_mode: 'HTML',
+            ...Markup.inlineKeyboard([
+              [Markup.button.callback('« Back', 'start')]
+            ])
+          }
+        );
         return;
       }
 
-      let message = '📚 Your Conversations:\n\n';
+      let message = '📚 <b>Your Recent Conversations</b>\n\n';
       conversations.slice(0, 10).forEach((conv: any, index: number) => {
         const title = conv.title || 'Untitled';
         const date = new Date(conv.updatedAt || conv.createdAt).toLocaleDateString();
-        const current = conv.conversationId === telegramUser.conversationId ? '🔹 ' : '';
-        message += `${current}${index + 1}. ${title} (${date})\n`;
+        const current = conv.conversationId === telegramUser.conversationId ? '▶️ ' : '  ';
+        message += `${current}<b>${index + 1}.</b> ${title}\n   <i>${date}</i>\n\n`;
       });
 
       if (conversations.length > 10) {
-        message += `\n... and ${conversations.length - 10} more`;
+        message += `\n<i>... and ${conversations.length - 10} more conversations</i>`;
       }
 
-      await ctx.reply(message);
+      await ctx.reply(message, {
+        parse_mode: 'HTML',
+        ...Markup.inlineKeyboard([
+          [Markup.button.callback('🆕 New Chat', 'new')],
+          [Markup.button.callback('« Back', 'start')]
+        ])
+      });
     } catch (error) {
       console.error('Error fetching history:', error);
       await ctx.reply('❌ Unable to fetch conversation history.');
