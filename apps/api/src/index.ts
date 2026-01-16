@@ -24,7 +24,7 @@ const __dirname = dirname(__filename);
 dotenv.config({ path: join(__dirname, '../.env') });
 
 const app = express();
-const PORT = process.env.API_PORT || 3001;
+const PORT = process.env.PORT || 3001;
 
 // Middleware - Allow multiple origins for web and mobile app
 const allowedOrigins = [
@@ -51,7 +51,8 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 // Rutas
-app.use('/api/health', healthRouter);
+app.use('/health', healthRouter);  // Health check at root for DO
+app.use('/api/health', healthRouter);  // Also keep at /api/health for backwards compatibility
 app.use('/api/auth', authRouter);
 app.use('/api/conversations', conversationsRouter);
 app.use('/api/folders', foldersRouter);
@@ -89,8 +90,8 @@ app.use((err: any, req: express.Request, res: express.Response, next: express.Ne
 // Connect to MongoDB before starting the server
 connectDB()
   .then(() => {
-    app.listen(PORT, () => {
-      console.log(`🚀 API Server running on http://localhost:${PORT}`);
+    app.listen(PORT, '0.0.0.0', () => {
+      console.log(`🚀 API Server running on http://0.0.0.0:${PORT}`);
     });
   })
   .catch((error) => {
