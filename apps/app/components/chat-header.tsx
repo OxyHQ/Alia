@@ -1,6 +1,6 @@
 import { View, useWindowDimensions, Alert } from "react-native";
 import { Text } from "@/components/ui/text";
-import { Crown, Search, MoreHorizontal, Menu, Ghost, Trash2, Download, Share2, Settings, HelpCircle } from "lucide-react-native";
+import { Search, MoreHorizontal, Menu, Ghost, Trash2, Download, Share2, Settings, HelpCircle } from "lucide-react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Button } from "@/components/ui/button";
 import { ModelSelector } from "@/components/model-selector";
@@ -13,7 +13,6 @@ interface ChatHeaderProps {
   title: string;
   selectedModel?: string;
   onModelChange?: (modelId: string) => void;
-  onHostModePress?: () => void;
   onGhostModePress?: () => void;
   ghostModeActive?: boolean;
   onSearchPress?: () => void;
@@ -23,7 +22,6 @@ export function ChatHeader({
   title,
   selectedModel,
   onModelChange,
-  onHostModePress,
   onGhostModePress,
   ghostModeActive = false,
   onSearchPress,
@@ -96,15 +94,6 @@ export function ChatHeader({
           className={ghostModeActive ? "h-9 w-9 rounded-full bg-accent" : "h-9 w-9 rounded-full"}
         >
           <Ghost size={20} className={ghostModeActive ? "text-accent-foreground" : "text-muted-foreground"} />
-        </Button>
-
-        <Button
-          variant="ghost"
-          size="icon"
-          onPress={onHostModePress}
-          className="h-9 w-9 rounded-full"
-        >
-          <Crown size={20} className="text-muted-foreground" />
         </Button>
 
         <Button
