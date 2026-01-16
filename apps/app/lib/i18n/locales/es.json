@@ -32,7 +32,20 @@
     "loginFailed": "Error al iniciar sesión",
     "loginError": "Error de inicio de sesión",
     "failedToLogin": "No se pudo iniciar sesión. Por favor, intenta de nuevo.",
-    "socialLoginSoon": "El inicio de sesión con {{provider}} estará disponible pronto"
+    "socialLoginSoon": "El inicio de sesión con {{provider}} estará disponible pronto",
+    "createAccount": "Crear cuenta",
+    "signUpToGetStarted": "Regístrate para comenzar",
+    "firstName": "Nombre",
+    "lastName": "Apellido (Opcional)",
+    "passwordMin8": "Contraseña (mín. 8 caracteres)",
+    "confirmPassword": "Confirmar contraseña",
+    "continue": "Continuar",
+    "creatingAccount": "Creando cuenta...",
+    "passwordsDoNotMatch": "Las contraseñas no coinciden",
+    "passwordTooShort": "La contraseña debe tener al menos 8 caracteres",
+    "registrationError": "Error de registro",
+    "registrationFailed": "Error al registrarse",
+    "failedToRegister": "No se pudo registrar. Por favor, intenta de nuevo."
   },
   "settings": {
     "title": "Configuración",
