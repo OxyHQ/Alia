@@ -1,0 +1,103 @@
+import axios, { AxiosInstance } from 'axios';
+
+class APIClient {
+  private client: AxiosInstance;
+  private baseURL: string;
+
+  constructor() {
+    this.baseURL = process.env.API_BASE_URL || 'http://localhost:3001';
+    this.client = axios.create({
+      baseURL: this.baseURL,
+      timeout: 30000,
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+  }
+
+  // Authentication
+  async login(email: string, password: string): Promise<{ token: string; user: any }> {
+    const response = await this.client.post('/auth/login', { email, password });
+    return response.data;
+  }
+
+  async getMe(token: string): Promise<any> {
+    const response = await this.client.get('/auth/me', {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    return response.data;
+  }
+
+  // Chat with Alia
+  async chat(token: string, message: string, conversationId?: string): Promise<ReadableStream> {
+    const response = await this.client.post(
+      '/alia/chat',
+      {
+        message,
+        conversationId,
+      },
+      {
+        headers: { Authorization: `Bearer ${token}` },
+        responseType: 'stream',
+      }
+    );
+    return response.data;
+  }
+
+  // Conversations
+  async getConversations(token: string): Promise<any[]> {
+    const response = await this.client.get('/conversations', {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    return response.data;
+  }
+
+  async saveConversation(
+    token: string,
+    conversationId: string,
+    messages: any[],
+    title?: string
+  ): Promise<any> {
+    const response = await this.client.post(
+      '/conversations',
+      {
+        conversationId,
+        messages,
+        title,
+      },
+      {
+        headers: { Authorization: `Bearer ${token}` },
+      }
+    );
+    return response.data;
+  }
+
+  async deleteConversation(token: string, conversationId: string): Promise<void> {
+    await this.client.delete(`/conversations/${conversationId}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+  }
+
+  // Memory
+  async getMemory(token: string): Promise<any> {
+    const response = await this.client.get('/memory', {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    return response.data;
+  }
+
+  // Credits
+  async getCredits(token: string): Promise<{ credits: number; freeCredits: number }> {
+    const response = await this.client.get('/credits', {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    return response.data;
+  }
+
+  // Generate auth URL for user verification
+  getAuthURL(authToken: string): string {
+    return `${this.baseURL}/telegram/verify?token=${authToken}`;
+  }
+}
+
+export const apiClient = new APIClient();
