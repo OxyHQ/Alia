@@ -63,6 +63,14 @@ function getAIModel(keyConfig: KeyConfig) {
 
 // Function to build personalized system prompt
 function buildSystemPrompt(user?: IUser, memory?: IUserMemory): string {
+  console.log('[buildSystemPrompt] Input:', {
+    hasUser: !!user,
+    userName: user?.name,
+    hasMemory: !!memory,
+    memoryPrefs: memory?.preferences,
+    memoryCtx: memory?.context
+  });
+
   let prompt = ALIA_SYSTEM_PROMPT;
 
   // Add user personalization if authenticated
@@ -112,9 +120,11 @@ function buildSystemPrompt(user?: IUser, memory?: IUserMemory): string {
     // Prepend user context to the system prompt
     if (userContext.length > 0) {
       prompt = `# USER CONTEXT\n\n${userContext.join('\n')}\n\n---\n\n${prompt}`;
+      console.log('[buildSystemPrompt] Added user context:', userContext);
     }
   }
 
+  console.log('[buildSystemPrompt] Final prompt length:', prompt.length);
   return prompt;
 }
 
@@ -222,6 +232,14 @@ router.post('/', optionalAuth, async (req, res) => {
       return;
     }
 
+    // Debug: Log authentication status
+    console.log('[Chat] Auth check:', {
+      hasAuthHeader: !!req.headers.authorization,
+      hasReqUser: !!req.user,
+      userId: req.user?.id,
+      email: req.user?.email
+    });
+
     // Fetch user data and memory if authenticated
     let user: IUser | null = null;
     let memory: IUserMemory | null = null;
@@ -230,6 +248,28 @@ router.post('/', optionalAuth, async (req, res) => {
       try {
         user = await User.findById(req.user.id);
         memory = await UserMemory.findOne({ userId: req.user.id });
+
+        // Create empty memory profile if it doesn't exist
+        if (user && !memory) {
+          memory = new UserMemory({
+            userId: req.user.id,
+            memories: [],
+            preferences: {},
+            context: {}
+          });
+          await memory.save();
+        }
+
+        // Debug: Log user and memory data
+        console.log('[Chat] User data:', {
+          hasUser: !!user,
+          userName: user?.name?.full,
+          userEmail: user?.email,
+          hasMemory: !!memory,
+          memoryPreferences: memory?.preferences,
+          memoryContext: memory?.context,
+          memoryCount: memory?.memories?.length || 0
+        });
 
         if (user) {
           // Refresh credits if needed

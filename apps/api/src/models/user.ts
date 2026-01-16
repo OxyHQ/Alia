@@ -16,6 +16,8 @@ export interface IUser extends Document {
     dailyRefresh: number;  // Amount to refresh daily
     lastRefresh: Date;     // Last time credits were refreshed
   };
+  resetPasswordToken?: string;
+  resetPasswordExpires?: Date;
   createdAt: Date;
   updatedAt: Date;
   comparePassword(candidatePassword: string): Promise<boolean>;
@@ -37,6 +39,8 @@ const UserSchema = new Schema<IUser>({
     dailyRefresh: { type: Number, default: 300 },
     lastRefresh: { type: Date, default: Date.now },
   },
+  resetPasswordToken: { type: String },
+  resetPasswordExpires: { type: Date },
 }, {
   timestamps: true,
   toJSON: { virtuals: true }, // Asegurar que los virtuales se incluyan al convertir a JSON

@@ -1,4 +1,4 @@
-import { View, Pressable, ScrollView } from "react-native";
+import { View, Pressable, ScrollView, ActivityIndicator } from "react-native";
 import { Image } from "expo-image";
 import { X, FileText } from "lucide-react-native";
 import { Text } from "@/components/ui/text";
@@ -8,6 +8,7 @@ interface AttachmentPreviewProps {
     uri: string;
     type: 'image' | 'document';
     name?: string;
+    isLoading?: boolean;
   }>;
   onRemove: (uri: string) => void;
 }
@@ -31,14 +32,23 @@ export function AttachmentPreview({ attachments, onRemove }: AttachmentPreviewPr
         >
           {attachment.type === 'image' ? (
             <View className="relative w-20 h-20 rounded-xl overflow-hidden bg-muted border border-border">
-              <Image
-                source={{ uri: attachment.uri }}
-                className="w-full h-full"
-                contentFit="cover"
-              />
+              {!attachment.isLoading && (
+                <Image
+                  source={{ uri: attachment.uri }}
+                  className="w-full h-full"
+                  contentFit="cover"
+                />
+              )}
+              {attachment.isLoading && (
+                <View className="absolute inset-0 items-center justify-center bg-muted">
+                  <ActivityIndicator size="small" />
+                </View>
+              )}
               <Pressable
                 onPress={() => onRemove(attachment.uri)}
-                className="absolute top-1 right-1 w-6 h-6 rounded-full bg-background/90 backdrop-blur-sm items-center justify-center active:opacity-70 border border-border shadow-sm"
+                className="absolute top-1 right-1 w-6 h-6 rounded-full bg-background/90 backdrop-blur-sm items-center justify-center active:opacity-70 border border-border"
+                accessibilityRole="button"
+                accessibilityLabel="Remove image"
               >
                 <X size={14} className="text-foreground" />
               </Pressable>
@@ -53,7 +63,9 @@ export function AttachmentPreview({ attachments, onRemove }: AttachmentPreviewPr
               )}
               <Pressable
                 onPress={() => onRemove(attachment.uri)}
-                className="absolute top-1 right-1 w-6 h-6 rounded-full bg-background items-center justify-center active:opacity-70 border border-border shadow-sm"
+                className="absolute top-1 right-1 w-6 h-6 rounded-full bg-background items-center justify-center active:opacity-70 border border-border"
+                accessibilityRole="button"
+                accessibilityLabel={`Remove document ${attachment.name || ''}`}
               >
                 <X size={14} className="text-foreground" />
               </Pressable>

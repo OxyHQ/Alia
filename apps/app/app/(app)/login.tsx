@@ -1,38 +1,72 @@
 import React, { useState } from 'react';
-import { View, Text } from 'react-native';
-import { AuthContainer, AuthLogo, AuthInput, AuthButton } from '@/components/auth';
+import { View, Text, Alert, Platform, Pressable } from 'react-native';
+import { useRouter, Link } from 'expo-router';
+import { AuthContainer, AuthLogo, AuthInput, AuthButton, AuthError } from '@/components/auth';
 import { Button } from '@/components/ui/button';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { toast } from '@/components/sonner';
+import apiClient from '@/lib/api/client';
+import { useAuthStore } from '@/lib/stores/auth-store';
 
 export default function LoginScreen() {
+  const router = useRouter();
+  const login = useAuthStore((state) => state.login);
   const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
 
-  const handleContinue = async () => {
+  const handleLogin = async () => {
+    setError('');
+
     if (!email.trim()) {
-      toast.error('Please enter your email address');
+      const errorMsg = 'Please enter your email address';
+      setError(errorMsg);
+      if (Platform.OS !== 'web') {
+        Alert.alert('Login Error', errorMsg);
+      }
       return;
     }
 
-    // For now, navigate to a password screen or implement passwordless flow
-    // This is a placeholder - you'll need to implement the actual auth flow
+    if (!password.trim()) {
+      const errorMsg = 'Please enter your password';
+      setError(errorMsg);
+      if (Platform.OS !== 'web') {
+        Alert.alert('Login Error', errorMsg);
+      }
+      return;
+    }
+
     setLoading(true);
 
     try {
-      // TODO: Implement email continuation logic
-      // This could be passwordless magic link or navigate to password screen
-      console.log('Continue with email:', email);
+      // Call API login endpoint
+      const response = await apiClient.post('/auth/login', {
+        email: email.trim(),
+        password,
+      });
+
+      const { user, token } = response.data;
+
+      // Store user and token in auth store
+      login(user, token);
+
+      // Navigate to home screen
+      router.replace('/');
     } catch (error: any) {
       console.error('Login error:', error);
-      toast.error('Failed to continue. Please try again.');
+      const errorMessage = error.response?.data?.error || 'Failed to login. Please try again.';
+      setError(errorMessage);
+
+      if (Platform.OS !== 'web') {
+        Alert.alert('Login Failed', errorMessage);
+      }
     } finally {
       setLoading(false);
     }
   };
 
   const handleSocialLogin = (provider: string) => {
-    // TODO: Implement social login
     toast.info(`${provider.charAt(0).toUpperCase() + provider.slice(1)} login will be available soon`);
   };
 
@@ -93,31 +127,69 @@ export default function LoginScreen() {
         <View className="flex-1 h-px bg-border" />
       </View>
 
-      {/* Email Form */}
-      <View className="gap-2">
+      {/* Login Form */}
+      <View className="gap-3">
+        <AuthError message={error} />
+
         <AuthInput
-          placeholder="Enter your email address"
+          placeholder="Email"
           value={email}
-          onChangeText={setEmail}
+          onChangeText={(text) => {
+            setEmail(text);
+            setError('');
+          }}
           autoCapitalize="none"
           keyboardType="email-address"
+          autoComplete="email"
           editable={!loading}
-          onSubmitEditing={handleContinue}
         />
 
+        <AuthInput
+          placeholder="Password"
+          value={password}
+          onChangeText={(text) => {
+            setPassword(text);
+            setError('');
+          }}
+          secureTextEntry
+          editable={!loading}
+          onSubmitEditing={handleLogin}
+        />
+
+        <View className="flex-row justify-end">
+          <Link href="/(app)/forgot-password" asChild>
+            <Pressable>
+              <Text className="text-primary text-sm font-medium">Forgot password?</Text>
+            </Pressable>
+          </Link>
+        </View>
+
         <AuthButton
-          onPress={handleContinue}
-          disabled={loading || !email}
+          onPress={handleLogin}
+          disabled={loading || !email || !password}
           isLoading={loading}
-          loadingText="Continuing..."
-          className="mt-1"
+          loadingText="Signing in..."
         >
-          Continue
+          Sign in
         </AuthButton>
       </View>
 
-      {/* Privacy note */}
+      {/* Footer */}
       <View className="mt-6">
+        <View className="flex-row items-center justify-center gap-1">
+          <Text className="text-muted-foreground text-sm">
+            Don't have an account?
+          </Text>
+          <Link href="/(app)/register" asChild>
+            <Pressable>
+              <Text className="text-primary text-sm font-medium">Sign up</Text>
+            </Pressable>
+          </Link>
+        </View>
+      </View>
+
+      {/* Privacy note */}
+      <View className="mt-8">
         <Text className="text-xs text-muted-foreground text-center leading-4">
           By continuing, you agree to Alia's Terms of Service and Privacy Policy
         </Text>

@@ -25,6 +25,7 @@ import {
 import { Text } from "@/components/ui/text";
 import { useLocalSearchParams } from "expo-router";
 import { useRolesStore } from "@/lib/stores/roles-store";
+import { useAuthStore } from "@/lib/stores/auth-store";
 
 // Submit button wrapper that uses context
 const SubmitButtonWrapper = ({
@@ -72,11 +73,13 @@ const ChatConversationPage = () => {
   // Use selectors to avoid worklet serialization issues
   const chatId = useStore((state) => state.chatId);
   const selectedImageUris = useStore((state) => state.selectedImageUris);
+  const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
   const [selectedModel, setSelectedModel] = useState("alia-v1");
   const [searchMode, setSearchMode] = useState(false);
   const [agentMode, setAgentMode] = useState(false);
   const [inputValue, setInputValue] = useState("");
   const [initialMessageSent, setInitialMessageSent] = useState(false);
+  const [loadingImageUris, setLoadingImageUris] = useState<Set<string>>(new Set());
   const { pickImage } = useImagePicker();
 
   // Load conversations on mount
@@ -127,6 +130,11 @@ const ChatConversationPage = () => {
   };
 
   const handleAddPhotos = async () => {
+    if (!isAuthenticated) {
+      Alert.alert('Sign in required', 'Please sign in to upload images.');
+      return;
+    }
+
     try {
       const imageUris = await pickImage();
       if (imageUris && imageUris.length > 0) {
@@ -138,6 +146,11 @@ const ChatConversationPage = () => {
   };
 
   const handleAddDocument = async () => {
+    if (!isAuthenticated) {
+      Alert.alert('Sign in required', 'Please sign in to upload documents.');
+      return;
+    }
+
     try {
       const result = await DocumentPicker.getDocumentAsync({
         type: '*/*',
@@ -161,16 +174,75 @@ const ChatConversationPage = () => {
     useStore.getState().removeImageUri(uri);
   };
 
+  const handleImagePaste = async (files: File[]) => {
+    if (!isAuthenticated) {
+      Alert.alert('Sign in required', 'Please sign in to paste images.');
+      return;
+    }
+
+    try {
+      // Convert File objects to URIs and add to store
+      for (const file of files) {
+        // Generate a temporary ID for this file
+        const tempId = `loading-${Date.now()}-${Math.random()}`;
+
+        // Add to loading set
+        setLoadingImageUris(prev => new Set(prev).add(tempId));
+
+        // Add temporary placeholder to store
+        useStore.getState().addImageUri(tempId);
+
+        // Create a local URI from the File object
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          const dataUrl = e.target?.result as string;
+          if (dataUrl) {
+            // Remove the placeholder
+            useStore.getState().removeImageUri(tempId);
+            // Add the actual data URL
+            useStore.getState().addImageUri(dataUrl);
+            // Remove from loading set
+            setLoadingImageUris(prev => {
+              const newSet = new Set(prev);
+              newSet.delete(tempId);
+              return newSet;
+            });
+          }
+        };
+        reader.onerror = (e) => {
+          console.error('FileReader error:', e);
+          // Remove from loading set and store on error
+          setLoadingImageUris(prev => {
+            const newSet = new Set(prev);
+            newSet.delete(tempId);
+            return newSet;
+          });
+          useStore.getState().removeImageUri(tempId);
+        };
+        reader.readAsDataURL(file);
+      }
+    } catch (err) {
+      console.error('Error handling pasted images:', err);
+      Alert.alert('Error', 'Failed to process pasted images. Please try again.');
+    }
+  };
+
   // Convert URIs to attachment format with type detection
   const attachments = selectedImageUris.map((uri) => {
-    // Detect if it's an image based on extension
-    const isImage = /\.(jpg|jpeg|png|gif|webp|bmp)$/i.test(uri);
+    // Check if this URI is still loading
+    const isLoading = loadingImageUris.has(uri);
+
+    // Detect if it's an image based on data URL prefix or file extension
+    const isDataUrlImage = uri.startsWith('data:image/');
+    const isFileImage = /\.(jpg|jpeg|png|gif|webp|bmp)$/i.test(uri);
+    const isImage = isDataUrlImage || isFileImage || isLoading; // Treat loading items as images
     const fileName = uri.split('/').pop() || 'Unknown file';
 
     return {
       uri,
       type: (isImage ? 'image' : 'document') as const,
       name: !isImage ? fileName : undefined,
+      isLoading,
     };
   });
 
@@ -304,6 +376,7 @@ const ChatConversationPage = () => {
                   onSubmit={handleSubmit}
                   isLoading={isLoading}
                   disabled={isLoading}
+                  onImagePaste={handleImagePaste}
                 >
                   {/* Attachment Preview */}
                   <AttachmentPreview
