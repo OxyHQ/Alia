@@ -44,6 +44,7 @@ export async function handleMessage(ctx: Context) {
     ];
 
     // Make API call to chat endpoint
+    console.log('[Chat] Sending message to API:', messageText.substring(0, 50));
     const response = await fetch(`${process.env.API_BASE_URL || 'http://localhost:3001'}/alia/chat`, {
       method: 'POST',
       headers: {
@@ -55,13 +56,19 @@ export async function handleMessage(ctx: Context) {
       }),
     });
 
+    console.log('[Chat] API response status:', response.status);
+
     if (!response.ok) {
-      throw new Error(`API error: ${response.statusText}`);
+      const errorText = await response.text();
+      console.error('[Chat] API error response:', errorText);
+      throw new Error(`API error: ${response.statusText} - ${errorText}`);
     }
 
     if (!response.body) {
       throw new Error('No response body');
     }
+
+    console.log('[Chat] Starting to stream response...');
 
     // Stream the response
     const reader = response.body.getReader();
@@ -69,12 +76,17 @@ export async function handleMessage(ctx: Context) {
     let fullResponse = '';
     let lastUpdateTime = Date.now();
     let currentMessage: any = null;
+    let chunkCount = 0;
 
     while (true) {
       const { done, value } = await reader.read();
 
-      if (done) break;
+      if (done) {
+        console.log('[Chat] Stream ended. Total chunks:', chunkCount, 'Response length:', fullResponse.length);
+        break;
+      }
 
+      chunkCount++;
       const chunk = decoder.decode(value, { stream: true });
       const lines = chunk.split('\n');
 
@@ -84,6 +96,7 @@ export async function handleMessage(ctx: Context) {
 
           // Check for completion marker
           if (dataStr === '[DONE]') {
+            console.log('[Chat] Received [DONE] marker');
             // Send final response
             if (currentMessage && fullResponse) {
               await ctx.telegram.editMessageText(
@@ -108,24 +121,32 @@ export async function handleMessage(ctx: Context) {
               // Update message every 1.5 seconds
               const now = Date.now();
               if (now - lastUpdateTime > 1500) {
+                console.log('[Chat] Updating message, length:', fullResponse.length);
                 if (currentMessage) {
                   await ctx.telegram.editMessageText(
                     ctx.chat!.id,
                     currentMessage.message_id,
                     undefined,
                     fullResponse + '...'
-                  ).catch(() => {}); // Ignore errors from editing
+                  ).catch((err) => console.log('[Chat] Edit error:', err.message));
                 } else if (fullResponse.length > 10) { // Only create message if we have some content
+                  console.log('[Chat] Creating initial message');
                   currentMessage = await ctx.reply(fullResponse + '...').catch(() => null);
                 }
                 lastUpdateTime = now;
               }
             } else if (data.type === 'error') {
+              console.error('[Chat] API error event:', data);
               throw new Error(data.error || 'Unknown error');
+            } else {
+              // Log other event types for debugging
+              console.log('[Chat] Event type:', data.type);
             }
-            // Ignore other event types (tool-call, tool-result, finish, etc.)
           } catch (e) {
-            // Skip non-JSON lines
+            // Skip non-JSON lines (but log for debugging)
+            if (dataStr && !dataStr.includes('{')) {
+              console.log('[Chat] Non-JSON data:', dataStr.substring(0, 100));
+            }
           }
         }
       }
@@ -133,7 +154,11 @@ export async function handleMessage(ctx: Context) {
 
     // If no message was sent yet, send the full response
     if (!currentMessage && fullResponse) {
+      console.log('[Chat] Sending final response, length:', fullResponse.length);
       await ctx.reply(fullResponse).catch(() => {});
+    } else if (!fullResponse) {
+      console.warn('[Chat] No response received from API');
+      await ctx.reply('⚠️ I received your message but got no response. Please try again.');
     }
 
   } catch (error: any) {
