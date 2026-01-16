@@ -75,8 +75,9 @@ export async function handleMessage(ctx: Context) {
       return;
     }
 
-    // Send "typing" action
+    // Send initial "typing" action
     await ctx.sendChatAction('typing');
+    let lastActionTime = Date.now();
 
     // Create or use existing conversation ID
     let conversationId = telegramUser.conversationId;
@@ -85,14 +86,28 @@ export async function handleMessage(ctx: Context) {
       await apiClient.updateTelegramConversation(telegramId, conversationId);
     }
 
-    // Get conversation history (we'll implement this simply for now - just send the current message)
-    // In the future, you could fetch conversation history from the API and include it
-    const messages = [
-      {
-        role: 'user',
-        content: messageText
+    // Load conversation history for context
+    let messages: Array<{ role: string; content: string }> = [];
+    try {
+      const conversation = await apiClient.getConversation(telegramUser.sessionToken, conversationId);
+      if (conversation && conversation.messages && conversation.messages.length > 0) {
+        // Take last 20 messages for context (to avoid token limits)
+        const recentMessages = conversation.messages.slice(-20);
+        messages = recentMessages.map((msg: any) => ({
+          role: msg.role,
+          content: msg.content
+        }));
       }
-    ];
+    } catch (error) {
+      console.error('[Chat] Failed to load conversation history:', error);
+      // Continue with empty history if loading fails
+    }
+
+    // Add new user message
+    messages.push({
+      role: 'user',
+      content: messageText
+    });
 
     // Make API call to chat endpoint
     console.log('[Chat] Sending message to API:', messageText.substring(0, 50));
@@ -149,12 +164,42 @@ export async function handleMessage(ctx: Context) {
           try {
             const data = JSON.parse(dataStr);
 
+            // Handle tool calls with dynamic chat actions
+            if (data.type === 'tool-call') {
+              const toolName = data.toolName;
+
+              // Send appropriate chat action and notification
+              if (toolName === 'googleSearch') {
+                await ctx.sendChatAction('typing');
+                await ctx.reply('🔍 Buscando en internet...').catch(() => {});
+              } else if (toolName === 'scrapeURL') {
+                await ctx.sendChatAction('typing');
+                await ctx.reply('📄 Leyendo contenido...').catch(() => {});
+              } else if (toolName === 'saveUserMemory') {
+                await ctx.sendChatAction('typing');
+                await ctx.reply('💾 Guardando información...').catch(() => {});
+              } else {
+                // Generic typing for other tools
+                const now = Date.now();
+                if (now - lastActionTime > 5000) { // Refresh typing every 5s
+                  await ctx.sendChatAction('typing');
+                  lastActionTime = now;
+                }
+              }
+            }
+
             // Handle text delta events from AI SDK
             if (data.type === 'text-delta' && data.text) {
               fullResponse += data.text;
 
-              // Update message every 1 second for more responsive streaming
+              // Refresh typing action periodically during streaming
               const now = Date.now();
+              if (now - lastActionTime > 5000) {
+                await ctx.sendChatAction('typing');
+                lastActionTime = now;
+              }
+
+              // Update message every 1 second for more responsive streaming
               if (now - lastUpdateTime > 1000) {
                 if (currentMessage) {
                   await ctx.telegram.editMessageText(
