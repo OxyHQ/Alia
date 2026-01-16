@@ -1,5 +1,4 @@
 import { Context } from 'telegraf';
-import { TelegramUser } from '../models/telegram-user';
 import { apiClient } from '../services/api-client';
 import { v4 as uuidv4 } from 'uuid';
 import { sendAuthRequest } from './auth';
@@ -14,23 +13,24 @@ export async function handleMessage(ctx: Context) {
     return;
   }
 
-  // Get telegram user
-  const telegramUser = await TelegramUser.findOne({ telegramId });
-
-  if (!telegramUser || !telegramUser.isAuthenticated || !telegramUser.sessionToken) {
-    // Send authentication request
-    await sendAuthRequest(ctx);
-    return;
-  }
-
   try {
+    // Get telegram user
+    const telegramUser = await apiClient.getTelegramUser(telegramId);
+
+    if (!telegramUser || !telegramUser.isAuthenticated || !telegramUser.sessionToken) {
+      // Send authentication request
+      await sendAuthRequest(ctx);
+      return;
+    }
+
     // Send "typing" action
     await ctx.sendChatAction('typing');
 
     // Create or use existing conversation ID
-    if (!telegramUser.conversationId) {
-      telegramUser.conversationId = uuidv4();
-      await telegramUser.save();
+    let conversationId = telegramUser.conversationId;
+    if (!conversationId) {
+      conversationId = uuidv4();
+      await apiClient.updateTelegramConversation(telegramId, conversationId);
     }
 
     // Make API call to chat endpoint
@@ -42,7 +42,7 @@ export async function handleMessage(ctx: Context) {
       },
       body: JSON.stringify({
         message: messageText,
-        conversationId: telegramUser.conversationId,
+        conversationId,
       }),
     });
 
@@ -143,10 +143,6 @@ export async function handleMessage(ctx: Context) {
 
     // Check if it's an authentication error
     if (error.response?.status === 401 || error.message?.includes('401')) {
-      telegramUser.isAuthenticated = false;
-      telegramUser.sessionToken = undefined;
-      await telegramUser.save();
-
       await ctx.reply(
         '❌ Your session has expired.\n\n' +
         'Please /logout and /start again to re-authenticate.'
@@ -168,20 +164,26 @@ export async function handleNewConversation(ctx: Context) {
     return;
   }
 
-  const telegramUser = await TelegramUser.findOne({ telegramId });
-  if (!telegramUser || !telegramUser.isAuthenticated) {
-    await sendAuthRequest(ctx);
-    return;
+  try {
+    const telegramUser = await apiClient.getTelegramUser(telegramId);
+
+    if (!telegramUser || !telegramUser.isAuthenticated) {
+      await sendAuthRequest(ctx);
+      return;
+    }
+
+    // Create new conversation ID
+    const newConversationId = uuidv4();
+    await apiClient.updateTelegramConversation(telegramId, newConversationId);
+
+    await ctx.reply(
+      '✅ New conversation started!\n\n' +
+      'Send me a message to begin chatting.'
+    );
+  } catch (error) {
+    console.error('New conversation error:', error);
+    await ctx.reply('Sorry, an error occurred. Please try again later.');
   }
-
-  // Create new conversation ID
-  telegramUser.conversationId = uuidv4();
-  await telegramUser.save();
-
-  await ctx.reply(
-    '✅ New conversation started!\n\n' +
-    'Send me a message to begin chatting.'
-  );
 }
 
 export async function handleHistory(ctx: Context) {
@@ -191,35 +193,41 @@ export async function handleHistory(ctx: Context) {
     return;
   }
 
-  const telegramUser = await TelegramUser.findOne({ telegramId });
-  if (!telegramUser || !telegramUser.isAuthenticated || !telegramUser.sessionToken) {
-    await sendAuthRequest(ctx);
-    return;
-  }
-
   try {
-    const conversations = await apiClient.getConversations(telegramUser.sessionToken);
+    const telegramUser = await apiClient.getTelegramUser(telegramId);
 
-    if (!conversations || conversations.length === 0) {
-      await ctx.reply('You have no conversation history yet.');
+    if (!telegramUser || !telegramUser.isAuthenticated || !telegramUser.sessionToken) {
+      await sendAuthRequest(ctx);
       return;
     }
 
-    let message = '📚 Your Conversations:\n\n';
-    conversations.slice(0, 10).forEach((conv: any, index: number) => {
-      const title = conv.title || 'Untitled';
-      const date = new Date(conv.updatedAt || conv.createdAt).toLocaleDateString();
-      const current = conv.conversationId === telegramUser.conversationId ? '🔹 ' : '';
-      message += `${current}${index + 1}. ${title} (${date})\n`;
-    });
+    try {
+      const conversations = await apiClient.getConversations(telegramUser.sessionToken);
 
-    if (conversations.length > 10) {
-      message += `\n... and ${conversations.length - 10} more`;
+      if (!conversations || conversations.length === 0) {
+        await ctx.reply('You have no conversation history yet.');
+        return;
+      }
+
+      let message = '📚 Your Conversations:\n\n';
+      conversations.slice(0, 10).forEach((conv: any, index: number) => {
+        const title = conv.title || 'Untitled';
+        const date = new Date(conv.updatedAt || conv.createdAt).toLocaleDateString();
+        const current = conv.conversationId === telegramUser.conversationId ? '🔹 ' : '';
+        message += `${current}${index + 1}. ${title} (${date})\n`;
+      });
+
+      if (conversations.length > 10) {
+        message += `\n... and ${conversations.length - 10} more`;
+      }
+
+      await ctx.reply(message);
+    } catch (error) {
+      console.error('Error fetching history:', error);
+      await ctx.reply('❌ Unable to fetch conversation history.');
     }
-
-    await ctx.reply(message);
   } catch (error) {
-    console.error('Error fetching history:', error);
-    await ctx.reply('❌ Unable to fetch conversation history.');
+    console.error('History error:', error);
+    await ctx.reply('Sorry, an error occurred. Please try again later.');
   }
 }
