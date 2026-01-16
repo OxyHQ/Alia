@@ -1,0 +1,55 @@
+{
+  "common": {
+    "or": "O",
+    "loading": "Cargando...",
+    "error": "Error",
+    "success": "Éxito",
+    "cancel": "Cancelar",
+    "confirm": "Confirmar",
+    "save": "Guardar",
+    "delete": "Eliminar",
+    "edit": "Editar",
+    "close": "Cerrar"
+  },
+  "auth": {
+    "signInOrSignUp": "Iniciar sesión o registrarse",
+    "continueTo": "para continuar a Alia",
+    "continueWithGoogle": "Continuar con Google",
+    "continueWithMicrosoft": "Continuar con Microsoft",
+    "continueWithApple": "Continuar con Apple",
+    "email": "Correo electrónico",
+    "password": "Contraseña",
+    "forgotPassword": "¿Olvidaste tu contraseña?",
+    "signIn": "Iniciar sesión",
+    "signingIn": "Iniciando sesión...",
+    "signUp": "Registrarse",
+    "signingUp": "Registrándose...",
+    "dontHaveAccount": "¿No tienes una cuenta?",
+    "alreadyHaveAccount": "¿Ya tienes una cuenta?",
+    "termsAndPrivacy": "Al continuar, aceptas los Términos de Servicio y la Política de Privacidad de Alia",
+    "emailRequired": "Por favor ingresa tu dirección de correo electrónico",
+    "passwordRequired": "Por favor ingresa tu contraseña",
+    "loginFailed": "Error al iniciar sesión",
+    "loginError": "Error de inicio de sesión",
+    "failedToLogin": "No se pudo iniciar sesión. Por favor, intenta de nuevo.",
+    "socialLoginSoon": "El inicio de sesión con {{provider}} estará disponible pronto"
+  },
+  "settings": {
+    "title": "Configuración",
+    "account": "Cuenta",
+    "memory": "Memoria",
+    "language": "Idioma",
+    "theme": "Tema",
+    "notifications": "Notificaciones"
+  },
+  "library": {
+    "title": "Biblioteca",
+    "empty": "Aún no hay elementos",
+    "search": "Buscar..."
+  },
+  "chat": {
+    "newChat": "Nueva conversación",
+    "typeMessage": "Escribe un mensaje...",
+    "send": "Enviar"
+  }
+}

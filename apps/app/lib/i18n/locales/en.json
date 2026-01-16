@@ -1,0 +1,55 @@
+{
+  "common": {
+    "or": "OR",
+    "loading": "Loading...",
+    "error": "Error",
+    "success": "Success",
+    "cancel": "Cancel",
+    "confirm": "Confirm",
+    "save": "Save",
+    "delete": "Delete",
+    "edit": "Edit",
+    "close": "Close"
+  },
+  "auth": {
+    "signInOrSignUp": "Sign in or sign up",
+    "continueTo": "to continue to Alia",
+    "continueWithGoogle": "Continue with Google",
+    "continueWithMicrosoft": "Continue with Microsoft",
+    "continueWithApple": "Continue with Apple",
+    "email": "Email",
+    "password": "Password",
+    "forgotPassword": "Forgot password?",
+    "signIn": "Sign in",
+    "signingIn": "Signing in...",
+    "signUp": "Sign up",
+    "signingUp": "Signing up...",
+    "dontHaveAccount": "Don't have an account?",
+    "alreadyHaveAccount": "Already have an account?",
+    "termsAndPrivacy": "By continuing, you agree to Alia's Terms of Service and Privacy Policy",
+    "emailRequired": "Please enter your email address",
+    "passwordRequired": "Please enter your password",
+    "loginFailed": "Login Failed",
+    "loginError": "Login Error",
+    "failedToLogin": "Failed to login. Please try again.",
+    "socialLoginSoon": "{{provider}} login will be available soon"
+  },
+  "settings": {
+    "title": "Settings",
+    "account": "Account",
+    "memory": "Memory",
+    "language": "Language",
+    "theme": "Theme",
+    "notifications": "Notifications"
+  },
+  "library": {
+    "title": "Library",
+    "empty": "No items yet",
+    "search": "Search..."
+  },
+  "chat": {
+    "newChat": "New Chat",
+    "typeMessage": "Type a message...",
+    "send": "Send"
+  }
+}

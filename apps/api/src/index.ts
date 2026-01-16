@@ -51,32 +51,31 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 // Rutas
-app.use('/health', healthRouter);  // Health check at root for DO
-app.use('/api/health', healthRouter);  // Also keep at /api/health for backwards compatibility
-app.use('/api/auth', authRouter);
-app.use('/api/conversations', conversationsRouter);
-app.use('/api/folders', foldersRouter);
-app.use('/api/memory', memoryRouter);
-app.use('/api/upload', uploadRouter);
-app.use('/api/credits', creditsRouter);
-app.use('/api/alia/chat', chatRouter);
-app.use('/api/v1', v1Router);
+app.use('/health', healthRouter);
+app.use('/auth', authRouter);
+app.use('/conversations', conversationsRouter);
+app.use('/folders', foldersRouter);
+app.use('/memory', memoryRouter);
+app.use('/upload', uploadRouter);
+app.use('/credits', creditsRouter);
+app.use('/alia/chat', chatRouter);
+app.use('/v1', v1Router);
 
 // Ruta raíz
-app.get('/api', (req, res) => {
+app.get('/', (_req, res) => {
   res.json({
     message: 'Alia API',
     version: '1.0.0',
     endpoints: [
-      '/api/health',
-      '/api/auth',
-      '/api/conversations',
-      '/api/folders',
-      '/api/memory',
-      '/api/upload',
-      '/api/credits',
-      '/api/alia/chat',
-      '/api/v1'
+      '/health',
+      '/auth',
+      '/conversations',
+      '/folders',
+      '/memory',
+      '/upload',
+      '/credits',
+      '/alia/chat',
+      '/v1'
     ]
   });
 });
