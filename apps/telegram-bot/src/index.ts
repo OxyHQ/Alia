@@ -27,7 +27,6 @@ async function initializeBot() {
 
     // Register command handlers
     bot.command('start', handleStart);
-    bot.command('login', handleLogin);
     bot.command('logout', handleLogout);
     bot.command('status', handleStatus);
     bot.command('help', handleHelp);

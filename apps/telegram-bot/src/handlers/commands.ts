@@ -4,11 +4,10 @@ export async function handleHelp(ctx: Context) {
   const helpMessage = `
 🤖 *Alia AI Bot - Help*
 
-*Authentication Commands:*
-/start - Start the bot and get authentication instructions
-/login <email> <password> - Login with your credentials
-/logout - Disconnect your account
+*Getting Started:*
+/start - Get authentication link
 /status - Check your account status
+/logout - Disconnect your account
 
 *Chat Commands:*
 Just send me a message to chat with Alia!
@@ -19,9 +18,9 @@ Just send me a message to chat with Alia!
 /help - Show this help message
 
 *How to Use:*
-1. Use /start to begin
-2. Authenticate using the provided link or /login command
-3. Start chatting by sending any message!
+1. Send any message or /start
+2. Click the authentication link to sign in
+3. Return to Telegram and start chatting!
 
 *Example:*
 You: Hello, who are you?
