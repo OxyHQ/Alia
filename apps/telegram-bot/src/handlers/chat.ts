@@ -114,6 +114,11 @@ export async function handleMessage(ctx: Context) {
           try {
             const data = JSON.parse(dataStr);
 
+            // Log the full data for text-delta to debug
+            if (data.type === 'text-delta') {
+              console.log('[Chat] text-delta data:', JSON.stringify(data));
+            }
+
             // Handle text delta events from AI SDK
             if (data.type === 'text-delta' && data.textDelta) {
               fullResponse += data.textDelta;
@@ -138,9 +143,10 @@ export async function handleMessage(ctx: Context) {
             } else if (data.type === 'error') {
               console.error('[Chat] API error event:', data);
               throw new Error(data.error || 'Unknown error');
-            } else {
-              // Log other event types for debugging
-              console.log('[Chat] Event type:', data.type);
+            } else if (data.type !== 'start' && data.type !== 'text-start' && data.type !== 'text-end' &&
+                       data.type !== 'finish-step' && data.type !== 'credit-update') {
+              // Log unexpected event types for debugging (skip known ones)
+              console.log('[Chat] Event type:', data.type, 'Data:', JSON.stringify(data).substring(0, 100));
             }
           } catch (e) {
             // Skip non-JSON lines (but log for debugging)
