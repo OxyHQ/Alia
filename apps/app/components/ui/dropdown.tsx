@@ -1,7 +1,8 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { View, Pressable, Modal, ScrollView, Dimensions } from 'react-native';
 import { ChevronRight } from 'lucide-react-native';
 import { cn } from '@/lib/utils';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 type DropdownMenuProps = {
   trigger: React.ReactNode;
@@ -37,6 +38,7 @@ export function Dropdown({ trigger, children, align = 'start' }: DropdownMenuPro
   const [isOpen, setIsOpen] = useState(false);
   const [triggerLayout, setTriggerLayout] = useState({ x: 0, y: 0, width: 0, height: 0 });
   const triggerRef = useRef<View>(null);
+  const insets = useSafeAreaInsets();
 
   const handleOpen = () => {
     // Measure first, then open after measurement completes
@@ -54,27 +56,48 @@ export function Dropdown({ trigger, children, align = 'start' }: DropdownMenuPro
     setIsOpen(false);
   };
 
+  // Re-measure position when screen dimensions change
+  useEffect(() => {
+    const subscription = Dimensions.addEventListener('change', () => {
+      if (isOpen) {
+        triggerRef.current?.measureInWindow((x, y, width, height) => {
+          if (x !== 0 || y !== 0 || width !== 0 || height !== 0) {
+            setTriggerLayout({ x, y, width, height });
+          }
+        });
+      }
+    });
+
+    return () => subscription?.remove();
+  }, [isOpen]);
+
   const { width: windowWidth, height: windowHeight } = Dimensions.get('window');
 
   // Calculate if dropdown should appear above or below
-  const dropdownMaxHeight = 400;
-  const dropdownMinWidth = 224;
-  const margin = 16;
+  const dropdownMaxHeight = 300;
+  const dropdownMinWidth = 200;
+  const margin = 8;
 
-  const spaceBelow = windowHeight - (triggerLayout.y + triggerLayout.height);
-  const spaceAbove = triggerLayout.y;
+  const safeBottom = windowHeight - insets.bottom;
+  const safeTop = insets.top;
+
+  const spaceBelow = safeBottom - (triggerLayout.y + triggerLayout.height);
+  const spaceAbove = triggerLayout.y - safeTop;
   const shouldShowAbove = spaceBelow < dropdownMaxHeight && spaceAbove > spaceBelow;
 
-  // Calculate horizontal position with margin constraints
+  // Calculate horizontal position with margin and safe area constraints
+  const safeLeft = insets.left + margin;
+  const safeRight = windowWidth - insets.right - margin;
+
   let leftPosition = align === 'start' ? triggerLayout.x : undefined;
   let rightPosition = align === 'end' ? windowWidth - (triggerLayout.x + triggerLayout.width) : undefined;
 
   // Ensure dropdown doesn't go off screen horizontally
-  if (align === 'start' && triggerLayout.x + dropdownMinWidth > windowWidth - margin) {
+  if (align === 'start' && triggerLayout.x + dropdownMinWidth > safeRight) {
     leftPosition = undefined;
-    rightPosition = margin;
-  } else if (align === 'start' && triggerLayout.x < margin) {
-    leftPosition = margin;
+    rightPosition = insets.right + margin;
+  } else if (align === 'start' && triggerLayout.x < safeLeft) {
+    leftPosition = safeLeft;
   }
 
   return (
@@ -103,11 +126,11 @@ export function Dropdown({ trigger, children, align = 'start' }: DropdownMenuPro
               left: leftPosition,
               right: rightPosition,
               minWidth: dropdownMinWidth,
-              maxWidth: windowWidth - (margin * 2),
+              maxWidth: safeRight - safeLeft,
             }}
-            className="bg-popover border-border rounded-2xl border shadow-lg"
+            className="bg-popover border-border rounded-2xl border"
           >
-            <ScrollView className="max-h-[400px] py-1 select-none">
+            <ScrollView style={{ maxHeight: dropdownMaxHeight }} className="py-1 select-none">
               {React.Children.map(children, (child) =>
                 React.isValidElement(child)
                   ? React.cloneElement(child as React.ReactElement<any>, { onClose: handleClose })
@@ -163,6 +186,7 @@ export function SubMenu({ trigger, children, onClose }: SubMenuProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [triggerLayout, setTriggerLayout] = useState({ x: 0, y: 0, width: 0, height: 0 });
   const triggerRef = useRef<View>(null);
+  const insets = useSafeAreaInsets();
 
   const handleOpen = () => {
     triggerRef.current?.measureInWindow((x, y, width, height) => {
@@ -178,20 +202,41 @@ export function SubMenu({ trigger, children, onClose }: SubMenuProps) {
     onClose?.();
   };
 
+  // Re-measure position when screen dimensions change
+  useEffect(() => {
+    const subscription = Dimensions.addEventListener('change', () => {
+      if (isOpen) {
+        triggerRef.current?.measureInWindow((x, y, width, height) => {
+          if (x !== 0 || y !== 0 || width !== 0 || height !== 0) {
+            setTriggerLayout({ x, y, width, height });
+          }
+        });
+      }
+    });
+
+    return () => subscription?.remove();
+  }, [isOpen]);
+
   const { width: windowWidth, height: windowHeight } = Dimensions.get('window');
 
   // Calculate if submenu should appear on left or right
-  const submenuMinWidth = 224;
-  const margin = 16;
-  const spaceRight = windowWidth - (triggerLayout.x + triggerLayout.width);
-  const spaceLeft = triggerLayout.x;
+  const submenuMinWidth = 200;
+  const margin = 8;
+  const submenuMaxHeight = 300;
+
+  const safeBottom = windowHeight - insets.bottom;
+  const safeTop = insets.top;
+  const safeLeft = insets.left + margin;
+  const safeRight = windowWidth - insets.right - margin;
+
+  const spaceRight = safeRight - (triggerLayout.x + triggerLayout.width);
+  const spaceLeft = triggerLayout.x - safeLeft;
   const shouldShowLeft = spaceRight < submenuMinWidth && spaceLeft > spaceRight;
 
   // Calculate vertical position
-  const dropdownMaxHeight = 400;
-  const spaceBelow = windowHeight - triggerLayout.y;
-  const spaceAbove = triggerLayout.y;
-  const shouldShowAbove = spaceBelow < dropdownMaxHeight && spaceAbove > spaceBelow;
+  const spaceBelow = safeBottom - triggerLayout.y;
+  const spaceAbove = triggerLayout.y - safeTop;
+  const shouldShowAbove = spaceBelow < submenuMaxHeight && spaceAbove > spaceBelow;
 
   return (
     <>
@@ -231,11 +276,11 @@ export function SubMenu({ trigger, children, onClose }: SubMenuProps) {
               left: shouldShowLeft ? undefined : triggerLayout.x + triggerLayout.width + 4,
               right: shouldShowLeft ? windowWidth - triggerLayout.x + 4 : undefined,
               minWidth: submenuMinWidth,
-              maxWidth: windowWidth - (margin * 2),
+              maxWidth: safeRight - safeLeft,
             }}
-            className="bg-popover border-border rounded-2xl border shadow-lg"
+            className="bg-popover border-border rounded-2xl border"
           >
-            <ScrollView className="max-h-[400px] py-1 select-none">
+            <ScrollView style={{ maxHeight: submenuMaxHeight }} className="py-1 select-none">
               {React.Children.map(children, (child) =>
                 React.isValidElement(child)
                   ? React.cloneElement(child as React.ReactElement<any>, { onClose: handleItemClose })

@@ -8,7 +8,7 @@ import { PromptInput, PromptInputTextarea, PromptInputActions, usePromptInput } 
 import { Button } from "@/components/ui/button";
 import type { ScrollView as GHScrollView } from "react-native-gesture-handler";
 import { useStore } from "@/lib/globalStore";
-import { Plus, Globe, ArrowUp, Square, Search, ShoppingBag, ImageIcon, Sparkles, MoreHorizontal, BookOpen, ExternalLink, PenTool, X, FileText, Ghost } from "lucide-react-native";
+import { Plus, Globe, ArrowUp, Square, Search, ShoppingBag, ImageIcon, Sparkles, MoreHorizontal, BookOpen, ExternalLink, PenTool, X, FileText, Ghost, Check } from "lucide-react-native";
 import { generateAPIUrl } from "@/lib/generate-api-url";
 import { useImagePicker } from "@/hooks/useImagePicker";
 import * as DocumentPicker from 'expo-document-picker';
@@ -253,10 +253,6 @@ const ChatConversationPage = () => {
     Alert.alert('Shopping research', 'Shopping research mode activated! I will help you find and compare products.');
   };
 
-  const handleCreateImage = () => {
-    Alert.alert('Create image', 'Image generation coming soon! You will be able to create images from text descriptions.');
-  };
-
   const handleAgentMode = () => {
     const newValue = !agentMode;
     setAgentMode(newValue);
@@ -444,13 +440,15 @@ const ChatConversationPage = () => {
                           <ShoppingBag size={14} className="text-muted-foreground" />
                           <Text className="text-sm">Shopping research</Text>
                         </MenuItem>
-                        <MenuItem onPress={handleCreateImage}>
-                          <ImageIcon size={14} className="text-muted-foreground" />
-                          <Text className="text-sm">Create image</Text>
+                        <MenuItem onPress={handleGhostMode}>
+                          <Ghost size={14} className="text-muted-foreground" />
+                          <Text className="text-sm">Ghost mode</Text>
+                          {ghostMode && <Check size={14} className="text-primary ml-auto" />}
                         </MenuItem>
                         <MenuItem onPress={handleAgentMode}>
                           <Sparkles size={14} className="text-muted-foreground" />
                           <Text className="text-sm">Agent mode</Text>
+                          {agentMode && <Check size={14} className="text-primary ml-auto" />}
                         </MenuItem>
                         <SubMenu
                           trigger={
