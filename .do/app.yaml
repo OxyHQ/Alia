@@ -1,0 +1,40 @@
+name: alia-api
+region: nyc
+
+services:
+  - name: api
+    github:
+      branch: main
+      deploy_on_push: true
+
+    # Build configuration
+    build_command: npm ci && npm run build:api
+
+    # Run configuration
+    run_command: npm run start:api
+
+    # Environment
+    environment_slug: node-js
+
+    # Instance size
+    instance_size_slug: basic-xxs
+    instance_count: 1
+
+    # Health check
+    health_check:
+      http_path: /health
+      initial_delay_seconds: 30
+      period_seconds: 10
+      timeout_seconds: 5
+      success_threshold: 1
+      failure_threshold: 3
+
+    # HTTP port
+    http_port: 3001
+
+    # Environment variables (set these in DO dashboard)
+    envs:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: "3001"

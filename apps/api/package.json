@@ -8,7 +8,7 @@
   "scripts": {
     "dev": "tsx watch src/index.ts",
     "build": "tsx build.ts",
-    "start": "node dist/index.js",
+    "start": "NODE_PATH=../../node_modules:$NODE_PATH node dist/index.js",
     "lint": "eslint src --ext .ts"
   },
   "dependencies": {
