@@ -1,12 +1,11 @@
 import 'dotenv/config';
 import { Telegraf } from 'telegraf';
-import { connectToDatabase } from './services/db';
 import { handleStart, handleLogout, handleStatus } from './handlers/auth';
 import { handleMessage, handleNewConversation, handleHistory } from './handlers/chat';
 import { handleHelp } from './handlers/commands';
 
 // Validate environment variables
-const requiredEnvVars = ['TELEGRAM_BOT_TOKEN', 'MONGODB_URI'];
+const requiredEnvVars = ['TELEGRAM_BOT_TOKEN', 'API_BASE_URL'];
 for (const envVar of requiredEnvVars) {
   if (!process.env[envVar]) {
     console.error(`Missing required environment variable: ${envVar}`);
@@ -19,11 +18,10 @@ const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN!;
 // Initialize bot
 const bot = new Telegraf(BOT_TOKEN);
 
-// Connect to database
+// Initialize bot
 async function initializeBot() {
   try {
-    await connectToDatabase();
-    console.log('Database connected successfully');
+    console.log('Initializing Telegram bot...');
 
     // Register command handlers
     bot.command('start', handleStart);

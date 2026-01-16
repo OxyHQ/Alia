@@ -94,6 +94,43 @@ class APIClient {
     return response.data;
   }
 
+  // Telegram User Management
+  async getTelegramUser(telegramId: string): Promise<any> {
+    try {
+      const response = await this.client.get(`/telegram/users/${telegramId}`);
+      return response.data;
+    } catch (error: any) {
+      if (error.response?.status === 404) {
+        return null;
+      }
+      throw error;
+    }
+  }
+
+  async createOrUpdateTelegramUser(data: {
+    telegramId: string;
+    chatId: string;
+    username?: string;
+    firstName?: string;
+    lastName?: string;
+  }): Promise<any> {
+    const response = await this.client.post('/telegram/users', data);
+    return response.data;
+  }
+
+  async requestTelegramAuth(telegramId: string): Promise<{ authToken: string; authUrl: string; expiresAt: Date }> {
+    const response = await this.client.post('/telegram/auth-request', { telegramId });
+    return response.data;
+  }
+
+  async updateTelegramConversation(telegramId: string, conversationId: string): Promise<void> {
+    await this.client.post(`/telegram/users/${telegramId}/conversation`, { conversationId });
+  }
+
+  async logoutTelegram(telegramId: string): Promise<void> {
+    await this.client.post(`/telegram/users/${telegramId}/logout`);
+  }
+
   // Generate auth URL for user verification
   getAuthURL(authToken: string): string {
     return `${this.baseURL}/telegram/verify?token=${authToken}`;
