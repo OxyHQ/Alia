@@ -380,6 +380,33 @@ router.post('/link', async (req, res) => {
     telegramUser.authTokenExpiry = undefined;
     await telegramUser.save();
 
+    // Send confirmation message to Telegram
+    try {
+      const botToken = process.env.TELEGRAM_BOT_TOKEN;
+      if (botToken && telegramUser.chatId) {
+        const userName = user.firstName || user.name || 'there';
+        const message =
+          `✅ <b>Authentication Successful!</b>\n\n` +
+          `Welcome ${userName}! Your Telegram account is now linked to Alia.\n\n` +
+          `You can start chatting with me right away. Just send me any message!`;
+
+        await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            chat_id: telegramUser.chatId,
+            text: message,
+            parse_mode: 'HTML',
+          }),
+        });
+
+        console.log('[Telegram] Sent authentication success message to user:', telegramUser.telegramId);
+      }
+    } catch (notifyError) {
+      console.error('[Telegram] Failed to send notification:', notifyError);
+      // Don't fail the request if notification fails
+    }
+
     res.json({ success: true, message: 'Account linked successfully' });
   } catch (error) {
     console.error('Telegram link error:', error);
