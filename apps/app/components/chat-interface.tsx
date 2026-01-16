@@ -4,6 +4,7 @@ import { Text } from "@/components/ui/text";
 import WeatherCard from "@/components/weather";
 import { WelcomeMessage } from "@/components/welcome-message";
 import React, { forwardRef, useEffect, useState } from "react";
+import { processMessage } from "@/lib/message-processor";
 import { cn } from "@/lib/utils";
 import { LottieLoader } from "@/components/lottie-loader";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -60,35 +61,23 @@ type ChatInterfaceProps = {
   onCopyMessage?: (content: string) => void;
 };
 
-// Helper function to clean Telegram-specific tags from content
-function cleanTelegramTags(text: string): string {
-  // Remove all Telegram-specific tags
-  return text
-    .replace(/\[REACT:[^\]]+\]\s*/g, '')           // Remove reaction tags
-    .replace(/\[TGIMAGE[^\]]*\]\s*/g, '')          // Remove image tags
-    .replace(/\[TGLINKS[^\]]*\][\s\S]*?\[\/TGLINKS\]\s*/g, '') // Remove link button tags
-    .replace(/\[TGDOC[^\]]*\]\s*/g, '')            // Remove document tags
-    .trim();
-}
-
-// Helper function to extract text content from a message
+// Helper function to extract and process text content for the app
 function getMessageText(message: Message): string {
-  let text = '';
+  let rawText = '';
 
-  // If message has content string, use it
+  // Extract raw text from message
   if (message.content) {
-    text = message.content;
-  }
-  // If message has parts array, extract text from parts
-  else if (message.parts && Array.isArray(message.parts)) {
-    text = message.parts
+    rawText = message.content;
+  } else if (message.parts && Array.isArray(message.parts)) {
+    rawText = message.parts
       .filter((part) => part.type === "text")
       .map((part) => part.text || "")
       .join("");
   }
 
-  // Clean Telegram-specific tags before returning
-  return cleanTelegramTags(text);
+  // Process message for app platform (removes Telegram tags, keeps app components)
+  const processed = processMessage(rawText, 'app');
+  return processed.text;
 }
 
 export const ChatInterface = forwardRef<ScrollView, ChatInterfaceProps>(
