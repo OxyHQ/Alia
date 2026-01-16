@@ -61,6 +61,14 @@ router.post('/', async (req: Request, res: Response) => {
 
     console.log(`✅ [API/POST] Processing ${messages.length} messages`);
 
+    // Log tools if present
+    if (body.tools) {
+      console.log(`🔧 [API/POST] Tools count: ${Array.isArray(body.tools) ? body.tools.length : 'not an array'}`);
+      if (Array.isArray(body.tools) && body.tools.length > 0) {
+        console.log(`🔧 [API/POST] First tool structure:`, JSON.stringify(body.tools[0]).substring(0, 200));
+      }
+    }
+
     // Get best available API key
     const keyPool = await loadKeys();
     const key = await getBestAvailableKey(keyPool);

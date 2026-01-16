@@ -47,9 +47,10 @@ export const googleProvider: Provider = {
       }
     }
 
-    // Convertir tools
-    const geminiTools = tools?.length ? [{
-      functionDeclarations: tools.map(t => ({
+    // Convertir tools - filter out invalid tools
+    const validTools = tools?.filter(t => t && t.function && t.function.name) || [];
+    const geminiTools = validTools.length > 0 ? [{
+      functionDeclarations: validTools.map(t => ({
         name: t.function.name,
         description: t.function.description || '',
         parameters: t.function.parameters || { type: 'object', properties: {} }
@@ -63,7 +64,7 @@ export const googleProvider: Provider = {
         maxOutputTokens: config?.maxTokens ?? 8192
       }
     };
-    
+
     if (systemText.trim()) {
       body.systemInstruction = { parts: [{ text: systemText.trim() }] };
     }

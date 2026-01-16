@@ -132,10 +132,7 @@ export async function handleStatus(ctx: Context) {
 
   const telegramUser = await TelegramUser.findOne({ telegramId });
   if (!telegramUser || !telegramUser.isAuthenticated || !telegramUser.sessionToken) {
-    await ctx.reply(
-      '❌ Not authenticated\n\n' +
-      'Use /start to authenticate.'
-    );
+    await sendAuthRequest(ctx);
     return;
   }
 
