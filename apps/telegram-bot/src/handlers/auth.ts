@@ -88,9 +88,10 @@ export async function handleStart(ctx: Context) {
     if (telegramUser.isAuthenticated && telegramUser.sessionToken) {
       // Verify token is still valid
       try {
-        const user = await apiClient.getMe(telegramUser.sessionToken);
+        const response = await apiClient.getMe(telegramUser.sessionToken);
+        const userData = response.user || response; // Handle both nested and flat responses
         await ctx.reply(
-          `👋 <b>Welcome back, ${user.firstName || user.name || 'there'}!</b>\n\n` +
+          `👋 <b>Welcome back, ${userData.name || 'there'}!</b>\n\n` +
           `✅ You're already authenticated and ready to chat.\n\n` +
           `Just send me any message to start a conversation!`,
           {
@@ -172,7 +173,8 @@ export async function handleStatus(ctx: Context) {
     }
 
     try {
-      const user = await apiClient.getMe(telegramUser.sessionToken);
+      const response = await apiClient.getMe(telegramUser.sessionToken);
+      const userData = response.user || response; // Handle both nested and flat responses
       const credits = await apiClient.getCredits(telegramUser.sessionToken);
 
       const creditsValue = credits.freeCredits || credits.credits || 0;
@@ -180,8 +182,8 @@ export async function handleStatus(ctx: Context) {
 
       await ctx.reply(
         `📊 <b>Account Status</b>\n\n` +
-        `👤 <b>Name:</b> ${user.firstName || user.name || 'User'}\n` +
-        `📧 <b>Email:</b> ${user.email || 'Not set'}\n` +
+        `👤 <b>Name:</b> ${userData.name || 'Not set'}\n` +
+        `📧 <b>Email:</b> ${userData.email || 'Not set'}\n` +
         `${creditsEmoji} <b>Credits:</b> ${creditsValue}\n` +
         `🔗 <b>Linked:</b> ${telegramUser.linkedAt ? new Date(telegramUser.linkedAt).toLocaleDateString() : 'N/A'}`,
         {
