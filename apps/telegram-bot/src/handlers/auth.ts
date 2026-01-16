@@ -140,8 +140,15 @@ export async function handleLogout(ctx: Context) {
     await apiClient.logoutTelegram(telegramId);
 
     await ctx.reply(
-      '👋 You have been logged out successfully.\n\n' +
-      'Use /start to authenticate again.'
+      '👋 <b>Logged Out Successfully</b>\n\n' +
+      'Your Telegram account has been disconnected from Alia.\n\n' +
+      'Use /start whenever you want to sign in again.',
+      {
+        parse_mode: 'HTML',
+        ...Markup.inlineKeyboard([
+          [Markup.button.callback('🔐 Sign In Again', 'start')]
+        ])
+      }
     );
   } catch (error) {
     console.error('Logout error:', error);
@@ -168,18 +175,29 @@ export async function handleStatus(ctx: Context) {
       const user = await apiClient.getMe(telegramUser.sessionToken);
       const credits = await apiClient.getCredits(telegramUser.sessionToken);
 
+      const creditsValue = credits.freeCredits || credits.credits || 0;
+      const creditsEmoji = creditsValue > 500 ? '🟢' : creditsValue > 100 ? '🟡' : '🔴';
+
       await ctx.reply(
-        `✅ Account Status\n\n` +
-        `Name: ${user.firstName || user.name || 'User'}\n` +
-        `Email: ${user.email}\n` +
-        `Credits: ${credits.freeCredits || credits.credits || 0}\n` +
-        `Linked: ${telegramUser.linkedAt ? new Date(telegramUser.linkedAt).toLocaleDateString() : 'N/A'}`,
-        { parse_mode: 'Markdown' }
+        `📊 <b>Account Status</b>\n\n` +
+        `👤 <b>Name:</b> ${user.firstName || user.name || 'User'}\n` +
+        `📧 <b>Email:</b> ${user.email || 'Not set'}\n` +
+        `${creditsEmoji} <b>Credits:</b> ${creditsValue}\n` +
+        `🔗 <b>Linked:</b> ${telegramUser.linkedAt ? new Date(telegramUser.linkedAt).toLocaleDateString() : 'N/A'}`,
+        {
+          parse_mode: 'HTML',
+          ...Markup.inlineKeyboard([
+            [Markup.button.callback('🔄 Refresh', 'status')],
+            [Markup.button.callback('« Back', 'start')]
+          ])
+        }
       );
     } catch (error) {
       await ctx.reply(
-        '❌ Unable to fetch account status.\n\n' +
-        'Your session may have expired. Please /logout and /start again.'
+        '❌ <b>Unable to fetch account status</b>\n\n' +
+        'Your session may have expired.\n' +
+        'Please /logout and /start again.',
+        { parse_mode: 'HTML' }
       );
     }
   } catch (error) {
