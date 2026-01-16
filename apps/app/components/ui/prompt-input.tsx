@@ -75,6 +75,14 @@ function PromptInput({
     onValueChange?.(newValue);
   };
 
+  const handleSubmit = () => {
+    onSubmit?.();
+    // Close fullscreen after submit
+    if (showFullscreen) {
+      setShowFullscreen(false);
+    }
+  };
+
   // Reset height when exiting fullscreen
   useEffect(() => {
     if (!showFullscreen) {
@@ -91,7 +99,7 @@ function PromptInput({
         value: value ?? internalValue,
         setValue: onValueChange ?? handleChange,
         maxHeight,
-        onSubmit,
+        onSubmit: handleSubmit,
         disabled,
         textareaRef,
         currentHeight,
@@ -215,4 +223,4 @@ function PromptInputActions({
   );
 }
 
-export { PromptInput, PromptInputTextarea, PromptInputActions };
+export { PromptInput, PromptInputTextarea, PromptInputActions, usePromptInput };

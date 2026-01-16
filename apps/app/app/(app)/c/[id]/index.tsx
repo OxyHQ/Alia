@@ -4,7 +4,7 @@ import { View, Alert, Platform, Pressable } from "react-native";
 import { useStreamingChat } from "@/hooks/useStreamingChat";
 import { ChatInterface } from "@/components/chat-interface";
 import { ChatHeader } from "@/components/chat-header";
-import { PromptInput, PromptInputTextarea, PromptInputActions } from "@/components/ui/prompt-input";
+import { PromptInput, PromptInputTextarea, PromptInputActions, usePromptInput } from "@/components/ui/prompt-input";
 import { Button } from "@/components/ui/button";
 import type { ScrollView as GHScrollView } from "react-native-gesture-handler";
 import { useStore } from "@/lib/globalStore";
@@ -25,6 +25,43 @@ import {
 import { Text } from "@/components/ui/text";
 import { useLocalSearchParams } from "expo-router";
 import { useRolesStore } from "@/lib/stores/roles-store";
+
+// Submit button wrapper that uses context
+const SubmitButtonWrapper = ({
+  isLoading,
+  stop,
+  inputValue,
+  attachments
+}: {
+  isLoading: boolean;
+  stop: () => void;
+  inputValue: string;
+  attachments: any[]
+}) => {
+  const { onSubmit } = usePromptInput();
+
+  return (
+    <Button
+      size="icon"
+      onPress={isLoading ? stop : onSubmit}
+      disabled={(!inputValue.trim() && attachments.length === 0) && !isLoading}
+      className="h-8 w-8 rounded-full"
+    >
+      {isLoading ? (
+        <Square
+          size={12}
+          color="white"
+          className="fill-current"
+        />
+      ) : (
+        <ArrowUp
+          size={16}
+          color="white"
+        />
+      )}
+    </Button>
+  );
+};
 
 const ChatConversationPage = () => {
   const { id, initialMessage, roleId } = useLocalSearchParams<{ id: string; initialMessage?: string; roleId?: string }>();
@@ -358,25 +395,12 @@ const ChatConversationPage = () => {
                       </DropdownMenu>
                     </View>
 
-                    <Button
-                      size="icon"
-                      onPress={isLoading ? stop : handleSubmit}
-                      disabled={(!inputValue.trim() && attachments.length === 0) && !isLoading}
-                      className="h-8 w-8 rounded-full"
-                    >
-                      {isLoading ? (
-                        <Square
-                          size={12}
-                          color="white"
-                          className="fill-current"
-                        />
-                      ) : (
-                        <ArrowUp
-                          size={16}
-                          color="white"
-                        />
-                      )}
-                    </Button>
+                    <SubmitButtonWrapper
+                      isLoading={isLoading}
+                      stop={stop}
+                      inputValue={inputValue}
+                      attachments={attachments}
+                    />
                   </PromptInputActions>
                 </PromptInput>
               </View>
