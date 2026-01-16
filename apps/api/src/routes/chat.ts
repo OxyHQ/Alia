@@ -8,7 +8,7 @@ import { createOpenAI } from '@ai-sdk/openai';
 import { createAnthropic } from '@ai-sdk/anthropic';
 import { getBestAvailableKey, loadKeys } from '../lib/load-balancer.js';
 import type { KeyConfig } from '../lib/types.js';
-import { getCurrentDateTool, createGoogleSearchTool, getTimelineTool, searchKnowledgeBaseTool, scrapeURLTool, saveUserMemoryTool, updateUserPreferencesTool, updateUserContextTool } from '../lib/tools/index.js';
+import { getCurrentDateTool, createGoogleSearchTool, getTimelineTool, searchKnowledgeBaseTool, scrapeURLTool, saveUserMemoryTool, updateUserPreferencesTool, updateUserContextTool, createGetDeviceInfoTool, type DeviceInfo } from '../lib/tools/index.js';
 import { optionalAuth } from '../middleware/auth.js';
 import { User } from '../models/user.js';
 import { UserMemory } from '../models/user-memory.js';
@@ -240,6 +240,17 @@ router.post('/', optionalAuth, async (req, res) => {
       return;
     }
 
+    // Extract device info from headers if available
+    let deviceInfo: DeviceInfo | null = null;
+    const deviceInfoHeader = req.headers['x-device-info'];
+    if (deviceInfoHeader && typeof deviceInfoHeader === 'string') {
+      try {
+        deviceInfo = JSON.parse(deviceInfoHeader);
+      } catch (e) {
+        console.error('Failed to parse device info header:', e);
+      }
+    }
+
     // Fetch user data and memory if authenticated
     let user: IUser | null = null;
     let memory: IUserMemory | null = null;
@@ -296,6 +307,8 @@ router.post('/', optionalAuth, async (req, res) => {
       searchKnowledgeBase: searchKnowledgeBaseTool,
       scrapeURL: scrapeURLTool,
       ...(googleApiKey ? { googleSearch: createGoogleSearchTool(googleApiKey) } : {}),
+      // Add device info tool if device info is available
+      ...(deviceInfo ? { getDeviceInfo: createGetDeviceInfoTool(deviceInfo) } : {}),
       // Add memory tools for authenticated users
       ...(req.user ? {
         saveUserMemory: saveUserMemoryTool(req.user.id),

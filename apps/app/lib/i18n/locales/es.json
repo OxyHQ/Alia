@@ -9,60 +9,118 @@
     "save": "Guardar",
     "delete": "Eliminar",
     "edit": "Editar",
-    "close": "Cerrar"
+    "close": "Cerrar",
+    "continue": "Continuar"
   },
-  "auth": {
-    "signInOrSignUp": "Iniciar sesión o registrarse",
-    "continueTo": "para continuar a Alia",
+  "login": {
+    "title": "Iniciar sesión o registrarse",
+    "subtitle": "para continuar a Alia",
     "continueWithGoogle": "Continuar con Google",
     "continueWithMicrosoft": "Continuar con Microsoft",
     "continueWithApple": "Continuar con Apple",
-    "email": "Correo electrónico",
-    "password": "Contraseña",
+    "emailPlaceholder": "Correo electrónico",
+    "passwordPlaceholder": "Contraseña",
     "forgotPassword": "¿Olvidaste tu contraseña?",
-    "signIn": "Iniciar sesión",
+    "signInButton": "Iniciar sesión",
     "signingIn": "Iniciando sesión...",
-    "signUp": "Registrarse",
-    "signingUp": "Registrándose...",
-    "dontHaveAccount": "¿No tienes una cuenta?",
-    "alreadyHaveAccount": "¿Ya tienes una cuenta?",
-    "termsAndPrivacy": "Al continuar, aceptas los Términos de Servicio y la Política de Privacidad de Alia",
+    "footerText": "¿No tienes una cuenta?",
+    "footerLink": "Registrarse",
+    "termsAndPrivacy": "Al continuar, aceptas los Términos de Servicio y la Política de Privacidad de Alia"
+  },
+  "register": {
+    "title": "Crear cuenta",
+    "subtitle": "Regístrate para comenzar",
+    "firstNamePlaceholder": "Nombre",
+    "lastNamePlaceholder": "Apellido (Opcional)",
+    "emailPlaceholder": "Correo electrónico",
+    "passwordPlaceholder": "Contraseña (mín. 8 caracteres)",
+    "confirmPasswordPlaceholder": "Confirmar contraseña",
+    "createAccountButton": "Continuar",
+    "creatingAccount": "Creando cuenta...",
+    "footerText": "¿Ya tienes una cuenta?",
+    "footerLink": "Iniciar sesión",
+    "termsAndPrivacy": "Al continuar, aceptas los Términos de Servicio y la Política de Privacidad de Alia"
+  },
+  "errors": {
     "emailRequired": "Por favor ingresa tu dirección de correo electrónico",
     "passwordRequired": "Por favor ingresa tu contraseña",
+    "passwordsDoNotMatch": "Las contraseñas no coinciden",
+    "passwordTooShort": "La contraseña debe tener al menos 8 caracteres",
     "loginFailed": "Error al iniciar sesión",
     "loginError": "Error de inicio de sesión",
     "failedToLogin": "No se pudo iniciar sesión. Por favor, intenta de nuevo.",
-    "socialLoginSoon": "El inicio de sesión con {{provider}} estará disponible pronto",
-    "createAccount": "Crear cuenta",
-    "signUpToGetStarted": "Regístrate para comenzar",
-    "firstName": "Nombre",
-    "lastName": "Apellido (Opcional)",
-    "passwordMin8": "Contraseña (mín. 8 caracteres)",
-    "confirmPassword": "Confirmar contraseña",
-    "continue": "Continuar",
-    "creatingAccount": "Creando cuenta...",
-    "passwordsDoNotMatch": "Las contraseñas no coinciden",
-    "passwordTooShort": "La contraseña debe tener al menos 8 caracteres",
     "registrationError": "Error de registro",
     "registrationFailed": "Error al registrarse",
-    "failedToRegister": "No se pudo registrar. Por favor, intenta de nuevo."
+    "failedToRegister": "No se pudo registrar. Por favor, intenta de nuevo.",
+    "socialLoginSoon": "El inicio de sesión con {{provider}} estará disponible pronto"
   },
   "settings": {
     "title": "Configuración",
-    "account": "Cuenta",
-    "memory": "Memoria",
-    "language": "Idioma",
-    "theme": "Tema",
-    "notifications": "Notificaciones"
+    "subtitle": "Personaliza las respuestas de Alia según tus preferencias",
+    "quickAccess": "ACCESO RÁPIDO",
+    "preferences": "PREFERENCIAS",
+    "memoryManagement": {
+      "title": "Gestión de memoria",
+      "description": "Administra lo que Alia recuerda"
+    },
+    "account": {
+      "title": "Configuración de cuenta",
+      "description": "Administra tu cuenta"
+    },
+    "appLanguage": {
+      "title": "Idioma de la aplicación",
+      "description": "Cambia el idioma de visualización de la aplicación"
+    },
+    "appearance": {
+      "title": "Apariencia",
+      "description": "Elige tu esquema de color preferido",
+      "light": "Claro",
+      "dark": "Oscuro",
+      "system": "Sistema"
+    },
+    "aliaLanguage": {
+      "title": "Idioma de respuesta de Alia",
+      "description": "Alia responderá en este idioma",
+      "selectPlaceholder": "Selecciona un idioma"
+    },
+    "responseTone": {
+      "title": "Tono de respuesta",
+      "description": "Cómo debe comunicarse Alia contigo",
+      "placeholder": "ej., casual, profesional, amigable"
+    },
+    "occupation": {
+      "title": "Ocupación",
+      "description": "Tu trabajo o campo de trabajo",
+      "placeholder": "ej., Ingeniero de software, Profesor"
+    },
+    "location": {
+      "title": "Ubicación",
+      "description": "Dónde te encuentras",
+      "placeholder": "ej., Madrid, España"
+    },
+    "aboutYou": {
+      "title": "Sobre ti",
+      "description": "Cuéntale a Alia un poco sobre ti",
+      "placeholder": "ej., Me encanta hacer senderismo y crear aplicaciones web"
+    },
+    "interests": {
+      "title": "Intereses",
+      "description": "Temas que te interesan (separados por comas)",
+      "placeholder": "ej., IA, Tecnología, Viajes"
+    },
+    "saveButton": "Guardar preferencias",
+    "saving": "Guardando...",
+    "saveSuccess": "Preferencias guardadas exitosamente",
+    "saveFailed": "Error al guardar preferencias"
   },
   "library": {
     "title": "Biblioteca",
     "empty": "Aún no hay elementos",
-    "search": "Buscar..."
+    "searchPlaceholder": "Buscar..."
   },
   "chat": {
     "newChat": "Nueva conversación",
-    "typeMessage": "Escribe un mensaje...",
-    "send": "Enviar"
+    "messagePlaceholder": "Escribe un mensaje...",
+    "sendButton": "Enviar"
   }
 }

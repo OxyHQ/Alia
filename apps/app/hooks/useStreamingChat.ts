@@ -4,6 +4,7 @@ import * as Haptics from 'expo-haptics';
 import { useAuthStore } from '@/lib/stores/auth-store';
 import { useCreditsStore } from '@/lib/stores/credits-store';
 import type { Message } from '@/lib/globalStore';
+import { collectDeviceInfo } from '@/lib/device-info';
 
 export interface ToolInvocation {
   toolCallId: string;
@@ -51,9 +52,13 @@ export function useStreamingChat(apiUrl: string, activeRole?: any) {
     setMessages((prev) => [...prev, assistantMessage]);
 
     try {
+      // Collect device info (will be available to AI via tool if needed)
+      const deviceInfo = await collectDeviceInfo();
+
       // Build headers with optional auth token
       const headers: HeadersInit = {
         'Content-Type': 'application/json',
+        'X-Device-Info': JSON.stringify(deviceInfo),
       };
 
       if (token) {
