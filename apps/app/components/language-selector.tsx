@@ -28,10 +28,10 @@ export function LanguageSelector() {
     <View className="gap-2">
       <View className="flex-row items-center gap-2">
         <Globe2 size={20} className="text-primary" />
-        <Text className="text-base font-semibold">{t('settings.appLanguage')}</Text>
+        <Text className="text-base font-semibold">{t('settings.appLanguage.title')}</Text>
       </View>
       <Text className="text-sm text-muted-foreground">
-        {t('settings.appLanguageDescription')}
+        {t('settings.appLanguage.description')}
       </Text>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>

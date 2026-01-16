@@ -7,7 +7,7 @@ export const togetherProvider: Provider = {
   isEnabled: () => true,
 
   async proxy(key: KeyConfig, messages: OpenAIMessage[], tools?: OpenAITool[], config?: ProviderConfig): Promise<ReadableStream> {
-    const url = 'https://api.together.xyz/v1/chat/completions';
+    const url = 'https://api.together.ai/v1/chat/completions';
     
     const body: any = {
       model: key.modelId,

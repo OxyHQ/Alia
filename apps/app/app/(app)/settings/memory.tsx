@@ -149,7 +149,7 @@ export default function MemoryScreen() {
     try {
       if (editingMemory) {
         // Update existing memory
-        const apiUrl = generateAPIUrl(`/api/memory/${editingMemory._id}`);
+        const apiUrl = generateAPIUrl(`/memory/${editingMemory._id}`);
         const response = await fetch(apiUrl, {
           method: 'PUT',
           headers: {
@@ -171,7 +171,7 @@ export default function MemoryScreen() {
         }
       } else {
         // Add new memory
-        const apiUrl = generateAPIUrl('/api/memory/add');
+        const apiUrl = generateAPIUrl('/memory/add');
         const response = await fetch(apiUrl, {
           method: 'POST',
           headers: {
@@ -213,7 +213,7 @@ export default function MemoryScreen() {
           style: "destructive",
           onPress: async () => {
             try {
-              const apiUrl = generateAPIUrl(`/api/memory/${memoryId}`);
+              const apiUrl = generateAPIUrl(`/memory/${memoryId}`);
               const response = await fetch(apiUrl, {
                 method: 'DELETE',
                 headers: {

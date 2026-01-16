@@ -91,7 +91,7 @@ export default function SettingsScreen() {
     setSaving(true);
     try {
       // Save preferences
-      const preferencesUrl = generateAPIUrl('/api/memory/preferences');
+      const preferencesUrl = generateAPIUrl('/memory/preferences');
       const prefRes = await fetch(preferencesUrl, {
         method: 'PUT',
         headers: {
@@ -106,7 +106,7 @@ export default function SettingsScreen() {
       });
 
       // Save context
-      const contextUrl = generateAPIUrl('/api/memory/context');
+      const contextUrl = generateAPIUrl('/memory/context');
       const contextRes = await fetch(contextUrl, {
         method: 'PUT',
         headers: {
@@ -124,12 +124,12 @@ export default function SettingsScreen() {
         const updatedMemory = await contextRes.json();
         // Update cache
         setMemory(updatedMemory);
-        Alert.alert(t('settings.success'), t('settings.preferencesSaved'));
+        Alert.alert(t('common.success'), t('settings.saveSuccess'));
         router.back();
       }
     } catch (error) {
       console.error("Error saving memory:", error);
-      Alert.alert(t('common.error'), t('settings.failedToSave'));
+      Alert.alert(t('common.error'), t('settings.saveFailed'));
     } finally {
       setSaving(false);
     }
@@ -167,9 +167,9 @@ export default function SettingsScreen() {
                   <Brain size={24} className="text-primary" />
                 </View>
                 <View>
-                  <Text className="text-base font-semibold">{t('settings.memoryManagement')}</Text>
+                  <Text className="text-base font-semibold">{t('settings.memoryManagement.title')}</Text>
                   <Text className="text-sm text-muted-foreground">
-                    {t('settings.memoryManagementDesc')}
+                    {t('settings.memoryManagement.description')}
                   </Text>
                 </View>
               </View>
@@ -185,9 +185,9 @@ export default function SettingsScreen() {
                   <User size={24} className="text-primary" />
                 </View>
                 <View>
-                  <Text className="text-base font-semibold">{t('settings.accountSettings')}</Text>
+                  <Text className="text-base font-semibold">{t('settings.account.title')}</Text>
                   <Text className="text-sm text-muted-foreground">
-                    {t('settings.accountSettingsDesc')}
+                    {t('settings.account.description')}
                   </Text>
                 </View>
               </View>
@@ -207,10 +207,10 @@ export default function SettingsScreen() {
           <View className="gap-2">
             <View className="flex-row items-center gap-2">
               <Monitor size={20} className="text-primary" />
-              <Text className="text-base font-semibold">{t('settings.appearance')}</Text>
+              <Text className="text-base font-semibold">{t('settings.appearance.title')}</Text>
             </View>
             <Text className="text-sm text-muted-foreground">
-              {t('settings.appearanceDesc')}
+              {t('settings.appearance.description')}
             </Text>
             <ToggleGroup
               type="single"
@@ -221,19 +221,19 @@ export default function SettingsScreen() {
               <ToggleGroupItem value="light" className="flex-1">
                 <View className="flex-row items-center justify-center gap-2">
                   <Sun size={16} className={mode === 'light' ? 'text-primary-foreground' : 'text-foreground'} />
-                  <Text className={mode === 'light' ? 'text-primary-foreground' : 'text-foreground'}>{t('settings.light')}</Text>
+                  <Text className={mode === 'light' ? 'text-primary-foreground' : 'text-foreground'}>{t('settings.appearance.light')}</Text>
                 </View>
               </ToggleGroupItem>
               <ToggleGroupItem value="dark" className="flex-1">
                 <View className="flex-row items-center justify-center gap-2">
                   <Moon size={16} className={mode === 'dark' ? 'text-primary-foreground' : 'text-foreground'} />
-                  <Text className={mode === 'dark' ? 'text-primary-foreground' : 'text-foreground'}>{t('settings.dark')}</Text>
+                  <Text className={mode === 'dark' ? 'text-primary-foreground' : 'text-foreground'}>{t('settings.appearance.dark')}</Text>
                 </View>
               </ToggleGroupItem>
               <ToggleGroupItem value="system" className="flex-1">
                 <View className="flex-row items-center justify-center gap-2">
                   <Monitor size={16} className={mode === 'system' ? 'text-primary-foreground' : 'text-foreground'} />
-                  <Text className={mode === 'system' ? 'text-primary-foreground' : 'text-foreground'}>{t('settings.system')}</Text>
+                  <Text className={mode === 'system' ? 'text-primary-foreground' : 'text-foreground'}>{t('settings.appearance.system')}</Text>
                 </View>
               </ToggleGroupItem>
             </ToggleGroup>
@@ -243,16 +243,16 @@ export default function SettingsScreen() {
           <View className="gap-2">
             <View className="flex-row items-center gap-2">
               <Languages size={20} className="text-primary" />
-              <Text className="text-base font-semibold">{t('settings.aliaLanguage')}</Text>
+              <Text className="text-base font-semibold">{t('settings.aliaLanguage.title')}</Text>
             </View>
             <Text className="text-sm text-muted-foreground">
-              {t('settings.aliaLanguageDesc')}
+              {t('settings.aliaLanguage.description')}
             </Text>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Pressable className="border border-border rounded-lg px-4 py-3 bg-background flex-row items-center justify-between">
                   <Text className="text-foreground">
-                    {language || t('settings.selectLanguage')}
+                    {language || t('settings.aliaLanguage.selectPlaceholder')}
                   </Text>
                   <ChevronDown size={20} className="text-muted-foreground" />
                 </Pressable>
@@ -279,14 +279,14 @@ export default function SettingsScreen() {
           <View className="gap-2">
             <View className="flex-row items-center gap-2">
               <MessageSquare size={20} className="text-primary" />
-              <Text className="text-base font-semibold">{t('settings.responseTone')}</Text>
+              <Text className="text-base font-semibold">{t('settings.responseTone.title')}</Text>
             </View>
             <Text className="text-sm text-muted-foreground">
-              {t('settings.responseToneDesc')}
+              {t('settings.responseTone.description')}
             </Text>
             <RNTextInput
               className="border border-border rounded-lg px-4 py-3 bg-background text-foreground"
-              placeholder={t('settings.responseTonePlaceholder')}
+              placeholder={t('settings.responseTone.placeholder')}
               value={tone}
               onChangeText={setTone}
             />
@@ -296,14 +296,14 @@ export default function SettingsScreen() {
           <View className="gap-2">
             <View className="flex-row items-center gap-2">
               <Briefcase size={20} className="text-primary" />
-              <Text className="text-base font-semibold">{t('settings.occupation')}</Text>
+              <Text className="text-base font-semibold">{t('settings.occupation.title')}</Text>
             </View>
             <Text className="text-sm text-muted-foreground">
-              {t('settings.occupationDesc')}
+              {t('settings.occupation.description')}
             </Text>
             <RNTextInput
               className="border border-border rounded-lg px-4 py-3 bg-background text-foreground"
-              placeholder={t('settings.occupationPlaceholder')}
+              placeholder={t('settings.occupation.placeholder')}
               value={occupation}
               onChangeText={setOccupation}
             />
@@ -313,14 +313,14 @@ export default function SettingsScreen() {
           <View className="gap-2">
             <View className="flex-row items-center gap-2">
               <MapPin size={20} className="text-primary" />
-              <Text className="text-base font-semibold">{t('settings.location')}</Text>
+              <Text className="text-base font-semibold">{t('settings.location.title')}</Text>
             </View>
             <Text className="text-sm text-muted-foreground">
-              {t('settings.locationDesc')}
+              {t('settings.location.description')}
             </Text>
             <RNTextInput
               className="border border-border rounded-lg px-4 py-3 bg-background text-foreground"
-              placeholder={t('settings.locationPlaceholder')}
+              placeholder={t('settings.location.placeholder')}
               value={location}
               onChangeText={setLocation}
             />
@@ -330,14 +330,14 @@ export default function SettingsScreen() {
           <View className="gap-2">
             <View className="flex-row items-center gap-2">
               <UserIcon size={20} className="text-primary" />
-              <Text className="text-base font-semibold">{t('settings.aboutYou')}</Text>
+              <Text className="text-base font-semibold">{t('settings.aboutYou.title')}</Text>
             </View>
             <Text className="text-sm text-muted-foreground">
-              {t('settings.aboutYouDesc')}
+              {t('settings.aboutYou.description')}
             </Text>
             <RNTextInput
               className="border border-border rounded-lg px-4 py-3 bg-background text-foreground"
-              placeholder={t('settings.aboutYouPlaceholder')}
+              placeholder={t('settings.aboutYou.placeholder')}
               value={bio}
               onChangeText={setBio}
               multiline
@@ -349,14 +349,14 @@ export default function SettingsScreen() {
           <View className="gap-2">
             <View className="flex-row items-center gap-2">
               <Globe size={20} className="text-primary" />
-              <Text className="text-base font-semibold">{t('settings.interests')}</Text>
+              <Text className="text-base font-semibold">{t('settings.interests.title')}</Text>
             </View>
             <Text className="text-sm text-muted-foreground">
-              {t('settings.interestsDesc')}
+              {t('settings.interests.description')}
             </Text>
             <RNTextInput
               className="border border-border rounded-lg px-4 py-3 bg-background text-foreground"
-              placeholder={t('settings.interestsPlaceholder')}
+              placeholder={t('settings.interests.placeholder')}
               value={interests}
               onChangeText={setInterests}
               multiline
@@ -378,7 +378,7 @@ export default function SettingsScreen() {
               onPress={handleSave}
               disabled={saving}
             >
-              <Text>{saving ? t('settings.saving') : t('settings.savePreferences')}</Text>
+              <Text>{saving ? t('settings.saving') : t('settings.saveButton')}</Text>
             </Button>
           </View>
         </View>

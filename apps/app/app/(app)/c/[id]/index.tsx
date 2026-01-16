@@ -88,7 +88,7 @@ const ChatConversationPage = () => {
   }, [id, chatId]);
 
   // Generate the API URL using the official Expo method
-  const apiUrl = generateAPIUrl('/api/alia/chat');
+  const apiUrl = generateAPIUrl('/alia/chat');
 
   const {
     messages,

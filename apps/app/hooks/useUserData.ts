@@ -23,7 +23,7 @@ export function useUserData() {
     const fetchUserData = async () => {
       setLoading(true);
       try {
-        const apiUrl = generateAPIUrl('/api/memory');
+        const apiUrl = generateAPIUrl('/memory');
         const response = await fetch(apiUrl, {
           headers: {
             'Authorization': `Bearer ${token}`,

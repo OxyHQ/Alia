@@ -50,22 +50,32 @@ NEXTAUTH_URL='http://localhost:3001'
 
 ## Endpoints
 
-- `GET /api` - Información de la API
-- `GET /api/health` - Health check
-- `POST /api/auth/register` - Registro de usuarios
-- `POST /api/auth/forgot-password` - Recuperar contraseña
-- `POST /api/auth/reset-password` - Restablecer contraseña
-- `GET /api/conversations` - Listar conversaciones
-- `POST /api/conversations` - Crear conversación
-- `GET /api/conversations/:id` - Obtener conversación
-- `PUT /api/conversations/:id` - Actualizar conversación
-- `DELETE /api/conversations/:id` - Eliminar conversación
-- `GET /api/folders` - Listar carpetas
-- `POST /api/folders` - Crear carpeta
-- `DELETE /api/folders/:id` - Eliminar carpeta
-- `POST /api/alia/chat` - Chat streaming
-- `POST /api/v1/chat/completions` - Chat completions (compatible OpenAI)
-- `GET /api/v1/models` - Listar modelos disponibles
+- `GET /` - Información de la API
+- `GET /health` - Health check
+- `POST /auth/register` - Registro de usuarios
+- `POST /auth/login` - Login de usuarios
+- `POST /auth/forgot-password` - Recuperar contraseña
+- `POST /auth/reset-password` - Restablecer contraseña
+- `GET /conversations` - Listar conversaciones
+- `POST /conversations` - Crear conversación
+- `GET /conversations/:id` - Obtener conversación
+- `PUT /conversations/:id` - Actualizar conversación
+- `DELETE /conversations/:id` - Eliminar conversación
+- `GET /folders` - Listar carpetas
+- `POST /folders` - Crear carpeta
+- `DELETE /folders/:id` - Eliminar carpeta
+- `GET /memory` - Obtener memoria del usuario
+- `POST /memory/add` - Agregar memoria
+- `PUT /memory/:id` - Actualizar memoria
+- `DELETE /memory/:id` - Eliminar memoria
+- `PUT /memory/preferences` - Actualizar preferencias
+- `PUT /memory/context` - Actualizar contexto
+- `POST /upload/avatar` - Subir avatar
+- `DELETE /upload/avatar` - Eliminar avatar
+- `GET /credits` - Obtener créditos del usuario
+- `POST /alia/chat` - Chat streaming con Alia
+- `POST /v1/chat/completions` - Chat completions (compatible OpenAI)
+- `GET /v1/models` - Listar modelos disponibles
 
 ## Estructura
 

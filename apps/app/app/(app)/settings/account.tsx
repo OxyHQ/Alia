@@ -68,7 +68,7 @@ export default function AccountScreen() {
         type,
       } as any);
 
-      const apiUrl = generateAPIUrl('/api/upload/avatar');
+      const apiUrl = generateAPIUrl('/upload/avatar');
       const response = await fetch(apiUrl, {
         method: 'POST',
         headers: {
@@ -104,7 +104,7 @@ export default function AccountScreen() {
           style: "destructive",
           onPress: async () => {
             try {
-              const apiUrl = generateAPIUrl('/api/upload/avatar');
+              const apiUrl = generateAPIUrl('/upload/avatar');
               const response = await fetch(apiUrl, {
                 method: 'DELETE',
                 headers: {
