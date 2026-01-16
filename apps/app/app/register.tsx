@@ -166,7 +166,7 @@ export default function RegisterScreen() {
           <Text className="text-muted-foreground text-sm">
             {t('register.footerText')}
           </Text>
-          <Link href="/(app)/login" asChild>
+          <Link href="/login" asChild>
             <Pressable>
               <Text className="text-primary text-sm font-medium">{t('register.footerLink')}</Text>
             </Pressable>

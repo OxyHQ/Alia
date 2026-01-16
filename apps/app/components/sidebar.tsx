@@ -79,15 +79,15 @@ export const Sidebar = React.memo(function Sidebar() {
 
   const handleLogout = React.useCallback(() => {
     logout();
-    router.replace("/(app)/login");
+    router.replace("/login");
   }, [router, logout]);
 
   const handleLogin = React.useCallback(() => {
-    router.push("/(app)/login");
+    router.push("/login");
   }, [router]);
 
   const handleRegister = React.useCallback(() => {
-    router.push("/(app)/register");
+    router.push("/register");
   }, [router]);
 
   const handleLibrary = React.useCallback(() => {
