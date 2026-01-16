@@ -15,6 +15,7 @@ import memoryRouter from './routes/memory.js';
 import uploadRouter from './routes/upload.js';
 import creditsRouter from './routes/credits.js';
 import v1Router from './routes/v1.js';
+import telegramRouter from './routes/telegram.js';
 
 // Fix for ES Modules __dirname
 const __filename = fileURLToPath(import.meta.url);
@@ -62,6 +63,7 @@ app.use('/upload', uploadRouter);
 app.use('/credits', creditsRouter);
 app.use('/alia/chat', chatRouter);
 app.use('/v1', v1Router);
+app.use('/telegram', telegramRouter);
 
 // Ruta raíz
 app.get('/', (_req, res) => {
@@ -77,7 +79,8 @@ app.get('/', (_req, res) => {
       '/upload',
       '/credits',
       '/alia/chat',
-      '/v1'
+      '/v1',
+      '/telegram'
     ]
   });
 });
