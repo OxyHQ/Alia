@@ -7,7 +7,7 @@
   "main": "dist/index.js",
   "scripts": {
     "dev": "tsx watch src/index.ts",
-    "build": "NODE_OPTIONS='--max-old-space-size=4096' tsc",
+    "build": "esbuild src/index.ts --bundle --platform=node --target=node22 --format=esm --outfile=dist/index.js --external:@aws-sdk/* --external:mongoose --external:express --external:ai --external:@ai-sdk/* --external:multer",
     "start": "node dist/index.js",
     "lint": "eslint src --ext .ts"
   },
@@ -34,6 +34,7 @@
     "@types/cors": "^2.8.17",
     "@types/express": "^5.0.0",
     "@types/node": "^25.0.8",
+    "esbuild": "^0.24.2",
     "tsx": "^4.19.2",
     "typescript": "^5.9.3"
   }

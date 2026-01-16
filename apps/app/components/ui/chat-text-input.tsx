@@ -16,6 +16,7 @@ type ChatTextInputProps = React.ComponentPropsWithoutRef<typeof TextInput> & {
   minHeight?: number;
   onHeightChange?: (height: number) => void;
   disableEnterToSubmit?: boolean;
+  disableAutoHeight?: boolean;
 };
 
 const ChatTextInput = React.forwardRef<TextInput, ChatTextInputProps>(
@@ -30,9 +31,15 @@ const ChatTextInput = React.forwardRef<TextInput, ChatTextInputProps>(
     onHeightChange,
     style,
     disableEnterToSubmit = false,
+    disableAutoHeight = false,
     ...props
   }, ref) => {
     const [height, setHeight] = React.useState(minHeight);
+
+    // Reset height when minHeight changes (e.g., when switching fullscreen modes)
+    React.useEffect(() => {
+      setHeight(minHeight);
+    }, [minHeight]);
 
     const handleKeyPress = (
       e: NativeSyntheticEvent<TextInputKeyPressEventData>
@@ -78,7 +85,7 @@ const ChatTextInput = React.forwardRef<TextInput, ChatTextInputProps>(
         onContentSizeChange={handleContentSizeChange}
         style={[
           style,
-          props.multiline && { height },
+          props.multiline && !disableAutoHeight && { height },
         ]}
         {...props}
       />

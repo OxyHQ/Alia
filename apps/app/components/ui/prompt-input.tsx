@@ -75,6 +75,13 @@ function PromptInput({
     onValueChange?.(newValue);
   };
 
+  // Reset height when exiting fullscreen
+  useEffect(() => {
+    if (!showFullscreen) {
+      setCurrentHeight(44);
+    }
+  }, [showFullscreen]);
+
   const showExpandIcon = currentHeight > 100;
 
   return (
@@ -153,6 +160,7 @@ export type PromptInputTextareaProps = {
 function PromptInputTextarea({
   className,
   placeholder,
+  style,
   ...props
 }: PromptInputTextareaProps) {
   const { value, setValue, onSubmit, disabled, textareaRef, setCurrentHeight, isFullscreen, maxHeight } =
@@ -167,13 +175,14 @@ function PromptInputTextarea({
       onEnterPress={onSubmit}
       onHeightChange={setCurrentHeight}
       disableEnterToSubmit={isFullscreen}
+      disableAutoHeight={isFullscreen}
       maxHeight={isFullscreen ? 10000 : maxHeight}
       className={cn(
         "w-full border-0 bg-transparent text-foreground shadow-none",
         isFullscreen ? "h-full px-4 pt-4" : "min-h-[44px] py-3",
         className
       )}
-      style={isFullscreen ? { paddingBottom: 100 } : undefined}
+      style={[style, isFullscreen && { paddingBottom: 100 }]}
       placeholder={placeholder}
       multiline
       editable={!disabled}
