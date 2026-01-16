@@ -39,6 +39,20 @@ async function initializeBot() {
     bot.command('new', handleNewConversation);
     bot.command('history', handleHistory);
 
+    // Register callback query handlers for inline buttons
+    bot.action('start', handleStart);
+    bot.action('logout', handleLogout);
+    bot.action('status', handleStatus);
+    bot.action('help', handleHelp);
+    bot.action('new', handleNewConversation);
+    bot.action('history', handleHistory);
+
+    // Answer all callback queries to remove loading state
+    bot.on('callback_query', async (ctx, next) => {
+      await ctx.answerCbQuery();
+      return next();
+    });
+
     // Handle all text messages (chat with Alia)
     bot.on('text', async (ctx, next) => {
       const text = ctx.message.text;
