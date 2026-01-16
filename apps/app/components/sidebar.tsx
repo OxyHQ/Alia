@@ -26,6 +26,7 @@ import { useStore } from "@/lib/globalStore";
 import { useRouter } from "expo-router";
 import { useAuthStore } from "@/lib/stores/auth-store";
 import { useProjectsStore } from "@/lib/stores/projects-store";
+import { useConversations, useDeleteConversation } from "@/lib/hooks/use-conversations";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -38,7 +39,8 @@ export const Sidebar = React.memo(function Sidebar() {
   const router = useRouter();
   // Use selectors to avoid worklet serialization issues
   const chatId = useStore((state) => state.chatId);
-  const conversations = useStore((state) => state.conversations);
+  const { data: conversations = [] } = useConversations();
+  const deleteConversationMutation = useDeleteConversation();
   const user = useAuthStore((state) => state.user);
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
   const logout = useAuthStore((state) => state.logout);
@@ -48,11 +50,11 @@ export const Sidebar = React.memo(function Sidebar() {
   const createProject = useProjectsStore((state) => state.createProject);
 
   const handleNewChat = React.useCallback(() => {
-    router.push("/(app)/");
+    router.push("/(app)");
   }, [router]);
 
   const handleLogoPress = React.useCallback(() => {
-    router.push("/(app)/");
+    router.push("/(app)");
   }, [router]);
 
   const handleSelectConversation = React.useCallback((id: string) => {
@@ -61,8 +63,8 @@ export const Sidebar = React.memo(function Sidebar() {
 
   const handleDeleteConversation = React.useCallback((id: string, e: any) => {
     e.stopPropagation();
-    useStore.getState().deleteConversation(id);
-  }, []);
+    deleteConversationMutation.mutate(id);
+  }, [deleteConversationMutation]);
 
   const handleSettings = React.useCallback(() => {
     router.push("/(app)/settings");

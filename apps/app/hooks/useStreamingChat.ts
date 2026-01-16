@@ -3,7 +3,7 @@ import { fetch as expoFetch } from 'expo/fetch';
 import * as Haptics from 'expo-haptics';
 import { useAuthStore } from '@/lib/stores/auth-store';
 import { useCreditsStore } from '@/lib/stores/credits-store';
-import type { Message } from '@/lib/globalStore';
+import type { Message } from '@/lib/hooks/use-conversations';
 import { collectDeviceInfo } from '@/lib/device-info';
 
 export interface ToolInvocation {

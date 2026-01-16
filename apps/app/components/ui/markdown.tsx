@@ -65,12 +65,12 @@ const rules = {
   ),
   code: (node, children, parent) => {
     return parent.length > 1 ? (
-      <Pre className="mt-2 w-[80dvw] overflow-x-scroll rounded-lg bg-zinc-100 dark:bg-zinc-800 p-3 text-sm text-foreground md:max-w-[500px]">
+      <Pre className="mt-2 w-[80dvw] overflow-x-scroll rounded-lg bg-zinc-100 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 p-3 text-sm text-foreground md:max-w-[500px]">
         <Code className="text-foreground">{children}</Code>
       </Pre>
     ) : (
       <Code
-        className="bg-muted/50 px-1.5 py-0 text-[11px] text-foreground"
+        className="bg-zinc-200 dark:bg-zinc-700 px-1.5 py-0 text-[11px] text-foreground"
         style={{ borderRadius: 999 }}
       >
         {children}
@@ -82,7 +82,7 @@ const rules = {
     <Ol className="ml-4 list-outside list-decimal text-foreground">{children}</Ol>
   ),
   unordered_list: (node, children) => (
-    <Ul className="ml-4 list-outside list-decimal text-foreground">{children}</Ul>
+    <Ul className="ml-4 list-outside list-disc text-foreground">{children}</Ul>
   ),
   strong: (node, children) => (
     <Strong className="font-semibold text-foreground">{children}</Strong>

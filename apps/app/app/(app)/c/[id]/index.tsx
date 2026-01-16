@@ -8,6 +8,7 @@ import { PromptInput, PromptInputTextarea, PromptInputActions, usePromptInput } 
 import { Button } from "@/components/ui/button";
 import type { ScrollView as GHScrollView } from "react-native-gesture-handler";
 import { useStore } from "@/lib/globalStore";
+import { useConversationMessages, useSaveConversation } from "@/lib/hooks/use-conversations";
 import { Plus, Globe, ArrowUp, Square, Search, ShoppingBag, ImageIcon, Sparkles, MoreHorizontal, BookOpen, ExternalLink, PenTool, X, FileText, Ghost, Check } from "lucide-react-native";
 import { generateAPIUrl } from "@/lib/generate-api-url";
 import { useImagePicker } from "@/hooks/useImagePicker";
@@ -67,6 +68,8 @@ const ChatConversationPage = () => {
   const selectedImageUris = useStore((state) => state.selectedImageUris);
   const pendingInitialMessage = useStore((state) => state.pendingInitialMessage);
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
+  const savedMessages = useConversationMessages(id);
+  const saveConversationMutation = useSaveConversation();
   const [selectedModel, setSelectedModel] = useState("alia-v1");
   const [searchMode, setSearchMode] = useState(false);
   const [agentMode, setAgentMode] = useState(false);
@@ -75,11 +78,6 @@ const ChatConversationPage = () => {
   const [initialMessageSent, setInitialMessageSent] = useState(false);
   const [loadingImageUris, setLoadingImageUris] = useState<Set<string>>(new Set());
   const { pickImage } = useImagePicker();
-
-  // Load conversations on mount
-  useEffect(() => {
-    useStore.getState().loadConversations();
-  }, []);
 
   // Set chatId from URL parameter
   useEffect(() => {
@@ -293,13 +291,10 @@ const ChatConversationPage = () => {
 
   // Load conversation messages when chatId is set from URL
   useEffect(() => {
-    if (id) {
-      const loadedMessages = useStore.getState().loadConversationMessages(id);
-      if (loadedMessages.length > 0) {
-        setMessages(loadedMessages);
-      }
+    if (id && savedMessages.length > 0) {
+      setMessages(savedMessages);
     }
-  }, [id, setMessages]);
+  }, [id, savedMessages, setMessages]);
 
   // Send initial message if provided and not already sent
   useEffect(() => {
@@ -319,12 +314,16 @@ const ChatConversationPage = () => {
   useEffect(() => {
     if (id && messages.length > 0 && !isLoading && !ghostMode) {
       const timeoutId = setTimeout(() => {
-        useStore.getState().saveConversation(id, messages, conversationTitle || undefined);
+        saveConversationMutation.mutate({
+          id,
+          messages,
+          title: conversationTitle || undefined
+        });
       }, 2000);
 
       return () => clearTimeout(timeoutId);
     }
-  }, [id, messages, isLoading, conversationTitle, ghostMode]);
+  }, [id, messages, isLoading, conversationTitle, ghostMode, saveConversationMutation]);
 
   return (
     <View className="flex-1 bg-background">
