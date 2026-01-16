@@ -91,17 +91,6 @@ export async function handleMessage(ctx: Context) {
 
           // Check for completion marker
           if (dataStr === '[DONE]') {
-            // Send final response
-            if (currentMessage && fullResponse) {
-              await ctx.telegram.editMessageText(
-                ctx.chat!.id,
-                currentMessage.message_id,
-                undefined,
-                fullResponse
-              ).catch(() => {}); // Ignore errors
-            } else if (fullResponse) {
-              await ctx.reply(fullResponse).catch(() => {});
-            }
             continue;
           }
 
@@ -112,9 +101,9 @@ export async function handleMessage(ctx: Context) {
             if (data.type === 'text-delta' && data.text) {
               fullResponse += data.text;
 
-              // Update message every 1.5 seconds
+              // Update message every 1 second for more responsive streaming
               const now = Date.now();
-              if (now - lastUpdateTime > 1500) {
+              if (now - lastUpdateTime > 1000) {
                 if (currentMessage) {
                   await ctx.telegram.editMessageText(
                     ctx.chat!.id,
@@ -122,7 +111,7 @@ export async function handleMessage(ctx: Context) {
                     undefined,
                     fullResponse + '...'
                   ).catch(() => {}); // Ignore edit errors
-                } else if (fullResponse.length > 10) { // Only create message if we have some content
+                } else if (fullResponse.length > 5) { // Create message early to show streaming
                   currentMessage = await ctx.reply(fullResponse + '...').catch(() => null);
                 }
                 lastUpdateTime = now;
@@ -138,8 +127,7 @@ export async function handleMessage(ctx: Context) {
       }
     }
 
-    // Check if AI wants to react to the message
-    // AI can include [REACT:emoji] in response
+    // Process reactions before cleaning response
     const reactionMatch = fullResponse.match(/\[REACT:([^\]]+)\]/);
     if (reactionMatch && 'message' in ctx && ctx.message) {
       const emoji = reactionMatch[1].trim();
@@ -148,14 +136,28 @@ export async function handleMessage(ctx: Context) {
       } catch (reactionError) {
         // Ignore reaction errors silently
       }
-      // Remove the reaction tag from the response
-      fullResponse = fullResponse.replace(/\[REACT:[^\]]+\]\s*/g, '').trim();
     }
 
-    // If no message was sent yet, send the full response
-    if (!currentMessage && fullResponse) {
-      await ctx.reply(fullResponse).catch(() => {});
-    } else if (!fullResponse) {
+    // Clean up response - remove special tags
+    fullResponse = fullResponse.replace(/\[REACT:[^\]]+\]\s*/g, '');
+    fullResponse = fullResponse.replace(/\[TITLE\][^\]]*\[\/TITLE\]\s*/g, '');
+    fullResponse = fullResponse.trim();
+
+    // Send final message
+    if (fullResponse) {
+      if (currentMessage) {
+        // Update existing streaming message with final clean response
+        await ctx.telegram.editMessageText(
+          ctx.chat!.id,
+          currentMessage.message_id,
+          undefined,
+          fullResponse
+        ).catch(() => {});
+      } else {
+        // No streaming message was created, send final response
+        await ctx.reply(fullResponse).catch(() => {});
+      }
+    } else {
       await ctx.reply('⚠️ I received your message but got no response. Please try again.');
     }
 
