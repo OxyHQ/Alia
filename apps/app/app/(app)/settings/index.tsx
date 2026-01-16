@@ -17,6 +17,8 @@ import {
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { useColorScheme } from "@/lib/useColorScheme";
 import type { ThemeMode } from "@/lib/stores/theme-store";
+import { useTranslation } from "@/hooks/useTranslation";
+import { LanguageSelector } from "@/components/language-selector";
 
 interface UserMemory {
   preferences: {
@@ -54,6 +56,7 @@ export default function SettingsScreen() {
   const setMemory = useUserDataStore((state) => state.setMemory);
   const [saving, setSaving] = useState(false);
   const { mode, setColorScheme } = useColorScheme();
+  const { t } = useTranslation();
 
   // Form state
   const [language, setLanguage] = useState("");
@@ -121,12 +124,12 @@ export default function SettingsScreen() {
         const updatedMemory = await contextRes.json();
         // Update cache
         setMemory(updatedMemory);
-        Alert.alert("Success", "Preferences saved successfully");
+        Alert.alert(t('settings.success'), t('settings.preferencesSaved'));
         router.back();
       }
     } catch (error) {
       console.error("Error saving memory:", error);
-      Alert.alert("Error", "Failed to save preferences");
+      Alert.alert(t('common.error'), t('settings.failedToSave'));
     } finally {
       setSaving(false);
     }
@@ -135,7 +138,7 @@ export default function SettingsScreen() {
   if (loading) {
     return (
       <View className="flex-1 items-center justify-center bg-background">
-        <Text>Loading...</Text>
+        <Text>{t('common.loading')}</Text>
       </View>
     );
   }
@@ -143,9 +146,9 @@ export default function SettingsScreen() {
   return (
     <View className="flex-1 bg-background">
       <View className="border-b border-border p-4">
-        <Text className="text-2xl font-bold">Settings</Text>
+        <Text className="text-2xl font-bold">{t('settings.title')}</Text>
         <Text className="text-sm text-muted-foreground mt-1">
-          Customize Alia's responses to your preferences
+          {t('settings.subtitle')}
         </Text>
       </View>
 
@@ -153,7 +156,7 @@ export default function SettingsScreen() {
         <View className="max-w-2xl mx-auto w-full gap-6">
           {/* Quick Links */}
           <View className="gap-3">
-            <Text className="text-sm font-semibold text-muted-foreground">QUICK ACCESS</Text>
+            <Text className="text-sm font-semibold text-muted-foreground">{t('settings.quickAccess')}</Text>
 
             <Pressable
               onPress={() => router.push("/(app)/settings/memory")}
@@ -164,9 +167,9 @@ export default function SettingsScreen() {
                   <Brain size={24} className="text-primary" />
                 </View>
                 <View>
-                  <Text className="text-base font-semibold">Memory Management</Text>
+                  <Text className="text-base font-semibold">{t('settings.memoryManagement')}</Text>
                   <Text className="text-sm text-muted-foreground">
-                    Manage what Alia remembers
+                    {t('settings.memoryManagementDesc')}
                   </Text>
                 </View>
               </View>
@@ -182,9 +185,9 @@ export default function SettingsScreen() {
                   <User size={24} className="text-primary" />
                 </View>
                 <View>
-                  <Text className="text-base font-semibold">Account Settings</Text>
+                  <Text className="text-base font-semibold">{t('settings.accountSettings')}</Text>
                   <Text className="text-sm text-muted-foreground">
-                    Manage your account
+                    {t('settings.accountSettingsDesc')}
                   </Text>
                 </View>
               </View>
@@ -195,16 +198,19 @@ export default function SettingsScreen() {
           <View className="border-t border-border" />
 
           {/* Preferences Section */}
-          <Text className="text-sm font-semibold text-muted-foreground">PREFERENCES</Text>
+          <Text className="text-sm font-semibold text-muted-foreground">{t('settings.preferences')}</Text>
+
+          {/* App Language Selector */}
+          <LanguageSelector />
 
           {/* Theme Preference */}
           <View className="gap-2">
             <View className="flex-row items-center gap-2">
               <Monitor size={20} className="text-primary" />
-              <Text className="text-base font-semibold">Appearance</Text>
+              <Text className="text-base font-semibold">{t('settings.appearance')}</Text>
             </View>
             <Text className="text-sm text-muted-foreground">
-              Choose your preferred color scheme
+              {t('settings.appearanceDesc')}
             </Text>
             <ToggleGroup
               type="single"
@@ -215,38 +221,38 @@ export default function SettingsScreen() {
               <ToggleGroupItem value="light" className="flex-1">
                 <View className="flex-row items-center justify-center gap-2">
                   <Sun size={16} className={mode === 'light' ? 'text-primary-foreground' : 'text-foreground'} />
-                  <Text className={mode === 'light' ? 'text-primary-foreground' : 'text-foreground'}>Light</Text>
+                  <Text className={mode === 'light' ? 'text-primary-foreground' : 'text-foreground'}>{t('settings.light')}</Text>
                 </View>
               </ToggleGroupItem>
               <ToggleGroupItem value="dark" className="flex-1">
                 <View className="flex-row items-center justify-center gap-2">
                   <Moon size={16} className={mode === 'dark' ? 'text-primary-foreground' : 'text-foreground'} />
-                  <Text className={mode === 'dark' ? 'text-primary-foreground' : 'text-foreground'}>Dark</Text>
+                  <Text className={mode === 'dark' ? 'text-primary-foreground' : 'text-foreground'}>{t('settings.dark')}</Text>
                 </View>
               </ToggleGroupItem>
               <ToggleGroupItem value="system" className="flex-1">
                 <View className="flex-row items-center justify-center gap-2">
                   <Monitor size={16} className={mode === 'system' ? 'text-primary-foreground' : 'text-foreground'} />
-                  <Text className={mode === 'system' ? 'text-primary-foreground' : 'text-foreground'}>System</Text>
+                  <Text className={mode === 'system' ? 'text-primary-foreground' : 'text-foreground'}>{t('settings.system')}</Text>
                 </View>
               </ToggleGroupItem>
             </ToggleGroup>
           </View>
 
-          {/* Language Preference */}
+          {/* Alia's Language Preference */}
           <View className="gap-2">
             <View className="flex-row items-center gap-2">
               <Languages size={20} className="text-primary" />
-              <Text className="text-base font-semibold">Language</Text>
+              <Text className="text-base font-semibold">{t('settings.aliaLanguage')}</Text>
             </View>
             <Text className="text-sm text-muted-foreground">
-              Alia will respond in this language
+              {t('settings.aliaLanguageDesc')}
             </Text>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Pressable className="border border-border rounded-lg px-4 py-3 bg-background flex-row items-center justify-between">
                   <Text className="text-foreground">
-                    {language || "Select a language"}
+                    {language || t('settings.selectLanguage')}
                   </Text>
                   <ChevronDown size={20} className="text-muted-foreground" />
                 </Pressable>
@@ -273,14 +279,14 @@ export default function SettingsScreen() {
           <View className="gap-2">
             <View className="flex-row items-center gap-2">
               <MessageSquare size={20} className="text-primary" />
-              <Text className="text-base font-semibold">Response Tone</Text>
+              <Text className="text-base font-semibold">{t('settings.responseTone')}</Text>
             </View>
             <Text className="text-sm text-muted-foreground">
-              How Alia should communicate with you
+              {t('settings.responseToneDesc')}
             </Text>
             <RNTextInput
               className="border border-border rounded-lg px-4 py-3 bg-background text-foreground"
-              placeholder="e.g., casual, professional, friendly"
+              placeholder={t('settings.responseTonePlaceholder')}
               value={tone}
               onChangeText={setTone}
             />
@@ -290,14 +296,14 @@ export default function SettingsScreen() {
           <View className="gap-2">
             <View className="flex-row items-center gap-2">
               <Briefcase size={20} className="text-primary" />
-              <Text className="text-base font-semibold">Occupation</Text>
+              <Text className="text-base font-semibold">{t('settings.occupation')}</Text>
             </View>
             <Text className="text-sm text-muted-foreground">
-              Your job or field of work
+              {t('settings.occupationDesc')}
             </Text>
             <RNTextInput
               className="border border-border rounded-lg px-4 py-3 bg-background text-foreground"
-              placeholder="e.g., Software Engineer, Teacher"
+              placeholder={t('settings.occupationPlaceholder')}
               value={occupation}
               onChangeText={setOccupation}
             />
@@ -307,14 +313,14 @@ export default function SettingsScreen() {
           <View className="gap-2">
             <View className="flex-row items-center gap-2">
               <MapPin size={20} className="text-primary" />
-              <Text className="text-base font-semibold">Location</Text>
+              <Text className="text-base font-semibold">{t('settings.location')}</Text>
             </View>
             <Text className="text-sm text-muted-foreground">
-              Where you're based
+              {t('settings.locationDesc')}
             </Text>
             <RNTextInput
               className="border border-border rounded-lg px-4 py-3 bg-background text-foreground"
-              placeholder="e.g., New York, USA"
+              placeholder={t('settings.locationPlaceholder')}
               value={location}
               onChangeText={setLocation}
             />
@@ -324,14 +330,14 @@ export default function SettingsScreen() {
           <View className="gap-2">
             <View className="flex-row items-center gap-2">
               <UserIcon size={20} className="text-primary" />
-              <Text className="text-base font-semibold">About You</Text>
+              <Text className="text-base font-semibold">{t('settings.aboutYou')}</Text>
             </View>
             <Text className="text-sm text-muted-foreground">
-              Tell Alia a bit about yourself
+              {t('settings.aboutYouDesc')}
             </Text>
             <RNTextInput
               className="border border-border rounded-lg px-4 py-3 bg-background text-foreground"
-              placeholder="e.g., I love hiking and building web apps"
+              placeholder={t('settings.aboutYouPlaceholder')}
               value={bio}
               onChangeText={setBio}
               multiline
@@ -343,14 +349,14 @@ export default function SettingsScreen() {
           <View className="gap-2">
             <View className="flex-row items-center gap-2">
               <Globe size={20} className="text-primary" />
-              <Text className="text-base font-semibold">Interests</Text>
+              <Text className="text-base font-semibold">{t('settings.interests')}</Text>
             </View>
             <Text className="text-sm text-muted-foreground">
-              Topics you're interested in (comma-separated)
+              {t('settings.interestsDesc')}
             </Text>
             <RNTextInput
               className="border border-border rounded-lg px-4 py-3 bg-background text-foreground"
-              placeholder="e.g., AI, Technology, Travel"
+              placeholder={t('settings.interestsPlaceholder')}
               value={interests}
               onChangeText={setInterests}
               multiline
@@ -365,14 +371,14 @@ export default function SettingsScreen() {
               onPress={() => router.back()}
               disabled={saving}
             >
-              <Text>Cancel</Text>
+              <Text>{t('common.cancel')}</Text>
             </Button>
             <Button
               className="flex-1"
               onPress={handleSave}
               disabled={saving}
             >
-              <Text>{saving ? "Saving..." : "Save Preferences"}</Text>
+              <Text>{saving ? t('settings.saving') : t('settings.savePreferences')}</Text>
             </Button>
           </View>
         </View>
