@@ -14,6 +14,7 @@ import { User } from '../models/user.js';
 import { UserMemory } from '../models/user-memory.js';
 import type { IUserMemory } from '../models/user-memory.js';
 import type { IUser } from '../models/user.js';
+import { processMessagesForPlatform } from '../lib/message-processor.js';
 
 const router = Router();
 
@@ -417,10 +418,19 @@ router.post('/', optionalAuth, async (req, res) => {
 
     // Check if request comes from Telegram bot
     const isTelegram = req.headers['x-telegram-bot'] === 'true';
+    const platform = isTelegram ? 'telegram' : 'app';
+
+    // Process incoming messages to remove platform-incompatible tags
+    // This saves tokens by not sending irrelevant formatting to the AI
+    const processedMessages = processMessagesForPlatform(
+      messages.map(m => ({ role: m.role, content: typeof m.content === 'string' ? m.content : '' })),
+      platform
+    );
 
     // Fetch user data and memory if authenticated
     let user: IUser | null = null;
     let memory: IUserMemory | null = null;
+    let creditsReserved = false;
 
     if (req.user) {
       try {
@@ -439,20 +449,43 @@ router.post('/', optionalAuth, async (req, res) => {
           await memory.save();
         }
 
-        if (user) {
+        // Reserve credits atomically if user is authenticated
+        if (user && req.user) {
           // Refresh credits if needed
           await user.refreshCreditsIfNeeded();
 
-          // Check if user has enough credits
-          if (user.credits.free <= 0) {
-            console.log('[Alia/Chat] Insufficient credits for user');
+          // Reserve 1 credit minimum atomically to prevent race conditions
+          const reserveResult = await User.findOneAndUpdate(
+            {
+              _id: req.user.id,
+              'credits.free': { $gte: 1 } // Only if has at least 1 credit
+            },
+            {
+              $inc: { 'credits.free': -1 }, // Reserve 1 credit
+              $set: { 'credits.lastUsed': new Date() }
+            },
+            {
+              new: true,
+              runValidators: false
+            }
+          );
+
+          if (!reserveResult) {
+            console.log('[Alia/Chat] Insufficient credits for user (atomic check)');
             clearTimeout(requestTimeout);
+
+            // Get current credits to show in error
+            const currentUser = await User.findById(req.user.id);
             res.status(402).json({
               error: 'Insufficient credits',
-              credits: user.credits.free
+              credits: currentUser?.credits.free || 0
             });
             return;
           }
+
+          creditsReserved = true;
+          user = reserveResult;
+          console.log(`[Alia/Chat] Reserved 1 credit. User credits: ${user.credits.free}`);
         }
         console.log('[Alia/Chat] User data loaded successfully');
       } catch (error) {
@@ -517,7 +550,7 @@ router.post('/', optionalAuth, async (req, res) => {
 
     const result = streamText({
       model,
-      messages,
+      messages: processedMessages as CoreMessage[], // Use processed messages (saves tokens)
       tools,
       stopWhen: stepCountIs(5),
       system: systemPrompt,
@@ -538,26 +571,58 @@ router.post('/', optionalAuth, async (req, res) => {
       res.write(`data: ${event}\n\n`);
     }
 
-    // Deduct credits for authenticated users
-    if (user && req.user) {
+    // Adjust credits based on actual usage (we already reserved 1 credit)
+    if (user && req.user && creditsReserved) {
       try {
-        // Calculate credits to deduct (1 credit per ~1000 tokens, minimum 1)
-        const creditsToDeduct = Math.max(1, Math.ceil(totalTokensUsed / 1000));
+        // Calculate actual credits used (1 credit per ~1000 tokens, minimum 1)
+        const actualCreditsUsed = Math.max(1, Math.ceil(totalTokensUsed / 1000));
 
-        // Deduct credits
-        user.credits.free = Math.max(0, user.credits.free - creditsToDeduct);
-        await user.save();
+        // We already deducted 1 credit, so calculate the difference
+        const creditAdjustment = 1 - actualCreditsUsed; // Positive = refund, Negative = charge more
+
+        let updatedUser = user;
+
+        if (creditAdjustment !== 0) {
+          // Adjust credits atomically
+          updatedUser = await User.findByIdAndUpdate(
+            req.user.id,
+            {
+              $inc: { 'credits.free': creditAdjustment }
+            },
+            {
+              new: true,
+              runValidators: false
+            }
+          ) || user;
+
+          if (creditAdjustment > 0) {
+            console.log(`[Alia/Chat] Refunded ${creditAdjustment} credits. Remaining: ${updatedUser.credits.free}`);
+          } else {
+            console.log(`[Alia/Chat] Charged ${-creditAdjustment} additional credits. Remaining: ${updatedUser.credits.free}`);
+          }
+        } else {
+          console.log(`[Alia/Chat] Used exactly 1 credit as reserved. Remaining: ${updatedUser.credits.free}`);
+        }
+
+        // Ensure credits don't go negative (safety check)
+        if (updatedUser.credits.free < 0) {
+          updatedUser = await User.findByIdAndUpdate(
+            req.user.id,
+            { $set: { 'credits.free': 0 } },
+            { new: true }
+          ) || updatedUser;
+        }
 
         // Send credit update event
         const creditUpdate = {
           type: 'credit-update',
-          credits: user.credits.free,
-          creditsUsed: creditsToDeduct,
+          credits: Math.max(0, updatedUser.credits.free),
+          creditsUsed: actualCreditsUsed,
           totalTokens: totalTokensUsed,
         };
         res.write(`data: ${JSON.stringify(creditUpdate)}\n\n`);
       } catch (error) {
-        console.error('Error deducting credits:', error);
+        console.error('[Alia/Chat] Error adjusting credits:', error);
       }
     }
 
