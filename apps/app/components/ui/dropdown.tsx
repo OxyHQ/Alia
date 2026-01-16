@@ -39,8 +39,15 @@ export function Dropdown({ trigger, children, align = 'start' }: DropdownMenuPro
   const [triggerLayout, setTriggerLayout] = useState({ x: 0, y: 0, width: 0, height: 0 });
   const triggerRef = useRef<View>(null);
   const insets = useSafeAreaInsets();
+  const closeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const handleOpen = () => {
+    // Clear any pending close
+    if (closeTimeoutRef.current) {
+      clearTimeout(closeTimeoutRef.current);
+      closeTimeoutRef.current = null;
+    }
+
     // Measure first, then open after measurement completes
     triggerRef.current?.measureInWindow((x, y, width, height) => {
       // Only open if we got valid measurements
@@ -55,6 +62,28 @@ export function Dropdown({ trigger, children, align = 'start' }: DropdownMenuPro
   const handleClose = () => {
     setIsOpen(false);
   };
+
+  const handleMenuHoverIn = () => {
+    // Clear any pending close when hovering over menu
+    if (closeTimeoutRef.current) {
+      clearTimeout(closeTimeoutRef.current);
+      closeTimeoutRef.current = null;
+    }
+  };
+
+  const handleMenuHoverOut = () => {
+    // Close after a delay when leaving menu
+    closeTimeoutRef.current = setTimeout(() => {
+      setIsOpen(false);
+    }, 200) as any;
+  };
+
+  // Cleanup timeout
+  useEffect(() => {
+    return () => {
+      if (closeTimeoutRef.current) clearTimeout(closeTimeoutRef.current);
+    };
+  }, []);
 
   // Re-measure position when screen dimensions change
   useEffect(() => {
@@ -111,14 +140,15 @@ export function Dropdown({ trigger, children, align = 'start' }: DropdownMenuPro
       <Modal
         visible={isOpen}
         transparent
-        animationType="fade"
+        animationType="none"
         onRequestClose={handleClose}
       >
         <Pressable
           style={{ flex: 1 }}
           onPress={handleClose}
+          pointerEvents="box-none"
         >
-          <View
+          <Pressable
             style={{
               position: 'absolute',
               top: shouldShowAbove ? undefined : triggerLayout.y + triggerLayout.height + 4,
@@ -129,6 +159,9 @@ export function Dropdown({ trigger, children, align = 'start' }: DropdownMenuPro
               maxWidth: safeRight - safeLeft,
             }}
             className="bg-popover border-border rounded-2xl border"
+            // @ts-ignore - onMouseEnter/Leave work on web
+            onMouseEnter={handleMenuHoverIn}
+            onMouseLeave={handleMenuHoverOut}
           >
             <ScrollView style={{ maxHeight: dropdownMaxHeight }} className="py-1 select-none">
               {React.Children.map(children, (child) =>
@@ -137,7 +170,7 @@ export function Dropdown({ trigger, children, align = 'start' }: DropdownMenuPro
                   : child
               )}
             </ScrollView>
-          </View>
+          </Pressable>
         </Pressable>
       </Modal>
     </>
@@ -187,8 +220,16 @@ export function SubMenu({ trigger, children, onClose }: SubMenuProps) {
   const [triggerLayout, setTriggerLayout] = useState({ x: 0, y: 0, width: 0, height: 0 });
   const triggerRef = useRef<View>(null);
   const insets = useSafeAreaInsets();
+  const openTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const closeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const handleOpen = () => {
+    // Clear any pending close
+    if (closeTimeoutRef.current) {
+      clearTimeout(closeTimeoutRef.current);
+      closeTimeoutRef.current = null;
+    }
+
     triggerRef.current?.measureInWindow((x, y, width, height) => {
       if (x !== 0 || y !== 0 || width !== 0 || height !== 0) {
         setTriggerLayout({ x, y, width, height });
@@ -197,10 +238,66 @@ export function SubMenu({ trigger, children, onClose }: SubMenuProps) {
     });
   };
 
+  const handleHoverIn = () => {
+    // Clear any pending close
+    if (closeTimeoutRef.current) {
+      clearTimeout(closeTimeoutRef.current);
+      closeTimeoutRef.current = null;
+    }
+
+    // Open immediately on hover
+    if (!isOpen) {
+      openTimeoutRef.current = setTimeout(() => {
+        handleOpen();
+      }, 75) as any;
+    }
+  };
+
+  const handleHoverOut = () => {
+    // Clear pending open
+    if (openTimeoutRef.current) {
+      clearTimeout(openTimeoutRef.current);
+      openTimeoutRef.current = null;
+    }
+
+    // Close after a delay to allow mouse to reach submenu
+    closeTimeoutRef.current = setTimeout(() => {
+      setIsOpen(false);
+    }, 400) as any;
+  };
+
+  const handleSubmenuHoverIn = () => {
+    // Clear any pending close when hovering over submenu
+    if (closeTimeoutRef.current) {
+      clearTimeout(closeTimeoutRef.current);
+      closeTimeoutRef.current = null;
+    }
+  };
+
   const handleItemClose = () => {
     setIsOpen(false);
     onClose?.();
   };
+
+  // Cleanup timeouts
+  useEffect(() => {
+    return () => {
+      if (openTimeoutRef.current) clearTimeout(openTimeoutRef.current);
+      if (closeTimeoutRef.current) clearTimeout(closeTimeoutRef.current);
+    };
+  }, []);
+
+  // Close submenu when parent closes
+  useEffect(() => {
+    if (!isOpen) return;
+
+    // If parent is closing, close this submenu too
+    return () => {
+      if (onClose) {
+        setIsOpen(false);
+      }
+    };
+  }, [onClose]);
 
   // Re-measure position when screen dimensions change
   useEffect(() => {
@@ -223,7 +320,7 @@ export function SubMenu({ trigger, children, onClose }: SubMenuProps) {
   const submenuMinWidth = 200;
   const margin = 8;
   const submenuMaxHeight = 300;
-  const overlap = 4; // Overlap with parent menu like Apple
+  const overlap = 8; // Larger overlap for easier mouse movement
 
   const safeBottom = windowHeight - insets.bottom - margin;
   const safeTop = insets.top + margin;
@@ -269,12 +366,19 @@ export function SubMenu({ trigger, children, onClose }: SubMenuProps) {
 
   return (
     <>
-      <View ref={triggerRef} collapsable={false}>
+      <View
+        ref={triggerRef}
+        collapsable={false}
+        // @ts-ignore - onMouseEnter/Leave work on web
+        onMouseEnter={handleHoverIn}
+        onMouseLeave={handleHoverOut}
+      >
         <Pressable
           onPress={handleOpen}
           className={cn(
             "group flex-row items-center gap-1.5 rounded-2xl px-2.5 py-1.5 mx-1",
-            "active:bg-accent hover:bg-accent"
+            "active:bg-accent hover:bg-accent",
+            isOpen && "bg-accent"
           )}
         >
           <View className="flex-row items-center gap-1.5 flex-1">
@@ -290,14 +394,15 @@ export function SubMenu({ trigger, children, onClose }: SubMenuProps) {
       <Modal
         visible={isOpen}
         transparent
-        animationType="fade"
+        animationType="none"
         onRequestClose={handleItemClose}
       >
         <Pressable
           style={{ flex: 1 }}
           onPress={handleItemClose}
+          pointerEvents="box-none"
         >
-          <View
+          <Pressable
             style={{
               position: 'absolute',
               top: topPosition,
@@ -308,6 +413,9 @@ export function SubMenu({ trigger, children, onClose }: SubMenuProps) {
               maxWidth: safeRight - safeLeft,
             }}
             className="bg-popover border-border rounded-2xl border"
+            // @ts-ignore - onMouseEnter/Leave work on web
+            onMouseEnter={handleSubmenuHoverIn}
+            onMouseLeave={handleHoverOut}
           >
             <ScrollView style={{ maxHeight: submenuMaxHeight }} className="py-1 select-none">
               {React.Children.map(children, (child) =>
@@ -316,7 +424,7 @@ export function SubMenu({ trigger, children, onClose }: SubMenuProps) {
                   : child
               )}
             </ScrollView>
-          </View>
+          </Pressable>
         </Pressable>
       </Modal>
     </>

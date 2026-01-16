@@ -47,60 +47,54 @@ export function CreditsMenu() {
           </Text>
         </Pressable>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-80 p-0">
+      <DropdownMenuContent align="end" className="w-64 p-0">
         {/* Header */}
-        <View className="flex-row items-center justify-between p-4 border-b border-border">
-          <Text className="text-lg font-semibold text-foreground">Free</Text>
+        <View className="flex-row items-center justify-between px-3 py-2 border-b border-border">
+          <Text className="text-sm font-semibold text-foreground">Free</Text>
           <Button
             onPress={handleUpgrade}
-            className="h-9 px-4 rounded-full"
+            className="h-7 px-3 rounded-full"
           >
-            <Text className="text-sm font-medium text-primary-foreground">
+            <Text className="text-xs font-medium text-primary-foreground">
               Upgrade
             </Text>
           </Button>
         </View>
 
         {/* Credits Section */}
-        <View className="p-4 gap-4">
+        <View className="p-3 gap-3">
           {/* Total Credits */}
-          <View className="gap-1">
-            <View className="flex-row items-center gap-2">
-              <Sparkles size={18} className="text-muted-foreground" />
-              <Text className="text-base font-medium text-foreground">Credits</Text>
-              <Pressable className="ml-auto">
-                <HelpCircle size={16} className="text-muted-foreground" />
-              </Pressable>
+          <View className="gap-0.5">
+            <View className="flex-row items-center gap-1.5">
+              <Sparkles size={14} className="text-muted-foreground" />
+              <Text className="text-xs font-medium text-foreground">Credits</Text>
             </View>
-            <View className="flex-row items-baseline justify-between">
-              <Text className="text-sm text-muted-foreground">Free credits</Text>
+            <View className="flex-row items-baseline justify-between pl-5">
+              <Text className="text-xs text-muted-foreground">Free credits</Text>
               <View className="flex-row items-baseline gap-1">
-                <Text className="text-2xl font-bold text-foreground">
+                <Text className="text-xl font-bold text-foreground">
                   {credits.toLocaleString()}
                 </Text>
-                <Text className="text-sm text-muted-foreground">
-                  {freeCredits.toLocaleString()}
+                <Text className="text-xs text-muted-foreground">
+                  / {freeCredits.toLocaleString()}
                 </Text>
               </View>
             </View>
           </View>
 
           {/* Daily Refresh */}
-          <View className="gap-1">
-            <View className="flex-row items-center gap-2">
-              <Calendar size={18} className="text-muted-foreground" />
-              <Text className="text-base font-medium text-foreground">
-                Daily refresh credits
+          <View className="gap-0.5">
+            <View className="flex-row items-center gap-1.5">
+              <Calendar size={14} className="text-muted-foreground" />
+              <Text className="text-xs font-medium text-foreground">
+                Daily refresh
               </Text>
-              <Pressable className="ml-auto">
-                <HelpCircle size={16} className="text-muted-foreground" />
-              </Pressable>
             </View>
-            <View className="flex-row items-baseline justify-between">
-              <Text className="text-sm text-muted-foreground">
-                Refresh to {dailyRefresh} at 00:00 every day
+            <View className="flex-row items-baseline justify-between pl-5">
+              <Text className="text-xs text-muted-foreground">
+                at 00:00
               </Text>
-              <Text className="text-2xl font-bold text-foreground">
+              <Text className="text-xl font-bold text-foreground">
                 {dailyRefresh}
               </Text>
             </View>
@@ -109,12 +103,12 @@ export function CreditsMenu() {
           {/* View Usage Link */}
           <Pressable
             onPress={handleViewUsage}
-            className="flex-row items-center gap-1 active:opacity-70"
+            className="flex-row items-center gap-1 active:opacity-70 pl-0.5"
           >
-            <Text className="text-sm font-medium text-muted-foreground">
+            <Text className="text-xs font-medium text-muted-foreground">
               View usage
             </Text>
-            <Text className="text-sm text-muted-foreground">›</Text>
+            <Text className="text-xs text-muted-foreground">›</Text>
           </Pressable>
         </View>
       </DropdownMenuContent>

@@ -7,10 +7,8 @@ await esbuild.build({
   target: 'node20',
   format: 'esm',
   outfile: 'dist/index.js',
-  // Bundle everything except these packages that need to stay external
-  external: [
-    '@aws-sdk/*', // AWS SDK modules can be large
-  ],
+  // Keep all node_modules external - they'll be installed via npm install
+  packages: 'external',
   sourcemap: false,
   minify: false,
   logLevel: 'info',
