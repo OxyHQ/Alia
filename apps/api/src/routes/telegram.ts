@@ -1,6 +1,7 @@
 import express from 'express';
 import { authenticateToken } from '../middleware/auth';
 import mongoose from 'mongoose';
+import crypto from 'crypto';
 
 const router = express.Router();
 
@@ -44,7 +45,6 @@ const TelegramUser = mongoose.model('TelegramUser', TelegramUserSchema);
 
 // Helper to generate auth token
 function generateAuthToken(): string {
-  const crypto = require('crypto');
   return crypto.randomBytes(3).toString('hex').toUpperCase();
 }
 
