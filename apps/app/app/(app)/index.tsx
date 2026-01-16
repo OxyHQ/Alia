@@ -47,7 +47,7 @@ const ChatPage = () => {
     const newChatId = generateUUID();
 
     // Navigate to the new chat
-    router.push(`/(app)/c/${newChatId}`);
+    router.push(`/(app)/c/${newChatId}` as any);
 
     // Clear input
     setInputValue("");
@@ -64,7 +64,7 @@ const ChatPage = () => {
     const newChatId = generateUUID();
 
     // Navigate to the new chat
-    router.push(`/(app)/c/${newChatId}`);
+    router.push(`/(app)/c/${newChatId}` as any);
 
     // Clear any pending input and attachments
     setInputValue("");

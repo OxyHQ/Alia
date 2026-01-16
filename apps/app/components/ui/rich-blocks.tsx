@@ -20,7 +20,7 @@ export function CompactList({ title, items }: { title: string; items: CompactLis
         {items.map((item, idx) => (
           <Pressable
             key={idx}
-            className="flex-row items-start gap-3 rounded-lg border border-border bg-background p-3 active:bg-muted/50"
+            className="flex-row items-start gap-3 rounded-lg border border-border dark:border-zinc-700 bg-background p-3 active:bg-muted/50"
             onPress={() => item.href && Linking.openURL(item.href)}
           >
             {item.image && (
@@ -123,14 +123,14 @@ export function Comparison({
     <View className="my-4 rounded-xl border border-border bg-card p-4">
       <Text className="text-base font-semibold text-foreground mb-4">{title}</Text>
       <View className="gap-3">
-        <View className={cn('rounded-lg border-l-4 bg-muted/50 p-3', getToneColor(left.tone))}>
+        <View className={cn('rounded-lg border-l-4 bg-zinc-50 dark:bg-zinc-800/50 p-3', getToneColor(left.tone))}>
           <Text className="text-sm font-medium text-foreground mb-2">{left.title}</Text>
           <Text className="text-sm text-muted-foreground">{left.content}</Text>
           {left.source && (
             <Text className="text-xs text-muted-foreground mt-2 italic">Source: {left.source}</Text>
           )}
         </View>
-        <View className={cn('rounded-lg border-l-4 bg-muted/50 p-3', getToneColor(right.tone))}>
+        <View className={cn('rounded-lg border-l-4 bg-zinc-50 dark:bg-zinc-800/50 p-3', getToneColor(right.tone))}>
           <Text className="text-sm font-medium text-foreground mb-2">{right.title}</Text>
           <Text className="text-sm text-muted-foreground">{right.content}</Text>
           {right.source && (
@@ -164,7 +164,7 @@ export function Timeline({ title, items }: { title: string; items: TimelineItem[
             <View className="items-center">
               <View className="h-3 w-3 rounded-full bg-primary" />
               {idx < items.length - 1 && (
-                <View className="w-0.5 flex-1 bg-border mt-1" style={{ minHeight: 40 }} />
+                <View className="w-0.5 flex-1 bg-zinc-300 dark:bg-zinc-600 mt-1" style={{ minHeight: 40 }} />
               )}
             </View>
             <View className="flex-1 pb-2">
@@ -218,7 +218,7 @@ export function Credibility({ level, source }: { level: number; source: string }
             key={i}
             className={cn(
               'h-2 w-8 rounded-full',
-              i <= level ? getColor() : 'bg-muted'
+              i <= level ? getColor() : 'bg-zinc-300 dark:bg-zinc-600'
             )}
           />
         ))}
