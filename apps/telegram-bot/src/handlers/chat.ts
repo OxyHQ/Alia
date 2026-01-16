@@ -24,16 +24,6 @@ export async function handleMessage(ctx: Context) {
       return;
     }
 
-    // React to the message with "eyes" emoji to show we're processing
-    try {
-      if ('message' in ctx && ctx.message) {
-        await ctx.react('👀');
-      }
-    } catch (reactionError) {
-      console.log('[Chat] Could not react to message:', reactionError);
-      // Ignore reaction errors - not critical
-    }
-
     // Send "typing" action
     await ctx.sendChatAction('typing');
 
@@ -162,6 +152,22 @@ export async function handleMessage(ctx: Context) {
       }
     }
 
+    // Check if AI wants to react to the message
+    // AI can include [REACT:emoji] in response
+    const reactionMatch = fullResponse.match(/\[REACT:([^\]]+)\]/);
+    if (reactionMatch && 'message' in ctx && ctx.message) {
+      const emoji = reactionMatch[1].trim();
+      try {
+        // Use the string directly - telegraf accepts emoji strings
+        await ctx.react(emoji as any);
+        console.log('[Chat] Reacted with:', emoji);
+      } catch (reactionError) {
+        console.log('[Chat] Could not react:', reactionError);
+      }
+      // Remove the reaction tag from the response
+      fullResponse = fullResponse.replace(/\[REACT:[^\]]+\]\s*/g, '').trim();
+    }
+
     // If no message was sent yet, send the full response
     if (!currentMessage && fullResponse) {
       console.log('[Chat] Sending final response, length:', fullResponse.length);
@@ -171,27 +177,8 @@ export async function handleMessage(ctx: Context) {
       await ctx.reply('⚠️ I received your message but got no response. Please try again.');
     }
 
-    // React with a thumbs up to show success
-    try {
-      if ('message' in ctx && ctx.message && fullResponse) {
-        await ctx.react('👍');
-      }
-    } catch (reactionError) {
-      console.log('[Chat] Could not add success reaction:', reactionError);
-      // Ignore reaction errors - not critical
-    }
-
   } catch (error: any) {
     console.error('Chat error:', error);
-
-    // React with error emoji
-    try {
-      if ('message' in ctx && ctx.message) {
-        await ctx.react('😕');
-      }
-    } catch (reactionError) {
-      console.log('[Chat] Could not add error reaction:', reactionError);
-    }
 
     // Check if it's an authentication error
     if (error.response?.status === 401 || error.message?.includes('401')) {
@@ -238,15 +225,6 @@ export async function handleNewConversation(ctx: Context) {
       return;
     }
 
-    // React with sparkles emoji
-    try {
-      if ('message' in ctx && ctx.message) {
-        await ctx.react('✨');
-      }
-    } catch (reactionError) {
-      console.log('[New] Could not react to message:', reactionError);
-    }
-
     // Create new conversation ID
     const newConversationId = uuidv4();
     await apiClient.updateTelegramConversation(telegramId, newConversationId);
@@ -281,15 +259,6 @@ export async function handleHistory(ctx: Context) {
     if (!telegramUser || !telegramUser.isAuthenticated || !telegramUser.sessionToken) {
       await sendAuthRequest(ctx);
       return;
-    }
-
-    // React with book emoji
-    try {
-      if ('message' in ctx && ctx.message) {
-        await ctx.react('📚');
-      }
-    } catch (reactionError) {
-      console.log('[History] Could not react to message:', reactionError);
     }
 
     try {
