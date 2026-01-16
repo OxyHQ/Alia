@@ -199,8 +199,13 @@ export async function handleMessage(ctx: Context) {
                 lastActionTime = now;
               }
 
-              // Update message every 1 second for more responsive streaming
-              if (now - lastUpdateTime > 1000) {
+              // Show first chunk immediately for instant feedback
+              if (!currentMessage && fullResponse.length > 5) {
+                currentMessage = await ctx.reply(fullResponse + '...').catch(() => null);
+                lastUpdateTime = now;
+              }
+              // Then update every 0.7s for faster streaming (balance between responsiveness and rate limits)
+              else if (now - lastUpdateTime > 700) {
                 if (currentMessage) {
                   await ctx.telegram.editMessageText(
                     ctx.chat!.id,
@@ -208,8 +213,6 @@ export async function handleMessage(ctx: Context) {
                     undefined,
                     fullResponse + '...'
                   ).catch(() => {}); // Ignore edit errors
-                } else if (fullResponse.length > 5) { // Create message early to show streaming
-                  currentMessage = await ctx.reply(fullResponse + '...').catch(() => null);
                 }
                 lastUpdateTime = now;
               }
@@ -263,6 +266,27 @@ export async function handleMessage(ctx: Context) {
     } else if (!currentMessage) {
       // No text and no streaming message means components-only response was sent
       // Nothing to do - components were already sent
+    }
+
+    // Save conversation with new messages (user message + AI response)
+    if (fullResponse) {
+      try {
+        // Add AI response to messages array
+        messages.push({
+          role: 'assistant',
+          content: fullResponse
+        });
+
+        // Save updated conversation
+        await apiClient.saveConversation(
+          telegramUser.sessionToken,
+          conversationId,
+          messages
+        );
+      } catch (error) {
+        console.error('[Chat] Failed to save conversation:', error);
+        // Don't fail the request if saving fails
+      }
     }
 
   } catch (error: any) {
