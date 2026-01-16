@@ -12,6 +12,7 @@ import { Toaster } from '@/components/sonner';
 import { useColorScheme } from '@/lib/useColorScheme';
 import 'react-native-reanimated';
 import '../global.css';
+import '@/lib/i18n'; // Initialize i18n
 
 export {
   // Catch any errors thrown by the Layout component.
