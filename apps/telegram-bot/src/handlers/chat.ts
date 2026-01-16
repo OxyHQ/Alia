@@ -4,6 +4,57 @@ import { apiClient } from '../services/api-client';
 import { v4 as uuidv4 } from 'uuid';
 import { sendAuthRequest } from './auth';
 
+// Process Telegram-specific components from AI response
+async function processTelegramComponents(ctx: Context, response: string, currentMessage: any) {
+  // Process images [TGIMAGE url="..." caption="..."]
+  const imageMatches = response.matchAll(/\[TGIMAGE\s+url="([^"]+)"(?:\s+caption="([^"]*)")?\]/g);
+  for (const match of imageMatches) {
+    const [, url, caption] = match;
+    try {
+      await ctx.replyWithPhoto(url, caption ? { caption } : undefined);
+    } catch (error) {
+      console.error('[Chat] Failed to send image:', error);
+    }
+  }
+
+  // Process documents [TGDOC url="..." filename="..." caption="..."]
+  const docMatches = response.matchAll(/\[TGDOC\s+url="([^"]+)"(?:\s+filename="([^"]*)")?(?:\s+caption="([^"]*)")?\]/g);
+  for (const match of docMatches) {
+    const [, url, filename, caption] = match;
+    try {
+      await ctx.replyWithDocument(url, {
+        ...(filename ? { filename } : {}),
+        ...(caption ? { caption } : {})
+      });
+    } catch (error) {
+      console.error('[Chat] Failed to send document:', error);
+    }
+  }
+
+  // Process link buttons [TGLINKS title="..."]...[/TGLINKS]
+  const linksMatch = response.match(/\[TGLINKS(?:\s+title="([^"]*)")?\]([\s\S]*?)\[\/TGLINKS\]/);
+  if (linksMatch) {
+    const [, title, linksContent] = linksMatch;
+    try {
+      // Parse links from JSON format
+      const linkLines = linksContent.match(/\{[^}]+\}/g);
+      if (linkLines && linkLines.length > 0) {
+        const buttons = linkLines.map(line => {
+          const parsed = JSON.parse(line);
+          return [Markup.button.url(parsed.text, parsed.url)];
+        });
+
+        await ctx.reply(
+          title || '🔗 Enlaces relacionados:',
+          Markup.inlineKeyboard(buttons)
+        );
+      }
+    } catch (error) {
+      console.error('[Chat] Failed to parse links:', error);
+    }
+  }
+}
+
 export async function handleMessage(ctx: Context) {
   const telegramId = ctx.from?.id.toString();
   const messageText = 'message' in ctx && ctx.message && 'text' in ctx.message
@@ -139,12 +190,18 @@ export async function handleMessage(ctx: Context) {
       }
     }
 
-    // Clean up response - remove special tags
+    // Process Telegram-specific components
+    await processTelegramComponents(ctx, fullResponse, currentMessage);
+
+    // Clean up response - remove all special tags
     fullResponse = fullResponse.replace(/\[REACT:[^\]]+\]\s*/g, '');
     fullResponse = fullResponse.replace(/\[TITLE\][^\]]*\[\/TITLE\]\s*/g, '');
+    fullResponse = fullResponse.replace(/\[TGIMAGE[^\]]*\]\s*/g, '');
+    fullResponse = fullResponse.replace(/\[TGLINKS[^\]]*\][\s\S]*?\[\/TGLINKS\]\s*/g, '');
+    fullResponse = fullResponse.replace(/\[TGDOC[^\]]*\]\s*/g, '');
     fullResponse = fullResponse.trim();
 
-    // Send final message
+    // Send final message (if there's text left after processing components)
     if (fullResponse) {
       if (currentMessage) {
         // Update existing streaming message with final clean response
@@ -158,8 +215,9 @@ export async function handleMessage(ctx: Context) {
         // No streaming message was created, send final response
         await ctx.reply(fullResponse).catch(() => {});
       }
-    } else {
-      await ctx.reply('⚠️ I received your message but got no response. Please try again.');
+    } else if (!currentMessage) {
+      // No text and no streaming message means components-only response was sent
+      // Nothing to do - components were already sent
     }
 
   } catch (error: any) {
