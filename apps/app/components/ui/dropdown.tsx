@@ -230,9 +230,29 @@ export function SubMenu({ trigger, children, onClose }: SubMenuProps) {
   const safeLeft = insets.left + margin;
   const safeRight = windowWidth - insets.right - margin;
 
-  const spaceRight = safeRight - triggerLayout.x;
-  const spaceLeft = triggerLayout.x + triggerLayout.width - safeLeft;
+  // Calculate which side has more space
+  const rightEdgePosition = triggerLayout.x + triggerLayout.width - overlap;
+  const spaceRight = safeRight - rightEdgePosition;
+  const leftEdgePosition = triggerLayout.x + overlap;
+  const spaceLeft = leftEdgePosition - safeLeft;
   const shouldShowLeft = spaceRight < submenuMinWidth && spaceLeft > spaceRight;
+
+  // Calculate horizontal position and clamp to safe area
+  let leftPosition: number | undefined;
+  let rightPosition: number | undefined;
+
+  if (shouldShowLeft) {
+    // Show to the left
+    rightPosition = windowWidth - triggerLayout.x + overlap;
+    // Ensure it doesn't go past left safe boundary
+    const wouldBeLeft = windowWidth - rightPosition - submenuMinWidth;
+    if (wouldBeLeft < safeLeft) {
+      rightPosition = windowWidth - safeLeft - submenuMinWidth;
+    }
+  } else {
+    // Show to the right
+    leftPosition = Math.max(safeLeft, Math.min(rightEdgePosition, safeRight - submenuMinWidth));
+  }
 
   // Calculate vertical position - align with trigger top, but keep in safe area
   let topPosition: number | undefined = triggerLayout.y - overlap;
@@ -244,7 +264,7 @@ export function SubMenu({ trigger, children, onClose }: SubMenuProps) {
   } else if (topPosition + submenuMaxHeight > safeBottom) {
     // If it would go past bottom, position from bottom instead
     topPosition = undefined;
-    bottomPosition = Math.max(margin, windowHeight - safeBottom);
+    bottomPosition = windowHeight - safeBottom;
   }
 
   return (
@@ -282,8 +302,8 @@ export function SubMenu({ trigger, children, onClose }: SubMenuProps) {
               position: 'absolute',
               top: topPosition,
               bottom: bottomPosition,
-              left: shouldShowLeft ? undefined : triggerLayout.x + triggerLayout.width - overlap,
-              right: shouldShowLeft ? windowWidth - triggerLayout.x + overlap : undefined,
+              left: leftPosition,
+              right: rightPosition,
               minWidth: submenuMinWidth,
               maxWidth: safeRight - safeLeft,
             }}
