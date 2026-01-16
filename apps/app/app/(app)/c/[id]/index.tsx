@@ -8,7 +8,7 @@ import { PromptInput, PromptInputTextarea, PromptInputActions, usePromptInput } 
 import { Button } from "@/components/ui/button";
 import type { ScrollView as GHScrollView } from "react-native-gesture-handler";
 import { useStore } from "@/lib/globalStore";
-import { useConversationMessages, useSaveConversation } from "@/lib/hooks/use-conversations";
+import { useConversation, useSaveConversation } from "@/lib/hooks/use-conversations";
 import { Plus, Globe, ArrowUp, Square, Search, ShoppingBag, ImageIcon, Sparkles, MoreHorizontal, BookOpen, ExternalLink, PenTool, X, FileText, Ghost, Check } from "lucide-react-native";
 import { generateAPIUrl } from "@/lib/generate-api-url";
 import { useImagePicker } from "@/hooks/useImagePicker";
@@ -68,7 +68,7 @@ const ChatConversationPage = () => {
   const selectedImageUris = useStore((state) => state.selectedImageUris);
   const pendingInitialMessage = useStore((state) => state.pendingInitialMessage);
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
-  const savedMessages = useConversationMessages(id);
+  const { data: conversation, isLoading: conversationLoading } = useConversation(id);
   const saveConversationMutation = useSaveConversation();
   const [selectedModel, setSelectedModel] = useState("alia-v1");
   const [searchMode, setSearchMode] = useState(false);
@@ -289,12 +289,18 @@ const ChatConversationPage = () => {
 
   const scrollViewRef = useRef<GHScrollView>(null) as React.RefObject<GHScrollView>;
 
-  // Load conversation messages when chatId is set from URL
+  // Load conversation messages when ID changes
   useEffect(() => {
-    if (id && savedMessages.length > 0) {
-      setMessages(savedMessages);
-    }
-  }, [id, savedMessages, setMessages]);
+    // Wait for conversation to load before doing anything
+    if (conversationLoading) return;
+
+    // Reset state when navigating to a different conversation
+    setInitialMessageSent(false);
+
+    // Load saved messages or clear if none exist
+    const loadedMessages = conversation?.messages || [];
+    setMessages(loadedMessages);
+  }, [id, conversation, conversationLoading]);
 
   // Send initial message if provided and not already sent
   useEffect(() => {
@@ -323,7 +329,7 @@ const ChatConversationPage = () => {
 
       return () => clearTimeout(timeoutId);
     }
-  }, [id, messages, isLoading, conversationTitle, ghostMode, saveConversationMutation]);
+  }, [id, messages, isLoading, conversationTitle, ghostMode]);
 
   return (
     <View className="flex-1 bg-background">
