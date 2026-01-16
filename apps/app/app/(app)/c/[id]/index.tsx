@@ -57,7 +57,7 @@ const SubmitButtonWrapper = ({
 };
 
 const ChatConversationPage = () => {
-  const { id, initialMessage, roleId } = useLocalSearchParams<{ id: string; initialMessage?: string; roleId?: string }>();
+  const { id, roleId } = useLocalSearchParams<{ id: string; roleId?: string }>();
   const roles = useRolesStore((state) => state.roles);
   const [activeRoleId, setActiveRoleId] = useState<string | undefined>(roleId);
   const activeRole = activeRoleId ? roles.find(r => r.id === activeRoleId) : undefined;
@@ -65,6 +65,7 @@ const ChatConversationPage = () => {
   // Use selectors to avoid worklet serialization issues
   const chatId = useStore((state) => state.chatId);
   const selectedImageUris = useStore((state) => state.selectedImageUris);
+  const pendingInitialMessage = useStore((state) => state.pendingInitialMessage);
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
   const [selectedModel, setSelectedModel] = useState("alia-v1");
   const [searchMode, setSearchMode] = useState(false);
@@ -302,15 +303,17 @@ const ChatConversationPage = () => {
 
   // Send initial message if provided and not already sent
   useEffect(() => {
-    if (initialMessage && !initialMessageSent && !isLoading && append) {
+    if (pendingInitialMessage && !initialMessageSent && !isLoading && append) {
       setInitialMessageSent(true);
       useStore.getState().setBottomChatHeightHandler(true);
       append({
         role: 'user',
-        content: initialMessage,
+        content: pendingInitialMessage,
       });
+      // Clear the pending message after using it
+      useStore.getState().clearPendingInitialMessage();
     }
-  }, [initialMessage, initialMessageSent, isLoading, append]);
+  }, [pendingInitialMessage, initialMessageSent, isLoading, append]);
 
   // Auto-save conversation after messages change (only if ghost mode is disabled)
   useEffect(() => {

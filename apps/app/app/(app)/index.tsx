@@ -40,14 +40,14 @@ const ChatPage = () => {
   const handleSubmit = () => {
     if (!inputValue.trim()) return;
 
+    // Store the initial message in the global store
+    useStore.getState().setPendingInitialMessage(inputValue);
+
     // Generate new chat ID
     const newChatId = generateUUID();
 
-    // Navigate to the new chat with the initial message
-    router.push({
-      pathname: "/(app)/c/[id]",
-      params: { id: newChatId, initialMessage: inputValue }
-    });
+    // Navigate to the new chat
+    router.push(`/(app)/c/${newChatId}`);
 
     // Clear input
     setInputValue("");
@@ -57,14 +57,14 @@ const ChatPage = () => {
   const handleSuggestionPress = (message: string) => {
     if (!message.trim()) return;
 
+    // Store the initial message in the global store
+    useStore.getState().setPendingInitialMessage(message);
+
     // Generate new chat ID
     const newChatId = generateUUID();
 
-    // Navigate to the new chat with the initial message
-    router.push({
-      pathname: "/(app)/c/[id]",
-      params: { id: newChatId, initialMessage: message }
-    });
+    // Navigate to the new chat
+    router.push(`/(app)/c/${newChatId}`);
 
     // Clear any pending input and attachments
     setInputValue("");
