@@ -33,6 +33,15 @@ export async function handleMessage(ctx: Context) {
       await apiClient.updateTelegramConversation(telegramId, conversationId);
     }
 
+    // Get conversation history (we'll implement this simply for now - just send the current message)
+    // In the future, you could fetch conversation history from the API and include it
+    const messages = [
+      {
+        role: 'user',
+        content: messageText
+      }
+    ];
+
     // Make API call to chat endpoint
     const response = await fetch(`${process.env.API_BASE_URL || 'http://localhost:3001'}/alia/chat`, {
       method: 'POST',
@@ -41,8 +50,7 @@ export async function handleMessage(ctx: Context) {
         'Authorization': `Bearer ${telegramUser.sessionToken}`,
       },
       body: JSON.stringify({
-        message: messageText,
-        conversationId,
+        messages
       }),
     });
 
