@@ -60,13 +60,13 @@ export default function ResetPasswordScreen() {
         Alert.alert(
           'Password Reset',
           'Your password has been reset successfully. Please sign in with your new password.',
-          [{ text: 'OK', onPress: () => router.replace('/(app)/login') }]
+          [{ text: 'OK', onPress: () => router.replace('/login') }]
         );
       } else {
         Alert.alert(
           'Password Reset',
           'Your password has been reset successfully. Please sign in with your new password.',
-          [{ text: 'OK', onPress: () => router.replace('/(app)/login') }]
+          [{ text: 'OK', onPress: () => router.replace('/login') }]
         );
       }
     } catch (error: any) {
