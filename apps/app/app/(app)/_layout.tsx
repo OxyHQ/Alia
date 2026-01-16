@@ -70,20 +70,6 @@ export default function AppLayout() {
           }}
         />
         <Drawer.Screen
-          name="login"
-          options={{
-            drawerItemStyle: { display: 'none' },
-            title: 'Sign In',
-          }}
-        />
-        <Drawer.Screen
-          name="register"
-          options={{
-            drawerItemStyle: { display: 'none' },
-            title: 'Sign Up',
-          }}
-        />
-        <Drawer.Screen
           name="forgot-password"
           options={{
             drawerItemStyle: { display: 'none' },
