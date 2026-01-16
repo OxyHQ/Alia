@@ -79,61 +79,52 @@ export async function handleMessage(ctx: Context) {
 
       for (const line of lines) {
         if (line.startsWith('data: ')) {
+          const dataStr = line.slice(6).trim();
+
+          // Check for completion marker
+          if (dataStr === '[DONE]') {
+            // Send final response
+            if (currentMessage && fullResponse) {
+              await ctx.telegram.editMessageText(
+                ctx.chat!.id,
+                currentMessage.message_id,
+                undefined,
+                fullResponse
+              ).catch(() => {}); // Ignore errors
+            } else if (fullResponse) {
+              await ctx.reply(fullResponse).catch(() => {});
+            }
+            continue;
+          }
+
           try {
-            const data = JSON.parse(line.slice(6));
+            const data = JSON.parse(dataStr);
 
-            if (data.type === 'content') {
-              fullResponse += data.content;
+            // Handle text delta events from AI SDK
+            if (data.type === 'text-delta' && data.textDelta) {
+              fullResponse += data.textDelta;
 
-              // Update message every 1 second or when response is complete
+              // Update message every 1.5 seconds
               const now = Date.now();
-              if (now - lastUpdateTime > 1000) {
+              if (now - lastUpdateTime > 1500) {
                 if (currentMessage) {
                   await ctx.telegram.editMessageText(
                     ctx.chat!.id,
                     currentMessage.message_id,
                     undefined,
-                    fullResponse + '...',
-                    { parse_mode: 'Markdown' }
+                    fullResponse + '...'
                   ).catch(() => {}); // Ignore errors from editing
-                } else {
-                  currentMessage = await ctx.reply(fullResponse + '...', {
-                    parse_mode: 'Markdown'
-                  }).catch(() =>
-                    ctx.reply(fullResponse + '...')
-                  );
+                } else if (fullResponse.length > 10) { // Only create message if we have some content
+                  currentMessage = await ctx.reply(fullResponse + '...').catch(() => null);
                 }
                 lastUpdateTime = now;
-              }
-            } else if (data.type === 'done') {
-              // Send final response
-              if (currentMessage) {
-                await ctx.telegram.editMessageText(
-                  ctx.chat!.id,
-                  currentMessage.message_id,
-                  undefined,
-                  fullResponse || 'No response',
-                  { parse_mode: 'Markdown' }
-                ).catch(() =>
-                  ctx.telegram.editMessageText(
-                    ctx.chat!.id,
-                    currentMessage.message_id,
-                    undefined,
-                    fullResponse || 'No response'
-                  )
-                );
-              } else {
-                await ctx.reply(fullResponse || 'No response', {
-                  parse_mode: 'Markdown'
-                }).catch(() =>
-                  ctx.reply(fullResponse || 'No response')
-                );
               }
             } else if (data.type === 'error') {
               throw new Error(data.error || 'Unknown error');
             }
+            // Ignore other event types (tool-call, tool-result, finish, etc.)
           } catch (e) {
-            console.error('Error parsing SSE data:', e);
+            // Skip non-JSON lines
           }
         }
       }
@@ -141,9 +132,7 @@ export async function handleMessage(ctx: Context) {
 
     // If no message was sent yet, send the full response
     if (!currentMessage && fullResponse) {
-      await ctx.reply(fullResponse, { parse_mode: 'Markdown' }).catch(() =>
-        ctx.reply(fullResponse)
-      );
+      await ctx.reply(fullResponse).catch(() => {});
     }
 
   } catch (error: any) {
