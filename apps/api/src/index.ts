@@ -29,6 +29,7 @@ const PORT = process.env.PORT || 3001;
 // Middleware - Allow multiple origins for web and mobile app
 const allowedOrigins = [
   process.env.WEB_URL || 'http://localhost:3000',  // Admin/Web app
+  'https://alia.onl',       // Production web app
   'http://localhost:8081',  // Expo web dev server
   'exp://localhost:8081',   // Expo mobile
   'http://10.0.2.2:8081',   // Android emulator
