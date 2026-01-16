@@ -7,21 +7,12 @@ import { UserMemory } from "../../models/user-memory.js";
  * Allows the AI to remember important information about the user
  */
 export const saveUserMemoryTool = (userId: string) => tool({
-  description: `Guarda información importante sobre el usuario en la memoria a largo plazo.
-
-CUÁNDO USAR: Úsala SIEMPRE que el usuario comparta información personal sobre sí mismo como:
-- Preferencias (comidas favoritas, colores, actividades, etc.)
-- Información personal (ocupación, ubicación, edad, familia, mascotas, etc.)
-- Metas u objetivos
-- Experiencias o anécdotas importantes
-- Cualquier dato que el usuario quiera que recuerdes
-
-IMPORTANTE: Esta información se recordará en futuras conversaciones. Sé selectivo y guarda solo información relevante y útil.`,
+  description: 'Save important user information for future conversations. Use ALWAYS when user shares: preferences, personal info, goals, experiences, or anything they want remembered.',
 
   inputSchema: z.object({
-    key: z.string().describe("Una clave descriptiva corta para este recuerdo (ej: 'fruta_favorita', 'ocupacion', 'mascota')"),
-    value: z.string().describe("El valor o descripción del recuerdo (ej: 'fresa', 'ingeniero de software', 'perro llamado Max')"),
-    category: z.string().optional().describe("Categoría opcional: 'preferencia', 'personal', 'objetivo', 'experiencia', etc."),
+    key: z.string().describe('Short descriptive key (e.g., "favorite_fruit", "occupation", "pet")'),
+    value: z.string().describe('Memory value/description (e.g., "strawberries", "software engineer", "dog named Max")'),
+    category: z.string().optional().describe('Optional category: "preference", "personal", "goal", "experience"'),
   }),
 
   execute: async ({ key, value, category }) => {
@@ -81,19 +72,13 @@ IMPORTANTE: Esta información se recordará en futuras conversaciones. Sé selec
  * Allows the AI to update user preferences like language, tone, etc.
  */
 export const updateUserPreferencesTool = (userId: string) => tool({
-  description: `Actualiza las preferencias del usuario (idioma, tono de respuesta, longitud de respuestas, intereses).
-
-CUÁNDO USAR: Cuando el usuario exprese preferencias sobre cómo quiere que le respondas:
-- "Respóndeme siempre en español"
-- "Prefiero respuestas cortas"
-- "Háblame de manera formal/informal"
-- "Me interesan temas de tecnología y ciencia"`,
+  description: 'Update user communication preferences: language, tone, response length, interests.',
 
   inputSchema: z.object({
-    language: z.string().optional().describe("Idioma preferido del usuario (ej: 'español', 'inglés', 'francés')"),
-    tone: z.string().optional().describe("Tono preferido de las respuestas (ej: 'formal', 'casual', 'técnico', 'amigable')"),
-    responseLength: z.enum(['short', 'medium', 'long']).optional().describe("Longitud preferida de las respuestas"),
-    interests: z.array(z.string()).optional().describe("Lista de intereses o temas de interés del usuario"),
+    language: z.string().optional().describe('Preferred language (e.g., "Spanish", "English", "French")'),
+    tone: z.string().optional().describe('Preferred tone (e.g., "formal", "casual", "technical", "friendly")'),
+    responseLength: z.enum(['short', 'medium', 'long']).optional().describe('Preferred response length'),
+    interests: z.array(z.string()).optional().describe('List of user interests or topics'),
   }),
 
   execute: async ({ language, tone, responseLength, interests }) => {
@@ -137,18 +122,13 @@ CUÁNDO USAR: Cuando el usuario exprese preferencias sobre cómo quiere que le r
  * Allows the AI to update user context like occupation, location, etc.
  */
 export const updateUserContextTool = (userId: string) => tool({
-  description: `Actualiza el contexto del usuario (ocupación, ubicación, biografía).
-
-CUÁNDO USAR: Cuando el usuario comparte información contextual sobre su vida:
-- "Trabajo como ingeniero de software"
-- "Vivo en Madrid"
-- "Soy estudiante de medicina"`,
+  description: 'Update user context: occupation, location, timezone, bio.',
 
   inputSchema: z.object({
-    occupation: z.string().optional().describe("Ocupación o profesión del usuario"),
-    location: z.string().optional().describe("Ubicación del usuario (ciudad, país)"),
-    timezone: z.string().optional().describe("Zona horaria del usuario"),
-    bio: z.string().optional().describe("Biografía o descripción general del usuario"),
+    occupation: z.string().optional().describe('User occupation/profession'),
+    location: z.string().optional().describe('User location (city, country)'),
+    timezone: z.string().optional().describe('User timezone'),
+    bio: z.string().optional().describe('User bio or general description'),
   }),
 
   execute: async ({ occupation, location, timezone, bio }) => {
