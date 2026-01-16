@@ -31,6 +31,16 @@ async function initializeBot() {
   try {
     console.log('Initializing Telegram bot...');
 
+    // Set bot commands menu
+    await bot.telegram.setMyCommands([
+      { command: 'start', description: 'Authenticate and start chatting' },
+      { command: 'status', description: 'View account status and credits' },
+      { command: 'new', description: 'Start a new conversation' },
+      { command: 'history', description: 'View recent conversations' },
+      { command: 'help', description: 'Show help guide' },
+      { command: 'logout', description: 'Disconnect your account' }
+    ]);
+
     // Register command handlers
     bot.command('start', handleStart);
     bot.command('logout', handleLogout);

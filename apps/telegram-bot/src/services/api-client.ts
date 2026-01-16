@@ -52,6 +52,20 @@ class APIClient {
     return response.data;
   }
 
+  async getConversation(token: string, conversationId: string): Promise<any> {
+    try {
+      const response = await this.client.get(`/conversations/${conversationId}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      return response.data;
+    } catch (error: any) {
+      if (error.response?.status === 404) {
+        return null;
+      }
+      throw error;
+    }
+  }
+
   async saveConversation(
     token: string,
     conversationId: string,
