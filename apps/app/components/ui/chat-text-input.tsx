@@ -41,6 +41,13 @@ const ChatTextInput = React.forwardRef<TextInput, ChatTextInputProps>(
       setHeight(minHeight);
     }, [minHeight]);
 
+    // Reset height when switching from fullscreen to normal (when auto-height is re-enabled)
+    React.useEffect(() => {
+      if (!disableAutoHeight) {
+        setHeight(minHeight);
+      }
+    }, [disableAutoHeight, minHeight]);
+
     const handleKeyPress = (
       e: NativeSyntheticEvent<TextInputKeyPressEventData>
     ) => {
