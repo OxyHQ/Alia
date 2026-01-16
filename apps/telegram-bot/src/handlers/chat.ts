@@ -50,6 +50,7 @@ export async function handleMessage(ctx: Context) {
       headers: {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${telegramUser.sessionToken}`,
+        'X-Telegram-Bot': 'true',
       },
       body: JSON.stringify({
         messages
