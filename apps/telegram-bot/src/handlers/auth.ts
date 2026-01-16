@@ -171,6 +171,15 @@ export async function handleStatus(ctx: Context) {
       return;
     }
 
+    // React with chart emoji
+    try {
+      if ('message' in ctx && ctx.message) {
+        await ctx.react('📊');
+      }
+    } catch (reactionError) {
+      console.log('[Status] Could not react to message:', reactionError);
+    }
+
     try {
       const user = await apiClient.getMe(telegramUser.sessionToken);
       const credits = await apiClient.getCredits(telegramUser.sessionToken);
