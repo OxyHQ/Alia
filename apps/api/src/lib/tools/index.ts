@@ -5,3 +5,4 @@ export { getCurrentDateTool } from './date';
 export { createGoogleSearchTool, type WebSearchResult, type WebSearchResponse } from './google-search';
 export { getTimelineTool, searchKnowledgeBaseTool } from './alias-tools';
 export { scrapeURLTool } from './web-reader';
+export { saveUserMemoryTool, updateUserPreferencesTool, updateUserContextTool } from './user-memory';

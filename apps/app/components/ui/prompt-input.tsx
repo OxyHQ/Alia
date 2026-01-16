@@ -9,7 +9,6 @@ import React, {
 import { View, Pressable, type TextInput as RNTextInput, KeyboardAvoidingView, Platform, Modal } from "react-native";
 import { ChatTextInput } from "./chat-text-input";
 import { Maximize2 } from "lucide-react-native";
-import { PortalHost } from "@rn-primitives/portal";
 
 type PromptInputContextType = {
   isLoading: boolean;
@@ -152,13 +151,11 @@ function PromptInput({
         onRequestClose={() => setShowFullscreen(false)}
         statusBarTranslucent
       >
-        <View className="flex-1 bg-background" accessible={false} importantForAccessibility="no-hide-descendants">
+        <View className="flex-1 bg-background">
           {/* Top right - Minimize icon */}
           <Pressable
             onPress={() => setShowFullscreen(false)}
             className="absolute top-4 right-4 z-50 p-2 active:opacity-70 bg-background/80 rounded-full"
-            accessibilityRole="button"
-            accessibilityLabel="Close fullscreen"
           >
             <Maximize2 size={20} className="text-foreground" />
           </Pressable>
@@ -167,11 +164,6 @@ function PromptInput({
           <View className="flex-1">
             {children}
           </View>
-        </View>
-
-        {/* Portal host for dropdowns inside modal - positioned outside main view for proper layering */}
-        <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 100000 }} pointerEvents="box-none">
-          <PortalHost name="fullscreen-modal" />
         </View>
       </Modal>
     </PromptInputContext.Provider>
@@ -239,7 +231,7 @@ function PromptInputActions({
     <View
       className={cn(
         "flex-row items-center gap-2",
-        isFullscreen && "absolute bottom-4 left-4 right-4 max-w-2xl mx-auto rounded-full border border-border bg-background px-4 py-3 z-[10001]",
+        isFullscreen && "absolute bottom-4 left-4 right-4 max-w-2xl mx-auto rounded-full border border-border bg-background px-4 py-3",
         className
       )}
       {...props}

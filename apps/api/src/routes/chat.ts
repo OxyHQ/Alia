@@ -8,7 +8,7 @@ import { createOpenAI } from '@ai-sdk/openai';
 import { createAnthropic } from '@ai-sdk/anthropic';
 import { getBestAvailableKey, loadKeys } from '../lib/load-balancer.js';
 import type { KeyConfig } from '../lib/types.js';
-import { getCurrentDateTool, createGoogleSearchTool, getTimelineTool, searchKnowledgeBaseTool, scrapeURLTool } from '../lib/tools/index.js';
+import { getCurrentDateTool, createGoogleSearchTool, getTimelineTool, searchKnowledgeBaseTool, scrapeURLTool, saveUserMemoryTool, updateUserPreferencesTool, updateUserContextTool } from '../lib/tools/index.js';
 import { optionalAuth } from '../middleware/auth.js';
 import { User } from '../models/user.js';
 import { UserMemory } from '../models/user-memory.js';
@@ -63,14 +63,6 @@ function getAIModel(keyConfig: KeyConfig) {
 
 // Function to build personalized system prompt
 function buildSystemPrompt(user?: IUser, memory?: IUserMemory): string {
-  console.log('[buildSystemPrompt] Input:', {
-    hasUser: !!user,
-    userName: user?.name,
-    hasMemory: !!memory,
-    memoryPrefs: memory?.preferences,
-    memoryCtx: memory?.context
-  });
-
   let prompt = ALIA_SYSTEM_PROMPT;
 
   // Add user personalization if authenticated
@@ -120,11 +112,9 @@ function buildSystemPrompt(user?: IUser, memory?: IUserMemory): string {
     // Prepend user context to the system prompt
     if (userContext.length > 0) {
       prompt = `# USER CONTEXT\n\n${userContext.join('\n')}\n\n---\n\n${prompt}`;
-      console.log('[buildSystemPrompt] Added user context:', userContext);
     }
   }
 
-  console.log('[buildSystemPrompt] Final prompt length:', prompt.length);
   return prompt;
 }
 
@@ -220,7 +210,25 @@ Para informar sobre la fiabilidad de las fuentes que he consultado.
 - \`getTimeline\`: Acceso a cronologías precisas.
 - \`searchKnowledgeBase\`: Consulta de la base de conocimientos interna.
 
-Estoy aquí para explorar contigo cualquier tema con la profundidad que merece.
+### Herramientas de memoria personal (solo para usuarios autenticados):
+- \`saveUserMemory\`: **CRÍTICO** - Guarda información importante sobre el usuario para recordarla en futuras conversaciones. Úsala SIEMPRE que el usuario comparta:
+  * Preferencias personales (comidas favoritas, colores, música, etc.)
+  * Información personal (ocupación, familia, mascotas, hobbies, etc.)
+  * Metas u objetivos
+  * Experiencias o anécdotas importantes
+  * Cualquier dato que el usuario quiera que recuerdes
+
+  Ejemplos de uso:
+  - Usuario: "Me gusta la fresa" → \`saveUserMemory({key: "fruta_favorita", value: "fresa", category: "preferencia"})\`
+  - Usuario: "Tengo un perro llamado Max" → \`saveUserMemory({key: "mascota", value: "perro llamado Max", category: "personal"})\`
+  - Usuario: "Trabajo como ingeniero" → \`saveUserMemory({key: "ocupacion", value: "ingeniero", category: "personal"})\`
+
+  **IMPORTANTE**: Debes usar esta herramienta de forma proactiva cada vez que el usuario comparta información personal. No preguntes si quiere que lo recuerdes, simplemente guárdalo y confirma de manera natural que lo recordarás.
+
+- \`updateUserPreferences\`: Actualiza preferencias de comunicación (idioma, tono, longitud de respuestas, intereses).
+- \`updateUserContext\`: Actualiza contexto general del usuario (ocupación, ubicación, zona horaria, biografía).
+
+Estoy aquí para explorar contigo cualquier tema con la profundidad que merece, y para conocerte mejor y recordar lo que es importante para ti.
 `;
 
 router.post('/', optionalAuth, async (req, res) => {
@@ -231,14 +239,6 @@ router.post('/', optionalAuth, async (req, res) => {
       res.status(400).json({ error: 'No messages provided' });
       return;
     }
-
-    // Debug: Log authentication status
-    console.log('[Chat] Auth check:', {
-      hasAuthHeader: !!req.headers.authorization,
-      hasReqUser: !!req.user,
-      userId: req.user?.id,
-      email: req.user?.email
-    });
 
     // Fetch user data and memory if authenticated
     let user: IUser | null = null;
@@ -259,17 +259,6 @@ router.post('/', optionalAuth, async (req, res) => {
           });
           await memory.save();
         }
-
-        // Debug: Log user and memory data
-        console.log('[Chat] User data:', {
-          hasUser: !!user,
-          userName: user?.name?.full,
-          userEmail: user?.email,
-          hasMemory: !!memory,
-          memoryPreferences: memory?.preferences,
-          memoryContext: memory?.context,
-          memoryCount: memory?.memories?.length || 0
-        });
 
         if (user) {
           // Refresh credits if needed
@@ -306,7 +295,13 @@ router.post('/', optionalAuth, async (req, res) => {
       getTimeline: getTimelineTool,
       searchKnowledgeBase: searchKnowledgeBaseTool,
       scrapeURL: scrapeURLTool,
-      ...(googleApiKey ? { googleSearch: createGoogleSearchTool(googleApiKey) } : {})
+      ...(googleApiKey ? { googleSearch: createGoogleSearchTool(googleApiKey) } : {}),
+      // Add memory tools for authenticated users
+      ...(req.user ? {
+        saveUserMemory: saveUserMemoryTool(req.user.id),
+        updateUserPreferences: updateUserPreferencesTool(req.user.id),
+        updateUserContext: updateUserContextTool(req.user.id)
+      } : {})
     };
 
     // Build personalized system prompt
@@ -329,12 +324,10 @@ router.post('/', optionalAuth, async (req, res) => {
     // Stream all events including tool calls
     let totalTokensUsed = 0;
     for await (const chunk of result.fullStream) {
-      // Debug: log chunk type
-      console.log('[Chat Stream]', chunk.type);
-
       // Track token usage
-      if (chunk.type === 'finish' && (chunk as any).usage) {
-        totalTokensUsed = (chunk as any).usage.totalTokens || 0;
+      if (chunk.type === 'finish' && 'usage' in chunk && chunk.usage) {
+        const usage = chunk.usage as { totalTokens?: number };
+        totalTokensUsed = usage.totalTokens || 0;
       }
 
       // Send each event as SSE

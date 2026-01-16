@@ -8,20 +8,12 @@ import { PromptInput, PromptInputTextarea, PromptInputActions, usePromptInput } 
 import { Button } from "@/components/ui/button";
 import type { ScrollView as GHScrollView } from "react-native-gesture-handler";
 import { useStore } from "@/lib/globalStore";
-import { Plus, Globe, ArrowUp, Square, Search, ShoppingBag, ImageIcon, Sparkles, MoreHorizontal, BookOpen, ExternalLink, PenTool, X, FileText } from "lucide-react-native";
+import { Plus, Globe, ArrowUp, Square, Search, ShoppingBag, ImageIcon, Sparkles, MoreHorizontal, BookOpen, ExternalLink, PenTool, X, FileText, Ghost } from "lucide-react-native";
 import { generateAPIUrl } from "@/lib/generate-api-url";
 import { useImagePicker } from "@/hooks/useImagePicker";
 import * as DocumentPicker from 'expo-document-picker';
 import { AttachmentPreview } from "@/components/attachment-preview";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-  DropdownMenuSub,
-  DropdownMenuSubTrigger,
-  DropdownMenuSubContent,
-} from "@/components/ui/dropdown-menu";
+import { Dropdown, MenuItem, SubMenu } from "@/components/ui/dropdown";
 import { Text } from "@/components/ui/text";
 import { useLocalSearchParams } from "expo-router";
 import { useRolesStore } from "@/lib/stores/roles-store";
@@ -77,6 +69,7 @@ const ChatConversationPage = () => {
   const [selectedModel, setSelectedModel] = useState("alia-v1");
   const [searchMode, setSearchMode] = useState(false);
   const [agentMode, setAgentMode] = useState(false);
+  const [ghostMode, setGhostMode] = useState(false);
   const [inputValue, setInputValue] = useState("");
   const [initialMessageSent, setInitialMessageSent] = useState(false);
   const [loadingImageUris, setLoadingImageUris] = useState<Set<string>>(new Set());
@@ -270,6 +263,12 @@ const ChatConversationPage = () => {
     Alert.alert('Agent mode', newValue ? 'Enabled - I can now perform actions autonomously' : 'Disabled');
   };
 
+  const handleGhostMode = () => {
+    const newValue = !ghostMode;
+    setGhostMode(newValue);
+    Alert.alert('Ghost mode', newValue ? 'Enabled - Conversations will not be saved' : 'Disabled - Conversations will be saved normally');
+  };
+
   const handleAddSources = () => {
     Alert.alert('Add sources', 'You can add URLs, documents, or other sources for me to reference.');
   };
@@ -317,16 +316,16 @@ const ChatConversationPage = () => {
     }
   }, [initialMessage, initialMessageSent, isLoading, append]);
 
-  // Auto-save conversation after messages change
+  // Auto-save conversation after messages change (only if ghost mode is disabled)
   useEffect(() => {
-    if (id && messages.length > 0 && !isLoading) {
+    if (id && messages.length > 0 && !isLoading && !ghostMode) {
       const timeoutId = setTimeout(() => {
         useStore.getState().saveConversation(id, messages, conversationTitle || undefined);
-      }, 2000); // Debounce to avoid saving too frequently
+      }, 2000);
 
       return () => clearTimeout(timeoutId);
     }
-  }, [id, messages, isLoading, conversationTitle]);
+  }, [id, messages, isLoading, conversationTitle, ghostMode]);
 
   return (
     <View className="flex-1 bg-background">
@@ -334,6 +333,8 @@ const ChatConversationPage = () => {
         title="Alia"
         selectedModel={selectedModel}
         onModelChange={setSelectedModel}
+        onGhostModePress={handleGhostMode}
+        ghostModeActive={ghostMode}
       />
 
       <View className="flex-1">
@@ -348,8 +349,9 @@ const ChatConversationPage = () => {
 
           <View className="p-4 bg-background border-t border-border">
             <View className="mx-auto w-full max-w-3xl flex-row items-end gap-2">
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
+              <Dropdown
+                align="start"
+                trigger={
                   <Button
                     variant="outline"
                     size="icon"
@@ -357,18 +359,17 @@ const ChatConversationPage = () => {
                   >
                     <Plus size={20} className="text-muted-foreground" />
                   </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="start" className="w-48">
-                  <DropdownMenuItem onPress={handleAddPhotos}>
-                    <ImageIcon size={16} className="text-muted-foreground" />
-                    <Text>Add photos</Text>
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onPress={handleAddDocument}>
-                    <FileText size={16} className="text-muted-foreground" />
-                    <Text>Add document</Text>
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
+                }
+              >
+                <MenuItem onPress={handleAddPhotos}>
+                  <ImageIcon size={14} className="text-muted-foreground" />
+                  <Text className="text-sm">Add photos</Text>
+                </MenuItem>
+                <MenuItem onPress={handleAddDocument}>
+                  <FileText size={14} className="text-muted-foreground" />
+                  <Text className="text-sm">Add document</Text>
+                </MenuItem>
+              </Dropdown>
               <View className="flex-1">
                 <PromptInput
                   value={inputValue}
@@ -400,6 +401,16 @@ const ChatConversationPage = () => {
                         <Globe size={16} className={searchMode ? "text-primary-foreground" : "text-muted-foreground"} />
                       </Button>
 
+                      {ghostMode && (
+                        <View className="h-8 rounded-full px-3 flex-row items-center gap-1.5" style={{ backgroundColor: '#00b2ff20' }}>
+                          <Ghost size={14} color="#00b2ff" />
+                          <Text className="text-xs font-medium" style={{ color: '#00b2ff' }}>Ghost</Text>
+                          <Pressable onPress={handleGhostMode} className="active:opacity-70">
+                            <X size={12} color="#00b2ff" />
+                          </Pressable>
+                        </View>
+                      )}
+
                       {/* Role Chip */}
                       {activeRole && (
                         <View className="h-8 rounded-full px-3 bg-primary/10 flex-row items-center gap-1.5">
@@ -413,8 +424,9 @@ const ChatConversationPage = () => {
                         </View>
                       )}
 
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
+                      <Dropdown
+                        align="start"
+                        trigger={
                           <Button
                             variant="outline"
                             size="icon"
@@ -422,50 +434,50 @@ const ChatConversationPage = () => {
                           >
                             <MoreHorizontal size={16} className="text-muted-foreground" />
                           </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="start" className="w-56" portalHost="fullscreen-modal">
-                          <DropdownMenuItem onPress={handleDeepResearch}>
-                            <Search size={16} className="text-muted-foreground" />
-                            <Text>Deep research</Text>
-                          </DropdownMenuItem>
-                          <DropdownMenuItem onPress={handleShoppingResearch}>
-                            <ShoppingBag size={16} className="text-muted-foreground" />
-                            <Text>Shopping research</Text>
-                          </DropdownMenuItem>
-                          <DropdownMenuItem onPress={handleCreateImage}>
-                            <ImageIcon size={16} className="text-muted-foreground" />
-                            <Text>Create image</Text>
-                          </DropdownMenuItem>
-                          <DropdownMenuItem onPress={handleAgentMode}>
-                            <Sparkles size={16} className="text-muted-foreground" />
-                            <Text>Agent mode</Text>
-                          </DropdownMenuItem>
-                          <DropdownMenuSub>
-                            <DropdownMenuSubTrigger className="rounded-lg px-2.5 gap-2">
-                              <MoreHorizontal size={16} className="text-muted-foreground" />
-                              <Text>More</Text>
-                            </DropdownMenuSubTrigger>
-                            <DropdownMenuSubContent portalHost="fullscreen-modal">
-                              <DropdownMenuItem onPress={handleAddSources}>
-                                <ExternalLink size={16} className="text-muted-foreground" />
-                                <Text>Add sources</Text>
-                              </DropdownMenuItem>
-                              <DropdownMenuItem onPress={handleStudyAndLearn}>
-                                <BookOpen size={16} className="text-muted-foreground" />
-                                <Text>Study and learn</Text>
-                              </DropdownMenuItem>
-                              <DropdownMenuItem onPress={handleWebSearch}>
-                                <Globe size={16} className="text-muted-foreground" />
-                                <Text>Web search</Text>
-                              </DropdownMenuItem>
-                              <DropdownMenuItem onPress={handleCanvas}>
-                                <PenTool size={16} className="text-muted-foreground" />
-                                <Text>Canvas</Text>
-                              </DropdownMenuItem>
-                            </DropdownMenuSubContent>
-                          </DropdownMenuSub>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
+                        }
+                      >
+                        <MenuItem onPress={handleDeepResearch}>
+                          <Search size={14} className="text-muted-foreground" />
+                          <Text className="text-sm">Deep research</Text>
+                        </MenuItem>
+                        <MenuItem onPress={handleShoppingResearch}>
+                          <ShoppingBag size={14} className="text-muted-foreground" />
+                          <Text className="text-sm">Shopping research</Text>
+                        </MenuItem>
+                        <MenuItem onPress={handleCreateImage}>
+                          <ImageIcon size={14} className="text-muted-foreground" />
+                          <Text className="text-sm">Create image</Text>
+                        </MenuItem>
+                        <MenuItem onPress={handleAgentMode}>
+                          <Sparkles size={14} className="text-muted-foreground" />
+                          <Text className="text-sm">Agent mode</Text>
+                        </MenuItem>
+                        <SubMenu
+                          trigger={
+                            <>
+                              <MoreHorizontal size={14} className="text-muted-foreground" />
+                              <Text className="text-sm">More</Text>
+                            </>
+                          }
+                        >
+                          <MenuItem onPress={handleAddSources}>
+                            <ExternalLink size={14} className="text-muted-foreground" />
+                            <Text className="text-sm">Add sources</Text>
+                          </MenuItem>
+                          <MenuItem onPress={handleStudyAndLearn}>
+                            <BookOpen size={14} className="text-muted-foreground" />
+                            <Text className="text-sm">Study and learn</Text>
+                          </MenuItem>
+                          <MenuItem onPress={handleWebSearch}>
+                            <Globe size={14} className="text-muted-foreground" />
+                            <Text className="text-sm">Web search</Text>
+                          </MenuItem>
+                          <MenuItem onPress={handleCanvas}>
+                            <PenTool size={14} className="text-muted-foreground" />
+                            <Text className="text-sm">Canvas</Text>
+                          </MenuItem>
+                        </SubMenu>
+                      </Dropdown>
                     </View>
 
                     <SubmitButtonWrapper

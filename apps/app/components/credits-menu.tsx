@@ -7,19 +7,11 @@ import {
   DropdownMenuContent,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { cn } from "@/lib/utils";
 import { useCreditsStore } from "@/lib/stores/credits-store";
 import { useEffect } from "react";
 import { useAuthStore } from "@/lib/stores/auth-store";
 
-interface CreditsMenuProps {
-  credits?: number;
-  freeCredits?: number;
-  dailyRefresh?: number;
-  refreshTime?: string;
-}
-
-export function CreditsMenu({}: CreditsMenuProps) {
+export function CreditsMenu() {
   const { credits, freeCredits, dailyRefresh, fetchCredits } = useCreditsStore();
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
 

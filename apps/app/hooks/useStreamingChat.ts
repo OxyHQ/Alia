@@ -3,6 +3,7 @@ import { fetch as expoFetch } from 'expo/fetch';
 import * as Haptics from 'expo-haptics';
 import { useAuthStore } from '@/lib/stores/auth-store';
 import { useCreditsStore } from '@/lib/stores/credits-store';
+import type { Message } from '@/lib/globalStore';
 
 export interface ToolInvocation {
   toolCallId: string;
@@ -10,13 +11,6 @@ export interface ToolInvocation {
   state: 'partial-call' | 'call' | 'result';
   args?: any;
   result?: any;
-}
-
-export interface Message {
-  id?: string;
-  role: 'user' | 'assistant';
-  content: string;
-  toolInvocations?: ToolInvocation[];
 }
 
 // Extract title from [TITLE]...[/TITLE] tags
@@ -43,7 +37,6 @@ export function useStreamingChat(apiUrl: string, activeRole?: any) {
     setIsLoading(true);
     setError(null);
 
-    // Add user message
     const userMessage = { ...message, id: Date.now().toString() };
     setMessages((prev) => [...prev, userMessage]);
 
@@ -83,19 +76,33 @@ Use this role to guide your responses, maintaining the specified tone, style, an
       }
 
       // Build messages array with system message if present
+      // Include tool invocations for proper conversation context
+      const conversationMessages = [...messages, userMessage];
+
+      const formatMessage = (m: Message | { role: string; content: string }) => {
+        const msg: any = {
+          role: m.role,
+          content: m.content,
+        };
+        // Include tool invocations if present for assistant messages
+        if ('toolInvocations' in m && m.role === 'assistant' && m.toolInvocations && m.toolInvocations.length > 0) {
+          msg.toolInvocations = m.toolInvocations.map((inv: ToolInvocation) => ({
+            toolCallId: inv.toolCallId,
+            toolName: inv.toolName,
+            state: inv.state,
+            args: inv.args,
+            result: inv.result,
+          }));
+        }
+        return msg;
+      };
+
       const messagesToSend = systemMessage
         ? [
             { role: 'system', content: systemMessage },
-            ...messages,
-            userMessage,
-          ].map((m) => ({
-            role: m.role,
-            content: m.content,
-          }))
-        : [...messages, userMessage].map((m) => ({
-            role: m.role,
-            content: m.content,
-          }));
+            ...conversationMessages,
+          ].map(formatMessage)
+        : conversationMessages.map(formatMessage);
 
       const response = await expoFetch(apiUrl, {
         method: 'POST',
@@ -160,7 +167,6 @@ Use this role to guide your responses, maintaining the specified tone, style, an
 
             try {
               const parsed = JSON.parse(data);
-              console.log('[SSE Event]', parsed.type, parsed);
 
               // Handle text deltas
               if (parsed.type === 'text-delta' && parsed.text) {
@@ -249,7 +255,6 @@ Use this role to guide your responses, maintaining the specified tone, style, an
 
               // Handle credit updates
               if (parsed.type === 'credit-update') {
-                console.log('[Credit Update]', parsed);
                 updateCredits(parsed.credits);
               }
             } catch (e) {
