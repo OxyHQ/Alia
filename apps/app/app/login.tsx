@@ -7,10 +7,12 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { toast } from '@/components/sonner';
 import apiClient from '@/lib/api/client';
 import { useAuthStore } from '@/lib/stores/auth-store';
+import { useTranslation } from '@/hooks/useTranslation';
 
 export default function LoginScreen() {
   const router = useRouter();
   const login = useAuthStore((state) => state.login);
+  const { t } = useTranslation();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -20,19 +22,19 @@ export default function LoginScreen() {
     setError('');
 
     if (!email.trim()) {
-      const errorMsg = 'Please enter your email address';
+      const errorMsg = t('auth.emailRequired');
       setError(errorMsg);
       if (Platform.OS !== 'web') {
-        Alert.alert('Login Error', errorMsg);
+        Alert.alert(t('auth.loginError'), errorMsg);
       }
       return;
     }
 
     if (!password.trim()) {
-      const errorMsg = 'Please enter your password';
+      const errorMsg = t('auth.passwordRequired');
       setError(errorMsg);
       if (Platform.OS !== 'web') {
-        Alert.alert('Login Error', errorMsg);
+        Alert.alert(t('auth.loginError'), errorMsg);
       }
       return;
     }
@@ -55,11 +57,11 @@ export default function LoginScreen() {
       router.replace('/');
     } catch (error: any) {
       console.error('Login error:', error);
-      const errorMessage = error.response?.data?.error || 'Failed to login. Please try again.';
+      const errorMessage = error.response?.data?.error || t('auth.failedToLogin');
       setError(errorMessage);
 
       if (Platform.OS !== 'web') {
-        Alert.alert('Login Failed', errorMessage);
+        Alert.alert(t('auth.loginFailed'), errorMessage);
       }
     } finally {
       setLoading(false);
@@ -67,7 +69,8 @@ export default function LoginScreen() {
   };
 
   const handleSocialLogin = (provider: string) => {
-    toast.info(`${provider.charAt(0).toUpperCase() + provider.slice(1)} login will be available soon`);
+    const providerName = provider.charAt(0).toUpperCase() + provider.slice(1);
+    toast.info(t('auth.socialLoginSoon', { provider: providerName }));
   };
 
   return (
@@ -77,10 +80,10 @@ export default function LoginScreen() {
       {/* Header */}
       <View className="space-y-2 mb-6">
         <Text className="text-3xl font-bold text-foreground tracking-tight">
-          Sign in or sign up
+          {t('auth.signInOrSignUp')}
         </Text>
         <Text className="text-base text-muted-foreground">
-          to continue to Alia
+          {t('auth.continueTo')}
         </Text>
       </View>
 
@@ -93,7 +96,7 @@ export default function LoginScreen() {
         >
           <View className="flex-row items-center gap-2">
             <MaterialCommunityIcons name="google" size={18} color="#0F172A" />
-            <Text className="text-sm font-medium">Continue with Google</Text>
+            <Text className="text-sm font-medium">{t('auth.continueWithGoogle')}</Text>
           </View>
         </Button>
 
@@ -104,7 +107,7 @@ export default function LoginScreen() {
         >
           <View className="flex-row items-center gap-2">
             <MaterialCommunityIcons name="microsoft" size={18} color="#0F172A" />
-            <Text className="text-sm font-medium">Continue with Microsoft</Text>
+            <Text className="text-sm font-medium">{t('auth.continueWithMicrosoft')}</Text>
           </View>
         </Button>
 
@@ -115,7 +118,7 @@ export default function LoginScreen() {
         >
           <View className="flex-row items-center gap-2">
             <MaterialCommunityIcons name="apple" size={18} color="#0F172A" />
-            <Text className="text-sm font-medium">Continue with Apple</Text>
+            <Text className="text-sm font-medium">{t('auth.continueWithApple')}</Text>
           </View>
         </Button>
       </View>
@@ -123,7 +126,7 @@ export default function LoginScreen() {
       {/* Divider */}
       <View className="flex-row items-center gap-3 mb-4">
         <View className="flex-1 h-px bg-border" />
-        <Text className="text-sm text-muted-foreground">OR</Text>
+        <Text className="text-sm text-muted-foreground">{t('common.or')}</Text>
         <View className="flex-1 h-px bg-border" />
       </View>
 
@@ -132,7 +135,7 @@ export default function LoginScreen() {
         <AuthError message={error} />
 
         <AuthInput
-          placeholder="Email"
+          placeholder={t('auth.email')}
           value={email}
           onChangeText={(text) => {
             setEmail(text);
@@ -145,7 +148,7 @@ export default function LoginScreen() {
         />
 
         <AuthInput
-          placeholder="Password"
+          placeholder={t('auth.password')}
           value={password}
           onChangeText={(text) => {
             setPassword(text);
@@ -159,7 +162,7 @@ export default function LoginScreen() {
         <View className="flex-row justify-end">
           <Link href="/(app)/forgot-password" asChild>
             <Pressable>
-              <Text className="text-primary text-sm font-medium">Forgot password?</Text>
+              <Text className="text-primary text-sm font-medium">{t('auth.forgotPassword')}</Text>
             </Pressable>
           </Link>
         </View>
@@ -168,9 +171,9 @@ export default function LoginScreen() {
           onPress={handleLogin}
           disabled={loading || !email || !password}
           isLoading={loading}
-          loadingText="Signing in..."
+          loadingText={t('auth.signingIn')}
         >
-          Sign in
+          {t('auth.signIn')}
         </AuthButton>
       </View>
 
@@ -178,11 +181,11 @@ export default function LoginScreen() {
       <View className="mt-6">
         <View className="flex-row items-center justify-center gap-1">
           <Text className="text-muted-foreground text-sm">
-            Don't have an account?
+            {t('auth.dontHaveAccount')}
           </Text>
           <Link href="/(app)/register" asChild>
             <Pressable>
-              <Text className="text-primary text-sm font-medium">Sign up</Text>
+              <Text className="text-primary text-sm font-medium">{t('auth.signUp')}</Text>
             </Pressable>
           </Link>
         </View>
@@ -191,7 +194,7 @@ export default function LoginScreen() {
       {/* Privacy note */}
       <View className="mt-8">
         <Text className="text-xs text-muted-foreground text-center leading-4">
-          By continuing, you agree to Alia's Terms of Service and Privacy Policy
+          {t('auth.termsAndPrivacy')}
         </Text>
       </View>
     </AuthContainer>
