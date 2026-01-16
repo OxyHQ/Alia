@@ -40,9 +40,13 @@ interface StoreState {
   setBottomChatHeightHandler: (value: boolean) => void;
   bottomChatHeightHandler: boolean;
   chatId: ChatIdState;
-  setChatId: (value: { id: string; from: "history" | "newChat" | "sidebar" | "url" }) => void;
+  setChatId: (value: { id: string; from: "history" | "newChat" | "sidebar" | "url" } | null) => void;
   setFocusKeyboard: (value: boolean) => void;
   focusKeyboard: boolean;
+
+  pendingInitialMessage: string | null;
+  setPendingInitialMessage: (message: string) => void;
+  clearPendingInitialMessage: () => void;
 
   conversations: Conversation[];
   conversationsLoaded: boolean;
@@ -92,6 +96,10 @@ export const useStore = create<StoreState>((set, get) => ({
   setChatId: (value) => set({ chatId: value }),
   focusKeyboard: false,
   setFocusKeyboard: (value: boolean) => set({ focusKeyboard: value }),
+
+  pendingInitialMessage: null,
+  setPendingInitialMessage: (message: string) => set({ pendingInitialMessage: message }),
+  clearPendingInitialMessage: () => set({ pendingInitialMessage: null }),
 
   conversations: [],
   conversationsLoaded: false,
