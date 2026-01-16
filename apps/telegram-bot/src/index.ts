@@ -1,4 +1,12 @@
-import 'dotenv/config';
+// Load dotenv only in development (App Platform injects env vars directly)
+if (process.env.NODE_ENV !== 'production') {
+  try {
+    require('dotenv/config');
+  } catch (e) {
+    // dotenv not available, environment variables should be set by platform
+  }
+}
+
 import { Telegraf } from 'telegraf';
 import { handleStart, handleLogout, handleStatus } from './handlers/auth';
 import { handleMessage, handleNewConversation, handleHistory } from './handlers/chat';
