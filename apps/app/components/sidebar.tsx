@@ -23,7 +23,6 @@ import {
   BrainCircuit,
 } from "lucide-react-native";
 import { useStore } from "@/lib/globalStore";
-import { generateUUID } from "@/lib/utils";
 import { useRouter } from "expo-router";
 import { useAuthStore } from "@/lib/stores/auth-store";
 import { useProjectsStore } from "@/lib/stores/projects-store";
@@ -49,15 +48,11 @@ export const Sidebar = React.memo(function Sidebar() {
   const createProject = useProjectsStore((state) => state.createProject);
 
   const handleNewChat = React.useCallback(() => {
-    const newChatId = generateUUID();
-    useStore.getState().setChatId({ id: newChatId, from: "newChat" });
-    router.push(`/(app)/c/${newChatId}`);
+    router.push("/(app)/");
   }, [router]);
 
   const handleLogoPress = React.useCallback(() => {
-    const newChatId = generateUUID();
-    useStore.getState().setChatId({ id: newChatId, from: "newChat" });
-    router.push(`/(app)/c/${newChatId}`);
+    router.push("/(app)/");
   }, [router]);
 
   const handleSelectConversation = React.useCallback((id: string) => {
