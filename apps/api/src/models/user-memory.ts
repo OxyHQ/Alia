@@ -52,8 +52,8 @@ const UserMemorySchema = new Schema<IUserMemory>({
   timestamps: true
 });
 
-// Index for faster lookups
-UserMemorySchema.index({ userId: 1 });
+// Note: userId already has a unique index from the schema definition (unique: true)
+// No need for explicit index here
 
 export const UserMemory: Model<IUserMemory> =
   mongoose.models.UserMemory || mongoose.model<IUserMemory>('UserMemory', UserMemorySchema);

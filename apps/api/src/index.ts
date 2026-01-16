@@ -3,6 +3,7 @@ import cors from 'cors';
 import dotenv from 'dotenv';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
+import { connectDB } from './lib/db.js';
 
 // Importar rutas
 import healthRouter from './routes/health.js';
@@ -49,8 +50,6 @@ app.use(cors({
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// MongoDB connection is handled by db.ts when needed
-
 // Rutas
 app.use('/api/health', healthRouter);
 app.use('/api/auth', authRouter);
@@ -87,6 +86,14 @@ app.use((err: any, req: express.Request, res: express.Response, next: express.Ne
   res.status(500).json({ error: 'Something went wrong!' });
 });
 
-app.listen(PORT, () => {
-  console.log(`🚀 API Server running on http://localhost:${PORT}`);
-});
+// Connect to MongoDB before starting the server
+connectDB()
+  .then(() => {
+    app.listen(PORT, () => {
+      console.log(`🚀 API Server running on http://localhost:${PORT}`);
+    });
+  })
+  .catch((error) => {
+    console.error('Failed to connect to MongoDB:', error);
+    process.exit(1);
+  });

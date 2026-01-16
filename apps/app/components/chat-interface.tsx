@@ -112,12 +112,12 @@ export const ChatInterface = forwardRef<ScrollView, ChatInterfaceProps>(
     useEffect(() => {
       // Scroll whenever messages change or loading state changes
       const timer = setTimeout(() => {
-        if (ref && 'current' in ref && ref.current) {
-          ref.current.scrollToEnd({ animated: true });
+        if (scrollViewRef && scrollViewRef.current) {
+          scrollViewRef.current.scrollToEnd({ animated: true });
         }
-      }, 150);
+      }, 100);
       return () => clearTimeout(timer);
-    }, [messages.length, isLoading]);
+    }, [messages, isLoading, scrollViewRef]);
 
     const containerClassName = cn(
       "max-w-3xl mx-auto w-full",

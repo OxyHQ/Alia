@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { User } from '../models/user.js';
 import { signToken } from '../lib/jwt.js';
 import { authenticateToken } from '../middleware/auth.js';
+import { connectDB } from '../lib/db.js';
 import { z } from 'zod';
 
 const router = Router();
@@ -25,6 +26,9 @@ const loginSchema = z.object({
  */
 router.post('/register', async (req, res) => {
   try {
+    // Connect to database
+    await connectDB();
+
     // Validate request body
     const validatedData = registerSchema.parse(req.body);
 
@@ -78,6 +82,9 @@ router.post('/register', async (req, res) => {
  */
 router.post('/login', async (req, res) => {
   try {
+    // Connect to database
+    await connectDB();
+
     // Validate request body
     const validatedData = loginSchema.parse(req.body);
 
@@ -126,6 +133,9 @@ router.post('/login', async (req, res) => {
  */
 router.get('/me', authenticateToken, async (req, res) => {
   try {
+    // Connect to database
+    await connectDB();
+
     if (!req.user) {
       res.status(401).json({ error: 'Not authenticated' });
       return;
@@ -162,14 +172,111 @@ router.post('/logout', authenticateToken, async (req, res) => {
   res.json({ message: 'Logged out successfully' });
 });
 
-router.post('/forgot-password', async (req, res) => {
-  // TODO: Implementar recuperación de contraseña
-  res.status(501).json({ message: 'To be implemented' });
+const forgotPasswordSchema = z.object({
+  email: z.string().email('Invalid email format'),
 });
 
+const resetPasswordSchema = z.object({
+  token: z.string().min(1, 'Reset token is required'),
+  password: z.string().min(8, 'Password must be at least 8 characters'),
+});
+
+/**
+ * POST /api/auth/forgot-password
+ * Send password reset email
+ */
+router.post('/forgot-password', async (req, res) => {
+  try {
+    // Connect to database
+    await connectDB();
+
+    // Validate request body
+    const validatedData = forgotPasswordSchema.parse(req.body);
+
+    // Find user by email
+    const user = await User.findOne({ email: validatedData.email.toLowerCase() });
+
+    // Always return success even if user doesn't exist (security best practice)
+    if (!user) {
+      res.json({ message: 'If that email is registered, you will receive a password reset link' });
+      return;
+    }
+
+    // Generate reset token (valid for 1 hour)
+    const crypto = await import('crypto');
+    const resetToken = crypto.randomBytes(32).toString('hex');
+    const resetTokenHash = crypto.createHash('sha256').update(resetToken).digest('hex');
+    const resetTokenExpiry = new Date(Date.now() + 3600000); // 1 hour
+
+    // Store hashed token and expiry in user document
+    await User.findByIdAndUpdate(user._id, {
+      resetPasswordToken: resetTokenHash,
+      resetPasswordExpires: resetTokenExpiry,
+    });
+
+    // Create reset URL (in production, this would be your frontend URL)
+    const resetUrl = `${process.env.WEB_URL || 'http://localhost:3000'}/(app)/reset-password?token=${resetToken}`;
+
+    // TODO: In production, send email with resetUrl
+    // For now, log to console
+    console.log('\n=================================');
+    console.log('PASSWORD RESET LINK:');
+    console.log(resetUrl);
+    console.log('=================================\n');
+
+    res.json({ message: 'If that email is registered, you will receive a password reset link' });
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      res.status(400).json({ error: error.errors[0].message });
+    } else {
+      console.error('Forgot password error:', error);
+      res.status(500).json({ error: 'Failed to process password reset request' });
+    }
+  }
+});
+
+/**
+ * POST /api/auth/reset-password
+ * Reset password with token
+ */
 router.post('/reset-password', async (req, res) => {
-  // TODO: Implementar reset de contraseña
-  res.status(501).json({ message: 'To be implemented' });
+  try {
+    // Connect to database
+    await connectDB();
+
+    // Validate request body
+    const validatedData = resetPasswordSchema.parse(req.body);
+
+    // Hash the provided token
+    const crypto = await import('crypto');
+    const resetTokenHash = crypto.createHash('sha256').update(validatedData.token).digest('hex');
+
+    // Find user with matching token and valid expiry
+    const user = await User.findOne({
+      resetPasswordToken: resetTokenHash,
+      resetPasswordExpires: { $gt: new Date() },
+    });
+
+    if (!user) {
+      res.status(400).json({ error: 'Invalid or expired reset token' });
+      return;
+    }
+
+    // Update password (will be hashed by pre-save hook)
+    user.password = validatedData.password;
+    user.resetPasswordToken = undefined;
+    user.resetPasswordExpires = undefined;
+    await user.save();
+
+    res.json({ message: 'Password has been reset successfully' });
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      res.status(400).json({ error: error.errors[0].message });
+    } else {
+      console.error('Reset password error:', error);
+      res.status(500).json({ error: 'Failed to reset password' });
+    }
+  }
 });
 
 export default router;
