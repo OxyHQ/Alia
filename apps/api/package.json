@@ -7,8 +7,8 @@
   "main": "dist/index.js",
   "scripts": {
     "dev": "tsx watch src/index.ts",
-    "build": "echo 'No build needed - using tsx'",
-    "start": "node ../../node_modules/tsx/dist/cli.mjs src/index.ts",
+    "build": "tsx build.ts",
+    "start": "node dist/index.js",
     "lint": "eslint src --ext .ts"
   },
   "dependencies": {
