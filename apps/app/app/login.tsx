@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { View, Text, Alert, Platform, Pressable } from 'react-native';
-import { useRouter, Link } from 'expo-router';
+import { useRouter, Link, useLocalSearchParams } from 'expo-router';
 import { AuthContainer, AuthLogo, AuthInput, AuthButton, AuthError } from '@/components/auth';
 import { Button } from '@/components/ui/button';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -11,6 +11,7 @@ import { useTranslation } from '@/hooks/useTranslation';
 
 export default function LoginScreen() {
   const router = useRouter();
+  const { returnTo } = useLocalSearchParams();
   const login = useAuthStore((state) => state.login);
   const { t } = useTranslation();
   const [email, setEmail] = useState('');
@@ -53,8 +54,12 @@ export default function LoginScreen() {
       // Store user and token in auth store
       login(user, token);
 
-      // Navigate to home screen
-      router.replace('/');
+      // Navigate to returnTo URL if provided, otherwise home screen
+      if (returnTo && typeof returnTo === 'string') {
+        router.replace(returnTo);
+      } else {
+        router.replace('/');
+      }
     } catch (error: any) {
       console.error('Login error:', error);
       const errorMessage = error.response?.data?.error || t('errors.failedToLogin');
