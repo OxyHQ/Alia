@@ -14,8 +14,8 @@ COPY . .
 # Build TypeScript
 RUN npm run build
 
-# Remove dev dependencies after build
-RUN npm prune --production
+# Note: Not pruning dependencies to ensure all runtime deps are available
+# All dependencies are needed for the bot to run
 
 # Expose port (optional, for health checks)
 EXPOSE 3002
