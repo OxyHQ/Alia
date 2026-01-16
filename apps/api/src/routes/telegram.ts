@@ -1,47 +1,10 @@
 import express from 'express';
-import { authenticateToken } from '../middleware/auth';
-import mongoose from 'mongoose';
+import { authenticateToken } from '../middleware/auth.js';
 import crypto from 'crypto';
+import { TelegramUser } from '../models/telegram-user.js';
+import { User } from '../models/user.js';
 
 const router = express.Router();
-
-// Telegram User Schema (should match the one in telegram-bot)
-const TelegramUserSchema = new mongoose.Schema(
-  {
-    telegramId: {
-      type: String,
-      required: true,
-      unique: true,
-      index: true,
-    },
-    userId: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'User',
-      sparse: true,
-    },
-    chatId: {
-      type: String,
-      required: true,
-    },
-    username: String,
-    firstName: String,
-    lastName: String,
-    authToken: String,
-    authTokenExpiry: Date,
-    sessionToken: String,
-    conversationId: String,
-    isAuthenticated: {
-      type: Boolean,
-      default: false,
-    },
-    linkedAt: Date,
-  },
-  {
-    timestamps: true,
-  }
-);
-
-const TelegramUser = mongoose.model('TelegramUser', TelegramUserSchema);
 
 // Helper to generate auth token
 function generateAuthToken(): string {
