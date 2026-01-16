@@ -8,9 +8,17 @@ import { TelegramUser } from '../../models/telegram-user.js';
  */
 export function createSendTelegramTool(userId: string) {
   return tool({
-    description: 'Send a Telegram message to the user. Use this when the user explicitly asks to receive a message or reminder on Telegram.',
+    description: `Envía un mensaje a Telegram del usuario. Usa esta herramienta cuando el usuario pida explícitamente recibir algo por Telegram.
+
+CUÁNDO USAR:
+- "Envíamelo por Telegram"
+- "Mándame esto a mi Telegram"
+- "Envíame un recordatorio por Telegram"
+- "Puedes enviármelo por Telegram?"
+
+La herramienta enviará el mensaje directamente a la cuenta de Telegram vinculada del usuario.`,
     inputSchema: z.object({
-      message: z.string().describe('The message to send to the user on Telegram'),
+      message: z.string().describe('El mensaje completo a enviar al usuario en Telegram (incluye todo el contenido que el usuario pidió)'),
     }),
     execute: async ({ message }) => {
       try {
@@ -46,7 +54,7 @@ export function createSendTelegramTool(userId: string) {
           }),
         });
 
-        const result = await response.json();
+        const result = await response.json() as { ok?: boolean; description?: string };
 
         if (!response.ok) {
           console.error('[SendTelegram] Failed to send message:', result);
