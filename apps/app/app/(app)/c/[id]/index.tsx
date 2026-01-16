@@ -350,7 +350,7 @@ const ChatConversationPage = () => {
                             <MoreHorizontal size={16} className="text-muted-foreground" />
                           </Button>
                         </DropdownMenuTrigger>
-                        <DropdownMenuContent align="start" className="w-56">
+                        <DropdownMenuContent align="start" className="w-56" portalHost="fullscreen-modal">
                           <DropdownMenuItem onPress={handleDeepResearch}>
                             <Search size={16} className="text-muted-foreground" />
                             <Text>Deep research</Text>
@@ -372,7 +372,7 @@ const ChatConversationPage = () => {
                               <MoreHorizontal size={16} className="text-muted-foreground" />
                               <Text>More</Text>
                             </DropdownMenuSubTrigger>
-                            <DropdownMenuSubContent>
+                            <DropdownMenuSubContent portalHost="fullscreen-modal">
                               <DropdownMenuItem onPress={handleAddSources}>
                                 <ExternalLink size={16} className="text-muted-foreground" />
                                 <Text>Add sources</Text>
