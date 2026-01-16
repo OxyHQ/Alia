@@ -40,7 +40,7 @@ export function CreditsMenu() {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Pressable className="flex-row items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-background border border-border active:opacity-70">
+        <Pressable className="flex-row items-center gap-1.5 px-2.5 py-1.5 rounded-full bg-background border border-border active:opacity-70">
           <Sparkles size={16} className="text-foreground" />
           <Text className="text-sm font-medium text-foreground">
             {credits.toLocaleString()}
