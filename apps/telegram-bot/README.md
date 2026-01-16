@@ -47,16 +47,10 @@ API_BASE_URL=http://localhost:3001
 
 ### 3. Install Dependencies
 
-From the monorepo root:
+**Important**: This bot is part of a monorepo. Install dependencies from the root:
 
 ```bash
-npm install
-```
-
-Or directly in the telegram-bot directory:
-
-```bash
-cd apps/telegram-bot
+cd /path/to/ai-api-server
 npm install
 ```
 
@@ -77,14 +71,14 @@ npm run dev
 ### User Flow
 
 1. **Start the bot**: User sends `/start` to the bot
-2. **Authenticate**: User receives an auth code and link to authenticate
-3. **Login**: User clicks the link and enters email/password
-4. **Chat**: User can now chat with Alia directly in Telegram
+2. **Get auth link**: Bot provides a unique authentication link
+3. **Sign in**: User clicks link, opens Alia app/web, and signs in
+4. **Return to Telegram**: After signing in, account is linked
+5. **Chat**: User can now chat with Alia directly in Telegram with full memory and context
 
 ### Available Commands
 
-- `/start` - Initialize bot and get authentication instructions
-- `/login <email> <password>` - Direct login (alternative to web auth)
+- `/start` - Initialize bot and get authentication link
 - `/status` - View account status and credits
 - `/logout` - Disconnect Telegram account
 - `/new` - Start a new conversation
@@ -95,26 +89,14 @@ npm run dev
 
 ```
 User: /start
-Bot: 👋 Welcome to Alia AI!
+Bot: 👋 Hi! To chat with me, please authenticate your Alia account.
 
-To start chatting, you need to authenticate your account.
+Click the link below to sign in:
+https://alia.onl/telegram-auth?token=A1B2C3
 
-🔐 Authentication Code: A1B2C3
+This link will expire in 15 minutes.
 
-Please click the link below to authenticate:
-http://localhost:3001/telegram/verify?token=A1B2C3
-
-Or use the command:
-/login <email> <password>
-
-This code will expire in 15 minutes.
-
-User: /login user@example.com mypassword
-Bot: ✅ Successfully authenticated!
-
-Welcome User! You can now start chatting with me.
-
-Just send me a message and I'll respond!
+[User clicks link, signs in on alia.onl, returns to Telegram]
 
 User: Hello, who are you?
 Bot: I'm Alia, your AI assistant! I'm here to help you with questions,
@@ -128,9 +110,10 @@ tasks, creative writing, coding, and much more. How can I assist you today?
 - **Bot Service** (`src/index.ts`): Main bot initialization and command routing
 - **Auth Handlers** (`src/handlers/auth.ts`): Authentication flow management
 - **Chat Handlers** (`src/handlers/chat.ts`): Message handling and AI interaction
+- **Command Handlers** (`src/handlers/commands.ts`): Bot command processing
 - **API Client** (`src/services/api-client.ts`): Communication with Alia API
-- **Database** (`src/services/db.ts`): MongoDB connection management
-- **Models** (`src/models/telegram-user.ts`): User data persistence
+
+**Note**: The bot doesn't directly access MongoDB. All data is managed through the API server.
 
 ### Authentication Flow
 
@@ -221,49 +204,29 @@ npm start
 
 ## Deployment
 
-### Environment Setup
+### DigitalOcean App Platform (Recommended)
 
-1. Set production environment variables:
-   - `TELEGRAM_BOT_TOKEN`: Your production bot token
-   - `MONGODB_URI`: Production MongoDB connection string
-   - `API_BASE_URL`: Production API server URL
+**App Platform Configuration:**
 
-2. Build the project:
-   ```bash
-   npm run build
-   ```
+1. **Source Directory**: `.` (build from root for monorepo support)
+2. **Build Command**: `npm install && npm run build:telegram`
+3. **Run Command**: `npm run start:telegram`
+4. **Resource Type**: Worker
+5. **Environment Variables**:
+   - `TELEGRAM_BOT_TOKEN`: Your bot token from BotFather
+   - `API_BASE_URL`: Your API server URL (e.g., `https://api.alia.com`)
 
-3. Start the bot:
-   ```bash
-   npm start
-   ```
+**Why build from root?** This is an npm workspaces monorepo, so dependencies must be installed from the root directory.
 
-### Using PM2 (Recommended)
+### Using PM2 on VPS
 
 ```bash
-pm2 start dist/index.js --name alia-telegram-bot
+# From monorepo root
+npm install
+npm run build:telegram
+pm2 start apps/telegram-bot/dist/index.js --name alia-telegram-bot
 pm2 save
 pm2 startup
-```
-
-### Docker Deployment
-
-Create a `Dockerfile`:
-
-```dockerfile
-FROM node:20-alpine
-WORKDIR /app
-COPY package*.json ./
-RUN npm ci --only=production
-COPY dist ./dist
-CMD ["node", "dist/index.js"]
-```
-
-Build and run:
-
-```bash
-docker build -t alia-telegram-bot .
-docker run -d --env-file .env alia-telegram-bot
 ```
 
 ## Security Considerations
@@ -292,12 +255,11 @@ See detailed guides:
 
 The bot can run anywhere Node.js is supported:
 - **Heroku**: Use worker dyno
-- **Railway**: Deploy from Git
+- **Railway**: Deploy from Git (monorepo support)
+- **Render**: Use background worker
 - **AWS**: EC2 or ECS
 - **Azure**: Container Instances
-- **VPS**: Any provider with Node.js support
-
-See [Dockerfile](./Dockerfile) for containerized deployment.
+- **VPS**: Any provider with Node.js support (use PM2)
 
 ## Troubleshooting
 
