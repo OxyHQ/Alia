@@ -2,13 +2,13 @@
 // This is separate from /api/v1/chat/completions which is OpenAI-compatible for external clients
 
 import { Router } from 'express';
-import { streamText, stepCountIs, type ToolSet, type CoreMessage } from 'ai';
+import { streamText, stepCountIs, type ToolSet } from 'ai';
 import { createGoogleGenerativeAI } from '@ai-sdk/google';
 import { createOpenAI } from '@ai-sdk/openai';
 import { createAnthropic } from '@ai-sdk/anthropic';
 import { getBestAvailableKey, loadKeys } from '../lib/load-balancer.js';
 import type { KeyConfig } from '../lib/types.js';
-import { getCurrentDateTool, createGoogleSearchTool, getTimelineTool, searchKnowledgeBaseTool, scrapeURLTool, saveUserMemoryTool, updateUserPreferencesTool, updateUserContextTool, createGetDeviceInfoTool, type DeviceInfo } from '../lib/tools/index.js';
+import { getCurrentDateTool, createGoogleSearchTool, getTimelineTool, searchKnowledgeBaseTool, scrapeURLTool, saveUserMemoryTool, updateUserPreferencesTool, updateUserContextTool, createGetDeviceInfoTool, createSendTelegramTool, type DeviceInfo } from '../lib/tools/index.js';
 import { optionalAuth } from '../middleware/auth.js';
 import { User } from '../models/user.js';
 import { UserMemory } from '../models/user-memory.js';
@@ -73,7 +73,8 @@ function buildSystemPrompt(user?: IUser, memory?: IUserMemory, isTelegram: boole
 
     // Add user name
     if (user.name?.first) {
-      userContext.push(`The user's name is ${user.name.full || user.name.first}.`);
+      const fullName = [user.name.first, user.name.middle, user.name.last].filter(Boolean).join(' ');
+      userContext.push(`The user's name is ${fullName}.`);
     }
 
     // Add language preference
@@ -241,6 +242,7 @@ Puedes **reaccionar a los mensajes del usuario** para dar retroalimentación vis
 
 - \`updateUserPreferences\`: Actualiza preferencias de comunicación (idioma, tono, longitud de respuestas, intereses).
 - \`updateUserContext\`: Actualiza contexto general del usuario (ocupación, ubicación, zona horaria, biografía).
+- \`sendTelegramMessage\`: Envía un mensaje directo a Telegram del usuario. Úsala SOLO cuando el usuario explícitamente te pida enviarle algo a Telegram (ejemplo: "envíame un recordatorio por Telegram", "mándame esto a mi Telegram"). Requiere que el usuario tenga una cuenta de Telegram vinculada.
 
 Estoy aquí para explorar contigo cualquier tema con la profundidad que merece, y para conocerte mejor y recordar lo que es importante para ti.
 `;
@@ -354,6 +356,7 @@ Para informar sobre la fiabilidad de las fuentes que he consultado.
 
 - \`updateUserPreferences\`: Actualiza preferencias de comunicación (idioma, tono, longitud de respuestas, intereses).
 - \`updateUserContext\`: Actualiza contexto general del usuario (ocupación, ubicación, zona horaria, biografía).
+- \`sendTelegramMessage\`: Envía un mensaje directo a Telegram del usuario. Úsala SOLO cuando el usuario explícitamente te pida enviarle algo a Telegram (ejemplo: "envíame un recordatorio por Telegram", "mándame esto a mi Telegram"). Requiere que el usuario tenga una cuenta de Telegram vinculada.
 
 Estoy aquí para explorar contigo cualquier tema con la profundidad que merece, y para conocerte mejor y recordar lo que es importante para ti.
 
@@ -395,7 +398,7 @@ router.post('/', optionalAuth, async (req, res) => {
   }, 90000);
 
   try {
-    const { messages } = req.body as { messages: CoreMessage[] };
+    const { messages } = req.body as { messages: any[] };
 
     if (!messages || !messages.length) {
       clearTimeout(requestTimeout);
@@ -536,7 +539,8 @@ router.post('/', optionalAuth, async (req, res) => {
       ...(req.user ? {
         saveUserMemory: saveUserMemoryTool(req.user.id),
         updateUserPreferences: updateUserPreferencesTool(req.user.id),
-        updateUserContext: updateUserContextTool(req.user.id)
+        updateUserContext: updateUserContextTool(req.user.id),
+        sendTelegramMessage: createSendTelegramTool(req.user.id)
       } : {})
     };
 
@@ -550,7 +554,7 @@ router.post('/', optionalAuth, async (req, res) => {
 
     const result = streamText({
       model,
-      messages: processedMessages as CoreMessage[], // Use processed messages (saves tokens)
+      messages: processedMessages as any, // Use processed messages (saves tokens)
       tools,
       stopWhen: stepCountIs(5),
       system: systemPrompt,
