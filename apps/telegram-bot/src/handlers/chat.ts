@@ -141,6 +141,9 @@ export async function handleMessage(ctx: Context) {
     let currentMessage: any = null;
     let chunkCount = 0;
 
+    // Track which tool notifications have been sent to avoid duplicates
+    const sentToolNotifications = new Set<string>();
+
     while (true) {
       const { done, value } = await reader.read();
 
@@ -168,22 +171,27 @@ export async function handleMessage(ctx: Context) {
             if (data.type === 'tool-call') {
               const toolName = data.toolName;
 
-              // Send appropriate chat action and notification
-              if (toolName === 'googleSearch') {
-                await ctx.sendChatAction('typing');
-                await ctx.reply('🔍 Buscando en internet...').catch(() => {});
-              } else if (toolName === 'scrapeURL') {
-                await ctx.sendChatAction('typing');
-                await ctx.reply('📄 Leyendo contenido...').catch(() => {});
-              } else if (toolName === 'saveUserMemory') {
-                await ctx.sendChatAction('typing');
-                await ctx.reply('💾 Guardando información...').catch(() => {});
-              } else {
-                // Generic typing for other tools
-                const now = Date.now();
-                if (now - lastActionTime > 5000) { // Refresh typing every 5s
+              // Only send notification once per tool type to avoid duplicates
+              if (!sentToolNotifications.has(toolName)) {
+                sentToolNotifications.add(toolName);
+
+                // Send appropriate chat action and notification
+                if (toolName === 'googleSearch') {
                   await ctx.sendChatAction('typing');
-                  lastActionTime = now;
+                  await ctx.reply('🔍 Buscando en internet...').catch(() => {});
+                } else if (toolName === 'scrapeURL') {
+                  await ctx.sendChatAction('typing');
+                  await ctx.reply('📄 Leyendo contenido...').catch(() => {});
+                } else if (toolName === 'saveUserMemory') {
+                  await ctx.sendChatAction('typing');
+                  await ctx.reply('💾 Guardando información...').catch(() => {});
+                } else {
+                  // Generic typing for other tools
+                  const now = Date.now();
+                  if (now - lastActionTime > 5000) { // Refresh typing every 5s
+                    await ctx.sendChatAction('typing');
+                    lastActionTime = now;
+                  }
                 }
               }
             }
