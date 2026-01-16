@@ -268,6 +268,7 @@ router.post('/', optionalAuth, async (req, res) => {
 
     if (req.user) {
       try {
+        console.log('[Alia/Chat] Loading user data...');
         user = await User.findById(req.user.id);
         memory = await UserMemory.findOne({ userId: req.user.id });
 
@@ -288,6 +289,8 @@ router.post('/', optionalAuth, async (req, res) => {
 
           // Check if user has enough credits
           if (user.credits.free <= 0) {
+            console.log('[Alia/Chat] Insufficient credits for user');
+            clearTimeout(requestTimeout);
             res.status(402).json({
               error: 'Insufficient credits',
               credits: user.credits.free
@@ -295,8 +298,9 @@ router.post('/', optionalAuth, async (req, res) => {
             return;
           }
         }
+        console.log('[Alia/Chat] User data loaded successfully');
       } catch (error) {
-        console.error('Error fetching user data:', error);
+        console.error('[Alia/Chat] Error fetching user data:', error);
         // Continue without user context if there's an error
       }
     }
