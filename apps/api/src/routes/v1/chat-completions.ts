@@ -12,8 +12,10 @@ const router = Router();
 router.post('/', async (req: Request, res: Response) => {
   try {
     console.log('📬 [API/POST] Request received');
+    console.log('📬 [API/POST] Content-Type:', req.headers['content-type']);
+    console.log('📬 [API/POST] Body keys:', Object.keys(req.body || {}));
     const body = req.body;
-    console.log('📦 [API/POST] Body:', JSON.stringify(body));
+    console.log('📦 [API/POST] Body:', JSON.stringify(body).substring(0, 500));
     console.log('📦 [API/POST] Messages type:', typeof body?.messages, 'Array?', Array.isArray(body?.messages));
 
     // Validate request body
