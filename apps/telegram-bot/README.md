@@ -274,34 +274,61 @@ docker run -d --env-file .env alia-telegram-bot
 4. **Token expiration** - Auth codes expire after 15 minutes
 5. **Rate limiting** - Inherits rate limits from API server
 
+## Production Deployment
+
+### Deploy to DigitalOcean
+
+See detailed guides:
+- **[Quick Deploy Guide](./DEPLOY_QUICK.md)** - 5-minute deployment to App Platform
+- **[Full Deployment Guide](../../DEPLOY_TELEGRAM.md)** - Complete guide with all options
+
+**Recommended**: Use DigitalOcean App Platform ($5/month)
+1. Push code to Git
+2. Create Worker app on App Platform
+3. Set environment variables
+4. Deploy!
+
+### Deploy to Other Platforms
+
+The bot can run anywhere Node.js is supported:
+- **Heroku**: Use worker dyno
+- **Railway**: Deploy from Git
+- **AWS**: EC2 or ECS
+- **Azure**: Container Instances
+- **VPS**: Any provider with Node.js support
+
+See [Dockerfile](./Dockerfile) for containerized deployment.
+
 ## Troubleshooting
 
 ### Bot doesn't respond
 
-- Check if bot is running: `ps aux | grep node`
+- Check if bot is running: `ps aux | grep node` or check platform logs
 - Verify bot token is correct
-- Check MongoDB connection
 - Ensure API server is running
+- Test API: `curl https://your-api-url.com/health`
 
 ### Authentication fails
 
-- Verify API_BASE_URL is correct
-- Check MongoDB has TelegramUser collection
-- Ensure /telegram routes are registered in API server
+- Verify API_BASE_URL is correct (should be your API server URL)
+- Check APP_URL is set in API server `.env`
+- Ensure `/telegram` routes are registered in API server
 - Check auth token hasn't expired (15 min limit)
+- Verify `/telegram-auth` screen exists in your app
 
 ### Messages not reaching Alia
 
-- Verify sessionToken is valid
-- Check API server logs
+- Check user is authenticated: Send `/status` command
+- Verify API server can reach AI providers
 - Ensure user has credits
-- Test API endpoint directly
+- Check API server logs for errors
 
-### Database connection errors
+### Connection errors
 
-- Verify MONGODB_URI is correct
-- Check MongoDB is running
-- Ensure network connectivity
+- Verify API_BASE_URL is accessible
+- Test: `curl https://your-api-url.com/telegram/users/test`
+- Check firewall settings if using VPS
+- Ensure HTTPS is working (for production)
 
 ## Contributing
 
