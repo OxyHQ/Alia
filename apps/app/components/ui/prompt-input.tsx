@@ -128,22 +128,17 @@ function PromptInput({
         presentationStyle="fullScreen"
         onRequestClose={() => setShowFullscreen(false)}
       >
-        <View className="flex-1 bg-background pt-16">
+        <View className="flex-1 bg-background">
           {/* Top right - Minimize icon */}
           <Pressable
             onPress={() => setShowFullscreen(false)}
-            className="absolute top-16 right-4 z-10 p-2 active:opacity-70"
+            className="absolute top-4 right-4 z-50 p-2 active:opacity-70 bg-background/80 rounded-full"
           >
             <Maximize2 size={20} className="text-foreground" />
           </Pressable>
 
-          {/* Fullscreen prompt input - clean, no border or rounded corners */}
-          <View className="flex-1 flex-col justify-end px-4 pb-4">
-            <View className="flex-1" />
-            <View className="bg-background px-3 py-1">
-              {children}
-            </View>
-          </View>
+          {/* Fullscreen prompt input - textarea fills entire screen */}
+          {children}
         </View>
       </Modal>
     </PromptInputContext.Provider>
@@ -160,7 +155,7 @@ function PromptInputTextarea({
   placeholder,
   ...props
 }: PromptInputTextareaProps) {
-  const { value, setValue, onSubmit, disabled, textareaRef, setCurrentHeight, isFullscreen } =
+  const { value, setValue, onSubmit, disabled, textareaRef, setCurrentHeight, isFullscreen, maxHeight } =
     usePromptInput();
 
   return (
@@ -172,10 +167,13 @@ function PromptInputTextarea({
       onEnterPress={onSubmit}
       onHeightChange={setCurrentHeight}
       disableEnterToSubmit={isFullscreen}
+      maxHeight={isFullscreen ? 10000 : maxHeight}
       className={cn(
-        "min-h-[44px] w-full border-0 bg-transparent py-3 text-foreground shadow-none",
+        "w-full border-0 bg-transparent text-foreground shadow-none",
+        isFullscreen ? "h-full px-4 pt-4" : "min-h-[44px] py-3",
         className
       )}
+      style={isFullscreen ? { paddingBottom: 100 } : undefined}
       placeholder={placeholder}
       multiline
       editable={!disabled}
@@ -192,8 +190,17 @@ function PromptInputActions({
   className,
   ...props
 }: PromptInputActionsProps) {
+  const { isFullscreen } = usePromptInput();
+
   return (
-    <View className={cn("flex-row items-center gap-2", className)} {...props}>
+    <View
+      className={cn(
+        "flex-row items-center gap-2",
+        isFullscreen && "absolute bottom-4 left-4 right-4 max-w-2xl mx-auto rounded-full border border-border bg-background px-4 py-3 z-40",
+        className
+      )}
+      {...props}
+    >
       {children}
     </View>
   );
