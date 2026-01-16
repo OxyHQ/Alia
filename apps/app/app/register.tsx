@@ -24,20 +24,20 @@ export default function RegisterScreen() {
 
     // Validate passwords match
     if (password !== confirmPassword) {
-      const errorMsg = t('auth.passwordsDoNotMatch');
+      const errorMsg = t('errors.passwordsDoNotMatch');
       setError(errorMsg);
       if (Platform.OS !== 'web') {
-        Alert.alert(t('auth.registrationError'), errorMsg);
+        Alert.alert(t('errors.registrationError'), errorMsg);
       }
       return;
     }
 
     // Validate password length
     if (password.length < 8) {
-      const errorMsg = t('auth.passwordTooShort');
+      const errorMsg = t('errors.passwordTooShort');
       setError(errorMsg);
       if (Platform.OS !== 'web') {
-        Alert.alert(t('auth.registrationError'), errorMsg);
+        Alert.alert(t('errors.registrationError'), errorMsg);
       }
       return;
     }
@@ -61,12 +61,12 @@ export default function RegisterScreen() {
       router.replace('/');
     } catch (error: any) {
       console.error('Register error:', error);
-      const errorMessage = error.response?.data?.error || t('auth.failedToRegister');
+      const errorMessage = error.response?.data?.error || t('errors.failedToRegister');
       setError(errorMessage);
 
       // Also show alert on mobile
       if (Platform.OS !== 'web') {
-        Alert.alert(t('auth.registrationFailed'), errorMessage);
+        Alert.alert(t('errors.registrationFailed'), errorMessage);
       }
     } finally {
       setLoading(false);
@@ -80,10 +80,10 @@ export default function RegisterScreen() {
       {/* Header */}
       <View className="space-y-2 mb-6">
         <Text className="text-3xl font-bold text-foreground tracking-tight">
-          {t('auth.createAccount')}
+          {t('register.title')}
         </Text>
         <Text className="text-base text-muted-foreground">
-          {t('auth.signUpToGetStarted')}
+          {t('register.subtitle')}
         </Text>
       </View>
 
@@ -92,7 +92,7 @@ export default function RegisterScreen() {
             <AuthError message={error} />
 
             <AuthInput
-              placeholder={t('auth.firstName')}
+              placeholder={t('register.firstNamePlaceholder')}
               value={firstName}
               onChangeText={(text) => {
                 setFirstName(text);
@@ -103,7 +103,7 @@ export default function RegisterScreen() {
             />
 
             <AuthInput
-              placeholder={t('auth.lastName')}
+              placeholder={t('register.lastNamePlaceholder')}
               value={lastName}
               onChangeText={(text) => {
                 setLastName(text);
@@ -114,7 +114,7 @@ export default function RegisterScreen() {
             />
 
             <AuthInput
-              placeholder={t('auth.email')}
+              placeholder={t('register.emailPlaceholder')}
               value={email}
               onChangeText={(text) => {
                 setEmail(text);
@@ -127,7 +127,7 @@ export default function RegisterScreen() {
             />
 
             <AuthInput
-              placeholder={t('auth.passwordMin8')}
+              placeholder={t('register.passwordPlaceholder')}
               value={password}
               onChangeText={(text) => {
                 setPassword(text);
@@ -138,7 +138,7 @@ export default function RegisterScreen() {
             />
 
             <AuthInput
-              placeholder={t('auth.confirmPassword')}
+              placeholder={t('register.confirmPasswordPlaceholder')}
               value={confirmPassword}
               onChangeText={(text) => {
                 setConfirmPassword(text);
@@ -153,10 +153,10 @@ export default function RegisterScreen() {
           onPress={handleRegister}
           disabled={loading || !email || !password || !firstName}
           isLoading={loading}
-          loadingText={t('auth.creatingAccount')}
+          loadingText={t('register.creatingAccount')}
           className="mt-3"
         >
-          {t('auth.continue')}
+          {t('register.createAccountButton')}
         </AuthButton>
       </View>
 
@@ -164,11 +164,11 @@ export default function RegisterScreen() {
       <View className="mt-6">
         <View className="flex-row items-center justify-center gap-1">
           <Text className="text-muted-foreground text-sm">
-            {t('auth.alreadyHaveAccount')}
+            {t('register.footerText')}
           </Text>
           <Link href="/(app)/login" asChild>
             <Pressable>
-              <Text className="text-primary text-sm font-medium">{t('auth.signIn')}</Text>
+              <Text className="text-primary text-sm font-medium">{t('register.footerLink')}</Text>
             </Pressable>
           </Link>
         </View>
@@ -177,7 +177,7 @@ export default function RegisterScreen() {
       {/* Privacy note */}
       <View className="mt-8">
         <Text className="text-xs text-muted-foreground text-center leading-4">
-          {t('auth.termsAndPrivacy')}
+          {t('register.termsAndPrivacy')}
         </Text>
       </View>
     </AuthContainer>

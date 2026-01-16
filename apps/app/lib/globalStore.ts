@@ -102,7 +102,7 @@ export const useStore = create<StoreState>((set, get) => ({
 
     try {
       if (isAuthenticated()) {
-        const apiUrl = generateAPIUrl('/api/conversations');
+        const apiUrl = generateAPIUrl('/conversations');
         const response = await fetch(apiUrl, {
           method: 'GET',
           headers: getAPIHeaders(),
@@ -174,7 +174,7 @@ export const useStore = create<StoreState>((set, get) => ({
       const lastMessage = messages[messages.length - 1]?.content?.slice(0, 100);
 
       if (isAuthenticated()) {
-        const apiUrl = generateAPIUrl('/api/conversations');
+        const apiUrl = generateAPIUrl('/conversations');
         const response = await fetch(apiUrl, {
           method: 'POST',
           headers: getAPIHeaders(),
@@ -237,7 +237,7 @@ export const useStore = create<StoreState>((set, get) => ({
       const newConversations = state.conversations.filter((c) => c.id !== id);
 
       if (isAuthenticated()) {
-        const apiUrl = generateAPIUrl(`/api/conversations/${id}`);
+        const apiUrl = generateAPIUrl(`/conversations/${id}`);
         const response = await fetch(apiUrl, {
           method: 'DELETE',
           headers: getAPIHeaders(),

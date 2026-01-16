@@ -45,7 +45,7 @@ function getAIModel(keyConfig: KeyConfig) {
     case 'together': {
       const together = createOpenAI({
         apiKey,
-        baseURL: 'https://api.together.xyz/v1'
+        baseURL: 'https://api.together.ai/v1'
       });
       return together(modelId || 'meta-llama/Llama-3.3-70B-Instruct-Turbo');
     }

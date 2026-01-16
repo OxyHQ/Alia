@@ -22,19 +22,19 @@ export default function LoginScreen() {
     setError('');
 
     if (!email.trim()) {
-      const errorMsg = t('auth.emailRequired');
+      const errorMsg = t('errors.emailRequired');
       setError(errorMsg);
       if (Platform.OS !== 'web') {
-        Alert.alert(t('auth.loginError'), errorMsg);
+        Alert.alert(t('errors.loginError'), errorMsg);
       }
       return;
     }
 
     if (!password.trim()) {
-      const errorMsg = t('auth.passwordRequired');
+      const errorMsg = t('errors.passwordRequired');
       setError(errorMsg);
       if (Platform.OS !== 'web') {
-        Alert.alert(t('auth.loginError'), errorMsg);
+        Alert.alert(t('errors.loginError'), errorMsg);
       }
       return;
     }
@@ -57,11 +57,11 @@ export default function LoginScreen() {
       router.replace('/');
     } catch (error: any) {
       console.error('Login error:', error);
-      const errorMessage = error.response?.data?.error || t('auth.failedToLogin');
+      const errorMessage = error.response?.data?.error || t('errors.failedToLogin');
       setError(errorMessage);
 
       if (Platform.OS !== 'web') {
-        Alert.alert(t('auth.loginFailed'), errorMessage);
+        Alert.alert(t('errors.loginFailed'), errorMessage);
       }
     } finally {
       setLoading(false);
@@ -70,7 +70,7 @@ export default function LoginScreen() {
 
   const handleSocialLogin = (provider: string) => {
     const providerName = provider.charAt(0).toUpperCase() + provider.slice(1);
-    toast.info(t('auth.socialLoginSoon', { provider: providerName }));
+    toast.info(t('errors.socialLoginSoon', { provider: providerName }));
   };
 
   return (
@@ -80,10 +80,10 @@ export default function LoginScreen() {
       {/* Header */}
       <View className="space-y-2 mb-6">
         <Text className="text-3xl font-bold text-foreground tracking-tight">
-          {t('auth.signInOrSignUp')}
+          {t('login.title')}
         </Text>
         <Text className="text-base text-muted-foreground">
-          {t('auth.continueTo')}
+          {t('login.subtitle')}
         </Text>
       </View>
 
@@ -96,7 +96,7 @@ export default function LoginScreen() {
         >
           <View className="flex-row items-center gap-2">
             <MaterialCommunityIcons name="google" size={18} color="#0F172A" />
-            <Text className="text-sm font-medium">{t('auth.continueWithGoogle')}</Text>
+            <Text className="text-sm font-medium">{t('login.continueWithGoogle')}</Text>
           </View>
         </Button>
 
@@ -107,7 +107,7 @@ export default function LoginScreen() {
         >
           <View className="flex-row items-center gap-2">
             <MaterialCommunityIcons name="microsoft" size={18} color="#0F172A" />
-            <Text className="text-sm font-medium">{t('auth.continueWithMicrosoft')}</Text>
+            <Text className="text-sm font-medium">{t('login.continueWithMicrosoft')}</Text>
           </View>
         </Button>
 
@@ -118,7 +118,7 @@ export default function LoginScreen() {
         >
           <View className="flex-row items-center gap-2">
             <MaterialCommunityIcons name="apple" size={18} color="#0F172A" />
-            <Text className="text-sm font-medium">{t('auth.continueWithApple')}</Text>
+            <Text className="text-sm font-medium">{t('login.continueWithApple')}</Text>
           </View>
         </Button>
       </View>
@@ -135,7 +135,7 @@ export default function LoginScreen() {
         <AuthError message={error} />
 
         <AuthInput
-          placeholder={t('auth.email')}
+          placeholder={t('login.emailPlaceholder')}
           value={email}
           onChangeText={(text) => {
             setEmail(text);
@@ -148,7 +148,7 @@ export default function LoginScreen() {
         />
 
         <AuthInput
-          placeholder={t('auth.password')}
+          placeholder={t('login.passwordPlaceholder')}
           value={password}
           onChangeText={(text) => {
             setPassword(text);
@@ -162,7 +162,7 @@ export default function LoginScreen() {
         <View className="flex-row justify-end">
           <Link href="/(app)/forgot-password" asChild>
             <Pressable>
-              <Text className="text-primary text-sm font-medium">{t('auth.forgotPassword')}</Text>
+              <Text className="text-primary text-sm font-medium">{t('login.forgotPassword')}</Text>
             </Pressable>
           </Link>
         </View>
@@ -171,9 +171,9 @@ export default function LoginScreen() {
           onPress={handleLogin}
           disabled={loading || !email || !password}
           isLoading={loading}
-          loadingText={t('auth.signingIn')}
+          loadingText={t('login.signingIn')}
         >
-          {t('auth.signIn')}
+          {t('login.signInButton')}
         </AuthButton>
       </View>
 
@@ -181,11 +181,11 @@ export default function LoginScreen() {
       <View className="mt-6">
         <View className="flex-row items-center justify-center gap-1">
           <Text className="text-muted-foreground text-sm">
-            {t('auth.dontHaveAccount')}
+            {t('login.footerText')}
           </Text>
           <Link href="/(app)/register" asChild>
             <Pressable>
-              <Text className="text-primary text-sm font-medium">{t('auth.signUp')}</Text>
+              <Text className="text-primary text-sm font-medium">{t('login.footerLink')}</Text>
             </Pressable>
           </Link>
         </View>
@@ -194,7 +194,7 @@ export default function LoginScreen() {
       {/* Privacy note */}
       <View className="mt-8">
         <Text className="text-xs text-muted-foreground text-center leading-4">
-          {t('auth.termsAndPrivacy')}
+          {t('login.termsAndPrivacy')}
         </Text>
       </View>
     </AuthContainer>
