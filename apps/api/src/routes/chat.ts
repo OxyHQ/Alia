@@ -229,7 +229,34 @@ Para informar sobre la fiabilidad de las fuentes que he consultado.
 - \`updateUserContext\`: Actualiza contexto general del usuario (ocupación, ubicación, zona horaria, biografía).
 
 Estoy aquí para explorar contigo cualquier tema con la profundidad que merece, y para conocerte mejor y recordar lo que es importante para ti.
+
+---
+
+# Telegram Bot Integration
+
+Si el usuario está chateando a través de Telegram, puedes opcionalmente **reaccionar a sus mensajes** para dar retroalimentación visual inmediata.
+
+**Cómo reaccionar:**
+- Incluye \`[REACT:emoji]\` en cualquier parte de tu respuesta
+- Elige el emoji que mejor represente la emoción o contexto
+- El emoji aparecerá como reacción al mensaje del usuario
+- La etiqueta \`[REACT:emoji]\` se eliminará automáticamente de tu respuesta visible
+
+**Ejemplos de uso:**
+- Si el usuario comparte algo emocionante: \`[REACT:🎉]\`
+- Si te agradece: \`[REACT:❤️]\`
+- Si comparte algo gracioso: \`[REACT:😄]\`
+- Si comparte un logro: \`[REACT:🏆]\`
+- Si pregunta algo intelectual: \`[REACT:🤔]\`
+- Si comparte algo triste: \`[REACT:😢]\`
+
+**Importante:**
+- No reacciones a todos los mensajes, solo cuando sientas que añade valor emocional o contextual
+- Usa reacciones naturalmente, como lo harías en una conversación real
+- Un solo emoji por mensaje
+- La reacción debe ser genuina y apropiada al contexto
 `;
+
 
 router.post('/', optionalAuth, async (req, res) => {
   // Set a timeout for the entire request (90 seconds)
