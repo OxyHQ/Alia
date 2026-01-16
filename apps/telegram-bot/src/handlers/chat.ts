@@ -56,8 +56,6 @@ export async function handleMessage(ctx: Context) {
       }),
     });
 
-    console.log('[Chat] API response status:', response.status);
-
     if (!response.ok) {
       const errorText = await response.text();
       console.error('[Chat] API error response:', errorText);
@@ -67,8 +65,6 @@ export async function handleMessage(ctx: Context) {
     if (!response.body) {
       throw new Error('No response body');
     }
-
-    console.log('[Chat] Starting to stream response...');
 
     // Stream the response
     const reader = response.body.getReader();
@@ -82,7 +78,6 @@ export async function handleMessage(ctx: Context) {
       const { done, value } = await reader.read();
 
       if (done) {
-        console.log('[Chat] Stream ended. Total chunks:', chunkCount, 'Response length:', fullResponse.length);
         break;
       }
 
@@ -96,7 +91,6 @@ export async function handleMessage(ctx: Context) {
 
           // Check for completion marker
           if (dataStr === '[DONE]') {
-            console.log('[Chat] Received [DONE] marker');
             // Send final response
             if (currentMessage && fullResponse) {
               await ctx.telegram.editMessageText(
@@ -114,28 +108,21 @@ export async function handleMessage(ctx: Context) {
           try {
             const data = JSON.parse(dataStr);
 
-            // Log the full data for text-delta to debug
-            if (data.type === 'text-delta') {
-              console.log('[Chat] text-delta data:', JSON.stringify(data));
-            }
-
             // Handle text delta events from AI SDK
-            if (data.type === 'text-delta' && data.textDelta) {
-              fullResponse += data.textDelta;
+            if (data.type === 'text-delta' && data.text) {
+              fullResponse += data.text;
 
               // Update message every 1.5 seconds
               const now = Date.now();
               if (now - lastUpdateTime > 1500) {
-                console.log('[Chat] Updating message, length:', fullResponse.length);
                 if (currentMessage) {
                   await ctx.telegram.editMessageText(
                     ctx.chat!.id,
                     currentMessage.message_id,
                     undefined,
                     fullResponse + '...'
-                  ).catch((err) => console.log('[Chat] Edit error:', err.message));
+                  ).catch(() => {}); // Ignore edit errors
                 } else if (fullResponse.length > 10) { // Only create message if we have some content
-                  console.log('[Chat] Creating initial message');
                   currentMessage = await ctx.reply(fullResponse + '...').catch(() => null);
                 }
                 lastUpdateTime = now;
@@ -143,16 +130,9 @@ export async function handleMessage(ctx: Context) {
             } else if (data.type === 'error') {
               console.error('[Chat] API error event:', data);
               throw new Error(data.error || 'Unknown error');
-            } else if (data.type !== 'start' && data.type !== 'text-start' && data.type !== 'text-end' &&
-                       data.type !== 'finish-step' && data.type !== 'credit-update') {
-              // Log unexpected event types for debugging (skip known ones)
-              console.log('[Chat] Event type:', data.type, 'Data:', JSON.stringify(data).substring(0, 100));
             }
           } catch (e) {
-            // Skip non-JSON lines (but log for debugging)
-            if (dataStr && !dataStr.includes('{')) {
-              console.log('[Chat] Non-JSON data:', dataStr.substring(0, 100));
-            }
+            // Skip non-JSON lines
           }
         }
       }
@@ -164,11 +144,9 @@ export async function handleMessage(ctx: Context) {
     if (reactionMatch && 'message' in ctx && ctx.message) {
       const emoji = reactionMatch[1].trim();
       try {
-        // Use the string directly - telegraf accepts emoji strings
         await ctx.react(emoji as any);
-        console.log('[Chat] Reacted with:', emoji);
       } catch (reactionError) {
-        console.log('[Chat] Could not react:', reactionError);
+        // Ignore reaction errors silently
       }
       // Remove the reaction tag from the response
       fullResponse = fullResponse.replace(/\[REACT:[^\]]+\]\s*/g, '').trim();
@@ -176,10 +154,8 @@ export async function handleMessage(ctx: Context) {
 
     // If no message was sent yet, send the full response
     if (!currentMessage && fullResponse) {
-      console.log('[Chat] Sending final response, length:', fullResponse.length);
       await ctx.reply(fullResponse).catch(() => {});
     } else if (!fullResponse) {
-      console.warn('[Chat] No response received from API');
       await ctx.reply('⚠️ I received your message but got no response. Please try again.');
     }
 
