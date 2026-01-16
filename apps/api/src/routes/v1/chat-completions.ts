@@ -28,33 +28,38 @@ router.post('/', async (req: Request, res: Response) => {
       return;
     }
 
+    // Support both "messages" (OpenAI standard) and "input" (Cursor format)
+    const messages = body.messages || body.input;
+
     // Validate messages
-    if (!body.messages) {
-      console.error('❌ Missing messages field');
+    if (!messages) {
+      console.error('❌ Missing messages/input field');
       res.status(400).json({
         error: 'Missing required field: messages',
-        details: 'Request body must include a "messages" array'
+        details: 'Request body must include a "messages" or "input" array'
       });
       return;
     }
 
-    if (!Array.isArray(body.messages)) {
-      console.error('❌ Messages is not an array:', typeof body.messages);
+    if (!Array.isArray(messages)) {
+      console.error('❌ Messages is not an array:', typeof messages);
       res.status(400).json({
         error: 'Invalid messages field',
-        details: '"messages" must be an array'
+        details: '"messages" or "input" must be an array'
       });
       return;
     }
 
-    if (body.messages.length === 0) {
+    if (messages.length === 0) {
       console.error('❌ Messages array is empty');
       res.status(400).json({
         error: 'Empty messages array',
-        details: '"messages" array must contain at least one message'
+        details: '"messages" or "input" array must contain at least one message'
       });
       return;
     }
+
+    console.log(`✅ [API/POST] Processing ${messages.length} messages`);
 
     // Get best available API key
     const keyPool = await loadKeys();
@@ -80,7 +85,7 @@ router.post('/', async (req: Request, res: Response) => {
     // Get streaming response from provider
     const stream = await provider.proxy(
       key,
-      body.messages as OpenAIMessage[],
+      messages as OpenAIMessage[],
       body.tools as OpenAITool[] | undefined,
       config
     );
