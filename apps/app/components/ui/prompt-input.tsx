@@ -8,9 +8,8 @@ import React, {
 } from "react";
 import { View, Pressable, type TextInput as RNTextInput, KeyboardAvoidingView, Platform, Modal } from "react-native";
 import { ChatTextInput } from "./chat-text-input";
-import { Button } from "./button";
-import { Text } from "./text";
-import { Maximize2, X, ArrowUp } from "lucide-react-native";
+import { Maximize2 } from "lucide-react-native";
+import { PortalHost } from "@rn-primitives/portal";
 
 type PromptInputContextType = {
   isLoading: boolean;
@@ -68,7 +67,6 @@ function PromptInput({
   const [currentHeight, setCurrentHeight] = useState(44);
   const [showFullscreen, setShowFullscreen] = useState(false);
   const textareaRef = useRef<RNTextInput>(null);
-  const fullscreenTextareaRef = useRef<RNTextInput>(null);
 
   const handleChange = (newValue: string) => {
     setInternalValue(newValue);
@@ -142,6 +140,7 @@ function PromptInput({
         animationType="slide"
         presentationStyle="fullScreen"
         onRequestClose={() => setShowFullscreen(false)}
+        statusBarTranslucent
       >
         <View className="flex-1 bg-background">
           {/* Top right - Minimize icon */}
@@ -153,7 +152,12 @@ function PromptInput({
           </Pressable>
 
           {/* Fullscreen prompt input - textarea fills entire screen */}
-          {children}
+          <View className="flex-1">
+            {children}
+          </View>
+
+          {/* Portal host for dropdowns inside modal */}
+          <PortalHost name="fullscreen-modal" />
         </View>
       </Modal>
     </PromptInputContext.Provider>
@@ -213,7 +217,7 @@ function PromptInputActions({
     <View
       className={cn(
         "flex-row items-center gap-2",
-        isFullscreen && "absolute bottom-4 left-4 right-4 max-w-2xl mx-auto rounded-full border border-border bg-background px-4 py-3 z-40",
+        isFullscreen && "absolute bottom-4 left-4 right-4 max-w-2xl mx-auto rounded-full border border-border bg-background px-4 py-3 z-[10001]",
         className
       )}
       {...props}
