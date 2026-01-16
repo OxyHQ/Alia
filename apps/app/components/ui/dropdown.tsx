@@ -72,10 +72,10 @@ export function Dropdown({ trigger, children, align = 'start' }: DropdownMenuPro
   };
 
   const handleMenuHoverOut = () => {
-    // Close after a delay when leaving menu
+    // Close quickly when leaving menu
     closeTimeoutRef.current = setTimeout(() => {
       setIsOpen(false);
-    }, 200) as any;
+    }, 75) as any;
   };
 
   // Cleanup timeout
@@ -245,11 +245,11 @@ export function SubMenu({ trigger, children, onClose }: SubMenuProps) {
       closeTimeoutRef.current = null;
     }
 
-    // Open immediately on hover
+    // Open with minimal delay on hover
     if (!isOpen) {
       openTimeoutRef.current = setTimeout(() => {
         handleOpen();
-      }, 75) as any;
+      }, 50) as any;
     }
   };
 
@@ -260,10 +260,8 @@ export function SubMenu({ trigger, children, onClose }: SubMenuProps) {
       openTimeoutRef.current = null;
     }
 
-    // Close after a delay to allow mouse to reach submenu
-    closeTimeoutRef.current = setTimeout(() => {
-      setIsOpen(false);
-    }, 400) as any;
+    // Don't close from trigger - let submenu handle it
+    // This prevents the buggy loop
   };
 
   const handleSubmenuHoverIn = () => {
@@ -272,6 +270,13 @@ export function SubMenu({ trigger, children, onClose }: SubMenuProps) {
       clearTimeout(closeTimeoutRef.current);
       closeTimeoutRef.current = null;
     }
+  };
+
+  const handleSubmenuHoverOut = () => {
+    // Close quickly when leaving submenu
+    closeTimeoutRef.current = setTimeout(() => {
+      setIsOpen(false);
+    }, 100) as any;
   };
 
   const handleItemClose = () => {
@@ -415,7 +420,7 @@ export function SubMenu({ trigger, children, onClose }: SubMenuProps) {
             className="bg-popover border-border rounded-2xl border"
             // @ts-ignore - onMouseEnter/Leave work on web
             onMouseEnter={handleSubmenuHoverIn}
-            onMouseLeave={handleHoverOut}
+            onMouseLeave={handleSubmenuHoverOut}
           >
             <ScrollView style={{ maxHeight: submenuMaxHeight }} className="py-1 select-none">
               {React.Children.map(children, (child) =>

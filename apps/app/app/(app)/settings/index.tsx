@@ -5,7 +5,7 @@ import { useState, useEffect } from "react";
 import { useAuthStore } from "@/lib/stores/auth-store";
 import { useRouter } from "expo-router";
 import { generateAPIUrl } from "@/lib/generate-api-url";
-import { Globe, MapPin, Briefcase, User as UserIcon, Languages, MessageSquare, ChevronDown, Check, ChevronRight, Brain, User } from "lucide-react-native";
+import { Globe, MapPin, Briefcase, User as UserIcon, Languages, MessageSquare, ChevronDown, Check, ChevronRight, Brain, User, Moon, Sun, Monitor } from "lucide-react-native";
 import { useUserData } from "@/hooks/useUserData";
 import { useUserDataStore } from "@/lib/stores/user-data-store";
 import {
@@ -14,6 +14,9 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+import { useColorScheme } from "@/lib/useColorScheme";
+import type { ThemeMode } from "@/lib/stores/theme-store";
 
 interface UserMemory {
   preferences: {
@@ -50,6 +53,7 @@ export default function SettingsScreen() {
   const { memory, loading } = useUserData();
   const setMemory = useUserDataStore((state) => state.setMemory);
   const [saving, setSaving] = useState(false);
+  const { mode, setColorScheme } = useColorScheme();
 
   // Form state
   const [language, setLanguage] = useState("");
@@ -192,6 +196,43 @@ export default function SettingsScreen() {
 
           {/* Preferences Section */}
           <Text className="text-sm font-semibold text-muted-foreground">PREFERENCES</Text>
+
+          {/* Theme Preference */}
+          <View className="gap-2">
+            <View className="flex-row items-center gap-2">
+              <Monitor size={20} className="text-primary" />
+              <Text className="text-base font-semibold">Appearance</Text>
+            </View>
+            <Text className="text-sm text-muted-foreground">
+              Choose your preferred color scheme
+            </Text>
+            <ToggleGroup
+              type="single"
+              value={mode}
+              onValueChange={(value) => setColorScheme(value as ThemeMode)}
+              className="flex-row gap-2"
+            >
+              <ToggleGroupItem value="light" className="flex-1">
+                <View className="flex-row items-center justify-center gap-2">
+                  <Sun size={16} className={mode === 'light' ? 'text-primary-foreground' : 'text-foreground'} />
+                  <Text className={mode === 'light' ? 'text-primary-foreground' : 'text-foreground'}>Light</Text>
+                </View>
+              </ToggleGroupItem>
+              <ToggleGroupItem value="dark" className="flex-1">
+                <View className="flex-row items-center justify-center gap-2">
+                  <Moon size={16} className={mode === 'dark' ? 'text-primary-foreground' : 'text-foreground'} />
+                  <Text className={mode === 'dark' ? 'text-primary-foreground' : 'text-foreground'}>Dark</Text>
+                </View>
+              </ToggleGroupItem>
+              <ToggleGroupItem value="system" className="flex-1">
+                <View className="flex-row items-center justify-center gap-2">
+                  <Monitor size={16} className={mode === 'system' ? 'text-primary-foreground' : 'text-foreground'} />
+                  <Text className={mode === 'system' ? 'text-primary-foreground' : 'text-foreground'}>System</Text>
+                </View>
+              </ToggleGroupItem>
+            </ToggleGroup>
+          </View>
+
           {/* Language Preference */}
           <View className="gap-2">
             <View className="flex-row items-center gap-2">

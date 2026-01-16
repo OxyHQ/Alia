@@ -9,6 +9,7 @@ import { setupAuthInterceptors } from '@/lib/api/client';
 import { PortalHost } from '@rn-primitives/portal';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { Toaster } from '@/components/sonner';
+import { useColorScheme } from '@/lib/useColorScheme';
 import 'react-native-reanimated';
 import '../global.css';
 
@@ -27,6 +28,31 @@ SplashScreen.preventAutoHideAsync();
 // Setup API client interceptors immediately at module load time
 // This ensures all API calls have proper authentication headers
 setupAuthInterceptors();
+
+function RootLayoutContent() {
+  const { colorScheme } = useColorScheme();
+
+  return (
+    <SafeAreaProvider>
+      <QueryClientProvider client={queryClient}>
+        <Stack
+          screenOptions={{
+            contentStyle: {
+              backgroundColor: colorScheme === 'dark' ? '#0a0d1a' : '#ffffff',
+            },
+          }}
+        >
+          <Stack.Screen name="index" options={{ headerShown: false }} />
+          <Stack.Screen name="login" options={{ headerShown: false }} />
+          <Stack.Screen name="register" options={{ headerShown: false }} />
+          <Stack.Screen name="(app)" options={{ headerShown: false }} />
+        </Stack>
+        <PortalHost />
+        <Toaster position="bottom-center" />
+      </QueryClientProvider>
+    </SafeAreaProvider>
+  );
+}
 
 export default function RootLayout() {
   const [loaded, error] = useFonts({
@@ -51,18 +77,5 @@ export default function RootLayout() {
     return null;
   }
 
-  return (
-    <SafeAreaProvider>
-      <QueryClientProvider client={queryClient}>
-        <Stack>
-          <Stack.Screen name="index" options={{ headerShown: false }} />
-          <Stack.Screen name="login" options={{ headerShown: false }} />
-          <Stack.Screen name="register" options={{ headerShown: false }} />
-          <Stack.Screen name="(app)" options={{ headerShown: false }} />
-        </Stack>
-        <PortalHost />
-        <Toaster position="bottom-center" />
-      </QueryClientProvider>
-    </SafeAreaProvider>
-  );
+  return <RootLayoutContent />;
 }
