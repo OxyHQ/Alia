@@ -160,7 +160,7 @@ export default function LoginScreen() {
         />
 
         <View className="flex-row justify-end">
-          <Link href="/(app)/forgot-password" asChild>
+          <Link href="/forgot-password" asChild>
             <Pressable>
               <Text className="text-primary text-sm font-medium">{t('login.forgotPassword')}</Text>
             </Pressable>
@@ -183,7 +183,7 @@ export default function LoginScreen() {
           <Text className="text-muted-foreground text-sm">
             {t('login.footerText')}
           </Text>
-          <Link href="/(app)/register" asChild>
+          <Link href="/register" asChild>
             <Pressable>
               <Text className="text-primary text-sm font-medium">{t('login.footerLink')}</Text>
             </Pressable>
