@@ -60,20 +60,35 @@ type ChatInterfaceProps = {
   onCopyMessage?: (content: string) => void;
 };
 
+// Helper function to clean Telegram-specific tags from content
+function cleanTelegramTags(text: string): string {
+  // Remove all Telegram-specific tags
+  return text
+    .replace(/\[REACT:[^\]]+\]\s*/g, '')           // Remove reaction tags
+    .replace(/\[TGIMAGE[^\]]*\]\s*/g, '')          // Remove image tags
+    .replace(/\[TGLINKS[^\]]*\][\s\S]*?\[\/TGLINKS\]\s*/g, '') // Remove link button tags
+    .replace(/\[TGDOC[^\]]*\]\s*/g, '')            // Remove document tags
+    .trim();
+}
+
 // Helper function to extract text content from a message
 function getMessageText(message: Message): string {
-  // If message has content string, use it
-  if (message.content) return message.content;
+  let text = '';
 
+  // If message has content string, use it
+  if (message.content) {
+    text = message.content;
+  }
   // If message has parts array, extract text from parts
-  if (message.parts && Array.isArray(message.parts)) {
-    return message.parts
+  else if (message.parts && Array.isArray(message.parts)) {
+    text = message.parts
       .filter((part) => part.type === "text")
       .map((part) => part.text || "")
       .join("");
   }
 
-  return "";
+  // Clean Telegram-specific tags before returning
+  return cleanTelegramTags(text);
 }
 
 export const ChatInterface = forwardRef<ScrollView, ChatInterfaceProps>(
