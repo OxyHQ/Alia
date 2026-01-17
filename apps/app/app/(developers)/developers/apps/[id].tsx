@@ -1,12 +1,14 @@
-import { View, ScrollView, Pressable, Alert, TextInput as RNTextInput } from "react-native";
+import { View, ScrollView, Pressable, TextInput as RNTextInput } from "react-native";
 import { Text } from "@/components/ui/text";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { useState } from "react";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { ArrowLeft, Package, Key, Plus, Copy, Trash2, Activity } from "lucide-react-native";
 import { useApp, useApiKeys, useCreateApiKey, useDeleteApiKey, useDeleteApp } from "@/lib/hooks/use-developer";
 import * as Clipboard from 'expo-clipboard';
+import { toast } from "@/components/sonner";
 
 export default function AppDetailScreen() {
   const router = useRouter();
@@ -20,32 +22,23 @@ export default function AppDetailScreen() {
   const [showNewKeyModal, setShowNewKeyModal] = useState(false);
   const [keyName, setKeyName] = useState("");
   const [newlyCreatedKey, setNewlyCreatedKey] = useState<string | null>(null);
+  const [deleteAppDialog, setDeleteAppDialog] = useState(false);
+  const [deleteKeyDialog, setDeleteKeyDialog] = useState<{ id: string; name: string } | null>(null);
 
-  const handleDeleteApp = () => {
-    Alert.alert(
-      "Delete App",
-      "Are you sure you want to delete this app? This will also delete all API keys and usage data.",
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Delete",
-          style: "destructive",
-          onPress: async () => {
-            try {
-              await deleteAppMutation.mutateAsync(id!);
-              router.replace("/developers");
-            } catch (error: any) {
-              Alert.alert("Error", error.message || "Failed to delete app");
-            }
-          },
-        },
-      ]
-    );
+  const handleDeleteApp = async () => {
+    try {
+      await deleteAppMutation.mutateAsync(id!);
+      setDeleteAppDialog(false);
+      router.replace("/developers");
+      toast.success("App deleted successfully");
+    } catch (error: any) {
+      toast.error(error.message || "Failed to delete app");
+    }
   };
 
   const handleCreateKey = async () => {
     if (!keyName.trim()) {
-      Alert.alert("Error", "Please enter a key name");
+      toast.error("Please enter a key name");
       return;
     }
 
@@ -61,36 +54,27 @@ export default function AppDetailScreen() {
       setNewlyCreatedKey(result.apiKey.key || null);
       setShowNewKeyModal(false);
       setKeyName("");
+      toast.success("API key created successfully");
     } catch (error: any) {
-      Alert.alert("Error", error.message || "Failed to create API key");
+      toast.error(error.message || "Failed to create API key");
     }
   };
 
-  const handleDeleteKey = (keyId: string, keyName: string) => {
-    Alert.alert(
-      "Delete API Key",
-      `Are you sure you want to delete "${keyName}"? This action cannot be undone.`,
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Delete",
-          style: "destructive",
-          onPress: async () => {
-            try {
-              await deleteApiKeyMutation.mutateAsync({ appId: id!, keyId });
-              Alert.alert("Success", "API key deleted");
-            } catch (error: any) {
-              Alert.alert("Error", error.message || "Failed to delete API key");
-            }
-          },
-        },
-      ]
-    );
+  const handleDeleteKey = async () => {
+    if (!deleteKeyDialog) return;
+
+    try {
+      await deleteApiKeyMutation.mutateAsync({ appId: id!, keyId: deleteKeyDialog.id });
+      setDeleteKeyDialog(null);
+      toast.success("API key deleted");
+    } catch (error: any) {
+      toast.error(error.message || "Failed to delete API key");
+    }
   };
 
   const handleCopyKey = async (key: string) => {
     await Clipboard.setStringAsync(key);
-    Alert.alert("Copied", "API key copied to clipboard");
+    toast.success("API key copied to clipboard");
   };
 
   if (isLoadingApp || !currentApp) {
@@ -285,7 +269,7 @@ export default function AppDetailScreen() {
                     {key.lastUsedAt && ` • Last used ${new Date(key.lastUsedAt).toLocaleDateString()}`}
                   </Text>
                   <Pressable
-                    onPress={() => handleDeleteKey(key._id, key.name)}
+                    onPress={() => setDeleteKeyDialog({ id: key._id, name: key.name })}
                     className="p-2"
                   >
                     <Trash2 size={16} className="text-destructive" />
@@ -323,13 +307,65 @@ export default function AppDetailScreen() {
         <Card className="p-4 border-destructive">
           <Button
             variant="destructive"
-            onPress={handleDeleteApp}
+            onPress={() => setDeleteAppDialog(true)}
           >
             <Trash2 size={18} className="text-destructive-foreground mr-2" />
             <Text className="text-destructive-foreground font-semibold">Delete App</Text>
           </Button>
         </Card>
       </View>
+
+      {/* Delete App Confirmation Dialog */}
+      <Dialog open={deleteAppDialog} onOpenChange={setDeleteAppDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete App</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete this app? This will also delete all API keys and usage data. This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onPress={() => setDeleteAppDialog(false)}>
+              <Text>Cancel</Text>
+            </Button>
+            <Button
+              variant="destructive"
+              onPress={handleDeleteApp}
+              disabled={deleteAppMutation.isPending}
+            >
+              <Text className="text-destructive-foreground">
+                {deleteAppMutation.isPending ? "Deleting..." : "Delete"}
+              </Text>
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete API Key Confirmation Dialog */}
+      <Dialog open={!!deleteKeyDialog} onOpenChange={(open) => !open && setDeleteKeyDialog(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete API Key</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete "{deleteKeyDialog?.name}"? This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onPress={() => setDeleteKeyDialog(null)}>
+              <Text>Cancel</Text>
+            </Button>
+            <Button
+              variant="destructive"
+              onPress={handleDeleteKey}
+              disabled={deleteApiKeyMutation.isPending}
+            >
+              <Text className="text-destructive-foreground">
+                {deleteApiKeyMutation.isPending ? "Deleting..." : "Delete"}
+              </Text>
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </ScrollView>
   );
 }
