@@ -144,7 +144,8 @@ export function Dropdown({ trigger, children, align = 'start' }: DropdownMenuPro
         onRequestClose={handleClose}
       >
         <Pressable
-          style={{ flex: 1, pointerEvents: 'box-none' }}
+          style={{ flex: 1 }}
+          pointerEvents="box-none"
           onPress={handleClose}
         >
           <Pressable
@@ -402,7 +403,8 @@ export function SubMenu({ trigger, children, onClose }: SubMenuProps) {
         onRequestClose={handleItemClose}
       >
         <Pressable
-          style={{ flex: 1, pointerEvents: 'box-none' }}
+          style={{ flex: 1 }}
+          pointerEvents="box-none"
           onPress={handleItemClose}
         >
           <Pressable

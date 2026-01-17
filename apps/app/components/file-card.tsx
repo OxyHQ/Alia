@@ -78,7 +78,9 @@ export function FileCard({ file, onPress, onDelete }: FileCardProps) {
               <Image
                 source={{ uri: file.thumbnail }}
                 className="w-12 h-12 rounded-lg"
-                resizeMode="cover"
+                contentFit="cover"
+                placeholder={{ blurhash: 'L6PZfSi_.AyE_3t7t7R**0o#DgR4' }}
+                transition={200}
               />
             ) : (
               <View className="w-12 h-12 rounded-lg bg-muted items-center justify-center">

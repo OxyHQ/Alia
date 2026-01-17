@@ -201,7 +201,7 @@ export const ChatInterface = forwardRef<ScrollView, ChatInterfaceProps>(
                           <Image
                             source={require("@/assets/images/logo.png")}
                             style={{ width: 48, height: 20 }}
-                            resizeMode="contain"
+                            contentFit="contain"
                           />
                           <View className="w-full">
                             <CustomMarkdown content={messageText} />

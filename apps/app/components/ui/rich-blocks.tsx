@@ -28,7 +28,9 @@ export function CompactList({ title, items }: { title: string; items: CompactLis
               <Image
                 source={{ uri: item.image }}
                 className="h-12 w-12 rounded-md"
-                resizeMode="cover"
+                contentFit="cover"
+                placeholder={{ blurhash: 'L6PZfSi_.AyE_3t7t7R**0o#DgR4' }}
+                transition={200}
               />
             )}
             <View className="flex-1">
@@ -190,7 +192,7 @@ export function RichImage({ url, title, caption }: { url: string; title?: string
         source={{ uri: url }}
         className="w-full rounded-xl"
         style={{ aspectRatio: 16 / 9 }}
-        resizeMode="cover"
+        contentFit="cover"
       />
       {title && (
         <Text className="text-sm font-medium text-foreground mt-2">{title}</Text>

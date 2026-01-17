@@ -18,6 +18,7 @@ const ChatPage = () => {
       <Head>
         <title>Alia</title>
         <meta name="description" content="Start a conversation with Alia. Get answers, explore ideas, and boost your productivity." />
+        <link rel="canonical" href="https://alia.onl/" />
       </Head>
       <ChatPageContent
         messages={messages}
