@@ -1,8 +1,7 @@
 import { View, ScrollView, Pressable } from "react-native";
 import { Text } from "@/components/ui/text";
-import { Card } from "@/components/ui/card";
 import { useRouter } from "expo-router";
-import { ArrowLeft, Code } from "lucide-react-native";
+import { ArrowLeft } from "lucide-react-native";
 
 export default function ExamplesScreen() {
   const router = useRouter();
@@ -10,36 +9,25 @@ export default function ExamplesScreen() {
   return (
     <ScrollView className="flex-1 bg-background">
       {/* Header */}
-      <View className="px-6 py-4 border-b border-border">
+      <View className="px-6 py-6 border-b border-border">
         <Pressable onPress={() => router.back()} className="flex-row items-center mb-4">
-          <ArrowLeft size={20} className="text-muted-foreground mr-2" />
-          <Text className="text-base text-muted-foreground">Back</Text>
+          <ArrowLeft size={16} className="text-muted-foreground mr-2" />
+          <Text className="text-sm text-muted-foreground">Back</Text>
         </Pressable>
-
-        <View className="flex-row items-center">
-          <View className="w-14 h-14 rounded-2xl bg-primary/10 items-center justify-center mr-4">
-            <Code size={28} className="text-primary" />
-          </View>
-          <View className="flex-1">
-            <Text className="text-3xl font-bold text-foreground">Code Examples</Text>
-            <Text className="text-base text-muted-foreground mt-1">
-              Integration samples for various platforms
-            </Text>
-          </View>
-        </View>
+        <Text className="text-2xl font-semibold text-foreground">Code examples</Text>
+        <Text className="text-sm text-muted-foreground mt-1">
+          Integration samples for various platforms
+        </Text>
       </View>
 
-      {/* JavaScript/Node.js Example */}
-      <View className="px-6 py-6">
-        <Text className="text-lg font-semibold text-foreground mb-4">JavaScript / Node.js</Text>
-        <Card className="p-6">
-          <Text className="text-sm text-muted-foreground mb-3">
-            Using fetch API:
-          </Text>
-          <View className="p-4 bg-muted rounded-lg">
-            <Text className="text-xs font-mono text-foreground">
-              {`const response = await fetch(
-  'https://api.alia.onl/v1/chat/completions',
+      {/* JavaScript Example */}
+      <View className="px-6 py-6 border-b border-border">
+        <Text className="text-sm font-semibold text-foreground mb-4">JavaScript / Node.js</Text>
+        <Text className="text-sm text-muted-foreground mb-3">Using fetch API:</Text>
+        <View className="p-3 bg-muted rounded-md">
+          <Text className="text-sm font-mono text-foreground">
+            {`const response = await fetch(
+  'https://api.alia.onl/v1/chat',
   {
     method: 'POST',
     headers: {
@@ -47,70 +35,86 @@ export default function ExamplesScreen() {
       'Content-Type': 'application/json'
     },
     body: JSON.stringify({
-      messages: [
-        { role: 'user', content: 'Hello!' }
-      ]
+      message: 'Hello, Alia!',
+      model: 'gemini-1.5-flash'
     })
   }
 );
 
 const data = await response.json();
 console.log(data);`}
-            </Text>
-          </View>
-        </Card>
+          </Text>
+        </View>
       </View>
 
       {/* Python Example */}
-      <View className="px-6 py-6 border-t border-border">
-        <Text className="text-lg font-semibold text-foreground mb-4">Python</Text>
-        <Card className="p-6">
-          <Text className="text-sm text-muted-foreground mb-3">
-            Using requests library:
-          </Text>
-          <View className="p-4 bg-muted rounded-lg">
-            <Text className="text-xs font-mono text-foreground">
-              {`import requests
+      <View className="px-6 py-6 border-b border-border">
+        <Text className="text-sm font-semibold text-foreground mb-4">Python</Text>
+        <Text className="text-sm text-muted-foreground mb-3">Using requests library:</Text>
+        <View className="p-3 bg-muted rounded-md">
+          <Text className="text-sm font-mono text-foreground">
+            {`import requests
 
 response = requests.post(
-    'https://api.alia.onl/v1/chat/completions',
+    'https://api.alia.onl/v1/chat',
     headers={
         'Authorization': 'Bearer alia_sk_your_key',
         'Content-Type': 'application/json'
     },
     json={
-        'messages': [
-            {'role': 'user', 'content': 'Hello!'}
-        ]
+        'message': 'Hello, Alia!',
+        'model': 'gemini-1.5-flash'
     }
 )
 
-print(response.json())`}
-            </Text>
-          </View>
-        </Card>
+data = response.json()
+print(data)`}
+          </Text>
+        </View>
       </View>
 
       {/* cURL Example */}
-      <View className="px-6 py-6 border-t border-border">
-        <Text className="text-lg font-semibold text-foreground mb-4">cURL</Text>
-        <Card className="p-6">
-          <Text className="text-sm text-muted-foreground mb-3">
-            Command line example:
-          </Text>
-          <View className="p-4 bg-muted rounded-lg">
-            <Text className="text-xs font-mono text-foreground">
-              {`curl -X POST https://api.alia.onl/v1/chat/completions \\
+      <View className="px-6 py-6 border-b border-border">
+        <Text className="text-sm font-semibold text-foreground mb-4">cURL</Text>
+        <Text className="text-sm text-muted-foreground mb-3">Command line example:</Text>
+        <View className="p-3 bg-muted rounded-md">
+          <Text className="text-sm font-mono text-foreground">
+            {`curl -X POST https://api.alia.onl/v1/chat \\
   -H "Authorization: Bearer alia_sk_your_key" \\
   -H "Content-Type: application/json" \\
   -d '{
-    "messages": [
-      {"role": "user", "content": "Hello!"}
-    ]
+    "message": "Hello, Alia!",
+    "model": "gemini-1.5-flash"
   }'`}
-            </Text>
-          </View>
-        </Card>
+          </Text>
+        </View>
+      </View>
+
+      {/* Streaming Example */}
+      <View className="px-6 py-6">
+        <Text className="text-sm font-semibold text-foreground mb-4">Streaming responses</Text>
+        <Text className="text-sm text-muted-foreground mb-3">Enable streaming for real-time responses:</Text>
+        <View className="p-3 bg-muted rounded-md">
+          <Text className="text-sm font-mono text-foreground">
+            {`const response = await fetch(
+  'https://api.alia.onl/v1/chat',
+  {
+    method: 'POST',
+    headers: {
+      'Authorization': 'Bearer alia_sk_your_key',
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      message: 'Tell me a story',
+      stream: true
+    })
+  }
+);
+
+const reader = response.body.getReader();
+// Process stream...`}
+          </Text>
+        </View>
       </View>
     </ScrollView>
   );

@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { useEffect } from "react";
 import { useAuthStore } from "@/lib/stores/auth-store";
 import { useRouter } from "expo-router";
-import { Plus, ChevronRight } from "lucide-react-native";
+import { ChevronRight } from "lucide-react-native";
 import { useApps, useDeveloperStats } from "@/lib/hooks/use-developer";
 
 export default function DeveloperPortalScreen() {
@@ -32,18 +32,15 @@ export default function DeveloperPortalScreen() {
     <ScrollView className="flex-1 bg-background">
       {/* Header */}
       <View className="px-6 py-6 border-b border-border">
-        <View className="flex-row items-center justify-between">
-          <View>
-            <Text className="text-2xl font-semibold text-foreground">Developer settings</Text>
-            <Text className="text-sm text-muted-foreground mt-1">
-              Build applications powered by Alia AI
-            </Text>
-          </View>
+        <View className="flex-row items-center justify-between mb-1">
+          <Text className="text-2xl font-semibold text-foreground">Developer settings</Text>
           <Button onPress={handleCreateApp} size="sm">
-            <Plus size={16} className="text-primary-foreground mr-1.5" />
             <Text className="text-primary-foreground font-medium text-sm">New app</Text>
           </Button>
         </View>
+        <Text className="text-sm text-muted-foreground">
+          Build applications powered by Alia AI
+        </Text>
       </View>
 
       {/* Stats */}
@@ -101,8 +98,7 @@ export default function DeveloperPortalScreen() {
             <Text className="text-sm text-muted-foreground mb-4">
               You haven't created any apps yet.
             </Text>
-            <Button onPress={handleCreateApp} size="sm" className="self-start">
-              <Plus size={14} className="text-primary-foreground mr-1.5" />
+            <Button onPress={handleCreateApp} size="sm">
               <Text className="text-primary-foreground font-medium text-sm">Create your first app</Text>
             </Button>
           </View>
