@@ -1,17 +1,14 @@
 import React from 'react';
-import { View, Pressable, Alert } from 'react-native';
+import { View, Pressable } from 'react-native';
 import { Image } from 'expo-image';
 import { Text } from '@/components/ui/text';
-import { Card } from '@/components/ui/card';
 import {
   FileText,
   Image as ImageIcon,
   File,
-  Trash2,
-  Download
+  Trash2
 } from 'lucide-react-native';
 import { LibraryFile } from '@/lib/stores/library-store';
-import { cn } from '@/lib/utils';
 
 interface FileCardProps {
   file: LibraryFile;
@@ -20,28 +17,19 @@ interface FileCardProps {
 }
 
 export function FileCard({ file, onPress, onDelete }: FileCardProps) {
-  const handleDelete = () => {
-    Alert.alert(
-      'Delete File',
-      `Are you sure you want to delete "${file.name}"?`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete',
-          style: 'destructive',
-          onPress: () => onDelete?.(file)
-        },
-      ]
-    );
+  const handleDelete = (e: any) => {
+    // Prevent event bubbling to parent Pressable
+    e?.stopPropagation?.();
+    onDelete?.(file);
   };
 
   const getFileIcon = () => {
     if (file.category === 'images') {
-      return <ImageIcon size={24} className="text-blue-500" />;
+      return <ImageIcon size={16} className="text-blue-500" />;
     } else if (file.category === 'documents') {
-      return <FileText size={24} className="text-green-500" />;
+      return <FileText size={16} className="text-green-500" />;
     } else {
-      return <File size={24} className="text-gray-500" />;
+      return <File size={16} className="text-muted-foreground" />;
     }
   };
 
@@ -68,57 +56,65 @@ export function FileCard({ file, onPress, onDelete }: FileCardProps) {
   return (
     <Pressable
       onPress={() => onPress?.(file)}
-      className="active:opacity-70 w-full"
+      className="active:bg-muted/50 w-full"
     >
-      <Card className="overflow-hidden">
-        <View className="flex-row items-center p-4">
-          {/* Thumbnail or Icon */}
-          <View className="mr-4">
-            {file.category === 'images' && file.thumbnail ? (
-              <Image
-                source={{ uri: file.thumbnail }}
-                className="w-12 h-12 rounded-lg"
-                contentFit="cover"
-                placeholder={{ blurhash: 'L6PZfSi_.AyE_3t7t7R**0o#DgR4' }}
-                transition={200}
-              />
-            ) : (
-              <View className="w-12 h-12 rounded-lg bg-muted items-center justify-center">
-                {getFileIcon()}
-              </View>
-            )}
-          </View>
-
-          {/* File Info */}
-          <View className="flex-1 mr-2">
-            <Text className="text-base font-semibold text-foreground" numberOfLines={1}>
-              {file.name}
-            </Text>
-            <View className="flex-row items-center gap-2 mt-1">
-              <Text className="text-xs text-muted-foreground">
-                {formatFileSize(file.size)}
-              </Text>
-              <View className="w-1 h-1 rounded-full bg-muted-foreground" />
-              <Text className="text-xs text-muted-foreground">
-                {formatDate(file.uploadedAt)}
-              </Text>
+      <View className="flex-row items-center border-b border-border px-3 py-2 hover:bg-muted/50 transition-colors">
+        {/* Thumbnail or Icon */}
+        <View className="w-8 mr-2">
+          {file.category === 'images' && file.thumbnail ? (
+            <Image
+              source={{ uri: file.thumbnail }}
+              className="w-8 h-8 rounded"
+              contentFit="cover"
+              placeholder={{ blurhash: 'L6PZfSi_.AyE_3t7t7R**0o#DgR4' }}
+              transition={200}
+            />
+          ) : (
+            <View className="w-8 h-8 rounded bg-muted items-center justify-center">
+              {getFileIcon()}
             </View>
-            <View className="px-2 py-0.5 bg-muted rounded-md self-start mt-1">
-              <Text className="text-xs text-muted-foreground capitalize">
-                {file.category}
-              </Text>
-            </View>
-          </View>
-
-          {/* Actions */}
-          <Pressable
-            onPress={handleDelete}
-            className="p-2 active:opacity-70"
-          >
-            <Trash2 size={20} className="text-destructive" />
-          </Pressable>
+          )}
         </View>
-      </Card>
+
+        {/* Name - takes most space */}
+        <View className="flex-1 mr-3">
+          <Text className="text-sm text-foreground" numberOfLines={1}>
+            {file.name}
+          </Text>
+        </View>
+
+        {/* Category */}
+        <View className="w-20 mr-3 hidden md:flex">
+          <Text className="text-xs text-muted-foreground capitalize">
+            {file.category}
+          </Text>
+        </View>
+
+        {/* Size */}
+        <View className="w-16 mr-3 hidden md:flex">
+          <Text className="text-xs text-muted-foreground">
+            {formatFileSize(file.size)}
+          </Text>
+        </View>
+
+        {/* Date */}
+        <View className="w-20 mr-3 hidden md:flex">
+          <Text className="text-xs text-muted-foreground">
+            {formatDate(file.uploadedAt)}
+          </Text>
+        </View>
+
+        {/* Actions */}
+        <Pressable
+          onPress={(e) => {
+            e.stopPropagation();
+            handleDelete(e);
+          }}
+          className="p-1.5 rounded hover:bg-muted active:opacity-70"
+        >
+          <Trash2 size={16} className="text-muted-foreground hover:text-destructive" />
+        </Pressable>
+      </View>
     </Pressable>
   );
 }

@@ -160,7 +160,7 @@ export default function SettingsScreen() {
 
             <Pressable
               onPress={() => router.push("/(app)/settings/memory")}
-              className="border border-border rounded-lg p-4 bg-card flex-row items-center justify-between active:bg-muted"
+              className="border border-border rounded-lg p-4 bg-surface flex-row items-center justify-between active:bg-muted"
             >
               <View className="flex-row items-center gap-3">
                 <View className="bg-primary/10 p-2 rounded-lg">
@@ -178,7 +178,7 @@ export default function SettingsScreen() {
 
             <Pressable
               onPress={() => router.push("/(app)/settings/account")}
-              className="border border-border rounded-lg p-4 bg-card flex-row items-center justify-between active:bg-muted"
+              className="border border-border rounded-lg p-4 bg-surface flex-row items-center justify-between active:bg-muted"
             >
               <View className="flex-row items-center gap-3">
                 <View className="bg-primary/10 p-2 rounded-lg">

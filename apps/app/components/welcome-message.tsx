@@ -83,10 +83,10 @@ export const WelcomeMessage = ({ onSuggestionPress }: WelcomeMessageProps) => {
           {suggestions.map((item, index) => (
             <Pressable
               key={index}
-              className="flex-1 min-w-[35%] flex-col items-start rounded-3xl border border-border bg-card p-4 active:bg-muted/50"
+              className="flex-1 min-w-[35%] flex-col items-start rounded-3xl border border-border bg-surface p-4 active:bg-muted/50"
               onPress={() => onSuggestionPress?.(item.description)}
             >
-              <Text className="text-sm font-medium text-card-foreground mb-1">
+              <Text className="text-sm font-medium text-surface-foreground mb-1">
                 {item.title}
               </Text>
               <Text

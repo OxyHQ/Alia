@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useMemo } from 'react';
-import { View, ScrollView, Pressable, TextInput, Alert } from 'react-native';
+import { View, ScrollView, Pressable, TextInput } from 'react-native';
 import { Text } from '@/components/ui/text';
 import { Button } from '@/components/ui/button';
 import {
@@ -16,6 +16,7 @@ import { useImagePicker } from '@/hooks/useImagePicker';
 import { useDocumentPicker } from '@/hooks/useDocumentPicker';
 import { FileCard } from '@/components/file-card';
 import { cn } from '@/lib/utils';
+import { toast } from '@/components/sonner';
 
 export default function LibraryScreen() {
   const files = useLibraryStore((state) => state.files);
@@ -78,10 +79,10 @@ export default function LibraryScreen() {
             thumbnail: uri,
           });
         }
-        Alert.alert('Success', `${uris.length} image(s) uploaded successfully`);
+        toast.success(`${uris.length} image(s) uploaded successfully`);
       }
     } catch (error) {
-      Alert.alert('Error', 'Failed to upload images');
+      toast.error('Failed to upload images');
     }
   };
 
@@ -105,18 +106,19 @@ export default function LibraryScreen() {
             thumbnail: doc.mimeType.startsWith('image/') ? doc.uri : undefined,
           });
         }
-        Alert.alert('Success', `${docs.length} file(s) uploaded successfully`);
+        toast.success(`${docs.length} file(s) uploaded successfully`);
       }
     } catch (error) {
-      Alert.alert('Error', 'Failed to upload files');
+      toast.error('Failed to upload files');
     }
   };
 
   const handleDeleteFile = async (fileId: string) => {
     try {
       await deleteFile(fileId);
+      toast.success('File deleted successfully');
     } catch (error) {
-      Alert.alert('Error', 'Failed to delete file');
+      toast.error('Failed to delete file');
     }
   };
 
@@ -248,7 +250,26 @@ export default function LibraryScreen() {
               </Text>
             </View>
           ) : (
-            <View className="gap-3">
+            <View className="border border-border rounded-lg overflow-hidden bg-surface">
+              {/* Table Header */}
+              <View className="flex-row items-center border-b border-border px-3 py-2 bg-muted/30">
+                <View className="w-8 mr-2" />
+                <View className="flex-1 mr-3">
+                  <Text className="text-xs font-medium text-muted-foreground">Name</Text>
+                </View>
+                <View className="w-20 mr-3 hidden md:flex">
+                  <Text className="text-xs font-medium text-muted-foreground">Category</Text>
+                </View>
+                <View className="w-16 mr-3 hidden md:flex">
+                  <Text className="text-xs font-medium text-muted-foreground">Size</Text>
+                </View>
+                <View className="w-20 mr-3 hidden md:flex">
+                  <Text className="text-xs font-medium text-muted-foreground">Date</Text>
+                </View>
+                <View className="w-8" />
+              </View>
+
+              {/* Table Body */}
               {filteredFiles.map((file) => (
                 <FileCard
                   key={file.id}
