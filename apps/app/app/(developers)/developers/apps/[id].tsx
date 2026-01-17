@@ -88,8 +88,8 @@ export default function AppDetailScreen() {
   return (
     <ScrollView className="flex-1 bg-background">
       {/* Header */}
-      <View className="px-6 py-4 border-b border-border">
-        <Pressable onPress={() => router.back()} className="flex-row items-center mb-4">
+      <View className="px-4 py-3 border-b border-border">
+        <Pressable onPress={() => router.back()} className="flex-row items-center mb-3">
           <ArrowLeft size={20} className="text-muted-foreground mr-2" />
           <Text className="text-base text-muted-foreground">Back</Text>
         </Pressable>
@@ -99,7 +99,7 @@ export default function AppDetailScreen() {
             <Package size={28} className="text-primary" />
           </View>
           <View className="flex-1">
-            <Text className="text-3xl font-bold text-foreground">{currentApp.name}</Text>
+            <Text className="text-2xl font-bold text-foreground">{currentApp.name}</Text>
             {currentApp.description && (
               <Text className="text-base text-muted-foreground mt-1">
                 {currentApp.description}
@@ -124,8 +124,8 @@ export default function AppDetailScreen() {
       </View>
 
       {/* App Info */}
-      <View className="px-6 py-6 border-b border-border">
-        <Text className="text-lg font-semibold text-foreground mb-4">App Information</Text>
+      <View className="px-4 py-4 border-b border-border">
+        <Text className="text-base font-semibold text-foreground mb-3">App Information</Text>
         <Card className="p-4">
           <View className="mb-3">
             <Text className="text-xs font-semibold text-muted-foreground mb-1">App ID</Text>
@@ -141,9 +141,9 @@ export default function AppDetailScreen() {
       </View>
 
       {/* API Keys Section */}
-      <View className="px-6 py-6 border-b border-border">
-        <View className="flex-row items-center justify-between mb-4">
-          <Text className="text-lg font-semibold text-foreground">API Keys</Text>
+      <View className="px-4 py-4 border-b border-border">
+        <View className="flex-row items-center justify-between mb-3">
+          <Text className="text-base font-semibold text-foreground">API Keys</Text>
           <Button
             onPress={() => setShowNewKeyModal(true)}
             size="sm"
@@ -155,7 +155,7 @@ export default function AppDetailScreen() {
 
         {/* New Key Modal */}
         {showNewKeyModal && (
-          <Card className="p-4 mb-4 bg-muted">
+          <Card className="p-4 mb-3 bg-muted">
             <Text className="text-base font-semibold text-foreground mb-3">Create API Key</Text>
             <RNTextInput
               value={keyName}
@@ -191,7 +191,7 @@ export default function AppDetailScreen() {
 
         {/* Newly Created Key Alert */}
         {newlyCreatedKey && (
-          <Card className="p-4 mb-4 bg-yellow-50 border-yellow-200">
+          <Card className="p-4 mb-3 bg-yellow-50 border-yellow-200">
             <Text className="text-sm font-semibold text-yellow-900 mb-2">
               Save your API key!
             </Text>
@@ -223,7 +223,7 @@ export default function AppDetailScreen() {
             <Text className="text-center text-muted-foreground">Loading keys...</Text>
           </View>
         ) : apiKeys.length === 0 ? (
-          <Card className="p-8">
+          <Card className="p-6">
             <View className="items-center">
               <Key size={32} className="text-muted-foreground mb-2" />
               <Text className="text-base text-muted-foreground text-center">
@@ -282,7 +282,7 @@ export default function AppDetailScreen() {
       </View>
 
       {/* Usage Stats Link */}
-      <View className="px-6 py-6 border-b border-border">
+      <View className="px-4 py-4 border-b border-border">
         <Pressable
           onPress={() => router.push(`/developers/apps/${id}/usage`)}
           className="active:opacity-70"
@@ -302,8 +302,8 @@ export default function AppDetailScreen() {
       </View>
 
       {/* Danger Zone */}
-      <View className="px-6 py-6">
-        <Text className="text-lg font-semibold text-destructive mb-4">Danger Zone</Text>
+      <View className="px-4 py-4">
+        <Text className="text-base font-semibold text-destructive mb-3">Danger Zone</Text>
         <Card className="p-4 border-destructive">
           <Button
             variant="destructive"
