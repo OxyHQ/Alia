@@ -109,16 +109,14 @@ class APIClient {
   }
 
   // Telegram User Management
+  async requestTelegramLink(telegramId: string): Promise<{ authToken: string; authUrl: string; expiresAt: Date }> {
+    const response = await this.client.post('/telegram/link-request', { telegramId });
+    return response.data;
+  }
+
   async getTelegramUser(telegramId: string): Promise<any> {
-    try {
-      const response = await this.client.get(`/telegram/users/${telegramId}`);
-      return response.data;
-    } catch (error: any) {
-      if (error.response?.status === 404) {
-        return null;
-      }
-      throw error;
-    }
+    const response = await this.client.get(`/telegram/users/${telegramId}`);
+    return response.data;
   }
 
   async createOrUpdateTelegramUser(data: {

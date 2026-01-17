@@ -155,39 +155,48 @@ export async function handleStart(ctx: Context) {
       });
     }
 
-    // Check if user is already authenticated
+    // Si ya está vinculado, ofrecer login directo
     if (telegramUser.isAuthenticated && telegramUser.sessionToken) {
-      // Verify token is still valid
+      // Verificar si el token sigue siendo válido
       try {
         const response = await apiClient.getMe(telegramUser.sessionToken);
-        const userData = response.user || response; // Handle both nested and flat responses
+        const userData = response.user || response;
+        // Ofrecer login directo con enlace
+        const authData = await apiClient.requestTelegramAuth(telegramId);
         await ctx.reply(
           `👋 <b>Welcome back, ${userData.name || 'there'}!</b>\n\n` +
-          `✅ You're already authenticated and ready to chat.\n\n` +
-          `Just send me any message to start a conversation!`,
+          `✅ Your Telegram is already linked to an Alia account.\n\n` +
+          `You can sign in directly using the button below.`,
           {
             parse_mode: 'HTML',
             ...Markup.inlineKeyboard([
-              [
-                Markup.button.callback('📊 Account Status', 'status'),
-                Markup.button.callback('🆕 New Chat', 'new')
-              ],
-              [
-                Markup.button.callback('📚 History', 'history'),
-                Markup.button.callback('❓ Help', 'help')
-              ],
+              [Markup.button.url('🔐 Sign In to Alia', authData.authUrl)],
+              [Markup.button.callback('🆕 New Chat', 'new')],
               [Markup.button.callback('🚪 Logout', 'logout')]
             ])
           }
         );
         return;
       } catch (error) {
-        // Token is invalid, will request auth below
+        // Token inválido, continuar con login
       }
     }
 
-    // Send auth request
-    await sendAuthRequest(ctx);
+    // Si NO está vinculado, ofrecer vinculación o login
+    await ctx.reply(
+      `👋 <b>Welcome to Alia AI!</b>\n\n` +
+      `You can:\n` +
+      `- <b>Link your Telegram to an existing Alia account</b> (if you already have one)\n` +
+      `- <b>Create a new Alia account with Telegram</b>\n\n` +
+      `Choose an option below:`,
+      {
+        parse_mode: 'HTML',
+        ...Markup.inlineKeyboard([
+          [Markup.button.url('🔗 Link to Existing Account', (await apiClient.requestTelegramLink(telegramId)).authUrl)],
+          [Markup.button.url('🆕 Create/Sign In with Telegram', (await apiClient.requestTelegramAuth(telegramId)).authUrl)]
+        ])
+      }
+    );
   } catch (error) {
     console.error('Start command error:', error);
     await ctx.reply('Sorry, an error occurred. Please try again later.');
