@@ -4,6 +4,7 @@ import crypto from 'crypto';
 import { TelegramUser } from '../models/telegram-user.js';
 import { User } from '../models/user.js';
 import { emitTelegramLinked } from '../socket.js';
+import { signToken } from '../lib/jwt.js';
 
 const router = express.Router();
 
@@ -390,7 +391,7 @@ router.post('/link', async (req, res) => {
         console.warn('[Telegram] No chat ID for user:', telegramUser.telegramId);
       } else {
         // Extract user name properly
-        const userName = user.name?.full || user.name?.first || telegramUser.firstName || 'there';
+        const telegramUser = await TelegramUser.findOne({
         const message =
           `✅ <b>¡Autenticación Exitosa!</b>\n\n` +
           `¡Bienvenido ${userName}! Tu cuenta de Telegram ahora está vinculada a Alia.\n\n` +
@@ -421,13 +422,13 @@ router.post('/link', async (req, res) => {
       }
     } catch (notifyError) {
       console.error('[Telegram] Failed to send notification:', notifyError);
-      // Don't fail the request if notification fails
-    }
-
-    res.json({ success: true, message: 'Account linked successfully' });
-  } catch (error) {
-    console.error('Telegram link error:', error);
-    res.status(500).json({ error: 'Internal server error' });
+        emitTelegramLinked(req.body.authToken, {
+          userId: telegramUser.userId,
+          sessionToken: telegramUser.sessionToken,
+          email: user?.email,
+          name: (user?.name && (user.name.full || user.name.first)) || '',
+          type: 'linked',
+        });
   }
 });
 
@@ -543,11 +544,11 @@ router.get('/token-info/:token', async (req, res) => {
       return res.status(400).json({ error: 'Token is required' });
     }
     // Buscar usuario de Telegram por token válido
-      const telegramUser = await TelegramUser.findOne({
-        authToken: token,
-        authTokenExpiry: { $gt: new Date() },
-        authTokenMode: 'signin',
-      });
+        const telegramUser = await TelegramUser.findOne({
+          authToken: token,
+          authTokenExpiry: { $gt: new Date() },
+          authTokenMode: 'signin',
+        });
     if (!telegramUser) {
       return res.status(404).json({ error: 'Token not found or expired' });
     }
@@ -577,12 +578,12 @@ router.get('/token-info/:token', async (req, res) => {
         console.error('[Telegram] Failed to send login notification:', notifyError);
       }
       emitTelegramLinked(token, {
-        userId: telegramUser.userId,
-        sessionToken: telegramUser.sessionToken,
-        email: user?.email,
-        name: user?.name?.full || user?.name?.first || '',
-        type: 'login',
-      });
+          emitTelegramLinked(token, {
+            userId: telegramUser.userId,
+            sessionToken: telegramUser.sessionToken,
+            email: user?.email,
+            name: (user?.name && (user.name.full || user.name.first)) || '',
+          });
       return res.json({
         userId: telegramUser.userId,
         sessionToken: telegramUser.sessionToken,

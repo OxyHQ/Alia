@@ -21,38 +21,53 @@ export default function TelegramAuthScreen() {
         return;
       }
 
-      // Si ya hay sesión, intentar vincular
-      if (authToken && user) {
-        try {
-          const response = await apiClient.post('/telegram/link', {
-            authToken: token,
-            sessionToken: authToken,
-          });
-          if (response.data.success) {
-            setStatus('success');
-            setMessage('Your Telegram account has been linked successfully!');
-          } else {
+      // Consultar el modo del token (login o vinculación)
+      let tokenMode: 'signin' | 'link' | null = null;
+      let tgUser: any = null;
+      try {
+        const res = await apiClient.get(`/telegram/users/token/${token}`); // Nuevo endpoint sugerido para obtener info del token
+        tokenMode = res.data?.authTokenMode || null;
+        tgUser = res.data;
+      } catch (e) {
+        setStatus('error');
+        setMessage('Invalid or expired token. Please request a new link from Telegram.');
+        return;
+      }
+
+      if (tokenMode === 'link') {
+        // Solo permitir vinculación si hay sesión
+        if (authToken && user) {
+          try {
+            const response = await apiClient.post('/telegram/link', {
+              authToken: token,
+              sessionToken: authToken,
+            });
+            if (response.data.success) {
+              setStatus('success');
+              setMessage('Your Telegram account has been linked successfully!');
+            } else {
+              setStatus('error');
+              setMessage('Failed to link your account. Please try again.');
+            }
+          } catch (error: any) {
+            console.error('Link error:', error);
+            const errorMessage = error.response?.data?.error || 'Failed to link account';
             setStatus('error');
-            setMessage('Failed to link your account. Please try again.');
+            setMessage(errorMessage);
           }
-        } catch (error: any) {
-          console.error('Link error:', error);
-          const errorMessage = error.response?.data?.error || 'Failed to link account';
-          setStatus('error');
-          setMessage(errorMessage);
+        } else {
+          setStatus('needLogin');
+          setMessage('Please log in to your Alia account to link Telegram.');
+          setTimeout(() => {
+            router.replace(`/login?returnTo=/telegram-auth?token=${token}`);
+          }, 1500);
         }
         return;
       }
 
-      // Si NO hay sesión, intentar login automático con Telegram
-      try {
-        setStatus('checking');
-        setMessage('Checking Telegram link...');
-        // Buscar usuario de Telegram por token
-        const res = await apiClient.get(`/telegram/token-info/${token}`);
-        const tgUser = res.data;
+      if (tokenMode === 'signin') {
+        // Solo permitir login automático con Telegram
         if (tgUser && tgUser.userId && tgUser.sessionToken) {
-          // Login automático
           useAuthStore.getState().setToken(tgUser.sessionToken);
           useAuthStore.getState().setUser({
             _id: tgUser.userId,
@@ -65,20 +80,13 @@ export default function TelegramAuthScreen() {
             router.replace('/');
           }, 1200);
         } else {
-          // Si no está vinculado, redirigir a login
-          setStatus('needLogin');
-          setMessage('Please log in to continue');
-          setTimeout(() => {
-            router.replace(`/login?returnTo=/telegram-auth?token=${token}`);
-          }, 1500);
+          setStatus('error');
+          setMessage('This Telegram is not linked to any Alia account. Please create an account or request a new link.');
         }
-      } catch (error: any) {
-        setStatus('needLogin');
-        setMessage('Please log in to continue');
-        setTimeout(() => {
-          router.replace(`/login?returnTo=/telegram-auth?token=${token}`);
-        }, 1500);
+        return;
       }
+      setStatus('error');
+      setMessage('Invalid or expired token. Please request a new link from Telegram.');
     }
     handleTelegramAuth();
   }, [token, authToken, user, router]);
