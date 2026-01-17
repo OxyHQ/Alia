@@ -2,6 +2,7 @@ import mongoose, { Schema, Document } from 'mongoose';
 
 export interface IDeveloperApp extends Document {
   userId: mongoose.Types.ObjectId;
+  organizationId?: mongoose.Types.ObjectId;
   name: string;
   description?: string;
   websiteUrl?: string;
@@ -18,6 +19,11 @@ const DeveloperAppSchema = new Schema<IDeveloperApp>(
       type: Schema.Types.ObjectId,
       ref: 'User',
       required: true,
+      index: true,
+    },
+    organizationId: {
+      type: Schema.Types.ObjectId,
+      ref: 'Organization',
       index: true,
     },
     name: {

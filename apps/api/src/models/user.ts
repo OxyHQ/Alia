@@ -15,13 +15,17 @@ export interface IUser extends Document {
     freeLimit: number;     // Max free credits (resets to this daily)
     dailyRefresh: number;  // Amount to refresh daily
     lastRefresh: Date;     // Last time credits were refreshed
+    paid: number;          // Paid credits balance (never expires)
   };
+  stripeCustomerId?: string;
   resetPasswordToken?: string;
   resetPasswordExpires?: Date;
   createdAt: Date;
   updatedAt: Date;
   comparePassword(candidatePassword: string): Promise<boolean>;
   refreshCreditsIfNeeded(): Promise<void>;
+  addCredits(amount: number, type?: 'free' | 'paid'): Promise<void>;
+  deductCredits(amount: number): Promise<boolean>;
 }
 
 const UserSchema = new Schema<IUser>({
@@ -38,7 +42,9 @@ const UserSchema = new Schema<IUser>({
     freeLimit: { type: Number, default: 1000 },
     dailyRefresh: { type: Number, default: 300 },
     lastRefresh: { type: Date, default: Date.now },
+    paid: { type: Number, default: 0 },
   },
+  stripeCustomerId: { type: String },
   resetPasswordToken: { type: String },
   resetPasswordExpires: { type: Date },
 }, {
@@ -91,6 +97,37 @@ UserSchema.methods.refreshCreditsIfNeeded = async function(): Promise<void> {
     this.credits.lastRefresh = now;
     await this.save();
   }
+};
+
+// Method to add credits
+UserSchema.methods.addCredits = async function(amount: number, type: 'free' | 'paid' = 'paid'): Promise<void> {
+  if (type === 'free') {
+    this.credits.free += amount;
+  } else {
+    this.credits.paid += amount;
+  }
+  await this.save();
+};
+
+// Method to deduct credits (uses paid first, then free)
+UserSchema.methods.deductCredits = async function(amount: number): Promise<boolean> {
+  const totalCredits = this.credits.paid + this.credits.free;
+
+  if (totalCredits < amount) {
+    return false; // Insufficient credits
+  }
+
+  // Deduct from paid credits first
+  if (this.credits.paid >= amount) {
+    this.credits.paid -= amount;
+  } else {
+    const remaining = amount - this.credits.paid;
+    this.credits.paid = 0;
+    this.credits.free -= remaining;
+  }
+
+  await this.save();
+  return true;
 };
 
 // Evitar recompilación del modelo en hot-reload
