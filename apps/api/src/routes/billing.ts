@@ -351,12 +351,35 @@ router.post('/portal', authenticateToken, async (req: Request, res: Response) =>
     const { returnUrl } = req.body;
 
     const user = await User.findById(userId);
-    if (!user || !user.stripeCustomerId) {
-      return res.status(400).json({ error: 'No Stripe customer found' });
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    let customerId = user.stripeCustomerId;
+
+    // Try to retrieve existing customer, create new one if it doesn't exist
+    if (customerId) {
+      try {
+        await getStripe().customers.retrieve(customerId);
+      } catch (error: any) {
+        console.log(`[Billing] Customer ${customerId} not found in Stripe, creating new customer`);
+        customerId = null;
+      }
+    }
+
+    if (!customerId) {
+      const customer = await getStripe().customers.create({
+        email: user.email,
+        metadata: { userId: userId.toString() },
+      });
+      customerId = customer.id;
+      user.stripeCustomerId = customerId;
+      await user.save();
+      console.log(`[Billing] Created new Stripe customer ${customerId} for user ${user.email}`);
     }
 
     const session = await getStripe().billingPortal.sessions.create({
-      customer: user.stripeCustomerId,
+      customer: customerId,
       return_url: returnUrl,
     });
 
