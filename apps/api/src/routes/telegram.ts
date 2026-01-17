@@ -1,3 +1,13 @@
+import express from 'express';
+import { authenticateToken } from '../middleware/auth.js';
+import crypto from 'crypto';
+import { TelegramUser } from '../models/telegram-user.js';
+import { User } from '../models/user.js';
+import { emitTelegramLinked } from '../socket.js';
+import { signToken } from '../lib/jwt.js';
+
+const router = express.Router();
+
 // Obtener info y modo de un token de Telegram
 router.get('/users/token/:token', async (req, res) => {
   try {
@@ -12,13 +22,12 @@ router.get('/users/token/:token', async (req, res) => {
     if (!telegramUser) {
       return res.status(404).json({ error: 'Token not found or expired' });
     }
-    // Exponer solo los campos necesarios
+    // Exponer solo los campos necesarios (sin email, ya que no existe en el modelo)
     res.json({
       telegramId: telegramUser.telegramId,
       authTokenMode: telegramUser.authTokenMode,
       userId: telegramUser.userId,
       sessionToken: telegramUser.sessionToken,
-      email: telegramUser.email,
       name: telegramUser.firstName || telegramUser.username || '',
       isAuthenticated: telegramUser.isAuthenticated,
     });
@@ -27,15 +36,7 @@ router.get('/users/token/:token', async (req, res) => {
     res.status(500).json({ error: 'Internal server error' });
   }
 });
-import express from 'express';
-import { authenticateToken } from '../middleware/auth.js';
-import crypto from 'crypto';
-import { TelegramUser } from '../models/telegram-user.js';
-import { User } from '../models/user.js';
-import { emitTelegramLinked } from '../socket.js';
-import { signToken } from '../lib/jwt.js';
 
-const router = express.Router();
 
 // Helper to generate auth token
 // Genera un token seguro de 32 bytes (64 caracteres hexadecimales)
@@ -391,7 +392,7 @@ router.post('/link', async (req, res) => {
       return res.status(401).json({ error: 'Invalid session token' });
     }
 
-    const meData = await meResponse.json();
+      const meData: any = await meResponse.json();
     const user = meData.user || meData; // Handle nested user object
 
     // Link the accounts
@@ -419,8 +420,8 @@ router.post('/link', async (req, res) => {
       } else if (!telegramUser.chatId) {
         console.warn('[Telegram] No chat ID for user:', telegramUser.telegramId);
       } else {
-        // Extract user name properly
-        const telegramUser = await TelegramUser.findOne({
+        // Use the user's name for the message
+        const userName = user.name?.full || user.name?.first || telegramUser.firstName || telegramUser.username || '';
         const message =
           `✅ <b>¡Autenticación Exitosa!</b>\n\n` +
           `¡Bienvenido ${userName}! Tu cuenta de Telegram ahora está vinculada a Alia.\n\n` +
@@ -451,13 +452,9 @@ router.post('/link', async (req, res) => {
       }
     } catch (notifyError) {
       console.error('[Telegram] Failed to send notification:', notifyError);
-        emitTelegramLinked(req.body.authToken, {
-          userId: telegramUser.userId,
-          sessionToken: telegramUser.sessionToken,
-          email: user?.email,
-          name: (user?.name && (user.name.full || user.name.first)) || '',
-          type: 'linked',
-        });
+    }
+  } catch (notifyError) {
+    console.error('[Telegram] Failed to send notification:', notifyError);
   }
 });
 
@@ -483,8 +480,10 @@ router.post('/signin-complete', async (req, res) => {
 
     // Check if this Telegram user already exists and is linked to an account
     let existingTelegramUser = await TelegramUser.findOne({
-      telegramId,
-      telegramId: { $ne: pendingAuth.telegramId }, // Exclude the pending entry
+      $and: [
+        { telegramId: telegramId },
+        { telegramId: { $ne: pendingAuth.telegramId } },
+      ]
     });
 
     let user;
@@ -606,18 +605,27 @@ router.get('/token-info/:token', async (req, res) => {
       } catch (notifyError) {
         console.error('[Telegram] Failed to send login notification:', notifyError);
       }
+      // Compose full name safely
+      let fullName = '';
+      if (user?.name) {
+        if ('full' in user.name && typeof user.name.full === 'string') {
+          fullName = user.name.full;
+        } else {
+          const parts = [user.name.first, user.name.middle, user.name.last].filter(Boolean);
+          fullName = parts.join(' ');
+        }
+      }
       emitTelegramLinked(token, {
-          emitTelegramLinked(token, {
-            userId: telegramUser.userId,
-            sessionToken: telegramUser.sessionToken,
-            email: user?.email,
-            name: (user?.name && (user.name.full || user.name.first)) || '',
-          });
+        userId: telegramUser.userId,
+        sessionToken: telegramUser.sessionToken,
+        email: user?.email,
+        name: fullName,
+      });
       return res.json({
         userId: telegramUser.userId,
         sessionToken: telegramUser.sessionToken,
         email: user?.email,
-        name: user?.name?.full || user?.name?.first || '',
+        name: fullName,
       });
     }
     // No vinculado aún
