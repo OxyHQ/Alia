@@ -41,17 +41,17 @@ export default function NewAppScreen() {
       {/* Header */}
       <View className="px-4 py-3 border-b border-border">
         <Pressable onPress={() => router.back()} className="flex-row items-center mb-3">
-          <ArrowLeft size={20} className="text-muted-foreground mr-2" />
+          <ArrowLeft size={16} className="text-muted-foreground mr-2" />
           <Text className="text-base text-muted-foreground">Back</Text>
         </Pressable>
 
         <View className="flex-row items-center">
-          <View className="w-14 h-14 rounded-2xl bg-primary/10 items-center justify-center mr-4">
-            <Package size={28} className="text-primary" />
+          <View className="w-10 h-10 rounded-lg bg-primary/10 items-center justify-center mr-4">
+            <Package size={20} className="text-primary" />
           </View>
           <View className="flex-1">
-            <Text className="text-2xl font-bold text-foreground">Create App</Text>
-            <Text className="text-base text-muted-foreground mt-1">
+            <Text className="text-xl font-bold text-foreground">Create App</Text>
+            <Text className="text-sm text-muted-foreground mt-0.5">
               Set up a new application
             </Text>
           </View>
@@ -60,17 +60,17 @@ export default function NewAppScreen() {
 
       {/* Form */}
       <View className="px-4 py-4">
-        <Card className="p-6">
+        <Card className="p-4">
           {/* App Name */}
-          <View className="mb-6">
-            <Text className="text-sm font-semibold text-foreground mb-2">
+          <View className="mb-4">
+            <Text className="text-xs font-semibold text-foreground mb-1.5">
               App Name <Text className="text-destructive">*</Text>
             </Text>
             <RNTextInput
               value={name}
               onChangeText={setName}
               placeholder="My Awesome App"
-              className="w-full px-4 py-3 rounded-xl border border-border bg-background text-foreground"
+              className="w-full px-3 py-2 rounded-lg border border-border bg-background text-foreground"
               placeholderTextColor="#9CA3AF"
               maxLength={100}
             />
@@ -80,8 +80,8 @@ export default function NewAppScreen() {
           </View>
 
           {/* Description */}
-          <View className="mb-6">
-            <Text className="text-sm font-semibold text-foreground mb-2">
+          <View className="mb-4">
+            <Text className="text-xs font-semibold text-foreground mb-1.5">
               Description
             </Text>
             <RNTextInput
@@ -90,7 +90,7 @@ export default function NewAppScreen() {
               placeholder="Describe what your app does..."
               multiline
               numberOfLines={4}
-              className="w-full px-4 py-3 rounded-xl border border-border bg-background text-foreground"
+              className="w-full px-3 py-2 rounded-lg border border-border bg-background text-foreground"
               placeholderTextColor="#9CA3AF"
               style={{ textAlignVertical: "top" }}
               maxLength={500}
@@ -101,8 +101,8 @@ export default function NewAppScreen() {
           </View>
 
           {/* Website URL */}
-          <View className="mb-6">
-            <Text className="text-sm font-semibold text-foreground mb-2">
+          <View className="mb-4">
+            <Text className="text-xs font-semibold text-foreground mb-1.5">
               Website URL
             </Text>
             <RNTextInput
@@ -112,7 +112,7 @@ export default function NewAppScreen() {
               autoCapitalize="none"
               autoCorrect={false}
               keyboardType="url"
-              className="w-full px-4 py-3 rounded-xl border border-border bg-background text-foreground"
+              className="w-full px-3 py-2 rounded-lg border border-border bg-background text-foreground"
               placeholderTextColor="#9CA3AF"
             />
             <Text className="text-xs text-muted-foreground mt-1">
@@ -121,21 +121,21 @@ export default function NewAppScreen() {
           </View>
 
           {/* Buttons */}
-          <View className="flex-row space-x-3 mt-4">
+          <View className="flex-row gap-2 mt-4">
             <Button
               variant="outline"
               onPress={() => router.back()}
               className="flex-1"
               disabled={createAppMutation.isPending}
             >
-              <Text className="text-foreground font-semibold">Cancel</Text>
+              <Text className="text-foreground font-semibold text-sm">Cancel</Text>
             </Button>
             <Button
               onPress={handleCreate}
               className="flex-1"
               disabled={createAppMutation.isPending || !name.trim()}
             >
-              <Text className="text-primary-foreground font-semibold">
+              <Text className="text-primary-foreground font-semibold text-sm">
                 {createAppMutation.isPending ? "Creating..." : "Create App"}
               </Text>
             </Button>
