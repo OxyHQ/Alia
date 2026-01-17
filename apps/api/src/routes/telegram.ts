@@ -216,8 +216,8 @@ router.get('/verify', async (req, res) => {
 
   try {
     // Find telegram user with this auth token
-    const telegramUser = await TelegramUser.findOne({
-      authToken: token.toUpperCase(),
+      const telegramUser = await TelegramUser.findOne({
+        authToken: token,
       authTokenExpiry: { $gt: new Date() },
     });
 
@@ -265,7 +265,7 @@ router.get('/verify', async (req, res) => {
 
     // Redirect to app/web with token
     const appUrl = process.env.APP_URL || process.env.WEB_URL || 'http://localhost:3000';
-    const redirectUrl = `${appUrl}/telegram-auth?token=${token.toUpperCase()}`;
+      const redirectUrl = `${appUrl}/telegram-auth?token=${token}`;
 
     res.redirect(redirectUrl);
   } catch (error) {
@@ -284,8 +284,8 @@ router.get('/check-token/:token', async (req, res) => {
     }
 
     // Find telegram user with this auth token
-    const telegramUser = await TelegramUser.findOne({
-      authToken: token.toUpperCase(),
+      const telegramUser = await TelegramUser.findOne({
+        authToken: token,
       authTokenExpiry: { $gt: new Date() },
     });
 
@@ -316,8 +316,8 @@ router.post('/link', async (req, res) => {
     }
 
     // Find telegram user with this auth token
-    const telegramUser = await TelegramUser.findOne({
-      authToken: authToken.toUpperCase(),
+      const telegramUser = await TelegramUser.findOne({
+        authToken: authToken,
       authTokenExpiry: { $gt: new Date() },
     });
 
@@ -415,7 +415,7 @@ router.post('/signin-complete', async (req, res) => {
 
     // Find the pending auth request
     const pendingAuth = await TelegramUser.findOne({
-      authToken: authCode.toUpperCase(),
+        authToken: authCode,
       authTokenMode: 'signin',
       authTokenExpiry: { $gt: new Date() },
     });
@@ -516,8 +516,8 @@ router.get('/token-info/:token', async (req, res) => {
       return res.status(400).json({ error: 'Token is required' });
     }
     // Buscar usuario de Telegram por token válido
-    const telegramUser = await TelegramUser.findOne({
-      authToken: token.toUpperCase(),
+      const telegramUser = await TelegramUser.findOne({
+        authToken: token,
       authTokenExpiry: { $gt: new Date() },
     });
     if (!telegramUser) {
