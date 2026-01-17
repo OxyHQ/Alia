@@ -79,9 +79,16 @@ export default function DeveloperPortalScreen() {
           </Pressable>
           <Pressable
             onPress={() => router.push("/developers/examples")}
-            className="flex-row items-center justify-between py-3 active:opacity-70"
+            className="flex-row items-center justify-between py-3 border-b border-border active:opacity-70"
           >
             <Text className="text-sm text-foreground">Code examples</Text>
+            <ChevronRight size={16} className="text-muted-foreground" />
+          </Pressable>
+          <Pressable
+            onPress={() => router.push("/billing")}
+            className="flex-row items-center justify-between py-3 active:opacity-70"
+          >
+            <Text className="text-sm text-foreground">Billing & credits</Text>
             <ChevronRight size={16} className="text-muted-foreground" />
           </Pressable>
         </View>

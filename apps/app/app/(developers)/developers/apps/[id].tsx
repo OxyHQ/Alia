@@ -137,6 +137,18 @@ export default function AppDetailScreen() {
         </View>
       </View>
 
+      {/* Settings */}
+      <View className="px-6 py-6 border-b border-border">
+        <Text className="text-sm font-semibold text-foreground mb-4">Settings</Text>
+        <Pressable
+          onPress={() => router.push(`/developers/apps/${id}/settings`)}
+          className="flex-row items-center justify-between py-3 active:opacity-70"
+        >
+          <Text className="text-sm text-foreground">Edit app settings</Text>
+          <ChevronRight size={16} className="text-muted-foreground" />
+        </Pressable>
+      </View>
+
       {/* API Keys */}
       <View className="px-6 py-6 border-b border-border">
         <View className="flex-row items-center justify-between mb-4">
@@ -185,25 +197,23 @@ export default function AppDetailScreen() {
         ) : (
           <View>
             {apiKeys.map((key, index) => (
-              <View
+              <Pressable
                 key={key._id}
-                className={`py-3 ${index < apiKeys.length - 1 ? 'border-b border-border' : ''}`}
+                onPress={() => router.push(`/developers/apps/${id}/keys/${key._id}`)}
+                className={`py-3 active:opacity-70 ${index < apiKeys.length - 1 ? 'border-b border-border' : ''}`}
               >
                 <View className="flex-row items-center justify-between mb-1">
                   <Text className="text-sm font-medium text-foreground">{key.name}</Text>
-                  <Pressable
-                    onPress={() => setDeleteKeyDialog({ id: key._id, name: key.name })}
-                    className="p-1"
-                  >
-                    <Trash2 size={16} className="text-destructive" />
-                  </Pressable>
+                  <View className="flex-row items-center gap-2">
+                    <ChevronRight size={16} className="text-muted-foreground" />
+                  </View>
                 </View>
                 <Text className="text-sm text-muted-foreground font-mono">{key.keyPrefix}...</Text>
                 <Text className="text-xs text-muted-foreground mt-1">
                   Created {new Date(key.createdAt).toLocaleDateString()}
                   {key.lastUsedAt && ` • Last used ${new Date(key.lastUsedAt).toLocaleDateString()}`}
                 </Text>
-              </View>
+              </Pressable>
             ))}
           </View>
         )}
