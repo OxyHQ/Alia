@@ -23,7 +23,7 @@ export default function Root({ children }: PropsWithChildren) {
         <meta name="title" content="Alia" />
         <meta
           name="description"
-          content="Alia helps you get answers, explore ideas, and boost productivity. An AI assistant for work, learning, and creative inspiration."
+          content="Alia helps you get answers, explore ideas, and boost productivity. Chat with AI for work, learning, and creative inspiration."
         />
         <meta
           name="keywords"
@@ -36,7 +36,7 @@ export default function Root({ children }: PropsWithChildren) {
         <meta property="og:title" content="Alia" />
         <meta
           property="og:description"
-          content="Alia helps you get answers, explore ideas, and boost productivity. An AI assistant for work, learning, and creative inspiration."
+          content="Alia helps you get answers, explore ideas, and boost productivity. Chat with AI for work, learning, and creative inspiration."
         />
         <meta property="og:image" content="/og-image.png" />
 
@@ -46,7 +46,7 @@ export default function Root({ children }: PropsWithChildren) {
         <meta property="twitter:title" content="Alia" />
         <meta
           property="twitter:description"
-          content="Alia helps you get answers, explore ideas, and boost productivity. An AI assistant for work, learning, and creative inspiration."
+          content="Alia helps you get answers, explore ideas, and boost productivity. Chat with AI for work, learning, and creative inspiration."
         />
         <meta property="twitter:image" content="/og-image.png" />
 

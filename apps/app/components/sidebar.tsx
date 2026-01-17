@@ -1,5 +1,6 @@
 import React from "react";
-import { View, Pressable, ScrollView, Image } from "react-native";
+import { View, Pressable, ScrollView } from "react-native";
+import { Image } from "expo-image";
 import { Text } from "@/components/ui/text";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -125,7 +126,7 @@ export const Sidebar = React.memo(function Sidebar() {
           <Image
             source={require("@/assets/images/logo.png")}
             style={{ width: "100%", height: 48 }}
-            resizeMode="contain"
+            contentFit="contain"
           />
         </Pressable>
       </View>

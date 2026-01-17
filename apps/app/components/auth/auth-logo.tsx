@@ -1,5 +1,6 @@
 import * as React from "react";
-import { View, Image } from "react-native";
+import { View } from "react-native";
+import { Image } from "expo-image";
 import { cn } from "@/lib/utils";
 
 export interface AuthLogoProps {
@@ -12,7 +13,7 @@ export function AuthLogo({ className }: AuthLogoProps) {
       <Image
         source={require("@/assets/images/logo.png")}
         style={{ width: 160, height: 64 }}
-        resizeMode="contain"
+        contentFit="contain"
       />
     </View>
   );
