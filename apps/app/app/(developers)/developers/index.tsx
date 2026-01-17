@@ -1,37 +1,23 @@
-import { View, ScrollView, Pressable, Alert } from "react-native";
+import { View, ScrollView, Pressable } from "react-native";
 import { Text } from "@/components/ui/text";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { useState, useEffect } from "react";
+import { useEffect } from "react";
 import { useAuthStore } from "@/lib/stores/auth-store";
 import { useRouter } from "expo-router";
 import { Code, Key, Activity, Plus, ChevronRight, Zap, TrendingUp, Package } from "lucide-react-native";
-import { useDeveloperStore } from "@/lib/stores/developer-store";
+import { useApps, useDeveloperStats } from "@/lib/hooks/use-developer";
 
 export default function DeveloperPortalScreen() {
   const router = useRouter();
   const { isAuthenticated } = useAuthStore();
-  const {
-    apps,
-    developerStats,
-    isLoadingApps,
-    isLoadingStats,
-    fetchApps,
-    fetchDeveloperStats,
-  } = useDeveloperStore();
+  const { data: apps = [], isLoading: isLoadingApps } = useApps();
+  const { data: developerStats, isLoading: isLoadingStats } = useDeveloperStats();
 
   // Redirect if not authenticated
   useEffect(() => {
     if (!isAuthenticated) {
       router.replace("/login");
-    }
-  }, [isAuthenticated]);
-
-  // Fetch data on mount
-  useEffect(() => {
-    if (isAuthenticated) {
-      fetchApps().catch(console.error);
-      fetchDeveloperStats().catch(console.error);
     }
   }, [isAuthenticated]);
 

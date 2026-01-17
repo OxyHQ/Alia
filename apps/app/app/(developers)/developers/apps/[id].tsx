@@ -5,7 +5,7 @@ import { Card } from "@/components/ui/card";
 import { useState, useEffect } from "react";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { ArrowLeft, Package, Key, Plus, Copy, Trash2, Eye, EyeOff, Edit, Activity } from "lucide-react-native";
-import { useDeveloperStore, type DeveloperApiKey } from "@/lib/stores/developer-store";
+import { useApps, useDeveloperStats, useCreateApp, useDeleteApp, type DeveloperApiKey } from "@/lib/stores/developer-store";
 import * as Clipboard from 'expo-clipboard';
 
 export default function AppDetailScreen() {
@@ -20,7 +20,7 @@ export default function AppDetailScreen() {
     deleteApp,
     createApiKey,
     deleteApiKey,
-  } = useDeveloperStore();
+  } = useApps, useDeveloperStats, useCreateApp, useDeleteApp();
 
   const [showNewKeyModal, setShowNewKeyModal] = useState(false);
   const [keyName, setKeyName] = useState("");

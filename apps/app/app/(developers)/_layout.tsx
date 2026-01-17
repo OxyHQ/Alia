@@ -1,26 +1,12 @@
 import { Drawer } from 'expo-router/drawer';
-import { Redirect, Slot } from 'expo-router';
 import { DeveloperSidebar } from '@/components/developer-sidebar';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { useWindowDimensions } from 'react-native';
-import { useAuthStore } from '@/lib/stores/auth-store';
-import { useDeveloperStore } from '@/lib/stores/developer-store';
-import { useEffect } from 'react';
 
 export default function DevelopersLayout() {
   const dimensions = useWindowDimensions();
   const isLargeScreen = dimensions.width >= 768;
-  const fetchApps = useDeveloperStore((state) => state.fetchApps);
-  const fetchDeveloperStats = useDeveloperStore((state) => state.fetchDeveloperStats);
-  const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
-
-  // Load developer data on mount
-  useEffect(() => {
-    if (isAuthenticated) {
-      fetchApps().catch(console.error);
-      fetchDeveloperStats().catch(console.error);
-    }
-  }, [isAuthenticated, fetchApps, fetchDeveloperStats]);
+  // TanStack Query hooks in child components automatically fetch data
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
