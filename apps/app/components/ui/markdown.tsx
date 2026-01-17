@@ -46,46 +46,46 @@ const Div = cssInterop(ExpoDiv, { className: "style" });
 
 const rules = {
   heading1: (node: any, children: any) => (
-    <H4 className="mb-4 mt-4 font-bold text-foreground">{React.Children.toArray(children)}</H4>
+    <H4 className="mb-4 mt-4 font-bold text-foreground">{children}</H4>
   ),
   heading2: (node: any, children: any) => (
-    <H4 className="mb-4 mt-4 font-bold text-foreground">{React.Children.toArray(children)}</H4>
+    <H4 className="mb-4 mt-4 font-bold text-foreground">{children}</H4>
   ),
   heading3: (node: any, children: any) => (
-    <P className="mb-2 mt-2 font-bold text-foreground">{React.Children.toArray(children)}</P>
+    <P className="mb-2 mt-2 font-bold text-foreground">{children}</P>
   ),
   heading4: (node: any, children: any) => (
-    <P className="mb-2 mt-2 font-bold text-foreground">{React.Children.toArray(children)}</P>
+    <P className="mb-2 mt-2 font-bold text-foreground">{children}</P>
   ),
   heading5: (node: any, children: any) => (
-    <P className="mb-2 mt-2 font-bold text-foreground">{React.Children.toArray(children)}</P>
+    <P className="mb-2 mt-2 font-bold text-foreground">{children}</P>
   ),
   heading6: (node: any, children: any) => (
-    <P className="mb-2 mt-2 font-bold text-foreground">{React.Children.toArray(children)}</P>
+    <P className="mb-2 mt-2 font-bold text-foreground">{children}</P>
   ),
   code: (node: any, children: any, parent: any) => {
     return parent.length > 1 ? (
       <Pre className="mt-2 w-[80dvw] overflow-x-scroll rounded-lg bg-zinc-100 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 p-3 text-sm text-foreground md:max-w-[500px]">
-        <Code className="text-foreground">{React.Children.toArray(children)}</Code>
+        <Code className="text-foreground">{children}</Code>
       </Pre>
     ) : (
       <Code
         className="bg-zinc-200 dark:bg-zinc-700 px-1.5 py-0 text-[11px] text-foreground"
         style={{ borderRadius: 999 }}
       >
-        {React.Children.toArray(children)}
+        {children}
       </Code>
     );
   },
-  list_item: (node: any, children: any) => <Li className="py-1 text-foreground">{React.Children.toArray(children)}</Li>,
+  list_item: (node: any, children: any) => <Li className="py-1 text-foreground">{children}</Li>,
   ordered_list: (node: any, children: any) => (
-    <Ol className="ml-4 list-outside list-decimal text-foreground">{React.Children.toArray(children)}</Ol>
+    <Ol className="ml-4 list-outside list-decimal text-foreground">{children}</Ol>
   ),
   unordered_list: (node: any, children: any) => (
-    <Ul className="ml-4 list-outside list-disc text-foreground">{React.Children.toArray(children)}</Ul>
+    <Ul className="ml-4 list-outside list-disc text-foreground">{children}</Ul>
   ),
   strong: (node: any, children: any) => (
-    <Strong className="font-semibold text-foreground">{React.Children.toArray(children)}</Strong>
+    <Strong className="font-semibold text-foreground">{children}</Strong>
   ),
   link: (node: any, children: any) => (
     <A
@@ -94,17 +94,17 @@ const rules = {
       rel="noreferrer"
       href={node.attributes.href}
     >
-      {React.Children.toArray(children)}
+      {children}
     </A>
   ),
   paragraph: (node: any, children: any) => {
-    return <P className="text-base leading-7 text-foreground">{React.Children.toArray(children)}</P>;
+    return <P className="text-base leading-7 text-foreground">{children}</P>;
   },
   text: (node: any) => {
     return node.content;
   },
   body: (node: any, children: any) => {
-    return <Div className="text-foreground">{React.Children.toArray(children)}</Div>;
+    return <Div className="text-foreground">{children}</Div>;
   },
 };
 
