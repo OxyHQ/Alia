@@ -118,6 +118,18 @@ router.post('/checkout/credits', authenticateToken, async (req: Request, res: Re
     }
 
     let customerId = user.stripeCustomerId;
+
+    // Try to retrieve existing customer, create new one if it doesn't exist
+    if (customerId) {
+      try {
+        await getStripe().customers.retrieve(customerId);
+      } catch (error: any) {
+        // Customer doesn't exist in Stripe, create a new one
+        console.log(`[Billing] Customer ${customerId} not found in Stripe, creating new customer`);
+        customerId = null;
+      }
+    }
+
     if (!customerId) {
       const customer = await getStripe().customers.create({
         email: user.email,
@@ -126,6 +138,7 @@ router.post('/checkout/credits', authenticateToken, async (req: Request, res: Re
       customerId = customer.id;
       user.stripeCustomerId = customerId;
       await user.save();
+      console.log(`[Billing] Created new Stripe customer ${customerId} for user ${user.email}`);
     }
 
     // Create checkout session
