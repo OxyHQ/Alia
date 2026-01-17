@@ -193,7 +193,7 @@ export const ChatInterface = forwardRef<ScrollView, ChatInterfaceProps>(
 
                   {/* Message Content */}
                   {messageText.length > 0 && (
-                    <View className="w-full">
+                    <View key="message-content" className="w-full">
                       {m.role === "assistant" ? (
                         // Assistant message: logo on top, text below
                         <View className="flex-col items-start gap-0.5">
@@ -292,7 +292,7 @@ export const ChatInterface = forwardRef<ScrollView, ChatInterfaceProps>(
                   {isLoading &&
                     messages[messages.length - 1]?.role === "user" &&
                     m === messages[messages.length - 1] && (
-                      <View className="mt-4 flex-row items-start gap-2">
+                      <View key="loading-indicator" className="mt-4 flex-row items-start gap-2">
                         <Avatar className="h-8 w-8">
                           <AvatarFallback className="bg-primary/10">
                             <Bot size={16} className="text-primary" />
