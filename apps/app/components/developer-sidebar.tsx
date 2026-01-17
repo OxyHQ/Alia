@@ -14,7 +14,7 @@ import {
   LogOut,
   UserCircle,
   BarChart3,
-  Key,
+  CreditCard,
 } from "lucide-react-native";
 import { useRouter, usePathname } from "expo-router";
 import { useAuthStore } from "@/lib/stores/auth-store";
@@ -53,6 +53,10 @@ export const DeveloperSidebar = React.memo(function DeveloperSidebar() {
 
   const handleExamples = React.useCallback(() => {
     router.push("/developers/examples");
+  }, [router]);
+
+  const handleBilling = React.useCallback(() => {
+    router.push("/developers/billing");
   }, [router]);
 
   const handleAccount = React.useCallback(() => {
@@ -141,6 +145,18 @@ export const DeveloperSidebar = React.memo(function DeveloperSidebar() {
         >
           <FileCode size={16} className="text-muted-foreground" />
           <Text className="text-sm md:text-xs">Examples</Text>
+        </Button>
+
+        <Button
+          variant="ghost"
+          className={cn(
+            "h-10 md:h-8 flex-row items-center justify-start gap-2 rounded-full px-3 md:px-2 w-full",
+            pathname === "/developers/billing" ? "bg-muted" : ""
+          )}
+          onPress={handleBilling}
+        >
+          <CreditCard size={16} className="text-muted-foreground" />
+          <Text className="text-sm md:text-xs">Billing</Text>
         </Button>
       </View>
 
