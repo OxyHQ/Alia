@@ -6,6 +6,8 @@ import { useWindowDimensions } from 'react-native';
 import { useAuthStore } from '@/lib/stores/auth-store';
 import { useProjectsStore } from '@/lib/stores/projects-store';
 import { useRolesStore } from '@/lib/stores/roles-store';
+import { useFoldersStore } from '@/lib/stores/folders-store';
+import { useFavoritesStore } from '@/lib/stores/favorites-store';
 import { useEffect } from 'react';
 
 export default function AppLayout() {
@@ -13,12 +15,16 @@ export default function AppLayout() {
   const isLargeScreen = dimensions.width >= 768;
   const loadProjects = useProjectsStore((state) => state.loadProjects);
   const loadRoles = useRolesStore((state) => state.loadRoles);
+  const loadFolders = useFoldersStore((state) => state.loadFolders);
+  const loadFavorites = useFavoritesStore((state) => state.loadFavorites);
 
-  // Load projects and roles on mount
+  // Load projects, roles, folders, and favorites on mount
   useEffect(() => {
     loadProjects();
     loadRoles();
-  }, [loadProjects, loadRoles]);
+    loadFolders();
+    loadFavorites();
+  }, [loadProjects, loadRoles, loadFolders, loadFavorites]);
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>

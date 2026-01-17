@@ -8,6 +8,7 @@ export interface Project {
   icon?: string; // Lucide icon name
   color?: string;
   conversationIds: string[];
+  isExpanded: boolean;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -20,6 +21,7 @@ interface ProjectsStoreState {
   updateProject: (id: string, updates: Partial<Project>) => Promise<void>;
   deleteProject: (id: string) => Promise<void>;
   setCurrentProject: (id: string | null) => void;
+  toggleProject: (id: string) => Promise<void>;
   addConversationToProject: (projectId: string, conversationId: string) => Promise<void>;
   removeConversationFromProject: (projectId: string, conversationId: string) => Promise<void>;
 }
@@ -66,6 +68,7 @@ export const useProjectsStore = create<ProjectsStoreState>((set, get) => ({
         icon: icon || getRandomIcon(),
         color: getRandomColor(),
         conversationIds: [],
+        isExpanded: true,
         createdAt: new Date(),
         updatedAt: new Date(),
       };
@@ -121,6 +124,21 @@ export const useProjectsStore = create<ProjectsStoreState>((set, get) => ({
       set({ currentProjectId: id });
     } catch (error) {
       console.error("Error setting current project:", error);
+    }
+  },
+
+  toggleProject: async (id: string) => {
+    try {
+      const state = get();
+      const newProjects = state.projects.map((proj) =>
+        proj.id === id
+          ? { ...proj, isExpanded: !proj.isExpanded }
+          : proj
+      );
+      await AsyncStorage.setItem(PROJECTS_STORAGE_KEY, JSON.stringify(newProjects));
+      set({ projects: newProjects });
+    } catch (error) {
+      console.error("Error toggling project:", error);
     }
   },
 
