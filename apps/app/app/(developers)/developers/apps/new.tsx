@@ -1,4 +1,4 @@
-import { View, ScrollView, TextInput as RNTextInput, Alert, Pressable } from "react-native";
+import { View, ScrollView, TextInput as RNTextInput, Pressable } from "react-native";
 import { Text } from "@/components/ui/text";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -6,6 +6,7 @@ import { useState } from "react";
 import { useRouter } from "expo-router";
 import { ArrowLeft, Package } from "lucide-react-native";
 import { useCreateApp } from "@/lib/hooks/use-developer";
+import { toast } from "@/components/sonner";
 
 export default function NewAppScreen() {
   const router = useRouter();
@@ -17,7 +18,7 @@ export default function NewAppScreen() {
 
   const handleCreate = async () => {
     if (!name.trim()) {
-      Alert.alert("Error", "Please enter an app name");
+      toast.error("Please enter an app name");
       return;
     }
 
@@ -31,7 +32,7 @@ export default function NewAppScreen() {
       // Navigate directly to the new app's detail page
       router.push(`/developers/apps/${newApp._id}`);
     } catch (error: any) {
-      Alert.alert("Error", error.message || "Failed to create app");
+      toast.error(error.message || "Failed to create app");
     }
   };
 
