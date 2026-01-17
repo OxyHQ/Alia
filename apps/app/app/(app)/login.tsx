@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { View, Text, Alert, Platform, Pressable } from 'react-native';
 import { useRouter, Link, useLocalSearchParams } from 'expo-router';
+import Head from 'expo-router/head';
 import { AuthContainer, AuthLogo, AuthInput, AuthButton, AuthError } from '@/components/auth';
 import { Button } from '@/components/ui/button';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -79,8 +80,13 @@ export default function LoginScreen() {
   };
 
   return (
-    <AuthContainer>
-      <AuthLogo />
+    <>
+      <Head>
+        <title>Log in to Alia - AI Chat Assistant</title>
+        <meta name="description" content="Log in to Alia to access your AI-powered chat assistant. Get instant answers and boost your productivity." />
+      </Head>
+      <AuthContainer>
+        <AuthLogo />
 
       {/* Header */}
       <View className="space-y-2 mb-6">
@@ -202,6 +208,7 @@ export default function LoginScreen() {
           {t('login.termsAndPrivacy')}
         </Text>
       </View>
-    </AuthContainer>
+      </AuthContainer>
+    </>
   );
 }

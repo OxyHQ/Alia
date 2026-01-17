@@ -1,4 +1,5 @@
 import { useState } from "react";
+import Head from "expo-router/head";
 import { useChatConversation } from "@/hooks/useChatConversation";
 import { ChatPageContent } from "@/components/chat-page-content";
 
@@ -13,16 +14,22 @@ const ChatPage = () => {
   } = useChatConversation();
 
   return (
-    <ChatPageContent
-      messages={messages}
-      scrollViewRef={scrollViewRef}
-      isLoading={isLoading}
-      onSubmit={createNewConversation}
-      onSuggestionPress={createNewConversation}
-      onEditMessage={editMessage}
-      selectedModel={selectedModel}
-      onModelChange={setSelectedModel}
-    />
+    <>
+      <Head>
+        <title>Alia - AI Chat Assistant</title>
+        <meta name="description" content="Start a conversation with Alia. Get answers, explore ideas, and boost your productivity with AI-powered chat." />
+      </Head>
+      <ChatPageContent
+        messages={messages}
+        scrollViewRef={scrollViewRef}
+        isLoading={isLoading}
+        onSubmit={createNewConversation}
+        onSuggestionPress={createNewConversation}
+        onEditMessage={editMessage}
+        selectedModel={selectedModel}
+        onModelChange={setSelectedModel}
+      />
+    </>
   );
 };
 
