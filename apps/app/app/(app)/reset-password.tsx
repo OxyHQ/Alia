@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, Platform, Alert } from 'react-native';
+import { View, Text } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { AuthContainer, AuthLogo, AuthInput, AuthButton, AuthError } from '@/components/auth';
 import apiClient from '@/lib/api/client';
+import { toast } from '@/components/sonner';
 
 export default function ResetPasswordScreen() {
   const router = useRouter();
@@ -24,27 +25,21 @@ export default function ResetPasswordScreen() {
     if (!password.trim()) {
       const errorMsg = 'Please enter a new password';
       setError(errorMsg);
-      if (Platform.OS !== 'web') {
-        Alert.alert('Error', errorMsg);
-      }
+      toast.error(errorMsg);
       return;
     }
 
     if (password.length < 8) {
       const errorMsg = 'Password must be at least 8 characters';
       setError(errorMsg);
-      if (Platform.OS !== 'web') {
-        Alert.alert('Error', errorMsg);
-      }
+      toast.error(errorMsg);
       return;
     }
 
     if (password !== confirmPassword) {
       const errorMsg = 'Passwords do not match';
       setError(errorMsg);
-      if (Platform.OS !== 'web') {
-        Alert.alert('Error', errorMsg);
-      }
+      toast.error(errorMsg);
       return;
     }
 
@@ -56,27 +51,14 @@ export default function ResetPasswordScreen() {
         password,
       });
 
-      if (Platform.OS === 'web') {
-        Alert.alert(
-          'Password Reset',
-          'Your password has been reset successfully. Please sign in with your new password.',
-          [{ text: 'OK', onPress: () => router.replace('/login') }]
-        );
-      } else {
-        Alert.alert(
-          'Password Reset',
-          'Your password has been reset successfully. Please sign in with your new password.',
-          [{ text: 'OK', onPress: () => router.replace('/login') }]
-        );
-      }
+      toast.success('Your password has been reset successfully. Please sign in with your new password.');
+      router.replace('/login');
     } catch (error: any) {
       console.error('Reset password error:', error);
       const errorMessage = error.response?.data?.error || 'Failed to reset password. Please try again.';
       setError(errorMessage);
 
-      if (Platform.OS !== 'web') {
-        Alert.alert('Error', errorMessage);
-      }
+      toast.error(errorMessage);
     } finally {
       setLoading(false);
     }

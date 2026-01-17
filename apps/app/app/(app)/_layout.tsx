@@ -9,10 +9,12 @@ import { useRolesStore } from '@/lib/stores/roles-store';
 import { useFoldersStore } from '@/lib/stores/folders-store';
 import { useFavoritesStore } from '@/lib/stores/favorites-store';
 import { useEffect } from 'react';
+import { useColorScheme } from '@/lib/useColorScheme';
 
 export default function AppLayout() {
   const dimensions = useWindowDimensions();
   const isLargeScreen = dimensions.width >= 768;
+  const { colorScheme } = useColorScheme();
   const loadProjects = useProjectsStore((state) => state.loadProjects);
   const loadRoles = useRolesStore((state) => state.loadRoles);
   const loadFolders = useFoldersStore((state) => state.loadFolders);
@@ -26,6 +28,10 @@ export default function AppLayout() {
     loadFavorites();
   }, [loadProjects, loadRoles, loadFolders, loadFavorites]);
 
+  // Get drawer colors based on color scheme
+  const drawerBackgroundColor = colorScheme === 'dark' ? '#151a2e' : '#fafafe'; // surface colors
+  const drawerBorderColor = colorScheme === 'dark' ? 'rgba(255, 255, 255, 0.1)' : '#e5e5e5'; // border colors
+
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <Drawer
@@ -34,9 +40,9 @@ export default function AppLayout() {
           headerShown: false,
           drawerStyle: {
             width: 255,
-            backgroundColor: 'hsl(var(--surface))',
+            backgroundColor: drawerBackgroundColor,
             borderRightWidth: 1,
-            borderRightColor: 'hsl(var(--border))',
+            borderRightColor: drawerBorderColor,
             elevation: 0,
           },
           drawerType: isLargeScreen ? 'permanent' : 'front',

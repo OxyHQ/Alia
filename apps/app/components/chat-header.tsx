@@ -8,6 +8,7 @@ import { CreditsMenu } from "@/components/credits-menu";
 import { useNavigation } from "expo-router";
 import { DrawerNavigationProp } from "@react-navigation/drawer";
 import { Dropdown, MenuItem, Separator } from "@/components/ui/dropdown";
+import { toast } from "@/components/sonner";
 
 interface ChatHeaderProps {
   title: string;
@@ -47,19 +48,19 @@ export function ChatHeader({
   };
 
   const handleExport = () => {
-    Alert.alert('Export', 'Export conversation functionality coming soon!');
+    toast.info('Export conversation functionality coming soon!');
   };
 
   const handleShare = () => {
-    Alert.alert('Share', 'Share conversation functionality coming soon!');
+    toast.info('Share conversation functionality coming soon!');
   };
 
   const handleSettings = () => {
-    Alert.alert('Settings', 'Settings functionality coming soon!');
+    toast.info('Settings functionality coming soon!');
   };
 
   const handleHelp = () => {
-    Alert.alert('Help', 'Help functionality coming soon!');
+    toast.info('Help functionality coming soon!');
   };
 
   return (
