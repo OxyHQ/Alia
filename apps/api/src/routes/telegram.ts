@@ -1,3 +1,32 @@
+// Obtener info y modo de un token de Telegram
+router.get('/users/token/:token', async (req, res) => {
+  try {
+    const { token } = req.params;
+    if (!token) {
+      return res.status(400).json({ error: 'Token is required' });
+    }
+    const telegramUser = await TelegramUser.findOne({
+      authToken: token,
+      authTokenExpiry: { $gt: new Date() },
+    });
+    if (!telegramUser) {
+      return res.status(404).json({ error: 'Token not found or expired' });
+    }
+    // Exponer solo los campos necesarios
+    res.json({
+      telegramId: telegramUser.telegramId,
+      authTokenMode: telegramUser.authTokenMode,
+      userId: telegramUser.userId,
+      sessionToken: telegramUser.sessionToken,
+      email: telegramUser.email,
+      name: telegramUser.firstName || telegramUser.username || '',
+      isAuthenticated: telegramUser.isAuthenticated,
+    });
+  } catch (error) {
+    console.error('Token info (users/token) error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
 import express from 'express';
 import { authenticateToken } from '../middleware/auth.js';
 import crypto from 'crypto';
