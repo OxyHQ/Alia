@@ -5,7 +5,7 @@ import { useRouter, useLocalSearchParams } from "expo-router";
 import { ArrowLeft, RefreshCw, CreditCard, ExternalLink, X } from "lucide-react-native";
 import { useCredits } from "@/lib/hooks/use-credits";
 import { useCreditPackages, useSubscriptionPlans, useSubscription, useCreateCheckout, useCreateSubscriptionCheckout, useCancelSubscription, useCreatePortalSession, useTransactions } from "@/lib/hooks/use-billing";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useAuthStore } from "@/lib/stores/auth-store";
 import { toast } from "@/components/sonner";
 
@@ -22,17 +22,23 @@ export default function BillingScreen() {
   const createSubscriptionCheckoutMutation = useCreateSubscriptionCheckout();
   const cancelSubscriptionMutation = useCancelSubscription();
   const createPortalMutation = useCreatePortalSession();
+  const [isMounted, setIsMounted] = useState(false);
+
+  // Set mounted state
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
 
   // Redirect if not authenticated
   useEffect(() => {
-    if (!isAuthenticated) {
+    if (isMounted && !isAuthenticated) {
       router.replace("/login");
     }
-  }, [isAuthenticated]);
+  }, [isMounted, isAuthenticated]);
 
   // Handle successful payment
   useEffect(() => {
-    if (success === 'true') {
+    if (isMounted && success === 'true') {
       // Refetch all billing data
       refetch();
       refetchSubscription();
@@ -42,9 +48,11 @@ export default function BillingScreen() {
       toast.success("Payment successful! Your credits have been added.");
 
       // Remove success param from URL
-      router.replace("/billing");
+      setTimeout(() => {
+        router.replace("/billing");
+      }, 100);
     }
-  }, [success]);
+  }, [isMounted, success]);
 
   const getTimeUntilRefresh = () => {
     if (!creditsInfo?.lastRefresh) return "N/A";
