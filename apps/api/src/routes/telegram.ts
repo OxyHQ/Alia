@@ -87,37 +87,64 @@ router.get('/users/:telegramId', async (req, res) => {
   }
 });
 
-// Create auth request for telegram user
+// Create auth request for login/registro con Telegram
 router.post('/auth-request', async (req, res) => {
   try {
     const { telegramId } = req.body;
-
     if (!telegramId) {
       return res.status(400).json({ error: 'telegramId is required' });
     }
-
-    const telegramUser = await TelegramUser.findOne({ telegramId });
-
+    let telegramUser = await TelegramUser.findOne({ telegramId });
     if (!telegramUser) {
       return res.status(404).json({ error: 'Telegram user not found' });
     }
-
-    // Generate auth token valid for 15 minutes
+    // Generar token para login
     const authToken = generateAuthToken();
     telegramUser.authToken = authToken;
     telegramUser.authTokenExpiry = new Date(Date.now() + 15 * 60 * 1000);
+    telegramUser.authTokenMode = 'signin';
     await telegramUser.save();
-
     const appUrl = process.env.APP_URL || process.env.WEB_URL || 'http://localhost:3000';
     const authUrl = `${process.env.API_BASE_URL || 'http://localhost:3001'}/telegram/verify?token=${authToken}`;
-
     res.json({
       authToken,
       authUrl,
       expiresAt: telegramUser.authTokenExpiry,
+      mode: 'signin',
     });
   } catch (error) {
     console.error('Auth request error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Create link request para vincular Telegram a cuenta existente
+router.post('/link-request', async (req, res) => {
+  try {
+    const { telegramId } = req.body;
+    if (!telegramId) {
+      return res.status(400).json({ error: 'telegramId is required' });
+    }
+    let telegramUser = await TelegramUser.findOne({ telegramId });
+    if (!telegramUser) {
+      return res.status(404).json({ error: 'Telegram user not found' });
+    }
+    // Generar token para vinculación
+    const authToken = generateAuthToken();
+    telegramUser.authToken = authToken;
+    telegramUser.authTokenExpiry = new Date(Date.now() + 15 * 60 * 1000);
+    telegramUser.authTokenMode = 'link';
+    await telegramUser.save();
+    const appUrl = process.env.APP_URL || process.env.WEB_URL || 'http://localhost:3000';
+    const authUrl = `${process.env.API_BASE_URL || 'http://localhost:3001'}/telegram/verify?token=${authToken}`;
+    res.json({
+      authToken,
+      authUrl,
+      expiresAt: telegramUser.authTokenExpiry,
+      mode: 'link',
+    });
+  } catch (error) {
+    console.error('Link request error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -315,14 +342,14 @@ router.post('/link', async (req, res) => {
       return res.status(400).json({ error: 'Missing required fields' });
     }
 
-    // Find telegram user with this auth token
-      const telegramUser = await TelegramUser.findOne({
-        authToken: authToken,
+    // Find telegram user with this auth token (solo modo link)
+    const telegramUser = await TelegramUser.findOne({
+      authToken: authToken,
       authTokenExpiry: { $gt: new Date() },
+      authTokenMode: 'link',
     });
-
     if (!telegramUser) {
-      return res.status(404).json({ error: 'Auth token not found or expired' });
+      return res.status(404).json({ error: 'Auth token not found, expired, or not for linking' });
     }
 
     // Verify the session token by making a request to /auth/me
@@ -518,8 +545,9 @@ router.get('/token-info/:token', async (req, res) => {
     // Buscar usuario de Telegram por token válido
       const telegramUser = await TelegramUser.findOne({
         authToken: token,
-      authTokenExpiry: { $gt: new Date() },
-    });
+        authTokenExpiry: { $gt: new Date() },
+        authTokenMode: 'signin',
+      });
     if (!telegramUser) {
       return res.status(404).json({ error: 'Token not found or expired' });
     }
