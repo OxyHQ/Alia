@@ -129,6 +129,7 @@ export function useConversation(id: string) {
     queryFn: () => fetchConversation(id),
     enabled: !!id,
     staleTime: 1000 * 60 * 2, // 2 minutes
+    retry: 1,
   });
 }
 
@@ -255,36 +256,64 @@ export function useDeleteConversation() {
   });
 }
 
-// Create empty conversation (optimistic update)
-export function useCreateEmptyConversation() {
+// Create a new conversation
+export function useCreateConversation() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async (id: string) => {
-      const conversation: Conversation = {
-        id,
-        title: "Nueva conversación",
-        lastMessage: undefined,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-        messages: [],
-      };
+    mutationFn: async (): Promise<Conversation> => {
+      if (isAuthenticated()) {
+        // Call backend to create new conversation
+        const apiUrl = generateAPIUrl('/conversations/new');
+        const response = await fetch(apiUrl, {
+          method: 'POST',
+          headers: getAPIHeaders(),
+        });
 
-      if (!isAuthenticated()) {
+        if (!response.ok) {
+          throw new Error('Failed to create conversation');
+        }
+
+        const data = await response.json();
+        return {
+          id: data.id,
+          title: data.title,
+          lastMessage: undefined,
+          createdAt: new Date(data.createdAt),
+          updatedAt: new Date(data.updatedAt),
+          messages: [],
+        };
+      } else {
+        // For unauthenticated users, generate UUID locally
+        const { generateUUID } = await import('../utils');
+        const id = generateUUID();
+        const conversation: Conversation = {
+          id,
+          title: "Nueva conversación",
+          lastMessage: undefined,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+          messages: [],
+        };
+
         const conversations = await fetchConversations();
         const newConversations = [conversation, ...conversations];
         await SecureStore.setItemAsync(CONVERSATIONS_STORAGE_KEY, JSON.stringify(newConversations));
-      }
 
-      return conversation;
+        return conversation;
+      }
     },
     onSuccess: (data) => {
+      // Add to conversations list cache
       queryClient.setQueryData<Conversation[]>(['conversations'], (old) => {
         if (!old) return [data];
         const exists = old.findIndex((c) => c.id === data.id) >= 0;
         if (exists) return old;
         return [data, ...old];
       });
+
+      // Set individual conversation cache
+      queryClient.setQueryData(['conversation', data.id], data);
     },
   });
 }
