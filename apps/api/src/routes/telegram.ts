@@ -464,52 +464,45 @@ router.post('/signin-complete', async (req, res) => {
     const { authCode, telegramId, chatId, username, firstName, lastName } = req.body;
 
     if (!authCode || !telegramId || !chatId) {
+      console.error('[signin-complete] Missing required fields', req.body);
       return res.status(400).json({ error: 'Missing required fields' });
     }
 
     // Find the pending auth request
     const pendingAuth = await TelegramUser.findOne({
-        authToken: authCode,
+      authToken: authCode,
       authTokenMode: 'signin',
       authTokenExpiry: { $gt: new Date() },
     });
 
     if (!pendingAuth) {
+      console.error('[signin-complete] Pending auth not found or expired', { authCode });
       return res.status(404).json({ error: 'Auth code not found or expired' });
     }
 
-    // Check if this Telegram user already exists and is linked to an account
-    let existingTelegramUser = await TelegramUser.findOne({
-      $and: [
-        { telegramId: telegramId },
-        { telegramId: { $ne: pendingAuth.telegramId } },
-      ]
-    });
-
-    let user;
+    // Always update the TelegramUser for this telegramId (never create duplicates)
+    let telegramUser = await TelegramUser.findOne({ telegramId });
     let isNewUser = false;
+    let user;
 
-    if (existingTelegramUser && existingTelegramUser.userId) {
+    if (telegramUser && telegramUser.userId) {
       // User has signed in with Telegram before - log them in
-      user = await User.findById(existingTelegramUser.userId);
-
+      user = await User.findById(telegramUser.userId);
       if (!user) {
+        console.error('[signin-complete] Linked user not found', { telegramId, userId: telegramUser.userId });
         return res.status(404).json({ error: 'Linked user not found' });
       }
     } else {
       // New user - create account from Telegram profile
       const displayName = [firstName, lastName].filter(Boolean).join(' ') || username || 'Telegram User';
       const nameParts = displayName.split(' ');
-
       user = new User({
         email: `telegram_${telegramId}@temp.alia.onl`, // Temporary email
         name: {
           first: nameParts[0] || 'User',
           last: nameParts.slice(1).join(' ') || undefined,
         },
-        // No password - Telegram-only account
       });
-
       await user.save();
       isNewUser = true;
     }
@@ -520,35 +513,28 @@ router.post('/signin-complete', async (req, res) => {
       email: user.email,
     });
 
-    // Update or create the main TelegramUser record
-    if (existingTelegramUser) {
-      // Update existing
-      existingTelegramUser.chatId = chatId;
-      existingTelegramUser.username = username;
-      existingTelegramUser.firstName = firstName;
-      existingTelegramUser.lastName = lastName;
-      existingTelegramUser.sessionToken = sessionToken;
-      existingTelegramUser.isAuthenticated = true;
-      existingTelegramUser.linkedAt = new Date();
-      await existingTelegramUser.save();
-
-      // Delete the pending entry
-      await TelegramUser.deleteOne({ _id: pendingAuth._id });
-    } else {
-      // Update pending entry to be the main record
-      pendingAuth.telegramId = telegramId;
-      pendingAuth.chatId = chatId;
-      pendingAuth.username = username;
-      pendingAuth.firstName = firstName;
-      pendingAuth.lastName = lastName;
-      pendingAuth.userId = user._id;
-      pendingAuth.sessionToken = sessionToken;
-      pendingAuth.isAuthenticated = true;
-      pendingAuth.linkedAt = new Date();
-      // Keep authToken and mode for polling
-      await pendingAuth.save();
+    // Update the TelegramUser (always the one for this telegramId)
+    if (!telegramUser) {
+      telegramUser = pendingAuth;
+      telegramUser.telegramId = telegramId;
     }
+    telegramUser.chatId = chatId;
+    telegramUser.username = username;
+    telegramUser.firstName = firstName;
+    telegramUser.lastName = lastName;
+    telegramUser.userId = user._id;
+    telegramUser.sessionToken = sessionToken;
+    telegramUser.isAuthenticated = true;
+    telegramUser.linkedAt = new Date();
+    telegramUser.authToken = undefined;
+    telegramUser.authTokenExpiry = undefined;
+    telegramUser.authTokenMode = undefined;
+    await telegramUser.save();
 
+    // Remove any duplicate TelegramUser entries for this telegramId except the current one
+    await TelegramUser.deleteMany({ telegramId, _id: { $ne: telegramUser._id } });
+
+    console.log('[signin-complete] Telegram user updated and signed in', { telegramId, userId: user._id });
     res.json({
       success: true,
       isNewUser,
