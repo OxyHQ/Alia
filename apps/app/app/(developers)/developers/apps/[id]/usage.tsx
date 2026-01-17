@@ -4,7 +4,7 @@ import { Card } from "@/components/ui/card";
 import { useState, useEffect } from "react";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { ArrowLeft, Activity, TrendingUp, Zap, CheckCircle, XCircle, Clock } from "lucide-react-native";
-import { useApps, useDeveloperStats, useCreateApp, useDeleteApp } from "@/lib/stores/developer-store";
+import { useApp, useAppUsage } from "@/lib/hooks/use-developer";
 import {
   ToggleGroup,
   ToggleGroupItem,
@@ -13,27 +13,9 @@ import {
 export default function AppUsageScreen() {
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
-  const {
-    currentApp,
-    usageStats,
-    isLoadingUsage,
-    fetchApp,
-    fetchUsageStats,
-  } = useApps, useDeveloperStats, useCreateApp, useDeleteApp();
-
+  const { data: currentApp } = useApp(id!);
   const [period, setPeriod] = useState<string>("7d");
-
-  useEffect(() => {
-    if (id) {
-      fetchApp(id).catch(console.error);
-    }
-  }, [id]);
-
-  useEffect(() => {
-    if (id) {
-      fetchUsageStats(id, period).catch(console.error);
-    }
-  }, [id, period]);
+  const { data: usageStats, isLoading: isLoadingUsage } = useAppUsage(id!, period);
 
   const summary = usageStats?.summary;
   const byDay = usageStats?.byDay || [];
