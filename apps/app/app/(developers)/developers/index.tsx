@@ -32,13 +32,13 @@ export default function DeveloperPortalScreen() {
   return (
     <ScrollView className="flex-1 bg-background">
       {/* Hero Section */}
-      <View className="px-6 py-8 border-b border-border">
+      <View className="px-4 py-6 border-b border-border">
         <View className="flex-row items-center mb-3">
           <View className="w-14 h-14 rounded-2xl bg-primary/10 items-center justify-center mr-4">
             <Code size={28} className="text-primary" />
           </View>
           <View className="flex-1">
-            <Text className="text-3xl font-bold text-foreground">Developer Portal</Text>
+            <Text className="text-2xl font-bold text-foreground">Developer Portal</Text>
             <Text className="text-base text-muted-foreground mt-1">
               Build apps powered by Alia AI
             </Text>
@@ -57,11 +57,11 @@ export default function DeveloperPortalScreen() {
 
       {/* Stats Overview */}
       {developerStats && (
-        <View className="px-6 py-6">
-          <Text className="text-lg font-semibold text-foreground mb-4">Overview</Text>
+        <View className="px-4 py-4">
+          <Text className="text-base font-semibold text-foreground mb-3">Overview</Text>
           <View className="flex-row flex-wrap -mx-2">
             {/* Total Apps */}
-            <View className="w-1/2 px-2 mb-4">
+            <View className="w-1/2 px-2 mb-3">
               <Card className="p-4">
                 <View className="flex-row items-center justify-between mb-2">
                   <Package size={20} className="text-primary" />
@@ -77,7 +77,7 @@ export default function DeveloperPortalScreen() {
             </View>
 
             {/* API Keys */}
-            <View className="w-1/2 px-2 mb-4">
+            <View className="w-1/2 px-2 mb-3">
               <Card className="p-4">
                 <View className="flex-row items-center justify-between mb-2">
                   <Key size={20} className="text-primary" />
@@ -93,7 +93,7 @@ export default function DeveloperPortalScreen() {
             </View>
 
             {/* Requests (Last 30 Days) */}
-            <View className="w-1/2 px-2 mb-4">
+            <View className="w-1/2 px-2 mb-3">
               <Card className="p-4">
                 <View className="flex-row items-center justify-between mb-2">
                   <Activity size={20} className="text-primary" />
@@ -107,7 +107,7 @@ export default function DeveloperPortalScreen() {
             </View>
 
             {/* Tokens Used */}
-            <View className="w-1/2 px-2 mb-4">
+            <View className="w-1/2 px-2 mb-3">
               <Card className="p-4">
                 <View className="flex-row items-center justify-between mb-2">
                   <Zap size={20} className="text-primary" />
@@ -124,8 +124,8 @@ export default function DeveloperPortalScreen() {
       )}
 
       {/* Quick Links */}
-      <View className="px-6 py-6 border-t border-border">
-        <Text className="text-lg font-semibold text-foreground mb-4">Quick Links</Text>
+      <View className="px-4 py-4 border-t border-border">
+        <Text className="text-base font-semibold text-foreground mb-3">Quick Links</Text>
         <View className="space-y-3">
           <Pressable
             onPress={() => router.push("/developers/documentation")}
@@ -168,8 +168,8 @@ export default function DeveloperPortalScreen() {
       </View>
 
       {/* My Apps List */}
-      <View className="px-6 py-6 border-t border-border">
-        <Text className="text-lg font-semibold text-foreground mb-4">My Apps</Text>
+      <View className="px-4 py-4 border-t border-border">
+        <Text className="text-base font-semibold text-foreground mb-3">My Apps</Text>
 
         {isLoadingApps ? (
           <View className="py-8">
@@ -178,13 +178,13 @@ export default function DeveloperPortalScreen() {
         ) : apps.length === 0 ? (
           <Card className="p-8">
             <View className="items-center">
-              <View className="w-16 h-16 rounded-full bg-muted items-center justify-center mb-4">
+              <View className="w-16 h-16 rounded-full bg-muted items-center justify-center mb-3">
                 <Package size={32} className="text-muted-foreground" />
               </View>
-              <Text className="text-lg font-semibold text-foreground mb-2">
+              <Text className="text-base font-semibold text-foreground mb-2">
                 No apps yet
               </Text>
-              <Text className="text-sm text-muted-foreground text-center mb-4">
+              <Text className="text-sm text-muted-foreground text-center mb-3">
                 Create your first app to start building with Alia AI
               </Text>
               <Button onPress={handleCreateApp}>

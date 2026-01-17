@@ -39,8 +39,8 @@ export default function NewAppScreen() {
   return (
     <ScrollView className="flex-1 bg-background">
       {/* Header */}
-      <View className="px-6 py-4 border-b border-border">
-        <Pressable onPress={() => router.back()} className="flex-row items-center mb-4">
+      <View className="px-4 py-3 border-b border-border">
+        <Pressable onPress={() => router.back()} className="flex-row items-center mb-3">
           <ArrowLeft size={20} className="text-muted-foreground mr-2" />
           <Text className="text-base text-muted-foreground">Back</Text>
         </Pressable>
@@ -50,7 +50,7 @@ export default function NewAppScreen() {
             <Package size={28} className="text-primary" />
           </View>
           <View className="flex-1">
-            <Text className="text-3xl font-bold text-foreground">Create App</Text>
+            <Text className="text-2xl font-bold text-foreground">Create App</Text>
             <Text className="text-base text-muted-foreground mt-1">
               Set up a new application
             </Text>
@@ -59,7 +59,7 @@ export default function NewAppScreen() {
       </View>
 
       {/* Form */}
-      <View className="px-6 py-6">
+      <View className="px-4 py-4">
         <Card className="p-6">
           {/* App Name */}
           <View className="mb-6">
