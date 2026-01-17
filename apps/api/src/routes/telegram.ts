@@ -1,64 +1,3 @@
-// Endpoint seguro para login automático con Telegram
-router.get('/token-info/:token', async (req, res) => {
-  try {
-    const { token } = req.params;
-    if (!token) {
-      return res.status(400).json({ error: 'Token is required' });
-    }
-    // Buscar usuario de Telegram por token válido
-    const telegramUser = await TelegramUser.findOne({
-      authToken: token.toUpperCase(),
-      authTokenExpiry: { $gt: new Date() },
-    });
-    if (!telegramUser) {
-      return res.status(404).json({ error: 'Token not found or expired' });
-    }
-    // Si ya está vinculado a un usuario y tiene sessionToken válido
-    if (telegramUser.userId && telegramUser.sessionToken && telegramUser.isAuthenticated) {
-      // Buscar datos mínimos del usuario
-      const user = await User.findById(telegramUser.userId);
-      // Enviar mensaje de Telegram para notificar login (opcional, solo si no se ha notificado recientemente)
-      try {
-        const botToken = process.env.TELEGRAM_BOT_TOKEN;
-        if (botToken && telegramUser.chatId) {
-          const message =
-            `🔑 <b>Inicio de sesión en Alia</b>\n\n` +
-            `Tu cuenta de Telegram fue usada para iniciar sesión en Alia.\n` +
-            `Si no fuiste tú, por favor contacta soporte.`;
-          await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              chat_id: telegramUser.chatId,
-              text: message,
-              parse_mode: 'HTML',
-            }),
-          });
-        }
-      } catch (notifyError) {
-        console.error('[Telegram] Failed to send login notification:', notifyError);
-      }
-      emitTelegramLinked(token, {
-        userId: telegramUser.userId,
-        sessionToken: telegramUser.sessionToken,
-        email: user?.email,
-        name: user?.name?.full || user?.name?.first || '',
-        type: 'login',
-      });
-      return res.json({
-        userId: telegramUser.userId,
-        sessionToken: telegramUser.sessionToken,
-        email: user?.email,
-        name: user?.name?.full || user?.name?.first || '',
-      });
-    }
-    // No vinculado aún
-    return res.status(404).json({ error: 'Telegram not linked to any account' });
-  } catch (error) {
-    console.error('Token info error:', error);
-    res.status(500).json({ error: 'Internal server error' });
-  }
-});
 import express from 'express';
 import { authenticateToken } from '../middleware/auth.js';
 import crypto from 'crypto';
@@ -565,6 +504,68 @@ router.post('/signin-complete', async (req, res) => {
     });
   } catch (error) {
     console.error('Telegram signin-complete error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Endpoint seguro para login automático con Telegram
+router.get('/token-info/:token', async (req, res) => {
+  try {
+    const { token } = req.params;
+    if (!token) {
+      return res.status(400).json({ error: 'Token is required' });
+    }
+    // Buscar usuario de Telegram por token válido
+    const telegramUser = await TelegramUser.findOne({
+      authToken: token.toUpperCase(),
+      authTokenExpiry: { $gt: new Date() },
+    });
+    if (!telegramUser) {
+      return res.status(404).json({ error: 'Token not found or expired' });
+    }
+    // Si ya está vinculado a un usuario y tiene sessionToken válido
+    if (telegramUser.userId && telegramUser.sessionToken && telegramUser.isAuthenticated) {
+      // Buscar datos mínimos del usuario
+      const user = await User.findById(telegramUser.userId);
+      // Enviar mensaje de Telegram para notificar login (opcional, solo si no se ha notificado recientemente)
+      try {
+        const botToken = process.env.TELEGRAM_BOT_TOKEN;
+        if (botToken && telegramUser.chatId) {
+          const message =
+            `🔑 <b>Inicio de sesión en Alia</b>\n\n` +
+            `Tu cuenta de Telegram fue usada para iniciar sesión en Alia.\n` +
+            `Si no fuiste tú, por favor contacta soporte.`;
+          await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              chat_id: telegramUser.chatId,
+              text: message,
+              parse_mode: 'HTML',
+            }),
+          });
+        }
+      } catch (notifyError) {
+        console.error('[Telegram] Failed to send login notification:', notifyError);
+      }
+      emitTelegramLinked(token, {
+        userId: telegramUser.userId,
+        sessionToken: telegramUser.sessionToken,
+        email: user?.email,
+        name: user?.name?.full || user?.name?.first || '',
+        type: 'login',
+      });
+      return res.json({
+        userId: telegramUser.userId,
+        sessionToken: telegramUser.sessionToken,
+        email: user?.email,
+        name: user?.name?.full || user?.name?.first || '',
+      });
+    }
+    // No vinculado aún
+    return res.status(404).json({ error: 'Telegram not linked to any account' });
+  } catch (error) {
+    console.error('Token info error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
