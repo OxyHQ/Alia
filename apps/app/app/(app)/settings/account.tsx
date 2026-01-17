@@ -8,6 +8,7 @@ import { useRouter } from "expo-router";
 import { generateAPIUrl } from "@/lib/generate-api-url";
 import { User, Mail, Lock, ArrowLeft, LogOut, Camera, Trash2 } from "lucide-react-native";
 import { useImagePicker } from "@/hooks/useImagePicker";
+import { toast } from "@/components/sonner";
 
 export default function AccountScreen() {
   const router = useRouter();
@@ -80,14 +81,14 @@ export default function AccountScreen() {
       if (response.ok) {
         const data = await response.json();
         updateUser({ image: data.avatarUrl });
-        Alert.alert("Success", "Avatar uploaded successfully");
+        toast.success("Avatar uploaded successfully");
       } else {
         const error = await response.json();
-        Alert.alert("Error", error.error || "Failed to upload avatar");
+        toast.error(error.error || "Failed to upload avatar");
       }
     } catch (error) {
       console.error("Error uploading avatar:", error);
-      Alert.alert("Error", "Failed to upload avatar");
+      toast.error("Failed to upload avatar");
     } finally {
       setUploadingAvatar(false);
     }
@@ -114,11 +115,13 @@ export default function AccountScreen() {
 
               if (response.ok) {
                 updateUser({ image: undefined });
-                Alert.alert("Success", "Avatar deleted successfully");
+                toast.success("Avatar deleted successfully");
+              } else {
+                toast.error("Failed to delete avatar");
               }
             } catch (error) {
               console.error("Error deleting avatar:", error);
-              Alert.alert("Error", "Failed to delete avatar");
+              toast.error("Failed to delete avatar");
             }
           },
         },
@@ -128,30 +131,30 @@ export default function AccountScreen() {
 
   const handleChangePassword = async () => {
     if (!currentPassword || !newPassword || !confirmPassword) {
-      Alert.alert("Error", "All fields are required");
+      toast.error("All fields are required");
       return;
     }
 
     if (newPassword !== confirmPassword) {
-      Alert.alert("Error", "New passwords do not match");
+      toast.error("New passwords do not match");
       return;
     }
 
     if (newPassword.length < 8) {
-      Alert.alert("Error", "Password must be at least 8 characters");
+      toast.error("Password must be at least 8 characters");
       return;
     }
 
     try {
       // TODO: Implement change password API
-      Alert.alert("Success", "Password changed successfully");
+      toast.success("Password changed successfully");
       setChangingPassword(false);
       setCurrentPassword("");
       setNewPassword("");
       setConfirmPassword("");
     } catch (error) {
       console.error("Error changing password:", error);
-      Alert.alert("Error", "Failed to change password");
+      toast.error("Failed to change password");
     }
   };
 
