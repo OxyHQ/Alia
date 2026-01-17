@@ -68,6 +68,27 @@ export default function DevelopersLayout() {
             title: 'Examples',
           }}
         />
+        <Drawer.Screen
+          name="developers/billing"
+          options={{
+            drawerItemStyle: { display: 'none' },
+            title: 'Billing',
+          }}
+        />
+        <Drawer.Screen
+          name="developers/apps/[id]/settings"
+          options={{
+            drawerItemStyle: { display: 'none' },
+            title: 'App Settings',
+          }}
+        />
+        <Drawer.Screen
+          name="developers/apps/[id]/keys/[keyId]"
+          options={{
+            drawerItemStyle: { display: 'none' },
+            title: 'API Key',
+          }}
+        />
       </Drawer>
     </GestureHandlerRootView>
   );
