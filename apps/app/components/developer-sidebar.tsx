@@ -19,6 +19,7 @@ import {
 import { useRouter, usePathname } from "expo-router";
 import { useAuthStore } from "@/lib/stores/auth-store";
 import { useApps } from "@/lib/hooks/use-developer";
+import { OrganizationSwitcher } from "@/components/organization-switcher";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -96,6 +97,9 @@ export const DeveloperSidebar = React.memo(function DeveloperSidebar() {
           </View>
         </Pressable>
       </View>
+
+      {/* Organization Switcher */}
+      <OrganizationSwitcher />
 
       {/* Navigation Links */}
       <View className="px-3 md:px-2 pt-3 md:pt-2 pb-3 md:pb-2 gap-1">

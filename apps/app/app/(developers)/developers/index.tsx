@@ -85,7 +85,7 @@ export default function DeveloperPortalScreen() {
             <ChevronRight size={16} className="text-muted-foreground" />
           </Pressable>
           <Pressable
-            onPress={() => router.push("/billing")}
+            onPress={() => router.push("/developers/billing")}
             className="flex-row items-center justify-between py-3 active:opacity-70"
           >
             <Text className="text-sm text-foreground">Billing & credits</Text>

@@ -17,9 +17,12 @@ router.get('/', authenticateToken, async (req, res) => {
     // Refresh credits if needed before returning
     await user.refreshCreditsIfNeeded();
 
+    const totalCredits = user.credits.free + (user.credits.paid || 0);
+
     res.json({
-      credits: user.credits.free,
+      credits: totalCredits,
       freeCredits: user.credits.freeLimit,
+      paidCredits: user.credits.paid || 0,
       dailyRefresh: user.credits.dailyRefresh,
       lastRefresh: user.credits.lastRefresh,
     });

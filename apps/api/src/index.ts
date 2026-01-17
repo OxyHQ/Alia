@@ -17,6 +17,8 @@ import creditsRouter from './routes/credits.js';
 import v1Router from './routes/v1.js';
 import telegramRouter from './routes/telegram.js';
 import developerRouter from './routes/developer.js';
+import billingRouter from './routes/billing.js';
+import organizationRouter from './routes/organization.js';
 
 // Fix for ES Modules __dirname
 const __filename = fileURLToPath(import.meta.url);
@@ -50,6 +52,10 @@ app.use(cors({
   },
   credentials: true
 }));
+
+// Stripe webhook needs raw body for signature verification
+app.use('/billing/webhook', express.raw({ type: 'application/json' }));
+
 // Increase body size limit for large chat contexts
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
@@ -66,6 +72,8 @@ app.use('/alia/chat', chatRouter);
 app.use('/v1', v1Router);
 app.use('/telegram', telegramRouter);
 app.use('/developer', developerRouter);
+app.use('/billing', billingRouter);
+app.use('/organization', organizationRouter);
 
 // Ruta raíz
 app.get('/', (_req, res) => {
@@ -83,7 +91,9 @@ app.get('/', (_req, res) => {
       '/alia/chat',
       '/v1',
       '/telegram',
-      '/developer'
+      '/developer',
+      '/billing',
+      '/organization'
     ]
   });
 });

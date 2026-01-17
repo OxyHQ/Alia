@@ -89,6 +89,13 @@ export default function DevelopersLayout() {
             title: 'API Key',
           }}
         />
+        <Drawer.Screen
+          name="developers/organizations/new"
+          options={{
+            drawerItemStyle: { display: 'none' },
+            title: 'Create Organization',
+          }}
+        />
       </Drawer>
     </GestureHandlerRootView>
   );
