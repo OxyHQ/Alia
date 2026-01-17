@@ -4,7 +4,12 @@ import { useRouter, Link, useLocalSearchParams } from 'expo-router';
 import Head from 'expo-router/head';
 import { AuthContainer, AuthLogo, AuthInput, AuthButton, AuthError } from '@/components/auth';
 import { Button } from '@/components/ui/button';
-import { MaterialCommunityIcons, FontAwesome5 } from '@expo/vector-icons';
+import GoogleLogo from '../../assets/socialLogos/google-logo.svg';
+import MicrosoftLogo from '../../assets/socialLogos/microsoft-logo.svg';
+import AppleLogo from '../../assets/socialLogos/apple-logo.svg';
+import TelegramLogo from '../../assets/socialLogos/telegram-logo.svg';
+
+
 import { toast } from '@/components/sonner';
 import apiClient from '@/lib/api/client';
 import { useAuthStore } from '@/lib/stores/auth-store';
@@ -20,7 +25,7 @@ export default function LoginScreen() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [telegramLoading, setTelegramLoading] = useState(false);
-  const pollIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const pollIntervalRef = useRef<any>(null);
 
   const handleLogin = async () => {
     setError('');
@@ -218,30 +223,8 @@ export default function LoginScreen() {
             className="h-11 rounded-full"
           >
             <View className="flex-row items-center gap-2">
-              <MaterialCommunityIcons name="google" size={18} color="#0F172A" />
+              <GoogleLogo width={22} height={22} />
               <Text className="text-sm font-medium">{t('login.continueWithGoogle')}</Text>
-            </View>
-          </Button>
-
-          <Button
-            variant="outline"
-            onPress={() => handleSocialLogin('microsoft')}
-            className="h-11 rounded-full"
-          >
-            <View className="flex-row items-center gap-2">
-              <MaterialCommunityIcons name="microsoft" size={18} color="#0F172A" />
-              <Text className="text-sm font-medium">{t('login.continueWithMicrosoft')}</Text>
-            </View>
-          </Button>
-
-          <Button
-            variant="outline"
-            onPress={() => handleSocialLogin('apple')}
-            className="h-11 rounded-full"
-          >
-            <View className="flex-row items-center gap-2">
-              <MaterialCommunityIcons name="apple" size={18} color="#0F172A" />
-              <Text className="text-sm font-medium">{t('login.continueWithApple')}</Text>
             </View>
           </Button>
 
@@ -252,7 +235,7 @@ export default function LoginScreen() {
             className="h-11 rounded-full"
           >
             <View className="flex-row items-center gap-2">
-              <FontAwesome5 name="telegram-plane" size={22} color="#229ED9" />
+              <TelegramLogo width={22} height={22} />
               <Text className="text-sm font-medium">
                 {telegramLoading ? 'Waiting for Telegram...' : t('login.continueWithTelegram')}
               </Text>
