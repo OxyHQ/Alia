@@ -2,37 +2,24 @@ import { View, ScrollView, Pressable, Alert, TextInput as RNTextInput } from "re
 import { Text } from "@/components/ui/text";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useRouter, useLocalSearchParams } from "expo-router";
-import { ArrowLeft, Package, Key, Plus, Copy, Trash2, Eye, EyeOff, Edit, Activity } from "lucide-react-native";
-import { useApps, useDeveloperStats, useCreateApp, useDeleteApp, type DeveloperApiKey } from "@/lib/stores/developer-store";
+import { ArrowLeft, Package, Key, Plus, Copy, Trash2, Activity } from "lucide-react-native";
+import { useApp, useApiKeys, useCreateApiKey, useDeleteApiKey, useDeleteApp } from "@/lib/hooks/use-developer";
 import * as Clipboard from 'expo-clipboard';
 
 export default function AppDetailScreen() {
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
-  const {
-    currentApp,
-    apiKeys,
-    isLoadingKeys,
-    fetchApp,
-    fetchApiKeys,
-    deleteApp,
-    createApiKey,
-    deleteApiKey,
-  } = useApps, useDeveloperStats, useCreateApp, useDeleteApp();
+  const { data: currentApp, isLoading: isLoadingApp } = useApp(id!);
+  const { data: apiKeys = [], isLoading: isLoadingKeys } = useApiKeys(id!);
+  const createApiKeyMutation = useCreateApiKey();
+  const deleteApiKeyMutation = useDeleteApiKey();
+  const deleteAppMutation = useDeleteApp();
 
   const [showNewKeyModal, setShowNewKeyModal] = useState(false);
   const [keyName, setKeyName] = useState("");
-  const [creatingKey, setCreatingKey] = useState(false);
   const [newlyCreatedKey, setNewlyCreatedKey] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (id) {
-      fetchApp(id).catch(console.error);
-      fetchApiKeys(id).catch(console.error);
-    }
-  }, [id]);
 
   const handleDeleteApp = () => {
     Alert.alert(
@@ -45,7 +32,7 @@ export default function AppDetailScreen() {
           style: "destructive",
           onPress: async () => {
             try {
-              await deleteApp(id!);
+              await deleteAppMutation.mutateAsync(id!);
               router.replace("/developers");
             } catch (error: any) {
               Alert.alert("Error", error.message || "Failed to delete app");
@@ -62,20 +49,20 @@ export default function AppDetailScreen() {
       return;
     }
 
-    setCreatingKey(true);
     try {
-      const newKey = await createApiKey(id!, {
-        name: keyName.trim(),
-        scopes: ["chat:read", "chat:write", "models:read"],
+      const result = await createApiKeyMutation.mutateAsync({
+        appId: id!,
+        data: {
+          name: keyName.trim(),
+          scopes: ["chat:read", "chat:write", "models:read"],
+        },
       });
 
-      setNewlyCreatedKey(newKey.key || null);
+      setNewlyCreatedKey(result.apiKey.key || null);
       setShowNewKeyModal(false);
       setKeyName("");
     } catch (error: any) {
       Alert.alert("Error", error.message || "Failed to create API key");
-    } finally {
-      setCreatingKey(false);
     }
   };
 
@@ -90,7 +77,7 @@ export default function AppDetailScreen() {
           style: "destructive",
           onPress: async () => {
             try {
-              await deleteApiKey(id!, keyId);
+              await deleteApiKeyMutation.mutateAsync({ appId: id!, keyId });
               Alert.alert("Success", "API key deleted");
             } catch (error: any) {
               Alert.alert("Error", error.message || "Failed to delete API key");
@@ -106,7 +93,7 @@ export default function AppDetailScreen() {
     Alert.alert("Copied", "API key copied to clipboard");
   };
 
-  if (!currentApp) {
+  if (isLoadingApp || !currentApp) {
     return (
       <View className="flex-1 bg-background items-center justify-center">
         <Text className="text-muted-foreground">Loading...</Text>
@@ -208,10 +195,10 @@ export default function AppDetailScreen() {
               <Button
                 onPress={handleCreateKey}
                 className="flex-1"
-                disabled={creatingKey || !keyName.trim()}
+                disabled={createApiKeyMutation.isPending || !keyName.trim()}
               >
                 <Text className="text-primary-foreground font-semibold">
-                  {creatingKey ? "Creating..." : "Create"}
+                  {createApiKeyMutation.isPending ? "Creating..." : "Create"}
                 </Text>
               </Button>
             </View>
