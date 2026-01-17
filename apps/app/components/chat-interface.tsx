@@ -1,7 +1,6 @@
 import { View, ScrollView, Pressable, Image, TextInput } from "react-native";
 import { CustomMarkdown } from "@/components/ui/markdown";
 import { Text } from "@/components/ui/text";
-import WeatherCard from "@/components/weather";
 import { WelcomeMessage } from "@/components/welcome-message";
 import React, { forwardRef, useEffect, useState } from "react";
 import { processMessage } from "@/lib/message-processor";
@@ -209,6 +208,7 @@ export const ChatInterface = forwardRef<ScrollView, ChatInterfaceProps>(
                           {/* Action Buttons for Assistant Messages */}
                           <View className="flex-row gap-1">
                             <Pressable
+                              key="copy"
                               className="p-1.5 rounded-lg hover:bg-muted active:bg-muted"
                               onPress={() => handleCopyMessage(m.id, messageText)}
                             >
@@ -218,10 +218,10 @@ export const ChatInterface = forwardRef<ScrollView, ChatInterfaceProps>(
                                 <Copy size={14} className="text-muted-foreground" />
                               )}
                             </Pressable>
-                            <Pressable className="p-1.5 rounded-lg hover:bg-muted active:bg-muted">
+                            <Pressable key="thumbs-up" className="p-1.5 rounded-lg hover:bg-muted active:bg-muted">
                               <ThumbsUp size={14} className="text-muted-foreground" />
                             </Pressable>
-                            <Pressable className="p-1.5 rounded-lg hover:bg-muted active:bg-muted">
+                            <Pressable key="thumbs-down" className="p-1.5 rounded-lg hover:bg-muted active:bg-muted">
                               <ThumbsDown size={14} className="text-muted-foreground" />
                             </Pressable>
                           </View>
@@ -264,6 +264,7 @@ export const ChatInterface = forwardRef<ScrollView, ChatInterfaceProps>(
                           {editingMessageId !== m.id && (
                             <View className="flex-row gap-1">
                               <Pressable
+                                key="copy"
                                 className="p-1.5 rounded-lg hover:bg-muted active:bg-muted"
                                 onPress={() => handleCopyMessage(m.id, messageText)}
                               >
@@ -274,6 +275,7 @@ export const ChatInterface = forwardRef<ScrollView, ChatInterfaceProps>(
                                 )}
                               </Pressable>
                               <Pressable
+                                key="edit"
                                 className="p-1.5 rounded-lg hover:bg-muted active:bg-muted"
                                 onPress={() => handleStartEdit(m.id, messageText)}
                               >
