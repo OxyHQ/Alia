@@ -1,5 +1,6 @@
 import React from 'react';
-import { View, Pressable, Image, Alert } from 'react-native';
+import { View, Pressable, Alert } from 'react-native';
+import { Image } from 'expo-image';
 import { Text } from '@/components/ui/text';
 import { Card } from '@/components/ui/card';
 import {
