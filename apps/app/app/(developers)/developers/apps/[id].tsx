@@ -90,16 +90,16 @@ export default function AppDetailScreen() {
       {/* Header */}
       <View className="px-4 py-3 border-b border-border">
         <Pressable onPress={() => router.back()} className="flex-row items-center mb-3">
-          <ArrowLeft size={20} className="text-muted-foreground mr-2" />
+          <ArrowLeft size={16} className="text-muted-foreground mr-2" />
           <Text className="text-base text-muted-foreground">Back</Text>
         </Pressable>
 
         <View className="flex-row items-start">
-          <View className="w-14 h-14 rounded-2xl bg-primary/10 items-center justify-center mr-4">
-            <Package size={28} className="text-primary" />
+          <View className="w-10 h-10 rounded-lg bg-primary/10 items-center justify-center mr-4">
+            <Package size={20} className="text-primary" />
           </View>
           <View className="flex-1">
-            <Text className="text-2xl font-bold text-foreground">{currentApp.name}</Text>
+            <Text className="text-xl font-bold text-foreground">{currentApp.name}</Text>
             {currentApp.description && (
               <Text className="text-base text-muted-foreground mt-1">
                 {currentApp.description}
@@ -124,9 +124,9 @@ export default function AppDetailScreen() {
       </View>
 
       {/* App Info */}
-      <View className="px-4 py-4 border-b border-border">
-        <Text className="text-base font-semibold text-foreground mb-3">App Information</Text>
-        <Card className="p-4">
+      <View className="px-4 py-3 border-b border-border">
+        <Text className="text-sm font-semibold text-foreground mb-3">App Information</Text>
+        <Card className="p-3">
           <View className="mb-3">
             <Text className="text-xs font-semibold text-muted-foreground mb-1">App ID</Text>
             <Text className="text-sm text-foreground font-mono">{currentApp._id}</Text>
@@ -141,9 +141,9 @@ export default function AppDetailScreen() {
       </View>
 
       {/* API Keys Section */}
-      <View className="px-4 py-4 border-b border-border">
+      <View className="px-4 py-3 border-b border-border">
         <View className="flex-row items-center justify-between mb-3">
-          <Text className="text-base font-semibold text-foreground">API Keys</Text>
+          <Text className="text-sm font-semibold text-foreground">API Keys</Text>
           <Button
             onPress={() => setShowNewKeyModal(true)}
             size="sm"
@@ -155,8 +155,8 @@ export default function AppDetailScreen() {
 
         {/* New Key Modal */}
         {showNewKeyModal && (
-          <Card className="p-4 mb-3 bg-muted">
-            <Text className="text-base font-semibold text-foreground mb-3">Create API Key</Text>
+          <Card className="p-4 mb-2 bg-muted">
+            <Text className="text-sm font-semibold text-foreground mb-3">Create API Key</Text>
             <RNTextInput
               value={keyName}
               onChangeText={setKeyName}
@@ -191,7 +191,7 @@ export default function AppDetailScreen() {
 
         {/* Newly Created Key Alert */}
         {newlyCreatedKey && (
-          <Card className="p-4 mb-3 bg-yellow-50 border-yellow-200">
+          <Card className="p-4 mb-2 bg-yellow-50 border-yellow-200">
             <Text className="text-sm font-semibold text-yellow-900 mb-2">
               Save your API key!
             </Text>
@@ -223,21 +223,21 @@ export default function AppDetailScreen() {
             <Text className="text-center text-muted-foreground">Loading keys...</Text>
           </View>
         ) : apiKeys.length === 0 ? (
-          <Card className="p-6">
+          <Card className="p-3">
             <View className="items-center">
-              <Key size={32} className="text-muted-foreground mb-2" />
+              <Key size={24} className="text-muted-foreground mb-2" />
               <Text className="text-base text-muted-foreground text-center">
                 No API keys yet. Create one to get started.
               </Text>
             </View>
           </Card>
         ) : (
-          <View className="space-y-3">
+          <View className="gap-2">
             {apiKeys.map((key) => (
-              <Card key={key._id} className="p-4">
+              <Card key={key._id} className="p-3">
                 <View className="flex-row items-start justify-between mb-2">
                   <View className="flex-1">
-                    <Text className="text-base font-semibold text-foreground mb-1">
+                    <Text className="text-sm font-semibold text-foreground mb-1">
                       {key.name}
                     </Text>
                     <Text className="text-xs font-mono text-muted-foreground mb-2">
@@ -282,16 +282,16 @@ export default function AppDetailScreen() {
       </View>
 
       {/* Usage Stats Link */}
-      <View className="px-4 py-4 border-b border-border">
+      <View className="px-4 py-3 border-b border-border">
         <Pressable
           onPress={() => router.push(`/developers/apps/${id}/usage`)}
           className="active:opacity-70"
         >
-          <Card className="p-4">
+          <Card className="p-3">
             <View className="flex-row items-center">
               <Activity size={20} className="text-primary mr-3" />
               <View className="flex-1">
-                <Text className="text-base font-semibold text-foreground">View Usage Statistics</Text>
+                <Text className="text-sm font-semibold text-foreground">View Usage Statistics</Text>
                 <Text className="text-sm text-muted-foreground">
                   See detailed analytics and API usage
                 </Text>
@@ -302,8 +302,8 @@ export default function AppDetailScreen() {
       </View>
 
       {/* Danger Zone */}
-      <View className="px-4 py-4">
-        <Text className="text-base font-semibold text-destructive mb-3">Danger Zone</Text>
+      <View className="px-4 py-3">
+        <Text className="text-sm font-semibold text-destructive mb-3">Danger Zone</Text>
         <Card className="p-4 border-destructive">
           <Button
             variant="destructive"
