@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
-import { View, Text, Alert, Pressable, Platform } from 'react-native';
+import { View, Text, Pressable } from 'react-native';
 import { useRouter, Link } from 'expo-router';
 import { AuthContainer, AuthLogo, AuthInput, AuthButton, AuthError } from '@/components/auth';
 import apiClient from '@/lib/api/client';
 import { useAuthStore } from '@/lib/stores/auth-store';
 import { useTranslation } from '@/hooks/useTranslation';
+import { toast } from '@/components/sonner';
 
 export default function RegisterScreen() {
   const router = useRouter();
@@ -26,9 +27,7 @@ export default function RegisterScreen() {
     if (password !== confirmPassword) {
       const errorMsg = t('errors.passwordsDoNotMatch');
       setError(errorMsg);
-      if (Platform.OS !== 'web') {
-        Alert.alert(t('errors.registrationError'), errorMsg);
-      }
+      toast.error(errorMsg);
       return;
     }
 
@@ -36,9 +35,7 @@ export default function RegisterScreen() {
     if (password.length < 8) {
       const errorMsg = t('errors.passwordTooShort');
       setError(errorMsg);
-      if (Platform.OS !== 'web') {
-        Alert.alert(t('errors.registrationError'), errorMsg);
-      }
+      toast.error(errorMsg);
       return;
     }
 
@@ -64,10 +61,7 @@ export default function RegisterScreen() {
       const errorMessage = error.response?.data?.error || t('errors.failedToRegister');
       setError(errorMessage);
 
-      // Also show alert on mobile
-      if (Platform.OS !== 'web') {
-        Alert.alert(t('errors.registrationFailed'), errorMessage);
-      }
+      toast.error(errorMessage);
     } finally {
       setLoading(false);
     }

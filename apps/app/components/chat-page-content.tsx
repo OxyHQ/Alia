@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { View, Alert, Pressable } from "react-native";
+import { View, Pressable } from "react-native";
 import type { ScrollView as GHScrollView } from "react-native-gesture-handler";
 import { useStore } from "@/lib/globalStore";
 import { Plus, Globe, ArrowUp, ImageIcon, MoreHorizontal, X, FileText, Ghost, Check, Search, ShoppingBag, BookOpen, ExternalLink, PenTool, Sparkles, Square } from "lucide-react-native";
@@ -14,6 +14,7 @@ import { ChatInterface } from "@/components/chat-interface";
 import { ChatHeader } from "@/components/chat-header";
 import { useAuthStore } from "@/lib/stores/auth-store";
 import type { Message } from "@/types/chat";
+import { toast } from "@/components/sonner";
 
 interface ChatPageContentProps {
   messages: Message[];
@@ -101,7 +102,7 @@ export const ChatPageContent = ({
 
   const handleAddPhotos = async () => {
     if (!isAuthenticated) {
-      Alert.alert('Sign in required', 'Please sign in to upload images.');
+      toast.error('Please sign in to upload images.');
       return;
     }
 
@@ -117,7 +118,7 @@ export const ChatPageContent = ({
 
   const handleAddDocument = async () => {
     if (!isAuthenticated) {
-      Alert.alert('Sign in required', 'Please sign in to upload documents.');
+      toast.error('Please sign in to upload documents.');
       return;
     }
 
@@ -135,7 +136,7 @@ export const ChatPageContent = ({
       }
     } catch (err) {
       console.error('Error picking documents:', err);
-      Alert.alert('Error', 'Failed to pick documents. Please try again.');
+      toast.error('Failed to pick documents. Please try again.');
     }
   };
 
@@ -145,7 +146,7 @@ export const ChatPageContent = ({
 
   const handleImagePaste = async (files: File[]) => {
     if (!isAuthenticated) {
-      Alert.alert('Sign in required', 'Please sign in to paste images.');
+      toast.error('Please sign in to paste images.');
       return;
     }
 
@@ -181,7 +182,7 @@ export const ChatPageContent = ({
       }
     } catch (err) {
       console.error('Error handling pasted images:', err);
-      Alert.alert('Error', 'Failed to process pasted images. Please try again.');
+      toast.error('Failed to process pasted images. Please try again.');
     }
   };
 
@@ -203,43 +204,43 @@ export const ChatPageContent = ({
   const handleSearchToggle = () => {
     const newValue = !searchMode;
     setSearchMode(newValue);
-    Alert.alert('Search mode', newValue ? 'Enabled - Web search will be used' : 'Disabled');
+    toast.info(newValue ? 'Web search will be used' : 'Search mode disabled');
   };
 
   const handleDeepResearch = () => {
-    Alert.alert('Deep research', 'Deep research mode activated! This will perform comprehensive analysis.');
+    toast.info('Deep research mode activated! This will perform comprehensive analysis.');
   };
 
   const handleShoppingResearch = () => {
-    Alert.alert('Shopping research', 'Shopping research mode activated! I will help you find and compare products.');
+    toast.info('Shopping research mode activated! I will help you find and compare products.');
   };
 
   const handleAgentMode = () => {
     const newValue = !agentMode;
     setAgentMode(newValue);
-    Alert.alert('Agent mode', newValue ? 'Enabled - I can now perform actions autonomously' : 'Disabled');
+    toast.info(newValue ? 'I can now perform actions autonomously' : 'Agent mode disabled');
   };
 
   const handleGhostMode = () => {
     const newValue = !ghostMode;
     setGhostMode(newValue);
-    Alert.alert('Ghost mode', newValue ? 'Enabled - Conversations will not be saved' : 'Disabled - Conversations will be saved normally');
+    toast.info(newValue ? 'Conversations will not be saved' : 'Conversations will be saved normally');
   };
 
   const handleAddSources = () => {
-    Alert.alert('Add sources', 'You can add URLs, documents, or other sources for me to reference.');
+    toast.info('You can add URLs, documents, or other sources for me to reference.');
   };
 
   const handleStudyAndLearn = () => {
-    Alert.alert('Study and learn', 'Study mode will help you learn and understand topics deeply.');
+    toast.info('Study mode will help you learn and understand topics deeply.');
   };
 
   const handleWebSearch = () => {
-    Alert.alert('Web search', 'Web search will be performed for your query.');
+    toast.info('Web search will be performed for your query.');
   };
 
   const handleCanvas = () => {
-    Alert.alert('Canvas', 'Canvas mode for collaborative editing coming soon!');
+    toast.info('Canvas mode for collaborative editing coming soon!');
   };
 
   return (

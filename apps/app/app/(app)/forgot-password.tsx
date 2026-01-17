@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
-import { View, Text, Platform, Alert, Pressable } from 'react-native';
+import { View, Text, Pressable } from 'react-native';
 import { useRouter } from 'expo-router';
 import { AuthContainer, AuthLogo, AuthInput, AuthButton, AuthError } from '@/components/auth';
 import apiClient from '@/lib/api/client';
+import { toast } from '@/components/sonner';
 
 export default function ForgotPasswordScreen() {
   const router = useRouter();
@@ -27,22 +28,14 @@ export default function ForgotPasswordScreen() {
       });
 
       setSent(true);
-
-      if (Platform.OS !== 'web') {
-        Alert.alert(
-          'Email Sent',
-          'Check your email for instructions to reset your password.',
-          [{ text: 'OK', onPress: () => router.back() }]
-        );
-      }
+      toast.success('Check your email for instructions to reset your password.');
+      router.back();
     } catch (error: any) {
       console.error('Reset password error:', error);
       const errorMessage = error.response?.data?.error || 'Failed to send reset email. Please try again.';
       setError(errorMessage);
 
-      if (Platform.OS !== 'web') {
-        Alert.alert('Error', errorMessage);
-      }
+      toast.error(errorMessage);
     } finally {
       setLoading(false);
     }

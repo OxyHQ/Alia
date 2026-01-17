@@ -1,4 +1,4 @@
-import { View, ScrollView, TextInput as RNTextInput, Pressable, Alert } from "react-native";
+import { View, ScrollView, TextInput as RNTextInput, Pressable } from "react-native";
 import { Text } from "@/components/ui/text";
 import { Button } from "@/components/ui/button";
 import { useState, useEffect } from "react";
@@ -19,6 +19,7 @@ import { useColorScheme } from "@/lib/useColorScheme";
 import type { ThemeMode } from "@/lib/stores/theme-store";
 import { useTranslation } from "@/hooks/useTranslation";
 import { LanguageSelector } from "@/components/language-selector";
+import { toast } from "@/components/sonner";
 
 interface UserMemory {
   preferences: {
@@ -124,12 +125,12 @@ export default function SettingsScreen() {
         const updatedMemory = await contextRes.json();
         // Update cache
         setMemory(updatedMemory);
-        Alert.alert(t('common.success'), t('settings.saveSuccess'));
+        toast.success(t('settings.saveSuccess'));
         router.back();
       }
     } catch (error) {
       console.error("Error saving memory:", error);
-      Alert.alert(t('common.error'), t('settings.saveFailed'));
+      toast.error(t('settings.saveFailed'));
     } finally {
       setSaving(false);
     }

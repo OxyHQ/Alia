@@ -1,5 +1,5 @@
 import * as ImagePicker from 'expo-image-picker';
-import { Alert } from 'react-native';
+import { toast } from '@/components/sonner';
 
 type ImagePickerResult = {
   pickImage: () => Promise<string[] | undefined>;
@@ -19,11 +19,7 @@ export function useImagePicker(): ImagePickerResult {
         return result.assets.map(asset => asset.uri);
       }
     } catch (error) {
-      Alert.alert(
-        'Error',
-        'Failed to pick image. Please try again.',
-        [{ text: 'OK' }]
-      );
+      toast.error('Failed to pick image. Please try again.');
     }
   };
 

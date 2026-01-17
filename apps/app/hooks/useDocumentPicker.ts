@@ -1,5 +1,5 @@
 import * as DocumentPicker from 'expo-document-picker';
-import { Alert } from 'react-native';
+import { toast } from '@/components/sonner';
 
 export type DocumentPickerResult = {
   uri: string;
@@ -30,11 +30,7 @@ export function useDocumentPicker(): UseDocumentPickerResult {
         }));
       }
     } catch (error) {
-      Alert.alert(
-        'Error',
-        'Failed to pick document. Please try again.',
-        [{ text: 'OK' }]
-      );
+      toast.error('Failed to pick document. Please try again.');
     }
   };
 

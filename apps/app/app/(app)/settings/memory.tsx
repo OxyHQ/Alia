@@ -34,6 +34,7 @@ import {
 import { useUserData } from "@/hooks/useUserData";
 import { useUserDataStore } from "@/lib/stores/user-data-store";
 import { cn } from "@/lib/utils";
+import { toast } from "@/components/sonner";
 
 interface Memory {
   _id: string;
@@ -141,7 +142,7 @@ export default function MemoryScreen() {
 
   const handleSaveMemory = async () => {
     if (!token || !formKey.trim() || !formValue.trim()) {
-      Alert.alert("Error", "Key and value are required");
+      toast.error("Key and value are required");
       return;
     }
 
@@ -167,7 +168,7 @@ export default function MemoryScreen() {
           const updatedMemory = await response.json();
           setMemory(updatedMemory);
           handleCloseDialog();
-          Alert.alert("Success", "Memory updated successfully");
+          toast.success("Memory updated successfully");
         }
       } else {
         // Add new memory
@@ -189,12 +190,12 @@ export default function MemoryScreen() {
           const updatedMemory = await response.json();
           setMemory(updatedMemory);
           handleCloseDialog();
-          Alert.alert("Success", "Memory added successfully");
+          toast.success("Memory added successfully");
         }
       }
     } catch (error) {
       console.error("Error saving memory:", error);
-      Alert.alert("Error", "Failed to save memory");
+      toast.error("Failed to save memory");
     } finally {
       setSaving(false);
     }
@@ -224,11 +225,11 @@ export default function MemoryScreen() {
               if (response.ok) {
                 const updatedMemory = await response.json();
                 setMemory(updatedMemory);
-                Alert.alert("Success", "Memory deleted successfully");
+                toast.success("Memory deleted successfully");
               }
             } catch (error) {
               console.error("Error deleting memory:", error);
-              Alert.alert("Error", "Failed to delete memory");
+              toast.error("Failed to delete memory");
             }
           },
         },

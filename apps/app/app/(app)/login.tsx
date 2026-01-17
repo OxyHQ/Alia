@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, Alert, Platform, Pressable, Linking } from 'react-native';
+import { View, Text, Platform, Pressable, Linking } from 'react-native';
 import { useRouter, Link, useLocalSearchParams } from 'expo-router';
 import Head from 'expo-router/head';
 import { AuthContainer, AuthLogo, AuthInput, AuthButton, AuthError } from '@/components/auth';
@@ -33,18 +33,14 @@ export default function LoginScreen() {
     if (!email.trim()) {
       const errorMsg = t('errors.emailRequired');
       setError(errorMsg);
-      if (Platform.OS !== 'web') {
-        Alert.alert(t('errors.loginError'), errorMsg);
-      }
+      toast.error(errorMsg);
       return;
     }
 
     if (!password.trim()) {
       const errorMsg = t('errors.passwordRequired');
       setError(errorMsg);
-      if (Platform.OS !== 'web') {
-        Alert.alert(t('errors.loginError'), errorMsg);
-      }
+      toast.error(errorMsg);
       return;
     }
 
@@ -73,9 +69,7 @@ export default function LoginScreen() {
       const errorMessage = error.response?.data?.error || t('errors.failedToLogin');
       setError(errorMessage);
 
-      if (Platform.OS !== 'web') {
-        Alert.alert(t('errors.loginFailed'), errorMessage);
-      }
+      toast.error(errorMessage);
     } finally {
       setLoading(false);
     }
@@ -113,9 +107,7 @@ export default function LoginScreen() {
       setError(errorMessage);
       setTelegramLoading(false);
 
-      if (Platform.OS !== 'web') {
-        Alert.alert('Telegram Sign-In Failed', errorMessage);
-      }
+      toast.error(errorMessage);
     }
   };
 
