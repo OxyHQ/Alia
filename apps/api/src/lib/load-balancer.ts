@@ -173,6 +173,7 @@ export async function getBestAvailableKey(keyPool: KeyConfig[], tokens = 1000): 
     const { ok, usage } = await canUseKey(k, tokens);
     if (ok) {
       try {
+        console.log("Creating ApiUsage record for keyId:", k._id, "provider:", k.provider, "tokens:", tokens);
         await ApiUsage.create({ keyId: k._id, provider: k.provider, tokens });
       } catch (e: any) {
         console.error('⚠️ Error al registrar uso en DB:', e.message);
@@ -186,6 +187,7 @@ export async function getBestAvailableKey(keyPool: KeyConfig[], tokens = 1000): 
     const { ok, usage } = await canUseKey(k, tokens);
     if (ok) {
       try {
+        console.log("Creating ApiUsage record for keyId:", k._id, "provider:", k.provider, "tokens:", tokens);
         await ApiUsage.create({ keyId: k._id, provider: k.provider, tokens });
       } catch (e: any) {
         console.error('⚠️ Error al registrar uso en DB:', e.message);

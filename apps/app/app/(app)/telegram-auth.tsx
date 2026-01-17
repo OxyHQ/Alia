@@ -83,7 +83,7 @@ export default function TelegramAuthScreen() {
           }, 1200);
         } else {
           setStatus('error');
-          setMessage('This Telegram is not linked to any Alia account. Please create an account or request a new link.');
+          setMessage('This Telegram is not linked to any Alia account.');
         }
         return;
       }
