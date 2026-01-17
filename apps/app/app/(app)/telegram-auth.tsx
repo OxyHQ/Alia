@@ -68,12 +68,14 @@ export default function TelegramAuthScreen() {
       if (tokenMode === 'signin') {
         // Solo permitir login automático con Telegram
         if (tgUser && tgUser.userId && tgUser.sessionToken) {
-          useAuthStore.getState().setToken(tgUser.sessionToken);
-          useAuthStore.getState().setUser({
-            _id: tgUser.userId,
-            email: tgUser.email || '',
-            name: tgUser.name || '',
-          });
+          useAuthStore.getState().login(
+            {
+              id: tgUser.userId,
+              email: tgUser.email || '',
+              name: tgUser.name || '',
+            },
+            tgUser.sessionToken
+          );
           setStatus('success');
           setMessage('Logged in with your Telegram account!');
           setTimeout(() => {
