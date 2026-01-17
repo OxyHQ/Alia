@@ -145,6 +145,18 @@ class APIClient {
     await this.client.post(`/telegram/users/${telegramId}/logout`);
   }
 
+  async completeSignIn(data: {
+    authCode: string;
+    telegramId: string;
+    chatId: string;
+    username?: string;
+    firstName?: string;
+    lastName?: string;
+  }): Promise<{ success: boolean; isNewUser: boolean; user?: any }> {
+    const response = await this.client.post('/telegram/signin-complete', data);
+    return response.data;
+  }
+
   // Generate auth URL for user verification
   getAuthURL(authToken: string): string {
     return `${this.baseURL}/telegram/verify?token=${authToken}`;

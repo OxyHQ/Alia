@@ -2,6 +2,68 @@ import { Context } from 'telegraf';
 import { Markup } from 'telegraf';
 import { apiClient } from '../services/api-client';
 
+// Handle sign-in flow from deep link
+async function handleSignInFlow(ctx: Context, authCode: string, telegramId: string, chatId: string) {
+  try {
+    await ctx.reply(
+      '🔐 <b>Signing you in...</b>\n\n' +
+      'Please wait while we authenticate your account.',
+      { parse_mode: 'HTML' }
+    );
+
+    // Complete the sign-in on the backend
+    const result = await apiClient.completeSignIn({
+      authCode,
+      telegramId,
+      chatId,
+      username: ctx.from?.username,
+      firstName: ctx.from?.first_name,
+      lastName: ctx.from?.last_name,
+    });
+
+    if (result.success) {
+      const userName = result.user?.name || ctx.from?.first_name || 'there';
+      const welcomeMessage = result.isNewUser
+        ? `🎉 <b>Welcome to Alia, ${userName}!</b>\n\n` +
+          `Your account has been created and your Telegram is linked.\n\n` +
+          `You now have <b>1000 free credits</b> to get started!\n\n` +
+          `Just send me any message to start chatting. 💬`
+        : `👋 <b>Welcome back, ${userName}!</b>\n\n` +
+          `You're now signed in and ready to chat.\n\n` +
+          `Just send me any message to continue! 💬`;
+
+      await ctx.reply(welcomeMessage, {
+        parse_mode: 'HTML',
+        ...Markup.inlineKeyboard([
+          [
+            Markup.button.callback('📊 Account Status', 'status'),
+            Markup.button.callback('🆕 New Chat', 'new')
+          ],
+          [
+            Markup.button.callback('📚 History', 'history'),
+            Markup.button.callback('❓ Help', 'help')
+          ]
+        ])
+      });
+    } else {
+      await ctx.reply(
+        '❌ <b>Sign-in failed</b>\n\n' +
+        'Unable to complete the authentication process.\n\n' +
+        'Please try again or use /start for a new authentication link.',
+        { parse_mode: 'HTML' }
+      );
+    }
+  } catch (error) {
+    console.error('Sign-in flow error:', error);
+    await ctx.reply(
+      '❌ <b>Authentication Error</b>\n\n' +
+      'Something went wrong during sign-in.\n\n' +
+      'Please try again later or use /start.',
+      { parse_mode: 'HTML' }
+    );
+  }
+}
+
 // Helper function to send authentication request
 export async function sendAuthRequest(ctx: Context): Promise<boolean> {
   const telegramId = ctx.from?.id.toString();
@@ -67,6 +129,15 @@ export async function handleStart(ctx: Context) {
 
   if (!telegramId || !chatId) {
     await ctx.reply('Unable to identify you. Please try again.');
+    return;
+  }
+
+  // Check if this is a sign-in flow from deep link
+  // Deep link format: /start signin_AUTHCODE
+  const startPayload = (ctx as any).message?.text?.split(' ')[1];
+  if (startPayload && startPayload.startsWith('signin_')) {
+    const authCode = startPayload.replace('signin_', '');
+    await handleSignInFlow(ctx, authCode, telegramId, chatId);
     return;
   }
 

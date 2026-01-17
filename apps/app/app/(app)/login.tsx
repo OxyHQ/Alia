@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { View, Text, Alert, Platform, Pressable } from 'react-native';
+import React, { useState, useEffect, useRef } from 'react';
+import { View, Text, Alert, Platform, Pressable, Linking } from 'react-native';
 import { useRouter, Link, useLocalSearchParams } from 'expo-router';
 import Head from 'expo-router/head';
 import { AuthContainer, AuthLogo, AuthInput, AuthButton, AuthError } from '@/components/auth';
@@ -19,6 +19,8 @@ export default function LoginScreen() {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [telegramLoading, setTelegramLoading] = useState(false);
+  const pollIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   const handleLogin = async () => {
     setError('');
@@ -79,6 +81,115 @@ export default function LoginScreen() {
     toast.info(t('errors.socialLoginSoon', { provider: providerName }));
   };
 
+  const handleTelegramSignIn = async () => {
+    setError('');
+    setTelegramLoading(true);
+
+    try {
+      // Initiate Telegram sign-in flow
+      const response = await apiClient.post('/auth/telegram/initiate');
+      const { authCode, deepLink } = response.data;
+
+      // Open Telegram app with deep link
+      const canOpen = await Linking.canOpenURL(deepLink);
+      if (canOpen) {
+        await Linking.openURL(deepLink);
+
+        // Start polling for completion
+        toast.info('Waiting for Telegram authentication...');
+        startPolling(authCode);
+      } else {
+        toast.error('Unable to open Telegram. Please make sure it is installed.');
+        setTelegramLoading(false);
+      }
+    } catch (error: any) {
+      console.error('Telegram sign-in error:', error);
+      const errorMessage = error.response?.data?.error || 'Failed to initiate Telegram sign-in';
+      setError(errorMessage);
+      setTelegramLoading(false);
+
+      if (Platform.OS !== 'web') {
+        Alert.alert('Telegram Sign-In Failed', errorMessage);
+      }
+    }
+  };
+
+  const startPolling = (authCode: string) => {
+    // Clear any existing polling
+    if (pollIntervalRef.current) {
+      clearInterval(pollIntervalRef.current);
+    }
+
+    let attempts = 0;
+    const maxAttempts = 60; // Poll for 2 minutes (2 seconds * 60)
+
+    pollIntervalRef.current = setInterval(async () => {
+      attempts++;
+
+      if (attempts > maxAttempts) {
+        // Timeout
+        if (pollIntervalRef.current) {
+          clearInterval(pollIntervalRef.current);
+        }
+        setTelegramLoading(false);
+        toast.error('Telegram sign-in timed out. Please try again.');
+        return;
+      }
+
+      try {
+        const response = await apiClient.get(`/auth/telegram/poll/${authCode}`);
+        const { status, token } = response.data;
+
+        if (status === 'completed' && token) {
+          // Sign-in complete!
+          if (pollIntervalRef.current) {
+            clearInterval(pollIntervalRef.current);
+          }
+
+          // Get user data with the token
+          const userResponse = await apiClient.get('/auth/me', {
+            headers: { Authorization: `Bearer ${token}` },
+          });
+
+          const userData = userResponse.data.user || userResponse.data;
+
+          // Store user and token in auth store
+          login(userData, token);
+
+          setTelegramLoading(false);
+          toast.success('Signed in successfully with Telegram!');
+
+          // Navigate to returnTo URL if provided, otherwise home screen
+          if (returnTo && typeof returnTo === 'string') {
+            router.replace(returnTo as any);
+          } else {
+            router.replace('/');
+          }
+        } else if (status === 'expired') {
+          // Auth code expired
+          if (pollIntervalRef.current) {
+            clearInterval(pollIntervalRef.current);
+          }
+          setTelegramLoading(false);
+          toast.error('Telegram sign-in expired. Please try again.');
+        }
+        // Otherwise keep polling (status === 'pending')
+      } catch (error) {
+        console.error('Polling error:', error);
+        // Continue polling even on error (might be temporary network issue)
+      }
+    }, 2000); // Poll every 2 seconds
+  };
+
+  // Cleanup polling on unmount
+  useEffect(() => {
+    return () => {
+      if (pollIntervalRef.current) {
+        clearInterval(pollIntervalRef.current);
+      }
+    };
+  }, []);
+
   return (
     <>
       <Head>
@@ -131,6 +242,20 @@ export default function LoginScreen() {
           <View className="flex-row items-center gap-2">
             <MaterialCommunityIcons name="apple" size={18} color="#0F172A" />
             <Text className="text-sm font-medium">{t('login.continueWithApple')}</Text>
+          </View>
+        </Button>
+
+        <Button
+          variant="outline"
+          onPress={handleTelegramSignIn}
+          disabled={telegramLoading}
+          className="h-11 rounded-full"
+        >
+          <View className="flex-row items-center gap-2">
+            <MaterialCommunityIcons name="telegram" size={18} color="#0F172A" />
+            <Text className="text-sm font-medium">
+              {telegramLoading ? 'Waiting for Telegram...' : t('login.continueWithTelegram')}
+            </Text>
           </View>
         </Button>
       </View>

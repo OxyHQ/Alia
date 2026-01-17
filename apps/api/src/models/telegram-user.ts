@@ -23,6 +23,11 @@ const TelegramUserSchema = new mongoose.Schema(
     lastName: String,
     authToken: String,
     authTokenExpiry: Date,
+    authTokenMode: {
+      type: String,
+      enum: ['link', 'signin'],
+      default: 'link',
+    },
     sessionToken: String,
     conversationId: String,
     isAuthenticated: {
