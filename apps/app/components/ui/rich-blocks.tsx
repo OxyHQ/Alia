@@ -15,7 +15,7 @@ type CompactListItem = {
 
 export function CompactList({ title, items }: { title: string; items: CompactListItem[] }) {
   return (
-    <View className="my-4 rounded-xl border border-border bg-card p-4">
+    <View className="my-4 rounded-xl border border-border bg-surface p-4">
       <Text className="text-base font-semibold text-foreground mb-3">{title}</Text>
       <View className="gap-2">
         {items.map((item, idx) => (
@@ -123,7 +123,7 @@ export function Comparison({
   };
 
   return (
-    <View className="my-4 rounded-xl border border-border bg-card p-4">
+    <View className="my-4 rounded-xl border border-border bg-surface p-4">
       <Text className="text-base font-semibold text-foreground mb-4">{title}</Text>
       <View className="gap-3">
         <View className={cn('rounded-lg border-l-4 bg-zinc-50 dark:bg-zinc-800/50 p-3', getToneColor(left.tone))}>
@@ -159,7 +159,7 @@ type TimelineItem = {
 
 export function Timeline({ title, items }: { title: string; items: TimelineItem[] }) {
   return (
-    <View className="my-4 rounded-xl border border-border bg-card p-4">
+    <View className="my-4 rounded-xl border border-border bg-surface p-4">
       <Text className="text-base font-semibold text-foreground mb-4">{title}</Text>
       <View className="gap-4">
         {items.map((item, idx) => (

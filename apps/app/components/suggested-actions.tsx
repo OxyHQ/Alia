@@ -100,7 +100,7 @@ export function SuggestedActions({
             <View
               onLayout={(e) => setCardWidth(e.nativeEvent.layout.width)}
               className={cn(
-                "mb-3 mr-3 h-36 w-[300px] rounded-2xl border border-border bg-card p-5 shadow-sm",
+                "mb-3 mr-3 h-36 w-[300px] rounded-2xl border border-border bg-surface p-5 shadow-sm",
               )}
               style={{
                 ...(i === actions.length - 1 && {
@@ -108,7 +108,7 @@ export function SuggestedActions({
                 }),
               }}
             >
-              <Text className="text-lg font-bold text-card-foreground leading-6">
+              <Text className="text-lg font-bold text-surface-foreground leading-6">
                 {item.title}
               </Text>
               <Text className="mt-3 text-sm text-muted-foreground leading-5">

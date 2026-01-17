@@ -23,6 +23,21 @@ import {
   Plus,
   BrainCircuit,
   Code,
+  MoreHorizontal,
+  Edit,
+  Briefcase,
+  Folder,
+  Package,
+  Rocket,
+  Target,
+  Lightbulb,
+  Star,
+  Heart,
+  Zap,
+  ChevronDown,
+  ChevronRight,
+  FolderInput,
+  type LucideIcon,
 } from "lucide-react-native";
 import { useStore } from "@/lib/globalStore";
 import { useRouter } from "expo-router";
@@ -36,6 +51,22 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { ProjectEditDialog } from "@/components/project-edit-dialog";
+import type { Project } from "@/lib/stores/projects-store";
+
+// Icon mapping for projects
+const ICON_MAP: Record<string, LucideIcon> = {
+  FolderOpen,
+  Briefcase,
+  Folder,
+  Package,
+  Rocket,
+  Target,
+  Lightbulb,
+  Star,
+  Heart,
+  Zap,
+};
 
 export const Sidebar = React.memo(function Sidebar() {
   const router = useRouter();
@@ -50,6 +81,14 @@ export const Sidebar = React.memo(function Sidebar() {
   const currentProjectId = useProjectsStore((state) => state.currentProjectId);
   const setCurrentProject = useProjectsStore((state) => state.setCurrentProject);
   const createProject = useProjectsStore((state) => state.createProject);
+  const updateProject = useProjectsStore((state) => state.updateProject);
+  const deleteProject = useProjectsStore((state) => state.deleteProject);
+  const addConversationToProject = useProjectsStore((state) => state.addConversationToProject);
+  const removeConversationFromProject = useProjectsStore((state) => state.removeConversationFromProject);
+
+  const [editDialogOpen, setEditDialogOpen] = React.useState(false);
+  const [editingProject, setEditingProject] = React.useState<Project | null>(null);
+  const [projectsCollapsed, setProjectsCollapsed] = React.useState(false);
 
   const handleNewChat = React.useCallback(() => {
     // Navigate to home page
@@ -108,10 +147,39 @@ export const Sidebar = React.memo(function Sidebar() {
     setCurrentProject(id);
   }, [setCurrentProject]);
 
-  const handleNewProject = React.useCallback(async () => {
-    const projectName = `Project ${projects.length + 1}`;
-    await createProject(projectName);
-  }, [createProject, projects.length]);
+  const handleNewProject = React.useCallback(() => {
+    setEditingProject(null);
+    setEditDialogOpen(true);
+  }, []);
+
+  const handleEditProject = React.useCallback((project: Project, e: any) => {
+    e.stopPropagation();
+    setEditingProject(project);
+    setEditDialogOpen(true);
+  }, []);
+
+  const handleDeleteProject = React.useCallback(async (id: string, e: any) => {
+    e.stopPropagation();
+    await deleteProject(id);
+  }, [deleteProject]);
+
+  const handleSaveProject = React.useCallback(
+    async (data: { name: string; description?: string; icon?: string; color?: string }) => {
+      if (editingProject) {
+        await updateProject(editingProject.id, data);
+      } else {
+        await createProject(data.name, data.description, data.icon);
+        if (data.color && projects.length > 0) {
+          // Update the color of the newly created project
+          const newProject = projects[projects.length - 1];
+          if (newProject) {
+            await updateProject(newProject.id, { color: data.color });
+          }
+        }
+      }
+    },
+    [editingProject, createProject, updateProject, projects]
+  );
 
   // Get user initials for avatar
   const getUserInitials = React.useCallback(() => {
@@ -124,7 +192,7 @@ export const Sidebar = React.memo(function Sidebar() {
   }, [user]);
 
   return (
-    <View className="flex-1 bg-background">
+    <View className="flex-1 bg-surface">
       {/* Header with Logo */}
       <View className="border-b border-border/50 p-4 md:p-3">
         <Pressable onPress={handleLogoPress} style={({ pressed }) => ({ opacity: pressed ? 0.7 : 1 })}>
@@ -236,32 +304,64 @@ export const Sidebar = React.memo(function Sidebar() {
           </Pressable>
 
           {/* Project list */}
-          {projects.map((project) => (
-            <Pressable
-              key={project.id}
-              onPress={() => handleSelectProject(project.id)}
-              className={cn(
-                "flex-row items-center gap-2 rounded-full py-2.5 md:py-2 px-3 md:px-2.5 transition-colors",
-                currentProjectId === project.id
-                  ? "bg-muted border border-border"
-                  : "active:bg-muted/50"
-              )}
-            >
+          {projects.map((project) => {
+            const ProjectIcon = ICON_MAP[project.icon || "FolderOpen"] || FolderOpen;
+            return (
               <View
-                className="h-2 w-2 rounded-full"
-                style={{ backgroundColor: project.color }}
-              />
-              <Text
+                key={project.id}
                 className={cn(
-                  "flex-1 text-sm md:text-xs text-foreground",
-                  currentProjectId === project.id && "font-medium"
+                  "flex-row items-center gap-1 rounded-full transition-colors group",
+                  currentProjectId === project.id
+                    ? "bg-muted border border-border"
+                    : ""
                 )}
-                numberOfLines={1}
               >
-                {project.name}
-              </Text>
-            </Pressable>
-          ))}
+                <Pressable
+                  onPress={() => handleSelectProject(project.id)}
+                  className={cn(
+                    "flex-1 flex-row items-center gap-2 py-2.5 md:py-2 pl-3 md:pl-2.5 pr-1",
+                    currentProjectId !== project.id && "active:bg-muted/50 rounded-full"
+                  )}
+                >
+                  <ProjectIcon
+                    size={16}
+                    className="text-muted-foreground"
+                    style={{ color: project.color }}
+                  />
+                  <Text
+                    className={cn(
+                      "flex-1 text-sm md:text-xs text-foreground",
+                      currentProjectId === project.id && "font-medium"
+                    )}
+                    numberOfLines={1}
+                  >
+                    {project.name}
+                  </Text>
+                </Pressable>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Pressable className="h-8 w-8 items-center justify-center rounded-full mr-1 active:bg-muted/70">
+                      <MoreHorizontal size={14} className="text-muted-foreground" />
+                    </Pressable>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent side="bottom" align="end" className="w-48">
+                    <DropdownMenuItem onPress={(e) => handleEditProject(project, e)}>
+                      <Edit size={16} className="text-muted-foreground" />
+                      <Text className="text-sm">Edit Project</Text>
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem
+                      variant="destructive"
+                      onPress={(e) => handleDeleteProject(project.id, e)}
+                    >
+                      <Trash2 size={16} className="text-destructive" />
+                      <Text className="text-sm">Delete Project</Text>
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </View>
+            );
+          })}
         </View>
       </View>
 
@@ -418,6 +518,14 @@ export const Sidebar = React.memo(function Sidebar() {
           </View>
         )}
       </View>
+
+      {/* Project Edit Dialog */}
+      <ProjectEditDialog
+        open={editDialogOpen}
+        onOpenChange={setEditDialogOpen}
+        project={editingProject}
+        onSave={handleSaveProject}
+      />
     </View>
   );
 });

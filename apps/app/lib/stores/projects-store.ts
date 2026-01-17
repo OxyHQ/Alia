@@ -5,6 +5,7 @@ export interface Project {
   id: string;
   name: string;
   description?: string;
+  icon?: string; // Lucide icon name
   color?: string;
   conversationIds: string[];
   createdAt: Date;
@@ -15,7 +16,7 @@ interface ProjectsStoreState {
   projects: Project[];
   currentProjectId: string | null;
   loadProjects: () => Promise<void>;
-  createProject: (name: string, description?: string) => Promise<void>;
+  createProject: (name: string, description?: string, icon?: string) => Promise<void>;
   updateProject: (id: string, updates: Partial<Project>) => Promise<void>;
   deleteProject: (id: string) => Promise<void>;
   setCurrentProject: (id: string | null) => void;
@@ -55,13 +56,14 @@ export const useProjectsStore = create<ProjectsStoreState>((set, get) => ({
     }
   },
 
-  createProject: async (name: string, description?: string) => {
+  createProject: async (name: string, description?: string, icon?: string) => {
     try {
       const state = get();
       const project: Project = {
         id: `project-${Date.now()}`,
         name,
         description,
+        icon: icon || getRandomIcon(),
         color: getRandomColor(),
         conversationIds: [],
         createdAt: new Date(),
@@ -176,4 +178,21 @@ function getRandomColor(): string {
     "#ef4444", // red
   ];
   return colors[Math.floor(Math.random() * colors.length)];
+}
+
+// Helper function to generate random icons for projects
+function getRandomIcon(): string {
+  const icons = [
+    "FolderOpen",
+    "Briefcase",
+    "Folder",
+    "Package",
+    "Rocket",
+    "Target",
+    "Lightbulb",
+    "Star",
+    "Heart",
+    "Zap",
+  ];
+  return icons[Math.floor(Math.random() * icons.length)];
 }
