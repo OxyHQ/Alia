@@ -1,7 +1,7 @@
 import { View, ScrollView, Pressable, Linking } from "react-native";
 import { Text } from "@/components/ui/text";
 import { Button } from "@/components/ui/button";
-import { useRouter } from "expo-router";
+import { useRouter, useLocalSearchParams } from "expo-router";
 import { ArrowLeft, RefreshCw, CreditCard, ExternalLink, X } from "lucide-react-native";
 import { useCredits } from "@/lib/hooks/use-credits";
 import { useCreditPackages, useSubscriptionPlans, useSubscription, useCreateCheckout, useCreateSubscriptionCheckout, useCancelSubscription, useCreatePortalSession, useTransactions } from "@/lib/hooks/use-billing";
@@ -11,12 +11,13 @@ import { toast } from "@/components/sonner";
 
 export default function DevelopersBillingScreen() {
   const router = useRouter();
+  const { success } = useLocalSearchParams();
   const { isAuthenticated } = useAuthStore();
   const { data: creditsInfo, isLoading, refetch } = useCredits();
   const { data: packages = [] } = useCreditPackages();
   const { data: plans = [] } = useSubscriptionPlans();
-  const { data: subscription } = useSubscription();
-  const { data: transactionsData } = useTransactions(10, 0);
+  const { data: subscription, refetch: refetchSubscription } = useSubscription();
+  const { data: transactionsData, refetch: refetchTransactions } = useTransactions(10, 0);
   const createCheckoutMutation = useCreateCheckout();
   const createSubscriptionCheckoutMutation = useCreateSubscriptionCheckout();
   const cancelSubscriptionMutation = useCancelSubscription();
@@ -28,6 +29,22 @@ export default function DevelopersBillingScreen() {
       router.replace("/login");
     }
   }, [isAuthenticated]);
+
+  // Handle successful payment
+  useEffect(() => {
+    if (success === 'true') {
+      // Refetch all billing data
+      refetch();
+      refetchSubscription();
+      refetchTransactions();
+
+      // Show success message
+      toast.success("Payment successful! Your credits have been added.");
+
+      // Remove success param from URL
+      router.replace("/developers/billing");
+    }
+  }, [success]);
 
   const getTimeUntilRefresh = () => {
     if (!creditsInfo?.lastRefresh) return "N/A";

@@ -348,10 +348,24 @@ router.post('/portal', authenticateToken, async (req: Request, res: Response) =>
 router.post('/webhook', async (req: Request, res: Response) => {
   const sig = req.headers['stripe-signature'] as string;
 
+  if (!sig) {
+    console.error('[Billing] No Stripe signature in request headers');
+    return res.status(400).send('Webhook Error: Missing stripe-signature header');
+  }
+
+  const webhookSecret = getWebhookSecret();
+  if (!webhookSecret) {
+    console.error('[Billing] STRIPE_WEBHOOK_SECRET is not configured');
+    console.error('[Billing] Please set STRIPE_WEBHOOK_SECRET in your .env file');
+    console.error('[Billing] You can get this from your Stripe Dashboard > Developers > Webhooks');
+    return res.status(500).send('Webhook Error: Webhook secret not configured');
+  }
+
   let event: Stripe.Event;
 
   try {
-    event = getStripe().webhooks.constructEvent(req.body, sig, getWebhookSecret());
+    event = getStripe().webhooks.constructEvent(req.body, sig, webhookSecret);
+    console.log(`[Billing] Received webhook event: ${event.type}`);
   } catch (err: any) {
     console.error('[Billing] Webhook signature verification failed:', err.message);
     return res.status(400).send(`Webhook Error: ${err.message}`);
@@ -361,12 +375,14 @@ router.post('/webhook', async (req: Request, res: Response) => {
     switch (event.type) {
       case 'checkout.session.completed': {
         const session = event.data.object as Stripe.Checkout.Session;
+        console.log(`[Billing] Processing checkout.session.completed for session ${session.id}`);
         await handleCheckoutCompleted(session);
         break;
       }
 
       case 'payment_intent.succeeded': {
         const paymentIntent = event.data.object as Stripe.PaymentIntent;
+        console.log(`[Billing] Processing payment_intent.succeeded for ${paymentIntent.id}`);
         await handlePaymentSucceeded(paymentIntent);
         break;
       }
@@ -374,12 +390,14 @@ router.post('/webhook', async (req: Request, res: Response) => {
       case 'customer.subscription.created':
       case 'customer.subscription.updated': {
         const subscription = event.data.object as Stripe.Subscription;
+        console.log(`[Billing] Processing ${event.type} for subscription ${subscription.id}`);
         await handleSubscriptionUpdate(subscription);
         break;
       }
 
       case 'customer.subscription.deleted': {
         const subscription = event.data.object as Stripe.Subscription;
+        console.log(`[Billing] Processing customer.subscription.deleted for ${subscription.id}`);
         await handleSubscriptionDeleted(subscription);
         break;
       }
@@ -388,6 +406,7 @@ router.post('/webhook', async (req: Request, res: Response) => {
         console.log(`[Billing] Unhandled event type: ${event.type}`);
     }
 
+    console.log(`[Billing] Successfully processed webhook event: ${event.type}`);
     res.json({ received: true });
   } catch (error: any) {
     console.error('[Billing] Error handling webhook:', error);
