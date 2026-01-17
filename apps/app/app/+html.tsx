@@ -20,10 +20,10 @@ export default function Root({ children }: PropsWithChildren) {
         />
 
         {/* Primary Meta Tags */}
-        <meta name="title" content="Alia - AI-Powered Chat Assistant" />
+        <meta name="title" content="Alia" />
         <meta
           name="description"
-          content="Alia helps you get answers, explore ideas, and boost productivity. Chat with AI for work, learning, and creative inspiration."
+          content="Alia helps you get answers, explore ideas, and boost productivity. An AI assistant for work, learning, and creative inspiration."
         />
         <meta
           name="keywords"
@@ -33,20 +33,20 @@ export default function Root({ children }: PropsWithChildren) {
         {/* Open Graph / Facebook Meta Tags for social sharing */}
         <meta property="og:type" content="website" />
         <meta property="og:url" content="https://alia.onl/" />
-        <meta property="og:title" content="Alia - AI-Powered Chat Assistant" />
+        <meta property="og:title" content="Alia" />
         <meta
           property="og:description"
-          content="Alia helps you get answers, explore ideas, and boost productivity. Chat with AI for work, learning, and creative inspiration."
+          content="Alia helps you get answers, explore ideas, and boost productivity. An AI assistant for work, learning, and creative inspiration."
         />
         <meta property="og:image" content="/og-image.png" />
 
         {/* Twitter Card Meta Tags */}
         <meta property="twitter:card" content="summary_large_image" />
         <meta property="twitter:url" content="https://alia.onl/" />
-        <meta property="twitter:title" content="Alia - AI-Powered Chat Assistant" />
+        <meta property="twitter:title" content="Alia" />
         <meta
           property="twitter:description"
-          content="Alia helps you get answers, explore ideas, and boost productivity. Chat with AI for work, learning, and creative inspiration."
+          content="Alia helps you get answers, explore ideas, and boost productivity. An AI assistant for work, learning, and creative inspiration."
         />
         <meta property="twitter:image" content="/og-image.png" />
 
