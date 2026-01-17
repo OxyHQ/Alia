@@ -46,69 +46,60 @@ export default function NewAppScreen() {
         <Text className="text-2xl font-semibold text-foreground">Create new app</Text>
       </View>
 
-      {/* Form */}
+      {/* App Name */}
+      <View className="px-6 py-6 border-b border-border">
+        <Text className="text-sm font-semibold text-foreground mb-4">App name</Text>
+        <RNTextInput
+          value={name}
+          onChangeText={setName}
+          placeholder="My Awesome App"
+          className="w-full px-3 py-2 rounded-md border border-border bg-background text-foreground text-sm mb-2"
+          placeholderTextColor="#9CA3AF"
+          maxLength={100}
+        />
+        <Text className="text-sm text-muted-foreground">
+          A friendly name for your application
+        </Text>
+      </View>
+
+      {/* Description */}
+      <View className="px-6 py-6 border-b border-border">
+        <Text className="text-sm font-semibold text-foreground mb-4">Description</Text>
+        <RNTextInput
+          value={description}
+          onChangeText={setDescription}
+          placeholder="Describe what your app does..."
+          multiline
+          numberOfLines={4}
+          className="w-full px-3 py-2 rounded-md border border-border bg-background text-foreground text-sm mb-2"
+          placeholderTextColor="#9CA3AF"
+          style={{ textAlignVertical: "top" }}
+          maxLength={500}
+        />
+        <Text className="text-sm text-muted-foreground">
+          {description.length}/500 characters
+        </Text>
+      </View>
+
+      {/* Website URL */}
+      <View className="px-6 py-6 border-b border-border">
+        <Text className="text-sm font-semibold text-foreground mb-4">Website URL</Text>
+        <RNTextInput
+          value={websiteUrl}
+          onChangeText={setWebsiteUrl}
+          placeholder="https://example.com"
+          autoCapitalize="none"
+          autoCorrect={false}
+          keyboardType="url"
+          className="w-full px-3 py-2 rounded-md border border-border bg-background text-foreground text-sm mb-2"
+          placeholderTextColor="#9CA3AF"
+        />
+        <Text className="text-sm text-muted-foreground">Optional</Text>
+      </View>
+
+      {/* Buttons */}
       <View className="px-6 py-6">
-        {/* App Name */}
-        <View className="mb-6">
-          <Text className="text-sm font-semibold text-foreground mb-2">
-            App name
-          </Text>
-          <RNTextInput
-            value={name}
-            onChangeText={setName}
-            placeholder="My Awesome App"
-            className="w-full px-3 py-2 rounded-md border border-border bg-background text-foreground text-sm"
-            placeholderTextColor="#9CA3AF"
-            maxLength={100}
-          />
-          <Text className="text-xs text-muted-foreground mt-1.5">
-            A friendly name for your application
-          </Text>
-        </View>
-
-        {/* Description */}
-        <View className="mb-6">
-          <Text className="text-sm font-semibold text-foreground mb-2">
-            Description
-          </Text>
-          <RNTextInput
-            value={description}
-            onChangeText={setDescription}
-            placeholder="Describe what your app does..."
-            multiline
-            numberOfLines={4}
-            className="w-full px-3 py-2 rounded-md border border-border bg-background text-foreground text-sm"
-            placeholderTextColor="#9CA3AF"
-            style={{ textAlignVertical: "top" }}
-            maxLength={500}
-          />
-          <Text className="text-xs text-muted-foreground mt-1.5">
-            {description.length}/500 characters
-          </Text>
-        </View>
-
-        {/* Website URL */}
-        <View className="mb-6">
-          <Text className="text-sm font-semibold text-foreground mb-2">
-            Website URL
-          </Text>
-          <RNTextInput
-            value={websiteUrl}
-            onChangeText={setWebsiteUrl}
-            placeholder="https://example.com"
-            autoCapitalize="none"
-            autoCorrect={false}
-            keyboardType="url"
-            className="w-full px-3 py-2 rounded-md border border-border bg-background text-foreground text-sm"
-            placeholderTextColor="#9CA3AF"
-          />
-          <Text className="text-xs text-muted-foreground mt-1.5">
-            Optional
-          </Text>
-        </View>
-
-        {/* Buttons */}
-        <View className="flex-row gap-3 pt-4">
+        <View className="flex-row gap-3">
           <Button
             variant="outline"
             onPress={() => router.back()}

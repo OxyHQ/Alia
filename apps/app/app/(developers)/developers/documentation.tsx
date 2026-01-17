@@ -1,8 +1,7 @@
 import { View, ScrollView, Pressable } from "react-native";
 import { Text } from "@/components/ui/text";
-import { Card } from "@/components/ui/card";
 import { useRouter } from "expo-router";
-import { ArrowLeft, Book, Code, Key, MessageSquare } from "lucide-react-native";
+import { ArrowLeft } from "lucide-react-native";
 
 export default function DocumentationScreen() {
   const router = useRouter();
@@ -10,113 +9,106 @@ export default function DocumentationScreen() {
   return (
     <ScrollView className="flex-1 bg-background">
       {/* Header */}
-      <View className="px-6 py-4 border-b border-border">
+      <View className="px-6 py-6 border-b border-border">
         <Pressable onPress={() => router.back()} className="flex-row items-center mb-4">
-          <ArrowLeft size={20} className="text-muted-foreground mr-2" />
-          <Text className="text-base text-muted-foreground">Back</Text>
+          <ArrowLeft size={16} className="text-muted-foreground mr-2" />
+          <Text className="text-sm text-muted-foreground">Back</Text>
         </Pressable>
-
-        <View className="flex-row items-center">
-          <View className="w-14 h-14 rounded-2xl bg-primary/10 items-center justify-center mr-4">
-            <Book size={28} className="text-primary" />
-          </View>
-          <View className="flex-1">
-            <Text className="text-3xl font-bold text-foreground">API Documentation</Text>
-            <Text className="text-base text-muted-foreground mt-1">
-              Learn how to integrate Alia AI
-            </Text>
-          </View>
-        </View>
+        <Text className="text-2xl font-semibold text-foreground">API documentation</Text>
+        <Text className="text-sm text-muted-foreground mt-1">
+          Learn how to integrate Alia AI into your applications
+        </Text>
       </View>
 
       {/* Quick Start */}
-      <View className="px-6 py-6">
-        <Text className="text-lg font-semibold text-foreground mb-4">Quick Start</Text>
-        <Card className="p-6">
-          <View className="mb-4">
-            <Text className="text-base font-semibold text-foreground mb-2">1. Create an App</Text>
-            <Text className="text-sm text-muted-foreground">
-              Go to the Developer Portal and create a new app to get started.
-            </Text>
-          </View>
-
-          <View className="mb-4">
-            <Text className="text-base font-semibold text-foreground mb-2">2. Generate API Key</Text>
-            <Text className="text-sm text-muted-foreground">
-              Generate an API key for your app. Keep it secure and never share it publicly.
-            </Text>
-          </View>
-
-          <View className="mb-4">
-            <Text className="text-base font-semibold text-foreground mb-2">3. Make API Calls</Text>
-            <Text className="text-sm text-muted-foreground">
-              Use your API key to authenticate requests to the Alia AI API.
-            </Text>
-          </View>
-        </Card>
+      <View className="px-6 py-6 border-b border-border">
+        <Text className="text-sm font-semibold text-foreground mb-4">Quick start</Text>
+        <View className="mb-4">
+          <Text className="text-sm font-medium text-foreground mb-1">1. Create an app</Text>
+          <Text className="text-sm text-muted-foreground">
+            Go to the Developer Portal and create a new app to get started.
+          </Text>
+        </View>
+        <View className="mb-4">
+          <Text className="text-sm font-medium text-foreground mb-1">2. Generate API key</Text>
+          <Text className="text-sm text-muted-foreground">
+            Generate an API key for your app. Keep it secure and never share it publicly.
+          </Text>
+        </View>
+        <View>
+          <Text className="text-sm font-medium text-foreground mb-1">3. Make API calls</Text>
+          <Text className="text-sm text-muted-foreground">
+            Use your API key to authenticate requests to the Alia AI API.
+          </Text>
+        </View>
       </View>
 
       {/* Authentication */}
-      <View className="px-6 py-6 border-t border-border">
-        <View className="flex-row items-center mb-4">
-          <Key size={20} className="text-primary mr-2" />
-          <Text className="text-lg font-semibold text-foreground">Authentication</Text>
-        </View>
-        <Card className="p-6">
-          <Text className="text-sm text-muted-foreground mb-3">
-            Include your API key in the Authorization header:
+      <View className="px-6 py-6 border-b border-border">
+        <Text className="text-sm font-semibold text-foreground mb-4">Authentication</Text>
+        <Text className="text-sm text-muted-foreground mb-3">
+          Include your API key in the Authorization header:
+        </Text>
+        <View className="p-3 bg-muted rounded-md">
+          <Text className="text-sm font-mono text-foreground">
+            Authorization: Bearer alia_sk_your_api_key_here
           </Text>
-          <View className="p-4 bg-muted rounded-lg">
-            <Text className="text-xs font-mono text-foreground">
-              Authorization: Bearer alia_sk_your_api_key_here
-            </Text>
-          </View>
-        </Card>
+        </View>
       </View>
 
       {/* Chat Completions */}
-      <View className="px-6 py-6 border-t border-border">
-        <View className="flex-row items-center mb-4">
-          <MessageSquare size={20} className="text-primary mr-2" />
-          <Text className="text-lg font-semibold text-foreground">Chat Completions</Text>
+      <View className="px-6 py-6 border-b border-border">
+        <Text className="text-sm font-semibold text-foreground mb-4">Chat completions</Text>
+        <Text className="text-sm text-muted-foreground mb-3">
+          Send a message to Alia AI and receive a response:
+        </Text>
+        <View className="p-3 bg-muted rounded-md mb-3">
+          <Text className="text-sm font-mono text-foreground">POST /v1/chat</Text>
         </View>
-        <Card className="p-6">
-          <Text className="text-sm text-muted-foreground mb-3">
-            Send messages to Alia AI using the OpenAI-compatible endpoint:
-          </Text>
-          <View className="p-4 bg-muted rounded-lg mb-3">
-            <Text className="text-xs font-mono text-foreground">
-              POST /v1/chat/completions
-            </Text>
-          </View>
-          <Text className="text-sm font-semibold text-foreground mb-2">Example Request:</Text>
-          <View className="p-4 bg-muted rounded-lg">
-            <Text className="text-xs font-mono text-foreground">
-              {`{
-  "messages": [
-    {
-      "role": "user",
-      "content": "Hello, Alia!"
-    }
-  ],
-  "temperature": 0.7,
-  "max_tokens": 2048
+        <Text className="text-sm text-muted-foreground mb-3">Request body:</Text>
+        <View className="p-3 bg-muted rounded-md">
+          <Text className="text-sm font-mono text-foreground">
+            {`{
+  "message": "Hello, Alia!",
+  "conversationId": "optional-id",
+  "model": "gemini-1.5-flash",
+  "stream": false
 }`}
-            </Text>
-          </View>
-        </Card>
+          </Text>
+        </View>
+      </View>
+
+      {/* Get Conversations */}
+      <View className="px-6 py-6 border-b border-border">
+        <Text className="text-sm font-semibold text-foreground mb-4">Get conversations</Text>
+        <Text className="text-sm text-muted-foreground mb-3">
+          Retrieve a list of all conversations:
+        </Text>
+        <View className="p-3 bg-muted rounded-md">
+          <Text className="text-sm font-mono text-foreground">GET /v1/conversations</Text>
+        </View>
+      </View>
+
+      {/* Get Available Models */}
+      <View className="px-6 py-6 border-b border-border">
+        <Text className="text-sm font-semibold text-foreground mb-4">Available models</Text>
+        <Text className="text-sm text-muted-foreground mb-3">
+          Get a list of available AI models:
+        </Text>
+        <View className="p-3 bg-muted rounded-md">
+          <Text className="text-sm font-mono text-foreground">GET /v1/models</Text>
+        </View>
       </View>
 
       {/* Base URL */}
-      <View className="px-6 py-6 border-t border-border">
-        <Text className="text-lg font-semibold text-foreground mb-4">Base URL</Text>
-        <Card className="p-6">
-          <View className="p-4 bg-muted rounded-lg">
-            <Text className="text-xs font-mono text-foreground">
-              {process.env.EXPO_PUBLIC_API_URL || 'https://api.alia.onl'}
-            </Text>
-          </View>
-        </Card>
+      <View className="px-6 py-6">
+        <Text className="text-sm font-semibold text-foreground mb-4">Base URL</Text>
+        <Text className="text-sm text-muted-foreground mb-3">
+          All API requests should be made to:
+        </Text>
+        <View className="p-3 bg-muted rounded-md">
+          <Text className="text-sm font-mono text-foreground">https://api.alia.onl</Text>
+        </View>
       </View>
     </ScrollView>
   );
