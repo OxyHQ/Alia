@@ -16,8 +16,8 @@ const ChatPage = () => {
   return (
     <>
       <Head>
-        <title>Alia - AI Chat Assistant</title>
-        <meta name="description" content="Start a conversation with Alia. Get answers, explore ideas, and boost your productivity with AI-powered chat." />
+        <title>Alia</title>
+        <meta name="description" content="Start a conversation with Alia. Get answers, explore ideas, and boost your productivity." />
       </Head>
       <ChatPageContent
         messages={messages}
