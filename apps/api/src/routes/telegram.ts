@@ -38,6 +38,13 @@ router.get('/token-info/:token', async (req, res) => {
       } catch (notifyError) {
         console.error('[Telegram] Failed to send login notification:', notifyError);
       }
+      emitTelegramLinked(token, {
+        userId: telegramUser.userId,
+        sessionToken: telegramUser.sessionToken,
+        email: user?.email,
+        name: user?.name?.full || user?.name?.first || '',
+        type: 'login',
+      });
       return res.json({
         userId: telegramUser.userId,
         sessionToken: telegramUser.sessionToken,
@@ -57,6 +64,7 @@ import { authenticateToken } from '../middleware/auth.js';
 import crypto from 'crypto';
 import { TelegramUser } from '../models/telegram-user.js';
 import { User } from '../models/user.js';
+import { emitTelegramLinked } from '../socket.js';
 
 const router = express.Router();
 
@@ -398,6 +406,14 @@ router.post('/link', async (req, res) => {
     telegramUser.authToken = undefined;
     telegramUser.authTokenExpiry = undefined;
     await telegramUser.save();
+
+    emitTelegramLinked(req.body.authToken, {
+      userId: telegramUser.userId,
+      sessionToken: telegramUser.sessionToken,
+      email: user.email,
+      name: user.name?.full || user.name?.first || '',
+      type: 'linked',
+    });
 
     // Send confirmation message to Telegram
     try {
