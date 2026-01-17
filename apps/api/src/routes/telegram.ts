@@ -61,8 +61,9 @@ import { User } from '../models/user.js';
 const router = express.Router();
 
 // Helper to generate auth token
+// Genera un token seguro de 32 bytes (64 caracteres hexadecimales)
 function generateAuthToken(): string {
-  return crypto.randomBytes(3).toString('hex').toUpperCase();
+  return crypto.randomBytes(32).toString('hex');
 }
 
 // Get or create telegram user
