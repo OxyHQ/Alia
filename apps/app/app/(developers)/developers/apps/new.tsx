@@ -5,16 +5,15 @@ import { Card } from "@/components/ui/card";
 import { useState } from "react";
 import { useRouter } from "expo-router";
 import { ArrowLeft, Package } from "lucide-react-native";
-import { useDeveloperStore } from "@/lib/stores/developer-store";
+import { useCreateApp } from "@/lib/hooks/use-developer";
 
 export default function NewAppScreen() {
   const router = useRouter();
-  const { createApp } = useDeveloperStore();
+  const createAppMutation = useCreateApp();
 
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [websiteUrl, setWebsiteUrl] = useState("");
-  const [creating, setCreating] = useState(false);
 
   const handleCreate = async () => {
     if (!name.trim()) {
@@ -22,9 +21,8 @@ export default function NewAppScreen() {
       return;
     }
 
-    setCreating(true);
     try {
-      const newApp = await createApp({
+      const newApp = await createAppMutation.mutateAsync({
         name: name.trim(),
         description: description.trim() || undefined,
         websiteUrl: websiteUrl.trim() || undefined,
@@ -38,8 +36,6 @@ export default function NewAppScreen() {
       ]);
     } catch (error: any) {
       Alert.alert("Error", error.message || "Failed to create app");
-    } finally {
-      setCreating(false);
     }
   };
 
@@ -133,17 +129,17 @@ export default function NewAppScreen() {
               variant="outline"
               onPress={() => router.back()}
               className="flex-1"
-              disabled={creating}
+              disabled={createAppMutation.isPending}
             >
               <Text className="text-foreground font-semibold">Cancel</Text>
             </Button>
             <Button
               onPress={handleCreate}
               className="flex-1"
-              disabled={creating || !name.trim()}
+              disabled={createAppMutation.isPending || !name.trim()}
             >
               <Text className="text-primary-foreground font-semibold">
-                {creating ? "Creating..." : "Create App"}
+                {createAppMutation.isPending ? "Creating..." : "Create App"}
               </Text>
             </Button>
           </View>

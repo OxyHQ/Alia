@@ -4,7 +4,7 @@ import { Card } from "@/components/ui/card";
 import { useState, useEffect } from "react";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { ArrowLeft, Activity, TrendingUp, Zap, CheckCircle, XCircle, Clock } from "lucide-react-native";
-import { useDeveloperStore } from "@/lib/stores/developer-store";
+import { useApps, useDeveloperStats, useCreateApp, useDeleteApp } from "@/lib/stores/developer-store";
 import {
   ToggleGroup,
   ToggleGroupItem,
@@ -19,7 +19,7 @@ export default function AppUsageScreen() {
     isLoadingUsage,
     fetchApp,
     fetchUsageStats,
-  } = useDeveloperStore();
+  } = useApps, useDeveloperStats, useCreateApp, useDeleteApp();
 
   const [period, setPeriod] = useState<string>("7d");
 

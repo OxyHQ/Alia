@@ -18,7 +18,7 @@ import {
 } from "lucide-react-native";
 import { useRouter, usePathname } from "expo-router";
 import { useAuthStore } from "@/lib/stores/auth-store";
-import { useDeveloperStore } from "@/lib/stores/developer-store";
+import { useApps } from "@/lib/hooks/use-developer";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -33,7 +33,7 @@ export const DeveloperSidebar = React.memo(function DeveloperSidebar() {
   const user = useAuthStore((state) => state.user);
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
   const logout = useAuthStore((state) => state.logout);
-  const apps = useDeveloperStore((state) => state.apps);
+  const { data: apps = [] } = useApps();
 
   const handleLogoPress = React.useCallback(() => {
     router.replace("/developers");
