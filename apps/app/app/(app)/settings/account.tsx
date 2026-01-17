@@ -1,4 +1,4 @@
-import { View, ScrollView, TextInput as RNTextInput, Pressable, Alert, Image as RNImage, ActivityIndicator } from "react-native";
+import { View, ScrollView, TextInput as RNTextInput, Pressable, Alert, Image as RNImage, ActivityIndicator, Platform } from "react-native";
 import { Text } from "@/components/ui/text";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -63,14 +63,23 @@ export default function AccountScreen() {
       const match = /\.(\w+)$/.exec(filename);
       const type = match ? `image/${match[1]}` : 'image/jpeg';
 
-      formData.append('avatar', {
-        uri: imageUri,
-        name: filename,
-        type,
-      } as any);
+      if (Platform.OS === 'web') {
+        // For web, fetch the blob and create a File object
+        const response = await fetch(imageUri);
+        const blob = await response.blob();
+        const file = new File([blob], filename, { type });
+        formData.append('avatar', file);
+      } else {
+        // For native, use the uri/name/type format
+        formData.append('avatar', {
+          uri: imageUri,
+          name: filename,
+          type,
+        } as any);
+      }
 
       const apiUrl = generateAPIUrl('/upload/avatar');
-      const response = await fetch(apiUrl, {
+      const uploadResponse = await fetch(apiUrl, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -78,12 +87,12 @@ export default function AccountScreen() {
         body: formData,
       });
 
-      if (response.ok) {
-        const data = await response.json();
+      if (uploadResponse.ok) {
+        const data = await uploadResponse.json();
         updateUser({ image: data.avatarUrl });
         toast.success("Avatar uploaded successfully");
       } else {
-        const error = await response.json();
+        const error = await uploadResponse.json();
         toast.error(error.error || "Failed to upload avatar");
       }
     } catch (error) {
