@@ -28,12 +28,8 @@ export default function NewAppScreen() {
         websiteUrl: websiteUrl.trim() || undefined,
       });
 
-      Alert.alert("Success", "App created successfully!", [
-        {
-          text: "OK",
-          onPress: () => router.push(`/developers/apps/${newApp._id}`),
-        },
-      ]);
+      // Navigate directly to the new app's detail page
+      router.push(`/developers/apps/${newApp._id}`);
     } catch (error: any) {
       Alert.alert("Error", error.message || "Failed to create app");
     }
