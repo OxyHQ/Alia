@@ -12,56 +12,38 @@ interface UseChatConversationOptions {
   activeRole?: Role;
 }
 
-/**
- * Custom hook that manages chat conversation state and actions.
- * Combines streaming chat, conversation loading/saving, and navigation.
- */
 export function useChatConversation({ conversationId, activeRole }: UseChatConversationOptions = {}) {
   const router = useRouter();
-  const scrollViewRef = useRef<GHScrollView>(null) as React.RefObject<GHScrollView>;
+  const scrollViewRef = useRef<GHScrollView>(null);
   const hasSentPendingMessage = useRef(false);
-  const lastLoadedConversationId = useRef<string | null>(null);
+  const lastConversationId = useRef<string | null>(null);
 
   const pendingInitialMessage = useStore((state) => state.pendingInitialMessage);
-
-  // Load conversation data from server
   const { data: conversation, isLoading: conversationLoading } = useConversation(conversationId || "");
-
-  // Create conversation mutation
   const createConversationMutation = useCreateConversation();
 
-  // Streaming chat hook
-  const apiUrl = generateAPIUrl('/alia/chat');
   const {
     messages,
     append,
     isLoading,
     setMessages,
     stop,
-    conversationTitle,
-  } = useStreamingChat(apiUrl, activeRole, conversationId || undefined);
+  } = useStreamingChat(generateAPIUrl('/alia/chat'), activeRole, conversationId);
 
-  // Sync chatId with URL parameter
+  // Sync chatId and load messages when conversation changes
   useEffect(() => {
-    if (conversationId) {
-      useStore.getState().setChatId({ id: conversationId, from: "url" });
-    } else {
-      useStore.getState().setChatId(null);
-    }
-  }, [conversationId]);
+    useStore.getState().setChatId(conversationId ? { id: conversationId, from: "url" } : null);
 
-  // Load conversation messages when conversation data changes
-  useEffect(() => {
-    if (conversationLoading || !conversationId) return;
+    if (!conversationId || conversationLoading) return;
+    if (lastConversationId.current === conversationId) return;
 
-    // Only load messages if conversation ID changed
-    if (lastLoadedConversationId.current === conversationId) return;
-
-    lastLoadedConversationId.current = conversationId;
+    lastConversationId.current = conversationId;
     hasSentPendingMessage.current = false;
 
-    const loadedMessages = (conversation?.messages || []).filter(msg => msg && msg.role && msg.content !== undefined);
-    setMessages(loadedMessages);
+    const validMessages = (conversation?.messages || []).filter(
+      msg => msg?.role && msg?.content !== undefined
+    );
+    setMessages(validMessages);
   }, [conversationId, conversation, conversationLoading, setMessages]);
 
   // Send pending initial message for new conversations
@@ -120,7 +102,6 @@ export function useChatConversation({ conversationId, activeRole }: UseChatConve
     conversationId,
     messages,
     isLoading,
-    conversationTitle,
     scrollViewRef,
 
     // Actions
