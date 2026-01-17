@@ -79,8 +79,7 @@ const DeveloperApiKeySchema = new Schema<IDeveloperApiKey>(
   }
 );
 
-// Index for key lookup
-DeveloperApiKeySchema.index({ keyHash: 1 });
+// Indexes (keyHash is already indexed via unique: true)
 DeveloperApiKeySchema.index({ userId: 1, isActive: 1 });
 DeveloperApiKeySchema.index({ appId: 1, isActive: 1 });
 

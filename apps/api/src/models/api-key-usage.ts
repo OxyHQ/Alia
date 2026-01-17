@@ -68,7 +68,6 @@ const ApiKeyUsageSchema = new Schema<IApiKeyUsage>(
     timestamp: {
       type: Date,
       default: Date.now,
-      index: true,
     },
   },
   {
