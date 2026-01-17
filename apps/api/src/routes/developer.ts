@@ -17,7 +17,7 @@ router.use(authenticateToken);
 // Get all apps for the authenticated user
 router.get('/apps', async (req: Request, res: Response) => {
   try {
-    const userId = (req as any).user.userId;
+    const userId = req.user!.id;
 
     const apps = await DeveloperApp.find({ userId }).sort({ createdAt: -1 });
 
@@ -31,7 +31,7 @@ router.get('/apps', async (req: Request, res: Response) => {
 // Get a single app by ID
 router.get('/apps/:id', async (req: Request, res: Response) => {
   try {
-    const userId = (req as any).user.userId;
+    const userId = req.user!.id;
     const { id } = req.params;
 
     const app = await DeveloperApp.findOne({ _id: id, userId });
@@ -58,7 +58,7 @@ const createAppSchema = z.object({
 
 router.post('/apps', async (req: Request, res: Response) => {
   try {
-    const userId = (req as any).user.userId;
+    const userId = req.user!.id;
 
     const validatedData = createAppSchema.parse(req.body);
 
@@ -91,7 +91,7 @@ const updateAppSchema = z.object({
 
 router.patch('/apps/:id', async (req: Request, res: Response) => {
   try {
-    const userId = (req as any).user.userId;
+    const userId = req.user!.id;
     const { id } = req.params;
 
     const validatedData = updateAppSchema.parse(req.body);
@@ -119,7 +119,7 @@ router.patch('/apps/:id', async (req: Request, res: Response) => {
 // Delete an app
 router.delete('/apps/:id', async (req: Request, res: Response) => {
   try {
-    const userId = (req as any).user.userId;
+    const userId = req.user!.id;
     const { id } = req.params;
 
     const app = await DeveloperApp.findOneAndDelete({ _id: id, userId });
@@ -148,7 +148,7 @@ router.delete('/apps/:id', async (req: Request, res: Response) => {
 // Get all API keys for a specific app
 router.get('/apps/:appId/keys', async (req: Request, res: Response) => {
   try {
-    const userId = (req as any).user.userId;
+    const userId = req.user!.id;
     const { appId } = req.params;
 
     // Verify the app belongs to the user
@@ -186,7 +186,7 @@ const createApiKeySchema = z.object({
 
 router.post('/apps/:appId/keys', async (req: Request, res: Response) => {
   try {
-    const userId = (req as any).user.userId;
+    const userId = req.user!.id;
     const { appId } = req.params;
 
     // Verify the app belongs to the user
@@ -252,7 +252,7 @@ const updateApiKeySchema = z.object({
 
 router.patch('/apps/:appId/keys/:keyId', async (req: Request, res: Response) => {
   try {
-    const userId = (req as any).user.userId;
+    const userId = req.user!.id;
     const { appId, keyId } = req.params;
 
     // Verify the app belongs to the user
@@ -286,7 +286,7 @@ router.patch('/apps/:appId/keys/:keyId', async (req: Request, res: Response) => 
 // Delete an API key
 router.delete('/apps/:appId/keys/:keyId', async (req: Request, res: Response) => {
   try {
-    const userId = (req as any).user.userId;
+    const userId = req.user!.id;
     const { appId, keyId } = req.params;
 
     // Verify the app belongs to the user
@@ -318,7 +318,7 @@ router.delete('/apps/:appId/keys/:keyId', async (req: Request, res: Response) =>
 // Get usage statistics for an app
 router.get('/apps/:appId/usage', async (req: Request, res: Response) => {
   try {
-    const userId = (req as any).user.userId;
+    const userId = req.user!.id;
     const { appId } = req.params;
     const { period = '7d' } = req.query;
 
@@ -445,7 +445,7 @@ router.get('/apps/:appId/usage', async (req: Request, res: Response) => {
 // Get usage statistics for a specific API key
 router.get('/apps/:appId/keys/:keyId/usage', async (req: Request, res: Response) => {
   try {
-    const userId = (req as any).user.userId;
+    const userId = req.user!.id;
     const { appId, keyId } = req.params;
     const { period = '7d' } = req.query;
 
@@ -554,7 +554,7 @@ router.get('/apps/:appId/keys/:keyId/usage', async (req: Request, res: Response)
 // Get overall developer statistics
 router.get('/stats', async (req: Request, res: Response) => {
   try {
-    const userId = (req as any).user.userId;
+    const userId = req.user!.id;
 
     const totalApps = await DeveloperApp.countDocuments({ userId });
     const activeApps = await DeveloperApp.countDocuments({ userId, isActive: true });
