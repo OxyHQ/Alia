@@ -1,10 +1,9 @@
 import { View, ScrollView, TextInput as RNTextInput, Pressable } from "react-native";
 import { Text } from "@/components/ui/text";
 import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
 import { useState } from "react";
 import { useRouter } from "expo-router";
-import { ArrowLeft, Package } from "lucide-react-native";
+import { ArrowLeft } from "lucide-react-native";
 import { useCreateApp } from "@/lib/hooks/use-developer";
 import { toast } from "@/components/sonner";
 
@@ -39,108 +38,95 @@ export default function NewAppScreen() {
   return (
     <ScrollView className="flex-1 bg-background">
       {/* Header */}
-      <View className="px-4 py-3 border-b border-border">
-        <Pressable onPress={() => router.back()} className="flex-row items-center mb-3">
+      <View className="px-6 py-6 border-b border-border">
+        <Pressable onPress={() => router.back()} className="flex-row items-center mb-4">
           <ArrowLeft size={16} className="text-muted-foreground mr-2" />
-          <Text className="text-base text-muted-foreground">Back</Text>
+          <Text className="text-sm text-muted-foreground">Back</Text>
         </Pressable>
-
-        <View className="flex-row items-center">
-          <View className="w-10 h-10 rounded-lg bg-primary/10 items-center justify-center mr-4">
-            <Package size={20} className="text-primary" />
-          </View>
-          <View className="flex-1">
-            <Text className="text-xl font-bold text-foreground">Create App</Text>
-            <Text className="text-sm text-muted-foreground mt-0.5">
-              Set up a new application
-            </Text>
-          </View>
-        </View>
+        <Text className="text-2xl font-semibold text-foreground">Create new app</Text>
       </View>
 
       {/* Form */}
-      <View className="px-4 py-4">
-        <Card className="p-4">
-          {/* App Name */}
-          <View className="mb-4">
-            <Text className="text-xs font-semibold text-foreground mb-1.5">
-              App Name <Text className="text-destructive">*</Text>
-            </Text>
-            <RNTextInput
-              value={name}
-              onChangeText={setName}
-              placeholder="My Awesome App"
-              className="w-full px-3 py-2 rounded-lg border border-border bg-background text-foreground"
-              placeholderTextColor="#9CA3AF"
-              maxLength={100}
-            />
-            <Text className="text-xs text-muted-foreground mt-1">
-              A friendly name for your application
-            </Text>
-          </View>
+      <View className="px-6 py-6">
+        {/* App Name */}
+        <View className="mb-6">
+          <Text className="text-sm font-semibold text-foreground mb-2">
+            App name
+          </Text>
+          <RNTextInput
+            value={name}
+            onChangeText={setName}
+            placeholder="My Awesome App"
+            className="w-full px-3 py-2 rounded-md border border-border bg-background text-foreground text-sm"
+            placeholderTextColor="#9CA3AF"
+            maxLength={100}
+          />
+          <Text className="text-xs text-muted-foreground mt-1.5">
+            A friendly name for your application
+          </Text>
+        </View>
 
-          {/* Description */}
-          <View className="mb-4">
-            <Text className="text-xs font-semibold text-foreground mb-1.5">
-              Description
-            </Text>
-            <RNTextInput
-              value={description}
-              onChangeText={setDescription}
-              placeholder="Describe what your app does..."
-              multiline
-              numberOfLines={4}
-              className="w-full px-3 py-2 rounded-lg border border-border bg-background text-foreground"
-              placeholderTextColor="#9CA3AF"
-              style={{ textAlignVertical: "top" }}
-              maxLength={500}
-            />
-            <Text className="text-xs text-muted-foreground mt-1">
-              {description.length}/500 characters
-            </Text>
-          </View>
+        {/* Description */}
+        <View className="mb-6">
+          <Text className="text-sm font-semibold text-foreground mb-2">
+            Description
+          </Text>
+          <RNTextInput
+            value={description}
+            onChangeText={setDescription}
+            placeholder="Describe what your app does..."
+            multiline
+            numberOfLines={4}
+            className="w-full px-3 py-2 rounded-md border border-border bg-background text-foreground text-sm"
+            placeholderTextColor="#9CA3AF"
+            style={{ textAlignVertical: "top" }}
+            maxLength={500}
+          />
+          <Text className="text-xs text-muted-foreground mt-1.5">
+            {description.length}/500 characters
+          </Text>
+        </View>
 
-          {/* Website URL */}
-          <View className="mb-4">
-            <Text className="text-xs font-semibold text-foreground mb-1.5">
-              Website URL
-            </Text>
-            <RNTextInput
-              value={websiteUrl}
-              onChangeText={setWebsiteUrl}
-              placeholder="https://example.com"
-              autoCapitalize="none"
-              autoCorrect={false}
-              keyboardType="url"
-              className="w-full px-3 py-2 rounded-lg border border-border bg-background text-foreground"
-              placeholderTextColor="#9CA3AF"
-            />
-            <Text className="text-xs text-muted-foreground mt-1">
-              Optional: Your application's homepage
-            </Text>
-          </View>
+        {/* Website URL */}
+        <View className="mb-6">
+          <Text className="text-sm font-semibold text-foreground mb-2">
+            Website URL
+          </Text>
+          <RNTextInput
+            value={websiteUrl}
+            onChangeText={setWebsiteUrl}
+            placeholder="https://example.com"
+            autoCapitalize="none"
+            autoCorrect={false}
+            keyboardType="url"
+            className="w-full px-3 py-2 rounded-md border border-border bg-background text-foreground text-sm"
+            placeholderTextColor="#9CA3AF"
+          />
+          <Text className="text-xs text-muted-foreground mt-1.5">
+            Optional
+          </Text>
+        </View>
 
-          {/* Buttons */}
-          <View className="flex-row gap-2 mt-4">
-            <Button
-              variant="outline"
-              onPress={() => router.back()}
-              className="flex-1"
-              disabled={createAppMutation.isPending}
-            >
-              <Text className="text-foreground font-semibold text-sm">Cancel</Text>
-            </Button>
-            <Button
-              onPress={handleCreate}
-              className="flex-1"
-              disabled={createAppMutation.isPending || !name.trim()}
-            >
-              <Text className="text-primary-foreground font-semibold text-sm">
-                {createAppMutation.isPending ? "Creating..." : "Create App"}
-              </Text>
-            </Button>
-          </View>
-        </Card>
+        {/* Buttons */}
+        <View className="flex-row gap-3 pt-4">
+          <Button
+            variant="outline"
+            onPress={() => router.back()}
+            disabled={createAppMutation.isPending}
+            size="sm"
+          >
+            <Text className="text-foreground font-medium text-sm">Cancel</Text>
+          </Button>
+          <Button
+            onPress={handleCreate}
+            disabled={createAppMutation.isPending || !name.trim()}
+            size="sm"
+          >
+            <Text className="text-primary-foreground font-medium text-sm">
+              {createAppMutation.isPending ? "Creating..." : "Create"}
+            </Text>
+          </Button>
+        </View>
       </View>
     </ScrollView>
   );
