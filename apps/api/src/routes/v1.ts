@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import chatCompletionsRouter from './v1/chat-completions.js';
 import modelsRouter from './v1/models.js';
+import { authenticateTokenOrApiKey } from '../middleware/auth.js';
 
 const router = Router();
 
@@ -23,6 +24,9 @@ router.get('/', (req, res) => {
     version: '1.0.0'
   });
 });
+
+// Apply authentication to all v1 routes (supports both JWT and API keys)
+router.use(authenticateTokenOrApiKey);
 
 router.use('/chat/completions', chatCompletionsRouter);
 router.use('/models', modelsRouter);

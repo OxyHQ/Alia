@@ -44,6 +44,7 @@ function RootLayoutContent() {
           }}
         >
           <Stack.Screen name="(app)" options={{ headerShown: false }} />
+          <Stack.Screen name="(developers)" options={{ headerShown: false }} />
         </Stack>
         <PortalHost />
         <Toaster position="bottom-center" />
