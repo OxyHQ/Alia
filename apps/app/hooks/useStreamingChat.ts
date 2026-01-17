@@ -26,7 +26,7 @@ function extractTitle(content: string): { content: string; title: string | null 
   return { content, title: null };
 }
 
-export function useStreamingChat(apiUrl: string, activeRole?: any) {
+export function useStreamingChat(apiUrl: string, activeRole?: any, conversationId?: string) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<Error | null>(null);
@@ -114,6 +114,7 @@ Use this role to guide your responses, maintaining the specified tone, style, an
         headers,
         body: JSON.stringify({
           messages: messagesToSend,
+          ...(conversationId && { conversationId }),
         }),
       });
 

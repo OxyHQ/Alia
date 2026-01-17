@@ -50,15 +50,18 @@ export const Sidebar = React.memo(function Sidebar() {
   const createProject = useProjectsStore((state) => state.createProject);
 
   const handleNewChat = React.useCallback(() => {
-    router.push("/(app)");
+    // Navigate to home page
+    router.replace("/(app)");
   }, [router]);
 
   const handleLogoPress = React.useCallback(() => {
-    router.push("/(app)");
+    // Use replace to reset to home
+    router.replace("/(app)");
   }, [router]);
 
   const handleSelectConversation = React.useCallback((id: string) => {
-    router.push(`/(app)/c/${id}`);
+    // Use replace to avoid accumulating chat history in navigation stack
+    router.replace(`/(app)/c/${id}`);
   }, [router]);
 
   const handleDeleteConversation = React.useCallback((id: string, e: any) => {

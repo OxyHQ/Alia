@@ -17,7 +17,6 @@ import {
 } from 'lucide-react-native';
 import { useRolesStore } from '@/lib/stores/roles-store';
 import { useRouter, useLocalSearchParams } from 'expo-router';
-import { cn } from '@/lib/utils';
 
 export default function RoleDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -40,11 +39,8 @@ export default function RoleDetailScreen() {
     // Increment usage count
     await incrementUsage(role.id);
 
-    // Generate new conversation ID
-    const newConversationId = `conv-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-
-    // Navigate to new chat with this role
-    router.push(`/(app)/c/${newConversationId}?roleId=${role.id}`);
+    // Navigate to home page with role
+    router.replace(`/(app)?roleId=${role.id}`);
   };
 
   const handleFork = () => {

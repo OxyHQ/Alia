@@ -12,6 +12,7 @@ import { getCurrentDateTool, createGoogleSearchTool, getTimelineTool, searchKnow
 import { optionalAuth } from '../middleware/auth.js';
 import { User } from '../models/user.js';
 import { UserMemory } from '../models/user-memory.js';
+import { Conversation } from '../models/conversation.js';
 import type { IUserMemory } from '../models/user-memory.js';
 import type { IUser } from '../models/user.js';
 import { processMessagesForPlatform } from '../lib/message-processor.js';
@@ -188,7 +189,7 @@ router.post('/', optionalAuth, async (req, res) => {
   }, 90000);
 
   try {
-    const { messages } = req.body as { messages: any[] };
+    const { messages, conversationId } = req.body as { messages: any[]; conversationId?: string };
 
     if (!messages || !messages.length) {
       clearTimeout(requestTimeout);
@@ -353,11 +354,29 @@ router.post('/', optionalAuth, async (req, res) => {
 
     // Stream all events including tool calls
     let totalTokensUsed = 0;
+    let assistantResponse = '';
+    let conversationTitle: string | null = null;
+
     for await (const chunk of result.fullStream) {
       // Track token usage
       if (chunk.type === 'finish' && 'usage' in chunk && chunk.usage) {
         const usage = chunk.usage as { totalTokens?: number };
         totalTokensUsed = usage.totalTokens || 0;
+      }
+
+      // Collect assistant response text for saving
+      if (chunk.type === 'text-delta') {
+        assistantResponse += chunk.text;
+      }
+
+      // Extract title if present in response
+      if (chunk.type === 'finish' && assistantResponse) {
+        const titleMatch = assistantResponse.match(/\[TITLE\](.*?)\[\/TITLE\]/);
+        if (titleMatch) {
+          conversationTitle = titleMatch[1].trim();
+          // Remove title tags from response
+          assistantResponse = assistantResponse.replace(/\[TITLE\].*?\[\/TITLE\]/g, '').trim();
+        }
       }
 
       // Send each event as SSE
@@ -417,6 +436,47 @@ router.post('/', optionalAuth, async (req, res) => {
         res.write(`data: ${JSON.stringify(creditUpdate)}\n\n`);
       } catch (error) {
         console.error('[Alia/Chat] Error adjusting credits:', error);
+      }
+    }
+
+    // Auto-save conversation if conversationId provided and user is authenticated
+    if (conversationId && req.user && assistantResponse) {
+      try {
+        // Build complete messages array (user messages + assistant response)
+        const allMessages = [
+          ...messages.map((m: any) => ({
+            role: m.role,
+            content: m.content,
+            toolInvocations: m.toolInvocations
+          })),
+          {
+            role: 'assistant',
+            content: assistantResponse,
+          }
+        ];
+
+        // Generate title from first user message if no title extracted
+        const title = conversationTitle || messages.find((m: any) => m.role === 'user')?.content?.slice(0, 50) || 'Nueva conversación';
+        const lastMessage = assistantResponse.slice(0, 100);
+
+        // Save or update conversation
+        await Conversation.findOneAndUpdate(
+          { userId: req.user.id, conversationId },
+          {
+            userId: req.user.id,
+            conversationId,
+            title,
+            lastMessage,
+            messages: allMessages,
+            updatedAt: new Date()
+          },
+          { upsert: true, new: true }
+        );
+
+        console.log(`[Alia/Chat] Conversation ${conversationId} saved successfully`);
+      } catch (error) {
+        console.error('[Alia/Chat] Error saving conversation:', error);
+        // Don't fail the request if saving fails
       }
     }
 

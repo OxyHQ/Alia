@@ -1,9 +1,40 @@
 import { Router } from 'express';
+import { randomUUID } from 'crypto';
 import { Conversation } from '../models/conversation.js';
 import { authenticateToken } from '../middleware/auth.js';
 import type { Request, Response } from 'express';
 
 const router = Router();
+
+// Create a new empty conversation
+router.post('/new', authenticateToken, async (req: Request, res: Response) => {
+  try {
+    if (!req.user?.id) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const conversationId = randomUUID();
+
+    const conversation = await Conversation.create({
+      userId: req.user.id,
+      conversationId,
+      title: 'Nueva conversación',
+      messages: [],
+      createdAt: new Date(),
+      updatedAt: new Date()
+    });
+
+    res.json({
+      id: conversation.conversationId,
+      title: conversation.title,
+      createdAt: conversation.createdAt,
+      updatedAt: conversation.updatedAt
+    });
+  } catch (error) {
+    console.error('Error creating conversation:', error);
+    res.status(500).json({ error: 'Failed to create conversation' });
+  }
+});
 
 // Get all conversations for the authenticated user
 router.get('/', authenticateToken, async (req: Request, res: Response) => {
