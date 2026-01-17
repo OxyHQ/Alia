@@ -14,47 +14,73 @@ export default function TelegramAuthScreen() {
   const [message, setMessage] = useState('');
 
   useEffect(() => {
-    async function linkAccount() {
+    async function handleTelegramAuth() {
       if (!token || typeof token !== 'string') {
         setStatus('error');
         setMessage('Invalid authentication token');
         return;
       }
 
+      // Si ya hay sesión, intentar vincular
+      if (authToken && user) {
+        try {
+          const response = await apiClient.post('/telegram/link', {
+            authToken: token,
+            sessionToken: authToken,
+          });
+          if (response.data.success) {
+            setStatus('success');
+            setMessage('Your Telegram account has been linked successfully!');
+          } else {
+            setStatus('error');
+            setMessage('Failed to link your account. Please try again.');
+          }
+        } catch (error: any) {
+          console.error('Link error:', error);
+          const errorMessage = error.response?.data?.error || 'Failed to link account';
+          setStatus('error');
+          setMessage(errorMessage);
+        }
+        return;
+      }
+
+      // Si NO hay sesión, intentar login automático con Telegram
       try {
-        // Check if user is already logged in
-        if (!authToken || !user) {
-          // User not logged in - redirect to login with return URL
+        setStatus('checking');
+        setMessage('Checking Telegram link...');
+        // Buscar usuario de Telegram por token
+        const res = await apiClient.get(`/telegram/token-info/${token}`);
+        const tgUser = res.data;
+        if (tgUser && tgUser.userId && tgUser.sessionToken) {
+          // Login automático
+          useAuthStore.getState().setToken(tgUser.sessionToken);
+          useAuthStore.getState().setUser({
+            _id: tgUser.userId,
+            email: tgUser.email || '',
+            name: tgUser.name || '',
+          });
+          setStatus('success');
+          setMessage('Logged in with your Telegram account!');
+          setTimeout(() => {
+            router.replace('/');
+          }, 1200);
+        } else {
+          // Si no está vinculado, redirigir a login
           setStatus('needLogin');
           setMessage('Please log in to continue');
           setTimeout(() => {
             router.replace(`/login?returnTo=/telegram-auth?token=${token}`);
           }, 1500);
-          return;
-        }
-
-        // User is logged in - link the Telegram account
-        const response = await apiClient.post('/telegram/link', {
-          authToken: token,
-          sessionToken: authToken,
-        });
-
-        if (response.data.success) {
-          setStatus('success');
-          setMessage('Your Telegram account has been linked successfully!');
-        } else {
-          setStatus('error');
-          setMessage('Failed to link your account. Please try again.');
         }
       } catch (error: any) {
-        console.error('Link error:', error);
-        const errorMessage = error.response?.data?.error || 'Failed to link account';
-        setStatus('error');
-        setMessage(errorMessage);
+        setStatus('needLogin');
+        setMessage('Please log in to continue');
+        setTimeout(() => {
+          router.replace(`/login?returnTo=/telegram-auth?token=${token}`);
+        }, 1500);
       }
     }
-
-    linkAccount();
+    handleTelegramAuth();
   }, [token, authToken, user, router]);
 
   return (
