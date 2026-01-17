@@ -1,0 +1,108 @@
+import mongoose, { Schema, Document } from 'mongoose';
+import crypto from 'crypto';
+
+export interface IDeveloperApiKey extends Document {
+  userId: mongoose.Types.ObjectId;
+  appId: mongoose.Types.ObjectId;
+  name: string;
+  keyHash: string;
+  keyPrefix: string; // First 8 chars for display (e.g., "alia_sk_12345678")
+  scopes: string[];
+  expiresAt?: Date;
+  lastUsedAt?: Date;
+  isActive: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+
+  // Methods
+  validateKey(key: string): boolean;
+}
+
+const DeveloperApiKeySchema = new Schema<IDeveloperApiKey>(
+  {
+    userId: {
+      type: Schema.Types.ObjectId,
+      ref: 'User',
+      required: true,
+      index: true,
+    },
+    appId: {
+      type: Schema.Types.ObjectId,
+      ref: 'DeveloperApp',
+      required: true,
+      index: true,
+    },
+    name: {
+      type: String,
+      required: true,
+      trim: true,
+      maxlength: 100,
+    },
+    keyHash: {
+      type: String,
+      required: true,
+      unique: true,
+    },
+    keyPrefix: {
+      type: String,
+      required: true,
+    },
+    scopes: {
+      type: [String],
+      default: ['chat:read', 'chat:write'],
+      enum: [
+        'chat:read',
+        'chat:write',
+        'models:read',
+        'conversations:read',
+        'conversations:write',
+        'conversations:delete',
+        'memory:read',
+        'memory:write',
+      ],
+    },
+    expiresAt: {
+      type: Date,
+      default: null,
+    },
+    lastUsedAt: {
+      type: Date,
+      default: null,
+    },
+    isActive: {
+      type: Boolean,
+      default: true,
+    },
+  },
+  {
+    timestamps: true,
+  }
+);
+
+// Index for key lookup
+DeveloperApiKeySchema.index({ keyHash: 1 });
+DeveloperApiKeySchema.index({ userId: 1, isActive: 1 });
+DeveloperApiKeySchema.index({ appId: 1, isActive: 1 });
+
+// Method to validate API key
+DeveloperApiKeySchema.methods.validateKey = function (key: string): boolean {
+  const hash = crypto.createHash('sha256').update(key).digest('hex');
+  return hash === this.keyHash;
+};
+
+// Static method to generate a new API key
+DeveloperApiKeySchema.statics.generateKey = function (): string {
+  // Generate a random 32-byte key and encode as base64
+  const randomBytes = crypto.randomBytes(32);
+  const key = randomBytes.toString('base64url'); // URL-safe base64
+  return `alia_sk_${key}`;
+};
+
+// Static method to hash a key
+DeveloperApiKeySchema.statics.hashKey = function (key: string): string {
+  return crypto.createHash('sha256').update(key).digest('hex');
+};
+
+const DeveloperApiKey = mongoose.model<IDeveloperApiKey>('DeveloperApiKey', DeveloperApiKeySchema);
+
+export default DeveloperApiKey;

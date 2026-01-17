@@ -22,6 +22,7 @@ import {
   FolderOpen,
   Plus,
   BrainCircuit,
+  Code,
 } from "lucide-react-native";
 import { useStore } from "@/lib/globalStore";
 import { useRouter } from "expo-router";
@@ -99,6 +100,10 @@ export const Sidebar = React.memo(function Sidebar() {
     router.push("/(app)/roles");
   }, [router]);
 
+  const handleDevelopers = React.useCallback(() => {
+    router.push("/developers");
+  }, [router]);
+
   const handleSelectProject = React.useCallback((id: string | null) => {
     setCurrentProject(id);
   }, [setCurrentProject]);
@@ -171,6 +176,14 @@ export const Sidebar = React.memo(function Sidebar() {
         >
           <Library size={16} className="text-muted-foreground" />
           <Text className="text-sm md:text-xs">Library</Text>
+        </Button>
+        <Button
+          variant="ghost"
+          className="h-10 md:h-8 flex-row items-center justify-start gap-2 rounded-full px-3 md:px-2 w-full"
+          onPress={handleDevelopers}
+        >
+          <Code size={16} className="text-muted-foreground" />
+          <Text className="text-sm md:text-xs">Developers</Text>
         </Button>
         <Button
           variant="ghost"
