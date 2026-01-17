@@ -47,6 +47,7 @@ export const googleProvider: Provider = {
       }
     }
 
+
     // Convertir tools - filter out invalid tools
     const validTools = tools?.filter(t => t && t.function && t.function.name) || [];
     if (tools && tools.length > 0) {
@@ -60,6 +61,16 @@ export const googleProvider: Provider = {
       }))
     }] : undefined;
 
+    // Inject tool usage instructions into system prompt if tools are present
+    let toolInstructions = '';
+    if (validTools.length > 0) {
+      toolInstructions = '\n\nTOOLS AVAILABLE:\n';
+      for (const t of validTools) {
+        toolInstructions += `- ${t.function.name}: ${t.function.description || ''}\n`;
+      }
+      toolInstructions += '\nWhen you need to perform an action, respond with the tool name and required parameters.';
+    }
+
     const body: any = {
       contents,
       generationConfig: {
@@ -68,8 +79,10 @@ export const googleProvider: Provider = {
       }
     };
 
-    if (systemText.trim()) {
-      body.systemInstruction = { parts: [{ text: systemText.trim() }] };
+    // Combine systemText and toolInstructions
+    const combinedSystem = (systemText.trim() + toolInstructions).trim();
+    if (combinedSystem) {
+      body.systemInstruction = { parts: [{ text: combinedSystem }] };
     }
     if (geminiTools) body.tools = geminiTools;
 
