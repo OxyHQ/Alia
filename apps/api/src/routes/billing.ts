@@ -419,33 +419,57 @@ router.post('/webhook', async (req: Request, res: Response) => {
 // ===========================================
 
 async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
+  console.log(`[Billing] handleCheckoutCompleted called for session ${session.id}`);
+
   const metadata = session.metadata;
-  if (!metadata || !metadata.userId) return;
+  if (!metadata) {
+    console.log('[Billing] No metadata found in checkout session');
+    return;
+  }
+
+  if (!metadata.userId) {
+    console.log('[Billing] No userId in metadata');
+    return;
+  }
 
   const userId = metadata.userId;
+  console.log(`[Billing] Processing checkout for user ${userId}`);
+  console.log(`[Billing] Metadata:`, metadata);
 
   // Handle credit purchase
   if (metadata.type === 'credit_purchase') {
     const credits = parseInt(metadata.credits || '0');
+    console.log(`[Billing] Credit purchase detected: ${credits} credits`);
+
     if (credits > 0) {
       const user = await User.findById(userId);
-      if (user) {
-        await user.addCredits(credits, 'paid');
-
-        // Create transaction record
-        await Transaction.create({
-          userId,
-          stripeCustomerId: session.customer as string,
-          stripePaymentIntentId: session.payment_intent as string,
-          type: 'credit_purchase',
-          amount: session.amount_total || 0,
-          currency: session.currency || 'usd',
-          credits,
-          status: 'completed',
-          description: `Purchased ${credits.toLocaleString()} credits`,
-        });
+      if (!user) {
+        console.error(`[Billing] User ${userId} not found`);
+        return;
       }
+
+      console.log(`[Billing] Adding ${credits} paid credits to user ${user.email}`);
+      await user.addCredits(credits, 'paid');
+      console.log(`[Billing] Credits added successfully. New paid credits: ${user.credits.paid}`);
+
+      // Create transaction record
+      const transaction = await Transaction.create({
+        userId,
+        stripeCustomerId: session.customer as string,
+        stripePaymentIntentId: session.payment_intent as string,
+        type: 'credit_purchase',
+        amount: session.amount_total || 0,
+        currency: session.currency || 'usd',
+        credits,
+        status: 'completed',
+        description: `Purchased ${credits.toLocaleString()} credits`,
+      });
+      console.log(`[Billing] Transaction record created: ${transaction._id}`);
+    } else {
+      console.log('[Billing] Credits amount is 0 or invalid');
     }
+  } else {
+    console.log(`[Billing] Not a credit purchase, type is: ${metadata.type}`);
   }
 }
 
