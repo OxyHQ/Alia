@@ -45,6 +45,13 @@ export async function uploadToS3(
   await upload.done();
 
   // Return the public URL
+  // For DigitalOcean Spaces or custom endpoints, construct URL differently
+  if (process.env.AWS_ENDPOINT_URL) {
+    const endpoint = process.env.AWS_ENDPOINT_URL.replace('https://', '');
+    return `https://${BUCKET_NAME}.${endpoint}/${uniqueFilename}`;
+  }
+
+  // For standard AWS S3
   return `https://${BUCKET_NAME}.s3.${process.env.AWS_REGION || 'us-east-1'}.amazonaws.com/${uniqueFilename}`;
 }
 
