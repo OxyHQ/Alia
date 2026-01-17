@@ -1,4 +1,4 @@
-import { View, Pressable, Image } from "react-native";
+import { View, Pressable } from "react-native";
 import { Text } from "@/components/ui/text";
 import { useAuthStore } from "@/lib/stores/auth-store";
 import { useMemo } from "react";

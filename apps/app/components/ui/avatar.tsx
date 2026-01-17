@@ -1,5 +1,6 @@
 import * as React from 'react';
-import { View, Image, ImageProps } from 'react-native';
+import { View } from 'react-native';
+import { Image, ImageProps } from 'expo-image';
 import { cn } from '@/lib/utils';
 
 interface AvatarProps {
@@ -20,11 +21,11 @@ const Avatar = React.forwardRef<View, AvatarProps>(
 );
 Avatar.displayName = 'Avatar';
 
-interface AvatarImageProps extends ImageProps {
+interface AvatarImageProps extends Omit<ImageProps, 'style'> {
   className?: string;
 }
 
-const AvatarImage = React.forwardRef<Image, AvatarImageProps>(
+const AvatarImage = React.forwardRef<typeof Image, AvatarImageProps>(
   ({ className, ...props }, ref) => (
     <Image
       ref={ref}

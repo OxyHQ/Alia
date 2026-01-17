@@ -1,5 +1,6 @@
 import React from 'react';
-import { View, Linking, Pressable, Image } from 'react-native';
+import { View, Linking, Pressable } from 'react-native';
+import { Image } from 'expo-image';
 import { Text } from '@/components/ui/text';
 import { cn } from '@/lib/utils';
 import { ExternalLink, Info, CheckCircle, AlertTriangle, XCircle } from 'lucide-react-native';

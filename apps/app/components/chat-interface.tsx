@@ -1,4 +1,5 @@
-import { View, ScrollView, Pressable, Image, TextInput } from "react-native";
+import { View, ScrollView, Pressable, TextInput } from "react-native";
+import { Image } from "expo-image";
 import { CustomMarkdown } from "@/components/ui/markdown";
 import { Text } from "@/components/ui/text";
 import { WelcomeMessage } from "@/components/welcome-message";
