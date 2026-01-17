@@ -1,4 +1,5 @@
 import express from 'express';
+import http from 'http';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import { fileURLToPath } from 'url';
@@ -29,6 +30,10 @@ dotenv.config({ path: join(__dirname, '../.env') });
 
 const app = express();
 const PORT = parseInt(process.env.PORT || '3001', 10);
+const server = http.createServer(app);
+// Socket.io
+import { initSocket } from './socket.js';
+const io = initSocket(server);
 
 // Middleware - Allow multiple origins for web and mobile app
 const allowedOrigins = [
@@ -107,7 +112,7 @@ app.use((err: any, _req: express.Request, res: express.Response, _next: express.
 // Connect to MongoDB before starting the server
 connectDB()
   .then(() => {
-    app.listen(PORT, '0.0.0.0', () => {
+    server.listen(PORT, '0.0.0.0', () => {
       console.log(`🚀 API Server running on http://0.0.0.0:${PORT}`);
     });
   })
