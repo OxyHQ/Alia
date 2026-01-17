@@ -84,6 +84,7 @@ export default function LoginScreen() {
       <Head>
         <title>Log in to Alia</title>
         <meta name="description" content="Log in to Alia to access your AI assistant. Get instant answers and boost your productivity." />
+        <link rel="canonical" href="https://alia.onl/login" />
       </Head>
       <AuthContainer>
         <AuthLogo />
