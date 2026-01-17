@@ -4,7 +4,7 @@ import { useRouter, Link, useLocalSearchParams } from 'expo-router';
 import Head from 'expo-router/head';
 import { AuthContainer, AuthLogo, AuthInput, AuthButton, AuthError } from '@/components/auth';
 import { Button } from '@/components/ui/button';
-import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { MaterialCommunityIcons, FontAwesome5 } from '@expo/vector-icons';
 import { toast } from '@/components/sonner';
 import apiClient from '@/lib/api/client';
 import { useAuthStore } from '@/lib/stores/auth-store';
@@ -200,140 +200,140 @@ export default function LoginScreen() {
       <AuthContainer>
         <AuthLogo />
 
-      {/* Header */}
-      <View className="space-y-2 mb-6">
-        <Text className="text-3xl font-bold text-foreground tracking-tight">
-          {t('login.title')}
-        </Text>
-        <Text className="text-base text-muted-foreground">
-          {t('login.subtitle')}
-        </Text>
-      </View>
-
-      {/* Social Login Buttons */}
-      <View className="gap-2 mb-4">
-        <Button
-          variant="outline"
-          onPress={() => handleSocialLogin('google')}
-          className="h-11 rounded-full"
-        >
-          <View className="flex-row items-center gap-2">
-            <MaterialCommunityIcons name="google" size={18} color="#0F172A" />
-            <Text className="text-sm font-medium">{t('login.continueWithGoogle')}</Text>
-          </View>
-        </Button>
-
-        <Button
-          variant="outline"
-          onPress={() => handleSocialLogin('microsoft')}
-          className="h-11 rounded-full"
-        >
-          <View className="flex-row items-center gap-2">
-            <MaterialCommunityIcons name="microsoft" size={18} color="#0F172A" />
-            <Text className="text-sm font-medium">{t('login.continueWithMicrosoft')}</Text>
-          </View>
-        </Button>
-
-        <Button
-          variant="outline"
-          onPress={() => handleSocialLogin('apple')}
-          className="h-11 rounded-full"
-        >
-          <View className="flex-row items-center gap-2">
-            <MaterialCommunityIcons name="apple" size={18} color="#0F172A" />
-            <Text className="text-sm font-medium">{t('login.continueWithApple')}</Text>
-          </View>
-        </Button>
-
-        <Button
-          variant="outline"
-          onPress={handleTelegramSignIn}
-          disabled={telegramLoading}
-          className="h-11 rounded-full"
-        >
-          <View className="flex-row items-center gap-2">
-            <MaterialCommunityIcons name="telegram" size={18} color="#0F172A" />
-            <Text className="text-sm font-medium">
-              {telegramLoading ? 'Waiting for Telegram...' : t('login.continueWithTelegram')}
-            </Text>
-          </View>
-        </Button>
-      </View>
-
-      {/* Divider */}
-      <View className="flex-row items-center gap-3 mb-4">
-        <View className="flex-1 h-px bg-border" />
-        <Text className="text-sm text-muted-foreground">{t('common.or')}</Text>
-        <View className="flex-1 h-px bg-border" />
-      </View>
-
-      {/* Login Form */}
-      <View className="gap-3">
-        <AuthError message={error} />
-
-        <AuthInput
-          placeholder={t('login.emailPlaceholder')}
-          value={email}
-          onChangeText={(text) => {
-            setEmail(text);
-            setError('');
-          }}
-          autoCapitalize="none"
-          keyboardType="email-address"
-          autoComplete="email"
-          editable={!loading}
-        />
-
-        <AuthInput
-          placeholder={t('login.passwordPlaceholder')}
-          value={password}
-          onChangeText={(text) => {
-            setPassword(text);
-            setError('');
-          }}
-          secureTextEntry
-          editable={!loading}
-          onSubmitEditing={handleLogin}
-        />
-
-        <View className="flex-row justify-end">
-          <Link href="/forgot-password" asChild>
-            <Pressable>
-              <Text className="text-primary text-sm font-medium">{t('login.forgotPassword')}</Text>
-            </Pressable>
-          </Link>
-        </View>
-
-        <AuthButton
-          onPress={handleLogin}
-          disabled={loading || !email || !password}
-          isLoading={loading}
-          loadingText={t('login.signingIn')}
-        >
-          {t('login.signInButton')}
-        </AuthButton>
-      </View>
-
-      {/* Footer */}
-      <View className="mt-6">
-        <View className="flex-row items-center justify-center gap-1">
-          <Text className="text-muted-foreground text-sm">
-            {t('login.footerText')}
+        {/* Header */}
+        <View className="space-y-2 mb-6">
+          <Text className="text-3xl font-bold text-foreground tracking-tight">
+            {t('login.title')}
           </Text>
-          <Link href="/register" asChild>
-            <Pressable>
-              <Text className="text-primary text-sm font-medium">{t('login.footerLink')}</Text>
-            </Pressable>
-          </Link>
+          <Text className="text-base text-muted-foreground">
+            {t('login.subtitle')}
+          </Text>
         </View>
-      </View>
 
-      {/* Privacy note */}
-      <View className="mt-8">
-        <Text className="text-xs text-muted-foreground text-center leading-4">
-          {t('login.termsAndPrivacy')}
-        </Text>
-      </View>
+        {/* Social Login Buttons */}
+        <View className="gap-2 mb-4">
+          <Button
+            variant="outline"
+            onPress={() => handleSocialLogin('google')}
+            className="h-11 rounded-full"
+          >
+            <View className="flex-row items-center gap-2">
+              <MaterialCommunityIcons name="google" size={18} color="#0F172A" />
+              <Text className="text-sm font-medium">{t('login.continueWithGoogle')}</Text>
+            </View>
+          </Button>
+
+          <Button
+            variant="outline"
+            onPress={() => handleSocialLogin('microsoft')}
+            className="h-11 rounded-full"
+          >
+            <View className="flex-row items-center gap-2">
+              <MaterialCommunityIcons name="microsoft" size={18} color="#0F172A" />
+              <Text className="text-sm font-medium">{t('login.continueWithMicrosoft')}</Text>
+            </View>
+          </Button>
+
+          <Button
+            variant="outline"
+            onPress={() => handleSocialLogin('apple')}
+            className="h-11 rounded-full"
+          >
+            <View className="flex-row items-center gap-2">
+              <MaterialCommunityIcons name="apple" size={18} color="#0F172A" />
+              <Text className="text-sm font-medium">{t('login.continueWithApple')}</Text>
+            </View>
+          </Button>
+
+          <Button
+            variant="outline"
+            onPress={handleTelegramSignIn}
+            disabled={telegramLoading}
+            className="h-11 rounded-full"
+          >
+            <View className="flex-row items-center gap-2">
+              <FontAwesome5 name="telegram-plane" size={22} color="#229ED9" />
+              <Text className="text-sm font-medium">
+                {telegramLoading ? 'Waiting for Telegram...' : t('login.continueWithTelegram')}
+              </Text>
+            </View>
+          </Button>
+        </View>
+
+        {/* Divider */}
+        <View className="flex-row items-center gap-3 mb-4">
+          <View className="flex-1 h-px bg-border" />
+          <Text className="text-sm text-muted-foreground">{t('common.or')}</Text>
+          <View className="flex-1 h-px bg-border" />
+        </View>
+
+        {/* Login Form */}
+        <View className="gap-3">
+          <AuthError message={error} />
+
+          <AuthInput
+            placeholder={t('login.emailPlaceholder')}
+            value={email}
+            onChangeText={(text) => {
+              setEmail(text);
+              setError('');
+            }}
+            autoCapitalize="none"
+            keyboardType="email-address"
+            autoComplete="email"
+            editable={!loading}
+          />
+
+          <AuthInput
+            placeholder={t('login.passwordPlaceholder')}
+            value={password}
+            onChangeText={(text) => {
+              setPassword(text);
+              setError('');
+            }}
+            secureTextEntry
+            editable={!loading}
+            onSubmitEditing={handleLogin}
+          />
+
+          <View className="flex-row justify-end">
+            <Link href="/forgot-password" asChild>
+              <Pressable>
+                <Text className="text-primary text-sm font-medium">{t('login.forgotPassword')}</Text>
+              </Pressable>
+            </Link>
+          </View>
+
+          <AuthButton
+            onPress={handleLogin}
+            disabled={loading || !email || !password}
+            isLoading={loading}
+            loadingText={t('login.signingIn')}
+          >
+            {t('login.signInButton')}
+          </AuthButton>
+        </View>
+
+        {/* Footer */}
+        <View className="mt-6">
+          <View className="flex-row items-center justify-center gap-1">
+            <Text className="text-muted-foreground text-sm">
+              {t('login.footerText')}
+            </Text>
+            <Link href="/register" asChild>
+              <Pressable>
+                <Text className="text-primary text-sm font-medium">{t('login.footerLink')}</Text>
+              </Pressable>
+            </Link>
+          </View>
+        </View>
+
+        {/* Privacy note */}
+        <View className="mt-8">
+          <Text className="text-xs text-muted-foreground text-center leading-4">
+            {t('login.termsAndPrivacy')}
+          </Text>
+        </View>
       </AuthContainer>
     </>
   );
