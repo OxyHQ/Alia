@@ -5,10 +5,12 @@ import crypto from 'crypto';
 // Initialize S3 client
 const s3Client = new S3Client({
   region: process.env.AWS_REGION || 'us-east-1',
+  endpoint: process.env.AWS_ENDPOINT_URL, // Support for DigitalOcean Spaces and other S3-compatible services
   credentials: {
     accessKeyId: process.env.AWS_ACCESS_KEY_ID || '',
     secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY || '',
   },
+  forcePathStyle: false, // Required for DigitalOcean Spaces
 });
 
 const BUCKET_NAME = process.env.AWS_S3_BUCKET || '';
