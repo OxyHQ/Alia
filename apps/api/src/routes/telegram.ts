@@ -394,4 +394,108 @@ router.post('/link', async (req, res) => {
   }
 });
 
+// Complete sign-in flow from Telegram bot
+router.post('/signin-complete', async (req, res) => {
+  try {
+    const { authCode, telegramId, chatId, username, firstName, lastName } = req.body;
+
+    if (!authCode || !telegramId || !chatId) {
+      return res.status(400).json({ error: 'Missing required fields' });
+    }
+
+    // Find the pending auth request
+    const pendingAuth = await TelegramUser.findOne({
+      authToken: authCode.toUpperCase(),
+      authTokenMode: 'signin',
+      authTokenExpiry: { $gt: new Date() },
+    });
+
+    if (!pendingAuth) {
+      return res.status(404).json({ error: 'Auth code not found or expired' });
+    }
+
+    // Check if this Telegram user already exists and is linked to an account
+    let existingTelegramUser = await TelegramUser.findOne({
+      telegramId,
+      telegramId: { $ne: pendingAuth.telegramId }, // Exclude the pending entry
+    });
+
+    let user;
+    let isNewUser = false;
+
+    if (existingTelegramUser && existingTelegramUser.userId) {
+      // User has signed in with Telegram before - log them in
+      user = await User.findById(existingTelegramUser.userId);
+
+      if (!user) {
+        return res.status(404).json({ error: 'Linked user not found' });
+      }
+    } else {
+      // New user - create account from Telegram profile
+      const displayName = [firstName, lastName].filter(Boolean).join(' ') || username || 'Telegram User';
+      const nameParts = displayName.split(' ');
+
+      user = new User({
+        email: `telegram_${telegramId}@temp.alia.onl`, // Temporary email
+        name: {
+          first: nameParts[0] || 'User',
+          last: nameParts.slice(1).join(' ') || undefined,
+        },
+        // No password - Telegram-only account
+      });
+
+      await user.save();
+      isNewUser = true;
+    }
+
+    // Generate session token
+    const sessionToken = signToken({
+      userId: user._id.toString(),
+      email: user.email,
+    });
+
+    // Update or create the main TelegramUser record
+    if (existingTelegramUser) {
+      // Update existing
+      existingTelegramUser.chatId = chatId;
+      existingTelegramUser.username = username;
+      existingTelegramUser.firstName = firstName;
+      existingTelegramUser.lastName = lastName;
+      existingTelegramUser.sessionToken = sessionToken;
+      existingTelegramUser.isAuthenticated = true;
+      existingTelegramUser.linkedAt = new Date();
+      await existingTelegramUser.save();
+
+      // Delete the pending entry
+      await TelegramUser.deleteOne({ _id: pendingAuth._id });
+    } else {
+      // Update pending entry to be the main record
+      pendingAuth.telegramId = telegramId;
+      pendingAuth.chatId = chatId;
+      pendingAuth.username = username;
+      pendingAuth.firstName = firstName;
+      pendingAuth.lastName = lastName;
+      pendingAuth.userId = user._id;
+      pendingAuth.sessionToken = sessionToken;
+      pendingAuth.isAuthenticated = true;
+      pendingAuth.linkedAt = new Date();
+      // Keep authToken and mode for polling
+      await pendingAuth.save();
+    }
+
+    res.json({
+      success: true,
+      isNewUser,
+      user: {
+        id: user._id,
+        email: user.email,
+        name: user.name.full,
+      },
+    });
+  } catch (error) {
+    console.error('Telegram signin-complete error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 export default router;

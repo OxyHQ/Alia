@@ -1,9 +1,11 @@
 import { Router } from 'express';
 import { User } from '../models/user.js';
+import { TelegramUser } from '../models/telegram-user.js';
 import { signToken } from '../lib/jwt.js';
 import { authenticateToken } from '../middleware/auth.js';
 import { connectDB } from '../lib/db.js';
 import { z } from 'zod';
+import crypto from 'crypto';
 
 const router = Router();
 
@@ -276,6 +278,108 @@ router.post('/reset-password', async (req, res) => {
       console.error('Reset password error:', error);
       res.status(500).json({ error: 'Failed to reset password' });
     }
+  }
+});
+
+/**
+ * POST /api/auth/telegram/initiate
+ * Initiate Telegram sign-in flow
+ * Returns an auth code that the bot will use to identify this session
+ */
+router.post('/telegram/initiate', async (req, res) => {
+  try {
+    await connectDB();
+
+    // Generate a unique 6-character auth code for this sign-in attempt
+    const authCode = crypto.randomBytes(3).toString('hex').toUpperCase();
+
+    // Store this auth code temporarily in a pending state
+    // We'll create a temporary TelegramUser entry that will be completed by the bot
+    const pendingAuth = new TelegramUser({
+      telegramId: `pending_${authCode}`, // Temporary ID
+      chatId: 'pending',
+      authToken: authCode,
+      authTokenExpiry: new Date(Date.now() + 15 * 60 * 1000), // 15 minutes
+      authTokenMode: 'signin',
+      isAuthenticated: false,
+    });
+
+    await pendingAuth.save();
+
+    // Get bot username from environment
+    const botUsername = process.env.TELEGRAM_BOT_USERNAME || 'alia_ai_bot';
+
+    // Create deep link for Telegram
+    const deepLink = `https://t.me/${botUsername}?start=signin_${authCode}`;
+
+    res.json({
+      authCode,
+      deepLink,
+      expiresAt: pendingAuth.authTokenExpiry,
+    });
+  } catch (error) {
+    console.error('Telegram initiate error:', error);
+    res.status(500).json({ error: 'Failed to initiate Telegram sign-in' });
+  }
+});
+
+/**
+ * GET /api/auth/telegram/poll/:authCode
+ * Poll endpoint for checking if Telegram sign-in is complete
+ * The app calls this repeatedly to check if the user has authenticated via Telegram
+ */
+router.get('/telegram/poll/:authCode', async (req, res) => {
+  try {
+    await connectDB();
+
+    const { authCode } = req.params;
+
+    if (!authCode) {
+      res.status(400).json({ error: 'Auth code is required' });
+      return;
+    }
+
+    // Look for a TelegramUser with this auth code
+    const telegramUser = await TelegramUser.findOne({
+      authToken: authCode.toUpperCase(),
+      authTokenMode: 'signin',
+    });
+
+    if (!telegramUser) {
+      res.json({
+        status: 'pending',
+        message: 'Waiting for Telegram authentication',
+      });
+      return;
+    }
+
+    // Check if expired
+    if (telegramUser.authTokenExpiry && telegramUser.authTokenExpiry < new Date()) {
+      res.json({
+        status: 'expired',
+        message: 'Authentication code expired',
+      });
+      return;
+    }
+
+    // Check if authenticated
+    if (telegramUser.isAuthenticated && telegramUser.sessionToken && telegramUser.userId) {
+      // Sign-in complete! Return the session token
+      res.json({
+        status: 'completed',
+        token: telegramUser.sessionToken,
+      });
+      return;
+    }
+
+    // Still pending
+    res.json({
+      status: 'pending',
+      message: 'Waiting for Telegram authentication',
+    });
+  } catch (error) {
+    console.error('Telegram poll error:', error);
+    res.status(500).json({ error: 'Failed to check authentication status' });
   }
 });
 
