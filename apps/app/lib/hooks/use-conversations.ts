@@ -28,7 +28,9 @@ export interface Conversation {
 const CONVERSATIONS_STORAGE_KEY = "alia-conversations";
 
 function isAuthenticated(): boolean {
-  return !!useAuthStore.getState().token;
+  const token = useAuthStore.getState().token;
+  const hasToken = !!token && token.trim().length > 0;
+  return hasToken;
 }
 
 function getAPIHeaders(): HeadersInit {
@@ -271,7 +273,32 @@ export function useCreateConversation() {
         });
 
         if (!response.ok) {
-          throw new Error('Failed to create conversation');
+          let errorMessage = 'Failed to create conversation';
+          try {
+            const errorData = await response.json();
+            errorMessage = errorData.error || errorData.message || errorMessage;
+          } catch (e) {
+            // If we can't parse the error response, use the status text
+            errorMessage = response.statusText || errorMessage;
+          }
+
+          // If authentication failed, fall back to local creation
+          if (response.status === 401 || errorMessage.includes('Authentication') || errorMessage.includes('token')) {
+            console.log('Authentication failed, falling back to local conversation creation');
+            // Fall back to local creation for unauthenticated users
+            const { generateUUID } = await import('../utils');
+            const id = generateUUID();
+            return {
+              id,
+              title: 'New Conversation',
+              lastMessage: undefined,
+              createdAt: new Date(),
+              updatedAt: new Date(),
+              messages: [],
+            };
+          }
+
+          throw new Error(errorMessage);
         }
 
         const data = await response.json();
