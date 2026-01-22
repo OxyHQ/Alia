@@ -9,7 +9,6 @@ import { setSessionGetter } from '@/lib/api/client';
 export function OxyAuthSetup({ children }: { children: React.ReactNode }) {
   const { activeSessionId, isAuthenticated } = useOxy();
 
-  // Use ref to store session ID to avoid stale closures in interceptor
   const sessionIdRef = useRef<string | null>(null);
 
   useEffect(() => {
@@ -17,8 +16,6 @@ export function OxyAuthSetup({ children }: { children: React.ReactNode }) {
   }, [activeSessionId, isAuthenticated]);
 
   useEffect(() => {
-    // Set up the session getter for the API client
-    // This allows API calls to include the Oxy session ID
     setSessionGetter(() => sessionIdRef.current);
   }, []);
 
