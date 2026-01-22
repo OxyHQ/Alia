@@ -6,13 +6,13 @@ import { ArrowLeft, RefreshCw, CreditCard, ExternalLink, X } from "lucide-react-
 import { useCredits } from "@/lib/hooks/use-credits";
 import { useCreditPackages, useSubscriptionPlans, useSubscription, useCreateCheckout, useCreateSubscriptionCheckout, useCancelSubscription, useCreatePortalSession, useTransactions } from "@/lib/hooks/use-billing";
 import { useEffect, useState } from "react";
-import { useAuthStore } from "@/lib/stores/auth-store";
+import { useOxy } from "@oxyhq/services";
 import { toast } from "@/components/sonner";
 
 export default function DevelopersBillingScreen() {
   const router = useRouter();
   const { success } = useLocalSearchParams();
-  const { isAuthenticated } = useAuthStore();
+  const { isAuthenticated } = useOxy();
   const { data: creditsInfo, isLoading, refetch } = useCredits();
   const { data: packages = [] } = useCreditPackages();
   const { data: plans = [] } = useSubscriptionPlans();

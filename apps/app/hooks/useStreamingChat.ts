@@ -278,7 +278,7 @@ Use this role to guide your responses, maintaining the specified tone, style, an
     } finally {
       setIsLoading(false);
     }
-  }, [apiUrl, messages, token, activeRole]);
+  }, [apiUrl, messages, activeSessionId, activeRole]);
 
   const stop = useCallback(() => {
     // TODO: Implement abort controller
