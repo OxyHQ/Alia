@@ -1,7 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import * as SecureStore from 'expo-secure-store';
-import { generateAPIUrl } from '../generate-api-url';
-import { useAuthStore } from '../stores/auth-store';
+import apiClient from '../api/client';
 
 export interface Message {
   id?: string;
@@ -20,6 +19,7 @@ export interface Conversation {
   id: string;
   title: string;
   lastMessage?: string;
+  source?: string;
   createdAt: Date;
   updatedAt: Date;
   messages: Message[];
@@ -27,53 +27,30 @@ export interface Conversation {
 
 const CONVERSATIONS_STORAGE_KEY = "alia-conversations";
 
-function isAuthenticated(): boolean {
-  const token = useAuthStore.getState().token;
-  const hasToken = !!token && token.trim().length > 0;
-  return hasToken;
-}
-
-function getAPIHeaders(): HeadersInit {
-  const token = useAuthStore.getState().token;
-  const headers: HeadersInit = {
-    'Content-Type': 'application/json',
-  };
-  if (token) {
-    headers['Authorization'] = `Bearer ${token}`;
-  }
-  return headers;
-}
-
 // Fetch conversations from API or local storage
 async function fetchConversations(): Promise<Conversation[]> {
-  if (isAuthenticated()) {
-    const apiUrl = generateAPIUrl('/conversations');
-    const response = await fetch(apiUrl, {
-      method: 'GET',
-      headers: getAPIHeaders(),
-    });
-
-    if (!response.ok) {
-      throw new Error('Failed to fetch conversations');
-    }
-
-    const data = await response.json();
-    return data.conversations.map((conv: any) => ({
+  try {
+    const response = await apiClient.get('/conversations');
+    return response.data.conversations.map((conv: any) => ({
       ...conv,
       createdAt: new Date(conv.createdAt),
       updatedAt: new Date(conv.updatedAt),
     }));
-  } else {
-    const stored = await SecureStore.getItemAsync(CONVERSATIONS_STORAGE_KEY);
-    if (stored) {
-      const parsed = JSON.parse(stored);
-      return parsed.map((conv: any) => ({
-        ...conv,
-        createdAt: new Date(conv.createdAt),
-        updatedAt: new Date(conv.updatedAt),
-      }));
+  } catch (error: any) {
+    // If unauthorized, fall back to local storage
+    if (error.response?.status === 401) {
+      const stored = await SecureStore.getItemAsync(CONVERSATIONS_STORAGE_KEY);
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        return parsed.map((conv: any) => ({
+          ...conv,
+          createdAt: new Date(conv.createdAt),
+          updatedAt: new Date(conv.updatedAt),
+        }));
+      }
+      return [];
     }
-    return [];
+    throw error;
   }
 }
 
@@ -89,35 +66,28 @@ export function useConversations() {
 
 // Fetch a single conversation with messages from API
 async function fetchConversation(id: string): Promise<Conversation> {
-  if (isAuthenticated()) {
-    const apiUrl = generateAPIUrl(`/conversations/${id}`);
-    const response = await fetch(apiUrl, {
-      method: 'GET',
-      headers: getAPIHeaders(),
-    });
-
-    if (!response.ok) {
-      throw new Error('Failed to fetch conversation');
-    }
-
-    const data = await response.json();
+  try {
+    const response = await apiClient.get(`/conversations/${id}`);
+    const data = response.data;
     return {
       ...data,
       createdAt: new Date(data.createdAt),
       updatedAt: new Date(data.updatedAt),
     };
-  } else {
-    // Local storage - get from conversations array
-    const stored = await SecureStore.getItemAsync(CONVERSATIONS_STORAGE_KEY);
-    if (stored) {
-      const parsed = JSON.parse(stored);
-      const conversation = parsed.find((c: any) => c.id === id);
-      if (conversation) {
-        return {
-          ...conversation,
-          createdAt: new Date(conversation.createdAt),
-          updatedAt: new Date(conversation.updatedAt),
-        };
+  } catch (error: any) {
+    // If unauthorized, fall back to local storage
+    if (error.response?.status === 401) {
+      const stored = await SecureStore.getItemAsync(CONVERSATIONS_STORAGE_KEY);
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        const conversation = parsed.find((c: any) => c.id === id);
+        if (conversation) {
+          return {
+            ...conversation,
+            createdAt: new Date(conversation.createdAt),
+            updatedAt: new Date(conversation.updatedAt),
+          };
+        }
       }
     }
     throw new Error('Conversation not found');
@@ -153,54 +123,49 @@ export function useSaveConversation() {
       const conversationTitle = title || messages.find((m) => m.role === "user")?.content?.slice(0, 50) || "Nueva conversación";
       const lastMessage = messages[messages.length - 1]?.content?.slice(0, 100);
 
-      if (isAuthenticated()) {
-        const apiUrl = generateAPIUrl('/conversations');
-        const response = await fetch(apiUrl, {
-          method: 'POST',
-          headers: getAPIHeaders(),
-          body: JSON.stringify({
-            conversationId: id,
-            title: conversationTitle,
-            messages
-          })
+      try {
+        const response = await apiClient.post('/conversations', {
+          conversationId: id,
+          title: conversationTitle,
+          messages
         });
 
-        if (!response.ok) {
-          throw new Error('Failed to save conversation');
-        }
-
-        const data = await response.json();
+        const data = response.data;
         return {
           id: data.id,
           title: data.title,
           lastMessage: data.lastMessage,
+          source: data.source,
           createdAt: new Date(data.createdAt),
           updatedAt: new Date(data.updatedAt),
           messages
         };
-      } else {
-        // Local storage
-        const conversations = await fetchConversations();
-        const existingIndex = conversations.findIndex((c) => c.id === id);
+      } catch (error: any) {
+        // If unauthorized, save to local storage
+        if (error.response?.status === 401) {
+          const conversations = await fetchConversations();
+          const existingIndex = conversations.findIndex((c) => c.id === id);
 
-        const conversation: Conversation = {
-          id,
-          title: conversationTitle,
-          lastMessage,
-          createdAt: existingIndex >= 0 ? conversations[existingIndex].createdAt : new Date(),
-          updatedAt: new Date(),
-          messages,
-        };
+          const conversation: Conversation = {
+            id,
+            title: conversationTitle,
+            lastMessage,
+            createdAt: existingIndex >= 0 ? conversations[existingIndex].createdAt : new Date(),
+            updatedAt: new Date(),
+            messages,
+          };
 
-        const newConversations = [...conversations];
-        if (existingIndex >= 0) {
-          newConversations[existingIndex] = conversation;
-        } else {
-          newConversations.unshift(conversation);
+          const newConversations = [...conversations];
+          if (existingIndex >= 0) {
+            newConversations[existingIndex] = conversation;
+          } else {
+            newConversations.unshift(conversation);
+          }
+
+          await SecureStore.setItemAsync(CONVERSATIONS_STORAGE_KEY, JSON.stringify(newConversations));
+          return conversation;
         }
-
-        await SecureStore.setItemAsync(CONVERSATIONS_STORAGE_KEY, JSON.stringify(newConversations));
-        return conversation;
+        throw error;
       }
     },
     onSuccess: (data) => {
@@ -231,20 +196,17 @@ export function useDeleteConversation() {
   return useMutation({
     retry: 1,
     mutationFn: async (id: string) => {
-      if (isAuthenticated()) {
-        const apiUrl = generateAPIUrl(`/conversations/${id}`);
-        const response = await fetch(apiUrl, {
-          method: 'DELETE',
-          headers: getAPIHeaders(),
-        });
-
-        if (!response.ok) {
-          throw new Error('Failed to delete conversation');
+      try {
+        await apiClient.delete(`/conversations/${id}`);
+      } catch (error: any) {
+        // If unauthorized, delete from local storage
+        if (error.response?.status === 401) {
+          const conversations = await fetchConversations();
+          const newConversations = conversations.filter((c) => c.id !== id);
+          await SecureStore.setItemAsync(CONVERSATIONS_STORAGE_KEY, JSON.stringify(newConversations));
+        } else {
+          throw error;
         }
-      } else {
-        const conversations = await fetchConversations();
-        const newConversations = conversations.filter((c) => c.id !== id);
-        await SecureStore.setItemAsync(CONVERSATIONS_STORAGE_KEY, JSON.stringify(newConversations));
       }
       return id;
     },
@@ -264,70 +226,39 @@ export function useCreateConversation() {
 
   return useMutation({
     mutationFn: async (): Promise<Conversation> => {
-      if (isAuthenticated()) {
-        // Call backend to create new conversation
-        const apiUrl = generateAPIUrl('/conversations/new');
-        const response = await fetch(apiUrl, {
-          method: 'POST',
-          headers: getAPIHeaders(),
-        });
-
-        if (!response.ok) {
-          let errorMessage = 'Failed to create conversation';
-          try {
-            const errorData = await response.json();
-            errorMessage = errorData.error || errorData.message || errorMessage;
-          } catch (e) {
-            // If we can't parse the error response, use the status text
-            errorMessage = response.statusText || errorMessage;
-          }
-
-          // If authentication failed, fall back to local creation
-          if (response.status === 401 || errorMessage.includes('Authentication') || errorMessage.includes('token')) {
-            console.log('Authentication failed, falling back to local conversation creation');
-            // Fall back to local creation for unauthenticated users
-            const { generateUUID } = await import('../utils');
-            const id = generateUUID();
-            return {
-              id,
-              title: 'New Conversation',
-              lastMessage: undefined,
-              createdAt: new Date(),
-              updatedAt: new Date(),
-              messages: [],
-            };
-          }
-
-          throw new Error(errorMessage);
-        }
-
-        const data = await response.json();
+      try {
+        const response = await apiClient.post('/conversations/new');
+        const data = response.data;
         return {
           id: data.id,
           title: data.title,
           lastMessage: undefined,
+          source: data.source,
           createdAt: new Date(data.createdAt),
           updatedAt: new Date(data.updatedAt),
           messages: [],
         };
-      } else {
-        // For unauthenticated users, generate UUID locally
-        const { generateUUID } = await import('../utils');
-        const id = generateUUID();
-        const conversation: Conversation = {
-          id,
-          title: "Nueva conversación",
-          lastMessage: undefined,
-          createdAt: new Date(),
-          updatedAt: new Date(),
-          messages: [],
-        };
+      } catch (error: any) {
+        // If unauthorized, create locally
+        if (error.response?.status === 401) {
+          const { generateUUID } = await import('../utils');
+          const id = generateUUID();
+          const conversation: Conversation = {
+            id,
+            title: "Nueva conversación",
+            lastMessage: undefined,
+            createdAt: new Date(),
+            updatedAt: new Date(),
+            messages: [],
+          };
 
-        const conversations = await fetchConversations();
-        const newConversations = [conversation, ...conversations];
-        await SecureStore.setItemAsync(CONVERSATIONS_STORAGE_KEY, JSON.stringify(newConversations));
+          const conversations = await fetchConversations();
+          const newConversations = [conversation, ...conversations];
+          await SecureStore.setItemAsync(CONVERSATIONS_STORAGE_KEY, JSON.stringify(newConversations));
 
-        return conversation;
+          return conversation;
+        }
+        throw error;
       }
     },
     onSuccess: (data) => {
