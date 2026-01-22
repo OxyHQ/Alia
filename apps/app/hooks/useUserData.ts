@@ -1,16 +1,15 @@
 import { useEffect } from 'react';
-import { useAuthStore } from '@/lib/stores/auth-store';
+import { useOxy } from '@oxyhq/services';
 import { useUserDataStore } from '@/lib/stores/user-data-store';
-import { generateAPIUrl } from '@/lib/generate-api-url';
+import apiClient from '@/lib/api/client';
 
 export function useUserData() {
-  const token = useAuthStore((state) => state.token);
-  const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
+  const { isAuthenticated } = useOxy();
   const { memory, loading, setMemory, setLoading, shouldRefetch, clearMemory } = useUserDataStore();
 
   useEffect(() => {
     // Clear data if not authenticated
-    if (!isAuthenticated || !token) {
+    if (!isAuthenticated) {
       clearMemory();
       return;
     }
@@ -23,16 +22,9 @@ export function useUserData() {
     const fetchUserData = async () => {
       setLoading(true);
       try {
-        const apiUrl = generateAPIUrl('/memory');
-        const response = await fetch(apiUrl, {
-          headers: {
-            'Authorization': `Bearer ${token}`,
-          },
-        });
-
-        if (response.ok) {
-          const data = await response.json();
-          setMemory(data);
+        const response = await apiClient.get('/memory');
+        if (response.data) {
+          setMemory(response.data);
         }
       } catch (error) {
         console.error('Error fetching user data:', error);
@@ -42,7 +34,7 @@ export function useUserData() {
     };
 
     fetchUserData();
-  }, [token, isAuthenticated, shouldRefetch]);
+  }, [isAuthenticated, shouldRefetch]);
 
   return {
     memory,

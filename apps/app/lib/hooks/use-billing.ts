@@ -1,6 +1,5 @@
 import { useQuery, useMutation } from '@tanstack/react-query';
-import { generateAPIUrl } from '../generate-api-url';
-import { useAuthStore } from '../stores/auth-store';
+import apiClient from '../api/client';
 
 export interface CreditPackage {
   id: string;
@@ -54,34 +53,13 @@ export interface Transaction {
   updatedAt: string;
 }
 
-function getAPIHeaders(): HeadersInit {
-  const token = useAuthStore.getState().token;
-  const headers: HeadersInit = {
-    'Content-Type': 'application/json',
-  };
-  if (token) {
-    headers['Authorization'] = `Bearer ${token}`;
-  }
-  return headers;
-}
-
 // ======================
 // Credit Packages
 // ======================
 
 async function fetchPackages(): Promise<CreditPackage[]> {
-  const apiUrl = generateAPIUrl('/billing/packages');
-  const response = await fetch(apiUrl, {
-    method: 'GET',
-    headers: getAPIHeaders(),
-  });
-
-  if (!response.ok) {
-    throw new Error('Failed to fetch packages');
-  }
-
-  const data = await response.json();
-  return data.packages;
+  const response = await apiClient.get('/billing/packages');
+  return response.data.packages;
 }
 
 export function useCreditPackages() {
@@ -98,18 +76,8 @@ export function useCreditPackages() {
 // ======================
 
 async function fetchPlans(): Promise<SubscriptionPlan[]> {
-  const apiUrl = generateAPIUrl('/billing/plans');
-  const response = await fetch(apiUrl, {
-    method: 'GET',
-    headers: getAPIHeaders(),
-  });
-
-  if (!response.ok) {
-    throw new Error('Failed to fetch plans');
-  }
-
-  const data = await response.json();
-  return data.plans;
+  const response = await apiClient.get('/billing/plans');
+  return response.data.plans;
 }
 
 export function useSubscriptionPlans() {
@@ -126,18 +94,8 @@ export function useSubscriptionPlans() {
 // ======================
 
 async function fetchSubscription(): Promise<Subscription | null> {
-  const apiUrl = generateAPIUrl('/billing/subscription');
-  const response = await fetch(apiUrl, {
-    method: 'GET',
-    headers: getAPIHeaders(),
-  });
-
-  if (!response.ok) {
-    throw new Error('Failed to fetch subscription');
-  }
-
-  const data = await response.json();
-  return data.subscription;
+  const response = await apiClient.get('/billing/subscription');
+  return response.data.subscription;
 }
 
 export function useSubscription() {
@@ -154,17 +112,8 @@ export function useSubscription() {
 // ======================
 
 async function fetchTransactions(limit: number = 20, offset: number = 0): Promise<{ transactions: Transaction[]; total: number }> {
-  const apiUrl = generateAPIUrl(`/billing/transactions?limit=${limit}&offset=${offset}`);
-  const response = await fetch(apiUrl, {
-    method: 'GET',
-    headers: getAPIHeaders(),
-  });
-
-  if (!response.ok) {
-    throw new Error('Failed to fetch transactions');
-  }
-
-  return await response.json();
+  const response = await apiClient.get(`/billing/transactions?limit=${limit}&offset=${offset}`);
+  return response.data;
 }
 
 export function useTransactions(limit: number = 20, offset: number = 0) {
@@ -191,20 +140,12 @@ export function useCreateCheckout() {
       successUrl: string;
       cancelUrl: string;
     }) => {
-      const apiUrl = generateAPIUrl('/billing/checkout/credits');
-      const response = await fetch(apiUrl, {
-        method: 'POST',
-        headers: getAPIHeaders(),
-        body: JSON.stringify({ packageId, successUrl, cancelUrl }),
+      const response = await apiClient.post('/billing/checkout/credits', {
+        packageId,
+        successUrl,
+        cancelUrl,
       });
-
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || 'Failed to create checkout session');
-      }
-
-      const data = await response.json();
-      return data;
+      return response.data;
     },
   });
 }
@@ -220,20 +161,12 @@ export function useCreateSubscriptionCheckout() {
       successUrl: string;
       cancelUrl: string;
     }) => {
-      const apiUrl = generateAPIUrl('/billing/checkout/subscription');
-      const response = await fetch(apiUrl, {
-        method: 'POST',
-        headers: getAPIHeaders(),
-        body: JSON.stringify({ planId, successUrl, cancelUrl }),
+      const response = await apiClient.post('/billing/checkout/subscription', {
+        planId,
+        successUrl,
+        cancelUrl,
       });
-
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || 'Failed to create checkout session');
-      }
-
-      const data = await response.json();
-      return data;
+      return response.data;
     },
   });
 }
@@ -241,18 +174,8 @@ export function useCreateSubscriptionCheckout() {
 export function useCancelSubscription() {
   return useMutation({
     mutationFn: async () => {
-      const apiUrl = generateAPIUrl('/billing/subscription/cancel');
-      const response = await fetch(apiUrl, {
-        method: 'POST',
-        headers: getAPIHeaders(),
-      });
-
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || 'Failed to cancel subscription');
-      }
-
-      return await response.json();
+      const response = await apiClient.post('/billing/subscription/cancel');
+      return response.data;
     },
   });
 }
@@ -260,20 +183,8 @@ export function useCancelSubscription() {
 export function useCreatePortalSession() {
   return useMutation({
     mutationFn: async (returnUrl: string) => {
-      const apiUrl = generateAPIUrl('/billing/portal');
-      const response = await fetch(apiUrl, {
-        method: 'POST',
-        headers: getAPIHeaders(),
-        body: JSON.stringify({ returnUrl }),
-      });
-
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || 'Failed to create portal session');
-      }
-
-      const data = await response.json();
-      return data.url;
+      const response = await apiClient.post('/billing/portal', { returnUrl });
+      return response.data.url;
     },
   });
 }

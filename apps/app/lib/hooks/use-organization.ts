@@ -1,6 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { generateAPIUrl } from '../generate-api-url';
-import { useAuthStore } from '../stores/auth-store';
+import apiClient from '../api/client';
 
 export interface Organization {
   _id: string;
@@ -35,34 +34,13 @@ export interface OrganizationMember {
   updatedAt: string;
 }
 
-function getAPIHeaders(): HeadersInit {
-  const token = useAuthStore.getState().token;
-  const headers: HeadersInit = {
-    'Content-Type': 'application/json',
-  };
-  if (token) {
-    headers['Authorization'] = `Bearer ${token}`;
-  }
-  return headers;
-}
-
 // ======================
 // Organizations
 // ======================
 
 async function fetchOrganizations(): Promise<Organization[]> {
-  const apiUrl = generateAPIUrl('/organization');
-  const response = await fetch(apiUrl, {
-    method: 'GET',
-    headers: getAPIHeaders(),
-  });
-
-  if (!response.ok) {
-    throw new Error('Failed to fetch organizations');
-  }
-
-  const data = await response.json();
-  return data.organizations;
+  const response = await apiClient.get('/organization');
+  return response.data.organizations;
 }
 
 export function useOrganizations() {
@@ -75,18 +53,8 @@ export function useOrganizations() {
 }
 
 async function fetchOrganization(id: string): Promise<Organization> {
-  const apiUrl = generateAPIUrl(`/organization/${id}`);
-  const response = await fetch(apiUrl, {
-    method: 'GET',
-    headers: getAPIHeaders(),
-  });
-
-  if (!response.ok) {
-    throw new Error('Failed to fetch organization');
-  }
-
-  const data = await response.json();
-  return data.organization;
+  const response = await apiClient.get(`/organization/${id}`);
+  return response.data.organization;
 }
 
 export function useOrganization(id: string) {
@@ -104,20 +72,8 @@ export function useCreateOrganization() {
 
   return useMutation({
     mutationFn: async (data: { name: string; slug: string; description?: string }) => {
-      const apiUrl = generateAPIUrl('/organization');
-      const response = await fetch(apiUrl, {
-        method: 'POST',
-        headers: getAPIHeaders(),
-        body: JSON.stringify(data),
-      });
-
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || 'Failed to create organization');
-      }
-
-      const result = await response.json();
-      return result.organization;
+      const response = await apiClient.post('/organization', data);
+      return response.data.organization;
     },
     onSuccess: (newOrg) => {
       // Add to organizations list cache
@@ -137,20 +93,8 @@ export function useUpdateOrganization() {
 
   return useMutation({
     mutationFn: async ({ id, data }: { id: string; data: Partial<Organization> }) => {
-      const apiUrl = generateAPIUrl(`/organization/${id}`);
-      const response = await fetch(apiUrl, {
-        method: 'PATCH',
-        headers: getAPIHeaders(),
-        body: JSON.stringify(data),
-      });
-
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || 'Failed to update organization');
-      }
-
-      const result = await response.json();
-      return result.organization;
+      const response = await apiClient.patch(`/organization/${id}`, data);
+      return response.data.organization;
     },
     onSuccess: (updatedOrg) => {
       // Update organizations list cache
@@ -170,17 +114,7 @@ export function useDeleteOrganization() {
 
   return useMutation({
     mutationFn: async (id: string) => {
-      const apiUrl = generateAPIUrl(`/organization/${id}`);
-      const response = await fetch(apiUrl, {
-        method: 'DELETE',
-        headers: getAPIHeaders(),
-      });
-
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || 'Failed to delete organization');
-      }
-
+      await apiClient.delete(`/organization/${id}`);
       return id;
     },
     onSuccess: (id) => {
@@ -201,18 +135,8 @@ export function useDeleteOrganization() {
 // ======================
 
 async function fetchMembers(orgId: string): Promise<OrganizationMember[]> {
-  const apiUrl = generateAPIUrl(`/organization/${orgId}/members`);
-  const response = await fetch(apiUrl, {
-    method: 'GET',
-    headers: getAPIHeaders(),
-  });
-
-  if (!response.ok) {
-    throw new Error('Failed to fetch members');
-  }
-
-  const data = await response.json();
-  return data.members;
+  const response = await apiClient.get(`/organization/${orgId}/members`);
+  return response.data.members;
 }
 
 export function useOrganizationMembers(orgId: string) {
