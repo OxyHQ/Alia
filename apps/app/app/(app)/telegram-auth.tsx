@@ -2,14 +2,13 @@ import React, { useEffect, useState } from 'react';
 import { View, Text, ActivityIndicator } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { AuthContainer, AuthLogo } from '@/components/auth';
-import { useAuthStore } from '@/lib/stores/auth-store';
+import { useOxy } from '@oxyhq/services';
 import apiClient from '@/lib/api/client';
 
 export default function TelegramAuthScreen() {
   const router = useRouter();
   const { token } = useLocalSearchParams();
-  const authToken = useAuthStore((state) => state.token);
-  const user = useAuthStore((state) => state.user);
+  const { user, isAuthenticated, activeSessionId } = useOxy();
   const [status, setStatus] = useState<'checking' | 'success' | 'error' | 'needLogin'>('checking');
   const [message, setMessage] = useState('');
 
