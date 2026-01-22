@@ -3,13 +3,11 @@
 import { memo } from "react";
 import { Handle, Position } from "@xyflow/react";
 import { Card } from "@/components/ui/card";
+import type { WorkflowNodeData } from "@/lib/workflow-types";
 
 interface BaseNodeProps {
   id: string;
-  data: {
-    label: string;
-    [key: string]: any;
-  };
+  data: WorkflowNodeData;
   selected?: boolean;
   children?: React.ReactNode;
   icon?: React.ReactNode;
