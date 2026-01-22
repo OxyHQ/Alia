@@ -2,14 +2,14 @@ import { View, ScrollView, Pressable } from "react-native";
 import { Text } from "@/components/ui/text";
 import { Button } from "@/components/ui/button";
 import { useEffect } from "react";
-import { useAuthStore } from "@/lib/stores/auth-store";
+import { useOxy } from "@oxyhq/services";
 import { useRouter } from "expo-router";
 import { ChevronRight } from "lucide-react-native";
 import { useApps, useDeveloperStats } from "@/lib/hooks/use-developer";
 
 export default function DeveloperPortalScreen() {
   const router = useRouter();
-  const { isAuthenticated } = useAuthStore();
+  const { isAuthenticated } = useOxy();
   const { data: apps = [], isLoading: isLoadingApps } = useApps();
   const { data: developerStats } = useDeveloperStats();
 
