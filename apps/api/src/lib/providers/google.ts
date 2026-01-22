@@ -34,7 +34,7 @@ export const googleProvider: Provider = {
         if (msg.tool_calls) {
           for (const tc of msg.tool_calls) {
             let args = {};
-            try { args = JSON.parse(tc.function?.arguments || '{}'); } catch {}
+            try { args = JSON.parse(tc.function?.arguments || '{}'); } catch { /* ignore parse errors */ }
             parts.push({ functionCall: { name: tc.function?.name, args } });
           }
         }
@@ -196,7 +196,7 @@ function transformGeminiStream(body: ReadableStream<Uint8Array>, modelId: string
                   isFirst = false;
                 }
               }
-            } catch {}
+            } catch { /* ignore streaming errors */ }
           }
         }
 

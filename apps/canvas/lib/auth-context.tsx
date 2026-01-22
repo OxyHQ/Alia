@@ -1,7 +1,7 @@
 "use client";
 
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
-import { OxyServices, createCrossDomainAuth } from '@oxyhq/services';
+import { OxyServices, createCrossDomainAuth } from '@oxyhq/services/core';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api.oxy.so';
 
@@ -39,7 +39,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       try {
         const session = await auth.initialize();
         if (session?.user) {
-          setUser(session.user as User);
+          setUser(session.user as unknown as User);
         }
       } catch (error) {
         console.error('Auth initialization failed:', error);
@@ -54,7 +54,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       const session = await auth.signIn();
       if (session?.user) {
-        setUser(session.user as User);
+        setUser(session.user as unknown as User);
       }
     } catch (error) {
       console.error('Sign in failed:', error);

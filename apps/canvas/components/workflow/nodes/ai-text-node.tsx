@@ -1,12 +1,18 @@
 "use client";
 
 import { memo } from "react";
-import type { NodeProps } from "@xyflow/react";
 import { BaseNode } from "./base-node";
 import { Sparkles } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import type { WorkflowNodeData } from "@/lib/workflow-types";
 
-export const AITextNode = memo(function AITextNode({ id, data, selected }: NodeProps) {
+interface AITextNodeProps {
+  id: string;
+  data: WorkflowNodeData;
+  selected?: boolean;
+}
+
+export const AITextNode = memo(function AITextNode({ id, data, selected }: AITextNodeProps) {
   return (
     <BaseNode
       id={id}
