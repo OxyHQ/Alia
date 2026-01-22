@@ -1,6 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { generateAPIUrl } from '../generate-api-url';
-import { useAuthStore } from '../stores/auth-store';
+import apiClient from '../api/client';
 
 export interface CreditsInfo {
   credits: number;
@@ -9,29 +8,9 @@ export interface CreditsInfo {
   lastRefresh: string;
 }
 
-function getAPIHeaders(): HeadersInit {
-  const token = useAuthStore.getState().token;
-  const headers: HeadersInit = {
-    'Content-Type': 'application/json',
-  };
-  if (token) {
-    headers['Authorization'] = `Bearer ${token}`;
-  }
-  return headers;
-}
-
 async function fetchCredits(): Promise<CreditsInfo> {
-  const apiUrl = generateAPIUrl('/credits');
-  const response = await fetch(apiUrl, {
-    method: 'GET',
-    headers: getAPIHeaders(),
-  });
-
-  if (!response.ok) {
-    throw new Error('Failed to fetch credits');
-  }
-
-  return await response.json();
+  const response = await apiClient.get('/credits');
+  return response.data;
 }
 
 export function useCredits() {

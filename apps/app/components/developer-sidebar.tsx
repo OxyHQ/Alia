@@ -17,7 +17,7 @@ import {
   CreditCard,
 } from "lucide-react-native";
 import { useRouter, usePathname } from "expo-router";
-import { useAuthStore } from "@/lib/stores/auth-store";
+import { useOxy } from "@oxyhq/services";
 import { useApps } from "@/lib/hooks/use-developer";
 import { OrganizationSwitcher } from "@/components/organization-switcher";
 import {
@@ -31,9 +31,7 @@ import {
 export const DeveloperSidebar = React.memo(function DeveloperSidebar() {
   const router = useRouter();
   const pathname = usePathname();
-  const user = useAuthStore((state) => state.user);
-  const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
-  const logout = useAuthStore((state) => state.logout);
+  const { user, isAuthenticated, logout } = useOxy();
   const { data: apps = [] } = useApps();
 
   const handleLogoPress = React.useCallback(() => {
@@ -75,12 +73,21 @@ export const DeveloperSidebar = React.memo(function DeveloperSidebar() {
 
   // Get user initials for avatar
   const getUserInitials = React.useCallback(() => {
-    if (!user?.name) return "U";
-    const names = user.name.split(" ");
-    if (names.length >= 2) {
-      return `${names[0][0]}${names[1][0]}`.toUpperCase();
+    if (!user?.name) return user?.username?.[0]?.toUpperCase() || "U";
+    const { first, last } = user.name;
+    if (first && last) {
+      return `${first[0]}${last[0]}`.toUpperCase();
     }
-    return names[0][0].toUpperCase();
+    return (first?.[0] || user?.username?.[0] || "U").toUpperCase();
+  }, [user]);
+
+  // Get display name for user
+  const getUserDisplayName = React.useCallback(() => {
+    if (!user) return "User";
+    if (user.name?.first) {
+      return user.name.last ? `${user.name.first} ${user.name.last}` : user.name.first;
+    }
+    return user.username || "User";
   }, [user]);
 
   return (
