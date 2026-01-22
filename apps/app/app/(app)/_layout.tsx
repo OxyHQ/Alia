@@ -1,9 +1,7 @@
 import { Drawer } from 'expo-router/drawer';
-import { Redirect, Slot } from 'expo-router';
 import { Sidebar } from '@/components/sidebar';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { useWindowDimensions } from 'react-native';
-import { useAuthStore } from '@/lib/stores/auth-store';
 import { useProjectsStore } from '@/lib/stores/projects-store';
 import { useRolesStore } from '@/lib/stores/roles-store';
 import { useFoldersStore } from '@/lib/stores/folders-store';

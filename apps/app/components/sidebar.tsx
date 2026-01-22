@@ -45,7 +45,7 @@ import {
 } from "lucide-react-native";
 import { useStore } from "@/lib/globalStore";
 import { useRouter } from "expo-router";
-import { useAuthStore } from "@/lib/stores/auth-store";
+import { useOxy } from "@oxyhq/services";
 import { useProjectsStore } from "@/lib/stores/projects-store";
 import { useFoldersStore } from "@/lib/stores/folders-store";
 import { useFavoritesStore } from "@/lib/stores/favorites-store";
@@ -86,9 +86,7 @@ export const Sidebar = React.memo(function Sidebar() {
   const chatId = useStore((state) => state.chatId);
   const { data: conversations = [] } = useConversations();
   const deleteConversationMutation = useDeleteConversation();
-  const user = useAuthStore((state) => state.user);
-  const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
-  const logout = useAuthStore((state) => state.logout);
+  const { user, isAuthenticated, logout } = useOxy();
   const projects = useProjectsStore((state) => state.projects);
   const currentProjectId = useProjectsStore((state) => state.currentProjectId);
   const setCurrentProject = useProjectsStore((state) => state.setCurrentProject);
@@ -325,12 +323,21 @@ export const Sidebar = React.memo(function Sidebar() {
 
   // Get user initials for avatar
   const getUserInitials = React.useCallback(() => {
-    if (!user?.name) return "U";
-    const names = user.name.split(" ");
-    if (names.length >= 2) {
-      return `${names[0][0]}${names[1][0]}`.toUpperCase();
+    if (!user?.name) return user?.username?.[0]?.toUpperCase() || "U";
+    const { first, last } = user.name;
+    if (first && last) {
+      return `${first[0]}${last[0]}`.toUpperCase();
     }
-    return names[0][0].toUpperCase();
+    return (first?.[0] || user?.username?.[0] || "U").toUpperCase();
+  }, [user]);
+
+  // Get display name for user
+  const getUserDisplayName = React.useCallback(() => {
+    if (!user) return "User";
+    if (user.name?.first) {
+      return user.name.last ? `${user.name.first} ${user.name.last}` : user.name.first;
+    }
+    return user.username || "User";
   }, [user]);
 
   // Helper function to render conversation menu
@@ -927,8 +934,8 @@ export const Sidebar = React.memo(function Sidebar() {
             <DropdownMenuTrigger asChild>
               <Pressable className="flex-row items-center gap-3 md:gap-2 rounded-full p-2 md:p-1.5 active:bg-muted">
                 <Avatar className="h-8 w-8 md:h-7 md:w-7">
-                  {user?.image ? (
-                    <AvatarImage source={{ uri: user.image }} />
+                  {user?.avatar ? (
+                    <AvatarImage source={{ uri: user.avatar }} />
                   ) : null}
                   <AvatarFallback className="bg-primary">
                     <Text className="text-xs md:text-[10px] text-primary-foreground">{getUserInitials()}</Text>
@@ -936,7 +943,7 @@ export const Sidebar = React.memo(function Sidebar() {
                 </Avatar>
                 <View className="flex-1">
                   <Text className="text-sm md:text-xs font-medium text-foreground">
-                    {user?.name || "User"}
+                    {getUserDisplayName()}
                   </Text>
                   <Text className="text-xs md:text-[10px] text-muted-foreground">
                     {user?.email || ""}
@@ -950,7 +957,7 @@ export const Sidebar = React.memo(function Sidebar() {
               className="w-64"
             >
               <View className="flex flex-col space-y-1 p-2">
-                <Text className="text-sm font-medium text-foreground">{user?.name || "User"}</Text>
+                <Text className="text-sm font-medium text-foreground">{getUserDisplayName()}</Text>
                 <Text className="text-xs text-muted-foreground">{user?.email || ""}</Text>
               </View>
               <DropdownMenuSeparator />
