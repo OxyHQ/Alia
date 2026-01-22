@@ -20,6 +20,7 @@ import telegramRouter from './routes/telegram.js';
 import developerRouter from './routes/developer.js';
 import billingRouter from './routes/billing.js';
 import organizationRouter from './routes/organization.js';
+import canvasRouter from './routes/canvas/index.js';
 
 // Fix for ES Modules __dirname
 const __filename = fileURLToPath(import.meta.url);
@@ -42,6 +43,7 @@ const allowedOrigins = [
   'http://localhost:8081',  // Expo web dev server
   'exp://localhost:8081',   // Expo mobile
   'http://10.0.2.2:8081',   // Android emulator
+  'http://localhost:3002',  // Canvas app
 ];
 
 app.use(cors({
@@ -79,6 +81,7 @@ app.use('/telegram', telegramRouter);
 app.use('/developer', developerRouter);
 app.use('/billing', billingRouter);
 app.use('/organization', organizationRouter);
+app.use('/api', canvasRouter);
 
 // Ruta raíz
 app.get('/', (_req, res) => {
