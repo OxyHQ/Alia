@@ -51,6 +51,6 @@
     "react-dom": "19.1.0"
   },
   "dependencies": {
-    "@oxyhq/services": "^5.18.5"
+    "@oxyhq/services": "^5.20.1"
   }
 }

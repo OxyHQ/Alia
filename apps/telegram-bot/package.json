@@ -10,7 +10,7 @@
     "type-check": "tsc --noEmit"
   },
   "dependencies": {
-    "@oxyhq/services": "^5.20.0",
+    "@oxyhq/services": "^5.20.1",
     "@types/node": "^20.10.0",
     "@types/uuid": "^9.0.0",
     "axios": "^1.6.0",
