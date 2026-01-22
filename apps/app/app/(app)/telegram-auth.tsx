@@ -35,11 +35,11 @@ export default function TelegramAuthScreen() {
 
       if (tokenMode === 'link') {
         // Solo permitir vinculación si hay sesión
-        if (authToken && user) {
+        if (isAuthenticated && activeSessionId) {
           try {
             const response = await apiClient.post('/telegram/link', {
               authToken: token,
-              sessionToken: authToken,
+              sessionId: activeSessionId,
             });
             if (response.data.success) {
               setStatus('success');
@@ -65,20 +65,13 @@ export default function TelegramAuthScreen() {
       }
 
       if (tokenMode === 'signin') {
-        // Solo permitir login automático con Telegram
-        if (tgUser && tgUser.userId && tgUser.sessionToken) {
-          useAuthStore.getState().login(
-            {
-              id: tgUser.userId,
-              email: tgUser.email || '',
-              name: tgUser.name || '',
-            },
-            tgUser.sessionToken
-          );
+        // Telegram signin is handled by redirecting to login page
+        // OxyProvider handles the actual authentication
+        if (tgUser && tgUser.userId) {
           setStatus('success');
-          setMessage('Logged in with your Telegram account!');
+          setMessage('Redirecting to complete login...');
           setTimeout(() => {
-            router.replace('/');
+            router.replace('/login');
           }, 1200);
         } else {
           setStatus('error');
@@ -90,7 +83,7 @@ export default function TelegramAuthScreen() {
       setMessage('Invalid or expired token. Please request a new link from Telegram.');
     }
     handleTelegramAuth();
-  }, [token, authToken, user, router]);
+  }, [token, isAuthenticated, activeSessionId, router]);
 
   return (
     <AuthContainer>
