@@ -17,7 +17,7 @@ import {
   CreditCard,
 } from "lucide-react-native";
 import { useRouter, usePathname } from "expo-router";
-import { useOxy } from "@oxyhq/services";
+import { useAuth } from "@oxyhq/services";
 import { useApps } from "@/lib/hooks/use-developer";
 import { OrganizationSwitcher } from "@/components/organization-switcher";
 import {
@@ -31,7 +31,7 @@ import {
 export const DeveloperSidebar = React.memo(function DeveloperSidebar() {
   const router = useRouter();
   const pathname = usePathname();
-  const { user, isAuthenticated, logout } = useOxy();
+  const { user, isAuthenticated, logout } = useAuth();
   const { data: apps = [] } = useApps();
 
   const handleLogoPress = React.useCallback(() => {

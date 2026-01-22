@@ -45,7 +45,7 @@ import {
 } from "lucide-react-native";
 import { useStore } from "@/lib/globalStore";
 import { useRouter } from "expo-router";
-import { useOxy } from "@oxyhq/services";
+import { useAuth } from "@oxyhq/services";
 import { useProjectsStore } from "@/lib/stores/projects-store";
 import { useFoldersStore } from "@/lib/stores/folders-store";
 import { useFavoritesStore } from "@/lib/stores/favorites-store";
@@ -86,7 +86,7 @@ export const Sidebar = React.memo(function Sidebar() {
   const chatId = useStore((state) => state.chatId);
   const { data: conversations = [] } = useConversations();
   const deleteConversationMutation = useDeleteConversation();
-  const { user, isAuthenticated, logout } = useOxy();
+  const { user, isAuthenticated, logout } = useAuth();
   const projects = useProjectsStore((state) => state.projects);
   const currentProjectId = useProjectsStore((state) => state.currentProjectId);
   const setCurrentProject = useProjectsStore((state) => state.setCurrentProject);

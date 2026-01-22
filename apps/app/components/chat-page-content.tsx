@@ -12,7 +12,7 @@ import { Button } from "@/components/ui/button";
 import { PromptInput, PromptInputTextarea, PromptInputActions, usePromptInput } from "@/components/ui/prompt-input";
 import { ChatInterface } from "@/components/chat-interface";
 import { ChatHeader } from "@/components/chat-header";
-import { useOxy } from "@oxyhq/services";
+import { useAuth } from "@oxyhq/services";
 import type { Message } from "@/types/chat";
 import { toast } from "@/components/sonner";
 
@@ -80,7 +80,7 @@ export const ChatPageContent = ({
   onRemoveRole,
 }: ChatPageContentProps) => {
   const selectedImageUris = useStore((state) => state.selectedImageUris);
-  const { isAuthenticated } = useOxy();
+  const { isAuthenticated } = useAuth();
   const [searchMode, setSearchMode] = useState(false);
   const [agentMode, setAgentMode] = useState(false);
   const [ghostMode, setGhostMode] = useState(false);

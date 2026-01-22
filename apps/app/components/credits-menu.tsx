@@ -9,11 +9,11 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useCreditsStore } from "@/lib/stores/credits-store";
 import { useEffect } from "react";
-import { useOxy } from "@oxyhq/services";
+import { useAuth } from "@oxyhq/services";
 
 export function CreditsMenu() {
   const { credits, freeCredits, dailyRefresh, fetchCredits } = useCreditsStore();
-  const { isAuthenticated } = useOxy();
+  const { isAuthenticated } = useAuth();
 
   // Fetch credits on mount if authenticated
   useEffect(() => {

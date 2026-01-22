@@ -1,6 +1,6 @@
 import { View, Pressable } from "react-native";
 import { Text } from "@/components/ui/text";
-import { useOxy } from "@oxyhq/services";
+import { useAuth } from "@oxyhq/services";
 import { useMemo } from "react";
 
 const GREETINGS = [
@@ -32,7 +32,7 @@ type WelcomeMessageProps = {
 };
 
 export const WelcomeMessage = ({ onSuggestionPress }: WelcomeMessageProps) => {
-  const { user, isAuthenticated } = useOxy();
+  const { user, isAuthenticated } = useAuth();
 
   const greeting = useMemo(() => {
     const randomGreeting = GREETINGS[Math.floor(Math.random() * GREETINGS.length)];

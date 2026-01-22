@@ -3,14 +3,15 @@ import { View, Text } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import Head from 'expo-router/head';
 import { AuthContainer, AuthLogo } from '@/components/auth';
-import { OxySignInButton, useOxy } from '@oxyhq/services';
+import { OxySignInButton } from '@oxyhq/services';
+import { useAuth } from '@oxyhq/services';
 import { useEffect } from 'react';
 import { useTranslation } from '@/hooks/useTranslation';
 
 export default function LoginScreen() {
   const router = useRouter();
   const { returnTo } = useLocalSearchParams();
-  const { isAuthenticated, isLoading } = useOxy();
+  const { isAuthenticated, isLoading } = useAuth();
   const { t } = useTranslation();
 
   // Redirect to home if already authenticated
