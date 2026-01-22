@@ -14,12 +14,14 @@ router.post('/new', authenticateToken, async (req: Request, res: Response) => {
     }
 
     const conversationId = randomUUID();
+    const { source = 'app' } = req.body;
 
     const conversation = await Conversation.create({
       userId: req.user.id,
       conversationId,
       title: 'Nueva conversación',
       messages: [],
+      source,
       createdAt: new Date(),
       updatedAt: new Date()
     });
@@ -27,6 +29,7 @@ router.post('/new', authenticateToken, async (req: Request, res: Response) => {
     res.json({
       id: conversation.conversationId,
       title: conversation.title,
+      source: conversation.source,
       createdAt: conversation.createdAt,
       updatedAt: conversation.updatedAt
     });
@@ -44,7 +47,7 @@ router.get('/', authenticateToken, async (req: Request, res: Response) => {
     }
 
     const conversations = await Conversation.find({ userId: req.user.id })
-      .select('conversationId title lastMessage createdAt updatedAt')
+      .select('conversationId title lastMessage source createdAt updatedAt')
       .sort({ updatedAt: -1 })
       .limit(100); // Limit to last 100 conversations
 
@@ -53,6 +56,7 @@ router.get('/', authenticateToken, async (req: Request, res: Response) => {
         id: c.conversationId,
         title: c.title,
         lastMessage: c.lastMessage,
+        source: c.source || 'app',
         createdAt: c.createdAt,
         updatedAt: c.updatedAt
       }))
@@ -83,6 +87,7 @@ router.get('/:id', authenticateToken, async (req: Request, res: Response) => {
       id: conversation.conversationId,
       title: conversation.title,
       lastMessage: conversation.lastMessage,
+      source: conversation.source || 'app',
       messages: conversation.messages,
       createdAt: conversation.createdAt,
       updatedAt: conversation.updatedAt
@@ -100,7 +105,7 @@ router.post('/', authenticateToken, async (req: Request, res: Response) => {
       return res.status(401).json({ error: 'Unauthorized' });
     }
 
-    const { conversationId, title, messages } = req.body;
+    const { conversationId, title, messages, source } = req.body;
 
     if (!conversationId || !messages || !Array.isArray(messages)) {
       return res.status(400).json({ error: 'Invalid request body' });
@@ -111,6 +116,20 @@ router.post('/', authenticateToken, async (req: Request, res: Response) => {
       ? messages[messages.length - 1].content?.slice(0, 100)
       : undefined;
 
+    // Build update object
+    const updateData: Record<string, any> = {
+      title: title || messages.find((m: any) => m.role === 'user')?.content?.slice(0, 50) || 'Nueva conversación',
+      lastMessage,
+      messages,
+      updatedAt: new Date()
+    };
+
+    // Only set source on insert (don't change source of existing conversations)
+    const setOnInsert: Record<string, any> = {};
+    if (source) {
+      setOnInsert.source = source;
+    }
+
     // Find and update or create new conversation
     const conversation = await Conversation.findOneAndUpdate(
       {
@@ -118,10 +137,8 @@ router.post('/', authenticateToken, async (req: Request, res: Response) => {
         conversationId
       },
       {
-        title: title || messages.find((m: any) => m.role === 'user')?.content?.slice(0, 50) || 'Nueva conversación',
-        lastMessage,
-        messages,
-        updatedAt: new Date()
+        $set: updateData,
+        $setOnInsert: setOnInsert
       },
       {
         upsert: true,
@@ -134,6 +151,7 @@ router.post('/', authenticateToken, async (req: Request, res: Response) => {
       id: conversation.conversationId,
       title: conversation.title,
       lastMessage: conversation.lastMessage,
+      source: conversation.source || 'app',
       createdAt: conversation.createdAt,
       updatedAt: conversation.updatedAt
     });
