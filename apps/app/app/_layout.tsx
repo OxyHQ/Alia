@@ -13,48 +13,37 @@ import { OxyAuthSetup } from '@/components/OxyAuthSetup';
 import { useColorScheme } from '@/lib/useColorScheme';
 import 'react-native-reanimated';
 import '../global.css';
-import '@/lib/i18n'; // Initialize i18n
+import '@/lib/i18n';
 
-export {
-  // Catch any errors thrown by the Layout component.
-  ErrorBoundary,
-} from 'expo-router';
+export { ErrorBoundary } from 'expo-router';
 
 export const unstable_settings = {
   initialRouteName: '(app)',
 };
 
-// Prevent the splash screen from auto-hiding before asset loading is complete.
 SplashScreen.preventAutoHideAsync();
 
-// Oxy auth configuration
 const OXY_API_URL = process.env.EXPO_PUBLIC_OXY_API_URL || 'https://api.oxy.so';
 const AUTH_REDIRECT_URI = Linking.createURL('/');
 
-function RootLayoutContent() {
+function AppContent() {
   const { colorScheme } = useColorScheme();
 
   return (
-    <GestureHandlerRootView style={{ flex: 1 }}>
-      <SafeAreaProvider>
-        <OxyProvider baseURL={OXY_API_URL} authRedirectUri={AUTH_REDIRECT_URI}>
-          <OxyAuthSetup>
-            <Stack
-              screenOptions={{
-                contentStyle: {
-                  backgroundColor: colorScheme === 'dark' ? '#0a0d1a' : '#ffffff',
-                },
-              }}
-            >
-              <Stack.Screen name="(app)" options={{ headerShown: false }} />
-              <Stack.Screen name="(developers)" options={{ headerShown: false }} />
-            </Stack>
-            <PortalHost />
-            <Toaster position="bottom-center" />
-          </OxyAuthSetup>
-        </OxyProvider>
-      </SafeAreaProvider>
-    </GestureHandlerRootView>
+    <OxyAuthSetup>
+      <Stack
+        screenOptions={{
+          contentStyle: {
+            backgroundColor: colorScheme === 'dark' ? '#0a0d1a' : '#ffffff',
+          },
+        }}
+      >
+        <Stack.Screen name="(app)" options={{ headerShown: false }} />
+        <Stack.Screen name="(developers)" options={{ headerShown: false }} />
+      </Stack>
+      <PortalHost />
+      <Toaster position="bottom-center" />
+    </OxyAuthSetup>
   );
 }
 
@@ -66,7 +55,6 @@ export default function RootLayout() {
     ...FontAwesome.font,
   });
 
-  // Expo Router uses Error Boundaries to catch errors in the navigation tree.
   useEffect(() => {
     if (error) throw error;
   }, [error]);
@@ -81,5 +69,13 @@ export default function RootLayout() {
     return null;
   }
 
-  return <RootLayoutContent />;
+  return (
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <SafeAreaProvider>
+        <OxyProvider baseURL={OXY_API_URL} authRedirectUri={AUTH_REDIRECT_URI}>
+          <AppContent />
+        </OxyProvider>
+      </SafeAreaProvider>
+    </GestureHandlerRootView>
+  );
 }

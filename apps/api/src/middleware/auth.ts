@@ -3,12 +3,50 @@ import { OxyServices, OXY_CLOUD_URL } from '@oxyhq/services/core';
 import DeveloperApiKey from '../models/developer-api-key.js';
 import DeveloperApp from '../models/developer-app.js';
 import ApiKeyUsage from '../models/api-key-usage.js';
-import { User } from '../models/user.js';
+import { User, IUser } from '../models/user.js';
 
 // Initialize Oxy client for session validation
 const oxyClient = new OxyServices({
   baseURL: process.env.OXY_API_URL || OXY_CLOUD_URL,
 });
+
+// Define Oxy user type from session validation
+interface OxyUser {
+  _id: string;
+  email?: string;
+  username?: string;
+  name?: {
+    first?: string;
+    last?: string;
+  };
+  avatar?: string;
+}
+
+/**
+ * Ensures a local user record exists for the Oxy user.
+ * Creates one if it doesn't exist, using the Oxy user ID as _id.
+ */
+async function ensureLocalUser(oxyUser: OxyUser): Promise<IUser> {
+  // Try to find existing user by Oxy ID
+  let user = await User.findById(oxyUser._id);
+
+  if (!user) {
+    // Create new local user record with Oxy ID
+    user = await User.create({
+      _id: oxyUser._id,
+      email: oxyUser.email || `${oxyUser._id}@oxy.user`,
+      name: {
+        first: oxyUser.name?.first || oxyUser.username || 'User',
+        last: oxyUser.name?.last || '',
+      },
+      image: oxyUser.avatar,
+      // Credits will use schema defaults
+    });
+    console.log(`[Auth] Created local user for Oxy user ${oxyUser._id}`);
+  }
+
+  return user;
+}
 
 // Extend Express Request to include user and API key info
 declare global {
@@ -64,8 +102,13 @@ export async function authenticateToken(
       return;
     }
 
-    // Attach user info to request (cast Oxy user fields to expected types)
-    const oxyUser = user as unknown as { _id: string; email?: string; username?: string };
+    // Cast Oxy user to expected type
+    const oxyUser = user as unknown as OxyUser;
+
+    // Ensure local user record exists (for credits, etc.)
+    await ensureLocalUser(oxyUser);
+
+    // Attach user info to request
     req.user = {
       id: oxyUser._id,
       email: oxyUser.email,
@@ -98,7 +141,11 @@ export async function optionalAuth(
       const { valid, user } = await oxyClient.validateSession(sessionId);
 
       if (valid && user) {
-        const oxyUser = user as unknown as { _id: string; email?: string; username?: string };
+        const oxyUser = user as unknown as OxyUser;
+
+        // Ensure local user record exists
+        await ensureLocalUser(oxyUser);
+
         req.user = {
           id: oxyUser._id,
           email: oxyUser.email,
