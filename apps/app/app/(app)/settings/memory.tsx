@@ -15,7 +15,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
-import { useAuthStore } from "@/lib/stores/auth-store";
+import { useOxy } from "@oxyhq/services";
 import { useRouter } from "expo-router";
 import { generateAPIUrl } from "@/lib/generate-api-url";
 import {
@@ -66,7 +66,7 @@ const SUGGESTED_CATEGORIES = ['preferencia', 'personal', 'trabajo', 'objetivo', 
 
 export default function MemoryScreen() {
   const router = useRouter();
-  const { token, isAuthenticated } = useAuthStore();
+  const { isAuthenticated, activeSessionId } = useOxy();
   const { memory, loading } = useUserData();
   const setMemory = useUserDataStore((state) => state.setMemory);
   const [showDialog, setShowDialog] = useState(false);
@@ -141,7 +141,7 @@ export default function MemoryScreen() {
   };
 
   const handleSaveMemory = async () => {
-    if (!token || !formKey.trim() || !formValue.trim()) {
+    if (!activeSessionId || !formKey.trim() || !formValue.trim()) {
       toast.error("Key and value are required");
       return;
     }
@@ -154,7 +154,7 @@ export default function MemoryScreen() {
         const response = await fetch(apiUrl, {
           method: 'PUT',
           headers: {
-            'Authorization': `Bearer ${token}`,
+            'x-session-id': activeSessionId,
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
@@ -176,7 +176,7 @@ export default function MemoryScreen() {
         const response = await fetch(apiUrl, {
           method: 'POST',
           headers: {
-            'Authorization': `Bearer ${token}`,
+            'x-session-id': activeSessionId,
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
@@ -202,7 +202,7 @@ export default function MemoryScreen() {
   };
 
   const handleDeleteMemory = async (memoryId: string) => {
-    if (!token) return;
+    if (!activeSessionId) return;
 
     Alert.alert(
       "Delete Memory",
@@ -218,7 +218,7 @@ export default function MemoryScreen() {
               const response = await fetch(apiUrl, {
                 method: 'DELETE',
                 headers: {
-                  'Authorization': `Bearer ${token}`,
+                  'x-session-id': activeSessionId,
                 },
               });
 
