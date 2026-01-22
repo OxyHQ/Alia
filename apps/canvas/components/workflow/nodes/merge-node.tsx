@@ -1,11 +1,17 @@
 "use client";
 
 import { memo } from "react";
-import type { NodeProps } from "@xyflow/react";
 import { BaseNode } from "./base-node";
 import { GitMerge } from "lucide-react";
+import type { WorkflowNodeData } from "@/lib/workflow-types";
 
-export const MergeNode = memo(function MergeNode({ id, data, selected }: NodeProps) {
+interface MergeNodeProps {
+  id: string;
+  data: WorkflowNodeData;
+  selected?: boolean;
+}
+
+export const MergeNode = memo(function MergeNode({ id, data, selected }: MergeNodeProps) {
   return (
     <BaseNode
       id={id}

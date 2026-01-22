@@ -1,15 +1,28 @@
+import type { Workflow, WorkflowExecution } from './workflow-types';
+
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
 
 interface ApiOptions extends RequestInit {
   token?: string;
 }
 
+interface WorkflowData {
+  name: string;
+  nodes: unknown[];
+  edges: unknown[];
+}
+
+interface ExecuteData {
+  nodes: unknown[];
+  edges: unknown[];
+}
+
 async function apiRequest<T>(endpoint: string, options: ApiOptions = {}): Promise<T> {
   const { token, ...fetchOptions } = options;
 
-  const headers: HeadersInit = {
+  const headers: Record<string, string> = {
     'Content-Type': 'application/json',
-    ...fetchOptions.headers,
+    ...(fetchOptions.headers as Record<string, string>),
   };
 
   if (token) {
@@ -33,20 +46,20 @@ export const apiClient = {
   // Workflow endpoints
   workflows: {
     list: (token: string) =>
-      apiRequest<{ workflows: any[] }>('/api/workflows', { token }),
+      apiRequest<{ workflows: Workflow[] }>('/api/workflows', { token }),
 
     get: (id: string, token: string) =>
-      apiRequest<{ workflow: any }>(`/api/workflows/${id}`, { token }),
+      apiRequest<{ workflow: Workflow }>(`/api/workflows/${id}`, { token }),
 
-    create: (data: any, token: string) =>
-      apiRequest<{ workflow: any }>('/api/workflows', {
+    create: (data: WorkflowData, token: string) =>
+      apiRequest<{ workflow: Workflow }>('/api/workflows', {
         method: 'POST',
         body: JSON.stringify(data),
         token,
       }),
 
-    update: (id: string, data: any, token: string) =>
-      apiRequest<{ workflow: any }>(`/api/workflows/${id}`, {
+    update: (id: string, data: Partial<WorkflowData>, token: string) =>
+      apiRequest<{ workflow: Workflow }>(`/api/workflows/${id}`, {
         method: 'PUT',
         body: JSON.stringify(data),
         token,
@@ -59,12 +72,12 @@ export const apiClient = {
       }),
 
     executions: (id: string, token: string) =>
-      apiRequest<{ executions: any[] }>(`/api/workflows/${id}/executions`, { token }),
+      apiRequest<{ executions: WorkflowExecution[] }>(`/api/workflows/${id}/executions`, { token }),
   },
 
   // Execution endpoint
-  execute: (data: any, token: string) =>
-    apiRequest<{ executionId: string; status: string; results: any[]; finalOutput: string }>(
+  execute: (data: ExecuteData, token: string) =>
+    apiRequest<{ executionId: string; status: string; results: unknown[]; finalOutput: string }>(
       '/api/execute',
       {
         method: 'POST',

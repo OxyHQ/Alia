@@ -6,11 +6,11 @@ import {
   Background,
   Controls,
   MiniMap,
-  type NodeChange,
   type EdgeChange,
   type Connection,
   type Edge,
   type NodeTypes,
+  type OnNodesChange,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import type { WorkflowNode } from "@/lib/workflow-types";
@@ -25,7 +25,7 @@ import {
 interface WorkflowCanvasProps {
   nodes: WorkflowNode[];
   edges: Edge[];
-  onNodesChange: (changes: NodeChange[]) => void;
+  onNodesChange: OnNodesChange<WorkflowNode>;
   onEdgesChange: (changes: EdgeChange[]) => void;
   onConnect: (connection: Connection) => void;
   onNodesUpdate: (nodes: WorkflowNode[]) => void;

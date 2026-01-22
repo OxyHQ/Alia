@@ -1,11 +1,17 @@
 "use client";
 
 import { memo } from "react";
-import type { NodeProps } from "@xyflow/react";
 import { BaseNode } from "./base-node";
 import { FileOutput } from "lucide-react";
+import type { WorkflowNodeData } from "@/lib/workflow-types";
 
-export const OutputNode = memo(function OutputNode({ id, data, selected }: NodeProps) {
+interface OutputNodeProps {
+  id: string;
+  data: WorkflowNodeData;
+  selected?: boolean;
+}
+
+export const OutputNode = memo(function OutputNode({ id, data, selected }: OutputNodeProps) {
   return (
     <BaseNode
       id={id}

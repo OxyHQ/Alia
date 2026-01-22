@@ -1,12 +1,18 @@
 "use client";
 
 import { memo } from "react";
-import type { NodeProps } from "@xyflow/react";
 import { BaseNode } from "./base-node";
 import { Github } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import type { WorkflowNodeData } from "@/lib/workflow-types";
 
-export const GitHubNode = memo(function GitHubNode({ id, data, selected }: NodeProps) {
+interface GitHubNodeProps {
+  id: string;
+  data: WorkflowNodeData;
+  selected?: boolean;
+}
+
+export const GitHubNode = memo(function GitHubNode({ id, data, selected }: GitHubNodeProps) {
   return (
     <BaseNode
       id={id}
