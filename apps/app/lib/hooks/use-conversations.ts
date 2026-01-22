@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import * as SecureStore from 'expo-secure-store';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import apiClient from '../api/client';
 
 export interface Message {
@@ -39,7 +39,7 @@ async function fetchConversations(): Promise<Conversation[]> {
   } catch (error: any) {
     // If unauthorized, fall back to local storage
     if (error.response?.status === 401) {
-      const stored = await SecureStore.getItemAsync(CONVERSATIONS_STORAGE_KEY);
+      const stored = await AsyncStorage.getItem(CONVERSATIONS_STORAGE_KEY);
       if (stored) {
         const parsed = JSON.parse(stored);
         return parsed.map((conv: any) => ({
@@ -77,7 +77,7 @@ async function fetchConversation(id: string): Promise<Conversation> {
   } catch (error: any) {
     // If unauthorized, fall back to local storage
     if (error.response?.status === 401) {
-      const stored = await SecureStore.getItemAsync(CONVERSATIONS_STORAGE_KEY);
+      const stored = await AsyncStorage.getItem(CONVERSATIONS_STORAGE_KEY);
       if (stored) {
         const parsed = JSON.parse(stored);
         const conversation = parsed.find((c: any) => c.id === id);
@@ -162,7 +162,7 @@ export function useSaveConversation() {
             newConversations.unshift(conversation);
           }
 
-          await SecureStore.setItemAsync(CONVERSATIONS_STORAGE_KEY, JSON.stringify(newConversations));
+          await AsyncStorage.setItem(CONVERSATIONS_STORAGE_KEY, JSON.stringify(newConversations));
           return conversation;
         }
         throw error;
@@ -203,7 +203,7 @@ export function useDeleteConversation() {
         if (error.response?.status === 401) {
           const conversations = await fetchConversations();
           const newConversations = conversations.filter((c) => c.id !== id);
-          await SecureStore.setItemAsync(CONVERSATIONS_STORAGE_KEY, JSON.stringify(newConversations));
+          await AsyncStorage.setItem(CONVERSATIONS_STORAGE_KEY, JSON.stringify(newConversations));
         } else {
           throw error;
         }
@@ -254,7 +254,7 @@ export function useCreateConversation() {
 
           const conversations = await fetchConversations();
           const newConversations = [conversation, ...conversations];
-          await SecureStore.setItemAsync(CONVERSATIONS_STORAGE_KEY, JSON.stringify(newConversations));
+          await AsyncStorage.setItem(CONVERSATIONS_STORAGE_KEY, JSON.stringify(newConversations));
 
           return conversation;
         }
