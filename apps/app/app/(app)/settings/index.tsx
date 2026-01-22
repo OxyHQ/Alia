@@ -52,7 +52,7 @@ const LANGUAGES = [
 
 export default function SettingsScreen() {
   const router = useRouter();
-  const { user, isAuthenticated } = useOxy();
+  const { user, isAuthenticated, activeSessionId } = useOxy();
   const { memory, loading } = useUserData();
   const setMemory = useUserDataStore((state) => state.setMemory);
   const [saving, setSaving] = useState(false);
@@ -87,7 +87,7 @@ export default function SettingsScreen() {
   }, [memory]);
 
   const handleSave = async () => {
-    if (!token) return;
+    if (!activeSessionId) return;
 
     setSaving(true);
     try {
@@ -96,7 +96,7 @@ export default function SettingsScreen() {
       const prefRes = await fetch(preferencesUrl, {
         method: 'PUT',
         headers: {
-          'Authorization': `Bearer ${token}`,
+          'x-session-id': activeSessionId,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
@@ -111,7 +111,7 @@ export default function SettingsScreen() {
       const contextRes = await fetch(contextUrl, {
         method: 'PUT',
         headers: {
-          'Authorization': `Bearer ${token}`,
+          'x-session-id': activeSessionId,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
