@@ -17,6 +17,9 @@ export interface IMessage {
   createdAt?: Date;
 }
 
+// Source apps for conversations - extensible for future integrations
+export type ConversationSource = 'app' | 'telegram' | 'api' | 'web' | 'discord' | 'whatsapp' | 'slack';
+
 export interface IConversation extends Document {
   userId: mongoose.Types.ObjectId;
   conversationId: string;
@@ -24,6 +27,9 @@ export interface IConversation extends Document {
   isManualTitle?: boolean;
   lastMessage?: string;
   messages: IMessage[];
+
+  // Source tracking - which app/platform the conversation came from
+  source?: ConversationSource;
 
   // Folder & Appearance
   folderId?: mongoose.Types.ObjectId;
@@ -72,6 +78,13 @@ const ConversationSchema = new Schema<IConversation>({
   isManualTitle: { type: Boolean, default: false },
   lastMessage: String,
   messages: [MessageSchema],
+
+  // Source tracking - which app/platform the conversation came from
+  source: {
+    type: String,
+    enum: ['app', 'telegram', 'api', 'web', 'discord', 'whatsapp', 'slack'],
+    default: 'app'
+  },
 
   // Folder & Appearance
   folderId: { type: Schema.Types.ObjectId, ref: 'Folder' },

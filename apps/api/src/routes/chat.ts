@@ -210,9 +210,11 @@ router.post('/', optionalAuth, async (req, res) => {
       }
     }
 
-    // Check if request comes from Telegram bot
+    // Determine source platform from headers
+    // x-source header can be: app, telegram, api, web, discord, whatsapp, slack
+    const sourceHeader = req.headers['x-source'] as string | undefined;
     const isTelegram = req.headers['x-telegram-bot'] === 'true';
-    const platform = isTelegram ? 'telegram' : 'app';
+    const platform = sourceHeader || (isTelegram ? 'telegram' : 'app');
 
     // Process incoming messages to remove platform-incompatible tags
     // This saves tokens by not sending irrelevant formatting to the AI
@@ -459,16 +461,21 @@ router.post('/', optionalAuth, async (req, res) => {
         const title = conversationTitle || messages.find((m: any) => m.role === 'user')?.content?.slice(0, 50) || 'Nueva conversación';
         const lastMessage = assistantResponse.slice(0, 100);
 
-        // Save or update conversation
+        // Save or update conversation (set source only on insert)
         await Conversation.findOneAndUpdate(
           { userId: req.user.id, conversationId },
           {
-            userId: req.user.id,
-            conversationId,
-            title,
-            lastMessage,
-            messages: allMessages,
-            updatedAt: new Date()
+            $set: {
+              userId: req.user.id,
+              conversationId,
+              title,
+              lastMessage,
+              messages: allMessages,
+              updatedAt: new Date()
+            },
+            $setOnInsert: {
+              source: platform // 'telegram' or 'app'
+            }
           },
           { upsert: true, new: true }
         );
