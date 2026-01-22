@@ -1,9 +1,14 @@
 import { Request, Response, NextFunction } from 'express';
-import { verifyToken, JWTPayload } from '../lib/jwt.js';
-import { User } from '../models/user.js';
+import { OxyServices, OXY_CLOUD_URL } from '@oxyhq/services/core';
 import DeveloperApiKey from '../models/developer-api-key.js';
 import DeveloperApp from '../models/developer-app.js';
 import ApiKeyUsage from '../models/api-key-usage.js';
+import { User } from '../models/user.js';
+
+// Initialize Oxy client for session validation
+const oxyClient = new OxyServices({
+  baseURL: process.env.OXY_API_URL || OXY_CLOUD_URL,
+});
 
 // Extend Express Request to include user and API key info
 declare global {
@@ -11,7 +16,8 @@ declare global {
     interface Request {
       user?: {
         id: string;
-        email: string;
+        email?: string;
+        username?: string;
       };
       apiKey?: {
         id: string;
@@ -24,8 +30,8 @@ declare global {
 }
 
 /**
- * Middleware to authenticate requests using JWT
- * Extracts token from Authorization header and validates it
+ * Middleware to authenticate requests using Oxy session
+ * Extracts session ID from x-session-id header or Authorization Bearer token
  */
 export async function authenticateToken(
   req: Request,
@@ -33,45 +39,48 @@ export async function authenticateToken(
   next: NextFunction
 ): Promise<void> {
   try {
-    // Get token from Authorization header
-    const authHeader = req.headers.authorization;
-    const token = authHeader && authHeader.startsWith('Bearer ')
-      ? authHeader.substring(7)
-      : null;
+    // Get session ID from header or Authorization bearer
+    const sessionId = req.headers['x-session-id'] as string ||
+      (req.headers.authorization?.startsWith('Bearer ')
+        ? req.headers.authorization.substring(7)
+        : null);
 
-    if (!token) {
-      res.status(401).json({ error: 'Authentication token required' });
+    if (!sessionId) {
+      res.status(401).json({ error: 'Authentication required' });
       return;
     }
 
-    // Verify token
-    const payload: JWTPayload = verifyToken(token);
-
-    // Optional: Verify user still exists in database
-    const user = await User.findById(payload.userId);
-    if (!user) {
-      res.status(401).json({ error: 'User not found' });
+    // Skip Oxy validation for API keys (handled by authenticateApiKey)
+    if (sessionId.startsWith('alia_sk_')) {
+      res.status(401).json({ error: 'Use API key authentication endpoint' });
       return;
     }
 
-    // Attach user info to request
+    // Validate session with Oxy
+    const { valid, user } = await oxyClient.validateSession(sessionId);
+
+    if (!valid || !user) {
+      res.status(401).json({ error: 'Invalid or expired session' });
+      return;
+    }
+
+    // Attach user info to request (cast Oxy user fields to expected types)
+    const oxyUser = user as unknown as { _id: string; email?: string; username?: string };
     req.user = {
-      id: payload.userId,
-      email: payload.email,
+      id: oxyUser._id,
+      email: oxyUser.email,
+      username: oxyUser.username,
     };
 
     next();
   } catch (error) {
-    if (error instanceof Error && error.message === 'Invalid or expired token') {
-      res.status(401).json({ error: 'Invalid or expired token' });
-    } else {
-      res.status(500).json({ error: 'Authentication failed' });
-    }
+    console.error('Authentication error:', error);
+    res.status(401).json({ error: 'Session validation failed' });
   }
 }
 
 /**
- * Optional middleware that doesn't fail if no token provided
+ * Optional middleware that doesn't fail if no session provided
  * Useful for endpoints that work both authenticated and unauthenticated
  */
 export async function optionalAuth(
@@ -80,19 +89,20 @@ export async function optionalAuth(
   next: NextFunction
 ): Promise<void> {
   try {
-    const authHeader = req.headers.authorization;
-    const token = authHeader && authHeader.startsWith('Bearer ')
-      ? authHeader.substring(7)
-      : null;
+    const sessionId = req.headers['x-session-id'] as string ||
+      (req.headers.authorization?.startsWith('Bearer ')
+        ? req.headers.authorization.substring(7)
+        : null);
 
-    if (token) {
-      const payload: JWTPayload = verifyToken(token);
-      const user = await User.findById(payload.userId);
+    if (sessionId && !sessionId.startsWith('alia_sk_')) {
+      const { valid, user } = await oxyClient.validateSession(sessionId);
 
-      if (user) {
+      if (valid && user) {
+        const oxyUser = user as unknown as { _id: string; email?: string; username?: string };
         req.user = {
-          id: payload.userId,
-          email: payload.email,
+          id: oxyUser._id,
+          email: oxyUser.email,
+          username: oxyUser.username,
         };
       }
     }
@@ -213,8 +223,8 @@ export async function authenticateApiKey(
 }
 
 /**
- * Middleware that accepts both JWT tokens and API keys
- * Tries JWT first, falls back to API key
+ * Middleware that accepts both Oxy sessions and API keys
+ * Tries session first, falls back to API key
  */
 export async function authenticateTokenOrApiKey(
   req: Request,
@@ -225,18 +235,19 @@ export async function authenticateTokenOrApiKey(
   const token = authHeader && authHeader.startsWith('Bearer ')
     ? authHeader.substring(7)
     : null;
+  const sessionId = req.headers['x-session-id'] as string;
 
-  if (!token) {
+  if (!token && !sessionId) {
     res.status(401).json({ error: 'Authentication required' });
     return;
   }
 
   // Check if it's an API key
-  if (token.startsWith('alia_sk_')) {
+  if (token?.startsWith('alia_sk_')) {
     return authenticateApiKey(req, res, next);
   }
 
-  // Otherwise, treat it as a JWT token
+  // Otherwise, treat it as an Oxy session
   return authenticateToken(req, res, next);
 }
 
@@ -245,7 +256,7 @@ export async function authenticateTokenOrApiKey(
  */
 export function requireScope(scope: string) {
   return (req: Request, res: Response, next: NextFunction): void => {
-    // If authenticated with JWT, allow all scopes
+    // If authenticated with session, allow all scopes
     if (req.user && !req.apiKey) {
       return next();
     }

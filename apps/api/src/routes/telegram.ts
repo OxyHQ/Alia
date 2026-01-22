@@ -2,9 +2,13 @@ import express from 'express';
 import { authenticateToken } from '../middleware/auth.js';
 import crypto from 'crypto';
 import { TelegramUser } from '../models/telegram-user.js';
-import { User } from '../models/user.js';
 import { emitTelegramLinked } from '../socket.js';
-import { signToken } from '../lib/jwt.js';
+import { OxyServices, OXY_CLOUD_URL } from '@oxyhq/services/core';
+
+// Initialize Oxy client for user lookups
+const oxyClient = new OxyServices({
+  baseURL: process.env.OXY_API_URL || OXY_CLOUD_URL,
+});
 
 const router = express.Router();
 
@@ -459,6 +463,7 @@ router.post('/link', async (req, res) => {
 });
 
 // Complete sign-in flow from Telegram bot
+// NOTE: Account creation via Telegram is disabled. Users must sign in via Oxy first and then link their Telegram.
 router.post('/signin-complete', async (req, res) => {
   try {
     const { authCode, telegramId, chatId, username, firstName, lastName } = req.body;
@@ -480,70 +485,72 @@ router.post('/signin-complete', async (req, res) => {
       return res.status(404).json({ error: 'Auth code not found or expired' });
     }
 
-    // Always update the TelegramUser for this telegramId (never create duplicates)
+    // Check if this Telegram user is already linked to an Oxy user
     let telegramUser = await TelegramUser.findOne({ telegramId });
-    let isNewUser = false;
-    let user;
 
     if (telegramUser && telegramUser.userId) {
-      // User has signed in with Telegram before - log them in
-      user = await User.findById(telegramUser.userId);
-      if (!user) {
-        console.error('[signin-complete] Linked user not found', { telegramId, userId: telegramUser.userId });
-        return res.status(404).json({ error: 'Linked user not found' });
+      // User has linked Telegram before - fetch their Oxy user data
+      try {
+        const user = await oxyClient.getUserById(telegramUser.userId.toString());
+
+        // Update telegram user info
+        telegramUser.chatId = chatId;
+        telegramUser.username = username;
+        telegramUser.firstName = firstName;
+        telegramUser.lastName = lastName;
+        telegramUser.isAuthenticated = true;
+        telegramUser.authToken = undefined;
+        telegramUser.authTokenExpiry = undefined;
+        telegramUser.authTokenMode = undefined;
+        await telegramUser.save();
+
+        // Clean up pending auth if different
+        if (pendingAuth._id.toString() !== telegramUser._id.toString()) {
+          await TelegramUser.deleteOne({ _id: pendingAuth._id });
+        }
+
+        console.log('[signin-complete] Telegram user signed in with existing Oxy link', { telegramId, userId: telegramUser.userId });
+        res.json({
+          success: true,
+          isNewUser: false,
+          user: {
+            id: user._id,
+            email: user.email,
+            username: user.username,
+            name: user.name,
+          },
+        });
+      } catch (error) {
+        console.error('[signin-complete] Failed to fetch Oxy user', { telegramId, userId: telegramUser.userId, error });
+        return res.status(404).json({ error: 'Linked Oxy user not found' });
       }
     } else {
-      // New user - create account from Telegram profile
-      const displayName = [firstName, lastName].filter(Boolean).join(' ') || username || 'Telegram User';
-      const nameParts = displayName.split(' ');
-      user = new User({
-        email: `telegram_${telegramId}@temp.alia.onl`, // Temporary email
-        name: {
-          first: nameParts[0] || 'User',
-          last: nameParts.slice(1).join(' ') || undefined,
-        },
+      // Telegram not linked to any Oxy account - user must link via Oxy first
+      // Update telegram user info for future linking
+      if (!telegramUser) {
+        telegramUser = pendingAuth;
+        telegramUser.telegramId = telegramId;
+      }
+      telegramUser.chatId = chatId;
+      telegramUser.username = username;
+      telegramUser.firstName = firstName;
+      telegramUser.lastName = lastName;
+      telegramUser.isAuthenticated = false;
+      telegramUser.authToken = undefined;
+      telegramUser.authTokenExpiry = undefined;
+      telegramUser.authTokenMode = undefined;
+      await telegramUser.save();
+
+      // Clean up any duplicates
+      await TelegramUser.deleteMany({ telegramId, _id: { $ne: telegramUser._id } });
+
+      console.log('[signin-complete] Telegram user not linked to Oxy account', { telegramId });
+      return res.status(403).json({
+        error: 'Telegram not linked to any account',
+        message: 'Please sign in via Oxy and link your Telegram account first',
+        requiresOxyAuth: true,
       });
-      await user.save();
-      isNewUser = true;
     }
-
-    // Generate session token
-    const sessionToken = signToken({
-      userId: user._id.toString(),
-      email: user.email,
-    });
-
-    // Update the TelegramUser (always the one for this telegramId)
-    if (!telegramUser) {
-      telegramUser = pendingAuth;
-      telegramUser.telegramId = telegramId;
-    }
-    telegramUser.chatId = chatId;
-    telegramUser.username = username;
-    telegramUser.firstName = firstName;
-    telegramUser.lastName = lastName;
-    telegramUser.userId = user._id;
-    telegramUser.sessionToken = sessionToken;
-    telegramUser.isAuthenticated = true;
-    telegramUser.linkedAt = new Date();
-    telegramUser.authToken = undefined;
-    telegramUser.authTokenExpiry = undefined;
-    telegramUser.authTokenMode = undefined;
-    await telegramUser.save();
-
-    // Remove any duplicate TelegramUser entries for this telegramId except the current one
-    await TelegramUser.deleteMany({ telegramId, _id: { $ne: telegramUser._id } });
-
-    console.log('[signin-complete] Telegram user updated and signed in', { telegramId, userId: user._id });
-    res.json({
-      success: true,
-      isNewUser,
-      user: {
-        id: user._id,
-        email: user.email,
-        name: user.name.full,
-      },
-    });
   } catch (error) {
     console.error('Telegram signin-complete error:', error);
     res.status(500).json({ error: 'Internal server error' });
@@ -558,61 +565,63 @@ router.get('/token-info/:token', async (req, res) => {
       return res.status(400).json({ error: 'Token is required' });
     }
     // Buscar usuario de Telegram por token válido
-        const telegramUser = await TelegramUser.findOne({
-          authToken: token,
-          authTokenExpiry: { $gt: new Date() },
-          authTokenMode: 'signin',
-        });
+    const telegramUser = await TelegramUser.findOne({
+      authToken: token,
+      authTokenExpiry: { $gt: new Date() },
+      authTokenMode: 'signin',
+    });
     if (!telegramUser) {
       return res.status(404).json({ error: 'Token not found or expired' });
     }
-    // Si ya está vinculado a un usuario y tiene sessionToken válido
-    if (telegramUser.userId && telegramUser.sessionToken && telegramUser.isAuthenticated) {
-      // Buscar datos mínimos del usuario
-      const user = await User.findById(telegramUser.userId);
-      // Enviar mensaje de Telegram para notificar login (opcional, solo si no se ha notificado recientemente)
+    // Si ya está vinculado a un usuario Oxy y autenticado
+    if (telegramUser.userId && telegramUser.isAuthenticated) {
+      // Buscar datos del usuario en Oxy
       try {
-        const botToken = process.env.TELEGRAM_BOT_TOKEN;
-        if (botToken && telegramUser.chatId) {
-          const message =
-            `🔑 <b>Inicio de sesión en Alia</b>\n\n` +
-            `Tu cuenta de Telegram fue usada para iniciar sesión en Alia.\n` +
-            `Si no fuiste tú, por favor contacta soporte.`;
-          await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              chat_id: telegramUser.chatId,
-              text: message,
-              parse_mode: 'HTML',
-            }),
-          });
+        const user = await oxyClient.getUserById(telegramUser.userId.toString());
+
+        // Enviar mensaje de Telegram para notificar login
+        try {
+          const botToken = process.env.TELEGRAM_BOT_TOKEN;
+          if (botToken && telegramUser.chatId) {
+            const message =
+              `🔑 <b>Inicio de sesión en Alia</b>\n\n` +
+              `Tu cuenta de Telegram fue usada para iniciar sesión en Alia.\n` +
+              `Si no fuiste tú, por favor contacta soporte.`;
+            await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                chat_id: telegramUser.chatId,
+                text: message,
+                parse_mode: 'HTML',
+              }),
+            });
+          }
+        } catch (notifyError) {
+          console.error('[Telegram] Failed to send login notification:', notifyError);
         }
-      } catch (notifyError) {
-        console.error('[Telegram] Failed to send login notification:', notifyError);
+
+        // Compose full name from Oxy user
+        const fullName = user.name
+          ? [user.name.first, user.name.last].filter(Boolean).join(' ')
+          : user.username || '';
+
+        emitTelegramLinked(token, {
+          userId: telegramUser.userId,
+          email: user.email,
+          name: fullName,
+        });
+
+        return res.json({
+          userId: telegramUser.userId,
+          email: user.email,
+          username: user.username,
+          name: fullName,
+        });
+      } catch (error) {
+        console.error('[token-info] Failed to fetch Oxy user:', error);
+        return res.status(404).json({ error: 'Linked Oxy user not found' });
       }
-      // Compose full name safely
-      let fullName = '';
-      if (user?.name) {
-        if ('full' in user.name && typeof user.name.full === 'string') {
-          fullName = user.name.full;
-        } else {
-          const parts = [user.name.first, user.name.middle, user.name.last].filter(Boolean);
-          fullName = parts.join(' ');
-        }
-      }
-      emitTelegramLinked(token, {
-        userId: telegramUser.userId,
-        sessionToken: telegramUser.sessionToken,
-        email: user?.email,
-        name: fullName,
-      });
-      return res.json({
-        userId: telegramUser.userId,
-        sessionToken: telegramUser.sessionToken,
-        email: user?.email,
-        name: fullName,
-      });
     }
     // No vinculado aún
     return res.status(404).json({ error: 'Telegram not linked to any account' });
