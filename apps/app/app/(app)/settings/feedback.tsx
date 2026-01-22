@@ -3,7 +3,7 @@ import { Text } from "@/components/ui/text";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { useState } from "react";
-import { useAuthStore } from "@/lib/stores/auth-store";
+import { useOxy } from "@oxyhq/services";
 import { useRouter } from "expo-router";
 import { generateAPIUrl } from "@/lib/generate-api-url";
 import { ArrowLeft, MessageSquare, Bug, Lightbulb, Sparkles, Star } from "lucide-react-native";
@@ -28,7 +28,7 @@ const feedbackTypes: FeedbackTypeOption[] = [
 
 export default function FeedbackScreen() {
   const router = useRouter();
-  const { token } = useAuthStore();
+  const { activeSessionId } = useOxy();
   const [selectedType, setSelectedType] = useState<FeedbackType | null>(null);
   const [message, setMessage] = useState("");
   const [rating, setRating] = useState<number | null>(null);
@@ -58,7 +58,7 @@ export default function FeedbackScreen() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
+          'x-session-id': activeSessionId || '',
         },
         body: JSON.stringify({
           type: selectedType,
