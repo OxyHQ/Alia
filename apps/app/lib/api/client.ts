@@ -1,7 +1,7 @@
 import axios from 'axios';
 import config from '../config';
 
-// Create axios instance without interceptors initially
+// Create axios instance
 const apiClient = axios.create({
   baseURL: config.apiUrl,
   timeout: 30000,
@@ -10,43 +10,37 @@ const apiClient = axios.create({
   },
 });
 
-// Setup interceptors function to be called after store is available
-// This avoids worklet serialization issues
-let interceptorsSetup = false;
+// Session getter - will be set by OxyAuthSetup component
+let getSessionId: (() => string | null) | null = null;
 
-export function setupAuthInterceptors() {
-  if (interceptorsSetup) return;
-
-  // Import inside function to avoid circular dependencies and worklet issues
-  const { useAuthStore } = require('../stores/auth-store');
-
-  // Request interceptor para añadir el token
-  apiClient.interceptors.request.use(
-    (config) => {
-      const token = useAuthStore.getState().token;
-      if (token) {
-        config.headers.Authorization = `Bearer ${token}`;
-      }
-      return config;
-    },
-    (error) => {
-      return Promise.reject(error);
-    }
-  );
-
-  // Response interceptor para manejar errores
-  apiClient.interceptors.response.use(
-    (response) => response,
-    (error) => {
-      if (error.response?.status === 401) {
-        // Token inválido o expirado
-        useAuthStore.getState().logout();
-      }
-      return Promise.reject(error);
-    }
-  );
-
-  interceptorsSetup = true;
+export function setSessionGetter(getter: () => string | null) {
+  getSessionId = getter;
 }
+
+// Request interceptor to add Oxy session ID
+apiClient.interceptors.request.use(
+  (config) => {
+    if (getSessionId) {
+      const sessionId = getSessionId();
+      if (sessionId) {
+        // Pass session as x-session-id header for Alia API
+        config.headers['x-session-id'] = sessionId;
+      }
+    }
+    return config;
+  },
+  (error) => {
+    return Promise.reject(error);
+  }
+);
+
+// Response interceptor for error handling
+apiClient.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    // Let components handle auth errors
+    return Promise.reject(error);
+  }
+);
 
 export default apiClient;
