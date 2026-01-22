@@ -1,6 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { generateAPIUrl } from '../generate-api-url';
-import { useAuthStore } from '../stores/auth-store';
+import apiClient from '../api/client';
 
 export interface DeveloperApp {
   _id: string;
@@ -70,34 +69,13 @@ export interface DeveloperStats {
   };
 }
 
-function getAPIHeaders(): HeadersInit {
-  const token = useAuthStore.getState().token;
-  const headers: HeadersInit = {
-    'Content-Type': 'application/json',
-  };
-  if (token) {
-    headers['Authorization'] = `Bearer ${token}`;
-  }
-  return headers;
-}
-
 // ======================
 // Apps
 // ======================
 
 async function fetchApps(): Promise<DeveloperApp[]> {
-  const apiUrl = generateAPIUrl('/developer/apps');
-  const response = await fetch(apiUrl, {
-    method: 'GET',
-    headers: getAPIHeaders(),
-  });
-
-  if (!response.ok) {
-    throw new Error('Failed to fetch apps');
-  }
-
-  const data = await response.json();
-  return data.apps;
+  const response = await apiClient.get('/developer/apps');
+  return response.data.apps;
 }
 
 export function useApps() {
@@ -110,18 +88,8 @@ export function useApps() {
 }
 
 async function fetchApp(id: string): Promise<DeveloperApp> {
-  const apiUrl = generateAPIUrl(`/developer/apps/${id}`);
-  const response = await fetch(apiUrl, {
-    method: 'GET',
-    headers: getAPIHeaders(),
-  });
-
-  if (!response.ok) {
-    throw new Error('Failed to fetch app');
-  }
-
-  const data = await response.json();
-  return data.app;
+  const response = await apiClient.get(`/developer/apps/${id}`);
+  return response.data.app;
 }
 
 export function useApp(id: string) {
@@ -139,20 +107,8 @@ export function useCreateApp() {
 
   return useMutation({
     mutationFn: async (data: Partial<DeveloperApp>) => {
-      const apiUrl = generateAPIUrl('/developer/apps');
-      const response = await fetch(apiUrl, {
-        method: 'POST',
-        headers: getAPIHeaders(),
-        body: JSON.stringify(data),
-      });
-
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || 'Failed to create app');
-      }
-
-      const result = await response.json();
-      return result.app;
+      const response = await apiClient.post('/developer/apps', data);
+      return response.data.app;
     },
     onSuccess: (newApp) => {
       // Add to apps list cache
@@ -175,20 +131,8 @@ export function useUpdateApp() {
 
   return useMutation({
     mutationFn: async ({ id, data }: { id: string; data: Partial<DeveloperApp> }) => {
-      const apiUrl = generateAPIUrl(`/developer/apps/${id}`);
-      const response = await fetch(apiUrl, {
-        method: 'PATCH',
-        headers: getAPIHeaders(),
-        body: JSON.stringify(data),
-      });
-
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || 'Failed to update app');
-      }
-
-      const result = await response.json();
-      return result.app;
+      const response = await apiClient.patch(`/developer/apps/${id}`, data);
+      return response.data.app;
     },
     onSuccess: (updatedApp) => {
       // Update apps list cache
@@ -208,17 +152,7 @@ export function useDeleteApp() {
 
   return useMutation({
     mutationFn: async (id: string) => {
-      const apiUrl = generateAPIUrl(`/developer/apps/${id}`);
-      const response = await fetch(apiUrl, {
-        method: 'DELETE',
-        headers: getAPIHeaders(),
-      });
-
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || 'Failed to delete app');
-      }
-
+      await apiClient.delete(`/developer/apps/${id}`);
       return id;
     },
     onSuccess: (id) => {
@@ -243,18 +177,8 @@ export function useDeleteApp() {
 // ======================
 
 async function fetchApiKeys(appId: string): Promise<DeveloperApiKey[]> {
-  const apiUrl = generateAPIUrl(`/developer/apps/${appId}/keys`);
-  const response = await fetch(apiUrl, {
-    method: 'GET',
-    headers: getAPIHeaders(),
-  });
-
-  if (!response.ok) {
-    throw new Error('Failed to fetch API keys');
-  }
-
-  const data = await response.json();
-  return data.keys;
+  const response = await apiClient.get(`/developer/apps/${appId}/keys`);
+  return response.data.keys;
 }
 
 export function useApiKeys(appId: string) {
@@ -278,20 +202,8 @@ export function useCreateApiKey() {
       appId: string;
       data: { name: string; scopes: string[]; expiresAt?: string };
     }) => {
-      const apiUrl = generateAPIUrl(`/developer/apps/${appId}/keys`);
-      const response = await fetch(apiUrl, {
-        method: 'POST',
-        headers: getAPIHeaders(),
-        body: JSON.stringify(data),
-      });
-
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || 'Failed to create API key');
-      }
-
-      const result = await response.json();
-      return { appId, apiKey: result.apiKey, warning: result.warning };
+      const response = await apiClient.post(`/developer/apps/${appId}/keys`, data);
+      return { appId, apiKey: response.data.apiKey, warning: response.data.warning };
     },
     onSuccess: ({ appId, apiKey }) => {
       // Add to keys list cache
@@ -319,20 +231,8 @@ export function useUpdateApiKey() {
       keyId: string;
       data: Partial<DeveloperApiKey>;
     }) => {
-      const apiUrl = generateAPIUrl(`/developer/apps/${appId}/keys/${keyId}`);
-      const response = await fetch(apiUrl, {
-        method: 'PATCH',
-        headers: getAPIHeaders(),
-        body: JSON.stringify(data),
-      });
-
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || 'Failed to update API key');
-      }
-
-      const result = await response.json();
-      return { appId, apiKey: result.apiKey };
+      const response = await apiClient.patch(`/developer/apps/${appId}/keys/${keyId}`, data);
+      return { appId, apiKey: response.data.apiKey };
     },
     onSuccess: ({ appId, apiKey }) => {
       // Update keys list cache
@@ -349,17 +249,7 @@ export function useDeleteApiKey() {
 
   return useMutation({
     mutationFn: async ({ appId, keyId }: { appId: string; keyId: string }) => {
-      const apiUrl = generateAPIUrl(`/developer/apps/${appId}/keys/${keyId}`);
-      const response = await fetch(apiUrl, {
-        method: 'DELETE',
-        headers: getAPIHeaders(),
-      });
-
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || 'Failed to delete API key');
-      }
-
+      await apiClient.delete(`/developer/apps/${appId}/keys/${keyId}`);
       return { appId, keyId };
     },
     onSuccess: ({ appId, keyId }) => {
@@ -380,17 +270,8 @@ export function useDeleteApiKey() {
 // ======================
 
 async function fetchAppUsage(appId: string, period: string): Promise<AppUsageStats> {
-  const apiUrl = generateAPIUrl(`/developer/apps/${appId}/usage?period=${period}`);
-  const response = await fetch(apiUrl, {
-    method: 'GET',
-    headers: getAPIHeaders(),
-  });
-
-  if (!response.ok) {
-    throw new Error('Failed to fetch usage stats');
-  }
-
-  return await response.json();
+  const response = await apiClient.get(`/developer/apps/${appId}/usage?period=${period}`);
+  return response.data;
 }
 
 export function useAppUsage(appId: string, period: string = '7d') {
@@ -408,19 +289,10 @@ async function fetchKeyUsage(
   keyId: string,
   period: string
 ): Promise<AppUsageStats> {
-  const apiUrl = generateAPIUrl(
+  const response = await apiClient.get(
     `/developer/apps/${appId}/keys/${keyId}/usage?period=${period}`
   );
-  const response = await fetch(apiUrl, {
-    method: 'GET',
-    headers: getAPIHeaders(),
-  });
-
-  if (!response.ok) {
-    throw new Error('Failed to fetch key usage stats');
-  }
-
-  return await response.json();
+  return response.data;
 }
 
 export function useKeyUsage(appId: string, keyId: string, period: string = '7d') {
@@ -434,17 +306,8 @@ export function useKeyUsage(appId: string, keyId: string, period: string = '7d')
 }
 
 async function fetchDeveloperStats(): Promise<DeveloperStats> {
-  const apiUrl = generateAPIUrl('/developer/stats');
-  const response = await fetch(apiUrl, {
-    method: 'GET',
-    headers: getAPIHeaders(),
-  });
-
-  if (!response.ok) {
-    throw new Error('Failed to fetch developer stats');
-  }
-
-  return await response.json();
+  const response = await apiClient.get('/developer/stats');
+  return response.data;
 }
 
 export function useDeveloperStats() {

@@ -1,6 +1,5 @@
 import { create } from 'zustand';
 import apiClient from '@/lib/api/client';
-import { useAuthStore } from './auth-store';
 
 interface CreditsState {
   credits: number;
@@ -25,17 +24,10 @@ const initialState = {
   error: null,
 };
 
-export const useCreditsStore = create<CreditsState>((set, get) => ({
+export const useCreditsStore = create<CreditsState>((set) => ({
   ...initialState,
 
   fetchCredits: async () => {
-    const token = useAuthStore.getState().token;
-
-    if (!token) {
-      // If not authenticated, keep defaults
-      return;
-    }
-
     set({ isLoading: true, error: null });
 
     try {
@@ -49,6 +41,11 @@ export const useCreditsStore = create<CreditsState>((set, get) => ({
         isLoading: false,
       });
     } catch (error: any) {
+      // If not authenticated or any error, keep defaults
+      if (error.response?.status === 401) {
+        set({ isLoading: false });
+        return;
+      }
       console.error('Failed to fetch credits:', error);
       set({
         error: error.response?.data?.error || 'Failed to fetch credits',

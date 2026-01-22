@@ -23,12 +23,20 @@ export default function AccountScreen() {
   const [confirmPassword, setConfirmPassword] = useState("");
 
   const getUserInitials = () => {
-    if (!user?.name) return "U";
-    const names = user.name.split(" ");
-    if (names.length >= 2) {
-      return `${names[0][0]}${names[1][0]}`.toUpperCase();
+    if (!user?.name) return user?.username?.[0]?.toUpperCase() || "U";
+    const { first, last } = user.name;
+    if (first && last) {
+      return `${first[0]}${last[0]}`.toUpperCase();
     }
-    return names[0][0].toUpperCase();
+    return (first?.[0] || user?.username?.[0] || "U").toUpperCase();
+  };
+
+  const getUserDisplayName = () => {
+    if (!user) return "Not set";
+    if (user.name?.first) {
+      return user.name.last ? `${user.name.first} ${user.name.last}` : user.name.first;
+    }
+    return user.username || "Not set";
   };
 
   const handleLogout = () => {
@@ -82,15 +90,14 @@ export default function AccountScreen() {
       const uploadResponse = await fetch(apiUrl, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${token}`,
+          'x-session-id': activeSessionId || '',
         },
         body: formData,
       });
 
       if (uploadResponse.ok) {
-        const data = await uploadResponse.json();
-        updateUser({ image: data.avatarUrl });
         toast.success("Avatar uploaded successfully");
+        // Avatar will be updated through OxyProvider
       } else {
         const error = await uploadResponse.json();
         toast.error(error.error || "Failed to upload avatar");
@@ -118,13 +125,13 @@ export default function AccountScreen() {
               const response = await fetch(apiUrl, {
                 method: 'DELETE',
                 headers: {
-                  'Authorization': `Bearer ${token}`,
+                  'x-session-id': activeSessionId || '',
                 },
               });
 
               if (response.ok) {
-                updateUser({ image: undefined });
                 toast.success("Avatar deleted successfully");
+                // Avatar will be updated through OxyProvider
               } else {
                 toast.error("Failed to delete avatar");
               }
@@ -190,8 +197,8 @@ export default function AccountScreen() {
             <Text className="text-lg font-semibold">Profile Picture</Text>
             <View className="flex-row items-center gap-4">
               <Avatar className="h-24 w-24">
-                {user?.image ? (
-                  <AvatarImage source={{ uri: user.image }} />
+                {user?.avatar ? (
+                  <AvatarImage source={{ uri: user.avatar }} />
                 ) : null}
                 <AvatarFallback className="bg-primary">
                   <Text className="text-2xl text-primary-foreground">{getUserInitials()}</Text>
@@ -211,7 +218,7 @@ export default function AccountScreen() {
                   )}
                   <Text>{uploadingAvatar ? "Uploading..." : "Upload Avatar"}</Text>
                 </Button>
-                {user?.image && (
+                {user?.avatar && (
                   <Button
                     variant="outline"
                     className="flex-row items-center justify-center gap-2 border-destructive"
@@ -240,7 +247,7 @@ export default function AccountScreen() {
               </View>
               <View className="border border-border rounded-lg px-4 py-3 bg-muted">
                 <Text className="text-foreground">
-                  {user?.name || "Not set"}
+                  {getUserDisplayName()}
                 </Text>
               </View>
             </View>
