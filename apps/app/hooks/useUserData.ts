@@ -1,10 +1,10 @@
 import { useEffect } from 'react';
-import { useOxy } from '@oxyhq/services';
+import { useAuth } from '@oxyhq/services';
 import { useUserDataStore } from '@/lib/stores/user-data-store';
 import apiClient from '@/lib/api/client';
 
 export function useUserData() {
-  const { isAuthenticated } = useOxy();
+  const { isAuthenticated } = useAuth();
   const { memory, loading, setMemory, setLoading, shouldRefetch, clearMemory } = useUserDataStore();
 
   useEffect(() => {

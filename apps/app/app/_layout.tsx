@@ -3,14 +3,15 @@ import { useFonts } from 'expo-font';
 import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { useEffect } from 'react';
-import { OxyProvider } from '@oxyhq/services';
+import { OxyProvider, useOxy } from '@oxyhq/services';
 import * as Linking from 'expo-linking';
+import { Platform } from 'react-native';
 import { PortalHost } from '@rn-primitives/portal';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { Toaster } from '@/components/sonner';
-import { OxyAuthSetup } from '@/components/OxyAuthSetup';
 import { useColorScheme } from '@/lib/useColorScheme';
+import { setSessionGetter } from '@/lib/api/client';
 import 'react-native-reanimated';
 import '../global.css';
 import '@/lib/i18n';
@@ -26,11 +27,21 @@ SplashScreen.preventAutoHideAsync();
 const OXY_API_URL = process.env.EXPO_PUBLIC_OXY_API_URL || 'https://api.oxy.so';
 const AUTH_REDIRECT_URI = Linking.createURL('/');
 
+function AuthSetup({ children }: { children: React.ReactNode }) {
+  const { activeSessionId } = useOxy();
+
+  useEffect(() => {
+    setSessionGetter(() => activeSessionId ?? null);
+  }, [activeSessionId]);
+
+  return <>{children}</>;
+}
+
 function AppContent() {
   const { colorScheme } = useColorScheme();
 
   return (
-    <OxyAuthSetup>
+    <AuthSetup>
       <Stack
         screenOptions={{
           contentStyle: {
@@ -43,7 +54,7 @@ function AppContent() {
       </Stack>
       <PortalHost />
       <Toaster position="bottom-center" />
-    </OxyAuthSetup>
+    </AuthSetup>
   );
 }
 
@@ -60,22 +71,29 @@ export default function RootLayout() {
   }, [error]);
 
   useEffect(() => {
-    if (loaded) {
-      SplashScreen.hideAsync();
-    }
+    if (loaded) SplashScreen.hideAsync();
   }, [loaded]);
 
-  if (!loaded) {
-    return null;
+  if (!loaded) return null;
+
+  const content = (
+    <SafeAreaProvider>
+      <OxyProvider
+        baseURL={OXY_API_URL}
+        authRedirectUri={Platform.OS !== 'web' ? AUTH_REDIRECT_URI : undefined}
+      >
+        <AppContent />
+      </OxyProvider>
+    </SafeAreaProvider>
+  );
+
+  if (Platform.OS === 'web') {
+    return content;
   }
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
-      <SafeAreaProvider>
-        <OxyProvider baseURL={OXY_API_URL} authRedirectUri={AUTH_REDIRECT_URI}>
-          <AppContent />
-        </OxyProvider>
-      </SafeAreaProvider>
+      {content}
     </GestureHandlerRootView>
   );
 }
