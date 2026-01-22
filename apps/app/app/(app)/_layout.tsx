@@ -79,6 +79,13 @@ export default function AppLayout() {
           }}
         />
         <Drawer.Screen
+          name="settings/feedback"
+          options={{
+            drawerLabel: 'Feedback',
+            title: 'Feedback',
+          }}
+        />
+        <Drawer.Screen
           name="forgot-password"
           options={{
             drawerItemStyle: { display: 'none' },

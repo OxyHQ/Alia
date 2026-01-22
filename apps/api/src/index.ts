@@ -21,6 +21,7 @@ import developerRouter from './routes/developer.js';
 import billingRouter from './routes/billing.js';
 import organizationRouter from './routes/organization.js';
 import canvasRouter from './routes/canvas/index.js';
+import feedbackRouter from './routes/feedback.js';
 
 // Fix for ES Modules __dirname
 const __filename = fileURLToPath(import.meta.url);
@@ -81,6 +82,7 @@ app.use('/telegram', telegramRouter);
 app.use('/developer', developerRouter);
 app.use('/billing', billingRouter);
 app.use('/organization', organizationRouter);
+app.use('/feedback', feedbackRouter);
 app.use('/api', canvasRouter);
 
 // Ruta raíz
@@ -101,7 +103,8 @@ app.get('/', (_req, res) => {
       '/telegram',
       '/developer',
       '/billing',
-      '/organization'
+      '/organization',
+      '/feedback'
     ]
   });
 });

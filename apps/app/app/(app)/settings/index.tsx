@@ -5,7 +5,7 @@ import { useState, useEffect } from "react";
 import { useAuthStore } from "@/lib/stores/auth-store";
 import { useRouter } from "expo-router";
 import { generateAPIUrl } from "@/lib/generate-api-url";
-import { Globe, MapPin, Briefcase, User as UserIcon, Languages, MessageSquare, ChevronDown, Check, ChevronRight, Brain, User, Moon, Sun, Monitor } from "lucide-react-native";
+import { Globe, MapPin, Briefcase, User as UserIcon, Languages, MessageSquare, ChevronDown, Check, ChevronRight, Brain, User, Moon, Sun, Monitor, MessageSquarePlus } from "lucide-react-native";
 import { useUserData } from "@/hooks/useUserData";
 import { useUserDataStore } from "@/lib/stores/user-data-store";
 import {
@@ -189,6 +189,24 @@ export default function SettingsScreen() {
                   <Text className="text-base font-semibold">{t('settings.account.title')}</Text>
                   <Text className="text-sm text-muted-foreground">
                     {t('settings.account.description')}
+                  </Text>
+                </View>
+              </View>
+              <ChevronRight size={20} className="text-muted-foreground" />
+            </Pressable>
+
+            <Pressable
+              onPress={() => router.push("/(app)/settings/feedback")}
+              className="border border-border rounded-lg p-4 bg-surface flex-row items-center justify-between active:bg-muted"
+            >
+              <View className="flex-row items-center gap-3">
+                <View className="bg-primary/10 p-2 rounded-lg">
+                  <MessageSquarePlus size={24} className="text-primary" />
+                </View>
+                <View>
+                  <Text className="text-base font-semibold">Send Feedback</Text>
+                  <Text className="text-sm text-muted-foreground">
+                    Report bugs or suggest features
                   </Text>
                 </View>
               </View>
