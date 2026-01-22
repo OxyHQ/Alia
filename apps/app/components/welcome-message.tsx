@@ -1,6 +1,6 @@
 import { View, Pressable } from "react-native";
 import { Text } from "@/components/ui/text";
-import { useAuthStore } from "@/lib/stores/auth-store";
+import { useOxy } from "@oxyhq/services";
 import { useMemo } from "react";
 
 const GREETINGS = [
@@ -32,13 +32,11 @@ type WelcomeMessageProps = {
 };
 
 export const WelcomeMessage = ({ onSuggestionPress }: WelcomeMessageProps) => {
-  // Use selectors to avoid worklet serialization issues
-  const user = useAuthStore((state) => state.user);
-  const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
+  const { user, isAuthenticated } = useOxy();
 
   const greeting = useMemo(() => {
     const randomGreeting = GREETINGS[Math.floor(Math.random() * GREETINGS.length)];
-    const userName = user?.name || user?.email?.split('@')[0] || "there";
+    const userName = user?.name?.first || user?.username || user?.email?.split('@')[0] || "there";
     return randomGreeting.replace("{name}", userName);
   }, [user]);
 
