@@ -31,7 +31,7 @@ export function useStreamingChat(apiUrl: string, activeRole?: any, conversationI
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<Error | null>(null);
   const [conversationTitle, setConversationTitle] = useState<string | null>(null);
-  const token = useAuthStore((state) => state.token);
+  const { activeSessionId } = useOxy();
   const updateCredits = useCreditsStore((state) => state.updateCredits);
 
   const append = useCallback(async (message: Message) => {
@@ -55,14 +55,14 @@ export function useStreamingChat(apiUrl: string, activeRole?: any, conversationI
       // Collect device info (will be available to AI via tool if needed)
       const deviceInfo = await collectDeviceInfo();
 
-      // Build headers with optional auth token
+      // Build headers with optional session ID
       const headers: HeadersInit = {
         'Content-Type': 'application/json',
         'X-Device-Info': JSON.stringify(deviceInfo),
       };
 
-      if (token) {
-        headers['Authorization'] = `Bearer ${token}`;
+      if (activeSessionId) {
+        headers['x-session-id'] = activeSessionId;
       }
 
       // Build system message with role context if active
