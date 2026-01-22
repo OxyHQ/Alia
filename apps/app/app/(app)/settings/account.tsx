@@ -3,7 +3,7 @@ import { Text } from "@/components/ui/text";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useState } from "react";
-import { useAuthStore } from "@/lib/stores/auth-store";
+import { useOxy } from "@oxyhq/services";
 import { useRouter } from "expo-router";
 import { generateAPIUrl } from "@/lib/generate-api-url";
 import { User, Mail, Lock, ArrowLeft, LogOut, Camera, Trash2 } from "lucide-react-native";
@@ -12,7 +12,7 @@ import { toast } from "@/components/sonner";
 
 export default function AccountScreen() {
   const router = useRouter();
-  const { user, token, updateUser, logout } = useAuthStore();
+  const { user, activeSessionId, logout } = useOxy();
   const [changingPassword, setChangingPassword] = useState(false);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const { pickImage } = useImagePicker();

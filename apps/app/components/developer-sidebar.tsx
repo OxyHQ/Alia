@@ -241,8 +241,8 @@ export const DeveloperSidebar = React.memo(function DeveloperSidebar() {
             <DropdownMenuTrigger asChild>
               <Pressable className="flex-row items-center gap-3 md:gap-2 rounded-full p-2 md:p-1.5 active:bg-muted">
                 <Avatar className="h-8 w-8 md:h-7 md:w-7">
-                  {user?.image ? (
-                    <AvatarImage source={{ uri: user.image }} />
+                  {user?.avatar ? (
+                    <AvatarImage source={{ uri: user.avatar }} />
                   ) : null}
                   <AvatarFallback className="bg-primary">
                     <Text className="text-xs md:text-[10px] text-primary-foreground">{getUserInitials()}</Text>
@@ -250,7 +250,7 @@ export const DeveloperSidebar = React.memo(function DeveloperSidebar() {
                 </Avatar>
                 <View className="flex-1">
                   <Text className="text-sm md:text-xs font-medium text-foreground">
-                    {user?.name || "User"}
+                    {getUserDisplayName()}
                   </Text>
                   <Text className="text-xs md:text-[10px] text-muted-foreground">
                     Developer
@@ -264,7 +264,7 @@ export const DeveloperSidebar = React.memo(function DeveloperSidebar() {
               className="w-64"
             >
               <View className="flex flex-col space-y-1 p-2">
-                <Text className="text-sm font-medium text-foreground">{user?.name || "User"}</Text>
+                <Text className="text-sm font-medium text-foreground">{getUserDisplayName()}</Text>
                 <Text className="text-xs text-muted-foreground">{user?.email || ""}</Text>
               </View>
               <DropdownMenuSeparator />
