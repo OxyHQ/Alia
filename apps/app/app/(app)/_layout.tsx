@@ -28,7 +28,6 @@ export default function AppLayout() {
 
   // Get drawer colors based on color scheme
   const drawerBackgroundColor = colorScheme === 'dark' ? '#151a2e' : '#fafafe'; // surface colors
-  const drawerBorderColor = colorScheme === 'dark' ? 'rgba(255, 255, 255, 0.1)' : '#e5e5e5'; // border colors
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>

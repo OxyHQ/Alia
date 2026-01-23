@@ -8,12 +8,12 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useCredits } from "@/lib/hooks/use-credits";
-import { useAuth } from "@oxyhq/services";
+import { useOxy } from "@oxyhq/services";
 import { useRouter } from "expo-router";
 
 export function CreditsMenu() {
   const router = useRouter();
-  const { isAuthenticated } = useAuth();
+  const { activeSessionId } = useOxy();
   const { data } = useCredits();
 
   const credits = data?.credits ?? 0;
@@ -29,7 +29,7 @@ export function CreditsMenu() {
   };
 
   // Hide credits menu if user is not signed in
-  if (!isAuthenticated) {
+  if (!activeSessionId) {
     return null;
   }
 
