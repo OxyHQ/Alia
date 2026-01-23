@@ -33,7 +33,7 @@ async function initializeBot() {
 
     // Set bot commands menu
     await bot.telegram.setMyCommands([
-      { command: 'start', description: 'Authenticate and start chatting' },
+      { command: 'start', description: 'Link your Alia account' },
       { command: 'status', description: 'View account status and credits' },
       { command: 'new', description: 'Start a new conversation' },
       { command: 'history', description: 'View recent conversations' },
