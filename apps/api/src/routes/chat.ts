@@ -9,22 +9,12 @@ import { createAnthropic } from '@ai-sdk/anthropic';
 import { getBestAvailableKey, loadKeys } from '../lib/load-balancer.js';
 import type { KeyConfig } from '../lib/types.js';
 import { getCurrentDateTool, createGoogleSearchTool, getTimelineTool, searchKnowledgeBaseTool, scrapeURLTool, saveUserMemoryTool, updateUserPreferencesTool, updateUserContextTool, createGetDeviceInfoTool, createSendTelegramTool, type DeviceInfo } from '../lib/tools/index.js';
-import { optionalAuth, oxyClient } from '../middleware/auth.js';
+import { optionalAuth, type OxyUser } from '../middleware/auth.js';
 import { UserCredits } from '../models/user-credits.js';
 import { UserMemory } from '../models/user-memory.js';
 import { Conversation } from '../models/conversation.js';
 import type { IUserMemory } from '../models/user-memory.js';
 import { processMessagesForPlatform } from '../lib/message-processor.js';
-
-// Oxy user type for personalization
-interface OxyUser {
-  _id: string;
-  username?: string;
-  name?: { first?: string; middle?: string; last?: string; full?: string };
-  location?: string;
-  bio?: string;
-  website?: string;
-}
 
 const router = Router();
 
@@ -239,8 +229,7 @@ router.post('/', optionalAuth, async (req, res) => {
       platform
     );
 
-    // Fetch user data from Oxy and credits/memory from local DB
-    let oxyUser: OxyUser | null = null;
+    // Get user data from session and credits/memory from local DB
     let userCredits: any = null;
     let memory: IUserMemory | null = null;
     let creditsReserved = false;
@@ -248,13 +237,6 @@ router.post('/', optionalAuth, async (req, res) => {
     if (req.user) {
       try {
         console.log('[Alia/Chat] Loading user data...');
-
-        // Fetch user info from Oxy (for personalization)
-        try {
-          oxyUser = await oxyClient.getUserById(req.user.id) as OxyUser;
-        } catch (e) {
-          console.log('[Alia/Chat] Could not fetch Oxy user:', e);
-        }
 
         // Get or create local credits record
         userCredits = await UserCredits.findByIdAndUpdate(
@@ -363,8 +345,8 @@ router.post('/', optionalAuth, async (req, res) => {
       } : {})
     };
 
-    // Build personalized system prompt
-    const systemPrompt = buildSystemPrompt(oxyUser, memory, isTelegram);
+    // Build personalized system prompt (oxyUser comes from session validation)
+    const systemPrompt = buildSystemPrompt(req.oxyUser, memory, isTelegram);
 
     // Set headers for SSE streaming
     res.setHeader('Content-Type', 'text/event-stream');

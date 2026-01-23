@@ -10,11 +10,25 @@ export const oxyClient = new OxyServices({
   baseURL: OXY_API_URL,
 });
 
+// Oxy user type from session validation
+export interface OxyUser {
+  _id: string;
+  id?: string;
+  email?: string;
+  username?: string;
+  name?: { first?: string; middle?: string; last?: string; full?: string };
+  avatar?: string;
+  bio?: string;
+  location?: string;
+  website?: string;
+}
+
 // Extend Express Request
 declare global {
   namespace Express {
     interface Request {
       user?: { id: string };
+      oxyUser?: OxyUser;
       apiKey?: {
         id: string;
         appId: string;
@@ -56,7 +70,7 @@ export async function authenticateToken(
       return;
     }
 
-    const oxyUser = user as { _id: string; id?: string };
+    const oxyUser = user as OxyUser;
     const userId = oxyUser._id || oxyUser.id;
 
     if (!userId) {
@@ -65,6 +79,7 @@ export async function authenticateToken(
     }
 
     req.user = { id: userId };
+    req.oxyUser = oxyUser;
     next();
   } catch (error) {
     console.error('[Auth] Session validation error:', error instanceof Error ? error.message : error);
@@ -90,10 +105,11 @@ export async function optionalAuth(
       const { valid, user } = await oxyClient.validateSession(sessionId);
 
       if (valid && user) {
-        const oxyUser = user as { _id: string; id?: string };
+        const oxyUser = user as OxyUser;
         const userId = oxyUser._id || oxyUser.id;
         if (userId) {
           req.user = { id: userId };
+          req.oxyUser = oxyUser;
         }
       }
     }
