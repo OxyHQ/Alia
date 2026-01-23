@@ -1,12 +1,13 @@
-import { View, ScrollView, TextInput as RNTextInput, Pressable } from "react-native";
+import { View, ScrollView, TextInput as RNTextInput, Pressable, Linking } from "react-native";
 import { Text } from "@/components/ui/text";
 import { Button } from "@/components/ui/button";
 import { useState, useEffect } from "react";
 import { useOxy } from "@oxyhq/services";
 import { useRouter } from "expo-router";
 import { generateAPIUrl } from "@/lib/generate-api-url";
-import { Globe, MapPin, Briefcase, User as UserIcon, Languages, MessageSquare, ChevronDown, Check, ChevronRight, Brain, User, Moon, Sun, Monitor, MessageSquarePlus } from "lucide-react-native";
+import { Globe, MapPin, Briefcase, User as UserIcon, Languages, MessageSquare, ChevronDown, Check, ChevronRight, Brain, User, Moon, Sun, Monitor, MessageSquarePlus, Send } from "lucide-react-native";
 import { useUserData } from "@/hooks/useUserData";
+import { useTelegramStatus } from "@/hooks/useTelegramStatus";
 import { useUserDataStore } from "@/lib/stores/user-data-store";
 import {
   DropdownMenu,
@@ -58,6 +59,7 @@ export default function SettingsScreen() {
   const [saving, setSaving] = useState(false);
   const { mode, setColorScheme } = useColorScheme();
   const { t } = useTranslation();
+  const { status: telegramStatus, loading: telegramLoading } = useTelegramStatus();
 
   // Form state
   const [language, setLanguage] = useState("");
@@ -207,6 +209,57 @@ export default function SettingsScreen() {
                   <Text className="text-base font-semibold">Send Feedback</Text>
                   <Text className="text-sm text-muted-foreground">
                     Report bugs or suggest features
+                  </Text>
+                </View>
+              </View>
+              <ChevronRight size={20} className="text-muted-foreground" />
+            </Pressable>
+
+            <Pressable
+              onPress={async () => {
+                if (telegramStatus?.linked) {
+                  toast.info("Telegram already linked");
+                  return;
+                }
+
+                // Open Telegram bot for linking
+                const botUsername = process.env.EXPO_PUBLIC_TELEGRAM_BOT_USERNAME || 'your_bot_username';
+                const linkUrl = `https://t.me/${botUsername}?start=link`;
+
+                try {
+                  const canOpen = await Linking.canOpenURL(linkUrl);
+                  if (canOpen) {
+                    await Linking.openURL(linkUrl);
+                  } else {
+                    toast.error("Cannot open Telegram");
+                  }
+                } catch (err) {
+                  console.error('Failed to open Telegram:', err);
+                  toast.error("Failed to open Telegram");
+                }
+              }}
+              className="border border-border rounded-lg p-4 bg-surface flex-row items-center justify-between active:bg-muted"
+            >
+              <View className="flex-row items-center gap-3">
+                <View className="bg-primary/10 p-2 rounded-lg">
+                  <Send size={24} className="text-primary" />
+                </View>
+                <View>
+                  <Text className="text-base font-semibold">
+                    {telegramLoading
+                      ? "Telegram"
+                      : telegramStatus?.linked
+                        ? "Telegram Linked"
+                        : "Link Telegram"
+                    }
+                  </Text>
+                  <Text className="text-sm text-muted-foreground">
+                    {telegramLoading
+                      ? "Checking status..."
+                      : telegramStatus?.linked
+                        ? `Connected${telegramStatus.telegramUsername ? ` as @${telegramStatus.telegramUsername}` : ''}`
+                        : "Connect your Telegram account"
+                    }
                   </Text>
                 </View>
               </View>
