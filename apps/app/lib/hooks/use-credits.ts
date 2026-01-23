@@ -5,6 +5,7 @@ import apiClient from '../api/client';
 export interface CreditsInfo {
   credits: number;
   freeCredits: number;
+  paidCredits: number;
   dailyRefresh: number;
   lastRefresh: string;
 }

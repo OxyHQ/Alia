@@ -1,9 +1,10 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import { fetch as expoFetch } from 'expo/fetch';
 import * as Haptics from 'expo-haptics';
 import { useOxy } from '@oxyhq/services';
-import { useCreditsStore } from '@/lib/stores/credits-store';
+import { useQueryClient } from '@tanstack/react-query';
 import type { Message } from '@/lib/hooks/use-conversations';
+import type { CreditsInfo } from '@/lib/hooks/use-credits';
 import { collectDeviceInfo } from '@/lib/device-info';
 
 export interface ToolInvocation {
@@ -32,7 +33,8 @@ export function useStreamingChat(apiUrl: string, activeRole?: any, conversationI
   const [error, setError] = useState<Error | null>(null);
   const [conversationTitle, setConversationTitle] = useState<string | null>(null);
   const { activeSessionId } = useOxy();
-  const updateCredits = useCreditsStore((state) => state.updateCredits);
+  const queryClient = useQueryClient();
+  const abortControllerRef = useRef<AbortController | null>(null);
 
   const append = useCallback(async (message: Message) => {
     setIsLoading(true);
@@ -109,6 +111,9 @@ Use this role to guide your responses, maintaining the specified tone, style, an
           ].map(formatMessage)
         : conversationMessages.map(formatMessage);
 
+      // Create abort controller for this request
+      abortControllerRef.current = new AbortController();
+
       const response = await expoFetch(apiUrl, {
         method: 'POST',
         headers,
@@ -116,6 +121,7 @@ Use this role to guide your responses, maintaining the specified tone, style, an
           messages: messagesToSend,
           ...(conversationId && { conversationId }),
         }),
+        signal: abortControllerRef.current.signal,
       });
 
       if (!response.ok) {
@@ -259,9 +265,12 @@ Use this role to guide your responses, maintaining the specified tone, style, an
                 });
               }
 
-              // Handle credit updates
+              // Handle credit updates - update React Query cache
               if (parsed.type === 'credit-update') {
-                updateCredits(parsed.credits);
+                queryClient.setQueryData<CreditsInfo>(['credits'], (old) => {
+                  if (!old) return old;
+                  return { ...old, credits: parsed.credits };
+                });
               }
             } catch (e) {
               // Ignore parse errors
