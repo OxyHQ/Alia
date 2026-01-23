@@ -44,7 +44,7 @@ router.post('/', async (req: Request, res: Response) => {
 
     // Create execution record
     const execution = await WorkflowExecution.create({
-      userId: DEMO_USER_ID,
+      oxyUserId: DEMO_USER_ID,
       workflowId: workflowId || 'temp',
       executionId,
       status: 'running',

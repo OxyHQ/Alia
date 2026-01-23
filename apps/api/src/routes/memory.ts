@@ -13,7 +13,7 @@ router.use(authenticateToken);
  */
 router.get('/stats', async (req, res) => {
   try {
-    const memory = await UserMemory.findOne({ userId: req.user!.id });
+    const memory = await UserMemory.findOne({ oxyUserId: req.user!.id });
 
     if (!memory) {
       res.json({
@@ -50,12 +50,12 @@ router.get('/stats', async (req, res) => {
  */
 router.get('/', async (req, res) => {
   try {
-    let memory = await UserMemory.findOne({ userId: req.user!.id });
+    let memory = await UserMemory.findOne({ oxyUserId: req.user!.id });
 
     // Create empty memory profile if doesn't exist
     if (!memory) {
       memory = new UserMemory({
-        userId: req.user!.id,
+        oxyUserId: req.user!.id,
         memories: [],
         preferences: {},
         context: {}
@@ -77,7 +77,7 @@ router.get('/', async (req, res) => {
 router.put('/context', async (req, res) => {
   try {
     const memory = await UserMemory.findOneAndUpdate(
-      { userId: req.user!.id },
+      { oxyUserId: req.user!.id },
       {
         $set: {
           context: req.body,
@@ -101,7 +101,7 @@ router.put('/context', async (req, res) => {
 router.put('/preferences', async (req, res) => {
   try {
     const memory = await UserMemory.findOneAndUpdate(
-      { userId: req.user!.id },
+      { oxyUserId: req.user!.id },
       {
         $set: {
           preferences: req.body,
@@ -132,12 +132,12 @@ router.post('/add', async (req, res) => {
     }
 
     // Find existing memory
-    let userMemory = await UserMemory.findOne({ userId: req.user!.id });
+    let userMemory = await UserMemory.findOne({ oxyUserId: req.user!.id });
 
     if (!userMemory) {
       // Create new memory document
       userMemory = new UserMemory({
-        userId: req.user!.id,
+        oxyUserId: req.user!.id,
         memories: [{
           key,
           value,
@@ -192,7 +192,7 @@ router.put('/:memoryId', async (req, res) => {
 
     const memory = await UserMemory.findOneAndUpdate(
       {
-        userId: req.user!.id,
+        oxyUserId: req.user!.id,
         'memories._id': req.params.memoryId
       },
       {
@@ -225,7 +225,7 @@ router.put('/:memoryId', async (req, res) => {
 router.delete('/:memoryId', async (req, res) => {
   try {
     const memory = await UserMemory.findOneAndUpdate(
-      { userId: req.user!.id },
+      { oxyUserId: req.user!.id },
       {
         $pull: {
           memories: { _id: req.params.memoryId }

@@ -16,7 +16,7 @@ export interface IWorkflowEdge {
 }
 
 export interface IWorkflow extends Document {
-  userId: mongoose.Types.ObjectId;
+  oxyUserId: mongoose.Types.ObjectId;
   workflowId: string;
   name: string;
   description?: string;
@@ -45,7 +45,7 @@ const WorkflowEdgeSchema = new Schema({
 }, { _id: false });
 
 const WorkflowSchema = new Schema<IWorkflow>({
-  userId: { type: Schema.Types.ObjectId, ref: 'User', required: true, index: true },
+  oxyUserId: { type: Schema.Types.ObjectId, ref: 'User', required: true, index: true },
   workflowId: { type: String, required: true, unique: true, index: true },
   name: { type: String, required: true },
   description: { type: String },

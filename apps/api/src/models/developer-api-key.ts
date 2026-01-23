@@ -2,7 +2,7 @@ import mongoose, { Schema, Document } from 'mongoose';
 import crypto from 'crypto';
 
 export interface IDeveloperApiKey extends Document {
-  userId: mongoose.Types.ObjectId;
+  oxyUserId: mongoose.Types.ObjectId;
   appId: mongoose.Types.ObjectId;
   name: string;
   keyHash: string;
@@ -20,7 +20,7 @@ export interface IDeveloperApiKey extends Document {
 
 const DeveloperApiKeySchema = new Schema<IDeveloperApiKey>(
   {
-    userId: {
+    oxyUserId: {
       type: Schema.Types.ObjectId,
       ref: 'User',
       required: true,
@@ -80,7 +80,7 @@ const DeveloperApiKeySchema = new Schema<IDeveloperApiKey>(
 );
 
 // Indexes (keyHash is already indexed via unique: true)
-DeveloperApiKeySchema.index({ userId: 1, isActive: 1 });
+DeveloperApiKeySchema.index({ oxyUserId: 1, isActive: 1 });
 DeveloperApiKeySchema.index({ appId: 1, isActive: 1 });
 
 // Method to validate API key

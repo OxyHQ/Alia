@@ -17,7 +17,7 @@ router.post('/new', authenticateToken, async (req: Request, res: Response) => {
     const { source = 'app' } = req.body;
 
     const conversation = await Conversation.create({
-      userId: req.user.id,
+      oxyUserId: req.user.id,
       conversationId,
       title: 'Nueva conversación',
       messages: [],
@@ -46,7 +46,7 @@ router.get('/', authenticateToken, async (req: Request, res: Response) => {
       return res.status(401).json({ error: 'Unauthorized' });
     }
 
-    const conversations = await Conversation.find({ userId: req.user.id })
+    const conversations = await Conversation.find({ oxyUserId: req.user.id })
       .select('conversationId title lastMessage source createdAt updatedAt')
       .sort({ updatedAt: -1 })
       .limit(100); // Limit to last 100 conversations
@@ -75,7 +75,7 @@ router.get('/:id', authenticateToken, async (req: Request, res: Response) => {
     }
 
     const conversation = await Conversation.findOne({
-      userId: req.user.id,
+      oxyUserId: req.user.id,
       conversationId: req.params.id
     });
 
@@ -133,7 +133,7 @@ router.post('/', authenticateToken, async (req: Request, res: Response) => {
     // Find and update or create new conversation
     const conversation = await Conversation.findOneAndUpdate(
       {
-        userId: req.user.id,
+        oxyUserId: req.user.id,
         conversationId
       },
       {
@@ -169,7 +169,7 @@ router.delete('/:id', authenticateToken, async (req: Request, res: Response) => 
     }
 
     const result = await Conversation.deleteOne({
-      userId: req.user.id,
+      oxyUserId: req.user.id,
       conversationId: req.params.id
     });
 

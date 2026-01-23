@@ -32,7 +32,7 @@ router.post('/', async (req, res) => {
     }
 
     const feedback = new Feedback({
-      userId: req.user!.id,
+      oxyUserId: req.user!.id,
       type,
       rating,
       message,
@@ -64,7 +64,7 @@ router.post('/', async (req, res) => {
  */
 router.get('/', async (req, res) => {
   try {
-    const feedback = await Feedback.find({ userId: req.user!.id })
+    const feedback = await Feedback.find({ oxyUserId: req.user!.id })
       .sort({ createdAt: -1 })
       .limit(50);
 
@@ -83,7 +83,7 @@ router.get('/:id', async (req, res) => {
   try {
     const feedback = await Feedback.findOne({
       _id: req.params.id,
-      userId: req.user!.id
+      oxyUserId: req.user!.id
     });
 
     if (!feedback) {

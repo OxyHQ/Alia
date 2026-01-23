@@ -1,7 +1,7 @@
 import mongoose, { Schema, Model, Document } from 'mongoose';
 
 export interface IFeedback extends Document {
-  userId: mongoose.Types.ObjectId;
+  oxyUserId: mongoose.Types.ObjectId;
   type: 'bug' | 'feature' | 'improvement' | 'other';
   rating?: number;
   message: string;
@@ -18,7 +18,7 @@ export interface IFeedback extends Document {
 }
 
 const FeedbackSchema = new Schema<IFeedback>({
-  userId: { type: Schema.Types.ObjectId, ref: 'User', required: true },
+  oxyUserId: { type: Schema.Types.ObjectId, ref: 'User', required: true },
   type: {
     type: String,
     enum: ['bug', 'feature', 'improvement', 'other'],
@@ -45,7 +45,7 @@ const FeedbackSchema = new Schema<IFeedback>({
   timestamps: true
 });
 
-FeedbackSchema.index({ userId: 1, createdAt: -1 });
+FeedbackSchema.index({ oxyUserId: 1, createdAt: -1 });
 FeedbackSchema.index({ status: 1 });
 FeedbackSchema.index({ type: 1 });
 

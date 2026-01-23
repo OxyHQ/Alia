@@ -1,7 +1,7 @@
 import mongoose, { Schema, Model, Document } from 'mongoose';
 
 export interface ISubscription extends Document {
-  userId: mongoose.Types.ObjectId;
+  oxyUserId: mongoose.Types.ObjectId;
   stripeCustomerId: string;
   stripeSubscriptionId: string;
   stripePriceId: string;
@@ -20,7 +20,7 @@ export interface ISubscription extends Document {
 }
 
 const SubscriptionSchema = new Schema<ISubscription>({
-  userId: {
+  oxyUserId: {
     type: Schema.Types.ObjectId,
     ref: 'User',
     required: true,
@@ -66,7 +66,7 @@ const SubscriptionSchema = new Schema<ISubscription>({
 });
 
 // Indexes
-SubscriptionSchema.index({ userId: 1, status: 1 });
+SubscriptionSchema.index({ oxyUserId: 1, status: 1 });
 SubscriptionSchema.index({ stripeCustomerId: 1 });
 
 export const Subscription: Model<ISubscription> = mongoose.models.Subscription || mongoose.model<ISubscription>('Subscription', SubscriptionSchema);

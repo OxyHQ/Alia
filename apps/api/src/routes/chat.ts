@@ -250,12 +250,12 @@ router.post('/', optionalAuth, async (req, res) => {
           { upsert: true, new: true }
         );
 
-        memory = await UserMemory.findOne({ userId: req.user.id });
+        memory = await UserMemory.findOne({ oxyUserId: req.user.id });
 
         // Create empty memory profile if it doesn't exist
         if (!memory) {
           memory = new UserMemory({
-            userId: req.user.id,
+            oxyUserId: req.user.id,
             memories: [],
             preferences: {},
             context: {}
@@ -454,10 +454,10 @@ router.post('/', optionalAuth, async (req, res) => {
 
         // Save or update conversation (set source only on insert)
         await Conversation.findOneAndUpdate(
-          { userId: req.user.id, conversationId },
+          { oxyUserId: req.user.id, conversationId },
           {
             $set: {
-              userId: req.user.id,
+              oxyUserId: req.user.id,
               conversationId,
               title,
               lastMessage,

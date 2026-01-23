@@ -2,7 +2,7 @@ import mongoose, { Schema, Model, Document } from 'mongoose';
 
 export interface IOrganizationMember extends Document {
   organizationId: mongoose.Types.ObjectId;
-  userId: mongoose.Types.ObjectId;
+  oxyUserId: mongoose.Types.ObjectId;
   role: 'owner' | 'admin' | 'member';
   permissions: string[];
   createdAt: Date;
@@ -15,7 +15,7 @@ const OrganizationMemberSchema = new Schema<IOrganizationMember>({
     ref: 'Organization',
     required: true,
   },
-  userId: {
+  oxyUserId: {
     type: Schema.Types.ObjectId,
     ref: 'User',
     required: true,
@@ -33,7 +33,7 @@ const OrganizationMemberSchema = new Schema<IOrganizationMember>({
 });
 
 // Indexes
-OrganizationMemberSchema.index({ organizationId: 1, userId: 1 }, { unique: true });
-OrganizationMemberSchema.index({ userId: 1 });
+OrganizationMemberSchema.index({ organizationId: 1, oxyUserId: 1 }, { unique: true });
+OrganizationMemberSchema.index({ oxyUserId: 1 });
 
 export const OrganizationMember: Model<IOrganizationMember> = mongoose.models.OrganizationMember || mongoose.model<IOrganizationMember>('OrganizationMember', OrganizationMemberSchema);

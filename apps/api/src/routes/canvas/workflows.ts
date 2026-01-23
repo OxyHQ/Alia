@@ -12,7 +12,7 @@ const DEMO_USER_ID = '000000000000000000000001';
 // Get all workflows
 router.get('/', async (req: Request, res: Response) => {
   try {
-    const workflows = await Workflow.find({ userId: DEMO_USER_ID })
+    const workflows = await Workflow.find({ oxyUserId: DEMO_USER_ID })
       .select('workflowId name description nodes edges createdAt updatedAt')
       .sort({ updatedAt: -1 })
       .limit(100);
@@ -38,7 +38,7 @@ router.get('/', async (req: Request, res: Response) => {
 router.get('/:id', async (req: Request, res: Response) => {
   try {
     const workflow = await Workflow.findOne({
-      userId: DEMO_USER_ID,
+      oxyUserId: DEMO_USER_ID,
       workflowId: req.params.id
     });
 
@@ -75,7 +75,7 @@ router.post('/', async (req: Request, res: Response) => {
     const workflowId = randomUUID();
 
     const workflow = await Workflow.create({
-      userId: DEMO_USER_ID,
+      oxyUserId: DEMO_USER_ID,
       workflowId,
       name,
       description: description || '',
@@ -109,7 +109,7 @@ router.put('/:id', async (req: Request, res: Response) => {
 
     const workflow = await Workflow.findOneAndUpdate(
       {
-        userId: DEMO_USER_ID,
+        oxyUserId: DEMO_USER_ID,
         workflowId: req.params.id
       },
       {
@@ -147,7 +147,7 @@ router.put('/:id', async (req: Request, res: Response) => {
 router.delete('/:id', async (req: Request, res: Response) => {
   try {
     const workflow = await Workflow.findOneAndDelete({
-      userId: DEMO_USER_ID,
+      oxyUserId: DEMO_USER_ID,
       workflowId: req.params.id
     });
 
@@ -169,7 +169,7 @@ router.delete('/:id', async (req: Request, res: Response) => {
 router.get('/:id/executions', async (req: Request, res: Response) => {
   try {
     const executions = await WorkflowExecution.find({
-      userId: DEMO_USER_ID,
+      oxyUserId: DEMO_USER_ID,
       workflowId: req.params.id
     })
       .sort({ startedAt: -1 })

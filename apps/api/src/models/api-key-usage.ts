@@ -2,7 +2,7 @@ import mongoose, { Schema, Document } from 'mongoose';
 
 export interface IApiKeyUsage extends Document {
   apiKeyId: mongoose.Types.ObjectId;
-  userId: mongoose.Types.ObjectId;
+  oxyUserId: mongoose.Types.ObjectId;
   appId: mongoose.Types.ObjectId;
   endpoint: string;
   method: string;
@@ -23,7 +23,7 @@ const ApiKeyUsageSchema = new Schema<IApiKeyUsage>(
       required: true,
       index: true,
     },
-    userId: {
+    oxyUserId: {
       type: Schema.Types.ObjectId,
       ref: 'User',
       required: true,
@@ -77,7 +77,7 @@ const ApiKeyUsageSchema = new Schema<IApiKeyUsage>(
 
 // Compound indexes for efficient queries
 ApiKeyUsageSchema.index({ apiKeyId: 1, timestamp: -1 });
-ApiKeyUsageSchema.index({ userId: 1, timestamp: -1 });
+ApiKeyUsageSchema.index({ oxyUserId: 1, timestamp: -1 });
 ApiKeyUsageSchema.index({ appId: 1, timestamp: -1 });
 
 // TTL index to auto-delete old usage data after 90 days
