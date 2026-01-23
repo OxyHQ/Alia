@@ -132,12 +132,12 @@ export async function authenticateApiKey(
     req.apiKey = {
       id: developerApiKey._id.toString(),
       appId: developerApiKey.appId.toString(),
-      userId: developerApiKey.userId.toString(),
+      userId: developerApiKey.oxyUserId.toString(),
       scopes: developerApiKey.scopes,
     };
 
-    req.userId = developerApiKey.userId.toString();
-    req.user = { id: developerApiKey.userId.toString() };
+    req.userId = developerApiKey.oxyUserId.toString();
+    req.user = { id: developerApiKey.oxyUserId.toString() };
 
     // Update last used (async)
     DeveloperApiKey.findByIdAndUpdate(developerApiKey._id, {

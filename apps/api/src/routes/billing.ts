@@ -299,7 +299,7 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
   console.log(`[Billing] Added ${credits} credits to user ${metadata.userId}`);
 
   await Transaction.create({
-    userId: metadata.userId,
+    oxyUserId: metadata.userId,
     stripeCustomerId: session.customer as string,
     stripePaymentIntentId: session.payment_intent as string,
     type: 'credit_purchase',
@@ -324,7 +324,7 @@ async function handleSubscriptionUpdate(stripeSubscription: Stripe.Subscription)
   await Subscription.findOneAndUpdate(
     { stripeSubscriptionId: stripeSubscription.id },
     {
-      userId: userCredits._id,
+      oxyUserId: userCredits._id,
       stripeCustomerId: customerId,
       stripeSubscriptionId: stripeSubscription.id,
       stripePriceId: stripeSubscription.items.data[0].price.id,
@@ -342,7 +342,7 @@ async function handleSubscriptionUpdate(stripeSubscription: Stripe.Subscription)
     if (Math.abs(now - sub.current_period_start) < 300) {
       await userCredits.addCredits(plan.creditsPerMonth, 'paid');
       await Transaction.create({
-        userId: userCredits._id,
+        oxyUserId: userCredits._id,
         stripeCustomerId: customerId,
         type: 'subscription_payment',
         amount: plan.price,

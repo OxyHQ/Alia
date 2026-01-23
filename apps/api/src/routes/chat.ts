@@ -9,7 +9,8 @@ import { createAnthropic } from '@ai-sdk/anthropic';
 import { getBestAvailableKey, loadKeys } from '../lib/load-balancer.js';
 import type { KeyConfig } from '../lib/types.js';
 import { getCurrentDateTool, createGoogleSearchTool, getTimelineTool, searchKnowledgeBaseTool, scrapeURLTool, saveUserMemoryTool, updateUserPreferencesTool, updateUserContextTool, createGetDeviceInfoTool, createSendTelegramTool, type DeviceInfo } from '../lib/tools/index.js';
-import { optionalAuth, type OxyUser } from '../middleware/auth.js';
+import { optionalAuth, oxyClient } from '../middleware/auth.js';
+import type { User as OxyUser } from '@oxyhq/services';
 import { UserCredits } from '../models/user-credits.js';
 import { UserMemory } from '../models/user-memory.js';
 import { Conversation } from '../models/conversation.js';
@@ -345,8 +346,18 @@ router.post('/', optionalAuth, async (req, res) => {
       } : {})
     };
 
-    // Build personalized system prompt (oxyUser comes from session validation)
-    const systemPrompt = buildSystemPrompt(req.oxyUser, memory, isTelegram);
+    // Fetch full user profile from Oxy for personalization
+    let oxyUser: OxyUser | null = null;
+    if (req.user?.id) {
+      try {
+        oxyUser = await oxyClient.getUserById(req.user.id) as OxyUser;
+      } catch (e) {
+        console.log('[Alia/Chat] Could not fetch Oxy user profile:', e);
+      }
+    }
+
+    // Build personalized system prompt
+    const systemPrompt = buildSystemPrompt(oxyUser, memory, isTelegram);
 
     // Set headers for SSE streaming
     res.setHeader('Content-Type', 'text/event-stream');

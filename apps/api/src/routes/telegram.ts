@@ -220,7 +220,7 @@ router.post('/users/:telegramId/logout', async (req, res) => {
 
     telegramUser.isAuthenticated = false;
     telegramUser.sessionToken = undefined;
-    telegramUser.userId = undefined as any;
+    telegramUser.oxyUserId = undefined as any;
     telegramUser.conversationId = undefined;
     await telegramUser.save();
 
@@ -401,7 +401,7 @@ router.post('/link', async (req, res) => {
     const user = meData.user || meData; // Handle nested user object
 
     // Link the accounts
-    telegramUser.userId = user._id || user.id;
+    telegramUser.oxyUserId = user._id || user.id;
     telegramUser.sessionToken = sessionToken;
     telegramUser.isAuthenticated = true;
     telegramUser.linkedAt = new Date();
@@ -489,10 +489,10 @@ router.post('/signin-complete', async (req, res) => {
     // Check if this Telegram user is already linked to an Oxy user
     let telegramUser = await TelegramUser.findOne({ telegramId });
 
-    if (telegramUser && telegramUser.userId) {
+    if (telegramUser && telegramUser.oxyUserId) {
       // User has linked Telegram before - fetch their Oxy user data
       try {
-        const user = await oxyClient.getUserById(telegramUser.userId.toString());
+        const user = await oxyClient.getUserById(telegramUser.oxyUserId.toString());
 
         // Update telegram user info
         telegramUser.chatId = chatId;
@@ -575,10 +575,10 @@ router.get('/token-info/:token', async (req, res) => {
       return res.status(404).json({ error: 'Token not found or expired' });
     }
     // Si ya está vinculado a un usuario Oxy y autenticado
-    if (telegramUser.userId && telegramUser.isAuthenticated) {
+    if (telegramUser.oxyUserId && telegramUser.isAuthenticated) {
       // Buscar datos del usuario en Oxy
       try {
-        const user = await oxyClient.getUserById(telegramUser.userId.toString());
+        const user = await oxyClient.getUserById(telegramUser.oxyUserId.toString());
 
         // Enviar mensaje de Telegram para notificar login
         try {

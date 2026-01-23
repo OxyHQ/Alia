@@ -19,7 +19,7 @@ router.get('/', async (req: Request, res: Response) => {
     const userId = req.user!.id;
 
     // Find all organizations where user is a member
-    const memberships = await OrganizationMember.find({ userId });
+    const memberships = await OrganizationMember.find({ oxyUserId: userId });
     const orgIds = memberships.map((m) => m.organizationId);
 
     const organizations = await Organization.find({ _id: { $in: orgIds } })
@@ -50,7 +50,7 @@ router.get('/:id', async (req: Request, res: Response) => {
     // Check if user is a member
     const membership = await OrganizationMember.findOne({
       organizationId: id,
-      userId,
+      oxyUserId: userId,
     });
 
     if (!membership) {
@@ -103,7 +103,7 @@ router.post('/', async (req: Request, res: Response) => {
     // Add creator as owner
     await OrganizationMember.create({
       organizationId: organization._id,
-      userId,
+      oxyUserId: userId,
       role: 'owner',
       permissions: ['*'],
     });
@@ -137,7 +137,7 @@ router.patch('/:id', async (req: Request, res: Response) => {
     // Check if user is admin or owner
     const membership = await OrganizationMember.findOne({
       organizationId: id,
-      userId,
+      oxyUserId: userId,
       role: { $in: ['owner', 'admin'] },
     });
 
@@ -176,7 +176,7 @@ router.delete('/:id', async (req: Request, res: Response) => {
     // Only owner can delete
     const membership = await OrganizationMember.findOne({
       organizationId: id,
-      userId,
+      oxyUserId: userId,
       role: 'owner',
     });
 
@@ -207,7 +207,7 @@ router.get('/:id/members', async (req: Request, res: Response) => {
     // Check if user is a member
     const membership = await OrganizationMember.findOne({
       organizationId: id,
-      userId,
+      oxyUserId: userId,
     });
 
     if (!membership) {
@@ -239,7 +239,7 @@ router.post('/:id/members', async (req: Request, res: Response) => {
     // Check if user is admin or owner
     const membership = await OrganizationMember.findOne({
       organizationId: id,
-      userId,
+      oxyUserId: userId,
       role: { $in: ['owner', 'admin'] },
     });
 
@@ -278,7 +278,7 @@ router.patch('/:id/members/:memberId', async (req: Request, res: Response) => {
     // Check if user is owner (only owners can change roles)
     const membership = await OrganizationMember.findOne({
       organizationId: id,
-      userId,
+      oxyUserId: userId,
       role: 'owner',
     });
 
@@ -317,7 +317,7 @@ router.delete('/:id/members/:memberId', async (req: Request, res: Response) => {
     // Check if user is admin or owner
     const membership = await OrganizationMember.findOne({
       organizationId: id,
-      userId,
+      oxyUserId: userId,
       role: { $in: ['owner', 'admin'] },
     });
 
