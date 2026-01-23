@@ -112,7 +112,6 @@ export const Sidebar = React.memo(function Sidebar() {
   const [editingProject, setEditingProject] = React.useState<Project | null>(null);
   const [folderEditDialogOpen, setFolderEditDialogOpen] = React.useState(false);
   const [editingFolder, setEditingFolder] = React.useState<FolderType | null>(null);
-  const [conversationsCollapsed, setConversationsCollapsed] = React.useState(false);
   const [projectsCollapsed, setProjectsCollapsed] = React.useState(false);
   const [historyCollapsed, setHistoryCollapsed] = React.useState(false);
 
@@ -206,10 +205,6 @@ export const Sidebar = React.memo(function Sidebar() {
     },
     [editingProject, createProject, updateProject, projects]
   );
-
-  const handleToggleConversations = React.useCallback(() => {
-    setConversationsCollapsed((prev) => !prev);
-  }, []);
 
   const handleToggleProjects = React.useCallback(() => {
     setProjectsCollapsed((prev) => !prev);
@@ -530,25 +525,9 @@ export const Sidebar = React.memo(function Sidebar() {
         </Button>
       </View>
 
-      {/* Conversations Section */}
+      {/* Projects and History Section */}
       <View className="flex-1 px-3 md:px-2">
-        <View className="flex-row items-center justify-between px-2 py-2 md:py-1.5">
-          <Pressable
-            onPress={handleToggleConversations}
-            className="flex-row items-center gap-1 flex-1 active:opacity-70"
-          >
-            {conversationsCollapsed ? (
-              <ChevronRight size={14} className="text-muted-foreground" />
-            ) : (
-              <ChevronDown size={14} className="text-muted-foreground" />
-            )}
-            <Text className="text-sm md:text-xs font-medium text-muted-foreground">
-              Conversations
-            </Text>
-          </Pressable>
-        </View>
-        {!conversationsCollapsed && (
-          <View className="gap-2">
+        <View className="gap-2">
             {/* Projects Subsection */}
             <View>
               <View className="flex-row items-center justify-between px-2 py-1.5 md:py-1">
@@ -922,8 +901,7 @@ export const Sidebar = React.memo(function Sidebar() {
               </View>
               )}
             </View>
-          </View>
-        )}
+        </View>
       </View>
       </ScrollView>
 
