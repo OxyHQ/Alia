@@ -9,13 +9,22 @@ import { createAnthropic } from '@ai-sdk/anthropic';
 import { getBestAvailableKey, loadKeys } from '../lib/load-balancer.js';
 import type { KeyConfig } from '../lib/types.js';
 import { getCurrentDateTool, createGoogleSearchTool, getTimelineTool, searchKnowledgeBaseTool, scrapeURLTool, saveUserMemoryTool, updateUserPreferencesTool, updateUserContextTool, createGetDeviceInfoTool, createSendTelegramTool, type DeviceInfo } from '../lib/tools/index.js';
-import { optionalAuth } from '../middleware/auth.js';
-import { User } from '../models/user.js';
+import { optionalAuth, oxyClient } from '../middleware/auth.js';
+import { UserCredits } from '../models/user-credits.js';
 import { UserMemory } from '../models/user-memory.js';
 import { Conversation } from '../models/conversation.js';
 import type { IUserMemory } from '../models/user-memory.js';
-import type { IUser } from '../models/user.js';
 import { processMessagesForPlatform } from '../lib/message-processor.js';
+
+// Oxy user type for personalization
+interface OxyUser {
+  _id: string;
+  username?: string;
+  name?: { first?: string; middle?: string; last?: string; full?: string };
+  location?: string;
+  bio?: string;
+  website?: string;
+}
 
 const router = Router();
 
@@ -64,78 +73,65 @@ function getAIModel(keyConfig: KeyConfig) {
 }
 
 // Function to build personalized system prompt
-function buildSystemPrompt(user?: IUser, memory?: IUserMemory, isTelegram: boolean = false): string {
-  // Use Telegram-specific prompt if request comes from Telegram bot
+function buildSystemPrompt(oxyUser?: OxyUser | null, memory?: IUserMemory | null, isTelegram: boolean = false): string {
   let prompt = isTelegram ? ALIA_TELEGRAM_PROMPT : ALIA_SYSTEM_PROMPT;
 
-  // Add user personalization if authenticated
-  if (user) {
-    const userContext: string[] = [];
+  const userContext: string[] = [];
 
-    // Add user name (always include if available)
-    if (user.name?.first && user.name.first !== 'User') {
-      const fullName = [user.name.first, user.name.middle, user.name.last].filter(Boolean).join(' ');
-      userContext.push(`The user's name is ${fullName}.`);
+  // Add user info from Oxy
+  if (oxyUser) {
+    if (oxyUser.name?.full || oxyUser.name?.first) {
+      const fullName = oxyUser.name.full || [oxyUser.name.first, oxyUser.name.middle, oxyUser.name.last].filter(Boolean).join(' ');
+      if (fullName && fullName !== 'User') {
+        userContext.push(`The user's name is ${fullName}.`);
+      }
     }
-
-    // Add username if available
-    if (user.username) {
-      userContext.push(`The user's username is @${user.username}.`);
+    if (oxyUser.username) {
+      userContext.push(`The user's username is @${oxyUser.username}.`);
     }
+    if (oxyUser.location) {
+      userContext.push(`The user is located in ${oxyUser.location}.`);
+    }
+    if (oxyUser.bio) {
+      userContext.push(`About the user: ${oxyUser.bio}`);
+    }
+    if (oxyUser.website) {
+      userContext.push(`The user's website: ${oxyUser.website}`);
+    }
+  }
 
-    // Add language preference (from memory)
-    if (memory?.preferences?.language) {
+  // Add memory preferences and context
+  if (memory) {
+    if (memory.preferences?.language) {
       userContext.push(`User's preferred language: ${memory.preferences.language}. Use this if the message language is unclear.`);
     }
-
-    // Add user context - prefer memory, fallback to Oxy profile data
-    if (memory?.context?.occupation) {
+    if (memory.context?.occupation) {
       userContext.push(`The user works as a ${memory.context.occupation}.`);
     }
-
-    // Location: prefer memory, fallback to Oxy profile
-    const location = memory?.context?.location || user.location;
-    if (location) {
-      userContext.push(`The user is located in ${location}.`);
+    if (memory.context?.location && !oxyUser?.location) {
+      userContext.push(`The user is located in ${memory.context.location}.`);
     }
-
-    // Bio: prefer memory, fallback to Oxy profile
-    const bio = memory?.context?.bio || user.bio;
-    if (bio) {
-      userContext.push(`About the user: ${bio}`);
+    if (memory.context?.bio && !oxyUser?.bio) {
+      userContext.push(`About the user: ${memory.context.bio}`);
     }
-
-    // Website from Oxy profile
-    if (user.website) {
-      userContext.push(`The user's website: ${user.website}`);
-    }
-
-    // Add preferences (from memory)
-    if (memory?.preferences?.tone) {
+    if (memory.preferences?.tone) {
       userContext.push(`The user prefers a ${memory.preferences.tone} tone in responses.`);
     }
-    if (memory?.preferences?.responseLength) {
+    if (memory.preferences?.responseLength) {
       userContext.push(`The user prefers ${memory.preferences.responseLength} responses.`);
     }
-    if (memory?.preferences?.interests && memory.preferences.interests.length > 0) {
+    if (memory.preferences?.interests?.length) {
       userContext.push(`The user is interested in: ${memory.preferences.interests.join(', ')}.`);
     }
-
-    // Add memories
-    if (memory?.memories && memory.memories.length > 0) {
-      const memoryItems = memory.memories
-        .map(m => `- ${m.key}: ${m.value}`)
-        .join('\n');
+    if (memory.memories?.length) {
+      const memoryItems = memory.memories.map(m => `- ${m.key}: ${m.value}`).join('\n');
       userContext.push(`\nThings to remember about the user:\n${memoryItems}`);
     }
+  }
 
-    // Prepend user context to the system prompt
-    if (userContext.length > 0) {
-      console.log('[Alia/Chat] Personalization applied:', userContext);
-      prompt = `# USER CONTEXT\n\n${userContext.join('\n')}\n\n---\n\n${prompt}`;
-    } else {
-      console.log('[Alia/Chat] No personalization - user:', user._id);
-    }
+  if (userContext.length > 0) {
+    console.log('[Alia/Chat] Personalization applied:', userContext);
+    prompt = `# USER CONTEXT\n\n${userContext.join('\n')}\n\n---\n\n${prompt}`;
   }
 
   return prompt;
@@ -243,19 +239,39 @@ router.post('/', optionalAuth, async (req, res) => {
       platform
     );
 
-    // Fetch user data and memory if authenticated
-    let user: IUser | null = null;
+    // Fetch user data from Oxy and credits/memory from local DB
+    let oxyUser: OxyUser | null = null;
+    let userCredits: any = null;
     let memory: IUserMemory | null = null;
     let creditsReserved = false;
 
     if (req.user) {
       try {
         console.log('[Alia/Chat] Loading user data...');
-        user = await User.findById(req.user.id);
+
+        // Fetch user info from Oxy (for personalization)
+        try {
+          oxyUser = await oxyClient.getUserById(req.user.id) as OxyUser;
+        } catch (e) {
+          console.log('[Alia/Chat] Could not fetch Oxy user:', e);
+        }
+
+        // Get or create local credits record
+        userCredits = await UserCredits.findByIdAndUpdate(
+          req.user.id,
+          {
+            $setOnInsert: {
+              _id: req.user.id,
+              credits: { free: 1000, freeLimit: 1000, dailyRefresh: 300, lastRefresh: new Date(), paid: 0 },
+            },
+          },
+          { upsert: true, new: true }
+        );
+
         memory = await UserMemory.findOne({ userId: req.user.id });
 
         // Create empty memory profile if it doesn't exist
-        if (user && !memory) {
+        if (!memory) {
           memory = new UserMemory({
             userId: req.user.id,
             memories: [],
@@ -265,48 +281,38 @@ router.post('/', optionalAuth, async (req, res) => {
           await memory.save();
         }
 
-        // Reserve credits atomically if user is authenticated
-        if (user && req.user) {
-          // Refresh credits if needed
-          await user.refreshCreditsIfNeeded();
+        // Refresh credits if needed
+        await userCredits.refreshCreditsIfNeeded();
 
-          // Reserve 1 credit minimum atomically to prevent race conditions
-          const reserveResult = await User.findOneAndUpdate(
-            {
-              _id: req.user.id,
-              'credits.free': { $gte: 1 } // Only if has at least 1 credit
-            },
-            {
-              $inc: { 'credits.free': -1 }, // Reserve 1 credit
-              $set: { 'credits.lastUsed': new Date() }
-            },
-            {
-              new: true,
-              runValidators: false
-            }
-          );
+        // Reserve 1 credit atomically
+        const reserveResult = await UserCredits.findOneAndUpdate(
+          {
+            _id: req.user.id,
+            'credits.free': { $gte: 1 }
+          },
+          {
+            $inc: { 'credits.free': -1 },
+            $set: { 'credits.lastUsed': new Date() }
+          },
+          { new: true, runValidators: false }
+        );
 
-          if (!reserveResult) {
-            console.log('[Alia/Chat] Insufficient credits for user (atomic check)');
-            clearTimeout(requestTimeout);
-
-            // Get current credits to show in error
-            const currentUser = await User.findById(req.user.id);
-            res.status(402).json({
-              error: 'Insufficient credits',
-              credits: currentUser?.credits.free || 0
-            });
-            return;
-          }
-
-          creditsReserved = true;
-          user = reserveResult;
-          console.log(`[Alia/Chat] Reserved 1 credit. User credits: ${user.credits.free}`);
+        if (!reserveResult) {
+          console.log('[Alia/Chat] Insufficient credits');
+          clearTimeout(requestTimeout);
+          res.status(402).json({
+            error: 'Insufficient credits',
+            credits: userCredits?.credits.free || 0
+          });
+          return;
         }
+
+        creditsReserved = true;
+        userCredits = reserveResult;
+        console.log(`[Alia/Chat] Reserved 1 credit. Credits: ${userCredits.credits.free}`);
         console.log('[Alia/Chat] User data loaded successfully');
       } catch (error) {
         console.error('[Alia/Chat] Error fetching user data:', error);
-        // Continue without user context if there's an error
       }
     }
 
@@ -358,7 +364,7 @@ router.post('/', optionalAuth, async (req, res) => {
     };
 
     // Build personalized system prompt
-    const systemPrompt = buildSystemPrompt(user || undefined, memory || undefined, isTelegram);
+    const systemPrompt = buildSystemPrompt(oxyUser, memory, isTelegram);
 
     // Set headers for SSE streaming
     res.setHeader('Content-Type', 'text/event-stream');
@@ -407,51 +413,34 @@ router.post('/', optionalAuth, async (req, res) => {
     }
 
     // Adjust credits based on actual usage (we already reserved 1 credit)
-    if (user && req.user && creditsReserved) {
+    if (userCredits && req.user && creditsReserved) {
       try {
-        // Calculate actual credits used (1 credit per ~1000 tokens, minimum 1)
         const actualCreditsUsed = Math.max(1, Math.ceil(totalTokensUsed / 1000));
+        const creditAdjustment = 1 - actualCreditsUsed;
 
-        // We already deducted 1 credit, so calculate the difference
-        const creditAdjustment = 1 - actualCreditsUsed; // Positive = refund, Negative = charge more
-
-        let updatedUser = user;
+        let updatedCredits = userCredits;
 
         if (creditAdjustment !== 0) {
-          // Adjust credits atomically
-          updatedUser = await User.findByIdAndUpdate(
+          updatedCredits = await UserCredits.findByIdAndUpdate(
             req.user.id,
-            {
-              $inc: { 'credits.free': creditAdjustment }
-            },
-            {
-              new: true,
-              runValidators: false
-            }
-          ) || user;
+            { $inc: { 'credits.free': creditAdjustment } },
+            { new: true, runValidators: false }
+          ) || userCredits;
 
-          if (creditAdjustment > 0) {
-            console.log(`[Alia/Chat] Refunded ${creditAdjustment} credits. Remaining: ${updatedUser.credits.free}`);
-          } else {
-            console.log(`[Alia/Chat] Charged ${-creditAdjustment} additional credits. Remaining: ${updatedUser.credits.free}`);
-          }
-        } else {
-          console.log(`[Alia/Chat] Used exactly 1 credit as reserved. Remaining: ${updatedUser.credits.free}`);
+          console.log(`[Alia/Chat] Credit adjustment: ${creditAdjustment}. Remaining: ${updatedCredits.credits.free}`);
         }
 
-        // Ensure credits don't go negative (safety check)
-        if (updatedUser.credits.free < 0) {
-          updatedUser = await User.findByIdAndUpdate(
+        if (updatedCredits.credits.free < 0) {
+          updatedCredits = await UserCredits.findByIdAndUpdate(
             req.user.id,
             { $set: { 'credits.free': 0 } },
             { new: true }
-          ) || updatedUser;
+          ) || updatedCredits;
         }
 
-        // Send credit update event
         const creditUpdate = {
           type: 'credit-update',
-          credits: Math.max(0, updatedUser.credits.free),
+          credits: Math.max(0, updatedCredits.credits.free),
           creditsUsed: actualCreditsUsed,
           totalTokens: totalTokensUsed,
         };

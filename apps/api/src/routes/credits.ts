@@ -1,30 +1,34 @@
 import { Router } from 'express';
 import { authenticateToken } from '../middleware/auth.js';
-import { User } from '../models/user.js';
+import { UserCredits } from '../models/user-credits.js';
 
 const router = Router();
 
-// Get user's current credits
+// Helper to get or create UserCredits record
+async function getOrCreateUserCredits(userId: string) {
+  return UserCredits.findByIdAndUpdate(
+    userId,
+    {
+      $setOnInsert: {
+        _id: userId,
+        credits: { free: 1000, freeLimit: 1000, dailyRefresh: 300, lastRefresh: new Date(), paid: 0 },
+      },
+    },
+    { upsert: true, new: true }
+  );
+}
+
 router.get('/', authenticateToken, async (req, res) => {
   try {
-    const user = await User.findById(req.user!.id);
-
-    if (!user) {
-      res.status(404).json({ error: 'User not found' });
-      return;
-    }
-
-    // Refresh credits if needed before returning
-    await user.refreshCreditsIfNeeded();
-
-    const totalCredits = user.credits.free + (user.credits.paid || 0);
+    const userCredits = await getOrCreateUserCredits(req.user!.id);
+    await userCredits.refreshCreditsIfNeeded();
 
     res.json({
-      credits: totalCredits,
-      freeCredits: user.credits.freeLimit,
-      paidCredits: user.credits.paid || 0,
-      dailyRefresh: user.credits.dailyRefresh,
-      lastRefresh: user.credits.lastRefresh,
+      credits: userCredits.credits.free + userCredits.credits.paid,
+      freeCredits: userCredits.credits.free,
+      paidCredits: userCredits.credits.paid,
+      dailyRefresh: userCredits.credits.dailyRefresh,
+      lastRefresh: userCredits.credits.lastRefresh,
     });
   } catch (error: any) {
     console.error('[Credits] Error:', error);
