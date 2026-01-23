@@ -9,8 +9,10 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useCredits } from "@/lib/hooks/use-credits";
 import { useAuth } from "@oxyhq/services";
+import { useRouter } from "expo-router";
 
 export function CreditsMenu() {
+  const router = useRouter();
   const { isAuthenticated } = useAuth();
   const { data } = useCredits();
 
@@ -19,13 +21,11 @@ export function CreditsMenu() {
   const dailyRefresh = data?.dailyRefresh ?? 0;
 
   const handleUpgrade = () => {
-    // TODO: Implement upgrade flow
-    console.log("Upgrade clicked");
+    router.push("/(app)/billing");
   };
 
   const handleViewUsage = () => {
-    // TODO: Navigate to usage page
-    console.log("View usage clicked");
+    router.push("/(app)/billing");
   };
 
   // Hide credits menu if user is not signed in
