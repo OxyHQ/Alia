@@ -13,7 +13,6 @@ import conversationsRouter from './routes/conversations.js';
 import foldersRouter from './routes/folders.js';
 import chatRouter from './routes/chat.js';
 import memoryRouter from './routes/memory.js';
-import uploadRouter from './routes/upload.js';
 import creditsRouter from './routes/credits.js';
 import v1Router from './routes/v1.js';
 import telegramRouter from './routes/telegram.js';
@@ -74,7 +73,6 @@ app.use('/auth', authRouter);
 app.use('/conversations', conversationsRouter);
 app.use('/folders', foldersRouter);
 app.use('/memory', memoryRouter);
-app.use('/upload', uploadRouter);
 app.use('/credits', creditsRouter);
 app.use('/alia/chat', chatRouter);
 app.use('/v1', v1Router);
@@ -96,7 +94,6 @@ app.get('/', (_req, res) => {
       '/conversations',
       '/folders',
       '/memory',
-      '/upload',
       '/credits',
       '/alia/chat',
       '/v1',
