@@ -1,6 +1,7 @@
 import express from 'express';
 import { authenticateToken } from '../middleware/auth.js';
 import crypto from 'crypto';
+import mongoose from 'mongoose';
 import { TelegramUser } from '../models/telegram-user.js';
 import { emitTelegramLinked } from '../socket.js';
 import { OxyServices } from '@oxyhq/services/core';
@@ -42,6 +43,34 @@ router.get('/users/token/:token', async (req, res) => {
   }
 });
 
+// Get Telegram link status for authenticated user
+router.get('/link-status', authenticateToken, async (req, res) => {
+  try {
+    const oxyUserId = req.userId; // From authenticateToken middleware
+
+    if (!oxyUserId) {
+      return res.status(401).json({ error: 'User ID not found' });
+    }
+
+    const telegramUser = await TelegramUser.findOne({
+      oxyUserId: new mongoose.Types.ObjectId(oxyUserId),
+      isAuthenticated: true,
+    });
+
+    if (!telegramUser) {
+      return res.json({ linked: false });
+    }
+
+    res.json({
+      linked: true,
+      telegramUsername: telegramUser.username,
+      linkedAt: telegramUser.linkedAt,
+    });
+  } catch (error) {
+    console.error('Telegram link status error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
 
 // Helper to generate auth token
 // Genera un token seguro de 32 bytes (64 caracteres hexadecimales)
