@@ -7,8 +7,6 @@ import { OxyProvider, useOxy } from '@oxyhq/services';
 import * as Linking from 'expo-linking';
 import { Platform } from 'react-native';
 import { PortalHost } from '@rn-primitives/portal';
-import { SafeAreaProvider } from 'react-native-safe-area-context';
-import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { Toaster } from '@/components/sonner';
 import { useColorScheme } from '@/lib/useColorScheme';
 import { setSessionGetter } from '@/lib/api/client';
@@ -77,15 +75,11 @@ export default function RootLayout() {
   if (!loaded) return null;
 
   return (
-    <GestureHandlerRootView style={{ flex: 1 }}>
-      <SafeAreaProvider>
-        <OxyProvider
-          baseURL={OXY_API_URL}
-          authRedirectUri={Platform.OS !== 'web' ? AUTH_REDIRECT_URI : undefined}
-        >
-          <AppContent />
-        </OxyProvider>
-      </SafeAreaProvider>
-    </GestureHandlerRootView>
+    <OxyProvider
+      baseURL={OXY_API_URL}
+      authRedirectUri={Platform.OS !== 'web' ? AUTH_REDIRECT_URI : undefined}
+    >
+      <AppContent />
+    </OxyProvider>
   );
 }
