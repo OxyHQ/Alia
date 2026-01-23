@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useAuth } from '@oxyhq/services';
+import { useOxy } from '@oxyhq/services';
 import apiClient from '../api/client';
 
 export interface Organization {
@@ -45,14 +45,14 @@ async function fetchOrganizations(): Promise<Organization[]> {
 }
 
 export function useOrganizations() {
-  const { isAuthenticated } = useAuth();
+  const { activeSessionId } = useOxy();
 
   return useQuery({
     queryKey: ['organizations'],
     queryFn: fetchOrganizations,
     staleTime: 1000 * 60 * 5, // 5 minutes
     retry: 2,
-    enabled: isAuthenticated,
+    enabled: !!activeSessionId,
   });
 }
 
