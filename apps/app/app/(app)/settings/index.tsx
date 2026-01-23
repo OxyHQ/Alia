@@ -223,7 +223,7 @@ export default function SettingsScreen() {
                 }
 
                 // Open Telegram bot for linking
-                const botUsername = process.env.EXPO_PUBLIC_TELEGRAM_BOT_USERNAME || 'your_bot_username';
+                const botUsername = process.env.EXPO_PUBLIC_TELEGRAM_BOT_USERNAME || 'alia_onlbot';
                 const linkUrl = `https://t.me/${botUsername}?start=link`;
 
                 try {
