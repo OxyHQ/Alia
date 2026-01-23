@@ -4,31 +4,19 @@ import DeveloperApiKey from '../models/developer-api-key.js';
 import DeveloperApp from '../models/developer-app.js';
 import ApiKeyUsage from '../models/api-key-usage.js';
 
-// Initialize Oxy client for session validation
+// Initialize Oxy client
 const OXY_API_URL = process.env.OXY_API_URL || 'https://api.oxy.so';
 export const oxyClient = new OxyServices({
   baseURL: OXY_API_URL,
 });
 
-// Oxy user type from session validation
-export interface OxyUser {
-  _id: string;
-  id?: string;
-  email?: string;
-  username?: string;
-  name?: { first?: string; middle?: string; last?: string; full?: string };
-  avatar?: string;
-  bio?: string;
-  location?: string;
-  website?: string;
-}
-
-// Extend Express Request
+// Extend Express Request for API keys
 declare global {
   namespace Express {
     interface Request {
+      userId?: string;
+      accessToken?: string;
       user?: { id: string };
-      oxyUser?: OxyUser;
       apiKey?: {
         id: string;
         appId: string;
@@ -39,52 +27,25 @@ declare global {
   }
 }
 
+// Oxy's built-in auth middleware
+const oxyAuth = oxyClient.auth({
+  debug: process.env.NODE_ENV === 'development',
+  loadUser: true,
+});
+
 /**
- * Middleware to authenticate requests using Oxy session
+ * Oxy session authentication middleware
+ * Wraps Oxy's auth() to also support x-session-id header
  */
-export async function authenticateToken(
-  req: Request,
-  res: Response,
-  next: NextFunction
-): Promise<void> {
-  try {
-    const sessionId = req.headers['x-session-id'] as string ||
-      (req.headers.authorization?.startsWith('Bearer ')
-        ? req.headers.authorization.substring(7)
-        : null);
-
-    if (!sessionId) {
-      res.status(401).json({ error: 'Authentication required' });
-      return;
-    }
-
-    if (sessionId.startsWith('alia_sk_')) {
-      res.status(401).json({ error: 'Use API key authentication endpoint' });
-      return;
-    }
-
-    const { valid, user } = await oxyClient.validateSession(sessionId);
-
-    if (!valid || !user) {
-      res.status(401).json({ error: 'Invalid or expired session' });
-      return;
-    }
-
-    const oxyUser = user as OxyUser;
-    const userId = oxyUser._id || oxyUser.id;
-
-    if (!userId) {
-      res.status(401).json({ error: 'Invalid user data' });
-      return;
-    }
-
-    req.user = { id: userId };
-    req.oxyUser = oxyUser;
-    next();
-  } catch (error) {
-    console.error('[Auth] Session validation error:', error instanceof Error ? error.message : error);
-    res.status(401).json({ error: 'Session validation failed' });
+export function authenticateToken(req: Request, res: Response, next: NextFunction) {
+  // If x-session-id is provided but no Authorization, copy it
+  const sessionId = req.headers['x-session-id'] as string;
+  if (sessionId && !req.headers.authorization) {
+    req.headers.authorization = `Bearer ${sessionId}`;
   }
+
+  // Use Oxy's middleware
+  return oxyAuth(req, res, next);
 }
 
 /**
@@ -95,34 +56,31 @@ export async function optionalAuth(
   res: Response,
   next: NextFunction
 ): Promise<void> {
-  try {
-    const sessionId = req.headers['x-session-id'] as string ||
-      (req.headers.authorization?.startsWith('Bearer ')
-        ? req.headers.authorization.substring(7)
-        : null);
+  const authHeader = req.headers['authorization'];
+  const sessionId = req.headers['x-session-id'] as string;
+  const token = authHeader?.startsWith('Bearer ') ? authHeader.substring(7) : sessionId;
 
-    if (sessionId && !sessionId.startsWith('alia_sk_')) {
-      const { valid, user } = await oxyClient.validateSession(sessionId);
-
-      if (valid && user) {
-        const oxyUser = user as OxyUser;
-        const userId = oxyUser._id || oxyUser.id;
-        if (userId) {
-          req.user = { id: userId };
-          req.oxyUser = oxyUser;
-        }
-      }
-    }
-
-    next();
-  } catch (error) {
-    console.error('Optional auth error:', error instanceof Error ? error.message : error);
-    next();
+  if (!token || token.startsWith('alia_sk_')) {
+    return next();
   }
+
+  // Try to authenticate but don't fail
+  try {
+    const { valid, user } = await oxyClient.validateSession(token);
+    if (valid && user) {
+      const rawUser = user as any;
+      req.userId = rawUser._id || rawUser.id;
+      req.user = { id: req.userId! };
+    }
+  } catch (error) {
+    // Silently continue without auth
+  }
+
+  next();
 }
 
 /**
- * Middleware to authenticate using Developer API Keys
+ * Developer API Key authentication
  */
 export async function authenticateApiKey(
   req: Request,
@@ -178,12 +136,15 @@ export async function authenticateApiKey(
       scopes: developerApiKey.scopes,
     };
 
+    req.userId = developerApiKey.userId.toString();
     req.user = { id: developerApiKey.userId.toString() };
 
+    // Update last used (async)
     DeveloperApiKey.findByIdAndUpdate(developerApiKey._id, {
       lastUsedAt: new Date(),
     }).catch((err) => console.error('Failed to update lastUsedAt:', err));
 
+    // Log usage after response
     res.on('finish', async () => {
       const responseTime = Date.now() - startTime;
       try {
@@ -229,10 +190,12 @@ export async function authenticateTokenOrApiKey(
     return;
   }
 
+  // API key auth
   if (token?.startsWith('alia_sk_')) {
     return authenticateApiKey(req, res, next);
   }
 
+  // Oxy session auth
   return authenticateToken(req, res, next);
 }
 
@@ -241,6 +204,7 @@ export async function authenticateTokenOrApiKey(
  */
 export function requireScope(scope: string) {
   return (req: Request, res: Response, next: NextFunction): void => {
+    // Session users have all scopes
     if (req.user && !req.apiKey) {
       return next();
     }
