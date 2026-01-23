@@ -1,4 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useAuth } from '@oxyhq/services';
 import apiClient from '../api/client';
 
 export interface DeveloperApp {
@@ -79,11 +80,14 @@ async function fetchApps(): Promise<DeveloperApp[]> {
 }
 
 export function useApps() {
+  const { isAuthenticated } = useAuth();
+
   return useQuery({
     queryKey: ['developer-apps'],
     queryFn: fetchApps,
     staleTime: 1000 * 60 * 5, // 5 minutes
     retry: 2,
+    enabled: isAuthenticated,
   });
 }
 
@@ -311,10 +315,13 @@ async function fetchDeveloperStats(): Promise<DeveloperStats> {
 }
 
 export function useDeveloperStats() {
+  const { isAuthenticated } = useAuth();
+
   return useQuery({
     queryKey: ['developer-stats'],
     queryFn: fetchDeveloperStats,
     staleTime: 1000 * 60 * 5, // 5 minutes
     retry: 2,
+    enabled: isAuthenticated,
   });
 }
