@@ -76,24 +76,16 @@ export default function RootLayout() {
 
   if (!loaded) return null;
 
-  const content = (
-    <SafeAreaProvider>
-      <OxyProvider
-        baseURL={OXY_API_URL}
-        authRedirectUri={Platform.OS !== 'web' ? AUTH_REDIRECT_URI : undefined}
-      >
-        <AppContent />
-      </OxyProvider>
-    </SafeAreaProvider>
-  );
-
-  if (Platform.OS === 'web') {
-    return content;
-  }
-
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
-      {content}
+      <SafeAreaProvider>
+        <OxyProvider
+          baseURL={OXY_API_URL}
+          authRedirectUri={Platform.OS !== 'web' ? AUTH_REDIRECT_URI : undefined}
+        >
+          <AppContent />
+        </OxyProvider>
+      </SafeAreaProvider>
     </GestureHandlerRootView>
   );
 }
