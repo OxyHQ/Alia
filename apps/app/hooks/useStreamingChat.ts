@@ -279,18 +279,26 @@ Use this role to guide your responses, maintaining the specified tone, style, an
         }
       }
     } catch (e) {
+      // Ignore abort errors (user cancelled)
+      if (e instanceof Error && e.name === 'AbortError') {
+        return;
+      }
       console.error('[useStreamingChat] Error:', e);
       setError(e as Error);
 
       // Remove the empty assistant message on error
       setMessages((prev) => prev.filter((m) => m.id !== assistantMessageId));
     } finally {
+      abortControllerRef.current = null;
       setIsLoading(false);
     }
-  }, [apiUrl, messages, activeSessionId, activeRole]);
+  }, [apiUrl, messages, activeSessionId, activeRole, queryClient]);
 
   const stop = useCallback(() => {
-    // TODO: Implement abort controller
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
+    }
     setIsLoading(false);
   }, []);
 
