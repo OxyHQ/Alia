@@ -11,19 +11,21 @@ const oxyClient = new OxyServices({
 });
 
 // Define Oxy user type from session validation
+// Based on @oxyhq/services User interface
 interface OxyUser {
   _id: string;
-  id?: string; // Some responses use 'id' instead of '_id'
+  id?: string;
   email?: string;
   username?: string;
   name?: {
     first?: string;
     last?: string;
-    full?: string; // Oxy provides this as a virtual field
+    full?: string;
   };
   avatar?: string;
   bio?: string;
   location?: string;
+  website?: string;
 }
 
 /**

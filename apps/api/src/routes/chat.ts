@@ -215,9 +215,10 @@ router.post('/', optionalAuth, async (req, res) => {
 
     // Determine source platform from headers
     // x-source header can be: app, telegram, api, web, discord, whatsapp, slack
+    // Platform type only supports 'app' | 'telegram' for message processing
     const sourceHeader = req.headers['x-source'] as string | undefined;
     const isTelegram = req.headers['x-telegram-bot'] === 'true';
-    const platform = sourceHeader || (isTelegram ? 'telegram' : 'app');
+    const platform: 'app' | 'telegram' = sourceHeader === 'telegram' || isTelegram ? 'telegram' : 'app';
 
     // Process incoming messages to remove platform-incompatible tags
     // This saves tokens by not sending irrelevant formatting to the AI
