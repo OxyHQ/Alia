@@ -69,44 +69,44 @@ function buildSystemPrompt(user?: IUser, memory?: IUserMemory, isTelegram: boole
   let prompt = isTelegram ? ALIA_TELEGRAM_PROMPT : ALIA_SYSTEM_PROMPT;
 
   // Add user personalization if authenticated
-  if (user && memory) {
+  if (user) {
     const userContext: string[] = [];
 
-    // Add user name
-    if (user.name?.first) {
+    // Add user name (always include if available)
+    if (user.name?.first && user.name.first !== 'User') {
       const fullName = [user.name.first, user.name.middle, user.name.last].filter(Boolean).join(' ');
       userContext.push(`The user's name is ${fullName}.`);
     }
 
-    // Add language preference
-    if (memory.preferences?.language) {
+    // Add language preference (from memory)
+    if (memory?.preferences?.language) {
       userContext.push(`User's preferred language: ${memory.preferences.language}. Use this if the message language is unclear.`);
     }
 
-    // Add user context
-    if (memory.context?.occupation) {
+    // Add user context (from memory)
+    if (memory?.context?.occupation) {
       userContext.push(`The user works as a ${memory.context.occupation}.`);
     }
-    if (memory.context?.location) {
+    if (memory?.context?.location) {
       userContext.push(`The user is located in ${memory.context.location}.`);
     }
-    if (memory.context?.bio) {
+    if (memory?.context?.bio) {
       userContext.push(`About the user: ${memory.context.bio}`);
     }
 
-    // Add preferences
-    if (memory.preferences?.tone) {
+    // Add preferences (from memory)
+    if (memory?.preferences?.tone) {
       userContext.push(`The user prefers a ${memory.preferences.tone} tone in responses.`);
     }
-    if (memory.preferences?.responseLength) {
+    if (memory?.preferences?.responseLength) {
       userContext.push(`The user prefers ${memory.preferences.responseLength} responses.`);
     }
-    if (memory.preferences?.interests && memory.preferences.interests.length > 0) {
+    if (memory?.preferences?.interests && memory.preferences.interests.length > 0) {
       userContext.push(`The user is interested in: ${memory.preferences.interests.join(', ')}.`);
     }
 
     // Add memories
-    if (memory.memories && memory.memories.length > 0) {
+    if (memory?.memories && memory.memories.length > 0) {
       const memoryItems = memory.memories
         .map(m => `- ${m.key}: ${m.value}`)
         .join('\n');
@@ -115,7 +115,10 @@ function buildSystemPrompt(user?: IUser, memory?: IUserMemory, isTelegram: boole
 
     // Prepend user context to the system prompt
     if (userContext.length > 0) {
+      console.log('[Alia/Chat] Personalization applied:', userContext);
       prompt = `# USER CONTEXT\n\n${userContext.join('\n')}\n\n---\n\n${prompt}`;
+    } else {
+      console.log('[Alia/Chat] No personalization - user name:', user.name);
     }
   }
 
