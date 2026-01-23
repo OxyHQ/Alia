@@ -150,7 +150,7 @@ export async function authenticateApiKey(
       try {
         await ApiKeyUsage.create({
           apiKeyId: developerApiKey._id,
-          userId: developerApiKey.userId,
+          oxyUserId: developerApiKey.oxyUserId,
           appId: developerApiKey.appId,
           endpoint: req.path,
           method: req.method,
