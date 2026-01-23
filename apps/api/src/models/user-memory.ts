@@ -1,7 +1,7 @@
 import mongoose, { Schema, Model, Document } from 'mongoose';
 
 export interface IUserMemory extends Document {
-  userId: mongoose.Types.ObjectId;
+  oxyUserId: mongoose.Types.ObjectId;
   memories: {
     key: string;
     value: string;
@@ -28,7 +28,7 @@ export interface IUserMemory extends Document {
 }
 
 const UserMemorySchema = new Schema<IUserMemory>({
-  userId: { type: Schema.Types.ObjectId, ref: 'User', required: true, unique: true },
+  oxyUserId: { type: Schema.Types.ObjectId, ref: 'User', required: true, unique: true },
   memories: [{
     key: { type: String, required: true },
     value: { type: String, required: true },

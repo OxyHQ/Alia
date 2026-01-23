@@ -1,7 +1,7 @@
 import mongoose, { Schema, Document } from 'mongoose';
 
 export interface IDeveloperApp extends Document {
-  userId: mongoose.Types.ObjectId;
+  oxyUserId: mongoose.Types.ObjectId;
   organizationId?: mongoose.Types.ObjectId;
   name: string;
   description?: string;
@@ -15,7 +15,7 @@ export interface IDeveloperApp extends Document {
 
 const DeveloperAppSchema = new Schema<IDeveloperApp>(
   {
-    userId: {
+    oxyUserId: {
       type: Schema.Types.ObjectId,
       ref: 'User',
       required: true,
@@ -60,7 +60,7 @@ const DeveloperAppSchema = new Schema<IDeveloperApp>(
 );
 
 // Compound index for user-specific queries
-DeveloperAppSchema.index({ userId: 1, isActive: 1 });
+DeveloperAppSchema.index({ oxyUserId: 1, isActive: 1 });
 
 const DeveloperApp = mongoose.model<IDeveloperApp>('DeveloperApp', DeveloperAppSchema);
 

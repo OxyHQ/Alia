@@ -1,7 +1,7 @@
 import mongoose, { Schema, Model, Document } from 'mongoose';
 
 export interface ITransaction extends Document {
-  userId: mongoose.Types.ObjectId;
+  oxyUserId: mongoose.Types.ObjectId;
   stripeCustomerId?: string;
   stripePaymentIntentId?: string;
   type: 'credit_purchase' | 'subscription_payment' | 'refund';
@@ -16,7 +16,7 @@ export interface ITransaction extends Document {
 }
 
 const TransactionSchema = new Schema<ITransaction>({
-  userId: {
+  oxyUserId: {
     type: Schema.Types.ObjectId,
     ref: 'User',
     required: true,
@@ -62,7 +62,7 @@ const TransactionSchema = new Schema<ITransaction>({
 });
 
 // Indexes (stripePaymentIntentId is already indexed via unique: true)
-TransactionSchema.index({ userId: 1, createdAt: -1 });
+TransactionSchema.index({ oxyUserId: 1, createdAt: -1 });
 TransactionSchema.index({ status: 1 });
 
 export const Transaction: Model<ITransaction> = mongoose.models.Transaction || mongoose.model<ITransaction>('Transaction', TransactionSchema);

@@ -182,7 +182,7 @@ router.post('/checkout/subscription', authenticateToken, async (req: Request, re
 router.get('/subscription', authenticateToken, async (req: Request, res: Response) => {
   try {
     const subscription = await Subscription.findOne({
-      userId: req.user!.id,
+      oxyUserId: req.user!.id,
       status: { $in: ['active', 'trialing'] },
     });
     res.json({ subscription });
@@ -195,7 +195,7 @@ router.get('/subscription', authenticateToken, async (req: Request, res: Respons
 router.post('/subscription/cancel', authenticateToken, async (req: Request, res: Response) => {
   try {
     const subscription = await Subscription.findOne({
-      userId: req.user!.id,
+      oxyUserId: req.user!.id,
       status: { $in: ['active', 'trialing'] },
     });
 
@@ -220,11 +220,11 @@ router.post('/subscription/cancel', authenticateToken, async (req: Request, res:
 router.get('/transactions', authenticateToken, async (req: Request, res: Response) => {
   try {
     const { limit = 20, offset = 0 } = req.query;
-    const transactions = await Transaction.find({ userId: req.user!.id })
+    const transactions = await Transaction.find({ oxyUserId: req.user!.id })
       .sort({ createdAt: -1 })
       .limit(Number(limit))
       .skip(Number(offset));
-    const total = await Transaction.countDocuments({ userId: req.user!.id });
+    const total = await Transaction.countDocuments({ oxyUserId: req.user!.id });
     res.json({ transactions, total });
   } catch (error: any) {
     console.error('[Billing] Error fetching transactions:', error);

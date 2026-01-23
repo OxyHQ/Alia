@@ -31,7 +31,7 @@ router.get('/users/token/:token', async (req, res) => {
     res.json({
       telegramId: telegramUser.telegramId,
       authTokenMode: telegramUser.authTokenMode,
-      userId: telegramUser.userId,
+      oxyUserId: telegramUser.oxyUserId,
       sessionToken: telegramUser.sessionToken,
       name: telegramUser.firstName || telegramUser.username || '',
       isAuthenticated: telegramUser.isAuthenticated,
@@ -410,7 +410,7 @@ router.post('/link', async (req, res) => {
     await telegramUser.save();
 
     emitTelegramLinked(req.body.authToken, {
-      userId: telegramUser.userId,
+      oxyUserId: telegramUser.oxyUserId,
       sessionToken: telegramUser.sessionToken,
       email: user.email,
       name: user.name?.full || user.name?.first || '',
@@ -510,7 +510,7 @@ router.post('/signin-complete', async (req, res) => {
           await TelegramUser.deleteOne({ _id: pendingAuth._id });
         }
 
-        console.log('[signin-complete] Telegram user signed in with existing Oxy link', { telegramId, userId: telegramUser.userId });
+        console.log('[signin-complete] Telegram user signed in with existing Oxy link', { telegramId, oxyUserId: telegramUser.oxyUserId });
         res.json({
           success: true,
           isNewUser: false,
@@ -522,7 +522,7 @@ router.post('/signin-complete', async (req, res) => {
           },
         });
       } catch (error) {
-        console.error('[signin-complete] Failed to fetch Oxy user', { telegramId, userId: telegramUser.userId, error });
+        console.error('[signin-complete] Failed to fetch Oxy user', { telegramId, oxyUserId: telegramUser.oxyUserId, error });
         return res.status(404).json({ error: 'Linked Oxy user not found' });
       }
     } else {
@@ -608,13 +608,13 @@ router.get('/token-info/:token', async (req, res) => {
           : user.username || '';
 
         emitTelegramLinked(token, {
-          userId: telegramUser.userId,
+          oxyUserId: telegramUser.oxyUserId,
           email: user.email,
           name: fullName,
         });
 
         return res.json({
-          userId: telegramUser.userId,
+          oxyUserId: telegramUser.oxyUserId,
           email: user.email,
           username: user.username,
           name: fullName,

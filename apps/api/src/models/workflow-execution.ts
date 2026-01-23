@@ -9,7 +9,7 @@ export interface IWorkflowExecutionResult {
 }
 
 export interface IWorkflowExecution extends Document {
-  userId: mongoose.Types.ObjectId;
+  oxyUserId: mongoose.Types.ObjectId;
   workflowId: string;
   executionId: string;
   status: 'running' | 'completed' | 'failed';
@@ -28,7 +28,7 @@ const WorkflowExecutionResultSchema = new Schema({
 }, { _id: false });
 
 const WorkflowExecutionSchema = new Schema<IWorkflowExecution>({
-  userId: { type: Schema.Types.ObjectId, ref: 'User', required: true, index: true },
+  oxyUserId: { type: Schema.Types.ObjectId, ref: 'User', required: true, index: true },
   workflowId: { type: String, required: true, index: true },
   executionId: { type: String, required: true, unique: true, index: true },
   status: {

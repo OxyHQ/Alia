@@ -9,7 +9,7 @@ const TelegramUserSchema = new mongoose.Schema(
       unique: true,
       index: true,
     },
-    userId: {
+    oxyUserId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',
       sparse: true,

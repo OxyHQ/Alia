@@ -21,7 +21,7 @@ export interface IMessage {
 export type ConversationSource = 'app' | 'telegram' | 'api' | 'web' | 'discord' | 'whatsapp' | 'slack';
 
 export interface IConversation extends Document {
-  userId: mongoose.Types.ObjectId;
+  oxyUserId: mongoose.Types.ObjectId;
   conversationId: string;
   title: string;
   isManualTitle?: boolean;
@@ -63,7 +63,7 @@ const MessageSchema = new Schema<IMessage>({
 }, { _id: false });
 
 const ConversationSchema = new Schema<IConversation>({
-  userId: {
+  oxyUserId: {
     type: Schema.Types.ObjectId,
     ref: 'User',
     required: true,
@@ -97,7 +97,7 @@ const ConversationSchema = new Schema<IConversation>({
 });
 
 // Compound index for userId + conversationId (unique per user)
-ConversationSchema.index({ userId: 1, conversationId: 1 }, { unique: true });
+ConversationSchema.index({ oxyUserId: 1, conversationId: 1 }, { unique: true });
 
 // Evitar recompilación del modelo en hot-reload
 export const Conversation: Model<IConversation> = mongoose.models.Conversation || mongoose.model<IConversation>('Conversation', ConversationSchema);
