@@ -1,9 +1,7 @@
 import mongoose, { Schema, Model, Document } from 'mongoose';
-import bcrypt from 'bcryptjs';
 
 export interface IUser extends Document {
   email: string;
-  password?: string;
   username?: string;
   name: {
     first: string;
@@ -22,11 +20,8 @@ export interface IUser extends Document {
     paid: number;          // Paid credits balance (never expires)
   };
   stripeCustomerId?: string;
-  resetPasswordToken?: string;
-  resetPasswordExpires?: Date;
   createdAt: Date;
   updatedAt: Date;
-  comparePassword(candidatePassword: string): Promise<boolean>;
   refreshCreditsIfNeeded(): Promise<void>;
   addCredits(amount: number, type?: 'free' | 'paid'): Promise<void>;
   deductCredits(amount: number): Promise<boolean>;
@@ -34,7 +29,6 @@ export interface IUser extends Document {
 
 const UserSchema = new Schema<IUser>({
   email: { type: String, required: true, unique: true },
-  password: { type: String, required: false },
   username: { type: String },
   name: {
     first: { type: String, required: true },
@@ -53,8 +47,6 @@ const UserSchema = new Schema<IUser>({
     paid: { type: Number, default: 0 },
   },
   stripeCustomerId: { type: String },
-  resetPasswordToken: { type: String },
-  resetPasswordExpires: { type: Date },
 }, {
   timestamps: true,
   toJSON: { virtuals: true }, // Asegurar que los virtuales se incluyan al convertir a JSON
@@ -66,31 +58,6 @@ UserSchema.virtual('name.full').get(function() {
   const parts = [this.name.first, this.name.middle, this.name.last].filter(Boolean);
   return parts.join(' ');
 });
-
-// Hash password before saving
-UserSchema.pre('save', async function() {
-  // Only hash the password if it has been modified (or is new)
-  if (!this.isModified('password')) {
-    return;
-  }
-
-  // Don't hash if password is undefined or empty
-  if (!this.password) {
-    return;
-  }
-
-  // Generate salt and hash password
-  const salt = await bcrypt.genSalt(10);
-  this.password = await bcrypt.hash(this.password, salt);
-});
-
-// Method to compare passwords
-UserSchema.methods.comparePassword = async function(candidatePassword: string): Promise<boolean> {
-  if (!this.password) {
-    return false;
-  }
-  return bcrypt.compare(candidatePassword, this.password);
-};
 
 // Method to refresh credits if a day has passed
 UserSchema.methods.refreshCreditsIfNeeded = async function(): Promise<void> {
