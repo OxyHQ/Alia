@@ -1,26 +1,22 @@
 import { View, Pressable } from "react-native";
 import { Text } from "@/components/ui/text";
 import { Button } from "@/components/ui/button";
-import { Sparkles, Calendar, HelpCircle } from "lucide-react-native";
+import { Sparkles, Calendar } from "lucide-react-native";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { useCreditsStore } from "@/lib/stores/credits-store";
-import { useEffect } from "react";
+import { useCredits } from "@/lib/hooks/use-credits";
 import { useAuth } from "@oxyhq/services";
 
 export function CreditsMenu() {
-  const { credits, freeCredits, dailyRefresh, fetchCredits } = useCreditsStore();
   const { isAuthenticated } = useAuth();
+  const { data } = useCredits();
 
-  // Fetch credits on mount if authenticated
-  useEffect(() => {
-    if (isAuthenticated) {
-      fetchCredits();
-    }
-  }, [isAuthenticated, fetchCredits]);
+  const credits = data?.credits ?? 0;
+  const freeCredits = data?.freeCredits ?? 0;
+  const dailyRefresh = data?.dailyRefresh ?? 0;
 
   const handleUpgrade = () => {
     // TODO: Implement upgrade flow
