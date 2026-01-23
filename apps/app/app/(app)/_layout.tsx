@@ -39,9 +39,9 @@ export default function AppLayout() {
           drawerStyle: {
             width: 255,
             backgroundColor: drawerBackgroundColor,
-            borderRightWidth: 1,
-            borderRightColor: drawerBorderColor,
-            elevation: 0,
+            borderRightWidth: 0,
+            boxShadow: '0px 1px 2px rgba(0, 0, 0, 0.05)',
+            elevation: 1,
           },
           drawerType: isLargeScreen ? 'permanent' : 'front',
           swipeEnabled: !isLargeScreen,
