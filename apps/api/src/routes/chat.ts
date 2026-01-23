@@ -78,20 +78,36 @@ function buildSystemPrompt(user?: IUser, memory?: IUserMemory, isTelegram: boole
       userContext.push(`The user's name is ${fullName}.`);
     }
 
+    // Add username if available
+    if (user.username) {
+      userContext.push(`The user's username is @${user.username}.`);
+    }
+
     // Add language preference (from memory)
     if (memory?.preferences?.language) {
       userContext.push(`User's preferred language: ${memory.preferences.language}. Use this if the message language is unclear.`);
     }
 
-    // Add user context (from memory)
+    // Add user context - prefer memory, fallback to Oxy profile data
     if (memory?.context?.occupation) {
       userContext.push(`The user works as a ${memory.context.occupation}.`);
     }
-    if (memory?.context?.location) {
-      userContext.push(`The user is located in ${memory.context.location}.`);
+
+    // Location: prefer memory, fallback to Oxy profile
+    const location = memory?.context?.location || user.location;
+    if (location) {
+      userContext.push(`The user is located in ${location}.`);
     }
-    if (memory?.context?.bio) {
-      userContext.push(`About the user: ${memory.context.bio}`);
+
+    // Bio: prefer memory, fallback to Oxy profile
+    const bio = memory?.context?.bio || user.bio;
+    if (bio) {
+      userContext.push(`About the user: ${bio}`);
+    }
+
+    // Website from Oxy profile
+    if (user.website) {
+      userContext.push(`The user's website: ${user.website}`);
     }
 
     // Add preferences (from memory)
@@ -118,7 +134,7 @@ function buildSystemPrompt(user?: IUser, memory?: IUserMemory, isTelegram: boole
       console.log('[Alia/Chat] Personalization applied:', userContext);
       prompt = `# USER CONTEXT\n\n${userContext.join('\n')}\n\n---\n\n${prompt}`;
     } else {
-      console.log('[Alia/Chat] No personalization - user name:', user.name);
+      console.log('[Alia/Chat] No personalization - user:', user._id);
     }
   }
 

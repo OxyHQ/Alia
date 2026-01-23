@@ -7,7 +7,6 @@ import { OxyProvider, useOxy } from '@oxyhq/services';
 import * as Linking from 'expo-linking';
 import { Platform } from 'react-native';
 import { PortalHost } from '@rn-primitives/portal';
-import { Toaster } from '@/components/sonner';
 import { useColorScheme } from '@/lib/useColorScheme';
 import { setSessionGetter } from '@/lib/api/client';
 import 'react-native-reanimated';
@@ -51,7 +50,6 @@ function AppContent() {
         <Stack.Screen name="(developers)" options={{ headerShown: false }} />
       </Stack>
       <PortalHost />
-      <Toaster position="bottom-center" />
     </AuthSetup>
   );
 }
