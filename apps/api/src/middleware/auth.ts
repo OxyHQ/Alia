@@ -1,13 +1,14 @@
 import { Request, Response, NextFunction } from 'express';
-import { OxyServices, OXY_CLOUD_URL } from '@oxyhq/services/core';
+import { OxyServices } from '@oxyhq/services/core';
 import DeveloperApiKey from '../models/developer-api-key.js';
 import DeveloperApp from '../models/developer-app.js';
 import ApiKeyUsage from '../models/api-key-usage.js';
 import { User, IUser } from '../models/user.js';
 
 // Initialize Oxy client for session validation
+const OXY_API_URL = process.env.OXY_API_URL || 'https://api.oxy.so';
 const oxyClient = new OxyServices({
-  baseURL: process.env.OXY_API_URL || OXY_CLOUD_URL,
+  baseURL: OXY_API_URL,
 });
 
 // Define Oxy user type from session validation
@@ -203,7 +204,7 @@ export async function authenticateToken(
 
     next();
   } catch (error) {
-    console.error('Authentication error:', error);
+    console.error('[Auth] Session validation error:', error instanceof Error ? error.message : error);
     res.status(401).json({ error: 'Session validation failed' });
   }
 }

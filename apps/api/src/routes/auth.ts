@@ -1,12 +1,13 @@
 import { Router } from 'express';
-import { OxyServices, OXY_CLOUD_URL } from '@oxyhq/services/core';
+import { OxyServices } from '@oxyhq/services/core';
 import { authenticateToken } from '../middleware/auth.js';
 
 const router = Router();
 
 // Initialize Oxy client
+const OXY_API_URL = process.env.OXY_API_URL || 'https://api.oxy.so';
 const oxyClient = new OxyServices({
-  baseURL: process.env.OXY_API_URL || OXY_CLOUD_URL,
+  baseURL: OXY_API_URL,
 });
 
 /**
