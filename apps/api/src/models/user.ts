@@ -4,12 +4,16 @@ import bcrypt from 'bcryptjs';
 export interface IUser extends Document {
   email: string;
   password?: string;
+  username?: string;
   name: {
     first: string;
     middle?: string;
     last?: string;
   };
   image?: string;
+  bio?: string;
+  location?: string;
+  website?: string;
   credits: {
     free: number;          // Current free credits balance
     freeLimit: number;     // Max free credits (resets to this daily)
@@ -30,13 +34,17 @@ export interface IUser extends Document {
 
 const UserSchema = new Schema<IUser>({
   email: { type: String, required: true, unique: true },
-  password: { type: String, required: false }, // Opcional si usas OAuth en el futuro
+  password: { type: String, required: false },
+  username: { type: String },
   name: {
     first: { type: String, required: true },
     middle: { type: String },
     last: { type: String },
   },
   image: { type: String },
+  bio: { type: String },
+  location: { type: String },
+  website: { type: String },
   credits: {
     free: { type: Number, default: 1000 },
     freeLimit: { type: Number, default: 1000 },
