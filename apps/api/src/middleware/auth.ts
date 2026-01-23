@@ -27,25 +27,49 @@ declare global {
   }
 }
 
-// Oxy's built-in auth middleware
-const oxyAuth = oxyClient.auth({
-  debug: process.env.NODE_ENV === 'development',
-  loadUser: true,
-});
-
 /**
  * Oxy session authentication middleware
- * Wraps Oxy's auth() to also support x-session-id header
+ * Uses validateSession() for session-based auth (not JWT)
  */
-export function authenticateToken(req: Request, res: Response, next: NextFunction) {
-  // If x-session-id is provided but no Authorization, copy it
-  const sessionId = req.headers['x-session-id'] as string;
-  if (sessionId && !req.headers.authorization) {
-    req.headers.authorization = `Bearer ${sessionId}`;
-  }
+export async function authenticateToken(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const sessionId = req.headers['x-session-id'] as string ||
+      (req.headers.authorization?.startsWith('Bearer ')
+        ? req.headers.authorization.substring(7)
+        : null);
 
-  // Use Oxy's middleware
-  return oxyAuth(req, res, next);
+    if (!sessionId) {
+      res.status(401).json({ error: 'Authentication required' });
+      return;
+    }
+
+    if (sessionId.startsWith('alia_sk_')) {
+      res.status(401).json({ error: 'Use API key authentication endpoint' });
+      return;
+    }
+
+    const { valid, user } = await oxyClient.validateSession(sessionId);
+
+    if (!valid || !user) {
+      res.status(401).json({ error: 'Invalid or expired session' });
+      return;
+    }
+
+    const rawUser = user as any;
+    const id = rawUser._id || rawUser.id;
+
+    if (!id) {
+      res.status(401).json({ error: 'Invalid user data' });
+      return;
+    }
+
+    req.userId = id;
+    req.user = { id };
+    next();
+  } catch (error) {
+    console.error('[Auth] Session validation error:', error instanceof Error ? error.message : error);
+    res.status(401).json({ error: 'Session validation failed' });
+  }
 }
 
 /**
