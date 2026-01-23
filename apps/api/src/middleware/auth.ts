@@ -13,36 +13,97 @@ const oxyClient = new OxyServices({
 // Define Oxy user type from session validation
 interface OxyUser {
   _id: string;
+  id?: string; // Some responses use 'id' instead of '_id'
   email?: string;
   username?: string;
   name?: {
     first?: string;
     last?: string;
+    full?: string; // Oxy provides this as a virtual field
   };
   avatar?: string;
+  bio?: string;
+  location?: string;
+}
+
+/**
+ * Parse name from Oxy user - handles various formats
+ */
+function parseOxyUserName(oxyUser: OxyUser): { first: string; last: string } {
+  // If we have first name, use it
+  if (oxyUser.name?.first) {
+    return {
+      first: oxyUser.name.first,
+      last: oxyUser.name.last || '',
+    };
+  }
+
+  // If we have full name, split it
+  if (oxyUser.name?.full) {
+    const parts = oxyUser.name.full.trim().split(/\s+/);
+    return {
+      first: parts[0] || oxyUser.username || 'User',
+      last: parts.slice(1).join(' ') || '',
+    };
+  }
+
+  // Fall back to username
+  return {
+    first: oxyUser.username || 'User',
+    last: '',
+  };
 }
 
 /**
  * Ensures a local user record exists for the Oxy user.
- * Creates one if it doesn't exist, using the Oxy user ID as _id.
+ * Creates one if it doesn't exist, and updates name/avatar if changed.
  */
 async function ensureLocalUser(oxyUser: OxyUser): Promise<IUser> {
+  const userId = oxyUser._id || oxyUser.id;
+  if (!userId) {
+    throw new Error('Oxy user has no ID');
+  }
+
   // Try to find existing user by Oxy ID
-  let user = await User.findById(oxyUser._id);
+  let user = await User.findById(userId);
+  const parsedName = parseOxyUserName(oxyUser);
 
   if (!user) {
     // Create new local user record with Oxy ID
     user = await User.create({
-      _id: oxyUser._id,
-      email: oxyUser.email || `${oxyUser._id}@oxy.user`,
-      name: {
-        first: oxyUser.name?.first || oxyUser.username || 'User',
-        last: oxyUser.name?.last || '',
-      },
+      _id: userId,
+      email: oxyUser.email || `${userId}@oxy.user`,
+      name: parsedName,
       image: oxyUser.avatar,
       // Credits will use schema defaults
     });
-    console.log(`[Auth] Created local user for Oxy user ${oxyUser._id}`);
+    console.log(`[Auth] Created local user for Oxy user ${userId}: ${parsedName.first} ${parsedName.last}`);
+  } else {
+    // Update user info if it has changed from Oxy
+    const updates: any = {};
+
+    // Update name if Oxy has a name and local doesn't match
+    if (parsedName.first && parsedName.first !== 'User') {
+      if (user.name?.first !== parsedName.first || user.name?.last !== parsedName.last) {
+        updates.name = parsedName;
+      }
+    }
+
+    // Update avatar if changed
+    if (oxyUser.avatar && user.image !== oxyUser.avatar) {
+      updates.image = oxyUser.avatar;
+    }
+
+    // Update email if changed
+    if (oxyUser.email && user.email !== oxyUser.email && !user.email?.endsWith('@oxy.user')) {
+      updates.email = oxyUser.email;
+    }
+
+    // Apply updates if any
+    if (Object.keys(updates).length > 0) {
+      user = await User.findByIdAndUpdate(userId, updates, { new: true }) || user;
+      console.log(`[Auth] Updated local user ${userId}:`, updates);
+    }
   }
 
   return user;
