@@ -3,11 +3,12 @@ import { authenticateToken } from '../middleware/auth.js';
 import crypto from 'crypto';
 import { TelegramUser } from '../models/telegram-user.js';
 import { emitTelegramLinked } from '../socket.js';
-import { OxyServices, OXY_CLOUD_URL } from '@oxyhq/services/core';
+import { OxyServices } from '@oxyhq/services/core';
 
 // Initialize Oxy client for user lookups
+const OXY_API_URL = process.env.OXY_API_URL || 'https://api.oxy.so';
 const oxyClient = new OxyServices({
-  baseURL: process.env.OXY_API_URL || OXY_CLOUD_URL,
+  baseURL: OXY_API_URL,
 });
 
 const router = express.Router();
