@@ -75,9 +75,12 @@ async function ensureLocalUser(oxyUser: OxyUser): Promise<IUser> {
     user = await User.create({
       _id: userId,
       email: oxyUser.email || `${userId}@oxy.user`,
+      username: oxyUser.username,
       name: parsedName,
       image: oxyUser.avatar,
-      // Credits will use schema defaults
+      bio: oxyUser.bio,
+      location: oxyUser.location,
+      website: oxyUser.website,
     });
     console.log(`[Auth] Created local user for Oxy user ${userId}: ${parsedName.first} ${parsedName.last}`);
   } else {
@@ -91,20 +94,40 @@ async function ensureLocalUser(oxyUser: OxyUser): Promise<IUser> {
       }
     }
 
+    // Update username if changed
+    if (oxyUser.username && user.username !== oxyUser.username) {
+      updates.username = oxyUser.username;
+    }
+
     // Update avatar if changed
     if (oxyUser.avatar && user.image !== oxyUser.avatar) {
       updates.image = oxyUser.avatar;
     }
 
-    // Update email if changed
+    // Update email if changed (but not if it's a placeholder email)
     if (oxyUser.email && user.email !== oxyUser.email && !user.email?.endsWith('@oxy.user')) {
       updates.email = oxyUser.email;
+    }
+
+    // Update bio if changed
+    if (oxyUser.bio !== undefined && user.bio !== oxyUser.bio) {
+      updates.bio = oxyUser.bio;
+    }
+
+    // Update location if changed
+    if (oxyUser.location !== undefined && user.location !== oxyUser.location) {
+      updates.location = oxyUser.location;
+    }
+
+    // Update website if changed
+    if (oxyUser.website !== undefined && user.website !== oxyUser.website) {
+      updates.website = oxyUser.website;
     }
 
     // Apply updates if any
     if (Object.keys(updates).length > 0) {
       user = await User.findByIdAndUpdate(userId, updates, { new: true }) || user;
-      console.log(`[Auth] Updated local user ${userId}:`, updates);
+      console.log(`[Auth] Updated local user ${userId}:`, Object.keys(updates));
     }
   }
 
