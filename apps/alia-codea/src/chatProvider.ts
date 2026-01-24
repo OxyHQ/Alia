@@ -327,12 +327,16 @@ export class CodeaChatViewProvider implements vscode.WebviewViewProvider {
       detail: 'Add current git diff to context'
     });
 
-    // Add terminal output option
-    items.push({
-      label: '$(terminal) Terminal',
-      description: 'Recent terminal output',
-      detail: 'Add recent terminal output to context'
-    });
+
+    // Add terminal option - get last command output via shell integration
+    const activeTerminal = vscode.window.activeTerminal;
+    if (activeTerminal) {
+      items.push({
+        label: '$(terminal) Terminal',
+        description: activeTerminal.name,
+        detail: 'Add last command output (requires shell integration)'
+      });
+    }
 
     // Add option to browse files
     items.push({
@@ -408,13 +412,55 @@ export class CodeaChatViewProvider implements vscode.WebviewViewProvider {
           // Git not available
         }
       } else if (item.label === '$(terminal) Terminal') {
-        // Add terminal output (placeholder - VS Code API doesn't expose terminal content directly)
-        contextItems.push({
-          path: 'Terminal',
-          content: '(Terminal output not directly accessible via VS Code API. Please copy and paste relevant output.)',
-          language: 'text'
-        });
-        vscode.window.showInformationMessage('Terminal output cannot be accessed directly. Please copy and paste relevant output into your message.');
+        // Try to get terminal output via shell integration
+        const terminal = vscode.window.activeTerminal;
+        if (terminal) {
+          try {
+            // Shell integration API (VS Code 1.93+)
+            const shellIntegration = (terminal as any).shellIntegration;
+            if (shellIntegration) {
+              const execution = shellIntegration.executedCommands?.[shellIntegration.executedCommands.length - 1];
+              if (execution) {
+                const output = await execution.read();
+                if (output) {
+                  contextItems.push({
+                    path: `Terminal: ${execution.commandLine || 'last command'}`,
+                    content: output.slice(0, 10000) + (output.length > 10000 ? '\n... (truncated)' : ''),
+                    language: 'text'
+                  });
+                }
+              }
+            } else {
+              // Fallback: prompt user to copy output
+              const selection = await vscode.window.showInputBox({
+                prompt: 'Paste terminal output here (shell integration not available)',
+                placeHolder: 'Paste your terminal output...',
+                ignoreFocusOut: true
+              });
+              if (selection) {
+                contextItems.push({
+                  path: 'Terminal Output',
+                  content: selection,
+                  language: 'text'
+                });
+              }
+            }
+          } catch (e) {
+            // Fallback: prompt user to copy output
+            const selection = await vscode.window.showInputBox({
+              prompt: 'Paste terminal output here',
+              placeHolder: 'Paste your terminal output...',
+              ignoreFocusOut: true
+            });
+            if (selection) {
+              contextItems.push({
+                path: 'Terminal Output',
+                content: selection,
+                language: 'text'
+              });
+            }
+          }
+        }
       } else if (item.label === '$(folder) Browse Files...') {
         // Show file picker
         const files = await vscode.window.showOpenDialog({
