@@ -149,6 +149,11 @@ class APIClient {
     await this.client.post(`/telegram/users/${telegramId}/conversation`, { conversationId });
   }
 
+  async updateTelegramModel(telegramId: string, model: string): Promise<{ success: boolean; model: string }> {
+    const response = await this.client.post(`/telegram/users/${telegramId}/model`, { model });
+    return response.data;
+  }
+
   async logoutTelegram(telegramId: string): Promise<void> {
     await this.client.post(`/telegram/users/${telegramId}/logout`);
   }
