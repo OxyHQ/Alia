@@ -131,14 +131,14 @@ export const ChatInterface = forwardRef<ScrollView, ChatInterfaceProps>(
     return (
       <ScrollView
         ref={ref}
-        className="flex-1 bg-background px-4 py-6"
+        className="flex-1 bg-background px-4 py-4"
         contentContainerStyle={{ flexGrow: 1 }}
         showsVerticalScrollIndicator={false}
       >
         <View className={containerClassName}>
           {!messages.length && <WelcomeMessage onSuggestionPress={onSuggestionPress} />}
 
-          <View className="gap-3">
+          <View className="gap-2">
             {messages.map((m, index) => {
               const messageText = getMessageText(m);
 
