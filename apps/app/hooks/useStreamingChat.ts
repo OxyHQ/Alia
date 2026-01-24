@@ -27,7 +27,7 @@ function extractTitle(content: string): { content: string; title: string | null 
   return { content, title: null };
 }
 
-export function useStreamingChat(apiUrl: string, activeRole?: any, conversationId?: string, thinkingMode?: boolean) {
+export function useStreamingChat(apiUrl: string, activeRole?: any, conversationId?: string, thinkingMode?: boolean, selectedModel?: string) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<Error | null>(null);
@@ -121,6 +121,7 @@ Use this role to guide your responses, maintaining the specified tone, style, an
           messages: messagesToSend,
           ...(conversationId && { conversationId }),
           ...(thinkingMode && { thinkingMode: true }),
+          ...(selectedModel && { model: selectedModel }),
         }),
         signal: abortControllerRef.current.signal,
       });
@@ -370,7 +371,7 @@ Use this role to guide your responses, maintaining the specified tone, style, an
       abortControllerRef.current = null;
       setIsLoading(false);
     }
-  }, [apiUrl, messages, activeSessionId, activeRole, queryClient, thinkingMode]);
+  }, [apiUrl, messages, activeSessionId, activeRole, queryClient, thinkingMode, selectedModel]);
 
   const stop = useCallback(() => {
     if (abortControllerRef.current) {

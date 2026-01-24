@@ -157,6 +157,12 @@ export default function DocumentationScreen() {
           • Supports function calling (tools)
         </Text>
         <Text className="text-sm text-muted-foreground mb-3">
+          • Auto-converts tools for multi-provider compatibility
+        </Text>
+        <Text className="text-sm text-muted-foreground mb-3">
+          • Automatic fallback between providers
+        </Text>
+        <Text className="text-sm text-muted-foreground mb-3">
           • Includes user memory and preferences
         </Text>
         <Text className="text-sm text-muted-foreground">
