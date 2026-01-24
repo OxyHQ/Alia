@@ -197,8 +197,8 @@ router.get('/users/:telegramId', async (req, res) => {
       firstName: telegramUser.firstName,
       lastName: telegramUser.lastName,
       isAuthenticated: telegramUser.isAuthenticated,
+      oxyUserId: telegramUser.oxyUserId,
       conversationId: telegramUser.conversationId,
-      sessionToken: telegramUser.sessionToken,
       linkedAt: telegramUser.linkedAt,
     });
   } catch (error) {
