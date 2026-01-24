@@ -158,5 +158,9 @@ La API standalone expone los siguientes endpoints:
 - [apps/api/README.md](apps/api/README.md) - API Server
 - [apps/admin/README.md](apps/admin/README.md) - Panel de administración
 
+## 📖 Documentación Técnica
+
+- [MEMORY_SYSTEM.md](MEMORY_SYSTEM.md) - Sistema de memoria completo (API, export/import, límites por plan)
+
 ---
 © 2026 Alia - The Agent Era
