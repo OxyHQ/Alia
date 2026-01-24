@@ -16,6 +16,7 @@ import { UserMemory } from '../models/user-memory.js';
 import { Conversation } from '../models/conversation.js';
 import type { IUserMemory } from '../models/user-memory.js';
 import { processMessagesForPlatform } from '../lib/message-processor.js';
+import { reserveCredits, finalizeCredits, refundReservation, type CreditReservation, type CreditUsage } from '../lib/credits-manager.js';
 
 const router = Router();
 
@@ -233,7 +234,7 @@ router.post('/', optionalAuth, async (req, res) => {
     // Get user data from session and credits/memory from local DB
     let userCredits: any = null;
     let memory: IUserMemory | null = null;
-    let creditsReserved = false;
+    let creditReservation: CreditReservation | null = null;
 
     if (req.user) {
       try {
@@ -267,32 +268,19 @@ router.post('/', optionalAuth, async (req, res) => {
         // Refresh credits if needed
         await userCredits.refreshCreditsIfNeeded();
 
-        // Reserve 1 credit atomically
-        const reserveResult = await UserCredits.findOneAndUpdate(
-          {
-            _id: req.user.id,
-            'credits.free': { $gte: 1 }
-          },
-          {
-            $inc: { 'credits.free': -1 },
-            $set: { 'credits.lastUsed': new Date() }
-          },
-          { new: true, runValidators: false }
-        );
+        // Reserve credits using centralized manager
+        creditReservation = await reserveCredits(req.user.id);
 
-        if (!reserveResult) {
+        if (!creditReservation) {
           console.log('[Alia/Chat] Insufficient credits');
           clearTimeout(requestTimeout);
           res.status(402).json({
             error: 'Insufficient credits',
-            credits: userCredits?.credits.free || 0
+            credits: 0
           });
           return;
         }
 
-        creditsReserved = true;
-        userCredits = reserveResult;
-        console.log(`[Alia/Chat] Reserved 1 credit. Credits: ${userCredits.credits.free}`);
         console.log('[Alia/Chat] User data loaded successfully');
       } catch (error) {
         console.error('[Alia/Chat] Error fetching user data:', error);
@@ -364,6 +352,13 @@ router.post('/', optionalAuth, async (req, res) => {
     res.setHeader('Cache-Control', 'no-cache');
     res.setHeader('Connection', 'keep-alive');
 
+    // Track usage for credits
+    let tokenUsage: CreditUsage = {
+      promptTokens: 0,
+      completionTokens: 0,
+      totalTokens: 0,
+    };
+
     const result = streamText({
       model,
       messages: processedMessages as any, // Use processed messages (saves tokens)
@@ -371,20 +366,27 @@ router.post('/', optionalAuth, async (req, res) => {
       stopWhen: stepCountIs(5),
       system: systemPrompt,
       temperature: 0.6,
+      onFinish: async (result) => {
+        // Capture token usage from AI SDK
+        // AI SDK uses inputTokens/outputTokens, not promptTokens/completionTokens
+        if (result.usage) {
+          tokenUsage = {
+            promptTokens: result.usage.inputTokens || 0,
+            completionTokens: result.usage.outputTokens || 0,
+            totalTokens: result.usage.totalTokens || 0,
+          };
+          console.log('[Alia/Chat] Token usage captured:', tokenUsage);
+        } else {
+          console.warn('[Alia/Chat] No usage data available from AI SDK');
+        }
+      },
     });
 
     // Stream all events including tool calls
-    let totalTokensUsed = 0;
     let assistantResponse = '';
     let conversationTitle: string | null = null;
 
     for await (const chunk of result.fullStream) {
-      // Track token usage
-      if (chunk.type === 'finish' && 'usage' in chunk && chunk.usage) {
-        const usage = chunk.usage as { totalTokens?: number };
-        totalTokensUsed = usage.totalTokens || 0;
-      }
-
       // Collect assistant response text for saving
       if (chunk.type === 'text-delta') {
         assistantResponse += chunk.text;
@@ -405,41 +407,25 @@ router.post('/', optionalAuth, async (req, res) => {
       res.write(`data: ${event}\n\n`);
     }
 
-    // Adjust credits based on actual usage (we already reserved 1 credit)
-    if (userCredits && req.user && creditsReserved) {
+    // Finalize credits based on actual token usage
+    if (creditReservation && req.user) {
       try {
-        const actualCreditsUsed = Math.max(1, Math.ceil(totalTokensUsed / 1000));
-        const creditAdjustment = 1 - actualCreditsUsed;
-
-        let updatedCredits = userCredits;
-
-        if (creditAdjustment !== 0) {
-          updatedCredits = await UserCredits.findByIdAndUpdate(
-            req.user.id,
-            { $inc: { 'credits.free': creditAdjustment } },
-            { new: true, runValidators: false }
-          ) || userCredits;
-
-          console.log(`[Alia/Chat] Credit adjustment: ${creditAdjustment}. Remaining: ${updatedCredits.credits.free}`);
-        }
-
-        if (updatedCredits.credits.free < 0) {
-          updatedCredits = await UserCredits.findByIdAndUpdate(
-            req.user.id,
-            { $set: { 'credits.free': 0 } },
-            { new: true }
-          ) || updatedCredits;
-        }
+        const { creditsCharged, creditsRemaining } = await finalizeCredits(
+          creditReservation,
+          tokenUsage
+        );
 
         const creditUpdate = {
           type: 'credit-update',
-          credits: Math.max(0, updatedCredits.credits.free),
-          creditsUsed: actualCreditsUsed,
-          totalTokens: totalTokensUsed,
+          credits: creditsRemaining,
+          creditsUsed: creditsCharged,
+          totalTokens: tokenUsage.totalTokens,
+          promptTokens: tokenUsage.promptTokens,
+          completionTokens: tokenUsage.completionTokens,
         };
         res.write(`data: ${JSON.stringify(creditUpdate)}\n\n`);
       } catch (error) {
-        console.error('[Alia/Chat] Error adjusting credits:', error);
+        console.error('[Alia/Chat] Error finalizing credits:', error);
       }
     }
 
