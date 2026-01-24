@@ -1,9 +1,12 @@
 import { useState } from "react";
-import Head from "expo-router/head";
 import { useLocalSearchParams } from "expo-router";
 import { useRolesStore } from "@/lib/stores/roles-store";
 import { useChatConversation } from "@/hooks/useChatConversation";
 import { ChatPageContent } from "@/components/chat-page-content";
+import { SEOHead } from "@/components/seo/SEOHead";
+import { StructuredData } from "@/components/seo/StructuredData";
+import { META_PRESETS } from "@/lib/seo/meta-tags";
+import { STRUCTURED_DATA_PRESETS } from "@/lib/seo/structured-data";
 
 const ChatPage = () => {
   const { roleId } = useLocalSearchParams<{ roleId?: string }>();
@@ -23,11 +26,9 @@ const ChatPage = () => {
 
   return (
     <>
-      <Head>
-        <title>Alia</title>
-        <meta name="description" content="Start a conversation with Alia. Get answers, explore ideas, and boost your productivity." />
-        <link rel="canonical" href="https://alia.onl/" />
-      </Head>
+      <SEOHead {...META_PRESETS.home}>
+        <StructuredData data={STRUCTURED_DATA_PRESETS.homepage} />
+      </SEOHead>
       <ChatPageContent
         messages={messages}
         scrollViewRef={scrollViewRef}

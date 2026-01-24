@@ -143,11 +143,11 @@ router.post('/', async (req: Request, res: Response) => {
     res.setHeader('Cache-Control', 'no-cache');
     res.setHeader('Connection', 'keep-alive');
 
-    const result = streamText({
+    const streamConfig: any = {
       model,
       messages: messages as any,
       temperature: body.temperature ?? 0.7,
-      onFinish: async (result) => {
+      onFinish: async (result: any) => {
         // Capture token usage from AI SDK
         if (result.usage) {
           tokenUsage = {
@@ -158,7 +158,17 @@ router.post('/', async (req: Request, res: Response) => {
           console.log('[V1/Chat] Token usage captured:', tokenUsage);
         }
       },
-    });
+    };
+
+    if (body.max_tokens) {
+      streamConfig.maxTokens = body.max_tokens;
+    }
+
+    if (body.tools) {
+      streamConfig.tools = body.tools;
+    }
+
+    const result = streamText(streamConfig);
 
     // Stream OpenAI-compatible chunks
     for await (const chunk of result.fullStream) {
