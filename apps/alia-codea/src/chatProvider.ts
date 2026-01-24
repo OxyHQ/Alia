@@ -502,7 +502,7 @@ export class CodeaChatViewProvider implements vscode.WebviewViewProvider {
 
     return new Promise((resolve) => {
       const { exec } = require('child_process');
-      exec('git diff HEAD', { cwd: workspaceFolder.uri.fsPath, maxBuffer: 1024 * 1024 }, (error: any, stdout: string, stderr: string) => {
+      exec('git diff HEAD', { cwd: workspaceFolder.uri.fsPath, maxBuffer: 1024 * 1024 }, (error: any, stdout: string) => {
         if (error) {
           // Try just unstaged changes
           exec('git diff', { cwd: workspaceFolder.uri.fsPath, maxBuffer: 1024 * 1024 }, (error2: any, stdout2: string) => {
