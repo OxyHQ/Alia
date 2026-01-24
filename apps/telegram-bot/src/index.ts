@@ -10,7 +10,7 @@ if (process.env.NODE_ENV !== 'production') {
 import { Telegraf } from 'telegraf';
 import { handleStart, handleLogout, handleStatus } from './handlers/auth';
 import { handleMessage, handleNewConversation, handleHistory } from './handlers/chat';
-import { handleHelp } from './handlers/commands';
+import { handleHelp, handleModel, handleModelSelection } from './handlers/commands';
 
 // Validate environment variables
 const requiredEnvVars = ['TELEGRAM_BOT_TOKEN', 'API_BASE_URL'];
@@ -35,6 +35,7 @@ async function initializeBot() {
     await bot.telegram.setMyCommands([
       { command: 'start', description: 'Link your Alia account' },
       { command: 'status', description: 'View account status and credits' },
+      { command: 'model', description: 'Change AI model' },
       { command: 'new', description: 'Start a new conversation' },
       { command: 'history', description: 'View recent conversations' },
       { command: 'help', description: 'Show help guide' },
@@ -45,6 +46,7 @@ async function initializeBot() {
     bot.command('start', handleStart);
     bot.command('logout', handleLogout);
     bot.command('status', handleStatus);
+    bot.command('model', handleModel);
     bot.command('help', handleHelp);
     bot.command('new', handleNewConversation);
     bot.command('history', handleHistory);
@@ -56,6 +58,13 @@ async function initializeBot() {
     bot.action('help', handleHelp);
     bot.action('new', handleNewConversation);
     bot.action('history', handleHistory);
+
+    // Register model selection callback handlers
+    bot.action('model_alia-lite', (ctx) => handleModelSelection(ctx, 'alia-lite'));
+    bot.action('model_alia-v1', (ctx) => handleModelSelection(ctx, 'alia-v1'));
+    bot.action('model_alia-v1-codea', (ctx) => handleModelSelection(ctx, 'alia-v1-codea'));
+    bot.action('model_alia-v1-pro', (ctx) => handleModelSelection(ctx, 'alia-v1-pro'));
+    bot.action('model_alia-v1-pro-max', (ctx) => handleModelSelection(ctx, 'alia-v1-pro-max'));
 
     // Answer all callback queries to remove loading state
     bot.on('callback_query', async (ctx, next) => {
