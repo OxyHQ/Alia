@@ -21,6 +21,32 @@ import { reserveCredits, finalizeCredits, refundReservation, type CreditReservat
 
 const router = Router();
 
+// Auto-generate a title from response content if AI didn't provide one
+function autoGenerateTitle(content: string, userMessage?: string): string {
+  // Try to generate from assistant response (first 50 chars)
+  if (content && content.trim()) {
+    const cleaned = content
+      .replace(/\[.*?\]/g, '') // Remove any markdown blocks
+      .replace(/[#*_`]/g, '') // Remove markdown formatting
+      .trim()
+      .slice(0, 50);
+
+    if (cleaned.length > 10) {
+      // Try to cut at word boundary
+      const words = cleaned.split(' ').slice(0, 6);
+      return words.join(' ');
+    }
+  }
+
+  // Fallback to user message
+  if (userMessage && userMessage.trim()) {
+    const words = userMessage.trim().split(' ').slice(0, 6);
+    return words.join(' ');
+  }
+
+  return 'Nueva conversación';
+}
+
 // Create AI SDK provider based on key
 function getAIModel(keyConfig: KeyConfig) {
   const apiKey = keyConfig.key;
@@ -137,6 +163,17 @@ function buildSystemPrompt(oxyUser?: OxyUser | null, memory?: IUserMemory | null
 // Telegram-specific system prompt (simplified, no visual components)
 const ALIA_TELEGRAM_PROMPT = `You are Alia, the AI assistant for Alia AI platform. You connect users to powerful AI models (Gemini, Claude, GPT-4, etc).
 
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+⚠️ MANDATORY TITLE REQUIREMENT ⚠️
+YOU MUST END EVERY SINGLE RESPONSE WITH:
+\`[TITLE]Short Title Here[/TITLE]\`
+
+- Maximum 6 words
+- Must appear at the end of EVERY response
+- NO EXCEPTIONS - this is REQUIRED, not optional
+- The title should summarize the conversation topic
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
 **Language Rule**: ALWAYS respond in the same language the user writes. If unclear, use their account language preference. Match their language automatically.
 
 **Personality**: Conversational and detailed. Give thorough explanations. Calm tone—avoid excessive exclamation marks.
@@ -160,9 +197,24 @@ const ALIA_TELEGRAM_PROMPT = `You are Alia, the AI assistant for Alia AI platfor
 - \`sendTelegramMessage\`: Send to user's Telegram (only when explicitly requested)
 
 **Workflow**: Announce tool usage naturally. Build narratives around findings—explain context, offer analysis. Always cite sources.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+REMINDER: End your response with \`[TITLE]Short Title[/TITLE]\`
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 `;
 
 const ALIA_SYSTEM_PROMPT = `You are Alia, AI assistant for Alia AI platform. You connect users to powerful AI models (Gemini, Claude, GPT-4, etc). Platform offers OpenAI-compatible API at \`/api/v1\`.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+⚠️ MANDATORY TITLE REQUIREMENT ⚠️
+YOU MUST END EVERY SINGLE RESPONSE WITH:
+\`[TITLE]Short Title Here[/TITLE]\`
+
+- Maximum 6 words
+- Must appear at the end of EVERY response
+- NO EXCEPTIONS - this is REQUIRED, not optional
+- The title should summarize the conversation topic
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 **Language Rule**: ALWAYS respond in the same language the user writes. If unclear, use their account language preference. Match their language automatically.
 
@@ -175,7 +227,6 @@ const ALIA_SYSTEM_PROMPT = `You are Alia, AI assistant for Alia AI platform. You
 - \`[TIMELINE title="..."]\n- {"date": "...", "title": "...", "description": "..."}\n[/TIMELINE]\`
 - \`[IMAGE url="..." title="..." caption="..." /]\`
 - \`[CREDIBILITY level="1-5" source="..." /]\`
-- **CRITICAL**: End EVERY response with \`[TITLE]Short Title[/TITLE]\` (max 6 words)
 
 **Tools**:
 - \`getCurrentDate\`, \`googleSearch\`, \`scrapeURL\` (**MUST USE** for links), \`getTimeline\`, \`searchKnowledgeBase\`
@@ -188,6 +239,10 @@ const ALIA_SYSTEM_PROMPT = `You are Alia, AI assistant for Alia AI platform. You
 **Telegram Reactions** (optional): \`[REACT:emoji]\` (use sparingly, contextually appropriate)
 
 **Workflow**: Announce tool usage naturally. Build narratives—explain context before structured data, offer deep analysis after.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+REMINDER: End your response with \`[TITLE]Short Title[/TITLE]\`
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 `;
 
 
@@ -407,7 +462,10 @@ router.post('/', optionalAuth, async (req, res) => {
           // Remove title tags from response
           assistantResponse = assistantResponse.replace(/\[TITLE\].*?\[\/TITLE\]/g, '').trim();
         } else {
-          console.log('[Alia/Chat] No title found in response');
+          // Auto-generate title as fallback
+          const firstUserMessage = messages.find((m: any) => m.role === 'user')?.content;
+          conversationTitle = autoGenerateTitle(assistantResponse, firstUserMessage);
+          console.log(`[Alia/Chat] No title found in response - auto-generated: "${conversationTitle}"`);
         }
       }
 
@@ -464,8 +522,9 @@ router.post('/', optionalAuth, async (req, res) => {
           }
         ].filter(msg => msg != null && msg.role && msg.content !== undefined); // Filter out invalid messages
 
-        // Generate title from first user message if no title extracted
-        const title = conversationTitle || allMessages.find((m: any) => m.role === 'user')?.content?.slice(0, 50) || 'Nueva conversación';
+        // Use extracted/auto-generated title, or generate one as final fallback
+        const firstUserMessage = allMessages.find((m: any) => m.role === 'user')?.content;
+        const title = conversationTitle || autoGenerateTitle(assistantResponse, firstUserMessage);
         const lastMessage = assistantResponse.slice(0, 100);
 
         console.log(`[Alia/Chat] Saving conversation with title: "${title}"`);
