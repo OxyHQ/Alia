@@ -16,6 +16,7 @@ import {
 import { useRolesStore } from '@/lib/stores/roles-store';
 import { useRouter } from 'expo-router';
 import { cn } from '@/lib/utils';
+import { useColorScheme } from '@/lib/useColorScheme';
 
 export default function RolesScreen() {
   const roles = useRolesStore((state) => state.roles);
@@ -23,6 +24,7 @@ export default function RolesScreen() {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const router = useRouter();
+  const { colors } = useColorScheme();
 
   useEffect(() => {
     loadRoles();
@@ -85,7 +87,7 @@ export default function RolesScreen() {
               value={searchQuery}
               onChangeText={setSearchQuery}
               placeholder="Search roles..."
-              placeholderTextColor="#6b7280"
+              placeholderTextColor={colors.mutedForeground}
               className="flex-1 text-sm text-foreground"
             />
           </View>

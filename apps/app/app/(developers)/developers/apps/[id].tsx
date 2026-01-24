@@ -8,10 +8,12 @@ import { ArrowLeft, Plus, Copy, Trash2, ChevronRight } from "lucide-react-native
 import { useApp, useApiKeys, useCreateApiKey, useDeleteApiKey, useDeleteApp } from "@/lib/hooks/use-developer";
 import * as Clipboard from 'expo-clipboard';
 import { toast } from "@/components/sonner";
+import { useColorScheme } from '@/lib/useColorScheme';
 
 export default function AppDetailScreen() {
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
+  const { colors } = useColorScheme();
   const { data: currentApp, isLoading: isLoadingApp } = useApp(id!);
   const { data: apiKeys = [], isLoading: isLoadingKeys } = useApiKeys(id!);
   const createApiKeyMutation = useCreateApiKey();
@@ -261,7 +263,7 @@ export default function AppDetailScreen() {
               onChangeText={setKeyName}
               placeholder="Production Key"
               className="w-full px-3 py-2 rounded-md border border-border bg-background text-foreground text-sm"
-              placeholderTextColor="#9CA3AF"
+              placeholderTextColor={colors.mutedForeground}
               maxLength={100}
             />
           </View>

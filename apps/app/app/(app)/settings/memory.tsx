@@ -40,6 +40,7 @@ import { useUserData } from "@/hooks/useUserData";
 import { useUserDataStore } from "@/lib/stores/user-data-store";
 import { cn } from "@/lib/utils";
 import { toast } from "@/components/sonner";
+import { useColorScheme } from "@/lib/useColorScheme";
 
 interface Memory {
   _id: string;
@@ -74,6 +75,7 @@ export default function MemoryScreen() {
   const { isAuthenticated, activeSessionId } = useOxy();
   const { memory, loading } = useUserData();
   const setMemory = useUserDataStore((state) => state.setMemory);
+  const { colors } = useColorScheme();
   const [showDialog, setShowDialog] = useState(false);
   const [editingMemory, setEditingMemory] = useState<Memory | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
@@ -432,7 +434,7 @@ export default function MemoryScreen() {
               onChangeText={setSearchQuery}
               placeholder="Search memories..."
               className="flex-1 border-0 bg-transparent h-auto p-0 web:focus-visible:ring-0"
-              placeholderTextColor="#6b7280"
+              placeholderTextColor={colors.mutedForeground}
             />
           </View>
 
