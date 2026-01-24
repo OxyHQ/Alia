@@ -85,6 +85,7 @@
   },
   "devDependencies": {
     "@types/react": "~19.1.0",
+    "esbuild": "^0.24.2",
     "react-test-renderer": "19.1.0",
     "tsx": "^4.19.2",
     "typescript": "~5.9.2"
