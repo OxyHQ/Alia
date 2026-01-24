@@ -326,9 +326,19 @@ router.post('/', optionalAuth, async (req, res) => {
     } catch (keyError: any) {
       console.error('[Alia/Chat] Error loading keys:', keyError.message);
       clearTimeout(requestTimeout);
+
+      // Refund credits if we reserved them
+      if (creditReservation && req.user) {
+        try {
+          await refundReservation(creditReservation);
+        } catch (refundError) {
+          console.error('[Alia/Chat] Error refunding credits:', refundError);
+        }
+      }
+
       res.status(503).json({
-        error: 'Failed to load API keys',
-        details: keyError.message
+        error: 'Service temporarily unavailable',
+        details: 'Unable to connect to AI models. Please try again later.'
       });
       return;
     }
@@ -336,7 +346,20 @@ router.post('/', optionalAuth, async (req, res) => {
     if (!resolved) {
       console.log('[Alia/Chat] No available models');
       clearTimeout(requestTimeout);
-      res.status(503).json({ error: 'No models available' });
+
+      // Refund credits if we reserved them
+      if (creditReservation && req.user) {
+        try {
+          await refundReservation(creditReservation);
+        } catch (refundError) {
+          console.error('[Alia/Chat] Error refunding credits:', refundError);
+        }
+      }
+
+      res.status(503).json({
+        error: 'No AI models available',
+        details: 'All models are currently unavailable or disabled. Please try again later.'
+      });
       return;
     }
 
@@ -375,8 +398,10 @@ router.post('/', optionalAuth, async (req, res) => {
 
     // Set headers for SSE streaming
     res.setHeader('Content-Type', 'text/event-stream');
-    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Cache-Control', 'no-cache, no-transform');
     res.setHeader('Connection', 'keep-alive');
+    res.setHeader('X-Accel-Buffering', 'no'); // Disable nginx buffering
+    res.flushHeaders(); // Immediately send headers to client
 
     // Track usage for credits
     let tokenUsage: CreditUsage = {
@@ -411,32 +436,100 @@ router.post('/', optionalAuth, async (req, res) => {
     // Stream all events including tool calls
     let assistantResponse = '';
     let conversationTitle: string | null = null;
+    let hasReceivedContent = false;
+    let streamTimeout: NodeJS.Timeout | null = null;
 
-    for await (const chunk of result.fullStream) {
-      // Collect assistant response text for saving
-      if (chunk.type === 'text-delta') {
-        assistantResponse += chunk.text;
+    // Set a timeout for stream inactivity (30 seconds without any content)
+    const resetStreamTimeout = () => {
+      if (streamTimeout) clearTimeout(streamTimeout);
+      streamTimeout = setTimeout(() => {
+        if (!hasReceivedContent && !res.writableEnded) {
+          console.error('[Alia/Chat] Stream timeout - no content received in 30s');
+          const errorEvent = {
+            type: 'error',
+            error: 'Stream timeout - the AI model did not respond in time. Please try again.'
+          };
+          res.write(`data: ${JSON.stringify(errorEvent)}\n\n`);
+          res.write('data: [DONE]\n\n');
+          res.end();
+        }
+      }, 30000);
+    };
+
+    resetStreamTimeout();
+
+    try {
+      for await (const chunk of result.fullStream) {
+        // Mark that we've received content
+        if (chunk.type === 'text-delta' || chunk.type === 'tool-call') {
+          hasReceivedContent = true;
+          if (streamTimeout) clearTimeout(streamTimeout);
+        }
+
+        // Collect assistant response text for saving
+        if (chunk.type === 'text-delta') {
+          assistantResponse += chunk.text;
+        }
+
+        // Extract title if present in response
+        if (chunk.type === 'finish' && assistantResponse) {
+          const titleMatch = assistantResponse.match(/\[TITLE\](.*?)\[\/TITLE\]/);
+          if (titleMatch) {
+            conversationTitle = titleMatch[1].trim();
+            console.log(`[Alia/Chat] Extracted title: "${conversationTitle}"`);
+            // Remove title tags from response
+            assistantResponse = assistantResponse.replace(/\[TITLE\].*?\[\/TITLE\]/g, '').trim();
+          } else {
+            // Auto-generate title as fallback
+            const firstUserMessage = messages.filter(m => m && m.role).find((m: any) => m.role === 'user')?.content;
+            conversationTitle = autoGenerateTitle(assistantResponse, firstUserMessage);
+            console.log(`[Alia/Chat] No title found in response - auto-generated: "${conversationTitle}"`);
+          }
+        }
+
+        // Send each event as SSE
+        const event = JSON.stringify(chunk);
+        res.write(`data: ${event}\n\n`);
       }
 
-      // Extract title if present in response
-      if (chunk.type === 'finish' && assistantResponse) {
-        const titleMatch = assistantResponse.match(/\[TITLE\](.*?)\[\/TITLE\]/);
-        if (titleMatch) {
-          conversationTitle = titleMatch[1].trim();
-          console.log(`[Alia/Chat] Extracted title: "${conversationTitle}"`);
-          // Remove title tags from response
-          assistantResponse = assistantResponse.replace(/\[TITLE\].*?\[\/TITLE\]/g, '').trim();
-        } else {
-          // Auto-generate title as fallback
-          const firstUserMessage = messages.filter(m => m && m.role).find((m: any) => m.role === 'user')?.content;
-          conversationTitle = autoGenerateTitle(assistantResponse, firstUserMessage);
-          console.log(`[Alia/Chat] No title found in response - auto-generated: "${conversationTitle}"`);
+      // Clear the timeout after successful streaming
+      if (streamTimeout) clearTimeout(streamTimeout);
+
+      // Check if we got any response
+      if (!hasReceivedContent) {
+        console.error('[Alia/Chat] Stream completed but no content was received');
+        const errorEvent = {
+          type: 'error',
+          error: 'No response received from AI model. Please try again.'
+        };
+        console.log('[Alia/Chat] Sending empty stream error to client');
+        res.write(`data: ${JSON.stringify(errorEvent)}\n\n`);
+      }
+    } catch (streamError: any) {
+      console.error('[Alia/Chat] Error during streaming:', streamError);
+      console.error('[Alia/Chat] Stream error stack:', streamError.stack);
+      if (streamTimeout) clearTimeout(streamTimeout);
+
+      if (!res.writableEnded) {
+        const errorEvent = {
+          type: 'error',
+          error: streamError.message || 'An error occurred while streaming the response'
+        };
+        console.log('[Alia/Chat] Sending stream error to client:', errorEvent.error);
+        res.write(`data: ${JSON.stringify(errorEvent)}\n\n`);
+      }
+
+      // Still try to refund credits if there was an error
+      if (creditReservation && req.user) {
+        try {
+          await refundReservation(creditReservation);
+          console.log('[Alia/Chat] Credits refunded due to streaming error');
+        } catch (refundError) {
+          console.error('[Alia/Chat] Error refunding credits:', refundError);
         }
       }
 
-      // Send each event as SSE
-      const event = JSON.stringify(chunk);
-      res.write(`data: ${event}\n\n`);
+      throw streamError; // Re-throw to be caught by outer try-catch
     }
 
     // Finalize credits based on actual token usage and model tier
@@ -528,9 +621,31 @@ router.post('/', optionalAuth, async (req, res) => {
   } catch (e: any) {
     console.error('[Alia/Chat] Error:', e);
     clearTimeout(requestTimeout);
+
+    // Refund credits if request failed
+    if (creditReservation && req.user) {
+      try {
+        await refundReservation(creditReservation);
+        console.log('[Alia/Chat] Credits refunded due to error');
+      } catch (refundError) {
+        console.error('[Alia/Chat] Error refunding credits:', refundError);
+      }
+    }
+
     if (!res.headersSent) {
-      res.status(500).json({ error: e.message });
+      // Headers not sent yet, send JSON error
+      res.status(500).json({
+        error: e.message || 'An error occurred while processing your request',
+        details: e.stack ? e.stack.split('\n')[0] : undefined
+      });
     } else {
+      // Headers already sent (streaming started), send error event and close
+      const errorEvent = {
+        type: 'error',
+        error: e.message || 'An error occurred while processing your request'
+      };
+      res.write(`data: ${JSON.stringify(errorEvent)}\n\n`);
+      res.write('data: [DONE]\n\n');
       res.end();
     }
   }

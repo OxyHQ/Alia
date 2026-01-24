@@ -125,11 +125,19 @@ Use this role to guide your responses, maintaining the specified tone, style, an
       });
 
       if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
+        let errorMessage = `Server error (${response.status})`;
+        try {
+          const errorData = await response.json();
+          errorMessage = errorData.error || errorData.details || errorMessage;
+        } catch {
+          // If can't parse error as JSON, use status text
+          errorMessage = response.statusText || errorMessage;
+        }
+        throw new Error(errorMessage);
       }
 
       if (!response.body) {
-        throw new Error('No response body');
+        throw new Error('No response received from server');
       }
 
       const reader = response.body.getReader();
@@ -142,23 +150,40 @@ Use this role to guide your responses, maintaining the specified tone, style, an
         const { done, value } = await reader.read();
 
         if (done) {
-          // Extract title from final content
-          const { content, title } = extractTitle(fullContent);
-          if (title) {
-            setConversationTitle(title);
-          }
-          // Update message with cleaned content
-          setMessages((prev) => {
-            const updated = [...prev];
-            const lastMessage = updated[updated.length - 1];
-            if (lastMessage.role === 'assistant') {
-              updated[updated.length - 1] = {
-                ...lastMessage,
-                content: content,
-              };
+          // Check if we received any content
+          if (!fullContent && !error) {
+            console.error('[useStreamingChat] Stream ended without content');
+            setMessages((prev) => {
+              const updated = [...prev];
+              const lastMessage = updated[updated.length - 1];
+              if (lastMessage.role === 'assistant' && !lastMessage.content) {
+                updated[updated.length - 1] = {
+                  ...lastMessage,
+                  content: '⚠️ No response received from AI. Please try again.',
+                };
+              }
+              return updated;
+            });
+            setError(new Error('No response received from AI'));
+          } else if (fullContent) {
+            // Extract title from final content
+            const { content, title } = extractTitle(fullContent);
+            if (title) {
+              setConversationTitle(title);
             }
-            return updated;
-          });
+            // Update message with cleaned content
+            setMessages((prev) => {
+              const updated = [...prev];
+              const lastMessage = updated[updated.length - 1];
+              if (lastMessage.role === 'assistant') {
+                updated[updated.length - 1] = {
+                  ...lastMessage,
+                  content: content,
+                };
+              }
+              return updated;
+            });
+          }
           break;
         }
 
@@ -272,8 +297,42 @@ Use this role to guide your responses, maintaining the specified tone, style, an
                   return { ...old, credits: parsed.credits };
                 });
               }
+
+              // Handle error events from server
+              if (parsed.type === 'error') {
+                console.error('[useStreamingChat] Server error:', parsed.error);
+
+                // Update the assistant message with error information
+                setMessages((prev) => {
+                  const updated = [...prev];
+                  const lastMessage = updated[updated.length - 1];
+                  if (lastMessage.role === 'assistant' && !lastMessage.content) {
+                    // If assistant message is empty, show error in it
+                    updated[updated.length - 1] = {
+                      ...lastMessage,
+                      content: `⚠️ Error: ${parsed.error}`,
+                    };
+                  }
+                  return updated;
+                });
+
+                // Set error state and stop loading
+                setError(new Error(parsed.error));
+                setIsLoading(false);
+
+                // Abort the stream
+                if (abortControllerRef.current) {
+                  abortControllerRef.current.abort();
+                  abortControllerRef.current = null;
+                }
+
+                // Break out of the streaming loop
+                reader.cancel();
+                return;
+              }
             } catch (e) {
-              // Ignore parse errors
+              // Ignore parse errors for malformed JSON
+              console.warn('[useStreamingChat] Failed to parse SSE event:', e);
             }
           }
         }
