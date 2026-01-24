@@ -8,7 +8,7 @@
  * 3. Centralized processing logic
  */
 
-export type Platform = 'app' | 'telegram';
+export type Platform = 'app' | 'telegram' | 'mastodon';
 
 /**
  * Process message content for a specific platform
@@ -25,6 +25,21 @@ export function processMessageForPlatform(content: string, platform: Platform): 
       .replace(/\[IMAGE[^\]]*\]/g, '')
       .replace(/\[CREDIBILITY[^\]]*\]/g, '')
       .replace(/\[TITLE\][^\]]*\[\/TITLE\]\s*/g, '')
+      .trim();
+  } else if (platform === 'mastodon') {
+    // Remove ALL special tags (Mastodon only supports plain text)
+    return content
+      .replace(/\[COMPACTLIST[^\]]*\][\s\S]*?\[\/COMPACTLIST\]\s*/g, '')
+      .replace(/\[BANNER[^\]]*\][\s\S]*?\[\/BANNER\]\s*/g, '')
+      .replace(/\[COMPARISON[^\]]*\][\s\S]*?\[\/COMPARISON\]\s*/g, '')
+      .replace(/\[TIMELINE[^\]]*\][\s\S]*?\[\/TIMELINE\]\s*/g, '')
+      .replace(/\[IMAGE[^\]]*\]/g, '')
+      .replace(/\[CREDIBILITY[^\]]*\]/g, '')
+      .replace(/\[TITLE\][^\]]*\[\/TITLE\]\s*/g, '')
+      .replace(/\[REACT:[^\]]+\]\s*/g, '')
+      .replace(/\[TGIMAGE[^\]]*\]\s*/g, '')
+      .replace(/\[TGLINKS[^\]]*\][\s\S]*?\[\/TGLINKS\]\s*/g, '')
+      .replace(/\[TGDOC[^\]]*\]\s*/g, '')
       .trim();
   } else {
     // platform === 'app'
