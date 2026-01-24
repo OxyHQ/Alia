@@ -65,10 +65,11 @@ export function ChatHeader({
   };
 
   return (
-    <View
-      className="flex-row items-center justify-between px-4"
-      style={{ paddingTop: insets.top, height: 56 + insets.top }}
-    >
+    <>
+      <View
+        className="flex-row items-center justify-between px-4"
+        style={{ paddingTop: insets.top, height: 56 + insets.top }}
+      >
       <View className="flex-row items-center gap-2">
         {!isLargeScreen && (
           <Button
@@ -144,5 +145,18 @@ export function ChatHeader({
         </Dropdown>
       </View>
     </View>
+
+      {/* Clear Conversation Confirmation Dialog */}
+      <ConfirmationDialog
+        open={showClearDialog}
+        onOpenChange={setShowClearDialog}
+        title="Clear Conversation"
+        description="Are you sure you want to clear this conversation? This action cannot be undone."
+        confirmText="Clear"
+        cancelText="Cancel"
+        confirmVariant="destructive"
+        onConfirm={confirmClearConversation}
+      />
+    </>
   );
 }
