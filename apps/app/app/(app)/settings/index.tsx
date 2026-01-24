@@ -143,6 +143,35 @@ export default function SettingsScreen() {
     }
   };
 
+  const handleUnlinkTelegram = async () => {
+    if (!activeSessionId) return;
+
+    setUnlinking(true);
+    try {
+      const apiUrl = generateAPIUrl('/telegram/unlink');
+      const response = await fetch(apiUrl, {
+        method: 'POST',
+        headers: {
+          'x-session-id': activeSessionId,
+        },
+      });
+
+      if (response.ok) {
+        toast.success("Telegram unlinked successfully");
+        // Refresh page to update status
+        window.location.reload();
+      } else {
+        const error = await response.json();
+        toast.error(error.error || "Failed to unlink Telegram");
+      }
+    } catch (err) {
+      console.error('Failed to unlink Telegram:', err);
+      toast.error("Failed to unlink Telegram");
+    } finally {
+      setUnlinking(false);
+    }
+  };
+
   if (loading) {
     return (
       <View className="flex-1 items-center justify-center bg-background">
@@ -537,6 +566,19 @@ export default function SettingsScreen() {
           </View>
         </View>
       </ScrollView>
+
+      {/* Telegram Unlink Confirmation Dialog */}
+      <ConfirmationDialog
+        open={showUnlinkDialog}
+        onOpenChange={setShowUnlinkDialog}
+        title="Unlink Telegram"
+        description="Are you sure you want to unlink your Telegram account? You can link it again anytime."
+        confirmText="Unlink"
+        cancelText="Cancel"
+        confirmVariant="destructive"
+        onConfirm={handleUnlinkTelegram}
+        loading={unlinking}
+      />
     </View>
   );
 }

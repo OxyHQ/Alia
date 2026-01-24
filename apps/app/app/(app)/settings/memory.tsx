@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { View, ScrollView, Pressable, Alert } from "react-native";
+import { View, ScrollView, Pressable } from "react-native";
 import { Text } from "@/components/ui/text";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -14,6 +14,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { ConfirmationDialog } from "@/components/ui/confirmation-dialog";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { useOxy } from "@oxyhq/services";
 import { useRouter } from "expo-router";
@@ -93,6 +94,11 @@ export default function MemoryScreen() {
   const [importStrategy, setImportStrategy] = useState<'merge' | 'replace' | 'skip-duplicates'>('merge');
   const [importPreview, setImportPreview] = useState<any>(null);
   const [importing, setImporting] = useState(false);
+
+  // Delete confirmation state
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [memoryToDelete, setMemoryToDelete] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   const memories = memory?.memories || [];
 
@@ -215,40 +221,36 @@ export default function MemoryScreen() {
     }
   };
 
-  const handleDeleteMemory = async (memoryId: string) => {
-    if (!activeSessionId) return;
+  const handleDeleteMemory = (memoryId: string) => {
+    setMemoryToDelete(memoryId);
+    setShowDeleteDialog(true);
+  };
 
-    Alert.alert(
-      "Delete Memory",
-      "Are you sure you want to delete this memory?",
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Delete",
-          style: "destructive",
-          onPress: async () => {
-            try {
-              const apiUrl = generateAPIUrl(`/memory/${memoryId}`);
-              const response = await fetch(apiUrl, {
-                method: 'DELETE',
-                headers: {
-                  'x-session-id': activeSessionId,
-                },
-              });
+  const confirmDeleteMemory = async () => {
+    if (!activeSessionId || !memoryToDelete) return;
 
-              if (response.ok) {
-                const updatedMemory = await response.json();
-                setMemory(updatedMemory);
-                toast.success("Memory deleted successfully");
-              }
-            } catch (error) {
-              console.error("Error deleting memory:", error);
-              toast.error("Failed to delete memory");
-            }
-          },
+    setDeleting(true);
+    try {
+      const apiUrl = generateAPIUrl(`/memory/${memoryToDelete}`);
+      const response = await fetch(apiUrl, {
+        method: 'DELETE',
+        headers: {
+          'x-session-id': activeSessionId,
         },
-      ]
-    );
+      });
+
+      if (response.ok) {
+        const updatedMemory = await response.json();
+        setMemory(updatedMemory);
+        toast.success("Memory deleted successfully");
+      }
+    } catch (error) {
+      console.error("Error deleting memory:", error);
+      toast.error("Failed to delete memory");
+    } finally {
+      setDeleting(false);
+      setMemoryToDelete(null);
+    }
   };
 
   const getCategoryConfig = (category?: string) => {
@@ -779,6 +781,19 @@ export default function MemoryScreen() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Delete Confirmation Dialog */}
+      <ConfirmationDialog
+        open={showDeleteDialog}
+        onOpenChange={setShowDeleteDialog}
+        title="Delete Memory"
+        description="Are you sure you want to delete this memory? This action cannot be undone."
+        confirmText="Delete"
+        cancelText="Cancel"
+        confirmVariant="destructive"
+        onConfirm={confirmDeleteMemory}
+        loading={deleting}
+      />
     </View>
   );
 }
