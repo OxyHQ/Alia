@@ -1,4 +1,4 @@
-import { View, useWindowDimensions, Alert } from "react-native";
+import { View, useWindowDimensions } from "react-native";
 import { Text } from "@/components/ui/text";
 import { Search, MoreHorizontal, Menu, Ghost, Trash2, Download, Share2, Settings, HelpCircle } from "lucide-react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -9,6 +9,8 @@ import { useNavigation } from "expo-router";
 import { DrawerNavigationProp } from "@react-navigation/drawer";
 import { Dropdown, MenuItem, Separator } from "@/components/ui/dropdown";
 import { toast } from "@/components/sonner";
+import { ConfirmationDialog } from "@/components/ui/confirmation-dialog";
+import { useState } from "react";
 
 interface ChatHeaderProps {
   title: string;
@@ -31,20 +33,19 @@ export function ChatHeader({
   const dimensions = useWindowDimensions();
   const navigation = useNavigation<DrawerNavigationProp<any>>();
   const isLargeScreen = dimensions.width >= 768;
+  const [showClearDialog, setShowClearDialog] = useState(false);
 
   const handleDrawerToggle = () => {
     navigation.toggleDrawer();
   };
 
   const handleClearConversation = () => {
-    Alert.alert(
-      'Clear conversation',
-      'Are you sure you want to clear this conversation? This action cannot be undone.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Clear', style: 'destructive', onPress: () => console.log('Clear conversation') }
-      ]
-    );
+    setShowClearDialog(true);
+  };
+
+  const confirmClearConversation = () => {
+    console.log('Clear conversation');
+    // TODO: Implement clear conversation logic
   };
 
   const handleExport = () => {

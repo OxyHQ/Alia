@@ -356,6 +356,31 @@ export default function AccountScreen() {
           </View>
         </View>
       </ScrollView>
+
+      {/* Logout Confirmation Dialog */}
+      <ConfirmationDialog
+        open={showLogoutDialog}
+        onOpenChange={setShowLogoutDialog}
+        title="Logout"
+        description="Are you sure you want to logout?"
+        confirmText="Logout"
+        cancelText="Cancel"
+        confirmVariant="destructive"
+        onConfirm={confirmLogout}
+      />
+
+      {/* Delete Avatar Confirmation Dialog */}
+      <ConfirmationDialog
+        open={showDeleteAvatarDialog}
+        onOpenChange={setShowDeleteAvatarDialog}
+        title="Delete Avatar"
+        description="Are you sure you want to delete your avatar?"
+        confirmText="Delete"
+        cancelText="Cancel"
+        confirmVariant="destructive"
+        onConfirm={confirmDeleteAvatar}
+        loading={deletingAvatar}
+      />
     </View>
   );
 }
