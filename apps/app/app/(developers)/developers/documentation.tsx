@@ -148,7 +148,7 @@ export default function DocumentationScreen() {
           Optimized endpoint for code editors (Cursor, VS Code):
         </Text>
         <View className="p-3 bg-muted rounded-md mb-3">
-          <Text className="text-sm font-mono text-foreground">POST /v1/codea/completions</Text>
+          <Text className="text-sm font-mono text-foreground">Base URL: https://api.alia.onl/v1/codea</Text>
         </View>
         <Text className="text-sm text-muted-foreground mb-3">
           • Always uses alia-v1-codea model

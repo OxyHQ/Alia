@@ -6,7 +6,7 @@ La API de Alia tiene tres tipos de endpoints principales:
 
 1. **Chat Interno** (`/alia/chat`) - Para la app de Alia con herramientas y personalización
 2. **API de Desarrolladores** (`/v1/chat/completions`) - OpenAI-compatible para uso externo
-3. **API para Editores de Código** (`/v1/codea/completions`) - Para Cursor, VS Code, etc. - siempre usa `alia-v1-codea`
+3. **API para Editores de Código** (`/v1/codea/chat/completions`) - Para Cursor, VS Code, etc. - siempre usa `alia-v1-codea`
 
 ---
 
@@ -87,9 +87,11 @@ data: [DONE]
 
 ---
 
-### `POST /v1/codea/completions`
+### `POST /v1/codea/chat/completions`
 
 **Descripción**: Endpoint para editores de código (Cursor, VS Code, etc.) que **siempre** usa `alia-v1-codea`.
+
+**Base URL para Cursor/VS Code**: `https://api.alia.onl/v1/codea`
 
 **Autenticación**: Requerida (via `authenticateTokenOrApiKey`)
 
@@ -284,5 +286,5 @@ X-Telegram-Id: <telegram-id>
 |-------------|------|--------|--------------|
 | Chat en la app de Alia | `/alia/chat` | Configurable | ✅ Todas (Google Search, Memory, etc.) |
 | API para desarrolladores | `/v1/chat/completions` | Configurable | ✅ Function calling (si se pasa en request) |
-| Editores de código (Cursor, VS Code, etc.) | `/v1/codea/completions` | **Siempre `alia-v1-codea`** | ✅ Tools del editor + Alia (memoria, Telegram) |
+| Editores de código (Cursor, VS Code, etc.) | `/v1/codea/chat/completions` | **Siempre `alia-v1-codea`** | ✅ Tools del editor + Alia (memoria, Telegram) |
 | Listar modelos | `/v1/models` | N/A | N/A |
