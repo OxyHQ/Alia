@@ -57,7 +57,7 @@ router.get('/link-status', authenticateToken, async (req, res) => {
       isAuthenticated: true,
     });
 
-    if (!telegramUser) {
+    if (!telegramUser || !telegramUser.sessionToken) {
       return res.json({ linked: false });
     }
 
@@ -431,9 +431,20 @@ router.post('/link', authenticateToken, async (req, res) => {
       return res.status(500).json({ error: 'Failed to fetch user information' });
     }
 
+    // Extract session token from request (validated by authenticateToken middleware)
+    const sessionToken = req.headers['x-session-id'] as string ||
+      (req.headers.authorization?.startsWith('Bearer ')
+        ? req.headers.authorization.substring(7)
+        : undefined);
+
+    if (!sessionToken) {
+      return res.status(400).json({ error: 'Session token not found in request' });
+    }
+
     // Link the accounts
     telegramUser.oxyUserId = new mongoose.Types.ObjectId(oxyUserId);
     telegramUser.isAuthenticated = true;
+    telegramUser.sessionToken = sessionToken;
     telegramUser.linkedAt = new Date();
     telegramUser.authToken = undefined;
     telegramUser.authTokenExpiry = undefined;
@@ -522,41 +533,31 @@ router.post('/signin-complete', async (req, res) => {
     let telegramUser = await TelegramUser.findOne({ telegramId });
 
     if (telegramUser && telegramUser.oxyUserId) {
-      // User has linked Telegram before - fetch their Oxy user data
-      try {
-        const user = await oxyClient.getUserById(telegramUser.oxyUserId.toString());
+      // User has linked Telegram before - but they need to re-link to get a fresh session token
+      // Update telegram user info but keep them as not authenticated
+      telegramUser.chatId = chatId;
+      telegramUser.username = username;
+      telegramUser.firstName = firstName;
+      telegramUser.lastName = lastName;
+      telegramUser.isAuthenticated = false;
+      telegramUser.sessionToken = undefined;
+      telegramUser.authToken = undefined;
+      telegramUser.authTokenExpiry = undefined;
+      telegramUser.authTokenMode = undefined;
+      await telegramUser.save();
 
-        // Update telegram user info
-        telegramUser.chatId = chatId;
-        telegramUser.username = username;
-        telegramUser.firstName = firstName;
-        telegramUser.lastName = lastName;
-        telegramUser.isAuthenticated = true;
-        telegramUser.authToken = undefined;
-        telegramUser.authTokenExpiry = undefined;
-        telegramUser.authTokenMode = undefined;
-        await telegramUser.save();
-
-        // Clean up pending auth if different
-        if (pendingAuth._id.toString() !== telegramUser._id.toString()) {
-          await TelegramUser.deleteOne({ _id: pendingAuth._id });
-        }
-
-        console.log('[signin-complete] Telegram user signed in with existing Oxy link', { telegramId, oxyUserId: telegramUser.oxyUserId });
-        res.json({
-          success: true,
-          isNewUser: false,
-          user: {
-            id: user._id,
-            email: user.email,
-            username: user.username,
-            name: user.name,
-          },
-        });
-      } catch (error) {
-        console.error('[signin-complete] Failed to fetch Oxy user', { telegramId, oxyUserId: telegramUser.oxyUserId, error });
-        return res.status(404).json({ error: 'Linked Oxy user not found' });
+      // Clean up pending auth if different
+      if (pendingAuth._id.toString() !== telegramUser._id.toString()) {
+        await TelegramUser.deleteOne({ _id: pendingAuth._id });
       }
+
+      console.log('[signin-complete] Telegram user was previously linked, needs to re-link', { telegramId, oxyUserId: telegramUser.oxyUserId });
+      return res.status(403).json({
+        error: 'Session expired - please re-link your account',
+        message: 'Your Telegram was previously linked, but your session has expired. Please sign in via Oxy and re-link your Telegram account.',
+        requiresOxyAuth: true,
+        wasLinked: true,
+      });
     } else {
       // Telegram not linked to any Oxy account - user must link via Oxy first
       // Update telegram user info for future linking

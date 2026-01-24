@@ -69,9 +69,20 @@ export async function handleMessage(ctx: Context) {
     // Get telegram user
     const telegramUser = await apiClient.getTelegramUser(telegramId);
 
-    if (!telegramUser || !telegramUser.isAuthenticated || !telegramUser.sessionToken) {
-      // Send authentication request
+    // Check authentication state
+    if (!telegramUser || !telegramUser.isAuthenticated) {
       await sendAuthRequest(ctx);
+      return;
+    }
+
+    // Validate session token exists (users who linked before the fix won't have one)
+    if (!telegramUser.sessionToken) {
+      await ctx.reply(
+        '🔄 <b>Session Update Required</b>\n\n' +
+        'Your Telegram account needs to be re-linked to refresh your session.\n' +
+        'Please use /start link to reconnect your account.',
+        { parse_mode: 'HTML' }
+      );
       return;
     }
 
