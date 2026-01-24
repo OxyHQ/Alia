@@ -6,7 +6,7 @@
  * requests are routed to appropriate provider models.
  */
 
-export type AliaTier = 'lite' | 'v1' | 'v1-code' | 'v1-pro' | 'v1-pro-max';
+export type AliaTier = 'lite' | 'v1' | 'v1-codea' | 'v1-pro' | 'v1-pro-max';
 
 export interface AliaModel {
   id: string;
@@ -50,10 +50,10 @@ export const ALIA_MODELS: Record<string, AliaModel> = {
     supportsTools: true,
     supportsVision: true,
   },
-  'alia-v1-code': {
-    id: 'alia-v1-code',
-    name: 'Alia V1 Code',
-    tier: 'v1-code',
+  'alia-v1-codea': {
+    id: 'alia-v1-codea',
+    name: 'Alia V1 Codea',
+    tier: 'v1-codea',
     description: 'Optimized for coding and technical tasks',
     creditMultiplier: 1.5,
     maxTokens: 16384,
@@ -97,7 +97,7 @@ export const TIER_MODEL_MAPPINGS: Record<AliaTier, ModelMapping[]> = {
     { provider: 'openai', modelId: 'gpt-4o-mini', priority: 2, qualityScore: 78 },
     { provider: 'groq', modelId: 'llama-3.3-70b-versatile', priority: 3, qualityScore: 70 },
   ],
-  'v1-code': [
+  'v1-codea': [
     { provider: 'google', modelId: 'gemini-2.5-pro', priority: 1, qualityScore: 90 },
     { provider: 'openai', modelId: 'gpt-4o', priority: 2, qualityScore: 88 },
     { provider: 'anthropic', modelId: 'claude-sonnet-4-20250514', priority: 3, qualityScore: 92 },
