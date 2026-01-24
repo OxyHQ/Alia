@@ -27,7 +27,7 @@ export default function ExamplesScreen() {
         <View className="p-3 bg-muted rounded-md">
           <Text className="text-sm font-mono text-foreground">
             {`const response = await fetch(
-  'https://api.alia.onl/v1/chat',
+  'https://api.alia.onl/v1/chat/completions',
   {
     method: 'POST',
     headers: {
@@ -35,14 +35,17 @@ export default function ExamplesScreen() {
       'Content-Type': 'application/json'
     },
     body: JSON.stringify({
-      message: 'Hello, Alia!',
-      model: 'gemini-1.5-flash'
+      messages: [
+        {role: 'user', content: 'Hello!'}
+      ],
+      model: 'alia-v1'
     })
   }
 );
 
-const data = await response.json();
-console.log(data);`}
+// Process SSE stream
+const reader = response.body.getReader();
+// ...read chunks`}
           </Text>
         </View>
       </View>
@@ -50,25 +53,26 @@ console.log(data);`}
       {/* Python Example */}
       <View className="px-6 py-6 border-b border-border">
         <Text className="text-sm font-semibold text-foreground mb-4">Python</Text>
-        <Text className="text-sm text-muted-foreground mb-3">Using requests library:</Text>
+        <Text className="text-sm text-muted-foreground mb-3">Using OpenAI SDK:</Text>
         <View className="p-3 bg-muted rounded-md">
           <Text className="text-sm font-mono text-foreground">
-            {`import requests
+            {`from openai import OpenAI
 
-response = requests.post(
-    'https://api.alia.onl/v1/chat',
-    headers={
-        'Authorization': 'Bearer alia_sk_your_key',
-        'Content-Type': 'application/json'
-    },
-    json={
-        'message': 'Hello, Alia!',
-        'model': 'gemini-1.5-flash'
-    }
+client = OpenAI(
+    api_key="alia_sk_your_key",
+    base_url="https://api.alia.onl/v1"
 )
 
-data = response.json()
-print(data)`}
+stream = client.chat.completions.create(
+    model="alia-v1",
+    messages=[
+        {"role": "user", "content": "Hello!"}
+    ],
+    stream=True
+)
+
+for chunk in stream:
+    print(chunk.choices[0].delta.content)`}
           </Text>
         </View>
       </View>
@@ -79,25 +83,27 @@ print(data)`}
         <Text className="text-sm text-muted-foreground mb-3">Command line example:</Text>
         <View className="p-3 bg-muted rounded-md">
           <Text className="text-sm font-mono text-foreground">
-            {`curl -X POST https://api.alia.onl/v1/chat \\
+            {`curl https://api.alia.onl/v1/chat/completions \\
   -H "Authorization: Bearer alia_sk_your_key" \\
   -H "Content-Type: application/json" \\
   -d '{
-    "message": "Hello, Alia!",
-    "model": "gemini-1.5-flash"
+    "messages": [
+      {"role": "user", "content": "Hello!"}
+    ],
+    "model": "alia-v1"
   }'`}
           </Text>
         </View>
       </View>
 
       {/* Streaming Example */}
-      <View className="px-6 py-6">
+      <View className="px-6 py-6 border-b border-border">
         <Text className="text-sm font-semibold text-foreground mb-4">Streaming responses</Text>
-        <Text className="text-sm text-muted-foreground mb-3">Enable streaming for real-time responses:</Text>
+        <Text className="text-sm text-muted-foreground mb-3">All responses are streamed by default (SSE format):</Text>
         <View className="p-3 bg-muted rounded-md">
           <Text className="text-sm font-mono text-foreground">
             {`const response = await fetch(
-  'https://api.alia.onl/v1/chat',
+  'https://api.alia.onl/v1/chat/completions',
   {
     method: 'POST',
     headers: {
@@ -105,14 +111,46 @@ print(data)`}
       'Content-Type': 'application/json'
     },
     body: JSON.stringify({
-      message: 'Tell me a story',
-      stream: true
+      messages: [
+        {role: 'user', content: 'Story?'}
+      ],
+      model: 'alia-v1'
     })
   }
 );
 
 const reader = response.body.getReader();
-// Process stream...`}
+const decoder = new TextDecoder();
+
+while (true) {
+  const {done, value} = await reader.read();
+  if (done) break;
+
+  const chunk = decoder.decode(value);
+  // Parse SSE format: "data: {...}"
+  console.log(chunk);
+}`}
+          </Text>
+        </View>
+      </View>
+
+      {/* Code Editor Example */}
+      <View className="px-6 py-6">
+        <Text className="text-sm font-semibold text-foreground mb-4">Code editor integration</Text>
+        <Text className="text-sm text-muted-foreground mb-3">Use the codea endpoint for Cursor, VS Code, etc:</Text>
+        <View className="p-3 bg-muted rounded-md">
+          <Text className="text-sm font-mono text-foreground">
+            {`// Cursor/VS Code configuration
+{
+  "api_key": "alia_sk_your_key",
+  "base_url": "https://api.alia.onl/v1/codea/completions"
+}
+
+// The endpoint:
+// • Always uses alia-v1-codea
+// • Supports editor tools
+// • Includes user memory
+// • Can send Telegram notifications`}
           </Text>
         </View>
       </View>

@@ -60,19 +60,50 @@ export default function DocumentationScreen() {
       <View className="px-6 py-6 border-b border-border">
         <Text className="text-sm font-semibold text-foreground mb-4">Chat completions</Text>
         <Text className="text-sm text-muted-foreground mb-3">
-          Send a message to Alia AI and receive a response:
+          Send messages to Alia AI using OpenAI-compatible format:
         </Text>
         <View className="p-3 bg-muted rounded-md mb-3">
-          <Text className="text-sm font-mono text-foreground">POST /v1/chat</Text>
+          <Text className="text-sm font-mono text-foreground">POST /v1/chat/completions</Text>
         </View>
         <Text className="text-sm text-muted-foreground mb-3">Request body:</Text>
         <View className="p-3 bg-muted rounded-md">
           <Text className="text-sm font-mono text-foreground">
             {`{
-  "message": "Hello, Alia!",
-  "conversationId": "optional-id",
-  "model": "gemini-1.5-flash",
-  "stream": false
+  "messages": [
+    {"role": "user", "content": "Hello!"}
+  ],
+  "model": "alia-v1",
+  "temperature": 0.7,
+  "max_tokens": 4096
+}`}
+          </Text>
+        </View>
+        <Text className="text-sm text-muted-foreground mt-3">
+          The response is streamed in OpenAI-compatible SSE format.
+        </Text>
+      </View>
+
+      {/* Function Calling */}
+      <View className="px-6 py-6 border-b border-border">
+        <Text className="text-sm font-semibold text-foreground mb-4">Function calling (Tools)</Text>
+        <Text className="text-sm text-muted-foreground mb-3">
+          Add tools to your chat completions:
+        </Text>
+        <View className="p-3 bg-muted rounded-md">
+          <Text className="text-sm font-mono text-foreground">
+            {`{
+  "messages": [...],
+  "model": "alia-v1",
+  "tools": [
+    {
+      "type": "function",
+      "function": {
+        "name": "get_weather",
+        "description": "Get weather",
+        "parameters": {...}
+      }
+    }
+  ]
 }`}
           </Text>
         </View>
@@ -80,24 +111,77 @@ export default function DocumentationScreen() {
 
       {/* Get Conversations */}
       <View className="px-6 py-6 border-b border-border">
-        <Text className="text-sm font-semibold text-foreground mb-4">Get conversations</Text>
+        <Text className="text-sm font-semibold text-foreground mb-4">Conversations</Text>
         <Text className="text-sm text-muted-foreground mb-3">
-          Retrieve a list of all conversations:
+          Retrieve conversations (internal Alia chat only):
         </Text>
         <View className="p-3 bg-muted rounded-md">
-          <Text className="text-sm font-mono text-foreground">GET /v1/conversations</Text>
+          <Text className="text-sm font-mono text-foreground">GET /conversations</Text>
         </View>
       </View>
 
-      {/* Get Available Models */}
+      {/* Available Models */}
       <View className="px-6 py-6 border-b border-border">
         <Text className="text-sm font-semibold text-foreground mb-4">Available models</Text>
         <Text className="text-sm text-muted-foreground mb-3">
           Get a list of available AI models:
         </Text>
-        <View className="p-3 bg-muted rounded-md">
+        <View className="p-3 bg-muted rounded-md mb-4">
           <Text className="text-sm font-mono text-foreground">GET /v1/models</Text>
         </View>
+        <Text className="text-sm text-muted-foreground mb-3">Alia models:</Text>
+        <View className="p-3 bg-muted rounded-md">
+          <Text className="text-sm font-mono text-foreground">
+            {`• alia-lite - Fast (0.5x credits)
+• alia-v1 - Balanced (1x credits)
+• alia-v1-codea - Code optimized (1.5x)
+• alia-v1-pro - High quality (3x)
+• alia-v1-pro-max - Best (5x)`}
+          </Text>
+        </View>
+      </View>
+
+      {/* Code Editor Endpoint */}
+      <View className="px-6 py-6 border-b border-border">
+        <Text className="text-sm font-semibold text-foreground mb-4">Code editor endpoint</Text>
+        <Text className="text-sm text-muted-foreground mb-3">
+          Optimized endpoint for code editors (Cursor, VS Code):
+        </Text>
+        <View className="p-3 bg-muted rounded-md mb-3">
+          <Text className="text-sm font-mono text-foreground">POST /v1/codea/completions</Text>
+        </View>
+        <Text className="text-sm text-muted-foreground mb-3">
+          • Always uses alia-v1-codea model
+        </Text>
+        <Text className="text-sm text-muted-foreground mb-3">
+          • Supports function calling (tools)
+        </Text>
+        <Text className="text-sm text-muted-foreground mb-3">
+          • Includes user memory and preferences
+        </Text>
+        <Text className="text-sm text-muted-foreground">
+          • Can send Telegram notifications
+        </Text>
+      </View>
+
+      {/* Credits & Pricing */}
+      <View className="px-6 py-6 border-b border-border">
+        <Text className="text-sm font-semibold text-foreground mb-4">Credits & pricing</Text>
+        <Text className="text-sm text-muted-foreground mb-3">
+          Credits are charged based on tokens used:
+        </Text>
+        <View className="p-3 bg-muted rounded-md mb-3">
+          <Text className="text-sm font-mono text-foreground">
+            {`Formula:
+Math.ceil((tokens / 1000) × multiplier)
+
+Example:
+1,500 tokens × 1.5 (codea) = 3 credits`}
+          </Text>
+        </View>
+        <Text className="text-sm text-muted-foreground">
+          Minimum: 1 credit per request
+        </Text>
       </View>
 
       {/* Base URL */}
