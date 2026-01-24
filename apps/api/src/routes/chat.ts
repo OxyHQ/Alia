@@ -416,11 +416,14 @@ router.post('/', optionalAuth, async (req, res) => {
     // Finalize credits based on actual token usage and model tier
     if (creditReservation && req.user) {
       try {
+        console.log('[Alia/Chat] About to finalize credits with token usage:', tokenUsage);
         const { creditsCharged, creditsRemaining } = await finalizeCredits(
           creditReservation,
           tokenUsage,
           resolved?.aliasModelId
         );
+
+        console.log('[Alia/Chat] Credits finalized successfully:', { creditsCharged, creditsRemaining });
 
         const creditUpdate = {
           type: 'credit-update',
@@ -430,10 +433,16 @@ router.post('/', optionalAuth, async (req, res) => {
           promptTokens: tokenUsage.promptTokens,
           completionTokens: tokenUsage.completionTokens,
         };
+        console.log('[Alia/Chat] Sending credit update event:', creditUpdate);
         res.write(`data: ${JSON.stringify(creditUpdate)}\n\n`);
       } catch (error) {
         console.error('[Alia/Chat] Error finalizing credits:', error);
       }
+    } else {
+      console.log('[Alia/Chat] Skipping credit finalization:', {
+        hasCreditReservation: !!creditReservation,
+        hasUser: !!req.user
+      });
     }
 
     // Auto-save conversation if conversationId provided and user is authenticated
