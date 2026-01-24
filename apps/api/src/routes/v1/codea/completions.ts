@@ -8,7 +8,7 @@ import { resolveAliaModel } from '../../../lib/model-resolver.js';
 import { UserCredits } from '../../../models/user-credits.js';
 import { UserMemory } from '../../../models/user-memory.js';
 import { reserveCredits, finalizeCredits, type CreditReservation, type CreditUsage } from '../../../lib/credits-manager.js';
-import { getCurrentDateTool, getTimelineTool, saveUserMemoryTool, updateUserPreferencesTool, updateUserContextTool } from '../../../lib/tools/index.js';
+import { getCurrentDateTool, getTimelineTool, saveUserMemoryTool, updateUserPreferencesTool, updateUserContextTool, createSendTelegramTool } from '../../../lib/tools/index.js';
 import type { KeyConfig } from '../../../lib/types.js';
 import type { IUserMemory } from '../../../models/user-memory.js';
 
@@ -153,6 +153,7 @@ router.post('/', async (req: Request, res: Response) => {
         saveUserMemory: saveUserMemoryTool,
         updateUserPreferences: updateUserPreferencesTool,
         updateUserContext: updateUserContextTool,
+        sendTelegram: createSendTelegramTool(req.user.id),
       } : {}),
     };
 
@@ -162,6 +163,10 @@ router.post('/', async (req: Request, res: Response) => {
 
     // Build system message with user context
     let systemMessage = 'You are Alia, an AI coding assistant. You help users write, debug, and understand code.';
+
+    if (req.user) {
+      systemMessage += '\n\nYou can send Telegram notifications to the user when they request it (e.g., when a task is complete).';
+    }
 
     if (userMemory) {
       systemMessage += '\n\n## User Information';
