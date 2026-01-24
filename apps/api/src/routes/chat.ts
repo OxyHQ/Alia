@@ -252,7 +252,7 @@ router.post('/', optionalAuth, async (req, res) => {
     // Process incoming messages to remove platform-incompatible tags
     // This saves tokens by not sending irrelevant formatting to the AI
     const processedMessages = processMessagesForPlatform(
-      messages.map(m => ({ role: m.role, content: typeof m.content === 'string' ? m.content : '' })),
+      messages.filter(m => m && m.role).map(m => ({ role: m.role, content: typeof m.content === 'string' ? m.content : '' })),
       platform
     );
 
@@ -476,7 +476,7 @@ router.post('/', optionalAuth, async (req, res) => {
       try {
         // Build complete messages array (user messages + assistant response)
         const allMessages = [
-          ...messages.map((m: any) => ({
+          ...messages.filter(m => m && m.role).map((m: any) => ({
             role: m.role,
             content: m.content,
             toolInvocations: m.toolInvocations
