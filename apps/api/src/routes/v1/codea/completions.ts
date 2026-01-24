@@ -1,5 +1,5 @@
 import { Router, Request, Response } from 'express';
-import { streamText, type ToolSet } from 'ai';
+import { streamText, type ToolSet, type ModelMessage } from 'ai';
 import { createGoogleGenerativeAI } from '@ai-sdk/google';
 import { createOpenAI } from '@ai-sdk/openai';
 import { createAnthropic } from '@ai-sdk/anthropic';
@@ -14,6 +14,93 @@ import type { KeyConfig } from '../../../lib/types.js';
 import type { IUserMemory } from '../../../models/user-memory.js';
 
 const router = Router();
+
+/**
+ * Convert OpenAI-format messages to AI SDK ModelMessage format.
+ * Handles tool result messages which have role "tool" in OpenAI format.
+ */
+function convertToAISDKMessages(messages: any[], toolNameMapping: Map<string, string>): ModelMessage[] {
+  const result: ModelMessage[] = [];
+
+  // Track tool calls from assistant messages to map tool results
+  const toolCallsMap = new Map<string, { name: string; index: number }>();
+
+  for (let i = 0; i < messages.length; i++) {
+    const msg = messages[i];
+
+    if (msg.role === 'system') {
+      result.push({
+        role: 'system',
+        content: msg.content || ''
+      });
+    } else if (msg.role === 'user') {
+      // User messages can have string content or array content (for images, etc.)
+      result.push({
+        role: 'user',
+        content: msg.content
+      });
+    } else if (msg.role === 'assistant') {
+      // Check if assistant message has tool_calls
+      if (msg.tool_calls && Array.isArray(msg.tool_calls) && msg.tool_calls.length > 0) {
+        // Track tool calls for later matching with tool results
+        for (const tc of msg.tool_calls) {
+          if (tc.id && tc.function?.name) {
+            // Get sanitized name for internal use
+            const sanitizedName = Array.from(toolNameMapping.entries())
+              .find(([_, orig]) => orig === tc.function.name)?.[0] || tc.function.name;
+            toolCallsMap.set(tc.id, { name: sanitizedName, index: result.length });
+          }
+        }
+
+        // Convert to AI SDK assistant message with tool calls
+        result.push({
+          role: 'assistant',
+          content: msg.content || '',
+          toolCalls: msg.tool_calls.map((tc: any) => {
+            // Get sanitized name for the provider
+            const sanitizedName = Array.from(toolNameMapping.entries())
+              .find(([_, orig]) => orig === tc.function?.name)?.[0] || tc.function?.name || 'unknown';
+
+            return {
+              toolCallId: tc.id,
+              toolName: sanitizedName,
+              args: typeof tc.function?.arguments === 'string'
+                ? JSON.parse(tc.function.arguments)
+                : (tc.function?.arguments || {})
+            };
+          })
+        } as ModelMessage);
+      } else {
+        // Regular assistant message
+        result.push({
+          role: 'assistant',
+          content: msg.content || ''
+        });
+      }
+    } else if (msg.role === 'tool') {
+      // Convert OpenAI tool result to AI SDK format
+      // AI SDK expects tool results as a "tool" role message with specific structure
+      const toolCallId = msg.tool_call_id;
+      const toolInfo = toolCallsMap.get(toolCallId);
+      const toolName = toolInfo?.name || 'unknown';
+
+      result.push({
+        role: 'tool',
+        content: [{
+          type: 'tool-result',
+          toolCallId: toolCallId,
+          toolName: toolName,
+          output: {
+            type: 'text',
+            value: typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content)
+          }
+        }]
+      } as ModelMessage);
+    }
+  }
+
+  return result;
+}
 
 // Create AI SDK provider based on key
 function getAIModel(keyConfig: KeyConfig) {
@@ -196,13 +283,17 @@ async function handleCodeaCompletions(req: Request, res: Response) {
     }
 
     // Inject system message at the start if not present
-    const processedMessages = [...messages];
-    if (processedMessages.length === 0 || processedMessages[0].role !== 'system') {
-      processedMessages.unshift({ role: 'system', content: systemMessage });
+    const rawMessages = [...messages];
+    if (rawMessages.length === 0 || rawMessages[0].role !== 'system') {
+      rawMessages.unshift({ role: 'system', content: systemMessage });
     } else {
       // Append to existing system message
-      processedMessages[0].content += '\n\n' + systemMessage;
+      rawMessages[0].content += '\n\n' + systemMessage;
     }
+
+    // Convert OpenAI-format messages to AI SDK format (handles tool messages)
+    const processedMessages = convertToAISDKMessages(rawMessages, toolNameMapping);
+    console.log(`[Codea] Converted ${rawMessages.length} messages to AI SDK format`);
 
     // Track token usage
     let tokenUsage: CreditUsage = {
@@ -218,7 +309,7 @@ async function handleCodeaCompletions(req: Request, res: Response) {
 
     const streamConfig: any = {
       model,
-      messages: processedMessages as any,
+      messages: processedMessages,
       temperature: body.temperature ?? 0.7,
       tools: allTools,
       onFinish: async (result: any) => {

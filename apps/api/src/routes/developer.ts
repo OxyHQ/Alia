@@ -1,4 +1,5 @@
 import { Router, Request, Response } from 'express';
+import mongoose from 'mongoose';
 import { authenticateToken } from '../middleware/auth';
 import DeveloperApp from '../models/developer-app';
 import DeveloperApiKey from '../models/developer-api-key';
@@ -568,7 +569,7 @@ router.get('/stats', async (req: Request, res: Response) => {
     const usage = await ApiKeyUsage.aggregate([
       {
         $match: {
-          oxyUserId: userId,
+          oxyUserId: new mongoose.Types.ObjectId(userId),
           timestamp: { $gte: thirtyDaysAgo },
         },
       },
