@@ -1,5 +1,5 @@
 import React from "react";
-import { View, Pressable } from "react-native";
+import { View, Pressable, ScrollView, NativeSyntheticEvent, NativeScrollEvent } from "react-native";
 import { Image } from "expo-image";
 import { Text } from "@/components/ui/text";
 import { Button } from "@/components/ui/button";
@@ -372,6 +372,17 @@ export const Sidebar = React.memo(function Sidebar() {
     return flattenGroupedConversations(groupedStandaloneConversations);
   }, [groupedStandaloneConversations]);
 
+  // Handle scroll for infinite loading
+  const handleScroll = React.useCallback((event: NativeSyntheticEvent<NativeScrollEvent>) => {
+    const { layoutMeasurement, contentOffset, contentSize } = event.nativeEvent;
+    const paddingToBottom = 100;
+    const isCloseToBottom = layoutMeasurement.height + contentOffset.y >= contentSize.height - paddingToBottom;
+
+    if (isCloseToBottom && hasNextPage && !isFetchingNextPage) {
+      fetchNextPage();
+    }
+  }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
+
   return (
     <View className="flex-1 bg-surface">
       {/* Header with Logo */}
@@ -401,8 +412,13 @@ export const Sidebar = React.memo(function Sidebar() {
         </Button>
       </View>
 
-      {/* Scrollable Content - Static sections */}
-      <View className="flex-1">
+      {/* Scrollable Content */}
+      <ScrollView
+        className="flex-1"
+        onScroll={handleScroll}
+        scrollEventThrottle={400}
+        showsVerticalScrollIndicator={false}
+      >
         {/* Navigation Links */}
         <View className="px-3 md:px-2 pb-3 md:pb-2 pt-3 md:pt-2 gap-1">
         <Button
@@ -449,7 +465,7 @@ export const Sidebar = React.memo(function Sidebar() {
       </View>
 
       {/* Projects and History Section */}
-      <View className="flex-1 px-3 md:px-2">
+      <View className="px-3 md:px-2">
         <View className="gap-2">
             {/* Projects Subsection */}
             <View>
@@ -639,21 +655,19 @@ export const Sidebar = React.memo(function Sidebar() {
                         );
                       })}
 
-                    {/* Standalone conversations with FlashList and date grouping */}
+                    {/* Standalone conversations with date grouping */}
                     <HistoryList
                       data={flattenedStandaloneConversations}
                       currentChatId={chatId?.id}
                       favoriteIds={favoriteConversationIds}
                       projects={projects}
                       folders={folders}
-                      hasNextPage={hasNextPage}
                       isFetchingNextPage={isFetchingNextPage}
                       onSelect={handleSelectConversation}
                       onToggleFavorite={handleToggleFavorite}
                       onMoveToProject={handleMoveConversationToProject}
                       onMoveToFolder={handleMoveConversationToFolder}
                       onDelete={handleDeleteConversation}
-                      onLoadMore={fetchNextPage}
                       getConversationProject={getConversationProject}
                       getConversationFolder={getConversationFolder}
                     />
@@ -664,7 +678,7 @@ export const Sidebar = React.memo(function Sidebar() {
             </View>
         </View>
       </View>
-      </View>
+      </ScrollView>
 
       {/* Footer with User or Auth Buttons */}
       <View className="border-t border-border/50 p-3 md:p-2">
