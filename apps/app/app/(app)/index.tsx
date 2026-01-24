@@ -19,7 +19,7 @@ const ChatPage = () => {
     scrollViewRef,
     createNewConversation,
     editMessage,
-  } = useChatConversation({ activeRole });
+  } = useChatConversation({ activeRole, selectedModel });
 
   return (
     <>

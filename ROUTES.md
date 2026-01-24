@@ -103,6 +103,8 @@ data: [DONE]
 - ✅ Soporta tools del editor (function calling)
 - ✅ Herramientas internas de Alia (memoria, timeline, Telegram)
 - ✅ Personalización basada en perfil de usuario
+- ✅ **Conversión automática de tools** para compatibilidad multi-proveedor
+- ✅ **Fallback automático** entre proveedores (Google → OpenAI → Anthropic)
 
 **Parámetros del Body**:
 ```json
@@ -126,6 +128,24 @@ data: [DONE]
 - `sendTelegram` - Enviar notificaciones por Telegram
 
 **Respuesta**: Igual que `/v1/chat/completions` pero con `model: "alia-v1-codea"`
+
+**Conversión de Tools (Multi-Proveedor)**:
+
+Los tools enviados por editores como Cursor pueden tener nombres incompatibles con ciertos proveedores (ej: Google requiere nombres alfanuméricos). El sistema automáticamente:
+
+1. **Sanitiza nombres** de funciones para compatibilidad con todos los proveedores
+2. **Convierte JSON Schema** a formato Zod para AI SDK
+3. **Restaura nombres originales** en las respuestas al cliente
+
+```
+Cursor envía:  tools[{function: {name: "read_file#123"}}]
+                    ↓
+Sanitizado:    "read_file_123" (compatible con Google)
+                    ↓
+AI SDK → Proveedor (Google/OpenAI/Anthropic)
+                    ↓
+Respuesta:     Restaura "read_file#123" para Cursor
+```
 
 ---
 

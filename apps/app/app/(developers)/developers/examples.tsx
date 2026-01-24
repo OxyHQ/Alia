@@ -148,8 +148,11 @@ while (true) {
 
 // The endpoint:
 // POST /v1/codea/chat/completions
+//
+// Features:
 // • Always uses alia-v1-codea
-// • Supports editor tools
+// • Supports editor tools (auto-converted)
+// • Multi-provider fallback (Google→OpenAI→Anthropic)
 // • Includes user memory
 // • Can send Telegram notifications`}
           </Text>
