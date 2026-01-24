@@ -251,7 +251,7 @@ router.post('/', async (req: Request, res: Response) => {
                 type: 'function',
                 function: {
                   name: chunk.toolName,
-                  arguments: JSON.stringify(chunk.args)
+                  arguments: JSON.stringify(chunk.input || {})
                 }
               }]
             },
@@ -262,7 +262,7 @@ router.post('/', async (req: Request, res: Response) => {
       } else if (chunk.type === 'tool-result') {
         // Tool results are handled by the client in function calling flow
         // Just log for debugging
-        console.log('[Codea] Tool result:', chunk.toolName, chunk.result);
+        console.log('[Codea] Tool result:', chunk.toolName, chunk.output);
       } else if (chunk.type === 'finish') {
         const finishChunk = {
           id: `chatcmpl-${Date.now()}`,
