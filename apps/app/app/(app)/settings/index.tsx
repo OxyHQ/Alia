@@ -276,39 +276,102 @@ export default function SettingsScreen() {
           <LanguageSelector />
 
           {/* Theme Preference */}
-          <View className="gap-2">
-            <View className="flex-row items-center gap-2">
-              <Monitor size={20} className="text-primary" />
-              <Text className="text-base font-semibold">{t('settings.appearance.title')}</Text>
+          <View className="gap-4">
+            <Text className="text-2xl font-bold">{t('settings.appearance.title')}</Text>
+
+            <View className="gap-3">
+              <Text className="text-base font-medium text-foreground">Color mode</Text>
+
+              <View className="flex-row gap-3">
+                {/* Light Mode Card */}
+                <Pressable
+                  onPress={() => setColorScheme('light')}
+                  className="flex-1"
+                >
+                  <View className={`rounded-2xl p-4 ${mode === 'light' ? 'border-2 border-primary' : 'border border-border'}`}>
+                    {/* Preview Card */}
+                    <View className="bg-white rounded-xl p-3 mb-3 aspect-[4/3]">
+                      <View className="flex-row gap-1 mb-2">
+                        <View className="w-8 h-1 bg-gray-300 rounded" />
+                        <View className="w-12 h-1 bg-gray-300 rounded" />
+                      </View>
+                      <View className="flex-row gap-1 mb-2">
+                        <View className="w-10 h-1 bg-gray-300 rounded" />
+                        <View className="w-14 h-1 bg-gray-300 rounded" />
+                      </View>
+                      <View className="flex-1 bg-gray-50 rounded-lg mt-2 items-end justify-end p-2">
+                        <View className="w-3 h-3 rounded-full bg-primary" />
+                      </View>
+                    </View>
+                    <Text className="text-center font-medium text-foreground">Light</Text>
+                  </View>
+                </Pressable>
+
+                {/* Auto Mode Card */}
+                <Pressable
+                  onPress={() => setColorScheme('system')}
+                  className="flex-1"
+                >
+                  <View className={`rounded-2xl p-4 ${mode === 'system' ? 'border-2 border-primary' : 'border border-border'}`}>
+                    {/* Preview Card - Half Light / Half Dark */}
+                    <View className="rounded-xl overflow-hidden mb-3 aspect-[4/3]">
+                      <View className="flex-row flex-1">
+                        {/* Light Half */}
+                        <View className="flex-1 bg-white p-3">
+                          <View className="flex-row gap-1 mb-2">
+                            <View className="w-6 h-1 bg-gray-300 rounded" />
+                            <View className="w-8 h-1 bg-gray-300 rounded" />
+                          </View>
+                          <View className="flex-row gap-1">
+                            <View className="w-7 h-1 bg-gray-300 rounded" />
+                            <View className="w-9 h-1 bg-gray-300 rounded" />
+                          </View>
+                        </View>
+                        {/* Dark Half */}
+                        <View className="flex-1 bg-[#1a1a1a] p-3 items-end">
+                          <View className="flex-row gap-1 mb-2">
+                            <View className="w-6 h-1 bg-gray-600 rounded" />
+                            <View className="w-8 h-1 bg-gray-600 rounded" />
+                          </View>
+                          <View className="flex-row gap-1">
+                            <View className="w-7 h-1 bg-gray-600 rounded" />
+                            <View className="w-9 h-1 bg-gray-600 rounded" />
+                          </View>
+                        </View>
+                      </View>
+                      <View className="absolute right-2 bottom-2">
+                        <View className="w-3 h-3 rounded-full bg-primary" />
+                      </View>
+                    </View>
+                    <Text className="text-center font-medium text-foreground">Auto</Text>
+                  </View>
+                </Pressable>
+
+                {/* Dark Mode Card */}
+                <Pressable
+                  onPress={() => setColorScheme('dark')}
+                  className="flex-1"
+                >
+                  <View className={`rounded-2xl p-4 ${mode === 'dark' ? 'border-2 border-primary' : 'border border-border'}`}>
+                    {/* Preview Card */}
+                    <View className="bg-[#1a1a1a] rounded-xl p-3 mb-3 aspect-[4/3]">
+                      <View className="flex-row gap-1 mb-2">
+                        <View className="w-8 h-1 bg-gray-600 rounded" />
+                        <View className="w-12 h-1 bg-gray-600 rounded" />
+                      </View>
+                      <View className="flex-row gap-1 mb-2">
+                        <View className="w-10 h-1 bg-gray-600 rounded" />
+                        <View className="w-14 h-1 bg-gray-600 rounded" />
+                      </View>
+                      <View className="flex-1 bg-[#2a2a2a] rounded-lg mt-2 items-end justify-end p-2">
+                        <View className="w-3 h-3 rounded-full bg-primary" />
+                      </View>
+                    </View>
+                    <Text className="text-center font-medium text-foreground">Dark</Text>
+                  </View>
+                </Pressable>
+              </View>
             </View>
-            <Text className="text-sm text-muted-foreground">
-              {t('settings.appearance.description')}
-            </Text>
-            <ToggleGroup
-              type="single"
-              value={mode}
-              onValueChange={(value) => setColorScheme(value as ThemeMode)}
-              className="flex-row gap-2"
-            >
-              <ToggleGroupItem value="light" className="flex-1">
-                <View className="flex-row items-center justify-center gap-2">
-                  <Sun size={16} className={mode === 'light' ? 'text-primary-foreground' : 'text-foreground'} />
-                  <Text className={mode === 'light' ? 'text-primary-foreground' : 'text-foreground'}>{t('settings.appearance.light')}</Text>
-                </View>
-              </ToggleGroupItem>
-              <ToggleGroupItem value="dark" className="flex-1">
-                <View className="flex-row items-center justify-center gap-2">
-                  <Moon size={16} className={mode === 'dark' ? 'text-primary-foreground' : 'text-foreground'} />
-                  <Text className={mode === 'dark' ? 'text-primary-foreground' : 'text-foreground'}>{t('settings.appearance.dark')}</Text>
-                </View>
-              </ToggleGroupItem>
-              <ToggleGroupItem value="system" className="flex-1">
-                <View className="flex-row items-center justify-center gap-2">
-                  <Monitor size={16} className={mode === 'system' ? 'text-primary-foreground' : 'text-foreground'} />
-                  <Text className={mode === 'system' ? 'text-primary-foreground' : 'text-foreground'}>{t('settings.appearance.system')}</Text>
-                </View>
-              </ToggleGroupItem>
-            </ToggleGroup>
           </View>
 
           {/* Alia's Language Preference */}
