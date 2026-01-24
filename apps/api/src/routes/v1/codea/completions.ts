@@ -291,6 +291,20 @@ async function handleCodeaCompletions(req: Request, res: Response) {
     const editorTools = Array.isArray(body.tools) ? convertOpenAIToolsToToolSet(body.tools, toolNameMapping) : {};
     const allTools = { ...aliaTools, ...editorTools };
 
+    // Log tool schemas for debugging (first request only)
+    if (Array.isArray(body.tools) && body.tools.length > 0) {
+      console.log(`[Codea] Received ${body.tools.length} tools from editor`);
+      // Log first few tools to see their parameter schemas
+      body.tools.slice(0, 3).forEach((t: any) => {
+        if (t.function) {
+          const paramNames = t.function.parameters?.properties
+            ? Object.keys(t.function.parameters.properties)
+            : [];
+          console.log(`  Tool: ${t.function.name}, params: [${paramNames.join(', ')}]`);
+        }
+      });
+    }
+
     // Build system message with user context
     let systemMessage = 'You are Alia, an AI coding assistant. You help users write, debug, and understand code.';
 
@@ -388,6 +402,10 @@ async function handleCodeaCompletions(req: Request, res: Response) {
       } else if (chunk.type === 'tool-call') {
         // Restore original tool name if it was sanitized
         const originalToolName = toolNameMapping.get(chunk.toolName) || chunk.toolName;
+
+        // Log the tool call arguments being sent to the editor
+        console.log(`[Codea] Streaming tool call: ${originalToolName}, args:`, JSON.stringify(chunk.input));
+
         const toolCallChunk = {
           id: `chatcmpl-${Date.now()}`,
           object: 'chat.completion.chunk',
