@@ -9,7 +9,8 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Pressable, View } from "react-native";
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { API_URL } from "@/lib/constants";
 
 interface Model {
   id: string;
@@ -17,33 +18,8 @@ interface Model {
   description: string;
 }
 
-const MODELS: Model[] = [
-  {
-    id: "alia-v1-lite",
-    name: "Alia V1 Lite",
-    description: "Lightweight and blazing fast"
-  },
-  {
-    id: "alia-v1",
-    name: "Alia V1",
-    description: "Fast and efficient model"
-  },
-  {
-    id: "alia-v1-codea",
-    name: "Alia V1 Codea",
-    description: "Optimized for code generation"
-  },
-  {
-    id: "alia-v1-pro",
-    name: "Alia V1 Pro",
-    description: "Enhanced reasoning and accuracy"
-  },
-  {
-    id: "alia-v1-pro-max",
-    name: "Alia V1 Pro Max",
-    description: "Maximum performance and capabilities"
-  },
-];
+// Cache models in memory (they don't change frequently)
+let cachedModels: Model[] | null = null;
 
 interface ModelSelectorProps {
   selectedModel?: string;
@@ -55,13 +31,46 @@ export function ModelSelector({
   onModelChange,
 }: ModelSelectorProps) {
   const [value, setValue] = useState(selectedModel);
+  const [models, setModels] = useState<Model[]>(cachedModels || []);
+  const [loading, setLoading] = useState(!cachedModels);
+
+  useEffect(() => {
+    // Only fetch if not cached
+    if (!cachedModels) {
+      fetch(`${API_URL}/v1/models`)
+        .then((res) => res.json())
+        .then((data) => {
+          const fetchedModels = data.data?.map((m: any) => ({
+            id: m.id,
+            name: m.name,
+            description: m.description,
+          })) || [];
+          cachedModels = fetchedModels;
+          setModels(fetchedModels);
+          setLoading(false);
+        })
+        .catch((error) => {
+          console.error('[ModelSelector] Error fetching models:', error);
+          // Fallback to default models
+          cachedModels = [
+            { id: "alia-lite", name: "Alia Lite", description: "Fast responses for simple tasks" },
+            { id: "alia-v1", name: "Alia V1", description: "Balanced performance" },
+            { id: "alia-v1-codea", name: "Alia V1 Codea", description: "Optimized for coding" },
+            { id: "alia-v1-pro", name: "Alia V1 Pro", description: "High-quality responses" },
+            { id: "alia-v1-pro-max", name: "Alia V1 Pro Max", description: "Best available" },
+          ];
+          setModels(cachedModels);
+          setLoading(false);
+        });
+    }
+  }, []);
 
   const handleValueChange = (newValue: string) => {
     setValue(newValue);
     onModelChange?.(newValue);
   };
 
-  const currentModel = MODELS.find((m) => m.id === value);
+  const currentModel = models.find((m) => m.id === value);
 
   return (
     <DropdownMenu>
@@ -78,18 +87,24 @@ export function ModelSelector({
           Select Model
         </DropdownMenuLabel>
         <DropdownMenuRadioGroup value={value} onValueChange={handleValueChange}>
-          {MODELS.map((model) => (
-            <DropdownMenuRadioItem key={model.id} value={model.id} className="py-2.5">
-              <View className="flex-col gap-0.5 flex-1">
-                <Text className="text-sm font-medium text-foreground">
-                  {model.name}
-                </Text>
-                <Text className="text-xs text-muted-foreground">
-                  {model.description}
-                </Text>
-              </View>
-            </DropdownMenuRadioItem>
-          ))}
+          {loading ? (
+            <View className="py-4 items-center">
+              <Text className="text-sm text-muted-foreground">Loading models...</Text>
+            </View>
+          ) : (
+            models.map((model) => (
+              <DropdownMenuRadioItem key={model.id} value={model.id} className="py-2.5">
+                <View className="flex-col gap-0.5 flex-1">
+                  <Text className="text-sm font-medium text-foreground">
+                    {model.name}
+                  </Text>
+                  <Text className="text-xs text-muted-foreground">
+                    {model.description}
+                  </Text>
+                </View>
+              </DropdownMenuRadioItem>
+            ))
+          )}
         </DropdownMenuRadioGroup>
       </DropdownMenuContent>
     </DropdownMenu>
