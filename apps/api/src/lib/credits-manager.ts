@@ -1,8 +1,10 @@
 import { UserCredits } from '../models/user-credits.js';
+import { getAliaModel } from './alia-models.js';
 
 /**
  * Credits Manager
  * Centralized utility for managing AI credits based on token usage
+ * Supports tier-based credit multipliers for different Alia models
  */
 
 export interface CreditUsage {
@@ -33,16 +35,27 @@ export const CREDITS_CONFIG = {
 };
 
 /**
- * Calculate credits needed based on token usage
- * Formula: Math.ceil(totalTokens / TOKENS_PER_CREDIT)
+ * Get credit multiplier for an Alia model
+ */
+export function getCreditMultiplier(aliasModelId?: string): number {
+  if (!aliasModelId) return 1;
+  const model = getAliaModel(aliasModelId);
+  return model?.creditMultiplier || 1;
+}
+
+/**
+ * Calculate credits needed based on token usage and model tier
+ * Formula: Math.ceil(totalTokens / TOKENS_PER_CREDIT) * creditMultiplier
  * Minimum: MIN_CREDITS_PER_REQUEST
  */
-export function calculateCreditsFromTokens(totalTokens: number): number {
+export function calculateCreditsFromTokens(totalTokens: number, aliasModelId?: string): number {
   if (totalTokens === 0) {
     return CREDITS_CONFIG.MIN_CREDITS_PER_REQUEST;
   }
 
-  const calculatedCredits = Math.ceil(totalTokens / CREDITS_CONFIG.TOKENS_PER_CREDIT);
+  const multiplier = getCreditMultiplier(aliasModelId);
+  const baseCredits = Math.ceil(totalTokens / CREDITS_CONFIG.TOKENS_PER_CREDIT);
+  const calculatedCredits = Math.ceil(baseCredits * multiplier);
   return Math.max(calculatedCredits, CREDITS_CONFIG.MIN_CREDITS_PER_REQUEST);
 }
 
@@ -108,16 +121,17 @@ export async function reserveCredits(
 }
 
 /**
- * Adjust credits based on actual token usage
+ * Adjust credits based on actual token usage and model tier
  * If actual usage > reserved: deduct more
  * If actual usage < reserved: refund difference
  */
 export async function finalizeCredits(
   reservation: CreditReservation,
-  usage: CreditUsage
+  usage: CreditUsage,
+  aliasModelId?: string
 ): Promise<{ creditsCharged: number; creditsRemaining: number }> {
   try {
-    const actualCreditsNeeded = calculateCreditsFromTokens(usage.totalTokens);
+    const actualCreditsNeeded = calculateCreditsFromTokens(usage.totalTokens, aliasModelId);
     const creditAdjustment = reservation.creditsReserved - actualCreditsNeeded;
 
     console.log(`[CreditsManager] Finalizing credits for user ${reservation.userId}`);

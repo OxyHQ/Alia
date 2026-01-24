@@ -209,3 +209,65 @@ export function getStats(keyPool: KeyConfig[]) {
     providers: [...new Set(keyPool.map(k => k.provider))]
   };
 }
+
+/**
+ * Get best available key for a specific provider.
+ * Used by the Alia model resolver to find keys for specific tier mappings.
+ */
+export async function getBestKeyForModel(
+  keyPool: KeyConfig[],
+  provider: string,
+  modelId: string,
+  tokens: number = 1000
+): Promise<KeyConfig | null> {
+  let dbKeys: any[] = [];
+  try {
+    await connectDB();
+    dbKeys = await ApiKey.find({ isActive: true, provider });
+  } catch (e) {
+    console.error('⚠️ Error fetching keys from DB:', e);
+  }
+
+  const workingKeys = dbKeys.length > 0
+    ? dbKeys
+    : keyPool.filter(k => k.provider === provider);
+
+  if (workingKeys.length === 0) {
+    return null;
+  }
+
+  const free = workingKeys.filter(k => !k.isPaid);
+  const paid = workingKeys.filter(k => k.isPaid);
+
+  for (const k of free) {
+    const { ok, usage } = await canUseKey(k, tokens);
+    if (ok) {
+      try {
+        await ApiUsage.create({ keyId: k._id, provider: k.provider, tokens });
+      } catch (e: any) {
+        console.error('⚠️ Error logging usage:', e.message);
+      }
+      console.log(`🆓 ${provider}/${modelId} [${k.key.slice(-6)}] | RPM: ${usage.requestsMinute + 1}/${k.rpm || '∞'} ${progressBar(usage.requestsMinute + 1, k.rpm || 0)}`);
+      const keyConfig = k.toObject ? k.toObject() : { ...k };
+      keyConfig.modelId = modelId;
+      return keyConfig;
+    }
+  }
+
+  for (const k of paid) {
+    const { ok, usage } = await canUseKey(k, tokens);
+    if (ok) {
+      try {
+        await ApiUsage.create({ keyId: k._id, provider: k.provider, tokens });
+      } catch (e: any) {
+        console.error('⚠️ Error logging usage:', e.message);
+      }
+      console.log(`💳 ${provider}/${modelId} [${k.key.slice(-6)}] | RPM: ${usage.requestsMinute + 1}/${k.rpm || '∞'}`);
+      const keyConfig = k.toObject ? k.toObject() : { ...k };
+      keyConfig.modelId = modelId;
+      return keyConfig;
+    }
+  }
+
+  return null;
+}

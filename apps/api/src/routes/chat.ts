@@ -6,7 +6,8 @@ import { streamText, stepCountIs, type ToolSet } from 'ai';
 import { createGoogleGenerativeAI } from '@ai-sdk/google';
 import { createOpenAI } from '@ai-sdk/openai';
 import { createAnthropic } from '@ai-sdk/anthropic';
-import { getBestAvailableKey, loadKeys } from '../lib/load-balancer.js';
+import { loadKeys } from '../lib/load-balancer.js';
+import { resolveAliaModel, getDefaultAliaModel } from '../lib/model-resolver.js';
 import type { KeyConfig } from '../lib/types.js';
 import { getCurrentDateTool, createGoogleSearchTool, getTimelineTool, searchKnowledgeBaseTool, scrapeURLTool, saveUserMemoryTool, updateUserPreferencesTool, updateUserContextTool, createGetDeviceInfoTool, createSendTelegramTool, type DeviceInfo } from '../lib/tools/index.js';
 import { optionalAuth, oxyClient } from '../middleware/auth.js';
@@ -196,7 +197,7 @@ router.post('/', optionalAuth, async (req, res) => {
   }, 90000);
 
   try {
-    const { messages, conversationId } = req.body as { messages: any[]; conversationId?: string };
+    const { messages, conversationId, model: requestedModel } = req.body as { messages: any[]; conversationId?: string; model?: string };
 
     if (!messages || !messages.length) {
       clearTimeout(requestTimeout);
@@ -288,15 +289,16 @@ router.post('/', optionalAuth, async (req, res) => {
     }
 
     let keyPool;
-    let keyConfig;
+    let resolved;
 
     try {
       console.log('[Alia/Chat] Loading API keys...');
       keyPool = await loadKeys();
       console.log(`[Alia/Chat] Loaded ${keyPool.length} keys`);
 
-      keyConfig = await getBestAvailableKey(keyPool);
-      console.log('[Alia/Chat] Selected key:', keyConfig ? `${keyConfig.provider}/${keyConfig.modelId}` : 'none');
+      const aliasModelId = requestedModel || getDefaultAliaModel();
+      resolved = await resolveAliaModel(aliasModelId, keyPool);
+      console.log('[Alia/Chat] Resolved model:', resolved ? `${resolved.aliasModelId} -> ${resolved.provider}/${resolved.modelId}` : 'none');
     } catch (keyError: any) {
       console.error('[Alia/Chat] Error loading keys:', keyError.message);
       clearTimeout(requestTimeout);
@@ -307,14 +309,14 @@ router.post('/', optionalAuth, async (req, res) => {
       return;
     }
 
-    if (!keyConfig) {
-      console.log('[Alia/Chat] No available keys');
+    if (!resolved) {
+      console.log('[Alia/Chat] No available models');
       clearTimeout(requestTimeout);
-      res.status(503).json({ error: 'No keys available' });
+      res.status(503).json({ error: 'No models available' });
       return;
     }
 
-    const model = getAIModel(keyConfig);
+    const model = getAIModel(resolved.keyConfig);
 
     const googleApiKey = keyPool.find(k => k.provider === 'google')?.key || null;
     const tools: ToolSet = {
@@ -407,12 +409,13 @@ router.post('/', optionalAuth, async (req, res) => {
       res.write(`data: ${event}\n\n`);
     }
 
-    // Finalize credits based on actual token usage
+    // Finalize credits based on actual token usage and model tier
     if (creditReservation && req.user) {
       try {
         const { creditsCharged, creditsRemaining } = await finalizeCredits(
           creditReservation,
-          tokenUsage
+          tokenUsage,
+          resolved?.aliasModelId
         );
 
         const creditUpdate = {
