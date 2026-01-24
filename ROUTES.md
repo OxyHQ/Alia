@@ -280,9 +280,9 @@ X-Telegram-Id: <telegram-id>
 
 ## Resumen de Rutas por Caso de Uso
 
-| Caso de Uso | Ruta | Modelo |
-|-------------|------|--------|
-| Chat en la app de Alia | `/alia/chat` | Configurable |
-| API para desarrolladores | `/v1/chat/completions` | Configurable |
-| Cursor/Windsurf | `/v1/cursor/completions` | **Siempre `alia-v1-codea`** |
-| Listar modelos | `/v1/models` | N/A |
+| Caso de Uso | Ruta | Modelo | Herramientas |
+|-------------|------|--------|--------------|
+| Chat en la app de Alia | `/alia/chat` | Configurable | ✅ Todas (Google Search, Memory, etc.) |
+| API para desarrolladores | `/v1/chat/completions` | Configurable | ✅ Function calling (si se pasa en request) |
+| Editores de código (Cursor, VS Code, etc.) | `/v1/codea/completions` | **Siempre `alia-v1-codea`** | ✅ Tools del editor + Alia (memoria, Telegram) |
+| Listar modelos | `/v1/models` | N/A | N/A |
