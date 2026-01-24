@@ -12,7 +12,7 @@ import { useColorScheme } from '@/lib/useColorScheme';
 export default function AppLayout() {
   const dimensions = useWindowDimensions();
   const isLargeScreen = dimensions.width >= 768;
-  const { colorScheme } = useColorScheme();
+  const { colorScheme, colors } = useColorScheme();
   const loadProjects = useProjectsStore((state) => state.loadProjects);
   const loadRoles = useRolesStore((state) => state.loadRoles);
   const loadFolders = useFoldersStore((state) => state.loadFolders);
@@ -26,9 +26,6 @@ export default function AppLayout() {
     loadFavorites();
   }, [loadProjects, loadRoles, loadFolders, loadFavorites]);
 
-  // Get drawer colors based on color scheme
-  const drawerBackgroundColor = colorScheme === 'dark' ? '#151a2e' : '#fafafe'; // surface colors
-
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <Drawer
@@ -37,7 +34,7 @@ export default function AppLayout() {
           headerShown: false,
           drawerStyle: {
             width: 255,
-            backgroundColor: drawerBackgroundColor,
+            backgroundColor: colors.surface,
             borderRightWidth: 0,
             boxShadow: '0px 1px 2px rgba(0, 0, 0, 0.05)',
             elevation: 1,

@@ -17,6 +17,7 @@ import { useDocumentPicker } from '@/hooks/useDocumentPicker';
 import { FileCard } from '@/components/file-card';
 import { cn } from '@/lib/utils';
 import { toast } from '@/components/sonner';
+import { useColorScheme } from '@/lib/useColorScheme';
 
 export default function LibraryScreen() {
   const files = useLibraryStore((state) => state.files);
@@ -27,6 +28,7 @@ export default function LibraryScreen() {
 
   const { pickImage } = useImagePicker();
   const { pickDocument } = useDocumentPicker();
+  const { colors } = useColorScheme();
 
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
@@ -146,7 +148,7 @@ export default function LibraryScreen() {
               value={searchQuery}
               onChangeText={setSearchQuery}
               placeholder="Search files..."
-              placeholderTextColor="#6b7280"
+              placeholderTextColor={colors.mutedForeground}
               className="flex-1 text-sm text-foreground"
             />
           </View>
