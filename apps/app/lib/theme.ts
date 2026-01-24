@@ -21,6 +21,8 @@ export const COLORS = {
   light: {
     background: 'hsl(0 0% 100%)',
     foreground: 'hsl(240 10% 3.9%)',
+    surface: 'hsl(0 0% 98%)',
+    surfaceForeground: 'hsl(0 0% 0%)',
     card: 'hsl(0 0% 100%)',
     cardForeground: 'hsl(240 10% 3.9%)',
     popover: 'hsl(0 0% 100%)',
@@ -42,6 +44,8 @@ export const COLORS = {
   dark: {
     background: 'hsl(240 10% 3.9%)',
     foreground: 'hsl(0 0% 98%)',
+    surface: 'hsl(217 26% 17%)',
+    surfaceForeground: 'hsl(0 0% 100%)',
     card: 'hsl(233 12% 13%)',
     cardForeground: 'hsl(0 0% 98%)',
     popover: 'hsl(233 12% 13%)',

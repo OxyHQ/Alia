@@ -35,14 +35,14 @@ function AuthSetup({ children }: { children: React.ReactNode }) {
 }
 
 function AppContent() {
-  const { colorScheme } = useColorScheme();
+  const { colors } = useColorScheme();
 
   return (
     <AuthSetup>
       <Stack
         screenOptions={{
           contentStyle: {
-            backgroundColor: colorScheme === 'dark' ? '#0a0d1a' : '#ffffff',
+            backgroundColor: colors.background,
           },
         }}
       >
