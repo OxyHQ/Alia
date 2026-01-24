@@ -20,7 +20,7 @@ const ChatConversationPage = () => {
     sendMessage,
     editMessage,
     stopGeneration,
-  } = useChatConversation({ conversationId: id, activeRole, thinkingMode });
+  } = useChatConversation({ conversationId: id, activeRole, thinkingMode, selectedModel });
 
   return (
     <ChatPageContent
