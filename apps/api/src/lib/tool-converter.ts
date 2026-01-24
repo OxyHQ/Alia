@@ -38,16 +38,81 @@ export function sanitizeFunctionName(name: string): string {
 }
 
 /**
- * Convert JSON Schema to Zod schema (simplified version for tool parameters)
+ * Convert JSON Schema to Zod schema.
+ * Handles common JSON Schema types used in OpenAI function calling.
  */
 function jsonSchemaToZod(schema: Record<string, any> | undefined): z.ZodTypeAny {
   if (!schema || Object.keys(schema).length === 0) {
     return z.object({}).passthrough();
   }
 
-  // For complex schemas, use passthrough to accept any shape
-  // This is a simplification - a full implementation would recursively convert
-  return z.object({}).passthrough();
+  // Handle based on type
+  const type = schema.type;
+
+  if (type === 'object') {
+    const properties = schema.properties || {};
+    const required = schema.required || [];
+
+    const shape: Record<string, z.ZodTypeAny> = {};
+
+    for (const [key, propSchema] of Object.entries(properties)) {
+      let zodProp = jsonSchemaToZod(propSchema as Record<string, any>);
+
+      // Add description if present
+      if ((propSchema as any).description) {
+        zodProp = zodProp.describe((propSchema as any).description);
+      }
+
+      // Make optional if not required
+      if (!required.includes(key)) {
+        zodProp = zodProp.optional();
+      }
+
+      shape[key] = zodProp;
+    }
+
+    // Use passthrough to allow additional properties (common in editor tools)
+    return z.object(shape).passthrough();
+  }
+
+  if (type === 'string') {
+    if (schema.enum) {
+      return z.enum(schema.enum as [string, ...string[]]);
+    }
+    return z.string();
+  }
+
+  if (type === 'number' || type === 'integer') {
+    return z.number();
+  }
+
+  if (type === 'boolean') {
+    return z.boolean();
+  }
+
+  if (type === 'array') {
+    const itemSchema = schema.items ? jsonSchemaToZod(schema.items) : z.any();
+    return z.array(itemSchema);
+  }
+
+  if (type === 'null') {
+    return z.null();
+  }
+
+  // Union types (anyOf, oneOf)
+  if (schema.anyOf || schema.oneOf) {
+    const schemas = (schema.anyOf || schema.oneOf) as Record<string, any>[];
+    if (schemas.length === 0) return z.any();
+    if (schemas.length === 1) return jsonSchemaToZod(schemas[0]);
+    return z.union([
+      jsonSchemaToZod(schemas[0]),
+      jsonSchemaToZod(schemas[1]),
+      ...schemas.slice(2).map(s => jsonSchemaToZod(s))
+    ] as [z.ZodTypeAny, z.ZodTypeAny, ...z.ZodTypeAny[]]);
+  }
+
+  // Fallback: accept any
+  return z.any();
 }
 
 /**
@@ -66,8 +131,8 @@ function jsonSchemaToZod(schema: Record<string, any> | undefined): z.ZodTypeAny 
 export function convertOpenAIToolsToToolSet(
   openAITools: OpenAITool[],
   nameMapping?: Map<string, string>
-): Record<string, ReturnType<typeof tool>> {
-  const toolSet: Record<string, ReturnType<typeof tool>> = {};
+): Record<string, any> {
+  const toolSet: Record<string, any> = {};
 
   for (const t of openAITools) {
     if (t.type !== 'function' || !t.function) continue;
@@ -80,10 +145,14 @@ export function convertOpenAIToolsToToolSet(
       nameMapping.set(sanitizedName, originalName);
     }
 
+    // Create tool with dynamic schema from OpenAI format
+    // Use 'as any' to bypass strict typing since schemas are dynamic
+    const zodSchema = jsonSchemaToZod(t.function.parameters);
+
     toolSet[sanitizedName] = tool({
       description: t.function.description || `Tool: ${originalName}`,
-      parameters: jsonSchemaToZod(t.function.parameters),
-      execute: async (params: any) => {
+      parameters: zodSchema,
+      execute: async (params: Record<string, unknown>) => {
         // Return params for client-side execution
         // The actual tool execution happens on the client (Cursor/VS Code)
         return {
@@ -92,7 +161,7 @@ export function convertOpenAIToolsToToolSet(
           params,
         };
       },
-    });
+    } as any);
   }
 
   return toolSet;

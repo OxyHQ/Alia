@@ -32,12 +32,14 @@ export interface ResolvedModel {
  * @param requestedModel - The model ID requested (can be Alia model or legacy model name)
  * @param keyPool - Pool of available API keys
  * @param tokens - Estimated tokens for rate limit checking
+ * @param skipProviders - Optional set of providers to skip (for retry scenarios)
  * @returns Resolved model with key config, or null if no models available
  */
 export async function resolveAliaModel(
   requestedModel: string,
   keyPool: KeyConfig[],
-  tokens: number = 1000
+  tokens: number = 1000,
+  skipProviders: Set<string> = new Set()
 ): Promise<ResolvedModel | null> {
   // Get Alia model config (default to alia-v1 if invalid)
   const aliasModelId = isAliaModel(requestedModel) ? requestedModel : 'alia-v1';
@@ -62,6 +64,12 @@ export async function resolveAliaModel(
   // Try each model in priority order
   for (let i = 0; i < sortedMappings.length; i++) {
     const mapping = sortedMappings[i];
+
+    // Skip providers that have failed (for retry scenarios)
+    if (skipProviders.has(mapping.provider)) {
+      console.log(`[ModelResolver] Skipping ${mapping.provider} (in skip list)`);
+      continue;
+    }
 
     console.log(`[ModelResolver] Trying ${mapping.provider}/${mapping.modelId} (priority ${mapping.priority})`);
 
