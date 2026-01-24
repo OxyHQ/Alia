@@ -16,8 +16,8 @@ export const ACTOR_USERNAME = 'alia';
 // Full actor URI (e.g., https://api.alia.onl/actors/alia)
 export const ACTOR_URI = `https://${ACTOR_DOMAIN}/actors/${ACTOR_USERNAME}`;
 
-// Actor profile URL (e.g., https://api.alia.onl/@alia)
-export const ACTOR_URL = `https://${ACTOR_DOMAIN}/@${ACTOR_USERNAME}`;
+// Actor profile URL - points to profile page
+export const ACTOR_URL = `https://${ACTIVITYPUB_DOMAIN}/alia`;
 
 // ActivityStreams Public address
 export const AS_PUBLIC = 'https://www.w3.org/ns/activitystreams#Public';
