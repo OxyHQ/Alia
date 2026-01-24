@@ -230,12 +230,21 @@ router.post('/', optionalAuth, async (req, res) => {
   }, 90000);
 
   try {
-    const { messages, conversationId, model: requestedModel } = req.body as { messages: any[]; conversationId?: string; model?: string };
+    const { messages, conversationId, model: requestedModel, thinkingMode } = req.body as {
+      messages: any[];
+      conversationId?: string;
+      model?: string;
+      thinkingMode?: boolean;
+    };
 
     if (!messages || !messages.length) {
       clearTimeout(requestTimeout);
       res.status(400).json({ error: 'No messages provided' });
       return;
+    }
+
+    if (thinkingMode) {
+      console.log('[Alia/Chat] Thinking mode enabled for this request');
     }
 
     console.log('[Alia/Chat] Request received, loading keys...');
