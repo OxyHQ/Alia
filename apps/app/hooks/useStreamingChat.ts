@@ -145,6 +145,8 @@ Use this role to guide your responses, maintaining the specified tone, style, an
       let buffer = '';
       let fullContent = '';
       let charCount = 0;
+      let lastUpdateTime = Date.now();
+      const MIN_UPDATE_INTERVAL = 16; // ~60fps for smooth updates
 
       while (true) {
         const { done, value } = await reader.read();
@@ -216,6 +218,7 @@ Use this role to guide your responses, maintaining the specified tone, style, an
                   Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
                 }
 
+                // Always update immediately for smooth streaming
                 setMessages((prev) => {
                   const updated = [...prev];
                   const lastMessage = updated[updated.length - 1];

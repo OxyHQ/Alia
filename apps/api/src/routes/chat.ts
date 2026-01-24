@@ -458,8 +458,8 @@ router.post('/', optionalAuth, async (req, res) => {
             type: 'error',
             error: 'Stream timeout - the AI model did not respond in time. Please try again.'
           };
-          res.write(`data: ${JSON.stringify(errorEvent)}\n\n`);
-          res.write('data: [DONE]\n\n');
+          writeSSE(res, `data: ${JSON.stringify(errorEvent)}\n\n`);
+          writeSSE(res, 'data: [DONE]\n\n');
           res.end();
         }
       }, 30000);
@@ -498,7 +498,7 @@ router.post('/', optionalAuth, async (req, res) => {
 
         // Send each event as SSE
         const event = JSON.stringify(chunk);
-        res.write(`data: ${event}\n\n`);
+        writeSSE(res, `data: ${event}\n\n`);
       }
 
       // Clear the timeout after successful streaming
@@ -512,7 +512,7 @@ router.post('/', optionalAuth, async (req, res) => {
           error: 'No response received from AI model. Please try again.'
         };
         console.log('[Alia/Chat] Sending empty stream error to client');
-        res.write(`data: ${JSON.stringify(errorEvent)}\n\n`);
+        writeSSE(res, `data: ${JSON.stringify(errorEvent)}\n\n`);
       }
     } catch (streamError: any) {
       console.error('[Alia/Chat] Error during streaming:', streamError);
@@ -525,7 +525,7 @@ router.post('/', optionalAuth, async (req, res) => {
           error: streamError.message || 'An error occurred while streaming the response'
         };
         console.log('[Alia/Chat] Sending stream error to client:', errorEvent.error);
-        res.write(`data: ${JSON.stringify(errorEvent)}\n\n`);
+        writeSSE(res, `data: ${JSON.stringify(errorEvent)}\n\n`);
       }
 
       // Still try to refund credits if there was an error
@@ -562,7 +562,7 @@ router.post('/', optionalAuth, async (req, res) => {
           completionTokens: tokenUsage.completionTokens,
         };
         console.log('[Alia/Chat] Sending credit update event:', creditUpdate);
-        res.write(`data: ${JSON.stringify(creditUpdate)}\n\n`);
+        writeSSE(res, `data: ${JSON.stringify(creditUpdate)}\n\n`);
       } catch (error) {
         console.error('[Alia/Chat] Error finalizing credits:', error);
       }
@@ -623,7 +623,7 @@ router.post('/', optionalAuth, async (req, res) => {
     }
 
     // Send completion marker
-    res.write('data: [DONE]\n\n');
+    writeSSE(res, 'data: [DONE]\n\n');
     res.end();
     clearTimeout(requestTimeout);
 
@@ -653,8 +653,8 @@ router.post('/', optionalAuth, async (req, res) => {
         type: 'error',
         error: e.message || 'An error occurred while processing your request'
       };
-      res.write(`data: ${JSON.stringify(errorEvent)}\n\n`);
-      res.write('data: [DONE]\n\n');
+      writeSSE(res, `data: ${JSON.stringify(errorEvent)}\n\n`);
+      writeSSE(res, 'data: [DONE]\n\n');
       res.end();
     }
   }

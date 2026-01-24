@@ -67,6 +67,12 @@ app.use('/billing/webhook', express.raw({ type: 'application/json' }));
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
+// Disable compression for SSE routes to enable real-time streaming
+app.use('/alia/chat', (_req, res, next) => {
+  res.setHeader('X-Accel-Buffering', 'no'); // Disable nginx buffering
+  next();
+});
+
 // Rutas
 app.use('/health', healthRouter);
 app.use('/auth', authRouter);
