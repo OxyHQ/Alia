@@ -399,12 +399,17 @@ router.get('/check-token/:token', async (req, res) => {
 });
 
 // Link telegram account with authenticated user
-router.post('/link', async (req, res) => {
+router.post('/link', authenticateToken, async (req, res) => {
   try {
-    const { authToken, sessionToken } = req.body;
+    const { authToken } = req.body;
 
-    if (!authToken || !sessionToken) {
-      return res.status(400).json({ error: 'Missing required fields' });
+    if (!authToken) {
+      return res.status(400).json({ error: 'Missing auth token' });
+    }
+
+    const oxyUserId = req.userId; // From authenticateToken middleware
+    if (!oxyUserId) {
+      return res.status(401).json({ error: 'User ID not found' });
     }
 
     // Find telegram user with this auth token (solo modo link)
@@ -417,30 +422,25 @@ router.post('/link', async (req, res) => {
       return res.status(404).json({ error: 'Auth token not found, expired, or not for linking' });
     }
 
-    // Verify the session token by making a request to /auth/me
-    const meResponse = await fetch(`${process.env.API_BASE_URL || 'http://localhost:3001'}/auth/me`, {
-      headers: { Authorization: `Bearer ${sessionToken}` },
-    });
-
-    if (!meResponse.ok) {
-      return res.status(401).json({ error: 'Invalid session token' });
+    // Get user info from Oxy
+    let user: any;
+    try {
+      user = await oxyClient.getUserById(oxyUserId);
+    } catch (error) {
+      console.error('[Telegram Link] Failed to fetch user:', error);
+      return res.status(500).json({ error: 'Failed to fetch user information' });
     }
 
-      const meData: any = await meResponse.json();
-    const user = meData.user || meData; // Handle nested user object
-
     // Link the accounts
-    telegramUser.oxyUserId = user._id || user.id;
-    telegramUser.sessionToken = sessionToken;
+    telegramUser.oxyUserId = new mongoose.Types.ObjectId(oxyUserId);
     telegramUser.isAuthenticated = true;
     telegramUser.linkedAt = new Date();
     telegramUser.authToken = undefined;
     telegramUser.authTokenExpiry = undefined;
     await telegramUser.save();
 
-    emitTelegramLinked(req.body.authToken, {
+    emitTelegramLinked(authToken, {
       oxyUserId: telegramUser.oxyUserId,
-      sessionToken: telegramUser.sessionToken,
       email: user.email,
       name: user.name?.full || user.name?.first || '',
       type: 'linked',
@@ -487,8 +487,11 @@ router.post('/link', async (req, res) => {
     } catch (notifyError) {
       console.error('[Telegram] Failed to send notification:', notifyError);
     }
-  } catch (notifyError) {
-    console.error('[Telegram] Failed to send notification:', notifyError);
+
+    return res.json({ success: true });
+  } catch (error) {
+    console.error('[Telegram Link] Error:', error);
+    return res.status(500).json({ error: 'Internal server error' });
   }
 });
 

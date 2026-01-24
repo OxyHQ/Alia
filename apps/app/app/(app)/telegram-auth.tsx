@@ -1,5 +1,5 @@
-import React, { useEffect, useState } from 'react';
-import { View, Text, ActivityIndicator } from 'react-native';
+import React, { useEffect, useState, useCallback } from 'react';
+import { View, Text, ActivityIndicator, TouchableOpacity } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { AuthContainer, AuthLogo } from '@/components/auth';
 import { useOxy } from '@oxyhq/services';
@@ -8,82 +8,87 @@ import apiClient from '@/lib/api/client';
 export default function TelegramAuthScreen() {
   const router = useRouter();
   const { token } = useLocalSearchParams();
-  const { user, isAuthenticated, activeSessionId } = useOxy();
+  const { isAuthenticated } = useOxy();
   const [status, setStatus] = useState<'checking' | 'success' | 'error' | 'needLogin'>('checking');
   const [message, setMessage] = useState('');
+  const [retrying, setRetrying] = useState(false);
+
+  const handleTelegramAuth = useCallback(async () => {
+    setStatus('checking');
+    setRetrying(false);
+
+    if (!token || typeof token !== 'string') {
+      setStatus('error');
+      setMessage('Invalid authentication token. The link you followed is not valid.');
+      return;
+    }
+
+    // Get token info to determine mode
+    let tokenMode: 'signin' | 'link' | null = null;
+    let tgUser: any = null;
+    try {
+      const res = await apiClient.get(`/telegram/users/token/${token}`);
+      tokenMode = res.data?.authTokenMode || null;
+      tgUser = res.data;
+    } catch (e: any) {
+      setStatus('error');
+      const errorMsg = e.response?.data?.error || 'Invalid or expired token';
+      setMessage(errorMsg);
+      return;
+    }
+
+    if (tokenMode === 'link') {
+      // Link mode: requires authenticated session
+      if (isAuthenticated) {
+        try {
+          const response = await apiClient.post('/telegram/link', {
+            authToken: token,
+          });
+          if (response.data.success) {
+            setStatus('success');
+            setMessage('Your Telegram account has been linked successfully!');
+          } else {
+            setStatus('error');
+            setMessage('Failed to link your account. Please try again.');
+          }
+        } catch (error: any) {
+          console.error('Link error:', error);
+          const errorMessage = error.response?.data?.error || 'Failed to link account';
+          setStatus('error');
+          setMessage(errorMessage);
+        }
+      } else {
+        setStatus('needLogin');
+        setMessage('You need to log in first to link your Telegram account.');
+        setTimeout(() => {
+          router.replace(`/login?returnTo=/telegram-auth?token=${token}`);
+        }, 1500);
+      }
+      return;
+    }
+
+    if (tokenMode === 'signin') {
+      // Sign-in mode: redirect to login
+      if (tgUser && tgUser.oxyUserId) {
+        setStatus('success');
+        setMessage('Redirecting to complete sign in...');
+        setTimeout(() => {
+          router.replace('/login');
+        }, 1200);
+      } else {
+        setStatus('error');
+        setMessage('This Telegram account is not linked to any Alia account yet.');
+      }
+      return;
+    }
+
+    setStatus('error');
+    setMessage('Invalid token mode. Please request a new link from the Telegram bot.');
+  }, [token, isAuthenticated, router]);
 
   useEffect(() => {
-    async function handleTelegramAuth() {
-      if (!token || typeof token !== 'string') {
-        setStatus('error');
-        setMessage('Invalid authentication token');
-        return;
-      }
-
-      // Consultar el modo del token (login o vinculación)
-      let tokenMode: 'signin' | 'link' | null = null;
-      let tgUser: any = null;
-      try {
-        const res = await apiClient.get(`/telegram/users/token/${token}`); // Nuevo endpoint sugerido para obtener info del token
-        tokenMode = res.data?.authTokenMode || null;
-        tgUser = res.data;
-      } catch (e) {
-        setStatus('error');
-        setMessage('Invalid or expired token. Please request a new link from Telegram.');
-        return;
-      }
-
-      if (tokenMode === 'link') {
-        // Solo permitir vinculación si hay sesión
-        if (isAuthenticated && activeSessionId) {
-          try {
-            const response = await apiClient.post('/telegram/link', {
-              authToken: token,
-              sessionId: activeSessionId,
-            });
-            if (response.data.success) {
-              setStatus('success');
-              setMessage('Your Telegram account has been linked successfully!');
-            } else {
-              setStatus('error');
-              setMessage('Failed to link your account. Please try again.');
-            }
-          } catch (error: any) {
-            console.error('Link error:', error);
-            const errorMessage = error.response?.data?.error || 'Failed to link account';
-            setStatus('error');
-            setMessage(errorMessage);
-          }
-        } else {
-          setStatus('needLogin');
-          setMessage('Please log in to your Alia account to link Telegram.');
-          setTimeout(() => {
-            router.replace(`/login?returnTo=/telegram-auth?token=${token}`);
-          }, 1500);
-        }
-        return;
-      }
-
-      if (tokenMode === 'signin') {
-        // Telegram signin is handled by redirecting to login page
-        // OxyProvider handles the actual authentication
-        if (tgUser && tgUser.userId) {
-          setStatus('success');
-          setMessage('Redirecting to complete login...');
-          setTimeout(() => {
-            router.replace('/login');
-          }, 1200);
-        } else {
-          setStatus('error');
-          setMessage('This Telegram is not linked to any Alia account.');
-        }
-        return;
-      }
-      setStatus('error');
-      setMessage('Invalid or expired token. Please request a new link from Telegram.');
-    }
     handleTelegramAuth();
-  }, [token, isAuthenticated, activeSessionId, router]);
+  }, [handleTelegramAuth]);
 
   return (
     <AuthContainer>
@@ -141,15 +146,31 @@ export default function TelegramAuthScreen() {
             <View className="bg-red-100 dark:bg-red-900 p-4 rounded-lg">
               <Text className="text-4xl text-center mb-2">❌</Text>
               <Text className="text-lg font-semibold text-red-900 dark:text-red-100 text-center">
-                Error
+                Link Failed
               </Text>
             </View>
-            <Text className="text-base text-muted-foreground text-center">
+            <Text className="text-base text-foreground text-center font-medium">
               {message}
             </Text>
             <Text className="text-sm text-muted-foreground text-center">
-              Please try again or request a new link from the Telegram bot.
+              Please request a new link from the Telegram bot and try again.
             </Text>
+            <TouchableOpacity
+              onPress={() => {
+                setRetrying(true);
+                handleTelegramAuth();
+              }}
+              disabled={retrying}
+              className="mt-4 bg-blue-600 px-6 py-3 rounded-lg"
+            >
+              {retrying ? (
+                <ActivityIndicator color="white" size="small" />
+              ) : (
+                <Text className="text-white text-center font-semibold">
+                  Try Again
+                </Text>
+              )}
+            </TouchableOpacity>
           </>
         )}
       </View>
