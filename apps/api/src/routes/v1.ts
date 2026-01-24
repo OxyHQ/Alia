@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import chatCompletionsRouter from './v1/chat-completions.js';
-import cursorCompletionsRouter from './v1/cursor/completions.js';
+import codeaCompletionsRouter from './v1/codea/completions.js';
 import modelsRouter from './v1/models.js';
 import { authenticateTokenOrApiKey } from '../middleware/auth.js';
 
@@ -30,7 +30,7 @@ router.get('/', (req, res) => {
 router.use(authenticateTokenOrApiKey);
 
 router.use('/chat/completions', chatCompletionsRouter);
-router.use('/cursor/completions', cursorCompletionsRouter);
+router.use('/codea/completions', codeaCompletionsRouter);
 router.use('/models', modelsRouter);
 
 export default router;

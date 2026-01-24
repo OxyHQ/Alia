@@ -1,11 +1,12 @@
 import React, { useEffect } from 'react';
 import { View, Text } from 'react-native';
 import { useRouter } from 'expo-router';
-import Head from 'expo-router/head';
 import { AuthContainer, AuthLogo } from '@/components/auth';
 import { OxySignInButton } from '@oxyhq/services';
 import { useAuth } from '@oxyhq/services';
 import { useTranslation } from '@/hooks/useTranslation';
+import { SEOHead } from '@/components/seo/SEOHead';
+import { META_PRESETS } from '@/lib/seo/meta-tags';
 
 export default function RegisterScreen() {
   const router = useRouter();
@@ -32,10 +33,7 @@ export default function RegisterScreen() {
 
   return (
     <>
-      <Head>
-        <title>Create Oxy Account - Alia</title>
-        <meta name="description" content="Create your Oxy account to access Alia, your AI assistant." />
-      </Head>
+      <SEOHead {...META_PRESETS.register} />
       <AuthContainer>
         <AuthLogo />
 
