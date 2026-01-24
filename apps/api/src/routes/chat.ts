@@ -66,13 +66,11 @@ function getAIModel(keyConfig: KeyConfig) {
 }
 
 // Function to build personalized system prompt
-function buildSystemPrompt(oxyUser?: OxyUser | null, memory?: IUserMemory | null, platform: 'app' | 'telegram' | 'mastodon' = 'app'): string {
+function buildSystemPrompt(oxyUser?: OxyUser | null, memory?: IUserMemory | null, platform: 'app' | 'telegram' = 'app'): string {
   let prompt = ALIA_SYSTEM_PROMPT;
 
   if (platform === 'telegram') {
     prompt = ALIA_TELEGRAM_PROMPT;
-  } else if (platform === 'mastodon') {
-    prompt = ALIA_MASTODON_PROMPT;
   }
 
   const userContext: string[] = [];
