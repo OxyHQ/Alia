@@ -30,12 +30,12 @@ router.get('/me', async (req: Request, res: Response) => {
     // Get full user data from Oxy
     const user = await oxyClient.getUserById(req.user.id) as any;
 
-    // Extract name - can be { first, last, full } or just a string
-    const name = user.name?.full || user.name?.first || user.username || null;
-
+    // Return full user object
     res.json({
-      name,
+      id: user.id,
       username: user.username || null,
+      email: user.email || null,
+      name: user.name || null, // { first, last, full }
       avatar: user.avatar || null,
     });
   } catch (error) {

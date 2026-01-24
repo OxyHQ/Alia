@@ -49,7 +49,7 @@ interface Message {
 interface ToolExecution {
   tool: string
   args: Record<string, unknown>
-  status: "running" | "success" | "error"
+  status: "preparing" | "running" | "success" | "error"
   result?: string
 }
 
@@ -91,13 +91,80 @@ const greetings = [
 
 // Tool name to friendly label
 const toolLabels: Record<string, string> = {
-  read_file: "Reading file",
-  write_file: "Writing file",
-  edit_file: "Editing file",
-  delete_file: "Deleting file",
-  list_files: "Listing files",
-  search_files: "Searching files",
-  run_command: "Running command",
+  read_file: "Read",
+  write_file: "Write",
+  edit_file: "Edit",
+  delete_file: "Delete",
+  list_files: "List",
+  search_files: "Search",
+  run_command: "Bash",
+  set_mode: "Mode",
+}
+
+// Thinking phrases like Claude Code
+const thinkingPhrases = [
+  "Thinking...",
+  "Crafting...",
+  "Pondering...",
+  "Computing...",
+  "Processing...",
+  "Analyzing...",
+  "Reasoning...",
+  "Cooking...",
+  "Brewing...",
+  "Conjuring...",
+]
+
+const workingPhrases = [
+  "Working...",
+  "Executing...",
+  "Running...",
+  "Building...",
+  "Creating...",
+  "Doing the thing...",
+]
+
+// Animated thinking indicator component
+function ThinkingIndicator({ isWorking = false }: { isWorking?: boolean }) {
+  const phrases = isWorking ? workingPhrases : thinkingPhrases
+  const [phraseIndex, setPhraseIndex] = React.useState(() => Math.floor(Math.random() * phrases.length))
+  const [displayText, setDisplayText] = React.useState("")
+  const [isTyping, setIsTyping] = React.useState(true)
+
+  React.useEffect(() => {
+    const phrase = phrases[phraseIndex]
+    let charIndex = 0
+    setIsTyping(true)
+    setDisplayText("")
+
+    // Type out the phrase
+    const typeInterval = setInterval(() => {
+      if (charIndex < phrase.length) {
+        setDisplayText(phrase.slice(0, charIndex + 1))
+        charIndex++
+      } else {
+        clearInterval(typeInterval)
+        setIsTyping(false)
+
+        // Wait then switch to next phrase
+        setTimeout(() => {
+          setPhraseIndex((prev) => (prev + 1) % phrases.length)
+        }, 1500)
+      }
+    }, 40)
+
+    return () => clearInterval(typeInterval)
+  }, [phraseIndex, phrases])
+
+  return (
+    <div className="flex items-center gap-2 py-1 text-sm text-muted-foreground">
+      <span className="animate-spin">✱</span>
+      <span>
+        {displayText}
+        {isTyping && <span className="animate-pulse">|</span>}
+      </span>
+    </div>
+  )
 }
 
 // Model interface from API
@@ -193,11 +260,22 @@ export function Chat() {
           setUserName(data.userName)
           break
         case "toolCall":
-          setToolExecutions((prev) => [...prev, {
-            tool: data.tool,
-            args: data.args,
-            status: "running"
-          }])
+          setToolExecutions((prev) => {
+            // Check if this tool already exists (from preparing phase)
+            const existingIndex = prev.findIndex(t => t.tool === data.tool && t.status === "preparing")
+            if (existingIndex >= 0 && data.status === "running") {
+              // Update existing preparing entry to running
+              return prev.map((t, i) =>
+                i === existingIndex ? { ...t, args: data.args, status: "running" } : t
+              )
+            }
+            // Add new entry
+            return [...prev, {
+              tool: data.tool,
+              args: data.args,
+              status: data.status || "running"
+            }]
+          })
           break
         case "toolResult":
           setToolExecutions((prev) =>
@@ -216,6 +294,11 @@ export function Chat() {
         case "contextAdded":
           if (data.items && data.items.length > 0) {
             setContextItems((prev) => [...prev, ...data.items])
+          }
+          break
+        case "modeChanged":
+          if (data.mode) {
+            setCurrentMode(data.mode)
           }
           break
       }
@@ -354,27 +437,23 @@ export function Chat() {
             ))}
             {isGenerating && (
               <>
-                {/* Show tool executions as steps */}
+                {/* Show tool executions - Claude Code style */}
                 {toolExecutions.length > 0 && (
-                  <div className="flex gap-3">
-                    <img src={LOGO_URI} alt="Codea" className="size-6 shrink-0 rounded-full" />
-                    <div className="flex-1">
-                      <div className="text-xs font-medium text-muted-foreground mb-2">
-                        Working on it...
-                      </div>
-                      <div className="space-y-1.5 border-l-2 border-primary/30 pl-3">
-                        {toolExecutions.map((exec, i) => (
-                          <ToolExecutionItem key={i} execution={exec} stepNumber={i + 1} />
-                        ))}
-                      </div>
-                    </div>
+                  <div className="space-y-0.5">
+                    {toolExecutions.map((exec, i) => (
+                      <ToolExecutionItem key={i} execution={exec} stepNumber={i + 1} />
+                    ))}
                   </div>
                 )}
-                {/* Show streaming content or thinking indicator */}
-                <MessageBubble
-                  message={{ role: "assistant", content: streamingContent }}
-                  isStreaming
-                />
+                {/* Show streaming content or thinking/working indicator */}
+                {streamingContent ? (
+                  <MessageBubble
+                    message={{ role: "assistant", content: streamingContent }}
+                    isStreaming
+                  />
+                ) : (
+                  <ThinkingIndicator isWorking={toolExecutions.length > 0} />
+                )}
               </>
             )}
             <div ref={bottomRef} />
@@ -508,63 +587,116 @@ export function Chat() {
 }
 
 function ToolExecutionItem({ execution }: { execution: ToolExecution; stepNumber?: number }) {
+  // Auto-expand bash commands by default
+  const [isExpanded, setIsExpanded] = React.useState(execution.tool === 'run_command')
   const label = toolLabels[execution.tool] || execution.tool
 
-  // Format args nicely based on tool type
-  const formatArgs = () => {
+  // Format description based on tool type
+  const getDescription = () => {
     switch (execution.tool) {
       case 'read_file':
+        return execution.args.path ? String(execution.args.path) : ''
       case 'write_file':
+        return execution.args.path ? String(execution.args.path) : ''
       case 'edit_file':
+        return execution.args.path ? String(execution.args.path) : ''
       case 'delete_file':
-        return execution.args.path as string
+        return execution.args.path ? String(execution.args.path) : ''
       case 'list_files':
-        return (execution.args.path as string) || '.'
+        return String(execution.args.path || '.')
       case 'search_files':
-        return `"${execution.args.pattern}" in ${execution.args.path || '.'}`
+        return `"${execution.args.query || execution.args.pattern}" ${execution.args.path ? `in ${execution.args.path}` : ''}`
       case 'run_command':
-        return execution.args.command as string
+        // Try to extract a description from the command
+        const cmd = String(execution.args.command || '')
+        if (cmd.includes('npm run build')) return 'Build the project'
+        if (cmd.includes('npm test')) return 'Run tests'
+        if (cmd.includes('npm install')) return 'Install dependencies'
+        if (cmd.includes('git status')) return 'Check git status'
+        if (cmd.includes('git diff')) return 'Show git diff'
+        if (cmd.includes('git add')) return 'Stage changes'
+        if (cmd.includes('git commit')) return 'Commit changes'
+        if (cmd.includes('ls ')) return 'List directory'
+        return ''
+      case 'set_mode':
+        return `→ ${execution.args.mode}`
       default:
-        return Object.entries(execution.args)
-          .map(([k, v]) => `${k}: ${typeof v === 'string' ? v : JSON.stringify(v)}`)
-          .join(', ')
+        return ''
     }
   }
 
+  const description = getDescription()
+  const isCommand = execution.tool === 'run_command'
+  const hasExpandableContent = isCommand || (execution.result && execution.status !== 'running' && execution.status !== 'preparing')
+
   return (
-    <div className={cn(
-      "flex items-start gap-2 py-1.5 text-xs transition-opacity",
-      execution.status === "running" && "opacity-100",
-      execution.status === "success" && "opacity-70",
-      execution.status === "error" && "opacity-100"
-    )}>
-      {execution.status === "running" ? (
-        <div className="size-4 shrink-0 rounded-full border-2 border-primary border-t-transparent animate-spin" />
-      ) : execution.status === "success" ? (
-        <HugeiconsIcon icon={CheckmarkCircle02Icon} strokeWidth={2} className="size-4 shrink-0 text-green-500" />
-      ) : (
-        <HugeiconsIcon icon={AlertCircleIcon} strokeWidth={2} className="size-4 shrink-0 text-destructive" />
-      )}
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2">
-          <span className={cn(
-            "font-medium",
-            execution.status === "running" && "text-primary",
-            execution.status === "success" && "text-muted-foreground",
-            execution.status === "error" && "text-destructive"
-          )}>
-            {label}
-          </span>
-        </div>
-        <div className="text-muted-foreground truncate font-mono text-[10px]">
-          {formatArgs()}
-        </div>
-        {execution.status === "error" && execution.result && (
-          <div className="mt-1 text-destructive/80 text-[10px]">
-            {execution.result.slice(0, 100)}
-          </div>
+    <div className="py-1.5">
+      {/* Main row with bullet, tool name, and description */}
+      <div
+        className={cn(
+          "flex items-start gap-2 text-sm",
+          hasExpandableContent && "cursor-pointer hover:opacity-80"
         )}
+        onClick={() => hasExpandableContent && setIsExpanded(!isExpanded)}
+      >
+        {/* Bullet indicator */}
+        <span className={cn(
+          "mt-0.5 text-base leading-none",
+          execution.status === "preparing" && "text-muted-foreground animate-pulse",
+          execution.status === "running" && "text-yellow-500 animate-pulse",
+          execution.status === "success" && "text-green-500",
+          execution.status === "error" && "text-destructive"
+        )}>
+          ●
+        </span>
+
+        {/* Tool name and description */}
+        <div className="flex-1 min-w-0">
+          <span className="font-bold">{label}</span>
+          {description && (
+            <span className="text-muted-foreground ml-2">{description}</span>
+          )}
+          {hasExpandableContent && (
+            <span className="text-muted-foreground ml-1 text-xs">
+              {isExpanded ? '˅' : '˃'}
+            </span>
+          )}
+        </div>
       </div>
+
+      {/* Expanded content for commands - Claude Code style box */}
+      {isExpanded && isCommand && (
+        <div className="ml-5 mt-2 rounded-lg bg-[var(--vscode-editor-background)] border border-[var(--vscode-panel-border)] overflow-hidden text-xs font-mono">
+          <div className="flex border-b border-[var(--vscode-panel-border)]">
+            <span className="text-muted-foreground px-3 py-2 w-12 shrink-0 border-r border-[var(--vscode-panel-border)] bg-muted/20">IN</span>
+            <div className="px-3 py-2 flex-1 overflow-x-auto">
+              <code className="text-foreground whitespace-pre">{String(execution.args.command || '')}</code>
+            </div>
+          </div>
+          {execution.result && (
+            <div className="flex">
+              <span className="text-muted-foreground px-3 py-2 w-12 shrink-0 border-r border-[var(--vscode-panel-border)] bg-muted/20">OUT</span>
+              <div className="px-3 py-2 flex-1 max-h-40 overflow-auto">
+                <pre className="text-muted-foreground whitespace-pre-wrap">{execution.result}</pre>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Expanded content for other tools with results */}
+      {isExpanded && !isCommand && execution.result && execution.status !== 'running' && (
+        <div className="ml-5 mt-2 rounded-lg bg-[var(--vscode-editor-background)] border border-[var(--vscode-panel-border)] p-3 text-xs font-mono max-h-40 overflow-auto">
+          <pre className="text-muted-foreground whitespace-pre-wrap">{execution.result}</pre>
+        </div>
+      )}
+
+      {/* Error display */}
+      {execution.status === "error" && execution.result && !isExpanded && (
+        <div className="ml-5 mt-1 text-xs text-destructive/80">
+          {execution.result.slice(0, 100)}{execution.result.length > 100 ? '...' : ''}
+        </div>
+      )}
     </div>
   )
 }

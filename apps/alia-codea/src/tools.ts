@@ -166,6 +166,24 @@ export const fileTools = [
         required: ['command']
       }
     }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'set_mode',
+      description: 'Change the assistant operating mode. Use when user requests a mode change like "switch to edit mode" or "go yolo".',
+      parameters: {
+        type: 'object',
+        properties: {
+          mode: {
+            type: 'string',
+            enum: ['ask', 'edit', 'plan', 'yolo'],
+            description: 'The mode to switch to. ask=confirm destructive ops, edit=make changes directly, plan=outline then execute, yolo=full autonomous'
+          }
+        },
+        required: ['mode']
+      }
+    }
   }
 ];
 
@@ -388,6 +406,7 @@ export class ToolExecutor {
     openFile?: { path: string; content: string; language: string };
     selection?: { text: string; startLine: number; endLine: number };
     openTabs?: string[];
+    workspaceStructure?: string;
   }> {
     const editor = vscode.window.activeTextEditor;
     const context: any = {};
@@ -420,6 +439,56 @@ export class ToolExecutor {
       })
       .slice(0, 10);
 
+    // Get workspace folder structure (top-level + one level deep)
+    context.workspaceStructure = this.getWorkspaceStructure();
+
     return context;
+  }
+
+  // Get a concise workspace folder structure
+  private getWorkspaceStructure(): string {
+    if (!this.workspaceRoot || !fs.existsSync(this.workspaceRoot)) {
+      return '';
+    }
+
+    const lines: string[] = [];
+    const ignoreDirs = new Set(['node_modules', '.git', 'dist', 'build', '.next', '__pycache__', 'venv', '.venv', 'coverage', '.nyc_output']);
+    const ignoreFiles = new Set(['.DS_Store', 'Thumbs.db', '.gitignore', '.env', 'package-lock.json', 'yarn.lock', 'pnpm-lock.yaml']);
+
+    try {
+      const topLevel = fs.readdirSync(this.workspaceRoot, { withFileTypes: true });
+
+      for (const item of topLevel) {
+        if (item.name.startsWith('.') && item.name !== '.env.example') continue;
+        if (ignoreDirs.has(item.name)) continue;
+        if (ignoreFiles.has(item.name)) continue;
+
+        if (item.isDirectory()) {
+          lines.push(`${item.name}/`);
+          // List one level deep for directories
+          try {
+            const subItems = fs.readdirSync(path.join(this.workspaceRoot, item.name), { withFileTypes: true });
+            for (const subItem of subItems.slice(0, 15)) { // Limit to 15 items per dir
+              if (subItem.name.startsWith('.')) continue;
+              if (ignoreDirs.has(subItem.name)) continue;
+              if (ignoreFiles.has(subItem.name)) continue;
+              const suffix = subItem.isDirectory() ? '/' : '';
+              lines.push(`  ${subItem.name}${suffix}`);
+            }
+            if (subItems.length > 15) {
+              lines.push(`  ... and ${subItems.length - 15} more`);
+            }
+          } catch {
+            // Can't read directory
+          }
+        } else {
+          lines.push(item.name);
+        }
+      }
+    } catch {
+      return '';
+    }
+
+    return lines.join('\n');
   }
 }
