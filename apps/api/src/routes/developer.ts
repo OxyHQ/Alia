@@ -19,7 +19,7 @@ router.get('/apps', async (req: Request, res: Response) => {
   try {
     const userId = req.user!.id;
 
-    const apps = await DeveloperApp.find({ userId }).sort({ createdAt: -1 });
+    const apps = await DeveloperApp.find({ oxyUserId: userId }).sort({ createdAt: -1 });
 
     res.json({ apps });
   } catch (error) {
@@ -34,7 +34,7 @@ router.get('/apps/:id', async (req: Request, res: Response) => {
     const userId = req.user!.id;
     const { id } = req.params;
 
-    const app = await DeveloperApp.findOne({ _id: id, userId });
+    const app = await DeveloperApp.findOne({ _id: id, oxyUserId: userId });
 
     if (!app) {
       return res.status(404).json({ error: 'App not found' });
@@ -63,7 +63,7 @@ router.post('/apps', async (req: Request, res: Response) => {
     const validatedData = createAppSchema.parse(req.body);
 
     const app = new DeveloperApp({
-      userId,
+      oxyUserId: userId,
       ...validatedData,
     });
 
@@ -97,7 +97,7 @@ router.patch('/apps/:id', async (req: Request, res: Response) => {
     const validatedData = updateAppSchema.parse(req.body);
 
     const app = await DeveloperApp.findOneAndUpdate(
-      { _id: id, userId },
+      { _id: id, oxyUserId: userId },
       { $set: validatedData },
       { new: true }
     );
@@ -122,7 +122,7 @@ router.delete('/apps/:id', async (req: Request, res: Response) => {
     const userId = req.user!.id;
     const { id } = req.params;
 
-    const app = await DeveloperApp.findOneAndDelete({ _id: id, userId });
+    const app = await DeveloperApp.findOneAndDelete({ _id: id, oxyUserId: userId });
 
     if (!app) {
       return res.status(404).json({ error: 'App not found' });
@@ -152,12 +152,12 @@ router.get('/apps/:appId/keys', async (req: Request, res: Response) => {
     const { appId } = req.params;
 
     // Verify the app belongs to the user
-    const app = await DeveloperApp.findOne({ _id: appId, userId });
+    const app = await DeveloperApp.findOne({ _id: appId, oxyUserId: userId });
     if (!app) {
       return res.status(404).json({ error: 'App not found' });
     }
 
-    const keys = await DeveloperApiKey.find({ appId, userId })
+    const keys = await DeveloperApiKey.find({ appId, oxyUserId: userId })
       .select('-keyHash') // Don't send the hash
       .sort({ createdAt: -1 });
 
