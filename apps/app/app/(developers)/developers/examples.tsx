@@ -143,10 +143,11 @@ while (true) {
             {`// Cursor/VS Code configuration
 {
   "api_key": "alia_sk_your_key",
-  "base_url": "https://api.alia.onl/v1/codea/completions"
+  "base_url": "https://api.alia.onl/v1/codea"
 }
 
 // The endpoint:
+// POST /v1/codea/chat/completions
 // • Always uses alia-v1-codea
 // • Supports editor tools
 // • Includes user memory
