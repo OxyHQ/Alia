@@ -428,7 +428,8 @@ router.post('/', optionalAuth, async (req, res) => {
       totalTokens: 0,
     };
 
-    const result = streamText({
+    // Configure streamText with thinking mode support
+    const streamConfig: any = {
       model,
       messages: processedMessages as any, // Use processed messages (saves tokens)
       tools,
@@ -449,7 +450,15 @@ router.post('/', optionalAuth, async (req, res) => {
           console.warn('[Alia/Chat] No usage data available from AI SDK');
         }
       },
-    });
+    };
+
+    // Enable extended thinking for Anthropic models when thinking mode is requested
+    if (thinkingMode && resolved.provider === 'anthropic') {
+      console.log('[Alia/Chat] Configuring Anthropic extended thinking mode');
+      streamConfig.experimental_thinking = true;
+    }
+
+    const result = streamText(streamConfig);
 
     // Stream all events including tool calls
     let assistantResponse = '';
@@ -501,9 +510,23 @@ router.post('/', optionalAuth, async (req, res) => {
     try {
       for await (const chunk of result.fullStream) {
         // Mark that we've received content
-        if (chunk.type === 'text-delta' || chunk.type === 'tool-call') {
+        if (chunk.type === 'text-delta' || chunk.type === 'tool-call' || chunk.type === 'thinking-delta') {
           hasReceivedContent = true;
           if (streamTimeout) clearTimeout(streamTimeout);
+        }
+
+        // Handle thinking deltas (extended thinking mode)
+        if (chunk.type === 'thinking-delta' && thinkingMode) {
+          // Flush any pending text first
+          flushTextBuffer();
+
+          // Send thinking content to frontend
+          const thinkingEvent = JSON.stringify({
+            type: 'thinking-delta',
+            text: (chunk as any).text || (chunk as any).thinking || ''
+          });
+          writeSSE(res, `data: ${thinkingEvent}\n\n`);
+          continue;
         }
 
         // Handle text deltas with intelligent batching

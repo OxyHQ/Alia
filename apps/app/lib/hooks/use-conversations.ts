@@ -6,6 +6,7 @@ export interface Message {
   id?: string;
   role: 'user' | 'assistant' | 'system';
   content: string;
+  thinking?: string; // Extended thinking content (when thinking mode is enabled)
   toolInvocations?: {
     toolCallId: string;
     toolName: string;

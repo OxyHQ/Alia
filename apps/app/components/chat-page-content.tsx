@@ -28,6 +28,8 @@ interface ChatPageContentProps {
   onModelChange: (model: string) => void;
   activeRole?: { id: string; name: string };
   onRemoveRole?: () => void;
+  thinkingMode?: boolean;
+  onThinkingModeChange?: (value: boolean) => void;
 }
 
 const SubmitButtonWrapper = ({
@@ -78,13 +80,14 @@ export const ChatPageContent = ({
   onModelChange,
   activeRole,
   onRemoveRole,
+  thinkingMode = false,
+  onThinkingModeChange,
 }: ChatPageContentProps) => {
   const selectedImageUris = useStore((state) => state.selectedImageUris);
   const { isAuthenticated } = useAuth();
   const [searchMode, setSearchMode] = useState(false);
   const [agentMode, setAgentMode] = useState(false);
   const [ghostMode, setGhostMode] = useState(false);
-  const [thinkingMode, setThinkingMode] = useState(false);
   const [inputValue, setInputValue] = useState("");
   const [loadingImageUris, setLoadingImageUris] = useState<Set<string>>(new Set());
   const { pickImage } = useImagePicker();
@@ -230,7 +233,7 @@ export const ChatPageContent = ({
 
   const handleThinkingMode = () => {
     const newValue = !thinkingMode;
-    setThinkingMode(newValue);
+    onThinkingModeChange?.(newValue);
     toast.info(newValue ? 'AI will show its reasoning process' : 'Thinking mode disabled');
   };
 
