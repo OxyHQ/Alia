@@ -21,6 +21,15 @@ import { reserveCredits, finalizeCredits, refundReservation, type CreditReservat
 
 const router = Router();
 
+// Helper function to write and flush SSE data immediately
+function writeSSE(res: any, data: string) {
+  res.write(data);
+  // Force flush if available (compression middleware)
+  if (typeof res.flush === 'function') {
+    res.flush();
+  }
+}
+
 // Auto-generate a title from response content if AI didn't provide one
 function autoGenerateTitle(content: string, userMessage?: string): string {
   const extractWords = (text: string): string => {
