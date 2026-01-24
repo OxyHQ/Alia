@@ -1,4 +1,4 @@
-import { View, ScrollView, TextInput as RNTextInput, Pressable, Alert, Image as RNImage, ActivityIndicator, Platform } from "react-native";
+import { View, ScrollView, TextInput as RNTextInput, Pressable, Image as RNImage, ActivityIndicator, Platform } from "react-native";
 import { Text } from "@/components/ui/text";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -9,6 +9,7 @@ import { generateAPIUrl } from "@/lib/generate-api-url";
 import { User, Mail, Lock, ArrowLeft, LogOut, Camera, Trash2 } from "lucide-react-native";
 import { useImagePicker } from "@/hooks/useImagePicker";
 import { toast } from "@/components/sonner";
+import { ConfirmationDialog } from "@/components/ui/confirmation-dialog";
 
 export default function AccountScreen() {
   const router = useRouter();
@@ -16,6 +17,11 @@ export default function AccountScreen() {
   const [changingPassword, setChangingPassword] = useState(false);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const { pickImage } = useImagePicker();
+
+  // Dialog state
+  const [showLogoutDialog, setShowLogoutDialog] = useState(false);
+  const [showDeleteAvatarDialog, setShowDeleteAvatarDialog] = useState(false);
+  const [deletingAvatar, setDeletingAvatar] = useState(false);
 
   // Password change form
   const [currentPassword, setCurrentPassword] = useState("");
@@ -40,21 +46,12 @@ export default function AccountScreen() {
   };
 
   const handleLogout = () => {
-    Alert.alert(
-      "Logout",
-      "Are you sure you want to logout?",
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Logout",
-          style: "destructive",
-          onPress: () => {
-            logout();
-            router.replace("/login");
-          },
-        },
-      ]
-    );
+    setShowLogoutDialog(true);
+  };
+
+  const confirmLogout = () => {
+    logout();
+    router.replace("/login");
   };
 
   const handleUploadAvatar = async () => {
@@ -110,39 +107,33 @@ export default function AccountScreen() {
     }
   };
 
-  const handleDeleteAvatar = async () => {
-    Alert.alert(
-      "Delete Avatar",
-      "Are you sure you want to delete your avatar?",
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Delete",
-          style: "destructive",
-          onPress: async () => {
-            try {
-              const apiUrl = generateAPIUrl('/upload/avatar');
-              const response = await fetch(apiUrl, {
-                method: 'DELETE',
-                headers: {
-                  'x-session-id': activeSessionId || '',
-                },
-              });
+  const handleDeleteAvatar = () => {
+    setShowDeleteAvatarDialog(true);
+  };
 
-              if (response.ok) {
-                toast.success("Avatar deleted successfully");
-                // Avatar will be updated through OxyProvider
-              } else {
-                toast.error("Failed to delete avatar");
-              }
-            } catch (error) {
-              console.error("Error deleting avatar:", error);
-              toast.error("Failed to delete avatar");
-            }
-          },
+  const confirmDeleteAvatar = async () => {
+    setDeletingAvatar(true);
+    try {
+      const apiUrl = generateAPIUrl('/upload/avatar');
+      const response = await fetch(apiUrl, {
+        method: 'DELETE',
+        headers: {
+          'x-session-id': activeSessionId || '',
         },
-      ]
-    );
+      });
+
+      if (response.ok) {
+        toast.success("Avatar deleted successfully");
+        // Avatar will be updated through OxyProvider
+      } else {
+        toast.error("Failed to delete avatar");
+      }
+    } catch (error) {
+      console.error("Error deleting avatar:", error);
+      toast.error("Failed to delete avatar");
+    } finally {
+      setDeletingAvatar(false);
+    }
   };
 
   const handleChangePassword = async () => {
