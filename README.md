@@ -161,6 +161,8 @@ La API standalone expone los siguientes endpoints:
 ## 📖 Documentación Técnica
 
 - [MEMORY_SYSTEM.md](MEMORY_SYSTEM.md) - Sistema de memoria completo (API, export/import, límites por plan)
+- [DEPLOYMENT.md](DEPLOYMENT.md) - Guía de despliegue a producción (DigitalOcean, variables de entorno, troubleshooting)
+- [CHANGELOG.md](CHANGELOG.md) - Registro de cambios y mejoras
 
 ---
 © 2026 Alia - The Agent Era
