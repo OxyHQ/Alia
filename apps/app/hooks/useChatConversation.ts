@@ -10,9 +10,10 @@ import type { ScrollView as GHScrollView } from "react-native-gesture-handler";
 interface UseChatConversationOptions {
   conversationId?: string;
   activeRole?: Role;
+  thinkingMode?: boolean;
 }
 
-export function useChatConversation({ conversationId, activeRole }: UseChatConversationOptions = {}) {
+export function useChatConversation({ conversationId, activeRole, thinkingMode }: UseChatConversationOptions = {}) {
   const router = useRouter();
   const scrollViewRef = useRef<GHScrollView>(null);
   const hasSentPendingMessage = useRef(false);
@@ -28,7 +29,7 @@ export function useChatConversation({ conversationId, activeRole }: UseChatConve
     isLoading,
     setMessages,
     stop,
-  } = useStreamingChat(generateAPIUrl('/alia/chat'), activeRole, conversationId);
+  } = useStreamingChat(generateAPIUrl('/alia/chat'), activeRole, conversationId, thinkingMode);
 
   // Sync chatId and load messages when conversation changes
   useEffect(() => {
