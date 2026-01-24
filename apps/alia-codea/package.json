@@ -1,0 +1,225 @@
+{
+  "name": "alia-codea",
+  "displayName": "Codea by Alia",
+  "description": "AI coding assistant powered by Alia",
+  "version": "1.0.0",
+  "publisher": "Oxy",
+  "license": "MIT",
+  "icon": "resources/codea-logo.png",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Machine Learning",
+    "Programming Languages",
+    "Other"
+  ],
+  "keywords": [
+    "AI",
+    "assistant",
+    "code",
+    "chat",
+    "alia",
+    "codea"
+  ],
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "codea-sidebar",
+          "title": "Codea",
+          "icon": "resources/codea-logo.png",
+          "when": "codea:doesNotSupportSecondarySidebar"
+        }
+      ],
+      "secondarySidebar": [
+        {
+          "id": "codea-sidebar-secondary",
+          "title": "Codea",
+          "icon": "resources/codea-logo.png",
+          "when": "!codea:doesNotSupportSecondarySidebar"
+        }
+      ]
+    },
+    "views": {
+      "codea-sidebar": [
+        {
+          "type": "webview",
+          "id": "codea.chatView",
+          "name": "Codea Chat",
+          "icon": "resources/codea-logo.png",
+          "when": "codea:doesNotSupportSecondarySidebar"
+        }
+      ],
+      "codea-sidebar-secondary": [
+        {
+          "type": "webview",
+          "id": "codea.chatViewSecondary",
+          "name": "Codea Chat",
+          "icon": "resources/codea-logo.png",
+          "when": "!codea:doesNotSupportSecondarySidebar"
+        }
+      ]
+    },
+    "commands": [
+      {
+        "command": "codea.openChat",
+        "title": "Open Codea Chat",
+        "icon": {
+          "light": "resources/codea-logo.png",
+          "dark": "resources/codea-logo.png"
+        }
+      },
+      {
+        "command": "codea.newConversation",
+        "title": "New Conversation",
+        "icon": "$(add)"
+      },
+      {
+        "command": "codea.clearConversation",
+        "title": "Clear Conversation",
+        "icon": "$(clear-all)"
+      },
+      {
+        "command": "codea.openWalkthrough",
+        "title": "Codea: Getting Started"
+      }
+    ],
+    "menus": {
+      "view/title": [
+        {
+          "command": "codea.newConversation",
+          "when": "view == codea.chatView || view == codea.chatViewSecondary",
+          "group": "navigation"
+        },
+        {
+          "command": "codea.clearConversation",
+          "when": "view == codea.chatView || view == codea.chatViewSecondary",
+          "group": "navigation"
+        }
+      ]
+    },
+    "keybindings": [
+      {
+        "command": "codea.openChat",
+        "key": "ctrl+shift+a",
+        "mac": "cmd+shift+a"
+      }
+    ],
+    "configuration": {
+      "title": "Codea by Alia",
+      "properties": {
+        "codea.apiKey": {
+          "type": "string",
+          "default": "",
+          "description": "Your Alia API key (starts with alia_sk_)",
+          "order": 1
+        },
+        "codea.apiBaseUrl": {
+          "type": "string",
+          "default": "https://api.alia.onl",
+          "description": "Alia API base URL",
+          "order": 2
+        },
+        "codea.model": {
+          "type": "string",
+          "default": "alia-v1-codea",
+          "description": "Model to use for completions",
+          "enum": [
+            "alia-lite",
+            "alia-v1",
+            "alia-v1-codea",
+            "alia-v1-pro",
+            "alia-v1-pro-max"
+          ],
+          "enumDescriptions": [
+            "Alia Lite - Fast responses (0.5x credits)",
+            "Alia V1 - Balanced performance (1x credits)",
+            "Alia V1 Codea - Optimized for code (1.5x credits)",
+            "Alia V1 Pro - High quality (3x credits)",
+            "Alia V1 Pro Max - Best available (5x credits)"
+          ],
+          "order": 3
+        },
+        "codea.maxTokens": {
+          "type": "number",
+          "default": 4096,
+          "description": "Maximum tokens in response",
+          "order": 4
+        },
+        "codea.temperature": {
+          "type": "number",
+          "default": 0.7,
+          "minimum": 0,
+          "maximum": 2,
+          "description": "Temperature for response generation",
+          "order": 5
+        }
+      }
+    },
+    "walkthroughs": [
+      {
+        "id": "codea-walkthrough",
+        "title": "Get started with Codea",
+        "description": "Learn how to use Codea to write, edit, and understand your code.",
+        "steps": [
+          {
+            "id": "welcome",
+            "title": "Your AI coding partner",
+            "description": "Codea helps you write, edit, and understand code right in VS Code.",
+            "media": {
+              "markdown": "resources/walkthrough/step1.md"
+            }
+          },
+          {
+            "id": "open-codea",
+            "title": "Open Codea",
+            "description": "Click the Codea icon in the sidebar, or press Ctrl+Shift+A (Cmd+Shift+A on Mac) to start a conversation.",
+            "media": {
+              "markdown": "resources/walkthrough/step2.md"
+            },
+            "completionEvents": [
+              "onCommand:codea.openChat"
+            ]
+          },
+          {
+            "id": "chat",
+            "title": "Chat with Codea",
+            "description": "Type a message and press Enter. Ask questions, request changes, or get help understanding your code.",
+            "media": {
+              "markdown": "resources/walkthrough/step3.md"
+            }
+          },
+          {
+            "id": "sessions",
+            "title": "Past conversations",
+            "description": "Start a new conversation anytime by clicking New Conversation or pressing Ctrl+N (Cmd+N).",
+            "media": {
+              "markdown": "resources/walkthrough/step4.md"
+            }
+          }
+        ]
+      }
+    ]
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run build",
+    "build": "npm run build:webview && npm run build:extension",
+    "build:extension": "esbuild ./src/extension.ts --bundle --outfile=dist/extension.js --external:vscode --format=cjs --platform=node",
+    "build:webview": "cd webview-ui && npm run build",
+    "watch": "esbuild ./src/extension.ts --bundle --outfile=dist/extension.js --external:vscode --format=cjs --platform=node --watch",
+    "watch:webview": "cd webview-ui && npm run dev",
+    "package": "vsce package --no-dependencies"
+  },
+  "devDependencies": {
+    "@types/node": "^20.10.0",
+    "@types/vscode": "^1.85.0",
+    "@vscode/vsce": "^2.22.0",
+    "esbuild": "^0.19.0",
+    "typescript": "^5.3.0"
+  }
+}

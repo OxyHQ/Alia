@@ -308,3 +308,30 @@ X-Telegram-Id: <telegram-id>
 | API para desarrolladores | `/v1/chat/completions` | Configurable | ✅ Function calling (si se pasa en request) |
 | Editores de código (Cursor, VS Code, etc.) | `/v1/codea/chat/completions` | **Siempre `alia-v1-codea`** | ✅ Tools del editor + Alia (memoria, Telegram) |
 | Listar modelos | `/v1/models` | N/A | N/A |
+
+---
+
+## Codea by Alia - VS Code Extension
+
+La extensión **Codea by Alia** está disponible en `/apps/alia-codea/`.
+
+### Instalación
+
+1. Abre VS Code
+2. Ve a Extensions → Install from VSIX
+3. Selecciona el archivo `.vsix` de la carpeta `alia-codea`
+
+### Configuración
+
+La extensión se conecta automáticamente a:
+- **Base URL**: `https://api.alia.onl/v1/codea`
+- **Endpoint**: `/v1/codea/chat/completions`
+- **Autenticación**: API key con prefijo `alia_sk_`
+
+### Características
+
+- Integración nativa con VS Code
+- Comandos prefijados con `codea.` y `codea-vscode.`
+- Soporte para herramientas del editor
+- Streaming de respuestas
+- Historial de conversaciones

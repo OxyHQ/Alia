@@ -1,0 +1,14 @@
+.git/**
+.vscode/**
+node_modules/**
+src/**
+*.ts
+tsconfig.json
+.gitignore
+*.vsix
+resources/claude-code/**
+resources/claude-logo*
+resources/clawd*
+resources/ClawdWithGradCap*
+webview-ui/**
+!dist/**
