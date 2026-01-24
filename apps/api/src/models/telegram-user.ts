@@ -30,6 +30,11 @@ const TelegramUserSchema = new mongoose.Schema(
     },
     sessionToken: String,
     conversationId: String,
+    preferredModel: {
+      type: String,
+      default: 'alia-lite',
+      enum: ['alia-lite', 'alia-v1', 'alia-v1-codea', 'alia-v1-pro', 'alia-v1-pro-max'],
+    },
     isAuthenticated: {
       type: Boolean,
       default: false,

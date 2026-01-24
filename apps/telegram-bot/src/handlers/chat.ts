@@ -133,7 +133,8 @@ export async function handleMessage(ctx: Context) {
         'X-Telegram-Bot': 'true',
       },
       body: JSON.stringify({
-        messages
+        messages,
+        model: telegramUser.preferredModel || 'alia-lite'
       }),
     });
 
