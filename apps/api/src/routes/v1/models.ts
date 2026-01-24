@@ -1,15 +1,19 @@
 import { Router } from 'express';
-import { getAllAliaModels, getAliaModel } from '../../lib/alia-models.js';
+import { getAllAliaModels, getAliaModel, getAliaModelsByCategory, type ModelCategory } from '../../lib/alia-models.js';
 
 const router = Router();
 
 /**
  * GET /v1/models
  * List all available Alia models (OpenAI-compatible format)
+ *
+ * Query params:
+ * - category: Filter by category ('coding' | 'general')
  */
-router.get('/', async (_req, res) => {
+router.get('/', async (req, res) => {
   try {
-    const aliaModels = getAllAliaModels();
+    const category = req.query.category as ModelCategory | undefined;
+    const aliaModels = category ? getAliaModelsByCategory(category) : getAllAliaModels();
 
     const models = aliaModels.map(model => ({
       id: model.id,
@@ -22,6 +26,7 @@ router.get('/', async (_req, res) => {
       // Alia-specific metadata
       name: model.name,
       description: model.description,
+      category: model.category,
       capabilities: {
         tools: model.supportsTools,
         vision: model.supportsVision,
@@ -65,6 +70,7 @@ router.get('/:modelId', async (req, res) => {
       parent: null,
       name: model.name,
       description: model.description,
+      category: model.category,
       capabilities: {
         tools: model.supportsTools,
         vision: model.supportsVision,

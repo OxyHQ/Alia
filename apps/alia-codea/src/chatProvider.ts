@@ -88,6 +88,68 @@ export class CodeaChatViewProvider implements vscode.WebviewViewProvider {
     }
   }
 
+  private async fetchAndSendModels(): Promise<void> {
+    const config = vscode.workspace.getConfiguration('codea');
+    const apiKey = config.get<string>('apiKey');
+    const baseUrl = config.get<string>('apiBaseUrl') || 'https://api.alia.onl';
+
+    console.log('[Codea] Fetching models from:', baseUrl);
+
+    // Models endpoint is public, no API key needed
+    try {
+      const models = await this.fetchModels(baseUrl);
+      console.log('[Codea] Fetched models:', models.length, models.map((m: any) => m.id));
+      this._view?.webview.postMessage({ type: 'models', models });
+    } catch (error) {
+      console.error('[Codea] Error fetching models:', error);
+      this._view?.webview.postMessage({ type: 'models', models: [] });
+    }
+  }
+
+  private fetchModels(baseUrl: string): Promise<any[]> {
+    return new Promise((resolve) => {
+      const url = new URL(`${baseUrl}/v1/models?category=coding`);
+      const isHttps = url.protocol === 'https:';
+      const httpModule = isHttps ? https : http;
+
+      const options = {
+        hostname: url.hostname,
+        port: url.port || (isHttps ? 443 : 80),
+        path: `${url.pathname}${url.search}`,
+        method: 'GET'
+      };
+
+      console.log('[Codea] Fetching models from URL:', url.toString());
+
+      const req = httpModule.request(options, (res) => {
+        console.log('[Codea] Models response status:', res.statusCode);
+        if (res.statusCode !== 200) {
+          resolve([]);
+          return;
+        }
+
+        let data = '';
+        res.on('data', chunk => data += chunk);
+        res.on('end', () => {
+          try {
+            const parsed = JSON.parse(data);
+            console.log('[Codea] Models response parsed, count:', parsed.data?.length);
+            resolve(parsed.data || []);
+          } catch (e) {
+            console.error('[Codea] Failed to parse models response:', e);
+            resolve([]);
+          }
+        });
+      });
+
+      req.on('error', (e) => {
+        console.error('[Codea] Models request error:', e);
+        resolve([]);
+      });
+      req.end();
+    });
+  }
+
   private fetchUserInfo(baseUrl: string, apiKey: string): Promise<{ name?: string } | null> {
     return new Promise((resolve) => {
       const url = new URL(`${baseUrl}/v1/codea/me`);
@@ -141,14 +203,15 @@ export class CodeaChatViewProvider implements vscode.WebviewViewProvider {
 
     webviewView.webview.html = this._getHtmlForWebview(webviewView.webview);
 
-    // Fetch and send user info to webview
+    // Fetch and send user info and models to webview
     this.fetchAndSendUserInfo();
+    this.fetchAndSendModels();
 
     // Handle messages from webview
     webviewView.webview.onDidReceiveMessage(async (data) => {
       switch (data.type) {
         case 'sendMessage':
-          await this.handleUserMessage(data.message, data.mode, data.model);
+          await this.handleUserMessage(data.message, data.mode, data.model, data.context);
           break;
         case 'stopGeneration':
           this.stopGeneration();
@@ -161,6 +224,9 @@ export class CodeaChatViewProvider implements vscode.WebviewViewProvider {
           break;
         case 'showHistory':
           await this.showConversationHistory();
+          break;
+        case 'addContext':
+          await this.handleAddContext();
           break;
       }
     });
@@ -211,6 +277,248 @@ export class CodeaChatViewProvider implements vscode.WebviewViewProvider {
     }
 
     this.saveConversations(conversations);
+  }
+
+  private async handleAddContext(): Promise<void> {
+    // Show quick pick with context options
+    const items: vscode.QuickPickItem[] = [];
+
+    const activeEditor = vscode.window.activeTextEditor;
+
+    // Add selection option if there's selected text
+    if (activeEditor && !activeEditor.selection.isEmpty) {
+      const selectedText = activeEditor.document.getText(activeEditor.selection);
+      const lineCount = selectedText.split('\n').length;
+      items.push({
+        label: '$(selection) Selection',
+        description: `${lineCount} line${lineCount > 1 ? 's' : ''} selected`,
+        detail: 'Add the currently selected text'
+      });
+    }
+
+    // Add currently open file if any
+    if (activeEditor) {
+      const relativePath = vscode.workspace.asRelativePath(activeEditor.document.uri);
+      items.push({
+        label: '$(file) Current File',
+        description: relativePath,
+        detail: 'Add the currently open file to context'
+      });
+    }
+
+    // Add problems/diagnostics option
+    const allDiagnostics = vscode.languages.getDiagnostics();
+    const errorCount = allDiagnostics.reduce((sum, [, diags]) =>
+      sum + diags.filter(d => d.severity === vscode.DiagnosticSeverity.Error).length, 0);
+    const warningCount = allDiagnostics.reduce((sum, [, diags]) =>
+      sum + diags.filter(d => d.severity === vscode.DiagnosticSeverity.Warning).length, 0);
+    if (errorCount > 0 || warningCount > 0) {
+      items.push({
+        label: '$(error) Problems',
+        description: `${errorCount} errors, ${warningCount} warnings`,
+        detail: 'Add current problems and diagnostics'
+      });
+    }
+
+    // Add git changes option
+    items.push({
+      label: '$(git-commit) Git Changes',
+      description: 'Staged and unstaged changes',
+      detail: 'Add current git diff to context'
+    });
+
+    // Add terminal output option
+    items.push({
+      label: '$(terminal) Terminal',
+      description: 'Recent terminal output',
+      detail: 'Add recent terminal output to context'
+    });
+
+    // Add option to browse files
+    items.push({
+      label: '$(folder) Browse Files...',
+      description: '',
+      detail: 'Select files from your workspace'
+    });
+
+    // Add separator and open tabs
+    const openTabs = vscode.window.tabGroups.all
+      .flatMap(group => group.tabs)
+      .filter(tab => tab.input instanceof vscode.TabInputText)
+      .map(tab => (tab.input as vscode.TabInputText).uri);
+
+    if (openTabs.length > 0) {
+      items.push({ label: 'Open Tabs', kind: vscode.QuickPickItemKind.Separator } as vscode.QuickPickItem);
+    }
+
+    for (const uri of openTabs.slice(0, 10)) {
+      const relativePath = vscode.workspace.asRelativePath(uri);
+      if (relativePath !== (activeEditor ? vscode.workspace.asRelativePath(activeEditor.document.uri) : '')) {
+        items.push({
+          label: `$(file) ${relativePath.split('/').pop()}`,
+          description: relativePath,
+          detail: 'Open tab'
+        });
+      }
+    }
+
+    const selected = await vscode.window.showQuickPick(items, {
+      placeHolder: 'Select context to add',
+      canPickMany: true
+    });
+
+    if (!selected || selected.length === 0) return;
+
+    const contextItems: { path: string; content: string; language: string }[] = [];
+
+    for (const item of selected) {
+      if (item.label === '$(selection) Selection') {
+        // Add selected text
+        if (activeEditor && !activeEditor.selection.isEmpty) {
+          const selectedText = activeEditor.document.getText(activeEditor.selection);
+          const relativePath = vscode.workspace.asRelativePath(activeEditor.document.uri);
+          const startLine = activeEditor.selection.start.line + 1;
+          const endLine = activeEditor.selection.end.line + 1;
+          contextItems.push({
+            path: `Selection (${relativePath}:${startLine}-${endLine})`,
+            content: selectedText,
+            language: activeEditor.document.languageId
+          });
+        }
+      } else if (item.label === '$(error) Problems') {
+        // Add problems/diagnostics
+        const diagnosticsText = this.formatDiagnostics(allDiagnostics);
+        contextItems.push({
+          path: 'Problems',
+          content: diagnosticsText,
+          language: 'text'
+        });
+      } else if (item.label === '$(git-commit) Git Changes') {
+        // Add git diff
+        try {
+          const gitDiff = await this.getGitDiff();
+          if (gitDiff) {
+            contextItems.push({
+              path: 'Git Changes',
+              content: gitDiff,
+              language: 'diff'
+            });
+          }
+        } catch (e) {
+          // Git not available
+        }
+      } else if (item.label === '$(terminal) Terminal') {
+        // Add terminal output (placeholder - VS Code API doesn't expose terminal content directly)
+        contextItems.push({
+          path: 'Terminal',
+          content: '(Terminal output not directly accessible via VS Code API. Please copy and paste relevant output.)',
+          language: 'text'
+        });
+        vscode.window.showInformationMessage('Terminal output cannot be accessed directly. Please copy and paste relevant output into your message.');
+      } else if (item.label === '$(folder) Browse Files...') {
+        // Show file picker
+        const files = await vscode.window.showOpenDialog({
+          canSelectMany: true,
+          openLabel: 'Add to Context',
+          filters: { 'All Files': ['*'] }
+        });
+        if (files) {
+          for (const file of files) {
+            try {
+              const doc = await vscode.workspace.openTextDocument(file);
+              contextItems.push({
+                path: vscode.workspace.asRelativePath(file),
+                content: doc.getText(),
+                language: doc.languageId
+              });
+            } catch (e) {
+              // Skip unreadable files
+            }
+          }
+        }
+      } else if (item.label === '$(file) Current File') {
+        // Add current file
+        if (activeEditor) {
+          contextItems.push({
+            path: vscode.workspace.asRelativePath(activeEditor.document.uri),
+            content: activeEditor.document.getText(),
+            language: activeEditor.document.languageId
+          });
+        }
+      } else if (item.description && !item.label.startsWith('Open Tabs')) {
+        // Get file content from open tabs
+        try {
+          const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
+          if (workspaceFolder) {
+            const uri = vscode.Uri.joinPath(workspaceFolder.uri, item.description);
+            const doc = await vscode.workspace.openTextDocument(uri);
+            contextItems.push({
+              path: item.description,
+              content: doc.getText(),
+              language: doc.languageId
+            });
+          }
+        } catch (e) {
+          // Skip unreadable files
+        }
+      }
+    }
+
+    if (contextItems.length > 0) {
+      this._view?.webview.postMessage({
+        type: 'contextAdded',
+        items: contextItems
+      });
+    }
+  }
+
+  private formatDiagnostics(diagnostics: [vscode.Uri, vscode.Diagnostic[]][]): string {
+    const lines: string[] = [];
+
+    for (const [uri, diags] of diagnostics) {
+      if (diags.length === 0) continue;
+
+      const relativePath = vscode.workspace.asRelativePath(uri);
+      lines.push(`## ${relativePath}`);
+
+      for (const diag of diags) {
+        const severity = diag.severity === vscode.DiagnosticSeverity.Error ? 'Error' :
+                        diag.severity === vscode.DiagnosticSeverity.Warning ? 'Warning' :
+                        diag.severity === vscode.DiagnosticSeverity.Information ? 'Info' : 'Hint';
+        const line = diag.range.start.line + 1;
+        const col = diag.range.start.character + 1;
+        const source = diag.source ? `[${diag.source}] ` : '';
+        lines.push(`- ${severity} (${line}:${col}): ${source}${diag.message}`);
+      }
+      lines.push('');
+    }
+
+    return lines.length > 0 ? lines.join('\n') : 'No problems found.';
+  }
+
+  private async getGitDiff(): Promise<string | null> {
+    const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
+    if (!workspaceFolder) return null;
+
+    return new Promise((resolve) => {
+      const { exec } = require('child_process');
+      exec('git diff HEAD', { cwd: workspaceFolder.uri.fsPath, maxBuffer: 1024 * 1024 }, (error: any, stdout: string, stderr: string) => {
+        if (error) {
+          // Try just unstaged changes
+          exec('git diff', { cwd: workspaceFolder.uri.fsPath, maxBuffer: 1024 * 1024 }, (error2: any, stdout2: string) => {
+            if (error2 || !stdout2) {
+              resolve(null);
+            } else {
+              resolve(stdout2.slice(0, 10000) + (stdout2.length > 10000 ? '\n... (truncated)' : ''));
+            }
+          });
+        } else if (stdout) {
+          resolve(stdout.slice(0, 10000) + (stdout.length > 10000 ? '\n... (truncated)' : ''));
+        } else {
+          resolve('No changes detected.');
+        }
+      });
+    });
   }
 
   private async showConversationHistory(): Promise<void> {
@@ -277,7 +585,7 @@ export class CodeaChatViewProvider implements vscode.WebviewViewProvider {
     }
   }
 
-  private async handleUserMessage(content: string, mode: string = 'ask', selectedModel?: string) {
+  private async handleUserMessage(content: string, mode: string = 'ask', selectedModel?: string, addedContext?: { path: string; content: string; language: string }[]) {
     if (this._isProcessing) return;
 
     const config = vscode.workspace.getConfiguration('codea');
@@ -306,14 +614,27 @@ export class CodeaChatViewProvider implements vscode.WebviewViewProvider {
       openFilePath: context.openFile?.path,
       openFileLength: context.openFile?.content?.length,
       hasSelection: !!context.selection,
-      openTabs: context.openTabs
+      openTabs: context.openTabs,
+      addedContextCount: addedContext?.length || 0
     });
 
     // Build system message based on mode
     const systemMessage = this.buildSystemMessage(mode, context);
 
-    // Enhance user message with context if they're referencing code
+    // Enhance user message with context
     let enhancedContent = content;
+
+    // First, add any explicitly added context files
+    if (addedContext && addedContext.length > 0) {
+      for (const item of addedContext) {
+        const fileContent = item.content.slice(0, 4000);
+        const truncated = item.content.length > 4000 ? '\n... (truncated)' : '';
+        enhancedContent += `\n\n**File: ${item.path}**\n\`\`\`${item.language}\n${fileContent}${truncated}\n\`\`\``;
+      }
+      console.log('[Codea] Added explicit context:', addedContext.map(c => c.path));
+    }
+
+    // Then check if referencing code and add implicit context
     const referencesCode = /\b(this|the|explain|review|fix|debug|code|file|function|error|codebase|project)\b/i.test(content);
 
     // Debug log
@@ -322,19 +643,23 @@ export class CodeaChatViewProvider implements vscode.WebviewViewProvider {
       referencesCode,
       hasSelection: !!context.selection,
       hasOpenFile: !!context.openFile,
-      messageCount: this._messages.length
+      messageCount: this._messages.length,
+      hasAddedContext: (addedContext?.length || 0) > 0
     });
 
-    if (referencesCode && context.selection) {
-      // User has selected text - include it in their message
-      enhancedContent = `${content}\n\n**Selected code (${context.openFile?.path || 'unknown'}, lines ${context.selection.startLine}-${context.selection.endLine}):**\n\`\`\`${context.openFile?.language || ''}\n${context.selection.text}\n\`\`\``;
-      console.log('[Codea] Injecting selection context');
-    } else if (referencesCode && context.openFile) {
-      // Include open file context whenever referencing code (not just first message)
-      const fileContent = context.openFile.content.slice(0, 4000);
-      const truncated = context.openFile.content.length > 4000 ? '\n... (truncated)' : '';
-      enhancedContent = `${content}\n\n**Currently open file (${context.openFile.path}):**\n\`\`\`${context.openFile.language}\n${fileContent}${truncated}\n\`\`\``;
-      console.log('[Codea] Injecting open file context:', context.openFile.path);
+    // Only add implicit context if no explicit context was added
+    if (!addedContext || addedContext.length === 0) {
+      if (referencesCode && context.selection) {
+        // User has selected text - include it in their message
+        enhancedContent = `${content}\n\n**Selected code (${context.openFile?.path || 'unknown'}, lines ${context.selection.startLine}-${context.selection.endLine}):**\n\`\`\`${context.openFile?.language || ''}\n${context.selection.text}\n\`\`\``;
+        console.log('[Codea] Injecting selection context');
+      } else if (referencesCode && context.openFile) {
+        // Include open file context whenever referencing code (not just first message)
+        const fileContent = context.openFile.content.slice(0, 4000);
+        const truncated = context.openFile.content.length > 4000 ? '\n... (truncated)' : '';
+        enhancedContent = `${content}\n\n**Currently open file (${context.openFile.path}):**\n\`\`\`${context.openFile.language}\n${fileContent}${truncated}\n\`\`\``;
+        console.log('[Codea] Injecting open file context:', context.openFile.path);
+      }
     }
 
     // Add user message (show original to user, send enhanced to API)
@@ -350,36 +675,61 @@ export class CodeaChatViewProvider implements vscode.WebviewViewProvider {
   }
 
   private buildSystemMessage(mode: string, context: any): string {
-    let systemMessage = `You are Codea, an AI coding assistant created by Alia. You help users write, debug, and understand code.
+    let systemMessage = `You are Codea, an expert AI coding assistant created by Alia. You help developers write, debug, refactor, and understand code.
 
-IMPORTANT: When the user provides code in their message (in a code block), answer using that code directly. Do NOT ask them to share code that they have already provided.
+## Core Principles
+- Be concise and direct. Avoid unnecessary explanations unless asked.
+- When code is provided in the conversation, use it directly. NEVER ask users to share code they already provided.
+- Write clean, idiomatic, well-structured code following best practices.
+- Consider edge cases, error handling, and security implications.
+- Match the existing code style and conventions of the project.
 
-You have access to tools that allow you to:
-- read_file: Read files from the workspace
-- write_file: Create or overwrite files
-- edit_file: Make precise text replacements in files
-- delete_file: Remove files
-- list_files: List directory contents
-- search_files: Search for text across files
-- run_command: Execute shell commands
+## Tools Available
+You have powerful tools to interact with the user's workspace:
 
-When making changes:
-- Use edit_file for small precise changes
-- Use write_file to create new files or rewrite entire files
+- **read_file**: Read file contents. Use to understand existing code before making changes.
+- **write_file**: Create new files or completely rewrite existing ones.
+- **edit_file**: Make precise, targeted changes to existing files. Preferred for small modifications.
+- **delete_file**: Remove files from the workspace.
+- **list_files**: Explore directory structure. Use to understand project layout.
+- **search_files**: Find text/patterns across the codebase. Great for finding usages, definitions, etc.
+- **run_command**: Execute shell commands (build, test, git, npm, etc.)
 
-Be concise and helpful.`;
+## Best Practices
+1. **Read before writing**: Always read relevant files before modifying them.
+2. **Minimal changes**: Make the smallest change necessary to accomplish the task.
+3. **Preserve style**: Match existing formatting, naming conventions, and patterns.
+4. **Test awareness**: Consider how changes might affect tests.
+5. **Explain when helpful**: For complex changes, briefly explain the approach.
 
-    if (mode === 'edit') {
-      systemMessage += `\n\nMode: EDIT - Focus on making code changes. Prefer using tools to directly modify files rather than just showing code snippets.`;
+## Response Style
+- Use markdown for formatting code blocks, lists, and emphasis.
+- For code explanations, be thorough but focused.
+- For code changes, be precise and action-oriented.
+- If unsure about requirements, ask clarifying questions.`;
+
+    if (mode === 'ask') {
+      systemMessage += `\n\n## Mode: ASK
+Before making any file changes, explain what you plan to do and ask for confirmation. Show code snippets of proposed changes when helpful.`;
+    } else if (mode === 'edit') {
+      systemMessage += `\n\n## Mode: EDIT
+Focus on making code changes directly using tools. Prefer action over explanation. Use edit_file for modifications, write_file for new files. Briefly explain what you changed after.`;
     } else if (mode === 'plan') {
-      systemMessage += `\n\nMode: PLAN - Create a detailed plan before making changes. List all files that need to be modified and the changes needed. Ask for confirmation before proceeding.`;
+      systemMessage += `\n\n## Mode: PLAN
+Create a detailed implementation plan before making any changes:
+1. Analyze the request and existing codebase
+2. List all files that need to be created/modified
+3. Describe the changes needed for each file
+4. Identify potential risks or considerations
+5. Ask for approval before proceeding with implementation`;
     } else if (mode === 'yolo') {
-      systemMessage += `\n\nMode: YOLO - Make changes directly without asking for confirmation. Be efficient and complete the task quickly.`;
+      systemMessage += `\n\n## Mode: YOLO
+Execute changes immediately without asking for confirmation. Be efficient and thorough. Complete the entire task autonomously, running tests and fixing issues as needed.`;
     }
 
-    // Add list of open tabs as context (but not full file contents - those go in user message)
+    // Add list of open tabs as context
     if (context.openTabs?.length > 0) {
-      systemMessage += `\n\n## Currently Open Files in Editor\n${context.openTabs.join('\n')}`;
+      systemMessage += `\n\n## User's Open Files\n${context.openTabs.join('\n')}`;
     }
 
     return systemMessage;
@@ -636,12 +986,9 @@ Be concise and helpful.`;
   <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${webview.cspSource} 'unsafe-inline'; script-src 'nonce-${nonce}'; font-src ${webview.cspSource} data:; img-src ${webview.cspSource} https: data:; connect-src https:;">
   <link rel="stylesheet" href="${styleUri}">
   <title>Codea</title>
-  <style>
-    /* Expose logo URI to React app */
-    :root {
-      --codea-logo-uri: url('${logoUri}');
-    }
-  </style>
+  <script nonce="${nonce}">
+    window.CODEA_LOGO_URI = "${logoUri}";
+  </script>
 </head>
 <body>
   <div id="root"></div>
