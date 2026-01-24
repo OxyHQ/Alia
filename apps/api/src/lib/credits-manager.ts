@@ -45,7 +45,7 @@ export function getCreditMultiplier(aliasModelId?: string): number {
 
 /**
  * Calculate credits needed based on token usage and model tier
- * Formula: Math.ceil(totalTokens / TOKENS_PER_CREDIT) * creditMultiplier
+ * Formula: Math.ceil((totalTokens / TOKENS_PER_CREDIT) * creditMultiplier)
  * Minimum: MIN_CREDITS_PER_REQUEST
  */
 export function calculateCreditsFromTokens(totalTokens: number, aliasModelId?: string): number {
@@ -54,8 +54,7 @@ export function calculateCreditsFromTokens(totalTokens: number, aliasModelId?: s
   }
 
   const multiplier = getCreditMultiplier(aliasModelId);
-  const baseCredits = Math.ceil(totalTokens / CREDITS_CONFIG.TOKENS_PER_CREDIT);
-  const calculatedCredits = Math.ceil(baseCredits * multiplier);
+  const calculatedCredits = Math.ceil((totalTokens / CREDITS_CONFIG.TOKENS_PER_CREDIT) * multiplier);
   return Math.max(calculatedCredits, CREDITS_CONFIG.MIN_CREDITS_PER_REQUEST);
 }
 
