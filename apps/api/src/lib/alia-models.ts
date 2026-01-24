@@ -8,6 +8,8 @@
 
 export type AliaTier = 'lite' | 'v1' | 'v1-codea' | 'v1-pro' | 'v1-pro-max';
 
+export type ModelCategory = 'general' | 'coding';
+
 export interface AliaModel {
   id: string;
   name: string;
@@ -17,6 +19,7 @@ export interface AliaModel {
   maxTokens: number;
   supportsTools: boolean;
   supportsVision: boolean;
+  category: ModelCategory;
 }
 
 export interface ModelMapping {
@@ -39,6 +42,7 @@ export const ALIA_MODELS: Record<string, AliaModel> = {
     maxTokens: 4096,
     supportsTools: true,
     supportsVision: false,
+    category: 'general',
   },
   'alia-v1': {
     id: 'alia-v1',
@@ -49,26 +53,40 @@ export const ALIA_MODELS: Record<string, AliaModel> = {
     maxTokens: 8192,
     supportsTools: true,
     supportsVision: true,
+    category: 'general',
   },
   'alia-v1-codea': {
     id: 'alia-v1-codea',
-    name: 'Alia V1 Codea',
+    name: 'Codea',
     tier: 'v1-codea',
-    description: 'Optimized for coding and technical tasks',
+    description: 'Fast coding assistant',
     creditMultiplier: 1.5,
     maxTokens: 16384,
     supportsTools: true,
     supportsVision: false,
+    category: 'coding',
   },
   'alia-v1-pro': {
     id: 'alia-v1-pro',
-    name: 'Alia V1 Pro',
+    name: 'Codea Pro',
     tier: 'v1-pro',
-    description: 'High-quality responses for complex tasks',
+    description: 'Advanced reasoning for complex tasks',
     creditMultiplier: 3,
     maxTokens: 32768,
     supportsTools: true,
     supportsVision: true,
+    category: 'coding',
+  },
+  'alia-v1-thinking': {
+    id: 'alia-v1-thinking',
+    name: 'Codea Thinking',
+    tier: 'v1-pro-max',
+    description: 'Extended thinking for complex problems',
+    creditMultiplier: 5,
+    maxTokens: 128000,
+    supportsTools: true,
+    supportsVision: true,
+    category: 'coding',
   },
   'alia-v1-pro-max': {
     id: 'alia-v1-pro-max',
@@ -79,6 +97,7 @@ export const ALIA_MODELS: Record<string, AliaModel> = {
     maxTokens: 128000,
     supportsTools: true,
     supportsVision: true,
+    category: 'general',
   },
 };
 
@@ -140,4 +159,11 @@ export function getModelMappingsForTier(tier: AliaTier): ModelMapping[] {
  */
 export function getAllAliaModels(): AliaModel[] {
   return Object.values(ALIA_MODELS);
+}
+
+/**
+ * Get Alia models by category
+ */
+export function getAliaModelsByCategory(category: ModelCategory): AliaModel[] {
+  return Object.values(ALIA_MODELS).filter(m => m.category === category);
 }
