@@ -185,6 +185,31 @@ router.post('/', async (req: Request, res: Response) => {
           }]
         };
         res.write(`data: ${JSON.stringify(openAIChunk)}\n\n`);
+      } else if (chunk.type === 'tool-call') {
+        const toolCallChunk = {
+          id: `chatcmpl-${Date.now()}`,
+          object: 'chat.completion.chunk',
+          created: Math.floor(Date.now() / 1000),
+          model: aliasModelId,
+          choices: [{
+            index: 0,
+            delta: {
+              tool_calls: [{
+                index: 0,
+                id: chunk.toolCallId,
+                type: 'function',
+                function: {
+                  name: chunk.toolName,
+                  arguments: JSON.stringify(chunk.args)
+                }
+              }]
+            },
+            finish_reason: null
+          }]
+        };
+        res.write(`data: ${JSON.stringify(toolCallChunk)}\n\n`);
+      } else if (chunk.type === 'tool-result') {
+        console.log('[V1/Chat] Tool result:', chunk.toolName, chunk.result);
       } else if (chunk.type === 'finish') {
         const finishChunk = {
           id: `chatcmpl-${Date.now()}`,
