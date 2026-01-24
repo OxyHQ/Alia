@@ -33,8 +33,8 @@ export default function RegisterScreen() {
   return (
     <>
       <Head>
-        <title>Create Account - Alia</title>
-        <meta name="description" content="Create your Alia account to access your AI assistant." />
+        <title>Create Oxy Account - Alia</title>
+        <meta name="description" content="Create your Oxy account to access Alia, your AI assistant." />
       </Head>
       <AuthContainer>
         <AuthLogo />
