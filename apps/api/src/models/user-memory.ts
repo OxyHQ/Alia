@@ -1,5 +1,28 @@
 import mongoose, { Schema, Model, Document } from 'mongoose';
 
+// Validation constants
+export const MAX_MEMORIES_FREE = 100;
+export const MAX_MEMORIES_PRO = 1000;
+export const MAX_MEMORIES_BUSINESS = -1; // Unlimited
+export const MAX_MEMORY_VALUE_LENGTH = 10000;
+export const MAX_MEMORY_KEY_LENGTH = 200;
+export const MAX_CATEGORY_LENGTH = 50;
+
+// Helper to get memory limit based on plan name
+export const getMemoryLimit = (planName?: string): number => {
+  if (!planName) return MAX_MEMORIES_FREE;
+
+  const plan = planName.toLowerCase();
+  if (plan.includes('business') || plan.includes('enterprise')) {
+    return MAX_MEMORIES_BUSINESS; // Unlimited
+  }
+  if (plan.includes('pro')) {
+    return MAX_MEMORIES_PRO;
+  }
+
+  return MAX_MEMORIES_FREE;
+};
+
 export interface IUserMemory extends Document {
   oxyUserId: mongoose.Types.ObjectId;
   memories: {
@@ -52,8 +75,15 @@ const UserMemorySchema = new Schema<IUserMemory>({
   timestamps: true
 });
 
-// Note: userId already has a unique index from the schema definition (unique: true)
-// No need for explicit index here
+// Performance indexes
+// Text index for full-text search on memory keys and values
+UserMemorySchema.index({ 'memories.key': 'text', 'memories.value': 'text' });
+
+// Category index for filtering
+UserMemorySchema.index({ 'memories.category': 1 });
+
+// Timestamp index for sorting
+UserMemorySchema.index({ 'memories.updatedAt': -1 });
 
 export const UserMemory: Model<IUserMemory> =
   mongoose.models.UserMemory || mongoose.model<IUserMemory>('UserMemory', UserMemorySchema);

@@ -1,6 +1,13 @@
 import { Router } from 'express';
-import { UserMemory } from '../models/user-memory.js';
+import { UserMemory, getMemoryLimit } from '../models/user-memory.js';
+import { Subscription } from '../models/subscription.js';
 import { authenticateToken } from '../middleware/auth.js';
+import {
+  AddMemorySchema,
+  UpdateMemorySchema,
+  ImportMemorySchema,
+  MergeStrategySchema,
+} from '../lib/validators/memory-validators.js';
 
 const router = Router();
 
@@ -126,13 +133,26 @@ router.post('/add', async (req, res) => {
   try {
     const { key, value, category } = req.body;
 
-    if (!key || !value) {
-      res.status(400).json({ error: 'Key and value are required' });
+    // Validate input
+    const validation = AddMemorySchema.safeParse({ key, value, category });
+    if (!validation.success) {
+      res.status(400).json({
+        error: 'Invalid memory data',
+        details: validation.error.issues
+      });
       return;
     }
 
     // Find existing memory
     let userMemory = await UserMemory.findOne({ oxyUserId: req.user!.id });
+
+    // Get user's subscription to check memory limit
+    const subscription = await Subscription.findOne({
+      oxyUserId: req.user!.id,
+      status: { $in: ['active', 'trialing'] }
+    });
+
+    const memoryLimit = getMemoryLimit(subscription?.plan?.name);
 
     if (!userMemory) {
       // Create new memory document
@@ -158,6 +178,19 @@ router.post('/add', async (req, res) => {
         if (category) userMemory.memories[existingMemoryIndex].category = category;
         userMemory.memories[existingMemoryIndex].updatedAt = new Date();
       } else {
+        // Check memory limit before adding new (unless unlimited)
+        if (memoryLimit !== -1 && userMemory.memories.length >= memoryLimit) {
+          res.status(400).json({
+            error: 'Memory limit exceeded',
+            limit: memoryLimit,
+            current: userMemory.memories.length,
+            suggestion: subscription?.plan?.name
+              ? 'Upgrade to Business plan for unlimited memories'
+              : 'Upgrade to Pro or Business plan for more memories'
+          });
+          return;
+        }
+
         // Add new memory
         userMemory.memories.push({
           key,
@@ -243,6 +276,487 @@ router.delete('/:memoryId', async (req, res) => {
   } catch (error) {
     console.error('Error deleting memory:', error);
     res.status(500).json({ error: 'Failed to delete memory' });
+  }
+});
+
+/**
+ * GET /api/memory/search
+ * Search memories with pagination and filtering
+ */
+router.get('/search', async (req, res) => {
+  try {
+    const { q, category, limit = '50', offset = '0', sortBy = 'updatedAt' } = req.query;
+
+    const memory = await UserMemory.findOne({ oxyUserId: req.user!.id });
+    if (!memory) {
+      res.json({ memories: [], total: 0, limit: Number(limit), offset: Number(offset) });
+      return;
+    }
+
+    let filtered = [...memory.memories];
+
+    // Text search across key and value
+    if (q && typeof q === 'string') {
+      const query = q.toLowerCase();
+      filtered = filtered.filter(m =>
+        m.key.toLowerCase().includes(query) ||
+        m.value.toLowerCase().includes(query)
+      );
+    }
+
+    // Category filter
+    if (category && typeof category === 'string') {
+      filtered = filtered.filter(m =>
+        (m.category || 'uncategorized') === category
+      );
+    }
+
+    // Sort
+    filtered.sort((a, b) => {
+      if (sortBy === 'updatedAt') return b.updatedAt.getTime() - a.updatedAt.getTime();
+      if (sortBy === 'createdAt') return b.createdAt.getTime() - a.createdAt.getTime();
+      if (sortBy === 'key') return a.key.localeCompare(b.key);
+      return 0;
+    });
+
+    // Paginate
+    const total = filtered.length;
+    const limitNum = Number(limit);
+    const offsetNum = Number(offset);
+    const paginated = filtered.slice(offsetNum, offsetNum + limitNum);
+
+    res.json({
+      memories: paginated,
+      total,
+      limit: limitNum,
+      offset: offsetNum
+    });
+  } catch (error) {
+    console.error('Search error:', error);
+    res.status(500).json({ error: 'Search failed' });
+  }
+});
+
+/**
+ * GET /api/memory/duplicates
+ * Find potential duplicate memories
+ */
+router.get('/duplicates', async (req, res) => {
+  try {
+    const memory = await UserMemory.findOne({ oxyUserId: req.user!.id });
+    if (!memory) {
+      res.json({ duplicates: [], count: 0 });
+      return;
+    }
+
+    const duplicates: any[] = [];
+    for (let i = 0; i < memory.memories.length; i++) {
+      for (let j = i + 1; j < memory.memories.length; j++) {
+        const m1 = memory.memories[i];
+        const m2 = memory.memories[j];
+
+        // Exact value match with different keys
+        if (m1.value.toLowerCase() === m2.value.toLowerCase()) {
+          duplicates.push({ memory1: m1, memory2: m2, reason: 'identical_value' });
+        }
+        // Similar keys (case-insensitive match)
+        else if (m1.key.toLowerCase() === m2.key.toLowerCase() && m1.key !== m2.key) {
+          duplicates.push({ memory1: m1, memory2: m2, reason: 'similar_key' });
+        }
+      }
+    }
+
+    res.json({ duplicates, count: duplicates.length });
+  } catch (error) {
+    console.error('Duplicate detection error:', error);
+    res.status(500).json({ error: 'Failed to detect duplicates' });
+  }
+});
+
+/**
+ * GET /api/memory/export/preview
+ * Get export preview/statistics before downloading
+ */
+router.get('/export/preview', async (req, res) => {
+  try {
+    const memory = await UserMemory.findOne({ oxyUserId: req.user!.id });
+
+    if (!memory) {
+      res.json({
+        totalMemories: 0,
+        totalCategories: 0,
+        hasPreferences: false,
+        hasContext: false,
+        estimatedSizeJSON: 0,
+        estimatedSizeCSV: 0,
+        categories: [],
+        oldestMemory: null,
+        newestMemory: null,
+      });
+      return;
+    }
+
+    const categories = new Set(memory.memories.map(m => m.category || 'uncategorized'));
+
+    // Rough size estimates
+    const jsonStr = JSON.stringify(memory);
+    const csvSize = memory.memories.reduce((acc, m) =>
+      acc + m.key.length + m.value.length + 50, 0
+    );
+
+    const oldestMemory = memory.memories.reduce((oldest: Date | null, m) =>
+      !oldest || m.createdAt < oldest ? m.createdAt : oldest, null as Date | null
+    );
+
+    const newestMemory = memory.memories.reduce((newest: Date | null, m) =>
+      !newest || m.updatedAt > newest ? m.updatedAt : newest, null as Date | null
+    );
+
+    res.json({
+      totalMemories: memory.memories.length,
+      totalCategories: categories.size,
+      categories: Array.from(categories),
+      hasPreferences: Object.keys(memory.preferences || {}).length > 0,
+      hasContext: Object.keys(memory.context || {}).length > 0,
+      estimatedSizeJSON: jsonStr.length,
+      estimatedSizeCSV: csvSize,
+      oldestMemory,
+      newestMemory,
+    });
+  } catch (error) {
+    console.error('Export preview error:', error);
+    res.status(500).json({ error: 'Failed to generate preview' });
+  }
+});
+
+/**
+ * GET /api/memory/export/json
+ * Export all memory data as JSON
+ */
+router.get('/export/json', async (req, res) => {
+  try {
+    const memory = await UserMemory.findOne({ oxyUserId: req.user!.id });
+
+    if (!memory) {
+      res.status(404).json({ error: 'No memory data found' });
+      return;
+    }
+
+    // Create export object with metadata
+    const exportData = {
+      version: '1.0',
+      exportedAt: new Date().toISOString(),
+      memories: memory.memories.map(m => ({
+        key: m.key,
+        value: m.value,
+        category: m.category,
+        createdAt: m.createdAt,
+        updatedAt: m.updatedAt,
+      })),
+      preferences: memory.preferences,
+      context: memory.context,
+    };
+
+    // Set headers for download
+    res.setHeader('Content-Type', 'application/json');
+    res.setHeader('Content-Disposition', `attachment; filename="alia-memories-${Date.now()}.json"`);
+
+    res.json(exportData);
+  } catch (error) {
+    console.error('Export JSON error:', error);
+    res.status(500).json({ error: 'Failed to export memories' });
+  }
+});
+
+/**
+ * Helper function for CSV escaping
+ */
+function escapeCSV(field: string): string {
+  if (!field) return '';
+  const str = String(field);
+  if (str.includes(',') || str.includes('"') || str.includes('\n')) {
+    return `"${str.replace(/"/g, '""')}"`;
+  }
+  return str;
+}
+
+/**
+ * GET /api/memory/export/csv
+ * Export memories as CSV (memories only, not preferences/context)
+ */
+router.get('/export/csv', async (req, res) => {
+  try {
+    const memory = await UserMemory.findOne({ oxyUserId: req.user!.id });
+
+    if (!memory) {
+      res.status(404).json({ error: 'No memory data found' });
+      return;
+    }
+
+    // Generate CSV
+    const headers = ['Key', 'Value', 'Category', 'Created At', 'Updated At'];
+    const rows = memory.memories.map(m => [
+      escapeCSV(m.key),
+      escapeCSV(m.value),
+      escapeCSV(m.category || ''),
+      m.createdAt.toISOString(),
+      m.updatedAt.toISOString(),
+    ]);
+
+    const csv = [
+      headers.join(','),
+      ...rows.map(row => row.join(','))
+    ].join('\n');
+
+    // Set headers for download
+    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader('Content-Disposition', `attachment; filename="alia-memories-${Date.now()}.csv"`);
+
+    res.send(csv);
+  } catch (error) {
+    console.error('Export CSV error:', error);
+    res.status(500).json({ error: 'Failed to export memories' });
+  }
+});
+
+/**
+ * POST /api/memory/import/validate
+ * Validate import data without importing
+ */
+router.post('/import/validate', async (req, res) => {
+  try {
+    const { data } = req.body;
+
+    const validation = ImportMemorySchema.safeParse(data);
+
+    if (!validation.success) {
+      res.status(400).json({
+        valid: false,
+        errors: validation.error.issues.map(issue => ({
+          path: issue.path.join('.'),
+          message: issue.message,
+        }))
+      });
+      return;
+    }
+
+    const importData = validation.data;
+    const memory = await UserMemory.findOne({ oxyUserId: req.user!.id });
+
+    // Get user's subscription to check memory limit
+    const subscription = await Subscription.findOne({
+      oxyUserId: req.user!.id,
+      status: { $in: ['active', 'trialing'] }
+    });
+
+    const memoryLimit = getMemoryLimit(subscription?.plan?.name);
+
+    // Analyze what would happen
+    const analysis = {
+      valid: true,
+      totalToImport: importData.memories.length,
+      duplicateKeys: 0,
+      newKeys: 0,
+      categories: new Set(importData.memories.map(m => m.category || 'uncategorized')),
+      estimatedFinalTotal: (memory?.memories.length || 0),
+      memoryLimit,
+      isUnlimited: memoryLimit === -1,
+    };
+
+    if (memory) {
+      const existingKeys = new Set(memory.memories.map(m => m.key));
+      analysis.duplicateKeys = importData.memories.filter(m => existingKeys.has(m.key)).length;
+      analysis.newKeys = importData.memories.filter(m => !existingKeys.has(m.key)).length;
+      analysis.estimatedFinalTotal = memory.memories.length + analysis.newKeys;
+    } else {
+      analysis.newKeys = importData.memories.length;
+      analysis.estimatedFinalTotal = importData.memories.length;
+    }
+
+    // Check if it would exceed limits (unless unlimited)
+    if (memoryLimit !== -1 && analysis.estimatedFinalTotal > memoryLimit) {
+      res.json({
+        valid: false,
+        errors: [{
+          message: `Import would exceed memory limit (${analysis.estimatedFinalTotal} > ${memoryLimit})`,
+        }],
+        analysis: {
+          ...analysis,
+          categories: Array.from(analysis.categories),
+        },
+      });
+      return;
+    }
+
+    res.json({
+      valid: true,
+      analysis: {
+        ...analysis,
+        categories: Array.from(analysis.categories),
+      },
+    });
+
+  } catch (error) {
+    console.error('Validation error:', error);
+    res.status(500).json({ error: 'Validation failed' });
+  }
+});
+
+/**
+ * POST /api/memory/import
+ * Import memories from JSON file
+ * Body: { data: ImportData, strategy: 'replace' | 'merge' | 'skip-duplicates' }
+ */
+router.post('/import', async (req, res) => {
+  try {
+    const { data, strategy = 'merge' } = req.body;
+
+    // Validate strategy
+    const strategyValidation = MergeStrategySchema.safeParse(strategy);
+    if (!strategyValidation.success) {
+      res.status(400).json({
+        error: 'Invalid merge strategy',
+        details: strategyValidation.error.issues
+      });
+      return;
+    }
+
+    // Validate import data structure
+    const validation = ImportMemorySchema.safeParse(data);
+    if (!validation.success) {
+      res.status(400).json({
+        error: 'Invalid import data format',
+        details: validation.error.issues
+      });
+      return;
+    }
+
+    const importData = validation.data;
+
+    // Check file size (approximate)
+    const estimatedSize = JSON.stringify(importData).length;
+    const MAX_IMPORT_SIZE = 5 * 1024 * 1024; // 5MB
+    if (estimatedSize > MAX_IMPORT_SIZE) {
+      res.status(400).json({
+        error: 'Import data too large',
+        maxSize: MAX_IMPORT_SIZE,
+        actualSize: estimatedSize
+      });
+      return;
+    }
+
+    // Find or create user memory
+    let memory = await UserMemory.findOne({ oxyUserId: req.user!.id });
+    if (!memory) {
+      memory = new UserMemory({
+        oxyUserId: req.user!.id,
+        memories: [],
+        preferences: {},
+        context: {}
+      });
+    }
+
+    // Get user's subscription to check memory limit
+    const subscription = await Subscription.findOne({
+      oxyUserId: req.user!.id,
+      status: { $in: ['active', 'trialing'] }
+    });
+
+    const memoryLimit = getMemoryLimit(subscription?.plan?.name);
+
+    const stats = {
+      imported: 0,
+      updated: 0,
+      skipped: 0,
+      errors: [] as string[],
+    };
+
+    // Apply merge strategy
+    if (strategy === 'replace') {
+      // Replace all memories
+      memory.memories = importData.memories.map(m => ({
+        key: m.key,
+        value: m.value,
+        category: m.category,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      }));
+      stats.imported = importData.memories.length;
+
+      if (importData.preferences) memory.preferences = importData.preferences;
+      if (importData.context) memory.context = importData.context;
+
+    } else if (strategy === 'merge') {
+      // Merge: update existing, add new
+      for (const importMemory of importData.memories) {
+        const existingIndex = memory.memories.findIndex(m => m.key === importMemory.key);
+
+        if (existingIndex !== -1) {
+          memory.memories[existingIndex].value = importMemory.value;
+          memory.memories[existingIndex].category = importMemory.category;
+          memory.memories[existingIndex].updatedAt = new Date();
+          stats.updated++;
+        } else {
+          memory.memories.push({
+            key: importMemory.key,
+            value: importMemory.value,
+            category: importMemory.category,
+            createdAt: new Date(),
+            updatedAt: new Date(),
+          });
+          stats.imported++;
+        }
+      }
+
+      // Merge preferences and context
+      if (importData.preferences) {
+        memory.preferences = { ...memory.preferences, ...importData.preferences };
+      }
+      if (importData.context) {
+        memory.context = { ...memory.context, ...importData.context };
+      }
+
+    } else if (strategy === 'skip-duplicates') {
+      // Only add memories that don't exist
+      for (const importMemory of importData.memories) {
+        const exists = memory.memories.some(m => m.key === importMemory.key);
+
+        if (exists) {
+          stats.skipped++;
+        } else {
+          memory.memories.push({
+            key: importMemory.key,
+            value: importMemory.value,
+            category: importMemory.category,
+            createdAt: new Date(),
+            updatedAt: new Date(),
+          });
+          stats.imported++;
+        }
+      }
+    }
+
+    // Check total memory limit (unless unlimited)
+    if (memoryLimit !== -1 && memory.memories.length > memoryLimit) {
+      res.status(400).json({
+        error: 'Memory limit exceeded',
+        limit: memoryLimit,
+        current: memory.memories.length
+      });
+      return;
+    }
+
+    await memory.save();
+
+    res.json({
+      success: true,
+      stats,
+      totalMemories: memory.memories.length,
+    });
+
+  } catch (error) {
+    console.error('Import error:', error);
+    res.status(500).json({ error: 'Failed to import memories' });
   }
 });
 
