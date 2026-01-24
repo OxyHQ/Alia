@@ -59,11 +59,11 @@ function getAIModel(keyConfig: KeyConfig) {
 }
 
 /**
- * POST /v1/codea/completions
+ * POST /v1/codea/chat/completions
  * Code editor endpoint (Cursor, VS Code, etc.) that always uses alia-v1-codea model
  * OpenAI-compatible streaming API optimized for coding tasks
  */
-router.post('/', async (req: Request, res: Response) => {
+async function handleCodeaCompletions(req: Request, res: Response) {
   let creditReservation: CreditReservation | null = null;
 
   try {
@@ -325,6 +325,9 @@ router.post('/', async (req: Request, res: Response) => {
       res.end();
     }
   }
-});
+}
+
+// OpenAI-compatible path for Cursor/VS Code
+router.post('/chat/completions', handleCodeaCompletions);
 
 export default router;

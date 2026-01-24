@@ -33,6 +33,6 @@ router.use('/models', modelsRouter);
 router.use(authenticateTokenOrApiKey);
 
 router.use('/chat/completions', chatCompletionsRouter);
-router.use('/codea/completions', codeaCompletionsRouter);
+router.use('/codea', codeaCompletionsRouter);
 
 export default router;
