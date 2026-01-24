@@ -2,7 +2,7 @@ import { useState } from "react";
 import { View, Pressable } from "react-native";
 import type { ScrollView as GHScrollView } from "react-native-gesture-handler";
 import { useStore } from "@/lib/globalStore";
-import { Plus, Globe, ArrowUp, ImageIcon, MoreHorizontal, X, FileText, Ghost, Check, Search, ShoppingBag, BookOpen, ExternalLink, PenTool, Sparkles, Square } from "lucide-react-native";
+import { Plus, Globe, ArrowUp, ImageIcon, MoreHorizontal, X, FileText, Ghost, Check, Search, ShoppingBag, BookOpen, ExternalLink, PenTool, Sparkles, Square, Brain } from "lucide-react-native";
 import { useImagePicker } from "@/hooks/useImagePicker";
 import * as DocumentPicker from 'expo-document-picker';
 import { AttachmentPreview } from "@/components/attachment-preview";
@@ -84,6 +84,7 @@ export const ChatPageContent = ({
   const [searchMode, setSearchMode] = useState(false);
   const [agentMode, setAgentMode] = useState(false);
   const [ghostMode, setGhostMode] = useState(false);
+  const [thinkingMode, setThinkingMode] = useState(false);
   const [inputValue, setInputValue] = useState("");
   const [loadingImageUris, setLoadingImageUris] = useState<Set<string>>(new Set());
   const { pickImage } = useImagePicker();
@@ -227,6 +228,12 @@ export const ChatPageContent = ({
     toast.info(newValue ? 'Conversations will not be saved' : 'Conversations will be saved normally');
   };
 
+  const handleThinkingMode = () => {
+    const newValue = !thinkingMode;
+    setThinkingMode(newValue);
+    toast.info(newValue ? 'AI will show its reasoning process' : 'Thinking mode disabled');
+  };
+
   const handleAddSources = () => {
     toast.info('You can add URLs, documents, or other sources for me to reference.');
   };
@@ -316,6 +323,16 @@ export const ChatPageContent = ({
                         <Globe size={16} className={searchMode ? "text-primary-foreground" : "text-muted-foreground"} />
                       </Button>
 
+                      {thinkingMode && (
+                        <View className="h-8 rounded-full px-3 flex-row items-center gap-1.5" style={{ backgroundColor: '#a855f720' }}>
+                          <Brain size={14} color="#a855f7" />
+                          <Text className="text-xs font-medium" style={{ color: '#a855f7' }}>Thinking</Text>
+                          <Pressable onPress={handleThinkingMode} className="active:opacity-70">
+                            <X size={12} color="#a855f7" />
+                          </Pressable>
+                        </View>
+                      )}
+
                       {ghostMode && (
                         <View className="h-8 rounded-full px-3 flex-row items-center gap-1.5" style={{ backgroundColor: '#00b2ff20' }}>
                           <Ghost size={14} color="#00b2ff" />
@@ -357,6 +374,11 @@ export const ChatPageContent = ({
                         <MenuItem onPress={handleShoppingResearch}>
                           <ShoppingBag size={14} className="text-muted-foreground" />
                           <Text className="text-sm">Shopping research</Text>
+                        </MenuItem>
+                        <MenuItem onPress={handleThinkingMode}>
+                          <Brain size={14} className="text-muted-foreground" />
+                          <Text className="text-sm">Thinking mode</Text>
+                          {thinkingMode && <Check size={14} className="text-primary ml-auto" />}
                         </MenuItem>
                         <MenuItem onPress={handleGhostMode}>
                           <Ghost size={14} className="text-muted-foreground" />
