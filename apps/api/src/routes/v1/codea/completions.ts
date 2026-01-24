@@ -10,10 +10,39 @@ import { UserMemory } from '../../../models/user-memory.js';
 import { reserveCredits, finalizeCredits, type CreditReservation, type CreditUsage } from '../../../lib/credits-manager.js';
 import { getCurrentDateTool, getTimelineTool, saveUserMemoryTool, updateUserPreferencesTool, updateUserContextTool, createSendTelegramTool } from '../../../lib/tools/index.js';
 import { convertOpenAIToolsToToolSet } from '../../../lib/tool-converter.js';
+import { oxyClient } from '../../../middleware/auth.js';
 import type { KeyConfig } from '../../../lib/types.js';
 import type { IUserMemory } from '../../../models/user-memory.js';
 
 const router = Router();
+
+/**
+ * GET /v1/codea/me
+ * Get current user info for API key holder
+ */
+router.get('/me', async (req: Request, res: Response) => {
+  try {
+    if (!req.user) {
+      res.status(401).json({ error: 'Not authenticated' });
+      return;
+    }
+
+    // Get full user data from Oxy
+    const user = await oxyClient.getUserById(req.user.id) as any;
+
+    // Extract name - can be { first, last, full } or just a string
+    const name = user.name?.full || user.name?.first || user.username || null;
+
+    res.json({
+      name,
+      username: user.username || null,
+      avatar: user.avatar || null,
+    });
+  } catch (error) {
+    console.error('[Codea] Get user error:', error);
+    res.status(500).json({ error: 'Failed to get user info' });
+  }
+});
 
 /**
  * Convert OpenAI-format messages to AI SDK ModelMessage format.
@@ -266,8 +295,8 @@ async function handleCodeaCompletions(req: Request, res: Response) {
     let userMemory: IUserMemory | null = null;
     if (req.user) {
       try {
-        userMemory = await UserMemory.findById(req.user.id);
-        console.log('[Codea] User memory loaded for:', req.user.id);
+        userMemory = await UserMemory.findOne({ oxyUserId: req.user.id });
+        console.log('[Codea] User memory loaded for:', req.user.id, userMemory ? `(${userMemory.memories?.length || 0} memories)` : '(none)');
       } catch (error) {
         console.error('[Codea] Error loading user memory:', error);
       }
@@ -309,6 +338,18 @@ async function handleCodeaCompletions(req: Request, res: Response) {
     let systemMessage = 'You are Alia, an AI coding assistant. You help users write, debug, and understand code.';
 
     if (req.user) {
+      // Get user's name from Oxy
+      try {
+        const user = await oxyClient.getUserById(req.user.id) as any;
+        console.log('[Codea] User data from Oxy:', { id: req.user.id, name: user?.name, username: user?.username });
+        const userName = user?.name?.full || user?.name?.first || user?.username;
+        if (userName) {
+          systemMessage += `\n\nThe user's name is ${userName}.`;
+          console.log('[Codea] Added user name to system message:', userName);
+        }
+      } catch (e: any) {
+        console.error('[Codea] Error fetching user from Oxy:', e.message);
+      }
       systemMessage += '\n\nYou can send Telegram notifications to the user when they request it (e.g., when a task is complete).';
     }
 
@@ -347,6 +388,7 @@ async function handleCodeaCompletions(req: Request, res: Response) {
     // Convert OpenAI-format messages to AI SDK format (handles tool messages)
     const processedMessages = convertToAISDKMessages(rawMessages, toolNameMapping);
     console.log(`[Codea] Converted ${rawMessages.length} messages to AI SDK format`);
+    console.log(`[Codea] System message preview:`, rawMessages[0]?.content?.substring(0, 500));
 
     // Track token usage
     let tokenUsage: CreditUsage = {
