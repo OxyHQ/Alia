@@ -1,12 +1,11 @@
 import React, { useEffect } from 'react';
 import { View, Text } from 'react-native';
 import { useRouter } from 'expo-router';
+import Head from 'expo-router/head';
 import { AuthContainer, AuthLogo } from '@/components/auth';
 import { OxySignInButton } from '@oxyhq/services';
 import { useAuth } from '@oxyhq/services';
 import { useTranslation } from '@/hooks/useTranslation';
-import { SEOHead } from '@/components/seo/SEOHead';
-import { META_PRESETS } from '@/lib/seo/meta-tags';
 
 export default function RegisterScreen() {
   const router = useRouter();
@@ -33,7 +32,11 @@ export default function RegisterScreen() {
 
   return (
     <>
-      <SEOHead {...META_PRESETS.register} />
+      <Head>
+        <title>Sign Up</title>
+        <meta name="description" content="Create your free Alia account. No credit card required." />
+        <link rel="canonical" href="https://alia.onl/register" />
+      </Head>
       <AuthContainer>
         <AuthLogo />
 

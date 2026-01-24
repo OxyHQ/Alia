@@ -1,5 +1,5 @@
 /**
- * Generador automático de sitemap.xml para Alia by Oxy
+ * Generador automático de sitemap.xml para Alia
  * Ejecutar: npm run generate-sitemap
  */
 
@@ -20,7 +20,7 @@ interface SitemapURL {
   priority: number;
 }
 
-// Rutas estáticas con configuración SEO
+// Rutas estáticas existentes
 const staticRoutes: SitemapURL[] = [
   {
     loc: '/',
@@ -29,22 +29,10 @@ const staticRoutes: SitemapURL[] = [
     priority: 1.0,
   },
   {
-    loc: '/login',
-    lastmod: CURRENT_DATE,
-    changefreq: 'monthly',
-    priority: 0.6,
-  },
-  {
     loc: '/register',
     lastmod: CURRENT_DATE,
     changefreq: 'monthly',
     priority: 0.8,
-  },
-  {
-    loc: '/forgot-password',
-    lastmod: CURRENT_DATE,
-    changefreq: 'yearly',
-    priority: 0.3,
   },
   {
     loc: '/library',
@@ -57,30 +45,6 @@ const staticRoutes: SitemapURL[] = [
     lastmod: CURRENT_DATE,
     changefreq: 'weekly',
     priority: 0.7,
-  },
-  {
-    loc: '/billing',
-    lastmod: CURRENT_DATE,
-    changefreq: 'monthly',
-    priority: 0.5,
-  },
-  {
-    loc: '/settings',
-    lastmod: CURRENT_DATE,
-    changefreq: 'monthly',
-    priority: 0.4,
-  },
-  {
-    loc: '/settings/account',
-    lastmod: CURRENT_DATE,
-    changefreq: 'monthly',
-    priority: 0.4,
-  },
-  {
-    loc: '/settings/memory',
-    lastmod: CURRENT_DATE,
-    changefreq: 'monthly',
-    priority: 0.4,
   },
   {
     loc: '/developers',
@@ -100,95 +64,7 @@ const staticRoutes: SitemapURL[] = [
     changefreq: 'weekly',
     priority: 0.8,
   },
-  // Nuevas landing pages SEO (crear después)
-  {
-    loc: '/ai-chat',
-    lastmod: CURRENT_DATE,
-    changefreq: 'weekly',
-    priority: 0.95,
-  },
-  {
-    loc: '/chatbot-ai',
-    lastmod: CURRENT_DATE,
-    changefreq: 'weekly',
-    priority: 0.95,
-  },
-  {
-    loc: '/ai-assistant',
-    lastmod: CURRENT_DATE,
-    changefreq: 'weekly',
-    priority: 0.95,
-  },
-  {
-    loc: '/features',
-    lastmod: CURRENT_DATE,
-    changefreq: 'weekly',
-    priority: 0.9,
-  },
-  {
-    loc: '/use-cases',
-    lastmod: CURRENT_DATE,
-    changefreq: 'weekly',
-    priority: 0.85,
-  },
-  {
-    loc: '/pricing',
-    lastmod: CURRENT_DATE,
-    changefreq: 'monthly',
-    priority: 0.9,
-  },
-  {
-    loc: '/vs/chatgpt',
-    lastmod: CURRENT_DATE,
-    changefreq: 'weekly',
-    priority: 0.85,
-  },
-  {
-    loc: '/vs/claude',
-    lastmod: CURRENT_DATE,
-    changefreq: 'weekly',
-    priority: 0.85,
-  },
-  {
-    loc: '/vs/gemini',
-    lastmod: CURRENT_DATE,
-    changefreq: 'weekly',
-    priority: 0.85,
-  },
-  {
-    loc: '/blog',
-    lastmod: CURRENT_DATE,
-    changefreq: 'daily',
-    priority: 0.9,
-  },
 ];
-
-// Función para obtener rutas dinámicas desde API (ejemplo)
-async function getDynamicRoutes(): Promise<SitemapURL[]> {
-  // TODO: Integrar con tu API para obtener:
-  // - IDs de conversaciones públicas
-  // - Roles populares con /roles/[id]
-  // - Posts del blog con /blog/[slug]
-  //
-  // Ejemplo:
-  // const response = await fetch(`${SITE_URL}/api/public-content`);
-  // const data = await response.json();
-
-  const dynamicRoutes: SitemapURL[] = [];
-
-  // Ejemplo: rutas de roles populares
-  const popularRoleIds = ['coding-assistant', 'spanish-tutor', 'content-writer'];
-  popularRoleIds.forEach(id => {
-    dynamicRoutes.push({
-      loc: `/roles/${id}`,
-      lastmod: CURRENT_DATE,
-      changefreq: 'weekly',
-      priority: 0.75,
-    });
-  });
-
-  return dynamicRoutes;
-}
 
 function generateSitemapXML(urls: SitemapURL[]): string {
   const urlEntries = urls
@@ -209,33 +85,26 @@ function generateSitemapXML(urls: SitemapURL[]): string {
 }
 
 async function generateSitemap() {
-  console.log('🗺️  Generando sitemap.xml para Alia by Oxy...');
+  console.log('🗺️  Generating sitemap.xml for Alia...');
 
-  // Combinar rutas estáticas y dinámicas
-  const dynamicRoutes = await getDynamicRoutes();
-  const allRoutes = [...staticRoutes, ...dynamicRoutes];
+  const sitemapXML = generateSitemapXML(staticRoutes);
 
-  // Generar XML
-  const sitemapXML = generateSitemapXML(allRoutes);
-
-  // Guardar en /public y /dist
+  // Save to /public
   const publicPath = path.resolve(__dirname, '../public/sitemap.xml');
-  const distPath = path.resolve(__dirname, '../dist/sitemap.xml');
-
   fs.writeFileSync(publicPath, sitemapXML, 'utf-8');
-  console.log(`✅ Sitemap generado en: ${publicPath}`);
+  console.log(`✅ Sitemap generated: ${publicPath}`);
 
-  // Crear directorio dist si no existe
+  // Also save to /dist if it exists
+  const distPath = path.resolve(__dirname, '../dist/sitemap.xml');
   const distDir = path.dirname(distPath);
-  if (!fs.existsSync(distDir)) {
-    fs.mkdirSync(distDir, { recursive: true });
+  if (fs.existsSync(distDir)) {
+    fs.writeFileSync(distPath, sitemapXML, 'utf-8');
+    console.log(`✅ Sitemap copied to: ${distPath}`);
   }
-  fs.writeFileSync(distPath, sitemapXML, 'utf-8');
-  console.log(`✅ Sitemap copiado a: ${distPath}`);
 
-  console.log(`\n📊 Total de URLs en sitemap: ${allRoutes.length}`);
-  console.log('🎉 Sitemap generado exitosamente!');
+  console.log(`\n📊 Total URLs in sitemap: ${staticRoutes.length}`);
+  console.log('🎉 Sitemap generated successfully!');
 }
 
-// Ejecutar
+// Execute
 generateSitemap().catch(console.error);
