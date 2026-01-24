@@ -106,12 +106,17 @@ router.get('/:id', authenticateToken, async (req: Request, res: Response) => {
       return res.status(404).json({ error: 'Conversation not found' });
     }
 
+    // Filter out any invalid messages
+    const validMessages = (conversation.messages || []).filter(msg =>
+      msg != null && msg.role && msg.content !== undefined
+    );
+
     res.json({
       id: conversation.conversationId,
       title: conversation.title,
       lastMessage: conversation.lastMessage,
       source: conversation.source || 'app',
-      messages: conversation.messages,
+      messages: validMessages,
       createdAt: conversation.createdAt,
       updatedAt: conversation.updatedAt
     });
@@ -134,16 +139,21 @@ router.post('/', authenticateToken, async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'Invalid request body' });
     }
 
-    // Generate lastMessage from the last message
-    const lastMessage = messages.length > 0
-      ? messages[messages.length - 1].content?.slice(0, 100)
+    // Filter out any invalid messages before saving
+    const validMessages = messages.filter(msg =>
+      msg != null && msg.role && msg.content !== undefined
+    );
+
+    // Generate lastMessage from the last valid message
+    const lastMessage = validMessages.length > 0
+      ? validMessages[validMessages.length - 1].content?.slice(0, 100)
       : undefined;
 
     // Build update object
     const updateData: Record<string, any> = {
-      title: title || messages.find((m: any) => m.role === 'user')?.content?.slice(0, 50) || 'Nueva conversación',
+      title: title || validMessages.find((m: any) => m.role === 'user')?.content?.slice(0, 50) || 'Nueva conversación',
       lastMessage,
-      messages,
+      messages: validMessages,
       updatedAt: new Date()
     };
 
