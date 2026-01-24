@@ -96,7 +96,7 @@ export async function reserveCredits(
           }
         }
       ],
-      { new: true, runValidators: false }
+      { new: true, runValidators: false, updatePipeline: true }
     );
 
     if (!reserveResult) {
@@ -186,7 +186,7 @@ export async function finalizeCredits(
               }
             }
           ],
-          { new: true, runValidators: false }
+          { new: true, runValidators: false, updatePipeline: true }
         );
 
         if (!updatedCredits) {
