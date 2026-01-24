@@ -21,6 +21,7 @@ import billingRouter from './routes/billing.js';
 import organizationRouter from './routes/organization.js';
 import canvasRouter from './routes/canvas/index.js';
 import feedbackRouter from './routes/feedback.js';
+import activitypubRouter from './routes/activitypub/index.js';
 
 // Fix for ES Modules __dirname
 const __filename = fileURLToPath(import.meta.url);
@@ -83,6 +84,9 @@ app.use('/organization', organizationRouter);
 app.use('/feedback', feedbackRouter);
 app.use('/api', canvasRouter);
 
+// ActivityPub routes (must be before root route)
+app.use('/', activitypubRouter);
+
 // Ruta raíz
 app.get('/', (_req, res) => {
   res.json({
@@ -101,8 +105,15 @@ app.get('/', (_req, res) => {
       '/developer',
       '/billing',
       '/organization',
-      '/feedback'
-    ]
+      '/feedback',
+      '/.well-known/webfinger',
+      '/actors/alia',
+      '/@alia'
+    ],
+    activitypub: {
+      actor: '@alia@' + (process.env.ACTIVITYPUB_DOMAIN || 'alia.onl'),
+      webfinger: '/.well-known/webfinger?resource=acct:alia@' + (process.env.ACTIVITYPUB_DOMAIN || 'alia.onl'),
+    }
   });
 });
 

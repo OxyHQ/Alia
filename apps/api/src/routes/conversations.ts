@@ -39,27 +39,50 @@ router.post('/new', authenticateToken, async (req: Request, res: Response) => {
   }
 });
 
-// Get all conversations for the authenticated user
+// Get all conversations for the authenticated user with cursor-based pagination
 router.get('/', authenticateToken, async (req: Request, res: Response) => {
   try {
     if (!req.user?.id) {
       return res.status(401).json({ error: 'Unauthorized' });
     }
 
-    const conversations = await Conversation.find({ oxyUserId: req.user.id })
+    // Pagination parameters
+    const limit = Math.min(parseInt(req.query.limit as string) || 20, 50); // Max 50 per request
+    const cursor = req.query.cursor as string | undefined; // ISO date string
+
+    // Build query
+    const query: any = { oxyUserId: req.user.id };
+
+    // If cursor provided, only get conversations older than cursor
+    if (cursor) {
+      query.updatedAt = { $lt: new Date(cursor) };
+    }
+
+    const conversations = await Conversation.find(query)
       .select('conversationId title lastMessage source createdAt updatedAt')
       .sort({ updatedAt: -1 })
-      .limit(100); // Limit to last 100 conversations
+      .limit(limit + 1); // Fetch one extra to determine if there are more
+
+    // Check if there are more results
+    const hasMore = conversations.length > limit;
+    const results = hasMore ? conversations.slice(0, limit) : conversations;
+
+    // Next cursor is the updatedAt of the last conversation
+    const nextCursor = hasMore && results.length > 0
+      ? results[results.length - 1].updatedAt.toISOString()
+      : null;
 
     res.json({
-      conversations: conversations.map(c => ({
+      conversations: results.map(c => ({
         id: c.conversationId,
         title: c.title,
         lastMessage: c.lastMessage,
         source: c.source || 'app',
         createdAt: c.createdAt,
         updatedAt: c.updatedAt
-      }))
+      })),
+      nextCursor,
+      hasMore
     });
   } catch (error) {
     console.error('Error fetching conversations:', error);
