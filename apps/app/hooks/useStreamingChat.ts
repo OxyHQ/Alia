@@ -206,6 +206,23 @@ Use this role to guide your responses, maintaining the specified tone, style, an
             try {
               const parsed = JSON.parse(data);
 
+              // Handle thinking deltas (extended thinking mode)
+              if (parsed.type === 'thinking-delta' && parsed.text) {
+                // Update assistant message with thinking content (shown separately in UI)
+                setMessages((prev) => {
+                  const updated = [...prev];
+                  const lastMessage = updated[updated.length - 1];
+                  if (lastMessage.role === 'assistant') {
+                    const currentThinking = (lastMessage as any).thinking || '';
+                    updated[updated.length - 1] = {
+                      ...lastMessage,
+                      thinking: currentThinking + parsed.text,
+                    } as any;
+                  }
+                  return updated;
+                });
+              }
+
               // Handle text deltas
               if (parsed.type === 'text-delta' && parsed.text) {
                 fullContent += parsed.text;

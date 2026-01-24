@@ -9,6 +9,7 @@ import { UserCredits } from '../../../models/user-credits.js';
 import { UserMemory } from '../../../models/user-memory.js';
 import { reserveCredits, finalizeCredits, type CreditReservation, type CreditUsage } from '../../../lib/credits-manager.js';
 import { getCurrentDateTool, getTimelineTool, saveUserMemoryTool, updateUserPreferencesTool, updateUserContextTool, createSendTelegramTool } from '../../../lib/tools/index.js';
+import { convertOpenAIToolsToToolSet } from '../../../lib/tool-converter.js';
 import type { KeyConfig } from '../../../lib/types.js';
 import type { IUserMemory } from '../../../models/user-memory.js';
 
@@ -157,8 +158,10 @@ async function handleCodeaCompletions(req: Request, res: Response) {
       } : {}),
     };
 
-    // Combine with editor tools if provided
-    const editorTools = body.tools || {};
+    // Convert editor tools from OpenAI format and sanitize names for Google compatibility
+    // Track name mapping to restore original names in responses
+    const toolNameMapping = new Map<string, string>();
+    const editorTools = Array.isArray(body.tools) ? convertOpenAIToolsToToolSet(body.tools, toolNameMapping) : {};
     const allTools = { ...aliaTools, ...editorTools };
 
     // Build system message with user context
@@ -252,6 +255,8 @@ async function handleCodeaCompletions(req: Request, res: Response) {
         };
         res.write(`data: ${JSON.stringify(openAIChunk)}\n\n`);
       } else if (chunk.type === 'tool-call') {
+        // Restore original tool name if it was sanitized
+        const originalToolName = toolNameMapping.get(chunk.toolName) || chunk.toolName;
         const toolCallChunk = {
           id: `chatcmpl-${Date.now()}`,
           object: 'chat.completion.chunk',
@@ -265,7 +270,7 @@ async function handleCodeaCompletions(req: Request, res: Response) {
                 id: chunk.toolCallId,
                 type: 'function',
                 function: {
-                  name: chunk.toolName,
+                  name: originalToolName,
                   arguments: JSON.stringify(chunk.input || {})
                 }
               }]

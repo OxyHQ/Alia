@@ -10,6 +10,7 @@ const ChatConversationPage = () => {
 
   const [selectedModel, setSelectedModel] = useState("alia-v1");
   const [activeRoleId, setActiveRoleId] = useState<string | undefined>(roleId);
+  const [thinkingMode, setThinkingMode] = useState(false);
   const activeRole = activeRoleId ? roles.find(r => r.id === activeRoleId) : undefined;
 
   const {
@@ -19,7 +20,7 @@ const ChatConversationPage = () => {
     sendMessage,
     editMessage,
     stopGeneration,
-  } = useChatConversation({ conversationId: id, activeRole });
+  } = useChatConversation({ conversationId: id, activeRole, thinkingMode });
 
   return (
     <ChatPageContent
@@ -34,6 +35,8 @@ const ChatConversationPage = () => {
       onModelChange={setSelectedModel}
       activeRole={activeRole}
       onRemoveRole={() => setActiveRoleId(undefined)}
+      thinkingMode={thinkingMode}
+      onThinkingModeChange={setThinkingMode}
     />
   );
 };
