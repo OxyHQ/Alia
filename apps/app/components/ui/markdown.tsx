@@ -46,32 +46,32 @@ const Div = cssInterop(ExpoDiv, { className: "style" });
 
 const rules = {
   heading1: (node: any, children: any) => (
-    <H1 className="mb-2 mt-4 text-xl font-bold text-foreground leading-tight">{children}</H1>
+    <H1 className="mb-2 mt-3 text-lg font-semibold text-foreground leading-snug">{children}</H1>
   ),
   heading2: (node: any, children: any) => (
-    <H2 className="mb-2 mt-3 text-lg font-bold text-foreground leading-tight">{children}</H2>
+    <H2 className="mb-2 mt-3 text-base font-semibold text-foreground leading-snug">{children}</H2>
   ),
   heading3: (node: any, children: any) => (
-    <H3 className="mb-1.5 mt-3 text-base font-semibold text-foreground leading-tight">{children}</H3>
+    <H3 className="mb-1.5 mt-2 text-base font-semibold text-foreground leading-snug">{children}</H3>
   ),
   heading4: (node: any, children: any) => (
-    <H4 className="mb-1.5 mt-2 text-base font-semibold text-foreground leading-snug">{children}</H4>
+    <H4 className="mb-1.5 mt-2 text-base font-medium text-foreground leading-snug">{children}</H4>
   ),
   heading5: (node: any, children: any) => (
-    <H5 className="mb-1 mt-2 text-sm font-semibold text-foreground leading-snug">{children}</H5>
+    <H5 className="mb-1 mt-2 text-base font-medium text-foreground leading-snug">{children}</H5>
   ),
   heading6: (node: any, children: any) => (
-    <H6 className="mb-1 mt-2 text-sm font-semibold text-foreground leading-snug">{children}</H6>
+    <H6 className="mb-1 mt-2 text-base font-medium text-foreground leading-snug">{children}</H6>
   ),
   code: (node: any, children: any, parent: any) => {
     return parent.length > 1 ? (
-      <Pre className="my-2 max-w-full overflow-x-auto rounded-lg bg-zinc-100 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 p-3 text-sm text-foreground">
+      <Pre className="my-2 max-w-full overflow-x-auto rounded-md bg-zinc-100 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 p-3 text-[13px] text-foreground">
         <Code className="text-foreground font-mono">{children}</Code>
       </Pre>
     ) : (
       <Code
-        className="bg-zinc-200 dark:bg-zinc-700 px-1.5 py-0.5 text-sm text-foreground font-mono"
-        style={{ borderRadius: 4 }}
+        className="bg-zinc-100 dark:bg-zinc-800 px-1 py-px text-[13px] text-foreground font-mono"
+        style={{ borderRadius: 3 }}
       >
         {children}
       </Code>
