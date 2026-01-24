@@ -66,8 +66,14 @@ function getAIModel(keyConfig: KeyConfig) {
 }
 
 // Function to build personalized system prompt
-function buildSystemPrompt(oxyUser?: OxyUser | null, memory?: IUserMemory | null, isTelegram: boolean = false): string {
-  let prompt = isTelegram ? ALIA_TELEGRAM_PROMPT : ALIA_SYSTEM_PROMPT;
+function buildSystemPrompt(oxyUser?: OxyUser | null, memory?: IUserMemory | null, platform: 'app' | 'telegram' | 'mastodon' = 'app'): string {
+  let prompt = ALIA_SYSTEM_PROMPT;
+
+  if (platform === 'telegram') {
+    prompt = ALIA_TELEGRAM_PROMPT;
+  } else if (platform === 'mastodon') {
+    prompt = ALIA_MASTODON_PROMPT;
+  }
 
   const userContext: string[] = [];
 
@@ -129,6 +135,27 @@ function buildSystemPrompt(oxyUser?: OxyUser | null, memory?: IUserMemory | null
 
   return prompt;
 }
+
+// Mastodon-specific system prompt (concise, plain text)
+const ALIA_MASTODON_PROMPT = `You are Alia, an AI assistant responding on Mastodon (@alia@alia.onl). You connect users to powerful AI models.
+
+**CRITICAL CONSTRAINTS**:
+- Keep responses UNDER 450 characters (Mastodon limit is 500)
+- Use plain text only (no markdown, no special formatting)
+- Be concise and direct
+- One idea per response
+
+**Language Rule**: ALWAYS respond in the same language the user writes.
+
+**Personality**: Friendly, conversational, helpful. Avoid excessive punctuation or emojis.
+
+**Tools**:
+- \`getCurrentDate\`: Get current date/time
+- \`googleSearch\`: Search the web
+- \`scrapeURL\`: Read link contents
+
+**Workflow**: Get to the point quickly. If answer is long, summarize key points. Always be helpful but brief.
+`;
 
 // Telegram-specific system prompt (simplified, no visual components)
 const ALIA_TELEGRAM_PROMPT = `You are Alia, the AI assistant for Alia AI platform. You connect users to powerful AI models (Gemini, Claude, GPT-4, etc).
@@ -219,11 +246,12 @@ router.post('/', optionalAuth, async (req, res) => {
     }
 
     // Determine source platform from headers
-    // x-source header can be: app, telegram, api, web, discord, whatsapp, slack
-    // Platform type only supports 'app' | 'telegram' for message processing
+    // x-source header can be: app, telegram, mastodon, api, web, discord, whatsapp, slack
+    // Platform type supports 'app' | 'telegram' | 'mastodon' for message processing
     const sourceHeader = req.headers['x-source'] as string | undefined;
     const isTelegram = req.headers['x-telegram-bot'] === 'true';
-    const platform: 'app' | 'telegram' = sourceHeader === 'telegram' || isTelegram ? 'telegram' : 'app';
+    const isMastodon = sourceHeader === 'mastodon';
+    const platform: 'app' | 'telegram' | 'mastodon' = isMastodon ? 'mastodon' : (sourceHeader === 'telegram' || isTelegram ? 'telegram' : 'app');
 
     // Process incoming messages to remove platform-incompatible tags
     // This saves tokens by not sending irrelevant formatting to the AI
@@ -347,7 +375,7 @@ router.post('/', optionalAuth, async (req, res) => {
     }
 
     // Build personalized system prompt
-    const systemPrompt = buildSystemPrompt(oxyUser, memory, isTelegram);
+    const systemPrompt = buildSystemPrompt(oxyUser, memory, platform);
 
     // Set headers for SSE streaming
     res.setHeader('Content-Type', 'text/event-stream');
