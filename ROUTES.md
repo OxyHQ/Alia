@@ -87,9 +87,9 @@ data: [DONE]
 
 ---
 
-### `POST /v1/cursor/completions`
+### `POST /v1/codea/completions`
 
-**Descripción**: Endpoint específico para Cursor que **siempre** usa `alia-v1-codea`.
+**Descripción**: Endpoint para editores de código (Cursor, VS Code, etc.) que **siempre** usa `alia-v1-codea`.
 
 **Autenticación**: Requerida (via `authenticateTokenOrApiKey`)
 
@@ -98,18 +98,30 @@ data: [DONE]
 - ✅ Streaming SSE
 - ✅ **Forzado a usar `alia-v1-codea`** (optimizado para código)
 - ✅ Cobro de créditos con multiplicador 1.5x
-- ❌ Sin herramientas
-- ❌ Sin personalización
+- ✅ Soporta tools del editor (function calling)
+- ✅ Herramientas internas de Alia (memoria, timeline, Telegram)
+- ✅ Personalización basada en perfil de usuario
 
 **Parámetros del Body**:
 ```json
 {
   "messages": [...],
-  "temperature": 0.7 // Opcional
+  "temperature": 0.7, // Opcional
+  "max_tokens": 4096, // Opcional
+  "tools": [...] // Opcional: tools del editor
 }
 ```
 
 **Nota**: El parámetro `model` se **ignora**. Siempre usa `alia-v1-codea`.
+
+**Herramientas Disponibles**:
+- Tools del editor (pasadas en el request)
+- `getCurrentDate` - Obtener fecha/hora actual
+- `getTimeline` - Ver eventos recientes del usuario
+- `saveUserMemory` - Guardar información del usuario
+- `updateUserPreferences` - Actualizar preferencias de código
+- `updateUserContext` - Actualizar contexto del usuario
+- `sendTelegram` - Enviar notificaciones por Telegram
 
 **Respuesta**: Igual que `/v1/chat/completions` pero con `model: "alia-v1-codea"`
 
