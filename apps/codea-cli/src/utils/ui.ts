@@ -45,7 +45,7 @@ export function printBanner(): void {
     }
     console.log(coloredLine);
   });
-  console.log(chalk.gray('  AI Coding Assistant by Alia'));
+  console.log(chalk.gray('  by Alia'));
   console.log();
 }
 
