@@ -5,8 +5,8 @@
 La API de Alia tiene tres tipos de endpoints principales:
 
 1. **Chat Interno** (`/alia/chat`) - Para la app de Alia con herramientas y personalización
-2. **API de Desarrolladores** (`/v1/*`) - OpenAI-compatible para uso externo
-3. **API Cursor** (`/v1/cursor/completions`) - Específica para Cursor, siempre usa `alia-v1-codea`
+2. **API de Desarrolladores** (`/v1/chat/completions`) - OpenAI-compatible para uso externo
+3. **API para Editores de Código** (`/v1/codea/completions`) - Para Cursor, VS Code, etc. - siempre usa `alia-v1-codea`
 
 ---
 
