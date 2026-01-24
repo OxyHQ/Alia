@@ -82,8 +82,8 @@ export class CodeaChatViewProvider implements vscode.WebviewViewProvider {
 
     try {
       const userInfo = await this.fetchUserInfo(baseUrl, apiKey);
-      // API returns full user object with name: { first, last, full }
-      this._userName = userInfo?.name?.first || userInfo?.username || null;
+      // API returns full user object - use same fallback chain as app
+      this._userName = userInfo?.name?.first || userInfo?.username || userInfo?.email?.split('@')[0] || null;
       this._view?.webview.postMessage({ type: 'userInfo', userName: this._userName });
     } catch (error) {
       this._view?.webview.postMessage({ type: 'userInfo', userName: null });
