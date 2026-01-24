@@ -830,6 +830,7 @@ export const Sidebar = React.memo(function Sidebar() {
             </View>
         </View>
       </View>
+      </View>
 
       {/* Footer with User or Auth Buttons */}
       <View className="border-t border-border/50 p-3 md:p-2">
