@@ -1,12 +1,9 @@
 import { useState } from "react";
 import { useLocalSearchParams } from "expo-router";
+import Head from "expo-router/head";
 import { useRolesStore } from "@/lib/stores/roles-store";
 import { useChatConversation } from "@/hooks/useChatConversation";
 import { ChatPageContent } from "@/components/chat-page-content";
-import { SEOHead } from "@/components/seo/SEOHead";
-import { StructuredData } from "@/components/seo/StructuredData";
-import { META_PRESETS } from "@/lib/seo/meta-tags";
-import { STRUCTURED_DATA_PRESETS } from "@/lib/seo/structured-data";
 
 const ChatPage = () => {
   const { roleId } = useLocalSearchParams<{ roleId?: string }>();
@@ -26,9 +23,14 @@ const ChatPage = () => {
 
   return (
     <>
-      <SEOHead {...META_PRESETS.home}>
-        <StructuredData data={STRUCTURED_DATA_PRESETS.homepage} />
-      </SEOHead>
+      <Head>
+        <title>Alia \ Oxy</title>
+        <meta name="description" content="Meet Alia, your intelligent AI assistant. Chat naturally, remember everything, and switch between the best AI models seamlessly." />
+        <link rel="canonical" href="https://alia.onl/" />
+        <meta property="og:title" content="Alia \ Oxy" />
+        <meta property="og:description" content="Meet Alia, your intelligent AI assistant. Chat naturally, remember everything, and switch between the best AI models seamlessly." />
+        <meta property="og:image" content="https://alia.onl/og-image-default.png" />
+      </Head>
       <ChatPageContent
         messages={messages}
         scrollViewRef={scrollViewRef}

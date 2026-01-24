@@ -1,13 +1,12 @@
 import React from 'react';
 import { View, Text } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
+import Head from 'expo-router/head';
 import { AuthContainer, AuthLogo } from '@/components/auth';
 import { OxySignInButton } from '@oxyhq/services';
 import { useAuth } from '@oxyhq/services';
 import { useEffect } from 'react';
 import { useTranslation } from '@/hooks/useTranslation';
-import { SEOHead } from '@/components/seo/SEOHead';
-import { META_PRESETS } from '@/lib/seo/meta-tags';
 
 export default function LoginScreen() {
   const router = useRouter();
@@ -39,7 +38,11 @@ export default function LoginScreen() {
 
   return (
     <>
-      <SEOHead {...META_PRESETS.login} />
+      <Head>
+        <title>Login</title>
+        <meta name="description" content="Sign in to Alia" />
+        <meta name="robots" content="noindex, nofollow" />
+      </Head>
       <AuthContainer>
         <AuthLogo />
 
