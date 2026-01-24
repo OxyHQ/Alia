@@ -1,6 +1,7 @@
 import React from "react";
-import { View, Pressable, ScrollView } from "react-native";
+import { View, Pressable, ActivityIndicator } from "react-native";
 import { Image } from "expo-image";
+import { FlashList } from "@shopify/flash-list";
 import { Text } from "@/components/ui/text";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -49,7 +50,12 @@ import { useAuth } from "@oxyhq/services";
 import { useProjectsStore } from "@/lib/stores/projects-store";
 import { useFoldersStore } from "@/lib/stores/folders-store";
 import { useFavoritesStore } from "@/lib/stores/favorites-store";
-import { useConversations, useDeleteConversation } from "@/lib/hooks/use-conversations";
+import { useConversations, useDeleteConversation, type Conversation } from "@/lib/hooks/use-conversations";
+import {
+  groupConversationsByDate,
+  flattenGroupedConversations,
+  type ConversationListItem,
+} from "@/lib/utils/conversation-grouping";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -84,8 +90,19 @@ export const Sidebar = React.memo(function Sidebar() {
   const router = useRouter();
   // Use selectors to avoid worklet serialization issues
   const chatId = useStore((state) => state.chatId);
-  const { data: conversations = [] } = useConversations();
+  const {
+    data,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+    isLoading,
+  } = useConversations();
   const deleteConversationMutation = useDeleteConversation();
+
+  // Flatten all pages into a single array
+  const allConversations = React.useMemo(() => {
+    return data?.pages.flatMap(page => page.conversations) || [];
+  }, [data]);
   const { user, isAuthenticated, logout } = useAuth();
   const projects = useProjectsStore((state) => state.projects);
   const currentProjectId = useProjectsStore((state) => state.currentProjectId);
@@ -114,6 +131,21 @@ export const Sidebar = React.memo(function Sidebar() {
   const [editingFolder, setEditingFolder] = React.useState<FolderType | null>(null);
   const [projectsCollapsed, setProjectsCollapsed] = React.useState(false);
   const [historyCollapsed, setHistoryCollapsed] = React.useState(false);
+
+  // Group and flatten conversations for display
+  const conversationsNotInProjects = React.useMemo(() => {
+    return allConversations.filter((conv) =>
+      !projects.some((p) => p.conversationIds.includes(conv.id))
+    );
+  }, [allConversations, projects]);
+
+  const groupedConversations = React.useMemo(() => {
+    return groupConversationsByDate(conversationsNotInProjects);
+  }, [conversationsNotInProjects]);
+
+  const flattenedConversations = React.useMemo(() => {
+    return flattenGroupedConversations(groupedConversations);
+  }, [groupedConversations]);
 
   const handleNewChat = React.useCallback(() => {
     // Navigate to home page
@@ -335,6 +367,74 @@ export const Sidebar = React.memo(function Sidebar() {
     return user.username || "User";
   }, [user]);
 
+  // Render item for FlashList
+  const renderHistoryItem = React.useCallback(({ item }: { item: ConversationListItem }) => {
+    if (item.type === 'header') {
+      return (
+        <View style={{ paddingHorizontal: 8, paddingVertical: 8, marginTop: 8 }}>
+          <Text style={{ fontSize: 12, fontWeight: '600', color: '#9ca3af', textTransform: 'uppercase', letterSpacing: 0.5 }}>
+            {item.group}
+          </Text>
+        </View>
+      );
+    }
+
+    // Render conversation
+    const conv = item.conversation!;
+    const convProject = getConversationProject(conv.id);
+    const convFolder = getConversationFolder(conv.id);
+    const isConvFavorite = favoriteConversationIds.includes(conv.id);
+    const isActive = chatId?.id === conv.id;
+
+    return (
+      <View
+        style={{
+          flexDirection: 'row',
+          alignItems: 'center',
+          gap: 4,
+          borderRadius: 9999,
+          backgroundColor: isActive ? '#f3f4f6' : 'transparent',
+          borderWidth: isActive ? 1 : 0,
+          borderColor: isActive ? '#e5e7eb' : 'transparent',
+        }}
+      >
+        <Pressable
+          onPress={() => handleSelectConversation(conv.id)}
+          style={{
+            flex: 1,
+            flexDirection: 'row',
+            alignItems: 'center',
+            gap: 8,
+            paddingVertical: 10,
+            paddingLeft: 12,
+            paddingRight: 4,
+            borderRadius: 9999,
+          }}
+        >
+          <MessageSquare
+            size={16}
+            color={isActive ? '#3b82f6' : '#6b7280'}
+          />
+          <Text
+            style={{
+              flex: 1,
+              fontSize: 14,
+              color: '#1f2937',
+              fontWeight: isActive ? '500' : '400',
+            }}
+            numberOfLines={1}
+          >
+            {conv.title || "New conversation"}
+          </Text>
+          {isConvFavorite && (
+            <StarIcon size={12} color="#f59e0b" fill="#f59e0b" />
+          )}
+        </Pressable>
+        {renderConversationMenu(conv, convProject, convFolder)}
+      </View>
+    );
+  }, [chatId, favoriteConversationIds, handleSelectConversation, getConversationProject, getConversationFolder, renderConversationMenu]);
+
   // Helper function to render conversation menu
   const renderConversationMenu = (
     conv: any,
@@ -478,10 +578,10 @@ export const Sidebar = React.memo(function Sidebar() {
         </Button>
       </View>
 
-      {/* Scrollable Content */}
-      <ScrollView showsVerticalScrollIndicator={false} className="flex-1">
+      {/* Scrollable Content - Static sections */}
+      <View className="flex-1">
         {/* Navigation Links */}
-        <View className="px-3 md:px-2 pb-3 md:pb-2 gap-1">
+        <View className="px-3 md:px-2 pb-3 md:pb-2 pt-3 md:pt-2 gap-1">
         <Button
           variant="ghost"
           className="h-10 md:h-8 flex-row items-center justify-start gap-2 rounded-full px-3 md:px-2 w-full"
@@ -562,7 +662,7 @@ export const Sidebar = React.memo(function Sidebar() {
                 ) : (
                   projects.map((project) => {
                   const ProjectIcon = ICON_MAP[project.icon || "FolderOpen"] || FolderOpen;
-                  const projectConversations = conversations.filter((conv) =>
+                  const projectConversations = allConversations.filter((conv) =>
                     project.conversationIds.includes(conv.id)
                   );
 
@@ -697,213 +797,39 @@ export const Sidebar = React.memo(function Sidebar() {
                 </Pressable>
               </View>
               {!historyCollapsed && (
-                <View className="gap-1">
-                {(() => {
-                  // Get conversations not in any project
-                  const conversationsNotInProjects = conversations.filter((conv) =>
-                    !projects.some((p) => p.conversationIds.includes(conv.id))
-                  );
-
-                  // Separate non-project conversations into folders and standalone
-                  const conversationsInFolders = new Set<string>();
-                  const foldersToShow = folders.map((folder) => {
-                    const folderConversations = conversationsNotInProjects.filter((conv) =>
-                      folder.conversationIds.includes(conv.id)
-                    );
-                    folderConversations.forEach((conv) => conversationsInFolders.add(conv.id));
-                    return { folder, conversations: folderConversations };
-                  }).filter((f) => f.conversations.length > 0 || true);
-
-                  const standaloneConversations = conversationsNotInProjects.filter(
-                    (conv) => !conversationsInFolders.has(conv.id)
-                  );
-
-                  return conversationsNotInProjects.length === 0 ? (
+                <View className="flex-1">
+                  {allConversations.length === 0 ? (
                     <View className="items-center justify-center py-4">
                       <Text className="text-xs text-muted-foreground">
-                        No history yet
+                        {isLoading ? 'Loading...' : 'No history yet'}
                       </Text>
                     </View>
                   ) : (
-                    <>
-                {/* Render folders (favorites at top) */}
-                {foldersToShow
-                  .sort((a, b) => (b.folder.isFavorite ? 1 : 0) - (a.folder.isFavorite ? 1 : 0))
-                  .map(({ folder, conversations: folderConvs }) => {
-                    const FolderIcon = ICON_MAP[folder.icon || "Folder"] || Folder;
-                    return (
-                      <View key={folder.id} className="gap-0.5">
-                        {/* Folder Header */}
-                        <View
-                          className={cn(
-                            "flex-row items-center gap-1 rounded-lg group"
-                          )}
-                        >
-                          <Pressable
-                            onPress={() => toggleFolder(folder.id)}
-                            className="flex-1 flex-row items-center gap-2 py-2 px-2 active:bg-muted/50 rounded-lg"
-                          >
-                            <FolderIcon
-                              size={16}
-                              className="text-muted-foreground"
-                              style={{ color: folder.color }}
-                            />
-                            <Text
-                              className="flex-1 text-sm md:text-xs text-foreground font-medium"
-                              numberOfLines={1}
-                            >
-                              {folder.name}
-                            </Text>
-                            {folder.isFavorite && (
-                              <StarIcon size={12} className="text-amber-500" fill="#f59e0b" />
-                            )}
-                            <Text className="text-xs text-muted-foreground mr-1">
-                              {folderConvs.length}
-                            </Text>
-                            {folder.isExpanded ? (
-                              <ChevronDown size={14} className="text-muted-foreground" />
-                            ) : (
-                              <ChevronRight size={14} className="text-muted-foreground" />
-                            )}
-                          </Pressable>
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Pressable className="h-8 w-8 items-center justify-center rounded-full mr-1 active:bg-muted/70">
-                                <MoreHorizontal size={14} className="text-muted-foreground" />
-                              </Pressable>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent side="bottom" align="end" className="w-48">
-                              <DropdownMenuItem onPress={(e) => handleToggleFavoriteFolder(folder, e)}>
-                                <StarIcon size={16} className="text-muted-foreground" />
-                                <Text className="text-sm">
-                                  {folder.isFavorite ? "Unfavorite" : "Favorite"}
-                                </Text>
-                              </DropdownMenuItem>
-                              <DropdownMenuItem onPress={(e) => handleEditFolder(folder, e)}>
-                                <Edit size={16} className="text-muted-foreground" />
-                                <Text className="text-sm">Edit Folder</Text>
-                              </DropdownMenuItem>
-                              <DropdownMenuSeparator />
-                              <DropdownMenuItem
-                                variant="destructive"
-                                onPress={(e) => handleDeleteFolder(folder.id, e)}
-                              >
-                                <Trash2 size={16} className="text-destructive" />
-                                <Text className="text-sm">Delete Folder</Text>
-                              </DropdownMenuItem>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-                        </View>
-
-                        {/* Folder Conversations */}
-                        {folder.isExpanded && folderConvs
-                          .sort((a, b) => (favoriteConversationIds.includes(b.id) ? 1 : 0) - (favoriteConversationIds.includes(a.id) ? 1 : 0))
-                          .map((conv) => {
-                          const convProject = getConversationProject(conv.id);
-                          const convFolder = getConversationFolder(conv.id);
-                          const isConvFavorite = favoriteConversationIds.includes(conv.id);
-                          return (
-                            <View
-                              key={conv.id}
-                              className={cn(
-                                "flex-row items-center gap-1 rounded-full group ml-6",
-                                chatId?.id === conv.id
-                                  ? "bg-muted border border-border"
-                                  : ""
-                              )}
-                            >
-                              <Pressable
-                                onPress={() => handleSelectConversation(conv.id)}
-                                className={cn(
-                                  "flex-1 flex-row items-center gap-2 py-2.5 md:py-2 pl-3 md:pl-2.5 pr-1",
-                                  chatId?.id !== conv.id && "active:bg-muted/50 rounded-full"
-                                )}
-                              >
-                                <MessageSquare
-                                  size={16}
-                                  className={cn(
-                                    "text-muted-foreground",
-                                    chatId?.id === conv.id && "text-primary"
-                                  )}
-                                />
-                                <Text
-                                  className={cn(
-                                    "flex-1 text-sm md:text-xs text-foreground",
-                                    chatId?.id === conv.id && "font-medium"
-                                  )}
-                                  numberOfLines={1}
-                                >
-                                  {conv.title || "New conversation"}
-                                </Text>
-                                {isConvFavorite && (
-                                  <StarIcon size={12} className="text-amber-500" fill="#f59e0b" />
-                                )}
-                              </Pressable>
-                              {renderConversationMenu(conv, convProject, convFolder)}
-                            </View>
-                          );
-                        })}
-                      </View>
-                    );
-                  })}
-
-                {/* Render standalone conversations */}
-                {standaloneConversations
-                  .sort((a, b) => (favoriteConversationIds.includes(b.id) ? 1 : 0) - (favoriteConversationIds.includes(a.id) ? 1 : 0))
-                  .map((conv) => {
-                  const convProject = getConversationProject(conv.id);
-                  const convFolder = getConversationFolder(conv.id);
-                  const isConvFavorite = favoriteConversationIds.includes(conv.id);
-                  return (
-                  <View
-                    key={conv.id}
-                    className={cn(
-                      "flex-row items-center gap-1 rounded-full group",
-                      chatId?.id === conv.id
-                        ? "bg-muted border border-border"
-                        : ""
-                    )}
-                  >
-                    <Pressable
-                      onPress={() => handleSelectConversation(conv.id)}
-                      className={cn(
-                        "flex-1 flex-row items-center gap-2 py-2.5 md:py-2 pl-3 md:pl-2.5 pr-1",
-                        chatId?.id !== conv.id && "active:bg-muted/50 rounded-full"
-                      )}
-                    >
-                      <MessageSquare
-                        size={16}
-                        className={cn(
-                          "text-muted-foreground",
-                          chatId?.id === conv.id && "text-primary"
-                        )}
-                      />
-                      <Text
-                        className={cn(
-                          "flex-1 text-sm md:text-xs text-foreground",
-                          chatId?.id === conv.id && "font-medium"
-                        )}
-                        numberOfLines={1}
-                      >
-                        {conv.title || "New conversation"}
-                      </Text>
-                      {isConvFavorite && (
-                        <StarIcon size={12} className="text-amber-500" fill="#f59e0b" />
-                      )}
-                    </Pressable>
-                    {renderConversationMenu(conv, convProject, convFolder)}
-                  </View>
-                  );
-                })}
-              </>
-            );
-            })()}
-              </View>
+                    <FlashList
+                      data={flattenedConversations}
+                      renderItem={renderHistoryItem}
+                      estimatedItemSize={48}
+                      getItemType={(item) => item.type}
+                      onEndReached={() => {
+                        if (hasNextPage && !isFetchingNextPage) {
+                          fetchNextPage();
+                        }
+                      }}
+                      onEndReachedThreshold={0.5}
+                      ListFooterComponent={
+                        isFetchingNextPage ? (
+                          <View style={{ paddingVertical: 16, alignItems: 'center' }}>
+                            <ActivityIndicator size="small" />
+                          </View>
+                        ) : null
+                      }
+                    />
+                  )}
+                </View>
               )}
             </View>
         </View>
       </View>
-      </ScrollView>
 
       {/* Footer with User or Auth Buttons */}
       <View className="border-t border-border/50 p-3 md:p-2">
