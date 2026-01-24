@@ -291,6 +291,37 @@ router.post('/users/:telegramId/conversation', async (req, res) => {
   }
 });
 
+// Update preferred model for telegram user
+router.post('/users/:telegramId/model', async (req, res) => {
+  try {
+    const { telegramId } = req.params;
+    const { model } = req.body;
+
+    const validModels = ['alia-lite', 'alia-v1', 'alia-v1-codea', 'alia-v1-pro', 'alia-v1-pro-max'];
+
+    if (!model || !validModels.includes(model)) {
+      return res.status(400).json({
+        error: 'Invalid model',
+        details: `Model must be one of: ${validModels.join(', ')}`
+      });
+    }
+
+    const telegramUser = await TelegramUser.findOne({ telegramId });
+
+    if (!telegramUser) {
+      return res.status(404).json({ error: 'Telegram user not found' });
+    }
+
+    telegramUser.preferredModel = model;
+    await telegramUser.save();
+
+    res.json({ success: true, model });
+  } catch (error) {
+    console.error('Update model error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 // Logout telegram user
 router.post('/users/:telegramId/logout', async (req, res) => {
   try {
