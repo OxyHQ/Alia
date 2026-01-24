@@ -45,17 +45,23 @@ class APIClient {
   }
 
   // Conversations
-  async getConversations(token: string): Promise<any[]> {
+  async getConversations(botSecret: string, oxyUserId: string): Promise<any[]> {
     const response = await this.client.get('/conversations', {
-      headers: { Authorization: `Bearer ${token}` },
+      headers: {
+        'X-Telegram-Bot-Secret': botSecret,
+        'X-Oxy-User-Id': oxyUserId,
+      },
     });
     return response.data;
   }
 
-  async getConversation(token: string, conversationId: string): Promise<any> {
+  async getConversation(botSecret: string, oxyUserId: string, conversationId: string): Promise<any> {
     try {
       const response = await this.client.get(`/conversations/${conversationId}`, {
-        headers: { Authorization: `Bearer ${token}` },
+        headers: {
+          'X-Telegram-Bot-Secret': botSecret,
+          'X-Oxy-User-Id': oxyUserId,
+        },
       });
       return response.data;
     } catch (error: any) {
@@ -67,7 +73,8 @@ class APIClient {
   }
 
   async saveConversation(
-    token: string,
+    botSecret: string,
+    oxyUserId: string,
     conversationId: string,
     messages: any[],
     title?: string
@@ -80,7 +87,10 @@ class APIClient {
         title,
       },
       {
-        headers: { Authorization: `Bearer ${token}` },
+        headers: {
+          'X-Telegram-Bot-Secret': botSecret,
+          'X-Oxy-User-Id': oxyUserId,
+        },
       }
     );
     return response.data;

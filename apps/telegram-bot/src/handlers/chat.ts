@@ -70,19 +70,8 @@ export async function handleMessage(ctx: Context) {
     const telegramUser = await apiClient.getTelegramUser(telegramId);
 
     // Check authentication state
-    if (!telegramUser || !telegramUser.isAuthenticated) {
+    if (!telegramUser || !telegramUser.isAuthenticated || !telegramUser.oxyUserId) {
       await sendAuthRequest(ctx);
-      return;
-    }
-
-    // Validate session token exists (users who linked before the fix won't have one)
-    if (!telegramUser.sessionToken) {
-      await ctx.reply(
-        '🔄 <b>Session Update Required</b>\n\n' +
-        'Your Telegram account needs to be re-linked to refresh your session.\n' +
-        'Please use /start link to reconnect your account.',
-        { parse_mode: 'HTML' }
-      );
       return;
     }
 
@@ -97,10 +86,22 @@ export async function handleMessage(ctx: Context) {
       await apiClient.updateTelegramConversation(telegramId, conversationId);
     }
 
+    // Get bot secret for authentication
+    const botSecret = process.env.TELEGRAM_BOT_SECRET;
+    if (!botSecret) {
+      console.error('[Chat] TELEGRAM_BOT_SECRET not configured');
+      await ctx.reply('⚠️ Bot configuration error. Please contact support.');
+      return;
+    }
+
     // Load conversation history for context
     let messages: Array<{ role: string; content: string }> = [];
     try {
-      const conversation = await apiClient.getConversation(telegramUser.sessionToken, conversationId);
+      const conversation = await apiClient.getConversation(
+        botSecret,
+        telegramUser.oxyUserId.toString(),
+        conversationId
+      );
       if (conversation && conversation.messages && conversation.messages.length > 0) {
         // Take last 20 messages for context (to avoid token limits)
         const recentMessages = conversation.messages.slice(-20);
@@ -120,13 +121,15 @@ export async function handleMessage(ctx: Context) {
       content: messageText
     });
 
-    // Make API call to chat endpoint
+    // Make API call to chat endpoint with bot authentication
     console.log('[Chat] Sending message to API:', messageText.substring(0, 50));
     const response = await fetch(`${process.env.API_BASE_URL || 'http://localhost:3001'}/alia/chat`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${telegramUser.sessionToken}`,
+        'X-Telegram-Bot-Secret': botSecret,
+        'X-Oxy-User-Id': telegramUser.oxyUserId.toString(),
+        'X-Telegram-Id': telegramId,
         'X-Telegram-Bot': 'true',
       },
       body: JSON.stringify({
@@ -298,7 +301,8 @@ export async function handleMessage(ctx: Context) {
 
         // Save updated conversation
         await apiClient.saveConversation(
-          telegramUser.sessionToken,
+          botSecret,
+          telegramUser.oxyUserId.toString(),
           conversationId,
           messages
         );
@@ -387,13 +391,21 @@ export async function handleHistory(ctx: Context) {
   try {
     const telegramUser = await apiClient.getTelegramUser(telegramId);
 
-    if (!telegramUser || !telegramUser.isAuthenticated || !telegramUser.sessionToken) {
+    if (!telegramUser || !telegramUser.isAuthenticated || !telegramUser.oxyUserId) {
       await sendAuthRequest(ctx);
       return;
     }
 
+    // Get bot secret for authentication
+    const botSecret = process.env.TELEGRAM_BOT_SECRET;
+    if (!botSecret) {
+      console.error('[History] TELEGRAM_BOT_SECRET not configured');
+      await ctx.reply('⚠️ Bot configuration error. Please contact support.');
+      return;
+    }
+
     try {
-      const conversations = await apiClient.getConversations(telegramUser.sessionToken);
+      const conversations = await apiClient.getConversations(botSecret, telegramUser.oxyUserId.toString());
 
       if (!conversations || conversations.length === 0) {
         await ctx.reply(
