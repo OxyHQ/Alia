@@ -12,15 +12,18 @@ export function StructuredData({ data }: StructuredDataProps) {
 
   return (
     <>
-      {schemas.map((schema, index) => (
-        <script
-          key={index}
-          type="application/ld+json"
-          dangerouslySetInnerHTML={{
-            __html: JSON.stringify(schema),
-          }}
-        />
-      ))}
+      {schemas.map((schema, index) => {
+        const jsonString = JSON.stringify(schema);
+        // Para web, usar dangerouslySetInnerHTML correctamente
+        // @ts-ignore - Expo Router maneja esto en web
+        return (
+          <script
+            key={index}
+            type="application/ld+json"
+            dangerouslySetInnerHTML={{ __html: jsonString }}
+          />
+        );
+      })}
     </>
   );
 }
