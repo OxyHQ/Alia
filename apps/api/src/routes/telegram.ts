@@ -172,6 +172,7 @@ router.post('/users', async (req, res) => {
       isAuthenticated: telegramUser.isAuthenticated,
       conversationId: telegramUser.conversationId,
       sessionToken: telegramUser.sessionToken,
+      preferredModel: telegramUser.preferredModel,
     });
   } catch (error) {
     console.error('Create/update telegram user error:', error);
