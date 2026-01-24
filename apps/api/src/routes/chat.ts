@@ -448,12 +448,34 @@ router.post('/', optionalAuth, async (req, res) => {
     let hasReceivedContent = false;
     let streamTimeout: NodeJS.Timeout | null = null;
 
+    // Batching for smooth streaming
+    let textBuffer = '';
+    let lastFlushTime = Date.now();
+    const BATCH_SIZE = 50; // characters
+    const BATCH_TIMEOUT = 30; // ms
+    let batchTimer: NodeJS.Timeout | null = null;
+
+    // Helper to flush batched text
+    const flushTextBuffer = () => {
+      if (textBuffer.length > 0) {
+        const event = JSON.stringify({ type: 'text-delta', text: textBuffer });
+        writeSSE(res, `data: ${event}\n\n`);
+        textBuffer = '';
+        lastFlushTime = Date.now();
+      }
+      if (batchTimer) {
+        clearTimeout(batchTimer);
+        batchTimer = null;
+      }
+    };
+
     // Set a timeout for stream inactivity (30 seconds without any content)
     const resetStreamTimeout = () => {
       if (streamTimeout) clearTimeout(streamTimeout);
       streamTimeout = setTimeout(() => {
         if (!hasReceivedContent && !res.writableEnded) {
           console.error('[Alia/Chat] Stream timeout - no content received in 30s');
+          flushTextBuffer(); // Flush any pending text
           const errorEvent = {
             type: 'error',
             error: 'Stream timeout - the AI model did not respond in time. Please try again.'
@@ -475,34 +497,55 @@ router.post('/', optionalAuth, async (req, res) => {
           if (streamTimeout) clearTimeout(streamTimeout);
         }
 
-        // Collect assistant response text for saving
+        // Handle text deltas with intelligent batching
         if (chunk.type === 'text-delta') {
           assistantResponse += chunk.text;
-        }
+          textBuffer += chunk.text;
 
-        // Extract title if present in response
-        if (chunk.type === 'finish' && assistantResponse) {
-          const titleMatch = assistantResponse.match(/\[TITLE\](.*?)\[\/TITLE\]/);
-          if (titleMatch) {
-            conversationTitle = titleMatch[1].trim();
-            console.log(`[Alia/Chat] Extracted title: "${conversationTitle}"`);
-            // Remove title tags from response
-            assistantResponse = assistantResponse.replace(/\[TITLE\].*?\[\/TITLE\]/g, '').trim();
-          } else {
-            // Auto-generate title as fallback
-            const firstUserMessage = messages.filter(m => m && m.role).find((m: any) => m.role === 'user')?.content;
-            conversationTitle = autoGenerateTitle(assistantResponse, firstUserMessage);
-            console.log(`[Alia/Chat] No title found in response - auto-generated: "${conversationTitle}"`);
+          // Flush if buffer is large enough or timeout elapsed
+          const shouldFlush = textBuffer.length >= BATCH_SIZE ||
+                             (Date.now() - lastFlushTime) >= BATCH_TIMEOUT;
+
+          if (shouldFlush) {
+            flushTextBuffer();
+          } else if (!batchTimer) {
+            // Set a timer to flush after timeout
+            batchTimer = setTimeout(flushTextBuffer, BATCH_TIMEOUT);
           }
         }
+        // Non-text events (tool calls, etc.) are sent immediately
+        else {
+          // Flush any pending text first
+          flushTextBuffer();
 
-        // Send each event as SSE
-        const event = JSON.stringify(chunk);
-        writeSSE(res, `data: ${event}\n\n`);
+          // Extract title if present in response
+          if (chunk.type === 'finish' && assistantResponse) {
+            const titleMatch = assistantResponse.match(/\[TITLE\](.*?)\[\/TITLE\]/);
+            if (titleMatch) {
+              conversationTitle = titleMatch[1].trim();
+              console.log(`[Alia/Chat] Extracted title: "${conversationTitle}"`);
+              // Remove title tags from response
+              assistantResponse = assistantResponse.replace(/\[TITLE\].*?\[\/TITLE\]/g, '').trim();
+            } else {
+              // Auto-generate title as fallback
+              const firstUserMessage = messages.filter(m => m && m.role).find((m: any) => m.role === 'user')?.content;
+              conversationTitle = autoGenerateTitle(assistantResponse, firstUserMessage);
+              console.log(`[Alia/Chat] No title found in response - auto-generated: "${conversationTitle}"`);
+            }
+          }
+
+          // Send non-text event
+          const event = JSON.stringify(chunk);
+          writeSSE(res, `data: ${event}\n\n`);
+        }
       }
 
-      // Clear the timeout after successful streaming
+      // Flush any remaining text
+      flushTextBuffer();
+
+      // Clear timers after successful streaming
       if (streamTimeout) clearTimeout(streamTimeout);
+      if (batchTimer) clearTimeout(batchTimer);
 
       // Check if we got any response
       if (!hasReceivedContent) {
@@ -517,7 +560,11 @@ router.post('/', optionalAuth, async (req, res) => {
     } catch (streamError: any) {
       console.error('[Alia/Chat] Error during streaming:', streamError);
       console.error('[Alia/Chat] Stream error stack:', streamError.stack);
+
+      // Clean up timers
       if (streamTimeout) clearTimeout(streamTimeout);
+      if (batchTimer) clearTimeout(batchTimer);
+      flushTextBuffer(); // Try to flush any pending text
 
       if (!res.writableEnded) {
         const errorEvent = {
@@ -574,7 +621,7 @@ router.post('/', optionalAuth, async (req, res) => {
     }
 
     // Auto-save conversation if conversationId provided and user is authenticated
-    if (conversationId && req.user && assistantResponse) {
+    if (conversationId && typeof conversationId === 'string' && conversationId.trim() && req.user && assistantResponse) {
       try {
         // Build complete messages array (user messages + assistant response)
         const allMessages = [
@@ -587,29 +634,30 @@ router.post('/', optionalAuth, async (req, res) => {
             role: 'assistant',
             content: assistantResponse,
           }
-        ].filter(msg => msg != null && msg.role && msg.content !== undefined); // Filter out invalid messages
+        ].filter(msg => msg != null && msg.role && msg.content !== undefined);
 
         // Use extracted/auto-generated title, or generate one as final fallback
         const firstUserMessage = allMessages.filter(m => m && m.role).find((m: any) => m.role === 'user')?.content;
         const title = conversationTitle || autoGenerateTitle(assistantResponse, firstUserMessage);
         const lastMessage = assistantResponse.slice(0, 100);
 
-        console.log(`[Alia/Chat] Saving conversation with title: "${title}"`);
+        console.log(`[Alia/Chat] Saving conversation ${conversationId} with title: "${title}"`);
 
-        // Save or update conversation (set source only on insert)
+        // Save or update conversation
         await Conversation.findOneAndUpdate(
-          { oxyUserId: req.user.id, conversationId },
+          { oxyUserId: req.user.id, conversationId: conversationId },
           {
             $set: {
-              oxyUserId: req.user.id,
-              conversationId,
               title,
               lastMessage,
               messages: allMessages,
               updatedAt: new Date()
             },
             $setOnInsert: {
-              source: platform // 'telegram' or 'app'
+              oxyUserId: req.user.id,
+              conversationId: conversationId,
+              source: platform,
+              createdAt: new Date()
             }
           },
           { upsert: true, new: true }
@@ -618,8 +666,11 @@ router.post('/', optionalAuth, async (req, res) => {
         console.log(`[Alia/Chat] Conversation ${conversationId} saved successfully`);
       } catch (error) {
         console.error('[Alia/Chat] Error saving conversation:', error);
+        console.error('[Alia/Chat] ConversationId:', conversationId);
         // Don't fail the request if saving fails
       }
+    } else if (!conversationId && req.user) {
+      console.warn('[Alia/Chat] ConversationId not provided - conversation will not be saved');
     }
 
     // Send completion marker
