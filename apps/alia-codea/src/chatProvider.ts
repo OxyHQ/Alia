@@ -61,6 +61,7 @@ export class CodeaChatViewProvider implements vscode.WebviewViewProvider {
   private _userName: string | null = null;
   private _toolExecutor: ToolExecutor;
   private _isProcessing: boolean = false;
+  private _currentMode: string = 'ask';
 
   constructor(
     private readonly _extensionUri: vscode.Uri,
@@ -81,7 +82,8 @@ export class CodeaChatViewProvider implements vscode.WebviewViewProvider {
 
     try {
       const userInfo = await this.fetchUserInfo(baseUrl, apiKey);
-      this._userName = userInfo?.name || null;
+      // API returns full user object with name: { first, last, full }
+      this._userName = userInfo?.name?.first || userInfo?.username || null;
       this._view?.webview.postMessage({ type: 'userInfo', userName: this._userName });
     } catch (error) {
       this._view?.webview.postMessage({ type: 'userInfo', userName: null });
@@ -150,7 +152,7 @@ export class CodeaChatViewProvider implements vscode.WebviewViewProvider {
     });
   }
 
-  private fetchUserInfo(baseUrl: string, apiKey: string): Promise<{ name?: string } | null> {
+  private fetchUserInfo(baseUrl: string, apiKey: string): Promise<{ id?: string; name?: { first?: string; last?: string; full?: string }; username?: string; email?: string; avatar?: string } | null> {
     return new Promise((resolve) => {
       const url = new URL(`${baseUrl}/v1/codea/me`);
       const isHttps = url.protocol === 'https:';
@@ -629,10 +631,17 @@ export class CodeaChatViewProvider implements vscode.WebviewViewProvider {
       this._currentRequest.abort();
       this._currentRequest = undefined;
     }
+    // Reset the webview UI state
+    this._view?.webview.postMessage({ type: 'endAssistantMessage' });
   }
 
   private async handleUserMessage(content: string, mode: string = 'ask', selectedModel?: string, addedContext?: { path: string; content: string; language: string }[]) {
     if (this._isProcessing) return;
+
+    // Update current mode from UI selection
+    if (mode) {
+      this._currentMode = mode;
+    }
 
     const config = vscode.workspace.getConfiguration('codea');
     const apiKey = config.get<string>('apiKey');
@@ -665,7 +674,7 @@ export class CodeaChatViewProvider implements vscode.WebviewViewProvider {
     });
 
     // Build system message based on mode
-    const systemMessage = this.buildSystemMessage(mode, context);
+    const systemMessage = this.buildSystemMessage(this._currentMode, context);
 
     // Enhance user message with context
     let enhancedContent = content;
@@ -721,70 +730,76 @@ export class CodeaChatViewProvider implements vscode.WebviewViewProvider {
   }
 
   private buildSystemMessage(mode: string, context: any): string {
-    let systemMessage = `You are Codea, an expert AI coding assistant created by Alia. You help developers write, debug, refactor, and understand code.
+    let systemMessage = `You are Codea, an expert AI coding assistant. Be concise and action-oriented.
 
-## Core Principles
-- Be concise and direct. Avoid unnecessary explanations unless asked.
-- When code is provided in the conversation, use it directly. NEVER ask users to share code they already provided.
-- Write clean, idiomatic, well-structured code following best practices.
-- Consider edge cases, error handling, and security implications.
-- Match the existing code style and conventions of the project.
+## Critical Rules
+1. **NEVER ask follow-up questions** like "Would you like me to..." or "Shall I proceed?" - Just DO IT.
+2. **NEVER show diffs** and ask for approval - Execute the change directly with tools.
+3. **NEVER ask users to share code** - Use read_file tool to get it yourself.
+4. **When user says "yes" or confirms** - Execute immediately, don't explain again.
+5. **For simple tasks** (add text, edit file, list files) - Just do it in one step.
 
-## Tools Available
-You have powerful tools to interact with the user's workspace:
+## Tools - USE THEM DIRECTLY
+- **read_file**: Read file contents
+- **write_file**: Create/overwrite files (use for appending text too)
+- **edit_file**: Replace specific text in files (old_text must match EXACTLY including whitespace)
+- **list_files**: List directory contents
+- **search_files**: Search for patterns
+- **run_command**: Run shell commands
+- **set_mode**: Switch operating mode when user asks (e.g., "go edit mode", "switch to yolo")
 
-- **read_file**: Read file contents. Use to understand existing code before making changes.
-- **write_file**: Create new files or completely rewrite existing ones.
-- **edit_file**: Make precise, targeted changes to existing files. Preferred for small modifications.
-- **delete_file**: Remove files from the workspace.
-- **list_files**: Explore directory structure. Use to understand project layout.
-- **search_files**: Find text/patterns across the codebase. Great for finding usages, definitions, etc.
-- **run_command**: Execute shell commands (build, test, git, npm, etc.)
-
-## Best Practices
-1. **Read before writing**: Always read relevant files before modifying them.
-2. **Minimal changes**: Make the smallest change necessary to accomplish the task.
-3. **Preserve style**: Match existing formatting, naming conventions, and patterns.
-4. **Test awareness**: Consider how changes might affect tests.
-5. **Explain when helpful**: For complex changes, briefly explain the approach.
+## How to Edit Files
+For small changes like "add hello to the end":
+1. Read the file with read_file
+2. Use write_file with the FULL content + your addition
+Do NOT use edit_file unless you have the EXACT text to replace.
 
 ## Response Style
-- Use markdown for formatting code blocks, lists, and emphasis.
-- For code explanations, be thorough but focused.
-- For code changes, be precise and action-oriented.
-- If unsure about requirements, ask clarifying questions.`;
+- Be brief. One sentence explanations max.
+- Don't narrate what you're doing ("I'll read the file...") - just do it.
+- After completing a task, briefly confirm what was done.`;
 
     if (mode === 'ask') {
-      systemMessage += `\n\n## Mode: ASK
-Before making any file changes, explain what you plan to do and ask for confirmation. Show code snippets of proposed changes when helpful.`;
+      systemMessage += `\n\n## Mode: ASK (Current)
+For DESTRUCTIVE operations only (delete, overwrite important files), briefly confirm. For everything else, just do it.`;
     } else if (mode === 'edit') {
-      systemMessage += `\n\n## Mode: EDIT
-Focus on making code changes directly using tools. Prefer action over explanation. Use edit_file for modifications, write_file for new files. Briefly explain what you changed after.`;
+      systemMessage += `\n\n## Mode: EDIT (Current)
+Make changes directly. No confirmations needed.`;
     } else if (mode === 'plan') {
-      systemMessage += `\n\n## Mode: PLAN
-Create a detailed implementation plan before making any changes:
-1. Analyze the request and existing codebase
-2. List all files that need to be created/modified
-3. Describe the changes needed for each file
-4. Identify potential risks or considerations
-5. Ask for approval before proceeding with implementation`;
+      systemMessage += `\n\n## Mode: PLAN (Current)
+Outline steps first, then ask once for approval before executing all changes.`;
     } else if (mode === 'yolo') {
-      systemMessage += `\n\n## Mode: YOLO
-Execute changes immediately without asking for confirmation. Be efficient and thorough. Complete the entire task autonomously, running tests and fixing issues as needed.`;
+      systemMessage += `\n\n## Mode: YOLO (Current)
+Full autonomous mode. Execute everything without any confirmations.`;
+    }
+
+    // Add workspace structure
+    if (context.workspaceStructure) {
+      systemMessage += `\n\n## Workspace Structure\n\`\`\`\n${context.workspaceStructure}\n\`\`\``;
     }
 
     // Add list of open tabs as context
     if (context.openTabs?.length > 0) {
-      systemMessage += `\n\n## User's Open Files\n${context.openTabs.join('\n')}`;
+      systemMessage += `\n\n## Currently Open Files\n${context.openTabs.join('\n')}`;
+    }
+
+    // Add current file info
+    if (context.openFile) {
+      systemMessage += `\n\n## Active File: ${context.openFile.path}`;
     }
 
     return systemMessage;
   }
 
   private async processConversation(baseUrl: string, apiKey: string, model: string, systemMessage: string): Promise<void> {
+    let isFirstIteration = true;
+
     while (this._isProcessing) {
-      // Start assistant response
-      this._view?.webview.postMessage({ type: 'startAssistantMessage' });
+      // Start assistant response - only clear state on first iteration
+      if (isFirstIteration) {
+        this._view?.webview.postMessage({ type: 'startAssistantMessage' });
+        isFirstIteration = false;
+      }
 
       try {
         const result = await this.streamChatCompletion(baseUrl, apiKey, model, systemMessage, this._messages);
@@ -815,8 +830,26 @@ Execute changes immediately without asking for confirmation. Be efficient and th
               status: 'running'
             });
 
-            // Execute the tool
-            const toolResult = await this._toolExecutor.execute(toolCall.function.name, args);
+            let toolResult: { success: boolean; result: string };
+
+            // Handle set_mode specially
+            if (toolCall.function.name === 'set_mode') {
+              const newMode = args.mode;
+              if (['ask', 'edit', 'plan', 'yolo'].includes(newMode)) {
+                this._currentMode = newMode;
+                // Notify webview to update mode selector
+                this._view?.webview.postMessage({
+                  type: 'modeChanged',
+                  mode: newMode
+                });
+                toolResult = { success: true, result: `Mode changed to ${newMode}` };
+              } else {
+                toolResult = { success: false, result: `Invalid mode: ${newMode}` };
+              }
+            } else {
+              // Execute the tool
+              toolResult = await this._toolExecutor.execute(toolCall.function.name, args);
+            }
 
             // Notify UI about result
             this._view?.webview.postMessage({
@@ -835,8 +868,8 @@ Execute changes immediately without asking for confirmation. Be efficient and th
             });
           }
 
-          // Continue the loop to get next response
-          this._view?.webview.postMessage({ type: 'endAssistantMessage' });
+          // Continue the loop to get next response - DON'T clear UI state yet
+          // The next iteration will continue streaming
           continue;
         } else {
           // No tool calls, conversation turn is complete
@@ -845,7 +878,25 @@ Execute changes immediately without asking for confirmation. Be efficient and th
           break;
         }
       } catch (error: any) {
-        const errorMessage = error.message || 'An error occurred';
+        const rawMessage = error.message || 'An error occurred';
+        // Map HTTP error codes to friendly messages, but prefer API error message if available
+        let errorMessage = rawMessage;
+        if (rawMessage.includes('HTTP 402')) {
+          // Check if API provided a specific reason
+          if (rawMessage.toLowerCase().includes('credit') || rawMessage.toLowerCase().includes('balance') || rawMessage.toLowerCase().includes('payment')) {
+            errorMessage = 'Insufficient credits. Please add more credits at alia.onl to continue.';
+          } else {
+            errorMessage = 'Payment required. Please check your account at alia.onl.';
+          }
+        } else if (rawMessage.includes('HTTP 401')) {
+          errorMessage = 'Invalid API key. Please check your settings.';
+        } else if (rawMessage.includes('HTTP 429')) {
+          errorMessage = 'Rate limit exceeded. Please wait a moment and try again.';
+        } else if (rawMessage.includes('HTTP 500')) {
+          errorMessage = 'Server error. Please try again later.';
+        } else if (rawMessage.includes('HTTP 503')) {
+          errorMessage = 'Service unavailable. Please try again later.';
+        }
         this._view?.webview.postMessage({
           type: 'error',
           message: errorMessage
@@ -928,7 +979,9 @@ Execute changes immediately without asking for confirmation. Be efficient and th
           res.on('end', () => {
             try {
               const error = JSON.parse(errorBody);
-              reject(new Error(error.error?.message || `HTTP ${res.statusCode}`));
+              // Include status code and API message for better error handling
+              const apiMessage = error.error?.message || error.message || '';
+              reject(new Error(`HTTP ${res.statusCode}: ${apiMessage}`.trim()));
             } catch {
               reject(new Error(`HTTP ${res.statusCode}: ${errorBody}`));
             }
@@ -971,7 +1024,7 @@ Execute changes immediately without asking for confirmation. Be efficient and th
                 if (choice?.delta?.tool_calls) {
                   for (const tc of choice.delta.tool_calls) {
                     if (tc.id) {
-                      // New tool call
+                      // New tool call starting
                       currentToolCall = {
                         id: tc.id,
                         type: (tc.type as 'function') || 'function',
@@ -981,9 +1034,30 @@ Execute changes immediately without asking for confirmation. Be efficient and th
                         }
                       };
                       toolCalls.push(currentToolCall);
-                    } else if (currentToolCall && tc.function?.arguments) {
-                      // Append to current tool call arguments
-                      currentToolCall.function.arguments += tc.function.arguments;
+                      // Notify UI immediately that a tool call is starting
+                      if (currentToolCall.function.name) {
+                        this._view?.webview.postMessage({
+                          type: 'toolCall',
+                          tool: currentToolCall.function.name,
+                          args: {},
+                          status: 'preparing'
+                        });
+                      }
+                    } else if (currentToolCall) {
+                      // Append to current tool call
+                      if (tc.function?.name) {
+                        currentToolCall.function.name = tc.function.name;
+                        // Notify UI when we know the tool name
+                        this._view?.webview.postMessage({
+                          type: 'toolCall',
+                          tool: currentToolCall.function.name,
+                          args: {},
+                          status: 'preparing'
+                        });
+                      }
+                      if (tc.function?.arguments) {
+                        currentToolCall.function.arguments += tc.function.arguments;
+                      }
                     }
                   }
                 }
