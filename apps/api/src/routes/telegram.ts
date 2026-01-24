@@ -57,7 +57,7 @@ router.get('/link-status', authenticateToken, async (req, res) => {
       isAuthenticated: true,
     });
 
-    if (!telegramUser || !telegramUser.sessionToken) {
+    if (!telegramUser) {
       return res.json({ linked: false });
     }
 
@@ -68,6 +68,61 @@ router.get('/link-status', authenticateToken, async (req, res) => {
     });
   } catch (error) {
     console.error('Telegram link status error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Unlink Telegram account for authenticated user
+router.post('/unlink', authenticateToken, async (req, res) => {
+  try {
+    const oxyUserId = req.userId; // From authenticateToken middleware
+
+    if (!oxyUserId) {
+      return res.status(401).json({ error: 'User ID not found' });
+    }
+
+    const telegramUser = await TelegramUser.findOne({
+      oxyUserId: new mongoose.Types.ObjectId(oxyUserId),
+      isAuthenticated: true,
+    });
+
+    if (!telegramUser) {
+      return res.status(404).json({ error: 'No linked Telegram account found' });
+    }
+
+    // Unlink the account but keep the Telegram user record
+    telegramUser.oxyUserId = undefined as any;
+    telegramUser.isAuthenticated = false;
+    telegramUser.conversationId = undefined;
+    telegramUser.linkedAt = undefined;
+    await telegramUser.save();
+
+    // Optionally send notification to Telegram
+    try {
+      const botToken = process.env.TELEGRAM_BOT_TOKEN;
+      if (botToken && telegramUser.chatId) {
+        const message =
+          `🔗 <b>Account Unlinked</b>\n\n` +
+          `Your Telegram account has been unlinked from Oxy.\n\n` +
+          `You can link it again anytime by using /start link`;
+
+        await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            chat_id: telegramUser.chatId,
+            text: message,
+            parse_mode: 'HTML',
+          }),
+        });
+      }
+    } catch (notifyError) {
+      console.error('[Telegram] Failed to send unlink notification:', notifyError);
+    }
+
+    res.json({ success: true, message: 'Telegram account unlinked successfully' });
+  } catch (error) {
+    console.error('Telegram unlink error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -431,20 +486,9 @@ router.post('/link', authenticateToken, async (req, res) => {
       return res.status(500).json({ error: 'Failed to fetch user information' });
     }
 
-    // Extract session token from request (validated by authenticateToken middleware)
-    const sessionToken = req.headers['x-session-id'] as string ||
-      (req.headers.authorization?.startsWith('Bearer ')
-        ? req.headers.authorization.substring(7)
-        : undefined);
-
-    if (!sessionToken) {
-      return res.status(400).json({ error: 'Session token not found in request' });
-    }
-
     // Link the accounts
     telegramUser.oxyUserId = new mongoose.Types.ObjectId(oxyUserId);
     telegramUser.isAuthenticated = true;
-    telegramUser.sessionToken = sessionToken;
     telegramUser.linkedAt = new Date();
     telegramUser.authToken = undefined;
     telegramUser.authTokenExpiry = undefined;
@@ -533,14 +577,12 @@ router.post('/signin-complete', async (req, res) => {
     let telegramUser = await TelegramUser.findOne({ telegramId });
 
     if (telegramUser && telegramUser.oxyUserId) {
-      // User has linked Telegram before - but they need to re-link to get a fresh session token
-      // Update telegram user info but keep them as not authenticated
+      // User has linked Telegram before - update their info and keep them authenticated
       telegramUser.chatId = chatId;
       telegramUser.username = username;
       telegramUser.firstName = firstName;
       telegramUser.lastName = lastName;
-      telegramUser.isAuthenticated = false;
-      telegramUser.sessionToken = undefined;
+      telegramUser.isAuthenticated = true;
       telegramUser.authToken = undefined;
       telegramUser.authTokenExpiry = undefined;
       telegramUser.authTokenMode = undefined;
@@ -551,13 +593,25 @@ router.post('/signin-complete', async (req, res) => {
         await TelegramUser.deleteOne({ _id: pendingAuth._id });
       }
 
-      console.log('[signin-complete] Telegram user was previously linked, needs to re-link', { telegramId, oxyUserId: telegramUser.oxyUserId });
-      return res.status(403).json({
-        error: 'Session expired - please re-link your account',
-        message: 'Your Telegram was previously linked, but your session has expired. Please sign in via Oxy and re-link your Telegram account.',
-        requiresOxyAuth: true,
-        wasLinked: true,
-      });
+      // Fetch user data from Oxy
+      try {
+        const user = await oxyClient.getUserById(telegramUser.oxyUserId.toString());
+        console.log('[signin-complete] Telegram user signed in with existing link', { telegramId, oxyUserId: telegramUser.oxyUserId });
+
+        return res.json({
+          success: true,
+          isNewUser: false,
+          user: {
+            id: user._id,
+            email: user.email,
+            username: user.username,
+            name: user.name,
+          },
+        });
+      } catch (error) {
+        console.error('[signin-complete] Failed to fetch Oxy user', { telegramId, oxyUserId: telegramUser.oxyUserId, error });
+        return res.status(404).json({ error: 'Linked Oxy user not found' });
+      }
     } else {
       // Telegram not linked to any Oxy account - user must link via Oxy first
       // Update telegram user info for future linking

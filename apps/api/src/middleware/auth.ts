@@ -74,12 +74,21 @@ export async function authenticateToken(req: Request, res: Response, next: NextF
 
 /**
  * Optional auth - doesn't fail if no session
+ * Tries Telegram bot auth first, then session auth
  */
 export async function optionalAuth(
   req: Request,
   res: Response,
   next: NextFunction
 ): Promise<void> {
+  // Check if this is a Telegram bot request
+  const botSecret = req.headers['x-telegram-bot-secret'] as string;
+  if (botSecret) {
+    // Delegate to bot auth middleware
+    return authenticateTelegramBot(req, res, next);
+  }
+
+  // Otherwise try regular session auth
   const authHeader = req.headers['authorization'];
   const sessionId = req.headers['x-session-id'] as string;
   const token = authHeader?.startsWith('Bearer ') ? authHeader.substring(7) : sessionId;
@@ -242,4 +251,92 @@ export function requireScope(scope: string) {
       required_scope: scope
     });
   };
+}
+
+/**
+ * Authenticate internal Telegram bot requests
+ * The bot is a trusted server component that can act on behalf of linked users
+ *
+ * Security layers:
+ * 1. Verifies bot secret matches server-side secret
+ * 2. Validates user ID is provided
+ * 3. Uses constant-time comparison to prevent timing attacks
+ * 4. Logs authentication attempts for audit trail
+ */
+export async function authenticateTelegramBot(
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  const startTime = Date.now();
+
+  try {
+    const botSecret = req.headers['x-telegram-bot-secret'] as string;
+    const oxyUserId = req.headers['x-oxy-user-id'] as string;
+    const telegramId = req.headers['x-telegram-id'] as string;
+
+    // Verify bot secret is configured
+    const expectedSecret = process.env.TELEGRAM_BOT_SECRET;
+    if (!expectedSecret) {
+      console.error('[TelegramAuth] TELEGRAM_BOT_SECRET not configured');
+      res.status(500).json({ error: 'Bot authentication not configured' });
+      return;
+    }
+
+    // Verify secret provided
+    if (!botSecret) {
+      console.warn('[TelegramAuth] Missing bot secret from:', req.ip);
+      res.status(401).json({ error: 'Bot authentication required' });
+      return;
+    }
+
+    // Use crypto.timingSafeEqual to prevent timing attacks
+    const expectedBuffer = Buffer.from(expectedSecret);
+    const providedBuffer = Buffer.from(botSecret);
+
+    if (expectedBuffer.length !== providedBuffer.length) {
+      console.warn('[TelegramAuth] Invalid bot secret length from:', req.ip);
+      res.status(401).json({ error: 'Invalid bot authentication' });
+      return;
+    }
+
+    const crypto = await import('crypto');
+    if (!crypto.timingSafeEqual(expectedBuffer, providedBuffer)) {
+      console.warn('[TelegramAuth] Invalid bot secret from:', req.ip);
+      res.status(401).json({ error: 'Invalid bot authentication' });
+      return;
+    }
+
+    // Verify user ID is provided
+    if (!oxyUserId) {
+      console.warn('[TelegramAuth] Missing user ID in bot request');
+      res.status(400).json({ error: 'User ID required for bot requests' });
+      return;
+    }
+
+    // Verify telegram ID is provided
+    if (!telegramId) {
+      console.warn('[TelegramAuth] Missing telegram ID in bot request');
+      res.status(400).json({ error: 'Telegram ID required for bot requests' });
+      return;
+    }
+
+    // Log successful auth for audit trail
+    const duration = Date.now() - startTime;
+    console.log('[TelegramAuth] Authenticated bot request:', {
+      telegramId,
+      oxyUserId,
+      ip: req.ip,
+      endpoint: req.path,
+      duration: `${duration}ms`
+    });
+
+    // Set user context - the bot is acting on behalf of this user
+    req.userId = oxyUserId;
+    req.user = { id: oxyUserId };
+    next();
+  } catch (error) {
+    console.error('[TelegramAuth] Bot authentication error:', error);
+    res.status(500).json({ error: 'Authentication failed' });
+  }
 }

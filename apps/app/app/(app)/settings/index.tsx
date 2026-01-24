@@ -21,6 +21,7 @@ import type { ThemeMode } from "@/lib/stores/theme-store";
 import { useTranslation } from "@/hooks/useTranslation";
 import { LanguageSelector } from "@/components/language-selector";
 import { toast } from "@/components/sonner";
+import { ConfirmationDialog } from "@/components/ui/confirmation-dialog";
 
 interface UserMemory {
   preferences: {
@@ -68,6 +69,10 @@ export default function SettingsScreen() {
   const [location, setLocation] = useState("");
   const [bio, setBio] = useState("");
   const [interests, setInterests] = useState("");
+
+  // Dialog state
+  const [showUnlinkDialog, setShowUnlinkDialog] = useState(false);
+  const [unlinking, setUnlinking] = useState(false);
 
   // Redirect if not authenticated
   useEffect(() => {
@@ -218,7 +223,7 @@ export default function SettingsScreen() {
             <Pressable
               onPress={async () => {
                 if (telegramStatus?.linked) {
-                  toast.info("Telegram already linked");
+                  setShowUnlinkDialog(true);
                   return;
                 }
 
@@ -244,7 +249,7 @@ export default function SettingsScreen() {
                 <View className="bg-primary/10 p-2 rounded-lg">
                   <Send size={24} className="text-primary" />
                 </View>
-                <View>
+                <View className="flex-1">
                   <Text className="text-base font-semibold">
                     {telegramLoading
                       ? "Telegram"
@@ -263,7 +268,21 @@ export default function SettingsScreen() {
                   </Text>
                 </View>
               </View>
-              <ChevronRight size={20} className="text-muted-foreground" />
+              {telegramStatus?.linked ? (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-8 px-3"
+                  onPress={(e) => {
+                    e.stopPropagation();
+                    setShowUnlinkDialog(true);
+                  }}
+                >
+                  <Text className="text-destructive text-sm">Unlink</Text>
+                </Button>
+              ) : (
+                <ChevronRight size={20} className="text-muted-foreground" />
+              )}
             </Pressable>
           </View>
 
