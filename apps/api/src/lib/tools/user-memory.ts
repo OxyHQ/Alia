@@ -1,12 +1,13 @@
 import { tool } from "ai";
 import { z } from "zod";
-import { UserMemory } from "../../models/user-memory.js";
+import { UserMemory, getMemoryLimit } from "../../models/user-memory.js";
+import { Subscription } from "../../models/subscription.js";
 
 /**
  * Tool to save user memories
  * Allows the AI to remember important information about the user
  */
-export const saveUserMemoryTool = (userId: string) => tool({
+export const saveUserMemoryTool = (oxyUserId: string) => tool({
   description: 'Save important user information for future conversations. Use ALWAYS when user shares: preferences, personal info, goals, experiences, or anything they want remembered.',
 
   inputSchema: z.object({
@@ -18,12 +19,12 @@ export const saveUserMemoryTool = (userId: string) => tool({
   execute: async ({ key, value, category }) => {
     try {
       // Find the user's memory document
-      let memory = await UserMemory.findOne({ userId });
+      let memory = await UserMemory.findOne({ oxyUserId });
 
       if (!memory) {
         // Create new memory document if it doesn't exist
         memory = new UserMemory({
-          userId,
+          oxyUserId,
           memories: [],
           preferences: {},
           context: {}
@@ -39,6 +40,24 @@ export const saveUserMemoryTool = (userId: string) => tool({
         memory.memories[existingMemoryIndex].category = category;
         memory.memories[existingMemoryIndex].updatedAt = new Date();
       } else {
+        // Check memory limit before adding new memory
+        const subscription = await Subscription.findOne({
+          oxyUserId,
+          status: { $in: ['active', 'trialing'] }
+        });
+
+        const memoryLimit = getMemoryLimit(subscription?.plan?.name);
+
+        // Check if adding new memory would exceed limit (unless unlimited)
+        if (memoryLimit !== -1 && memory.memories.length >= memoryLimit) {
+          return {
+            success: false,
+            message: `Memory limit reached (${memoryLimit} memories). ${subscription?.plan?.name ? 'Upgrade to Business plan for unlimited memories.' : 'Upgrade your plan for more memories.'}`,
+            limitReached: true,
+            limit: memoryLimit
+          };
+        }
+
         // Add new memory
         memory.memories.push({
           key,
@@ -71,7 +90,7 @@ export const saveUserMemoryTool = (userId: string) => tool({
  * Tool to update user preferences
  * Allows the AI to update user preferences like language, tone, etc.
  */
-export const updateUserPreferencesTool = (userId: string) => tool({
+export const updateUserPreferencesTool = (oxyUserId: string) => tool({
   description: 'Update user communication preferences: language, tone, response length, interests.',
 
   inputSchema: z.object({
@@ -83,11 +102,11 @@ export const updateUserPreferencesTool = (userId: string) => tool({
 
   execute: async ({ language, tone, responseLength, interests }) => {
     try {
-      let memory = await UserMemory.findOne({ userId });
+      let memory = await UserMemory.findOne({ oxyUserId });
 
       if (!memory) {
         memory = new UserMemory({
-          userId,
+          oxyUserId,
           memories: [],
           preferences: {},
           context: {}
@@ -121,7 +140,7 @@ export const updateUserPreferencesTool = (userId: string) => tool({
  * Tool to update user context
  * Allows the AI to update user context like occupation, location, etc.
  */
-export const updateUserContextTool = (userId: string) => tool({
+export const updateUserContextTool = (oxyUserId: string) => tool({
   description: 'Update user context: occupation, location, timezone, bio.',
 
   inputSchema: z.object({
@@ -133,11 +152,11 @@ export const updateUserContextTool = (userId: string) => tool({
 
   execute: async ({ occupation, location, timezone, bio }) => {
     try {
-      let memory = await UserMemory.findOne({ userId });
+      let memory = await UserMemory.findOne({ oxyUserId });
 
       if (!memory) {
         memory = new UserMemory({
-          userId,
+          oxyUserId,
           memories: [],
           preferences: {},
           context: {}
