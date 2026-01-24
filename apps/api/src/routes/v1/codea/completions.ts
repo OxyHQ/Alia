@@ -150,9 +150,9 @@ async function handleCodeaCompletions(req: Request, res: Response) {
       getCurrentDate: getCurrentDateTool,
       getTimeline: getTimelineTool,
       ...(req.user ? {
-        saveUserMemory: saveUserMemoryTool,
-        updateUserPreferences: updateUserPreferencesTool,
-        updateUserContext: updateUserContextTool,
+        saveUserMemory: saveUserMemoryTool(req.user.id),
+        updateUserPreferences: updateUserPreferencesTool(req.user.id),
+        updateUserContext: updateUserContextTool(req.user.id),
         sendTelegram: createSendTelegramTool(req.user.id),
       } : {}),
     };
@@ -170,14 +170,24 @@ async function handleCodeaCompletions(req: Request, res: Response) {
 
     if (userMemory) {
       systemMessage += '\n\n## User Information';
-      if (userMemory.facts && userMemory.facts.length > 0) {
-        systemMessage += '\n### Known Facts:\n' + userMemory.facts.map(f => `- ${f}`).join('\n');
+      if (userMemory.memories && userMemory.memories.length > 0) {
+        systemMessage += '\n### Known Facts:\n' + userMemory.memories.map(m => `- ${m.key}: ${m.value}`).join('\n');
       }
-      if (userMemory.preferences && userMemory.preferences.length > 0) {
-        systemMessage += '\n### User Preferences:\n' + userMemory.preferences.map(p => `- ${p}`).join('\n');
+      if (userMemory.preferences && Object.keys(userMemory.preferences).length > 0) {
+        const prefs = Object.entries(userMemory.preferences)
+          .filter(([_, v]) => v !== undefined && v !== null)
+          .map(([k, v]) => `- ${k}: ${Array.isArray(v) ? v.join(', ') : v}`);
+        if (prefs.length > 0) {
+          systemMessage += '\n### User Preferences:\n' + prefs.join('\n');
+        }
       }
-      if (userMemory.context && userMemory.context.length > 0) {
-        systemMessage += '\n### Context:\n' + userMemory.context.map(c => `- ${c}`).join('\n');
+      if (userMemory.context && Object.keys(userMemory.context).length > 0) {
+        const ctx = Object.entries(userMemory.context)
+          .filter(([_, v]) => v !== undefined && v !== null)
+          .map(([k, v]) => `- ${k}: ${v}`);
+        if (ctx.length > 0) {
+          systemMessage += '\n### Context:\n' + ctx.join('\n');
+        }
       }
     }
 
