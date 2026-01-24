@@ -77,7 +77,7 @@ export default function TelegramAuthScreen() {
         }, 1200);
       } else {
         setStatus('error');
-        setMessage('This Telegram account is not linked to any Alia account yet.');
+        setMessage('This Telegram account is not linked to any Oxy account yet. Please create an Oxy account and link your Telegram from the settings.');
       }
       return;
     }
