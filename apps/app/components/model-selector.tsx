@@ -10,7 +10,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Pressable, View } from "react-native";
 import { useState, useEffect } from "react";
-import { API_URL } from "@/lib/constants";
+import config from "@/lib/config";
 
 interface Model {
   id: string;
@@ -37,7 +37,7 @@ export function ModelSelector({
   useEffect(() => {
     // Only fetch if not cached
     if (!cachedModels) {
-      fetch(`${API_URL}/v1/models`)
+      fetch(`${config.apiUrl}/v1/models`)
         .then((res) => res.json())
         .then((data) => {
           const fetchedModels = data.data?.map((m: any) => ({
