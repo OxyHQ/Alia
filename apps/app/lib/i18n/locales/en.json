@@ -29,8 +29,8 @@
     "termsAndPrivacy": "By continuing, you agree to Alia's Terms of Service and Privacy Policy"
   },
   "register": {
-    "title": "Create Account",
-    "subtitle": "Sign up to get started",
+    "title": "Create Oxy Account",
+    "subtitle": "Sign up to get started with Alia",
     "firstNamePlaceholder": "First Name",
     "lastNamePlaceholder": "Last Name (Optional)",
     "emailPlaceholder": "Email",
@@ -40,7 +40,7 @@
     "creatingAccount": "Creating account...",
     "footerText": "Already have an account?",
     "footerLink": "Sign in",
-    "termsAndPrivacy": "By continuing, you agree to Alia's Terms of Service and Privacy Policy"
+    "termsAndPrivacy": "By continuing, you agree to Oxy's Terms of Service and Privacy Policy"
   },
   "errors": {
     "emailRequired": "Please enter your email address",
