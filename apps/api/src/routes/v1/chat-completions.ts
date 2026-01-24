@@ -143,7 +143,6 @@ router.post('/', async (req: Request, res: Response) => {
       model,
       messages: messages as any,
       temperature: body.temperature ?? 0.7,
-      maxSteps: 5,
       onFinish: async (result) => {
         // Capture token usage from AI SDK
         if (result.usage) {
