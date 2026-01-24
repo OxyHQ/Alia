@@ -123,7 +123,7 @@ async function handleCodeaCompletions(req: Request, res: Response) {
       }
     }
 
-    // Always use alia-v1-codea for code editors
+    // Resolve model - the resolver handles fallback between providers
     const keyPool = await loadKeys();
     const resolved = await resolveAliaModel('alia-v1-codea', keyPool);
 
@@ -134,6 +134,7 @@ async function handleCodeaCompletions(req: Request, res: Response) {
 
     const model = getAIModel(resolved.keyConfig);
     const aliasModelId = resolved.aliasModelId;
+    console.log(`[Codea] Using provider: ${resolved.provider}/${resolved.modelId}`);
 
     // Load user memory if authenticated
     let userMemory: IUserMemory | null = null;
