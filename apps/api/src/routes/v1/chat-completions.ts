@@ -3,7 +3,8 @@ import { streamText } from 'ai';
 import { createGoogleGenerativeAI } from '@ai-sdk/google';
 import { createOpenAI } from '@ai-sdk/openai';
 import { createAnthropic } from '@ai-sdk/anthropic';
-import { getBestAvailableKey, loadKeys } from '../../lib/load-balancer.js';
+import { loadKeys } from '../../lib/load-balancer.js';
+import { resolveAliaModel, getDefaultAliaModel } from '../../lib/model-resolver.js';
 import { UserCredits } from '../../models/user-credits.js';
 import { reserveCredits, finalizeCredits, type CreditReservation, type CreditUsage } from '../../lib/credits-manager.js';
 import type { KeyConfig } from '../../lib/types.js';
@@ -117,15 +118,18 @@ router.post('/', async (req: Request, res: Response) => {
       }
     }
 
-    // Get best available API key
+    // Resolve Alia model to concrete provider/model
+    const requestedModel = body.model || getDefaultAliaModel();
     const keyPool = await loadKeys();
-    const keyConfig = await getBestAvailableKey(keyPool);
-    if (!keyConfig) {
-      res.status(503).json({ error: 'No API keys available' });
+    const resolved = await resolveAliaModel(requestedModel, keyPool);
+
+    if (!resolved) {
+      res.status(503).json({ error: 'No models available', requested_model: requestedModel });
       return;
     }
 
-    const model = getAIModel(keyConfig);
+    const model = getAIModel(resolved.keyConfig);
+    const aliasModelId = resolved.aliasModelId;
 
     // Track token usage
     let tokenUsage: CreditUsage = {
@@ -163,7 +167,7 @@ router.post('/', async (req: Request, res: Response) => {
           id: `chatcmpl-${Date.now()}`,
           object: 'chat.completion.chunk',
           created: Math.floor(Date.now() / 1000),
-          model: keyConfig.modelId,
+          model: aliasModelId,
           choices: [{
             index: 0,
             delta: { content: chunk.text },
@@ -176,7 +180,7 @@ router.post('/', async (req: Request, res: Response) => {
           id: `chatcmpl-${Date.now()}`,
           object: 'chat.completion.chunk',
           created: Math.floor(Date.now() / 1000),
-          model: keyConfig.modelId,
+          model: aliasModelId,
           choices: [{
             index: 0,
             delta: {},
@@ -187,12 +191,13 @@ router.post('/', async (req: Request, res: Response) => {
       }
     }
 
-    // Finalize credits based on actual token usage
+    // Finalize credits based on actual token usage and model tier
     if (creditReservation && req.user) {
       try {
         const { creditsCharged, creditsRemaining } = await finalizeCredits(
           creditReservation,
-          tokenUsage
+          tokenUsage,
+          aliasModelId
         );
 
         // Send usage info as metadata chunk
@@ -200,7 +205,7 @@ router.post('/', async (req: Request, res: Response) => {
           id: `chatcmpl-${Date.now()}`,
           object: 'chat.completion.chunk',
           created: Math.floor(Date.now() / 1000),
-          model: keyConfig.modelId,
+          model: aliasModelId,
           usage: {
             prompt_tokens: tokenUsage.promptTokens,
             completion_tokens: tokenUsage.completionTokens,
