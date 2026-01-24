@@ -6,10 +6,12 @@ import { useRouter, useLocalSearchParams } from "expo-router";
 import { ArrowLeft } from "lucide-react-native";
 import { useApp, useUpdateApp } from "@/lib/hooks/use-developer";
 import { toast } from "@/components/sonner";
+import { useColorScheme } from '@/lib/useColorScheme';
 
 export default function AppSettingsScreen() {
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
+  const { colors } = useColorScheme();
   const { data: currentApp, isLoading } = useApp(id!);
   const updateAppMutation = useUpdateApp();
 
@@ -82,7 +84,7 @@ export default function AppSettingsScreen() {
           onChangeText={setName}
           placeholder="My Awesome App"
           className="w-full px-3 py-2 rounded-md border border-border bg-background text-foreground text-sm mb-2"
-          placeholderTextColor="#9CA3AF"
+          placeholderTextColor={colors.mutedForeground}
           maxLength={100}
         />
         <Text className="text-sm text-muted-foreground">
@@ -100,7 +102,7 @@ export default function AppSettingsScreen() {
           multiline
           numberOfLines={4}
           className="w-full px-3 py-2 rounded-md border border-border bg-background text-foreground text-sm mb-2"
-          placeholderTextColor="#9CA3AF"
+          placeholderTextColor={colors.mutedForeground}
           style={{ textAlignVertical: "top" }}
           maxLength={500}
         />
@@ -120,7 +122,7 @@ export default function AppSettingsScreen() {
           autoCorrect={false}
           keyboardType="url"
           className="w-full px-3 py-2 rounded-md border border-border bg-background text-foreground text-sm mb-2"
-          placeholderTextColor="#9CA3AF"
+          placeholderTextColor={colors.mutedForeground}
         />
         <Text className="text-sm text-muted-foreground">Optional</Text>
       </View>
