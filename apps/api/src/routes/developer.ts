@@ -190,7 +190,7 @@ router.post('/apps/:appId/keys', async (req: Request, res: Response) => {
     const { appId } = req.params;
 
     // Verify the app belongs to the user
-    const app = await DeveloperApp.findOne({ _id: appId, userId });
+    const app = await DeveloperApp.findOne({ _id: appId, oxyUserId: userId });
     if (!app) {
       return res.status(404).json({ error: 'App not found' });
     }
@@ -203,7 +203,7 @@ router.post('/apps/:appId/keys', async (req: Request, res: Response) => {
     const keyPrefix = plainKey.substring(0, 16); // "alia_sk_12345678"
 
     const apiKey = new DeveloperApiKey({
-      userId,
+      oxyUserId: userId,
       appId,
       name: validatedData.name,
       keyHash,
@@ -256,7 +256,7 @@ router.patch('/apps/:appId/keys/:keyId', async (req: Request, res: Response) => 
     const { appId, keyId } = req.params;
 
     // Verify the app belongs to the user
-    const app = await DeveloperApp.findOne({ _id: appId, userId });
+    const app = await DeveloperApp.findOne({ _id: appId, oxyUserId: userId });
     if (!app) {
       return res.status(404).json({ error: 'App not found' });
     }
@@ -264,7 +264,7 @@ router.patch('/apps/:appId/keys/:keyId', async (req: Request, res: Response) => 
     const validatedData = updateApiKeySchema.parse(req.body);
 
     const apiKey = await DeveloperApiKey.findOneAndUpdate(
-      { _id: keyId, appId, userId },
+      { _id: keyId, appId, oxyUserId: userId },
       { $set: validatedData },
       { new: true }
     ).select('-keyHash');
@@ -290,12 +290,12 @@ router.delete('/apps/:appId/keys/:keyId', async (req: Request, res: Response) =>
     const { appId, keyId } = req.params;
 
     // Verify the app belongs to the user
-    const app = await DeveloperApp.findOne({ _id: appId, userId });
+    const app = await DeveloperApp.findOne({ _id: appId, oxyUserId: userId });
     if (!app) {
       return res.status(404).json({ error: 'App not found' });
     }
 
-    const apiKey = await DeveloperApiKey.findOneAndDelete({ _id: keyId, appId, userId });
+    const apiKey = await DeveloperApiKey.findOneAndDelete({ _id: keyId, appId, oxyUserId: userId });
 
     if (!apiKey) {
       return res.status(404).json({ error: 'API key not found' });
@@ -323,7 +323,7 @@ router.get('/apps/:appId/usage', async (req: Request, res: Response) => {
     const { period = '7d' } = req.query;
 
     // Verify the app belongs to the user
-    const app = await DeveloperApp.findOne({ _id: appId, userId });
+    const app = await DeveloperApp.findOne({ _id: appId, oxyUserId: userId });
     if (!app) {
       return res.status(404).json({ error: 'App not found' });
     }
@@ -450,13 +450,13 @@ router.get('/apps/:appId/keys/:keyId/usage', async (req: Request, res: Response)
     const { period = '7d' } = req.query;
 
     // Verify the app belongs to the user
-    const app = await DeveloperApp.findOne({ _id: appId, userId });
+    const app = await DeveloperApp.findOne({ _id: appId, oxyUserId: userId });
     if (!app) {
       return res.status(404).json({ error: 'App not found' });
     }
 
     // Verify the API key belongs to the app
-    const apiKey = await DeveloperApiKey.findOne({ _id: keyId, appId, userId });
+    const apiKey = await DeveloperApiKey.findOne({ _id: keyId, appId, oxyUserId: userId });
     if (!apiKey) {
       return res.status(404).json({ error: 'API key not found' });
     }
@@ -556,10 +556,10 @@ router.get('/stats', async (req: Request, res: Response) => {
   try {
     const userId = req.user!.id;
 
-    const totalApps = await DeveloperApp.countDocuments({ userId });
-    const activeApps = await DeveloperApp.countDocuments({ userId, isActive: true });
-    const totalKeys = await DeveloperApiKey.countDocuments({ userId });
-    const activeKeys = await DeveloperApiKey.countDocuments({ userId, isActive: true });
+    const totalApps = await DeveloperApp.countDocuments({ oxyUserId: userId });
+    const activeApps = await DeveloperApp.countDocuments({ oxyUserId: userId, isActive: true });
+    const totalKeys = await DeveloperApiKey.countDocuments({ oxyUserId: userId });
+    const activeKeys = await DeveloperApiKey.countDocuments({ oxyUserId: userId, isActive: true });
 
     // Get total usage across all apps (last 30 days)
     const thirtyDaysAgo = new Date();
@@ -568,7 +568,7 @@ router.get('/stats', async (req: Request, res: Response) => {
     const usage = await ApiKeyUsage.aggregate([
       {
         $match: {
-          userId,
+          oxyUserId: userId,
           timestamp: { $gte: thirtyDaysAgo },
         },
       },
