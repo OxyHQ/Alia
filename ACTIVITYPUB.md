@@ -14,6 +14,16 @@ npm run generate-keys
 ### 2. Variables de Entorno
 
 **DigitalOcean App Platform → API service**:
+
+Choose one option:
+
+**Simple setup (recommended to start)**:
+```env
+ACTIVITYPUB_DOMAIN=api.alia.onl
+ACTOR_DOMAIN=api.alia.onl
+```
+
+**Custom domain (requires proxy/redirect)**:
 ```env
 ACTIVITYPUB_DOMAIN=alia.onl
 ACTOR_DOMAIN=api.alia.onl
@@ -25,18 +35,30 @@ Push a Git → DigitalOcean auto-deploya.
 
 ## 🌐 DigitalOcean Configuration
 
-**CRITICAL**: WebFinger must be accessible at `https://alia.onl/.well-known/webfinger` for Mastodon to discover Alia.
+You have 3 options to make WebFinger work:
 
-### Option A: URL Redirect (Recommended)
-Configure a redirect rule in DigitalOcean App Platform for the alia.onl app:
+### Option A: Use api.alia.onl as the handle (SIMPLEST - No redirect needed!)
+Set environment variables in the API service:
+```env
+ACTIVITYPUB_DOMAIN=api.alia.onl
+ACTOR_DOMAIN=api.alia.onl
 ```
-Source: /.well-known/webfinger
-Destination: https://api.alia.onl/.well-known/webfinger
-Preserve query params: YES
+**Handle becomes**: `@alia@api.alia.onl`
+✅ No redirect configuration needed
+✅ Works immediately after deploy
+❌ Less clean domain (shows "api" subdomain)
+
+### Option B: Use Cloudflare or nginx proxy
+If you use Cloudflare or have nginx in front:
+```nginx
+location /.well-known/webfinger {
+    proxy_pass https://api.alia.onl/.well-known/webfinger$is_args$args;
+}
 ```
 
-### Option B: Change DNS
-Point `alia.onl` A/CNAME records to the API server instead.
+### Option C: Point alia.onl DNS to API server
+Change your DNS records so `alia.onl` points to the API server instead of the Expo app.
+**Note**: This means your Expo app would need to be on a different domain like `app.alia.onl`.
 
 ## 🧪 Testing
 

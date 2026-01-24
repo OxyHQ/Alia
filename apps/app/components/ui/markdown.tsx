@@ -46,43 +46,43 @@ const Div = cssInterop(ExpoDiv, { className: "style" });
 
 const rules = {
   heading1: (node: any, children: any) => (
-    <H4 className="mb-4 mt-4 font-bold text-foreground">{children}</H4>
+    <H1 className="mb-3 mt-4 text-2xl font-bold text-foreground">{children}</H1>
   ),
   heading2: (node: any, children: any) => (
-    <H4 className="mb-4 mt-4 font-bold text-foreground">{children}</H4>
+    <H2 className="mb-3 mt-4 text-xl font-bold text-foreground">{children}</H2>
   ),
   heading3: (node: any, children: any) => (
-    <P className="mb-2 mt-2 font-bold text-foreground">{children}</P>
+    <H3 className="mb-2 mt-3 text-lg font-bold text-foreground">{children}</H3>
   ),
   heading4: (node: any, children: any) => (
-    <P className="mb-2 mt-2 font-bold text-foreground">{children}</P>
+    <H4 className="mb-2 mt-3 text-base font-bold text-foreground">{children}</H4>
   ),
   heading5: (node: any, children: any) => (
-    <P className="mb-2 mt-2 font-bold text-foreground">{children}</P>
+    <H5 className="mb-2 mt-2 text-sm font-bold text-foreground">{children}</H5>
   ),
   heading6: (node: any, children: any) => (
-    <P className="mb-2 mt-2 font-bold text-foreground">{children}</P>
+    <H6 className="mb-2 mt-2 text-sm font-bold text-foreground">{children}</H6>
   ),
   code: (node: any, children: any, parent: any) => {
     return parent.length > 1 ? (
-      <Pre className="mt-2 w-[80dvw] overflow-x-scroll rounded-lg bg-zinc-100 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 p-3 text-sm text-foreground md:max-w-[500px]">
+      <Pre className="my-3 max-w-full overflow-x-auto rounded-lg bg-zinc-100 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 p-3 text-sm text-foreground">
         <Code className="text-foreground">{children}</Code>
       </Pre>
     ) : (
       <Code
-        className="bg-zinc-200 dark:bg-zinc-700 px-1.5 py-0 text-[11px] text-foreground"
-        style={{ borderRadius: 999 }}
+        className="bg-zinc-200 dark:bg-zinc-700 px-1.5 py-0.5 text-xs text-foreground"
+        style={{ borderRadius: 4 }}
       >
         {children}
       </Code>
     );
   },
-  list_item: (node: any, children: any) => <Li className="py-1 text-foreground">{children}</Li>,
+  list_item: (node: any, children: any) => <Li className="py-0.5 text-foreground">{children}</Li>,
   ordered_list: (node: any, children: any) => (
-    <Ol className="ml-4 list-outside list-decimal text-foreground">{children}</Ol>
+    <Ol className="ml-5 mb-3 list-outside list-decimal text-foreground">{children}</Ol>
   ),
   unordered_list: (node: any, children: any) => (
-    <Ul className="ml-4 list-outside list-disc text-foreground">{children}</Ul>
+    <Ul className="ml-5 mb-3 list-outside list-disc text-foreground">{children}</Ul>
   ),
   strong: (node: any, children: any) => (
     <Strong className="font-semibold text-foreground">{children}</Strong>
@@ -98,7 +98,7 @@ const rules = {
     </A>
   ),
   paragraph: (node: any, children: any) => {
-    return <P className="text-base leading-7 text-foreground">{children}</P>;
+    return <P className="mb-3 text-base leading-7 text-foreground">{children}</P>;
   },
   text: (node: any) => {
     return node.content;
