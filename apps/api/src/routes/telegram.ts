@@ -200,6 +200,7 @@ router.get('/users/:telegramId', async (req, res) => {
       oxyUserId: telegramUser.oxyUserId,
       conversationId: telegramUser.conversationId,
       linkedAt: telegramUser.linkedAt,
+      preferredModel: telegramUser.preferredModel,
     });
   } catch (error) {
     console.error('Get telegram user error:', error);
