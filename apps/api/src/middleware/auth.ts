@@ -74,7 +74,7 @@ export async function authenticateToken(req: Request, res: Response, next: NextF
 
 /**
  * Optional auth - doesn't fail if no session
- * Tries bot auth first (Telegram/Mastodon), then session auth
+ * Tries bot auth first (Telegram), then session auth
  */
 export async function optionalAuth(
   req: Request,
@@ -86,13 +86,6 @@ export async function optionalAuth(
   if (telegramBotSecret) {
     // Delegate to Telegram bot auth middleware
     return authenticateTelegramBot(req, res, next);
-  }
-
-  // Check if this is a Mastodon bot request
-  const mastodonBotSecret = req.headers['x-mastodon-bot-secret'] as string;
-  if (mastodonBotSecret) {
-    // Delegate to Mastodon bot auth middleware
-    return authenticateMastodonBot(req, res, next);
   }
 
   // Otherwise try regular session auth
@@ -348,81 +341,3 @@ export async function authenticateTelegramBot(
   }
 }
 
-/**
- * Authenticate internal Mastodon bot requests
- * The bot is an autonomous component that doesn't act on behalf of users
- *
- * Security layers:
- * 1. Verifies bot secret matches server-side secret
- * 2. Uses constant-time comparison to prevent timing attacks
- * 3. Logs authentication attempts for audit trail
- */
-export async function authenticateMastodonBot(
-  req: Request,
-  res: Response,
-  next: NextFunction
-): Promise<void> {
-  const startTime = Date.now();
-
-  try {
-    const botSecret = req.headers['x-mastodon-bot-secret'] as string;
-    const source = req.headers['x-source'] as string;
-
-    // Verify bot secret is configured
-    const expectedSecret = process.env.MASTODON_BOT_SECRET;
-    if (!expectedSecret) {
-      console.error('[MastodonAuth] MASTODON_BOT_SECRET not configured');
-      res.status(500).json({ error: 'Bot authentication not configured' });
-      return;
-    }
-
-    // Verify secret provided
-    if (!botSecret) {
-      console.warn('[MastodonAuth] Missing bot secret from:', req.ip);
-      res.status(401).json({ error: 'Bot authentication required' });
-      return;
-    }
-
-    // Use crypto.timingSafeEqual to prevent timing attacks
-    const expectedBuffer = Buffer.from(expectedSecret);
-    const providedBuffer = Buffer.from(botSecret);
-
-    if (expectedBuffer.length !== providedBuffer.length) {
-      console.warn('[MastodonAuth] Invalid bot secret length from:', req.ip);
-      res.status(401).json({ error: 'Invalid bot authentication' });
-      return;
-    }
-
-    const crypto = await import('crypto');
-    if (!crypto.timingSafeEqual(expectedBuffer, providedBuffer)) {
-      console.warn('[MastodonAuth] Invalid bot secret from:', req.ip);
-      res.status(401).json({ error: 'Invalid bot authentication' });
-      return;
-    }
-
-    // Verify source is mastodon
-    if (source !== 'mastodon') {
-      console.warn('[MastodonAuth] Invalid source header:', source);
-      res.status(400).json({ error: 'Invalid source' });
-      return;
-    }
-
-    // Log successful auth for audit trail
-    const duration = Date.now() - startTime;
-    console.log('[MastodonAuth] Authenticated bot request:', {
-      source,
-      ip: req.ip,
-      endpoint: req.path,
-      duration: `${duration}ms`
-    });
-
-    // Mark request as coming from Mastodon bot
-    (req as any).isMastodonBot = true;
-    (req as any).source = 'mastodon';
-
-    next();
-  } catch (error) {
-    console.error('[MastodonAuth] Bot authentication error:', error);
-    res.status(500).json({ error: 'Authentication failed' });
-  }
-}
