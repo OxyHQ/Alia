@@ -428,7 +428,7 @@ router.post('/', optionalAuth, async (req, res) => {
           assistantResponse = assistantResponse.replace(/\[TITLE\].*?\[\/TITLE\]/g, '').trim();
         } else {
           // Auto-generate title as fallback
-          const firstUserMessage = messages.find((m: any) => m.role === 'user')?.content;
+          const firstUserMessage = messages.filter(m => m && m.role).find((m: any) => m.role === 'user')?.content;
           conversationTitle = autoGenerateTitle(assistantResponse, firstUserMessage);
           console.log(`[Alia/Chat] No title found in response - auto-generated: "${conversationTitle}"`);
         }
@@ -488,7 +488,7 @@ router.post('/', optionalAuth, async (req, res) => {
         ].filter(msg => msg != null && msg.role && msg.content !== undefined); // Filter out invalid messages
 
         // Use extracted/auto-generated title, or generate one as final fallback
-        const firstUserMessage = allMessages.find((m: any) => m.role === 'user')?.content;
+        const firstUserMessage = allMessages.filter(m => m && m.role).find((m: any) => m.role === 'user')?.content;
         const title = conversationTitle || autoGenerateTitle(assistantResponse, firstUserMessage);
         const lastMessage = assistantResponse.slice(0, 100);
 
