@@ -31,7 +31,24 @@ dotenv.config({ path: join(__dirname, '../.env') });
 
 const app = express();
 const PORT = parseInt(process.env.PORT || '3001', 10);
-const server = http.createServer(app);
+
+// Create HTTP server with optimized settings for streaming
+const server = http.createServer({
+  // Increase max header size for long authentication tokens
+  maxHeaderSize: 16384,
+  // Keep connections alive for SSE
+  keepAlive: true,
+  keepAliveTimeout: 65000, // Slightly higher than default
+}, app);
+
+// Optimize server for SSE streaming
+server.on('connection', (socket) => {
+  // Disable Nagle's algorithm for all connections to reduce latency
+  socket.setNoDelay(true);
+  // Set keep-alive
+  socket.setKeepAlive(true, 60000);
+});
+
 // Socket.io
 import { initSocket } from './socket.js';
 const io = initSocket(server);
@@ -67,9 +84,17 @@ app.use('/billing/webhook', express.raw({ type: 'application/json' }));
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-// Disable compression for SSE routes to enable real-time streaming
+// Optimize SSE routes for real-time streaming
 app.use('/alia/chat', (_req, res, next) => {
+  // Disable all buffering for SSE
   res.setHeader('X-Accel-Buffering', 'no'); // Disable nginx buffering
+
+  // Disable Nagle's algorithm for lower latency
+  if (res.socket) {
+    res.socket.setNoDelay(true);
+    res.socket.setTimeout(0); // No timeout for SSE connections
+  }
+
   next();
 });
 
