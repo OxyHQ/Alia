@@ -248,6 +248,9 @@ router.post('/', optionalAuth, async (req, res) => {
     }
 
     console.log('[Alia/Chat] Request received, loading keys...');
+    if (requestedModel) {
+      console.log('[Alia/Chat] User requested model:', requestedModel);
+    }
 
     // Extract device info from headers if available
     let deviceInfo: DeviceInfo | null = null;
