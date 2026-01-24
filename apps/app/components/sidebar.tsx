@@ -367,76 +367,8 @@ export const Sidebar = React.memo(function Sidebar() {
     return user.username || "User";
   }, [user]);
 
-  // Render item for FlashList
-  const renderHistoryItem = React.useCallback(({ item }: { item: ConversationListItem }) => {
-    if (item.type === 'header') {
-      return (
-        <View style={{ paddingHorizontal: 8, paddingVertical: 8, marginTop: 8 }}>
-          <Text style={{ fontSize: 12, fontWeight: '600', color: '#9ca3af', textTransform: 'uppercase', letterSpacing: 0.5 }}>
-            {item.group}
-          </Text>
-        </View>
-      );
-    }
-
-    // Render conversation
-    const conv = item.conversation!;
-    const convProject = getConversationProject(conv.id);
-    const convFolder = getConversationFolder(conv.id);
-    const isConvFavorite = favoriteConversationIds.includes(conv.id);
-    const isActive = chatId?.id === conv.id;
-
-    return (
-      <View
-        style={{
-          flexDirection: 'row',
-          alignItems: 'center',
-          gap: 4,
-          borderRadius: 9999,
-          backgroundColor: isActive ? '#f3f4f6' : 'transparent',
-          borderWidth: isActive ? 1 : 0,
-          borderColor: isActive ? '#e5e7eb' : 'transparent',
-        }}
-      >
-        <Pressable
-          onPress={() => handleSelectConversation(conv.id)}
-          style={{
-            flex: 1,
-            flexDirection: 'row',
-            alignItems: 'center',
-            gap: 8,
-            paddingVertical: 10,
-            paddingLeft: 12,
-            paddingRight: 4,
-            borderRadius: 9999,
-          }}
-        >
-          <MessageSquare
-            size={16}
-            color={isActive ? '#3b82f6' : '#6b7280'}
-          />
-          <Text
-            style={{
-              flex: 1,
-              fontSize: 14,
-              color: '#1f2937',
-              fontWeight: isActive ? '500' : '400',
-            }}
-            numberOfLines={1}
-          >
-            {conv.title || "New conversation"}
-          </Text>
-          {isConvFavorite && (
-            <StarIcon size={12} color="#f59e0b" fill="#f59e0b" />
-          )}
-        </Pressable>
-        {renderConversationMenu(conv, convProject, convFolder)}
-      </View>
-    );
-  }, [chatId, favoriteConversationIds, handleSelectConversation, getConversationProject, getConversationFolder, renderConversationMenu]);
-
   // Helper function to render conversation menu
-  const renderConversationMenu = (
+  const renderConversationMenu = React.useCallback((
     conv: any,
     convProject: Project | undefined,
     convFolder: FolderType | undefined
@@ -547,7 +479,75 @@ export const Sidebar = React.memo(function Sidebar() {
       </DropdownMenuContent>
     </DropdownMenu>
     );
-  };
+  }, [favoriteConversationIds, handleToggleFavorite, handleMoveConversationToProject, projects, handleMoveConversationToFolder, folders, handleDeleteConversation]);
+
+  // Render item for FlashList
+  const renderHistoryItem = React.useCallback(({ item }: { item: ConversationListItem }) => {
+    if (item.type === 'header') {
+      return (
+        <View style={{ paddingHorizontal: 8, paddingVertical: 8, marginTop: 8 }}>
+          <Text style={{ fontSize: 12, fontWeight: '600', color: '#9ca3af', textTransform: 'uppercase', letterSpacing: 0.5 }}>
+            {item.group}
+          </Text>
+        </View>
+      );
+    }
+
+    // Render conversation
+    const conv = item.conversation!;
+    const convProject = getConversationProject(conv.id);
+    const convFolder = getConversationFolder(conv.id);
+    const isConvFavorite = favoriteConversationIds.includes(conv.id);
+    const isActive = chatId?.id === conv.id;
+
+    return (
+      <View
+        style={{
+          flexDirection: 'row',
+          alignItems: 'center',
+          gap: 4,
+          borderRadius: 9999,
+          backgroundColor: isActive ? '#f3f4f6' : 'transparent',
+          borderWidth: isActive ? 1 : 0,
+          borderColor: isActive ? '#e5e7eb' : 'transparent',
+        }}
+      >
+        <Pressable
+          onPress={() => handleSelectConversation(conv.id)}
+          style={{
+            flex: 1,
+            flexDirection: 'row',
+            alignItems: 'center',
+            gap: 8,
+            paddingVertical: 10,
+            paddingLeft: 12,
+            paddingRight: 4,
+            borderRadius: 9999,
+          }}
+        >
+          <MessageSquare
+            size={16}
+            color={isActive ? '#3b82f6' : '#6b7280'}
+          />
+          <Text
+            style={{
+              flex: 1,
+              fontSize: 14,
+              color: '#1f2937',
+              fontWeight: isActive ? '500' : '400',
+            }}
+            numberOfLines={1}
+          >
+            {conv.title || "New conversation"}
+          </Text>
+          {isConvFavorite && (
+            <StarIcon size={12} color="#f59e0b" fill="#f59e0b" />
+          )}
+        </Pressable>
+        {renderConversationMenu(conv, convProject, convFolder)}
+      </View>
+    );
+  }, [chatId, favoriteConversationIds, handleSelectConversation, getConversationProject, getConversationFolder, renderConversationMenu]);
 
   return (
     <View className="flex-1 bg-surface">
@@ -808,8 +808,7 @@ export const Sidebar = React.memo(function Sidebar() {
                     <FlashList
                       data={flattenedConversations}
                       renderItem={renderHistoryItem}
-                      estimatedItemSize={48}
-                      getItemType={(item) => item.type}
+                      estimatedItemSize={50}
                       onEndReached={() => {
                         if (hasNextPage && !isFetchingNextPage) {
                           fetchNextPage();
