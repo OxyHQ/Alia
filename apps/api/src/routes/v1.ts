@@ -26,11 +26,13 @@ router.get('/', (req, res) => {
   });
 });
 
-// Apply authentication to all v1 routes (supports both JWT and API keys)
+// Public routes (no auth required)
+router.use('/models', modelsRouter);
+
+// Apply authentication to all other v1 routes (supports both JWT and API keys)
 router.use(authenticateTokenOrApiKey);
 
 router.use('/chat/completions', chatCompletionsRouter);
 router.use('/codea/completions', codeaCompletionsRouter);
-router.use('/models', modelsRouter);
 
 export default router;
