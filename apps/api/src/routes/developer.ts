@@ -129,10 +129,10 @@ router.delete('/apps/:id', async (req: Request, res: Response) => {
     }
 
     // Also delete all API keys associated with this app
-    await DeveloperApiKey.deleteMany({ appId: id });
+    await DeveloperApiKey.deleteMany({ appId: id, oxyUserId: userId });
 
     // Delete usage data
-    await ApiKeyUsage.deleteMany({ appId: id });
+    await ApiKeyUsage.deleteMany({ appId: id, oxyUserId: userId });
 
     res.json({ message: 'App deleted successfully' });
   } catch (error) {
@@ -302,7 +302,7 @@ router.delete('/apps/:appId/keys/:keyId', async (req: Request, res: Response) =>
     }
 
     // Delete usage data
-    await ApiKeyUsage.deleteMany({ apiKeyId: keyId });
+    await ApiKeyUsage.deleteMany({ apiKeyId: keyId, oxyUserId: userId });
 
     res.json({ message: 'API key deleted successfully' });
   } catch (error) {

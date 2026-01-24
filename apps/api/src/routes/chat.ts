@@ -403,8 +403,11 @@ router.post('/', optionalAuth, async (req, res) => {
         const titleMatch = assistantResponse.match(/\[TITLE\](.*?)\[\/TITLE\]/);
         if (titleMatch) {
           conversationTitle = titleMatch[1].trim();
+          console.log(`[Alia/Chat] Extracted title: "${conversationTitle}"`);
           // Remove title tags from response
           assistantResponse = assistantResponse.replace(/\[TITLE\].*?\[\/TITLE\]/g, '').trim();
+        } else {
+          console.log('[Alia/Chat] No title found in response');
         }
       }
 
@@ -459,11 +462,13 @@ router.post('/', optionalAuth, async (req, res) => {
             role: 'assistant',
             content: assistantResponse,
           }
-        ];
+        ].filter(msg => msg != null && msg.role && msg.content !== undefined); // Filter out invalid messages
 
         // Generate title from first user message if no title extracted
-        const title = conversationTitle || messages.find((m: any) => m.role === 'user')?.content?.slice(0, 50) || 'Nueva conversación';
+        const title = conversationTitle || allMessages.find((m: any) => m.role === 'user')?.content?.slice(0, 50) || 'Nueva conversación';
         const lastMessage = assistantResponse.slice(0, 100);
+
+        console.log(`[Alia/Chat] Saving conversation with title: "${title}"`);
 
         // Save or update conversation (set source only on insert)
         await Conversation.findOneAndUpdate(
