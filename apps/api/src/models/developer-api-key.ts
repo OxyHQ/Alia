@@ -2,7 +2,7 @@ import mongoose, { Schema, Document } from 'mongoose';
 import crypto from 'crypto';
 
 export interface IDeveloperApiKey extends Document {
-  oxyUserId: mongoose.Types.ObjectId;
+  oxyUserId: string;
   appId: mongoose.Types.ObjectId;
   name: string;
   keyHash: string;
@@ -21,8 +21,7 @@ export interface IDeveloperApiKey extends Document {
 const DeveloperApiKeySchema = new Schema<IDeveloperApiKey>(
   {
     oxyUserId: {
-      type: Schema.Types.ObjectId,
-      ref: 'User',
+      type: String,
       required: true,
       index: true,
     },

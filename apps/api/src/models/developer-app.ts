@@ -1,7 +1,7 @@
 import mongoose, { Schema, Document } from 'mongoose';
 
 export interface IDeveloperApp extends Document {
-  oxyUserId: mongoose.Types.ObjectId;
+  oxyUserId: string;
   organizationId?: mongoose.Types.ObjectId;
   name: string;
   description?: string;
@@ -16,8 +16,7 @@ export interface IDeveloperApp extends Document {
 const DeveloperAppSchema = new Schema<IDeveloperApp>(
   {
     oxyUserId: {
-      type: Schema.Types.ObjectId,
-      ref: 'User',
+      type: String,
       required: true,
       index: true,
     },

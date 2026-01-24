@@ -2,7 +2,7 @@ import mongoose, { Schema, Document } from 'mongoose';
 
 export interface IApiKeyUsage extends Document {
   apiKeyId: mongoose.Types.ObjectId;
-  oxyUserId: mongoose.Types.ObjectId;
+  oxyUserId: string;
   appId: mongoose.Types.ObjectId;
   endpoint: string;
   method: string;
@@ -24,8 +24,7 @@ const ApiKeyUsageSchema = new Schema<IApiKeyUsage>(
       index: true,
     },
     oxyUserId: {
-      type: Schema.Types.ObjectId,
-      ref: 'User',
+      type: String,
       required: true,
       index: true,
     },
