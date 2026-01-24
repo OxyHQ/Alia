@@ -23,28 +23,15 @@ const router = Router();
 
 // Auto-generate a title from response content if AI didn't provide one
 function autoGenerateTitle(content: string, userMessage?: string): string {
-  // Try to generate from assistant response (first 50 chars)
-  if (content && content.trim()) {
-    const cleaned = content
-      .replace(/\[.*?\]/g, '') // Remove any markdown blocks
-      .replace(/[#*_`]/g, '') // Remove markdown formatting
-      .trim()
-      .slice(0, 50);
-
-    if (cleaned.length > 10) {
-      // Try to cut at word boundary
-      const words = cleaned.split(' ').slice(0, 6);
-      return words.join(' ');
-    }
-  }
-
-  // Fallback to user message
-  if (userMessage && userMessage.trim()) {
-    const words = userMessage.trim().split(' ').slice(0, 6);
+  const extractWords = (text: string): string => {
+    const cleaned = text.replace(/\[.*?\]|[#*_`]/g, '').trim();
+    if (cleaned.length < 10) return '';
+    const words = cleaned.split(/\s+/).slice(0, 6);
     return words.join(' ');
-  }
+  };
 
-  return 'Nueva conversación';
+  // Try assistant response first, then user message, then default
+  return extractWords(content) || extractWords(userMessage || '') || 'Nueva conversación';
 }
 
 // Create AI SDK provider based on key
@@ -163,16 +150,7 @@ function buildSystemPrompt(oxyUser?: OxyUser | null, memory?: IUserMemory | null
 // Telegram-specific system prompt (simplified, no visual components)
 const ALIA_TELEGRAM_PROMPT = `You are Alia, the AI assistant for Alia AI platform. You connect users to powerful AI models (Gemini, Claude, GPT-4, etc).
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-⚠️ MANDATORY TITLE REQUIREMENT ⚠️
-YOU MUST END EVERY SINGLE RESPONSE WITH:
-\`[TITLE]Short Title Here[/TITLE]\`
-
-- Maximum 6 words
-- Must appear at the end of EVERY response
-- NO EXCEPTIONS - this is REQUIRED, not optional
-- The title should summarize the conversation topic
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+**MANDATORY: EVERY response must end with \`[TITLE]Short Title[/TITLE]\` (max 6 words). NO EXCEPTIONS.**
 
 **Language Rule**: ALWAYS respond in the same language the user writes. If unclear, use their account language preference. Match their language automatically.
 
@@ -198,23 +176,12 @@ YOU MUST END EVERY SINGLE RESPONSE WITH:
 
 **Workflow**: Announce tool usage naturally. Build narratives around findings—explain context, offer analysis. Always cite sources.
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-REMINDER: End your response with \`[TITLE]Short Title[/TITLE]\`
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+**REMEMBER: End with \`[TITLE]Short Title[/TITLE]\`**
 `;
 
 const ALIA_SYSTEM_PROMPT = `You are Alia, AI assistant for Alia AI platform. You connect users to powerful AI models (Gemini, Claude, GPT-4, etc). Platform offers OpenAI-compatible API at \`/api/v1\`.
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-⚠️ MANDATORY TITLE REQUIREMENT ⚠️
-YOU MUST END EVERY SINGLE RESPONSE WITH:
-\`[TITLE]Short Title Here[/TITLE]\`
-
-- Maximum 6 words
-- Must appear at the end of EVERY response
-- NO EXCEPTIONS - this is REQUIRED, not optional
-- The title should summarize the conversation topic
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+**MANDATORY: EVERY response must end with \`[TITLE]Short Title[/TITLE]\` (max 6 words). NO EXCEPTIONS.**
 
 **Language Rule**: ALWAYS respond in the same language the user writes. If unclear, use their account language preference. Match their language automatically.
 
@@ -240,9 +207,7 @@ YOU MUST END EVERY SINGLE RESPONSE WITH:
 
 **Workflow**: Announce tool usage naturally. Build narratives—explain context before structured data, offer deep analysis after.
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-REMINDER: End your response with \`[TITLE]Short Title[/TITLE]\`
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+**REMEMBER: End with \`[TITLE]Short Title[/TITLE]\`**
 `;
 
 
