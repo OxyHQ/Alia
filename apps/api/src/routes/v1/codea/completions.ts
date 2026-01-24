@@ -82,7 +82,30 @@ function convertToAISDKMessages(messages: any[], toolNameMapping: Map<string, st
       // AI SDK expects tool results as a "tool" role message with specific structure
       const toolCallId = msg.tool_call_id;
       const toolInfo = toolCallsMap.get(toolCallId);
-      const toolName = toolInfo?.name || 'unknown';
+
+      // Get tool name from our tracking, or try to get it from the message itself
+      // Some clients include the tool name in the tool result message
+      let toolName = toolInfo?.name || msg.name || 'unknown';
+
+      // If still unknown, try to find it by looking at the previous assistant message's tool calls
+      if (toolName === 'unknown' && i > 0) {
+        // Look backwards for the assistant message that made this tool call
+        for (let j = i - 1; j >= 0; j--) {
+          const prevMsg = messages[j];
+          if (prevMsg.role === 'assistant' && prevMsg.tool_calls) {
+            const matchingCall = prevMsg.tool_calls.find((tc: any) => tc.id === toolCallId);
+            if (matchingCall) {
+              toolName = matchingCall.function?.name || 'unknown';
+              break;
+            }
+          }
+        }
+      }
+
+      const contentValue = typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content);
+
+      // Log tool result details for debugging
+      console.log(`[Codea] Converting tool result: id=${toolCallId}, name=${toolName}, content_length=${contentValue.length}`);
 
       result.push({
         role: 'tool',
@@ -92,7 +115,7 @@ function convertToAISDKMessages(messages: any[], toolNameMapping: Map<string, st
           toolName: toolName,
           output: {
             type: 'text',
-            value: typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content)
+            value: contentValue
           }
         }]
       } as ModelMessage);
@@ -179,6 +202,22 @@ async function handleCodeaCompletions(req: Request, res: Response) {
     }
 
     console.log(`✅ [Codea] Processing ${messages.length} messages`);
+
+    // Log message types for debugging
+    const msgTypes = messages.map((m: any) => m.role);
+    console.log(`[Codea] Message roles: ${msgTypes.join(', ')}`);
+
+    // Log tool message details
+    const toolMsgs = messages.filter((m: any) => m.role === 'tool');
+    if (toolMsgs.length > 0) {
+      console.log(`[Codea] Found ${toolMsgs.length} tool result messages:`);
+      toolMsgs.forEach((tm: any, idx: number) => {
+        const contentPreview = typeof tm.content === 'string'
+          ? tm.content.substring(0, 100) + (tm.content.length > 100 ? '...' : '')
+          : JSON.stringify(tm.content).substring(0, 100);
+        console.log(`  [${idx}] tool_call_id=${tm.tool_call_id}, content_length=${tm.content?.length || 0}, preview: ${contentPreview}`);
+      });
+    }
 
     // Reserve credits if user is authenticated
     if (req.user) {
