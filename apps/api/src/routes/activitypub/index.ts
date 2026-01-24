@@ -9,12 +9,16 @@ import actorRouter from './actor.js';
 import inboxRouter from './inbox.js';
 import outboxRouter from './outbox.js';
 import followersRouter from './followers.js';
+import webfingerRouter from './webfinger.js';
 import { ACTIVITYPUB_DOMAIN, ACTOR_URI } from '../../lib/activitypub/config.js';
 
 const router = Router();
 
 // Middleware to parse JSON bodies for ActivityPub
 router.use(express.json({ type: ['application/activity+json', 'application/ld+json', 'application/json'] }));
+
+// WebFinger endpoint (for actor discovery)
+router.use('/.well-known/webfinger', webfingerRouter);
 
 // Actor endpoints
 router.use('/actors/alia', actorRouter);

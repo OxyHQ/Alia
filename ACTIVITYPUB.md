@@ -23,14 +23,35 @@ ACTOR_DOMAIN=api.alia.onl
 
 Push a Git → DigitalOcean auto-deploya.
 
+## 🌐 DigitalOcean Configuration
+
+**CRITICAL**: WebFinger must be accessible at `https://alia.onl/.well-known/webfinger` for Mastodon to discover Alia.
+
+### Option A: URL Redirect (Recommended)
+Configure a redirect rule in DigitalOcean App Platform for the alia.onl app:
+```
+Source: /.well-known/webfinger
+Destination: https://api.alia.onl/.well-known/webfinger
+Preserve query params: YES
+```
+
+### Option B: Change DNS
+Point `alia.onl` A/CNAME records to the API server instead.
+
 ## 🧪 Testing
 
 ```bash
-# WebFinger (desde alia.onl)
-curl https://alia.onl/.well-known/webfinger?resource=acct:alia@alia.onl
+# WebFinger (MUST work from alia.onl)
+curl "https://alia.onl/.well-known/webfinger?resource=acct:alia@alia.onl"
+
+# WebFinger (direct from API)
+curl "https://api.alia.onl/.well-known/webfinger?resource=acct:alia@alia.onl"
 
 # Actor (desde api.alia.onl)
 curl -H "Accept: application/activity+json" https://api.alia.onl/actors/alia
+
+# Health check
+curl https://api.alia.onl/activitypub/health
 
 # Desde Mastodon
 Buscar: @alia@alia.onl
@@ -40,13 +61,11 @@ Buscar: @alia@alia.onl
 
 ### API Server (apps/api/)
 - `src/lib/activitypub/` - Core (config, signatures, fetcher, sender, processor, utils)
-- `src/routes/activitypub/` - Endpoints (actor, inbox, outbox, followers)
+- `src/routes/activitypub/` - Endpoints (webfinger, actor, inbox, outbox, followers)
 - `src/models/activitypub-*.ts` - MongoDB models
 - `src/scripts/generate-activitypub-keys.ts` - Script de claves
 
-### App Expo (apps/app/)
-- `app/api/.well-known/webfinger/+api.ts` - WebFinger API route
-- `public/.well-known/webfinger` - Fallback estático
+**Nota**: WebFinger está en el API server porque la app Expo usa `output: "static"` y no puede ejecutar API routes.
 
 ## 🔧 Cómo Funciona
 
@@ -68,17 +87,21 @@ Responder al usuario
 
 | Problema | Solución |
 |----------|----------|
-| No encuentra @alia | Verifica WebFinger en alia.onl |
-| Invalid signature | Regenera claves RSA |
-| No responde | Revisa logs en DO, verifica MongoDB |
+| No encuentra @alia@alia.onl | **CRÍTICO**: WebFinger DEBE funcionar en `https://alia.onl/.well-known/webfinger`. Configura redirect en DO o mueve DNS a API server |
+| 404 en WebFinger | Verifica que el redirect de DO esté configurado correctamente |
+| Invalid signature | Regenera claves RSA con `npm run generate-keys` |
+| No responde a menciones | Revisa logs en DO, verifica MongoDB, confirma que inbox esté recibiendo requests |
+| Expo app es static | ✅ Correcto - WebFinger ahora está en API server |
 
 ## ✅ Checklist
 
-- [ ] Claves RSA generadas
-- [ ] Variables en DO configuradas
-- [ ] WebFinger funciona
-- [ ] Actor retorna JSON
-- [ ] Búsqueda en Mastodon funciona
+- [ ] Claves RSA generadas (`npm run generate-keys` en apps/api)
+- [ ] Variables en DO configuradas (ACTIVITYPUB_DOMAIN, ACTOR_DOMAIN)
+- [ ] **CRÍTICO**: Redirect configurado en DO (alia.onl → api.alia.onl para /.well-known/webfinger)
+- [ ] WebFinger funciona en `https://alia.onl/.well-known/webfinger?resource=acct:alia@alia.onl`
+- [ ] WebFinger funciona en `https://api.alia.onl/.well-known/webfinger?resource=acct:alia@alia.onl`
+- [ ] Actor retorna JSON en `https://api.alia.onl/actors/alia`
+- [ ] Búsqueda en Mastodon funciona (@alia@alia.onl)
 - [ ] Responde a menciones
 
 **Handle**: `@alia@alia.onl`
