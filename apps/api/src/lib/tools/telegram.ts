@@ -1,5 +1,6 @@
 import { tool } from 'ai';
 import { z } from 'zod';
+import mongoose from 'mongoose';
 import { TelegramUser } from '../../models/telegram-user.js';
 
 /**
@@ -16,7 +17,7 @@ export function createSendTelegramTool(userId: string) {
       try {
         // Find user's Telegram account
         const telegramUser = await TelegramUser.findOne({
-          userId,
+          oxyUserId: new mongoose.Types.ObjectId(userId),
           isAuthenticated: true
         });
 
