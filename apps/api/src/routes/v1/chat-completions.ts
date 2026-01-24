@@ -200,7 +200,7 @@ router.post('/', async (req: Request, res: Response) => {
                 type: 'function',
                 function: {
                   name: chunk.toolName,
-                  arguments: JSON.stringify(chunk.args)
+                  arguments: JSON.stringify(chunk.input || {})
                 }
               }]
             },
@@ -209,7 +209,7 @@ router.post('/', async (req: Request, res: Response) => {
         };
         res.write(`data: ${JSON.stringify(toolCallChunk)}\n\n`);
       } else if (chunk.type === 'tool-result') {
-        console.log('[V1/Chat] Tool result:', chunk.toolName, chunk.result);
+        console.log('[V1/Chat] Tool result:', chunk.toolName, chunk.output);
       } else if (chunk.type === 'finish') {
         const finishChunk = {
           id: `chatcmpl-${Date.now()}`,
