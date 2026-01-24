@@ -4,10 +4,8 @@ import { Image } from "expo-image";
 import { Text } from "@/components/ui/text";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { cn } from "@/lib/utils";
 import {
   Sparkles,
-  MessageSquare,
   Trash2,
   Users,
   Settings2,
@@ -596,169 +594,71 @@ export const Sidebar = React.memo(function Sidebar() {
               </View>
               {!historyCollapsed && (
                 <View className="gap-1">
-                {(() => {
-                  // Separate conversations into folders and standalone
-                  const conversationsInFolders = new Set<string>();
-                  const foldersToShow = folders.map((folder) => {
-                    const folderConversations = conversationsNotInProjects.filter((conv) =>
-                      folder.conversationIds.includes(conv.id)
-                    );
-                    folderConversations.forEach((conv) => conversationsInFolders.add(conv.id));
-                    return { folder, conversations: folderConversations };
-                  }).filter((f) => f.conversations.length > 0 || true);
-
-                  return conversationsNotInProjects.length === 0 ? (
-                    <View className="items-center justify-center py-4">
-                      <Text className="text-xs text-muted-foreground">
-                        {isLoading ? 'Loading...' : 'No history yet'}
-                      </Text>
-                    </View>
-                  ) : (
-                    <>
-                      {/* Render folders (favorites at top) */}
-                      {foldersToShow
-                        .sort((a, b) => (b.folder.isFavorite ? 1 : 0) - (a.folder.isFavorite ? 1 : 0))
-                        .map(({ folder, conversations: folderConvs }) => {
-                          const FolderIcon = ICON_MAP[folder.icon || "Folder"] || Folder;
-                          return (
-                            <View key={folder.id} className="gap-0.5">
-                              {/* Folder Header */}
-                              <View className="flex-row items-center gap-1 rounded-lg group">
-                                <Pressable
-                                  onPress={() => toggleFolder(folder.id)}
-                                  className="flex-1 flex-row items-center gap-2 py-1.5 px-2 active:bg-muted/50 rounded-lg"
-                                >
-                                  <FolderIcon
-                                    size={14}
-                                    className="text-muted-foreground"
-                                    style={{ color: folder.color }}
-                                  />
-                                  <Text
-                                    className="flex-1 text-xs text-foreground font-medium"
-                                    numberOfLines={1}
-                                  >
-                                    {folder.name}
-                                  </Text>
-                                  {folder.isFavorite && (
-                                    <StarIcon size={10} className="text-amber-500" fill="#f59e0b" />
-                                  )}
-                                  <Text className="text-xs text-muted-foreground mr-1">
-                                    {folderConvs.length}
-                                  </Text>
-                                  {folder.isExpanded ? (
-                                    <ChevronDown size={12} className="text-muted-foreground" />
-                                  ) : (
-                                    <ChevronRight size={12} className="text-muted-foreground" />
-                                  )}
-                                </Pressable>
-                                <DropdownMenu>
-                                  <DropdownMenuTrigger asChild>
-                                    <Pressable className="h-7 w-7 items-center justify-center rounded-full mr-1 active:bg-muted/70">
-                                      <MoreHorizontal size={12} className="text-muted-foreground" />
-                                    </Pressable>
-                                  </DropdownMenuTrigger>
-                                  <DropdownMenuContent side="bottom" align="end" className="w-48">
-                                    <DropdownMenuItem onPress={(e) => handleToggleFavoriteFolder(folder, e)}>
-                                      <StarIcon size={16} className="text-muted-foreground" />
-                                      <Text className="text-sm">
-                                        {folder.isFavorite ? "Unfavorite" : "Favorite"}
-                                      </Text>
-                                    </DropdownMenuItem>
-                                    <DropdownMenuItem onPress={(e) => handleEditFolder(folder, e)}>
-                                      <Edit size={16} className="text-muted-foreground" />
-                                      <Text className="text-sm">Edit Folder</Text>
-                                    </DropdownMenuItem>
-                                    <DropdownMenuSeparator />
-                                    <DropdownMenuItem
-                                      variant="destructive"
-                                      onPress={(e) => handleDeleteFolder(folder.id, e)}
-                                    >
-                                      <Trash2 size={16} className="text-destructive" />
-                                      <Text className="text-sm">Delete Folder</Text>
-                                    </DropdownMenuItem>
-                                  </DropdownMenuContent>
-                                </DropdownMenu>
-                              </View>
-
-                              {/* Folder Conversations */}
-                              {folder.isExpanded && folderConvs
-                                .sort((a, b) => (favoriteConversationIds.includes(b.id) ? 1 : 0) - (favoriteConversationIds.includes(a.id) ? 1 : 0))
-                                .map((conv) => {
-                                const convProject = getConversationProject(conv.id);
-                                const convFolder = getConversationFolder(conv.id);
-                                const isConvFavorite = favoriteConversationIds.includes(conv.id);
-                                return (
-                                  <View
-                                    key={conv.id}
-                                    className={cn(
-                                      "flex-row items-center gap-1 rounded-full group ml-4",
-                                      chatId?.id === conv.id
-                                        ? "bg-muted border border-border"
-                                        : ""
-                                    )}
-                                  >
-                                    <Pressable
-                                      onPress={() => handleSelectConversation(conv.id)}
-                                      className={cn(
-                                        "flex-1 flex-row items-center gap-2 py-1.5 pl-2.5 pr-1",
-                                        chatId?.id !== conv.id && "active:bg-muted/50 rounded-full"
-                                      )}
-                                    >
-                                      <MessageSquare
-                                        size={13}
-                                        className={cn(
-                                          "text-muted-foreground",
-                                          chatId?.id === conv.id && "text-primary"
-                                        )}
-                                      />
-                                      <Text
-                                        className={cn(
-                                          "flex-1 text-xs text-foreground",
-                                          chatId?.id === conv.id && "font-medium"
-                                        )}
-                                        numberOfLines={1}
-                                      >
-                                        {conv.title || "New conversation"}
-                                      </Text>
-                                      {isConvFavorite && (
-                                        <StarIcon size={10} className="text-amber-500" fill="#f59e0b" />
-                                      )}
-                                    </Pressable>
-                                    {renderConversationMenu(conv, convProject, convFolder)}
-                                  </View>
-                                );
-                              })}
-                            </View>
-                          );
-                        })}
-
-                      {/* Standalone conversations with FlashList and date grouping */}
-                      {flattenedStandaloneConversations.length > 0 && (
-                        <View style={{ minHeight: 200 }}>
-                          <FlashList
-                            data={flattenedStandaloneConversations}
-                            renderItem={renderHistoryItem}
-                            estimatedItemSize={35}
-                            onEndReached={() => {
-                              if (hasNextPage && !isFetchingNextPage) {
-                                fetchNextPage();
-                              }
-                            }}
-                            onEndReachedThreshold={0.5}
-                            ListFooterComponent={
-                              isFetchingNextPage ? (
-                                <View style={{ paddingVertical: 12, alignItems: 'center' }}>
-                                  <ActivityIndicator size="small" />
-                                </View>
-                              ) : null
-                            }
-                            // @ts-ignore - FlashList types issue
+{conversationsNotInProjects.length === 0 ? (
+                  <View className="items-center justify-center py-4">
+                    <Text className="text-xs text-muted-foreground">
+                      {isLoading ? 'Loading...' : 'No history yet'}
+                    </Text>
+                  </View>
+                ) : (
+                  <>
+                    {/* Render folders (favorites at top) */}
+                    {folders
+                      .filter((folder) => {
+                        const folderConvs = conversationsNotInProjects.filter((conv) =>
+                          folder.conversationIds.includes(conv.id)
+                        );
+                        return folderConvs.length > 0 || true;
+                      })
+                      .sort((a, b) => (b.isFavorite ? 1 : 0) - (a.isFavorite ? 1 : 0))
+                      .map((folder) => {
+                        const folderConversations = conversationsNotInProjects.filter((conv) =>
+                          folder.conversationIds.includes(conv.id)
+                        );
+                        return (
+                          <FolderSection
+                            key={folder.id}
+                            folder={folder}
+                            conversations={folderConversations}
+                            currentChatId={chatId?.id}
+                            favoriteIds={favoriteConversationIds}
+                            projects={projects}
+                            folders={folders}
+                            onToggle={toggleFolder}
+                            onEdit={handleEditFolder}
+                            onDelete={handleDeleteFolder}
+                            onToggleFavorite={handleToggleFavoriteFolder}
+                            onSelectConversation={handleSelectConversation}
+                            onToggleFavoriteConversation={handleToggleFavorite}
+                            onMoveToProject={handleMoveConversationToProject}
+                            onMoveToFolder={handleMoveConversationToFolder}
+                            onDeleteConversation={handleDeleteConversation}
+                            getConversationProject={getConversationProject}
+                            getConversationFolder={getConversationFolder}
                           />
-                        </View>
-                      )}
-                    </>
-                  );
-                })()}
+                        );
+                      })}
+
+                    {/* Standalone conversations with FlashList and date grouping */}
+                    <HistoryList
+                      data={flattenedStandaloneConversations}
+                      currentChatId={chatId?.id}
+                      favoriteIds={favoriteConversationIds}
+                      projects={projects}
+                      folders={folders}
+                      hasNextPage={hasNextPage}
+                      isFetchingNextPage={isFetchingNextPage}
+                      onSelect={handleSelectConversation}
+                      onToggleFavorite={handleToggleFavorite}
+                      onMoveToProject={handleMoveConversationToProject}
+                      onMoveToFolder={handleMoveConversationToFolder}
+                      onDelete={handleDeleteConversation}
+                      onLoadMore={fetchNextPage}
+                      getConversationProject={getConversationProject}
+                      getConversationFolder={getConversationFolder}
+                    />
+                  </>
+                )}
                 </View>
               )}
             </View>
