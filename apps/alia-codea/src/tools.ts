@@ -1,6 +1,4 @@
 import * as vscode from 'vscode';
-import * as path from 'path';
-import * as fs from 'fs';
 
 // Tool definitions in OpenAI format
 export const fileTools = [
@@ -189,18 +187,34 @@ export const fileTools = [
 
 // Tool execution functions
 export class ToolExecutor {
-  private workspaceRoot: string;
+  private workspaceRootUri: vscode.Uri | undefined;
 
   constructor() {
     const folders = vscode.workspace.workspaceFolders;
-    this.workspaceRoot = folders?.[0]?.uri.fsPath || '';
+    this.workspaceRootUri = folders?.[0]?.uri;
   }
 
-  private resolvePath(relativePath: string): string {
-    if (path.isAbsolute(relativePath)) {
-      return relativePath;
+  private resolveUri(relativePath: string): vscode.Uri {
+    if (!this.workspaceRootUri) {
+      throw new Error('No workspace folder open');
     }
-    return path.join(this.workspaceRoot, relativePath);
+    // Handle absolute paths (starts with /)
+    if (relativePath.startsWith('/')) {
+      return vscode.Uri.file(relativePath);
+    }
+    return vscode.Uri.joinPath(this.workspaceRootUri, relativePath);
+  }
+
+  private getRelativePath(uri: vscode.Uri): string {
+    if (!this.workspaceRootUri) {
+      return uri.fsPath;
+    }
+    const workspacePath = this.workspaceRootUri.fsPath;
+    const filePath = uri.fsPath;
+    if (filePath.startsWith(workspacePath)) {
+      return filePath.slice(workspacePath.length + 1); // +1 for the separator
+    }
+    return filePath;
   }
 
   async execute(toolName: string, args: any): Promise<{ success: boolean; result: string }> {
@@ -229,129 +243,140 @@ export class ToolExecutor {
   }
 
   private async readFile(args: { path: string; start_line?: number; end_line?: number }): Promise<{ success: boolean; result: string }> {
-    const filePath = this.resolvePath(args.path);
+    try {
+      const fileUri = this.resolveUri(args.path);
+      const contentBytes = await vscode.workspace.fs.readFile(fileUri);
+      const content = new TextDecoder().decode(contentBytes);
+      const lines = content.split('\n');
 
-    if (!fs.existsSync(filePath)) {
-      return { success: false, result: `File not found: ${args.path}` };
+      if (args.start_line || args.end_line) {
+        const start = (args.start_line || 1) - 1;
+        const end = args.end_line || lines.length;
+        const selectedLines = lines.slice(start, end);
+        return {
+          success: true,
+          result: selectedLines.map((line, i) => `${start + i + 1}: ${line}`).join('\n')
+        };
+      }
+
+      // Add line numbers for context
+      const numberedContent = lines.map((line, i) => `${i + 1}: ${line}`).join('\n');
+      return { success: true, result: numberedContent };
+    } catch (error) {
+      if (error instanceof vscode.FileSystemError && error.code === 'FileNotFound') {
+        return { success: false, result: `File not found: ${args.path}` };
+      }
+      throw error;
     }
-
-    const content = fs.readFileSync(filePath, 'utf-8');
-    const lines = content.split('\n');
-
-    if (args.start_line || args.end_line) {
-      const start = (args.start_line || 1) - 1;
-      const end = args.end_line || lines.length;
-      const selectedLines = lines.slice(start, end);
-      return {
-        success: true,
-        result: selectedLines.map((line, i) => `${start + i + 1}: ${line}`).join('\n')
-      };
-    }
-
-    // Add line numbers for context
-    const numberedContent = lines.map((line, i) => `${i + 1}: ${line}`).join('\n');
-    return { success: true, result: numberedContent };
   }
 
   private async writeFile(args: { path: string; content: string }): Promise<{ success: boolean; result: string }> {
-    const filePath = this.resolvePath(args.path);
+    const fileUri = this.resolveUri(args.path);
+    const contentBytes = new TextEncoder().encode(args.content);
 
-    // Create directory if it doesn't exist
-    const dir = path.dirname(filePath);
-    if (!fs.existsSync(dir)) {
-      fs.mkdirSync(dir, { recursive: true });
-    }
-
-    fs.writeFileSync(filePath, args.content, 'utf-8');
+    // vscode.workspace.fs.writeFile creates parent directories automatically
+    await vscode.workspace.fs.writeFile(fileUri, contentBytes);
 
     // Open the file in the editor
-    const doc = await vscode.workspace.openTextDocument(filePath);
+    const doc = await vscode.workspace.openTextDocument(fileUri);
     await vscode.window.showTextDocument(doc, { preview: false });
 
     return { success: true, result: `Successfully wrote to ${args.path}` };
   }
 
   private async editFile(args: { path: string; old_text: string; new_text: string }): Promise<{ success: boolean; result: string }> {
-    const filePath = this.resolvePath(args.path);
+    try {
+      const fileUri = this.resolveUri(args.path);
+      const contentBytes = await vscode.workspace.fs.readFile(fileUri);
+      const content = new TextDecoder().decode(contentBytes);
 
-    if (!fs.existsSync(filePath)) {
-      return { success: false, result: `File not found: ${args.path}` };
+      if (!content.includes(args.old_text)) {
+        return { success: false, result: `Could not find the specified text in ${args.path}. Make sure the text matches exactly including whitespace.` };
+      }
+
+      const newContent = content.replace(args.old_text, args.new_text);
+      await vscode.workspace.fs.writeFile(fileUri, new TextEncoder().encode(newContent));
+
+      // Open the file in the editor
+      const doc = await vscode.workspace.openTextDocument(fileUri);
+      await vscode.window.showTextDocument(doc, { preview: false });
+
+      return { success: true, result: `Successfully edited ${args.path}` };
+    } catch (error) {
+      if (error instanceof vscode.FileSystemError && error.code === 'FileNotFound') {
+        return { success: false, result: `File not found: ${args.path}` };
+      }
+      throw error;
     }
-
-    const content = fs.readFileSync(filePath, 'utf-8');
-
-    if (!content.includes(args.old_text)) {
-      return { success: false, result: `Could not find the specified text in ${args.path}. Make sure the text matches exactly including whitespace.` };
-    }
-
-    const newContent = content.replace(args.old_text, args.new_text);
-    fs.writeFileSync(filePath, newContent, 'utf-8');
-
-    // Open the file in the editor
-    const doc = await vscode.workspace.openTextDocument(filePath);
-    await vscode.window.showTextDocument(doc, { preview: false });
-
-    return { success: true, result: `Successfully edited ${args.path}` };
   }
 
   private async deleteFile(args: { path: string }): Promise<{ success: boolean; result: string }> {
-    const filePath = this.resolvePath(args.path);
-
-    if (!fs.existsSync(filePath)) {
-      return { success: false, result: `File not found: ${args.path}` };
+    try {
+      const fileUri = this.resolveUri(args.path);
+      await vscode.workspace.fs.delete(fileUri);
+      return { success: true, result: `Successfully deleted ${args.path}` };
+    } catch (error) {
+      if (error instanceof vscode.FileSystemError && error.code === 'FileNotFound') {
+        return { success: false, result: `File not found: ${args.path}` };
+      }
+      throw error;
     }
-
-    fs.unlinkSync(filePath);
-    return { success: true, result: `Successfully deleted ${args.path}` };
   }
 
   private async listFiles(args: { path: string; recursive?: boolean; pattern?: string }): Promise<{ success: boolean; result: string }> {
-    const dirPath = this.resolvePath(args.path);
+    try {
+      const dirUri = this.resolveUri(args.path);
 
-    if (!fs.existsSync(dirPath)) {
-      return { success: false, result: `Directory not found: ${args.path}` };
-    }
-
-    if (args.pattern) {
-      // Use VS Code's findFiles for glob patterns
-      const pattern = new vscode.RelativePattern(dirPath, args.pattern);
-      const files = await vscode.workspace.findFiles(pattern, '**/node_modules/**', 1000);
-      const relativePaths = files.map(f => path.relative(this.workspaceRoot, f.fsPath));
-      return { success: true, result: relativePaths.join('\n') || 'No files found' };
-    }
-
-    const listDir = (dir: string, prefix: string = ''): string[] => {
-      const items = fs.readdirSync(dir, { withFileTypes: true });
-      const results: string[] = [];
-
-      for (const item of items) {
-        if (item.name.startsWith('.') || item.name === 'node_modules') continue;
-
-        const itemPath = path.join(prefix, item.name);
-        if (item.isDirectory()) {
-          results.push(`📁 ${itemPath}/`);
-          if (args.recursive) {
-            results.push(...listDir(path.join(dir, item.name), itemPath));
-          }
-        } else {
-          results.push(`📄 ${itemPath}`);
-        }
+      if (args.pattern) {
+        // Use VS Code's findFiles for glob patterns
+        const pattern = new vscode.RelativePattern(dirUri, args.pattern);
+        const files = await vscode.workspace.findFiles(pattern, '**/node_modules/**', 1000);
+        const relativePaths = files.map(f => this.getRelativePath(f));
+        return { success: true, result: relativePaths.join('\n') || 'No files found' };
       }
-      return results;
-    };
 
-    const files = listDir(dirPath);
-    return { success: true, result: files.join('\n') || 'Empty directory' };
+      const listDir = async (dir: vscode.Uri, prefix: string = ''): Promise<string[]> => {
+        const entries = await vscode.workspace.fs.readDirectory(dir);
+        const results: string[] = [];
+
+        for (const [name, type] of entries) {
+          if (name.startsWith('.') || name === 'node_modules') continue;
+
+          const itemPath = prefix ? `${prefix}/${name}` : name;
+          if (type === vscode.FileType.Directory) {
+            results.push(`📁 ${itemPath}/`);
+            if (args.recursive) {
+              const subDir = vscode.Uri.joinPath(dir, name);
+              results.push(...await listDir(subDir, itemPath));
+            }
+          } else {
+            results.push(`📄 ${itemPath}`);
+          }
+        }
+        return results;
+      };
+
+      const files = await listDir(dirUri);
+      return { success: true, result: files.join('\n') || 'Empty directory' };
+    } catch (error) {
+      if (error instanceof vscode.FileSystemError && error.code === 'FileNotFound') {
+        return { success: false, result: `Directory not found: ${args.path}` };
+      }
+      throw error;
+    }
   }
 
   private async searchFiles(args: { query: string; path?: string; include?: string; exclude?: string }): Promise<{ success: boolean; result: string }> {
-    const searchPath = args.path ? this.resolvePath(args.path) : this.workspaceRoot;
+    const searchUri = args.path ? this.resolveUri(args.path) : this.workspaceRootUri;
+    if (!searchUri) {
+      return { success: false, result: 'No workspace folder open' };
+    }
 
     // Use VS Code's built-in search
     const include = args.include || '**/*';
     const exclude = args.exclude || '**/node_modules/**';
 
-    const pattern = new vscode.RelativePattern(searchPath, include);
+    const pattern = new vscode.RelativePattern(searchUri, include);
     const files = await vscode.workspace.findFiles(pattern, exclude, 100);
 
     const results: string[] = [];
@@ -359,12 +384,13 @@ export class ToolExecutor {
 
     for (const file of files) {
       try {
-        const content = fs.readFileSync(file.fsPath, 'utf-8');
+        const contentBytes = await vscode.workspace.fs.readFile(file);
+        const content = new TextDecoder().decode(contentBytes);
         const lines = content.split('\n');
 
         for (let i = 0; i < lines.length; i++) {
           if (lines[i].toLowerCase().includes(query)) {
-            const relativePath = path.relative(this.workspaceRoot, file.fsPath);
+            const relativePath = this.getRelativePath(file);
             results.push(`${relativePath}:${i + 1}: ${lines[i].trim()}`);
           }
         }
@@ -382,12 +408,22 @@ export class ToolExecutor {
   }
 
   private async runCommand(args: { command: string; cwd?: string }): Promise<{ success: boolean; result: string }> {
-    const cwd = args.cwd ? this.resolvePath(args.cwd) : this.workspaceRoot;
+    // Check if we're in a browser environment (no child_process available)
+    if (typeof process === 'undefined' || !process.versions?.node) {
+      return {
+        success: false,
+        result: 'Shell commands are not available in web environment. This feature requires the desktop version of VS Code.'
+      };
+    }
+
+    const cwdUri = args.cwd ? this.resolveUri(args.cwd) : this.workspaceRootUri;
+    const cwd = cwdUri?.fsPath || '';
 
     return new Promise((resolve) => {
-      const { exec } = require('child_process');
+      // Dynamic require to avoid bundling issues in browser
+      const cp = require('child_process');
 
-      exec(args.command, { cwd, timeout: 30000, maxBuffer: 1024 * 1024 }, (error: any, stdout: string, stderr: string) => {
+      cp.exec(args.command, { cwd, timeout: 30000, maxBuffer: 1024 * 1024 }, (error: Error | null, stdout: string, stderr: string) => {
         if (error) {
           resolve({
             success: false,
@@ -409,12 +445,17 @@ export class ToolExecutor {
     workspaceStructure?: string;
   }> {
     const editor = vscode.window.activeTextEditor;
-    const context: any = {};
+    const context: {
+      openFile?: { path: string; content: string; language: string };
+      selection?: { text: string; startLine: number; endLine: number };
+      openTabs?: string[];
+      workspaceStructure?: string;
+    } = {};
 
     if (editor) {
       const doc = editor.document;
       context.openFile = {
-        path: path.relative(this.workspaceRoot, doc.uri.fsPath),
+        path: this.getRelativePath(doc.uri),
         content: doc.getText(),
         language: doc.languageId
       };
@@ -435,19 +476,19 @@ export class ToolExecutor {
       .filter(tab => tab.input instanceof vscode.TabInputText)
       .map(tab => {
         const input = tab.input as vscode.TabInputText;
-        return path.relative(this.workspaceRoot, input.uri.fsPath);
+        return this.getRelativePath(input.uri);
       })
       .slice(0, 10);
 
     // Get workspace folder structure (top-level + one level deep)
-    context.workspaceStructure = this.getWorkspaceStructure();
+    context.workspaceStructure = await this.getWorkspaceStructure();
 
     return context;
   }
 
   // Get a concise workspace folder structure
-  private getWorkspaceStructure(): string {
-    if (!this.workspaceRoot || !fs.existsSync(this.workspaceRoot)) {
+  private async getWorkspaceStructure(): Promise<string> {
+    if (!this.workspaceRootUri) {
       return '';
     }
 
@@ -456,24 +497,28 @@ export class ToolExecutor {
     const ignoreFiles = new Set(['.DS_Store', 'Thumbs.db', '.gitignore', '.env', 'package-lock.json', 'yarn.lock', 'pnpm-lock.yaml']);
 
     try {
-      const topLevel = fs.readdirSync(this.workspaceRoot, { withFileTypes: true });
+      const topLevel = await vscode.workspace.fs.readDirectory(this.workspaceRootUri);
 
-      for (const item of topLevel) {
-        if (item.name.startsWith('.') && item.name !== '.env.example') continue;
-        if (ignoreDirs.has(item.name)) continue;
-        if (ignoreFiles.has(item.name)) continue;
+      for (const [name, type] of topLevel) {
+        if (name.startsWith('.') && name !== '.env.example') continue;
+        if (ignoreDirs.has(name)) continue;
+        if (ignoreFiles.has(name)) continue;
 
-        if (item.isDirectory()) {
-          lines.push(`${item.name}/`);
+        if (type === vscode.FileType.Directory) {
+          lines.push(`${name}/`);
           // List one level deep for directories
           try {
-            const subItems = fs.readdirSync(path.join(this.workspaceRoot, item.name), { withFileTypes: true });
-            for (const subItem of subItems.slice(0, 15)) { // Limit to 15 items per dir
-              if (subItem.name.startsWith('.')) continue;
-              if (ignoreDirs.has(subItem.name)) continue;
-              if (ignoreFiles.has(subItem.name)) continue;
-              const suffix = subItem.isDirectory() ? '/' : '';
-              lines.push(`  ${subItem.name}${suffix}`);
+            const subDir = vscode.Uri.joinPath(this.workspaceRootUri, name);
+            const subItems = await vscode.workspace.fs.readDirectory(subDir);
+            let count = 0;
+            for (const [subName, subType] of subItems) {
+              if (count >= 15) break; // Limit to 15 items per dir
+              if (subName.startsWith('.')) continue;
+              if (ignoreDirs.has(subName)) continue;
+              if (ignoreFiles.has(subName)) continue;
+              const suffix = subType === vscode.FileType.Directory ? '/' : '';
+              lines.push(`  ${subName}${suffix}`);
+              count++;
             }
             if (subItems.length > 15) {
               lines.push(`  ... and ${subItems.length - 15} more`);
@@ -482,7 +527,7 @@ export class ToolExecutor {
             // Can't read directory
           }
         } else {
-          lines.push(item.name);
+          lines.push(name);
         }
       }
     } catch {
