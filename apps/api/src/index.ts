@@ -21,6 +21,7 @@ import billingRouter from './routes/billing.js';
 import organizationRouter from './routes/organization.js';
 import canvasRouter from './routes/canvas/index.js';
 import feedbackRouter from './routes/feedback.js';
+import codeaRouter from './routes/codea.js';
 
 // Fix for ES Modules __dirname
 const __filename = fileURLToPath(import.meta.url);
@@ -113,6 +114,7 @@ app.use('/billing', billingRouter);
 app.use('/organization', organizationRouter);
 app.use('/feedback', feedbackRouter);
 app.use('/api', canvasRouter);
+app.use('/codea', codeaRouter);
 
 // Ruta raíz
 app.get('/', (_req, res) => {
@@ -132,7 +134,8 @@ app.get('/', (_req, res) => {
       '/developer',
       '/billing',
       '/organization',
-      '/feedback'
+      '/feedback',
+      '/codea'
     ]
   });
 });
