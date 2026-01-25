@@ -1,6 +1,4 @@
 import * as vscode from 'vscode';
-import * as https from 'https';
-import * as http from 'http';
 import { fileTools, ToolExecutor } from './tools';
 
 interface Message {
@@ -108,87 +106,46 @@ export class CodeaChatViewProvider implements vscode.WebviewViewProvider {
     }
   }
 
-  private fetchModels(baseUrl: string): Promise<any[]> {
-    return new Promise((resolve) => {
-      const url = new URL(`${baseUrl}/v1/models?category=coding`);
-      const isHttps = url.protocol === 'https:';
-      const httpModule = isHttps ? https : http;
+  private async fetchModels(baseUrl: string): Promise<any[]> {
+    const url = `${baseUrl}/v1/models?category=coding`;
+    console.log('[Codea] Fetching models from URL:', url);
 
-      const options = {
-        hostname: url.hostname,
-        port: url.port || (isHttps ? 443 : 80),
-        path: `${url.pathname}${url.search}`,
-        method: 'GET'
-      };
+    try {
+      const response = await fetch(url);
+      console.log('[Codea] Models response status:', response.status);
 
-      console.log('[Codea] Fetching models from URL:', url.toString());
+      if (!response.ok) {
+        return [];
+      }
 
-      const req = httpModule.request(options, (res) => {
-        console.log('[Codea] Models response status:', res.statusCode);
-        if (res.statusCode !== 200) {
-          resolve([]);
-          return;
-        }
-
-        let data = '';
-        res.on('data', chunk => data += chunk);
-        res.on('end', () => {
-          try {
-            const parsed = JSON.parse(data);
-            console.log('[Codea] Models response parsed, count:', parsed.data?.length);
-            resolve(parsed.data || []);
-          } catch (e) {
-            console.error('[Codea] Failed to parse models response:', e);
-            resolve([]);
-          }
-        });
-      });
-
-      req.on('error', (e) => {
-        console.error('[Codea] Models request error:', e);
-        resolve([]);
-      });
-      req.end();
-    });
+      const parsed = await response.json() as { data?: any[] };
+      console.log('[Codea] Models response parsed, count:', parsed.data?.length);
+      return parsed.data || [];
+    } catch (e) {
+      console.error('[Codea] Models request error:', e);
+      return [];
+    }
   }
 
-  private fetchUserInfo(baseUrl: string, apiKey: string): Promise<{ id?: string; name?: { first?: string; last?: string; full?: string }; username?: string; email?: string; avatar?: string } | null> {
-    return new Promise((resolve) => {
-      const url = new URL(`${baseUrl}/v1/codea/me`);
-      const isHttps = url.protocol === 'https:';
-      const httpModule = isHttps ? https : http;
+  private async fetchUserInfo(baseUrl: string, apiKey: string): Promise<{ id?: string; name?: { first?: string; last?: string; full?: string }; username?: string; email?: string; avatar?: string } | null> {
+    const url = `${baseUrl}/v1/codea/me`;
 
-      const options = {
-        hostname: url.hostname,
-        port: url.port || (isHttps ? 443 : 80),
-        path: url.pathname,
+    try {
+      const response = await fetch(url, {
         method: 'GET',
         headers: {
           'Authorization': `Bearer ${apiKey}`
         }
-      };
-
-      const req = httpModule.request(options, (res) => {
-        if (res.statusCode !== 200) {
-          resolve(null);
-          return;
-        }
-
-        let data = '';
-        res.on('data', chunk => data += chunk);
-        res.on('end', () => {
-          try {
-            const parsed = JSON.parse(data);
-            resolve(parsed);
-          } catch {
-            resolve(null);
-          }
-        });
       });
 
-      req.on('error', () => resolve(null));
-      req.end();
-    });
+      if (!response.ok) {
+        return null;
+      }
+
+      return await response.json() as { id?: string; name?: { first?: string; last?: string; full?: string }; username?: string; email?: string; avatar?: string };
+    } catch {
+      return null;
+    }
   }
 
   public resolveWebviewView(
@@ -548,12 +505,18 @@ export class CodeaChatViewProvider implements vscode.WebviewViewProvider {
     const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
     if (!workspaceFolder) return null;
 
+    // Check if we're in a browser environment (no child_process available)
+    if (typeof process === 'undefined' || !process.versions?.node) {
+      return 'Git diff is not available in web environment.';
+    }
+
     return new Promise((resolve) => {
-      const { exec } = require('child_process');
-      exec('git diff HEAD', { cwd: workspaceFolder.uri.fsPath, maxBuffer: 1024 * 1024 }, (error: any, stdout: string) => {
+      // Dynamic require to avoid bundling issues in browser
+      const cp = require('child_process');
+      cp.exec('git diff HEAD', { cwd: workspaceFolder.uri.fsPath, maxBuffer: 1024 * 1024 }, (error: Error | null, stdout: string) => {
         if (error) {
           // Try just unstaged changes
-          exec('git diff', { cwd: workspaceFolder.uri.fsPath, maxBuffer: 1024 * 1024 }, (error2: any, stdout2: string) => {
+          cp.exec('git diff', { cwd: workspaceFolder.uri.fsPath, maxBuffer: 1024 * 1024 }, (error2: Error | null, stdout2: string) => {
             if (error2 || !stdout2) {
               resolve(null);
             } else {
@@ -911,182 +874,175 @@ Full autonomous mode. Execute everything without any confirmations.`;
     this.saveCurrentConversation();
   }
 
-  private streamChatCompletion(
+  private async streamChatCompletion(
     baseUrl: string,
     apiKey: string,
     model: string,
     systemMessage: string,
     messages: Message[]
   ): Promise<{ content: string; toolCalls?: ToolCall[] }> {
-    return new Promise((resolve, reject) => {
-      const url = new URL(`${baseUrl}/v1/codea/chat/completions`);
-      const isHttps = url.protocol === 'https:';
-      const httpModule = isHttps ? https : http;
+    const url = `${baseUrl}/v1/codea/chat/completions`;
 
-      // Prepare messages with system message
-      const allMessages = [
-        { role: 'system', content: systemMessage },
-        ...messages.map(m => {
-          if (m.role === 'tool') {
-            return {
-              role: 'tool',
-              tool_call_id: m.tool_call_id,
-              content: m.content
-            };
-          } else if (m.tool_calls) {
-            return {
-              role: 'assistant',
-              content: m.content || '',
-              tool_calls: m.tool_calls
-            };
-          }
-          return { role: m.role, content: m.content };
-        })
-      ];
+    // Prepare messages with system message
+    const allMessages = [
+      { role: 'system', content: systemMessage },
+      ...messages.map(m => {
+        if (m.role === 'tool') {
+          return {
+            role: 'tool',
+            tool_call_id: m.tool_call_id,
+            content: m.content
+          };
+        } else if (m.tool_calls) {
+          return {
+            role: 'assistant',
+            content: m.content || '',
+            tool_calls: m.tool_calls
+          };
+        }
+        return { role: m.role, content: m.content };
+      })
+    ];
 
-      const requestBody = JSON.stringify({
-        model,
-        messages: allMessages,
-        tools: fileTools,
-        stream: true
-      });
+    const requestBody = JSON.stringify({
+      model,
+      messages: allMessages,
+      tools: fileTools,
+      stream: true
+    });
 
-      const options = {
-        hostname: url.hostname,
-        port: url.port || (isHttps ? 443 : 80),
-        path: url.pathname,
+    const controller = new AbortController();
+    this._currentRequest = {
+      abort: () => controller.abort()
+    };
+
+    let fullContent = '';
+    const toolCalls: ToolCall[] = [];
+    let currentToolCall: ToolCall | null = null;
+
+    try {
+      const response = await fetch(url, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${apiKey}`,
-          'Content-Length': Buffer.byteLength(requestBody)
+          'Authorization': `Bearer ${apiKey}`
+        },
+        body: requestBody,
+        signal: controller.signal
+      });
+
+      if (!response.ok) {
+        const errorBody = await response.text();
+        try {
+          const error = JSON.parse(errorBody);
+          const apiMessage = error.error?.message || error.message || '';
+          throw new Error(`HTTP ${response.status}: ${apiMessage}`.trim());
+        } catch (e) {
+          if (e instanceof SyntaxError) {
+            throw new Error(`HTTP ${response.status}: ${errorBody}`);
+          }
+          throw e;
         }
-      };
+      }
 
-      let fullContent = '';
-      const toolCalls: ToolCall[] = [];
-      let currentToolCall: ToolCall | null = null;
-      const controller = new AbortController();
+      if (!response.body) {
+        throw new Error('Response body is null');
+      }
 
-      this._currentRequest = {
-        abort: () => controller.abort()
-      };
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
 
-      const req = httpModule.request(options, (res) => {
-        if (res.statusCode !== 200) {
-          let errorBody = '';
-          res.on('data', chunk => errorBody += chunk);
-          res.on('end', () => {
-            try {
-              const error = JSON.parse(errorBody);
-              // Include status code and API message for better error handling
-              const apiMessage = error.error?.message || error.message || '';
-              reject(new Error(`HTTP ${res.statusCode}: ${apiMessage}`.trim()));
-            } catch {
-              reject(new Error(`HTTP ${res.statusCode}: ${errorBody}`));
+      while (true) {
+        const { done, value } = await reader.read();
+
+        if (done || !this._isProcessing) {
+          break;
+        }
+
+        buffer += decoder.decode(value, { stream: true });
+
+        // Process complete SSE events
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || '';
+
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            const data = line.slice(6).trim();
+
+            if (data === '[DONE]') {
+              continue;
             }
-          });
-          return;
-        }
 
-        let buffer = '';
+            try {
+              const parsed: ChatCompletionChunk = JSON.parse(data);
+              const choice = parsed.choices?.[0];
 
-        res.on('data', (chunk: Buffer) => {
-          if (!this._isProcessing) return;
-
-          buffer += chunk.toString();
-
-          // Process complete SSE events
-          const lines = buffer.split('\n');
-          buffer = lines.pop() || '';
-
-          for (const line of lines) {
-            if (line.startsWith('data: ')) {
-              const data = line.slice(6).trim();
-
-              if (data === '[DONE]') {
-                continue;
+              if (choice?.delta?.content) {
+                fullContent += choice.delta.content;
+                this._view?.webview.postMessage({
+                  type: 'streamContent',
+                  content: choice.delta.content
+                });
               }
 
-              try {
-                const parsed: ChatCompletionChunk = JSON.parse(data);
-                const choice = parsed.choices?.[0];
-
-                if (choice?.delta?.content) {
-                  fullContent += choice.delta.content;
-                  this._view?.webview.postMessage({
-                    type: 'streamContent',
-                    content: choice.delta.content
-                  });
-                }
-
-                // Handle tool calls
-                if (choice?.delta?.tool_calls) {
-                  for (const tc of choice.delta.tool_calls) {
-                    if (tc.id) {
-                      // New tool call starting
-                      currentToolCall = {
-                        id: tc.id,
-                        type: (tc.type as 'function') || 'function',
-                        function: {
-                          name: tc.function?.name || '',
-                          arguments: tc.function?.arguments || ''
-                        }
-                      };
-                      toolCalls.push(currentToolCall);
-                      // Notify UI immediately that a tool call is starting
-                      if (currentToolCall.function.name) {
-                        this._view?.webview.postMessage({
-                          type: 'toolCall',
-                          tool: currentToolCall.function.name,
-                          args: {},
-                          status: 'preparing'
-                        });
+              // Handle tool calls
+              if (choice?.delta?.tool_calls) {
+                for (const tc of choice.delta.tool_calls) {
+                  if (tc.id) {
+                    // New tool call starting
+                    currentToolCall = {
+                      id: tc.id,
+                      type: (tc.type as 'function') || 'function',
+                      function: {
+                        name: tc.function?.name || '',
+                        arguments: tc.function?.arguments || ''
                       }
-                    } else if (currentToolCall) {
-                      // Append to current tool call
-                      if (tc.function?.name) {
-                        currentToolCall.function.name = tc.function.name;
-                        // Notify UI when we know the tool name
-                        this._view?.webview.postMessage({
-                          type: 'toolCall',
-                          tool: currentToolCall.function.name,
-                          args: {},
-                          status: 'preparing'
-                        });
-                      }
-                      if (tc.function?.arguments) {
-                        currentToolCall.function.arguments += tc.function.arguments;
-                      }
+                    };
+                    toolCalls.push(currentToolCall);
+                    // Notify UI immediately that a tool call is starting
+                    if (currentToolCall.function.name) {
+                      this._view?.webview.postMessage({
+                        type: 'toolCall',
+                        tool: currentToolCall.function.name,
+                        args: {},
+                        status: 'preparing'
+                      });
+                    }
+                  } else if (currentToolCall) {
+                    // Append to current tool call
+                    if (tc.function?.name) {
+                      currentToolCall.function.name = tc.function.name;
+                      // Notify UI when we know the tool name
+                      this._view?.webview.postMessage({
+                        type: 'toolCall',
+                        tool: currentToolCall.function.name,
+                        args: {},
+                        status: 'preparing'
+                      });
+                    }
+                    if (tc.function?.arguments) {
+                      currentToolCall.function.arguments += tc.function.arguments;
                     }
                   }
                 }
-              } catch (e) {
-                // Skip malformed JSON
               }
+            } catch {
+              // Skip malformed JSON
             }
           }
-        });
+        }
+      }
 
-        res.on('end', () => {
-          this._currentRequest = undefined;
-          resolve({ content: fullContent, toolCalls: toolCalls.length > 0 ? toolCalls : undefined });
-        });
-      });
-
-      req.on('error', (error) => {
-        this._currentRequest = undefined;
-        reject(error);
-      });
-
-      controller.signal.addEventListener('abort', () => {
-        req.destroy();
-        resolve({ content: fullContent, toolCalls: toolCalls.length > 0 ? toolCalls : undefined });
-      });
-
-      req.write(requestBody);
-      req.end();
-    });
+      this._currentRequest = undefined;
+      return { content: fullContent, toolCalls: toolCalls.length > 0 ? toolCalls : undefined };
+    } catch (error) {
+      this._currentRequest = undefined;
+      if (error instanceof Error && error.name === 'AbortError') {
+        return { content: fullContent, toolCalls: toolCalls.length > 0 ? toolCalls : undefined };
+      }
+      throw error;
+    }
   }
 
   private _getHtmlForWebview(webview: vscode.Webview): string {
