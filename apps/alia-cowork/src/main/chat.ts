@@ -592,22 +592,32 @@ export class ChatProvider {
         }
       )
 
+      console.log('[ChatProvider] Continuation stream created, processing chunks...')
       let assistantMessage = ''
       let toolCalls: OpenAI.Chat.ChatCompletionMessageToolCall[] = []
+      let contChunkCount = 0
 
       // Process stream chunks
       for await (const chunk of stream) {
+        contChunkCount++
+        console.log(`[ChatProvider] Continuation chunk ${contChunkCount}:`, JSON.stringify(chunk, null, 2))
+
         const delta = chunk.choices?.[0]?.delta
 
-        if (!delta) continue
+        if (!delta) {
+          console.log('[ChatProvider] Continuation chunk has no delta, skipping')
+          continue
+        }
 
         // Handle reasoning
         if ((delta as any).reasoning) {
+          console.log('[ChatProvider] Continuation reasoning chunk:', (delta as any).reasoning)
           this.send('chat:thinking', { content: (delta as any).reasoning })
         }
 
         // Handle content
         if (delta.content) {
+          console.log('[ChatProvider] Continuation content chunk:', delta.content)
           assistantMessage += delta.content
           this.send('chat:stream', { content: delta.content })
         }
