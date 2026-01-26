@@ -783,15 +783,23 @@ function MessageBubble({ message, isStreaming }: { message: Message; isStreaming
         className={cn("size-6 shrink-0 rounded-full", isStreaming && !message.content && "animate-pulse")}
       />
       <div className="flex-1 min-w-0 text-sm overflow-hidden">
+        {/* Show tool executions from history */}
+        {message.toolExecutions && message.toolExecutions.length > 0 && (
+          <div className="space-y-0.5 mb-2">
+            {message.toolExecutions.map((exec, i) => (
+              <ToolExecutionItem key={i} execution={exec} stepNumber={i + 1} />
+            ))}
+          </div>
+        )}
         {isStreaming && !message.content ? (
           <div className="flex items-center gap-2 text-muted-foreground">
             <span>Thinking...</span>
           </div>
-        ) : (
+        ) : message.content ? (
           <div className="markdown-content overflow-x-auto">
             <Markdown>{message.content}</Markdown>
           </div>
-        )}
+        ) : null}
       </div>
     </div>
   )
