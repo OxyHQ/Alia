@@ -25,8 +25,8 @@ const store = new Store({
   defaults: {
     apiKey: '',
     apiBaseUrl: 'https://api.alia.onl',
-    model: 'alia-v1-codea',
-    enableTools: false  // Tools disabled by default - alia-v1-codea doesn't support them yet
+    model: 'alia-v1-cowork',
+    enableTools: true  // Tools enabled for alia-v1-cowork model
   }
 })
 
@@ -339,26 +339,20 @@ You are running on ${process.platform === 'darwin' ? 'macOS' : process.platform 
                     }
                   }
                 }
-              } catch (parseError: any) {
-                console.log('[Chat] Failed to parse JSON:', data.substring(0, 200))
-                console.log('[Chat] Parse error:', parseError.message)
+              } catch {
+                // Skip malformed JSON
               }
             }
           }
         })
 
         res.on('end', () => {
-          console.log('[Chat] Response ended')
-          console.log('[Chat] Full content length:', fullContent.length)
-          console.log('[Chat] Tool calls:', toolCalls.length)
-          console.log('[Chat] Final content:', fullContent.substring(0, 200))
           this.currentRequest = undefined
           resolve({ content: fullContent, toolCalls: toolCalls.length > 0 ? toolCalls : undefined })
         })
       })
 
       req.on('error', (error) => {
-        console.log('[Chat] Request error:', error)
         this.currentRequest = undefined
         reject(error)
       })
