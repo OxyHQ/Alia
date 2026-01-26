@@ -66,7 +66,7 @@ function AppSidebar({ currentView, onViewChange }: { currentView?: string; onVie
     <Sidebar collapsible="icon" variant="sidebar">
       <SidebarHeader className="border-b">
         <div className="flex items-center gap-2 px-1">
-          <img src="/codea-logo.png" alt="Cowork" className="size-6 rounded-full" />
+          <img src="/alia-logo.png" alt="Alia" className="size-6 rounded-full" />
           {state === "expanded" && (
             <span className="font-semibold text-sm">Alia Cowork</span>
           )}
