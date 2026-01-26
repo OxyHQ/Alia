@@ -31,7 +31,7 @@ export function SignIn() {
             Welcome to Alia Cowork
           </h1>
           <p className="text-sm text-muted-foreground">
-            Sign in with your Alia account to start using AI-powered automation on your computer
+            Connect your Alia account to start using AI-powered automation on your computer
           </p>
         </div>
 
@@ -41,21 +41,11 @@ export function SignIn() {
           onClick={handleSignIn}
           disabled={isSigningIn}
         >
-          {isSigningIn ? "Opening browser..." : "Sign in with Alia"}
+          {isSigningIn ? "Opening browser..." : "Connect to Alia"}
         </Button>
 
         <p className="text-xs text-muted-foreground mt-2">
-          Don't have an account?{" "}
-          <a
-            href="#"
-            className="text-primary hover:underline"
-            onClick={(e) => {
-              e.preventDefault()
-              window.open("https://alia.onl/signup", "_blank")
-            }}
-          >
-            Sign up
-          </a>
+          You'll sign in with Oxy and authorize access
         </p>
       </div>
     </div>
