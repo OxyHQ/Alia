@@ -187,9 +187,12 @@ You are running on ${process.platform === 'darwin' ? 'macOS' : process.platform 
 
           // Report usage back to API for credit tracking
           if (event.usage && event.usage.totalTokens) {
+            const promptTokens = (event.usage as any).promptTokens || event.usage.inputTokens || 0
+            const completionTokens = (event.usage as any).completionTokens || event.usage.outputTokens || 0
+
             await reportUsage(baseUrl, apiKey, resolved.sessionId, {
-              promptTokens: event.usage.promptTokens || 0,
-              completionTokens: event.usage.completionTokens || 0,
+              promptTokens,
+              completionTokens,
               totalTokens: event.usage.totalTokens || 0
             }).catch(error => {
               console.error('[ChatProvider] Failed to report usage:', error)
@@ -293,6 +296,24 @@ You are running on ${process.platform === 'darwin' ? 'macOS' : process.platform 
   clear(): void {
     this.messages = []
     this.send('chat:cleared', {})
+  }
+
+  private formatErrorMessage(error: Error): string {
+    const message = error.message || 'An error occurred'
+
+    if (message.includes('402') || message.toLowerCase().includes('insufficient credits')) {
+      return 'Insufficient credits. Please add more credits at alia.onl'
+    } else if (message.includes('401') || message.toLowerCase().includes('unauthorized')) {
+      return 'Invalid API key. Please check your settings.'
+    } else if (message.includes('429') || message.toLowerCase().includes('rate limit')) {
+      return 'Rate limit exceeded. Please wait a moment and try again.'
+    } else if (message.includes('500')) {
+      return 'Server error. Please try again later.'
+    } else if (message.includes('503')) {
+      return 'Service unavailable. Please try again later.'
+    }
+
+    return message
   }
 
   async getUserInfo(): Promise<any> {
