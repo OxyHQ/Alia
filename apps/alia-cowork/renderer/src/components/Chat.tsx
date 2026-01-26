@@ -292,9 +292,9 @@ export function Chat() {
   const greeting = React.useMemo(() => greetings[Math.floor(Math.random() * greetings.length)], [])
 
   return (
-    <div className="flex flex-1 flex-col">
+    <div className="flex flex-1 flex-col min-h-0">
       {/* Messages */}
-      <ScrollArea className="flex-1">
+      <ScrollArea className="flex-1 min-h-0">
         {messages.length === 0 && !isGenerating ? (
           <WelcomeScreen userName={userName} greeting={greeting} onSuggestionClick={(text) => setInput(text)} />
         ) : (
