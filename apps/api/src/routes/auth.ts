@@ -150,7 +150,8 @@ router.post('/token', async (req, res) => {
       return;
     }
 
-    if (client_id !== 'codea') {
+    // Accept both codea and cowork as valid client IDs
+    if (client_id !== 'codea' && client_id !== 'cowork') {
       res.status(400).json({ error: 'Invalid client_id' });
       return;
     }
