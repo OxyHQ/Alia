@@ -337,7 +337,10 @@ export class ChatProvider {
           console.log('[ChatProvider] Tool call delta:', JSON.stringify(delta.tool_calls, null, 2))
           for (const toolCall of delta.tool_calls) {
             const index = toolCall.index ?? toolCalls.length
+            console.log(`[ChatProvider] Processing tool call at index ${index}`)
+
             if (!toolCalls[index]) {
+              console.log(`[ChatProvider] Creating new tool call at index ${index}`)
               toolCalls[index] = {
                 id: toolCall.id || '',
                 type: 'function',
@@ -346,16 +349,21 @@ export class ChatProvider {
             }
 
             if (toolCall.function?.name) {
+              console.log(`[ChatProvider] Setting tool name: ${toolCall.function.name}`)
               toolCalls[index].function.name = toolCall.function.name
             }
 
             if (toolCall.function?.arguments) {
+              console.log(`[ChatProvider] Appending arguments: ${toolCall.function.arguments}`)
               toolCalls[index].function.arguments += toolCall.function.arguments
             }
 
             if (toolCall.id) {
+              console.log(`[ChatProvider] Setting tool call ID: ${toolCall.id}`)
               toolCalls[index].id = toolCall.id
             }
+
+            console.log(`[ChatProvider] Current tool call state at index ${index}:`, JSON.stringify(toolCalls[index], null, 2))
           }
         }
 
@@ -365,8 +373,15 @@ export class ChatProvider {
         }
       }
 
+      console.log('[ChatProvider] Stream processing complete')
+      console.log('[ChatProvider] Total chunks processed:', chunkCount)
+      console.log('[ChatProvider] Assistant message length:', assistantMessage.length)
+      console.log('[ChatProvider] Raw tool calls array:', JSON.stringify(toolCalls, null, 2))
+
       // Filter out undefined and incomplete tool calls before processing
       const validToolCalls = toolCalls.filter(tc => tc && tc.id && tc.function && tc.function.name)
+      console.log('[ChatProvider] Valid tool calls after filtering:', validToolCalls.length)
+      console.log('[ChatProvider] Valid tool calls:', JSON.stringify(validToolCalls, null, 2))
 
       // Add assistant message to history (with tool calls if any)
       if (assistantMessage || validToolCalls.length > 0) {
@@ -382,7 +397,12 @@ export class ChatProvider {
 
       // Execute tools if there are tool calls
       if (validToolCalls.length > 0) {
+        console.log('[ChatProvider] ===== EXECUTING TOOLS =====')
+        console.log('[ChatProvider] Number of tools to execute:', validToolCalls.length)
+
         for (const toolCall of validToolCalls) {
+          console.log('[ChatProvider] Processing tool call:', JSON.stringify(toolCall, null, 2))
+
           if (!toolCall || !toolCall.function) {
             console.error('[ChatProvider] Invalid tool call:', toolCall)
             continue
@@ -394,9 +414,14 @@ export class ChatProvider {
             continue
           }
 
+          console.log(`[ChatProvider] Executing tool: ${toolName}`)
+          console.log(`[ChatProvider] Tool call ID: ${toolCall.id}`)
+          console.log(`[ChatProvider] Raw arguments: ${toolCall.function.arguments}`)
+
           let args: any = {}
           try {
             args = JSON.parse(toolCall.function.arguments || '{}')
+            console.log('[ChatProvider] Parsed arguments:', JSON.stringify(args, null, 2))
           } catch (e) {
             console.error('[ChatProvider] Failed to parse tool arguments:', toolCall.function.arguments, e)
             continue
@@ -404,6 +429,7 @@ export class ChatProvider {
 
           // Handle set_mode specially
           if (toolName === 'set_mode') {
+            console.log(`[ChatProvider] Setting mode to: ${args.mode}`)
             this.currentMode = args.mode
             this.send('chat:modeChanged', { mode: this.currentMode })
           }
@@ -415,6 +441,7 @@ export class ChatProvider {
           })
 
           try {
+            console.log(`[ChatProvider] Calling tool executor for: ${toolName}`)
             // Execute tool locally
             let result: string
             switch (toolName) {
