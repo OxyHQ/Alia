@@ -805,8 +805,12 @@ export class ChatProvider {
     }
   }
 
-  private buildSystemMessage(): string {
+  private async buildSystemMessage(): Promise<string> {
     const enableTools = store.get('enableTools') as boolean
+
+    // Fetch user memory
+    const userMemory = await this.getUserMemory()
+    const userInfo = await this.getUserInfo()
 
     let systemMessage = `You are Alia Cowork, an AI assistant for desktop productivity. Be concise and helpful.
 
@@ -817,6 +821,41 @@ export class ChatProvider {
 
 ## Platform
 You are running on ${process.platform === 'darwin' ? 'macOS' : process.platform === 'win32' ? 'Windows' : 'Linux'}.`
+
+    // Add user context if available
+    if (userInfo) {
+      systemMessage += `\n\n## User Information`
+      if (userInfo.name) systemMessage += `\n- Name: ${userInfo.name}`
+      if (userInfo.email) systemMessage += `\n- Email: ${userInfo.email}`
+    }
+
+    // Add user memory if available
+    if (userMemory) {
+      if (userMemory.context) {
+        systemMessage += `\n\n## User Context`
+        if (userMemory.context.occupation) systemMessage += `\n- Occupation: ${userMemory.context.occupation}`
+        if (userMemory.context.location) systemMessage += `\n- Location: ${userMemory.context.location}`
+        if (userMemory.context.timezone) systemMessage += `\n- Timezone: ${userMemory.context.timezone}`
+        if (userMemory.context.bio) systemMessage += `\n- Bio: ${userMemory.context.bio}`
+      }
+
+      if (userMemory.preferences) {
+        systemMessage += `\n\n## User Preferences`
+        if (userMemory.preferences.language) systemMessage += `\n- Language: ${userMemory.preferences.language}`
+        if (userMemory.preferences.tone) systemMessage += `\n- Preferred Tone: ${userMemory.preferences.tone}`
+        if (userMemory.preferences.responseLength) systemMessage += `\n- Response Length: ${userMemory.preferences.responseLength}`
+        if (userMemory.preferences.interests && userMemory.preferences.interests.length > 0) {
+          systemMessage += `\n- Interests: ${userMemory.preferences.interests.join(', ')}`
+        }
+      }
+
+      if (userMemory.memories && userMemory.memories.length > 0) {
+        systemMessage += `\n\n## Important Memories\n`
+        userMemory.memories.slice(0, 20).forEach((memory: any) => {
+          systemMessage += `- ${memory.key}: ${memory.value}\n`
+        })
+      }
+    }
 
     if (enableTools) {
       systemMessage += `
@@ -916,6 +955,26 @@ You are running on ${process.platform === 'darwin' ? 'macOS' : process.platform 
       return data.data || []
     } catch {
       return []
+    }
+  }
+
+  async getUserMemory(): Promise<any> {
+    const apiKey = store.get('apiKey') as string
+    const baseUrl = store.get('apiBaseUrl') as string
+
+    if (!apiKey) return null
+
+    try {
+      const response = await fetch(`${baseUrl}/memory`, {
+        method: 'GET',
+        headers: { Authorization: `Bearer ${apiKey}` }
+      })
+
+      if (!response.ok) return null
+
+      return await response.json()
+    } catch {
+      return null
     }
   }
 }
