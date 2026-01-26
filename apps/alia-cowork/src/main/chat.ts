@@ -300,7 +300,7 @@ export class ChatProvider {
 
       // Process stream chunks
       for await (const chunk of stream) {
-        const delta = chunk.choices[0]?.delta
+        const delta = chunk.choices?.[0]?.delta
 
         if (!delta) continue
 
@@ -517,7 +517,7 @@ export class ChatProvider {
 
       // Process stream chunks
       for await (const chunk of stream) {
-        const delta = chunk.choices[0]?.delta
+        const delta = chunk.choices?.[0]?.delta
 
         if (!delta) continue
 
