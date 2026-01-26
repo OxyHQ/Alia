@@ -170,6 +170,27 @@ export const fileTools = [
   {
     type: 'function',
     function: {
+      name: 'open_file',
+      description: 'Open a file in the editor. Use this to show files to the user without modifying them.',
+      parameters: {
+        type: 'object',
+        properties: {
+          path: {
+            type: 'string',
+            description: 'The path to the file to open, relative to the workspace root'
+          },
+          line: {
+            type: 'number',
+            description: 'Optional line number to scroll to (1-indexed)'
+          }
+        },
+        required: ['path']
+      }
+    }
+  },
+  {
+    type: 'function',
+    function: {
       name: 'set_mode',
       description: 'Change the assistant operating mode. Use when user requests a mode change like "switch to edit mode" or "go yolo".',
       parameters: {
@@ -236,6 +257,8 @@ export class ToolExecutor {
           return await this.searchFiles(args);
         case 'run_command':
           return await this.runCommand(args);
+        case 'open_file':
+          return await this.openFile(args);
         default:
           return { success: false, result: `Unknown tool: ${toolName}` };
       }
