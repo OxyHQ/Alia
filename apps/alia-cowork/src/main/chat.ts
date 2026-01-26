@@ -56,14 +56,36 @@ export class ChatProvider {
     this.isProcessing = true
 
     // Build user message with context
-    let enhancedContent = content
-    if (context && context.length > 0) {
+    // If there are images, use multimodal format; otherwise use enhanced text
+    if (context && context.length > 0 && context.some((item: any) => item.language === 'image')) {
+      // Multimodal format for images
+      const contentParts: Array<{ type: 'text' | 'image_url'; text?: string; image_url?: { url: string } }> = [
+        { type: 'text', text: content }
+      ]
+
+      for (const item of context) {
+        if (item.language === 'image') {
+          contentParts.push({
+            type: 'image_url',
+            image_url: { url: item.content }
+          })
+        } else {
+          contentParts[0].text += `\n\n**File: ${item.path}**\n\`\`\`${item.language || ''}\n${item.content}\n\`\`\``
+        }
+      }
+
+      this.messages.push({ role: 'user', content: contentParts as any })
+    } else if (context && context.length > 0) {
+      // Text-only format
+      let enhancedContent = content
       for (const item of context) {
         enhancedContent += `\n\n**File: ${item.path}**\n\`\`\`${item.language || ''}\n${item.content}\n\`\`\``
       }
+      this.messages.push({ role: 'user', content: enhancedContent })
+    } else {
+      // No context
+      this.messages.push({ role: 'user', content })
     }
-
-    this.messages.push({ role: 'user', content: enhancedContent })
 
     // Add system message if this is the first message
     if (this.messages.length === 1) {
