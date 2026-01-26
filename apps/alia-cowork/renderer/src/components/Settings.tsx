@@ -4,6 +4,7 @@ import { Moon02Icon, Sun03Icon, ComputerIcon } from "@hugeicons/core-free-icons"
 import { useAuth } from "@/contexts/AuthContext"
 import { useTheme } from "@/contexts/ThemeContext"
 import { Button } from "@/components/ui/button"
+import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Label } from "@/components/ui/label"
 import { Separator } from "@/components/ui/separator"
@@ -112,7 +113,10 @@ export function Settings() {
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="flex items-center gap-3 p-4 rounded-lg bg-muted/50">
-                <img src="icon.png" alt="Alia" className="size-12 rounded-lg" />
+                <Avatar size="lg" className="size-12 rounded-lg">
+                  <AvatarImage src="icon.png" alt="Alia" />
+                  <AvatarFallback>AI</AvatarFallback>
+                </Avatar>
                 <div>
                   <div className="font-semibold">Alia Cowork</div>
                   <div className="text-sm text-muted-foreground">Made with ❤️ in the 🌎 by Oxy</div>

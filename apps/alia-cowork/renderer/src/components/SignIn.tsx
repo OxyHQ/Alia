@@ -1,5 +1,6 @@
 import * as React from "react"
 import { Button } from "@/components/ui/button"
+import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar"
 import { useAuth } from "@/contexts/AuthContext"
 import { HugeiconsIcon } from "@hugeicons/react"
 import { SparklesIcon, MinusSignIcon, Cancel01Icon } from "@hugeicons/core-free-icons"
@@ -24,7 +25,10 @@ export function SignIn() {
       {/* Title Bar */}
       <div className="flex items-center justify-between h-10 px-2 border-b bg-background/80 backdrop-blur shrink-0">
         <div className="flex items-center gap-2 px-2">
-          <img src="icon.png" alt="Alia" className="size-5 rounded-full" />
+          <Avatar size="sm" className="size-5">
+            <AvatarImage src="icon.png" alt="Alia" />
+            <AvatarFallback>AI</AvatarFallback>
+          </Avatar>
           <span className="text-sm font-semibold">Alia Cowork</span>
         </div>
 

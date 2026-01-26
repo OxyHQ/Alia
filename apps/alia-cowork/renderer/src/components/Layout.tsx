@@ -17,6 +17,7 @@ import {
 
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
+import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar"
 import {
   Tooltip,
   TooltipContent,
@@ -67,7 +68,10 @@ function AppSidebar({ currentView, onViewChange }: { currentView?: string; onVie
     <Sidebar collapsible="icon" variant="sidebar">
       <SidebarHeader className="border-b">
         <div className="flex items-center gap-2 px-1">
-          <img src="icon.png" alt="Alia" className="size-6 rounded-full" />
+          <Avatar size="sm">
+            <AvatarImage src="icon.png" alt="Alia" />
+            <AvatarFallback>AI</AvatarFallback>
+          </Avatar>
           {state === "expanded" && (
             <span className="font-semibold text-sm">Alia Cowork</span>
           )}
@@ -140,7 +144,7 @@ function TitleBar({ onViewChange }: TitleBarProps) {
   }, [])
 
   return (
-    <div className="flex items-center justify-between h-10 px-2 border-b bg-background/80 backdrop-blur shrink-0">
+    <div className="flex items-center justify-between h-10 px-2 border-b bg-background/80 backdrop-blur shrink-0 relative z-[200]">
       <div className="flex items-center gap-1">
         {/* App Menu */}
         <Menubar className="border-0 bg-transparent p-0 h-auto gap-0">
