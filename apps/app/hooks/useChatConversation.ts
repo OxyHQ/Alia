@@ -30,7 +30,7 @@ export function useChatConversation({ conversationId, activeRole, thinkingMode, 
     isLoading,
     setMessages,
     stop,
-  } = useStreamingChat(generateAPIUrl('/alia/chat'), activeRole, conversationId, thinkingMode, selectedModel);
+  } = useStreamingChat(generateAPIUrl('/v1/chat/completions'), activeRole, conversationId, thinkingMode, selectedModel);
 
   // Sync chatId and load messages when conversation changes
   useEffect(() => {

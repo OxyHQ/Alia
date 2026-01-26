@@ -7,6 +7,7 @@ import { loadKeys } from '../../lib/load-balancer.js';
 import { resolveAliaModel, getDefaultAliaModel } from '../../lib/model-resolver.js';
 import { UserCredits } from '../../models/user-credits.js';
 import { UserMemory } from '../../models/user-memory.js';
+import { Conversation } from '../../models/conversation.js';
 import { reserveCredits, finalizeCredits, type CreditReservation, type CreditUsage } from '../../lib/credits-manager.js';
 import { convertOpenAIToolsToToolSet } from '../../lib/tool-converter.js';
 import { getCurrentDateTool, getTimelineTool, saveUserMemoryTool, updateUserPreferencesTool, updateUserContextTool, createSendTelegramTool } from '../../lib/tools/index.js';
@@ -186,7 +187,11 @@ router.post('/', async (req: Request, res: Response) => {
       return;
     }
 
-    console.log(`✅ [V1/Chat] Processing ${messages.length} messages`);
+    // Extract optional parameters for Alia internal features
+    const conversationId = body.conversationId as string | undefined;
+    const thinkingMode = body.thinkingMode as boolean | undefined;
+
+    console.log(`✅ [V1/Chat] Processing ${messages.length} messages${conversationId ? ` (conversation: ${conversationId})` : ''}${thinkingMode ? ' (thinking mode enabled)' : ''}`);
 
     // Reserve credits if user is authenticated
     if (req.user) {
@@ -253,8 +258,14 @@ router.post('/', async (req: Request, res: Response) => {
       }
     }
 
-    // Build Alia internal tools (always available)
-    const aliaTools: ToolSet = {
+    // Convert editor tools from OpenAI format and sanitize names for Google compatibility
+    const toolNameMapping = new Map<string, string>();
+    const editorTools = Array.isArray(body.tools) ? convertOpenAIToolsToToolSet(body.tools, toolNameMapping) : {};
+
+    // Only include Alia internal tools if NO editor tools are provided
+    // Editor tools are client-executed (VS Code, Cursor), Alia tools are server-executed
+    const hasEditorTools = Object.keys(editorTools).length > 0;
+    const aliaTools: ToolSet = hasEditorTools ? {} : {
       getCurrentDate: getCurrentDateTool,
       getTimeline: getTimelineTool,
       ...(req.user ? {
@@ -265,9 +276,6 @@ router.post('/', async (req: Request, res: Response) => {
       } : {}),
     };
 
-    // Convert editor tools from OpenAI format and sanitize names for Google compatibility
-    const toolNameMapping = new Map<string, string>();
-    const editorTools = Array.isArray(body.tools) ? convertOpenAIToolsToToolSet(body.tools, toolNameMapping) : {};
     const allTools = { ...aliaTools, ...editorTools };
 
     // Log tool schemas for debugging
@@ -384,6 +392,12 @@ router.post('/', async (req: Request, res: Response) => {
       streamConfig.maxTokens = body.max_tokens;
     }
 
+    // Enable thinking mode for Anthropic if requested
+    if (thinkingMode && resolved.provider === 'anthropic') {
+      streamConfig.experimental_thinking = true;
+      console.log('[V1/Chat] Enabled Anthropic thinking mode');
+    }
+
     // Configure provider-specific features for reasoning
     const providerMetadata: any = {};
 
@@ -417,6 +431,7 @@ router.post('/', async (req: Request, res: Response) => {
     // Stream OpenAI-compatible chunks
     console.log('[V1/Chat] Starting to process AI SDK stream...');
     let chunkCount = 0;
+    let assistantResponse = ''; // Track assistant's response for conversation save
     for await (const chunk of result.fullStream) {
       chunkCount++;
       console.log(`[V1/Chat] Chunk ${chunkCount} type:`, chunk.type);
@@ -453,6 +468,7 @@ router.post('/', async (req: Request, res: Response) => {
         // Filter out thinking tags from the main message
         const filtered = chunk.text.replace(/<thinking>[\s\S]*?<\/thinking>/g, '');
         if (filtered) {
+          assistantResponse += filtered; // Accumulate response for conversation save
           const openAIChunk = {
             id: `chatcmpl-${Date.now()}`,
             object: 'chat.completion.chunk',
@@ -552,6 +568,50 @@ router.post('/', async (req: Request, res: Response) => {
     }
 
     console.log('[V1/Chat] Stream processing complete, total chunks:', chunkCount);
+
+    // Auto-save conversation if conversationId provided and user is authenticated
+    if (conversationId && typeof conversationId === 'string' && conversationId.trim() && req.user && assistantResponse) {
+      try {
+        // Build complete messages array (user messages + assistant response)
+        const allMessages = [
+          ...messages.filter(m => m && m.role).map((m: any) => ({
+            role: m.role,
+            content: m.content,
+            toolInvocations: m.toolInvocations
+          })),
+          {
+            role: 'assistant',
+            content: assistantResponse,
+          }
+        ].filter(msg => msg != null && msg.role && msg.content !== undefined);
+
+        // Extract title from assistant response if present
+        let title: string | undefined;
+        const titleMatch = assistantResponse.match(/\[TITLE\](.*?)\[\/TITLE\]/);
+        if (titleMatch) {
+          title = titleMatch[1].trim();
+          console.log(`[V1/Chat] Extracted conversation title: "${title}"`);
+        }
+
+        // Save or update conversation
+        await Conversation.findOneAndUpdate(
+          { oxyUserId: req.user.id, conversationId: conversationId },
+          {
+            conversationId: conversationId,
+            oxyUserId: req.user.id,
+            messages: allMessages,
+            ...(title && { title }),
+            updatedAt: new Date(),
+          },
+          { upsert: true, new: true }
+        );
+
+        console.log(`[V1/Chat] Conversation ${conversationId} saved successfully${title ? ` with title: "${title}"` : ''}`);
+      } catch (error) {
+        console.error('[V1/Chat] Error saving conversation:', error);
+        console.error('[V1/Chat] ConversationId:', conversationId);
+      }
+    }
 
     // Finalize credits based on actual token usage and model tier
     if (creditReservation && req.user) {

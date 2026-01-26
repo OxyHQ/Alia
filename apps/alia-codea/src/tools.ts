@@ -215,9 +215,13 @@ export class ToolExecutor {
     this.workspaceRootUri = folders?.[0]?.uri;
   }
 
-  private resolveUri(relativePath: string): vscode.Uri {
+  private resolveUri(relativePath: string | undefined): vscode.Uri {
     if (!this.workspaceRootUri) {
       throw new Error('No workspace folder open');
+    }
+    // Default to current workspace if no path provided
+    if (!relativePath || relativePath === '' || relativePath === '.') {
+      return this.workspaceRootUri;
     }
     // Handle absolute paths (starts with /)
     if (relativePath.startsWith('/')) {
