@@ -264,11 +264,11 @@ export class ChatProvider {
               type: 'function',
               function: {
                 name: 'open_url',
-                description: 'Open a URL in the default browser',
+                description: 'DEPRECATED: Open a URL in external system browser. DO NOT USE THIS - use browser_action instead for all web navigation. Only use this if user explicitly asks to open in external browser.',
                 parameters: {
                   type: 'object',
                   properties: {
-                    url: { type: 'string', description: 'URL to open' }
+                    url: { type: 'string', description: 'URL to open in external browser' }
                   },
                   required: ['url']
                 }
