@@ -4,6 +4,7 @@ import { config } from 'dotenv'
 import { ToolExecutor } from './tools'
 import { ChatProvider } from './chat'
 import { AuthProvider } from './auth'
+import { WindowStateManager } from './windowState'
 
 // Load environment variables from .env file
 config({ path: join(__dirname, '../../.env') })
@@ -16,6 +17,7 @@ let mainWindow: BrowserWindow | null = null
 let toolExecutor: ToolExecutor
 let chatProvider: ChatProvider
 let authProvider: AuthProvider
+let windowStateManager: WindowStateManager
 let isFullScreen = false
 let savedBounds: Electron.Rectangle | null = null
 
