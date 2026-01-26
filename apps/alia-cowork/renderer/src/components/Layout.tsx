@@ -30,6 +30,7 @@ import {
   MenubarShortcut,
   MenubarTrigger,
 } from "@/components/ui/menubar"
+import { useAuth } from "@/contexts/AuthContext"
 import {
   Sidebar,
   SidebarContent,
@@ -126,6 +127,7 @@ function TitleBar() {
   const [isPinned, setIsPinned] = React.useState(true)
   const [isFullScreen, setIsFullScreen] = React.useState(false)
   const { toggleSidebar, state: sidebarState } = useSidebar()
+  const { signOut, user } = useAuth()
 
   const togglePin = async () => {
     const newState = await window.api?.toggleAlwaysOnTop()
@@ -152,18 +154,23 @@ function TitleBar() {
         <Menubar className="border-0 bg-transparent p-0 h-auto gap-0">
           <MenubarMenu>
             <MenubarTrigger className="px-3 py-1.5 text-sm font-medium">File</MenubarTrigger>
-            <MenubarContent>
-              <MenubarItem>
+            <MenubarContent className="z-[100]">
+              <MenubarItem onClick={() => window.api?.clearChat?.()}>
                 New Chat <MenubarShortcut>Ctrl+N</MenubarShortcut>
               </MenubarItem>
-              <MenubarItem>
-                Open Folder <MenubarShortcut>Ctrl+O</MenubarShortcut>
-              </MenubarItem>
               <MenubarSeparator />
-              <MenubarItem>
+              <MenubarItem disabled>
                 Settings <MenubarShortcut>Ctrl+,</MenubarShortcut>
               </MenubarItem>
               <MenubarSeparator />
+              {user && (
+                <>
+                  <MenubarItem onClick={signOut}>
+                    Sign Out
+                  </MenubarItem>
+                  <MenubarSeparator />
+                </>
+              )}
               <MenubarItem onClick={() => window.api?.close()}>
                 Exit <MenubarShortcut>Alt+F4</MenubarShortcut>
               </MenubarItem>
@@ -171,28 +178,28 @@ function TitleBar() {
           </MenubarMenu>
           <MenubarMenu>
             <MenubarTrigger className="px-3 py-1.5 text-sm font-medium">Edit</MenubarTrigger>
-            <MenubarContent>
-              <MenubarItem>
+            <MenubarContent className="z-[100]">
+              <MenubarItem disabled>
                 Undo <MenubarShortcut>Ctrl+Z</MenubarShortcut>
               </MenubarItem>
-              <MenubarItem>
+              <MenubarItem disabled>
                 Redo <MenubarShortcut>Ctrl+Y</MenubarShortcut>
               </MenubarItem>
               <MenubarSeparator />
-              <MenubarItem>
+              <MenubarItem disabled>
                 Cut <MenubarShortcut>Ctrl+X</MenubarShortcut>
               </MenubarItem>
-              <MenubarItem>
+              <MenubarItem disabled>
                 Copy <MenubarShortcut>Ctrl+C</MenubarShortcut>
               </MenubarItem>
-              <MenubarItem>
+              <MenubarItem disabled>
                 Paste <MenubarShortcut>Ctrl+V</MenubarShortcut>
               </MenubarItem>
             </MenubarContent>
           </MenubarMenu>
           <MenubarMenu>
             <MenubarTrigger className="px-3 py-1.5 text-sm font-medium">View</MenubarTrigger>
-            <MenubarContent>
+            <MenubarContent className="z-[100]">
               <MenubarItem onClick={toggleSidebar}>
                 {sidebarState === "expanded" ? "Collapse" : "Expand"} Sidebar <MenubarShortcut>Ctrl+B</MenubarShortcut>
               </MenubarItem>
@@ -213,11 +220,17 @@ function TitleBar() {
           </MenubarMenu>
           <MenubarMenu>
             <MenubarTrigger className="px-3 py-1.5 text-sm font-medium">Help</MenubarTrigger>
-            <MenubarContent>
-              <MenubarItem>Documentation</MenubarItem>
-              <MenubarItem>Report Issue</MenubarItem>
+            <MenubarContent className="z-[100]">
+              <MenubarItem onClick={() => window.open('https://docs.alia.onl', '_blank')}>
+                Documentation
+              </MenubarItem>
+              <MenubarItem onClick={() => window.open('https://github.com/alia-ai/cowork/issues', '_blank')}>
+                Report Issue
+              </MenubarItem>
               <MenubarSeparator />
-              <MenubarItem>About Alia Cowork</MenubarItem>
+              <MenubarItem disabled>
+                About Alia Cowork
+              </MenubarItem>
             </MenubarContent>
           </MenubarMenu>
         </Menubar>
