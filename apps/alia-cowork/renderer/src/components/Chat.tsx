@@ -182,6 +182,7 @@ export function Chat() {
   const [streamingContent, setStreamingContent] = React.useState("")
   const [userName, setUserName] = React.useState<string | null>(null)
   const [toolExecutions, setToolExecutions] = React.useState<ToolExecution[]>([])
+  const [thinkingSteps, setThinkingSteps] = React.useState<string[]>([])
   const [models, setModels] = React.useState<Model[]>(defaultModels)
   const bottomRef = React.useRef<HTMLDivElement>(null)
   const textareaRef = React.useRef<HTMLTextAreaElement>(null)
