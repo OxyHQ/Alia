@@ -1,6 +1,7 @@
 import { createRoot } from "react-dom/client"
 
-import "./index.css"
+// CSS is built separately by Gulp
+// import "./index.css"
 import App from "./App.tsx"
 
 createRoot(document.getElementById("root")!).render(<App />)
