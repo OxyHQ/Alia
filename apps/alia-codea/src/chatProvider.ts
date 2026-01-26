@@ -708,6 +708,7 @@ export class CodeaChatViewProvider implements vscode.WebviewViewProvider {
 - **read_file**: Read file contents
 - **write_file**: Create/overwrite files (use for appending text too)
 - **edit_file**: Replace specific text in files (old_text must match EXACTLY including whitespace)
+- **open_file**: Open a file in the editor (without reading or modifying it)
 - **list_files**: List directory contents
 - **search_files**: Search for patterns
 - **run_command**: Run shell commands
