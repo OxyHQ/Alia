@@ -764,7 +764,7 @@ export class ChatProvider {
         {
           signal: this.abortController?.signal
         }
-      )
+      ) as unknown as AsyncIterable<OpenAI.Chat.Completions.ChatCompletionChunk>
 
       console.log('[ChatProvider] Continuation stream created, processing chunks...')
       let assistantMessage = ''
