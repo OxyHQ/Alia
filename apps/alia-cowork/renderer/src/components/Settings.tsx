@@ -112,7 +112,7 @@ export function Settings() {
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="flex items-center gap-3 p-4 rounded-lg bg-muted/50">
-                <img src="/alia-logo.png" alt="Alia" className="size-12 rounded-lg" />
+                <img src="icon.png" alt="Alia" className="size-12 rounded-lg" />
                 <div>
                   <div className="font-semibold">Alia Cowork</div>
                   <div className="text-sm text-muted-foreground">Made with ❤️ in the 🌎 by Oxy</div>
