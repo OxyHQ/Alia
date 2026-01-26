@@ -215,10 +215,15 @@ export function Chat() {
       setStreamingContent("")
       streamingContentRef.current = ""
       setToolExecutions([])
+      setThinkingSteps([])
     })
 
     const unsubStream = window.api.onChatStream((data) => {
       setStreamingContent((prev) => prev + data.content)
+    })
+
+    const unsubThinking = window.api.onChatThinking((data) => {
+      setThinkingSteps((prev) => [...prev, data.content])
     })
 
     const unsubEnd = window.api.onChatEnd(() => {
@@ -230,6 +235,8 @@ export function Chat() {
       setStreamingContent("")
       streamingContentRef.current = ""
       setToolExecutions([])
+      // Keep thinking steps visible briefly, then clear
+      setTimeout(() => setThinkingSteps([]), 2000)
     })
 
     const unsubError = window.api.onChatError((data) => {
@@ -237,6 +244,7 @@ export function Chat() {
       setMessages((prev) => [...prev, { role: "assistant", content: `Error: ${data.message}` }])
       setStreamingContent("")
       setToolExecutions([])
+      setThinkingSteps([])
     })
 
     const unsubTool = window.api.onChatTool((data) => {
@@ -262,6 +270,7 @@ export function Chat() {
     return () => {
       unsubStart()
       unsubStream()
+      unsubThinking()
       unsubEnd()
       unsubError()
       unsubTool()
@@ -277,7 +286,7 @@ export function Chat() {
     prevMessagesLengthRef.current = messages.length
 
     bottomRef.current?.scrollIntoView({ behavior: isFirstMessage ? "instant" : "smooth" })
-  }, [messages, streamingContent, toolExecutions])
+  }, [messages, streamingContent, toolExecutions, thinkingSteps])
 
   const sendMessage = () => {
     if (!input.trim() || isGenerating) return
@@ -317,6 +326,21 @@ export function Chat() {
             ))}
             {isGenerating && (
               <>
+                {thinkingSteps.length > 0 && (
+                  <ChainOfThought defaultOpen={true}>
+                    <ChainOfThoughtHeader>Chain of Thought</ChainOfThoughtHeader>
+                    <ChainOfThoughtContent>
+                      {thinkingSteps.map((step, i) => (
+                        <ChainOfThoughtStep
+                          key={i}
+                          label={`Step ${i + 1}`}
+                          description={step}
+                          status={i === thinkingSteps.length - 1 ? "active" : "complete"}
+                        />
+                      ))}
+                    </ChainOfThoughtContent>
+                  </ChainOfThought>
+                )}
                 {toolExecutions.length > 0 && (
                   <div className="space-y-0.5">
                     {toolExecutions.map((exec, i) => (
@@ -327,7 +351,7 @@ export function Chat() {
                 {streamingContent ? (
                   <MessageBubble message={{ role: "assistant", content: streamingContent }} isStreaming />
                 ) : (
-                  <ThinkingIndicator isWorking={toolExecutions.length > 0} />
+                  <ThinkingIndicator isWorking={toolExecutions.length > 0 || thinkingSteps.length > 0} />
                 )}
               </>
             )}
