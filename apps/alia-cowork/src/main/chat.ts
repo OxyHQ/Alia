@@ -226,7 +226,7 @@ You are running on ${process.platform === 'darwin' ? 'macOS' : process.platform 
       for await (const chunk of result.fullStream) {
         if (!this.isProcessing) break
 
-        if (chunk.type === 'text-delta') {
+        if (chunk.type === 'text-delta' && chunk.textDelta) {
           // Extract thinking tags for chain of thought visualization
           const thinkingMatch = chunk.textDelta.match(/<thinking>([\s\S]*?)<\/thinking>/g)
           if (thinkingMatch) {
