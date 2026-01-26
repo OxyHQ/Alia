@@ -211,7 +211,7 @@ function TitleBar() {
                 Report Issue
               </MenubarItem>
               <MenubarSeparator />
-              <MenubarItem disabled>
+              <MenubarItem onClick={() => window.api?.showAbout()}>
                 About Alia Cowork
               </MenubarItem>
             </MenubarContent>
