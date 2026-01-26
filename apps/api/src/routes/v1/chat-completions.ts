@@ -548,6 +548,23 @@ router.post('/', async (req: Request, res: Response) => {
         if ((chunk as any).usage) {
           console.log('[V1/Chat] Step usage:', (chunk as any).usage);
         }
+      } else if (chunk.type === 'error') {
+        console.error('[V1/Chat] Error chunk received:', (chunk as any).error);
+        const errorMessage = (chunk as any).error?.message || (chunk as any).error || 'Unknown error';
+        const errorChunk = {
+          id: `chatcmpl-${Date.now()}`,
+          object: 'chat.completion.chunk',
+          created: Math.floor(Date.now() / 1000),
+          model: aliasModelId,
+          choices: [{
+            index: 0,
+            delta: {
+              content: `\n\n⚠️ Error: ${errorMessage}`
+            },
+            finish_reason: 'error'
+          }]
+        };
+        res.write(`data: ${JSON.stringify(errorChunk)}\n\n`);
       } else if (chunk.type === 'finish') {
         console.log('[V1/Chat] Finish chunk received');
         const finishChunk = {
@@ -650,9 +667,28 @@ router.post('/', async (req: Request, res: Response) => {
   } catch (e: unknown) {
     console.error('❌ [V1/Chat] Error:', e);
     const message = e instanceof Error ? e.message : 'Unknown error';
+    const stack = e instanceof Error ? e.stack : undefined;
+    console.error('❌ [V1/Chat] Stack:', stack);
+
     if (!res.headersSent) {
       res.status(500).json({ error: message });
     } else {
+      // Headers already sent (streaming started), send error as SSE chunk
+      const errorChunk = {
+        id: `chatcmpl-${Date.now()}`,
+        object: 'chat.completion.chunk',
+        created: Math.floor(Date.now() / 1000),
+        model: 'alia-v1',
+        choices: [{
+          index: 0,
+          delta: {
+            content: `\n\n⚠️ Error: ${message}`
+          },
+          finish_reason: 'error'
+        }]
+      };
+      res.write(`data: ${JSON.stringify(errorChunk)}\n\n`);
+      res.write('data: [DONE]\n\n');
       res.end();
     }
   }
