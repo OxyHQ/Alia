@@ -146,7 +146,7 @@ function TitleBar({ onViewChange }: TitleBarProps) {
   }, [])
 
   return (
-    <div className="flex items-center justify-between h-10 px-2 border-b bg-background/80 backdrop-blur shrink-0">
+    <div className="sticky top-0 z-50 flex items-center justify-between h-10 px-2 border-b bg-background/80 backdrop-blur shrink-0">
       <div className="flex items-center gap-1">
         {/* App Menu */}
         <Menubar className="border-0 bg-transparent p-0 h-auto gap-0">
