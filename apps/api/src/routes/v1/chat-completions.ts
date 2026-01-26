@@ -291,7 +291,13 @@ router.post('/', async (req: Request, res: Response) => {
     const result = streamText(streamConfig);
 
     // Stream OpenAI-compatible chunks
+    console.log('[V1/Chat] Starting to process AI SDK stream...');
+    let chunkCount = 0;
     for await (const chunk of result.fullStream) {
+      chunkCount++;
+      console.log(`[V1/Chat] Chunk ${chunkCount} type:`, chunk.type);
+      console.log(`[V1/Chat] Chunk ${chunkCount} full:`, JSON.stringify(chunk, null, 2));
+
       if (chunk.type === 'text-delta' && chunk.textDelta) {
         // Extract <thinking> tags for chain-of-thought (Anthropic, DeepSeek, etc.)
         const thinkingMatch = chunk.textDelta.match(/<thinking>([\s\S]*?)<\/thinking>/g);
@@ -386,6 +392,7 @@ router.post('/', async (req: Request, res: Response) => {
       } else if (chunk.type === 'tool-result') {
         console.log('[V1/Chat] Tool result:', chunk.toolName, chunk.output);
       } else if (chunk.type === 'finish') {
+        console.log('[V1/Chat] Finish chunk received');
         const finishChunk = {
           id: `chatcmpl-${Date.now()}`,
           object: 'chat.completion.chunk',
@@ -398,8 +405,12 @@ router.post('/', async (req: Request, res: Response) => {
           }]
         };
         res.write(`data: ${JSON.stringify(finishChunk)}\n\n`);
+      } else {
+        console.warn('[V1/Chat] Unhandled chunk type:', chunk.type, 'Chunk:', JSON.stringify(chunk, null, 2));
       }
     }
+
+    console.log('[V1/Chat] Stream processing complete, total chunks:', chunkCount);
 
     // Finalize credits based on actual token usage and model tier
     if (creditReservation && req.user) {
