@@ -8,16 +8,22 @@ import * as fs from 'fs'
 import * as path from 'path'
 import * as os from 'os'
 import { promisify } from 'util'
-import { clipboard, shell, desktopCapturer } from 'electron'
+import { clipboard, shell, desktopCapturer, BrowserWindow } from 'electron'
+import { Stagehand } from '@browserbasehq/stagehand'
+import type { Page } from 'playwright'
 
 const execAsync = promisify(exec)
 
 export class ToolExecutor {
   private homeDir: string
   private openedApplications: Set<string> = new Set()
+  private mainWindow?: BrowserWindow
+  private stagehand?: Stagehand
+  private currentPage?: Page
 
-  constructor() {
+  constructor(mainWindow?: BrowserWindow) {
     this.homeDir = os.homedir()
+    this.mainWindow = mainWindow
   }
 
   private resolvePath(filePath?: string): string {
@@ -348,9 +354,132 @@ export class ToolExecutor {
   }
 
   /**
+   * Browser automation using Stagehand
+   * Opens a browser, performs actions, and shows preview
+   */
+  async browserAction(args: { action?: string; url?: string; extract?: string }): Promise<string> {
+    try {
+      // Initialize Stagehand if not already initialized
+      if (!this.stagehand) {
+        console.log('[ToolExecutor] Initializing Stagehand...')
+        this.stagehand = new Stagehand({
+          env: 'LOCAL',
+          verbose: 1,
+          headless: false, // Show browser for preview
+        })
+        await this.stagehand.init()
+        console.log('[ToolExecutor] Stagehand initialized')
+      }
+
+      // Get the active page
+      const page = this.stagehand.ctx.activePage()
+      if (!page) {
+        throw new Error('No active page available')
+      }
+
+      // Send initial browser opened event
+      if (this.mainWindow) {
+        this.mainWindow.webContents.send('browser:opened', {})
+      }
+
+      // Helper to capture and send screenshot
+      const capturePreview = async () => {
+        try {
+          const screenshot = await page.screenshot({ type: 'png', fullPage: false })
+          const base64 = screenshot.toString('base64')
+          if (this.mainWindow) {
+            this.mainWindow.webContents.send('browser:preview', {
+              screenshot: `data:image/png;base64,${base64}`
+            })
+          }
+        } catch (error) {
+          console.error('[ToolExecutor] Error capturing screenshot:', error)
+        }
+      }
+
+      // Navigate to URL if provided
+      if (args.url) {
+        console.log(`[ToolExecutor] Navigating to ${args.url}`)
+        await page.goto(args.url, { waitUntil: 'networkidle' })
+        await capturePreview()
+      }
+
+      let result = ''
+
+      // Perform action if provided
+      if (args.action) {
+        console.log(`[ToolExecutor] Performing action: ${args.action}`)
+        await this.stagehand.act(args.action)
+        await capturePreview()
+        result += `Action completed: ${args.action}\n`
+      }
+
+      // Extract data if requested
+      if (args.extract) {
+        console.log(`[ToolExecutor] Extracting: ${args.extract}`)
+        const extracted = await this.stagehand.extract(args.extract)
+        await capturePreview()
+        result += `Extracted data: ${JSON.stringify(extracted, null, 2)}\n`
+      }
+
+      // Final screenshot
+      await capturePreview()
+
+      // Don't close browser - keep it open for user to see
+      // this.stagehand will be reused for next action
+
+      return result || 'Browser action completed successfully'
+    } catch (error: any) {
+      console.error('[ToolExecutor] Browser action failed:', error)
+
+      // Send error to frontend
+      if (this.mainWindow) {
+        this.mainWindow.webContents.send('browser:error', {
+          error: error.message
+        })
+      }
+
+      throw new Error(`Browser automation failed: ${error.message}`)
+    }
+  }
+
+  /**
+   * Close browser if open
+   */
+  async closeBrowser(): Promise<string> {
+    try {
+      if (this.stagehand) {
+        await this.stagehand.close()
+        this.stagehand = undefined
+        this.currentPage = undefined
+
+        if (this.mainWindow) {
+          this.mainWindow.webContents.send('browser:closed', {})
+        }
+
+        return 'Browser closed'
+      }
+      return 'Browser was not open'
+    } catch (error: any) {
+      throw new Error(`Failed to close browser: ${error.message}`)
+    }
+  }
+
+  /**
    * Reset session state (called when conversation is cleared)
    */
-  reset(): void {
+  async reset(): Promise<void> {
     this.openedApplications.clear()
+
+    // Close browser if open
+    if (this.stagehand) {
+      try {
+        await this.stagehand.close()
+        this.stagehand = undefined
+        this.currentPage = undefined
+      } catch (error) {
+        console.error('[ToolExecutor] Error closing browser during reset:', error)
+      }
+    }
   }
 }
