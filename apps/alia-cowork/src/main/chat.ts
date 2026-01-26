@@ -302,6 +302,7 @@ You are running on ${process.platform === 'darwin' ? 'macOS' : process.platform 
 
               try {
                 const parsed = JSON.parse(data)
+                console.log('[Chat] Parsed object:', JSON.stringify(parsed).substring(0, 300))
                 const choice = parsed.choices?.[0]
                 console.log('[Chat] Parsed choice:', choice)
 
@@ -346,8 +347,9 @@ You are running on ${process.platform === 'darwin' ? 'macOS' : process.platform 
                     }
                   }
                 }
-              } catch {
-                // Skip malformed JSON
+              } catch (parseError: any) {
+                console.log('[Chat] Failed to parse JSON:', data.substring(0, 200))
+                console.log('[Chat] Parse error:', parseError.message)
               }
             }
           }

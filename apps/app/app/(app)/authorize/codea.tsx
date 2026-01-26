@@ -164,76 +164,87 @@ export default function AuthorizeCodeaScreen() {
         )}
 
         {status === 'authorizing' && (
-          <View className="items-center py-8">
-            <ActivityIndicator size="large" color="#667eea" />
-            <Text className="text-xl font-semibold text-foreground mt-4">
-              Authorizing...
-            </Text>
-            <Text className="text-muted-foreground text-center mt-2">
-              Please wait while we set up your access
-            </Text>
-          </View>
+          <Card>
+            <CardContent>
+              <View className="items-center py-4 gap-3">
+                <ActivityIndicator size="large" color="#667eea" />
+                <Text className="text-xl font-semibold text-foreground">
+                  Authorizing...
+                </Text>
+                <Text className="text-muted-foreground text-center">
+                  Please wait while we set up your access
+                </Text>
+              </View>
+            </CardContent>
+          </Card>
         )}
 
         {status === 'success' && (
-          <View className="items-center py-8">
-            <Text className="text-4xl mb-4">✅</Text>
-            <Text className="text-xl font-semibold text-foreground">
-              Authorized!
-            </Text>
-            <Text className="text-muted-foreground text-center mt-2">
-              {message}
-            </Text>
-            {redirectUrl ? (
-              <>
-                <TouchableOpacity
-                  onPress={() => {
-                    console.log('Manual redirect to:', redirectUrl);
-                    if (Platform.OS === 'web') {
-                      // Try multiple methods
-                      const link = document.createElement('a');
-                      link.href = redirectUrl;
-                      link.click();
-                    } else {
-                      Linking.openURL(redirectUrl);
-                    }
-                  }}
-                  className="mt-4 bg-primary px-6 py-3 rounded-lg"
-                >
-                  <Text className="text-primary-foreground text-center font-semibold">
-                    Open App Manually
+          <Card>
+            <CardContent>
+              <View className="items-center py-4 gap-4">
+                <Text className="text-4xl">✅</Text>
+                <View className="gap-2 items-center">
+                  <Text className="text-xl font-semibold text-foreground">
+                    Authorized!
                   </Text>
-                </TouchableOpacity>
-                <Text className="text-xs text-muted-foreground text-center mt-4 select-all">
-                  {redirectUrl}
-                </Text>
-              </>
-            ) : (
-              <Text className="text-xs text-muted-foreground text-center mt-4">
-                If not redirected automatically, you can close this window.
-              </Text>
-            )}
-          </View>
+                  <Text className="text-muted-foreground text-center">
+                    {message}
+                  </Text>
+                </View>
+                {redirectUrl ? (
+                  <>
+                    <Button
+                      onPress={() => {
+                        console.log('Manual redirect to:', redirectUrl);
+                        if (Platform.OS === 'web') {
+                          const link = document.createElement('a');
+                          link.href = redirectUrl;
+                          link.click();
+                        } else {
+                          Linking.openURL(redirectUrl);
+                        }
+                      }}
+                      size="lg"
+                    >
+                      <Text>Open App Manually</Text>
+                    </Button>
+                    <Text className="text-xs text-muted-foreground text-center select-all">
+                      {redirectUrl}
+                    </Text>
+                  </>
+                ) : (
+                  <Text className="text-xs text-muted-foreground text-center">
+                    If not redirected automatically, you can close this window.
+                  </Text>
+                )}
+              </View>
+            </CardContent>
+          </Card>
         )}
 
         {status === 'error' && (
-          <View className="items-center py-8">
-            <Text className="text-4xl mb-4">❌</Text>
-            <Text className="text-xl font-semibold text-foreground">
-              Authorization Failed
-            </Text>
-            <Text className="text-muted-foreground text-center mt-2">
-              {message}
-            </Text>
-            <TouchableOpacity
-              onPress={() => setStatus('authorize')}
-              className="mt-6 bg-primary px-6 py-3 rounded-lg"
-            >
-              <Text className="text-primary-foreground text-center font-semibold">
-                Try Again
-              </Text>
-            </TouchableOpacity>
-          </View>
+          <Card>
+            <CardContent>
+              <View className="items-center py-4 gap-4">
+                <Text className="text-4xl">❌</Text>
+                <View className="gap-2 items-center">
+                  <Text className="text-xl font-semibold text-foreground">
+                    Authorization Failed
+                  </Text>
+                  <Text className="text-muted-foreground text-center">
+                    {message}
+                  </Text>
+                </View>
+                <Button
+                  onPress={() => setStatus('authorize')}
+                  size="lg"
+                >
+                  <Text>Try Again</Text>
+                </Button>
+              </View>
+            </CardContent>
+          </Card>
         )}
       </AuthContainer>
     </>
