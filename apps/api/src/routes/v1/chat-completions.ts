@@ -313,9 +313,9 @@ router.post('/', async (req: Request, res: Response) => {
       console.log(`[V1/Chat] Chunk ${chunkCount} type:`, chunk.type);
       console.log(`[V1/Chat] Chunk ${chunkCount} full:`, JSON.stringify(chunk, null, 2));
 
-      if (chunk.type === 'text-delta' && chunk.textDelta) {
+      if (chunk.type === 'text-delta' && chunk.text) {
         // Extract <thinking> tags for chain-of-thought (Anthropic, DeepSeek, etc.)
-        const thinkingMatch = chunk.textDelta.match(/<thinking>([\s\S]*?)<\/thinking>/g);
+        const thinkingMatch = chunk.text.match(/<thinking>([\s\S]*?)<\/thinking>/g);
         if (thinkingMatch) {
           // Send thinking content as reasoning chunk
           thinkingMatch.forEach(match => {
@@ -342,7 +342,7 @@ router.post('/', async (req: Request, res: Response) => {
         }
 
         // Filter out thinking tags from the main message
-        const filtered = chunk.textDelta.replace(/<thinking>[\s\S]*?<\/thinking>/g, '');
+        const filtered = chunk.text.replace(/<thinking>[\s\S]*?<\/thinking>/g, '');
         if (filtered) {
           const openAIChunk = {
             id: `chatcmpl-${Date.now()}`,
