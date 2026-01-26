@@ -19,7 +19,6 @@ export class ToolExecutor {
   private openedApplications: Set<string> = new Set()
   private mainWindow?: BrowserWindow
   private stagehand?: Stagehand
-  private currentPage?: Page
 
   constructor(mainWindow?: BrowserWindow) {
     this.homeDir = os.homedir()
@@ -365,17 +364,17 @@ export class ToolExecutor {
         this.stagehand = new Stagehand({
           env: 'LOCAL',
           verbose: 1,
-          headless: false, // Show browser for preview
         })
         await this.stagehand.init()
         console.log('[ToolExecutor] Stagehand initialized')
       }
 
-      // Get the active page
-      const page = this.stagehand.ctx.activePage()
-      if (!page) {
-        throw new Error('No active page available')
+      // Get the first page (CDP low-level interface)
+      const pages = this.stagehand.context.pages()
+      if (pages.length === 0) {
+        throw new Error('No browser pages available')
       }
+      const page = pages[0]
 
       // Send initial browser opened event
       if (this.mainWindow) {
@@ -400,7 +399,8 @@ export class ToolExecutor {
       // Navigate to URL if provided
       if (args.url) {
         console.log(`[ToolExecutor] Navigating to ${args.url}`)
-        await page.goto(args.url, { waitUntil: 'networkidle' })
+        await page.goto(args.url)
+        await page.waitForLoadState('networkidle')
         await capturePreview()
       }
 
@@ -451,7 +451,6 @@ export class ToolExecutor {
       if (this.stagehand) {
         await this.stagehand.close()
         this.stagehand = undefined
-        this.currentPage = undefined
 
         if (this.mainWindow) {
           this.mainWindow.webContents.send('browser:closed', {})
@@ -476,7 +475,6 @@ export class ToolExecutor {
       try {
         await this.stagehand.close()
         this.stagehand = undefined
-        this.currentPage = undefined
       } catch (error) {
         console.error('[ToolExecutor] Error closing browser during reset:', error)
       }
