@@ -138,7 +138,7 @@ export async function streamChat(
     })
   ];
 
-  const response = await fetch(`${baseUrl}/v1/codea/chat/completions`, {
+  const response = await fetch(`${baseUrl}/v1/chat/completions`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
