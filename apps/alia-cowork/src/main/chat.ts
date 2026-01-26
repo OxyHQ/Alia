@@ -577,8 +577,24 @@ export class ChatProvider {
       // Execute more tools if needed (recursive)
       if (validToolCalls.length > 0) {
         for (const toolCall of validToolCalls) {
+          if (!toolCall || !toolCall.function) {
+            console.error('[ChatProvider] Invalid tool call in continuation:', toolCall)
+            continue
+          }
+
           const toolName = toolCall.function.name
-          const args = JSON.parse(toolCall.function.arguments)
+          if (!toolName) {
+            console.error('[ChatProvider] Tool call missing name in continuation:', toolCall)
+            continue
+          }
+
+          let args: any = {}
+          try {
+            args = JSON.parse(toolCall.function.arguments || '{}')
+          } catch (e) {
+            console.error('[ChatProvider] Failed to parse tool arguments in continuation:', toolCall.function.arguments, e)
+            continue
+          }
 
           if (toolName === 'set_mode') {
             this.currentMode = args.mode
