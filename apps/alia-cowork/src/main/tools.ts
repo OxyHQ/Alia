@@ -237,6 +237,88 @@ export class ToolExecutor {
     }
   }
 
+  async listInstalledApplications(): Promise<string> {
+    try {
+      const platform = process.platform
+      let apps: string[] = []
+
+      if (platform === 'win32') {
+        // Windows: Use PowerShell to list installed apps from Start Menu
+        const startMenuPaths = [
+          `${process.env.APPDATA}\\Microsoft\\Windows\\Start Menu\\Programs`,
+          `${process.env.ProgramData}\\Microsoft\\Windows\\Start Menu\\Programs`
+        ]
+
+        for (const menuPath of startMenuPaths) {
+          if (fs.existsSync(menuPath)) {
+            const findShortcuts = (dir: string): string[] => {
+              const items: string[] = []
+              try {
+                const entries = fs.readdirSync(dir, { withFileTypes: true })
+                for (const entry of entries) {
+                  const fullPath = path.join(dir, entry.name)
+                  if (entry.isDirectory()) {
+                    items.push(...findShortcuts(fullPath))
+                  } else if (entry.name.endsWith('.lnk') || entry.name.endsWith('.exe')) {
+                    items.push(entry.name.replace(/\.lnk$/, '').replace(/\.exe$/, ''))
+                  }
+                }
+              } catch (e) {
+                // Skip directories we can't read
+              }
+              return items
+            }
+            apps.push(...findShortcuts(menuPath))
+          }
+        }
+
+        // Also add common app executables
+        apps.push('wt.exe', 'cmd.exe', 'powershell.exe', 'notepad.exe', 'explorer.exe')
+      } else if (platform === 'darwin') {
+        // macOS: List apps from /Applications
+        const appDirs = ['/Applications', path.join(os.homedir(), 'Applications')]
+        for (const appDir of appDirs) {
+          if (fs.existsSync(appDir)) {
+            const entries = fs.readdirSync(appDir, { withFileTypes: true })
+            for (const entry of entries) {
+              if (entry.name.endsWith('.app')) {
+                apps.push(entry.name.replace(/\.app$/, ''))
+              }
+            }
+          }
+        }
+      } else {
+        // Linux: List .desktop files
+        const desktopDirs = [
+          '/usr/share/applications',
+          '/usr/local/share/applications',
+          path.join(os.homedir(), '.local/share/applications')
+        ]
+        for (const desktopDir of desktopDirs) {
+          if (fs.existsSync(desktopDir)) {
+            const entries = fs.readdirSync(desktopDir)
+            for (const entry of entries) {
+              if (entry.endsWith('.desktop')) {
+                apps.push(entry.replace(/\.desktop$/, ''))
+              }
+            }
+          }
+        }
+      }
+
+      // Remove duplicates and sort
+      const uniqueApps = [...new Set(apps)].sort()
+
+      if (uniqueApps.length === 0) {
+        return 'No applications found. Try using the full path or executable name.'
+      }
+
+      return `Found ${uniqueApps.length} installed applications:\n\n${uniqueApps.join('\n')}`
+    } catch (error: any) {
+      return `Error listing applications: ${error.message}`
+    }
+  }
+
   /**
    * Reset session state (called when conversation is cleared)
    */
