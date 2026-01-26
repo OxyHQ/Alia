@@ -421,7 +421,7 @@ export function Chat() {
       </header>
 
       {/* Messages - Scrollable middle section */}
-      <ScrollArea ref={scrollRef} className="flex-1 overflow-auto">
+      <ScrollArea ref={scrollRef} className="flex-1 overflow-auto min-h-0">
         {!hasMessages ? (
           <WelcomeScreen
             userName={userName}
