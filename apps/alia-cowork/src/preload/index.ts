@@ -88,5 +88,16 @@ const api = {
   }
 }
 
+// Generic electron IPC bridge for dynamic channels (e.g., browser events)
+const electron = {
+  on: (channel: string, callback: (...args: any[]) => void) => {
+    ipcRenderer.on(channel, (_, ...args) => callback(...args))
+  },
+  off: (channel: string, callback: (...args: any[]) => void) => {
+    ipcRenderer.removeListener(channel, callback)
+  }
+}
+
 // Expose APIs to renderer
 contextBridge.exposeInMainWorld('api', api)
+contextBridge.exposeInMainWorld('electron', electron)
