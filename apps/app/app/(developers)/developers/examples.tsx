@@ -137,20 +137,21 @@ while (true) {
       {/* Code Editor Example */}
       <View className="px-6 py-6">
         <Text className="text-sm font-semibold text-foreground mb-4">Code editor integration</Text>
-        <Text className="text-sm text-muted-foreground mb-3">Use the codea endpoint for Cursor, VS Code, etc:</Text>
+        <Text className="text-sm text-muted-foreground mb-3">Use the unified endpoint for Cursor, VS Code, etc:</Text>
         <View className="p-3 bg-muted rounded-md">
           <Text className="text-sm font-mono text-foreground">
             {`// Cursor/VS Code configuration
 {
   "api_key": "alia_sk_your_key",
-  "base_url": "https://api.alia.onl/v1/codea"
+  "base_url": "https://api.alia.onl/v1",
+  "model": "alia-v1-codea"
 }
 
 // The endpoint:
-// POST /v1/codea/chat/completions
+// POST /v1/chat/completions
 //
 // Features:
-// • Always uses alia-v1-codea
+// • Use alia-v1-codea for code tasks
 // • Supports editor tools (auto-converted)
 // • Multi-provider fallback (Google→OpenAI→Anthropic)
 // • Includes user memory
