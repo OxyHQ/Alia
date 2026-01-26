@@ -69,10 +69,74 @@ router.post('/logout', authenticateToken, async (req, res) => {
 
 /**
  * POST /auth/authorize/codea
- * Authorize Alia Cowork desktop app with PKCE
+ * Authorize Alia Codea desktop app with PKCE
  * Returns an authorization code that can be exchanged for a token
  */
 router.post('/authorize/codea', authenticateToken, async (req, res) => {
+  try {
+    if (!req.user) {
+      res.status(401).json({ error: 'Not authenticated' });
+      return;
+    }
+
+    const { code_challenge, code_challenge_method } = req.body;
+
+    // Validate PKCE parameters
+    if (!code_challenge) {
+      res.status(400).json({ error: 'code_challenge is required' });
+      return;
+    }
+
+    if (code_challenge_method && code_challenge_method !== 'S256') {
+      res.status(400).json({ error: 'Only S256 code_challenge_method is supported' });
+      return;
+    }
+
+    const userId = req.user.id;
+    const appName = 'Alia Codea';
+
+    // Find or create the Alia Codea app for this user
+    let app = await DeveloperApp.findOne({
+      oxyUserId: userId,
+      name: appName,
+    });
+
+    if (!app) {
+      app = await DeveloperApp.create({
+        oxyUserId: userId,
+        name: appName,
+        description: 'Alia Codea desktop application',
+        isActive: true,
+      });
+    }
+
+    // Generate authorization code
+    const authCode = crypto.randomBytes(32).toString('base64url');
+
+    // Store the code with challenge (expires in 5 minutes)
+    authorizationCodes.set(authCode, {
+      userId,
+      codeChallenge: code_challenge,
+      appId: app._id.toString(),
+      expiresAt: Date.now() + 5 * 60 * 1000,
+    });
+
+    res.json({
+      code: authCode,
+      appId: app._id,
+    });
+  } catch (error) {
+    console.error('Authorize Codea error:', error);
+    res.status(500).json({ error: 'Failed to authorize' });
+  }
+});
+
+/**
+ * POST /auth/authorize/cowork
+ * Authorize Alia Cowork desktop app with PKCE
+ * Returns an authorization code that can be exchanged for a token
+ */
+router.post('/authorize/cowork', authenticateToken, async (req, res) => {
   try {
     if (!req.user) {
       res.status(401).json({ error: 'Not authenticated' });
@@ -126,7 +190,7 @@ router.post('/authorize/codea', authenticateToken, async (req, res) => {
       appId: app._id,
     });
   } catch (error) {
-    console.error('Authorize Codea error:', error);
+    console.error('Authorize Cowork error:', error);
     res.status(500).json({ error: 'Failed to authorize' });
   }
 });
