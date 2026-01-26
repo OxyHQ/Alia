@@ -446,47 +446,65 @@ export class ChatProvider {
             let result: string
             switch (toolName) {
               case 'read_file':
+                console.log('[ChatProvider] Executing read_file')
                 result = await this.toolExecutor.readFile(args)
                 break
               case 'write_file':
+                console.log('[ChatProvider] Executing write_file')
                 result = await this.toolExecutor.writeFile(args)
                 break
               case 'edit_file':
+                console.log('[ChatProvider] Executing edit_file')
                 result = await this.toolExecutor.editFile(args)
                 break
               case 'list_files':
+                console.log('[ChatProvider] Executing list_files')
                 result = await this.toolExecutor.listFiles(args)
                 break
               case 'search_files':
+                console.log('[ChatProvider] Executing search_files')
                 result = await this.toolExecutor.searchFiles(args)
                 break
               case 'run_command':
+                console.log('[ChatProvider] Executing run_command')
                 result = await this.toolExecutor.runCommand(args)
                 break
               case 'open_application':
+                console.log('[ChatProvider] Executing open_application')
                 result = await this.toolExecutor.openApplication(args)
                 break
               case 'open_url':
+                console.log('[ChatProvider] Executing open_url')
                 result = await this.toolExecutor.openUrl(args)
                 break
               case 'clipboard_read':
+                console.log('[ChatProvider] Executing clipboard_read')
                 result = this.toolExecutor.clipboardRead()
                 break
               case 'clipboard_write':
+                console.log('[ChatProvider] Executing clipboard_write')
                 result = this.toolExecutor.clipboardWrite(args)
                 break
               case 'get_system_info':
+                console.log('[ChatProvider] Executing get_system_info')
                 result = this.toolExecutor.getSystemInfo()
                 break
               case 'screenshot':
+                console.log('[ChatProvider] Executing screenshot')
                 result = await this.toolExecutor.screenshot()
                 break
               case 'set_mode':
+                console.log('[ChatProvider] Executing set_mode')
                 result = `Mode changed to ${args.mode}`
                 break
               default:
+                console.error(`[ChatProvider] Unknown tool: ${toolName}`)
                 result = `Unknown tool: ${toolName}`
             }
+
+            console.log(`[ChatProvider] Tool ${toolName} executed successfully`)
+            console.log(`[ChatProvider] Result length: ${String(result || '').length}`)
+            console.log(`[ChatProvider] Result preview: ${String(result || '').slice(0, 200)}`)
 
             // Add tool result to messages
             this.messages.push({
@@ -494,6 +512,7 @@ export class ChatProvider {
               tool_call_id: toolCall.id,
               content: result
             })
+            console.log(`[ChatProvider] Added tool result to messages (total: ${this.messages.length})`)
 
             this.send('chat:toolResult', {
               tool: toolName,
@@ -502,6 +521,9 @@ export class ChatProvider {
             })
           } catch (error: any) {
             const errorMsg = error.message || String(error)
+            console.error(`[ChatProvider] Tool ${toolName} execution failed:`, errorMsg)
+            console.error('[ChatProvider] Error stack:', error.stack)
+
             this.messages.push({
               role: 'tool',
               tool_call_id: toolCall.id,
@@ -516,11 +538,15 @@ export class ChatProvider {
           }
         }
 
+        console.log('[ChatProvider] All tools executed, continuing with tool results...')
+        console.log('[ChatProvider] Current message history:', JSON.stringify(this.messages.map(m => ({ role: m.role, hasContent: !!m.content })), null, 2))
+
         // Continue conversation with tool results - recursively call handleMessage
         // but without adding a new user message
         await this.continueWithToolResults(openai, selectedModel, tools)
       }
 
+      console.log('[ChatProvider] Chat session complete')
       this.send('chat:end', {})
     } catch (error: any) {
       if (error.name === 'AbortError') {
