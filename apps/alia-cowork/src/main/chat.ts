@@ -776,12 +776,21 @@ export class ChatProvider {
           }
         }
 
+        console.log('[ChatProvider] More tools to execute, continuing recursively...')
         // Continue recursively
         await this.continueWithToolResults(openai, model, tools)
+      } else {
+        console.log('[ChatProvider] No more tools to execute, continuation complete')
       }
     } catch (error: any) {
       if (error.name !== 'AbortError') {
-        console.error('[ChatProvider] Tool continuation error:', error)
+        console.error('[ChatProvider] ===== CONTINUATION ERROR =====')
+        console.error('[ChatProvider] Error name:', error.name)
+        console.error('[ChatProvider] Error message:', error.message)
+        console.error('[ChatProvider] Error stack:', error.stack)
+        console.error('[ChatProvider] Full error:', JSON.stringify(error, null, 2))
+      } else {
+        console.log('[ChatProvider] Continuation aborted by user')
       }
     }
   }
