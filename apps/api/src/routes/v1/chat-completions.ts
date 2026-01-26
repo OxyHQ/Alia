@@ -288,6 +288,21 @@ router.post('/', async (req: Request, res: Response) => {
       streamConfig.experimental_providerMetadata = providerMetadata;
     }
 
+    console.log('[V1/Chat] AI SDK stream config:', JSON.stringify({
+      modelProvider: resolved.provider,
+      model: resolved.keyConfig.modelId,
+      messageCount: streamConfig.messages.length,
+      hasTools: !!streamConfig.tools,
+      toolCount: streamConfig.tools ? Object.keys(streamConfig.tools).length : 0,
+      temperature: streamConfig.temperature,
+      maxTokens: streamConfig.maxTokens
+    }, null, 2));
+    console.log('[V1/Chat] Messages:', JSON.stringify(streamConfig.messages.map((m: any) => ({
+      role: m.role,
+      contentLength: typeof m.content === 'string' ? m.content.length : (Array.isArray(m.content) ? m.content.length : 0),
+      hasToolCalls: !!m.toolCalls
+    })), null, 2));
+
     const result = streamText(streamConfig);
 
     // Stream OpenAI-compatible chunks
