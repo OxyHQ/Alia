@@ -14,6 +14,7 @@ const execAsync = promisify(exec)
 
 export class ToolExecutor {
   private homeDir: string
+  private openedApplications: Set<string> = new Set()
 
   constructor() {
     this.homeDir = os.homedir()
@@ -148,8 +149,14 @@ export class ToolExecutor {
   }
 
   async openApplication(args: { application_name: string }): Promise<string> {
+    // Check if already opened in this session
+    if (this.openedApplications.has(args.application_name)) {
+      return `${args.application_name} is already open. DO NOT call open_application again for this application. Task is complete.`
+    }
+
     await shell.openPath(args.application_name)
-    return `Opened ${args.application_name}`
+    this.openedApplications.add(args.application_name)
+    return `Successfully opened ${args.application_name}. Application is now running. DO NOT call open_application again for this application.`
   }
 
   async openUrl(args: { url: string }): Promise<string> {
@@ -228,5 +235,12 @@ export class ToolExecutor {
       }
       throw error
     }
+  }
+
+  /**
+   * Reset session state (called when conversation is cleared)
+   */
+  reset(): void {
+    this.openedApplications.clear()
   }
 }

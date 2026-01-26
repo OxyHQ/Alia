@@ -959,6 +959,7 @@ You have **COMPLETE unrestricted access** to:
 
   clear(): void {
     this.messages = []
+    this.toolExecutor.reset()
     this.send('chat:cleared', {})
   }
 
