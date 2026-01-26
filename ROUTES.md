@@ -129,67 +129,6 @@ Para editores de código, configura:
 - **Model**: `alia-v1-codea` (en la configuración del editor o request body)
 - **API Key**: Tu API key con prefijo `alia_sk_*`
 
----
-
-### `POST /v1/codea/chat/completions`
-
-**Descripción**: Endpoint para editores de código (Cursor, VS Code, etc.) que **siempre** usa `alia-v1-codea`.
-
-**Base URL para Cursor/VS Code**: `https://api.alia.onl/v1/codea`
-
-**Autenticación**: Requerida (via `authenticateTokenOrApiKey`)
-
-**Características**:
-- ✅ OpenAI-compatible
-- ✅ Streaming SSE
-- ✅ **Forzado a usar `alia-v1-codea`** (optimizado para código)
-- ✅ Cobro de créditos con multiplicador 1.5x
-- ✅ Soporta tools del editor (function calling)
-- ✅ Herramientas internas de Alia (memoria, timeline, Telegram)
-- ✅ Personalización basada en perfil de usuario
-- ✅ **Conversión automática de tools** para compatibilidad multi-proveedor
-- ✅ **Fallback automático** entre proveedores (Google → OpenAI → Anthropic)
-
-**Parámetros del Body**:
-```json
-{
-  "messages": [...],
-  "temperature": 0.7, // Opcional
-  "max_tokens": 4096, // Opcional
-  "tools": [...] // Opcional: tools del editor
-}
-```
-
-**Nota**: El parámetro `model` se **ignora**. Siempre usa `alia-v1-codea`.
-
-**Herramientas Disponibles**:
-- Tools del editor (pasadas en el request)
-- `getCurrentDate` - Obtener fecha/hora actual
-- `getTimeline` - Ver eventos recientes del usuario
-- `saveUserMemory` - Guardar información del usuario
-- `updateUserPreferences` - Actualizar preferencias de código
-- `updateUserContext` - Actualizar contexto del usuario
-- `sendTelegram` - Enviar notificaciones por Telegram
-
-**Respuesta**: Igual que `/v1/chat/completions` pero con `model: "alia-v1-codea"`
-
-**Conversión de Tools (Multi-Proveedor)**:
-
-Los tools enviados por editores como Cursor pueden tener nombres incompatibles con ciertos proveedores (ej: Google requiere nombres alfanuméricos). El sistema automáticamente:
-
-1. **Sanitiza nombres** de funciones para compatibilidad con todos los proveedores
-2. **Convierte JSON Schema** a formato Zod para AI SDK
-3. **Restaura nombres originales** en las respuestas al cliente
-
-```
-Cursor envía:  tools[{function: {name: "read_file#123"}}]
-                    ↓
-Sanitizado:    "read_file_123" (compatible con Google)
-                    ↓
-AI SDK → Proveedor (Google/OpenAI/Anthropic)
-                    ↓
-Respuesta:     Restaura "read_file#123" para Cursor
-```
 
 ---
 
@@ -349,8 +288,7 @@ X-Telegram-Id: <telegram-id>
 | Caso de Uso | Ruta | Modelo | Herramientas |
 |-------------|------|--------|--------------|
 | Chat en la app de Alia | `/alia/chat` | Configurable | ✅ Todas (Google Search, Memory, etc.) |
-| API para desarrolladores | `/v1/chat/completions` | Configurable | ✅ Function calling (si se pasa en request) |
-| Editores de código (Cursor, VS Code, etc.) | `/v1/codea/chat/completions` | **Siempre `alia-v1-codea`** | ✅ Tools del editor + Alia (memoria, Telegram) |
+| API OpenAI-compatible | `/v1/chat/completions` | Configurable | ✅ Function calling + Alia tools (memoria, Telegram) |
 | Listar modelos | `/v1/models` | N/A | N/A |
 
 ---
@@ -368,8 +306,9 @@ La extensión **Codea by Alia** está disponible en `/apps/alia-codea/`.
 ### Configuración
 
 La extensión se conecta automáticamente a:
-- **Base URL**: `https://api.alia.onl/v1/codea`
-- **Endpoint**: `/v1/codea/chat/completions`
+- **Base URL**: `https://api.alia.onl/v1`
+- **Endpoint**: `/v1/chat/completions`
+- **Model**: `alia-v1-codea`
 - **Autenticación**: API key con prefijo `alia_sk_`
 
 ### Características
