@@ -347,9 +347,10 @@ export class ChatProvider {
         }
       }
 
-      // Add assistant message to history (with tool calls if any)
-      // Filter out undefined from sparse array
+      // Filter out undefined from sparse array before processing
       const validToolCalls = toolCalls.filter(tc => tc && tc.function)
+
+      // Add assistant message to history (with tool calls if any)
       if (assistantMessage || validToolCalls.length > 0) {
         const assistantMsg: OpenAI.Chat.ChatCompletionAssistantMessageParam = {
           role: 'assistant',
@@ -361,8 +362,7 @@ export class ChatProvider {
         this.messages.push(assistantMsg)
       }
 
-      // Execute tools if there are tool calls (filter out any undefined from sparse array)
-      const validToolCalls = toolCalls.filter(tc => tc && tc.function)
+      // Execute tools if there are tool calls
       if (validToolCalls.length > 0) {
         for (const toolCall of validToolCalls) {
           const toolName = toolCall.function.name
@@ -543,20 +543,22 @@ export class ChatProvider {
         }
       }
 
+      // Filter out undefined from sparse array before processing
+      const validToolCalls = toolCalls.filter(tc => tc && tc.function)
+
       // Add assistant message
-      if (assistantMessage || toolCalls.length > 0) {
+      if (assistantMessage || validToolCalls.length > 0) {
         const assistantMsg: OpenAI.Chat.ChatCompletionAssistantMessageParam = {
           role: 'assistant',
           content: assistantMessage || null
         }
-        if (toolCalls.length > 0) {
-          assistantMsg.tool_calls = toolCalls
+        if (validToolCalls.length > 0) {
+          assistantMsg.tool_calls = validToolCalls
         }
         this.messages.push(assistantMsg)
       }
 
-      // Execute more tools if needed (recursive) - filter out any undefined from sparse array
-      const validToolCalls = toolCalls.filter(tc => tc && tc.function)
+      // Execute more tools if needed (recursive)
       if (validToolCalls.length > 0) {
         for (const toolCall of validToolCalls) {
           const toolName = toolCall.function.name
