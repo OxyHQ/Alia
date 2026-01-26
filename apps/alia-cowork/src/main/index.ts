@@ -28,15 +28,14 @@ const MIN_WIDTH = 400
 const MIN_HEIGHT = 500
 
 function createWindow(): void {
-  const { width: screenWidth } = screen.getPrimaryDisplay().workAreaSize
+  // Initialize window state manager
+  windowStateManager = new WindowStateManager()
+  const initialBounds = windowStateManager.getInitialBounds()
 
   mainWindow = new BrowserWindow({
-    width: DEFAULT_WIDTH,
-    height: DEFAULT_HEIGHT,
+    ...initialBounds,
     minWidth: MIN_WIDTH,
     minHeight: MIN_HEIGHT,
-    x: screenWidth - DEFAULT_WIDTH - 20,
-    y: 20,
     frame: false,
     transparent: false,
     alwaysOnTop: false,
