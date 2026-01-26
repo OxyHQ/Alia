@@ -548,12 +548,12 @@ export function createAISDKTools(executor: ToolExecutor) {
   return {
     read_file: tool({
       description: 'Read the contents of a file. Use this to examine code, configuration files, or any text file in the workspace.',
-      parameters: z.object({
+      inputSchema: z.object({
         path: z.string().describe('The path to the file to read, relative to the workspace root'),
         start_line: z.number().optional().describe('Optional starting line number (1-indexed)'),
         end_line: z.number().optional().describe('Optional ending line number (1-indexed)')
       }),
-      execute: async (params: { path: string; start_line?: number; end_line?: number }) => {
+      execute: async (params) => {
         const result = await executor.execute('read_file', params);
         if (!result.success) throw new Error(result.result);
         return result.result;
@@ -562,11 +562,11 @@ export function createAISDKTools(executor: ToolExecutor) {
 
     write_file: tool({
       description: 'Create a new file or completely overwrite an existing file with new content.',
-      parameters: z.object({
+      inputSchema: z.object({
         path: z.string().describe('The path to the file to write, relative to the workspace root'),
         content: z.string().describe('The complete content to write to the file')
       }),
-      execute: async (params: { path: string; content: string }) => {
+      execute: async (params) => {
         const result = await executor.execute('write_file', params);
         if (!result.success) throw new Error(result.result);
         return result.result;
@@ -575,12 +575,12 @@ export function createAISDKTools(executor: ToolExecutor) {
 
     edit_file: tool({
       description: 'Make targeted edits to a file by replacing specific text. Use this for small, precise changes.',
-      parameters: z.object({
+      inputSchema: z.object({
         path: z.string().describe('The path to the file to edit, relative to the workspace root'),
         old_text: z.string().describe('The exact text to find and replace (must match exactly including whitespace)'),
         new_text: z.string().describe('The new text to replace it with')
       }),
-      execute: async (params: { path: string; old_text: string; new_text: string }) => {
+      execute: async (params) => {
         const result = await executor.execute('edit_file', params);
         if (!result.success) throw new Error(result.result);
         return result.result;
@@ -589,10 +589,10 @@ export function createAISDKTools(executor: ToolExecutor) {
 
     delete_file: tool({
       description: 'Delete a file from the workspace.',
-      parameters: z.object({
+      inputSchema: z.object({
         path: z.string().describe('The path to the file to delete, relative to the workspace root')
       }),
-      execute: async (params: { path: string }) => {
+      execute: async (params) => {
         const result = await executor.execute('delete_file', params);
         if (!result.success) throw new Error(result.result);
         return result.result;
@@ -601,12 +601,12 @@ export function createAISDKTools(executor: ToolExecutor) {
 
     list_files: tool({
       description: 'List files and directories in a given path. Use this to explore the project structure.',
-      parameters: z.object({
+      inputSchema: z.object({
         path: z.string().describe('The directory path to list, relative to the workspace root. Use "." for root.'),
         recursive: z.boolean().optional().describe('If true, list files recursively. Default is false.'),
         pattern: z.string().optional().describe('Optional glob pattern to filter files (e.g., "**/*.ts")')
       }),
-      execute: async (params: { path: string; recursive?: boolean; pattern?: string }) => {
+      execute: async (params) => {
         const result = await executor.execute('list_files', params);
         if (!result.success) throw new Error(result.result);
         return result.result;
@@ -615,13 +615,13 @@ export function createAISDKTools(executor: ToolExecutor) {
 
     search_files: tool({
       description: 'Search for text or patterns across files in the workspace.',
-      parameters: z.object({
+      inputSchema: z.object({
         query: z.string().describe('The text or regex pattern to search for'),
         path: z.string().optional().describe('Optional directory to search in, relative to workspace root'),
         include: z.string().optional().describe('Optional glob pattern to include files (e.g., "**/*.ts")'),
         exclude: z.string().optional().describe('Optional glob pattern to exclude files')
       }),
-      execute: async (params: { query: string; path?: string; include?: string; exclude?: string }) => {
+      execute: async (params) => {
         const result = await executor.execute('search_files', params);
         if (!result.success) throw new Error(result.result);
         return result.result;
@@ -630,11 +630,11 @@ export function createAISDKTools(executor: ToolExecutor) {
 
     run_command: tool({
       description: 'Execute a shell command in the workspace. Use for running tests, builds, git commands, etc.',
-      parameters: z.object({
+      inputSchema: z.object({
         command: z.string().describe('The shell command to execute'),
         cwd: z.string().optional().describe('Optional working directory, relative to workspace root')
       }),
-      execute: async (params: { command: string; cwd?: string }) => {
+      execute: async (params) => {
         const result = await executor.execute('run_command', params);
         if (!result.success) throw new Error(result.result);
         return result.result;
@@ -643,10 +643,10 @@ export function createAISDKTools(executor: ToolExecutor) {
 
     set_mode: tool({
       description: 'Change the assistant operating mode. Use when user requests a mode change like "switch to edit mode" or "go yolo".',
-      parameters: z.object({
+      inputSchema: z.object({
         mode: z.enum(['ask', 'edit', 'plan', 'yolo']).describe('The mode to switch to. ask=confirm destructive ops, edit=make changes directly, plan=outline then execute, yolo=full autonomous')
       }),
-      execute: async (params: { mode: 'ask' | 'edit' | 'plan' | 'yolo' }) => {
+      execute: async (params) => {
         // This will be handled specially in chatProvider
         return `Mode will be changed to ${params.mode}`;
       }
