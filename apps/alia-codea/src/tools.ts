@@ -705,6 +705,19 @@ export function createAISDKTools(executor: ToolExecutor) {
         // This will be handled specially in chatProvider
         return `Mode will be changed to ${params.mode}`;
       }
+    }),
+
+    open_file: tool({
+      description: 'Open a file in the editor. Use this to show files to the user without modifying them.',
+      inputSchema: z.object({
+        path: z.string().describe('The path to the file to open, relative to the workspace root'),
+        line: z.number().optional().describe('Optional line number to scroll to (1-indexed)')
+      }),
+      execute: async (params) => {
+        const result = await executor.execute('open_file', params);
+        if (!result.success) throw new Error(result.result);
+        return result.result;
+      }
     })
   };
 }
