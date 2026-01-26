@@ -20,7 +20,7 @@ export function Settings() {
   ]
 
   return (
-    <div className="flex-1 overflow-auto">
+    <div className="flex-1 overflow-auto min-h-0">
       <div className="container max-w-4xl py-8 px-6">
         <div className="space-y-6">
           {/* Header */}

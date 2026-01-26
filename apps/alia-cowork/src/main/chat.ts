@@ -233,6 +233,9 @@ You are running on ${process.platform === 'darwin' ? 'macOS' : process.platform 
 
       const enableTools = store.get('enableTools') as boolean
 
+      console.log('[ChatProvider] Making request with model:', model, 'enableTools:', enableTools)
+      console.log('[ChatProvider] Messages count:', messagesWithSystem.length)
+
       const requestBody = JSON.stringify({
         model,
         messages: messagesWithSystem.map((m) => {
@@ -249,6 +252,8 @@ You are running on ${process.platform === 'darwin' ? 'macOS' : process.platform 
           tool_choice: 'auto'
         })
       })
+
+      console.log('[ChatProvider] Request body length:', requestBody.length, 'chars')
 
       const options = {
         hostname: url.hostname,
