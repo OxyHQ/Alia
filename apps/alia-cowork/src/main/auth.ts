@@ -6,14 +6,14 @@ import * as crypto from 'crypto'
 
 // Default URLs (can be overridden via .env)
 const DEFAULT_API_BASE_URL = 'https://api.alia.onl'
-const DEFAULT_AUTH_URL = 'https://alia.onl/authorize/codea'
+const DEFAULT_AUTH_URL = 'https://alia.onl/authorize/cowork'
 
 const store = new Store({
   defaults: {
     apiKey: '',
     apiBaseUrl: process.env.ALIA_API_URL || DEFAULT_API_BASE_URL,
     authUrl: process.env.ALIA_AUTH_URL || DEFAULT_AUTH_URL,
-    model: 'alia-v1-codea'
+    model: 'alia-v1-cowork'
   }
 })
 
