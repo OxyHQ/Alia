@@ -135,9 +135,15 @@
   }
   html {
     @apply font-sans;
-    color-scheme: dark;
+    color-scheme: light dark;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+  }
+  html.dark {
+    color-scheme: dark;
+  }
+  html.light {
+    color-scheme: light;
   }
   body {
     @apply font-sans bg-background text-foreground;
