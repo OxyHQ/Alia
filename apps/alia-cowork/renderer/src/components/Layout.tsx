@@ -6,6 +6,7 @@ import {
   MinusSignIcon,
   Cancel01Icon,
   PinIcon,
+  Pin02Icon,
   Settings01Icon,
   Home01Icon,
   Message01Icon,
@@ -236,7 +237,7 @@ function TitleBar({ onViewChange }: TitleBarProps) {
         <Tooltip>
           <TooltipTrigger asChild>
             <Button variant="ghost" size="icon" className="size-8" onClick={togglePin}>
-              <HugeiconsIcon icon={PinIcon} strokeWidth={2} className={cn("size-4", isPinned && "text-primary")} />
+              <HugeiconsIcon icon={isPinned ? Pin02Icon : PinIcon} strokeWidth={2} className={cn("size-4", isPinned && "text-primary")} />
             </Button>
           </TooltipTrigger>
           <TooltipContent side="bottom">{isPinned ? "Unpin window" : "Pin on top"}</TooltipContent>
