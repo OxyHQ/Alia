@@ -124,7 +124,7 @@ function AppSidebar({ currentView, onViewChange }: { currentView?: string; onVie
 }
 
 function TitleBar() {
-  const [isPinned, setIsPinned] = React.useState(true)
+  const [isPinned, setIsPinned] = React.useState(false)
   const [isFullScreen, setIsFullScreen] = React.useState(false)
   const { toggleSidebar, state: sidebarState } = useSidebar()
   const { signOut, user } = useAuth()
