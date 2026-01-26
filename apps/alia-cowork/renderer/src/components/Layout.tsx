@@ -264,9 +264,9 @@ export function Layout({ children, currentView = "chat", onViewChange }: LayoutP
     <SidebarProvider defaultOpen={false}>
       <div className="flex h-screen w-full flex-col bg-background text-foreground overflow-hidden">
         <TitleBar onViewChange={onViewChange} />
-        <div className="flex flex-1 overflow-hidden">
+        <div className="flex flex-1 overflow-hidden min-h-0">
           <AppSidebar currentView={currentView} onViewChange={onViewChange} />
-          <SidebarInset className="flex flex-col overflow-hidden">
+          <SidebarInset className="flex flex-col overflow-hidden min-h-0">
             {children}
           </SidebarInset>
         </div>
