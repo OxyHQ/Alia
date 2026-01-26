@@ -299,10 +299,34 @@ router.post('/', async (req: Request, res: Response) => {
     const userLanguage = userMemory?.preferences?.language;
     let languageInstruction = '';
     if (userLanguage) {
-      languageInstruction = `CRITICAL INSTRUCTION: You MUST respond ONLY in ${userLanguage}. Every single word you write must be in ${userLanguage} language. This is non-negotiable.\n\n`;
+      languageInstruction = `🔴 CRITICAL LANGUAGE RULE 🔴
+You MUST respond EXCLUSIVELY in ${userLanguage}.
+- Every word, every sentence, EVERYTHING must be in ${userLanguage}
+- NO English words allowed (unless quoting code/technical terms)
+- This rule OVERRIDES all other instructions
+- NO EXCEPTIONS
+
+`;
     } else {
-      languageInstruction = `CRITICAL INSTRUCTION: You MUST respond in the SAME language the user writes to you. If user writes Spanish, respond in Spanish. If user writes English, respond in English. Mirror their language.\n\n`;
+      languageInstruction = `🔴 CRITICAL LANGUAGE RULE 🔴
+You MUST respond in the EXACT SAME language the user writes to you:
+- User writes Spanish → You respond ONLY in Spanish
+- User writes English → You respond ONLY in English
+- User writes French → You respond ONLY in French
+- MIRROR their language in EVERY response
+- This rule OVERRIDES all other instructions
+- NO EXCEPTIONS
+
+`;
     }
+
+    languageInstruction += `🔧 TOOL USAGE RULE 🔧
+When you use a tool successfully:
+- Acknowledge what you did in your response
+- Be honest about tool capabilities
+- NEVER say you "can't" do something if you have a tool for it
+
+`;
 
     let systemMessage = languageInstruction + baseSystemPrompt;
 
@@ -319,7 +343,7 @@ router.post('/', async (req: Request, res: Response) => {
       } catch (e: any) {
         console.error('[V1/Chat] Error fetching user from Oxy:', e.message);
       }
-      systemMessage += '\n\nYou can send Telegram notifications to the user when they request it (e.g., when a task is complete).';
+      systemMessage += '\n\n**IMPORTANT**: You have a `sendTelegram` tool available. Use it IMMEDIATELY when the user asks you to send them a Telegram message (e.g., "send me X on Telegram", "enviame un telegram", "remind me via Telegram"). Do NOT say you can\'t - you CAN send Telegram messages using this tool!';
     }
 
     if (userMemory) {
