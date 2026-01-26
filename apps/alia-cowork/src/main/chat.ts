@@ -906,15 +906,25 @@ export class ChatProvider {
 ## Platform
 You are running on ${process.platform === 'darwin' ? 'macOS' : process.platform === 'win32' ? 'Windows' : 'Linux'}.`
 
-    // Add user context if available
+    // Add user name if available
     if (userInfo) {
-      systemMessage += `\n\n## User Information`
-      if (userInfo.name) systemMessage += `\n- Name: ${userInfo.name}`
-      if (userInfo.email) systemMessage += `\n- Email: ${userInfo.email}`
+      const userName = userInfo.name?.full || userInfo.name?.first || userInfo.username
+      if (userName) {
+        systemMessage += `\n\nThe user's name is ${userName}.`
+      }
+      systemMessage += '\n\nYou can send Telegram notifications to the user when they request it (e.g., when a task is complete).'
     }
 
     // Add user memory if available
     if (userMemory) {
+      systemMessage += '\n\n## User Information'
+
+      // Add language preference if available (most important - always respond in user's language)
+      const userLanguage = userMemory.preferences?.language
+      if (userLanguage) {
+        systemMessage += `\n\n**IMPORTANT: Respond in ${userLanguage}. All your responses must be in ${userLanguage} language.**`
+      }
+
       if (userMemory.context) {
         systemMessage += `\n\n## User Context`
         if (userMemory.context.occupation) systemMessage += `\n- Occupation: ${userMemory.context.occupation}`
@@ -925,7 +935,6 @@ You are running on ${process.platform === 'darwin' ? 'macOS' : process.platform 
 
       if (userMemory.preferences) {
         systemMessage += `\n\n## User Preferences`
-        if (userMemory.preferences.language) systemMessage += `\n- Language: ${userMemory.preferences.language}`
         if (userMemory.preferences.tone) systemMessage += `\n- Preferred Tone: ${userMemory.preferences.tone}`
         if (userMemory.preferences.responseLength) systemMessage += `\n- Response Length: ${userMemory.preferences.responseLength}`
         if (userMemory.preferences.interests && userMemory.preferences.interests.length > 0) {
