@@ -292,69 +292,6 @@ export function Chat() {
 
   return (
     <div className="flex h-full flex-col">
-      {/* Model Selector */}
-      <div className="flex items-center justify-between px-3 py-1.5 border-b">
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="sm" className="gap-1.5 px-2 h-7">
-              <span className="text-sm font-medium">{models.find(m => m.id === currentModel)?.name || "Cowork"}</span>
-              <HugeiconsIcon icon={ArrowDown01Icon} strokeWidth={2} className="size-3 opacity-50" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="start" className="w-56">
-            <DropdownMenuRadioGroup value={currentModel} onValueChange={setCurrentModel}>
-              {models.map((model) => (
-                <DropdownMenuRadioItem key={model.id} value={model.id}>
-                  <Item size="xs" className="p-0">
-                    <ItemContent>
-                      <ItemTitle>{model.name}</ItemTitle>
-                      <ItemDescription className="text-xs">{model.description}</ItemDescription>
-                    </ItemContent>
-                  </Item>
-                </DropdownMenuRadioItem>
-              ))}
-            </DropdownMenuRadioGroup>
-          </DropdownMenuContent>
-        </DropdownMenu>
-
-        <div className="flex items-center gap-1">
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="sm" className="gap-1.5 px-2 h-7">
-                <HugeiconsIcon icon={currentModeConfig?.icon || SparklesIcon} strokeWidth={2} className={cn("size-3.5",
-                  currentMode === "ask" && "text-primary",
-                  currentMode === "edit" && "text-green-500",
-                  currentMode === "yolo" && "text-destructive"
-                )} />
-                <span>{currentModeConfig?.label.split(" ")[0]}</span>
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-56">
-              <DropdownMenuRadioGroup value={currentMode} onValueChange={setCurrentMode}>
-                {permissionModes.map((mode) => (
-                  <DropdownMenuRadioItem key={mode.id} value={mode.id}>
-                    <Item size="xs" className="p-0">
-                      <ItemContent>
-                        <ItemTitle>{mode.label}</ItemTitle>
-                        <ItemDescription className="text-xs">{mode.description}</ItemDescription>
-                      </ItemContent>
-                    </Item>
-                  </DropdownMenuRadioItem>
-                ))}
-              </DropdownMenuRadioGroup>
-            </DropdownMenuContent>
-          </DropdownMenu>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button variant="ghost" size="icon" className="size-7">
-                <HugeiconsIcon icon={Settings01Icon} strokeWidth={2} className="size-4" />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>Settings</TooltipContent>
-          </Tooltip>
-        </div>
-      </div>
-
       {/* Messages */}
       <ScrollArea className="flex-1">
         {messages.length === 0 && !isGenerating ? (
