@@ -23,7 +23,9 @@ export interface ResolvedModel {
  */
 export async function resolveModel(
   baseUrl: string,
-  apiKey: string,
+  botSecret: string,
+  oxyUserId: string,
+  telegramId: string,
   aliaModelId: string
 ): Promise<ResolvedModel> {
   const url = `${baseUrl}/v1/resolve-model`;
@@ -33,7 +35,9 @@ export async function resolveModel(
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${apiKey}`
+        'x-telegram-bot-secret': botSecret,
+        'x-oxy-user-id': oxyUserId,
+        'x-telegram-id': telegramId
       },
       body: JSON.stringify({ model: aliaModelId, clientType: 'telegram' })
     });
@@ -70,7 +74,9 @@ export async function resolveModel(
  */
 export async function reportUsage(
   baseUrl: string,
-  apiKey: string,
+  botSecret: string,
+  oxyUserId: string,
+  telegramId: string,
   sessionId: string,
   usage: { promptTokens: number; completionTokens: number; totalTokens: number }
 ): Promise<void> {
@@ -81,7 +87,9 @@ export async function reportUsage(
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${apiKey}`
+        'x-telegram-bot-secret': botSecret,
+        'x-oxy-user-id': oxyUserId,
+        'x-telegram-id': telegramId
       },
       body: JSON.stringify({ sessionId, usage })
     });

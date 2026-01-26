@@ -68,7 +68,12 @@ export async function authenticateToken(req: Request, res: Response, next: NextF
     next();
   } catch (error) {
     console.error('[Auth] Session validation error:', error instanceof Error ? error.message : error);
-    res.status(401).json({ error: 'Session validation failed' });
+    console.error('[Auth] Session validation stack trace:', error instanceof Error ? error.stack : 'No stack trace');
+    console.error('[Auth] Session ID:', sessionId?.substring(0, 10) + '...');
+    res.status(401).json({
+      error: 'Session validation failed',
+      details: error instanceof Error ? error.message : String(error)
+    });
   }
 }
 
@@ -206,12 +211,19 @@ export async function authenticateApiKey(
 
 /**
  * Accepts both Oxy sessions and API keys
+ * Also supports Telegram bot authentication
  */
 export async function authenticateTokenOrApiKey(
   req: Request,
   res: Response,
   next: NextFunction
 ): Promise<void> {
+  // Check for Telegram bot authentication first
+  const telegramBotSecret = req.headers['x-telegram-bot-secret'] as string;
+  if (telegramBotSecret) {
+    return authenticateTelegramBot(req, res, next);
+  }
+
   const authHeader = req.headers.authorization;
   const token = authHeader?.startsWith('Bearer ')
     ? authHeader.substring(7)

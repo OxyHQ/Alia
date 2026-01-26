@@ -128,7 +128,9 @@ export async function handleMessage(ctx: Context) {
     const apiBaseUrl = process.env.API_BASE_URL || 'http://localhost:3001';
     const resolved = await resolveModel(
       apiBaseUrl,
-      botSecret, // Use bot secret as API key for authentication
+      botSecret,
+      telegramUser.oxyUserId.toString(),
+      telegramId,
       telegramUser.preferredModel || 'alia-lite'
     );
 
@@ -183,6 +185,8 @@ Be concise and friendly. Use these Telegram features when appropriate.`;
           await reportUsage(
             apiBaseUrl,
             botSecret,
+            telegramUser.oxyUserId.toString(),
+            telegramId,
             resolved.sessionId,
             {
               promptTokens: event.usage.inputTokens || 0,
