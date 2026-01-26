@@ -242,7 +242,7 @@ You are running on ${process.platform === 'darwin' ? 'macOS' : process.platform 
         tool_choice: 'auto'
       })
 
-      console.log('[Chat] Request body:', requestBody.substring(0, 200) + '...')
+      console.log('[Chat] Request body (full):', requestBody)
 
       const options = {
         hostname: url.hostname,
