@@ -2,15 +2,16 @@ import { app, shell, BrowserWindow, ipcMain, screen, desktopCapturer } from 'ele
 import { join } from 'path'
 import { ToolExecutor } from './tools'
 import { ChatProvider } from './chat'
+import { AuthProvider } from './auth'
 
-// Electron Forge Vite environment variables
-declare const MAIN_WINDOW_VITE_DEV_SERVER_URL: string | undefined
-declare const MAIN_WINDOW_VITE_NAME: string
+// Check if running in development mode
+const isDev = process.env.NODE_ENV === 'development'
 
 // State
 let mainWindow: BrowserWindow | null = null
 let toolExecutor: ToolExecutor
 let chatProvider: ChatProvider
+let authProvider: AuthProvider
 let isFullScreen = false
 let savedBounds: Electron.Rectangle | null = null
 
@@ -38,7 +39,7 @@ function createWindow(): void {
     skipTaskbar: false,
     show: false,
     webPreferences: {
-      preload: join(__dirname, 'index.js'),
+      preload: join(__dirname, '../preload/index.js'),
       sandbox: false,
       contextIsolation: true,
       nodeIntegration: false
@@ -63,15 +64,12 @@ function createWindow(): void {
   })
 
   // Load the app
-  if (MAIN_WINDOW_VITE_DEV_SERVER_URL) {
-    mainWindow.loadURL(MAIN_WINDOW_VITE_DEV_SERVER_URL)
-  } else {
-    mainWindow.loadFile(join(__dirname, `../renderer/${MAIN_WINDOW_VITE_NAME}/index.html`))
-  }
+  mainWindow.loadFile(join(__dirname, '../renderer/index.html'))
 
   // Initialize services
   toolExecutor = new ToolExecutor()
   chatProvider = new ChatProvider(mainWindow, toolExecutor)
+  authProvider = new AuthProvider(mainWindow)
 
   // Register keyboard shortcuts
   mainWindow.webContents.on('before-input-event', handleKeyboardShortcuts)
@@ -196,6 +194,19 @@ function setupIPC(): void {
   // Tool execution
   ipcMain.handle('tool:execute', async (_, toolName, args) => {
     return toolExecutor.execute(toolName, args)
+  })
+
+  // Authentication
+  ipcMain.handle('auth:signIn', async () => {
+    await authProvider.startAuth()
+  })
+
+  ipcMain.handle('auth:signOut', () => {
+    authProvider.signOut()
+  })
+
+  ipcMain.handle('auth:getState', () => {
+    return authProvider.getAuthState()
   })
 }
 

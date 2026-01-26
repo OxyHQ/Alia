@@ -1,0 +1,58 @@
+appId: com.alia.cowork
+productName: Alia Cowork
+copyright: Copyright © 2026 Alia
+
+directories:
+  output: release
+  buildResources: resources
+
+files:
+  - dist/**/*
+  - package.json
+  - node_modules/**/*
+  - '!**/{.DS_Store,.git,.gitignore,.vscode,README.md}'
+
+asar: true
+
+mac:
+  category: public.app-category.productivity
+  icon: resources/icon.icns
+  target:
+    - target: dmg
+      arch:
+        - x64
+        - arm64
+    - target: zip
+      arch:
+        - x64
+        - arm64
+
+dmg:
+  title: Alia Cowork ${version}
+  icon: resources/icon.icns
+
+win:
+  icon: resources/icon.ico
+  target:
+    - target: nsis
+      arch:
+        - x64
+    - target: portable
+      arch:
+        - x64
+
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+  perMachine: false
+  deleteAppDataOnUninstall: true
+
+linux:
+  icon: resources/icon.png
+  category: Utility
+  target:
+    - target: deb
+    - target: rpm
+    - target: AppImage
+
+publish: null

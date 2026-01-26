@@ -25,6 +25,11 @@ const api = {
   // Screen
   captureScreen: () => ipcRenderer.invoke('screen:capture'),
 
+  // Authentication
+  signIn: () => ipcRenderer.invoke('auth:signIn'),
+  signOut: () => ipcRenderer.invoke('auth:signOut'),
+  getAuthState: () => ipcRenderer.invoke('auth:getState'),
+
   // Event listeners
   onChatStart: (callback: () => void) => {
     ipcRenderer.on('chat:start', callback)
@@ -57,6 +62,18 @@ const api = {
   onFullScreenChanged: (callback: (isFullScreen: boolean) => void) => {
     ipcRenderer.on('window:fullscreen-changed', (_, isFullScreen) => callback(isFullScreen))
     return () => ipcRenderer.removeListener('window:fullscreen-changed', callback)
+  },
+  onAuthSuccess: (callback: (data: { token: string; userInfo: any }) => void) => {
+    ipcRenderer.on('auth:success', (_, data) => callback(data))
+    return () => ipcRenderer.removeListener('auth:success', callback)
+  },
+  onAuthError: (callback: (data: { message: string }) => void) => {
+    ipcRenderer.on('auth:error', (_, data) => callback(data))
+    return () => ipcRenderer.removeListener('auth:error', callback)
+  },
+  onAuthSignedOut: (callback: () => void) => {
+    ipcRenderer.on('auth:signedOut', callback)
+    return () => ipcRenderer.removeListener('auth:signedOut', callback)
   }
 }
 
