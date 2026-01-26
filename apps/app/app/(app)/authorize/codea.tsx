@@ -58,15 +58,23 @@ export default function AuthorizeCodeaScreen() {
         throw new Error('No authorization code received');
       }
 
+      // Build callback URL with code
+      const callbackUrl = new URL(callback);
+      callbackUrl.searchParams.set('code', code);
+      const finalUrl = callbackUrl.toString();
+
       setStatus('success');
       setMessage('Authorization successful! Redirecting back to the app...');
 
       // Redirect to callback with authorization code
+      // Use replace to avoid back button issues, with fallback
       setTimeout(() => {
-        const callbackUrl = new URL(callback);
-        callbackUrl.searchParams.set('code', code);
-        window.location.href = callbackUrl.toString();
-      }, 1500);
+        try {
+          window.location.replace(finalUrl);
+        } catch {
+          window.location.href = finalUrl;
+        }
+      }, 1000);
     } catch (error: any) {
       console.error('Authorization error:', error);
       setStatus('error');

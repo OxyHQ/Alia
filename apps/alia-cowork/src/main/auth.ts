@@ -8,6 +8,7 @@ const store = new Store({
   defaults: {
     apiKey: '',
     apiBaseUrl: 'https://api.alia.onl',
+    authUrl: 'https://alia.onl/authorize/codea',
     model: 'alia-v1-codea'
   }
 })
@@ -15,8 +16,11 @@ const store = new Store({
 export class AuthProvider {
   private mainWindow: BrowserWindow
   private callbackServer?: http.Server
-  private authUrl = 'https://alia.onl/authorize/codea'
   private codeVerifier?: string
+
+  private get authUrl(): string {
+    return store.get('authUrl') as string
+  }
 
   constructor(mainWindow: BrowserWindow) {
     this.mainWindow = mainWindow
