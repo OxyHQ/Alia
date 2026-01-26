@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, ActivityIndicator, TouchableOpacity } from 'react-native';
+import { View, Text, ActivityIndicator, TouchableOpacity, Linking, Platform } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import Head from 'expo-router/head';
 import { AuthContainer, AuthLogo } from '@/components/auth';
@@ -12,6 +12,7 @@ export default function AuthorizeCodeaScreen() {
   const { isAuthenticated, isLoading: authLoading } = useAuth();
   const [status, setStatus] = useState<'loading' | 'authorize' | 'authorizing' | 'success' | 'error'>('loading');
   const [message, setMessage] = useState('');
+  const [redirectUrl, setRedirectUrl] = useState('');
 
   useEffect(() => {
     if (authLoading) return;
@@ -63,6 +64,8 @@ export default function AuthorizeCodeaScreen() {
       callbackUrl.searchParams.set('code', code);
       const finalUrl = callbackUrl.toString();
 
+      console.log('Redirecting to:', finalUrl);
+      setRedirectUrl(finalUrl);
       setStatus('success');
       setMessage('Authorization successful! Redirecting back to the app...');
 
@@ -71,7 +74,8 @@ export default function AuthorizeCodeaScreen() {
       setTimeout(() => {
         try {
           window.location.replace(finalUrl);
-        } catch {
+        } catch (e) {
+          console.error('Redirect failed:', e);
           window.location.href = finalUrl;
         }
       }, 1000);
@@ -181,9 +185,35 @@ export default function AuthorizeCodeaScreen() {
             <Text className="text-muted-foreground text-center mt-2">
               {message}
             </Text>
-            <Text className="text-xs text-muted-foreground text-center mt-4">
-              If not redirected automatically, you can close this window.
-            </Text>
+            {redirectUrl ? (
+              <>
+                <TouchableOpacity
+                  onPress={() => {
+                    console.log('Manual redirect to:', redirectUrl);
+                    if (Platform.OS === 'web') {
+                      // Try multiple methods
+                      const link = document.createElement('a');
+                      link.href = redirectUrl;
+                      link.click();
+                    } else {
+                      Linking.openURL(redirectUrl);
+                    }
+                  }}
+                  className="mt-4 bg-primary px-6 py-3 rounded-lg"
+                >
+                  <Text className="text-primary-foreground text-center font-semibold">
+                    Open App Manually
+                  </Text>
+                </TouchableOpacity>
+                <Text className="text-xs text-muted-foreground text-center mt-4 select-all">
+                  {redirectUrl}
+                </Text>
+              </>
+            ) : (
+              <Text className="text-xs text-muted-foreground text-center mt-4">
+                If not redirected automatically, you can close this window.
+              </Text>
+            )}
           </View>
         )}
 
