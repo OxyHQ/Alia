@@ -4,11 +4,15 @@ import * as http from 'http'
 import * as https from 'https'
 import * as crypto from 'crypto'
 
+// Default URLs (can be overridden via .env)
+const DEFAULT_API_BASE_URL = 'https://api.alia.onl'
+const DEFAULT_AUTH_URL = 'https://alia.onl/authorize/codea'
+
 const store = new Store({
   defaults: {
     apiKey: '',
-    apiBaseUrl: 'https://api.alia.onl',
-    authUrl: 'https://alia.onl/authorize/codea',
+    apiBaseUrl: process.env.ALIA_API_URL || DEFAULT_API_BASE_URL,
+    authUrl: process.env.ALIA_AUTH_URL || DEFAULT_AUTH_URL,
     model: 'alia-v1-codea'
   }
 })
@@ -19,7 +23,12 @@ export class AuthProvider {
   private codeVerifier?: string
 
   private get authUrl(): string {
-    return store.get('authUrl') as string
+    // Environment variable takes precedence over stored value
+    return process.env.ALIA_AUTH_URL || (store.get('authUrl') as string)
+  }
+
+  private get apiBaseUrl(): string {
+    return process.env.ALIA_API_URL || (store.get('apiBaseUrl') as string)
   }
 
   constructor(mainWindow: BrowserWindow) {
@@ -139,7 +148,7 @@ export class AuthProvider {
    * Exchange authorization code for token using PKCE
    */
   private exchangeCodeForToken(code: string, codeVerifier: string): Promise<string> {
-    const baseUrl = store.get('apiBaseUrl') as string
+    const baseUrl = this.apiBaseUrl
 
     return new Promise((resolve, reject) => {
       const url = new URL(`${baseUrl}/auth/token`)
@@ -280,7 +289,7 @@ export class AuthProvider {
    * Fetch user info from API
    */
   private async fetchUserInfo(token: string): Promise<any> {
-    const baseUrl = store.get('apiBaseUrl') as string
+    const baseUrl = this.apiBaseUrl
 
     return new Promise((resolve, reject) => {
       const url = new URL(`${baseUrl}/v1/codea/user`)
