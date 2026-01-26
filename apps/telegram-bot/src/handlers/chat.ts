@@ -152,10 +152,7 @@ Telegram Special Commands:
 - [TGDOC url="..." filename="..." caption="..."] - Send a document
 - [TGLINKS title="..."]{"text":"...","url":"..."}[/TGLINKS] - Send link buttons
 
-Be concise and friendly. Use these Telegram features when appropriate.`
-    };
-
-    const messagesWithSystem = [systemMessage, ...coreMessages];
+Be concise and friendly. Use these Telegram features when appropriate.`;
 
     // Stream response with AI SDK
     let fullResponse = '';
