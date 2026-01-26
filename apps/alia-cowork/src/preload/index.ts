@@ -42,6 +42,10 @@ const api = {
     ipcRenderer.on('chat:stream', (_, data) => callback(data))
     return () => ipcRenderer.removeListener('chat:stream', callback)
   },
+  onChatThinking: (callback: (data: { content: string }) => void) => {
+    ipcRenderer.on('chat:thinking', (_, data) => callback(data))
+    return () => ipcRenderer.removeListener('chat:thinking', callback)
+  },
   onChatEnd: (callback: () => void) => {
     ipcRenderer.on('chat:end', callback)
     return () => ipcRenderer.removeListener('chat:end', callback)
