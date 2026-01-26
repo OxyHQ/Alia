@@ -1,4 +1,4 @@
-import { app, shell, BrowserWindow, ipcMain, screen, desktopCapturer } from 'electron'
+import { app, shell, BrowserWindow, ipcMain, screen, desktopCapturer, dialog } from 'electron'
 import { join } from 'path'
 import { config } from 'dotenv'
 import { ToolExecutor } from './tools'
@@ -37,7 +37,7 @@ function createWindow(): void {
     y: 20,
     frame: false,
     transparent: false,
-    alwaysOnTop: true,
+    alwaysOnTop: false,
     resizable: true,
     maximizable: true,
     skipTaskbar: false,
