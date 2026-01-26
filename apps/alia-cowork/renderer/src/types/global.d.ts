@@ -25,6 +25,9 @@ declare global {
       onAuthSuccess: (callback: (data: { token: string; userInfo: any }) => void) => () => void
       onAuthError: (callback: (data: { message: string }) => void) => () => void
       onAuthSignedOut: (callback: () => void) => () => void
+
+      // Help
+      showAbout: () => Promise<void>
     }
   }
 }

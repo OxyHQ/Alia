@@ -30,6 +30,9 @@ const api = {
   signOut: () => ipcRenderer.invoke('auth:signOut'),
   getAuthState: () => ipcRenderer.invoke('auth:getState'),
 
+  // Help
+  showAbout: () => ipcRenderer.invoke('help:about'),
+
   // Event listeners
   onChatStart: (callback: () => void) => {
     ipcRenderer.on('chat:start', callback)
