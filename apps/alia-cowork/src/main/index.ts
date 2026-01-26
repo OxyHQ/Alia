@@ -221,7 +221,7 @@ function setupIPC(): void {
       type: 'info',
       title: 'About Alia Cowork',
       message: 'Alia Cowork',
-      detail: 'Version 1.0.0\n\nAI-powered desktop assistant for Windows and macOS.\n\n© 2025 Alia. All rights reserved.',
+      detail: 'Version 1.0.0\n\nAI-powered desktop assistant for Windows and macOS.\n\nMade with ❤️ in the 🌎 by Oxy.',
       buttons: ['OK']
     })
   })
