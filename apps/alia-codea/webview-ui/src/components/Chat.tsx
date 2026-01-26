@@ -44,6 +44,7 @@ interface Message {
   role: "user" | "assistant"
   content: string
   context?: ContextItem[]
+  toolExecutions?: ToolExecution[]
 }
 
 interface ToolExecution {
@@ -235,8 +236,12 @@ export function Chat() {
           setIsGenerating(false)
           // Use ref to get latest streaming content
           const finalContent = streamingContentRef.current
-          if (finalContent) {
-            setMessages((prev) => [...prev, { role: "assistant", content: finalContent }])
+          if (finalContent || toolExecutions.length > 0) {
+            setMessages((prev) => [...prev, {
+              role: "assistant",
+              content: finalContent || "",
+              toolExecutions: toolExecutions.length > 0 ? [...toolExecutions] : undefined
+            }])
           }
           setStreamingContent("")
           streamingContentRef.current = ""
