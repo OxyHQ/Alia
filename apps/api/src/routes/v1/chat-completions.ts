@@ -407,6 +407,10 @@ When you use a tool successfully:
       messages: convertedMessages,
       temperature: body.temperature ?? 0.7,
       tools: allTools,
+      // Enable maxSteps to continue with tool results automatically
+      // For client tools (Cowork, Codea), this allows the model to see tool results
+      // For server tools (Telegram, Memory), this executes them automatically
+      maxSteps: 5,
       onFinish: async (result: any) => {
         // Capture token usage from AI SDK
         if (result.usage) {
