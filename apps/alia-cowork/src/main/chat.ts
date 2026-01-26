@@ -584,10 +584,39 @@ export class ChatProvider {
     iterationCount: number = 0
   ): Promise<void> {
     // Prevent infinite loops
-    const MAX_ITERATIONS = 10
+    const MAX_ITERATIONS = 3
     if (iterationCount >= MAX_ITERATIONS) {
-      console.warn(`[ChatProvider] Max iterations (${MAX_ITERATIONS}) reached, stopping tool execution loop`)
-      this.send('chat:error', { message: 'Maximum tool execution iterations reached. Please try a simpler request.' })
+      console.warn(`[ChatProvider] Max iterations (${MAX_ITERATIONS}) reached, forcing final response`)
+      // Force final response without more tool calls
+      const stream = await openai.chat.completions.create(
+        {
+          model,
+          messages: this.messages,
+          tool_choice: 'none', // Force response without tools
+          stream: true,
+          temperature: 0.7,
+          max_tokens: 4096
+        },
+        {
+          signal: this.abortController?.signal
+        }
+      )
+
+      let finalMessage = ''
+      for await (const chunk of stream) {
+        const delta = chunk.choices?.[0]?.delta
+        if (delta?.content) {
+          finalMessage += delta.content
+          this.send('chat:stream', { content: delta.content })
+        }
+      }
+
+      if (finalMessage) {
+        this.messages.push({
+          role: 'assistant',
+          content: finalMessage
+        })
+      }
       return
     }
 
@@ -603,15 +632,25 @@ export class ChatProvider {
     try {
       // Stream continuation with tool results
       console.log('[ChatProvider] Creating continuation stream...')
+
+      // After first iteration, prefer not calling more tools unless absolutely necessary
+      const streamConfig: any = {
+        model,
+        messages: this.messages,
+        tools,
+        stream: true,
+        temperature: 0.7,
+        max_tokens: 4096
+      }
+
+      // After iteration 1, discourage more tool calls
+      if (iterationCount >= 1) {
+        streamConfig.tool_choice = 'auto' // Let model decide, but with penalty
+        console.log('[ChatProvider] Iteration >= 1, model should prefer responding')
+      }
+
       const stream = await openai.chat.completions.create(
-        {
-          model,
-          messages: this.messages,
-          tools,
-          stream: true,
-          temperature: 0.7,
-          max_tokens: 4096
-        },
+        streamConfig,
         {
           signal: this.abortController?.signal
         }
