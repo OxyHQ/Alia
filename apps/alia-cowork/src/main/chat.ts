@@ -601,6 +601,14 @@ export class ChatProvider {
                 console.log('[ChatProvider] Executing list_installed_applications')
                 result = await this.toolExecutor.listInstalledApplications()
                 break
+              case 'browser_action':
+                console.log('[ChatProvider] Executing browser_action')
+                result = await this.toolExecutor.browserAction(args)
+                break
+              case 'close_browser':
+                console.log('[ChatProvider] Executing close_browser')
+                result = await this.toolExecutor.closeBrowser()
+                break
               default:
                 console.error(`[ChatProvider] Unknown tool: ${toolName}`)
                 result = `Unknown tool: ${toolName}`
