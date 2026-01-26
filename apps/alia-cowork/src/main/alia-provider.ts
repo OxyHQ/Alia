@@ -137,21 +137,41 @@ class AliaLanguageModel {
             start(controller) {
               let buffer = ''
               let isFirstChunk = true
+              let isClosed = false
+
+              const closeController = () => {
+                if (!isClosed) {
+                  isClosed = true
+                  try {
+                    controller.close()
+                  } catch (e) {
+                    // Controller already closed, ignore
+                  }
+                }
+              }
 
               res.on('data', (chunk: Buffer) => {
+                if (isClosed) return
+
                 buffer += chunk.toString()
                 const lines = buffer.split('\n')
                 buffer = lines.pop() || ''
 
                 for (const line of lines) {
-                  if (!line.trim() || line.trim() === 'data: [DONE]') continue
+                  if (isClosed) break
+
+                  if (!line.trim()) continue
+                  if (line.trim() === 'data: [DONE]') {
+                    closeController()
+                    continue
+                  }
                   if (!line.startsWith('data: ')) continue
 
                   try {
                     const json = JSON.parse(line.slice(6))
                     const delta = json.choices?.[0]?.delta
 
-                    if (!delta) continue
+                    if (!delta && !json.choices?.[0]?.finish_reason) continue
 
                     // Send stream-start event
                     if (isFirstChunk) {
@@ -163,7 +183,7 @@ class AliaLanguageModel {
                     }
 
                     // Handle reasoning chunks
-                    if (delta.reasoning) {
+                    if (delta?.reasoning) {
                       controller.enqueue({
                         type: 'text',
                         id: `chunk_${Date.now()}`,
@@ -172,7 +192,7 @@ class AliaLanguageModel {
                     }
 
                     // Handle content
-                    if (delta.content) {
+                    if (delta?.content) {
                       controller.enqueue({
                         type: 'text',
                         id: `chunk_${Date.now()}`,
@@ -181,7 +201,7 @@ class AliaLanguageModel {
                     }
 
                     // Handle tool calls
-                    if (delta.tool_calls) {
+                    if (delta?.tool_calls) {
                       for (const toolCall of delta.tool_calls) {
                         if (toolCall.function?.name && toolCall.function?.arguments) {
                           try {
@@ -218,6 +238,7 @@ class AliaLanguageModel {
                           outputTokens: json.usage?.completion_tokens || 0
                         }
                       })
+                      closeController()
                     }
                   } catch (error) {
                     console.error('[AliaProvider] Parse error:', error)
@@ -226,11 +247,14 @@ class AliaLanguageModel {
               })
 
               res.on('end', () => {
-                controller.close()
+                closeController()
               })
 
               res.on('error', (error) => {
-                controller.error(error)
+                if (!isClosed) {
+                  isClosed = true
+                  controller.error(error)
+                }
               })
             }
           })
