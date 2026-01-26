@@ -1,8 +1,12 @@
 import { app, shell, BrowserWindow, ipcMain, screen, desktopCapturer } from 'electron'
 import { join } from 'path'
+import { config } from 'dotenv'
 import { ToolExecutor } from './tools'
 import { ChatProvider } from './chat'
 import { AuthProvider } from './auth'
+
+// Load environment variables from .env file
+config({ path: join(__dirname, '../../.env') })
 
 // Check if running in development mode
 const isDev = process.env.NODE_ENV === 'development'
