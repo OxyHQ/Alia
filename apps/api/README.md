@@ -6,10 +6,82 @@ API standalone de Alia construida con Express y TypeScript.
 
 - API RESTful con Express
 - Conexión a MongoDB con Mongoose
-- Soporte para múltiples proveedores de IA (OpenAI, Anthropic, Google)
+- **Unified OpenAI-Compatible API**: Todos los proveedores de IA (Google, Anthropic, OpenAI, Groq, etc.) se exponen a través de una API compatible con OpenAI
+- Soporte para múltiples proveedores de IA usando AI SDK internamente
 - Autenticación y gestión de usuarios
-- Chat streaming
-- API compatible con OpenAI
+- Chat streaming con SSE (Server-Sent Events)
+- Conversión automática de modelos Alia a proveedores específicos
+
+## Arquitectura
+
+La API actúa como un **unified gateway** que:
+
+1. **Recibe requests en formato OpenAI** desde cualquier cliente
+2. **Internamente usa AI SDK** con proveedores oficiales (Google, Anthropic, OpenAI, Groq, etc.)
+3. **Convierte todo a formato OpenAI** en el stream de respuesta
+
+```
+Cliente (OpenAI SDK)
+    ↓
+API /v1/chat/completions (OpenAI format)
+    ↓
+AI SDK con proveedores oficiales
+    ↓
+Google / Anthropic / OpenAI / Groq / etc.
+    ↓
+Conversión a OpenAI SSE stream
+    ↓
+Cliente recibe formato OpenAI estándar
+```
+
+### Beneficios
+
+- **Clientes simples**: Todos los clientes usan OpenAI SDK (no necesitan AI SDK ni custom providers)
+- **Centralización**: Lógica de routing, créditos, y provider management en un solo lugar
+- **Compatibilidad**: Cualquier herramienta compatible con OpenAI funciona con Alia
+- **Transparencia**: Los usuarios no necesitan saber qué provider interno se usa (Gemini, Claude, etc.)
+
+### Formato de Streaming
+
+El API emite chunks en formato OpenAI con extensiones para reasoning:
+
+```typescript
+// Chunk de texto regular
+{
+  id: "chatcmpl-...",
+  object: "chat.completion.chunk",
+  created: 1234567890,
+  model: "alia-v1-cowork",
+  choices: [{
+    index: 0,
+    delta: { content: "texto..." },
+    finish_reason: null
+  }]
+}
+
+// Chunk de reasoning (chain-of-thought)
+{
+  choices: [{
+    delta: { reasoning: "pensamiento..." }
+  }]
+}
+
+// Chunk de tool call
+{
+  choices: [{
+    delta: {
+      tool_calls: [{
+        id: "call_...",
+        type: "function",
+        function: {
+          name: "tool_name",
+          arguments: "{...}"
+        }
+      }]
+    }
+  }]
+}
+```
 
 ## Desarrollo
 
