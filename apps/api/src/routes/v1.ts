@@ -1,6 +1,5 @@
 import { Router, Request, Response } from 'express';
 import chatCompletionsRouter from './v1/chat-completions.js';
-import codeaCompletionsRouter from './v1/codea/completions.js';
 import modelsRouter from './v1/models.js';
 import { authenticateTokenOrApiKey } from '../middleware/auth.js';
 import { loadKeys } from '../lib/load-balancer.js';
@@ -185,6 +184,5 @@ router.post('/report-usage', async (req: Request, res: Response) => {
 });
 
 router.use('/chat/completions', chatCompletionsRouter);
-router.use('/codea', codeaCompletionsRouter);
 
 export default router;
