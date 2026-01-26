@@ -179,6 +179,7 @@ export function Chat() {
   const bottomRef = React.useRef<HTMLDivElement>(null)
   const textareaRef = React.useRef<HTMLTextAreaElement>(null)
   const streamingContentRef = React.useRef("")
+  const prevMessagesLengthRef = React.useRef(0)
 
   React.useEffect(() => {
     streamingContentRef.current = streamingContent
@@ -263,7 +264,11 @@ export function Chat() {
 
   // Auto-scroll
   React.useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" })
+    // Use instant scroll when transitioning from welcome screen to first message
+    const isFirstMessage = prevMessagesLengthRef.current === 0 && messages.length > 0
+    prevMessagesLengthRef.current = messages.length
+
+    bottomRef.current?.scrollIntoView({ behavior: isFirstMessage ? "instant" : "smooth" })
   }, [messages, streamingContent, toolExecutions])
 
   const sendMessage = () => {
