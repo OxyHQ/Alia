@@ -442,11 +442,13 @@ function MessageBubble({ message, isStreaming }: { message: Message; isStreaming
         <AvatarImage src="icon.png" alt="Alia" />
         <AvatarFallback>AI</AvatarFallback>
       </Avatar>
-      <div className="flex-1 min-w-0 overflow-hidden">
+      <div className="flex-1 min-w-0 text-sm overflow-hidden">
         {isStreaming && !message.content ? (
-          <p className="text-sm text-muted-foreground">Thinking...</p>
+          <div className="flex items-center gap-2 text-muted-foreground">
+            <span>Thinking...</span>
+          </div>
         ) : (
-          <div className="prose prose-sm dark:prose-invert max-w-none markdown-content">
+          <div className="markdown-content overflow-x-auto">
             <Markdown>{message.content}</Markdown>
           </div>
         )}
