@@ -262,18 +262,26 @@ router.post('/', async (req: Request, res: Response) => {
     const toolNameMapping = new Map<string, string>();
     const editorTools = Array.isArray(body.tools) ? convertOpenAIToolsToToolSet(body.tools, toolNameMapping) : {};
 
-    // Only include Alia internal tools if NO editor tools are provided
-    // Editor tools are client-executed (VS Code, Cursor), Alia tools are server-executed
+    // Alia internal tools are server-executed
+    // Editor tools are client-executed (VS Code, Cursor, Cowork)
     const hasEditorTools = Object.keys(editorTools).length > 0;
-    const aliaTools: ToolSet = hasEditorTools ? {} : {
+
+    // Always include server-only tools (getCurrentDate, sendTelegram)
+    // Only include tools that might conflict with editor tools when NO editor tools present
+    const aliaTools: ToolSet = {
       getCurrentDate: getCurrentDateTool,
-      getTimeline: getTimelineTool,
       ...(req.user ? {
-        saveUserMemory: saveUserMemoryTool(req.user.id),
-        updateUserPreferences: updateUserPreferencesTool(req.user.id),
-        updateUserContext: updateUserContextTool(req.user.id),
         sendTelegram: createSendTelegramTool(req.user.id),
       } : {}),
+      // Include these only if no editor tools (to avoid conflicts)
+      ...(hasEditorTools ? {} : {
+        getTimeline: getTimelineTool,
+        ...(req.user ? {
+          saveUserMemory: saveUserMemoryTool(req.user.id),
+          updateUserPreferences: updateUserPreferencesTool(req.user.id),
+          updateUserContext: updateUserContextTool(req.user.id),
+        } : {}),
+      }),
     };
 
     const allTools = { ...aliaTools, ...editorTools };

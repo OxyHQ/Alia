@@ -523,6 +523,15 @@ export class ChatProvider {
             })
             console.log(`[ChatProvider] Added tool result to messages (total: ${this.messages.length})`)
 
+            // Add reminder after tool execution to prevent redundant calls
+            if (result.includes('already open') || result.includes('DO NOT call')) {
+              console.log('[ChatProvider] Adding reminder to prevent redundant tool calls')
+              this.messages.push({
+                role: 'system',
+                content: 'IMPORTANT: The tool result indicates the action is already complete. Do NOT call the same tool again. Provide your final response now.'
+              } as any)
+            }
+
             this.send('chat:toolResult', {
               tool: toolName,
               success: true,
@@ -813,6 +822,15 @@ export class ChatProvider {
               content: result
             })
 
+            // Add reminder after tool execution to prevent redundant calls
+            if (result.includes('already open') || result.includes('DO NOT call')) {
+              console.log('[ChatProvider] Adding reminder in continuation to prevent redundant tool calls')
+              this.messages.push({
+                role: 'system',
+                content: 'IMPORTANT: The tool result indicates the action is already complete. Do NOT call the same tool again. Provide your final response now.'
+              } as any)
+            }
+
             this.send('chat:toolResult', {
               tool: toolName,
               success: true,
@@ -931,11 +949,14 @@ You have **COMPLETE unrestricted access** to:
 - **search_files**: Search for text patterns anywhere
 - **run_command**: Execute ANY shell command
 - **open_application**: Open ANY app or file
+  - Examples: "wt.exe" (Windows Terminal), "chrome.exe", "notepad.exe"
 - **open_url**: Open URLs in browser
 - **clipboard_read/write**: Access clipboard
 - **get_system_info**: Get detailed system information
 - **screenshot**: Capture the entire screen
-- **set_mode**: Change operating mode (ask/edit/plan/yolo)`
+- **set_mode**: Change operating mode (ask/edit/plan/yolo)
+- **sendTelegram**: Send message to user's Telegram (use ONLY when explicitly requested)
+- **getCurrentDate**: Get current date and time`
 
       if (this.currentMode === 'ask') {
         systemMessage += `\n\n## Mode: ASK\nConfirm destructive operations only.`
