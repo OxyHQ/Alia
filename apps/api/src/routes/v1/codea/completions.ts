@@ -410,6 +410,11 @@ async function handleCodeaCompletions(req: Request, res: Response) {
     const aliasModelId = resolved.aliasModelId;
     console.log(`[Codea] Using provider: ${resolved.provider}/${resolved.modelId}`);
 
+    // Get model-specific system prompt
+    const { getAliaModel } = await import('../../../lib/alia-models.js');
+    const aliaModel = getAliaModel(aliasModelId);
+    const baseSystemPrompt = aliaModel?.systemPrompt || 'You are Alia, an AI coding assistant. You help users write, debug, and understand code.';
+
     // Load user memory if authenticated
     let userMemory: IUserMemory | null = null;
     if (req.user) {
@@ -454,7 +459,7 @@ async function handleCodeaCompletions(req: Request, res: Response) {
     }
 
     // Build system message with user context
-    let systemMessage = 'You are Alia, an AI coding assistant. You help users write, debug, and understand code.';
+    let systemMessage = baseSystemPrompt;
 
     if (req.user) {
       // Get user's name from Oxy
@@ -474,6 +479,15 @@ async function handleCodeaCompletions(req: Request, res: Response) {
 
     if (userMemory) {
       systemMessage += '\n\n## User Information';
+
+      // Add language preference if available
+      const userLanguage = userMemory.preferences?.language;
+      if (userLanguage) {
+        systemMessage += `\n\n**IMPORTANT: Respond in ${userLanguage}. All your responses must be in ${userLanguage} language.**`;
+      } else {
+        systemMessage += '\n\n**IMPORTANT: Respond in the same language the user writes to you. Match their language automatically.**';
+      }
+
       if (userMemory.memories && userMemory.memories.length > 0) {
         systemMessage += '\n### Known Facts:\n' + userMemory.memories.map(m => `- ${m.key}: ${m.value}`).join('\n');
       }
@@ -493,6 +507,9 @@ async function handleCodeaCompletions(req: Request, res: Response) {
           systemMessage += '\n### Context:\n' + ctx.join('\n');
         }
       }
+    } else {
+      // If no user memory, still add language instruction
+      systemMessage += '\n\n**IMPORTANT: Respond in the same language the user writes to you. Match their language automatically.**';
     }
 
     // Inject system message at the start if not present
