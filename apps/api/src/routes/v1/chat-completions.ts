@@ -195,6 +195,9 @@ router.post('/', async (req: Request, res: Response) => {
         };
         res.write(`data: ${JSON.stringify(openAIChunk)}\n\n`);
       } else if (chunk.type === 'tool-call') {
+        // Restore original tool name if it was sanitized
+        const originalToolName = toolNameMapping.get(chunk.toolName) || chunk.toolName;
+
         const toolCallChunk = {
           id: `chatcmpl-${Date.now()}`,
           object: 'chat.completion.chunk',
@@ -208,7 +211,7 @@ router.post('/', async (req: Request, res: Response) => {
                 id: chunk.toolCallId,
                 type: 'function',
                 function: {
-                  name: chunk.toolName,
+                  name: originalToolName,
                   arguments: JSON.stringify(chunk.input || {})
                 }
               }]
