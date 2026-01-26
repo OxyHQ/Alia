@@ -81,7 +81,7 @@ function createWindow(): void {
   mainWindow.loadFile(join(__dirname, '../renderer/index.html'))
 
   // Initialize services
-  toolExecutor = new ToolExecutor()
+  toolExecutor = new ToolExecutor(mainWindow)
   chatProvider = new ChatProvider(mainWindow, toolExecutor)
   authProvider = new AuthProvider(mainWindow)
 
