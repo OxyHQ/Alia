@@ -11,6 +11,7 @@ export interface CreditUsage {
   promptTokens: number;
   completionTokens: number;
   totalTokens: number;
+  systemPromptTokens?: number; // Tokens from our system prompt (not charged to user)
 }
 
 export interface CreditReservation {
@@ -45,16 +46,30 @@ export function getCreditMultiplier(aliasModelId?: string): number {
 
 /**
  * Calculate credits needed based on token usage and model tier
- * Formula: Math.ceil((totalTokens / TOKENS_PER_CREDIT) * creditMultiplier)
+ * Formula: Math.ceil((billableTokens / TOKENS_PER_CREDIT) * creditMultiplier)
  * Minimum: MIN_CREDITS_PER_REQUEST
+ *
+ * @param totalTokens - Total tokens reported by the provider
+ * @param aliasModelId - The Alia model being used
+ * @param systemPromptTokens - Tokens from our system prompt (not charged to user)
  */
-export function calculateCreditsFromTokens(totalTokens: number, aliasModelId?: string): number {
+export function calculateCreditsFromTokens(
+  totalTokens: number,
+  aliasModelId?: string,
+  systemPromptTokens?: number
+): number {
   if (totalTokens === 0) {
     return CREDITS_CONFIG.MIN_CREDITS_PER_REQUEST;
   }
 
+  // Subtract system prompt tokens (our cost, not the user's)
+  const systemTokens = systemPromptTokens || 0;
+  const billableTokens = Math.max(0, totalTokens - systemTokens);
+
+  console.log(`[CreditsManager] Token breakdown: total=${totalTokens}, system=${systemTokens}, billable=${billableTokens}`);
+
   const multiplier = getCreditMultiplier(aliasModelId);
-  const calculatedCredits = Math.ceil((totalTokens / CREDITS_CONFIG.TOKENS_PER_CREDIT) * multiplier);
+  const calculatedCredits = Math.ceil((billableTokens / CREDITS_CONFIG.TOKENS_PER_CREDIT) * multiplier);
   return Math.max(calculatedCredits, CREDITS_CONFIG.MIN_CREDITS_PER_REQUEST);
 }
 
@@ -130,12 +145,16 @@ export async function finalizeCredits(
   aliasModelId?: string
 ): Promise<{ creditsCharged: number; creditsRemaining: number }> {
   try {
-    const actualCreditsNeeded = calculateCreditsFromTokens(usage.totalTokens, aliasModelId);
+    const actualCreditsNeeded = calculateCreditsFromTokens(
+      usage.totalTokens,
+      aliasModelId,
+      usage.systemPromptTokens
+    );
     const creditAdjustment = reservation.creditsReserved - actualCreditsNeeded;
 
     console.log(`[CreditsManager] Finalizing credits for user ${reservation.userId}`);
     console.log(`[CreditsManager] Reserved: ${reservation.creditsReserved}, Actual needed: ${actualCreditsNeeded}`);
-    console.log(`[CreditsManager] Tokens used: ${usage.totalTokens} (prompt: ${usage.promptTokens}, completion: ${usage.completionTokens})`);
+    console.log(`[CreditsManager] Tokens used: ${usage.totalTokens} (prompt: ${usage.promptTokens}, completion: ${usage.completionTokens}, system: ${usage.systemPromptTokens || 0})`);
     console.log(`[CreditsManager] Adjustment: ${creditAdjustment}`);
 
     let updatedCredits = await UserCredits.findById(reservation.userId);

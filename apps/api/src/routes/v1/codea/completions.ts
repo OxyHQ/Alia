@@ -14,6 +14,7 @@ import { oxyClient } from '../../../middleware/auth.js';
 import type { KeyConfig } from '../../../lib/types.js';
 import type { IUserMemory } from '../../../models/user-memory.js';
 import * as crypto from 'crypto';
+import { estimateMessageTokens } from '../../../lib/token-counter.js';
 
 const router = Router();
 
@@ -410,10 +411,15 @@ async function handleCodeaCompletions(req: Request, res: Response) {
     const aliasModelId = resolved.aliasModelId;
     console.log(`[Codea] Using provider: ${resolved.provider}/${resolved.modelId}`);
 
-    // Get model-specific system prompt
-    const { getAliaModel } = await import('../../../lib/alia-models.js');
-    const aliaModel = getAliaModel(aliasModelId);
-    const baseSystemPrompt = aliaModel?.systemPrompt || 'You are Alia, an AI coding assistant. You help users write, debug, and understand code.';
+    // Extract client context from first system message if present (from editor)
+    let clientContext: string | undefined;
+    if (messages.length > 0 && messages[0].role === 'system') {
+      clientContext = messages[0].content as string;
+    }
+
+    // Load model-specific system prompt from markdown files
+    const { buildSystemPrompt } = await import('../../../lib/prompt-loader.js');
+    const baseSystemPrompt = await buildSystemPrompt(aliasModelId, clientContext);
 
     // Load user memory if authenticated
     let userMemory: IUserMemory | null = null;
@@ -512,14 +518,19 @@ async function handleCodeaCompletions(req: Request, res: Response) {
       systemMessage += '\n\n**IMPORTANT: Respond in the same language the user writes to you. Match their language automatically.**';
     }
 
-    // Inject system message at the start if not present
+    // Replace or inject system message
     const rawMessages = [...messages];
     if (rawMessages.length === 0 || rawMessages[0].role !== 'system') {
+      // No system message, add ours at the start
       rawMessages.unshift({ role: 'system', content: systemMessage });
     } else {
-      // Append to existing system message
-      rawMessages[0].content += '\n\n' + systemMessage;
+      // Replace client's system message with our complete one (which already includes client context)
+      rawMessages[0] = { role: 'system', content: systemMessage };
     }
+
+    // Estimate system prompt tokens (for credit calculation)
+    const systemPromptTokens = estimateMessageTokens('system', systemMessage);
+    console.log(`[Codea] Estimated system prompt tokens: ${systemPromptTokens}`);
 
     // Convert OpenAI-format messages to AI SDK format (handles tool messages)
     const processedMessages = convertToAISDKMessages(rawMessages, toolNameMapping);
@@ -531,6 +542,7 @@ async function handleCodeaCompletions(req: Request, res: Response) {
       promptTokens: 0,
       completionTokens: 0,
       totalTokens: 0,
+      systemPromptTokens,
     };
 
     // Set SSE headers
@@ -550,6 +562,7 @@ async function handleCodeaCompletions(req: Request, res: Response) {
             promptTokens: result.usage.inputTokens || 0,
             completionTokens: result.usage.outputTokens || 0,
             totalTokens: result.usage.totalTokens || 0,
+            systemPromptTokens, // Keep our estimated system prompt tokens
           };
           console.log('[Codea] Token usage captured:', tokenUsage);
         }
@@ -645,6 +658,8 @@ async function handleCodeaCompletions(req: Request, res: Response) {
             prompt_tokens: tokenUsage.promptTokens,
             completion_tokens: tokenUsage.completionTokens,
             total_tokens: tokenUsage.totalTokens,
+            system_prompt_tokens: tokenUsage.systemPromptTokens || 0,
+            billable_tokens: Math.max(0, tokenUsage.totalTokens - (tokenUsage.systemPromptTokens || 0)),
             credits_charged: creditsCharged,
             credits_remaining: creditsRemaining
           }
