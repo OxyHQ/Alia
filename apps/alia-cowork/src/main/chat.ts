@@ -571,9 +571,19 @@ export class ChatProvider {
   private async continueWithToolResults(
     openai: OpenAI,
     model: string,
-    tools: OpenAI.Chat.ChatCompletionTool[] | undefined
+    tools: OpenAI.Chat.ChatCompletionTool[] | undefined,
+    iterationCount: number = 0
   ): Promise<void> {
+    // Prevent infinite loops
+    const MAX_ITERATIONS = 10
+    if (iterationCount >= MAX_ITERATIONS) {
+      console.warn(`[ChatProvider] Max iterations (${MAX_ITERATIONS}) reached, stopping tool execution loop`)
+      this.send('chat:error', { message: 'Maximum tool execution iterations reached. Please try a simpler request.' })
+      return
+    }
+
     console.log('[ChatProvider] ===== CONTINUING WITH TOOL RESULTS =====')
+    console.log('[ChatProvider] Iteration:', iterationCount + 1)
     console.log('[ChatProvider] Current message count:', this.messages.length)
     console.log('[ChatProvider] Last 3 messages:', JSON.stringify(this.messages.slice(-3).map(m => ({
       role: m.role,
@@ -777,8 +787,8 @@ export class ChatProvider {
         }
 
         console.log('[ChatProvider] More tools to execute, continuing recursively...')
-        // Continue recursively
-        await this.continueWithToolResults(openai, model, tools)
+        // Continue recursively with incremented iteration count
+        await this.continueWithToolResults(openai, model, tools, iterationCount + 1)
       } else {
         console.log('[ChatProvider] No more tools to execute, continuation complete')
       }
