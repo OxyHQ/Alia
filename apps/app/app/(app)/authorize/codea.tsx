@@ -8,7 +8,7 @@ import apiClient from '@/lib/api/client';
 
 export default function AuthorizeCodeaScreen() {
   const router = useRouter();
-  const { callback } = useLocalSearchParams();
+  const { callback, code_challenge, code_challenge_method } = useLocalSearchParams();
   const { isAuthenticated, isLoading: authLoading } = useAuth();
   const [status, setStatus] = useState<'loading' | 'authorize' | 'authorizing' | 'success' | 'error'>('loading');
   const [message, setMessage] = useState('');
@@ -17,15 +17,19 @@ export default function AuthorizeCodeaScreen() {
     if (authLoading) return;
 
     if (!isAuthenticated) {
-      // Redirect to login with return URL
-      const returnTo = `/authorize/codea?callback=${encodeURIComponent(callback as string || '')}`;
+      // Redirect to login with return URL, preserving PKCE params
+      const params = new URLSearchParams();
+      if (callback) params.set('callback', callback as string);
+      if (code_challenge) params.set('code_challenge', code_challenge as string);
+      if (code_challenge_method) params.set('code_challenge_method', code_challenge_method as string);
+      const returnTo = `/authorize/codea?${params.toString()}`;
       router.replace(`/login?returnTo=${encodeURIComponent(returnTo)}`);
       return;
     }
 
     // User is authenticated, show authorization screen
     setStatus('authorize');
-  }, [isAuthenticated, authLoading, callback, router]);
+  }, [isAuthenticated, authLoading, callback, code_challenge, code_challenge_method, router]);
 
   const handleAuthorize = async () => {
     if (!callback || typeof callback !== 'string') {
@@ -34,24 +38,33 @@ export default function AuthorizeCodeaScreen() {
       return;
     }
 
+    if (!code_challenge || typeof code_challenge !== 'string') {
+      setStatus('error');
+      setMessage('Invalid authorization request. Missing PKCE challenge.');
+      return;
+    }
+
     setStatus('authorizing');
 
     try {
-      // Call API to create/get API key for Alia Cowork
-      const response = await apiClient.post('/auth/authorize/codea');
-      const { token } = response.data;
+      // Call API to authorize with PKCE
+      const response = await apiClient.post('/auth/authorize/codea', {
+        code_challenge,
+        code_challenge_method: code_challenge_method || 'S256',
+      });
+      const { code } = response.data;
 
-      if (!token) {
-        throw new Error('No token received');
+      if (!code) {
+        throw new Error('No authorization code received');
       }
 
       setStatus('success');
       setMessage('Authorization successful! Redirecting back to the app...');
 
-      // Redirect to callback with token
+      // Redirect to callback with authorization code
       setTimeout(() => {
         const callbackUrl = new URL(callback);
-        callbackUrl.searchParams.set('token', token);
+        callbackUrl.searchParams.set('code', code);
         window.location.href = callbackUrl.toString();
       }, 1500);
     } catch (error: any) {
