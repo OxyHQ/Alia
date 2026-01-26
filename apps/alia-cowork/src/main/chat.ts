@@ -365,8 +365,24 @@ export class ChatProvider {
       // Execute tools if there are tool calls
       if (validToolCalls.length > 0) {
         for (const toolCall of validToolCalls) {
+          if (!toolCall || !toolCall.function) {
+            console.error('[ChatProvider] Invalid tool call:', toolCall)
+            continue
+          }
+
           const toolName = toolCall.function.name
-          const args = JSON.parse(toolCall.function.arguments)
+          if (!toolName) {
+            console.error('[ChatProvider] Tool call missing name:', toolCall)
+            continue
+          }
+
+          let args: any = {}
+          try {
+            args = JSON.parse(toolCall.function.arguments || '{}')
+          } catch (e) {
+            console.error('[ChatProvider] Failed to parse tool arguments:', toolCall.function.arguments, e)
+            continue
+          }
 
           // Handle set_mode specially
           if (toolName === 'set_mode') {
