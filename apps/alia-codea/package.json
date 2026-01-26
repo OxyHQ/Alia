@@ -252,19 +252,15 @@
   "scripts": {
     "vscode:prepublish": "npm run build",
     "build": "npm run build:webview && npm run build:extension && npm run build:browser",
-    "build:extension": "esbuild ./src/extension.ts --bundle --outfile=dist/extension.js --external:vscode --external:ai --external:@ai-sdk/google --external:@ai-sdk/openai --external:@ai-sdk/anthropic --external:zod --format=cjs --platform=node",
-    "build:browser": "esbuild ./src/extension.ts --bundle --outfile=dist/web/extension.js --external:vscode --external:child_process --external:ai --external:@ai-sdk/google --external:@ai-sdk/openai --external:@ai-sdk/anthropic --external:zod --format=cjs --platform=browser",
+    "build:extension": "esbuild ./src/extension.ts --bundle --outfile=dist/extension.js --external:vscode --format=cjs --platform=node",
+    "build:browser": "esbuild ./src/extension.ts --bundle --outfile=dist/web/extension.js --external:vscode --external:child_process --format=cjs --platform=browser",
     "build:webview": "cd webview-ui && npm run build",
-    "watch": "esbuild ./src/extension.ts --bundle --outfile=dist/extension.js --external:vscode --external:ai --external:@ai-sdk/google --external:@ai-sdk/openai --external:@ai-sdk/anthropic --external:zod --format=cjs --platform=node --watch",
+    "watch": "esbuild ./src/extension.ts --bundle --outfile=dist/extension.js --external:vscode --format=cjs --platform=node --watch",
     "watch:webview": "cd webview-ui && npm run dev",
     "package": "vsce package --no-dependencies"
   },
   "dependencies": {
-    "ai": "^6.0.49",
-    "@ai-sdk/anthropic": "^3.0.23",
-    "@ai-sdk/google": "^3.0.13",
-    "@ai-sdk/openai": "^3.0.19",
-    "zod": "^4.3.6"
+    "openai": "^6.16.0"
   },
   "devDependencies": {
     "@types/node": "^20.10.0",
