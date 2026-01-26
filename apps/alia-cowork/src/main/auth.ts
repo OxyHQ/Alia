@@ -105,14 +105,21 @@ export class AuthProvider {
               res.end(this.getSuccessHtml())
 
               // Fetch user info and notify renderer
-              this.fetchUserInfo(token).then((userInfo) => {
-                this.mainWindow.webContents.send('auth:success', { token, userInfo })
-
-                // Delay server shutdown to ensure IPC event is sent
-                setTimeout(() => {
-                  this.stopCallbackServer()
-                }, 1000)
-              })
+              this.fetchUserInfo(token)
+                .then((userInfo) => {
+                  this.mainWindow.webContents.send('auth:success', { token, userInfo })
+                })
+                .catch((err) => {
+                  console.error('Failed to fetch user info:', err)
+                  // Still send success event even if user info fetch fails
+                  this.mainWindow.webContents.send('auth:success', { token, userInfo: null })
+                })
+                .finally(() => {
+                  // Delay server shutdown to ensure IPC event is sent
+                  setTimeout(() => {
+                    this.stopCallbackServer()
+                  }, 1000)
+                })
             } catch (err: any) {
               res.writeHead(200, { 'Content-Type': 'text/html' })
               res.end(this.getErrorHtml(err.message || 'Token exchange failed'))
@@ -259,27 +266,10 @@ export class AuthProvider {
               }
             }
 
-            .logo {
-              width: 64px;
-              height: 64px;
-              margin: 0 auto 24px;
-              background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-              border-radius: 16px;
-              display: flex;
-              align-items: center;
-              justify-content: center;
-              font-size: 32px;
-            }
-
-            .success-icon {
+            .logo-container {
               width: 80px;
               height: 80px;
               margin: 0 auto 24px;
-              background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-              border-radius: 50%;
-              display: flex;
-              align-items: center;
-              justify-content: center;
               animation: scaleIn 0.5s ease-out 0.2s backwards;
             }
 
@@ -292,10 +282,20 @@ export class AuthProvider {
               }
             }
 
-            .checkmark {
-              color: white;
-              font-size: 48px;
-              font-weight: bold;
+            .logo {
+              width: 100%;
+              height: 100%;
+              border-radius: 16px;
+              background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+              display: flex;
+              align-items: center;
+              justify-content: center;
+              box-shadow: 0 8px 16px rgba(102, 126, 234, 0.4);
+            }
+
+            .logo svg {
+              width: 48px;
+              height: 48px;
             }
 
             h1 {
@@ -329,12 +329,21 @@ export class AuthProvider {
               background-clip: text;
               font-weight: 700;
             }
+
+            .checkmark {
+              color: white;
+              font-size: 48px;
+              font-weight: bold;
+              line-height: 1;
+            }
           </style>
         </head>
         <body>
           <div class="container">
-            <div class="success-icon">
-              <span class="checkmark">✓</span>
+            <div class="logo-container">
+              <div class="logo">
+                <span class="checkmark">✓</span>
+              </div>
             </div>
             <h1>Successfully Connected!</h1>
             <p class="subtitle">Your <span class="brand">Alia</span> account has been linked to <span class="brand">Cowork</span></p>
