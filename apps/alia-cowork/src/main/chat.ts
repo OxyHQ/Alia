@@ -353,7 +353,7 @@ export class ChatProvider {
               type: 'function',
               function: {
                 name: 'browser_action',
-                description: 'Automate browser actions using AI. Opens a browser tab, navigates, performs actions, extracts data. The browser preview will be shown to the user automatically.',
+                description: 'PRIMARY TOOL FOR WEB NAVIGATION: Navigate to websites, interact with pages, extract data using AI-powered browser automation. Automatically switches to browser tab with live preview. Use this for ALL web browsing tasks (opening URLs, searching, filling forms, clicking, extracting data, etc).',
                 parameters: {
                   type: 'object',
                   properties: {
