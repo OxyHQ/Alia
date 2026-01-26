@@ -362,6 +362,31 @@ export function Chat() {
 
       {/* Composer */}
       <div className="shrink-0 p-3 pt-2 border-t">
+        {/* Attachments */}
+        {attachedFiles.length > 0 && (
+          <div className="mb-2 flex flex-wrap gap-1.5">
+            {attachedFiles.map((file, index) => (
+              <div
+                key={index}
+                className="flex items-center gap-1.5 rounded-lg border bg-muted/30 px-2 py-1 text-xs"
+              >
+                <HugeiconsIcon
+                  icon={file.language === 'image' ? Image01Icon : FileAttachmentIcon}
+                  strokeWidth={2}
+                  className="size-3 text-muted-foreground"
+                />
+                <span className="max-w-[120px] truncate" title={file.path}>{file.path}</span>
+                <button
+                  onClick={() => removeAttachment(index)}
+                  className="hover:text-destructive transition-colors"
+                >
+                  <HugeiconsIcon icon={Cancel01Icon} strokeWidth={2} className="size-3" />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+
         <InputGroup>
           <InputGroupTextarea
             ref={textareaRef}
@@ -372,7 +397,27 @@ export function Chat() {
             className="min-h-[60px] max-h-[200px] resize-none"
             autoFocus
           />
-          <InputGroupAddon align="block-end" className="mr-1 mb-1">
+          <InputGroupAddon align="block-end" className="mr-1 mb-1 flex gap-1">
+            {!isGenerating && (
+              <>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button size="icon" variant="ghost" className="size-7 rounded-full" onClick={handleAttachFile}>
+                      <HugeiconsIcon icon={Attachment02Icon} strokeWidth={2} className="size-4" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Attach files</TooltipContent>
+                </Tooltip>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button size="icon" variant="ghost" className="size-7 rounded-full" onClick={handleAttachFolder}>
+                      <HugeiconsIcon icon={Folder02Icon} strokeWidth={2} className="size-4" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Attach folder</TooltipContent>
+                </Tooltip>
+              </>
+            )}
             {isGenerating ? (
               <Button size="icon" variant="destructive" className="size-7 rounded-full" onClick={stopGeneration}>
                 <HugeiconsIcon icon={StopIcon} strokeWidth={2} className="size-4" />
@@ -466,8 +511,27 @@ function MessageBubble({ message, isStreaming }: { message: Message; isStreaming
   if (message.role === "user") {
     return (
       <div className="flex justify-end">
-        <div className="max-w-[85%] rounded-2xl bg-muted px-3 py-2 text-sm">
-          {message.content}
+        <div className="max-w-[85%] flex flex-col gap-2">
+          {message.context && message.context.length > 0 && (
+            <div className="flex flex-wrap gap-1.5 justify-end">
+              {message.context.map((file, index) => (
+                <div
+                  key={index}
+                  className="flex items-center gap-1.5 rounded-lg border bg-muted/30 px-2 py-1 text-xs"
+                >
+                  <HugeiconsIcon
+                    icon={file.language === 'image' ? Image01Icon : FileAttachmentIcon}
+                    strokeWidth={2}
+                    className="size-3 text-muted-foreground"
+                  />
+                  <span className="max-w-[120px] truncate" title={file.path}>{file.path}</span>
+                </div>
+              ))}
+            </div>
+          )}
+          <div className="rounded-2xl bg-muted px-3 py-2 text-sm">
+            {message.content}
+          </div>
         </div>
       </div>
     )
