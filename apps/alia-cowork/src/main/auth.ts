@@ -107,15 +107,24 @@ export class AuthProvider {
               // Fetch user info and notify renderer
               this.fetchUserInfo(token).then((userInfo) => {
                 this.mainWindow.webContents.send('auth:success', { token, userInfo })
+
+                // Delay server shutdown to ensure IPC event is sent
+                setTimeout(() => {
+                  this.stopCallbackServer()
+                }, 1000)
               })
             } catch (err: any) {
               res.writeHead(200, { 'Content-Type': 'text/html' })
               res.end(this.getErrorHtml(err.message || 'Token exchange failed'))
               this.mainWindow.webContents.send('auth:error', { message: err.message })
+
+              // Delay server shutdown to ensure IPC event is sent
+              setTimeout(() => {
+                this.stopCallbackServer()
+              }, 1000)
             }
 
             this.codeVerifier = undefined
-            this.stopCallbackServer()
           }
         }
       })
