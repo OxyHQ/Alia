@@ -7,80 +7,17 @@ import { Label } from "@/components/ui/label"
 import { Separator } from "@/components/ui/separator"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { cn } from "@/lib/utils"
-
-interface LogEntry {
-  timestamp: Date
-  level: "info" | "warn" | "error"
-  message: string
-}
+import { useConsole } from "@/contexts/ConsoleContext"
 
 export function Console() {
-  const [logs, setLogs] = React.useState<LogEntry[]>([])
+  const { logs, addLog, clearLogs: clearConsoleLogs } = useConsole()
   const [authState, setAuthState] = React.useState<any>(null)
   const [apiTest, setApiTest] = React.useState<{ status: string; message: string } | null>(null)
-
-  const addLog = React.useCallback((level: LogEntry["level"], message: string) => {
-    setLogs((prev) => [...prev, { timestamp: new Date(), level, message }].slice(-100))
-  }, [])
 
   // Fetch auth state
   React.useEffect(() => {
     window.api?.getAuthState().then(setAuthState)
   }, [])
-
-  // Listen to chat events
-  React.useEffect(() => {
-    const unsubStart = window.api?.onChatStart(() => {
-      addLog("info", "Chat started - sending message to API")
-    })
-
-    const unsubStream = window.api?.onChatStream((data) => {
-      addLog("info", `Streaming: ${data.content.substring(0, 50)}${data.content.length > 50 ? "..." : ""}`)
-    })
-
-    const unsubEnd = window.api?.onChatEnd(() => {
-      addLog("info", "Chat ended - response complete")
-    })
-
-    const unsubError = window.api?.onChatError((data) => {
-      addLog("error", `Chat error: ${data.message}`)
-    })
-
-    const unsubTool = window.api?.onChatTool((data) => {
-      addLog("info", `Tool ${data.status}: ${data.tool}`)
-    })
-
-    const unsubToolResult = window.api?.onChatToolResult((data) => {
-      addLog(data.success ? "info" : "error", `Tool result (${data.tool}): ${data.success ? "success" : "failed"}`)
-    })
-
-    // Auth events
-    const unsubAuthSuccess = window.api?.onAuthSuccess((data) => {
-      addLog("info", "Authentication successful")
-      window.api?.getAuthState().then(setAuthState)
-    })
-
-    const unsubAuthError = window.api?.onAuthError((data) => {
-      addLog("error", `Auth error: ${data.message}`)
-    })
-
-    const unsubAuthSignedOut = window.api?.onAuthSignedOut(() => {
-      addLog("info", "Signed out")
-      window.api?.getAuthState().then(setAuthState)
-    })
-
-    return () => {
-      unsubStart?.()
-      unsubStream?.()
-      unsubEnd?.()
-      unsubError?.()
-      unsubTool?.()
-      unsubToolResult?.()
-      unsubAuthSuccess?.()
-      unsubAuthError?.()
-      unsubAuthSignedOut?.()
-    }
-  }, [addLog])
 
   const testApiConnection = async () => {
     addLog("info", "Testing API connection...")
@@ -110,8 +47,8 @@ export function Console() {
     addLog("info", "Logs copied to clipboard")
   }
 
-  const clearLogs = () => {
-    setLogs([])
+  const handleClearLogs = () => {
+    clearConsoleLogs()
   }
 
   return (
@@ -226,7 +163,7 @@ export function Console() {
                   <Button onClick={copyLogs} variant="outline" size="sm" disabled={logs.length === 0}>
                     <HugeiconsIcon icon={Copy01Icon} strokeWidth={2} className="size-4" />
                   </Button>
-                  <Button onClick={clearLogs} variant="outline" size="sm" disabled={logs.length === 0}>
+                  <Button onClick={handleClearLogs} variant="outline" size="sm" disabled={logs.length === 0}>
                     Clear
                   </Button>
                 </div>

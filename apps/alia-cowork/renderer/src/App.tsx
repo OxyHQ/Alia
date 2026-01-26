@@ -7,6 +7,7 @@ import { Console } from "@/components/Console"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import { AuthProvider, useAuth } from "@/contexts/AuthContext"
 import { ThemeProvider } from "@/contexts/ThemeContext"
+import { ConsoleProvider } from "@/contexts/ConsoleContext"
 
 function AppContent() {
   const [currentView, setCurrentView] = React.useState("chat")
@@ -48,7 +49,9 @@ export function App() {
     <ThemeProvider>
       <TooltipProvider>
         <AuthProvider>
-          <AppContent />
+          <ConsoleProvider>
+            <AppContent />
+          </ConsoleProvider>
         </AuthProvider>
       </TooltipProvider>
     </ThemeProvider>
