@@ -152,7 +152,7 @@ function TitleBar({ onViewChange }: TitleBarProps) {
         <Menubar className="border-0 bg-transparent p-0 h-auto gap-0">
           <MenubarMenu>
             <MenubarTrigger className="px-3 py-1.5 text-sm font-medium">File</MenubarTrigger>
-            <MenubarContent className="z-[100]">
+            <MenubarContent className="z-[200]">
               <MenubarItem onClick={() => window.api?.clearChat?.()}>
                 New Chat <MenubarShortcut>Ctrl+N</MenubarShortcut>
               </MenubarItem>
@@ -176,7 +176,7 @@ function TitleBar({ onViewChange }: TitleBarProps) {
           </MenubarMenu>
           <MenubarMenu>
             <MenubarTrigger className="px-3 py-1.5 text-sm font-medium">Edit</MenubarTrigger>
-            <MenubarContent className="z-[100]">
+            <MenubarContent className="z-[200]">
               <MenubarItem disabled>
                 Undo <MenubarShortcut>Ctrl+Z</MenubarShortcut>
               </MenubarItem>
@@ -197,7 +197,7 @@ function TitleBar({ onViewChange }: TitleBarProps) {
           </MenubarMenu>
           <MenubarMenu>
             <MenubarTrigger className="px-3 py-1.5 text-sm font-medium">View</MenubarTrigger>
-            <MenubarContent className="z-[100]">
+            <MenubarContent className="z-[200]">
               <MenubarItem onClick={toggleSidebar}>
                 {sidebarState === "expanded" ? "Collapse" : "Expand"} Sidebar <MenubarShortcut>Ctrl+B</MenubarShortcut>
               </MenubarItem>
@@ -218,7 +218,7 @@ function TitleBar({ onViewChange }: TitleBarProps) {
           </MenubarMenu>
           <MenubarMenu>
             <MenubarTrigger className="px-3 py-1.5 text-sm font-medium">Help</MenubarTrigger>
-            <MenubarContent className="z-[100]">
+            <MenubarContent className="z-[200]">
               <MenubarItem onClick={() => window.open('https://docs.alia.onl', '_blank')}>
                 Documentation
               </MenubarItem>
