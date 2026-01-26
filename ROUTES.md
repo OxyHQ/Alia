@@ -2,11 +2,10 @@
 
 ## Resumen
 
-La API de Alia tiene tres tipos de endpoints principales:
+La API de Alia tiene dos tipos de endpoints principales:
 
 1. **Chat Interno** (`/alia/chat`) - Para la app de Alia con herramientas y personalización
-2. **API de Desarrolladores** (`/v1/chat/completions`) - OpenAI-compatible para uso externo
-3. **API para Editores de Código** (`/v1/codea/chat/completions`) - Para Cursor, VS Code, etc. - siempre usa `alia-v1-codea`
+2. **API OpenAI-Compatible** (`/v1/chat/completions`) - Para desarrolladores externos y editores de código
 
 ---
 
@@ -49,11 +48,13 @@ La API de Alia tiene tres tipos de endpoints principales:
 
 ---
 
-## 2. API de Desarrolladores (OpenAI-Compatible)
+## 2. API OpenAI-Compatible
 
 ### `POST /v1/chat/completions`
 
-**Descripción**: Endpoint compatible con OpenAI para desarrolladores externos.
+**Descripción**: Endpoint compatible con OpenAI para desarrolladores externos y editores de código.
+
+**Base URL**: `https://api.alia.onl/v1`
 
 **Autenticación**: Requerida (via `authenticateTokenOrApiKey`)
 - Sesiones JWT de Oxy
@@ -62,28 +63,71 @@ La API de Alia tiene tres tipos de endpoints principales:
 **Características**:
 - ✅ OpenAI-compatible
 - ✅ Streaming SSE
-- ✅ Cobro de créditos basado en tokens y tier del modelo
-- ❌ Sin herramientas
-- ❌ Sin personalización
-- ❌ Sin auto-guardado
+- ✅ Cobro de créditos basado en tokens y tier del modelo (excluye tokens del system prompt)
+- ✅ Soporta tools del editor (function calling)
+- ✅ Herramientas internas de Alia (memoria, timeline, Telegram)
+- ✅ Personalización basada en perfil de usuario
+- ✅ **Conversión automática de tools** para compatibilidad multi-proveedor
+- ✅ **Fallback automático** entre proveedores (Google → OpenAI → Anthropic)
+- ✅ Prompts específicos por modelo cargados dinámicamente
 
 **Parámetros del Body**:
 ```json
 {
   "messages": [...],
-  "model": "alia-v1", // Opcional, default: alia-v1
+  "model": "alia-v1", // Opcional, default: alia-v1. Puede ser cualquier modelo Alia
   "temperature": 0.7, // Opcional
-  "max_tokens": 8192 // Opcional
+  "max_tokens": 8192, // Opcional
+  "tools": [...] // Opcional: tools del editor
 }
 ```
 
 **Modelos Aceptados**: Todos los modelos Alia
+- `alia-lite` (0.5x créditos)
+- `alia-v1` (1x créditos) - **Default**
+- `alia-v1-codea` (1.5x créditos) - **Recomendado para editores de código**
+- `alia-v1-pro` (3x créditos)
+- `alia-v1-pro-max` (5x créditos)
+
+**Herramientas Disponibles**:
+- Tools del editor (pasadas en el request)
+- `getCurrentDate` - Obtener fecha/hora actual
+- `getTimeline` - Ver eventos recientes del usuario
+- `saveUserMemory` - Guardar información del usuario
+- `updateUserPreferences` - Actualizar preferencias
+- `updateUserContext` - Actualizar contexto del usuario
+- `sendTelegram` - Enviar notificaciones por Telegram
 
 **Respuesta**: OpenAI-compatible SSE
 ```
 data: {"id":"chatcmpl-xxx","object":"chat.completion.chunk","model":"alia-v1","choices":[...]}
 data: [DONE]
 ```
+
+**Conversión de Tools (Multi-Proveedor)**:
+
+Los tools enviados por editores como Cursor pueden tener nombres incompatibles con ciertos proveedores (ej: Google requiere nombres alfanuméricos). El sistema automáticamente:
+
+1. **Sanitiza nombres** de funciones para compatibilidad con todos los proveedores
+2. **Convierte JSON Schema** a formato Zod para AI SDK
+3. **Restaura nombres originales** en las respuestas al cliente
+
+```
+Cursor envía:  tools[{function: {name: "read_file#123"}}]
+                    ↓
+Sanitizado:    "read_file_123" (compatible con Google)
+                    ↓
+AI SDK → Proveedor (Google/OpenAI/Anthropic)
+                    ↓
+Respuesta:     Restaura "read_file#123" para Cursor
+```
+
+**Uso en Editores de Código (Cursor, VS Code, etc.)**:
+
+Para editores de código, configura:
+- **Base URL**: `https://api.alia.onl/v1`
+- **Model**: `alia-v1-codea` (en la configuración del editor o request body)
+- **API Key**: Tu API key con prefijo `alia_sk_*`
 
 ---
 
