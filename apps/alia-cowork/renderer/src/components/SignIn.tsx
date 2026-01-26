@@ -24,7 +24,7 @@ export function SignIn() {
       {/* Title Bar */}
       <div className="flex items-center justify-between h-10 px-2 border-b bg-background/80 backdrop-blur shrink-0">
         <div className="flex items-center gap-2 px-2">
-          <img src="/codea-logo.png" alt="Cowork" className="size-5 rounded-full" />
+          <img src="/alia-logo.png" alt="Alia" className="size-5 rounded-full" />
           <span className="text-sm font-semibold">Alia Cowork</span>
         </div>
 
