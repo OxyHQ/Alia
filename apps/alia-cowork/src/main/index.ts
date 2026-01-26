@@ -253,3 +253,9 @@ app.on('window-all-closed', () => {
     app.quit()
   }
 })
+
+app.on('before-quit', () => {
+  if (windowStateManager) {
+    windowStateManager.untrack()
+  }
+})
