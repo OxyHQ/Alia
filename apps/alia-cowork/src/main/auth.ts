@@ -185,7 +185,7 @@ export class AuthProvider {
         grant_type: 'authorization_code',
         code,
         code_verifier: codeVerifier,
-        client_id: 'codea'
+        client_id: 'cowork'
       })
 
       const req = httpModule.request(
