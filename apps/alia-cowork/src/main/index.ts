@@ -60,6 +60,10 @@ function createWindow(): void {
   // Show window when ready
   mainWindow.once('ready-to-show', () => {
     mainWindow?.show()
+    // Start tracking window state
+    if (mainWindow) {
+      windowStateManager.track(mainWindow)
+    }
   })
 
   // Handle external links
