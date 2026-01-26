@@ -292,6 +292,17 @@ export class ChatProvider {
                   required: ['mode']
                 }
               }
+            },
+            {
+              type: 'function',
+              function: {
+                name: 'list_installed_applications',
+                description: 'List all installed applications on the system. Use this to find the correct name/path for apps before trying to open them.',
+                parameters: {
+                  type: 'object',
+                  properties: {}
+                }
+              }
             }
           ]
         : undefined
@@ -505,6 +516,10 @@ export class ChatProvider {
               case 'set_mode':
                 console.log('[ChatProvider] Executing set_mode')
                 result = `Mode changed to ${args.mode}`
+                break
+              case 'list_installed_applications':
+                console.log('[ChatProvider] Executing list_installed_applications')
+                result = await this.toolExecutor.listInstalledApplications()
                 break
               default:
                 console.error(`[ChatProvider] Unknown tool: ${toolName}`)
@@ -812,6 +827,9 @@ export class ChatProvider {
               case 'set_mode':
                 result = `Mode changed to ${args.mode}`
                 break
+              case 'list_installed_applications':
+                result = await this.toolExecutor.listInstalledApplications()
+                break
               default:
                 result = `Unknown tool: ${toolName}`
             }
@@ -948,7 +966,11 @@ You have **COMPLETE unrestricted access** to:
 - **list_files**: List ANY directory (with recursive option)
 - **search_files**: Search for text patterns anywhere
 - **run_command**: Execute ANY shell command
+- **list_installed_applications**: List all installed applications on the system
+  - USE THIS FIRST before trying to open an unknown app
+  - Returns app names/paths you can use with open_application
 - **open_application**: Open ANY app or file
+  - If unsure about app name, use list_installed_applications first
   - Examples: "wt.exe" (Windows Terminal), "chrome.exe", "notepad.exe"
 - **open_url**: Open URLs in browser
 - **clipboard_read/write**: Access clipboard

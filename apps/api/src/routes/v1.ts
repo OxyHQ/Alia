@@ -183,6 +183,9 @@ router.post('/report-usage', async (req: Request, res: Response) => {
   }
 });
 
+// Compatibility route for old Codea extension versions
+router.use('/codea/chat/completions', chatCompletionsRouter);
+
 router.use('/chat/completions', chatCompletionsRouter);
 
 export default router;
