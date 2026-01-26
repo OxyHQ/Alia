@@ -263,8 +263,16 @@ export class ChatProvider {
               type: 'function',
               function: {
                 name: 'screenshot',
-                description: 'Take a screenshot of the screen',
-                parameters: { type: 'object', properties: {} }
+                description: 'Take a screenshot of the screen and optionally save to a file path',
+                parameters: {
+                  type: 'object',
+                  properties: {
+                    path: {
+                      type: 'string',
+                      description: 'Optional file path to save the screenshot (e.g., ~/Desktop/screenshot.png, C:\\Users\\username\\Desktop\\screenshot.png)'
+                    }
+                  }
+                }
               }
             },
             {
