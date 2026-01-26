@@ -100,6 +100,16 @@ export class AuthProvider {
               // Save token
               store.set('apiKey', token)
 
+              // Bring window to foreground
+              if (!this.mainWindow.isVisible()) {
+                this.mainWindow.show()
+              }
+              if (this.mainWindow.isMinimized()) {
+                this.mainWindow.restore()
+              }
+              this.mainWindow.focus()
+              this.mainWindow.moveTop()
+
               // Send success response
               res.writeHead(200, { 'Content-Type': 'text/html' })
               res.end(this.getSuccessHtml())
