@@ -237,9 +237,10 @@ You are running on ${process.platform === 'darwin' ? 'macOS' : process.platform 
           }
           return { role: m.role, content: m.content }
         }),
-        stream: true,
-        tools: toolDefinitions,
-        tool_choice: 'auto'
+        stream: true
+        // Temporarily disabled tools for testing
+        // tools: toolDefinitions,
+        // tool_choice: 'auto'
       })
 
       console.log('[Chat] Request body (full):', requestBody)
