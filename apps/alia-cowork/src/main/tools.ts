@@ -1,6 +1,6 @@
 /**
- * Tool Definitions with AI SDK
- * Creates AI SDK-compatible tools that execute locally
+ * Tool Executors
+ * Executes tools locally in the Electron environment
  */
 
 import { exec } from 'child_process'
@@ -9,8 +9,6 @@ import * as path from 'path'
 import * as os from 'os'
 import { promisify } from 'util'
 import { clipboard, shell, desktopCapturer } from 'electron'
-import { tool } from 'ai'
-import { z } from 'zod'
 
 const execAsync = promisify(exec)
 
@@ -194,118 +192,5 @@ export class ToolExecutor {
       return sources[0].thumbnail.toDataURL()
     }
     throw new Error('No screen found')
-  }
-}
-
-/**
- * Create AI SDK tool definitions
- */
-export function createAISDKTools(executor: ToolExecutor) {
-  return {
-    read_file: tool({
-      description: 'Read the contents of a file from the filesystem',
-      inputSchema: z.object({
-        path: z.string().describe('Absolute or relative path to the file'),
-        start_line: z.number().optional().describe('Optional starting line (1-indexed)'),
-        end_line: z.number().optional().describe('Optional ending line (1-indexed)')
-      }),
-      execute: async ({ path, start_line, end_line }) => executor.readFile({ path, start_line, end_line })
-    }),
-
-    write_file: tool({
-      description: 'Create or overwrite a file with content',
-      inputSchema: z.object({
-        path: z.string().describe('Path to the file'),
-        content: z.string().describe('Content to write')
-      }),
-      execute: async ({ path, content }) => executor.writeFile({ path, content })
-    }),
-
-    edit_file: tool({
-      description: 'Replace specific text in a file',
-      inputSchema: z.object({
-        path: z.string().describe('Path to the file'),
-        old_text: z.string().describe('Text to find and replace'),
-        new_text: z.string().describe('Replacement text')
-      }),
-      execute: async ({ path, old_text, new_text }) => executor.editFile({ path, old_text, new_text })
-    }),
-
-    list_files: tool({
-      description: 'List files and directories in a path',
-      inputSchema: z.object({
-        path: z.string().describe('Directory path'),
-        recursive: z.boolean().optional().describe('List recursively')
-      }),
-      execute: async ({ path, recursive }) => executor.listFiles({ path, recursive })
-    }),
-
-    search_files: tool({
-      description: 'Search for text patterns in files',
-      inputSchema: z.object({
-        pattern: z.string().describe('Search pattern'),
-        path: z.string().optional().describe('Directory to search in')
-      }),
-      execute: async ({ pattern, path }) => executor.searchFiles({ pattern, path })
-    }),
-
-    run_command: tool({
-      description: 'Execute a shell command',
-      inputSchema: z.object({
-        command: z.string().describe('Shell command to execute'),
-        cwd: z.string().optional().describe('Working directory')
-      }),
-      execute: async ({ command, cwd }) => executor.runCommand({ command, cwd })
-    }),
-
-    open_application: tool({
-      description: 'Open an application or file with the default program',
-      inputSchema: z.object({
-        application_name: z.string().describe('Application name or file path to open')
-      }),
-      execute: async ({ application_name }) => executor.openApplication({ application_name })
-    }),
-
-    open_url: tool({
-      description: 'Open a URL in the default browser',
-      inputSchema: z.object({
-        url: z.string().describe('URL to open')
-      }),
-      execute: async ({ url }) => executor.openUrl({ url })
-    }),
-
-    clipboard_read: tool({
-      description: 'Read the current clipboard content',
-      inputSchema: z.object({}),
-      execute: async () => executor.clipboardRead()
-    }),
-
-    clipboard_write: tool({
-      description: 'Write text to the clipboard',
-      inputSchema: z.object({
-        text: z.string().describe('Text to copy to clipboard')
-      }),
-      execute: async ({ text }) => executor.clipboardWrite({ text })
-    }),
-
-    get_system_info: tool({
-      description: 'Get system information (OS, CPU, memory, etc.)',
-      inputSchema: z.object({}),
-      execute: async () => executor.getSystemInfo()
-    }),
-
-    screenshot: tool({
-      description: 'Take a screenshot of the screen',
-      inputSchema: z.object({}),
-      execute: async () => executor.screenshot()
-    }),
-
-    set_mode: tool({
-      description: 'Change the assistant operating mode',
-      inputSchema: z.object({
-        mode: z.enum(['ask', 'edit', 'plan', 'yolo']).describe('The mode to switch to')
-      }),
-      execute: async ({ mode }) => `Mode will be changed to ${mode}`
-    })
   }
 }
