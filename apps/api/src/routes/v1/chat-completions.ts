@@ -370,6 +370,9 @@ When you use a tool successfully:
       }
     }
 
+    // REPEAT language instruction at the end (most memorable position)
+    systemMessage += '\n\n' + languageInstruction;
+
     // Replace or inject system message
     const rawMessages = [...messages];
     if (rawMessages.length === 0 || rawMessages[0].role !== 'system') {
