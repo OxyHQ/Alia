@@ -1,10 +1,14 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, ActivityIndicator, TouchableOpacity, Linking, Platform } from 'react-native';
+import { View, ActivityIndicator, Linking, Platform } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import Head from 'expo-router/head';
 import { AuthContainer, AuthLogo } from '@/components/auth';
 import { useAuth } from '@oxyhq/services';
 import apiClient from '@/lib/api/client';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Text } from '@/components/ui/text';
+import { Separator } from '@/components/ui/separator';
 
 export default function AuthorizeCodeaScreen() {
   const router = useRouter();
@@ -123,45 +127,40 @@ export default function AuthorizeCodeaScreen() {
         <AuthLogo />
 
         {status === 'authorize' && (
-          <>
-            <View className="space-y-2 mb-6">
-              <Text className="text-2xl font-bold text-foreground tracking-tight text-center">
-                Authorize Alia Cowork
-              </Text>
-              <Text className="text-base text-muted-foreground text-center">
-                Alia Cowork wants to access your account
-              </Text>
-            </View>
+          <View className="w-full max-w-md gap-6">
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-center">Authorize Alia Cowork</CardTitle>
+                <CardDescription className="text-center">
+                  Alia Cowork wants to access your account
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="gap-4">
+                <View className="gap-2">
+                  <Text className="text-sm text-muted-foreground font-medium">
+                    This will allow Alia Cowork to:
+                  </Text>
+                  <View className="gap-2 pl-1">
+                    <Text className="text-sm">• Send messages to AI models</Text>
+                    <Text className="text-sm">• Use your credits for API calls</Text>
+                    <Text className="text-sm">• Access available models</Text>
+                  </View>
+                </View>
 
-            <View className="bg-card p-4 rounded-lg border border-border mb-6">
-              <Text className="text-sm text-muted-foreground mb-3">This will allow Alia Cowork to:</Text>
-              <View className="space-y-2">
-                <Text className="text-foreground">• Send messages to AI models</Text>
-                <Text className="text-foreground">• Use your credits for API calls</Text>
-                <Text className="text-foreground">• Access available models</Text>
-              </View>
-            </View>
+                <Separator className="my-2" />
 
-            <View className="gap-3">
-              <TouchableOpacity
-                onPress={handleAuthorize}
-                className="bg-primary py-3 px-6 rounded-lg"
-              >
-                <Text className="text-primary-foreground text-center font-semibold text-lg">
-                  Authorize
-                </Text>
-              </TouchableOpacity>
+                <View className="gap-3">
+                  <Button onPress={handleAuthorize} size="lg">
+                    <Text>Authorize</Text>
+                  </Button>
 
-              <TouchableOpacity
-                onPress={handleCancel}
-                className="py-3 px-6 rounded-lg border border-border"
-              >
-                <Text className="text-foreground text-center font-medium">
-                  Cancel
-                </Text>
-              </TouchableOpacity>
-            </View>
-          </>
+                  <Button onPress={handleCancel} variant="outline" size="lg">
+                    <Text>Cancel</Text>
+                  </Button>
+                </View>
+              </CardContent>
+            </Card>
+          </View>
         )}
 
         {status === 'authorizing' && (

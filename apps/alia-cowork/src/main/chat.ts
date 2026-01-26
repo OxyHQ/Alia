@@ -218,6 +218,10 @@ You are running on ${process.platform === 'darwin' ? 'macOS' : process.platform 
       const isHttps = url.protocol === 'https:'
       const httpModule = isHttps ? https : http
 
+      console.log('[Chat] Starting request to:', url.toString())
+      console.log('[Chat] Using API key:', apiKey ? `${apiKey.substring(0, 20)}...` : 'NONE')
+      console.log('[Chat] Model:', model)
+
       const messagesWithSystem: Message[] = [
         { role: 'system', content: systemMessage },
         ...this.messages
@@ -238,6 +242,8 @@ You are running on ${process.platform === 'darwin' ? 'macOS' : process.platform 
         tool_choice: 'auto'
       })
 
+      console.log('[Chat] Request body:', requestBody.substring(0, 200) + '...')
+
       const options = {
         hostname: url.hostname,
         port: url.port || (isHttps ? 443 : 80),
@@ -255,10 +261,14 @@ You are running on ${process.platform === 'darwin' ? 'macOS' : process.platform 
       let currentToolCall: ToolCall | null = null
 
       const req = httpModule.request(options, (res) => {
+        console.log('[Chat] Response status:', res.statusCode)
+        console.log('[Chat] Response headers:', res.headers)
+
         if (res.statusCode !== 200) {
           let errorBody = ''
           res.on('data', (chunk) => (errorBody += chunk))
           res.on('end', () => {
+            console.log('[Chat] Error response body:', errorBody)
             try {
               const error = JSON.parse(errorBody)
               reject(new Error(`HTTP ${res.statusCode}: ${error.error?.message || ''}`))
@@ -274,21 +284,30 @@ You are running on ${process.platform === 'darwin' ? 'macOS' : process.platform 
         res.on('data', (chunk: Buffer) => {
           if (!this.isProcessing) return
 
-          buffer += chunk.toString()
+          const chunkStr = chunk.toString()
+          console.log('[Chat] Received chunk:', chunkStr.substring(0, 100))
+          buffer += chunkStr
           const lines = buffer.split('\n')
           buffer = lines.pop() || ''
+
+          console.log('[Chat] Processing', lines.length, 'lines')
 
           for (const line of lines) {
             if (line.startsWith('data: ')) {
               const data = line.slice(6).trim()
-              if (data === '[DONE]') continue
+              if (data === '[DONE]') {
+                console.log('[Chat] Received [DONE]')
+                continue
+              }
 
               try {
                 const parsed = JSON.parse(data)
                 const choice = parsed.choices?.[0]
+                console.log('[Chat] Parsed choice:', choice)
 
                 if (choice?.delta?.content) {
                   fullContent += choice.delta.content
+                  console.log('[Chat] Streaming content:', choice.delta.content)
                   this.send('chat:stream', { content: choice.delta.content })
                 }
 
@@ -335,12 +354,17 @@ You are running on ${process.platform === 'darwin' ? 'macOS' : process.platform 
         })
 
         res.on('end', () => {
+          console.log('[Chat] Response ended')
+          console.log('[Chat] Full content length:', fullContent.length)
+          console.log('[Chat] Tool calls:', toolCalls.length)
+          console.log('[Chat] Final content:', fullContent.substring(0, 200))
           this.currentRequest = undefined
           resolve({ content: fullContent, toolCalls: toolCalls.length > 0 ? toolCalls : undefined })
         })
       })
 
       req.on('error', (error) => {
+        console.log('[Chat] Request error:', error)
         this.currentRequest = undefined
         reject(error)
       })
