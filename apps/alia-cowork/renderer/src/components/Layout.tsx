@@ -13,7 +13,7 @@ import {
   FolderOpenIcon,
   CommandIcon,
   InformationCircleIcon,
-  Terminal01Icon,
+  CodeIcon,
 } from "@hugeicons/core-free-icons"
 
 import { cn } from "@/lib/utils"
@@ -54,7 +54,7 @@ const navItems = [
   { id: "chat", label: "Chat", icon: Message01Icon },
   { id: "files", label: "Files", icon: FolderOpenIcon },
   { id: "commands", label: "Commands", icon: CommandIcon },
-  { id: "console", label: "Console", icon: Terminal01Icon },
+  { id: "console", label: "Console", icon: CodeIcon },
 ]
 
 interface LayoutProps {
@@ -146,7 +146,7 @@ function TitleBar({ onViewChange }: TitleBarProps) {
   }, [])
 
   return (
-    <div className="flex items-center justify-between h-10 px-2 border-b bg-background/80 backdrop-blur shrink-0 relative z-[200]">
+    <div className="flex items-center justify-between h-10 px-2 border-b bg-background/80 backdrop-blur shrink-0">
       <div className="flex items-center gap-1">
         {/* App Menu */}
         <Menubar className="border-0 bg-transparent p-0 h-auto gap-0">
