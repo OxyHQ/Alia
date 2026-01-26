@@ -227,7 +227,19 @@ You are running on ${process.platform === 'darwin' ? 'macOS' : process.platform 
         if (!this.isProcessing) break
 
         if (chunk.type === 'text-delta') {
-          // Filter out thinking tags or internal reasoning
+          // Extract thinking tags for chain of thought visualization
+          const thinkingMatch = chunk.textDelta.match(/<thinking>([\s\S]*?)<\/thinking>/g)
+          if (thinkingMatch) {
+            // Send thinking content to renderer for chain-of-thought display
+            thinkingMatch.forEach(match => {
+              const content = match.replace(/<\/?thinking>/g, '').trim()
+              if (content) {
+                this.send('chat:thinking', { content })
+              }
+            })
+          }
+
+          // Filter out thinking tags from the main message
           const filtered = chunk.textDelta.replace(/<thinking>[\s\S]*?<\/thinking>/g, '')
           if (filtered.trim()) {
             assistantMessage += filtered
