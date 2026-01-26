@@ -12,7 +12,7 @@ interface AliaProviderOptions {
 }
 
 class AliaLanguageModel {
-  readonly specificationVersion = 'V3' as const
+  readonly specificationVersion = 'v3' as const
   readonly provider = 'alia' as const
   readonly modelId: string
   readonly supportedUrls = {}
