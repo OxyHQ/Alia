@@ -94,13 +94,13 @@ export const fileTools = [
     type: 'function',
     function: {
       name: 'list_files',
-      description: 'List files and directories in a given path. Use this to explore the project structure.',
+      description: 'List files and directories in a given path. If no path provided, lists workspace root. Use this to explore the project structure.',
       parameters: {
         type: 'object',
         properties: {
           path: {
             type: 'string',
-            description: 'The directory path to list, relative to the workspace root. Use "." for root.'
+            description: 'The directory path to list, relative to the workspace root. Use "." for root. If not provided, lists workspace root.'
           },
           recursive: {
             type: 'boolean',
@@ -110,8 +110,7 @@ export const fileTools = [
             type: 'string',
             description: 'Optional glob pattern to filter files (e.g., "**/*.ts")'
           }
-        },
-        required: ['path']
+        }
       }
     }
   },
