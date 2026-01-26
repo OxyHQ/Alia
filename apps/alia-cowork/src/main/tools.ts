@@ -1,6 +1,6 @@
 /**
- * Tool Executor - Handles local tool execution
- * No AI SDK dependencies - tools are defined in chat.ts in OpenAI format
+ * Tool Definitions with AI SDK
+ * Creates AI SDK-compatible tools that execute locally
  */
 
 import { exec } from 'child_process'
@@ -9,6 +9,8 @@ import * as path from 'path'
 import * as os from 'os'
 import { promisify } from 'util'
 import { clipboard, shell, desktopCapturer } from 'electron'
+import { tool } from 'ai'
+import { z } from 'zod'
 
 const execAsync = promisify(exec)
 
@@ -23,51 +25,13 @@ export class ToolExecutor {
     if (path.isAbsolute(filePath)) {
       return filePath
     }
-    // Expand ~ to home directory
     if (filePath.startsWith('~')) {
       return path.join(this.homeDir, filePath.slice(1))
     }
     return path.resolve(filePath)
   }
 
-  async execute(toolName: string, args: any): Promise<string> {
-    try {
-      switch (toolName) {
-        case 'read_file':
-          return await this.readFile(args)
-        case 'write_file':
-          return await this.writeFile(args)
-        case 'edit_file':
-          return await this.editFile(args)
-        case 'list_files':
-          return await this.listFiles(args)
-        case 'search_files':
-          return await this.searchFiles(args)
-        case 'run_command':
-          return await this.runCommand(args)
-        case 'open_application':
-          return await this.openApplication(args)
-        case 'open_url':
-          return await this.openUrl(args)
-        case 'clipboard_read':
-          return this.clipboardRead()
-        case 'clipboard_write':
-          return this.clipboardWrite(args)
-        case 'get_system_info':
-          return this.getSystemInfo()
-        case 'screenshot':
-          return await this.screenshot()
-        case 'set_mode':
-          return `Mode will be changed to ${args.mode}`
-        default:
-          throw new Error(`Unknown tool: ${toolName}`)
-      }
-    } catch (error: any) {
-      throw error
-    }
-  }
-
-  private async readFile(args: { path: string; start_line?: number; end_line?: number }): Promise<string> {
+  async readFile(args: { path: string; start_line?: number; end_line?: number }): Promise<string> {
     const filePath = this.resolvePath(args.path)
 
     if (!fs.existsSync(filePath)) {
@@ -84,11 +48,10 @@ export class ToolExecutor {
       return selectedLines.map((line, i) => `${start + i + 1}: ${line}`).join('\n')
     }
 
-    const numberedContent = lines.map((line, i) => `${i + 1}: ${line}`).join('\n')
-    return numberedContent
+    return lines.map((line, i) => `${i + 1}: ${line}`).join('\n')
   }
 
-  private async writeFile(args: { path: string; content: string }): Promise<string> {
+  async writeFile(args: { path: string; content: string }): Promise<string> {
     const filePath = this.resolvePath(args.path)
     const dir = path.dirname(filePath)
 
@@ -100,7 +63,7 @@ export class ToolExecutor {
     return `Successfully wrote to ${args.path}`
   }
 
-  private async editFile(args: { path: string; old_text: string; new_text: string }): Promise<string> {
+  async editFile(args: { path: string; old_text: string; new_text: string }): Promise<string> {
     const filePath = this.resolvePath(args.path)
 
     if (!fs.existsSync(filePath)) {
@@ -119,7 +82,7 @@ export class ToolExecutor {
     return `Successfully edited ${args.path}`
   }
 
-  private async listFiles(args: { path: string; recursive?: boolean }): Promise<string> {
+  async listFiles(args: { path: string; recursive?: boolean }): Promise<string> {
     const dirPath = this.resolvePath(args.path)
 
     if (!fs.existsSync(dirPath)) {
@@ -152,7 +115,7 @@ export class ToolExecutor {
     return files.join('\n')
   }
 
-  private async searchFiles(args: { pattern: string; path?: string }): Promise<string> {
+  async searchFiles(args: { pattern: string; path?: string }): Promise<string> {
     const searchPath = this.resolvePath(args.path || '.')
     const platform = process.platform
 
@@ -174,51 +137,39 @@ export class ToolExecutor {
     }
   }
 
-  private async runCommand(args: { command: string; cwd?: string }): Promise<string> {
+  async runCommand(args: { command: string; cwd?: string }): Promise<string> {
     const cwd = args.cwd ? this.resolvePath(args.cwd) : this.homeDir
 
-    try {
-      const { stdout, stderr } = await execAsync(args.command, {
-        cwd,
-        maxBuffer: 1024 * 1024,
-        timeout: 60000
-      })
-      const output = stdout + (stderr ? `\n${stderr}` : '')
-      return output.slice(0, 10000)
-    } catch (error: any) {
-      throw error
-    }
+    const { stdout, stderr } = await execAsync(args.command, {
+      cwd,
+      maxBuffer: 1024 * 1024,
+      timeout: 60000
+    })
+    const output = stdout + (stderr ? `\n${stderr}` : '')
+    return output.slice(0, 10000)
   }
 
-  private async openApplication(args: { application_name: string }): Promise<string> {
-    try {
-      await shell.openPath(args.application_name)
-      return `Opened ${args.application_name}`
-    } catch (error: any) {
-      throw error
-    }
+  async openApplication(args: { application_name: string }): Promise<string> {
+    await shell.openPath(args.application_name)
+    return `Opened ${args.application_name}`
   }
 
-  private async openUrl(args: { url: string }): Promise<string> {
-    try {
-      await shell.openExternal(args.url)
-      return `Opened ${args.url}`
-    } catch (error: any) {
-      throw error
-    }
+  async openUrl(args: { url: string }): Promise<string> {
+    await shell.openExternal(args.url)
+    return `Opened ${args.url}`
   }
 
-  private clipboardRead(): string {
+  clipboardRead(): string {
     const text = clipboard.readText()
     return text || '(clipboard is empty)'
   }
 
-  private clipboardWrite(args: { text: string }): string {
+  clipboardWrite(args: { text: string }): string {
     clipboard.writeText(args.text)
     return 'Copied to clipboard'
   }
 
-  private getSystemInfo(): string {
+  getSystemInfo(): string {
     const info = {
       platform: os.platform(),
       arch: os.arch(),
@@ -233,20 +184,128 @@ export class ToolExecutor {
     return JSON.stringify(info, null, 2)
   }
 
-  private async screenshot(): Promise<string> {
-    try {
-      const sources = await desktopCapturer.getSources({
-        types: ['screen'],
-        thumbnailSize: { width: 1920, height: 1080 }
-      })
+  async screenshot(): Promise<string> {
+    const sources = await desktopCapturer.getSources({
+      types: ['screen'],
+      thumbnailSize: { width: 1920, height: 1080 }
+    })
 
-      if (sources.length > 0) {
-        const dataUrl = sources[0].thumbnail.toDataURL()
-        return dataUrl
-      }
-      throw new Error('No screen found')
-    } catch (error: any) {
-      throw error
+    if (sources.length > 0) {
+      return sources[0].thumbnail.toDataURL()
     }
+    throw new Error('No screen found')
+  }
+}
+
+/**
+ * Create AI SDK tool definitions
+ */
+export function createAISDKTools(executor: ToolExecutor) {
+  return {
+    read_file: tool({
+      description: 'Read the contents of a file from the filesystem',
+      inputSchema: z.object({
+        path: z.string().describe('Absolute or relative path to the file'),
+        start_line: z.number().optional().describe('Optional starting line (1-indexed)'),
+        end_line: z.number().optional().describe('Optional ending line (1-indexed)')
+      }),
+      execute: async ({ path, start_line, end_line }) => executor.readFile({ path, start_line, end_line })
+    }),
+
+    write_file: tool({
+      description: 'Create or overwrite a file with content',
+      inputSchema: z.object({
+        path: z.string().describe('Path to the file'),
+        content: z.string().describe('Content to write')
+      }),
+      execute: async ({ path, content }) => executor.writeFile({ path, content })
+    }),
+
+    edit_file: tool({
+      description: 'Replace specific text in a file',
+      inputSchema: z.object({
+        path: z.string().describe('Path to the file'),
+        old_text: z.string().describe('Text to find and replace'),
+        new_text: z.string().describe('Replacement text')
+      }),
+      execute: async ({ path, old_text, new_text }) => executor.editFile({ path, old_text, new_text })
+    }),
+
+    list_files: tool({
+      description: 'List files and directories in a path',
+      inputSchema: z.object({
+        path: z.string().describe('Directory path'),
+        recursive: z.boolean().optional().describe('List recursively')
+      }),
+      execute: async ({ path, recursive }) => executor.listFiles({ path, recursive })
+    }),
+
+    search_files: tool({
+      description: 'Search for text patterns in files',
+      inputSchema: z.object({
+        pattern: z.string().describe('Search pattern'),
+        path: z.string().optional().describe('Directory to search in')
+      }),
+      execute: async ({ pattern, path }) => executor.searchFiles({ pattern, path })
+    }),
+
+    run_command: tool({
+      description: 'Execute a shell command',
+      inputSchema: z.object({
+        command: z.string().describe('Shell command to execute'),
+        cwd: z.string().optional().describe('Working directory')
+      }),
+      execute: async ({ command, cwd }) => executor.runCommand({ command, cwd })
+    }),
+
+    open_application: tool({
+      description: 'Open an application or file with the default program',
+      inputSchema: z.object({
+        application_name: z.string().describe('Application name or file path to open')
+      }),
+      execute: async ({ application_name }) => executor.openApplication({ application_name })
+    }),
+
+    open_url: tool({
+      description: 'Open a URL in the default browser',
+      inputSchema: z.object({
+        url: z.string().describe('URL to open')
+      }),
+      execute: async ({ url }) => executor.openUrl({ url })
+    }),
+
+    clipboard_read: tool({
+      description: 'Read the current clipboard content',
+      inputSchema: z.object({}),
+      execute: async () => executor.clipboardRead()
+    }),
+
+    clipboard_write: tool({
+      description: 'Write text to the clipboard',
+      inputSchema: z.object({
+        text: z.string().describe('Text to copy to clipboard')
+      }),
+      execute: async ({ text }) => executor.clipboardWrite({ text })
+    }),
+
+    get_system_info: tool({
+      description: 'Get system information (OS, CPU, memory, etc.)',
+      inputSchema: z.object({}),
+      execute: async () => executor.getSystemInfo()
+    }),
+
+    screenshot: tool({
+      description: 'Take a screenshot of the screen',
+      inputSchema: z.object({}),
+      execute: async () => executor.screenshot()
+    }),
+
+    set_mode: tool({
+      description: 'Change the assistant operating mode',
+      inputSchema: z.object({
+        mode: z.enum(['ask', 'edit', 'plan', 'yolo']).describe('The mode to switch to')
+      }),
+      execute: async ({ mode }) => `Mode will be changed to ${mode}`
+    })
   }
 }
