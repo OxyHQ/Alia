@@ -322,77 +322,32 @@ You are running on ${process.platform === 'darwin' ? 'macOS' : process.platform 
 
     if (!apiKey) return null
 
-    const url = new URL(`${baseUrl}/v1/codea/me`)
-    const isHttps = url.protocol === 'https:'
-    const httpModule = isHttps ? https : http
+    try {
+      const response = await fetch(`${baseUrl}/v1/codea/me`, {
+        method: 'GET',
+        headers: { Authorization: `Bearer ${apiKey}` }
+      })
 
-    return new Promise((resolve) => {
-      const req = httpModule.request(
-        {
-          hostname: url.hostname,
-          port: url.port || (isHttps ? 443 : 80),
-          path: url.pathname,
-          method: 'GET',
-          headers: { Authorization: `Bearer ${apiKey}` }
-        },
-        (res: any) => {
-          if (res.statusCode !== 200) {
-            resolve(null)
-            return
-          }
+      if (!response.ok) return null
 
-          let data = ''
-          res.on('data', (chunk: any) => (data += chunk))
-          res.on('end', () => {
-            try {
-              resolve(JSON.parse(data))
-            } catch {
-              resolve(null)
-            }
-          })
-        }
-      )
-
-      req.on('error', () => resolve(null))
-      req.end()
-    })
+      return await response.json()
+    } catch {
+      return null
+    }
   }
 
   async getModels(): Promise<any[]> {
     const baseUrl = store.get('apiBaseUrl') as string
-    const url = new URL(`${baseUrl}/v1/models?category=coding`)
-    const isHttps = url.protocol === 'https:'
-    const httpModule = isHttps ? https : http
 
-    return new Promise((resolve) => {
-      const req = httpModule.request(
-        {
-          hostname: url.hostname,
-          port: url.port || (isHttps ? 443 : 80),
-          path: `${url.pathname}${url.search}`,
-          method: 'GET'
-        },
-        (res: any) => {
-          if (res.statusCode !== 200) {
-            resolve([])
-            return
-          }
+    try {
+      const response = await fetch(`${baseUrl}/v1/models?category=coding`)
 
-          let data = ''
-          res.on('data', (chunk: any) => (data += chunk))
-          res.on('end', () => {
-            try {
-              const parsed = JSON.parse(data)
-              resolve(parsed.data || [])
-            } catch {
-              resolve([])
-            }
-          })
-        }
-      )
+      if (!response.ok) return []
 
-      req.on('error', () => resolve([]))
-      req.end()
-    })
+      const data = await response.json()
+      return data.data || []
+    } catch {
+      return []
+    }
   }
 }
