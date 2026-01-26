@@ -1,9 +1,8 @@
 import { BrowserWindow } from 'electron'
-import { CoreMessage } from 'ai'
+import { streamText } from 'ai'
 import { ToolExecutor, createAISDKTools } from './tools'
+import { resolveModel, reportUsage } from './model-resolver'
 import Store from 'electron-store'
-import * as https from 'https'
-import * as http from 'http'
 
 const store = new Store({
   defaults: {
@@ -17,7 +16,7 @@ const store = new Store({
 export class ChatProvider {
   private window: BrowserWindow
   private toolExecutor: ToolExecutor
-  private messages: CoreMessage[] = []
+  private messages: Array<{ role: 'user' | 'assistant' | 'system'; content: string }> = []
   private isProcessing = false
   private currentMode = 'ask'
   private abortController?: AbortController
@@ -132,153 +131,154 @@ You are running on ${process.platform === 'darwin' ? 'macOS' : process.platform 
     modelId: string,
     systemMessage: string
   ): Promise<void> {
-    return new Promise((resolve, reject) => {
-      const url = new URL(`${baseUrl}/v1/chat/completions`)
-      const isHttps = url.protocol === 'https:'
-      const httpModule = isHttps ? https : http
+    const enableTools = store.get('enableTools') as boolean
 
-      // Prepare OpenAI-compatible request
-      const requestBody = {
-        model: modelId,
-        messages: [
-          { role: 'system', content: systemMessage },
-          ...this.messages
-        ],
-        stream: true,
-        temperature: 0.7
-      }
+    // Resolve model from API (gets provider key and model info)
+    console.log('[ChatProvider] Resolving model:', modelId)
+    const resolved = await resolveModel(baseUrl, apiKey, modelId)
+    console.log('[ChatProvider] Resolved to:', resolved.provider, resolved.modelId)
 
-      const postData = JSON.stringify(requestBody)
+    // Prepare messages
+    const messagesWithSystem: Array<{ role: 'user' | 'assistant' | 'system'; content: string }> = [
+      { role: 'system', content: systemMessage },
+      ...this.messages
+    ]
 
-      const req = httpModule.request(
-        {
-          hostname: url.hostname,
-          port: url.port || (isHttps ? 443 : 80),
-          path: url.pathname,
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Content-Length': Buffer.byteLength(postData),
-            'Authorization': `Bearer ${apiKey}`,
-            'Accept': 'text/event-stream'
-          }
+    // Create abort controller for cancellation
+    this.abortController = new AbortController()
+
+    // Create AI SDK tools
+    const tools = enableTools ? createAISDKTools(this.toolExecutor) : undefined
+
+    try {
+      // Stream with AI SDK - Enhanced with retry logic and error handling
+      const result = streamText({
+        model: resolved.model,
+        messages: messagesWithSystem,
+        tools,
+        abortSignal: this.abortController.signal,
+
+        // Enhanced call options
+        maxRetries: 3,
+        temperature: 0.7,
+        maxOutputTokens: 4096,
+        topP: 0.95,
+
+        // Error handling
+        onError: (event) => {
+          console.error('[ChatProvider] Stream error:', event.error)
+          const error = event.error instanceof Error ? event.error : new Error(String(event.error))
+          this.send('chat:error', {
+            message: this.formatErrorMessage(error),
+            recoverable: error.name !== 'AbortError'
+          })
         },
-        (res) => {
-          if (res.statusCode !== 200) {
-            let errorData = ''
-            res.on('data', (chunk) => (errorData += chunk))
-            res.on('end', () => {
-              try {
-                const error = JSON.parse(errorData)
-                reject(new Error(error.error || `HTTP ${res.statusCode}`))
-              } catch {
-                reject(new Error(`HTTP ${res.statusCode}`))
-              }
-            })
-            return
+
+        // Finish handler
+        onFinish: async (event) => {
+          // Check finish reason
+          if (event.finishReason === 'error') {
+            this.send('chat:warning', { message: 'Response may be incomplete due to an error' })
+          } else if (event.finishReason === 'length') {
+            this.send('chat:warning', { message: 'Response truncated due to length limit' })
           }
 
-          let buffer = ''
-          let assistantMessage = ''
+          console.log('[ChatProvider] Final usage:', event.usage)
 
-          res.on('data', (chunk: Buffer) => {
-            buffer += chunk.toString()
-            const lines = buffer.split('\n')
-            buffer = lines.pop() || '' // Keep incomplete line in buffer
-
-            for (const line of lines) {
-              if (!line.trim() || line.trim() === 'data: [DONE]') continue
-              if (!line.startsWith('data: ')) continue
-
-              try {
-                const json = JSON.parse(line.slice(6))
-                const choice = json.choices?.[0]
-                if (!choice) continue
-
-                const delta = choice.delta
-
-                // Handle reasoning chunks
-                if (delta.reasoning) {
-                  this.send('chat:thinking', { content: delta.reasoning })
-                  console.log('[ChatProvider] Reasoning:', delta.reasoning.slice(0, 100))
-                }
-
-                // Handle content chunks
-                if (delta.content) {
-                  assistantMessage += delta.content
-                  this.send('chat:stream', { content: delta.content })
-                }
-
-                // Handle tool calls
-                if (delta.tool_calls) {
-                  for (const toolCall of delta.tool_calls) {
-                    if (toolCall.function) {
-                      const toolName = toolCall.function.name
-                      const args = JSON.parse(toolCall.function.arguments || '{}')
-
-                      this.send('chat:tool', {
-                        tool: toolName,
-                        args,
-                        status: 'running'
-                      })
-
-                      // Execute tool
-                      this.toolExecutor.execute(toolName, args).then(result => {
-                        this.send('chat:toolResult', {
-                          tool: toolName,
-                          success: result.success,
-                          result: result.result
-                        })
-
-                        // Handle set_mode specially
-                        if (toolName === 'set_mode' && result.success) {
-                          this.currentMode = args.mode
-                          this.send('chat:modeChanged', { mode: args.mode })
-                        }
-                      })
-                    }
-                  }
-                }
-
-                // Handle finish
-                if (choice.finish_reason) {
-                  console.log('[ChatProvider] Finished:', choice.finish_reason)
-                }
-
-                // Handle usage metadata
-                if (json.usage) {
-                  console.log('[ChatProvider] Usage:', json.usage)
-                }
-              } catch (err) {
-                console.error('[ChatProvider] Parse error:', err)
-              }
-            }
-          })
-
-          res.on('end', () => {
-            // Add assistant message to history
-            if (assistantMessage) {
-              this.messages.push({ role: 'assistant', content: assistantMessage })
-            }
-            this.send('chat:end', {})
-            resolve()
-          })
-
-          res.on('error', (err) => {
-            console.error('[ChatProvider] Response error:', err)
-            reject(err)
-          })
+          // Report usage back to API for credit tracking
+          if (event.usage && event.usage.totalTokens) {
+            await reportUsage(baseUrl, apiKey, resolved.sessionId, {
+              promptTokens: event.usage.promptTokens || 0,
+              completionTokens: event.usage.completionTokens || 0,
+              totalTokens: event.usage.totalTokens || 0
+            }).catch(error => {
+              console.error('[ChatProvider] Failed to report usage:', error)
+            })
+          }
         }
-      )
-
-      req.on('error', (err) => {
-        console.error('[ChatProvider] Request error:', err)
-        reject(err)
       })
 
-      req.write(postData)
-      req.end()
-    })
+      let assistantMessage = ''
+      let toolCallCount = 0
+      const MAX_TOOL_ITERATIONS = 10
+
+      // Stream the response
+      for await (const chunk of result.fullStream) {
+        if (!this.isProcessing) break
+
+        if (chunk.type === 'text-delta' && 'text' in chunk && chunk.text) {
+          // Extract thinking tags for chain of thought visualization
+          const thinkingMatch = chunk.text.match(/<thinking>([\s\S]*?)<\/thinking>/g)
+          if (thinkingMatch) {
+            thinkingMatch.forEach((match: string) => {
+              const content = match.replace(/<\/?thinking>/g, '').trim()
+              if (content) {
+                this.send('chat:thinking', { content })
+              }
+            })
+          }
+
+          // Filter out thinking tags from the main message
+          const filtered = chunk.text.replace(/<thinking>[\s\S]*?<\/thinking>/g, '')
+          if (filtered.trim()) {
+            assistantMessage += filtered
+            this.send('chat:stream', { content: filtered })
+          }
+        } else if (chunk.type === 'tool-call') {
+          toolCallCount++
+          console.log('[ChatProvider] Tool call:', chunk.toolName, 'input' in chunk ? chunk.input : {})
+
+          // Warn if approaching limit
+          if (toolCallCount >= MAX_TOOL_ITERATIONS - 2) {
+            this.send('chat:warning', {
+              message: 'Approaching tool call limit, wrapping up...'
+            })
+          }
+
+          // Handle set_mode specially
+          if (chunk.toolName === 'set_mode' && 'input' in chunk) {
+            const newMode = (chunk.input as any).mode
+            if (['ask', 'edit', 'plan', 'yolo'].includes(newMode)) {
+              this.currentMode = newMode
+              this.send('chat:modeChanged', { mode: newMode })
+            }
+          }
+
+          this.send('chat:tool', {
+            tool: chunk.toolName,
+            args: 'input' in chunk ? chunk.input : {},
+            status: 'running'
+          })
+        } else if (chunk.type === 'tool-result') {
+          const outputStr = 'output' in chunk && typeof chunk.output === 'string' ? chunk.output : JSON.stringify('output' in chunk ? chunk.output : '')
+          console.log('[ChatProvider] Tool result:', chunk.toolName, 'success:', !outputStr.includes('Error:'))
+
+          const success = outputStr && !outputStr.includes('Error:')
+          this.send('chat:toolResult', {
+            tool: chunk.toolName,
+            success,
+            result: outputStr.slice(0, 500)
+          })
+        } else if (chunk.type === 'finish') {
+          console.log('[ChatProvider] Stream finished:', 'finishReason' in chunk ? chunk.finishReason : 'unknown')
+        }
+      }
+
+      // Add assistant message to history
+      const finalText = await result.text
+      this.messages.push({ role: 'assistant', content: finalText })
+
+      this.send('chat:end', {})
+    } catch (error: any) {
+      if (error.name === 'AbortError') {
+        console.log('[ChatProvider] Stream aborted by user')
+        this.send('chat:end', {})
+      } else {
+        throw error
+      }
+    } finally {
+      this.abortController = undefined
+    }
   }
 
   stop(): void {
