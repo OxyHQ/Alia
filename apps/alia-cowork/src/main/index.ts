@@ -177,6 +177,129 @@ async function requestScreenRecordingPermission(): Promise<void> {
   }
 }
 
+// Helper functions for file processing
+function isImageFile(filePath: string): boolean {
+  const imageExtensions = ['.png', '.jpg', '.jpeg', '.gif', '.webp', '.bmp']
+  return imageExtensions.includes(extname(filePath).toLowerCase())
+}
+
+function getLanguageFromExtension(filePath: string): string {
+  const ext = extname(filePath).toLowerCase()
+  const languageMap: Record<string, string> = {
+    '.js': 'javascript',
+    '.ts': 'typescript',
+    '.jsx': 'jsx',
+    '.tsx': 'tsx',
+    '.py': 'python',
+    '.java': 'java',
+    '.cpp': 'cpp',
+    '.c': 'c',
+    '.h': 'c',
+    '.cs': 'csharp',
+    '.go': 'go',
+    '.rs': 'rust',
+    '.rb': 'ruby',
+    '.php': 'php',
+    '.html': 'html',
+    '.css': 'css',
+    '.json': 'json',
+    '.xml': 'xml',
+    '.yaml': 'yaml',
+    '.yml': 'yaml',
+    '.md': 'markdown',
+    '.txt': 'text'
+  }
+  return languageMap[ext] || 'text'
+}
+
+function getAllFilesInDirectory(dirPath: string, maxFiles = 50): string[] {
+  const files: string[] = []
+
+  function traverse(currentPath: string) {
+    if (files.length >= maxFiles) return
+
+    try {
+      const entries = readdirSync(currentPath, { withFileTypes: true })
+
+      for (const entry of entries) {
+        if (files.length >= maxFiles) break
+
+        // Skip hidden files and common directories to ignore
+        if (entry.name.startsWith('.') ||
+            entry.name === 'node_modules' ||
+            entry.name === '__pycache__' ||
+            entry.name === 'dist' ||
+            entry.name === 'build') {
+          continue
+        }
+
+        const fullPath = join(currentPath, entry.name)
+
+        if (entry.isDirectory()) {
+          traverse(fullPath)
+        } else {
+          files.push(fullPath)
+        }
+      }
+    } catch (error) {
+      // Skip directories we can't read
+      console.error(`Error reading directory ${currentPath}:`, error)
+    }
+  }
+
+  traverse(dirPath)
+  return files
+}
+
+function processFiles(filePaths: string[], basePath?: string): any[] {
+  const maxFileSize = 1024 * 1024 // 1MB max per file
+  const results: any[] = []
+
+  for (const filePath of filePaths) {
+    try {
+      const stats = statSync(filePath)
+
+      // Skip files that are too large
+      if (stats.size > maxFileSize) {
+        console.log(`Skipping ${filePath} - file too large (${stats.size} bytes)`)
+        continue
+      }
+
+      const displayPath = basePath ? relative(basePath, filePath) : basename(filePath)
+
+      if (isImageFile(filePath)) {
+        // Read image as base64
+        const imageBuffer = readFileSync(filePath)
+        const base64 = imageBuffer.toString('base64')
+        const mimeType = `image/${extname(filePath).slice(1).toLowerCase()}`
+
+        results.push({
+          path: displayPath,
+          content: `data:${mimeType};base64,${base64}`,
+          language: 'image'
+        })
+      } else {
+        // Read as text
+        try {
+          const content = readFileSync(filePath, 'utf-8')
+          results.push({
+            path: displayPath,
+            content: content,
+            language: getLanguageFromExtension(filePath)
+          })
+        } catch (error) {
+          console.error(`Error reading file ${filePath}:`, error)
+          // Skip binary files that can't be read as text
+        }
+      }
+    } catch (error) {
+      console.error(`Error processing file ${filePath}:`, error)
+    }
+  }
+
+  return results
+}
+
 function setupIPC(): void {
   // Window controls
   ipcMain.handle('window:minimize', () => mainWindow?.minimize())
@@ -235,6 +358,43 @@ function setupIPC(): void {
   ipcMain.handle('user:get', () => chatProvider.getUserInfo())
 
   ipcMain.handle('models:get', () => chatProvider.getModels())
+
+  // File selection
+  ipcMain.handle('file:select', async () => {
+    if (!mainWindow) return null
+
+    const result = await dialog.showOpenDialog(mainWindow, {
+      properties: ['openFile', 'multiSelections'],
+      filters: [
+        { name: 'All Files', extensions: ['*'] },
+        { name: 'Images', extensions: ['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp'] },
+        { name: 'Code', extensions: ['js', 'ts', 'jsx', 'tsx', 'py', 'java', 'cpp', 'c', 'h', 'cs', 'go', 'rs', 'rb', 'php'] },
+        { name: 'Documents', extensions: ['txt', 'md', 'json', 'xml', 'yaml', 'yml', 'csv'] }
+      ]
+    })
+
+    if (result.canceled || result.filePaths.length === 0) {
+      return null
+    }
+
+    return processFiles(result.filePaths)
+  })
+
+  ipcMain.handle('folder:select', async () => {
+    if (!mainWindow) return null
+
+    const result = await dialog.showOpenDialog(mainWindow, {
+      properties: ['openDirectory']
+    })
+
+    if (result.canceled || result.filePaths.length === 0) {
+      return null
+    }
+
+    const folderPath = result.filePaths[0]
+    const files = getAllFilesInDirectory(folderPath)
+    return processFiles(files, folderPath)
+  })
 
   // Screen capture
   ipcMain.handle('screen:capture', async () => {
