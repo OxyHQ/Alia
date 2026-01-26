@@ -67,7 +67,8 @@ export class ChatProvider {
 
     // Add system message if this is the first message
     if (this.messages.length === 1) {
-      this.messages.unshift({ role: 'system', content: this.buildSystemMessage() })
+      const systemMessage = await this.buildSystemMessage()
+      this.messages.unshift({ role: 'system', content: systemMessage })
     }
 
     this.send('chat:start', {})
