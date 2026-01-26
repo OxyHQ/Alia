@@ -1,14 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, ActivityIndicator, TouchableOpacity } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
+import Head from 'expo-router/head';
 import { AuthContainer, AuthLogo } from '@/components/auth';
-import { useOxy } from '@oxyhq/services';
+import { useAuth } from '@oxyhq/services';
 import apiClient from '@/lib/api/client';
 
 export default function AuthorizeCodeaScreen() {
   const router = useRouter();
   const { callback } = useLocalSearchParams();
-  const { isAuthenticated, isLoading: authLoading } = useOxy();
+  const { isAuthenticated, isLoading: authLoading } = useAuth();
   const [status, setStatus] = useState<'loading' | 'authorize' | 'authorizing' | 'success' | 'error'>('loading');
   const [message, setMessage] = useState('');
 
@@ -62,9 +63,13 @@ export default function AuthorizeCodeaScreen() {
 
   const handleCancel = () => {
     if (callback && typeof callback === 'string') {
-      const callbackUrl = new URL(callback);
-      callbackUrl.searchParams.set('error', 'user_cancelled');
-      window.location.href = callbackUrl.toString();
+      try {
+        const callbackUrl = new URL(callback);
+        callbackUrl.searchParams.set('error', 'user_cancelled');
+        window.location.href = callbackUrl.toString();
+      } catch {
+        router.back();
+      }
     } else {
       router.back();
     }
@@ -74,47 +79,48 @@ export default function AuthorizeCodeaScreen() {
     return (
       <AuthContainer>
         <AuthLogo />
-        <View className="items-center space-y-4">
+        <View className="items-center py-8">
           <ActivityIndicator size="large" color="#667eea" />
-          <Text className="text-lg text-muted-foreground">Loading...</Text>
+          <Text className="text-muted-foreground mt-4">Loading...</Text>
         </View>
       </AuthContainer>
     );
   }
 
   return (
-    <AuthContainer>
-      <AuthLogo />
+    <>
+      <Head>
+        <title>Authorize Alia Cowork</title>
+        <meta name="description" content="Authorize Alia Cowork to access your account" />
+        <meta name="robots" content="noindex, nofollow" />
+      </Head>
+      <AuthContainer>
+        <AuthLogo />
 
-      <View className="space-y-6 items-center w-full max-w-sm">
         {status === 'authorize' && (
           <>
-            <View className="bg-card p-6 rounded-xl border border-border w-full">
-              <Text className="text-2xl font-bold text-foreground text-center mb-2">
+            <View className="space-y-2 mb-6">
+              <Text className="text-2xl font-bold text-foreground tracking-tight text-center">
                 Authorize Alia Cowork
               </Text>
-              <Text className="text-base text-muted-foreground text-center mb-6">
+              <Text className="text-base text-muted-foreground text-center">
                 Alia Cowork wants to access your account
               </Text>
+            </View>
 
-              <View className="space-y-3 mb-6">
-                <View className="flex-row items-center space-x-3">
-                  <Text className="text-lg">✓</Text>
-                  <Text className="text-foreground">Send messages to AI models</Text>
-                </View>
-                <View className="flex-row items-center space-x-3">
-                  <Text className="text-lg">✓</Text>
-                  <Text className="text-foreground">Use your credits for API calls</Text>
-                </View>
-                <View className="flex-row items-center space-x-3">
-                  <Text className="text-lg">✓</Text>
-                  <Text className="text-foreground">Access available models</Text>
-                </View>
+            <View className="bg-card p-4 rounded-lg border border-border mb-6">
+              <Text className="text-sm text-muted-foreground mb-3">This will allow Alia Cowork to:</Text>
+              <View className="space-y-2">
+                <Text className="text-foreground">• Send messages to AI models</Text>
+                <Text className="text-foreground">• Use your credits for API calls</Text>
+                <Text className="text-foreground">• Access available models</Text>
               </View>
+            </View>
 
+            <View className="gap-3">
               <TouchableOpacity
                 onPress={handleAuthorize}
-                className="bg-primary py-3 px-6 rounded-lg mb-3"
+                className="bg-primary py-3 px-6 rounded-lg"
               >
                 <Text className="text-primary-foreground text-center font-semibold text-lg">
                   Authorize
@@ -134,53 +140,49 @@ export default function AuthorizeCodeaScreen() {
         )}
 
         {status === 'authorizing' && (
-          <>
+          <View className="items-center py-8">
             <ActivityIndicator size="large" color="#667eea" />
-            <Text className="text-xl font-semibold text-foreground">
+            <Text className="text-xl font-semibold text-foreground mt-4">
               Authorizing...
             </Text>
-            <Text className="text-base text-muted-foreground text-center">
+            <Text className="text-muted-foreground text-center mt-2">
               Please wait while we set up your access
             </Text>
-          </>
+          </View>
         )}
 
         {status === 'success' && (
-          <>
-            <View className="bg-green-100 dark:bg-green-900 p-4 rounded-lg">
-              <Text className="text-4xl text-center mb-2">✅</Text>
-              <Text className="text-lg font-semibold text-green-900 dark:text-green-100 text-center">
-                Authorized!
-              </Text>
-            </View>
-            <Text className="text-base text-muted-foreground text-center">
+          <View className="items-center py-8">
+            <Text className="text-4xl mb-4">✅</Text>
+            <Text className="text-xl font-semibold text-foreground">
+              Authorized!
+            </Text>
+            <Text className="text-muted-foreground text-center mt-2">
               {message}
             </Text>
-          </>
+          </View>
         )}
 
         {status === 'error' && (
-          <>
-            <View className="bg-red-100 dark:bg-red-900 p-4 rounded-lg">
-              <Text className="text-4xl text-center mb-2">❌</Text>
-              <Text className="text-lg font-semibold text-red-900 dark:text-red-100 text-center">
-                Authorization Failed
-              </Text>
-            </View>
-            <Text className="text-base text-foreground text-center font-medium">
+          <View className="items-center py-8">
+            <Text className="text-4xl mb-4">❌</Text>
+            <Text className="text-xl font-semibold text-foreground">
+              Authorization Failed
+            </Text>
+            <Text className="text-muted-foreground text-center mt-2">
               {message}
             </Text>
             <TouchableOpacity
               onPress={() => setStatus('authorize')}
-              className="mt-4 bg-primary px-6 py-3 rounded-lg"
+              className="mt-6 bg-primary px-6 py-3 rounded-lg"
             >
               <Text className="text-primary-foreground text-center font-semibold">
                 Try Again
               </Text>
             </TouchableOpacity>
-          </>
+          </View>
         )}
-      </View>
-    </AuthContainer>
+      </AuthContainer>
+    </>
   );
 }
