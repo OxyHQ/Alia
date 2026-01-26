@@ -553,10 +553,16 @@ export class ChatProvider {
         console.log('[ChatProvider] Stream aborted by user')
         this.send('chat:end', {})
       } else {
-        console.error('[ChatProvider] Stream error:', error)
+        console.error('[ChatProvider] ===== STREAM ERROR =====')
+        console.error('[ChatProvider] Error name:', error.name)
+        console.error('[ChatProvider] Error message:', error.message)
+        console.error('[ChatProvider] Error stack:', error.stack)
+        console.error('[ChatProvider] Full error:', JSON.stringify(error, null, 2))
         this.send('chat:error', { message: this.formatErrorMessage(error) })
       }
     } finally {
+      console.log('[ChatProvider] ===== SESSION END =====')
+      console.log('[ChatProvider] Final message count:', this.messages.length)
       this.isProcessing = false
       this.abortController = undefined
     }
