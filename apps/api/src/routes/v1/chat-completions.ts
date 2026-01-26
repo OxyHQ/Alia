@@ -406,6 +406,20 @@ router.post('/', async (req: Request, res: Response) => {
         res.write(`data: ${JSON.stringify(toolCallChunk)}\n\n`);
       } else if (chunk.type === 'tool-result') {
         console.log('[V1/Chat] Tool result:', chunk.toolName, chunk.output);
+      } else if (chunk.type === 'start') {
+        console.log('[V1/Chat] Stream started');
+      } else if (chunk.type === 'start-step') {
+        console.log('[V1/Chat] Step started');
+      } else if (chunk.type === 'text-start') {
+        console.log('[V1/Chat] Text generation started');
+      } else if (chunk.type === 'text-end') {
+        console.log('[V1/Chat] Text generation ended');
+      } else if (chunk.type === 'finish-step') {
+        console.log('[V1/Chat] Step finished');
+        // Log usage from finish-step if available
+        if ((chunk as any).usage) {
+          console.log('[V1/Chat] Step usage:', (chunk as any).usage);
+        }
       } else if (chunk.type === 'finish') {
         console.log('[V1/Chat] Finish chunk received');
         const finishChunk = {
