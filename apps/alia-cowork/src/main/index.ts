@@ -1,6 +1,6 @@
 import { app, shell, BrowserWindow, ipcMain, screen, desktopCapturer, dialog, systemPreferences } from 'electron'
 import { join, extname, basename, relative } from 'path'
-import { readFileSync, statSync, readdirSync } from 'fs'
+import { readFileSync, statSync } from 'fs'
 import { config } from 'dotenv'
 import { ToolExecutor } from './tools'
 import { ChatProvider } from './chat'
@@ -210,45 +210,6 @@ function getLanguageFromExtension(filePath: string): string {
     '.txt': 'text'
   }
   return languageMap[ext] || 'text'
-}
-
-function getAllFilesInDirectory(dirPath: string, maxFiles = 50): string[] {
-  const files: string[] = []
-
-  function traverse(currentPath: string) {
-    if (files.length >= maxFiles) return
-
-    try {
-      const entries = readdirSync(currentPath, { withFileTypes: true })
-
-      for (const entry of entries) {
-        if (files.length >= maxFiles) break
-
-        // Skip hidden files and common directories to ignore
-        if (entry.name.startsWith('.') ||
-            entry.name === 'node_modules' ||
-            entry.name === '__pycache__' ||
-            entry.name === 'dist' ||
-            entry.name === 'build') {
-          continue
-        }
-
-        const fullPath = join(currentPath, entry.name)
-
-        if (entry.isDirectory()) {
-          traverse(fullPath)
-        } else {
-          files.push(fullPath)
-        }
-      }
-    } catch (error) {
-      // Skip directories we can't read
-      console.error(`Error reading directory ${currentPath}:`, error)
-    }
-  }
-
-  traverse(dirPath)
-  return files
 }
 
 function processFiles(filePaths: string[], basePath?: string): any[] {
