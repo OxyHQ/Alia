@@ -292,7 +292,7 @@ export function Chat() {
   const greeting = React.useMemo(() => greetings[Math.floor(Math.random() * greetings.length)], [])
 
   return (
-    <div className="flex h-full flex-col">
+    <div className="flex flex-1 flex-col">
       {/* Messages */}
       <ScrollArea className="flex-1">
         {messages.length === 0 && !isGenerating ? (
