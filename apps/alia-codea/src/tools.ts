@@ -462,6 +462,38 @@ export class ToolExecutor {
     });
   }
 
+  private async openFile(args: { path: string; line?: number }): Promise<{ success: boolean; result: string }> {
+    try {
+      const fileUri = this.resolveUri(args.path);
+
+      // Check if file exists
+      try {
+        await vscode.workspace.fs.stat(fileUri);
+      } catch (error) {
+        if (error instanceof vscode.FileSystemError && error.code === 'FileNotFound') {
+          return { success: false, result: `File not found: ${args.path}` };
+        }
+        throw error;
+      }
+
+      // Open the file in the editor
+      const doc = await vscode.workspace.openTextDocument(fileUri);
+      const editor = await vscode.window.showTextDocument(doc, { preview: false });
+
+      // If line number specified, scroll to it
+      if (args.line && args.line > 0) {
+        const lineIndex = args.line - 1;
+        const position = new vscode.Position(lineIndex, 0);
+        editor.selection = new vscode.Selection(position, position);
+        editor.revealRange(new vscode.Range(position, position), vscode.TextEditorRevealType.InCenter);
+      }
+
+      return { success: true, result: `Opened ${args.path}${args.line ? ` at line ${args.line}` : ''}` };
+    } catch (error: any) {
+      return { success: false, result: `Error opening file: ${error.message}` };
+    }
+  }
+
   // Get current context (open file, selection)
   async getContext(): Promise<{
     openFile?: { path: string; content: string; language: string };
