@@ -27,19 +27,21 @@ function AppContent() {
 
   return (
     <Layout currentView={currentView} onViewChange={setCurrentView}>
-      {currentView === "chat" && <Chat />}
-      {currentView === "files" && (
-        <div className="flex-1 flex items-center justify-center text-muted-foreground">
-          Files view coming soon
-        </div>
-      )}
-      {currentView === "commands" && (
-        <div className="flex-1 flex items-center justify-center text-muted-foreground">
-          Commands view coming soon
-        </div>
-      )}
-      {currentView === "console" && <Console />}
-      {currentView === "settings" && <Settings />}
+      <div className={currentView === "chat" ? "flex-1 flex flex-col" : "hidden"}>
+        <Chat />
+      </div>
+      <div className={currentView === "files" ? "flex-1 flex items-center justify-center text-muted-foreground" : "hidden"}>
+        Files view coming soon
+      </div>
+      <div className={currentView === "commands" ? "flex-1 flex items-center justify-center text-muted-foreground" : "hidden"}>
+        Commands view coming soon
+      </div>
+      <div className={currentView === "console" ? "flex-1 flex flex-col" : "hidden"}>
+        <Console />
+      </div>
+      <div className={currentView === "settings" ? "flex-1 flex flex-col" : "hidden"}>
+        <Settings />
+      </div>
     </Layout>
   )
 }
