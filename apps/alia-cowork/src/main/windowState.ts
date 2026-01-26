@@ -22,8 +22,8 @@ const store = new Store<{ bounds: WindowBounds }>({
     bounds: {
       x: 0,
       y: 0,
-      width: DEFAULT_WIDTH,
-      height: DEFAULT_HEIGHT,
+      width: INITIAL_WIDTH,
+      height: INITIAL_HEIGHT,
       isMaximized: false
     }
   }
