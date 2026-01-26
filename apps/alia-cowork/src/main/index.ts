@@ -212,6 +212,19 @@ function setupIPC(): void {
   ipcMain.handle('auth:getState', () => {
     return authProvider.getAuthState()
   })
+
+  // Help
+  ipcMain.handle('help:about', async () => {
+    if (!mainWindow) return
+
+    await dialog.showMessageBox(mainWindow, {
+      type: 'info',
+      title: 'About Alia Cowork',
+      message: 'Alia Cowork',
+      detail: 'Version 1.0.0\n\nAI-powered desktop assistant for Windows and macOS.\n\n© 2025 Alia. All rights reserved.',
+      buttons: ['OK']
+    })
+  })
 }
 
 // App lifecycle
