@@ -43,6 +43,12 @@ declare global {
       // Help
       showAbout: () => Promise<void>
     }
+
+    electron: {
+      // IPC event listeners
+      on: (channel: string, callback: (...args: unknown[]) => void) => void
+      off: (channel: string, callback: (...args: unknown[]) => void) => void
+    }
   }
 }
 
