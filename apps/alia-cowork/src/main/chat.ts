@@ -318,7 +318,7 @@ export class ChatProvider {
         // Handle tool calls
         if (delta.tool_calls) {
           for (const toolCall of delta.tool_calls) {
-            const index = toolCall.index
+            const index = toolCall.index ?? toolCalls.length
             if (!toolCalls[index]) {
               toolCalls[index] = {
                 id: toolCall.id || '',
@@ -516,7 +516,7 @@ export class ChatProvider {
         // Handle tool calls
         if (delta.tool_calls) {
           for (const toolCall of delta.tool_calls) {
-            const index = toolCall.index
+            const index = toolCall.index ?? toolCalls.length
             if (!toolCalls[index]) {
               toolCalls[index] = {
                 id: toolCall.id || '',
