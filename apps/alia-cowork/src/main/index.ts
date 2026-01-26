@@ -1,4 +1,4 @@
-import { app, shell, BrowserWindow, ipcMain, screen, desktopCapturer, dialog } from 'electron'
+import { app, shell, BrowserWindow, ipcMain, screen, desktopCapturer, dialog, systemPreferences } from 'electron'
 import { join } from 'path'
 import { config } from 'dotenv'
 import { ToolExecutor } from './tools'
@@ -63,6 +63,10 @@ function createWindow(): void {
     // Start tracking window state
     if (mainWindow) {
       windowStateManager.track(mainWindow)
+    }
+    // Check screen recording permission on macOS (async, non-blocking)
+    if (process.platform === 'darwin') {
+      checkScreenRecordingPermission().catch(console.error)
     }
   })
 
@@ -132,6 +136,46 @@ function toggleFullScreen(): boolean {
   return isFullScreen
 }
 
+async function checkScreenRecordingPermission(): Promise<boolean> {
+  // Only check on macOS
+  if (process.platform !== 'darwin') {
+    return true
+  }
+
+  try {
+    // Try to get screen sources to trigger permission prompt
+    const sources = await desktopCapturer.getSources({
+      types: ['screen'],
+      thumbnailSize: { width: 1, height: 1 }
+    })
+    return sources.length > 0
+  } catch (error) {
+    console.error('Screen recording permission check failed:', error)
+    return false
+  }
+}
+
+async function requestScreenRecordingPermission(): Promise<void> {
+  if (process.platform !== 'darwin') return
+
+  const hasPermission = await checkScreenRecordingPermission()
+
+  if (!hasPermission && mainWindow) {
+    const result = await dialog.showMessageBox(mainWindow, {
+      type: 'warning',
+      title: 'Screen Recording Permission Required',
+      message: 'Alia Cowork needs screen recording permission to capture screenshots.',
+      detail: 'Please enable Screen Recording for Alia Cowork in System Preferences → Security & Privacy → Screen Recording, then restart the app.',
+      buttons: ['Open System Preferences', 'Cancel']
+    })
+
+    if (result.response === 0) {
+      // Open System Preferences to Screen Recording settings
+      shell.openExternal('x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture')
+    }
+  }
+}
+
 function setupIPC(): void {
   // Window controls
   ipcMain.handle('window:minimize', () => mainWindow?.minimize())
@@ -193,11 +237,39 @@ function setupIPC(): void {
 
   // Screen capture
   ipcMain.handle('screen:capture', async () => {
-    const sources = await desktopCapturer.getSources({
-      types: ['screen'],
-      thumbnailSize: { width: 1920, height: 1080 }
-    })
-    return sources[0]?.thumbnail.toDataURL() ?? null
+    try {
+      // Check permission first on macOS
+      if (process.platform === 'darwin') {
+        const hasPermission = await checkScreenRecordingPermission()
+        if (!hasPermission) {
+          await requestScreenRecordingPermission()
+          throw new Error('Screen recording permission denied. Please enable it in System Preferences.')
+        }
+      }
+
+      const sources = await desktopCapturer.getSources({
+        types: ['screen'],
+        thumbnailSize: { width: 1920, height: 1080 }
+      })
+
+      if (sources.length === 0) {
+        throw new Error('No screen found')
+      }
+
+      return sources[0].thumbnail.toDataURL()
+    } catch (error: any) {
+      console.error('Screen capture failed:', error)
+      throw error
+    }
+  })
+
+  // Permission check handler
+  ipcMain.handle('permissions:check-screen-recording', async () => {
+    return await checkScreenRecordingPermission()
+  })
+
+  ipcMain.handle('permissions:request-screen-recording', async () => {
+    await requestScreenRecordingPermission()
   })
 
   // Tool execution

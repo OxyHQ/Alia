@@ -182,15 +182,51 @@ export class ToolExecutor {
     return JSON.stringify(info, null, 2)
   }
 
-  async screenshot(): Promise<string> {
-    const sources = await desktopCapturer.getSources({
-      types: ['screen'],
-      thumbnailSize: { width: 1920, height: 1080 }
-    })
+  async screenshot(args?: { path?: string }): Promise<string> {
+    try {
+      const sources = await desktopCapturer.getSources({
+        types: ['screen'],
+        thumbnailSize: { width: 1920, height: 1080 }
+      })
 
-    if (sources.length > 0) {
-      return sources[0].thumbnail.toDataURL()
+      if (sources.length === 0) {
+        throw new Error('No screen found. Please check screen recording permissions.')
+      }
+
+      const dataURL = sources[0].thumbnail.toDataURL()
+
+      // If path is provided, save to file
+      if (args?.path) {
+        const filePath = this.resolvePath(args.path)
+        const dir = path.dirname(filePath)
+
+        // Create directory if it doesn't exist
+        if (!fs.existsSync(dir)) {
+          fs.mkdirSync(dir, { recursive: true })
+        }
+
+        // Extract base64 data from data URL
+        const base64Data = dataURL.replace(/^data:image\/\w+;base64,/, '')
+        const buffer = Buffer.from(base64Data, 'base64')
+
+        // Save to file
+        fs.writeFileSync(filePath, buffer)
+        return `Screenshot saved to ${args.path}`
+      }
+
+      // Return data URL if no path specified
+      return dataURL
+    } catch (error: any) {
+      if (error.message?.includes('not allowed') || error.message?.includes('permission')) {
+        if (process.platform === 'darwin') {
+          throw new Error('Screen recording permission denied. Please enable screen recording for Alia Cowork in System Preferences → Security & Privacy → Screen Recording, then restart the app.')
+        } else if (process.platform === 'win32') {
+          throw new Error('Screen recording permission denied. Please check Windows privacy settings for screen capture permissions.')
+        } else {
+          throw new Error('Screen recording permission denied. Please check your system permissions.')
+        }
+      }
+      throw error
     }
-    throw new Error('No screen found')
   }
 }
