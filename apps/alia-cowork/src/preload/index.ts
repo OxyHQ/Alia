@@ -25,6 +25,10 @@ const api = {
   // Screen
   captureScreen: () => ipcRenderer.invoke('screen:capture'),
 
+  // File selection
+  selectFiles: () => ipcRenderer.invoke('file:select'),
+  selectFolder: () => ipcRenderer.invoke('folder:select'),
+
   // Authentication
   signIn: () => ipcRenderer.invoke('auth:signIn'),
   signOut: () => ipcRenderer.invoke('auth:signOut'),

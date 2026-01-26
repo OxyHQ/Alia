@@ -34,6 +34,11 @@ import {
   NoteIcon,
   AlertCircleIcon,
   StopIcon,
+  Attachment02Icon,
+  Cancel01Icon,
+  FileAttachmentIcon,
+  Folder02Icon,
+  Image01Icon,
 } from "@hugeicons/core-free-icons"
 import {
   ChainOfThought,
@@ -158,6 +163,7 @@ export function Chat() {
   const [toolExecutions, setToolExecutions] = React.useState<ToolExecution[]>([])
   const [thinkingSteps, setThinkingSteps] = React.useState<string[]>([])
   const [models, setModels] = React.useState<Model[]>(defaultModels)
+  const [attachedFiles, setAttachedFiles] = React.useState<ContextItem[]>([])
   const bottomRef = React.useRef<HTMLDivElement>(null)
   const textareaRef = React.useRef<HTMLTextAreaElement>(null)
   const streamingContentRef = React.useRef("")
@@ -264,9 +270,29 @@ export function Chat() {
 
   const sendMessage = () => {
     if (!input.trim() || isGenerating) return
-    setMessages((prev) => [...prev, { role: "user", content: input.trim() }])
-    window.api.sendMessage(input.trim(), currentMode, currentModel)
+    const context = attachedFiles.length > 0 ? attachedFiles : undefined
+    setMessages((prev) => [...prev, { role: "user", content: input.trim(), context }])
+    window.api.sendMessage(input.trim(), currentMode, currentModel, context)
     setInput("")
+    setAttachedFiles([]) // Clear attachments after sending
+  }
+
+  const handleAttachFile = async () => {
+    const result = await window.api.selectFiles()
+    if (result && result.length > 0) {
+      setAttachedFiles((prev) => [...prev, ...result])
+    }
+  }
+
+  const handleAttachFolder = async () => {
+    const result = await window.api.selectFolder()
+    if (result && result.length > 0) {
+      setAttachedFiles((prev) => [...prev, ...result])
+    }
+  }
+
+  const removeAttachment = (index: number) => {
+    setAttachedFiles((prev) => prev.filter((_, i) => i !== index))
   }
 
   const stopGeneration = () => {

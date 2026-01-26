@@ -1,5 +1,6 @@
 import { app, shell, BrowserWindow, ipcMain, screen, desktopCapturer, dialog, systemPreferences } from 'electron'
-import { join } from 'path'
+import { join, extname, basename, relative } from 'path'
+import { readFileSync, statSync, readdirSync } from 'fs'
 import { config } from 'dotenv'
 import { ToolExecutor } from './tools'
 import { ChatProvider } from './chat'
