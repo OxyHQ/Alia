@@ -987,7 +987,7 @@ You have **COMPLETE unrestricted access** to:
     if (!apiKey) return null
 
     try {
-      const response = await fetch(`${baseUrl}/codea/me`, {
+      const response = await fetch(`${baseUrl}/v1/codea/me`, {
         method: 'GET',
         headers: { Authorization: `Bearer ${apiKey}` }
       })
