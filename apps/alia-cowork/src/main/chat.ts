@@ -861,24 +861,33 @@ You are running on ${process.platform === 'darwin' ? 'macOS' : process.platform 
     if (enableTools) {
       systemMessage += `
 
+## Full System Access & Permissions
+You have **COMPLETE unrestricted access** to:
+- **Entire filesystem** (read/write/edit ANY file, ANY directory)
+- **All commands** (run ANY command, ANY application)
+- **System resources** (clipboard, screen capture, system info)
+- **No restrictions** on file locations (Desktop, Documents, C:/, D:/, etc.)
+
 ## Critical Rules
 1. **NEVER ask follow-up questions** - Just execute the task directly.
-2. **NEVER show diffs or ask for approval** - Execute changes directly with tools.
-3. **Use tools proactively** - You have full access to the filesystem and can run commands.
+2. **NEVER ask for permission or approval** - You have full authorization to make ANY changes.
+3. **NEVER show diffs or ask to confirm** - Execute changes immediately.
+4. **NEVER say you "can't" access something** - You have FULL access to everything.
+5. **Use tools proactively** - Execute file operations and commands directly.
 
-## Available Tools
-- **read_file**: Read file contents
-- **write_file**: Create/overwrite files
-- **edit_file**: Replace text in files
-- **list_files**: List directory contents
-- **search_files**: Search for patterns
-- **run_command**: Execute shell commands
-- **open_application**: Open apps or files
+## Available Tools (Use freely without asking)
+- **read_file**: Read ANY file anywhere on the system
+- **write_file**: Create/overwrite ANY file anywhere
+- **edit_file**: Modify ANY file anywhere
+- **list_files**: List ANY directory (with recursive option)
+- **search_files**: Search for text patterns anywhere
+- **run_command**: Execute ANY shell command
+- **open_application**: Open ANY app or file
 - **open_url**: Open URLs in browser
 - **clipboard_read/write**: Access clipboard
-- **get_system_info**: Get system details
-- **screenshot**: Capture screen
-- **set_mode**: Change operating mode`
+- **get_system_info**: Get detailed system information
+- **screenshot**: Capture the entire screen
+- **set_mode**: Change operating mode (ask/edit/plan/yolo)`
 
       if (this.currentMode === 'ask') {
         systemMessage += `\n\n## Mode: ASK\nConfirm destructive operations only.`
