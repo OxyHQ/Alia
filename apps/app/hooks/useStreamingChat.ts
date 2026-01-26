@@ -207,9 +207,15 @@ Use this role to guide your responses, maintaining the specified tone, style, an
             try {
               const parsed = JSON.parse(data);
 
-              // Handle thinking deltas (extended thinking mode)
-              if (parsed.type === 'thinking-delta' && parsed.text) {
-                // Update assistant message with thinking content (shown separately in UI)
+              // Handle OpenAI-compatible format
+              const choice = parsed.choices?.[0];
+              if (!choice) continue;
+
+              const delta = choice.delta;
+              if (!delta) continue;
+
+              // Handle reasoning/thinking content (thinking mode)
+              if (delta.reasoning) {
                 setMessages((prev) => {
                   const updated = [...prev];
                   const lastMessage = updated[updated.length - 1];
@@ -217,19 +223,19 @@ Use this role to guide your responses, maintaining the specified tone, style, an
                     const currentThinking = (lastMessage as any).thinking || '';
                     updated[updated.length - 1] = {
                       ...lastMessage,
-                      thinking: currentThinking + parsed.text,
+                      thinking: currentThinking + delta.reasoning,
                     } as any;
                   }
                   return updated;
                 });
               }
 
-              // Handle text deltas
-              if (parsed.type === 'text-delta' && parsed.text) {
-                fullContent += parsed.text;
+              // Handle text content
+              if (delta.content) {
+                fullContent += delta.content;
 
                 // Subtle haptic feedback every 15 characters
-                charCount += parsed.text.length;
+                charCount += delta.content.length;
                 if (charCount >= 15) {
                   charCount = 0;
                   Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
@@ -242,14 +248,26 @@ Use this role to guide your responses, maintaining the specified tone, style, an
                   if (lastMessage.role === 'assistant') {
                     updated[updated.length - 1] = {
                       ...lastMessage,
-                      content: lastMessage.content + parsed.text,
+                      content: lastMessage.content + delta.content,
                     };
                   }
                   return updated;
                 });
               }
 
-              // Handle tool calls
+              // Handle usage/credits info (comes at the end of stream)
+              if (parsed.usage && parsed.usage.credits_remaining !== undefined) {
+                queryClient.setQueryData<CreditsInfo>(['credits'], (old) => {
+                  if (!old) return old;
+                  return { ...old, credits: parsed.usage.credits_remaining };
+                });
+              }
+
+              // Note: Tool calls in OpenAI format come in delta.tool_calls
+              // But for the main app, tools are executed server-side
+              // so we don't need to handle them here
+
+              // Legacy tool call handling (if backend sends old format)
               if (parsed.type === 'tool-call') {
                 setMessages((prev) => {
                   const updated = [...prev];
