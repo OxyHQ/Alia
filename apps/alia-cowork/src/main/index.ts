@@ -392,8 +392,13 @@ function setupIPC(): void {
     }
 
     const folderPath = result.filePaths[0]
-    const files = getAllFilesInDirectory(folderPath)
-    return processFiles(files, folderPath)
+
+    // Return folder info only, let AI decide what to read
+    return [{
+      path: folderPath,
+      type: 'folder',
+      name: basename(folderPath)
+    }]
   })
 
   // Screen capture
