@@ -156,14 +156,49 @@ You are running on ${process.platform === 'darwin' ? 'macOS' : process.platform 
       let totalCompletionTokens = 0
       let totalTokens = 0
 
-      // Stream with AI SDK
+      // Stream with AI SDK - Enhanced with retry logic, caching, and error handling
       const result = streamText({
         model: resolved.model,
         messages: messagesWithSystem,
         tools,
         maxSteps: 10, // Allow up to 10 tool call iterations
         abortSignal: this.abortController.signal,
+
+        // Enhanced call options
+        maxRetries: 3, // Retry failed API calls up to 3 times
+        temperature: 0.7, // Control randomness
+        maxTokens: 4096, // Limit response length
+        topP: 0.95, // Nucleus sampling
+
+        // Experimental: Prompt caching for Anthropic (reduces costs on repeated system messages)
+        experimental_providerMetadata: resolved.provider === 'anthropic' ? {
+          anthropic: {
+            cacheControl: [
+              { type: 'ephemeral' as const }
+            ]
+          }
+        } : undefined,
+
+        // Error handling
+        onError: (error) => {
+          console.error('[ChatProvider] Stream error:', error)
+          this.send('chat:error', {
+            message: this.formatErrorMessage(error),
+            recoverable: error.name !== 'AbortError'
+          })
+        },
+
+        // Finish handler
         onFinish: async (event) => {
+          // Check finish reason
+          if (event.finishReason === 'error') {
+            this.send('chat:warning', { message: 'Response may be incomplete due to an error' })
+          } else if (event.finishReason === 'length') {
+            this.send('chat:warning', { message: 'Response truncated due to length limit' })
+          } else if (event.finishReason === 'tool-calls') {
+            console.log('[ChatProvider] Finished with tool calls, continuing...')
+          }
+
           // Capture final usage
           if (event.usage) {
             totalPromptTokens = event.usage.promptTokens
@@ -184,17 +219,31 @@ You are running on ${process.platform === 'darwin' ? 'macOS' : process.platform 
 
       let assistantMessage = ''
       let hasToolCalls = false
+      let toolCallCount = 0
+      const MAX_TOOL_ITERATIONS = 10
 
       // Stream the response
       for await (const chunk of result.fullStream) {
         if (!this.isProcessing) break
 
         if (chunk.type === 'text-delta') {
-          assistantMessage += chunk.textDelta
-          this.send('chat:stream', { content: chunk.textDelta })
+          // Filter out thinking tags or internal reasoning
+          const filtered = chunk.textDelta.replace(/<thinking>[\s\S]*?<\/thinking>/g, '')
+          if (filtered.trim()) {
+            assistantMessage += filtered
+            this.send('chat:stream', { content: filtered })
+          }
         } else if (chunk.type === 'tool-call') {
           hasToolCalls = true
+          toolCallCount++
           console.log('[ChatProvider] Tool call:', chunk.toolName, chunk.args)
+
+          // Warn if approaching limit
+          if (toolCallCount >= MAX_TOOL_ITERATIONS - 2) {
+            this.send('chat:warning', {
+              message: 'Approaching tool call limit, wrapping up...'
+            })
+          }
 
           // Handle set_mode specially
           if (chunk.toolName === 'set_mode') {
@@ -253,6 +302,27 @@ You are running on ${process.platform === 'darwin' ? 'macOS' : process.platform 
   clear(): void {
     this.messages = []
     this.send('chat:cleared', {})
+  }
+
+  private formatErrorMessage(error: Error): string {
+    const message = error.message || 'An error occurred'
+
+    // Map common errors to user-friendly messages
+    if (message.includes('HTTP 402') || message.includes('Insufficient credits')) {
+      return 'Insufficient credits. Please add more credits at alia.onl'
+    } else if (message.includes('HTTP 401') || message.includes('Invalid API key')) {
+      return 'Invalid API key. Please check your settings.'
+    } else if (message.includes('HTTP 429') || message.includes('rate limit')) {
+      return 'Rate limit exceeded. Please wait a moment and try again.'
+    } else if (message.includes('HTTP 500')) {
+      return 'Server error. Please try again later.'
+    } else if (message.includes('HTTP 503')) {
+      return 'Service unavailable. Please try again later.'
+    } else if (message.includes('timeout') || message.includes('ETIMEDOUT')) {
+      return 'Request timed out. Please try again.'
+    }
+
+    return message
   }
 
   async getUserInfo(): Promise<any> {

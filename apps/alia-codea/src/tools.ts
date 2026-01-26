@@ -1,6 +1,8 @@
 import * as vscode from 'vscode';
+import { tool } from 'ai';
+import { z } from 'zod';
 
-// Tool definitions in OpenAI format
+// Tool definitions in OpenAI format (for backward compatibility)
 export const fileTools = [
   {
     type: 'function',
@@ -536,4 +538,118 @@ export class ToolExecutor {
 
     return lines.join('\n');
   }
+}
+
+/**
+ * Create AI SDK tool definitions with execute functions
+ * Returns a toolset compatible with AI SDK's streamText
+ */
+export function createAISDKTools(executor: ToolExecutor) {
+  return {
+    read_file: tool({
+      description: 'Read the contents of a file. Use this to examine code, configuration files, or any text file in the workspace.',
+      parameters: z.object({
+        path: z.string().describe('The path to the file to read, relative to the workspace root'),
+        start_line: z.number().optional().describe('Optional starting line number (1-indexed)'),
+        end_line: z.number().optional().describe('Optional ending line number (1-indexed)')
+      }),
+      execute: async (params) => {
+        const result = await executor.execute('read_file', params);
+        if (!result.success) throw new Error(result.result);
+        return result.result;
+      }
+    }),
+
+    write_file: tool({
+      description: 'Create a new file or completely overwrite an existing file with new content.',
+      parameters: z.object({
+        path: z.string().describe('The path to the file to write, relative to the workspace root'),
+        content: z.string().describe('The complete content to write to the file')
+      }),
+      execute: async (params) => {
+        const result = await executor.execute('write_file', params);
+        if (!result.success) throw new Error(result.result);
+        return result.result;
+      }
+    }),
+
+    edit_file: tool({
+      description: 'Make targeted edits to a file by replacing specific text. Use this for small, precise changes.',
+      parameters: z.object({
+        path: z.string().describe('The path to the file to edit, relative to the workspace root'),
+        old_text: z.string().describe('The exact text to find and replace (must match exactly including whitespace)'),
+        new_text: z.string().describe('The new text to replace it with')
+      }),
+      execute: async (params) => {
+        const result = await executor.execute('edit_file', params);
+        if (!result.success) throw new Error(result.result);
+        return result.result;
+      }
+    }),
+
+    delete_file: tool({
+      description: 'Delete a file from the workspace.',
+      parameters: z.object({
+        path: z.string().describe('The path to the file to delete, relative to the workspace root')
+      }),
+      execute: async (params) => {
+        const result = await executor.execute('delete_file', params);
+        if (!result.success) throw new Error(result.result);
+        return result.result;
+      }
+    }),
+
+    list_files: tool({
+      description: 'List files and directories in a given path. Use this to explore the project structure.',
+      parameters: z.object({
+        path: z.string().describe('The directory path to list, relative to the workspace root. Use "." for root.'),
+        recursive: z.boolean().optional().describe('If true, list files recursively. Default is false.'),
+        pattern: z.string().optional().describe('Optional glob pattern to filter files (e.g., "**/*.ts")')
+      }),
+      execute: async (params) => {
+        const result = await executor.execute('list_files', params);
+        if (!result.success) throw new Error(result.result);
+        return result.result;
+      }
+    }),
+
+    search_files: tool({
+      description: 'Search for text or patterns across files in the workspace.',
+      parameters: z.object({
+        query: z.string().describe('The text or regex pattern to search for'),
+        path: z.string().optional().describe('Optional directory to search in, relative to workspace root'),
+        include: z.string().optional().describe('Optional glob pattern to include files (e.g., "**/*.ts")'),
+        exclude: z.string().optional().describe('Optional glob pattern to exclude files')
+      }),
+      execute: async (params) => {
+        const result = await executor.execute('search_files', params);
+        if (!result.success) throw new Error(result.result);
+        return result.result;
+      }
+    }),
+
+    run_command: tool({
+      description: 'Execute a shell command in the workspace. Use for running tests, builds, git commands, etc.',
+      parameters: z.object({
+        command: z.string().describe('The shell command to execute'),
+        cwd: z.string().optional().describe('Optional working directory, relative to workspace root')
+      }),
+      execute: async (params) => {
+        const result = await executor.execute('run_command', params);
+        if (!result.success) throw new Error(result.result);
+        return result.result;
+      }
+    }),
+
+    set_mode: tool({
+      description: 'Change the assistant operating mode. Use when user requests a mode change like "switch to edit mode" or "go yolo".',
+      parameters: z.object({
+        mode: z.enum(['ask', 'edit', 'plan', 'yolo']).describe('The mode to switch to. ask=confirm destructive ops, edit=make changes directly, plan=outline then execute, yolo=full autonomous')
+      }),
+      execute: async (params) => {
+        // This will be handled specially in chatProvider
+        return `Mode will be changed to ${params.mode}`;
+      }
+    })
+  };
 }
