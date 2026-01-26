@@ -2,6 +2,7 @@ import * as React from "react"
 import { Layout } from "@/components/Layout"
 import { Chat } from "@/components/Chat"
 import { SignIn } from "@/components/SignIn"
+import { Settings } from "@/components/Settings"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import { AuthProvider, useAuth } from "@/contexts/AuthContext"
 import { ThemeProvider } from "@/contexts/ThemeContext"
@@ -35,6 +36,7 @@ function AppContent() {
           Commands view coming soon
         </div>
       )}
+      {currentView === "settings" && <Settings />}
     </Layout>
   )
 }
