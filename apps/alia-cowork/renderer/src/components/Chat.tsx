@@ -35,6 +35,12 @@ import {
   AlertCircleIcon,
   StopIcon,
 } from "@hugeicons/core-free-icons"
+import {
+  ChainOfThought,
+  ChainOfThoughtHeader,
+  ChainOfThoughtContent,
+  ChainOfThoughtStep,
+} from "@/components/ui/chain-of-thought"
 
 // Electron API type
 declare global {
