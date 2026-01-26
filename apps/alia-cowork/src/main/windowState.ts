@@ -50,13 +50,13 @@ export class WindowStateManager {
       }
     }
 
-    // Fallback to default position (top-right corner)
-    const { width: screenWidth } = screen.getPrimaryDisplay().workAreaSize
+    // Fallback to default position (centered on screen)
+    const { width: screenWidth, height: screenHeight } = screen.getPrimaryDisplay().workAreaSize
     return {
-      x: screenWidth - DEFAULT_WIDTH - 20,
-      y: 20,
-      width: DEFAULT_WIDTH,
-      height: DEFAULT_HEIGHT
+      x: Math.round((screenWidth - INITIAL_WIDTH) / 2),
+      y: Math.round((screenHeight - INITIAL_HEIGHT) / 2),
+      width: INITIAL_WIDTH,
+      height: INITIAL_HEIGHT
     }
   }
 
