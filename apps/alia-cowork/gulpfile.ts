@@ -49,7 +49,7 @@ task('build:main', async () => {
     platform: 'node',
     target: 'node20',
     outdir: paths.main.outdir,
-    external: ['electron', 'electron-store', 'dotenv'],
+    external: ['electron', 'electron-store', 'dotenv', 'ai', 'zod'],
     sourcemap: isDev,
     minify: !isDev,
     format: 'cjs',
@@ -195,7 +195,7 @@ task('watch', async () => {
     platform: 'node',
     target: 'node20',
     outdir: paths.main.outdir,
-    external: ['electron', 'electron-store', 'dotenv'],
+    external: ['electron', 'electron-store', 'dotenv', 'ai', 'zod'],
     sourcemap: true,
     format: 'cjs',
   })
