@@ -4,6 +4,7 @@ import * as React from "react"
 import Markdown from "react-markdown"
 import { Button } from "@/components/ui/button"
 import { ScrollArea } from "@/components/ui/scroll-area"
+import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -437,7 +438,10 @@ function MessageBubble({ message, isStreaming }: { message: Message; isStreaming
 
   return (
     <div className="flex gap-3">
-      <img src="icon.png" alt="Alia" className={cn("size-6 shrink-0 rounded-full", isStreaming && !message.content && "animate-pulse")} />
+      <Avatar size="sm" className={cn(isStreaming && !message.content && "animate-pulse")}>
+        <AvatarImage src="icon.png" alt="Alia" />
+        <AvatarFallback>AI</AvatarFallback>
+      </Avatar>
       <div className="flex-1 min-w-0 overflow-hidden">
         {isStreaming && !message.content ? (
           <p className="text-sm text-muted-foreground">Thinking...</p>
@@ -463,7 +467,10 @@ function WelcomeScreen({ userName, greeting, onSuggestionClick }: { userName: st
   return (
     <div className="flex min-h-full flex-col items-center justify-center gap-6 p-8 text-center">
       <div className="flex flex-col items-center gap-4">
-        <img src="icon.png" alt="Alia" className="size-16 rounded-full" />
+        <Avatar size="lg" className="size-16">
+          <AvatarImage src="icon.png" alt="Alia" />
+          <AvatarFallback>AI</AvatarFallback>
+        </Avatar>
         <div>
           <h2 className="text-lg font-semibold">
             {userName ? `Hi ${userName}, ${greeting}` : `Hey, ${greeting}`}
