@@ -185,8 +185,7 @@ class AliaLanguageModel {
                     // Handle reasoning chunks
                     if (delta?.reasoning && !isClosed) {
                       controller.enqueue({
-                        type: 'text',
-                        id: `chunk_${Date.now()}`,
+                        type: 'text-delta',
                         text: `<thinking>${delta.reasoning}</thinking>`
                       })
                     }
@@ -194,8 +193,7 @@ class AliaLanguageModel {
                     // Handle content
                     if (delta?.content && !isClosed) {
                       controller.enqueue({
-                        type: 'text',
-                        id: `chunk_${Date.now()}`,
+                        type: 'text-delta',
                         text: delta.content
                       })
                     }
