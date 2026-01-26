@@ -343,7 +343,7 @@ export class ChatProvider {
 
         // Handle finish reason
         if (chunk.choices?.[0]?.finish_reason) {
-          console.log('[ChatProvider] Stream finished:', chunk.choices[0].finish_reason)
+          console.log('[ChatProvider] Stream finished:', chunk.choices[0]?.finish_reason)
         }
       }
 
@@ -453,7 +453,7 @@ export class ChatProvider {
             this.send('chat:toolResult', {
               tool: toolName,
               success: true,
-              result: result.slice(0, 500)
+              result: String(result || '').slice(0, 500)
             })
           } catch (error: any) {
             const errorMsg = error.message || String(error)
@@ -662,7 +662,7 @@ export class ChatProvider {
             this.send('chat:toolResult', {
               tool: toolName,
               success: true,
-              result: result.slice(0, 500)
+              result: String(result || '').slice(0, 500)
             })
           } catch (error: any) {
             const errorMsg = error.message || String(error)
