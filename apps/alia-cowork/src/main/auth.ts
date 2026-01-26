@@ -219,33 +219,126 @@ export class AuthProvider {
       <html>
         <head>
           <title>Authorization Successful</title>
+          <meta name="viewport" content="width=device-width, initial-scale=1.0">
           <style>
+            * {
+              margin: 0;
+              padding: 0;
+              box-sizing: border-box;
+            }
+
             body {
-              font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+              font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Inter", sans-serif;
               display: flex;
               justify-content: center;
               align-items: center;
-              height: 100vh;
-              margin: 0;
-              background: #f5f5f5;
+              min-height: 100vh;
+              background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+              padding: 20px;
             }
+
             .container {
               text-align: center;
-              padding: 40px;
+              padding: 48px 40px;
               background: white;
-              border-radius: 12px;
-              box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-              max-width: 400px;
+              border-radius: 24px;
+              box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+              max-width: 480px;
+              width: 100%;
+              animation: slideIn 0.4s ease-out;
             }
-            h1 { color: #27ae60; margin: 0 0 16px; }
-            p { color: #666; margin: 0; }
+
+            @keyframes slideIn {
+              from {
+                opacity: 0;
+                transform: translateY(-20px);
+              }
+              to {
+                opacity: 1;
+                transform: translateY(0);
+              }
+            }
+
+            .logo {
+              width: 64px;
+              height: 64px;
+              margin: 0 auto 24px;
+              background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+              border-radius: 16px;
+              display: flex;
+              align-items: center;
+              justify-content: center;
+              font-size: 32px;
+            }
+
+            .success-icon {
+              width: 80px;
+              height: 80px;
+              margin: 0 auto 24px;
+              background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+              border-radius: 50%;
+              display: flex;
+              align-items: center;
+              justify-content: center;
+              animation: scaleIn 0.5s ease-out 0.2s backwards;
+            }
+
+            @keyframes scaleIn {
+              from {
+                transform: scale(0);
+              }
+              to {
+                transform: scale(1);
+              }
+            }
+
+            .checkmark {
+              color: white;
+              font-size: 48px;
+              font-weight: bold;
+            }
+
+            h1 {
+              color: #1a1a1a;
+              font-size: 28px;
+              font-weight: 700;
+              margin: 0 0 12px;
+              letter-spacing: -0.5px;
+            }
+
+            .subtitle {
+              color: #6b7280;
+              font-size: 16px;
+              margin: 0 0 8px;
+              line-height: 1.5;
+            }
+
+            .instruction {
+              color: #9ca3af;
+              font-size: 14px;
+              margin-top: 32px;
+              padding-top: 24px;
+              border-top: 1px solid #e5e7eb;
+            }
+
+            .brand {
+              display: inline-block;
+              background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+              -webkit-background-clip: text;
+              -webkit-text-fill-color: transparent;
+              background-clip: text;
+              font-weight: 700;
+            }
           </style>
         </head>
         <body>
           <div class="container">
-            <h1>✓ Successfully Connected!</h1>
-            <p>Your Alia account has been linked.</p>
-            <p style="margin-top: 20px;">You can close this window and return to the app.</p>
+            <div class="success-icon">
+              <span class="checkmark">✓</span>
+            </div>
+            <h1>Successfully Connected!</h1>
+            <p class="subtitle">Your <span class="brand">Alia</span> account has been linked to <span class="brand">Cowork</span></p>
+            <p class="instruction">You can close this window and return to the app</p>
           </div>
         </body>
       </html>
@@ -256,38 +349,134 @@ export class AuthProvider {
    * Get error HTML page
    */
   private getErrorHtml(error: string): string {
+    // Escape HTML to prevent XSS
+    const escapedError = error.replace(/[<>'"]/g, (char) => {
+      const entities: { [key: string]: string } = {
+        '<': '&lt;',
+        '>': '&gt;',
+        "'": '&#39;',
+        '"': '&quot;'
+      }
+      return entities[char]
+    })
+
     return `
       <!DOCTYPE html>
       <html>
         <head>
           <title>Authorization Failed</title>
+          <meta name="viewport" content="width=device-width, initial-scale=1.0">
           <style>
+            * {
+              margin: 0;
+              padding: 0;
+              box-sizing: border-box;
+            }
+
             body {
-              font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+              font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Inter", sans-serif;
               display: flex;
               justify-content: center;
               align-items: center;
-              height: 100vh;
-              margin: 0;
-              background: #f5f5f5;
+              min-height: 100vh;
+              background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+              padding: 20px;
             }
+
             .container {
               text-align: center;
-              padding: 40px;
+              padding: 48px 40px;
               background: white;
-              border-radius: 12px;
-              box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-              max-width: 400px;
+              border-radius: 24px;
+              box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+              max-width: 480px;
+              width: 100%;
+              animation: slideIn 0.4s ease-out;
             }
-            h1 { color: #e74c3c; margin: 0 0 16px; }
-            p { color: #666; margin: 0; }
+
+            @keyframes slideIn {
+              from {
+                opacity: 0;
+                transform: translateY(-20px);
+              }
+              to {
+                opacity: 1;
+                transform: translateY(0);
+              }
+            }
+
+            .error-icon {
+              width: 80px;
+              height: 80px;
+              margin: 0 auto 24px;
+              background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+              border-radius: 50%;
+              display: flex;
+              align-items: center;
+              justify-content: center;
+              animation: scaleIn 0.5s ease-out 0.2s backwards;
+            }
+
+            @keyframes scaleIn {
+              from {
+                transform: scale(0);
+              }
+              to {
+                transform: scale(1);
+              }
+            }
+
+            .error-mark {
+              color: white;
+              font-size: 48px;
+              font-weight: bold;
+            }
+
+            h1 {
+              color: #1a1a1a;
+              font-size: 28px;
+              font-weight: 700;
+              margin: 0 0 12px;
+              letter-spacing: -0.5px;
+            }
+
+            .error-message {
+              color: #6b7280;
+              font-size: 16px;
+              margin: 0 0 8px;
+              line-height: 1.5;
+              padding: 16px;
+              background: #fef2f2;
+              border-radius: 12px;
+              border: 1px solid #fee2e2;
+            }
+
+            .instruction {
+              color: #9ca3af;
+              font-size: 14px;
+              margin-top: 32px;
+              padding-top: 24px;
+              border-top: 1px solid #e5e7eb;
+            }
+
+            .brand {
+              display: inline-block;
+              background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+              -webkit-background-clip: text;
+              -webkit-text-fill-color: transparent;
+              background-clip: text;
+              font-weight: 700;
+            }
           </style>
         </head>
         <body>
           <div class="container">
-            <h1>❌ Authorization Failed</h1>
-            <p>${error}</p>
-            <p style="margin-top: 20px;">You can close this window.</p>
+            <div class="error-icon">
+              <span class="error-mark">✕</span>
+            </div>
+            <h1>Authorization Failed</h1>
+            <p class="error-message">${escapedError}</p>
+            <p class="instruction">You can close this window and try again from <span class="brand">Alia Cowork</span></p>
           </div>
         </body>
       </html>
