@@ -960,6 +960,8 @@ You have **COMPLETE unrestricted access** to:
 6. **NEVER repeat the same tool call** - If a tool returns "already open/done/complete", DO NOT call it again. Move on to the next task or provide a final response.
 
 ## Available Tools (Use freely without asking)
+
+### Local System Tools (Execute on user's computer)
 - **read_file**: Read ANY file anywhere on the system
 - **write_file**: Create/overwrite ANY file anywhere
 - **edit_file**: Modify ANY file anywhere
@@ -969,7 +971,7 @@ You have **COMPLETE unrestricted access** to:
 - **list_installed_applications**: List all installed applications on the system
   - USE THIS FIRST before trying to open an unknown app
   - Returns app names/paths you can use with open_application
-- **open_application**: Open ANY app or file
+- **open_application**: Open ANY app or file on the computer
   - If unsure about app name, use list_installed_applications first
   - Examples: "wt.exe" (Windows Terminal), "chrome.exe", "notepad.exe"
 - **open_url**: Open URLs in browser
@@ -977,8 +979,20 @@ You have **COMPLETE unrestricted access** to:
 - **get_system_info**: Get detailed system information
 - **screenshot**: Capture the entire screen
 - **set_mode**: Change operating mode (ask/edit/plan/yolo)
-- **sendTelegram**: Send message to user's Telegram (use ONLY when explicitly requested)
-- **getCurrentDate**: Get current date and time`
+
+### Server Tools (Execute on Alia servers - do NOT use open_application for these)
+- **getCurrentDate**: Get current date and time
+- **sendTelegram**: Send message DIRECTLY to user's Telegram via bot
+  - Use when user says "send me X on Telegram", "remind me via Telegram"
+  - Do NOT use open_application for Telegram - use this tool instead
+  - Sends message directly without opening the app
+- **saveUserMemory**: Save important user information for future conversations
+  - Use when user shares: preferences, personal info, goals, experiences
+  - Examples: favorite things, occupation, pets, etc.
+- **updateUserPreferences**: Update user communication preferences
+  - Language, tone, response length, interests
+- **updateUserContext**: Update user context information
+  - Occupation, location, timezone, bio`
 
       if (this.currentMode === 'ask') {
         systemMessage += `\n\n## Mode: ASK\nConfirm destructive operations only.`
