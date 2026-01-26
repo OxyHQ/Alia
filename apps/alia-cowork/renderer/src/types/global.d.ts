@@ -15,7 +15,19 @@ declare global {
       onFullScreenChanged: (callback: (isFullScreen: boolean) => void) => () => void
 
       // Chat
-      clearChat?: () => void
+      sendMessage: (message: string, mode: string, model: string, context?: any[]) => Promise<void>
+      stopGeneration: () => void
+      clearChat: () => void
+      getModels: () => Promise<any[]>
+      captureScreen: () => Promise<string | null>
+      onChatStart: (callback: () => void) => () => void
+      onChatStream: (callback: (data: { content: string }) => void) => () => void
+      onChatThinking: (callback: (data: { content: string }) => void) => () => void
+      onChatEnd: (callback: () => void) => () => void
+      onChatError: (callback: (data: { message: string }) => void) => () => void
+      onChatTool: (callback: (data: { tool: string; args: any; status: string }) => void) => () => void
+      onChatToolResult: (callback: (data: { tool: string; success: boolean; result: string }) => void) => () => void
+      onModeChanged: (callback: (data: { mode: string }) => void) => () => void
 
       // Auth
       signIn: () => Promise<void>
