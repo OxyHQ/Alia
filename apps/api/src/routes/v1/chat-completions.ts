@@ -275,23 +275,88 @@ router.post('/', async (req: Request, res: Response) => {
       streamConfig.tools = convertedTools;
     }
 
+    // Configure provider-specific features for reasoning
+    const providerMetadata: any = {};
+
+    if (resolved.provider === 'google') {
+      // Enable thought summaries for Gemini
+      providerMetadata.google = { includeThoughts: true };
+      console.log('[V1/Chat] Enabled Gemini thought summaries');
+    }
+
+    if (Object.keys(providerMetadata).length > 0) {
+      streamConfig.experimental_providerMetadata = providerMetadata;
+    }
+
     const result = streamText(streamConfig);
 
     // Stream OpenAI-compatible chunks
     for await (const chunk of result.fullStream) {
-      if (chunk.type === 'text-delta') {
-        const openAIChunk = {
-          id: `chatcmpl-${Date.now()}`,
-          object: 'chat.completion.chunk',
-          created: Math.floor(Date.now() / 1000),
-          model: aliasModelId,
-          choices: [{
-            index: 0,
-            delta: { content: chunk.text },
-            finish_reason: null
-          }]
-        };
-        res.write(`data: ${JSON.stringify(openAIChunk)}\n\n`);
+      if (chunk.type === 'text-delta' && chunk.textDelta) {
+        // Extract <thinking> tags for chain-of-thought (Anthropic, DeepSeek, etc.)
+        const thinkingMatch = chunk.textDelta.match(/<thinking>([\s\S]*?)<\/thinking>/g);
+        if (thinkingMatch) {
+          // Send thinking content as reasoning chunk
+          thinkingMatch.forEach(match => {
+            const content = match.replace(/<\/?thinking>/g, '').trim();
+            if (content) {
+              const reasoningChunk = {
+                id: `chatcmpl-${Date.now()}`,
+                object: 'chat.completion.chunk',
+                created: Math.floor(Date.now() / 1000),
+                model: aliasModelId,
+                choices: [{
+                  index: 0,
+                  delta: {
+                    reasoning: content,
+                    role: 'assistant'
+                  },
+                  finish_reason: null
+                }]
+              };
+              res.write(`data: ${JSON.stringify(reasoningChunk)}\n\n`);
+              console.log('[V1/Chat] Reasoning chunk (thinking tag):', content.slice(0, 100));
+            }
+          });
+        }
+
+        // Filter out thinking tags from the main message
+        const filtered = chunk.textDelta.replace(/<thinking>[\s\S]*?<\/thinking>/g, '');
+        if (filtered) {
+          const openAIChunk = {
+            id: `chatcmpl-${Date.now()}`,
+            object: 'chat.completion.chunk',
+            created: Math.floor(Date.now() / 1000),
+            model: aliasModelId,
+            choices: [{
+              index: 0,
+              delta: { content: filtered },
+              finish_reason: null
+            }]
+          };
+          res.write(`data: ${JSON.stringify(openAIChunk)}\n\n`);
+        }
+      } else if ((chunk as any).type === 'thought-delta' || (chunk as any).type === 'reasoning-delta') {
+        // Handle Gemini thought summaries and other reasoning tokens
+        const reasoningText = (chunk as any).text || (chunk as any).thoughtDelta || (chunk as any).reasoningDelta;
+        if (reasoningText && typeof reasoningText === 'string' && reasoningText.trim()) {
+          const reasoningChunk = {
+            id: `chatcmpl-${Date.now()}`,
+            object: 'chat.completion.chunk',
+            created: Math.floor(Date.now() / 1000),
+            model: aliasModelId,
+            choices: [{
+              index: 0,
+              delta: {
+                reasoning: reasoningText.trim(),
+                role: 'assistant'
+              },
+              finish_reason: null
+            }]
+          };
+          res.write(`data: ${JSON.stringify(reasoningChunk)}\n\n`);
+          console.log('[V1/Chat] Reasoning chunk (provider):', reasoningText.slice(0, 100));
+        }
       } else if (chunk.type === 'tool-call') {
         // Restore original tool name if it was sanitized
         const originalToolName = toolNameMapping.get(chunk.toolName) || chunk.toolName;

@@ -1,8 +1,9 @@
 import { BrowserWindow } from 'electron'
-import { streamText, CoreMessage } from 'ai'
+import { CoreMessage } from 'ai'
 import { ToolExecutor, createAISDKTools } from './tools'
-import { resolveModel, reportUsage } from './model-resolver'
 import Store from 'electron-store'
+import * as https from 'https'
+import * as http from 'http'
 
 const store = new Store({
   defaults: {
@@ -64,7 +65,7 @@ export class ChatProvider {
     this.send('chat:start', {})
 
     try {
-      await this.processConversation(baseUrl, apiKey, selectedModel, systemMessage)
+      await this.streamFromAPI(baseUrl, apiKey, selectedModel, systemMessage)
     } catch (error: any) {
       let errorMessage = error.message || 'An error occurred'
       if (errorMessage.includes('HTTP 402') || errorMessage.includes('Insufficient credits')) {
@@ -125,181 +126,159 @@ You are running on ${process.platform === 'darwin' ? 'macOS' : process.platform 
     return systemMessage
   }
 
-  private async processConversation(
+  private async streamFromAPI(
     baseUrl: string,
     apiKey: string,
     modelId: string,
     systemMessage: string
   ): Promise<void> {
-    const enableTools = store.get('enableTools') as boolean
+    return new Promise((resolve, reject) => {
+      const url = new URL(`${baseUrl}/v1/chat/completions`)
+      const isHttps = url.protocol === 'https:'
+      const httpModule = isHttps ? https : http
 
-    // Resolve model from API (gets provider key and model info)
-    console.log('[ChatProvider] Resolving model:', modelId)
-    const resolved = await resolveModel(baseUrl, apiKey, modelId)
-    console.log('[ChatProvider] Resolved to:', resolved.provider, resolved.modelId)
+      // Prepare OpenAI-compatible request
+      const requestBody = {
+        model: modelId,
+        messages: [
+          { role: 'system', content: systemMessage },
+          ...this.messages
+        ],
+        stream: true,
+        temperature: 0.7
+      }
 
-    // Prepare messages with system message
-    const messagesWithSystem: CoreMessage[] = [
-      { role: 'system', content: systemMessage },
-      ...this.messages
-    ]
+      const postData = JSON.stringify(requestBody)
 
-    // Create abort controller for cancellation
-    this.abortController = new AbortController()
-
-    // Create AI SDK tools
-    const tools = enableTools ? createAISDKTools(this.toolExecutor) : undefined
-
-    try {
-      // Track token usage
-      let totalPromptTokens = 0
-      let totalCompletionTokens = 0
-      let totalTokens = 0
-
-      // Stream with AI SDK - Enhanced with retry logic, caching, and error handling
-      const result = streamText({
-        model: resolved.model,
-        messages: messagesWithSystem,
-        tools,
-        maxSteps: 10, // Allow up to 10 tool call iterations
-        abortSignal: this.abortController.signal,
-
-        // Enhanced call options
-        maxRetries: 3, // Retry failed API calls up to 3 times
-        temperature: 0.7, // Control randomness
-        maxTokens: 4096, // Limit response length
-        topP: 0.95, // Nucleus sampling
-
-        // Experimental: Prompt caching for Anthropic (reduces costs on repeated system messages)
-        experimental_providerMetadata: resolved.provider === 'anthropic' ? {
-          anthropic: {
-            cacheControl: [
-              { type: 'ephemeral' as const }
-            ]
+      const req = httpModule.request(
+        {
+          hostname: url.hostname,
+          port: url.port || (isHttps ? 443 : 80),
+          path: url.pathname,
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Content-Length': Buffer.byteLength(postData),
+            'Authorization': `Bearer ${apiKey}`,
+            'Accept': 'text/event-stream'
           }
-        } : undefined,
-
-        // Error handling
-        onError: (error) => {
-          console.error('[ChatProvider] Stream error:', error)
-          this.send('chat:error', {
-            message: this.formatErrorMessage(error),
-            recoverable: error.name !== 'AbortError'
-          })
         },
-
-        // Finish handler
-        onFinish: async (event) => {
-          // Check finish reason
-          if (event.finishReason === 'error') {
-            this.send('chat:warning', { message: 'Response may be incomplete due to an error' })
-          } else if (event.finishReason === 'length') {
-            this.send('chat:warning', { message: 'Response truncated due to length limit' })
-          } else if (event.finishReason === 'tool-calls') {
-            console.log('[ChatProvider] Finished with tool calls, continuing...')
-          }
-
-          // Capture final usage
-          if (event.usage) {
-            totalPromptTokens = event.usage.promptTokens
-            totalCompletionTokens = event.usage.completionTokens
-            totalTokens = event.usage.totalTokens
-
-            console.log('[ChatProvider] Final usage:', event.usage)
-
-            // Report usage back to API for credit tracking
-            await reportUsage(baseUrl, apiKey, resolved.sessionId, {
-              promptTokens: totalPromptTokens,
-              completionTokens: totalCompletionTokens,
-              totalTokens
-            })
-          }
-        }
-      })
-
-      let assistantMessage = ''
-      let hasToolCalls = false
-      let toolCallCount = 0
-      const MAX_TOOL_ITERATIONS = 10
-
-      // Stream the response
-      for await (const chunk of result.fullStream) {
-        if (!this.isProcessing) break
-
-        if (chunk.type === 'text-delta' && chunk.textDelta) {
-          // Extract thinking tags for chain of thought visualization
-          const thinkingMatch = chunk.textDelta.match(/<thinking>([\s\S]*?)<\/thinking>/g)
-          if (thinkingMatch) {
-            // Send thinking content to renderer for chain-of-thought display
-            thinkingMatch.forEach(match => {
-              const content = match.replace(/<\/?thinking>/g, '').trim()
-              if (content) {
-                this.send('chat:thinking', { content })
+        (res) => {
+          if (res.statusCode !== 200) {
+            let errorData = ''
+            res.on('data', (chunk) => (errorData += chunk))
+            res.on('end', () => {
+              try {
+                const error = JSON.parse(errorData)
+                reject(new Error(error.error || `HTTP ${res.statusCode}`))
+              } catch {
+                reject(new Error(`HTTP ${res.statusCode}`))
               }
             })
+            return
           }
 
-          // Filter out thinking tags from the main message
-          const filtered = chunk.textDelta.replace(/<thinking>[\s\S]*?<\/thinking>/g, '')
-          if (filtered.trim()) {
-            assistantMessage += filtered
-            this.send('chat:stream', { content: filtered })
-          }
-        } else if (chunk.type === 'tool-call') {
-          hasToolCalls = true
-          toolCallCount++
-          console.log('[ChatProvider] Tool call:', chunk.toolName, chunk.args)
+          let buffer = ''
+          let assistantMessage = ''
 
-          // Warn if approaching limit
-          if (toolCallCount >= MAX_TOOL_ITERATIONS - 2) {
-            this.send('chat:warning', {
-              message: 'Approaching tool call limit, wrapping up...'
-            })
-          }
+          res.on('data', (chunk: Buffer) => {
+            buffer += chunk.toString()
+            const lines = buffer.split('\n')
+            buffer = lines.pop() || '' // Keep incomplete line in buffer
 
-          // Handle set_mode specially
-          if (chunk.toolName === 'set_mode') {
-            const newMode = (chunk.args as any).mode
-            if (['ask', 'edit', 'plan', 'yolo'].includes(newMode)) {
-              this.currentMode = newMode
-              this.send('chat:modeChanged', { mode: newMode })
+            for (const line of lines) {
+              if (!line.trim() || line.trim() === 'data: [DONE]') continue
+              if (!line.startsWith('data: ')) continue
+
+              try {
+                const json = JSON.parse(line.slice(6))
+                const choice = json.choices?.[0]
+                if (!choice) continue
+
+                const delta = choice.delta
+
+                // Handle reasoning chunks
+                if (delta.reasoning) {
+                  this.send('chat:thinking', { content: delta.reasoning })
+                  console.log('[ChatProvider] Reasoning:', delta.reasoning.slice(0, 100))
+                }
+
+                // Handle content chunks
+                if (delta.content) {
+                  assistantMessage += delta.content
+                  this.send('chat:stream', { content: delta.content })
+                }
+
+                // Handle tool calls
+                if (delta.tool_calls) {
+                  for (const toolCall of delta.tool_calls) {
+                    if (toolCall.function) {
+                      const toolName = toolCall.function.name
+                      const args = JSON.parse(toolCall.function.arguments || '{}')
+
+                      this.send('chat:tool', {
+                        tool: toolName,
+                        args,
+                        status: 'running'
+                      })
+
+                      // Execute tool
+                      this.toolExecutor.execute(toolName, args).then(result => {
+                        this.send('chat:toolResult', {
+                          tool: toolName,
+                          success: result.success,
+                          result: result.result
+                        })
+
+                        // Handle set_mode specially
+                        if (toolName === 'set_mode' && result.success) {
+                          this.currentMode = args.mode
+                          this.send('chat:modeChanged', { mode: args.mode })
+                        }
+                      })
+                    }
+                  }
+                }
+
+                // Handle finish
+                if (choice.finish_reason) {
+                  console.log('[ChatProvider] Finished:', choice.finish_reason)
+                }
+
+                // Handle usage metadata
+                if (json.usage) {
+                  console.log('[ChatProvider] Usage:', json.usage)
+                }
+              } catch (err) {
+                console.error('[ChatProvider] Parse error:', err)
+              }
             }
-          }
-
-          this.send('chat:tool', {
-            tool: chunk.toolName,
-            args: chunk.args,
-            status: 'running'
           })
-        } else if (chunk.type === 'tool-result') {
-          console.log('[ChatProvider] Tool result:', chunk.toolName, 'success:', !chunk.result.includes('Error:'))
 
-          const success = chunk.result && typeof chunk.result === 'string' && !chunk.result.includes('Error:')
-          this.send('chat:toolResult', {
-            tool: chunk.toolName,
-            success,
-            result: typeof chunk.result === 'string' ? chunk.result.slice(0, 500) : JSON.stringify(chunk.result).slice(0, 500)
+          res.on('end', () => {
+            // Add assistant message to history
+            if (assistantMessage) {
+              this.messages.push({ role: 'assistant', content: assistantMessage })
+            }
+            this.send('chat:end', {})
+            resolve()
           })
-        } else if (chunk.type === 'finish') {
-          console.log('[ChatProvider] Stream finished:', chunk.finishReason)
+
+          res.on('error', (err) => {
+            console.error('[ChatProvider] Response error:', err)
+            reject(err)
+          })
         }
-      }
+      )
 
-      // Add assistant message to history
-      const finalText = await result.text
-      this.messages.push({ role: 'assistant', content: finalText })
+      req.on('error', (err) => {
+        console.error('[ChatProvider] Request error:', err)
+        reject(err)
+      })
 
-      this.send('chat:end', {})
-    } catch (error: any) {
-      if (error.name === 'AbortError') {
-        console.log('[ChatProvider] Stream aborted by user')
-        this.send('chat:end', {})
-      } else {
-        throw error
-      }
-    } finally {
-      this.abortController = undefined
-    }
+      req.write(postData)
+      req.end()
+    })
   }
 
   stop(): void {
@@ -316,27 +295,6 @@ You are running on ${process.platform === 'darwin' ? 'macOS' : process.platform 
     this.send('chat:cleared', {})
   }
 
-  private formatErrorMessage(error: Error): string {
-    const message = error.message || 'An error occurred'
-
-    // Map common errors to user-friendly messages
-    if (message.includes('HTTP 402') || message.includes('Insufficient credits')) {
-      return 'Insufficient credits. Please add more credits at alia.onl'
-    } else if (message.includes('HTTP 401') || message.includes('Invalid API key')) {
-      return 'Invalid API key. Please check your settings.'
-    } else if (message.includes('HTTP 429') || message.includes('rate limit')) {
-      return 'Rate limit exceeded. Please wait a moment and try again.'
-    } else if (message.includes('HTTP 500')) {
-      return 'Server error. Please try again later.'
-    } else if (message.includes('HTTP 503')) {
-      return 'Service unavailable. Please try again later.'
-    } else if (message.includes('timeout') || message.includes('ETIMEDOUT')) {
-      return 'Request timed out. Please try again.'
-    }
-
-    return message
-  }
-
   async getUserInfo(): Promise<any> {
     const apiKey = store.get('apiKey') as string
     const baseUrl = store.get('apiBaseUrl') as string
@@ -345,7 +303,7 @@ You are running on ${process.platform === 'darwin' ? 'macOS' : process.platform 
 
     const url = new URL(`${baseUrl}/v1/codea/me`)
     const isHttps = url.protocol === 'https:'
-    const httpModule = isHttps ? require('https') : require('http')
+    const httpModule = isHttps ? https : http
 
     return new Promise((resolve) => {
       const req = httpModule.request(
@@ -383,7 +341,7 @@ You are running on ${process.platform === 'darwin' ? 'macOS' : process.platform 
     const baseUrl = store.get('apiBaseUrl') as string
     const url = new URL(`${baseUrl}/v1/models?category=coding`)
     const isHttps = url.protocol === 'https:'
-    const httpModule = isHttps ? require('https') : require('http')
+    const httpModule = isHttps ? https : http
 
     return new Promise((resolve) => {
       const req = httpModule.request(
