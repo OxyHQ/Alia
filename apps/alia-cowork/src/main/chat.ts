@@ -348,20 +348,23 @@ export class ChatProvider {
       }
 
       // Add assistant message to history (with tool calls if any)
-      if (assistantMessage || toolCalls.length > 0) {
+      // Filter out undefined from sparse array
+      const validToolCalls = toolCalls.filter(tc => tc && tc.function)
+      if (assistantMessage || validToolCalls.length > 0) {
         const assistantMsg: OpenAI.Chat.ChatCompletionAssistantMessageParam = {
           role: 'assistant',
           content: assistantMessage || null
         }
-        if (toolCalls.length > 0) {
-          assistantMsg.tool_calls = toolCalls
+        if (validToolCalls.length > 0) {
+          assistantMsg.tool_calls = validToolCalls
         }
         this.messages.push(assistantMsg)
       }
 
-      // Execute tools if there are tool calls
-      if (toolCalls.length > 0) {
-        for (const toolCall of toolCalls) {
+      // Execute tools if there are tool calls (filter out any undefined from sparse array)
+      const validToolCalls = toolCalls.filter(tc => tc && tc.function)
+      if (validToolCalls.length > 0) {
+        for (const toolCall of validToolCalls) {
           const toolName = toolCall.function.name
           const args = JSON.parse(toolCall.function.arguments)
 
@@ -552,9 +555,10 @@ export class ChatProvider {
         this.messages.push(assistantMsg)
       }
 
-      // Execute more tools if needed (recursive)
-      if (toolCalls.length > 0) {
-        for (const toolCall of toolCalls) {
+      // Execute more tools if needed (recursive) - filter out any undefined from sparse array
+      const validToolCalls = toolCalls.filter(tc => tc && tc.function)
+      if (validToolCalls.length > 0) {
+        for (const toolCall of validToolCalls) {
           const toolName = toolCall.function.name
           const args = JSON.parse(toolCall.function.arguments)
 
