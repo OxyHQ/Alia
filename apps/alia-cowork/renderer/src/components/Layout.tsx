@@ -95,7 +95,11 @@ function AppSidebar({ currentView, onViewChange }: { currentView?: string; onVie
       <SidebarFooter className="border-t">
         <SidebarMenu>
           <SidebarMenuItem>
-            <SidebarMenuButton tooltip="Settings">
+            <SidebarMenuButton
+              tooltip="Settings"
+              isActive={currentView === "settings"}
+              onClick={() => onViewChange?.("settings")}
+            >
               <HugeiconsIcon icon={Settings01Icon} strokeWidth={2} className="size-4" />
               <span>Settings</span>
             </SidebarMenuButton>
@@ -106,7 +110,11 @@ function AppSidebar({ currentView, onViewChange }: { currentView?: string; onVie
   )
 }
 
-function TitleBar() {
+interface TitleBarProps {
+  onViewChange?: (view: string) => void
+}
+
+function TitleBar({ onViewChange }: TitleBarProps) {
   const [isPinned, setIsPinned] = React.useState(false)
   const [isFullScreen, setIsFullScreen] = React.useState(false)
   const { toggleSidebar, state: sidebarState } = useSidebar()
@@ -142,7 +150,7 @@ function TitleBar() {
                 New Chat <MenubarShortcut>Ctrl+N</MenubarShortcut>
               </MenubarItem>
               <MenubarSeparator />
-              <MenubarItem disabled>
+              <MenubarItem onClick={() => onViewChange?.("settings")}>
                 Settings <MenubarShortcut>Ctrl+,</MenubarShortcut>
               </MenubarItem>
               <MenubarSeparator />
@@ -248,7 +256,7 @@ export function Layout({ children, currentView = "chat", onViewChange }: LayoutP
   return (
     <SidebarProvider defaultOpen={false}>
       <div className="flex h-screen w-full flex-col bg-background text-foreground overflow-hidden">
-        <TitleBar />
+        <TitleBar onViewChange={onViewChange} />
         <div className="flex flex-1 overflow-hidden">
           <AppSidebar currentView={currentView} onViewChange={onViewChange} />
           <SidebarInset className="flex flex-col overflow-hidden">
