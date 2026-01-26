@@ -509,7 +509,7 @@ export class AuthProvider {
     const baseUrl = this.apiBaseUrl
 
     return new Promise((resolve, reject) => {
-      const url = new URL(`${baseUrl}/v1/codea/me`)
+      const url = new URL(`${baseUrl}/codea/me`)
       const isHttps = url.protocol === 'https:'
       const httpModule = isHttps ? https : http
 
