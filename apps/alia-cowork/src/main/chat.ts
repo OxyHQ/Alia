@@ -531,26 +531,24 @@ export class ChatProvider {
             console.log(`[ChatProvider] Result preview: ${String(result || '').slice(0, 200)}`)
 
             // Add tool result to messages
+            // Append reminder to tool result to prevent redundant calls
+            let toolResult = result
+            if (result.includes('already open') || result.includes('DO NOT call')) {
+              console.log('[ChatProvider] Adding reminder to tool result to prevent redundant tool calls')
+              toolResult += '\n\n[SYSTEM REMINDER: The action is complete. Do NOT call the same tool again. Move to the next task or provide your final response.]'
+            }
+
             this.messages.push({
               role: 'tool',
               tool_call_id: toolCall.id,
-              content: result
+              content: toolResult
             })
             console.log(`[ChatProvider] Added tool result to messages (total: ${this.messages.length})`)
-
-            // Add reminder after tool execution to prevent redundant calls
-            if (result.includes('already open') || result.includes('DO NOT call')) {
-              console.log('[ChatProvider] Adding reminder to prevent redundant tool calls')
-              this.messages.push({
-                role: 'system',
-                content: 'IMPORTANT: The tool result indicates the action is already complete. Do NOT call the same tool again. Provide your final response now.'
-              } as any)
-            }
 
             this.send('chat:toolResult', {
               tool: toolName,
               success: true,
-              result: String(result || '').slice(0, 500)
+              result: String(toolResult || '').slice(0, 500)
             })
           } catch (error: any) {
             const errorMsg = error.message || String(error)
@@ -834,25 +832,23 @@ export class ChatProvider {
                 result = `Unknown tool: ${toolName}`
             }
 
+            // Append reminder to tool result to prevent redundant calls
+            let toolResult = result
+            if (result.includes('already open') || result.includes('DO NOT call')) {
+              console.log('[ChatProvider] Adding reminder to tool result in continuation to prevent redundant tool calls')
+              toolResult += '\n\n[SYSTEM REMINDER: The action is complete. Do NOT call the same tool again. Move to the next task or provide your final response.]'
+            }
+
             this.messages.push({
               role: 'tool',
               tool_call_id: toolCall.id,
-              content: result
+              content: toolResult
             })
-
-            // Add reminder after tool execution to prevent redundant calls
-            if (result.includes('already open') || result.includes('DO NOT call')) {
-              console.log('[ChatProvider] Adding reminder in continuation to prevent redundant tool calls')
-              this.messages.push({
-                role: 'system',
-                content: 'IMPORTANT: The tool result indicates the action is already complete. Do NOT call the same tool again. Provide your final response now.'
-              } as any)
-            }
 
             this.send('chat:toolResult', {
               tool: toolName,
               success: true,
-              result: String(result || '').slice(0, 500)
+              result: String(toolResult || '').slice(0, 500)
             })
           } catch (error: any) {
             const errorMsg = error.message || String(error)
@@ -896,7 +892,16 @@ export class ChatProvider {
     const userMemory = await this.getUserMemory()
     const userInfo = await this.getUserInfo()
 
-    let systemMessage = `You are Alia Cowork, an AI assistant for desktop productivity. Be concise and helpful.
+    // Add language instruction at the VERY BEGINNING (most important)
+    const userLanguage = userMemory?.preferences?.language
+    let languageInstruction = ''
+    if (userLanguage) {
+      languageInstruction = `CRITICAL INSTRUCTION: You MUST respond ONLY in ${userLanguage}. Every single word you write must be in ${userLanguage} language. This is non-negotiable.\n\n`
+    } else {
+      languageInstruction = `CRITICAL INSTRUCTION: You MUST respond in the SAME language the user writes to you. If user writes Spanish, respond in Spanish. If user writes English, respond in English. Mirror their language.\n\n`
+    }
+
+    let systemMessage = languageInstruction + `You are Alia Cowork, an AI assistant for desktop productivity. Be concise and helpful.
 
 ## Response Style
 - Be brief and direct
@@ -905,15 +910,6 @@ export class ChatProvider {
 
 ## Platform
 You are running on ${process.platform === 'darwin' ? 'macOS' : process.platform === 'win32' ? 'Windows' : 'Linux'}.`
-
-    // Add language instruction FIRST (most important)
-    const userLanguage = userMemory?.preferences?.language
-    if (userLanguage) {
-      systemMessage += `\n\n# LANGUAGE INSTRUCTION
-**YOU MUST RESPOND IN ${userLanguage.toUpperCase()}. ALL YOUR RESPONSES MUST BE IN ${userLanguage.toUpperCase()} LANGUAGE.**`
-    } else {
-      systemMessage += '\n\n# LANGUAGE INSTRUCTION\n**Respond in the same language the user writes to you. Match their language automatically.**'
-    }
 
     // Add user name if available
     if (userInfo) {

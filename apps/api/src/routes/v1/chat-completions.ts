@@ -295,16 +295,16 @@ router.post('/', async (req: Request, res: Response) => {
     }
 
     // Build system message with user context
-    let systemMessage = baseSystemPrompt;
-
-    // Add language instruction FIRST (most important)
+    // Add language instruction at the VERY BEGINNING (most important)
     const userLanguage = userMemory?.preferences?.language;
+    let languageInstruction = '';
     if (userLanguage) {
-      systemMessage += `\n\n# LANGUAGE INSTRUCTION
-**YOU MUST RESPOND IN ${userLanguage.toUpperCase()}. ALL YOUR RESPONSES MUST BE IN ${userLanguage.toUpperCase()} LANGUAGE.**`;
+      languageInstruction = `CRITICAL INSTRUCTION: You MUST respond ONLY in ${userLanguage}. Every single word you write must be in ${userLanguage} language. This is non-negotiable.\n\n`;
     } else {
-      systemMessage += '\n\n# LANGUAGE INSTRUCTION\n**Respond in the same language the user writes to you. Match their language automatically.**';
+      languageInstruction = `CRITICAL INSTRUCTION: You MUST respond in the SAME language the user writes to you. If user writes Spanish, respond in Spanish. If user writes English, respond in English. Mirror their language.\n\n`;
     }
+
+    let systemMessage = languageInstruction + baseSystemPrompt;
 
     if (req.user) {
       // Get user's name from Oxy
