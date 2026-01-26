@@ -56,14 +56,27 @@ export class ChatProvider {
     this.isProcessing = true
 
     // Build user message with context
-    // If there are images, use multimodal format; otherwise use enhanced text
-    if (context && context.length > 0 && context.some((item: any) => item.language === 'image')) {
+    // Separate folders from files
+    const folders = context?.filter((item: any) => item.type === 'folder') || []
+    const files = context?.filter((item: any) => item.type === 'file') || []
+    const hasImages = files.some((item: any) => item.language === 'image')
+
+    if (hasImages) {
       // Multimodal format for images
       const contentParts: Array<{ type: 'text' | 'image_url'; text?: string; image_url?: { url: string } }> = [
         { type: 'text', text: content }
       ]
 
-      for (const item of context) {
+      // Add folder references (just mention the path)
+      if (folders.length > 0) {
+        contentParts[0].text += '\n\n**Attached Folders** (use list_files and read_file tools to explore):'
+        for (const folder of folders) {
+          contentParts[0].text += `\n- ${folder.path}`
+        }
+      }
+
+      // Add files
+      for (const item of files) {
         if (item.language === 'image') {
           contentParts.push({
             type: 'image_url',
@@ -78,9 +91,20 @@ export class ChatProvider {
     } else if (context && context.length > 0) {
       // Text-only format
       let enhancedContent = content
-      for (const item of context) {
+
+      // Add folder references
+      if (folders.length > 0) {
+        enhancedContent += '\n\n**Attached Folders** (use list_files and read_file tools to explore):'
+        for (const folder of folders) {
+          enhancedContent += `\n- ${folder.path}`
+        }
+      }
+
+      // Add files
+      for (const item of files) {
         enhancedContent += `\n\n**File: ${item.path}**\n\`\`\`${item.language || ''}\n${item.content}\n\`\`\``
       }
+
       this.messages.push({ role: 'user', content: enhancedContent })
     } else {
       // No context
@@ -912,35 +936,14 @@ export class ChatProvider {
 
     const platform = process.platform === 'darwin' ? 'macOS' : process.platform === 'win32' ? 'Windows' : 'Linux'
 
-    let systemMessage = `Client: Alia Cowork Desktop (${platform})
-- **clipboard_read/write**: Access clipboard
-- **get_system_info**: Get detailed system information
-- **screenshot**: Capture the entire screen
-- **set_mode**: Change operating mode (ask/edit/plan/yolo)
+    let systemMessage = `Client: Alia Cowork Desktop (${platform})`
 
-### Server Tools (Execute on Alia servers - do NOT use open_application for these)
-- **getCurrentDate**: Get current date and time
-- **sendTelegram**: Send message DIRECTLY to user's Telegram via bot API
-  - USE THIS to send Telegram messages - you CAN and SHOULD use it
-  - When user says "send me X on Telegram", "remind me via Telegram", "envíame un telegram"
-  - Do NOT use open_application for Telegram - use this tool instead
-  - Sends message directly via bot without opening the app
-  - Example: User asks "envíame eso en Telegram" → Use sendTelegram tool with the message
-- **saveUserMemory**: Save important user information for future conversations
-  - USE THIS when user shares: preferences, personal info, goals, experiences
-  - Examples: favorite things, occupation, pets, etc.
-- **updateUserPreferences**: Update user communication preferences
-  - Language, tone, response length, interests
-- **updateUserContext**: Update user context information
-  - Occupation, location, timezone, bio`
-
-      if (this.currentMode === 'ask') {
-        systemMessage += `\n\n## Mode: ASK\nConfirm destructive operations only.`
-      } else if (this.currentMode === 'edit') {
-        systemMessage += `\n\n## Mode: EDIT\nMake changes directly without confirmation.`
-      } else if (this.currentMode === 'yolo') {
-        systemMessage += `\n\n## Mode: YOLO\nFull autonomous mode. Execute everything.`
-      }
+    if (this.currentMode === 'ask') {
+      systemMessage += `\n\n## Mode: ASK\nConfirm destructive operations only.`
+    } else if (this.currentMode === 'edit') {
+      systemMessage += `\n\n## Mode: EDIT\nMake changes directly without confirmation.`
+    } else if (this.currentMode === 'yolo') {
+      systemMessage += `\n\n## Mode: YOLO\nFull autonomous mode. Execute everything.`
     }
 
     return systemMessage

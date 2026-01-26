@@ -374,11 +374,17 @@ export function Chat() {
                 className="flex items-center gap-1.5 rounded-lg border bg-muted/30 px-2 py-1 text-xs"
               >
                 <HugeiconsIcon
-                  icon={file.language === 'image' ? Image01Icon : FileAttachmentIcon}
+                  icon={
+                    file.type === 'folder' ? Folder02Icon :
+                    file.language === 'image' ? Image01Icon :
+                    FileAttachmentIcon
+                  }
                   strokeWidth={2}
                   className="size-3 text-muted-foreground"
                 />
-                <span className="max-w-[120px] truncate" title={file.path}>{file.path}</span>
+                <span className="max-w-[120px] truncate" title={file.path}>
+                  {file.type === 'folder' ? file.name || file.path : file.path}
+                </span>
                 <button
                   onClick={() => removeAttachment(index)}
                   className="hover:text-destructive transition-colors"
@@ -523,11 +529,17 @@ function MessageBubble({ message, isStreaming }: { message: Message; isStreaming
                   className="flex items-center gap-1.5 rounded-lg border bg-muted/30 px-2 py-1 text-xs"
                 >
                   <HugeiconsIcon
-                    icon={file.language === 'image' ? Image01Icon : FileAttachmentIcon}
+                    icon={
+                      file.type === 'folder' ? Folder02Icon :
+                      file.language === 'image' ? Image01Icon :
+                      FileAttachmentIcon
+                    }
                     strokeWidth={2}
                     className="size-3 text-muted-foreground"
                   />
-                  <span className="max-w-[120px] truncate" title={file.path}>{file.path}</span>
+                  <span className="max-w-[120px] truncate" title={file.path}>
+                    {file.type === 'folder' ? file.name || file.path : file.path}
+                  </span>
                 </div>
               ))}
             </div>
