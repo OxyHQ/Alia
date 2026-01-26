@@ -3,7 +3,7 @@ import { Markup } from 'telegraf';
 import { apiClient } from '../services/api-client';
 import { v4 as uuidv4 } from 'uuid';
 import { sendAuthRequest } from './auth';
-import { streamText, type CoreMessage } from 'ai';
+import { streamText, type ModelMessage } from 'ai';
 import { resolveModel, reportUsage } from '../services/model-resolver';
 
 // Process Telegram-specific components from AI response
@@ -134,16 +134,14 @@ export async function handleMessage(ctx: Context) {
 
     console.log('[Chat] Resolved to:', resolved.provider, resolved.modelId);
 
-    // Convert messages to CoreMessage format for AI SDK
-    const coreMessages: CoreMessage[] = messages.map(msg => ({
+    // Convert messages to ModelMessage format for AI SDK
+    const modelMessages: ModelMessage[] = messages.map(msg => ({
       role: msg.role as 'user' | 'assistant',
       content: msg.content
     }));
 
     // Add Telegram-specific system message
-    const systemMessage: CoreMessage = {
-      role: 'system',
-      content: `You are Alia, a helpful AI assistant accessible via Telegram. You can:
+    const systemMessage = `You are Alia, a helpful AI assistant accessible via Telegram. You can:
 - Answer questions and help with tasks
 - Search the web when needed
 - Remember important information about the user
