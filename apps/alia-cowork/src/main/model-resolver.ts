@@ -29,11 +29,11 @@ export async function resolveModel(
   aliaModelId: string
 ): Promise<ResolvedModel> {
   return new Promise((resolve, reject) => {
-    const url = new URL(`${baseUrl}/v1/codea/resolve-model`)
+    const url = new URL(`${baseUrl}/v1/resolve-model`)
     const isHttps = url.protocol === 'https:'
     const httpModule = isHttps ? https : http
 
-    const postData = JSON.stringify({ model: aliaModelId })
+    const postData = JSON.stringify({ model: aliaModelId, clientType: 'cowork' })
 
     const req = httpModule.request(
       {
@@ -97,7 +97,7 @@ export async function reportUsage(
   usage: { promptTokens: number; completionTokens: number; totalTokens: number }
 ): Promise<void> {
   return new Promise((resolve) => {
-    const url = new URL(`${baseUrl}/v1/codea/report-usage`)
+    const url = new URL(`${baseUrl}/v1/report-usage`)
     const isHttps = url.protocol === 'https:'
     const httpModule = isHttps ? https : http
 
