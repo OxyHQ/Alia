@@ -169,13 +169,13 @@ export const fileTools = [
     type: 'function',
     function: {
       name: 'open_file',
-      description: 'Open a file in the editor. Use this to show files to the user without modifying them.',
+      description: 'Open a file in the VS Code editor and show it to the user. Use this when the user asks to "open", "show", or "display" a file. This is different from read_file - this actually opens the file in a tab.',
       parameters: {
         type: 'object',
         properties: {
           path: {
             type: 'string',
-            description: 'The path to the file to open, relative to the workspace root'
+            description: 'The path to the file to open, relative to the workspace root (e.g., "README.md", "src/index.ts")'
           },
           line: {
             type: 'number',
