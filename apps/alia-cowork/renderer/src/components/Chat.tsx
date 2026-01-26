@@ -124,7 +124,7 @@ const toolLabels: Record<string, string> = {
 
 // Default models
 const defaultModels: Model[] = [
-  { id: "alia-v1-codea", name: "Cowork", description: "Fast assistant" },
+  { id: "alia-v1-cowork", name: "Cowork", description: "Fast assistant" },
   { id: "alia-v1-pro", name: "Cowork Pro", description: "Advanced reasoning" },
 ]
 
@@ -171,7 +171,7 @@ export function Chat() {
   const [input, setInput] = React.useState("")
   const [isGenerating, setIsGenerating] = React.useState(false)
   const [currentMode, setCurrentMode] = React.useState("ask")
-  const [currentModel, setCurrentModel] = React.useState("alia-v1-codea")
+  const [currentModel, setCurrentModel] = React.useState("alia-v1-cowork")
   const [streamingContent, setStreamingContent] = React.useState("")
   const [userName, setUserName] = React.useState<string | null>(null)
   const [toolExecutions, setToolExecutions] = React.useState<ToolExecution[]>([])
@@ -331,7 +331,7 @@ export function Chat() {
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder="Ask anything or describe a task..."
+            placeholder="Message Cowork..."
             className="min-h-[60px] max-h-[200px] resize-none"
             autoFocus
           />
@@ -429,8 +429,8 @@ function MessageBubble({ message, isStreaming }: { message: Message; isStreaming
   if (message.role === "user") {
     return (
       <div className="flex justify-end">
-        <div className="max-w-[85%] rounded-2xl bg-primary px-4 py-2 text-primary-foreground">
-          <p className="text-sm whitespace-pre-wrap">{message.content}</p>
+        <div className="max-w-[85%] rounded-2xl bg-muted px-3 py-2 text-sm">
+          {message.content}
         </div>
       </div>
     )
