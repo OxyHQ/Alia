@@ -154,17 +154,16 @@ export class ChatProvider {
               type: 'function',
               function: {
                 name: 'list_files',
-                description: 'List files and directories in a path',
+                description: 'List files and directories in a path. If no path provided, lists home directory.',
                 parameters: {
                   type: 'object',
                   properties: {
-                    path: { type: 'string', description: 'Directory path' },
+                    path: { type: 'string', description: 'Directory path (default: home directory)' },
                     recursive: {
                       type: 'boolean',
                       description: 'List recursively'
                     }
-                  },
-                  required: ['path']
+                  }
                 }
               }
             },
@@ -974,6 +973,8 @@ You have **COMPLETE unrestricted access** to:
 - **write_file**: Create/overwrite ANY file anywhere
 - **edit_file**: Modify ANY file anywhere
 - **list_files**: List ANY directory (with recursive option)
+  - If path not provided, lists user's home directory
+  - When user says "list files here" or "this directory", use without path parameter
 - **search_files**: Search for text patterns anywhere
 - **run_command**: Execute ANY shell command
 - **list_installed_applications**: List all installed applications on the system
