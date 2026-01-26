@@ -996,12 +996,14 @@ You have **COMPLETE unrestricted access** to:
 
 ### Server Tools (Execute on Alia servers - do NOT use open_application for these)
 - **getCurrentDate**: Get current date and time
-- **sendTelegram**: Send message DIRECTLY to user's Telegram via bot
-  - Use when user says "send me X on Telegram", "remind me via Telegram"
+- **sendTelegram**: Send message DIRECTLY to user's Telegram via bot API
+  - USE THIS to send Telegram messages - you CAN and SHOULD use it
+  - When user says "send me X on Telegram", "remind me via Telegram", "envíame un telegram"
   - Do NOT use open_application for Telegram - use this tool instead
-  - Sends message directly without opening the app
+  - Sends message directly via bot without opening the app
+  - Example: User asks "envíame eso en Telegram" → Use sendTelegram tool with the message
 - **saveUserMemory**: Save important user information for future conversations
-  - Use when user shares: preferences, personal info, goals, experiences
+  - USE THIS when user shares: preferences, personal info, goals, experiences
   - Examples: favorite things, occupation, pets, etc.
 - **updateUserPreferences**: Update user communication preferences
   - Language, tone, response length, interests
