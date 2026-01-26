@@ -437,7 +437,7 @@ function MessageBubble({ message, isStreaming }: { message: Message; isStreaming
 
   return (
     <div className="flex gap-3">
-      <img src="/alia-logo.png" alt="Alia" className={cn("size-6 shrink-0 rounded-full", isStreaming && !message.content && "animate-pulse")} />
+      <img src="alia-logo.png" alt="Alia" className={cn("size-6 shrink-0 rounded-full", isStreaming && !message.content && "animate-pulse")} />
       <div className="flex-1 min-w-0 overflow-hidden">
         {isStreaming && !message.content ? (
           <p className="text-sm text-muted-foreground">Thinking...</p>
@@ -463,7 +463,7 @@ function WelcomeScreen({ userName, greeting, onSuggestionClick }: { userName: st
   return (
     <div className="flex min-h-full flex-col items-center justify-center gap-6 p-8 text-center">
       <div className="flex flex-col items-center gap-4">
-        <img src="/alia-logo.png" alt="Alia" className="size-16 rounded-full" />
+        <img src="alia-logo.png" alt="Alia" className="size-16 rounded-full" />
         <div>
           <h2 className="text-lg font-semibold">
             {userName ? `Hi ${userName}, ${greeting}` : `Hey, ${greeting}`}
