@@ -3,6 +3,8 @@ import { Markup } from 'telegraf';
 import { apiClient } from '../services/api-client';
 import { v4 as uuidv4 } from 'uuid';
 import { sendAuthRequest } from './auth';
+import { streamText, type CoreMessage } from 'ai';
+import { resolveModel, reportUsage } from '../services/model-resolver';
 
 // Process Telegram-specific components from AI response
 async function processTelegramComponents(ctx: Context, response: string, currentMessage: any) {
@@ -121,132 +123,110 @@ export async function handleMessage(ctx: Context) {
       content: messageText
     });
 
-    // Make API call to chat endpoint with bot authentication
-    console.log('[Chat] Sending message to API:', messageText.substring(0, 50));
-    const response = await fetch(`${process.env.API_BASE_URL || 'http://localhost:3001'}/alia/chat`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-Telegram-Bot-Secret': botSecret,
-        'X-Oxy-User-Id': telegramUser.oxyUserId.toString(),
-        'X-Telegram-Id': telegramId,
-        'X-Telegram-Bot': 'true',
-      },
-      body: JSON.stringify({
-        messages,
-        model: telegramUser.preferredModel || 'alia-lite'
-      }),
-    });
+    // Resolve model using centralized API
+    console.log('[Chat] Resolving model:', telegramUser.preferredModel || 'alia-lite');
+    const apiBaseUrl = process.env.API_BASE_URL || 'http://localhost:3001';
+    const resolved = await resolveModel(
+      apiBaseUrl,
+      botSecret, // Use bot secret as API key for authentication
+      telegramUser.preferredModel || 'alia-lite'
+    );
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error('[Chat] API error response:', errorText);
-      throw new Error(`API error: ${response.statusText} - ${errorText}`);
-    }
+    console.log('[Chat] Resolved to:', resolved.provider, resolved.modelId);
 
-    if (!response.body) {
-      throw new Error('No response body');
-    }
+    // Convert messages to CoreMessage format for AI SDK
+    const coreMessages: CoreMessage[] = messages.map(msg => ({
+      role: msg.role as 'user' | 'assistant',
+      content: msg.content
+    }));
 
-    // Stream the response
-    const reader = response.body.getReader();
-    const decoder = new TextDecoder();
+    // Add Telegram-specific system message
+    const systemMessage: CoreMessage = {
+      role: 'system',
+      content: `You are Alia, a helpful AI assistant accessible via Telegram. You can:
+- Answer questions and help with tasks
+- Search the web when needed
+- Remember important information about the user
+
+Telegram Special Commands:
+- [REACT:emoji] - React to user's message with an emoji (e.g., [REACT:👍])
+- [TGIMAGE url="..." caption="..."] - Send an image
+- [TGDOC url="..." filename="..." caption="..."] - Send a document
+- [TGLINKS title="..."]{"text":"...","url":"..."}[/TGLINKS] - Send link buttons
+
+Be concise and friendly. Use these Telegram features when appropriate.`
+    };
+
+    const messagesWithSystem = [systemMessage, ...coreMessages];
+
+    // Stream response with AI SDK
     let fullResponse = '';
     let lastUpdateTime = Date.now();
     let currentMessage: any = null;
-    let chunkCount = 0;
 
-    // Track which tool notifications have been sent to avoid duplicates
-    const sentToolNotifications = new Set<string>();
+    const result = streamText({
+      model: resolved.model,
+      messages: messagesWithSystem,
 
-    while (true) {
-      const { done, value } = await reader.read();
+      // Enhanced call options
+      maxRetries: 3,
+      temperature: 0.7,
+      maxTokens: 2048, // Telegram bot uses smaller token limits for faster responses
 
-      if (done) {
-        break;
+      // Error handling
+      onError: (error) => {
+        console.error('[Chat] AI SDK error:', error);
+      },
+
+      onFinish: async (event) => {
+        console.log('[Chat] Finish reason:', event.finishReason);
+        console.log('[Chat] Usage:', event.usage);
+
+        // Report usage back to API
+        if (event.usage) {
+          await reportUsage(
+            apiBaseUrl,
+            botSecret,
+            resolved.sessionId,
+            {
+              promptTokens: event.usage.promptTokens,
+              completionTokens: event.usage.completionTokens,
+              totalTokens: event.usage.totalTokens
+            }
+          ).catch(error => {
+            console.error('[Chat] Failed to report usage:', error);
+          });
+        }
+      }
+    });
+
+    // Process streaming chunks
+    for await (const chunk of result.textStream) {
+      fullResponse += chunk;
+
+      // Refresh typing action periodically during streaming
+      const now = Date.now();
+      if (now - lastActionTime > 5000) {
+        await ctx.sendChatAction('typing');
+        lastActionTime = now;
       }
 
-      chunkCount++;
-      const chunk = decoder.decode(value, { stream: true });
-      const lines = chunk.split('\n');
-
-      for (const line of lines) {
-        if (line.startsWith('data: ')) {
-          const dataStr = line.slice(6).trim();
-
-          // Check for completion marker
-          if (dataStr === '[DONE]') {
-            continue;
-          }
-
-          try {
-            const data = JSON.parse(dataStr);
-
-            // Handle tool calls with dynamic chat actions
-            if (data.type === 'tool-call') {
-              const toolName = data.toolName;
-
-              // Only send notification once per tool type to avoid duplicates
-              if (!sentToolNotifications.has(toolName)) {
-                sentToolNotifications.add(toolName);
-
-                // Send appropriate chat action and notification
-                if (toolName === 'googleSearch') {
-                  await ctx.sendChatAction('typing');
-                  await ctx.reply('🔍 Buscando en internet...').catch(() => {});
-                } else if (toolName === 'scrapeURL') {
-                  await ctx.sendChatAction('typing');
-                  await ctx.reply('📄 Leyendo contenido...').catch(() => {});
-                } else if (toolName === 'saveUserMemory') {
-                  await ctx.sendChatAction('typing');
-                  await ctx.reply('💾 Guardando información...').catch(() => {});
-                } else {
-                  // Generic typing for other tools
-                  const now = Date.now();
-                  if (now - lastActionTime > 5000) { // Refresh typing every 5s
-                    await ctx.sendChatAction('typing');
-                    lastActionTime = now;
-                  }
-                }
-              }
-            }
-
-            // Handle text delta events from AI SDK
-            if (data.type === 'text-delta' && data.text) {
-              fullResponse += data.text;
-
-              // Refresh typing action periodically during streaming
-              const now = Date.now();
-              if (now - lastActionTime > 5000) {
-                await ctx.sendChatAction('typing');
-                lastActionTime = now;
-              }
-
-              // Show first chunk immediately for instant feedback
-              if (!currentMessage && fullResponse.length > 5) {
-                currentMessage = await ctx.reply(fullResponse + '...').catch(() => null);
-                lastUpdateTime = now;
-              }
-              // Then update every 0.7s for faster streaming (balance between responsiveness and rate limits)
-              else if (now - lastUpdateTime > 700) {
-                if (currentMessage) {
-                  await ctx.telegram.editMessageText(
-                    ctx.chat!.id,
-                    currentMessage.message_id,
-                    undefined,
-                    fullResponse + '...'
-                  ).catch(() => {}); // Ignore edit errors
-                }
-                lastUpdateTime = now;
-              }
-            } else if (data.type === 'error') {
-              console.error('[Chat] API error event:', data);
-              throw new Error(data.error || 'Unknown error');
-            }
-          } catch (e) {
-            // Skip non-JSON lines
-          }
+      // Show first chunk immediately for instant feedback
+      if (!currentMessage && fullResponse.length > 5) {
+        currentMessage = await ctx.reply(fullResponse + '...').catch(() => null);
+        lastUpdateTime = now;
+      }
+      // Then update every 0.7s for faster streaming (balance between responsiveness and rate limits)
+      else if (now - lastUpdateTime > 700) {
+        if (currentMessage) {
+          await ctx.telegram.editMessageText(
+            ctx.chat!.id,
+            currentMessage.message_id,
+            undefined,
+            fullResponse + '...'
+          ).catch(() => {}); // Ignore edit errors
         }
+        lastUpdateTime = now;
       }
     }
 
