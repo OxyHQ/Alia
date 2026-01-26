@@ -1,5 +1,7 @@
 import * as vscode from 'vscode';
-import { fileTools, ToolExecutor } from './tools';
+import { fileTools, ToolExecutor, createAISDKTools } from './tools';
+import { streamText } from 'ai';
+import { resolveModel, reportUsage } from './model-resolver';
 
 interface Message {
   role: 'user' | 'assistant' | 'system' | 'tool';
@@ -755,123 +757,57 @@ Full autonomous mode. Execute everything without any confirmations.`;
   }
 
   private async processConversation(baseUrl: string, apiKey: string, model: string, systemMessage: string): Promise<void> {
-    let isFirstIteration = true;
+    // Start assistant response
+    this._view?.webview.postMessage({ type: 'startAssistantMessage' });
 
-    while (this._isProcessing) {
-      // Start assistant response - only clear state on first iteration
-      if (isFirstIteration) {
-        this._view?.webview.postMessage({ type: 'startAssistantMessage' });
-        isFirstIteration = false;
+    try {
+      // AI SDK handles tool execution loop internally with maxSteps
+      const result = await this.streamChatCompletion(baseUrl, apiKey, model, systemMessage, this._messages);
+
+      if (!this._isProcessing) return;
+
+      // Add intermediate messages (tool calls and results) to conversation
+      if (result.newMessages && result.newMessages.length > 0) {
+        this._messages.push(...result.newMessages);
       }
 
-      try {
-        const result = await this.streamChatCompletion(baseUrl, apiKey, model, systemMessage, this._messages);
+      // Add final assistant message to conversation
+      if (result.content) {
+        this._messages.push({ role: 'assistant', content: result.content });
+      }
 
-        if (!this._isProcessing) break;
-
-        // Check if there are tool calls to process
-        if (result.toolCalls && result.toolCalls.length > 0) {
-          // Add assistant message with tool calls
-          const assistantMessage: Message = {
-            role: 'assistant',
-            content: result.content,
-            tool_calls: result.toolCalls
-          };
-          this._messages.push(assistantMessage);
-
-          // Execute each tool call
-          for (const toolCall of result.toolCalls) {
-            if (!this._isProcessing) break;
-
-            const args = JSON.parse(toolCall.function.arguments);
-
-            // Notify UI about tool execution
-            this._view?.webview.postMessage({
-              type: 'toolCall',
-              tool: toolCall.function.name,
-              args: args,
-              status: 'running'
-            });
-
-            let toolResult: { success: boolean; result: string };
-
-            // Handle set_mode specially
-            if (toolCall.function.name === 'set_mode') {
-              const newMode = args.mode;
-              if (['ask', 'edit', 'plan', 'yolo'].includes(newMode)) {
-                this._currentMode = newMode;
-                // Notify webview to update mode selector
-                this._view?.webview.postMessage({
-                  type: 'modeChanged',
-                  mode: newMode
-                });
-                toolResult = { success: true, result: `Mode changed to ${newMode}` };
-              } else {
-                toolResult = { success: false, result: `Invalid mode: ${newMode}` };
-              }
-            } else {
-              // Execute the tool
-              toolResult = await this._toolExecutor.execute(toolCall.function.name, args);
-            }
-
-            // Notify UI about result
-            this._view?.webview.postMessage({
-              type: 'toolResult',
-              tool: toolCall.function.name,
-              success: toolResult.success,
-              result: toolResult.result.slice(0, 500) + (toolResult.result.length > 500 ? '...' : '')
-            });
-
-            // Add tool result message
-            this._messages.push({
-              role: 'tool',
-              tool_call_id: toolCall.id,
-              name: toolCall.function.name,
-              content: toolResult.result
-            });
-          }
-
-          // Continue the loop to get next response - DON'T clear UI state yet
-          // The next iteration will continue streaming
-          continue;
+      // End assistant message
+      this._view?.webview.postMessage({ type: 'endAssistantMessage' });
+    } catch (error: any) {
+      const rawMessage = error.message || 'An error occurred';
+      // Map HTTP error codes to friendly messages, but prefer API error message if available
+      let errorMessage = rawMessage;
+      if (rawMessage.includes('HTTP 402') || rawMessage.includes('402')) {
+        // Check if API provided a specific reason
+        if (rawMessage.toLowerCase().includes('credit') || rawMessage.toLowerCase().includes('balance') || rawMessage.toLowerCase().includes('payment')) {
+          errorMessage = 'Insufficient credits. Please add more credits at alia.onl to continue.';
         } else {
-          // No tool calls, conversation turn is complete
-          this._messages.push({ role: 'assistant', content: result.content });
-          this._view?.webview.postMessage({ type: 'endAssistantMessage' });
-          break;
+          errorMessage = 'Payment required. Please check your account at alia.onl.';
         }
-      } catch (error: any) {
-        const rawMessage = error.message || 'An error occurred';
-        // Map HTTP error codes to friendly messages, but prefer API error message if available
-        let errorMessage = rawMessage;
-        if (rawMessage.includes('HTTP 402')) {
-          // Check if API provided a specific reason
-          if (rawMessage.toLowerCase().includes('credit') || rawMessage.toLowerCase().includes('balance') || rawMessage.toLowerCase().includes('payment')) {
-            errorMessage = 'Insufficient credits. Please add more credits at alia.onl to continue.';
-          } else {
-            errorMessage = 'Payment required. Please check your account at alia.onl.';
-          }
-        } else if (rawMessage.includes('HTTP 401')) {
-          errorMessage = 'Invalid API key. Please check your settings.';
-        } else if (rawMessage.includes('HTTP 429')) {
-          errorMessage = 'Rate limit exceeded. Please wait a moment and try again.';
-        } else if (rawMessage.includes('HTTP 500')) {
-          errorMessage = 'Server error. Please try again later.';
-        } else if (rawMessage.includes('HTTP 503')) {
-          errorMessage = 'Service unavailable. Please try again later.';
-        }
-        this._view?.webview.postMessage({
-          type: 'error',
-          message: errorMessage
-        });
-        vscode.window.showErrorMessage(`Codea: ${errorMessage}`);
-        break;
+      } else if (rawMessage.includes('HTTP 401') || rawMessage.includes('401')) {
+        errorMessage = 'Invalid API key. Please check your settings.';
+      } else if (rawMessage.includes('HTTP 429') || rawMessage.includes('429')) {
+        errorMessage = 'Rate limit exceeded. Please wait a moment and try again.';
+      } else if (rawMessage.includes('HTTP 500') || rawMessage.includes('500')) {
+        errorMessage = 'Server error. Please try again later.';
+      } else if (rawMessage.includes('HTTP 503') || rawMessage.includes('503')) {
+        errorMessage = 'Service unavailable. Please try again later.';
       }
+      this._view?.webview.postMessage({
+        type: 'error',
+        message: errorMessage
+      });
+      vscode.window.showErrorMessage(`Codea: ${errorMessage}`);
+    } finally {
+      this._isProcessing = false;
+      // Auto-save conversation after exchange
+      this.saveCurrentConversation();
     }
-
-    this._isProcessing = false;
-    // Auto-save conversation after exchange
-    this.saveCurrentConversation();
   }
 
   private async streamChatCompletion(
@@ -880,35 +816,85 @@ Full autonomous mode. Execute everything without any confirmations.`;
     model: string,
     systemMessage: string,
     messages: Message[]
-  ): Promise<{ content: string; toolCalls?: ToolCall[] }> {
-    const url = `${baseUrl}/v1/codea/chat/completions`;
+  ): Promise<{ content: string; toolCalls?: ToolCall[]; newMessages?: Message[] }> {
+    // Resolve model using centralized API
+    console.log('[Codea] Resolving model:', model);
+    const resolved = await resolveModel(baseUrl, apiKey, model);
+    console.log('[Codea] Resolved to:', resolved.provider, resolved.modelId);
 
-    // Prepare messages with system message
-    const allMessages = [
-      { role: 'system', content: systemMessage },
-      ...messages.map(m => {
+    // Convert messages to AI SDK format (exclude system message as it's passed separately)
+    const modelMessages = messages
+      .filter(m => m.role !== 'system')
+      .map(m => {
         if (m.role === 'tool') {
           return {
-            role: 'tool',
-            tool_call_id: m.tool_call_id,
-            content: m.content
+            role: 'tool' as const,
+            content: [{ type: 'tool-result' as const, toolCallId: m.tool_call_id || '', toolName: m.name || '', result: m.content }]
           };
         } else if (m.tool_calls) {
           return {
-            role: 'assistant',
-            content: m.content || '',
-            tool_calls: m.tool_calls
+            role: 'assistant' as const,
+            content: [
+              ...(m.content ? [{ type: 'text' as const, text: m.content }] : []),
+              ...m.tool_calls.map(tc => ({
+                type: 'tool-call' as const,
+                toolCallId: tc.id,
+                toolName: tc.function.name,
+                args: JSON.parse(tc.function.arguments)
+              }))
+            ]
           };
         }
-        return { role: m.role, content: m.content };
-      })
-    ];
+        return {
+          role: m.role as 'user' | 'assistant',
+          content: m.content
+        };
+      });
 
-    const requestBody = JSON.stringify({
-      model,
-      messages: allMessages,
-      tools: fileTools,
-      stream: true
+    // Create AI SDK tools with UI update wrappers
+    const toolExecutor = this._toolExecutor;
+    const view = this._view;
+    const currentModeRef = { mode: this._currentMode };
+
+    const aiTools = createAISDKTools({
+      execute: async (toolName: string, args: any) => {
+        // Handle set_mode specially
+        if (toolName === 'set_mode') {
+          const newMode = args.mode;
+          if (['ask', 'edit', 'plan', 'yolo'].includes(newMode)) {
+            currentModeRef.mode = newMode;
+            this._currentMode = newMode;
+            view?.webview.postMessage({
+              type: 'modeChanged',
+              mode: newMode
+            });
+            return { success: true, result: `Mode changed to ${newMode}` };
+          } else {
+            return { success: false, result: `Invalid mode: ${newMode}` };
+          }
+        }
+
+        // Notify UI about tool execution
+        view?.webview.postMessage({
+          type: 'toolCall',
+          tool: toolName,
+          args: args,
+          status: 'running'
+        });
+
+        // Execute the tool
+        const result = await toolExecutor.execute(toolName, args);
+
+        // Notify UI about result
+        view?.webview.postMessage({
+          type: 'toolResult',
+          tool: toolName,
+          success: result.success,
+          result: result.result.slice(0, 500) + (result.result.length > 500 ? '...' : '')
+        });
+
+        return result;
+      }
     });
 
     const controller = new AbortController();
@@ -918,124 +904,117 @@ Full autonomous mode. Execute everything without any confirmations.`;
 
     let fullContent = '';
     const toolCalls: ToolCall[] = [];
-    let currentToolCall: ToolCall | null = null;
+    const newMessages: Message[] = [];
+    let currentStepToolCalls: ToolCall[] = [];
+    let currentStepContent = '';
 
     try {
-      const response = await fetch(url, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${apiKey}`
+      const result = streamText({
+        model: resolved.model,
+        system: systemMessage,
+        messages: modelMessages,
+        tools: aiTools,
+        maxSteps: 10,
+
+        // Enhanced call options
+        maxRetries: 3,
+        temperature: 0.7,
+        maxTokens: 4096,
+
+        // Prompt caching for Anthropic
+        experimental_providerMetadata: resolved.provider === 'anthropic' ? {
+          anthropic: { cacheControl: [{ type: 'ephemeral' as const }] }
+        } : undefined,
+
+        // Error handling
+        onError: (error) => {
+          console.error('[Codea] AI SDK error:', error);
         },
-        body: requestBody,
-        signal: controller.signal
+
+        onFinish: async (event) => {
+          console.log('[Codea] Finish reason:', event.finishReason);
+          console.log('[Codea] Usage:', event.usage);
+
+          // Report usage back to API
+          if (event.usage && event.usage.totalTokens) {
+            await reportUsage(
+              baseUrl,
+              apiKey,
+              resolved.sessionId,
+              {
+                promptTokens: event.usage.promptTokens || 0,
+                completionTokens: event.usage.completionTokens || 0,
+                totalTokens: event.usage.totalTokens
+              }
+            ).catch(error => {
+              console.error('[Codea] Failed to report usage:', error);
+            });
+          }
+        },
+
+        abortSignal: controller.signal
       });
 
-      if (!response.ok) {
-        const errorBody = await response.text();
-        try {
-          const error = JSON.parse(errorBody);
-          const apiMessage = error.error?.message || error.message || '';
-          throw new Error(`HTTP ${response.status}: ${apiMessage}`.trim());
-        } catch (e) {
-          if (e instanceof SyntaxError) {
-            throw new Error(`HTTP ${response.status}: ${errorBody}`);
-          }
-          throw e;
-        }
-      }
-
-      if (!response.body) {
-        throw new Error('Response body is null');
-      }
-
-      const reader = response.body.getReader();
-      const decoder = new TextDecoder();
-      let buffer = '';
-
-      while (true) {
-        const { done, value } = await reader.read();
-
-        if (done || !this._isProcessing) {
+      // Process streaming chunks
+      for await (const chunk of result.fullStream) {
+        if (!this._isProcessing) {
           break;
         }
 
-        buffer += decoder.decode(value, { stream: true });
-
-        // Process complete SSE events
-        const lines = buffer.split('\n');
-        buffer = lines.pop() || '';
-
-        for (const line of lines) {
-          if (line.startsWith('data: ')) {
-            const data = line.slice(6).trim();
-
-            if (data === '[DONE]') {
-              continue;
-            }
-
-            try {
-              const parsed: ChatCompletionChunk = JSON.parse(data);
-              const choice = parsed.choices?.[0];
-
-              if (choice?.delta?.content) {
-                fullContent += choice.delta.content;
-                this._view?.webview.postMessage({
-                  type: 'streamContent',
-                  content: choice.delta.content
-                });
-              }
-
-              // Handle tool calls
-              if (choice?.delta?.tool_calls) {
-                for (const tc of choice.delta.tool_calls) {
-                  if (tc.id) {
-                    // New tool call starting
-                    currentToolCall = {
-                      id: tc.id,
-                      type: (tc.type as 'function') || 'function',
-                      function: {
-                        name: tc.function?.name || '',
-                        arguments: tc.function?.arguments || ''
-                      }
-                    };
-                    toolCalls.push(currentToolCall);
-                    // Notify UI immediately that a tool call is starting
-                    if (currentToolCall.function.name) {
-                      this._view?.webview.postMessage({
-                        type: 'toolCall',
-                        tool: currentToolCall.function.name,
-                        args: {},
-                        status: 'preparing'
-                      });
-                    }
-                  } else if (currentToolCall) {
-                    // Append to current tool call
-                    if (tc.function?.name) {
-                      currentToolCall.function.name = tc.function.name;
-                      // Notify UI when we know the tool name
-                      this._view?.webview.postMessage({
-                        type: 'toolCall',
-                        tool: currentToolCall.function.name,
-                        args: {},
-                        status: 'preparing'
-                      });
-                    }
-                    if (tc.function?.arguments) {
-                      currentToolCall.function.arguments += tc.function.arguments;
-                    }
-                  }
-                }
-              }
-            } catch {
-              // Skip malformed JSON
-            }
+        if (chunk.type === 'text-delta' && chunk.textDelta) {
+          // Filter out thinking tags
+          const filtered = chunk.textDelta.replace(/<thinking>[\s\S]*?<\/thinking>/g, '');
+          if (filtered.trim()) {
+            fullContent += filtered;
+            currentStepContent += filtered;
+            this._view?.webview.postMessage({
+              type: 'streamContent',
+              content: filtered
+            });
           }
+        } else if (chunk.type === 'tool-call') {
+          // Track tool calls for this step
+          const toolCall: ToolCall = {
+            id: chunk.toolCallId,
+            type: 'function',
+            function: {
+              name: chunk.toolName,
+              arguments: JSON.stringify(chunk.args)
+            }
+          };
+          toolCalls.push(toolCall);
+          currentStepToolCalls.push(toolCall);
+        } else if (chunk.type === 'tool-result') {
+          // Add tool result message
+          newMessages.push({
+            role: 'tool',
+            tool_call_id: chunk.toolCallId,
+            name: chunk.toolName,
+            content: typeof chunk.result === 'string' ? chunk.result : JSON.stringify(chunk.result)
+          });
+        } else if (chunk.type === 'step-finish') {
+          // Step finished - add assistant message with tool calls if any
+          if (currentStepToolCalls.length > 0) {
+            newMessages.push({
+              role: 'assistant',
+              content: currentStepContent,
+              tool_calls: currentStepToolCalls
+            });
+            currentStepToolCalls = [];
+            currentStepContent = '';
+          }
+        } else if (chunk.type === 'finish') {
+          // Stream finished
+          break;
         }
       }
 
       this._currentRequest = undefined;
-      return { content: fullContent, toolCalls: toolCalls.length > 0 ? toolCalls : undefined };
+      return {
+        content: fullContent.trim(),
+        toolCalls: toolCalls.length > 0 ? toolCalls : undefined,
+        newMessages: newMessages.length > 0 ? newMessages : undefined
+      };
     } catch (error) {
       this._currentRequest = undefined;
       if (error instanceof Error && error.name === 'AbortError') {
