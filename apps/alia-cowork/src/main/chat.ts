@@ -73,6 +73,13 @@ export class ChatProvider {
     this.send('chat:start', {})
 
     try {
+      console.log('[ChatProvider] ===== NEW MESSAGE =====')
+      console.log('[ChatProvider] Mode:', mode)
+      console.log('[ChatProvider] Model:', selectedModel)
+      console.log('[ChatProvider] Base URL:', baseUrl)
+      console.log('[ChatProvider] Tools enabled:', enableTools)
+      console.log('[ChatProvider] Message count:', this.messages.length)
+
       // Create OpenAI client pointing to our API
       const openai = new OpenAI({
         apiKey,
@@ -281,6 +288,7 @@ export class ChatProvider {
         : undefined
 
       // Stream with OpenAI SDK
+      console.log('[ChatProvider] Creating stream...')
       const stream = await openai.chat.completions.create(
         {
           model: selectedModel,
@@ -295,28 +303,38 @@ export class ChatProvider {
         }
       )
 
+      console.log('[ChatProvider] Stream created, processing chunks...')
       let assistantMessage = ''
       let toolCalls: OpenAI.Chat.ChatCompletionMessageToolCall[] = []
+      let chunkCount = 0
 
       // Process stream chunks
       for await (const chunk of stream) {
+        chunkCount++
+        console.log(`[ChatProvider] Chunk ${chunkCount}:`, JSON.stringify(chunk, null, 2))
         const delta = chunk.choices?.[0]?.delta
 
-        if (!delta) continue
+        if (!delta) {
+          console.log('[ChatProvider] Chunk has no delta, skipping')
+          continue
+        }
 
         // Handle reasoning (chain-of-thought)
         if ((delta as any).reasoning) {
+          console.log('[ChatProvider] Reasoning chunk:', (delta as any).reasoning)
           this.send('chat:thinking', { content: (delta as any).reasoning })
         }
 
         // Handle content
         if (delta.content) {
+          console.log('[ChatProvider] Content chunk:', delta.content)
           assistantMessage += delta.content
           this.send('chat:stream', { content: delta.content })
         }
 
         // Handle tool calls
         if (delta.tool_calls) {
+          console.log('[ChatProvider] Tool call delta:', JSON.stringify(delta.tool_calls, null, 2))
           for (const toolCall of delta.tool_calls) {
             const index = toolCall.index ?? toolCalls.length
             if (!toolCalls[index]) {
