@@ -267,10 +267,14 @@ You are running on ${process.platform === 'darwin' ? 'macOS' : process.platform 
       let currentToolCall: ToolCall | null = null
 
       const req = httpModule.request(options, (res) => {
+        console.log('[ChatProvider] Response status:', res.statusCode)
+        console.log('[ChatProvider] Response headers:', JSON.stringify(res.headers))
+
         if (res.statusCode !== 200) {
           let errorBody = ''
           res.on('data', (chunk) => (errorBody += chunk))
           res.on('end', () => {
+            console.log('[ChatProvider] Error response body:', errorBody)
             try {
               const error = JSON.parse(errorBody)
               reject(new Error(`HTTP ${res.statusCode}: ${error.error?.message || ''}`))
@@ -293,11 +297,19 @@ You are running on ${process.platform === 'darwin' ? 'macOS' : process.platform 
           for (const line of lines) {
             if (line.startsWith('data: ')) {
               const data = line.slice(6).trim()
-              if (data === '[DONE]') continue
+              if (data === '[DONE]') {
+                console.log('[ChatProvider] Received [DONE]')
+                continue
+              }
 
               try {
                 const parsed = JSON.parse(data)
+                console.log('[ChatProvider] Parsed chunk:', JSON.stringify(parsed).substring(0, 200))
                 const choice = parsed.choices?.[0]
+
+                if (!parsed.choices || parsed.choices.length === 0) {
+                  console.log('[ChatProvider] No choices in response:', JSON.stringify(parsed))
+                }
 
                 if (choice?.delta?.content) {
                   fullContent += choice.delta.content
@@ -347,6 +359,7 @@ You are running on ${process.platform === 'darwin' ? 'macOS' : process.platform 
         })
 
         res.on('end', () => {
+          console.log('[ChatProvider] Response ended. Full content length:', fullContent.length, 'Tool calls:', toolCalls.length)
           this.currentRequest = undefined
           resolve({ content: fullContent, toolCalls: toolCalls.length > 0 ? toolCalls : undefined })
         })
