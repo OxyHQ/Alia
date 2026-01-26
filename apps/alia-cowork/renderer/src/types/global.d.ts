@@ -20,6 +20,8 @@ declare global {
       clearChat: () => void
       getModels: () => Promise<any[]>
       captureScreen: () => Promise<string | null>
+      selectFiles: () => Promise<any[] | null>
+      selectFolder: () => Promise<any[] | null>
       onChatStart: (callback: () => void) => () => void
       onChatStream: (callback: (data: { content: string }) => void) => () => void
       onChatThinking: (callback: (data: { content: string }) => void) => () => void
