@@ -73,7 +73,7 @@ export class CodeaChatViewProvider implements vscode.WebviewViewProvider {
   }
 
   private async fetchUserInfo(baseUrl: string, apiKey: string): Promise<any> {
-    const url = `${baseUrl}/v1/codea/me`;
+    const url = `${baseUrl}/codea/me`;
 
     try {
       const response = await fetch(url, {

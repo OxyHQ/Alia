@@ -1,14 +1,18 @@
 import { Router, Request, Response } from 'express';
-import { streamText } from 'ai';
+import { streamText, type ToolSet } from 'ai';
 import { createGoogleGenerativeAI } from '@ai-sdk/google';
 import { createOpenAI } from '@ai-sdk/openai';
 import { createAnthropic } from '@ai-sdk/anthropic';
 import { loadKeys } from '../../lib/load-balancer.js';
 import { resolveAliaModel, getDefaultAliaModel } from '../../lib/model-resolver.js';
 import { UserCredits } from '../../models/user-credits.js';
+import { UserMemory } from '../../models/user-memory.js';
 import { reserveCredits, finalizeCredits, type CreditReservation, type CreditUsage } from '../../lib/credits-manager.js';
 import { convertOpenAIToolsToToolSet } from '../../lib/tool-converter.js';
+import { getCurrentDateTool, getTimelineTool, saveUserMemoryTool, updateUserPreferencesTool, updateUserContextTool, createSendTelegramTool } from '../../lib/tools/index.js';
+import { oxyClient } from '../../middleware/auth.js';
 import type { KeyConfig } from '../../lib/types.js';
+import type { IUserMemory } from '../../models/user-memory.js';
 import { estimateMessageTokens } from '../../lib/token-counter.js';
 
 const router = Router();
@@ -226,27 +230,123 @@ router.post('/', async (req: Request, res: Response) => {
 
     const model = getAIModel(resolved.keyConfig);
     const aliasModelId = resolved.aliasModelId;
+    console.log(`[V1/Chat] Using provider: ${resolved.provider}/${resolved.modelId}`);
 
-    // Convert OpenAI-format tools to AI SDK format if provided
+    // Extract client context from first system message if present (from editor/client)
+    let clientContext: string | undefined;
+    if (messages.length > 0 && messages[0].role === 'system') {
+      clientContext = messages[0].content as string;
+    }
+
+    // Load model-specific system prompt from markdown files
+    const { buildSystemPrompt } = await import('../../lib/prompt-loader.js');
+    const baseSystemPrompt = await buildSystemPrompt(aliasModelId, clientContext);
+
+    // Load user memory if authenticated
+    let userMemory: IUserMemory | null = null;
+    if (req.user) {
+      try {
+        userMemory = await UserMemory.findOne({ oxyUserId: req.user.id });
+        console.log('[V1/Chat] User memory loaded for:', req.user.id, userMemory ? `(${userMemory.memories?.length || 0} memories)` : '(none)');
+      } catch (error) {
+        console.error('[V1/Chat] Error loading user memory:', error);
+      }
+    }
+
+    // Build Alia internal tools (always available)
+    const aliaTools: ToolSet = {
+      getCurrentDate: getCurrentDateTool,
+      getTimeline: getTimelineTool,
+      ...(req.user ? {
+        saveUserMemory: saveUserMemoryTool(req.user.id),
+        updateUserPreferences: updateUserPreferencesTool(req.user.id),
+        updateUserContext: updateUserContextTool(req.user.id),
+        sendTelegram: createSendTelegramTool(req.user.id),
+      } : {}),
+    };
+
+    // Convert editor tools from OpenAI format and sanitize names for Google compatibility
     const toolNameMapping = new Map<string, string>();
-    let convertedTools: Record<string, any> | undefined;
-    if (body.tools && Array.isArray(body.tools)) {
-      console.log(`[V1/Chat] Converting ${body.tools.length} tools from OpenAI format to AI SDK format`);
-      convertedTools = convertOpenAIToolsToToolSet(body.tools, toolNameMapping);
+    const editorTools = Array.isArray(body.tools) ? convertOpenAIToolsToToolSet(body.tools, toolNameMapping) : {};
+    const allTools = { ...aliaTools, ...editorTools };
+
+    // Log tool schemas for debugging
+    if (Array.isArray(body.tools) && body.tools.length > 0) {
+      console.log(`[V1/Chat] Received ${body.tools.length} tools from client`);
     }
 
-    // Convert messages to AI SDK format (handles tool results)
-    const convertedMessages = convertToAISDKMessages(messages, toolNameMapping);
-    console.log(`[V1/Chat] Converted ${messages.length} messages to AI SDK format`);
+    // Build system message with user context
+    let systemMessage = baseSystemPrompt;
 
-    // Estimate system prompt tokens if there's a system message
-    // (so we don't charge users for our system prompts)
-    let systemPromptTokens = 0;
-    const firstMessage = messages[0];
-    if (firstMessage && firstMessage.role === 'system' && typeof firstMessage.content === 'string') {
-      systemPromptTokens = estimateMessageTokens('system', firstMessage.content);
-      console.log(`[V1/Chat] Estimated system prompt tokens: ${systemPromptTokens}`);
+    if (req.user) {
+      // Get user's name from Oxy
+      try {
+        const user = await oxyClient.getUserById(req.user.id) as any;
+        console.log('[V1/Chat] User data from Oxy:', { id: req.user.id, name: user?.name, username: user?.username });
+        const userName = user?.name?.full || user?.name?.first || user?.username;
+        if (userName) {
+          systemMessage += `\n\nThe user's name is ${userName}.`;
+          console.log('[V1/Chat] Added user name to system message:', userName);
+        }
+      } catch (e: any) {
+        console.error('[V1/Chat] Error fetching user from Oxy:', e.message);
+      }
+      systemMessage += '\n\nYou can send Telegram notifications to the user when they request it (e.g., when a task is complete).';
     }
+
+    if (userMemory) {
+      systemMessage += '\n\n## User Information';
+
+      // Add language preference if available
+      const userLanguage = userMemory.preferences?.language;
+      if (userLanguage) {
+        systemMessage += `\n\n**IMPORTANT: Respond in ${userLanguage}. All your responses must be in ${userLanguage} language.**`;
+      } else {
+        systemMessage += '\n\n**IMPORTANT: Respond in the same language the user writes to you. Match their language automatically.**';
+      }
+
+      if (userMemory.memories && userMemory.memories.length > 0) {
+        systemMessage += '\n### Known Facts:\n' + userMemory.memories.map(m => `- ${m.key}: ${m.value}`).join('\n');
+      }
+      if (userMemory.preferences && Object.keys(userMemory.preferences).length > 0) {
+        const prefs = Object.entries(userMemory.preferences)
+          .filter(([_, v]) => v !== undefined && v !== null)
+          .map(([k, v]) => `- ${k}: ${Array.isArray(v) ? v.join(', ') : v}`);
+        if (prefs.length > 0) {
+          systemMessage += '\n### User Preferences:\n' + prefs.join('\n');
+        }
+      }
+      if (userMemory.context && Object.keys(userMemory.context).length > 0) {
+        const ctx = Object.entries(userMemory.context)
+          .filter(([_, v]) => v !== undefined && v !== null)
+          .map(([k, v]) => `- ${k}: ${v}`);
+        if (ctx.length > 0) {
+          systemMessage += '\n### Context:\n' + ctx.join('\n');
+        }
+      }
+    } else {
+      // If no user memory, still add language instruction
+      systemMessage += '\n\n**IMPORTANT: Respond in the same language the user writes to you. Match their language automatically.**';
+    }
+
+    // Replace or inject system message
+    const rawMessages = [...messages];
+    if (rawMessages.length === 0 || rawMessages[0].role !== 'system') {
+      // No system message, add ours at the start
+      rawMessages.unshift({ role: 'system', content: systemMessage });
+    } else {
+      // Replace client's system message with our complete one (which already includes client context)
+      rawMessages[0] = { role: 'system', content: systemMessage };
+    }
+
+    // Estimate system prompt tokens (for credit calculation)
+    const systemPromptTokens = estimateMessageTokens('system', systemMessage);
+    console.log(`[V1/Chat] Estimated system prompt tokens: ${systemPromptTokens}`);
+
+    // Convert OpenAI-format messages to AI SDK format (handles tool messages)
+    const convertedMessages = convertToAISDKMessages(rawMessages, toolNameMapping);
+    console.log(`[V1/Chat] Converted ${rawMessages.length} messages to AI SDK format`);
+    console.log(`[V1/Chat] System message preview:`, rawMessages[0]?.content?.substring(0, 500));
 
     // Track token usage
     let tokenUsage: CreditUsage = {
@@ -265,6 +365,7 @@ router.post('/', async (req: Request, res: Response) => {
       model,
       messages: convertedMessages,
       temperature: body.temperature ?? 0.7,
+      tools: allTools,
       onFinish: async (result: any) => {
         // Capture token usage from AI SDK
         if (result.usage) {
@@ -281,10 +382,6 @@ router.post('/', async (req: Request, res: Response) => {
 
     if (body.max_tokens) {
       streamConfig.maxTokens = body.max_tokens;
-    }
-
-    if (convertedTools) {
-      streamConfig.tools = convertedTools;
     }
 
     // Configure provider-specific features for reasoning
@@ -393,6 +490,9 @@ router.post('/', async (req: Request, res: Response) => {
       } else if (chunk.type === 'tool-call') {
         // Restore original tool name if it was sanitized
         const originalToolName = toolNameMapping.get(chunk.toolName) || chunk.toolName;
+
+        // Log the tool call arguments being sent to the client
+        console.log(`[V1/Chat] Streaming tool call: ${originalToolName}, args:`, JSON.stringify(chunk.input));
 
         const toolCallChunk = {
           id: `chatcmpl-${Date.now()}`,
