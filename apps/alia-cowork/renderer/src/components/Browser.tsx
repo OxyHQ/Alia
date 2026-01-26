@@ -7,13 +7,15 @@ export function Browser() {
 
   React.useEffect(() => {
     // Handle screenshot updates from main process
-    const handlePreview = (_: any, data: { screenshot: string }) => {
+    const handlePreview = (...args: unknown[]) => {
+      const data = args[0] as { screenshot: string }
       setScreenshot(data.screenshot)
       setIsLoading(false)
       setError(null)
     }
 
-    const handleError = (_: any, data: { error: string }) => {
+    const handleError = (...args: unknown[]) => {
+      const data = args[0] as { error: string }
       setError(data.error)
       setIsLoading(false)
     }

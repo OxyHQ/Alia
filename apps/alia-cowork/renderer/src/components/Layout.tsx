@@ -14,6 +14,7 @@ import {
   CommandIcon,
   InformationCircleIcon,
   CodeIcon,
+  Globe02Icon,
 } from "@hugeicons/core-free-icons"
 
 import { cn } from "@/lib/utils"
@@ -52,6 +53,7 @@ import {
 // Navigation items for sidebar
 const navItems = [
   { id: "chat", label: "Chat", icon: Message01Icon },
+  { id: "browser", label: "Browser", icon: Globe02Icon },
   { id: "files", label: "Files", icon: FolderOpenIcon },
   { id: "commands", label: "Commands", icon: CommandIcon },
   { id: "console", label: "Console", icon: CodeIcon },
