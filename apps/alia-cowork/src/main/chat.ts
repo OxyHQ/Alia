@@ -919,35 +919,36 @@ You are running on ${process.platform === 'darwin' ? 'macOS' : process.platform 
     if (userMemory) {
       systemMessage += '\n\n## User Information'
 
-      // Add language preference if available (most important - always respond in user's language)
+      // Add language preference if available (MOST IMPORTANT)
       const userLanguage = userMemory.preferences?.language
       if (userLanguage) {
         systemMessage += `\n\n**IMPORTANT: Respond in ${userLanguage}. All your responses must be in ${userLanguage} language.**`
-      }
-
-      if (userMemory.context) {
-        systemMessage += `\n\n## User Context`
-        if (userMemory.context.occupation) systemMessage += `\n- Occupation: ${userMemory.context.occupation}`
-        if (userMemory.context.location) systemMessage += `\n- Location: ${userMemory.context.location}`
-        if (userMemory.context.timezone) systemMessage += `\n- Timezone: ${userMemory.context.timezone}`
-        if (userMemory.context.bio) systemMessage += `\n- Bio: ${userMemory.context.bio}`
-      }
-
-      if (userMemory.preferences) {
-        systemMessage += `\n\n## User Preferences`
-        if (userMemory.preferences.tone) systemMessage += `\n- Preferred Tone: ${userMemory.preferences.tone}`
-        if (userMemory.preferences.responseLength) systemMessage += `\n- Response Length: ${userMemory.preferences.responseLength}`
-        if (userMemory.preferences.interests && userMemory.preferences.interests.length > 0) {
-          systemMessage += `\n- Interests: ${userMemory.preferences.interests.join(', ')}`
-        }
+      } else {
+        systemMessage += '\n\n**IMPORTANT: Respond in the same language the user writes to you. Match their language automatically.**'
       }
 
       if (userMemory.memories && userMemory.memories.length > 0) {
-        systemMessage += `\n\n## Important Memories\n`
-        userMemory.memories.slice(0, 20).forEach((memory: any) => {
-          systemMessage += `- ${memory.key}: ${memory.value}\n`
-        })
+        systemMessage += '\n### Known Facts:\n' + userMemory.memories.slice(0, 20).map((m: any) => `- ${m.key}: ${m.value}`).join('\n')
       }
+      if (userMemory.preferences && Object.keys(userMemory.preferences).length > 0) {
+        const prefs = Object.entries(userMemory.preferences)
+          .filter(([_, v]) => v !== undefined && v !== null)
+          .map(([k, v]) => `- ${k}: ${Array.isArray(v) ? (v as any[]).join(', ') : v}`)
+        if (prefs.length > 0) {
+          systemMessage += '\n### User Preferences:\n' + prefs.join('\n')
+        }
+      }
+      if (userMemory.context && Object.keys(userMemory.context).length > 0) {
+        const ctx = Object.entries(userMemory.context)
+          .filter(([_, v]) => v !== undefined && v !== null)
+          .map(([k, v]) => `- ${k}: ${v}`)
+        if (ctx.length > 0) {
+          systemMessage += '\n### Context:\n' + ctx.join('\n')
+        }
+      }
+    } else {
+      // If no user memory, still add language instruction
+      systemMessage += '\n\n**IMPORTANT: Respond in the same language the user writes to you. Match their language automatically.**'
     }
 
     if (enableTools) {
