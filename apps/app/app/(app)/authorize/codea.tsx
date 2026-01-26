@@ -173,6 +173,9 @@ export default function AuthorizeCodeaScreen() {
             <Text className="text-muted-foreground text-center mt-2">
               {message}
             </Text>
+            <Text className="text-xs text-muted-foreground text-center mt-4">
+              If not redirected automatically, you can close this window.
+            </Text>
           </View>
         )}
 
