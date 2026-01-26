@@ -205,11 +205,16 @@ export function Chat() {
   const bottomRef = React.useRef<HTMLDivElement>(null)
   const textareaRef = React.useRef<HTMLTextAreaElement>(null)
   const streamingContentRef = React.useRef("")
+  const toolExecutionsRef = React.useRef<ToolExecution[]>([])
 
-  // Keep ref in sync with state
+  // Keep refs in sync with state
   React.useEffect(() => {
     streamingContentRef.current = streamingContent
   }, [streamingContent])
+
+  React.useEffect(() => {
+    toolExecutionsRef.current = toolExecutions
+  }, [toolExecutions])
 
   // Handle messages from extension
   React.useEffect(() => {
@@ -234,18 +239,20 @@ export function Chat() {
           break
         case "endAssistantMessage": {
           setIsGenerating(false)
-          // Use ref to get latest streaming content
+          // Use refs to get latest values (avoids closure issues)
           const finalContent = streamingContentRef.current
-          if (finalContent || toolExecutions.length > 0) {
+          const finalToolExecutions = toolExecutionsRef.current
+          if (finalContent || finalToolExecutions.length > 0) {
             setMessages((prev) => [...prev, {
               role: "assistant",
               content: finalContent || "",
-              toolExecutions: toolExecutions.length > 0 ? [...toolExecutions] : undefined
+              toolExecutions: finalToolExecutions.length > 0 ? [...finalToolExecutions] : undefined
             }])
           }
           setStreamingContent("")
           streamingContentRef.current = ""
           setToolExecutions([])
+          toolExecutionsRef.current = []
           break
         }
         case "error":
