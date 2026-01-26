@@ -143,15 +143,18 @@ export default function DocumentationScreen() {
 
       {/* Code Editor Endpoint */}
       <View className="px-6 py-6 border-b border-border">
-        <Text className="text-sm font-semibold text-foreground mb-4">Code editor endpoint</Text>
+        <Text className="text-sm font-semibold text-foreground mb-4">Code editor integration</Text>
         <Text className="text-sm text-muted-foreground mb-3">
-          Optimized endpoint for code editors (Cursor, VS Code):
+          OpenAI-compatible endpoint for code editors (Cursor, VS Code):
         </Text>
         <View className="p-3 bg-muted rounded-md mb-3">
-          <Text className="text-sm font-mono text-foreground">Base URL: https://api.alia.onl/v1/codea</Text>
+          <Text className="text-sm font-mono text-foreground">Base URL: https://api.alia.onl/v1</Text>
+        </View>
+        <View className="p-3 bg-muted rounded-md mb-3">
+          <Text className="text-sm font-mono text-foreground">Model: alia-v1-codea</Text>
         </View>
         <Text className="text-sm text-muted-foreground mb-3">
-          • Always uses alia-v1-codea model
+          • Use alia-v1-codea model for code tasks
         </Text>
         <Text className="text-sm text-muted-foreground mb-3">
           • Supports function calling (tools)

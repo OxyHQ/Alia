@@ -1,3 +1,4 @@
+import OpenAI from 'openai';
 import { config } from './config.js';
 
 interface Message {
@@ -123,96 +124,79 @@ export async function streamChat(
   model: string,
   callbacks: StreamCallbacks
 ): Promise<void> {
-  const apiKey = config.get('apiKey');
-  const baseUrl = config.get('apiBaseUrl') || 'https://api.alia.onl';
+  const apiKey = config.get('apiKey') as string;
+  const baseUrl = config.get('apiBaseUrl') as string || 'https://api.alia.onl';
 
-  const allMessages = [
+  const openai = new OpenAI({
+    apiKey,
+    baseURL: `${baseUrl}/v1`
+  });
+
+  const allMessages: OpenAI.Chat.ChatCompletionMessageParam[] = [
     { role: 'system', content: systemMessage },
     ...messages.map(m => {
       if (m.role === 'tool') {
-        return { role: 'tool', tool_call_id: m.tool_call_id, content: m.content };
+        return { role: 'tool', tool_call_id: m.tool_call_id!, content: m.content };
       } else if (m.tool_calls) {
-        return { role: 'assistant', content: m.content || '', tool_calls: m.tool_calls };
+        return { role: 'assistant', content: m.content || '', tool_calls: m.tool_calls as any };
       }
       return { role: m.role, content: m.content };
     })
   ];
 
-  const response = await fetch(`${baseUrl}/v1/chat/completions`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${apiKey}`
-    },
-    body: JSON.stringify({
+  try {
+    const stream = await openai.chat.completions.create({
       model,
       messages: allMessages,
-      tools: fileTools,
+      tools: fileTools as OpenAI.Chat.ChatCompletionTool[],
       stream: true
-    })
-  });
+    });
 
-  if (!response.ok) {
-    const error = await response.json().catch(() => ({ error: { message: `HTTP ${response.status}` } }));
-    throw new Error(error.error?.message || `HTTP ${response.status}`);
-  }
+    let fullContent = '';
+    const toolCalls: ToolCall[] = [];
+    const toolCallsMap = new Map<number, ToolCall>();
 
-  const reader = response.body?.getReader();
-  if (!reader) throw new Error('No response body');
+    for await (const chunk of stream) {
+      const delta = chunk.choices?.[0]?.delta;
+      if (!delta) continue;
 
-  const decoder = new TextDecoder();
-  let buffer = '';
-  let fullContent = '';
-  const toolCalls: ToolCall[] = [];
-  let currentToolCall: ToolCall | null = null;
+      if (delta.content) {
+        fullContent += delta.content;
+        callbacks.onContent(delta.content);
+      }
 
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
+      if (delta.tool_calls) {
+        for (const tc of delta.tool_calls) {
+          const index = tc.index ?? 0;
 
-    buffer += decoder.decode(value, { stream: true });
-    const lines = buffer.split('\n');
-    buffer = lines.pop() || '';
-
-    for (const line of lines) {
-      if (line.startsWith('data: ')) {
-        const data = line.slice(6).trim();
-        if (data === '[DONE]') continue;
-
-        try {
-          const parsed = JSON.parse(data);
-          const choice = parsed.choices?.[0];
-
-          if (choice?.delta?.content) {
-            fullContent += choice.delta.content;
-            callbacks.onContent(choice.delta.content);
-          }
-
-          if (choice?.delta?.tool_calls) {
-            for (const tc of choice.delta.tool_calls) {
-              if (tc.id) {
-                currentToolCall = {
-                  id: tc.id,
-                  type: tc.type || 'function',
-                  function: {
-                    name: tc.function?.name || '',
-                    arguments: tc.function?.arguments || ''
-                  }
-                };
-                toolCalls.push(currentToolCall);
-              } else if (currentToolCall && tc.function?.arguments) {
-                currentToolCall.function.arguments += tc.function.arguments;
+          if (!toolCallsMap.has(index)) {
+            const newToolCall: ToolCall = {
+              id: tc.id || '',
+              type: 'function',
+              function: {
+                name: tc.function?.name || '',
+                arguments: tc.function?.arguments || ''
               }
+            };
+            toolCallsMap.set(index, newToolCall);
+            toolCalls.push(newToolCall);
+          } else {
+            const existingToolCall = toolCallsMap.get(index)!;
+            if (tc.function?.name) {
+              existingToolCall.function.name = tc.function.name;
+            }
+            if (tc.function?.arguments) {
+              existingToolCall.function.arguments += tc.function.arguments;
             }
           }
-        } catch {
-          // Skip malformed JSON
         }
       }
     }
-  }
 
-  callbacks.onDone(fullContent, toolCalls.length > 0 ? toolCalls : undefined);
+    callbacks.onDone(fullContent, toolCalls.length > 0 ? toolCalls : undefined);
+  } catch (error: any) {
+    callbacks.onError(error);
+  }
 }
 
 export async function fetchModels(): Promise<any[]> {
