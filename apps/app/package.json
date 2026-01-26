@@ -29,6 +29,7 @@
     "@rn-primitives/dropdown-menu": "^1.2.0",
     "@rn-primitives/hooks": "^1.3.0",
     "@rn-primitives/portal": "^1.3.0",
+    "@rn-primitives/separator": "^1.2.0",
     "@rn-primitives/slot": "^1.2.0",
     "@rn-primitives/types": "^1.2.0",
     "@shopify/flash-list": "^2.2.0",
