@@ -68,9 +68,12 @@ interface Model {
 }
 
 interface ContextItem {
+  type?: 'file' | 'folder'
   path: string
-  content: string
-  language: string
+  name?: string
+  fullPath?: string
+  content?: string
+  language?: string
 }
 
 // Permission modes

@@ -274,7 +274,9 @@ function processFiles(filePaths: string[], basePath?: string): any[] {
         const mimeType = `image/${extname(filePath).slice(1).toLowerCase()}`
 
         results.push({
+          type: 'file',
           path: displayPath,
+          fullPath: filePath,
           content: `data:${mimeType};base64,${base64}`,
           language: 'image'
         })
@@ -283,7 +285,9 @@ function processFiles(filePaths: string[], basePath?: string): any[] {
         try {
           const content = readFileSync(filePath, 'utf-8')
           results.push({
+            type: 'file',
             path: displayPath,
+            fullPath: filePath,
             content: content,
             language: getLanguageFromExtension(filePath)
           })
