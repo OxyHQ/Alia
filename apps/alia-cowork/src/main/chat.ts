@@ -347,8 +347,8 @@ export class ChatProvider {
         }
       }
 
-      // Filter out undefined from sparse array before processing
-      const validToolCalls = toolCalls.filter(tc => tc && tc.function)
+      // Filter out undefined and incomplete tool calls before processing
+      const validToolCalls = toolCalls.filter(tc => tc && tc.id && tc.function && tc.function.name)
 
       // Add assistant message to history (with tool calls if any)
       if (assistantMessage || validToolCalls.length > 0) {
@@ -559,8 +559,8 @@ export class ChatProvider {
         }
       }
 
-      // Filter out undefined from sparse array before processing
-      const validToolCalls = toolCalls.filter(tc => tc && tc.function)
+      // Filter out undefined and incomplete tool calls before processing
+      const validToolCalls = toolCalls.filter(tc => tc && tc.id && tc.function && tc.function.name)
 
       // Add assistant message
       if (assistantMessage || validToolCalls.length > 0) {
