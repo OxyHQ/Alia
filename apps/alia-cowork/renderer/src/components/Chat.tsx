@@ -467,7 +467,7 @@ function WelcomeScreen({ userName, greeting, onSuggestionClick }: { userName: st
   ]
 
   return (
-    <div className="flex min-h-full flex-col items-center justify-center gap-6 p-8 text-center">
+    <div className="flex flex-col items-center justify-center gap-6 p-8 py-16 text-center">
       <div className="flex flex-col items-center gap-4">
         <Avatar size="lg" className="size-16">
           <AvatarImage src="icon.png" alt="Alia" />
