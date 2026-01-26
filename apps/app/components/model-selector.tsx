@@ -40,11 +40,13 @@ export function ModelSelector({
       fetch(`${config.apiUrl}/v1/models`)
         .then((res) => res.json())
         .then((data) => {
-          const fetchedModels = data.data?.map((m: any) => ({
-            id: m.id,
-            name: m.name,
-            description: m.description,
-          })) || [];
+          const fetchedModels = data.data
+            ?.filter((m: any) => m.id !== 'alia-v1-cowork') // Filter out Cowork-only model
+            ?.map((m: any) => ({
+              id: m.id,
+              name: m.name,
+              description: m.description,
+            })) || [];
           cachedModels = fetchedModels;
           setModels(fetchedModels);
           setLoading(false);
