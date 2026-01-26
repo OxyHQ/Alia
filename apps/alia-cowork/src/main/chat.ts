@@ -651,7 +651,7 @@ export class ChatProvider {
     iterationCount: number = 0
   ): Promise<void> {
     // Prevent infinite loops
-    const MAX_ITERATIONS = 3
+    const MAX_ITERATIONS = 5
     if (iterationCount >= MAX_ITERATIONS) {
       console.warn(`[ChatProvider] Max iterations (${MAX_ITERATIONS}) reached, forcing final response`)
       // Force final response without more tool calls
