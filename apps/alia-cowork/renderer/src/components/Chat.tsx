@@ -42,32 +42,6 @@ import {
   ChainOfThoughtStep,
 } from "@/components/ui/chain-of-thought"
 
-// Electron API type
-declare global {
-  interface Window {
-    api: {
-      minimize: () => void
-      maximize: () => void
-      close: () => void
-      toggleAlwaysOnTop: () => Promise<boolean>
-      sendMessage: (message: string, mode: string, model: string, context?: any[]) => Promise<void>
-      stopGeneration: () => void
-      clearChat: () => void
-      getUserInfo: () => Promise<any>
-      getModels: () => Promise<any[]>
-      captureScreen: () => Promise<string | null>
-      onChatStart: (callback: () => void) => () => void
-      onChatStream: (callback: (data: { content: string }) => void) => () => void
-      onChatThinking: (callback: (data: { content: string }) => void) => () => void
-      onChatEnd: (callback: () => void) => () => void
-      onChatError: (callback: (data: { message: string }) => void) => () => void
-      onChatTool: (callback: (data: { tool: string; args: any; status: string }) => void) => () => void
-      onChatToolResult: (callback: (data: { tool: string; success: boolean; result: string }) => void) => () => void
-      onModeChanged: (callback: (data: { mode: string }) => void) => () => void
-    }
-  }
-}
-
 // Types
 interface Message {
   role: "user" | "assistant"
