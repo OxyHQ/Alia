@@ -266,21 +266,24 @@ router.post('/', async (req: Request, res: Response) => {
     // Editor tools are client-executed (VS Code, Cursor, Cowork)
     const hasEditorTools = Object.keys(editorTools).length > 0;
 
-    // Always include server-only tools (getCurrentDate, sendTelegram)
-    // Only include tools that might conflict with editor tools when NO editor tools present
+    // Always include server-only tools (no conflicts with client tools):
+    // - getCurrentDate: Server time/date
+    // - sendTelegram: Server-side Telegram API
+    // - saveUserMemory/updateUserPreferences/updateUserContext: Server-side DB operations
+    //
+    // Only exclude tools that might conflict with editor tools:
+    // - getTimeline: Might conflict with client-side timeline tools
     const aliaTools: ToolSet = {
       getCurrentDate: getCurrentDateTool,
       ...(req.user ? {
         sendTelegram: createSendTelegramTool(req.user.id),
+        saveUserMemory: saveUserMemoryTool(req.user.id),
+        updateUserPreferences: updateUserPreferencesTool(req.user.id),
+        updateUserContext: updateUserContextTool(req.user.id),
       } : {}),
       // Include these only if no editor tools (to avoid conflicts)
       ...(hasEditorTools ? {} : {
         getTimeline: getTimelineTool,
-        ...(req.user ? {
-          saveUserMemory: saveUserMemoryTool(req.user.id),
-          updateUserPreferences: updateUserPreferencesTool(req.user.id),
-          updateUserContext: updateUserContextTool(req.user.id),
-        } : {}),
       }),
     };
 
