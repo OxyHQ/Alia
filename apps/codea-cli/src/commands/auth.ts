@@ -32,7 +32,7 @@ export async function login(): Promise<void> {
 
       try {
         const baseUrl = config.get('apiBaseUrl') || 'https://api.alia.onl';
-        const response = await fetch(`${baseUrl}/v1/codea/me`, {
+        const response = await fetch(`${baseUrl}/codea/me`, {
           headers: {
             'Authorization': `Bearer ${trimmedKey}`
           }
