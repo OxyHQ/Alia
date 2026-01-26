@@ -906,6 +906,15 @@ export class ChatProvider {
 ## Platform
 You are running on ${process.platform === 'darwin' ? 'macOS' : process.platform === 'win32' ? 'Windows' : 'Linux'}.`
 
+    // Add language instruction FIRST (most important)
+    const userLanguage = userMemory?.preferences?.language
+    if (userLanguage) {
+      systemMessage += `\n\n# LANGUAGE INSTRUCTION
+**YOU MUST RESPOND IN ${userLanguage.toUpperCase()}. ALL YOUR RESPONSES MUST BE IN ${userLanguage.toUpperCase()} LANGUAGE.**`
+    } else {
+      systemMessage += '\n\n# LANGUAGE INSTRUCTION\n**Respond in the same language the user writes to you. Match their language automatically.**'
+    }
+
     // Add user name if available
     if (userInfo) {
       const userName = userInfo.name?.full || userInfo.name?.first || userInfo.username
@@ -918,14 +927,6 @@ You are running on ${process.platform === 'darwin' ? 'macOS' : process.platform 
     // Add user memory if available
     if (userMemory) {
       systemMessage += '\n\n## User Information'
-
-      // Add language preference if available (MOST IMPORTANT)
-      const userLanguage = userMemory.preferences?.language
-      if (userLanguage) {
-        systemMessage += `\n\n**IMPORTANT: Respond in ${userLanguage}. All your responses must be in ${userLanguage} language.**`
-      } else {
-        systemMessage += '\n\n**IMPORTANT: Respond in the same language the user writes to you. Match their language automatically.**'
-      }
 
       if (userMemory.memories && userMemory.memories.length > 0) {
         systemMessage += '\n### Known Facts:\n' + userMemory.memories.slice(0, 20).map((m: any) => `- ${m.key}: ${m.value}`).join('\n')
@@ -946,9 +947,6 @@ You are running on ${process.platform === 'darwin' ? 'macOS' : process.platform 
           systemMessage += '\n### Context:\n' + ctx.join('\n')
         }
       }
-    } else {
-      // If no user memory, still add language instruction
-      systemMessage += '\n\n**IMPORTANT: Respond in the same language the user writes to you. Match their language automatically.**'
     }
 
     if (enableTools) {

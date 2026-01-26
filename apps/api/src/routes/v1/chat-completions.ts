@@ -297,6 +297,15 @@ router.post('/', async (req: Request, res: Response) => {
     // Build system message with user context
     let systemMessage = baseSystemPrompt;
 
+    // Add language instruction FIRST (most important)
+    const userLanguage = userMemory?.preferences?.language;
+    if (userLanguage) {
+      systemMessage += `\n\n# LANGUAGE INSTRUCTION
+**YOU MUST RESPOND IN ${userLanguage.toUpperCase()}. ALL YOUR RESPONSES MUST BE IN ${userLanguage.toUpperCase()} LANGUAGE.**`;
+    } else {
+      systemMessage += '\n\n# LANGUAGE INSTRUCTION\n**Respond in the same language the user writes to you. Match their language automatically.**';
+    }
+
     if (req.user) {
       // Get user's name from Oxy
       try {
@@ -315,14 +324,6 @@ router.post('/', async (req: Request, res: Response) => {
 
     if (userMemory) {
       systemMessage += '\n\n## User Information';
-
-      // Add language preference if available
-      const userLanguage = userMemory.preferences?.language;
-      if (userLanguage) {
-        systemMessage += `\n\n**IMPORTANT: Respond in ${userLanguage}. All your responses must be in ${userLanguage} language.**`;
-      } else {
-        systemMessage += '\n\n**IMPORTANT: Respond in the same language the user writes to you. Match their language automatically.**';
-      }
 
       if (userMemory.memories && userMemory.memories.length > 0) {
         systemMessage += '\n### Known Facts:\n' + userMemory.memories.map(m => `- ${m.key}: ${m.value}`).join('\n');
@@ -343,9 +344,6 @@ router.post('/', async (req: Request, res: Response) => {
           systemMessage += '\n### Context:\n' + ctx.join('\n');
         }
       }
-    } else {
-      // If no user memory, still add language instruction
-      systemMessage += '\n\n**IMPORTANT: Respond in the same language the user writes to you. Match their language automatically.**';
     }
 
     // Replace or inject system message
