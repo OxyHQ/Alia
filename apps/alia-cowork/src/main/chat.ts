@@ -1,8 +1,13 @@
+/**
+ * Chat Provider - Uses Alia API /v1/chat/completions endpoint
+ * All model resolution and provider logic handled server-side
+ */
+
 import { BrowserWindow } from 'electron'
-import { streamText } from 'ai'
-import { ToolExecutor, createAISDKTools } from './tools'
-import { resolveModel, reportUsage } from './model-resolver'
+import { ToolExecutor } from './tools'
 import Store from 'electron-store'
+import * as https from 'https'
+import * as http from 'http'
 
 const store = new Store({
   defaults: {
@@ -13,10 +18,26 @@ const store = new Store({
   }
 })
 
+interface Message {
+  role: 'user' | 'assistant' | 'system'
+  content: string
+  tool_calls?: Array<{
+    id: string
+    type: 'function'
+    function: { name: string; arguments: string }
+  }>
+}
+
+interface ToolResult {
+  role: 'tool'
+  tool_call_id: string
+  content: string
+}
+
 export class ChatProvider {
   private window: BrowserWindow
   private toolExecutor: ToolExecutor
-  private messages: Array<{ role: 'user' | 'assistant' | 'system'; content: string }> = []
+  private messages: Array<Message | ToolResult> = []
   private isProcessing = false
   private currentMode = 'ask'
   private abortController?: AbortController
@@ -66,13 +87,7 @@ export class ChatProvider {
     try {
       await this.streamFromAPI(baseUrl, apiKey, selectedModel, systemMessage)
     } catch (error: any) {
-      let errorMessage = error.message || 'An error occurred'
-      if (errorMessage.includes('HTTP 402') || errorMessage.includes('Insufficient credits')) {
-        errorMessage = 'Insufficient credits. Please add more credits at alia.onl'
-      } else if (errorMessage.includes('HTTP 401') || errorMessage.includes('Invalid API key')) {
-        errorMessage = 'Invalid API key. Please check your settings.'
-      }
-      this.send('chat:error', { message: errorMessage })
+      this.send('chat:error', { message: this.formatErrorMessage(error) })
     } finally {
       this.isProcessing = false
     }
@@ -133,155 +148,407 @@ You are running on ${process.platform === 'darwin' ? 'macOS' : process.platform 
   ): Promise<void> {
     const enableTools = store.get('enableTools') as boolean
 
-    // Resolve model from API (gets provider key and model info)
-    console.log('[ChatProvider] Resolving model:', modelId)
-    const resolved = await resolveModel(baseUrl, apiKey, modelId)
-    console.log('[ChatProvider] Resolved to:', resolved.provider, resolved.modelId)
+    return new Promise((resolve, reject) => {
+      const url = new URL(`${baseUrl}/v1/chat/completions`)
+      const isHttps = url.protocol === 'https:'
+      const httpModule = isHttps ? https : http
 
-    // Prepare messages
-    const messagesWithSystem: Array<{ role: 'user' | 'assistant' | 'system'; content: string }> = [
-      { role: 'system', content: systemMessage },
-      ...this.messages
-    ]
+      // Prepare messages with system message
+      const messages: Array<Message | ToolResult> = [
+        { role: 'system', content: systemMessage },
+        ...this.messages
+      ]
 
-    // Create abort controller for cancellation
-    this.abortController = new AbortController()
+      // Prepare tools in OpenAI format
+      const tools = enableTools ? this.getToolsSchema() : undefined
 
-    // Create AI SDK tools
-    const tools = enableTools ? createAISDKTools(this.toolExecutor) : undefined
-
-    try {
-      // Stream with AI SDK - Enhanced with retry logic and error handling
-      const result = streamText({
-        model: resolved.model,
-        messages: messagesWithSystem,
+      const postData = JSON.stringify({
+        model: modelId,
+        messages,
         tools,
-        abortSignal: this.abortController.signal,
-
-        // Enhanced call options
-        maxRetries: 3,
+        stream: true,
         temperature: 0.7,
-        maxOutputTokens: 4096,
-        topP: 0.95,
-
-        // Error handling
-        onError: (event) => {
-          console.error('[ChatProvider] Stream error:', event.error)
-          const error = event.error instanceof Error ? event.error : new Error(String(event.error))
-          this.send('chat:error', {
-            message: this.formatErrorMessage(error),
-            recoverable: error.name !== 'AbortError'
-          })
-        },
-
-        // Finish handler
-        onFinish: async (event) => {
-          // Check finish reason
-          if (event.finishReason === 'error') {
-            this.send('chat:warning', { message: 'Response may be incomplete due to an error' })
-          } else if (event.finishReason === 'length') {
-            this.send('chat:warning', { message: 'Response truncated due to length limit' })
-          }
-
-          console.log('[ChatProvider] Final usage:', event.usage)
-
-          // Report usage back to API for credit tracking
-          if (event.usage && event.usage.totalTokens) {
-            const promptTokens = (event.usage as any).promptTokens || event.usage.inputTokens || 0
-            const completionTokens = (event.usage as any).completionTokens || event.usage.outputTokens || 0
-
-            await reportUsage(baseUrl, apiKey, resolved.sessionId, {
-              promptTokens,
-              completionTokens,
-              totalTokens: event.usage.totalTokens || 0
-            }).catch(error => {
-              console.error('[ChatProvider] Failed to report usage:', error)
-            })
-          }
-        }
+        max_tokens: 4096
       })
 
-      let assistantMessage = ''
-      let toolCallCount = 0
-      const MAX_TOOL_ITERATIONS = 10
-
-      // Stream the response
-      for await (const chunk of result.fullStream) {
-        if (!this.isProcessing) break
-
-        if (chunk.type === 'text-delta' && 'text' in chunk && chunk.text) {
-          // Extract thinking tags for chain of thought visualization
-          const thinkingMatch = chunk.text.match(/<thinking>([\s\S]*?)<\/thinking>/g)
-          if (thinkingMatch) {
-            thinkingMatch.forEach((match: string) => {
-              const content = match.replace(/<\/?thinking>/g, '').trim()
-              if (content) {
-                this.send('chat:thinking', { content })
+      const req = httpModule.request(
+        {
+          hostname: url.hostname,
+          port: url.port || (isHttps ? 443 : 80),
+          path: url.pathname,
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Content-Length': Buffer.byteLength(postData),
+            Authorization: `Bearer ${apiKey}`
+          }
+        },
+        (res) => {
+          if (res.statusCode !== 200) {
+            let errorData = ''
+            res.on('data', (chunk) => (errorData += chunk))
+            res.on('end', () => {
+              try {
+                const error = JSON.parse(errorData)
+                reject(new Error(error.error || `HTTP ${res.statusCode}`))
+              } catch {
+                reject(new Error(`HTTP ${res.statusCode}`))
               }
             })
+            return
           }
 
-          // Filter out thinking tags from the main message
-          const filtered = chunk.text.replace(/<thinking>[\s\S]*?<\/thinking>/g, '')
-          if (filtered.trim()) {
-            assistantMessage += filtered
-            this.send('chat:stream', { content: filtered })
-          }
-        } else if (chunk.type === 'tool-call') {
-          toolCallCount++
-          console.log('[ChatProvider] Tool call:', chunk.toolName, 'input' in chunk ? chunk.input : {})
+          let buffer = ''
+          let assistantMessage = ''
+          const toolCalls: Map<string, { name: string; arguments: string }> = new Map()
 
-          // Warn if approaching limit
-          if (toolCallCount >= MAX_TOOL_ITERATIONS - 2) {
-            this.send('chat:warning', {
-              message: 'Approaching tool call limit, wrapping up...'
-            })
-          }
-
-          // Handle set_mode specially
-          if (chunk.toolName === 'set_mode' && 'input' in chunk) {
-            const newMode = (chunk.input as any).mode
-            if (['ask', 'edit', 'plan', 'yolo'].includes(newMode)) {
-              this.currentMode = newMode
-              this.send('chat:modeChanged', { mode: newMode })
+          res.on('data', (chunk: Buffer) => {
+            if (!this.isProcessing) {
+              res.destroy()
+              resolve()
+              return
             }
+
+            buffer += chunk.toString()
+            const lines = buffer.split('\n')
+            buffer = lines.pop() || ''
+
+            for (const line of lines) {
+              if (!line.trim() || line.trim() === 'data: [DONE]') continue
+              if (!line.startsWith('data: ')) continue
+
+              try {
+                const json = JSON.parse(line.slice(6))
+                const delta = json.choices?.[0]?.delta
+
+                if (!delta) continue
+
+                // Handle reasoning chunks (from API server)
+                if (delta.reasoning) {
+                  this.send('chat:thinking', { content: delta.reasoning })
+                }
+
+                // Handle content chunks
+                if (delta.content) {
+                  assistantMessage += delta.content
+                  this.send('chat:stream', { content: delta.content })
+                }
+
+                // Handle tool calls
+                if (delta.tool_calls) {
+                  for (const toolCall of delta.tool_calls) {
+                    const id = toolCall.id || `call_${Date.now()}`
+
+                    if (!toolCalls.has(id)) {
+                      toolCalls.set(id, { name: '', arguments: '' })
+                    }
+
+                    const tc = toolCalls.get(id)!
+
+                    if (toolCall.function?.name) {
+                      tc.name = toolCall.function.name
+                    }
+
+                    if (toolCall.function?.arguments) {
+                      tc.arguments += toolCall.function.arguments
+                    }
+                  }
+                }
+
+                // Handle finish
+                if (json.choices?.[0]?.finish_reason === 'tool_calls') {
+                  // Execute tools
+                  this.executeTools(toolCalls, assistantMessage).then((hasMore) => {
+                    if (hasMore) {
+                      // Continue conversation with tool results
+                      this.streamFromAPI(baseUrl, apiKey, modelId, systemMessage).then(resolve).catch(reject)
+                    } else {
+                      resolve()
+                    }
+                  }).catch(reject)
+                  return
+                } else if (json.choices?.[0]?.finish_reason) {
+                  // Normal finish
+                  if (assistantMessage) {
+                    this.messages.push({ role: 'assistant', content: assistantMessage })
+                  }
+                  this.send('chat:end', {})
+                  resolve()
+                  return
+                }
+              } catch (error) {
+                console.error('[ChatProvider] Parse error:', error)
+              }
+            }
+          })
+
+          res.on('end', () => {
+            if (assistantMessage) {
+              this.messages.push({ role: 'assistant', content: assistantMessage })
+            }
+            this.send('chat:end', {})
+            resolve()
+          })
+
+          res.on('error', reject)
+        }
+      )
+
+      req.on('error', reject)
+      req.write(postData)
+      req.end()
+
+      // Handle abort
+      this.abortController = new AbortController()
+      this.abortController.signal.addEventListener('abort', () => {
+        req.destroy()
+        resolve()
+      })
+    })
+  }
+
+  private async executeTools(
+    toolCalls: Map<string, { name: string; arguments: string }>,
+    assistantMessage: string
+  ): Promise<boolean> {
+    if (toolCalls.size === 0) return false
+
+    // Add assistant message with tool calls
+    const toolCallsArray = Array.from(toolCalls.entries()).map(([id, tc]) => ({
+      id,
+      type: 'function' as const,
+      function: { name: tc.name, arguments: tc.arguments }
+    }))
+
+    this.messages.push({
+      role: 'assistant',
+      content: assistantMessage || '',
+      tool_calls: toolCallsArray
+    })
+
+    // Execute each tool
+    for (const [id, tc] of toolCalls.entries()) {
+      this.send('chat:tool', {
+        tool: tc.name,
+        args: tc.arguments ? JSON.parse(tc.arguments) : {},
+        status: 'running'
+      })
+
+      try {
+        const args = tc.arguments ? JSON.parse(tc.arguments) : {}
+        const result = await this.toolExecutor.execute(tc.name, args)
+
+        this.send('chat:toolResult', {
+          tool: tc.name,
+          success: true,
+          result: String(result).slice(0, 500)
+        })
+
+        // Add tool result to messages
+        this.messages.push({
+          role: 'tool',
+          tool_call_id: id,
+          content: String(result)
+        })
+
+        // Handle set_mode specially
+        if (tc.name === 'set_mode' && args.mode) {
+          this.currentMode = args.mode
+          this.send('chat:modeChanged', { mode: args.mode })
+        }
+      } catch (error: any) {
+        this.send('chat:toolResult', {
+          tool: tc.name,
+          success: false,
+          result: `Error: ${error.message}`
+        })
+
+        this.messages.push({
+          role: 'tool',
+          tool_call_id: id,
+          content: `Error: ${error.message}`
+        })
+      }
+    }
+
+    return true
+  }
+
+  private getToolsSchema(): any[] {
+    return [
+      {
+        type: 'function',
+        function: {
+          name: 'read_file',
+          description: 'Read the contents of a file',
+          parameters: {
+            type: 'object',
+            properties: {
+              path: { type: 'string', description: 'File path to read' }
+            },
+            required: ['path']
           }
-
-          this.send('chat:tool', {
-            tool: chunk.toolName,
-            args: 'input' in chunk ? chunk.input : {},
-            status: 'running'
-          })
-        } else if (chunk.type === 'tool-result') {
-          const outputStr = 'output' in chunk && typeof chunk.output === 'string' ? chunk.output : JSON.stringify('output' in chunk ? chunk.output : '')
-          console.log('[ChatProvider] Tool result:', chunk.toolName, 'success:', !outputStr.includes('Error:'))
-
-          const success = outputStr && !outputStr.includes('Error:')
-          this.send('chat:toolResult', {
-            tool: chunk.toolName,
-            success,
-            result: outputStr.slice(0, 500)
-          })
-        } else if (chunk.type === 'finish') {
-          console.log('[ChatProvider] Stream finished:', 'finishReason' in chunk ? chunk.finishReason : 'unknown')
+        }
+      },
+      {
+        type: 'function',
+        function: {
+          name: 'write_file',
+          description: 'Write content to a file (creates or overwrites)',
+          parameters: {
+            type: 'object',
+            properties: {
+              path: { type: 'string', description: 'File path to write' },
+              content: { type: 'string', description: 'Content to write' }
+            },
+            required: ['path', 'content']
+          }
+        }
+      },
+      {
+        type: 'function',
+        function: {
+          name: 'edit_file',
+          description: 'Edit a file by replacing text',
+          parameters: {
+            type: 'object',
+            properties: {
+              path: { type: 'string', description: 'File path' },
+              old_text: { type: 'string', description: 'Text to replace' },
+              new_text: { type: 'string', description: 'New text' }
+            },
+            required: ['path', 'old_text', 'new_text']
+          }
+        }
+      },
+      {
+        type: 'function',
+        function: {
+          name: 'list_files',
+          description: 'List files in a directory',
+          parameters: {
+            type: 'object',
+            properties: {
+              path: { type: 'string', description: 'Directory path' }
+            },
+            required: ['path']
+          }
+        }
+      },
+      {
+        type: 'function',
+        function: {
+          name: 'search_files',
+          description: 'Search for a pattern in files',
+          parameters: {
+            type: 'object',
+            properties: {
+              pattern: { type: 'string', description: 'Search pattern' },
+              path: { type: 'string', description: 'Directory to search in' }
+            },
+            required: ['pattern']
+          }
+        }
+      },
+      {
+        type: 'function',
+        function: {
+          name: 'run_command',
+          description: 'Execute a shell command',
+          parameters: {
+            type: 'object',
+            properties: {
+              command: { type: 'string', description: 'Command to execute' }
+            },
+            required: ['command']
+          }
+        }
+      },
+      {
+        type: 'function',
+        function: {
+          name: 'open_application',
+          description: 'Open an application or file',
+          parameters: {
+            type: 'object',
+            properties: {
+              application_name: { type: 'string', description: 'Application name or file path' }
+            },
+            required: ['application_name']
+          }
+        }
+      },
+      {
+        type: 'function',
+        function: {
+          name: 'open_url',
+          description: 'Open a URL in the browser',
+          parameters: {
+            type: 'object',
+            properties: {
+              url: { type: 'string', description: 'URL to open' }
+            },
+            required: ['url']
+          }
+        }
+      },
+      {
+        type: 'function',
+        function: {
+          name: 'clipboard_read',
+          description: 'Read from clipboard',
+          parameters: { type: 'object', properties: {}, required: [] }
+        }
+      },
+      {
+        type: 'function',
+        function: {
+          name: 'clipboard_write',
+          description: 'Write to clipboard',
+          parameters: {
+            type: 'object',
+            properties: {
+              text: { type: 'string', description: 'Text to copy' }
+            },
+            required: ['text']
+          }
+        }
+      },
+      {
+        type: 'function',
+        function: {
+          name: 'get_system_info',
+          description: 'Get system information',
+          parameters: { type: 'object', properties: {}, required: [] }
+        }
+      },
+      {
+        type: 'function',
+        function: {
+          name: 'screenshot',
+          description: 'Capture a screenshot',
+          parameters: { type: 'object', properties: {}, required: [] }
+        }
+      },
+      {
+        type: 'function',
+        function: {
+          name: 'set_mode',
+          description: 'Change the operating mode',
+          parameters: {
+            type: 'object',
+            properties: {
+              mode: {
+                type: 'string',
+                enum: ['ask', 'edit', 'plan', 'yolo'],
+                description: 'Operating mode'
+              }
+            },
+            required: ['mode']
+          }
         }
       }
-
-      // Add assistant message to history
-      const finalText = await result.text
-      this.messages.push({ role: 'assistant', content: finalText })
-
-      this.send('chat:end', {})
-    } catch (error: any) {
-      if (error.name === 'AbortError') {
-        console.log('[ChatProvider] Stream aborted by user')
-        this.send('chat:end', {})
-      } else {
-        throw error
-      }
-    } finally {
-      this.abortController = undefined
-    }
+    ]
   }
 
   stop(): void {
