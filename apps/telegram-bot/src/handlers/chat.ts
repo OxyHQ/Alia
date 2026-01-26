@@ -161,12 +161,13 @@ Be concise and friendly. Use these Telegram features when appropriate.`;
 
     const result = streamText({
       model: resolved.model,
-      messages: messagesWithSystem,
+      system: systemMessage,
+      messages: modelMessages,
 
       // Enhanced call options
       maxRetries: 3,
       temperature: 0.7,
-      maxTokens: 2048, // Telegram bot uses smaller token limits for faster responses
+      maxOutputTokens: 2048, // Telegram bot uses smaller token limits for faster responses
 
       // Error handling
       onError: (error) => {
@@ -178,14 +179,14 @@ Be concise and friendly. Use these Telegram features when appropriate.`;
         console.log('[Chat] Usage:', event.usage);
 
         // Report usage back to API
-        if (event.usage) {
+        if (event.usage && event.usage.totalTokens) {
           await reportUsage(
             apiBaseUrl,
             botSecret,
             resolved.sessionId,
             {
-              promptTokens: event.usage.promptTokens,
-              completionTokens: event.usage.completionTokens,
+              promptTokens: event.usage.inputTokens || 0,
+              completionTokens: event.usage.outputTokens || 0,
               totalTokens: event.usage.totalTokens
             }
           ).catch(error => {
