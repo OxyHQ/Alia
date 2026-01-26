@@ -49,7 +49,7 @@ task('build:main', async () => {
     platform: 'node',
     target: 'node20',
     outdir: paths.main.outdir,
-    external: ['electron'],
+    external: ['electron', 'ai', '@ai-sdk/google', '@ai-sdk/openai', '@ai-sdk/anthropic', 'zod'],
     sourcemap: isDev,
     minify: !isDev,
     format: 'cjs',
