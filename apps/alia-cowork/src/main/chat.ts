@@ -567,8 +567,17 @@ export class ChatProvider {
     model: string,
     tools: OpenAI.Chat.ChatCompletionTool[] | undefined
   ): Promise<void> {
+    console.log('[ChatProvider] ===== CONTINUING WITH TOOL RESULTS =====')
+    console.log('[ChatProvider] Current message count:', this.messages.length)
+    console.log('[ChatProvider] Last 3 messages:', JSON.stringify(this.messages.slice(-3).map(m => ({
+      role: m.role,
+      contentLength: typeof m.content === 'string' ? m.content.length : 0,
+      hasToolCalls: !!(m as any).tool_calls
+    })), null, 2))
+
     try {
       // Stream continuation with tool results
+      console.log('[ChatProvider] Creating continuation stream...')
       const stream = await openai.chat.completions.create(
         {
           model,
