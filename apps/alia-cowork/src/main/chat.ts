@@ -25,7 +25,8 @@ const store = new Store({
   defaults: {
     apiKey: '',
     apiBaseUrl: 'https://api.alia.onl',
-    model: 'alia-v1-codea'
+    model: 'alia-v1-codea',
+    enableTools: false  // Tools disabled by default - alia-v1-codea doesn't support them yet
   }
 })
 
@@ -83,7 +84,21 @@ export class ChatProvider {
   }
 
   private buildSystemMessage(): string {
-    let systemMessage = `You are Alia Cowork, an AI assistant that can control and automate tasks on the user's computer. Be concise and action-oriented.
+    const enableTools = store.get('enableTools') as boolean
+
+    let systemMessage = `You are Alia Cowork, an AI assistant for desktop productivity. Be concise and helpful.
+
+## Response Style
+- Be brief and direct
+- Provide clear, actionable answers
+- Use a friendly but professional tone
+
+## Platform
+You are running on ${process.platform === 'darwin' ? 'macOS' : process.platform === 'win32' ? 'Windows' : 'Linux'}.`
+
+    // Only include tool instructions if tools are enabled
+    if (enableTools) {
+      systemMessage += `
 
 ## Critical Rules
 1. **NEVER ask follow-up questions** - Just execute the task directly.
@@ -102,22 +117,15 @@ export class ChatProvider {
 - **clipboard_read/write**: Access clipboard
 - **get_system_info**: Get system details
 - **screenshot**: Capture screen
-- **set_mode**: Change operating mode
+- **set_mode**: Change operating mode`
 
-## Platform
-You are running on ${process.platform === 'darwin' ? 'macOS' : process.platform === 'win32' ? 'Windows' : 'Linux'}.
-
-## Response Style
-- Be brief and direct
-- Execute tasks immediately
-- Confirm completion with a short summary`
-
-    if (this.currentMode === 'ask') {
-      systemMessage += `\n\n## Mode: ASK\nConfirm destructive operations only.`
-    } else if (this.currentMode === 'edit') {
-      systemMessage += `\n\n## Mode: EDIT\nMake changes directly without confirmation.`
-    } else if (this.currentMode === 'yolo') {
-      systemMessage += `\n\n## Mode: YOLO\nFull autonomous mode. Execute everything.`
+      if (this.currentMode === 'ask') {
+        systemMessage += `\n\n## Mode: ASK\nConfirm destructive operations only.`
+      } else if (this.currentMode === 'edit') {
+        systemMessage += `\n\n## Mode: EDIT\nMake changes directly without confirmation.`
+      } else if (this.currentMode === 'yolo') {
+        systemMessage += `\n\n## Mode: YOLO\nFull autonomous mode. Execute everything.`
+      }
     }
 
     return systemMessage
@@ -218,14 +226,12 @@ You are running on ${process.platform === 'darwin' ? 'macOS' : process.platform 
       const isHttps = url.protocol === 'https:'
       const httpModule = isHttps ? https : http
 
-      console.log('[Chat] Starting request to:', url.toString())
-      console.log('[Chat] Using API key:', apiKey ? `${apiKey.substring(0, 20)}...` : 'NONE')
-      console.log('[Chat] Model:', model)
-
       const messagesWithSystem: Message[] = [
         { role: 'system', content: systemMessage },
         ...this.messages
       ]
+
+      const enableTools = store.get('enableTools') as boolean
 
       const requestBody = JSON.stringify({
         model,
@@ -237,13 +243,12 @@ You are running on ${process.platform === 'darwin' ? 'macOS' : process.platform 
           }
           return { role: m.role, content: m.content }
         }),
-        stream: true
-        // Temporarily disabled tools for testing
-        // tools: toolDefinitions,
-        // tool_choice: 'auto'
+        stream: true,
+        ...(enableTools && {
+          tools: toolDefinitions,
+          tool_choice: 'auto'
+        })
       })
-
-      console.log('[Chat] Request body (full):', requestBody)
 
       const options = {
         hostname: url.hostname,
@@ -262,14 +267,10 @@ You are running on ${process.platform === 'darwin' ? 'macOS' : process.platform 
       let currentToolCall: ToolCall | null = null
 
       const req = httpModule.request(options, (res) => {
-        console.log('[Chat] Response status:', res.statusCode)
-        console.log('[Chat] Response headers:', res.headers)
-
         if (res.statusCode !== 200) {
           let errorBody = ''
           res.on('data', (chunk) => (errorBody += chunk))
           res.on('end', () => {
-            console.log('[Chat] Error response body:', errorBody)
             try {
               const error = JSON.parse(errorBody)
               reject(new Error(`HTTP ${res.statusCode}: ${error.error?.message || ''}`))
@@ -285,31 +286,21 @@ You are running on ${process.platform === 'darwin' ? 'macOS' : process.platform 
         res.on('data', (chunk: Buffer) => {
           if (!this.isProcessing) return
 
-          const chunkStr = chunk.toString()
-          console.log('[Chat] Received chunk:', chunkStr.substring(0, 100))
-          buffer += chunkStr
+          buffer += chunk.toString()
           const lines = buffer.split('\n')
           buffer = lines.pop() || ''
-
-          console.log('[Chat] Processing', lines.length, 'lines')
 
           for (const line of lines) {
             if (line.startsWith('data: ')) {
               const data = line.slice(6).trim()
-              if (data === '[DONE]') {
-                console.log('[Chat] Received [DONE]')
-                continue
-              }
+              if (data === '[DONE]') continue
 
               try {
                 const parsed = JSON.parse(data)
-                console.log('[Chat] Parsed object:', JSON.stringify(parsed).substring(0, 300))
                 const choice = parsed.choices?.[0]
-                console.log('[Chat] Parsed choice:', choice)
 
                 if (choice?.delta?.content) {
                   fullContent += choice.delta.content
-                  console.log('[Chat] Streaming content:', choice.delta.content)
                   this.send('chat:stream', { content: choice.delta.content })
                 }
 
