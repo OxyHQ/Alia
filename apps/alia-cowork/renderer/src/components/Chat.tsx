@@ -19,7 +19,7 @@ import {
 } from "@/components/ui/tooltip"
 import {
   InputGroup,
-  InputGroupButton,
+  InputGroupAddon,
   InputGroupTextarea,
 } from "@/components/ui/input-group"
 import { Item, ItemContent, ItemDescription, ItemTitle } from "@/components/ui/item"
@@ -346,7 +346,7 @@ export function Chat() {
             className="min-h-[60px] max-h-[200px] resize-none"
             autoFocus
           />
-          <InputGroupButton position="bottom-end" className="mr-1 mb-1">
+          <InputGroupAddon align="block-end" className="mr-1 mb-1">
             {isGenerating ? (
               <Button size="icon" variant="destructive" className="size-7 rounded-full" onClick={stopGeneration}>
                 <HugeiconsIcon icon={StopIcon} strokeWidth={2} className="size-4" />
@@ -356,7 +356,7 @@ export function Chat() {
                 <HugeiconsIcon icon={ArrowUp02Icon} strokeWidth={2} className="size-4" />
               </Button>
             )}
-          </InputGroupButton>
+          </InputGroupAddon>
         </InputGroup>
         <div className="mt-2 text-center text-[10px] text-muted-foreground">
           Powered by <a href="https://alia.onl" target="_blank" rel="noopener noreferrer" className="hover:underline">Alia</a>
