@@ -20,7 +20,11 @@ export class ToolExecutor {
     this.homeDir = os.homedir()
   }
 
-  private resolvePath(filePath: string): string {
+  private resolvePath(filePath?: string): string {
+    // Default to home directory if no path provided
+    if (!filePath || filePath === '' || filePath === '.') {
+      return this.homeDir
+    }
     if (path.isAbsolute(filePath)) {
       return filePath
     }
@@ -31,6 +35,9 @@ export class ToolExecutor {
   }
 
   async readFile(args: { path: string; start_line?: number; end_line?: number }): Promise<string> {
+    if (!args.path) {
+      throw new Error('File path is required for read_file')
+    }
     const filePath = this.resolvePath(args.path)
 
     if (!fs.existsSync(filePath)) {
@@ -51,6 +58,9 @@ export class ToolExecutor {
   }
 
   async writeFile(args: { path: string; content: string }): Promise<string> {
+    if (!args.path) {
+      throw new Error('File path is required for write_file')
+    }
     const filePath = this.resolvePath(args.path)
     const dir = path.dirname(filePath)
 
@@ -63,6 +73,9 @@ export class ToolExecutor {
   }
 
   async editFile(args: { path: string; old_text: string; new_text: string }): Promise<string> {
+    if (!args.path) {
+      throw new Error('File path is required for edit_file')
+    }
     const filePath = this.resolvePath(args.path)
 
     if (!fs.existsSync(filePath)) {
@@ -81,8 +94,8 @@ export class ToolExecutor {
     return `Successfully edited ${args.path}`
   }
 
-  async listFiles(args: { path: string; recursive?: boolean }): Promise<string> {
-    const dirPath = this.resolvePath(args.path)
+  async listFiles(args: { path?: string; recursive?: boolean }): Promise<string> {
+    const dirPath = this.resolvePath(args.path || this.homeDir)
 
     if (!fs.existsSync(dirPath)) {
       throw new Error(`Directory not found: ${args.path}`)
@@ -115,7 +128,10 @@ export class ToolExecutor {
   }
 
   async searchFiles(args: { pattern: string; path?: string }): Promise<string> {
-    const searchPath = this.resolvePath(args.path || '.')
+    if (!args.pattern) {
+      throw new Error('Search pattern is required for search_files')
+    }
+    const searchPath = this.resolvePath(args.path || this.homeDir)
     const platform = process.platform
 
     let command: string
@@ -137,6 +153,9 @@ export class ToolExecutor {
   }
 
   async runCommand(args: { command: string; cwd?: string }): Promise<string> {
+    if (!args.command) {
+      throw new Error('Command is required for run_command')
+    }
     const cwd = args.cwd ? this.resolvePath(args.cwd) : this.homeDir
 
     const { stdout, stderr } = await execAsync(args.command, {
@@ -149,6 +168,9 @@ export class ToolExecutor {
   }
 
   async openApplication(args: { application_name: string }): Promise<string> {
+    if (!args.application_name) {
+      throw new Error('Application name is required for open_application')
+    }
     // Check if already opened in this session
     if (this.openedApplications.has(args.application_name)) {
       return `${args.application_name} is already open. DO NOT call open_application again for this application. Task is complete.`
@@ -160,6 +182,9 @@ export class ToolExecutor {
   }
 
   async openUrl(args: { url: string }): Promise<string> {
+    if (!args.url) {
+      throw new Error('URL is required for open_url')
+    }
     await shell.openExternal(args.url)
     return `Opened ${args.url}`
   }
@@ -170,6 +195,9 @@ export class ToolExecutor {
   }
 
   clipboardWrite(args: { text: string }): string {
+    if (!args.text && args.text !== '') {
+      throw new Error('Text is required for clipboard_write')
+    }
     clipboard.writeText(args.text)
     return 'Copied to clipboard'
   }
