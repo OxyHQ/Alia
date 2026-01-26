@@ -178,7 +178,7 @@ export class AuthProvider {
     const baseUrl = store.get('apiBaseUrl') as string
 
     return new Promise((resolve, reject) => {
-      const url = new URL(`${baseUrl}/v1/codea/me`)
+      const url = new URL(`${baseUrl}/v1/codea/user`)
       const isHttps = url.protocol === 'https:'
       const httpModule = isHttps ? https : http
 
