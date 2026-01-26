@@ -348,6 +348,41 @@ export class ChatProvider {
                   properties: {}
                 }
               }
+            },
+            {
+              type: 'function',
+              function: {
+                name: 'browser_action',
+                description: 'Automate browser actions using AI. Opens a browser tab, navigates, performs actions, extracts data. The browser preview will be shown to the user automatically.',
+                parameters: {
+                  type: 'object',
+                  properties: {
+                    url: {
+                      type: 'string',
+                      description: 'URL to navigate to'
+                    },
+                    action: {
+                      type: 'string',
+                      description: 'Natural language description of the action to perform (e.g., "click on login button", "fill the search box with AI", "scroll down to the footer")'
+                    },
+                    extract: {
+                      type: 'string',
+                      description: 'Natural language description of data to extract from the page (e.g., "the price of the first product", "all article titles", "the contact email")'
+                    }
+                  }
+                }
+              }
+            },
+            {
+              type: 'function',
+              function: {
+                name: 'close_browser',
+                description: 'Close the browser tab and return to chat',
+                parameters: {
+                  type: 'object',
+                  properties: {}
+                }
+              }
             }
           ]
         : undefined
