@@ -342,7 +342,7 @@ export class ChatProvider {
         }
 
         // Handle finish reason
-        if (chunk.choices[0]?.finish_reason) {
+        if (chunk.choices?.[0]?.finish_reason) {
           console.log('[ChatProvider] Stream finished:', chunk.choices[0].finish_reason)
         }
       }
