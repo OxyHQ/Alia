@@ -52,6 +52,7 @@ declare global {
       captureScreen: () => Promise<string | null>
       onChatStart: (callback: () => void) => () => void
       onChatStream: (callback: (data: { content: string }) => void) => () => void
+      onChatThinking: (callback: (data: { content: string }) => void) => () => void
       onChatEnd: (callback: () => void) => () => void
       onChatError: (callback: (data: { message: string }) => void) => () => void
       onChatTool: (callback: (data: { tool: string; args: any; status: string }) => void) => () => void
