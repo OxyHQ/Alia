@@ -4,11 +4,13 @@ import * as path from 'path'
 import * as os from 'os'
 import { promisify } from 'util'
 import { clipboard, shell, desktopCapturer } from 'electron'
+import { tool } from 'ai'
+import { z } from 'zod'
 
 const execAsync = promisify(exec)
 
-// Tool definitions for AI
-export const toolDefinitions = [
+// OpenAI-format tool definitions (for backward compatibility if needed)
+export const toolDefinitionsOpenAI = [
   {
     type: 'function',
     function: {
@@ -187,6 +189,172 @@ export const toolDefinitions = [
     }
   }
 ]
+
+/**
+ * Create AI SDK tool definitions with execute functions
+ * This returns a function that creates tools with access to the ToolExecutor instance
+ */
+export function createAISDKTools(executor: ToolExecutor) {
+  return {
+    read_file: tool({
+      description: 'Read the contents of a file from the filesystem.',
+      parameters: z.object({
+        path: z.string().describe('Absolute or relative path to the file'),
+        start_line: z.number().optional().describe('Optional starting line (1-indexed)'),
+        end_line: z.number().optional().describe('Optional ending line (1-indexed)')
+      }),
+      execute: async (params) => {
+        const result = await executor.execute('read_file', params)
+        if (!result.success) throw new Error(result.result)
+        return result.result
+      }
+    }),
+
+    write_file: tool({
+      description: 'Create or overwrite a file with content.',
+      parameters: z.object({
+        path: z.string().describe('Path to the file'),
+        content: z.string().describe('Content to write')
+      }),
+      execute: async (params) => {
+        const result = await executor.execute('write_file', params)
+        if (!result.success) throw new Error(result.result)
+        return result.result
+      }
+    }),
+
+    edit_file: tool({
+      description: 'Replace specific text in a file.',
+      parameters: z.object({
+        path: z.string().describe('Path to the file'),
+        old_text: z.string().describe('Text to find and replace'),
+        new_text: z.string().describe('Replacement text')
+      }),
+      execute: async (params) => {
+        const result = await executor.execute('edit_file', params)
+        if (!result.success) throw new Error(result.result)
+        return result.result
+      }
+    }),
+
+    list_files: tool({
+      description: 'List files and directories in a path.',
+      parameters: z.object({
+        path: z.string().describe('Directory path'),
+        recursive: z.boolean().optional().describe('List recursively')
+      }),
+      execute: async (params) => {
+        const result = await executor.execute('list_files', params)
+        if (!result.success) throw new Error(result.result)
+        return result.result
+      }
+    }),
+
+    search_files: tool({
+      description: 'Search for text patterns in files.',
+      parameters: z.object({
+        query: z.string().describe('Search pattern'),
+        path: z.string().optional().describe('Directory to search in'),
+        include: z.string().optional().describe('File pattern to include (e.g., *.ts)')
+      }),
+      execute: async (params) => {
+        const result = await executor.execute('search_files', params)
+        if (!result.success) throw new Error(result.result)
+        return result.result
+      }
+    }),
+
+    run_command: tool({
+      description: 'Execute a shell command.',
+      parameters: z.object({
+        command: z.string().describe('Shell command to execute'),
+        cwd: z.string().optional().describe('Working directory')
+      }),
+      execute: async (params) => {
+        const result = await executor.execute('run_command', params)
+        if (!result.success) throw new Error(result.result)
+        return result.result
+      }
+    }),
+
+    open_application: tool({
+      description: 'Open an application or file with the default program.',
+      parameters: z.object({
+        path: z.string().describe('Application name or file path to open')
+      }),
+      execute: async (params) => {
+        const result = await executor.execute('open_application', params)
+        if (!result.success) throw new Error(result.result)
+        return result.result
+      }
+    }),
+
+    open_url: tool({
+      description: 'Open a URL in the default browser.',
+      parameters: z.object({
+        url: z.string().describe('URL to open')
+      }),
+      execute: async (params) => {
+        const result = await executor.execute('open_url', params)
+        if (!result.success) throw new Error(result.result)
+        return result.result
+      }
+    }),
+
+    clipboard_read: tool({
+      description: 'Read the current clipboard content.',
+      parameters: z.object({}),
+      execute: async () => {
+        const result = executor.execute('clipboard_read', {})
+        if (!result.success) throw new Error(result.result)
+        return result.result
+      }
+    }),
+
+    clipboard_write: tool({
+      description: 'Write text to the clipboard.',
+      parameters: z.object({
+        text: z.string().describe('Text to copy to clipboard')
+      }),
+      execute: async (params) => {
+        const result = executor.execute('clipboard_write', params)
+        if (!result.success) throw new Error(result.result)
+        return result.result
+      }
+    }),
+
+    get_system_info: tool({
+      description: 'Get system information (OS, CPU, memory, etc.).',
+      parameters: z.object({}),
+      execute: async () => {
+        const result = executor.execute('get_system_info', {})
+        if (!result.success) throw new Error(result.result)
+        return result.result
+      }
+    }),
+
+    screenshot: tool({
+      description: 'Take a screenshot of the screen.',
+      parameters: z.object({}),
+      execute: async () => {
+        const result = await executor.execute('screenshot', {})
+        if (!result.success) throw new Error(result.result)
+        return result.result
+      }
+    }),
+
+    set_mode: tool({
+      description: 'Change the assistant operating mode.',
+      parameters: z.object({
+        mode: z.enum(['ask', 'edit', 'plan', 'yolo']).describe('The mode to switch to')
+      }),
+      execute: async (params) => {
+        // This will be handled specially in ChatProvider
+        return `Mode will be changed to ${params.mode}`
+      }
+    })
+  }
+}
 
 export class ToolExecutor {
   private homeDir: string

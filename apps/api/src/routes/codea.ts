@@ -3,8 +3,15 @@ import { authenticateApiKey } from '../middleware/auth.js';
 import { Subscription } from '../models/subscription.js';
 import { UserCredits } from '../models/user-credits.js';
 import DeveloperApiKey from '../models/developer-api-key.js';
+import { loadKeys } from '../lib/load-balancer.js';
+import { resolveAliaModel } from '../lib/model-resolver.js';
+import { reserveCredits, finalizeCredits, type CreditReservation } from '../lib/credits-manager.js';
+import * as crypto from 'crypto';
 
 const router = Router();
+
+// Store active sessions for usage tracking
+const activeSessions = new Map<string, { userId: string; reservation: CreditReservation; aliaModelId: string }>();
 
 /**
  * Map subscription plan name to Alia plan type
@@ -231,6 +238,168 @@ router.get('/health', (_req: Request, res: Response) => {
     service: 'codea',
     timestamp: new Date().toISOString(),
   });
+});
+
+/**
+ * GET /me - Get current user info
+ */
+router.get('/me', authenticateApiKey, async (req: Request, res: Response) => {
+  try {
+    const userId = req.userId;
+
+    if (!userId) {
+      return res.status(401).json({ error: 'User not found' });
+    }
+
+    // Get user credits
+    let userCredits = await UserCredits.findById(userId);
+    if (!userCredits) {
+      userCredits = await UserCredits.create({
+        _id: userId,
+        credits: {
+          free: 1000,
+          freeLimit: 1000,
+          dailyRefresh: 300,
+          lastRefresh: new Date(),
+          paid: 0,
+        }
+      });
+    }
+
+    await userCredits.refreshCreditsIfNeeded();
+
+    // Get API key info
+    const apiKey = await DeveloperApiKey.findById(req.apiKey?.id).populate('appId');
+
+    res.json({
+      id: userId,
+      username: (apiKey?.appId as any)?.name || 'Alia User',
+      credits: {
+        free: userCredits.credits.free,
+        paid: userCredits.credits.paid,
+        total: userCredits.credits.free + userCredits.credits.paid,
+      }
+    });
+  } catch (error) {
+    console.error('[Codea] Error fetching user info:', error);
+    res.status(500).json({ error: 'Failed to fetch user info' });
+  }
+});
+
+/**
+ * POST /resolve-model - Resolve Alia model to provider model and get provider key
+ *
+ * Request body: { model: string }
+ * Response: { provider: string, modelId: string, providerKey: string, sessionId: string }
+ */
+router.post('/resolve-model', authenticateApiKey, async (req: Request, res: Response) => {
+  try {
+    const userId = req.userId;
+    if (!userId) {
+      return res.status(401).json({ error: 'User not found' });
+    }
+
+    const { model } = req.body;
+    if (!model) {
+      return res.status(400).json({ error: 'Model is required' });
+    }
+
+    console.log('[Codea] Resolving model:', model, 'for user:', userId);
+
+    // Reserve credits
+    await UserCredits.findByIdAndUpdate(
+      userId,
+      {
+        $setOnInsert: {
+          _id: userId,
+          credits: { free: 1000, freeLimit: 1000, dailyRefresh: 300, lastRefresh: new Date(), paid: 0 },
+        },
+      },
+      { upsert: true, new: true }
+    );
+
+    const reservation = await reserveCredits(userId);
+    if (!reservation) {
+      return res.status(402).json({
+        error: 'Insufficient credits',
+        details: 'You need credits to use the API'
+      });
+    }
+
+    // Resolve model
+    const keyPool = await loadKeys();
+    const resolved = await resolveAliaModel(model, keyPool);
+
+    if (!resolved) {
+      return res.status(503).json({ error: 'No models available', requested_model: model });
+    }
+
+    // Generate session ID for usage tracking
+    const sessionId = crypto.randomBytes(16).toString('hex');
+
+    // Store session for later usage reporting
+    activeSessions.set(sessionId, {
+      userId,
+      reservation,
+      aliaModelId: resolved.aliasModelId
+    });
+
+    console.log('[Codea] Resolved to:', resolved.provider, resolved.modelId, 'sessionId:', sessionId);
+
+    res.json({
+      provider: resolved.provider,
+      modelId: resolved.modelId,
+      providerKey: resolved.keyConfig.key,
+      sessionId
+    });
+  } catch (error: any) {
+    console.error('[Codea] Error resolving model:', error);
+    res.status(500).json({ error: error.message || 'Failed to resolve model' });
+  }
+});
+
+/**
+ * POST /report-usage - Report token usage for credit tracking
+ *
+ * Request body: { sessionId: string, usage: { promptTokens, completionTokens, totalTokens } }
+ */
+router.post('/report-usage', authenticateApiKey, async (req: Request, res: Response) => {
+  try {
+    const { sessionId, usage } = req.body;
+
+    if (!sessionId || !usage) {
+      return res.status(400).json({ error: 'sessionId and usage are required' });
+    }
+
+    const session = activeSessions.get(sessionId);
+    if (!session) {
+      console.warn('[Codea] Session not found for usage reporting:', sessionId);
+      return res.status(404).json({ error: 'Session not found' });
+    }
+
+    console.log('[Codea] Reporting usage for session:', sessionId, 'tokens:', usage.totalTokens);
+
+    // Finalize credits
+    const { creditsCharged, creditsRemaining } = await finalizeCredits(
+      session.reservation,
+      usage,
+      session.aliaModelId
+    );
+
+    // Clean up session
+    activeSessions.delete(sessionId);
+
+    console.log('[Codea] Charged', creditsCharged, 'credits, remaining:', creditsRemaining);
+
+    res.json({
+      success: true,
+      creditsCharged,
+      creditsRemaining
+    });
+  } catch (error: any) {
+    console.error('[Codea] Error reporting usage:', error);
+    res.status(500).json({ error: error.message || 'Failed to report usage' });
+  }
 });
 
 export default router;
