@@ -2,7 +2,8 @@
 
 import * as React from "react"
 import { useControllableState } from "@radix-ui/react-use-controllable-state"
-import { Brain, Check, Dot, Loader2, LucideIcon } from "lucide-react"
+import { Brain, Check, Dot, Loader2 } from "lucide-react"
+import type { LucideIcon } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Badge } from "@/components/ui/badge"
 import {

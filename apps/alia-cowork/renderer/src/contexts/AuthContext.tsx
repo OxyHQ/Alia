@@ -1,19 +1,5 @@
 import * as React from "react"
 
-declare global {
-  interface Window {
-    api: {
-      signIn: () => Promise<void>
-      signOut: () => void
-      getAuthState: () => Promise<{ isAuthenticated: boolean; apiKey?: string }>
-      getUserInfo: () => Promise<any>
-      onAuthSuccess: (callback: (data: { token: string; userInfo: any }) => void) => () => void
-      onAuthError: (callback: (data: { message: string }) => void) => () => void
-      onAuthSignedOut: (callback: () => void) => () => void
-    }
-  }
-}
-
 interface User {
   id: string
   email?: string
