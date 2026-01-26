@@ -12,6 +12,100 @@ import type { KeyConfig } from '../../lib/types.js';
 
 const router = Router();
 
+/**
+ * Convert OpenAI-format messages to AI SDK ModelMessage format.
+ * Handles tool result messages which have role "tool" in OpenAI format.
+ */
+function convertToAISDKMessages(messages: any[], toolNameMapping: Map<string, string>): any[] {
+  const result: any[] = [];
+  const toolCallsMap = new Map<string, { name: string; index: number }>();
+
+  for (let i = 0; i < messages.length; i++) {
+    const msg = messages[i];
+
+    if (msg.role === 'system') {
+      result.push({
+        role: 'system',
+        content: msg.content || ''
+      });
+    } else if (msg.role === 'user') {
+      result.push({
+        role: 'user',
+        content: msg.content
+      });
+    } else if (msg.role === 'assistant') {
+      if (msg.tool_calls && Array.isArray(msg.tool_calls) && msg.tool_calls.length > 0) {
+        // Track tool calls for matching with results
+        for (const tc of msg.tool_calls) {
+          if (tc.id && tc.function?.name) {
+            const sanitizedName = Array.from(toolNameMapping.entries())
+              .find(([_, orig]) => orig === tc.function.name)?.[0] || tc.function.name;
+            toolCallsMap.set(tc.id, { name: sanitizedName, index: result.length });
+          }
+        }
+
+        result.push({
+          role: 'assistant',
+          content: msg.content || '',
+          toolCalls: msg.tool_calls.map((tc: any) => {
+            const sanitizedName = Array.from(toolNameMapping.entries())
+              .find(([_, orig]) => orig === tc.function?.name)?.[0] || tc.function?.name || 'unknown';
+
+            return {
+              toolCallId: tc.id,
+              toolName: sanitizedName,
+              args: typeof tc.function?.arguments === 'string'
+                ? JSON.parse(tc.function.arguments)
+                : (tc.function?.arguments || {})
+            };
+          })
+        });
+      } else {
+        result.push({
+          role: 'assistant',
+          content: msg.content || ''
+        });
+      }
+    } else if (msg.role === 'tool') {
+      // Convert OpenAI tool result to AI SDK format
+      const toolCallId = msg.tool_call_id;
+      const toolInfo = toolCallsMap.get(toolCallId);
+      let toolName = toolInfo?.name || msg.name || 'unknown';
+
+      // Try to find tool name from previous assistant message if unknown
+      if (toolName === 'unknown' && i > 0) {
+        for (let j = i - 1; j >= 0; j--) {
+          const prevMsg = messages[j];
+          if (prevMsg.role === 'assistant' && prevMsg.tool_calls) {
+            const matchingCall = prevMsg.tool_calls.find((tc: any) => tc.id === toolCallId);
+            if (matchingCall) {
+              toolName = matchingCall.function?.name || 'unknown';
+              break;
+            }
+          }
+        }
+      }
+
+      const contentValue = typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content);
+
+      result.push({
+        role: 'tool',
+        content: [{
+          type: 'tool-result',
+          toolCallId: toolCallId,
+          toolName: toolName,
+          output: {
+            type: 'text',
+            value: contentValue
+          }
+        }]
+      });
+    }
+  }
+
+  return result;
+}
+
 // Create AI SDK provider based on key
 function getAIModel(keyConfig: KeyConfig) {
   const apiKey = keyConfig.key;
@@ -140,6 +234,10 @@ router.post('/', async (req: Request, res: Response) => {
       convertedTools = convertOpenAIToolsToToolSet(body.tools, toolNameMapping);
     }
 
+    // Convert messages to AI SDK format (handles tool results)
+    const convertedMessages = convertToAISDKMessages(messages, toolNameMapping);
+    console.log(`[V1/Chat] Converted ${messages.length} messages to AI SDK format`);
+
     // Track token usage
     let tokenUsage: CreditUsage = {
       promptTokens: 0,
@@ -154,7 +252,7 @@ router.post('/', async (req: Request, res: Response) => {
 
     const streamConfig: any = {
       model,
-      messages: messages as any,
+      messages: convertedMessages,
       temperature: body.temperature ?? 0.7,
       onFinish: async (result: any) => {
         // Capture token usage from AI SDK
