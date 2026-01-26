@@ -3,6 +3,7 @@ import { Layout } from "@/components/Layout"
 import { Chat } from "@/components/Chat"
 import { SignIn } from "@/components/SignIn"
 import { Settings } from "@/components/Settings"
+import { Console } from "@/components/Console"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import { AuthProvider, useAuth } from "@/contexts/AuthContext"
 import { ThemeProvider } from "@/contexts/ThemeContext"
@@ -36,6 +37,7 @@ function AppContent() {
           Commands view coming soon
         </div>
       )}
+      {currentView === "console" && <Console />}
       {currentView === "settings" && <Settings />}
     </Layout>
   )

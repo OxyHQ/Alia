@@ -13,6 +13,7 @@ import {
   FolderOpenIcon,
   CommandIcon,
   InformationCircleIcon,
+  Terminal01Icon,
 } from "@hugeicons/core-free-icons"
 
 import { cn } from "@/lib/utils"
@@ -53,6 +54,7 @@ const navItems = [
   { id: "chat", label: "Chat", icon: Message01Icon },
   { id: "files", label: "Files", icon: FolderOpenIcon },
   { id: "commands", label: "Commands", icon: CommandIcon },
+  { id: "console", label: "Console", icon: Terminal01Icon },
 ]
 
 interface LayoutProps {
