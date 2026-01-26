@@ -163,7 +163,7 @@ class AliaLanguageModel {
                   if (!line.trim()) continue
                   if (line.trim() === 'data: [DONE]') {
                     closeController()
-                    continue
+                    break
                   }
                   if (!line.startsWith('data: ')) continue
 
@@ -174,7 +174,7 @@ class AliaLanguageModel {
                     if (!delta && !json.choices?.[0]?.finish_reason) continue
 
                     // Send stream-start event
-                    if (isFirstChunk) {
+                    if (isFirstChunk && !isClosed) {
                       controller.enqueue({
                         type: 'stream-start',
                         warnings: []
@@ -183,7 +183,7 @@ class AliaLanguageModel {
                     }
 
                     // Handle reasoning chunks
-                    if (delta?.reasoning) {
+                    if (delta?.reasoning && !isClosed) {
                       controller.enqueue({
                         type: 'text',
                         id: `chunk_${Date.now()}`,
@@ -192,7 +192,7 @@ class AliaLanguageModel {
                     }
 
                     // Handle content
-                    if (delta?.content) {
+                    if (delta?.content && !isClosed) {
                       controller.enqueue({
                         type: 'text',
                         id: `chunk_${Date.now()}`,
@@ -201,8 +201,9 @@ class AliaLanguageModel {
                     }
 
                     // Handle tool calls
-                    if (delta?.tool_calls) {
+                    if (delta?.tool_calls && !isClosed) {
                       for (const toolCall of delta.tool_calls) {
+                        if (isClosed) break
                         if (toolCall.function?.name && toolCall.function?.arguments) {
                           try {
                             const args = JSON.parse(toolCall.function.arguments)
@@ -220,8 +221,8 @@ class AliaLanguageModel {
                       }
                     }
 
-                    // Handle finish
-                    if (json.choices?.[0]?.finish_reason) {
+                    // Handle finish - must be last
+                    if (json.choices?.[0]?.finish_reason && !isClosed) {
                       const finishReason = json.choices[0].finish_reason
                       controller.enqueue({
                         type: 'finish',
@@ -239,6 +240,7 @@ class AliaLanguageModel {
                         }
                       })
                       closeController()
+                      break
                     }
                   } catch (error) {
                     console.error('[AliaProvider] Parse error:', error)
