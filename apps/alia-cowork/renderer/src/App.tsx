@@ -4,6 +4,7 @@ import { Chat } from "@/components/Chat"
 import { SignIn } from "@/components/SignIn"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import { AuthProvider, useAuth } from "@/contexts/AuthContext"
+import { ThemeProvider } from "@/contexts/ThemeContext"
 
 function AppContent() {
   const [currentView, setCurrentView] = React.useState("chat")
@@ -40,11 +41,13 @@ function AppContent() {
 
 export function App() {
   return (
-    <TooltipProvider>
-      <AuthProvider>
-        <AppContent />
-      </AuthProvider>
-    </TooltipProvider>
+    <ThemeProvider>
+      <TooltipProvider>
+        <AuthProvider>
+          <AppContent />
+        </AuthProvider>
+      </TooltipProvider>
+    </ThemeProvider>
   )
 }
 
