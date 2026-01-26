@@ -9,8 +9,9 @@ interface WindowBounds {
   isMaximized: boolean
 }
 
-const DEFAULT_WIDTH = 480
-const DEFAULT_HEIGHT = 720
+// Initial size for first launch (centered, larger)
+const INITIAL_WIDTH = 800
+const INITIAL_HEIGHT = 900
 const MIN_WIDTH = 400
 const MIN_HEIGHT = 500
 
