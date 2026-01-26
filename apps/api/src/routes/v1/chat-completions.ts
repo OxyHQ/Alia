@@ -7,6 +7,7 @@ import { loadKeys } from '../../lib/load-balancer.js';
 import { resolveAliaModel, getDefaultAliaModel } from '../../lib/model-resolver.js';
 import { UserCredits } from '../../models/user-credits.js';
 import { reserveCredits, finalizeCredits, type CreditReservation, type CreditUsage } from '../../lib/credits-manager.js';
+import { convertOpenAIToolsToToolSet } from '../../lib/tool-converter.js';
 import type { KeyConfig } from '../../lib/types.js';
 
 const router = Router();
@@ -131,6 +132,14 @@ router.post('/', async (req: Request, res: Response) => {
     const model = getAIModel(resolved.keyConfig);
     const aliasModelId = resolved.aliasModelId;
 
+    // Convert OpenAI-format tools to AI SDK format if provided
+    const toolNameMapping = new Map<string, string>();
+    let convertedTools: Record<string, any> | undefined;
+    if (body.tools && Array.isArray(body.tools)) {
+      console.log(`[V1/Chat] Converting ${body.tools.length} tools from OpenAI format to AI SDK format`);
+      convertedTools = convertOpenAIToolsToToolSet(body.tools, toolNameMapping);
+    }
+
     // Track token usage
     let tokenUsage: CreditUsage = {
       promptTokens: 0,
@@ -164,8 +173,8 @@ router.post('/', async (req: Request, res: Response) => {
       streamConfig.maxTokens = body.max_tokens;
     }
 
-    if (body.tools) {
-      streamConfig.tools = body.tools;
+    if (convertedTools) {
+      streamConfig.tools = convertedTools;
     }
 
     const result = streamText(streamConfig);
