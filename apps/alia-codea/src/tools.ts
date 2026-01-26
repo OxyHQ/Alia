@@ -553,7 +553,7 @@ export function createAISDKTools(executor: ToolExecutor) {
         start_line: z.number().optional().describe('Optional starting line number (1-indexed)'),
         end_line: z.number().optional().describe('Optional ending line number (1-indexed)')
       }),
-      execute: async (params) => {
+      execute: async (params: { path: string; start_line?: number; end_line?: number }) => {
         const result = await executor.execute('read_file', params);
         if (!result.success) throw new Error(result.result);
         return result.result;
@@ -566,7 +566,7 @@ export function createAISDKTools(executor: ToolExecutor) {
         path: z.string().describe('The path to the file to write, relative to the workspace root'),
         content: z.string().describe('The complete content to write to the file')
       }),
-      execute: async (params) => {
+      execute: async (params: { path: string; content: string }) => {
         const result = await executor.execute('write_file', params);
         if (!result.success) throw new Error(result.result);
         return result.result;
@@ -580,7 +580,7 @@ export function createAISDKTools(executor: ToolExecutor) {
         old_text: z.string().describe('The exact text to find and replace (must match exactly including whitespace)'),
         new_text: z.string().describe('The new text to replace it with')
       }),
-      execute: async (params) => {
+      execute: async (params: { path: string; old_text: string; new_text: string }) => {
         const result = await executor.execute('edit_file', params);
         if (!result.success) throw new Error(result.result);
         return result.result;
@@ -592,7 +592,7 @@ export function createAISDKTools(executor: ToolExecutor) {
       parameters: z.object({
         path: z.string().describe('The path to the file to delete, relative to the workspace root')
       }),
-      execute: async (params) => {
+      execute: async (params: { path: string }) => {
         const result = await executor.execute('delete_file', params);
         if (!result.success) throw new Error(result.result);
         return result.result;
@@ -606,7 +606,7 @@ export function createAISDKTools(executor: ToolExecutor) {
         recursive: z.boolean().optional().describe('If true, list files recursively. Default is false.'),
         pattern: z.string().optional().describe('Optional glob pattern to filter files (e.g., "**/*.ts")')
       }),
-      execute: async (params) => {
+      execute: async (params: { path: string; recursive?: boolean; pattern?: string }) => {
         const result = await executor.execute('list_files', params);
         if (!result.success) throw new Error(result.result);
         return result.result;
@@ -621,7 +621,7 @@ export function createAISDKTools(executor: ToolExecutor) {
         include: z.string().optional().describe('Optional glob pattern to include files (e.g., "**/*.ts")'),
         exclude: z.string().optional().describe('Optional glob pattern to exclude files')
       }),
-      execute: async (params) => {
+      execute: async (params: { query: string; path?: string; include?: string; exclude?: string }) => {
         const result = await executor.execute('search_files', params);
         if (!result.success) throw new Error(result.result);
         return result.result;
@@ -634,7 +634,7 @@ export function createAISDKTools(executor: ToolExecutor) {
         command: z.string().describe('The shell command to execute'),
         cwd: z.string().optional().describe('Optional working directory, relative to workspace root')
       }),
-      execute: async (params) => {
+      execute: async (params: { command: string; cwd?: string }) => {
         const result = await executor.execute('run_command', params);
         if (!result.success) throw new Error(result.result);
         return result.result;
@@ -646,7 +646,7 @@ export function createAISDKTools(executor: ToolExecutor) {
       parameters: z.object({
         mode: z.enum(['ask', 'edit', 'plan', 'yolo']).describe('The mode to switch to. ask=confirm destructive ops, edit=make changes directly, plan=outline then execute, yolo=full autonomous')
       }),
-      execute: async (params) => {
+      execute: async (params: { mode: 'ask' | 'edit' | 'plan' | 'yolo' }) => {
         // This will be handled specially in chatProvider
         return `Mode will be changed to ${params.mode}`;
       }
