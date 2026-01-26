@@ -529,7 +529,8 @@ export class CodeaChatViewProvider implements vscode.WebviewViewProvider {
 
     const context = await this._toolExecutor.getContext();
 
-    const systemMessage = this.buildSystemMessage(this._currentMode, context);
+    // Build client-specific context to send to backend
+    const clientContext = this.buildClientContext(this._currentMode, context);
 
     let enhancedContent = content;
 
@@ -560,53 +561,64 @@ export class CodeaChatViewProvider implements vscode.WebviewViewProvider {
     });
 
     this._isProcessing = true;
-    await this.processConversation(baseUrl, apiKey, model, systemMessage);
+    await this.processConversation(baseUrl, apiKey, model, clientContext);
   }
 
-  private buildSystemMessage(mode: string, context: any): string {
-    // Build workspace context for the backend
-    // The base system prompt is defined in the backend
-    let systemMessage = `
-=== EDITOR CONTEXT ===
-You are running inside VS Code with access to these tools:
-- read_file, write_file, edit_file, delete_file - File operations
-- open_file - Open files in VS Code editor
-- list_files, search_files - Code discovery
-- run_command - Execute shell commands
+  private buildClientContext(mode: string, context: any): string {
+    // Build VS Code specific context to send to the backend
+    let clientContext = `# VS Code Editor Context
 
-=== OPERATING MODE: ${mode.toUpperCase()} ===`;
+You are running inside Visual Studio Code, Microsoft's popular code editor.
+
+## Editor Tools Available
+- **read_file** - Read file contents from the workspace
+- **write_file** - Create new files or completely overwrite existing ones
+- **edit_file** - Make precise text replacements in existing files
+- **open_file** - Open files in VS Code editor tabs
+- **delete_file** - Delete files from the workspace
+- **list_files** - List directory contents with optional patterns
+- **search_files** - Search for text patterns across the workspace
+- **run_command** - Execute shell commands in the workspace terminal
+
+## Current Operating Mode: ${mode.toUpperCase()}`;
 
     if (mode === 'ask') {
-      systemMessage += `
-Confirm only DESTRUCTIVE operations (delete, overwrite important files)`;
+      clientContext += `
+- Confirm only DESTRUCTIVE operations (delete files, overwrite important files)
+- Execute all other operations immediately`;
     } else if (mode === 'edit') {
-      systemMessage += `
-Make all changes directly without confirmation`;
+      clientContext += `
+- Make ALL changes directly without any confirmation
+- User trusts you to make modifications`;
     } else if (mode === 'plan') {
-      systemMessage += `
-Design complete plan first, ask for approval ONCE, then execute`;
+      clientContext += `
+- Design complete implementation plan first
+- Ask for approval ONCE
+- Then execute entire plan without further questions`;
     } else if (mode === 'yolo') {
-      systemMessage += `
-Full autonomous mode - zero confirmations for anything`;
+      clientContext += `
+- Full autonomous mode
+- ZERO confirmations for anything
+- Maximum automation`;
     }
 
     // Add workspace context
     if (context.workspaceStructure) {
-      systemMessage += `\n\n=== WORKSPACE STRUCTURE ===\n\`\`\`\n${context.workspaceStructure}\n\`\`\``;
+      clientContext += `\n\n=== WORKSPACE STRUCTURE ===\n\`\`\`\n${context.workspaceStructure}\n\`\`\``;
     }
 
     if (context.openTabs?.length > 0) {
-      systemMessage += `\n\n=== CURRENTLY OPEN FILES ===\n${context.openTabs.map((f: string) => `- ${f}`).join('\n')}`;
+      clientContext += `\n\n=== CURRENTLY OPEN FILES ===\n${context.openTabs.map((f: string) => `- ${f}`).join('\n')}`;
     }
 
     if (context.openFile) {
-      systemMessage += `\n\n=== ACTIVE EDITOR ===\nFile: ${context.openFile.path}\nLanguage: ${context.openFile.language || 'unknown'}`;
+      clientContext += `\n\n=== ACTIVE EDITOR ===\nFile: ${context.openFile.path}\nLanguage: ${context.openFile.language || 'unknown'}`;
     }
 
-    return systemMessage;
+    return clientContext;
   }
 
-  private async processConversation(baseUrl: string, apiKey: string, model: string, systemMessage: string): Promise<void> {
+  private async processConversation(baseUrl: string, apiKey: string, model: string, clientContext: string): Promise<void> {
     this._view?.webview.postMessage({ type: 'startAssistantMessage' });
 
     try {
@@ -617,10 +629,11 @@ Full autonomous mode - zero confirmations for anything`;
 
       this._abortController = new AbortController();
 
-      // Add system message if first message
+      // Add client context as system message for first message
+      // The backend will prepend its own model-specific prompt
       const messages: Array<OpenAI.Chat.ChatCompletionMessageParam> = this._messages.length === 1
-        ? [{ role: 'system', content: systemMessage }, ...this._messages]
-        : [{ role: 'system', content: systemMessage }, ...this._messages];
+        ? [{ role: 'system', content: clientContext }, ...this._messages]
+        : this._messages; // Don't add system message on continuation
 
       await this.streamChatCompletion(openai, model, messages);
 
@@ -685,15 +698,15 @@ Full autonomous mode - zero confirmations for anything`;
               id: toolCall.id || '',
               type: 'function',
               function: { name: toolCall.function?.name || '', arguments: '' }
-            };
+            } as OpenAI.Chat.ChatCompletionMessageToolCall;
           }
 
           if (toolCall.function?.name) {
-            toolCalls[index].function.name = toolCall.function.name;
+            (toolCalls[index] as any).function.name = toolCall.function.name;
           }
 
           if (toolCall.function?.arguments) {
-            toolCalls[index].function.arguments += toolCall.function.arguments;
+            (toolCalls[index] as any).function.arguments += toolCall.function.arguments;
           }
 
           if (toolCall.id) {
@@ -703,7 +716,7 @@ Full autonomous mode - zero confirmations for anything`;
       }
     }
 
-    const validToolCalls = toolCalls.filter(tc => tc && tc.id && tc.function && tc.function.name);
+    const validToolCalls = toolCalls.filter(tc => tc && tc.id && (tc as any).function && (tc as any).function.name);
 
     if (assistantMessage || validToolCalls.length > 0) {
       const assistantMsg: OpenAI.Chat.ChatCompletionAssistantMessageParam = {
@@ -718,12 +731,12 @@ Full autonomous mode - zero confirmations for anything`;
 
     if (validToolCalls.length > 0) {
       for (const toolCall of validToolCalls) {
-        const toolName = toolCall.function.name;
+        const toolName = (toolCall as any).function.name;
         let args: any = {};
         try {
-          args = JSON.parse(toolCall.function.arguments || '{}');
+          args = JSON.parse((toolCall as any).function.arguments || '{}');
         } catch (e) {
-          console.error('[Codea] Failed to parse tool arguments:', toolCall.function.arguments, e);
+          console.error('[Codea] Failed to parse tool arguments:', (toolCall as any).function.arguments, e);
           continue;
         }
 
@@ -830,15 +843,15 @@ Full autonomous mode - zero confirmations for anything`;
               id: toolCall.id || '',
               type: 'function',
               function: { name: toolCall.function?.name || '', arguments: '' }
-            };
+            } as OpenAI.Chat.ChatCompletionMessageToolCall;
           }
 
           if (toolCall.function?.name) {
-            toolCalls[index].function.name = toolCall.function.name;
+            (toolCalls[index] as any).function.name = toolCall.function.name;
           }
 
           if (toolCall.function?.arguments) {
-            toolCalls[index].function.arguments += toolCall.function.arguments;
+            (toolCalls[index] as any).function.arguments += toolCall.function.arguments;
           }
 
           if (toolCall.id) {
@@ -848,7 +861,7 @@ Full autonomous mode - zero confirmations for anything`;
       }
     }
 
-    const validToolCalls = toolCalls.filter(tc => tc && tc.id && tc.function && tc.function.name);
+    const validToolCalls = toolCalls.filter(tc => tc && tc.id && (tc as any).function && (tc as any).function.name);
 
     if (assistantMessage || validToolCalls.length > 0) {
       const assistantMsg: OpenAI.Chat.ChatCompletionAssistantMessageParam = {
@@ -863,10 +876,10 @@ Full autonomous mode - zero confirmations for anything`;
 
     if (validToolCalls.length > 0) {
       for (const toolCall of validToolCalls) {
-        const toolName = toolCall.function.name;
+        const toolName = (toolCall as any).function.name;
         let args: any = {};
         try {
-          args = JSON.parse(toolCall.function.arguments || '{}');
+          args = JSON.parse((toolCall as any).function.arguments || '{}');
         } catch (e) {
           continue;
         }

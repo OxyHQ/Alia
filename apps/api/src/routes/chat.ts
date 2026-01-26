@@ -18,6 +18,7 @@ import { Conversation } from '../models/conversation.js';
 import type { IUserMemory } from '../models/user-memory.js';
 import { processMessagesForPlatform } from '../lib/message-processor.js';
 import { reserveCredits, finalizeCredits, refundReservation, type CreditReservation, type CreditUsage } from '../lib/credits-manager.js';
+import { estimateMessageTokens } from '../lib/token-counter.js';
 
 const router = Router();
 
@@ -229,6 +230,9 @@ router.post('/', optionalAuth, async (req, res) => {
     }
   }, 90000);
 
+  // Declare creditReservation outside try block so it's accessible in catch
+  let creditReservation: CreditReservation | null = null;
+
   try {
     const { messages, conversationId, model: requestedModel, thinkingMode } = req.body as {
       messages: any[];
@@ -280,7 +284,6 @@ router.post('/', optionalAuth, async (req, res) => {
     // Get user data from session and credits/memory from local DB
     let userCredits: any = null;
     let memory: IUserMemory | null = null;
-    let creditReservation: CreditReservation | null = null;
 
     if (req.user) {
       try {
@@ -417,6 +420,10 @@ router.post('/', optionalAuth, async (req, res) => {
     // Build personalized system prompt
     const systemPrompt = buildSystemPrompt(oxyUser, memory, platform);
 
+    // Estimate system prompt tokens (so we don't charge users for our system prompts)
+    const systemPromptTokens = estimateMessageTokens('system', systemPrompt);
+    console.log(`[Alia/Chat] Estimated system prompt tokens: ${systemPromptTokens}`);
+
     // Set headers for SSE streaming
     res.setHeader('Content-Type', 'text/event-stream');
     res.setHeader('Cache-Control', 'no-cache, no-transform');
@@ -429,6 +436,7 @@ router.post('/', optionalAuth, async (req, res) => {
       promptTokens: 0,
       completionTokens: 0,
       totalTokens: 0,
+      systemPromptTokens,
     };
 
     // Configure streamText with thinking mode support
@@ -447,6 +455,7 @@ router.post('/', optionalAuth, async (req, res) => {
             promptTokens: result.usage.inputTokens || 0,
             completionTokens: result.usage.outputTokens || 0,
             totalTokens: result.usage.totalTokens || 0,
+            systemPromptTokens, // Keep our estimated system prompt tokens
           };
           console.log('[Alia/Chat] Token usage captured:', tokenUsage);
         } else {
@@ -505,7 +514,7 @@ router.post('/', optionalAuth, async (req, res) => {
           writeSSE(res, 'data: [DONE]\n\n');
           res.end();
         }
-      }, 30000);
+      }, 30000) as any;
     };
 
     resetStreamTimeout();
@@ -545,7 +554,7 @@ router.post('/', optionalAuth, async (req, res) => {
             flushTextBuffer();
           } else if (!batchTimer) {
             // Set a timer to flush after timeout
-            batchTimer = setTimeout(flushTextBuffer, BATCH_TIMEOUT);
+            batchTimer = setTimeout(flushTextBuffer, BATCH_TIMEOUT) as any;
           }
         }
         // Non-text events (tool calls, etc.) are sent immediately

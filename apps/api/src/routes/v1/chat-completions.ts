@@ -9,6 +9,7 @@ import { UserCredits } from '../../models/user-credits.js';
 import { reserveCredits, finalizeCredits, type CreditReservation, type CreditUsage } from '../../lib/credits-manager.js';
 import { convertOpenAIToolsToToolSet } from '../../lib/tool-converter.js';
 import type { KeyConfig } from '../../lib/types.js';
+import { estimateMessageTokens } from '../../lib/token-counter.js';
 
 const router = Router();
 
@@ -238,11 +239,21 @@ router.post('/', async (req: Request, res: Response) => {
     const convertedMessages = convertToAISDKMessages(messages, toolNameMapping);
     console.log(`[V1/Chat] Converted ${messages.length} messages to AI SDK format`);
 
+    // Estimate system prompt tokens if there's a system message
+    // (so we don't charge users for our system prompts)
+    let systemPromptTokens = 0;
+    const firstMessage = messages[0];
+    if (firstMessage && firstMessage.role === 'system' && typeof firstMessage.content === 'string') {
+      systemPromptTokens = estimateMessageTokens('system', firstMessage.content);
+      console.log(`[V1/Chat] Estimated system prompt tokens: ${systemPromptTokens}`);
+    }
+
     // Track token usage
     let tokenUsage: CreditUsage = {
       promptTokens: 0,
       completionTokens: 0,
       totalTokens: 0,
+      systemPromptTokens,
     };
 
     // Set SSE headers
@@ -261,6 +272,7 @@ router.post('/', async (req: Request, res: Response) => {
             promptTokens: result.usage.inputTokens || 0,
             completionTokens: result.usage.outputTokens || 0,
             totalTokens: result.usage.totalTokens || 0,
+            systemPromptTokens, // Keep our estimated system prompt tokens
           };
           console.log('[V1/Chat] Token usage captured:', tokenUsage);
         }
@@ -460,6 +472,8 @@ router.post('/', async (req: Request, res: Response) => {
             prompt_tokens: tokenUsage.promptTokens,
             completion_tokens: tokenUsage.completionTokens,
             total_tokens: tokenUsage.totalTokens,
+            system_prompt_tokens: tokenUsage.systemPromptTokens || 0,
+            billable_tokens: Math.max(0, tokenUsage.totalTokens - (tokenUsage.systemPromptTokens || 0)),
             credits_charged: creditsCharged,
             credits_remaining: creditsRemaining
           }
