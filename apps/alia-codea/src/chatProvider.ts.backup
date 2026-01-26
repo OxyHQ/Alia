@@ -1,21 +1,63 @@
 import * as vscode from 'vscode';
-import OpenAI from 'openai';
-import { fileTools, ToolExecutor } from './tools';
+import { fileTools, ToolExecutor, createAISDKTools } from './tools';
+import { streamText } from 'ai';
+import { resolveModel, reportUsage } from './model-resolver';
+
+interface Message {
+  role: 'user' | 'assistant' | 'system' | 'tool';
+  content: string;
+  tool_calls?: ToolCall[];
+  tool_call_id?: string;
+  name?: string;
+}
+
+interface ToolCall {
+  id: string;
+  type: 'function';
+  function: {
+    name: string;
+    arguments: string;
+  };
+}
 
 interface Conversation {
   id: string;
   title: string;
-  messages: Array<OpenAI.Chat.ChatCompletionMessageParam>;
+  messages: Message[];
   createdAt: number;
   updatedAt: number;
+}
+
+interface ChatCompletionChunk {
+  id: string;
+  object: string;
+  created: number;
+  model: string;
+  choices: Array<{
+    index: number;
+    delta: {
+      content?: string;
+      role?: string;
+      tool_calls?: Array<{
+        index: number;
+        id?: string;
+        type?: string;
+        function?: {
+          name?: string;
+          arguments?: string;
+        };
+      }>;
+    };
+    finish_reason: string | null;
+  }>;
 }
 
 export class CodeaChatViewProvider implements vscode.WebviewViewProvider {
   public static readonly viewType = 'codea.chatView';
   private _view?: vscode.WebviewView;
-  private _messages: Array<OpenAI.Chat.ChatCompletionMessageParam> = [];
+  private _messages: Message[] = [];
   private _currentConversationId: string | null = null;
-  private _abortController?: AbortController;
+  private _currentRequest?: { abort: () => void };
   private _userName: string | null = null;
   private _toolExecutor: ToolExecutor;
   private _isProcessing: boolean = false;
@@ -40,6 +82,7 @@ export class CodeaChatViewProvider implements vscode.WebviewViewProvider {
 
     try {
       const userInfo = await this.fetchUserInfo(baseUrl, apiKey);
+      // API returns full user object - use same fallback chain as app
       this._userName = userInfo?.name?.first || userInfo?.username || userInfo?.email?.split('@')[0] || null;
       this._view?.webview.postMessage({ type: 'userInfo', userName: this._userName });
     } catch (error) {
@@ -49,39 +92,59 @@ export class CodeaChatViewProvider implements vscode.WebviewViewProvider {
 
   private async fetchAndSendModels(): Promise<void> {
     const config = vscode.workspace.getConfiguration('codea');
+    const apiKey = config.get<string>('apiKey');
     const baseUrl = config.get<string>('apiBaseUrl') || 'https://api.alia.onl';
 
+    console.log('[Codea] Fetching models from:', baseUrl);
+
+    // Models endpoint is public, no API key needed
     try {
       const models = await this.fetchModels(baseUrl);
+      console.log('[Codea] Fetched models:', models.length, models.map((m: any) => m.id));
       this._view?.webview.postMessage({ type: 'models', models });
     } catch (error) {
+      console.error('[Codea] Error fetching models:', error);
       this._view?.webview.postMessage({ type: 'models', models: [] });
     }
   }
 
   private async fetchModels(baseUrl: string): Promise<any[]> {
     const url = `${baseUrl}/v1/models?category=coding`;
+    console.log('[Codea] Fetching models from URL:', url);
 
     try {
       const response = await fetch(url);
-      if (!response.ok) return [];
+      console.log('[Codea] Models response status:', response.status);
+
+      if (!response.ok) {
+        return [];
+      }
+
       const parsed = await response.json() as { data?: any[] };
+      console.log('[Codea] Models response parsed, count:', parsed.data?.length);
       return parsed.data || [];
     } catch (e) {
+      console.error('[Codea] Models request error:', e);
       return [];
     }
   }
 
-  private async fetchUserInfo(baseUrl: string, apiKey: string): Promise<any> {
+  private async fetchUserInfo(baseUrl: string, apiKey: string): Promise<{ id?: string; name?: { first?: string; last?: string; full?: string }; username?: string; email?: string; avatar?: string } | null> {
     const url = `${baseUrl}/v1/codea/me`;
 
     try {
       const response = await fetch(url, {
         method: 'GET',
-        headers: { 'Authorization': `Bearer ${apiKey}` }
+        headers: {
+          'Authorization': `Bearer ${apiKey}`
+        }
       });
-      if (!response.ok) return null;
-      return await response.json();
+
+      if (!response.ok) {
+        return null;
+      }
+
+      return await response.json() as { id?: string; name?: { first?: string; last?: string; full?: string }; username?: string; email?: string; avatar?: string };
     } catch {
       return null;
     }
@@ -101,9 +164,11 @@ export class CodeaChatViewProvider implements vscode.WebviewViewProvider {
 
     webviewView.webview.html = this._getHtmlForWebview(webviewView.webview);
 
+    // Fetch and send user info and models to webview
     this.fetchAndSendUserInfo();
     this.fetchAndSendModels();
 
+    // Handle messages from webview
     webviewView.webview.onDidReceiveMessage(async (data) => {
       switch (data.type) {
         case 'sendMessage':
@@ -141,12 +206,14 @@ export class CodeaChatViewProvider implements vscode.WebviewViewProvider {
 
     const conversations = this.getConversations();
 
+    // Generate title from first user message
     const firstUserMessage = this._messages.find(m => m.role === 'user');
-    const title = firstUserMessage && 'content' in firstUserMessage && typeof firstUserMessage.content === 'string'
+    const title = firstUserMessage
       ? firstUserMessage.content.slice(0, 50) + (firstUserMessage.content.length > 50 ? '...' : '')
       : 'New conversation';
 
     if (this._currentConversationId) {
+      // Update existing conversation
       const index = conversations.findIndex(c => c.id === this._currentConversationId);
       if (index !== -1) {
         conversations[index].messages = [...this._messages];
@@ -154,6 +221,7 @@ export class CodeaChatViewProvider implements vscode.WebviewViewProvider {
         conversations[index].updatedAt = Date.now();
       }
     } else {
+      // Create new conversation
       this._currentConversationId = Date.now().toString();
       conversations.unshift({
         id: this._currentConversationId,
@@ -164,6 +232,7 @@ export class CodeaChatViewProvider implements vscode.WebviewViewProvider {
       });
     }
 
+    // Keep only last 50 conversations
     if (conversations.length > 50) {
       conversations.splice(50);
     }
@@ -172,9 +241,12 @@ export class CodeaChatViewProvider implements vscode.WebviewViewProvider {
   }
 
   private async handleAddContext(): Promise<void> {
+    // Show quick pick with context options
     const items: vscode.QuickPickItem[] = [];
+
     const activeEditor = vscode.window.activeTextEditor;
 
+    // Add selection option if there's selected text
     if (activeEditor && !activeEditor.selection.isEmpty) {
       const selectedText = activeEditor.document.getText(activeEditor.selection);
       const lineCount = selectedText.split('\n').length;
@@ -185,6 +257,7 @@ export class CodeaChatViewProvider implements vscode.WebviewViewProvider {
       });
     }
 
+    // Add currently open file if any
     if (activeEditor) {
       const relativePath = vscode.workspace.asRelativePath(activeEditor.document.uri);
       items.push({
@@ -194,6 +267,7 @@ export class CodeaChatViewProvider implements vscode.WebviewViewProvider {
       });
     }
 
+    // Add problems/diagnostics option
     const allDiagnostics = vscode.languages.getDiagnostics();
     const errorCount = allDiagnostics.reduce((sum, [, diags]) =>
       sum + diags.filter(d => d.severity === vscode.DiagnosticSeverity.Error).length, 0);
@@ -207,12 +281,15 @@ export class CodeaChatViewProvider implements vscode.WebviewViewProvider {
       });
     }
 
+    // Add git changes option
     items.push({
       label: '$(git-commit) Git Changes',
       description: 'Staged and unstaged changes',
       detail: 'Add current git diff to context'
     });
 
+
+    // Add terminal option - get last command output via shell integration
     const activeTerminal = vscode.window.activeTerminal;
     if (activeTerminal) {
       items.push({
@@ -222,12 +299,14 @@ export class CodeaChatViewProvider implements vscode.WebviewViewProvider {
       });
     }
 
+    // Add option to browse files
     items.push({
       label: '$(folder) Browse Files...',
       description: '',
       detail: 'Select files from your workspace'
     });
 
+    // Add separator and open tabs
     const openTabs = vscode.window.tabGroups.all
       .flatMap(group => group.tabs)
       .filter(tab => tab.input instanceof vscode.TabInputText)
@@ -259,6 +338,7 @@ export class CodeaChatViewProvider implements vscode.WebviewViewProvider {
 
     for (const item of selected) {
       if (item.label === '$(selection) Selection') {
+        // Add selected text
         if (activeEditor && !activeEditor.selection.isEmpty) {
           const selectedText = activeEditor.document.getText(activeEditor.selection);
           const relativePath = vscode.workspace.asRelativePath(activeEditor.document.uri);
@@ -271,6 +351,7 @@ export class CodeaChatViewProvider implements vscode.WebviewViewProvider {
           });
         }
       } else if (item.label === '$(error) Problems') {
+        // Add problems/diagnostics
         const diagnosticsText = this.formatDiagnostics(allDiagnostics);
         contextItems.push({
           path: 'Problems',
@@ -278,6 +359,7 @@ export class CodeaChatViewProvider implements vscode.WebviewViewProvider {
           language: 'text'
         });
       } else if (item.label === '$(git-commit) Git Changes') {
+        // Add git diff
         try {
           const gitDiff = await this.getGitDiff();
           if (gitDiff) {
@@ -291,9 +373,11 @@ export class CodeaChatViewProvider implements vscode.WebviewViewProvider {
           // Git not available
         }
       } else if (item.label === '$(terminal) Terminal') {
+        // Try to get terminal output via shell integration
         const terminal = vscode.window.activeTerminal;
         if (terminal) {
           try {
+            // Shell integration API (VS Code 1.93+)
             const shellIntegration = (terminal as any).shellIntegration;
             if (shellIntegration) {
               const execution = shellIntegration.executedCommands?.[shellIntegration.executedCommands.length - 1];
@@ -308,6 +392,7 @@ export class CodeaChatViewProvider implements vscode.WebviewViewProvider {
                 }
               }
             } else {
+              // Fallback: prompt user to copy output
               const selection = await vscode.window.showInputBox({
                 prompt: 'Paste terminal output here (shell integration not available)',
                 placeHolder: 'Paste your terminal output...',
@@ -322,6 +407,7 @@ export class CodeaChatViewProvider implements vscode.WebviewViewProvider {
               }
             }
           } catch (e) {
+            // Fallback: prompt user to copy output
             const selection = await vscode.window.showInputBox({
               prompt: 'Paste terminal output here',
               placeHolder: 'Paste your terminal output...',
@@ -337,6 +423,7 @@ export class CodeaChatViewProvider implements vscode.WebviewViewProvider {
           }
         }
       } else if (item.label === '$(folder) Browse Files...') {
+        // Show file picker
         const files = await vscode.window.showOpenDialog({
           canSelectMany: true,
           openLabel: 'Add to Context',
@@ -357,6 +444,7 @@ export class CodeaChatViewProvider implements vscode.WebviewViewProvider {
           }
         }
       } else if (item.label === '$(file) Current File') {
+        // Add current file
         if (activeEditor) {
           contextItems.push({
             path: vscode.workspace.asRelativePath(activeEditor.document.uri),
@@ -365,6 +453,7 @@ export class CodeaChatViewProvider implements vscode.WebviewViewProvider {
           });
         }
       } else if (item.description && !item.label.startsWith('Open Tabs')) {
+        // Get file content from open tabs
         try {
           const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
           if (workspaceFolder) {
@@ -418,14 +507,17 @@ export class CodeaChatViewProvider implements vscode.WebviewViewProvider {
     const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
     if (!workspaceFolder) return null;
 
+    // Check if we're in a browser environment (no child_process available)
     if (typeof process === 'undefined' || !process.versions?.node) {
       return 'Git diff is not available in web environment.';
     }
 
     return new Promise((resolve) => {
+      // Dynamic require to avoid bundling issues in browser
       const cp = require('child_process');
       cp.exec('git diff HEAD', { cwd: workspaceFolder.uri.fsPath, maxBuffer: 1024 * 1024 }, (error: Error | null, stdout: string) => {
         if (error) {
+          // Try just unstaged changes
           cp.exec('git diff', { cwd: workspaceFolder.uri.fsPath, maxBuffer: 1024 * 1024 }, (error2: Error | null, stdout2: string) => {
             if (error2 || !stdout2) {
               resolve(null);
@@ -472,8 +564,10 @@ export class CodeaChatViewProvider implements vscode.WebviewViewProvider {
     this._currentConversationId = conversation.id;
     this._messages = [...conversation.messages];
 
+    // Clear and reload the chat in webview
     this._view?.webview.postMessage({ type: 'clearChat' });
 
+    // Send all messages to webview
     for (const message of this._messages) {
       this._view?.webview.postMessage({
         type: 'addMessage',
@@ -483,7 +577,9 @@ export class CodeaChatViewProvider implements vscode.WebviewViewProvider {
   }
 
   public newConversation() {
+    // Save current conversation before starting new one
     this.saveCurrentConversation();
+
     this._currentConversationId = null;
     this._messages = [];
     this._view?.webview.postMessage({ type: 'clearChat' });
@@ -496,16 +592,18 @@ export class CodeaChatViewProvider implements vscode.WebviewViewProvider {
 
   private stopGeneration() {
     this._isProcessing = false;
-    if (this._abortController) {
-      this._abortController.abort();
-      this._abortController = undefined;
+    if (this._currentRequest) {
+      this._currentRequest.abort();
+      this._currentRequest = undefined;
     }
+    // Reset the webview UI state
     this._view?.webview.postMessage({ type: 'endAssistantMessage' });
   }
 
   private async handleUserMessage(content: string, mode: string = 'ask', selectedModel?: string, addedContext?: { path: string; content: string; language: string }[]) {
     if (this._isProcessing) return;
 
+    // Update current mode from UI selection
     if (mode) {
       this._currentMode = mode;
     }
@@ -527,38 +625,71 @@ export class CodeaChatViewProvider implements vscode.WebviewViewProvider {
       return;
     }
 
+    // Get current context (open file, selection)
     const context = await this._toolExecutor.getContext();
 
+    // Debug: log what context we're getting
+    console.log('[Codea] Context captured:', {
+      hasOpenFile: !!context.openFile,
+      openFilePath: context.openFile?.path,
+      openFileLength: context.openFile?.content?.length,
+      hasSelection: !!context.selection,
+      openTabs: context.openTabs,
+      addedContextCount: addedContext?.length || 0
+    });
+
+    // Build system message based on mode
     const systemMessage = this.buildSystemMessage(this._currentMode, context);
 
+    // Enhance user message with context
     let enhancedContent = content;
 
+    // First, add any explicitly added context files
     if (addedContext && addedContext.length > 0) {
       for (const item of addedContext) {
         const fileContent = item.content.slice(0, 4000);
         const truncated = item.content.length > 4000 ? '\n... (truncated)' : '';
         enhancedContent += `\n\n**File: ${item.path}**\n\`\`\`${item.language}\n${fileContent}${truncated}\n\`\`\``;
       }
+      console.log('[Codea] Added explicit context:', addedContext.map(c => c.path));
     }
 
-    if (!addedContext || addedContext.length === 0) {
-      const referencesCode = /\b(this|the|explain|review|fix|debug|code|file|function|error|codebase|project)\b/i.test(content);
+    // Then check if referencing code and add implicit context
+    const referencesCode = /\b(this|the|explain|review|fix|debug|code|file|function|error|codebase|project)\b/i.test(content);
 
+    // Debug log
+    console.log('[Codea] Message analysis:', {
+      content: content.substring(0, 50),
+      referencesCode,
+      hasSelection: !!context.selection,
+      hasOpenFile: !!context.openFile,
+      messageCount: this._messages.length,
+      hasAddedContext: (addedContext?.length || 0) > 0
+    });
+
+    // Only add implicit context if no explicit context was added
+    if (!addedContext || addedContext.length === 0) {
       if (referencesCode && context.selection) {
+        // User has selected text - include it in their message
         enhancedContent = `${content}\n\n**Selected code (${context.openFile?.path || 'unknown'}, lines ${context.selection.startLine}-${context.selection.endLine}):**\n\`\`\`${context.openFile?.language || ''}\n${context.selection.text}\n\`\`\``;
+        console.log('[Codea] Injecting selection context');
       } else if (referencesCode && context.openFile) {
+        // Include open file context whenever referencing code (not just first message)
         const fileContent = context.openFile.content.slice(0, 4000);
         const truncated = context.openFile.content.length > 4000 ? '\n... (truncated)' : '';
         enhancedContent = `${content}\n\n**Currently open file (${context.openFile.path}):**\n\`\`\`${context.openFile.language}\n${fileContent}${truncated}\n\`\`\``;
+        console.log('[Codea] Injecting open file context:', context.openFile.path);
       }
     }
 
+    // Add user message (show original to user, send enhanced to API)
     this._messages.push({ role: 'user', content: enhancedContent });
     this._view?.webview.postMessage({
       type: 'addMessage',
-      message: { role: 'user', content }
+      message: { role: 'user', content }  // Show original to user
     });
 
+    // Start processing loop
     this._isProcessing = true;
     await this.processConversation(baseUrl, apiKey, model, systemMessage);
   }
@@ -595,23 +726,30 @@ Do NOT use edit_file unless you have the EXACT text to replace.
 - After completing a task, briefly confirm what was done.`;
 
     if (mode === 'ask') {
-      systemMessage += `\n\n## Mode: ASK (Current)\nFor DESTRUCTIVE operations only (delete, overwrite important files), briefly confirm. For everything else, just do it.`;
+      systemMessage += `\n\n## Mode: ASK (Current)
+For DESTRUCTIVE operations only (delete, overwrite important files), briefly confirm. For everything else, just do it.`;
     } else if (mode === 'edit') {
-      systemMessage += `\n\n## Mode: EDIT (Current)\nMake changes directly. No confirmations needed.`;
+      systemMessage += `\n\n## Mode: EDIT (Current)
+Make changes directly. No confirmations needed.`;
     } else if (mode === 'plan') {
-      systemMessage += `\n\n## Mode: PLAN (Current)\nOutline steps first, then ask once for approval before executing all changes.`;
+      systemMessage += `\n\n## Mode: PLAN (Current)
+Outline steps first, then ask once for approval before executing all changes.`;
     } else if (mode === 'yolo') {
-      systemMessage += `\n\n## Mode: YOLO (Current)\nFull autonomous mode. Execute everything without any confirmations.`;
+      systemMessage += `\n\n## Mode: YOLO (Current)
+Full autonomous mode. Execute everything without any confirmations.`;
     }
 
+    // Add workspace structure
     if (context.workspaceStructure) {
       systemMessage += `\n\n## Workspace Structure\n\`\`\`\n${context.workspaceStructure}\n\`\`\``;
     }
 
+    // Add list of open tabs as context
     if (context.openTabs?.length > 0) {
       systemMessage += `\n\n## Currently Open Files\n${context.openTabs.join('\n')}`;
     }
 
+    // Add current file info
     if (context.openFile) {
       systemMessage += `\n\n## Active File: ${context.openFile.path}`;
     }
@@ -620,344 +758,280 @@ Do NOT use edit_file unless you have the EXACT text to replace.
   }
 
   private async processConversation(baseUrl: string, apiKey: string, model: string, systemMessage: string): Promise<void> {
+    // Start assistant response
     this._view?.webview.postMessage({ type: 'startAssistantMessage' });
 
     try {
-      const openai = new OpenAI({
-        apiKey,
-        baseURL: `${baseUrl}/v1`
-      });
+      // AI SDK handles tool execution loop internally with maxSteps
+      const result = await this.streamChatCompletion(baseUrl, apiKey, model, systemMessage, this._messages);
 
-      this._abortController = new AbortController();
+      if (!this._isProcessing) return;
 
-      // Add system message if first message
-      const messages: Array<OpenAI.Chat.ChatCompletionMessageParam> = this._messages.length === 1
-        ? [{ role: 'system', content: systemMessage }, ...this._messages]
-        : [{ role: 'system', content: systemMessage }, ...this._messages];
+      // Add intermediate messages (tool calls and results) to conversation
+      if (result.newMessages && result.newMessages.length > 0) {
+        this._messages.push(...result.newMessages);
+      }
 
-      await this.streamChatCompletion(openai, model, messages);
+      // Add final assistant message to conversation
+      if (result.content) {
+        this._messages.push({ role: 'assistant', content: result.content });
+      }
 
+      // End assistant message
       this._view?.webview.postMessage({ type: 'endAssistantMessage' });
     } catch (error: any) {
-      if (error.name !== 'AbortError') {
-        const errorMessage = this.formatErrorMessage(error);
-        this._view?.webview.postMessage({
-          type: 'error',
-          message: errorMessage
-        });
-        vscode.window.showErrorMessage(`Codea: ${errorMessage}`);
+      const rawMessage = error.message || 'An error occurred';
+      // Map HTTP error codes to friendly messages, but prefer API error message if available
+      let errorMessage = rawMessage;
+      if (rawMessage.includes('HTTP 402') || rawMessage.includes('402')) {
+        // Check if API provided a specific reason
+        if (rawMessage.toLowerCase().includes('credit') || rawMessage.toLowerCase().includes('balance') || rawMessage.toLowerCase().includes('payment')) {
+          errorMessage = 'Insufficient credits. Please add more credits at alia.onl to continue.';
+        } else {
+          errorMessage = 'Payment required. Please check your account at alia.onl.';
+        }
+      } else if (rawMessage.includes('HTTP 401') || rawMessage.includes('401')) {
+        errorMessage = 'Invalid API key. Please check your settings.';
+      } else if (rawMessage.includes('HTTP 429') || rawMessage.includes('429')) {
+        errorMessage = 'Rate limit exceeded. Please wait a moment and try again.';
+      } else if (rawMessage.includes('HTTP 500') || rawMessage.includes('500')) {
+        errorMessage = 'Server error. Please try again later.';
+      } else if (rawMessage.includes('HTTP 503') || rawMessage.includes('503')) {
+        errorMessage = 'Service unavailable. Please try again later.';
       }
+      this._view?.webview.postMessage({
+        type: 'error',
+        message: errorMessage
+      });
+      vscode.window.showErrorMessage(`Codea: ${errorMessage}`);
     } finally {
       this._isProcessing = false;
+      // Auto-save conversation after exchange
       this.saveCurrentConversation();
     }
   }
 
   private async streamChatCompletion(
-    openai: OpenAI,
+    baseUrl: string,
+    apiKey: string,
     model: string,
-    messages: Array<OpenAI.Chat.ChatCompletionMessageParam>
-  ): Promise<void> {
-    const stream = await openai.chat.completions.create(
-      {
-        model,
-        messages,
-        tools: fileTools as OpenAI.Chat.ChatCompletionTool[],
-        stream: true,
-        temperature: 0.7,
-        max_tokens: 4096
-      },
-      {
-        signal: this._abortController?.signal
-      }
-    );
+    systemMessage: string,
+    messages: Message[]
+  ): Promise<{ content: string; toolCalls?: ToolCall[]; newMessages?: Message[] }> {
+    // Resolve model using centralized API
+    console.log('[Codea] Resolving model:', model);
+    const resolved = await resolveModel(baseUrl, apiKey, model);
+    console.log('[Codea] Resolved to:', resolved.provider, resolved.modelId);
 
-    let assistantMessage = '';
-    let toolCalls: OpenAI.Chat.ChatCompletionMessageToolCall[] = [];
-
-    for await (const chunk of stream) {
-      if (!this._isProcessing) break;
-
-      const delta = chunk.choices?.[0]?.delta;
-      if (!delta) continue;
-
-      if (delta.content) {
-        assistantMessage += delta.content;
-        this._view?.webview.postMessage({
-          type: 'streamContent',
-          content: delta.content
-        });
-      }
-
-      if (delta.tool_calls) {
-        for (const toolCall of delta.tool_calls) {
-          const index = toolCall.index ?? toolCalls.length;
-
-          if (!toolCalls[index]) {
-            toolCalls[index] = {
-              id: toolCall.id || '',
-              type: 'function',
-              function: { name: toolCall.function?.name || '', arguments: '' }
-            };
-          }
-
-          if (toolCall.function?.name) {
-            toolCalls[index].function.name = toolCall.function.name;
-          }
-
-          if (toolCall.function?.arguments) {
-            toolCalls[index].function.arguments += toolCall.function.arguments;
-          }
-
-          if (toolCall.id) {
-            toolCalls[index].id = toolCall.id;
-          }
+    // Convert messages to AI SDK format (exclude system message as it's passed separately)
+    const modelMessages = messages
+      .filter(m => m.role !== 'system')
+      .map(m => {
+        if (m.role === 'tool') {
+          return {
+            role: 'tool' as const,
+            content: [{ type: 'tool-result' as const, toolCallId: m.tool_call_id || '', toolName: m.name || '', result: m.content }]
+          };
+        } else if (m.tool_calls) {
+          return {
+            role: 'assistant' as const,
+            content: [
+              ...(m.content ? [{ type: 'text' as const, text: m.content }] : []),
+              ...m.tool_calls.map(tc => ({
+                type: 'tool-call' as const,
+                toolCallId: tc.id,
+                toolName: tc.function.name,
+                args: JSON.parse(tc.function.arguments)
+              }))
+            ]
+          };
         }
-      }
-    }
+        return {
+          role: m.role as 'user' | 'assistant',
+          content: m.content
+        };
+      });
 
-    const validToolCalls = toolCalls.filter(tc => tc && tc.id && tc.function && tc.function.name);
+    // Create AI SDK tools with UI update wrappers
+    const toolExecutor = this._toolExecutor;
+    const view = this._view;
+    const currentModeRef = { mode: this._currentMode };
 
-    if (assistantMessage || validToolCalls.length > 0) {
-      const assistantMsg: OpenAI.Chat.ChatCompletionAssistantMessageParam = {
-        role: 'assistant',
-        content: assistantMessage || null
-      };
-      if (validToolCalls.length > 0) {
-        assistantMsg.tool_calls = validToolCalls;
-      }
-      this._messages.push(assistantMsg);
-    }
-
-    if (validToolCalls.length > 0) {
-      for (const toolCall of validToolCalls) {
-        const toolName = toolCall.function.name;
-        let args: any = {};
-        try {
-          args = JSON.parse(toolCall.function.arguments || '{}');
-        } catch (e) {
-          console.error('[Codea] Failed to parse tool arguments:', toolCall.function.arguments, e);
-          continue;
-        }
-
+    const aiTools = createAISDKTools({
+      execute: async (toolName: string, args: any) => {
+        // Handle set_mode specially
         if (toolName === 'set_mode') {
-          this._currentMode = args.mode;
-          this._view?.webview.postMessage({
-            type: 'modeChanged',
-            mode: this._currentMode
-          });
+          const newMode = args.mode;
+          if (['ask', 'edit', 'plan', 'yolo'].includes(newMode)) {
+            currentModeRef.mode = newMode;
+            this._currentMode = newMode;
+            view?.webview.postMessage({
+              type: 'modeChanged',
+              mode: newMode
+            });
+            return { success: true, result: `Mode changed to ${newMode}` };
+          } else {
+            return { success: false, result: `Invalid mode: ${newMode}` };
+          }
         }
 
-        this._view?.webview.postMessage({
+        // Notify UI about tool execution
+        view?.webview.postMessage({
           type: 'toolCall',
           tool: toolName,
-          args,
+          args: args,
           status: 'running'
         });
 
-        try {
-          const result = await this._toolExecutor.execute(toolName, args);
+        // Execute the tool
+        const result = await toolExecutor.execute(toolName, args);
 
-          this._messages.push({
-            role: 'tool',
-            tool_call_id: toolCall.id,
-            content: result.success ? result.result : `Error: ${result.result}`
-          });
-
-          this._view?.webview.postMessage({
-            type: 'toolResult',
-            tool: toolName,
-            success: result.success,
-            result: result.result.slice(0, 500) + (result.result.length > 500 ? '...' : '')
-          });
-        } catch (error: any) {
-          const errorMsg = error.message || String(error);
-          this._messages.push({
-            role: 'tool',
-            tool_call_id: toolCall.id,
-            content: `Error: ${errorMsg}`
-          });
-
-          this._view?.webview.postMessage({
-            type: 'toolResult',
-            tool: toolName,
-            success: false,
-            result: errorMsg
-          });
-        }
-      }
-
-      // Continue with tool results
-      await this.continueWithToolResults(openai, model, messages);
-    }
-  }
-
-  private async continueWithToolResults(
-    openai: OpenAI,
-    model: string,
-    baseMessages: Array<OpenAI.Chat.ChatCompletionMessageParam>,
-    iterationCount: number = 0
-  ): Promise<void> {
-    const MAX_ITERATIONS = 10;
-    if (iterationCount >= MAX_ITERATIONS) {
-      console.warn(`[Codea] Max iterations (${MAX_ITERATIONS}) reached`);
-      return;
-    }
-
-    const stream = await openai.chat.completions.create(
-      {
-        model,
-        messages: this._messages,
-        tools: fileTools as OpenAI.Chat.ChatCompletionTool[],
-        stream: true,
-        temperature: 0.7,
-        max_tokens: 4096
-      },
-      {
-        signal: this._abortController?.signal
-      }
-    );
-
-    let assistantMessage = '';
-    let toolCalls: OpenAI.Chat.ChatCompletionMessageToolCall[] = [];
-
-    for await (const chunk of stream) {
-      if (!this._isProcessing) break;
-
-      const delta = chunk.choices?.[0]?.delta;
-      if (!delta) continue;
-
-      if (delta.content) {
-        assistantMessage += delta.content;
-        this._view?.webview.postMessage({
-          type: 'streamContent',
-          content: delta.content
-        });
-      }
-
-      if (delta.tool_calls) {
-        for (const toolCall of delta.tool_calls) {
-          const index = toolCall.index ?? toolCalls.length;
-          if (!toolCalls[index]) {
-            toolCalls[index] = {
-              id: toolCall.id || '',
-              type: 'function',
-              function: { name: toolCall.function?.name || '', arguments: '' }
-            };
-          }
-
-          if (toolCall.function?.name) {
-            toolCalls[index].function.name = toolCall.function.name;
-          }
-
-          if (toolCall.function?.arguments) {
-            toolCalls[index].function.arguments += toolCall.function.arguments;
-          }
-
-          if (toolCall.id) {
-            toolCalls[index].id = toolCall.id;
-          }
-        }
-      }
-    }
-
-    const validToolCalls = toolCalls.filter(tc => tc && tc.id && tc.function && tc.function.name);
-
-    if (assistantMessage || validToolCalls.length > 0) {
-      const assistantMsg: OpenAI.Chat.ChatCompletionAssistantMessageParam = {
-        role: 'assistant',
-        content: assistantMessage || null
-      };
-      if (validToolCalls.length > 0) {
-        assistantMsg.tool_calls = validToolCalls;
-      }
-      this._messages.push(assistantMsg);
-    }
-
-    if (validToolCalls.length > 0) {
-      for (const toolCall of validToolCalls) {
-        const toolName = toolCall.function.name;
-        let args: any = {};
-        try {
-          args = JSON.parse(toolCall.function.arguments || '{}');
-        } catch (e) {
-          continue;
-        }
-
-        if (toolName === 'set_mode') {
-          this._currentMode = args.mode;
-          this._view?.webview.postMessage({
-            type: 'modeChanged',
-            mode: this._currentMode
-          });
-        }
-
-        this._view?.webview.postMessage({
-          type: 'toolCall',
+        // Notify UI about result
+        view?.webview.postMessage({
+          type: 'toolResult',
           tool: toolName,
-          args,
-          status: 'running'
+          success: result.success,
+          result: result.result.slice(0, 500) + (result.result.length > 500 ? '...' : '')
         });
 
-        try {
-          const result = await this._toolExecutor.execute(toolName, args);
+        return result;
+      }
+    });
 
-          this._messages.push({
+    const controller = new AbortController();
+    this._currentRequest = {
+      abort: () => controller.abort()
+    };
+
+    let fullContent = '';
+    const toolCalls: ToolCall[] = [];
+    const newMessages: Message[] = [];
+    let currentStepToolCalls: ToolCall[] = [];
+    let currentStepContent = '';
+
+    try {
+      const result = streamText({
+        model: resolved.model,
+        system: systemMessage,
+        messages: modelMessages,
+        tools: aiTools,
+        maxSteps: 10,
+
+        // Enhanced call options
+        maxRetries: 3,
+        temperature: 0.7,
+        maxTokens: 4096,
+
+        // Prompt caching for Anthropic
+        experimental_providerMetadata: resolved.provider === 'anthropic' ? {
+          anthropic: { cacheControl: [{ type: 'ephemeral' as const }] }
+        } : undefined,
+
+        // Error handling
+        onError: (error) => {
+          console.error('[Codea] AI SDK error:', error);
+        },
+
+        onFinish: async (event) => {
+          console.log('[Codea] Finish reason:', event.finishReason);
+          console.log('[Codea] Usage:', event.usage);
+
+          // Report usage back to API
+          if (event.usage && event.usage.totalTokens) {
+            await reportUsage(
+              baseUrl,
+              apiKey,
+              resolved.sessionId,
+              {
+                promptTokens: event.usage.promptTokens || 0,
+                completionTokens: event.usage.completionTokens || 0,
+                totalTokens: event.usage.totalTokens
+              }
+            ).catch(error => {
+              console.error('[Codea] Failed to report usage:', error);
+            });
+          }
+        },
+
+        abortSignal: controller.signal
+      });
+
+      // Process streaming chunks
+      for await (const chunk of result.fullStream) {
+        if (!this._isProcessing) {
+          break;
+        }
+
+        if (chunk.type === 'text-delta' && chunk.textDelta) {
+          // Filter out thinking tags
+          const filtered = chunk.textDelta.replace(/<thinking>[\s\S]*?<\/thinking>/g, '');
+          if (filtered.trim()) {
+            fullContent += filtered;
+            currentStepContent += filtered;
+            this._view?.webview.postMessage({
+              type: 'streamContent',
+              content: filtered
+            });
+          }
+        } else if (chunk.type === 'tool-call') {
+          // Track tool calls for this step
+          const toolCall: ToolCall = {
+            id: chunk.toolCallId,
+            type: 'function',
+            function: {
+              name: chunk.toolName,
+              arguments: JSON.stringify(chunk.args)
+            }
+          };
+          toolCalls.push(toolCall);
+          currentStepToolCalls.push(toolCall);
+        } else if (chunk.type === 'tool-result') {
+          // Add tool result message
+          newMessages.push({
             role: 'tool',
-            tool_call_id: toolCall.id,
-            content: result.success ? result.result : `Error: ${result.result}`
+            tool_call_id: chunk.toolCallId,
+            name: chunk.toolName,
+            content: typeof chunk.result === 'string' ? chunk.result : JSON.stringify(chunk.result)
           });
-
-          this._view?.webview.postMessage({
-            type: 'toolResult',
-            tool: toolName,
-            success: result.success,
-            result: result.result.slice(0, 500)
-          });
-        } catch (error: any) {
-          const errorMsg = error.message || String(error);
-          this._messages.push({
-            role: 'tool',
-            tool_call_id: toolCall.id,
-            content: `Error: ${errorMsg}`
-          });
-
-          this._view?.webview.postMessage({
-            type: 'toolResult',
-            tool: toolName,
-            success: false,
-            result: errorMsg
-          });
+        } else if (chunk.type === 'step-finish') {
+          // Step finished - add assistant message with tool calls if any
+          if (currentStepToolCalls.length > 0) {
+            newMessages.push({
+              role: 'assistant',
+              content: currentStepContent,
+              tool_calls: currentStepToolCalls
+            });
+            currentStepToolCalls = [];
+            currentStepContent = '';
+          }
+        } else if (chunk.type === 'finish') {
+          // Stream finished
+          break;
         }
       }
 
-      await this.continueWithToolResults(openai, model, baseMessages, iterationCount + 1);
+      this._currentRequest = undefined;
+      return {
+        content: fullContent.trim(),
+        toolCalls: toolCalls.length > 0 ? toolCalls : undefined,
+        newMessages: newMessages.length > 0 ? newMessages : undefined
+      };
+    } catch (error) {
+      this._currentRequest = undefined;
+      if (error instanceof Error && error.name === 'AbortError') {
+        return { content: fullContent, toolCalls: toolCalls.length > 0 ? toolCalls : undefined };
+      }
+      throw error;
     }
-  }
-
-  private formatErrorMessage(error: Error): string {
-    const message = error.message || 'An error occurred';
-
-    if (message.includes('402') || message.toLowerCase().includes('insufficient credits')) {
-      return 'Insufficient credits. Please add more credits at alia.onl';
-    } else if (message.includes('401') || message.toLowerCase().includes('unauthorized')) {
-      return 'Invalid API key. Please check your settings.';
-    } else if (message.includes('429') || message.toLowerCase().includes('rate limit')) {
-      return 'Rate limit exceeded. Please wait a moment and try again.';
-    } else if (message.includes('500')) {
-      return 'Server error. Please try again later.';
-    } else if (message.includes('503')) {
-      return 'Service unavailable. Please try again later.';
-    }
-
-    return message;
   }
 
   private _getHtmlForWebview(webview: vscode.Webview): string {
+    // Get URIs for bundled webview assets
     const scriptUri = webview.asWebviewUri(vscode.Uri.joinPath(this._extensionUri, 'dist', 'webview', 'index.js'));
     const styleUri = webview.asWebviewUri(vscode.Uri.joinPath(this._extensionUri, 'dist', 'webview', 'index.css'));
     const logoUri = webview.asWebviewUri(vscode.Uri.joinPath(this._extensionUri, 'dist', 'webview', 'codea-logo.png'));
 
+    // Use a nonce to only allow specific scripts to be run
     const nonce = getNonce();
 
     return `<!DOCTYPE html>
