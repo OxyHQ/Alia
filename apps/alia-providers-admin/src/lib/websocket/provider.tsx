@@ -3,7 +3,7 @@
  * Initializes and manages WebSocket connection for the entire app
  */
 
-import { createContext, useContext, useEffect, ReactNode } from 'react';
+import { createContext, useContext, useEffect, type ReactNode } from 'react';
 import { realtimeClient } from './client';
 
 interface RealtimeContextValue {

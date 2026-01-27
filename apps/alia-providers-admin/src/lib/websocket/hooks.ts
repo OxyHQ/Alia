@@ -36,7 +36,7 @@ export function useRealtimeData<T>(channel: string, initialData?: T) {
 
     // Subscribe to data updates
     const unsubscribeData = realtimeClient.subscribe(channel, (newData) => {
-      setData(newData);
+      setData(newData as T);
     });
 
     return () => {
@@ -87,7 +87,7 @@ export function useRealtimeModels(filters?: { provider?: string; aliaTier?: stri
  * Hook to send real-time messages
  */
 export function useRealtimeSend() {
-  const send = useCallback((message: any) => {
+  const send = useCallback((message: unknown) => {
     realtimeClient.send(message);
   }, []);
 
