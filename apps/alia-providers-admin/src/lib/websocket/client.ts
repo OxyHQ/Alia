@@ -3,13 +3,13 @@
  * Provides persistent connection to the backend for live data streaming
  */
 
-type MessageHandler = (data: any) => void;
+type MessageHandler = (data: unknown) => void;
 type ConnectionHandler = (status: 'connected' | 'disconnected' | 'reconnecting') => void;
 
 interface WebSocketMessage {
   type: string;
   channel?: string;
-  data?: any;
+  data?: unknown;
   error?: string;
 }
 
@@ -20,12 +20,12 @@ export class RealtimeClient {
   private maxReconnectAttempts = 10;
   private reconnectDelay = 1000; // Start with 1 second
   private maxReconnectDelay = 30000; // Max 30 seconds
-  private reconnectTimeout: NodeJS.Timeout | null = null;
+  private reconnectTimeout: number | null = null;
   private messageHandlers = new Map<string, Set<MessageHandler>>();
   private connectionHandlers = new Set<ConnectionHandler>();
   private isIntentionallyClosed = false;
-  private heartbeatInterval: NodeJS.Timeout | null = null;
-  private heartbeatTimeout: NodeJS.Timeout | null = null;
+  private heartbeatInterval: number | null = null;
+  private heartbeatTimeout: number | null = null;
 
   constructor(apiUrl?: string) {
     // Convert HTTP URL to WebSocket URL
@@ -165,7 +165,7 @@ export class RealtimeClient {
   /**
    * Send message to server
    */
-  send(message: any): void {
+  send(message: unknown): void {
     if (this.ws?.readyState === WebSocket.OPEN) {
       this.ws.send(JSON.stringify(message));
     } else {
