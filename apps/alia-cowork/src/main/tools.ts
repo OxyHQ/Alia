@@ -10,14 +10,18 @@ import * as os from 'os'
 import { promisify } from 'util'
 import { clipboard, shell, desktopCapturer, BrowserWindow } from 'electron'
 import { Stagehand } from '@browserbasehq/stagehand'
+import Store from 'electron-store'
 
 const execAsync = promisify(exec)
+
+const store = new Store()
 
 export class ToolExecutor {
   private homeDir: string
   private openedApplications: Set<string> = new Set()
   private mainWindow?: BrowserWindow
   private stagehand?: Stagehand
+  private agentApiKey?: string
 
   constructor(mainWindow?: BrowserWindow) {
     this.homeDir = os.homedir()
@@ -352,6 +356,52 @@ export class ToolExecutor {
   }
 
   /**
+   * Get Anthropic API key from Alia API
+   */
+  private async getAgentApiKey(): Promise<string> {
+    if (this.agentApiKey) {
+      return this.agentApiKey
+    }
+
+    const apiKey = store.get('apiKey') as string
+    const baseUrl = store.get('apiBaseUrl') as string
+
+    if (!apiKey || !baseUrl) {
+      throw new Error('API key or base URL not configured')
+    }
+
+    try {
+      const response = await fetch(`${baseUrl}/v1/resolve-model`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${apiKey}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          model: 'alia-v1-cowork',
+          clientType: 'cowork'
+        })
+      })
+
+      if (!response.ok) {
+        throw new Error(`Failed to resolve model: ${response.statusText}`)
+      }
+
+      const data = await response.json()
+      const providerKey = data.providerKey
+      if (!providerKey) {
+        throw new Error('No provider key returned from API')
+      }
+      this.agentApiKey = providerKey
+      console.log('[ToolExecutor] Got provider API key from Alia:', data.provider)
+      return providerKey
+    } catch (error: any) {
+      console.error('[ToolExecutor] Error getting agent API key:', error)
+      throw new Error(`Failed to get agent API key: ${error.message}`)
+    }
+  }
+
+  /**
    * Browser automation using Stagehand Agent
    * Opens a browser, performs actions, and shows preview
    */
@@ -436,8 +486,15 @@ export class ToolExecutor {
         // Use agent for the action if we have one
         if (normalizedArgs.action) {
           console.log(`[ToolExecutor] Creating agent for action: ${normalizedArgs.action}`)
+
+          // Get Anthropic API key from Alia
+          const anthropicKey = await this.getAgentApiKey()
+
           const agent = this.stagehand.agent({
-            model: 'anthropic/claude-sonnet-4-5-20250929',
+            model: {
+              modelName: 'anthropic/claude-sonnet-4-5-20250929',
+              apiKey: anthropicKey,
+            }
           })
 
           // Execute with callbacks to capture screenshots during execution
