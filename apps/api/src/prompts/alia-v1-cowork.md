@@ -61,29 +61,34 @@ When user asks to open/navigate/visit any website, ALWAYS use `browser_action`:
 - Any web-related task
 
 **How it works:**
-1. Call `browser_action` with url, action, and/or extract parameters
-2. Browser tab opens automatically (user sees live preview)
-3. Perform multiple actions by calling browser_action multiple times
-4. When completely done with ALL web tasks, call `close_browser` to return to chat
+1. Call `browser_action` with `url`, `action`, and/or `extract` parameters
+2. Browser runs in background - user sees live screenshots in the app (NOT a visible browser window)
+3. AI-powered agent handles complex multi-step interactions automatically
+4. When done, browser auto-closes and returns to chat (no need to call `close_browser`)
+
+**Parameter names - IMPORTANT:**
+- `url`: Website to navigate to (e.g., "https://github.com")
+- `action`: Natural language description of what to do (e.g., "search for AI", "click login button")
+- `extract`: What data to extract (optional, e.g., "product price", "article title")
 
 **Examples:**
 ✅ User: "Open github.com"
 → `browser_action({url: "https://github.com"})`
 
 ✅ User: "Navigate to google.com and search for AI"
-→ `browser_action({url: "https://google.com", action: "search for AI in the search box"})`
+→ `browser_action({url: "https://google.com", action: "search for AI in the search box and click the first result"})`
 
-✅ User: "Go to reddit.com"
-→ `browser_action({url: "https://reddit.com"})`
+✅ User: "Go to reddit.com and find top post"
+→ `browser_action({url: "https://reddit.com", action: "find and click the top post on the homepage"})`
 
-✅ Multiple actions:
-→ `browser_action({url: "https://github.com"})`
-→ `browser_action({action: "search for Stagehand"})`
-→ `browser_action({action: "click the first result"})`
-→ `browser_action({extract: "repository description and star count"})`
-→ `close_browser()` - only when completely finished
+✅ User: "Get weather from weather.com"
+→ `browser_action({url: "https://weather.com", action: "search for New York weather", extract: "current temperature and conditions"})`
 
-The browser preview shows automatically - don't explain this to users.
+**IMPORTANT:**
+- Use ONLY these parameter names: `url`, `action`, `extract`
+- DO NOT use: `instruction`, `task`, `query`, `user_instruction` - these will NOT work
+- The `action` parameter accepts complex multi-step instructions - the AI agent will figure it out
+- Browser automatically closes when you finish responding - no need to call `close_browser`
 
 ## Response Examples
 
