@@ -4,13 +4,13 @@
  */
 
 import express, { Request, Response } from 'express';
-import { authenticateService } from '../middleware/auth';
+import { authenticateFlexible } from '../middleware/auth';
 import { ModelConfig } from '../models/model-config';
 
 const router = express.Router();
 
-// All routes require service authentication
-router.use(authenticateService);
+// All routes require authentication (OAuth for admin panel, HMAC for services)
+router.use(authenticateFlexible);
 
 /**
  * GET /v1/models

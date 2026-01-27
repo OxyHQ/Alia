@@ -4,7 +4,7 @@
  */
 
 import express, { Request, Response } from 'express';
-import { authenticateService } from '../middleware/auth';
+import { authenticateService, authenticateFlexible } from '../middleware/auth';
 import { providers } from '../lib/providers';
 import { resolveAliaModel } from '../lib/model-resolver';
 import {
@@ -19,8 +19,8 @@ import { sanitizeError } from '../lib/error-handler';
 
 const router = express.Router();
 
-// All routes require service authentication
-router.use(authenticateService);
+// All routes require authentication (OAuth for admin panel, HMAC for services)
+router.use(authenticateFlexible);
 
 /**
  * POST /v1/providers/resolve
