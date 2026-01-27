@@ -248,23 +248,23 @@ task('watch', async () => {
   console.log('✓ Watching renderer process (renderer/src/**)')
 
   // Watch CSS files with logging
-  gulpWatch([paths.renderer.css, 'renderer/src/**/*.css'], () => {
+  gulpWatch([paths.renderer.css, 'renderer/src/**/*.css'], (done) => {
     const timestamp = new Date().toLocaleTimeString()
     console.log(`[${timestamp}] 🎨 CSS changed, rebuilding...`)
-    return series('build:css')()
+    return series('build:css')(done)
   })
 
   // Watch HTML and public files with logging
-  gulpWatch([paths.renderer.html], () => {
+  gulpWatch([paths.renderer.html], (done) => {
     const timestamp = new Date().toLocaleTimeString()
     console.log(`[${timestamp}] 📄 HTML changed, rebuilding...`)
-    return series('build:html')()
+    return series('build:html')(done)
   })
 
-  gulpWatch([paths.renderer.public + '/**/*'], () => {
+  gulpWatch([paths.renderer.public + '/**/*'], (done) => {
     const timestamp = new Date().toLocaleTimeString()
     console.log(`[${timestamp}] 📁 Assets changed, copying...`)
-    return series('copy:assets')()
+    return series('copy:assets')(done)
   })
 
   console.log('✓ Watching CSS files (renderer/src/**/*.css)')

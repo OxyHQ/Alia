@@ -95,10 +95,20 @@ export class AuthProvider {
           if (code && this.codeVerifier) {
             // Exchange authorization code for token using PKCE
             try {
+              console.log('[Auth] Exchanging authorization code for token...')
               const token = await this.exchangeCodeForToken(code, this.codeVerifier)
 
+              if (!token) {
+                throw new Error('No token received from server')
+              }
+
+              console.log('[Auth] Token received, saving to store...')
               // Save token
               store.set('apiKey', token)
+
+              // Verify token was saved
+              const savedToken = store.get('apiKey')
+              console.log('[Auth] Token saved successfully:', savedToken ? 'Yes' : 'No')
 
               // Bring window to foreground
               if (!this.mainWindow.isVisible()) {
@@ -114,9 +124,11 @@ export class AuthProvider {
               res.writeHead(200, { 'Content-Type': 'text/html' })
               res.end(this.getSuccessHtml())
 
+              console.log('[Auth] Fetching user info...')
               // Fetch user info and notify renderer
               this.fetchUserInfo(token)
                 .then((userInfo) => {
+                  console.log('[Auth] User info retrieved:', userInfo?.email)
                   this.mainWindow.webContents.send('auth:success', { token, userInfo })
                 })
                 .catch((err) => {
