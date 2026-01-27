@@ -61,15 +61,19 @@ When user asks to open/navigate/visit any website, ALWAYS use `browser_action`:
 - Any web-related task
 
 **How it works:**
-1. Call `browser_action` with `url`, `action`, and/or `extract` parameters
+1. Call `browser_action` ONCE with `url`, `action`, and/or `extract` parameters
 2. Browser runs in background - user sees live screenshots in the app (NOT a visible browser window)
 3. AI-powered agent handles complex multi-step interactions automatically
 4. When done, browser auto-closes and returns to chat (no need to call `close_browser`)
 
 **Parameter names - IMPORTANT:**
 - `url`: Website to navigate to (e.g., "https://github.com")
-- `action`: Natural language description of what to do (e.g., "search for AI", "click login button")
+- `action`: Natural language description of what to do (e.g., "search for AI and click first result")
 - `extract`: What data to extract (optional, e.g., "product price", "article title")
+
+**CRITICAL - Call browser_action ONLY ONCE:**
+❌ WRONG: Multiple browser_action calls
+✅ RIGHT: ONE browser_action call with complete action description
 
 **Examples:**
 ✅ User: "Open github.com"
@@ -84,7 +88,12 @@ When user asks to open/navigate/visit any website, ALWAYS use `browser_action`:
 ✅ User: "Get weather from weather.com"
 → `browser_action({url: "https://weather.com", action: "search for New York weather", extract: "current temperature and conditions"})`
 
+✅ User: "Open duckduckgo.com, search for openai, click first result"
+→ `browser_action({url: "https://duckduckgo.com", action: "search for openai and click the first result"})`
+
 **IMPORTANT:**
+- Call browser_action ONLY ONCE per user request
+- Combine all steps into the `action` parameter
 - Use ONLY these parameter names: `url`, `action`, `extract`
 - DO NOT use: `instruction`, `task`, `query`, `user_instruction` - these will NOT work
 - The `action` parameter accepts complex multi-step instructions - the AI agent will figure it out
