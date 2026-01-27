@@ -162,6 +162,8 @@ function getAIModel(keyConfig: KeyConfig) {
  */
 router.post('/', async (req: Request, res: Response) => {
   let creditReservation: CreditReservation | null = null;
+  let resolved: Awaited<ReturnType<typeof resolveAliaModel>> = null;
+  let aliasModelId: string = 'alia-v1';
 
   try {
     console.log('📬 [V1/Chat] Request received');
@@ -226,7 +228,7 @@ router.post('/', async (req: Request, res: Response) => {
     // Resolve Alia model to concrete provider/model
     const requestedModel = body.model || getDefaultAliaModel();
     const keyPool = await loadKeys();
-    const resolved = await resolveAliaModel(requestedModel, keyPool);
+    resolved = await resolveAliaModel(requestedModel, keyPool);
 
     if (!resolved) {
       res.status(503).json({ error: 'No models available', requested_model: requestedModel });
@@ -234,7 +236,7 @@ router.post('/', async (req: Request, res: Response) => {
     }
 
     const model = getAIModel(resolved.keyConfig);
-    const aliasModelId = resolved.aliasModelId;
+    aliasModelId = resolved.aliasModelId;
     console.log(`[V1/Chat] Using provider: ${resolved.provider}/${resolved.modelId}`);
 
     // Extract client context from first system message if present (from editor/client)
@@ -590,7 +592,16 @@ When you use a tool successfully:
         }
       } else if (chunk.type === 'error') {
         console.error('[V1/Chat] Error chunk received:', (chunk as any).error);
-        const errorMessage = (chunk as any).error?.message || (chunk as any).error || 'Unknown error';
+
+        // Record failure for circuit breaker - next request will use different provider
+        const { recordFailure } = await import('../../lib/provider-health.js');
+        await recordFailure(resolved.provider, resolved.modelId, (chunk as any).error?.code || 'STREAM_ERROR');
+
+        // CRITICAL: Translate error to remove provider information!
+        const { translateError, sanitizeMessage } = await import('../../lib/error-handler.js');
+        const rawError = (chunk as any).error;
+        const aliaError = translateError(rawError, resolved.provider, resolved.modelId);
+
         const errorChunk = {
           id: `chatcmpl-${Date.now()}`,
           object: 'chat.completion.chunk',
@@ -599,7 +610,7 @@ When you use a tool successfully:
           choices: [{
             index: 0,
             delta: {
-              content: `\n\n⚠️ Error: ${errorMessage}`
+              content: `\n\n⚠️ Error: ${sanitizeMessage(aliaError.userMessage)}`
             },
             finish_reason: 'error'
           }]
@@ -706,23 +717,32 @@ When you use a tool successfully:
 
   } catch (e: unknown) {
     console.error('❌ [V1/Chat] Error:', e);
-    const message = e instanceof Error ? e.message : 'Unknown error';
     const stack = e instanceof Error ? e.stack : undefined;
     console.error('❌ [V1/Chat] Stack:', stack);
 
+    // Record failure for circuit breaker - next request will use different provider
+    if (resolved) {
+      const { recordFailure } = await import('../../lib/provider-health.js');
+      await recordFailure(resolved.provider, resolved.modelId, (e as any)?.code || 'REQUEST_ERROR');
+    }
+
+    // CRITICAL: Translate error to remove provider information!
+    const { translateError, formatErrorResponse, sanitizeMessage } = await import('../../lib/error-handler.js');
+    const aliaError = translateError(e, resolved?.provider, resolved?.modelId);
+
     if (!res.headersSent) {
-      res.status(500).json({ error: message });
+      res.status(aliaError.retryable ? 503 : 500).json(formatErrorResponse(aliaError));
     } else {
       // Headers already sent (streaming started), send error as SSE chunk
       const errorChunk = {
         id: `chatcmpl-${Date.now()}`,
         object: 'chat.completion.chunk',
         created: Math.floor(Date.now() / 1000),
-        model: 'alia-v1',
+        model: aliasModelId,
         choices: [{
           index: 0,
           delta: {
-            content: `\n\n⚠️ Error: ${message}`
+            content: `\n\n⚠️ Error: ${sanitizeMessage(aliaError.userMessage)}`
           },
           finish_reason: 'error'
         }]

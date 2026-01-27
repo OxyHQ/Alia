@@ -79,7 +79,45 @@ export default function DocumentationScreen() {
           </Text>
         </View>
         <Text className="text-sm text-muted-foreground mt-3">
-          The response is streamed in OpenAI-compatible SSE format.
+          The response is streamed in Server-Sent Events (SSE) format.
+        </Text>
+      </View>
+
+      {/* SSE Events */}
+      <View className="px-6 py-6 border-b border-border">
+        <Text className="text-sm font-semibold text-foreground mb-4">Streaming events (SSE)</Text>
+        <Text className="text-sm text-muted-foreground mb-3">
+          Alia streams responses with enhanced events for better UX:
+        </Text>
+        <View className="p-3 bg-muted rounded-md mb-3">
+          <Text className="text-sm font-mono text-foreground">
+            {`Event types:
+• metadata - Initial request info
+• chunk - Text content pieces
+• thinking - Reasoning process (visible)
+• tool_call - Function being called
+• tool_result - Function results
+• cache_hit - Retrieved from cache
+• fallback - Using backup model
+• cost - Final token usage
+• done - Stream complete
+• error - Error occurred`}
+          </Text>
+        </View>
+        <Text className="text-sm text-muted-foreground mb-3">Example cache hit event:</Text>
+        <View className="p-3 bg-muted rounded-md mb-3">
+          <Text className="text-sm font-mono text-foreground">
+            {`event: cache_hit
+data: {
+  "message": "Response from cache",
+  "savedCost": 0.0023,
+  "savedTokens": 1500,
+  "instantResponse": true
+}`}
+          </Text>
+        </View>
+        <Text className="text-sm text-muted-foreground">
+          Cache hits return instant responses and save 70-80% on costs for repeated queries.
         </Text>
       </View>
 
@@ -124,19 +162,58 @@ export default function DocumentationScreen() {
       <View className="px-6 py-6 border-b border-border">
         <Text className="text-sm font-semibold text-foreground mb-4">Available models</Text>
         <Text className="text-sm text-muted-foreground mb-3">
-          Get a list of available AI models:
+          Get a list of available AI models filtered by app type:
         </Text>
         <View className="p-3 bg-muted rounded-md mb-4">
-          <Text className="text-sm font-mono text-foreground">GET /v1/models</Text>
+          <Text className="text-sm font-mono text-foreground">GET /v1/models?app=main</Text>
         </View>
-        <Text className="text-sm text-muted-foreground mb-3">Alia models:</Text>
-        <View className="p-3 bg-muted rounded-md">
+        <Text className="text-sm text-muted-foreground mb-3">App types:</Text>
+        <View className="p-3 bg-muted rounded-md mb-4">
+          <Text className="text-sm font-mono text-foreground">
+            {`• main - General chat models + multimodal
+• codea - Code-specialized models only
+• cowork - Desktop automation models
+• browser - Browser automation only`}
+          </Text>
+        </View>
+        <Text className="text-sm text-muted-foreground mb-3">Main app models:</Text>
+        <View className="p-3 bg-muted rounded-md mb-4">
           <Text className="text-sm font-mono text-foreground">
             {`• alia-lite - Fast (0.5x credits)
 • alia-v1 - Balanced (1x credits)
-• alia-v1-codea - Code optimized (1.5x)
+• alia-v1-vision - Image understanding (1.5x)
+• alia-v1-audio - Voice input (1.5x)
+• alia-v1-multimodal - All formats (2x)
 • alia-v1-pro - High quality (3x)
 • alia-v1-pro-max - Best (5x)`}
+          </Text>
+        </View>
+        <Text className="text-sm text-muted-foreground mb-3">Code editor models:</Text>
+        <View className="p-3 bg-muted rounded-md mb-4">
+          <Text className="text-sm font-mono text-foreground">
+            {`• alia-v1-codea - Code optimized (1.5x)
+• alia-v1-pro - High quality (3x)
+• alia-v1-thinking - Extended reasoning (4x)`}
+          </Text>
+        </View>
+        <Text className="text-sm text-muted-foreground mb-3">Get model details:</Text>
+        <View className="p-3 bg-muted rounded-md">
+          <Text className="text-sm font-mono text-foreground">
+            {`GET /v1/models/alia-v1-pro
+
+Response:
+{
+  "model": {
+    "id": "alia-v1-pro",
+    "name": "Alia V1 Pro",
+    "description": "High quality",
+    "tier": "pro",
+    "creditMultiplier": 3,
+    "maxTokens": 8192,
+    "supportsTools": true,
+    "supportsVision": false
+  }
+}`}
           </Text>
         </View>
       </View>
