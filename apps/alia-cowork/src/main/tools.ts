@@ -446,9 +446,9 @@ export class ToolExecutor {
 
           const agent = this.stagehand.agent({
             model: {
-              modelName: 'openai/alia-v1-cowork', // OpenAI provider with Alia model name - API routes internally
+              modelName: 'alia-v1-cowork', // Model name without provider prefix for OpenAI-compatible API
               apiKey: apiKey,
-              baseURL: `${baseUrl}/v1`, // Alia API is OpenAI-compatible
+              baseURL: `${baseUrl}/v1`, // Alia API endpoint (OpenAI-compatible)
             }
           })
 
