@@ -1,8 +1,9 @@
 import React from "react";
-import { View, Pressable, ScrollView, NativeSyntheticEvent, NativeScrollEvent } from "react-native";
+import { View, Pressable, NativeSyntheticEvent, NativeScrollEvent } from "react-native";
 import { Image } from "expo-image";
 import { Text } from "@/components/ui/text";
 import { Button } from "@/components/ui/button";
+import { BaseSidebar } from "@/components/base-sidebar";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   Sparkles,
@@ -383,44 +384,36 @@ export const Sidebar = React.memo(function Sidebar() {
     }
   }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
 
-  return (
-    <View className="flex-1 bg-surface">
-      {/* Header with Logo */}
-      <View className="border-b border-border/50 p-4 md:p-3">
-        <Pressable onPress={handleLogoPress} style={({ pressed }) => ({ opacity: pressed ? 0.7 : 1 })}>
-          <Image
-            source={require("@/assets/images/logo.png")}
-            style={{ width: "100%", height: 48 }}
-            contentFit="contain"
-          />
-        </Pressable>
-      </View>
+  // Header component
+  const header = (
+    <Pressable onPress={handleLogoPress} style={({ pressed }) => ({ opacity: pressed ? 0.7 : 1 })}>
+      <Image
+        source={require("@/assets/images/logo.png")}
+        style={{ width: "100%", height: 48 }}
+        contentFit="contain"
+      />
+    </Pressable>
+  );
 
-      {/* New Chat Button */}
-      <View className="p-3 md:p-2">
-        <Button
-          onPress={handleNewChat}
-          variant="outline"
-          className="h-11 md:h-9 rounded-full w-full"
-        >
-          <View className="flex-row items-center gap-2">
-            <Sparkles size={16} className="text-primary" />
-            <Text className="text-sm md:text-xs font-medium">
-              New Chat
-            </Text>
-          </View>
-        </Button>
+  // Top section with New Chat button
+  const topSection = (
+    <Button
+      onPress={handleNewChat}
+      variant="outline"
+      className="h-11 md:h-9 rounded-full w-full"
+    >
+      <View className="flex-row items-center gap-2">
+        <Sparkles size={16} className="text-primary" />
+        <Text className="text-sm md:text-xs font-medium">
+          New Chat
+        </Text>
       </View>
+    </Button>
+  );
 
-      {/* Scrollable Content */}
-      <ScrollView
-        className="flex-1"
-        onScroll={handleScroll}
-        scrollEventThrottle={400}
-        showsVerticalScrollIndicator={false}
-      >
-        {/* Navigation Links */}
-        <View className="px-3 md:px-2 pb-3 md:pb-2 pt-3 md:pt-2 gap-1">
+  // Navigation links
+  const navigation = (
+    <>
         <Button
           variant="ghost"
           className="h-10 md:h-8 flex-row items-center justify-start gap-2 rounded-full px-3 md:px-2 w-full"
@@ -462,10 +455,12 @@ export const Sidebar = React.memo(function Sidebar() {
             Settings
           </Text>
         </Button>
-      </View>
+    </>
+  );
 
-      {/* Projects and History Section */}
-      <View className="px-3 md:px-2">
+  // Scrollable content - Projects and History
+  const scrollableContent = (
+    <View className="gap-2">
         <View className="gap-2">
             {/* Projects Subsection */}
             <View>
@@ -677,11 +672,12 @@ export const Sidebar = React.memo(function Sidebar() {
               )}
             </View>
         </View>
-      </View>
-      </ScrollView>
+    </View>
+  );
 
-      {/* Footer with User or Auth Buttons */}
-      <View className="border-t border-border/50 p-3 md:p-2">
+  // Footer with user dropdown or auth buttons
+  const footer = (
+    <>
         {isAuthenticated ? (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -764,7 +760,21 @@ export const Sidebar = React.memo(function Sidebar() {
             </Button>
           </View>
         )}
-      </View>
+    </>
+  );
+
+  return (
+    <>
+      <BaseSidebar
+        header={header}
+        topSection={topSection}
+        navigation={navigation}
+        scrollableContent={scrollableContent}
+        footer={footer}
+        backgroundColor="bg-background"
+        onScroll={handleScroll}
+        showScrollIndicator={false}
+      />
 
       {/* Project Edit Dialog */}
       <ProjectEditDialog
@@ -781,6 +791,6 @@ export const Sidebar = React.memo(function Sidebar() {
         folder={editingFolder}
         onSave={handleSaveFolder}
       />
-    </View>
+    </>
   );
 });

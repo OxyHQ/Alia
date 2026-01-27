@@ -2,10 +2,12 @@ import { Drawer } from 'expo-router/drawer';
 import { DeveloperSidebar } from '@/components/developer-sidebar';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { useWindowDimensions } from 'react-native';
+import { useColorScheme } from '@/lib/useColorScheme';
 
 export default function DevelopersLayout() {
   const dimensions = useWindowDimensions();
   const isLargeScreen = dimensions.width >= 768;
+  const { colors } = useColorScheme();
   // TanStack Query hooks in child components automatically fetch data
 
   return (
@@ -16,7 +18,7 @@ export default function DevelopersLayout() {
           headerShown: false,
           drawerStyle: {
             width: 255,
-            backgroundColor: 'transparent',
+            backgroundColor: colors.background,
             borderRightWidth: 0,
             boxShadow: '0px 1px 2px rgba(0, 0, 0, 0.05)',
             elevation: 1,
