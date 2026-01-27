@@ -34,6 +34,7 @@
     "radix-ui": "^1.4.3",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
+    "react-native-web": "^0.21.0",
     "react-router-dom": "^7.13.0",
     "recharts": "^2.15.4",
     "shadcn": "^3.7.0",
