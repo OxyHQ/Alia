@@ -201,25 +201,44 @@ export interface ModelPricing {
 }
 
 export const MODEL_PRICING: Record<string, ModelPricing> = {
-  // Free tier models
-  'gemini-2.5-flash': { tier: 'free', averageLatencyMs: 800 },
-  'gemini-2.5-pro': { tier: 'free', averageLatencyMs: 1500 },
-  'gemini-3-flash-preview': { tier: 'free', averageLatencyMs: 1000 },
-  'gemini-3-pro-preview': { tier: 'free', averageLatencyMs: 2000 },
-  'llama-3.3-70b-versatile': { tier: 'free', averageLatencyMs: 200 },
-  'whisper-large-v3-turbo': { tier: 'free', averageLatencyMs: 300 },
-  'whisper-large-v3': { tier: 'free', averageLatencyMs: 500 },
+  // Free tier models (Google Gemini via free API)
+  'gemini-2.5-flash': { tier: 'free', costPer1MInput: 0.075, costPer1MOutput: 0.30, averageLatencyMs: 800 },
+  'gemini-2.5-pro': { tier: 'free', costPer1MInput: 1.25, costPer1MOutput: 10.00, averageLatencyMs: 1500 },
+  'gemini-3-flash-preview': { tier: 'free', costPer1MInput: 0.50, costPer1MOutput: 3.00, averageLatencyMs: 1000 },
+  'gemini-3-pro-preview': { tier: 'free', costPer1MInput: 2.00, costPer1MOutput: 12.00, averageLatencyMs: 2000 },
+
+  // Free tier models (Groq)
+  'llama-3.3-70b-versatile': { tier: 'free', costPer1MInput: 0.59, costPer1MOutput: 0.79, averageLatencyMs: 200 },
+  'whisper-large-v3-turbo': { tier: 'free', costPer1MInput: 0.04, costPer1MOutput: 0.04, averageLatencyMs: 300 },
+  'whisper-large-v3': { tier: 'free', costPer1MInput: 0.05, costPer1MOutput: 0.05, averageLatencyMs: 500 },
+
+  // Freemium tier (DeepSeek - very cheap)
   'deepseek-chat': { tier: 'freemium', costPer1MInput: 0.14, costPer1MOutput: 0.28, averageLatencyMs: 1000 },
   'deepseek-reasoner': { tier: 'freemium', costPer1MInput: 0.55, costPer1MOutput: 2.19, averageLatencyMs: 2000 },
+  'deepseek-v3.2': { tier: 'freemium', costPer1MInput: 0.27, costPer1MOutput: 1.10, averageLatencyMs: 1200 },
+
+  // Free tier (Cloudflare Workers AI)
   '@cf/meta/llama-3.2-11b-vision-instruct': { tier: 'free', averageLatencyMs: 1000 },
 
-  // Paid models
+  // Paid models (Anthropic Claude)
   'claude-sonnet-4-20250514': { tier: 'paid', costPer1MInput: 3.00, costPer1MOutput: 15.00, averageLatencyMs: 2000 },
   'claude-opus-4-20241120': { tier: 'paid', costPer1MInput: 15.00, costPer1MOutput: 75.00, averageLatencyMs: 3000 },
+
+  // Paid models (OpenAI)
   'gpt-4o': { tier: 'paid', costPer1MInput: 2.50, costPer1MOutput: 10.00, averageLatencyMs: 1200 },
   'gpt-4o-mini': { tier: 'paid', costPer1MInput: 0.15, costPer1MOutput: 0.60, averageLatencyMs: 800 },
   'o1': { tier: 'paid', costPer1MInput: 15.00, costPer1MOutput: 60.00, averageLatencyMs: 4000 },
-  'whisper-1': { tier: 'paid', costPer1MInput: 0.006, costPer1MOutput: 0.006, averageLatencyMs: 1000 },
+  'whisper-1': { tier: 'paid', costPer1MInput: 6.00, costPer1MOutput: 6.00, averageLatencyMs: 1000 },
+
+  // Paid models (Mistral)
+  'ministral-8b-2512': { tier: 'paid', costPer1MInput: 0.10, costPer1MOutput: 0.10, averageLatencyMs: 600 },
+  'ministral-14b-2512': { tier: 'paid', costPer1MInput: 0.15, costPer1MOutput: 0.15, averageLatencyMs: 700 },
+  'devstral-2': { tier: 'paid', costPer1MInput: 0.20, costPer1MOutput: 0.20, averageLatencyMs: 900 },
+  'mistral-large-2512': { tier: 'paid', costPer1MInput: 2.00, costPer1MOutput: 6.00, averageLatencyMs: 1500 },
+  'mistral-small-3.1-2503': { tier: 'paid', costPer1MInput: 0.20, costPer1MOutput: 0.60, averageLatencyMs: 800 },
+
+  // Paid models (Together AI)
+  'meta-llama/Llama-3.3-70B-Instruct-Turbo': { tier: 'paid', costPer1MInput: 0.88, costPer1MOutput: 0.88, averageLatencyMs: 400 },
 };
 
 // Get capabilities for a model, with fallback to defaults
