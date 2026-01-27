@@ -369,14 +369,16 @@ export class ToolExecutor {
 
       // Initialize Stagehand if not already initialized
       if (!this.stagehand) {
-        console.log('[ToolExecutor] Initializing Stagehand...')
+        console.log('[ToolExecutor] Initializing Stagehand in headless mode...')
         this.stagehand = new Stagehand({
           env: 'LOCAL',
           verbose: 1,
-          // Browser runs in background (headless) - screenshots are sent to UI
+          localBrowserLaunchOptions: {
+            headless: true, // Run browser invisibly - no visible window
+          }
         })
         await this.stagehand.init()
-        console.log('[ToolExecutor] Stagehand initialized')
+        console.log('[ToolExecutor] Stagehand initialized in headless mode - browser runs invisibly, screenshots sent to app')
       }
 
       // Get the first page
