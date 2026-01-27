@@ -253,28 +253,106 @@ task('watch', async () => {
   gulpWatch([paths.renderer.public + '/**/*'], series('copy:assets'))
 })
 
-// Start Electron in development mode
-task('electron:start', (done) => {
-  const electronProcess = spawn(
-    require('electron').toString(),
-    ['.'],
-    {
-      stdio: 'inherit',
-      env: { ...process.env, NODE_ENV: 'development' },
-    }
-  )
+let electronProcess: any = null
 
-  electronProcess.on('close', () => {
-    done()
-  })
+// Kill any existing Electron processes
+task('kill-electron', (done) => {
+  try {
+    const { execSync } = require('child_process')
+    // Kill any existing electron processes for this project
+    try {
+      if (process.platform === 'win32') {
+        execSync('taskkill /F /IM electron.exe 2>nul', { stdio: 'ignore' })
+      } else {
+        execSync('pkill -f "electron.*alia-cowork" || true', { stdio: 'ignore' })
+      }
+    } catch (e) {
+      // Ignore errors if no processes to kill
+    }
+    console.log('✓ Cleaned up existing Electron processes')
+  } catch (e) {
+    // Ignore
+  }
+  done()
 })
 
-// Development mode
-task('dev', series('build', parallel('watch', 'electron:start')))
+// Clear caches
+task('clear-cache', (done) => {
+  const cacheDirs = [
+    '.vite',
+    'renderer/node_modules/.vite',
+    'renderer/.vite',
+  ]
+
+  cacheDirs.forEach(dir => {
+    const fullPath = path.join(__dirname, dir)
+    if (fs.existsSync(fullPath)) {
+      fs.rmSync(fullPath, { recursive: true, force: true })
+    }
+  })
+  console.log('✓ Cleared Vite caches')
+  done()
+})
+
+// Start Electron in development mode with auto-restart
+task('electron:start', (done) => {
+  let restartCount = 0
+
+  function startElectron() {
+    const timestamp = new Date().toLocaleTimeString()
+    console.log(`\n[${timestamp}] Starting Electron... ${restartCount > 0 ? `(restart #${restartCount})` : ''}`)
+
+    electronProcess = spawn(
+      require('electron').toString(),
+      ['.'],
+      {
+        stdio: 'inherit',
+        env: { ...process.env, NODE_ENV: 'development' },
+      }
+    )
+
+    electronProcess.on('close', (code: number) => {
+      const timestamp = new Date().toLocaleTimeString()
+
+      if (code === 0) {
+        // Normal exit
+        console.log(`[${timestamp}] Electron exited normally`)
+        done()
+      } else {
+        // Abnormal exit - auto restart
+        console.log(`\n[${timestamp}] ⚠️  Electron crashed (code ${code}). Restarting in 2 seconds...`)
+        restartCount++
+        setTimeout(() => {
+          if (!done) return
+          startElectron()
+        }, 2000)
+      }
+    })
+
+    electronProcess.on('error', (err: Error) => {
+      console.error(`[Electron Error] ${err.message}`)
+    })
+  }
+
+  startElectron()
+})
+
+// Development mode with improvements
+task('dev', series(
+  'kill-electron',
+  'clear-cache',
+  'build',
+  parallel('watch', 'electron:start')
+))
 
 // Clean build directory
 task('clean', async () => {
+  console.log('Cleaning build directory...')
   if (fs.existsSync('dist')) {
     fs.rmSync('dist', { recursive: true })
   }
+  console.log('✓ Build directory cleaned')
 })
+
+// Full clean (build + cache)
+task('clean:all', series('clean', 'clear-cache'))
