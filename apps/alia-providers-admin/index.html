@@ -8,6 +8,15 @@
   </head>
   <body>
     <div id="root"></div>
+    <script>
+      // Polyfill for React Native packages that expect Node.js globals
+      if (typeof window.require === 'undefined') {
+        window.require = function(module) {
+          console.warn('require() called for:', module);
+          return {};
+        };
+      }
+    </script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
