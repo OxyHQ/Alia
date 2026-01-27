@@ -34,7 +34,7 @@ export default function AppLayout() {
           headerShown: false,
           drawerStyle: {
             width: 255,
-            backgroundColor: colors.surface,
+            backgroundColor: colors.background,
             borderRightWidth: 0,
             boxShadow: '0px 1px 2px rgba(0, 0, 0, 0.05)',
             elevation: 1,
