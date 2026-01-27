@@ -9,10 +9,10 @@ services:
       repo: your-username/ai-api-server
 
     # Source directory (monorepo path)
-    source_dir: /apps/alia-providers
+    source_dir: apps/alia-providers
 
     # Build configuration
-    build_command: npm install && npm run build
+    build_command: npm ci --include=dev && npm run build
 
     # Run configuration
     run_command: npm start
