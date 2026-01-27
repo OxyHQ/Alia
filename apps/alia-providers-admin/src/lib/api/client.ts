@@ -1,35 +1,41 @@
 /**
  * API Client for Alia Providers Service
+ * Uses OxyHQ authentication for admin access
  */
 
 const API_BASE_URL = import.meta.env.VITE_PROVIDERS_API_URL || 'http://localhost:3002';
-const SERVICE_NAME = 'alia-admin';
 
 class ProvidersAPIClient {
   private baseUrl: string;
-  private serviceName: string;
+  private getAccessToken: (() => string | null) | null = null;
 
   constructor() {
     this.baseUrl = API_BASE_URL;
-    this.serviceName = SERVICE_NAME;
   }
 
   /**
-   * Generate HMAC authentication headers
+   * Set the function to retrieve the current access token
+   * This will be called by the auth context
+   */
+  setTokenGetter(getter: () => string | null) {
+    this.getAccessToken = getter;
+  }
+
+  /**
+   * Get authentication headers (OAuth Bearer token from OxyHQ)
    */
   private getAuthHeaders(): Record<string, string> {
-    const timestamp = Date.now().toString();
+    const token = this.getAccessToken?.();
 
-    // In browser, we'll use SubtleCrypto API
-    // For now, admin panel should run with proper auth or be protected
-    const signature = 'admin-signature'; // TODO: Implement proper HMAC in browser
-
-    return {
-      'X-Service-Name': this.serviceName,
-      'X-Timestamp': timestamp,
-      'X-Signature': signature,
+    const headers: Record<string, string> = {
       'Content-Type': 'application/json',
     };
+
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+
+    return headers;
   }
 
   /**
@@ -37,17 +43,30 @@ class ProvidersAPIClient {
    */
   private async request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
     const url = `${this.baseUrl}${endpoint}`;
+    const authHeaders = this.getAuthHeaders();
 
     const response = await fetch(url, {
       ...options,
       headers: {
-        ...this.getAuthHeaders(),
+        ...authHeaders,
         ...options.headers,
       },
     });
 
     if (!response.ok) {
       const error = await response.json().catch(() => ({ error: response.statusText }));
+
+      // If 401, user needs to re-authenticate
+      if (response.status === 401) {
+        // Trigger logout/re-login
+        window.dispatchEvent(new CustomEvent('auth:unauthorized'));
+      }
+
+      // If 403, user doesn't have access
+      if (response.status === 403) {
+        throw new Error('Access denied. Only admin users can access this resource.');
+      }
+
       throw new Error(error.error || error.message || 'Request failed');
     }
 
@@ -117,12 +136,15 @@ class ProvidersAPIClient {
     });
   }
 
-  async updateKey(keyId: string, data: Partial<{
-    name: string;
-    isActive: boolean;
-    priority: number;
-    rateLimit: any;
-  }>) {
+  async updateKey(
+    keyId: string,
+    data: Partial<{
+      name: string;
+      isActive: boolean;
+      priority: number;
+      rateLimit: unknown;
+    }>
+  ) {
     return this.request(`/v1/keys/${keyId}`, {
       method: 'PATCH',
       body: JSON.stringify(data),
@@ -169,14 +191,14 @@ class ProvidersAPIClient {
     return this.request(`/v1/models/${provider}/${modelId}`);
   }
 
-  async createModel(data: any) {
+  async createModel(data: unknown) {
     return this.request('/v1/models', {
       method: 'POST',
       body: JSON.stringify(data),
     });
   }
 
-  async updateModel(provider: string, modelId: string, data: any) {
+  async updateModel(provider: string, modelId: string, data: unknown) {
     return this.request(`/v1/models/${provider}/${modelId}`, {
       method: 'PATCH',
       body: JSON.stringify(data),

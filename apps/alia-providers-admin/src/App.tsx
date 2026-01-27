@@ -6,6 +6,7 @@ import { KeysPage } from './pages/Keys';
 import { ModelsPage } from './pages/Models';
 import { MonitoringPage } from './pages/Monitoring';
 import { RealtimeProvider } from './lib/websocket/provider';
+import { AuthProvider } from './lib/auth/context';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -19,21 +20,23 @@ const queryClient = new QueryClient({
 
 function App() {
   return (
-    <RealtimeProvider>
-      <QueryClientProvider client={queryClient}>
-        <BrowserRouter>
-          <Routes>
-            <Route path="/" element={<DashboardLayout />}>
-              <Route index element={<Navigate to="/dashboard" replace />} />
-              <Route path="dashboard" element={<DashboardPage />} />
-              <Route path="keys" element={<KeysPage />} />
-              <Route path="models" element={<ModelsPage />} />
-              <Route path="monitoring" element={<MonitoringPage />} />
-            </Route>
-          </Routes>
-        </BrowserRouter>
-      </QueryClientProvider>
-    </RealtimeProvider>
+    <AuthProvider>
+      <RealtimeProvider>
+        <QueryClientProvider client={queryClient}>
+          <BrowserRouter>
+            <Routes>
+              <Route path="/" element={<DashboardLayout />}>
+                <Route index element={<Navigate to="/dashboard" replace />} />
+                <Route path="dashboard" element={<DashboardPage />} />
+                <Route path="keys" element={<KeysPage />} />
+                <Route path="models" element={<ModelsPage />} />
+                <Route path="monitoring" element={<MonitoringPage />} />
+              </Route>
+            </Routes>
+          </BrowserRouter>
+        </QueryClientProvider>
+      </RealtimeProvider>
+    </AuthProvider>
   );
 }
 
