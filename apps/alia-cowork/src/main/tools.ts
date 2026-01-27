@@ -10,7 +10,6 @@ import * as os from 'os'
 import { promisify } from 'util'
 import { clipboard, shell, desktopCapturer, BrowserWindow } from 'electron'
 import { Stagehand } from '@browserbasehq/stagehand'
-import type { Page } from 'playwright'
 
 const execAsync = promisify(exec)
 
@@ -353,7 +352,7 @@ export class ToolExecutor {
   }
 
   /**
-   * Browser automation using Stagehand
+   * Browser automation using Stagehand Agent
    * Opens a browser, performs actions, and shows preview
    */
   async browserAction(args: any): Promise<string> {
@@ -374,12 +373,13 @@ export class ToolExecutor {
         this.stagehand = new Stagehand({
           env: 'LOCAL',
           verbose: 1,
+          // Browser runs in background (headless) - screenshots are sent to UI
         })
         await this.stagehand.init()
         console.log('[ToolExecutor] Stagehand initialized')
       }
 
-      // Get the first page (CDP low-level interface)
+      // Get the first page
       const pages = this.stagehand.context.pages()
       if (pages.length === 0) {
         throw new Error('No browser pages available')
@@ -407,44 +407,53 @@ export class ToolExecutor {
       }
 
       let result = ''
+      let instruction = ''
 
-      // If action contains full instructions with URL, try to parse it
-      if (!normalizedArgs.url && normalizedArgs.action) {
-        const actionText = normalizedArgs.action.toLowerCase()
-        // Extract URL patterns like "go to duckduckgo.com" or "open github.com"
-        const urlMatch = normalizedArgs.action.match(/(?:go to|open|navigate to|visit)\s+([a-z0-9.-]+\.[a-z]{2,})/i)
-        if (urlMatch) {
-          const domain = urlMatch[1]
-          normalizedArgs.url = domain.startsWith('http') ? domain : `https://${domain}`
-          // Remove the navigation part from action
-          normalizedArgs.action = normalizedArgs.action.replace(urlMatch[0], '').trim()
-          if (normalizedArgs.action.startsWith(',')) {
-            normalizedArgs.action = normalizedArgs.action.substring(1).trim()
-          }
-          if (!normalizedArgs.action) {
-            normalizedArgs.action = undefined
-          }
-          console.log('[ToolExecutor] Extracted URL from action:', normalizedArgs.url)
-          console.log('[ToolExecutor] Remaining action:', normalizedArgs.action)
+      // Build instruction for agent
+      if (normalizedArgs.url && normalizedArgs.action) {
+        instruction = `Go to ${normalizedArgs.url}, then ${normalizedArgs.action}`
+      } else if (normalizedArgs.url) {
+        instruction = `Navigate to ${normalizedArgs.url}`
+      } else if (normalizedArgs.action) {
+        instruction = normalizedArgs.action
+      }
+
+      // If we have an instruction, use the agent for intelligent multi-step execution
+      if (instruction) {
+        console.log(`[ToolExecutor] Using agent with instruction: ${instruction}`)
+
+        // Navigate to URL first if provided
+        if (normalizedArgs.url) {
+          console.log(`[ToolExecutor] Navigating to ${normalizedArgs.url}`)
+          await page.goto(normalizedArgs.url)
+          await page.waitForLoadState('networkidle')
+          await capturePreview()
         }
-      }
 
-      // Navigate to URL if provided
-      if (normalizedArgs.url) {
-        console.log(`[ToolExecutor] Navigating to ${normalizedArgs.url}`)
-        await page.goto(normalizedArgs.url)
-        await page.waitForLoadState('networkidle')
-        await capturePreview()
-        result += `Navigated to ${normalizedArgs.url}\n`
-      }
+        // Use agent for the action if we have one
+        if (normalizedArgs.action) {
+          console.log(`[ToolExecutor] Creating agent for action: ${normalizedArgs.action}`)
+          const agent = this.stagehand.agent({
+            model: 'anthropic/claude-sonnet-4-5-20250929',
+          })
 
-      // Perform action if provided
-      if (normalizedArgs.action) {
-        console.log(`[ToolExecutor] Performing action: ${normalizedArgs.action}`)
-        await this.stagehand.act(normalizedArgs.action)
-        await page.waitForLoadState('networkidle')
-        await capturePreview()
-        result += `Action completed: ${normalizedArgs.action}\n`
+          // Execute with callbacks to capture screenshots during execution
+          const agentResult = await agent.execute({
+            instruction: normalizedArgs.action,
+            maxSteps: 10,
+            callbacks: {
+              onStepFinish: async (event: any) => {
+                console.log(`[ToolExecutor] Agent step finished: ${event.finishReason}`)
+                await capturePreview()
+              }
+            }
+          })
+
+          console.log('[ToolExecutor] Agent result:', JSON.stringify(agentResult, null, 2))
+          result += agentResult.message || 'Action completed'
+        } else {
+          result = `Navigated to ${normalizedArgs.url}`
+        }
       }
 
       // Extract data if requested
@@ -452,14 +461,11 @@ export class ToolExecutor {
         console.log(`[ToolExecutor] Extracting: ${normalizedArgs.extract}`)
         const extracted = await this.stagehand.extract(normalizedArgs.extract)
         await capturePreview()
-        result += `Extracted data: ${JSON.stringify(extracted, null, 2)}\n`
+        result += `\n\nExtracted data: ${JSON.stringify(extracted, null, 2)}`
       }
 
       // Final screenshot
       await capturePreview()
-
-      // Don't close browser - keep it open for user to see
-      // this.stagehand will be reused for next action
 
       return result || 'Browser action completed successfully'
     } catch (error: any) {
