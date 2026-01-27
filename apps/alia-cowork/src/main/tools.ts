@@ -356,8 +356,18 @@ export class ToolExecutor {
    * Browser automation using Stagehand
    * Opens a browser, performs actions, and shows preview
    */
-  async browserAction(args: { action?: string; url?: string; extract?: string }): Promise<string> {
+  async browserAction(args: any): Promise<string> {
     try {
+      // Normalize args - handle multiple possible parameter names that AI might use
+      const normalizedArgs = {
+        url: args.url || undefined,
+        action: args.action || args.instruction || args.user_instruction || args.task || args.query || undefined,
+        extract: args.extract || undefined
+      }
+
+      console.log('[ToolExecutor] Browser action called with:', JSON.stringify(args, null, 2))
+      console.log('[ToolExecutor] Normalized args:', JSON.stringify(normalizedArgs, null, 2))
+
       // Initialize Stagehand if not already initialized
       if (!this.stagehand) {
         console.log('[ToolExecutor] Initializing Stagehand...')
@@ -396,28 +406,51 @@ export class ToolExecutor {
         }
       }
 
-      // Navigate to URL if provided
-      if (args.url) {
-        console.log(`[ToolExecutor] Navigating to ${args.url}`)
-        await page.goto(args.url)
-        await page.waitForLoadState('networkidle')
-        await capturePreview()
-      }
-
       let result = ''
 
-      // Perform action if provided
-      if (args.action) {
-        console.log(`[ToolExecutor] Performing action: ${args.action}`)
-        await this.stagehand.act(args.action)
+      // If action contains full instructions with URL, try to parse it
+      if (!normalizedArgs.url && normalizedArgs.action) {
+        const actionText = normalizedArgs.action.toLowerCase()
+        // Extract URL patterns like "go to duckduckgo.com" or "open github.com"
+        const urlMatch = normalizedArgs.action.match(/(?:go to|open|navigate to|visit)\s+([a-z0-9.-]+\.[a-z]{2,})/i)
+        if (urlMatch) {
+          const domain = urlMatch[1]
+          normalizedArgs.url = domain.startsWith('http') ? domain : `https://${domain}`
+          // Remove the navigation part from action
+          normalizedArgs.action = normalizedArgs.action.replace(urlMatch[0], '').trim()
+          if (normalizedArgs.action.startsWith(',')) {
+            normalizedArgs.action = normalizedArgs.action.substring(1).trim()
+          }
+          if (!normalizedArgs.action) {
+            normalizedArgs.action = undefined
+          }
+          console.log('[ToolExecutor] Extracted URL from action:', normalizedArgs.url)
+          console.log('[ToolExecutor] Remaining action:', normalizedArgs.action)
+        }
+      }
+
+      // Navigate to URL if provided
+      if (normalizedArgs.url) {
+        console.log(`[ToolExecutor] Navigating to ${normalizedArgs.url}`)
+        await page.goto(normalizedArgs.url)
+        await page.waitForLoadState('networkidle')
         await capturePreview()
-        result += `Action completed: ${args.action}\n`
+        result += `Navigated to ${normalizedArgs.url}\n`
+      }
+
+      // Perform action if provided
+      if (normalizedArgs.action) {
+        console.log(`[ToolExecutor] Performing action: ${normalizedArgs.action}`)
+        await this.stagehand.act(normalizedArgs.action)
+        await page.waitForLoadState('networkidle')
+        await capturePreview()
+        result += `Action completed: ${normalizedArgs.action}\n`
       }
 
       // Extract data if requested
-      if (args.extract) {
-        console.log(`[ToolExecutor] Extracting: ${args.extract}`)
-        const extracted = await this.stagehand.extract(args.extract)
+      if (normalizedArgs.extract) {
+        console.log(`[ToolExecutor] Extracting: ${normalizedArgs.extract}`)
+        const extracted = await this.stagehand.extract(normalizedArgs.extract)
         await capturePreview()
         result += `Extracted data: ${JSON.stringify(extracted, null, 2)}\n`
       }
