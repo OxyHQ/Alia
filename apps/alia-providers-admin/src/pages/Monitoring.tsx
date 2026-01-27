@@ -1,6 +1,7 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { apiClient } from '@/lib/api/client';
+import { useRealtimeHealth, useRealtimeKeys } from '@/lib/websocket/hooks';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -46,17 +47,28 @@ export function MonitoringPage() {
   const [activeTab, setActiveTab] = useState('overview');
   const [filterProvider, setFilterProvider] = useState<string>('all');
 
-  const { data: healthData, isLoading: healthLoading } = useQuery({
+  // Real-time data subscriptions
+  const { data: realtimeHealthData, isConnected: healthConnected } = useRealtimeHealth();
+  const { data: realtimeKeysData, isConnected: keysConnected } = useRealtimeKeys();
+
+  // Fallback to polling if WebSocket is not connected
+  const { data: polledHealthData, isLoading: healthLoading } = useQuery({
     queryKey: ['provider-health'],
     queryFn: () => apiClient.getAllProviderHealth(),
-    refetchInterval: 10000, // Refresh every 10 seconds for real-time monitoring
+    refetchInterval: healthConnected ? false : 10000,
+    enabled: !healthConnected, // Only poll if WebSocket is not connected
   });
 
-  const { data: keysData, isLoading: keysLoading } = useQuery({
+  const { data: polledKeysData, isLoading: keysLoading } = useQuery({
     queryKey: ['keys'],
     queryFn: () => apiClient.listKeys(),
-    refetchInterval: 10000,
+    refetchInterval: keysConnected ? false : 10000,
+    enabled: !keysConnected, // Only poll if WebSocket is not connected
   });
+
+  // Use real-time data if available, otherwise fall back to polled data
+  const healthData = realtimeHealthData || polledHealthData;
+  const keysData = realtimeKeysData || polledKeysData;
 
   const health: HealthMetrics[] = (healthData as any)?.data || [];
   const keys: ProviderKey[] = (keysData as any)?.data || [];

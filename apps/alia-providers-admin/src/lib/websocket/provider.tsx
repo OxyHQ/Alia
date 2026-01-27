@@ -1,0 +1,43 @@
+/**
+ * WebSocket Provider Component
+ * Initializes and manages WebSocket connection for the entire app
+ */
+
+import { createContext, useContext, useEffect, ReactNode } from 'react';
+import { realtimeClient } from './client';
+
+interface RealtimeContextValue {
+  client: typeof realtimeClient;
+}
+
+const RealtimeContext = createContext<RealtimeContextValue | null>(null);
+
+interface RealtimeProviderProps {
+  children: ReactNode;
+}
+
+export function RealtimeProvider({ children }: RealtimeProviderProps) {
+  useEffect(() => {
+    // Connect when provider mounts
+    realtimeClient.connect();
+
+    // Disconnect when provider unmounts
+    return () => {
+      realtimeClient.disconnect();
+    };
+  }, []);
+
+  const value: RealtimeContextValue = {
+    client: realtimeClient,
+  };
+
+  return <RealtimeContext.Provider value={value}>{children}</RealtimeContext.Provider>;
+}
+
+export function useRealtime() {
+  const context = useContext(RealtimeContext);
+  if (!context) {
+    throw new Error('useRealtime must be used within RealtimeProvider');
+  }
+  return context;
+}

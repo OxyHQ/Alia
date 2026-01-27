@@ -7,6 +7,7 @@ import {
   Server
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { ConnectionStatus } from '@/components/ConnectionStatus';
 
 const navigation = [
   { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
@@ -52,10 +53,7 @@ export function DashboardLayout() {
 
         {/* Footer */}
         <div className="p-4 border-t border-border">
-          <div className="flex items-center gap-2 text-xs text-muted-foreground">
-            <div className="h-2 w-2 rounded-full bg-green-500" />
-            Service Online
-          </div>
+          <ConnectionStatus />
         </div>
       </div>
 
