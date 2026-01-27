@@ -151,8 +151,9 @@ export const TIER_MODEL_MAPPINGS: Record<AliaTier, ModelMapping[]> = {
   'v1-browser': [
     { provider: 'google', modelId: 'gemini-2.5-pro', priority: 1, qualityScore: 92 },
     { provider: 'groq', modelId: 'llama-3.3-70b-versatile', priority: 2, qualityScore: 88 },
-    { provider: 'openai', modelId: 'gpt-4o', priority: 3, qualityScore: 90 },
-    { provider: 'anthropic', modelId: 'claude-sonnet-4-20250514', priority: 4, qualityScore: 95 },
+    { provider: 'cerebras', modelId: 'llama-3.3-70b', priority: 3, qualityScore: 87 },
+    { provider: 'openai', modelId: 'gpt-4o', priority: 4, qualityScore: 90 },
+    { provider: 'anthropic', modelId: 'claude-sonnet-4-20250514', priority: 5, qualityScore: 95 },
   ],
   'v1-pro': [
     { provider: 'openai', modelId: 'gpt-4o', priority: 1, qualityScore: 90 },
