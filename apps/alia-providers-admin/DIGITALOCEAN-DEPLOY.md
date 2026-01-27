@@ -21,9 +21,9 @@ This guide covers deploying the Alia Providers Admin Panel as a Static Site on D
 2. **Configure the Static Site**
    - **Type**: Static Site
    - **Source Directory**: `/apps/alia-providers-admin`
-   - **Build Command**: 
+   - **Build Command**:
      ```bash
-     npm install --production=false && npm run build
+     npm install && npm run build
      ```
    - **Output Directory**: `dist`
    - **Node Version**: Select latest Node.js (18 or higher)
@@ -105,10 +105,12 @@ This project uses a monorepo structure. Important notes:
 
 **Cause**: Dependencies not installed before build
 
-**Solution**: Ensure build command includes:
+**Solution**: Ensure build command is:
 ```bash
-npm install --production=false && npm run build
+npm install && npm run build
 ```
+
+This installs all dependencies (including devDependencies which are needed for the build).
 
 ### CORS errors in production
 
