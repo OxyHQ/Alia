@@ -1,0 +1,335 @@
+import mongoose, { Document, Schema } from 'mongoose';
+import crypto from 'crypto';
+
+export interface IRateLimit {
+  rpm?: number;  // Requests per minute
+  rph?: number;  // Requests per hour
+  rpd?: number;  // Requests per day
+  tpm?: number;  // Tokens per minute
+  tph?: number;  // Tokens per hour
+  tpd?: number;  // Tokens per day
+}
+
+export interface IProviderKey extends Document {
+  // Identification
+  name: string;
+  provider: string;
+  environment: string;
+
+  // Security
+  keyHash: string;
+  keyPrefix: string;
+  encryptedKey?: string;
+
+  // Rate Limits
+  rateLimit: IRateLimit;
+
+  // Status & Metadata
+  isActive: boolean;
+  isPaid: boolean;
+  tier: string;
+
+  // Priority Management (Dynamic Rotation)
+  currentPriority: number;      // Dynamic priority (changes on failure)
+  originalPriority: number;     // Original priority to restore on success
+
+  // Usage Tracking
+  lastUsedAt?: Date;
+  lastSuccessAt?: Date;
+  totalRequests: number;
+  totalTokens: number;
+  successCount: number;
+
+  // Failure Tracking
+  consecutiveFailures: number;
+  totalFailures: number;
+  lastFailureAt?: Date;
+  lastFailureReason?: string;
+
+  // Archiving (only after many total failures)
+  maxTotalFailures: number;     // Archive after X total failures (default: 100)
+  isArchived: boolean;
+  archivedAt?: Date;
+  archivedReason?: string;
+
+  // Key Rotation
+  rotatedAt?: Date;
+  expiresAt?: Date;
+  rotationSchedule?: string;
+
+  // Ownership (optional - for multi-tenant)
+  ownerId?: string;
+  organizationId?: mongoose.Types.ObjectId;
+
+  // Timestamps
+  createdAt: Date;
+  updatedAt: Date;
+
+  // Methods
+  validateKey(key: string): boolean;
+  updateUsage(tokens: number): Promise<void>;
+  recordFailure(reason: string, maxPriority: number): Promise<void>;
+  recordSuccess(): Promise<void>;
+  isAvailable(): boolean;
+}
+
+const ProviderKeySchema = new Schema<IProviderKey>(
+  {
+    name: {
+      type: String,
+      required: true,
+      maxlength: 200,
+    },
+    provider: {
+      type: String,
+      required: true,
+      enum: [
+        'openai',
+        'anthropic',
+        'google',
+        'groq',
+        'mistral',
+        'deepseek',
+        'together',
+        'cerebras',
+        'cloudflare',
+        'openrouter',
+      ],
+      index: true,
+    },
+    environment: {
+      type: String,
+      required: true,
+      enum: ['production', 'staging', 'development'],
+      default: 'production',
+      index: true,
+    },
+    keyHash: {
+      type: String,
+      required: true,
+      unique: true,
+    },
+    keyPrefix: {
+      type: String,
+      required: true,
+      maxlength: 20,
+    },
+    encryptedKey: {
+      type: String,
+      required: false,
+    },
+    rateLimit: {
+      rpm: { type: Number },
+      rph: { type: Number },
+      rpd: { type: Number },
+      tpm: { type: Number },
+      tph: { type: Number },
+      tpd: { type: Number },
+    },
+    isActive: {
+      type: Boolean,
+      default: true,
+      index: true,
+    },
+    isPaid: {
+      type: Boolean,
+      default: false,
+    },
+    tier: {
+      type: String,
+      enum: ['free', 'paid', 'enterprise'],
+      default: 'free',
+    },
+    currentPriority: {
+      type: Number,
+      default: 10,
+      min: 1,
+      max: 1000,
+    },
+    originalPriority: {
+      type: Number,
+      default: 10,
+      min: 1,
+      max: 100,
+    },
+    lastUsedAt: {
+      type: Date,
+    },
+    lastSuccessAt: {
+      type: Date,
+    },
+    totalRequests: {
+      type: Number,
+      default: 0,
+    },
+    totalTokens: {
+      type: Number,
+      default: 0,
+    },
+    successCount: {
+      type: Number,
+      default: 0,
+    },
+    consecutiveFailures: {
+      type: Number,
+      default: 0,
+    },
+    totalFailures: {
+      type: Number,
+      default: 0,
+    },
+    lastFailureAt: {
+      type: Date,
+    },
+    lastFailureReason: {
+      type: String,
+      maxlength: 500,
+    },
+    maxTotalFailures: {
+      type: Number,
+      default: 100,
+      min: 10,
+      max: 1000,
+    },
+    isArchived: {
+      type: Boolean,
+      default: false,
+      index: true,
+    },
+    archivedAt: {
+      type: Date,
+    },
+    archivedReason: {
+      type: String,
+      maxlength: 500,
+    },
+    rotatedAt: {
+      type: Date,
+    },
+    expiresAt: {
+      type: Date,
+    },
+    rotationSchedule: {
+      type: String,
+      enum: ['manual', 'monthly', 'quarterly', 'yearly'],
+      default: 'manual',
+    },
+    ownerId: {
+      type: String,
+      sparse: true,
+    },
+    organizationId: {
+      type: Schema.Types.ObjectId,
+      ref: 'Organization',
+      sparse: true,
+    },
+  },
+  {
+    timestamps: true,
+  }
+);
+
+// Indexes
+ProviderKeySchema.index({ provider: 1, isActive: 1, isArchived: 1, currentPriority: 1 });
+ProviderKeySchema.index({ environment: 1, isActive: 1 });
+ProviderKeySchema.index({ ownerId: 1 }, { sparse: true });
+ProviderKeySchema.index({ organizationId: 1 }, { sparse: true });
+
+// Methods
+ProviderKeySchema.methods.validateKey = function (key: string): boolean {
+  const hash = crypto.createHash('sha256').update(key).digest('hex');
+  return hash === this.keyHash;
+};
+
+ProviderKeySchema.methods.updateUsage = async function (tokens: number): Promise<void> {
+  this.lastUsedAt = new Date();
+  this.totalRequests += 1;
+  this.totalTokens += tokens;
+  await this.save();
+};
+
+/**
+ * Record a failure - moves key to last priority (end of queue)
+ * @param reason Failure reason
+ * @param maxPriority Maximum priority value among all keys (to set as last)
+ */
+ProviderKeySchema.methods.recordFailure = async function (
+  reason: string,
+  maxPriority: number = 999
+): Promise<void> {
+  this.consecutiveFailures += 1;
+  this.totalFailures += 1;
+  this.lastFailureAt = new Date();
+  this.lastFailureReason = reason.substring(0, 500);
+
+  // Move to last priority (end of queue)
+  this.currentPriority = maxPriority + 1;
+
+  console.warn(
+    `⬇️  Key ${this.keyPrefix} (${this.provider}) moved to last priority (${this.currentPriority}) after failure: ${reason.substring(0, 50)}`
+  );
+
+  // Check if we should archive (too many total failures)
+  if (this.totalFailures >= this.maxTotalFailures) {
+    this.isArchived = true;
+    this.isActive = false;
+    this.archivedAt = new Date();
+    this.archivedReason = `Archived after ${this.totalFailures} total failures`;
+    console.error(
+      `🗄️  Key ${this.keyPrefix} (${this.provider}) ARCHIVED after ${this.totalFailures} total failures`
+    );
+  }
+
+  await this.save();
+};
+
+/**
+ * Record a success - restores key to original priority
+ */
+ProviderKeySchema.methods.recordSuccess = async function (): Promise<void> {
+  const wasDeprioritized = this.currentPriority !== this.originalPriority;
+
+  this.consecutiveFailures = 0;
+  this.successCount += 1;
+  this.lastSuccessAt = new Date();
+
+  // Restore to original priority
+  if (wasDeprioritized) {
+    this.currentPriority = this.originalPriority;
+    console.log(
+      `⬆️  Key ${this.keyPrefix} (${this.provider}) restored to priority ${this.currentPriority} after success`
+    );
+  }
+
+  // Reactivate if it was inactive (but not if archived)
+  if (!this.isArchived && !this.isActive) {
+    this.isActive = true;
+    console.log(`🔓 Key ${this.keyPrefix} (${this.provider}) reactivated`);
+  }
+
+  await this.save();
+};
+
+/**
+ * Check if key is available for use
+ */
+ProviderKeySchema.methods.isAvailable = function (): boolean {
+  // Archived keys are never available
+  if (this.isArchived) {
+    return false;
+  }
+
+  // Otherwise, check if active
+  return this.isActive;
+};
+
+// Static methods
+ProviderKeySchema.statics.hashKey = function (key: string): string {
+  return crypto.createHash('sha256').update(key).digest('hex');
+};
+
+ProviderKeySchema.statics.getKeyPrefix = function (key: string): string {
+  return key.substring(0, Math.min(8, key.length)) + '...';
+};
+
+export const ProviderKey = mongoose.models.ProviderKey || mongoose.model<IProviderKey>('ProviderKey', ProviderKeySchema);

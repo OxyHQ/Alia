@@ -24,6 +24,7 @@ import feedbackRouter from './routes/feedback.js';
 import codeaRouter from './routes/codea.js';
 import modelsRouter from './routes/models.js';
 import modelsStatsRouter from './routes/models-stats.js';
+import providersModule from './internal/providers/index.js';
 
 // Fix for ES Modules __dirname
 const __filename = fileURLToPath(import.meta.url);
@@ -58,12 +59,14 @@ const io = initSocket(server);
 
 // Middleware - Allow multiple origins for web and mobile app
 const allowedOrigins = [
-  process.env.WEB_URL || 'http://localhost:3000',  // Admin/Web app
-  'https://alia.onl',       // Production web app
-  'http://localhost:8081',  // Expo web dev server
-  'exp://localhost:8081',   // Expo mobile
-  'http://10.0.2.2:8081',   // Android emulator
-  'http://localhost:3002',  // Canvas app
+  process.env.WEB_URL || 'http://localhost:3000',
+  'https://alia.onl',
+  'http://localhost:8081',
+  'exp://localhost:8081',
+  'http://10.0.2.2:8081',
+  'http://localhost:3002',
+  'http://localhost:5173',
+  'https://providers.alia.onl',
 ];
 
 app.use(cors({
@@ -119,6 +122,7 @@ app.use('/api', canvasRouter);
 app.use('/codea', codeaRouter);
 app.use('/models', modelsRouter);
 app.use('/models', modelsStatsRouter);
+app.use('/internal/providers', providersModule);
 
 // Ruta raíz
 app.get('/', (_req, res) => {
@@ -140,7 +144,8 @@ app.get('/', (_req, res) => {
       '/organization',
       '/feedback',
       '/codea',
-      '/models'
+      '/models',
+      '/internal/providers'
     ]
   });
 });

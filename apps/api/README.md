@@ -165,8 +165,21 @@ src/
 │       ├── chat-completions.ts
 │       └── models.ts
 ├── models/           # Modelos de MongoDB
-└── lib/              # Utilidades y providers
+├── lib/              # Utilidades y providers
+└── internal/         # ⚠️ INTERNAL MODULES - NOT PUBLIC
+    └── providers/    # Provider management (admin only, HMAC auth)
 ```
+
+### ⚠️ Internal Modules
+
+The `internal/` directory contains modules that are **NOT part of the public API**:
+
+- **providers/**: Internal provider key management, model configuration, and routing for virtual Alia models
+- **Access**: Admin panel only via HMAC authentication
+- **Purpose**: Infrastructure for managing AI provider keys and model mappings
+- **Documentation**: See [internal/README.md](src/internal/README.md) for details
+
+**NEVER expose these endpoints publicly or document them in external API docs.**
 
 ## TODO
 
