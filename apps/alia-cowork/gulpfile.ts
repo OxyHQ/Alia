@@ -243,14 +243,34 @@ task('watch', async () => {
     rendererContext.watch(),
   ])
 
-  console.log('Watching for changes...')
+  console.log('\n✓ Watching main process (src/main/**)')
+  console.log('✓ Watching preload script (src/preload/**)')
+  console.log('✓ Watching renderer process (renderer/src/**)')
 
-  // Watch CSS files
-  gulpWatch([paths.renderer.css, 'renderer/src/**/*.css'], series('build:css'))
+  // Watch CSS files with logging
+  gulpWatch([paths.renderer.css, 'renderer/src/**/*.css'], () => {
+    const timestamp = new Date().toLocaleTimeString()
+    console.log(`[${timestamp}] 🎨 CSS changed, rebuilding...`)
+    return series('build:css')()
+  })
 
-  // Watch HTML and public files
-  gulpWatch([paths.renderer.html], series('build:html'))
-  gulpWatch([paths.renderer.public + '/**/*'], series('copy:assets'))
+  // Watch HTML and public files with logging
+  gulpWatch([paths.renderer.html], () => {
+    const timestamp = new Date().toLocaleTimeString()
+    console.log(`[${timestamp}] 📄 HTML changed, rebuilding...`)
+    return series('build:html')()
+  })
+
+  gulpWatch([paths.renderer.public + '/**/*'], () => {
+    const timestamp = new Date().toLocaleTimeString()
+    console.log(`[${timestamp}] 📁 Assets changed, copying...`)
+    return series('copy:assets')()
+  })
+
+  console.log('✓ Watching CSS files (renderer/src/**/*.css)')
+  console.log('✓ Watching HTML files (renderer/index.html)')
+  console.log('✓ Watching public assets (renderer/public/**)')
+  console.log('\n👀 Ready! Watching for file changes...\n')
 })
 
 let electronProcess: any = null
