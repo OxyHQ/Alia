@@ -1,0 +1,46 @@
+name: alia-providers-admin
+region: nyc
+
+static_sites:
+  - name: admin
+    github:
+      branch: main
+      deploy_on_push: true
+      repo: your-username/ai-api-server
+
+    # Source directory (monorepo path)
+    source_dir: /apps/alia-providers-admin
+
+    # Build configuration
+    build_command: |
+      npm install --production=false
+      npm run build
+
+    # Output directory (relative to source_dir)
+    output_dir: dist
+
+    # Environment
+    environment_slug: node-js
+
+    # Environment variables
+    envs:
+      - key: VITE_PROVIDERS_API_URL
+        value: https://api.providers.alia.onl
+        scope: BUILD_TIME
+      - key: VITE_SERVICE_SECRET
+        value: ${SERVICE_SECRET}
+        type: SECRET
+        scope: BUILD_TIME
+
+    # Routes configuration for SPA
+    routes:
+      - path: /
+
+    # Custom domain
+    domains:
+      - domain: providers.alia.onl
+        type: PRIMARY
+
+# Health check
+health_check:
+  http_path: /
