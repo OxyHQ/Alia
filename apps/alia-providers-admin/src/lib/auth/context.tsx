@@ -4,7 +4,7 @@
  * Only allows username "nate" as admin
  */
 
-import React, { useEffect, useState, createContext, useContext, type ReactNode } from 'react';
+import { useEffect, useState, createContext, useContext, type ReactNode } from 'react';
 import { WebOxyProvider, useAuth as useOxyAuth } from '@oxyhq/services';
 import type { User } from '@oxyhq/services';
 import { apiClient } from '@/lib/api/client';
@@ -31,7 +31,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 }
 
 function AuthProviderInner({ children }: { children: ReactNode }) {
-  const { user, isAuthenticated, signIn: oxySignIn, signOut: oxySignOut, isLoading } = useOxyAuth();
+  const { user, signIn: oxySignIn, signOut: oxySignOut, isLoading } = useOxyAuth();
   const [isAuthorized, setIsAuthorized] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
