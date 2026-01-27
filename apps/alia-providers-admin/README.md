@@ -37,17 +37,20 @@ Modern admin panel for managing the Alia Providers microservice. Built with Vite
 - **Charts**: Recharts
 - **Routing**: React Router v7
 - **Icons**: Lucide React
-- **React Native Web**: For @oxyhq/services compatibility
 
-## React Native Web Setup
+## Clean Web-Only Architecture
 
-This admin panel uses `@oxyhq/services` for authentication, which is a universal package supporting both React Native and web platforms. To make React Native dependencies work in the web build, we use **react-native-web**.
+This admin panel uses **@oxyhq/services/web** - a clean, professional web-only module with **ZERO React Native dependencies**.
 
-### Why react-native-web?
+### Why /web?
 
-The `@oxyhq/services` package includes React Native components since it's designed for cross-platform use (mobile and web). Instead of writing custom shims or mocking React Native APIs, we use the official **react-native-web** library which provides web implementations of all React Native components and APIs.
+The `@oxyhq/services` package supports multiple platforms (Expo, React Native, Node.js, and Web). Instead of pulling in React Native dependencies and using react-native-web aliases, we use the dedicated `/web` entry point that only includes web-compatible code.
 
-This is the same approach used by Expo for web builds and keeps the configuration clean and simple.
+This approach is:
+- ✅ **Professional**: No react-native aliases or workarounds in Vite config
+- ✅ **Clean**: Zero React Native dependencies in the bundle
+- ✅ **Fast**: Smaller bundle size, faster builds
+- ✅ **Simple**: No polyfills, shims, or special configuration needed
 
 ### Configuration
 
@@ -55,35 +58,34 @@ This is the same approach used by Expo for web builds and keeps the configuratio
 ```json
 {
   "dependencies": {
-    "@oxyhq/services": "^5.21.7",
-    "react-native-web": "^0.21.0"
+    "@oxyhq/services": "file:../../../../OxyHQServices/packages/services"
   }
 }
 ```
 
 **vite.config.ts:**
 ```typescript
+import path from "path"
+import tailwindcss from "@tailwindcss/vite"
+import react from "@vitejs/plugin-react"
+import { defineConfig } from "vite"
+
 export default defineConfig({
+  plugins: [react(), tailwindcss()],
   resolve: {
     alias: {
-      "react-native": "react-native-web",
+      "@": path.resolve(__dirname, "./src"),
     },
-    extensions: ['.web.js', '.web.ts', '.web.tsx', '.js', '.ts', '.tsx', '.json'],
-  },
-  define: {
-    __DEV__: JSON.stringify(process.env.NODE_ENV !== 'production'),
-    global: 'globalThis',
-    'process.env.NODE_ENV': JSON.stringify(process.env.NODE_ENV || 'development'),
   },
 })
 ```
 
-That's it! No custom plugins, no virtual modules, no complex workarounds. Just:
-- A simple alias that maps `react-native` imports to `react-native-web`
-- Define React Native globals:
-  - `__DEV__` - Development mode flag (true in dev, false in production)
-  - `global` - Maps to `globalThis` (web standard)
-  - `process.env.NODE_ENV` - Environment variable for production/development checks
+That's it! Ultra-clean configuration:
+- No react-native aliases
+- No global polyfills
+- No special esbuild options
+- No exclusions or workarounds
+- Just standard Vite + React
 
 ## Authentication
 
@@ -100,7 +102,7 @@ The admin panel uses **OxyHQ's cross-domain SSO** for authentication with strict
 
 **Frontend** ([src/lib/auth/context.tsx](src/lib/auth/context.tsx)):
 ```typescript
-import { WebOxyProvider, useAuth as useOxyAuth } from '@oxyhq/services';
+import { WebOxyProvider, useAuth as useOxyAuth } from '@oxyhq/services/web';
 
 // Check if user is authorized (only "nate" allowed)
 const checkAuthorization = (user: User | null): boolean => {
@@ -238,7 +240,7 @@ The admin panel communicates with the providers API service. Ensure both service
 3. Build the application: `npm run build`
    - TypeScript compilation happens first (`tsc -b`)
    - Vite bundles and optimizes the code
-   - react-native-web automatically transforms React Native imports
+   - Clean, fast builds with zero React Native dependencies
 4. Deploy the `dist/` folder to your hosting service
 5. **Authentication**: Login is required - only OxyHQ username "nate" has access
 
