@@ -131,39 +131,55 @@ export const TIER_MODEL_MAPPINGS: Record<AliaTier, ModelMapping[]> = {
     { provider: 'google', modelId: 'gemini-2.5-flash', priority: 1, qualityScore: 75 },
     { provider: 'groq', modelId: 'llama-3.3-70b-versatile', priority: 2, qualityScore: 65 },
     { provider: 'groq', modelId: 'openai/gpt-oss-20b', priority: 3, qualityScore: 68 },
-    { provider: 'together', modelId: 'meta-llama/Llama-3.3-70B-Instruct-Turbo', priority: 4, qualityScore: 65 },
+    { provider: 'deepseek', modelId: 'deepseek-chat', priority: 4, qualityScore: 72 },
+    { provider: 'mistral', modelId: 'ministral-8b-2512', priority: 5, qualityScore: 67 },
+    { provider: 'together', modelId: 'meta-llama/Llama-3.3-70B-Instruct-Turbo', priority: 6, qualityScore: 65 },
   ],
   'v1': [
     { provider: 'google', modelId: 'gemini-3-flash-preview', priority: 1, qualityScore: 85 },
-    { provider: 'openai', modelId: 'gpt-4.1-mini', priority: 2, qualityScore: 82 },
-    { provider: 'groq', modelId: 'llama-3.3-70b-versatile', priority: 3, qualityScore: 70 },
+    { provider: 'deepseek', modelId: 'deepseek-chat', priority: 2, qualityScore: 83 },
+    { provider: 'groq', modelId: 'openai/gpt-oss-120b', priority: 3, qualityScore: 82 },
+    { provider: 'openai', modelId: 'gpt-4.1-mini', priority: 4, qualityScore: 82 },
+    { provider: 'mistral', modelId: 'ministral-14b-2512', priority: 5, qualityScore: 78 },
+    { provider: 'groq', modelId: 'llama-3.3-70b-versatile', priority: 6, qualityScore: 70 },
   ],
   'v1-codea': [
-    { provider: 'anthropic', modelId: 'claude-sonnet-4.5', priority: 1, qualityScore: 95 },
-    { provider: 'google', modelId: 'gemini-3-pro', priority: 2, qualityScore: 92 },
-    { provider: 'openai', modelId: 'gpt-5.2-codex', priority: 3, qualityScore: 93 },
+    { provider: 'deepseek', modelId: 'deepseek-chat', priority: 1, qualityScore: 94 },
+    { provider: 'mistral', modelId: 'devstral-2', priority: 2, qualityScore: 93 },
+    { provider: 'anthropic', modelId: 'claude-sonnet-4.5', priority: 3, qualityScore: 95 },
+    { provider: 'google', modelId: 'gemini-3-pro', priority: 4, qualityScore: 92 },
+    { provider: 'openai', modelId: 'gpt-5.2-codex', priority: 5, qualityScore: 93 },
   ],
   'v1-cowork': [
-    { provider: 'anthropic', modelId: 'claude-sonnet-4.5', priority: 1, qualityScore: 95 },
-    { provider: 'google', modelId: 'gemini-3-pro', priority: 2, qualityScore: 92 },
-    { provider: 'openai', modelId: 'gpt-5.2-instant', priority: 3, qualityScore: 90 },
+    { provider: 'deepseek', modelId: 'deepseek-chat', priority: 1, qualityScore: 93 },
+    { provider: 'anthropic', modelId: 'claude-sonnet-4.5', priority: 2, qualityScore: 95 },
+    { provider: 'google', modelId: 'gemini-3-pro', priority: 3, qualityScore: 92 },
+    { provider: 'openai', modelId: 'gpt-5.2-instant', priority: 4, qualityScore: 90 },
+    { provider: 'mistral', modelId: 'mistral-large-2512', priority: 5, qualityScore: 89 },
   ],
   'v1-browser': [
-    { provider: 'google', modelId: 'gemini-3-pro', priority: 1, qualityScore: 94 },
-    { provider: 'groq', modelId: 'openai/gpt-oss-120b', priority: 2, qualityScore: 90 },
-    { provider: 'groq', modelId: 'llama-3.3-70b-versatile', priority: 3, qualityScore: 88 },
-    { provider: 'openai', modelId: 'gpt-5.2-instant', priority: 4, qualityScore: 92 },
-    { provider: 'anthropic', modelId: 'claude-sonnet-4.5', priority: 5, qualityScore: 96 },
+    // Prioritize models with built-in browser/tool capabilities
+    { provider: 'groq', modelId: 'groq/compound', priority: 1, qualityScore: 95 }, // Built-in web search & code execution
+    { provider: 'groq', modelId: 'openai/gpt-oss-120b', priority: 2, qualityScore: 93 }, // Built-in browser search & code execution
+    { provider: 'google', modelId: 'gemini-3-pro', priority: 3, qualityScore: 94 }, // Vision & multimodal
+    { provider: 'deepseek', modelId: 'deepseek-v3.2', priority: 4, qualityScore: 92 }, // Thinking + tool use integration
+    { provider: 'anthropic', modelId: 'claude-sonnet-4.5', priority: 5, qualityScore: 96 }, // Computer use capability
+    { provider: 'openai', modelId: 'gpt-5.2-instant', priority: 6, qualityScore: 90 },
+    { provider: 'groq', modelId: 'llama-3.3-70b-versatile', priority: 7, qualityScore: 85 },
   ],
   'v1-pro': [
-    { provider: 'anthropic', modelId: 'claude-sonnet-4.5', priority: 1, qualityScore: 95 },
-    { provider: 'openai', modelId: 'gpt-5.2-thinking', priority: 2, qualityScore: 94 },
-    { provider: 'google', modelId: 'gemini-3-pro', priority: 3, qualityScore: 92 },
+    { provider: 'deepseek', modelId: 'deepseek-reasoner', priority: 1, qualityScore: 96 },
+    { provider: 'anthropic', modelId: 'claude-sonnet-4.5', priority: 2, qualityScore: 95 },
+    { provider: 'openai', modelId: 'gpt-5.2-thinking', priority: 3, qualityScore: 94 },
+    { provider: 'google', modelId: 'gemini-3-pro', priority: 4, qualityScore: 92 },
+    { provider: 'mistral', modelId: 'mistral-large-2512', priority: 5, qualityScore: 91 },
   ],
   'v1-pro-max': [
     { provider: 'anthropic', modelId: 'claude-opus-4.5', priority: 1, qualityScore: 98 },
     { provider: 'openai', modelId: 'gpt-5.2-pro', priority: 2, qualityScore: 96 },
-    { provider: 'google', modelId: 'gemini-3-pro', priority: 3, qualityScore: 94 },
+    { provider: 'deepseek', modelId: 'deepseek-v3.2', priority: 3, qualityScore: 95 },
+    { provider: 'google', modelId: 'gemini-3-pro', priority: 4, qualityScore: 94 },
+    { provider: 'mistral', modelId: 'mistral-large-2512', priority: 5, qualityScore: 92 },
   ],
 };
 
