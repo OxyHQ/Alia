@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '@/lib/api/client';
+import { useRealtimeKeys } from '@/lib/websocket/hooks';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -100,18 +101,31 @@ export function KeysPage() {
 
   const queryClient = useQueryClient();
 
-  const { data: keysData, isLoading } = useQuery({
+  // Build filters object
+  const filters: any = {};
+  if (filterProvider !== 'all') filters.provider = filterProvider;
+  if (filterStatus === 'active') filters.active = true;
+  if (filterStatus === 'archived') filters.active = false;
+
+  // Real-time data subscription
+  const { data: realtimeKeysData, isConnected } = useRealtimeKeys(filters);
+
+  // Fallback to polling if WebSocket is not connected
+  const { data: polledKeysData, isLoading } = useQuery({
     queryKey: ['keys', filterProvider, filterStatus],
     queryFn: () => {
-      const filters: any = {};
-      if (filterProvider !== 'all') filters.provider = filterProvider;
-      if (filterStatus === 'active') filters.isActive = true;
-      if (filterStatus === 'archived') filters.isArchived = true;
-      return apiClient.listKeys(filters);
+      const queryFilters: any = {};
+      if (filterProvider !== 'all') queryFilters.provider = filterProvider;
+      if (filterStatus === 'active') queryFilters.active = true;
+      if (filterStatus === 'archived') queryFilters.active = false;
+      return apiClient.listKeys(queryFilters);
     },
-    refetchInterval: 30000,
+    refetchInterval: isConnected ? false : 30000,
+    enabled: !isConnected, // Only poll if WebSocket is not connected
   });
 
+  // Use real-time data if available, otherwise fall back to polled data
+  const keysData = realtimeKeysData || polledKeysData;
   const keys: ProviderKey[] = (keysData as any)?.data || [];
 
   // Create mutation

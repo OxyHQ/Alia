@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '@/lib/api/client';
+import { useRealtimeModels } from '@/lib/websocket/hooks';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -89,19 +90,28 @@ export function ModelsPage() {
 
   const queryClient = useQueryClient();
 
-  // Query provider models
-  const { data: providerModelsData, isLoading: providerModelsLoading } = useQuery({
+  // Real-time data subscriptions
+  const { data: realtimeProviderModelsData, isConnected: providerModelsConnected } = useRealtimeModels();
+  const { data: realtimeAliaModelsData, isConnected: aliaModelsConnected } = useRealtimeModels({ aliaTier: 'all' });
+
+  // Fallback to polling if WebSocket is not connected
+  const { data: polledProviderModelsData, isLoading: providerModelsLoading } = useQuery({
     queryKey: ['provider-models'],
     queryFn: () => apiClient.listModels(),
-    refetchInterval: 60000,
+    refetchInterval: providerModelsConnected ? false : 60000,
+    enabled: !providerModelsConnected, // Only poll if WebSocket is not connected
   });
 
-  // Query Alia models
-  const { data: aliaModelsData } = useQuery({
+  const { data: polledAliaModelsData } = useQuery({
     queryKey: ['alia-models'],
     queryFn: () => apiClient.listModels({ aliaTier: 'all' }),
-    refetchInterval: 60000,
+    refetchInterval: aliaModelsConnected ? false : 60000,
+    enabled: !aliaModelsConnected, // Only poll if WebSocket is not connected
   });
+
+  // Use real-time data if available, otherwise fall back to polled data
+  const providerModelsData = realtimeProviderModelsData || polledProviderModelsData;
+  const aliaModelsData = realtimeAliaModelsData || polledAliaModelsData;
 
   const providerModels: ModelConfig[] = (providerModelsData as any)?.data || [];
   const aliaModels: AliaModel[] = (aliaModelsData as any)?.data || [];
