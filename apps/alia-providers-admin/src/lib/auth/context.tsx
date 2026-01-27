@@ -31,7 +31,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 }
 
 function AuthProviderInner({ children }: { children: ReactNode }) {
-  const { user, signIn: oxySignIn, signOut: oxySignOut, isLoading } = useOxyAuth();
+  const { user, isAuthenticated, signIn: oxySignIn, signOut: oxySignOut, isLoading } = useOxyAuth();
   const [isAuthorized, setIsAuthorized] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -65,7 +65,7 @@ function AuthProviderInner({ children }: { children: ReactNode }) {
 
   // Check authorization whenever user changes
   useEffect(() => {
-    if (user) {
+    if (isAuthenticated && user) {
       const authorized = checkAuthorization(user);
       setIsAuthorized(authorized);
 
@@ -84,7 +84,7 @@ function AuthProviderInner({ children }: { children: ReactNode }) {
       setIsAuthorized(false);
       setError(null);
     }
-  }, [user, oxySignOut]);
+  }, [isAuthenticated, user, oxySignOut]);
 
   // Listen for unauthorized events from API client
   useEffect(() => {
