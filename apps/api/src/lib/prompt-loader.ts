@@ -24,13 +24,22 @@ export async function loadPrompt(promptName: string): Promise<string> {
   }
 
   try {
-    const promptPath = join(__dirname, '../prompts', `${promptName}.md`);
-    const content = await readFile(promptPath, 'utf-8');
+    // In dev mode (tsx): __dirname is src/lib, need ../../prompts
+    // In prod mode (bundled): __dirname is dist, need ../prompts
+    // Try dev path first, then prod path
+    let promptPath = join(__dirname, '../../prompts', `${promptName}.md`);
 
-    // Cache the loaded prompt
-    promptCache.set(promptName, content);
-
-    return content;
+    try {
+      const content = await readFile(promptPath, 'utf-8');
+      promptCache.set(promptName, content);
+      return content;
+    } catch {
+      // Try production path
+      promptPath = join(__dirname, '../prompts', `${promptName}.md`);
+      const content = await readFile(promptPath, 'utf-8');
+      promptCache.set(promptName, content);
+      return content;
+    }
   } catch (error) {
     console.error(`[PromptLoader] Error loading prompt ${promptName}:`, error);
     return '';
