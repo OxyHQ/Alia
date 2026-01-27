@@ -8,7 +8,12 @@
   "scripts": {
     "start": "gulp dev",
     "dev": "gulp dev",
+    "dev:fresh": "gulp clean:all && gulp dev",
     "build": "gulp build",
+    "build:fresh": "gulp clean && gulp build",
+    "clean": "gulp clean",
+    "clean:all": "gulp clean:all",
+    "kill": "gulp kill-electron",
     "package": "npm run build && electron-builder",
     "dist": "npm run build && electron-builder --publish never"
   },
