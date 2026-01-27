@@ -6,7 +6,7 @@
  * requests are routed to appropriate provider models.
  */
 
-export type AliaTier = 'lite' | 'v1' | 'v1-codea' | 'v1-cowork' | 'v1-browser' | 'v1-pro' | 'v1-pro-max';
+export type AliaTier = 'lite' | 'v1' | 'v1-codea' | 'v1-cowork' | 'v1-browser' | 'v1-vision' | 'v1-audio' | 'v1-multimodal' | 'v1-pro' | 'v1-pro-max';
 
 export type ModelCategory = 'general' | 'coding';
 
@@ -88,6 +88,39 @@ export const ALIA_MODELS: Record<string, AliaModel> = {
     supportsVision: true,
     category: 'coding',
   },
+  'alia-v1-vision': {
+    id: 'alia-v1-vision',
+    name: 'Alia V1 Vision',
+    tier: 'v1-vision',
+    description: 'Specialized for image analysis, vision, and visual reasoning',
+    creditMultiplier: 1.5,
+    maxTokens: 16384,
+    supportsTools: true,
+    supportsVision: true,
+    category: 'general',
+  },
+  'alia-v1-audio': {
+    id: 'alia-v1-audio',
+    name: 'Alia V1 Audio',
+    tier: 'v1-audio',
+    description: 'Specialized for audio transcription, speech-to-text, and audio analysis',
+    creditMultiplier: 1.0,
+    maxTokens: 8192,
+    supportsTools: true,
+    supportsVision: false,
+    category: 'general',
+  },
+  'alia-v1-multimodal': {
+    id: 'alia-v1-multimodal',
+    name: 'Alia V1 Multimodal',
+    tier: 'v1-multimodal',
+    description: 'Handles text, images, audio, and video in a single conversation',
+    creditMultiplier: 2.0,
+    maxTokens: 32768,
+    supportsTools: true,
+    supportsVision: true,
+    category: 'general',
+  },
   'alia-v1-pro': {
     id: 'alia-v1-pro',
     name: 'Codea Pro',
@@ -125,6 +158,17 @@ export const ALIA_MODELS: Record<string, AliaModel> = {
 
 /**
  * Model mappings by tier (ordered by priority - lower priority number = try first)
+ *
+ * Special Capabilities by Model:
+ * - groq/compound: Built-in web search & code execution tools
+ * - openai/gpt-oss-120b: Built-in browser search & code execution
+ * - gemini-3-pro: Vision, multimodal, 1M token context
+ * - deepseek-v3.2: Thinking mode + tool use integration
+ * - claude-sonnet-4.5/opus-4.5: Computer use capability, vision
+ * - llama-3.2-11b-vision-instruct: Vision & image reasoning
+ * - mistral-small-3.1-2503: Vision understanding, 128k context
+ * - ministral-*: Image understanding (Apache 2.0 license)
+ * - devstral-2: Agentic coding specialist, 256k context
  */
 export const TIER_MODEL_MAPPINGS: Record<AliaTier, ModelMapping[]> = {
   'lite': [
@@ -144,11 +188,12 @@ export const TIER_MODEL_MAPPINGS: Record<AliaTier, ModelMapping[]> = {
     { provider: 'groq', modelId: 'llama-3.3-70b-versatile', priority: 6, qualityScore: 70 },
   ],
   'v1-codea': [
-    { provider: 'deepseek', modelId: 'deepseek-chat', priority: 1, qualityScore: 94 },
-    { provider: 'mistral', modelId: 'devstral-2', priority: 2, qualityScore: 93 },
-    { provider: 'anthropic', modelId: 'claude-sonnet-4.5', priority: 3, qualityScore: 95 },
-    { provider: 'google', modelId: 'gemini-3-pro', priority: 4, qualityScore: 92 },
-    { provider: 'openai', modelId: 'gpt-5.2-codex', priority: 5, qualityScore: 93 },
+    { provider: 'deepseek', modelId: 'deepseek-chat', priority: 1, qualityScore: 94 }, // Excellent coding, free tier
+    { provider: 'mistral', modelId: 'devstral-2', priority: 2, qualityScore: 93 }, // Agentic coding specialist, 256k context
+    { provider: 'groq', modelId: 'groq/compound', priority: 3, qualityScore: 92 }, // Built-in code execution
+    { provider: 'anthropic', modelId: 'claude-sonnet-4.5', priority: 4, qualityScore: 95 }, // Computer use
+    { provider: 'google', modelId: 'gemini-3-pro', priority: 5, qualityScore: 92 },
+    { provider: 'openai', modelId: 'gpt-5.2-codex', priority: 6, qualityScore: 93 },
   ],
   'v1-cowork': [
     { provider: 'deepseek', modelId: 'deepseek-chat', priority: 1, qualityScore: 93 },
@@ -161,11 +206,36 @@ export const TIER_MODEL_MAPPINGS: Record<AliaTier, ModelMapping[]> = {
     // Prioritize models with built-in browser/tool capabilities
     { provider: 'groq', modelId: 'groq/compound', priority: 1, qualityScore: 95 }, // Built-in web search & code execution
     { provider: 'groq', modelId: 'openai/gpt-oss-120b', priority: 2, qualityScore: 93 }, // Built-in browser search & code execution
-    { provider: 'google', modelId: 'gemini-3-pro', priority: 3, qualityScore: 94 }, // Vision & multimodal
+    { provider: 'google', modelId: 'gemini-3-pro', priority: 3, qualityScore: 94 }, // Vision & multimodal, 1M tokens
     { provider: 'deepseek', modelId: 'deepseek-v3.2', priority: 4, qualityScore: 92 }, // Thinking + tool use integration
-    { provider: 'anthropic', modelId: 'claude-sonnet-4.5', priority: 5, qualityScore: 96 }, // Computer use capability
-    { provider: 'openai', modelId: 'gpt-5.2-instant', priority: 6, qualityScore: 90 },
-    { provider: 'groq', modelId: 'llama-3.3-70b-versatile', priority: 7, qualityScore: 85 },
+    { provider: 'cloudflare', modelId: '@cf/meta/llama-4-scout-17b-16e-instruct', priority: 5, qualityScore: 89 }, // Multimodal, free tier
+    { provider: 'anthropic', modelId: 'claude-sonnet-4.5', priority: 6, qualityScore: 96 }, // Computer use capability
+    { provider: 'openai', modelId: 'gpt-5.2-instant', priority: 7, qualityScore: 90 },
+    { provider: 'cloudflare', modelId: '@cf/meta/llama-3.2-11b-vision-instruct', priority: 8, qualityScore: 86 }, // Vision & reasoning, free
+  ],
+  'v1-vision': [
+    // Prioritize vision-specialized models
+    { provider: 'google', modelId: 'gemini-3-pro', priority: 1, qualityScore: 96 }, // Best multimodal, 1M tokens
+    { provider: 'cloudflare', modelId: '@cf/meta/llama-4-scout-17b-16e-instruct', priority: 2, qualityScore: 90 }, // Native multimodal, free
+    { provider: 'anthropic', modelId: 'claude-sonnet-4.5', priority: 3, qualityScore: 95 }, // Excellent vision
+    { provider: 'openai', modelId: 'gpt-5.2-instant', priority: 4, qualityScore: 92 }, // Vision support
+    { provider: 'cloudflare', modelId: '@cf/meta/llama-3.2-11b-vision-instruct', priority: 5, qualityScore: 88 }, // Vision specialist, free
+    { provider: 'mistral', modelId: 'mistral-small-3.1-2503', priority: 6, qualityScore: 87 }, // Vision understanding
+  ],
+  'v1-audio': [
+    // Prioritize audio/speech models
+    { provider: 'groq', modelId: 'whisper-large-v3-turbo', priority: 1, qualityScore: 95 }, // Fast transcription, free
+    { provider: 'groq', modelId: 'whisper-large-v3', priority: 2, qualityScore: 93 }, // High quality transcription
+    { provider: 'openai', modelId: 'whisper-1', priority: 3, qualityScore: 92 },
+    { provider: 'google', modelId: 'gemini-2.5-flash-native-audio-preview-12-2025', priority: 4, qualityScore: 90 }, // Native audio
+  ],
+  'v1-multimodal': [
+    // Best models for handling multiple modalities (text, image, audio, video)
+    { provider: 'google', modelId: 'gemini-3-pro', priority: 1, qualityScore: 98 }, // Best multimodal, 1M tokens
+    { provider: 'anthropic', modelId: 'claude-opus-4.5', priority: 2, qualityScore: 97 },
+    { provider: 'cloudflare', modelId: '@cf/meta/llama-4-scout-17b-16e-instruct', priority: 3, qualityScore: 92 }, // Native multimodal, free
+    { provider: 'openai', modelId: 'gpt-5.2-thinking', priority: 4, qualityScore: 95 },
+    { provider: 'mistral', modelId: 'mistral-large-2512', priority: 5, qualityScore: 90 },
   ],
   'v1-pro': [
     { provider: 'deepseek', modelId: 'deepseek-reasoner', priority: 1, qualityScore: 96 },
