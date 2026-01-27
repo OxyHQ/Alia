@@ -181,16 +181,18 @@ export const ALIA_MODELS: Record<string, AliaModel> = {
 /**
  * Model mappings by tier (ordered by priority - lower priority number = try first)
  *
+ * IMPORTANT: Only REAL, currently available models are mapped
+ *
  * Special Capabilities by Model:
- * - groq/compound: Built-in web search & code execution tools
- * - openai/gpt-oss-120b: Built-in browser search & code execution
- * - gemini-3-pro: Vision, multimodal, 1M token context
- * - deepseek-v3.2: Thinking mode + tool use integration
- * - claude-sonnet-4.5/opus-4.5: Computer use capability, vision
- * - llama-3.2-11b-vision-instruct: Vision & image reasoning
- * - mistral-small-3.1-2503: Vision understanding, 128k context
- * - ministral-*: Image understanding (Apache 2.0 license)
- * - devstral-2: Agentic coding specialist, 256k context
+ * - gemini-3-flash-preview: Vision, code execution, web search (urlContext), 1M context
+ * - gemini-3-pro-preview: Vision, code execution, web search, 1M context, extended output
+ * - gemini-2.5-pro: Vision, multimodal, 2M token context, prompt caching
+ * - deepseek-reasoner: Advanced reasoning and thinking mode
+ * - claude-sonnet-4/opus-4: Computer use capability, vision, prompt caching
+ * - gpt-4o: Vision, 128k context, fast multimodal responses
+ * - o1: Advanced reasoning, 200k context, extended thinking
+ * - llama-3.2-11b-vision-instruct: Vision & image reasoning (Cloudflare)
+ * - llama-3.3-70b-versatile: Fast, versatile, 128k context (Groq)
  */
 
 // Import the generated mappings with full capabilities and pricing data
