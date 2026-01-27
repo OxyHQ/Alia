@@ -9,6 +9,23 @@
 export type AliaTier = 'lite' | 'v1' | 'v1-codea' | 'v1-cowork' | 'v1-browser' | 'v1-vision' | 'v1-audio' | 'v1-multimodal' | 'v1-pro' | 'v1-pro-max';
 
 export type ModelCategory = 'general' | 'coding';
+export type PricingTier = 'free' | 'freemium' | 'paid';
+
+export interface ModelCapabilities {
+  vision: boolean;
+  audio: boolean;
+  video: boolean;
+  tools: boolean;
+  codeExecution: boolean;       // Built-in code execution (Groq Compound)
+  webSearch: boolean;            // Built-in web search (GPT-OSS)
+  computerUse: boolean;          // Claude computer use
+  streaming: boolean;
+  systemPrompts: boolean;
+  functionCalling: boolean;
+  promptCaching: boolean;        // Claude/OpenAI prompt caching support
+  maxContextTokens: number;      // 8k, 128k, 1M, etc.
+  maxOutputTokens: number;
+}
 
 export interface AliaModel {
   id: string;
@@ -27,6 +44,11 @@ export interface ModelMapping {
   modelId: string;
   priority: number;
   qualityScore: number;
+  pricingTier: PricingTier;
+  costPer1MInput?: number;       // USD per 1M input tokens
+  costPer1MOutput?: number;      // USD per 1M output tokens
+  averageLatencyMs?: number;     // Tracked performance
+  capabilities: ModelCapabilities;
 }
 
 /**
@@ -170,88 +192,10 @@ export const ALIA_MODELS: Record<string, AliaModel> = {
  * - ministral-*: Image understanding (Apache 2.0 license)
  * - devstral-2: Agentic coding specialist, 256k context
  */
-export const TIER_MODEL_MAPPINGS: Record<AliaTier, ModelMapping[]> = {
-  'lite': [
-    { provider: 'google', modelId: 'gemini-2.5-flash', priority: 1, qualityScore: 75 },
-    { provider: 'groq', modelId: 'llama-3.3-70b-versatile', priority: 2, qualityScore: 65 },
-    { provider: 'groq', modelId: 'openai/gpt-oss-20b', priority: 3, qualityScore: 68 },
-    { provider: 'deepseek', modelId: 'deepseek-chat', priority: 4, qualityScore: 72 },
-    { provider: 'mistral', modelId: 'ministral-8b-2512', priority: 5, qualityScore: 67 },
-    { provider: 'together', modelId: 'meta-llama/Llama-3.3-70B-Instruct-Turbo', priority: 6, qualityScore: 65 },
-  ],
-  'v1': [
-    { provider: 'google', modelId: 'gemini-3-flash-preview', priority: 1, qualityScore: 85 },
-    { provider: 'deepseek', modelId: 'deepseek-chat', priority: 2, qualityScore: 83 },
-    { provider: 'groq', modelId: 'openai/gpt-oss-120b', priority: 3, qualityScore: 82 },
-    { provider: 'openai', modelId: 'gpt-4.1-mini', priority: 4, qualityScore: 82 },
-    { provider: 'mistral', modelId: 'ministral-14b-2512', priority: 5, qualityScore: 78 },
-    { provider: 'groq', modelId: 'llama-3.3-70b-versatile', priority: 6, qualityScore: 70 },
-  ],
-  'v1-codea': [
-    { provider: 'deepseek', modelId: 'deepseek-chat', priority: 1, qualityScore: 94 }, // Excellent coding, free tier
-    { provider: 'mistral', modelId: 'devstral-2', priority: 2, qualityScore: 93 }, // Agentic coding specialist, 256k context
-    { provider: 'groq', modelId: 'groq/compound', priority: 3, qualityScore: 92 }, // Built-in code execution
-    { provider: 'anthropic', modelId: 'claude-sonnet-4.5', priority: 4, qualityScore: 95 }, // Computer use
-    { provider: 'google', modelId: 'gemini-3-pro', priority: 5, qualityScore: 92 },
-    { provider: 'openai', modelId: 'gpt-5.2-codex', priority: 6, qualityScore: 93 },
-  ],
-  'v1-cowork': [
-    { provider: 'deepseek', modelId: 'deepseek-chat', priority: 1, qualityScore: 93 },
-    { provider: 'anthropic', modelId: 'claude-sonnet-4.5', priority: 2, qualityScore: 95 },
-    { provider: 'google', modelId: 'gemini-3-pro', priority: 3, qualityScore: 92 },
-    { provider: 'openai', modelId: 'gpt-5.2-instant', priority: 4, qualityScore: 90 },
-    { provider: 'mistral', modelId: 'mistral-large-2512', priority: 5, qualityScore: 89 },
-  ],
-  'v1-browser': [
-    // Prioritize models with built-in browser/tool capabilities
-    { provider: 'groq', modelId: 'groq/compound', priority: 1, qualityScore: 95 }, // Built-in web search & code execution
-    { provider: 'groq', modelId: 'openai/gpt-oss-120b', priority: 2, qualityScore: 93 }, // Built-in browser search & code execution
-    { provider: 'google', modelId: 'gemini-3-pro', priority: 3, qualityScore: 94 }, // Vision & multimodal, 1M tokens
-    { provider: 'deepseek', modelId: 'deepseek-v3.2', priority: 4, qualityScore: 92 }, // Thinking + tool use integration
-    { provider: 'cloudflare', modelId: '@cf/meta/llama-4-scout-17b-16e-instruct', priority: 5, qualityScore: 89 }, // Multimodal, free tier
-    { provider: 'anthropic', modelId: 'claude-sonnet-4.5', priority: 6, qualityScore: 96 }, // Computer use capability
-    { provider: 'openai', modelId: 'gpt-5.2-instant', priority: 7, qualityScore: 90 },
-    { provider: 'cloudflare', modelId: '@cf/meta/llama-3.2-11b-vision-instruct', priority: 8, qualityScore: 86 }, // Vision & reasoning, free
-  ],
-  'v1-vision': [
-    // Prioritize vision-specialized models
-    { provider: 'google', modelId: 'gemini-3-pro', priority: 1, qualityScore: 96 }, // Best multimodal, 1M tokens
-    { provider: 'cloudflare', modelId: '@cf/meta/llama-4-scout-17b-16e-instruct', priority: 2, qualityScore: 90 }, // Native multimodal, free
-    { provider: 'anthropic', modelId: 'claude-sonnet-4.5', priority: 3, qualityScore: 95 }, // Excellent vision
-    { provider: 'openai', modelId: 'gpt-5.2-instant', priority: 4, qualityScore: 92 }, // Vision support
-    { provider: 'cloudflare', modelId: '@cf/meta/llama-3.2-11b-vision-instruct', priority: 5, qualityScore: 88 }, // Vision specialist, free
-    { provider: 'mistral', modelId: 'mistral-small-3.1-2503', priority: 6, qualityScore: 87 }, // Vision understanding
-  ],
-  'v1-audio': [
-    // Prioritize audio/speech models
-    { provider: 'groq', modelId: 'whisper-large-v3-turbo', priority: 1, qualityScore: 95 }, // Fast transcription, free
-    { provider: 'groq', modelId: 'whisper-large-v3', priority: 2, qualityScore: 93 }, // High quality transcription
-    { provider: 'openai', modelId: 'whisper-1', priority: 3, qualityScore: 92 },
-    { provider: 'google', modelId: 'gemini-2.5-flash-native-audio-preview-12-2025', priority: 4, qualityScore: 90 }, // Native audio
-  ],
-  'v1-multimodal': [
-    // Best models for handling multiple modalities (text, image, audio, video)
-    { provider: 'google', modelId: 'gemini-3-pro', priority: 1, qualityScore: 98 }, // Best multimodal, 1M tokens
-    { provider: 'anthropic', modelId: 'claude-opus-4.5', priority: 2, qualityScore: 97 },
-    { provider: 'cloudflare', modelId: '@cf/meta/llama-4-scout-17b-16e-instruct', priority: 3, qualityScore: 92 }, // Native multimodal, free
-    { provider: 'openai', modelId: 'gpt-5.2-thinking', priority: 4, qualityScore: 95 },
-    { provider: 'mistral', modelId: 'mistral-large-2512', priority: 5, qualityScore: 90 },
-  ],
-  'v1-pro': [
-    { provider: 'deepseek', modelId: 'deepseek-reasoner', priority: 1, qualityScore: 96 },
-    { provider: 'anthropic', modelId: 'claude-sonnet-4.5', priority: 2, qualityScore: 95 },
-    { provider: 'openai', modelId: 'gpt-5.2-thinking', priority: 3, qualityScore: 94 },
-    { provider: 'google', modelId: 'gemini-3-pro', priority: 4, qualityScore: 92 },
-    { provider: 'mistral', modelId: 'mistral-large-2512', priority: 5, qualityScore: 91 },
-  ],
-  'v1-pro-max': [
-    { provider: 'anthropic', modelId: 'claude-opus-4.5', priority: 1, qualityScore: 98 },
-    { provider: 'openai', modelId: 'gpt-5.2-pro', priority: 2, qualityScore: 96 },
-    { provider: 'deepseek', modelId: 'deepseek-v3.2', priority: 3, qualityScore: 95 },
-    { provider: 'google', modelId: 'gemini-3-pro', priority: 4, qualityScore: 94 },
-    { provider: 'mistral', modelId: 'mistral-large-2512', priority: 5, qualityScore: 92 },
-  ],
-};
+
+// Import the generated mappings with full capabilities and pricing data
+import { GENERATED_TIER_MAPPINGS } from './generate-model-mappings.js';
+export const TIER_MODEL_MAPPINGS = GENERATED_TIER_MAPPINGS;
 
 /**
  * Get Alia model by ID

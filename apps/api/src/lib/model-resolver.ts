@@ -3,6 +3,7 @@
  *
  * Resolves Alia model IDs to concrete provider/model combinations.
  * Handles fallback logic within tiers when primary models are unavailable.
+ * Integrates provider health monitoring for automatic failure handling.
  */
 
 import type { KeyConfig } from './types.js';
@@ -15,6 +16,7 @@ import {
   type AliaTier,
 } from './alia-models.js';
 import { getBestKeyForModel } from './load-balancer.js';
+import { isProviderAvailable } from './provider-health.js';
 
 export interface ResolvedModel {
   aliasModelId: string;
@@ -68,6 +70,13 @@ export async function resolveAliaModel(
     // Skip providers that have failed (for retry scenarios)
     if (skipProviders.has(mapping.provider)) {
       console.log(`[ModelResolver] Skipping ${mapping.provider} (in skip list)`);
+      continue;
+    }
+
+    // Check provider health (circuit breaker)
+    const isAvailable = await isProviderAvailable(mapping.provider, mapping.modelId);
+    if (!isAvailable) {
+      console.warn(`[ModelResolver] ⚠️ Skipping ${mapping.provider}/${mapping.modelId} - circuit breaker open (unhealthy)`);
       continue;
     }
 
