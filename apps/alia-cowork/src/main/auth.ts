@@ -93,7 +93,10 @@ export class AuthProvider {
             return
           }
 
-          if (code && this.codeVerifier) {
+          if (code && this.codeVerifier && !this.tokenExchangeInProgress) {
+            // Prevent multiple simultaneous token exchanges
+            this.tokenExchangeInProgress = true
+
             // Exchange authorization code for token using PKCE
             try {
               console.log('[Auth] Exchanging authorization code for token...')
@@ -151,10 +154,15 @@ export class AuthProvider {
               // Delay server shutdown to ensure IPC event is sent
               setTimeout(() => {
                 this.stopCallbackServer()
+                this.tokenExchangeInProgress = false
               }, 1000)
             }
 
             this.codeVerifier = undefined
+          } else if (code && this.tokenExchangeInProgress) {
+            // Token exchange already in progress, send success page immediately
+            res.writeHead(200, { 'Content-Type': 'text/html' })
+            res.end(this.getSuccessHtml())
           }
         }
       })
