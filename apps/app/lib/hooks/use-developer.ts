@@ -325,3 +325,44 @@ export function useDeveloperStats() {
     enabled: !!activeSessionId,
   });
 }
+
+// ======================
+// Models Stats
+// ======================
+
+export interface ModelStats {
+  id: string;
+  name: string;
+  description: string;
+  tier: string;
+  category: string;
+  creditMultiplier: number;
+  avgLatencyMs: number;
+  uptime: number;
+  successRate: number;
+  totalRequests: number;
+  isHealthy: boolean;
+  supportsTools: boolean;
+  supportsVision: boolean;
+  maxTokens: number;
+}
+
+export interface ModelsStatsResponse {
+  models: ModelStats[];
+  count: number;
+  timestamp: string;
+}
+
+async function fetchModelsStats(): Promise<ModelsStatsResponse> {
+  const response = await apiClient.get('/models/stats');
+  return response.data;
+}
+
+export function useModelsStats() {
+  return useQuery({
+    queryKey: ['models-stats'],
+    queryFn: fetchModelsStats,
+    staleTime: 1000 * 60 * 2, // 2 minutes
+    retry: 2,
+  });
+}
