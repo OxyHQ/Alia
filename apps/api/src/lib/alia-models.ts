@@ -6,7 +6,7 @@
  * requests are routed to appropriate provider models.
  */
 
-export type AliaTier = 'lite' | 'v1' | 'v1-codea' | 'v1-cowork' | 'v1-pro' | 'v1-pro-max';
+export type AliaTier = 'lite' | 'v1' | 'v1-codea' | 'v1-cowork' | 'v1-browser' | 'v1-pro' | 'v1-pro-max';
 
 export type ModelCategory = 'general' | 'coding';
 
@@ -77,6 +77,17 @@ export const ALIA_MODELS: Record<string, AliaModel> = {
     supportsVision: true,
     category: 'coding',
   },
+  'alia-v1-browser': {
+    id: 'alia-v1-browser',
+    name: 'Alia V1 Browser',
+    tier: 'v1-browser',
+    description: 'Browser automation specialist for web interactions',
+    creditMultiplier: 1.5,
+    maxTokens: 16384,
+    supportsTools: true,
+    supportsVision: true,
+    category: 'coding',
+  },
   'alia-v1-pro': {
     id: 'alia-v1-pro',
     name: 'Codea Pro',
@@ -136,6 +147,12 @@ export const TIER_MODEL_MAPPINGS: Record<AliaTier, ModelMapping[]> = {
     { provider: 'google', modelId: 'gemini-2.5-pro', priority: 1, qualityScore: 90 },
     { provider: 'openai', modelId: 'gpt-4o', priority: 2, qualityScore: 88 },
     { provider: 'anthropic', modelId: 'claude-sonnet-4-20250514', priority: 3, qualityScore: 92 },
+  ],
+  'v1-browser': [
+    { provider: 'google', modelId: 'gemini-2.5-pro', priority: 1, qualityScore: 92 },
+    { provider: 'groq', modelId: 'llama-3.3-70b-versatile', priority: 2, qualityScore: 88 },
+    { provider: 'openai', modelId: 'gpt-4o', priority: 3, qualityScore: 90 },
+    { provider: 'anthropic', modelId: 'claude-sonnet-4-20250514', priority: 4, qualityScore: 95 },
   ],
   'v1-pro': [
     { provider: 'openai', modelId: 'gpt-4o', priority: 1, qualityScore: 90 },
