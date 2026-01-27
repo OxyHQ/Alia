@@ -373,6 +373,7 @@ export class ToolExecutor {
         this.stagehand = new Stagehand({
           env: 'LOCAL',
           verbose: 1,
+          experimental: true, // Required for agent callbacks
           localBrowserLaunchOptions: {
             headless: true, // Run browser invisibly - no visible window
           }
