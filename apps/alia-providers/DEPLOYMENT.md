@@ -1,5 +1,9 @@
 # Alia Providers Service - Deployment Guide
 
+> **For DigitalOcean deployment**, see [DIGITALOCEAN-DEPLOY.md](./DIGITALOCEAN-DEPLOY.md) for detailed step-by-step instructions.
+
+This document covers general deployment configuration and requirements.
+
 ## Production Domains
 
 - **API Service**: `https://api.providers.alia.onl`

@@ -1,0 +1,101 @@
+name: alia-providers-api
+region: nyc
+
+services:
+  - name: api
+    github:
+      branch: main
+      deploy_on_push: true
+      repo: your-username/ai-api-server
+
+    # Source directory (monorepo path)
+    source_dir: /apps/alia-providers
+
+    # Build configuration
+    build_command: npm install && npm run build
+
+    # Run configuration
+    run_command: npm start
+
+    # Environment
+    environment_slug: node-js
+    instance_count: 1
+    instance_size_slug: basic-xxs
+
+    # Health check
+    health_check:
+      http_path: /health
+      initial_delay_seconds: 10
+      period_seconds: 10
+      timeout_seconds: 5
+      success_threshold: 1
+      failure_threshold: 3
+
+    # HTTP configuration
+    http_port: 3002
+
+    # Environment variables
+    envs:
+      - key: NODE_ENV
+        value: production
+        scope: RUN_TIME
+
+      - key: PORT
+        value: "3002"
+        scope: RUN_TIME
+
+      - key: MONGODB_URI
+        value: ${MONGODB_URI}
+        type: SECRET
+        scope: RUN_TIME
+
+      - key: SERVICE_SECRET
+        value: ${SERVICE_SECRET}
+        type: SECRET
+        scope: RUN_TIME
+
+      - key: ALLOWED_SERVICES
+        value: alia-api,alia-admin
+        scope: RUN_TIME
+
+      - key: ALLOWED_ORIGINS
+        value: https://providers.alia.onl,https://api.alia.onl
+        scope: RUN_TIME
+
+      - key: ENCRYPTION_KEY
+        value: ${ENCRYPTION_KEY}
+        type: SECRET
+        scope: RUN_TIME
+
+      - key: ENABLE_HEALTH_MONITOR
+        value: "true"
+        scope: RUN_TIME
+
+      - key: HEALTH_CHECK_INTERVAL_MS
+        value: "300000"
+        scope: RUN_TIME
+
+      - key: DEFAULT_RPM
+        value: "60"
+        scope: RUN_TIME
+
+      - key: DEFAULT_TPM
+        value: "100000"
+        scope: RUN_TIME
+
+      - key: LOG_LEVEL
+        value: info
+        scope: RUN_TIME
+
+    # Custom domain
+    domains:
+      - domain: api.providers.alia.onl
+        type: PRIMARY
+
+# Database (if using DigitalOcean Managed MongoDB)
+# databases:
+#   - name: alia-db
+#     engine: MONGODB
+#     version: "6"
+#     size: db-s-1vcpu-1gb
+#     num_nodes: 1
