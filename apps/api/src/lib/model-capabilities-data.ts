@@ -32,26 +32,32 @@ export function createCapabilities(overrides: Partial<ModelCapabilities>): Model
 // ============== MODEL-SPECIFIC CAPABILITIES ==============
 
 export const MODEL_CAPABILITIES: Record<string, ModelCapabilities> = {
-  // Google Gemini
+  // Google Gemini (REAL models only)
   'gemini-2.5-flash': createCapabilities({
-    maxContextTokens: 32768,
+    vision: true,
+    maxContextTokens: 1000000,
     maxOutputTokens: 8192,
+  }),
+  'gemini-2.5-pro': createCapabilities({
+    vision: true,
+    maxContextTokens: 2000000,
+    maxOutputTokens: 8192,
+    promptCaching: true,
   }),
   'gemini-3-flash-preview': createCapabilities({
     vision: true,
+    codeExecution: true,       // Built-in code execution
+    webSearch: true,            // URL context/grounding capability
     maxContextTokens: 1000000,
     maxOutputTokens: 8192,
   }),
-  'gemini-3-pro': createCapabilities({
+  'gemini-3-pro-preview': createCapabilities({
     vision: true,
+    codeExecution: true,       // Built-in code execution
+    webSearch: true,            // URL context/grounding capability
     maxContextTokens: 1000000,
     maxOutputTokens: 64000,
     promptCaching: true,
-  }),
-  'gemini-2.5-flash-native-audio-preview-12-2025': createCapabilities({
-    audio: true,
-    maxContextTokens: 32768,
-    maxOutputTokens: 8192,
   }),
 
   // Groq
@@ -131,15 +137,15 @@ export const MODEL_CAPABILITIES: Record<string, ModelCapabilities> = {
     maxOutputTokens: 8192,
   }),
 
-  // Anthropic Claude
-  'claude-sonnet-4.5': createCapabilities({
+  // Anthropic Claude (REAL models only)
+  'claude-sonnet-4-20250514': createCapabilities({
     vision: true,
     computerUse: true,
     promptCaching: true,
     maxContextTokens: 200000,
     maxOutputTokens: 8192,
   }),
-  'claude-opus-4.5': createCapabilities({
+  'claude-opus-4-20241120': createCapabilities({
     vision: true,
     computerUse: true,
     promptCaching: true,
@@ -147,32 +153,21 @@ export const MODEL_CAPABILITIES: Record<string, ModelCapabilities> = {
     maxOutputTokens: 8192,
   }),
 
-  // OpenAI
-  'gpt-4.1-mini': createCapabilities({
+  // OpenAI (REAL models only)
+  'gpt-4o': createCapabilities({
     vision: true,
     maxContextTokens: 128000,
     maxOutputTokens: 16384,
   }),
-  'gpt-5.2-instant': createCapabilities({
+  'gpt-4o-mini': createCapabilities({
     vision: true,
     maxContextTokens: 128000,
     maxOutputTokens: 16384,
   }),
-  'gpt-5.2-codex': createCapabilities({
+  'o1': createCapabilities({
     vision: true,
-    maxContextTokens: 128000,
-    maxOutputTokens: 16384,
-  }),
-  'gpt-5.2-thinking': createCapabilities({
-    vision: true,
-    maxContextTokens: 128000,
-    maxOutputTokens: 16384,
-  }),
-  'gpt-5.2-pro': createCapabilities({
-    vision: true,
-    promptCaching: true,
-    maxContextTokens: 128000,
-    maxOutputTokens: 32768,
+    maxContextTokens: 200000,
+    maxOutputTokens: 100000,
   }),
   'whisper-1': createCapabilities({
     audio: true,
@@ -182,12 +177,7 @@ export const MODEL_CAPABILITIES: Record<string, ModelCapabilities> = {
     maxOutputTokens: 4096,
   }),
 
-  // Cloudflare
-  '@cf/meta/llama-4-scout-17b-16e-instruct': createCapabilities({
-    vision: true,
-    maxContextTokens: 128000,
-    maxOutputTokens: 8192,
-  }),
+  // Cloudflare (REAL models only)
   '@cf/meta/llama-3.2-11b-vision-instruct': createCapabilities({
     vision: true,
     maxContextTokens: 128000,
@@ -213,35 +203,22 @@ export interface ModelPricing {
 export const MODEL_PRICING: Record<string, ModelPricing> = {
   // Free tier models
   'gemini-2.5-flash': { tier: 'free', averageLatencyMs: 800 },
+  'gemini-2.5-pro': { tier: 'free', averageLatencyMs: 1500 },
   'gemini-3-flash-preview': { tier: 'free', averageLatencyMs: 1000 },
-  'gemini-3-pro': { tier: 'free', averageLatencyMs: 2000 },
-  'gemini-2.5-flash-native-audio-preview-12-2025': { tier: 'free', averageLatencyMs: 1500 },
+  'gemini-3-pro-preview': { tier: 'free', averageLatencyMs: 2000 },
   'llama-3.3-70b-versatile': { tier: 'free', averageLatencyMs: 200 },
-  'openai/gpt-oss-20b': { tier: 'free', averageLatencyMs: 300 },
-  'openai/gpt-oss-120b': { tier: 'free', averageLatencyMs: 400 },
-  'groq/compound': { tier: 'free', averageLatencyMs: 500 },
   'whisper-large-v3-turbo': { tier: 'free', averageLatencyMs: 300 },
   'whisper-large-v3': { tier: 'free', averageLatencyMs: 500 },
   'deepseek-chat': { tier: 'freemium', costPer1MInput: 0.14, costPer1MOutput: 0.28, averageLatencyMs: 1000 },
   'deepseek-reasoner': { tier: 'freemium', costPer1MInput: 0.55, costPer1MOutput: 2.19, averageLatencyMs: 2000 },
-  'deepseek-v3.2': { tier: 'freemium', costPer1MInput: 0.27, costPer1MOutput: 1.10, averageLatencyMs: 1500 },
-  'ministral-8b-2512': { tier: 'freemium', costPer1MInput: 0.10, costPer1MOutput: 0.10, averageLatencyMs: 600 },
-  'ministral-14b-2512': { tier: 'freemium', costPer1MInput: 0.15, costPer1MOutput: 0.15, averageLatencyMs: 800 },
-  'devstral-2': { tier: 'freemium', costPer1MInput: 0.20, costPer1MOutput: 0.20, averageLatencyMs: 1200 },
-  'mistral-large-2512': { tier: 'freemium', costPer1MInput: 2.00, costPer1MOutput: 6.00, averageLatencyMs: 1500 },
-  'mistral-small-3.1-2503': { tier: 'freemium', costPer1MInput: 0.30, costPer1MOutput: 0.90, averageLatencyMs: 900 },
-  '@cf/meta/llama-4-scout-17b-16e-instruct': { tier: 'free', averageLatencyMs: 1200 },
   '@cf/meta/llama-3.2-11b-vision-instruct': { tier: 'free', averageLatencyMs: 1000 },
-  'meta-llama/Llama-3.3-70B-Instruct-Turbo': { tier: 'freemium', costPer1MInput: 0.18, costPer1MOutput: 0.18, averageLatencyMs: 500 },
 
   // Paid models
-  'claude-sonnet-4.5': { tier: 'paid', costPer1MInput: 3.00, costPer1MOutput: 15.00, averageLatencyMs: 2000 },
-  'claude-opus-4.5': { tier: 'paid', costPer1MInput: 15.00, costPer1MOutput: 75.00, averageLatencyMs: 3000 },
-  'gpt-4.1-mini': { tier: 'paid', costPer1MInput: 0.15, costPer1MOutput: 0.60, averageLatencyMs: 800 },
-  'gpt-5.2-instant': { tier: 'paid', costPer1MInput: 2.50, costPer1MOutput: 10.00, averageLatencyMs: 1200 },
-  'gpt-5.2-codex': { tier: 'paid', costPer1MInput: 5.00, costPer1MOutput: 15.00, averageLatencyMs: 1800 },
-  'gpt-5.2-thinking': { tier: 'paid', costPer1MInput: 10.00, costPer1MOutput: 30.00, averageLatencyMs: 3000 },
-  'gpt-5.2-pro': { tier: 'paid', costPer1MInput: 20.00, costPer1MOutput: 60.00, averageLatencyMs: 4000 },
+  'claude-sonnet-4-20250514': { tier: 'paid', costPer1MInput: 3.00, costPer1MOutput: 15.00, averageLatencyMs: 2000 },
+  'claude-opus-4-20241120': { tier: 'paid', costPer1MInput: 15.00, costPer1MOutput: 75.00, averageLatencyMs: 3000 },
+  'gpt-4o': { tier: 'paid', costPer1MInput: 2.50, costPer1MOutput: 10.00, averageLatencyMs: 1200 },
+  'gpt-4o-mini': { tier: 'paid', costPer1MInput: 0.15, costPer1MOutput: 0.60, averageLatencyMs: 800 },
+  'o1': { tier: 'paid', costPer1MInput: 15.00, costPer1MOutput: 60.00, averageLatencyMs: 4000 },
   'whisper-1': { tier: 'paid', costPer1MInput: 0.006, costPer1MOutput: 0.006, averageLatencyMs: 1000 },
 };
 
