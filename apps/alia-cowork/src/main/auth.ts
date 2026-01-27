@@ -144,6 +144,7 @@ export class AuthProvider {
                   // Delay server shutdown to ensure IPC event is sent
                   setTimeout(() => {
                     this.stopCallbackServer()
+                    this.tokenExchangeInProgress = false
                   }, 1000)
                 })
             } catch (err: any) {
