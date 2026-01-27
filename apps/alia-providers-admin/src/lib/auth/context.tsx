@@ -5,8 +5,8 @@
  */
 
 import { useEffect, useState, createContext, useContext, type ReactNode } from 'react';
-import { WebOxyProvider, useAuth as useOxyAuth } from '@oxyhq/services';
-import type { User } from '@oxyhq/services';
+import { WebOxyProvider, useAuth as useOxyAuth } from '@oxyhq/services/web';
+import type { User } from '@oxyhq/services/web';
 import { apiClient } from '@/lib/api/client';
 
 // ==================== Auth Context (extends Oxy's useAuth) ====================

@@ -9,13 +9,6 @@ export default defineConfig({
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),
-      "react-native": "react-native-web",
     },
-    extensions: ['.web.js', '.web.ts', '.web.tsx', '.js', '.ts', '.tsx', '.json'],
-  },
-  define: {
-    __DEV__: JSON.stringify(process.env.NODE_ENV !== 'production'),
-    global: 'globalThis',
-    'process.env.NODE_ENV': JSON.stringify(process.env.NODE_ENV || 'development'),
   },
 })

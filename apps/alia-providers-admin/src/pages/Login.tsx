@@ -1,16 +1,16 @@
 /**
  * Login Page
- * Uses OxyHQ's OxySignInButton for authentication
+ * Uses OxyHQ authentication via the useAuth hook
  */
 
-import { OxySignInButton } from '@oxyhq/services';
 import { useAuth } from '@/lib/auth/context';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Server, AlertTriangle } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Server, AlertTriangle, LogIn } from 'lucide-react';
 
 export function LoginPage() {
-  const { error, loading } = useAuth();
+  const { error, loading, signIn } = useAuth();
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-background p-4">
@@ -38,7 +38,15 @@ export function LoginPage() {
           </div>
 
           <div className="flex justify-center">
-            <OxySignInButton disabled={loading} />
+            <Button
+              onClick={signIn}
+              disabled={loading}
+              size="lg"
+              className="w-full"
+            >
+              <LogIn className="mr-2 h-5 w-5" />
+              {loading ? 'Signing in...' : 'Sign in with Oxy'}
+            </Button>
           </div>
 
           <div className="text-xs text-muted-foreground text-center space-y-1">

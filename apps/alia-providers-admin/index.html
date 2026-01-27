@@ -4,19 +4,10 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>vite-app</title>
+    <title>Alia Providers Admin</title>
   </head>
   <body>
     <div id="root"></div>
-    <script>
-      // Polyfill for React Native packages that expect Node.js globals
-      if (typeof window.require === 'undefined') {
-        window.require = function(module) {
-          console.warn('require() called for:', module);
-          return {};
-        };
-      }
-    </script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
