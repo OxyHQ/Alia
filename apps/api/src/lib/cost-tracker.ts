@@ -348,7 +348,7 @@ export async function getTopUsersByCost(
           totalRequests: { $sum: 1 }
         }
       },
-      { $sort: { totalSpent: -1 } },
+      { $sort: { totalSpent: -1 as const } },
       { $limit: limit }
     ];
 
@@ -401,7 +401,7 @@ export async function getModelEfficiency(): Promise<Array<{
           }
         }
       },
-      { $sort: { avgCostPer1kTokens: 1 } }
+      { $sort: { avgCostPer1kTokens: 1 as const } }
     ];
 
     const results = await CostEntryModel.aggregate(pipeline);

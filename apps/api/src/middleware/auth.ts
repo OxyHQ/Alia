@@ -32,12 +32,12 @@ declare global {
  * Uses validateSession() for session-based auth (not JWT)
  */
 export async function authenticateToken(req: Request, res: Response, next: NextFunction): Promise<void> {
-  try {
-    const sessionId = req.headers['x-session-id'] as string ||
-      (req.headers.authorization?.startsWith('Bearer ')
-        ? req.headers.authorization.substring(7)
-        : null);
+  const sessionId = req.headers['x-session-id'] as string ||
+    (req.headers.authorization?.startsWith('Bearer ')
+      ? req.headers.authorization.substring(7)
+      : null);
 
+  try {
     if (!sessionId) {
       res.status(401).json({ error: 'Authentication required' });
       return;
