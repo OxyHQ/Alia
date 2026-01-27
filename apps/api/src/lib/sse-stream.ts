@@ -411,7 +411,7 @@ export async function streamCachedResponse(
  * Setup keep-alive for long-running streams
  * Sends comment every 30s to prevent timeouts
  */
-export function setupKeepAlive(sseStream: SSEStream): NodeJS.Timeout {
+export function setupKeepAlive(sseStream: SSEStream): ReturnType<typeof setInterval> {
   return setInterval(() => {
     if (sseStream.isConnected()) {
       sseStream['writeRaw'](': keepalive\n\n');
