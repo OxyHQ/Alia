@@ -70,10 +70,20 @@ export default defineConfig({
     },
     extensions: ['.web.js', '.web.ts', '.web.tsx', '.js', '.ts', '.tsx', '.json'],
   },
+  define: {
+    __DEV__: JSON.stringify(process.env.NODE_ENV !== 'production'),
+    global: 'globalThis',
+    'process.env.NODE_ENV': JSON.stringify(process.env.NODE_ENV || 'development'),
+  },
 })
 ```
 
-That's it! No custom plugins, no virtual modules, no complex workarounds. Just a simple alias that maps `react-native` imports to `react-native-web`.
+That's it! No custom plugins, no virtual modules, no complex workarounds. Just:
+- A simple alias that maps `react-native` imports to `react-native-web`
+- Define React Native globals:
+  - `__DEV__` - Development mode flag (true in dev, false in production)
+  - `global` - Maps to `globalThis` (web standard)
+  - `process.env.NODE_ENV` - Environment variable for production/development checks
 
 ## Authentication
 
