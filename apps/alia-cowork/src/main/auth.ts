@@ -21,6 +21,7 @@ export class AuthProvider {
   private mainWindow: BrowserWindow
   private callbackServer?: http.Server
   private codeVerifier?: string
+  private tokenExchangeInProgress = false
 
   private get authUrl(): string {
     // Environment variable takes precedence over stored value
