@@ -1032,7 +1032,7 @@ export class ChatProvider {
     if (!apiKey) return null
 
     try {
-      const response = await fetch(`${baseUrl}/v1/codea/me`, {
+      const response = await fetch(`${baseUrl}/v1/me`, {
         method: 'GET',
         headers: { Authorization: `Bearer ${apiKey}` }
       })
