@@ -24,6 +24,7 @@ export class ChatProvider {
   private isProcessing = false
   private currentMode = 'ask'
   private abortController?: AbortController
+  private browserUsedInCurrentTurn = false
 
   constructor(window: BrowserWindow, toolExecutor: ToolExecutor) {
     this.window = window
@@ -54,6 +55,7 @@ export class ChatProvider {
 
     this.currentMode = mode
     this.isProcessing = true
+    this.browserUsedInCurrentTurn = false
 
     // Build user message with context
     // Separate folders from files
@@ -603,6 +605,7 @@ export class ChatProvider {
                 break
               case 'browser_action':
                 console.log('[ChatProvider] Executing browser_action')
+                this.browserUsedInCurrentTurn = true
                 result = await this.toolExecutor.browserAction(args)
                 break
               case 'close_browser':
@@ -667,6 +670,16 @@ export class ChatProvider {
 
       console.log('[ChatProvider] Chat session complete')
       this.send('chat:end', {})
+
+      // Auto-close browser if it was used in this turn
+      if (this.browserUsedInCurrentTurn) {
+        console.log('[ChatProvider] Browser was used, auto-closing and returning to chat...')
+        try {
+          await this.toolExecutor.closeBrowser()
+        } catch (error) {
+          console.error('[ChatProvider] Error auto-closing browser:', error)
+        }
+      }
     } catch (error: any) {
       if (error.name === 'AbortError') {
         console.log('[ChatProvider] Stream aborted by user')
@@ -684,6 +697,7 @@ export class ChatProvider {
       console.log('[ChatProvider] Final message count:', this.messages.length)
       this.isProcessing = false
       this.abortController = undefined
+      this.browserUsedInCurrentTurn = false
     }
   }
 
@@ -915,6 +929,13 @@ export class ChatProvider {
                 break
               case 'list_installed_applications':
                 result = await this.toolExecutor.listInstalledApplications()
+                break
+              case 'browser_action':
+                this.browserUsedInCurrentTurn = true
+                result = await this.toolExecutor.browserAction(args)
+                break
+              case 'close_browser':
+                result = await this.toolExecutor.closeBrowser()
                 break
               default:
                 result = `Unknown tool: ${toolName}`
