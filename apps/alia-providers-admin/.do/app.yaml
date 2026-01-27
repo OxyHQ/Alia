@@ -9,7 +9,7 @@ static_sites:
       repo: your-username/ai-api-server
 
     # Source directory (monorepo path)
-    source_dir: apps/alia-providers-admin
+    source_dir: /apps/alia-providers-admin
 
     # Build configuration
     build_command: npm ci --include=dev && npm run build
@@ -23,7 +23,7 @@ static_sites:
     # Environment variables
     envs:
       - key: VITE_PROVIDERS_API_URL
-        value: https://api.providers.alia.onl
+        value: https://api.alia.onl/internal/providers
         scope: BUILD_TIME
       - key: VITE_SERVICE_SECRET
         value: ${SERVICE_SECRET}
