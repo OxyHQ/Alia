@@ -440,13 +440,15 @@ export class ToolExecutor {
         if (normalizedArgs.action) {
           console.log(`[ToolExecutor] Creating agent for action: ${normalizedArgs.action}`)
 
-          // Get Anthropic API key from Alia
-          const anthropicKey = await this.getAgentApiKey()
+          // Get Alia API credentials
+          const apiKey = store.get('apiKey') as string
+          const baseUrl = store.get('apiBaseUrl') as string
 
           const agent = this.stagehand.agent({
             model: {
-              modelName: 'anthropic/claude-sonnet-4-5-20250929',
-              apiKey: anthropicKey,
+              modelName: 'alia-v1-cowork', // Use Alia model through OpenAI-compatible API
+              apiKey: apiKey,
+              baseURL: `${baseUrl}/v1`, // Alia API is OpenAI-compatible
             }
           })
 
