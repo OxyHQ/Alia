@@ -63,7 +63,7 @@ function AppRoutes() {
     console.log('[Auth Debug]', {
       isLoading,
       isAuthenticated,
-      user: user ? { username: user.username, email: user.email } : null,
+      user: user ? { username: user.username, _id: user._id } : null,
     });
   }, [isLoading, isAuthenticated, user]);
 
