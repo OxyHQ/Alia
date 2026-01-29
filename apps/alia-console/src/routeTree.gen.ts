@@ -14,10 +14,11 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as LayoutUsageRouteImport } from './routes/_layout/usage'
 import { Route as LayoutModelsRouteImport } from './routes/_layout/models'
 import { Route as LayoutExamplesRouteImport } from './routes/_layout/examples'
-import { Route as LayoutDocumentationRouteImport } from './routes/_layout/documentation'
 import { Route as LayoutDashboardRouteImport } from './routes/_layout/dashboard'
 import { Route as LayoutBillingRouteImport } from './routes/_layout/billing'
+import { Route as LayoutDocumentationIndexRouteImport } from './routes/_layout/documentation/index'
 import { Route as LayoutAppsIndexRouteImport } from './routes/_layout/apps/index'
+import { Route as LayoutDocumentationQuickstartRouteImport } from './routes/_layout/documentation/quickstart'
 import { Route as LayoutAppsAppIdIndexRouteImport } from './routes/_layout/apps/$appId/index'
 import { Route as LayoutAppsAppIdUsageRouteImport } from './routes/_layout/apps/$appId/usage'
 import { Route as LayoutAppsAppIdSettingsRouteImport } from './routes/_layout/apps/$appId/settings'
@@ -47,11 +48,6 @@ const LayoutExamplesRoute = LayoutExamplesRouteImport.update({
   path: '/examples',
   getParentRoute: () => LayoutRoute,
 } as any)
-const LayoutDocumentationRoute = LayoutDocumentationRouteImport.update({
-  id: '/documentation',
-  path: '/documentation',
-  getParentRoute: () => LayoutRoute,
-} as any)
 const LayoutDashboardRoute = LayoutDashboardRouteImport.update({
   id: '/dashboard',
   path: '/dashboard',
@@ -62,11 +58,23 @@ const LayoutBillingRoute = LayoutBillingRouteImport.update({
   path: '/billing',
   getParentRoute: () => LayoutRoute,
 } as any)
+const LayoutDocumentationIndexRoute =
+  LayoutDocumentationIndexRouteImport.update({
+    id: '/documentation/',
+    path: '/documentation/',
+    getParentRoute: () => LayoutRoute,
+  } as any)
 const LayoutAppsIndexRoute = LayoutAppsIndexRouteImport.update({
   id: '/apps/',
   path: '/apps/',
   getParentRoute: () => LayoutRoute,
 } as any)
+const LayoutDocumentationQuickstartRoute =
+  LayoutDocumentationQuickstartRouteImport.update({
+    id: '/documentation/quickstart',
+    path: '/documentation/quickstart',
+    getParentRoute: () => LayoutRoute,
+  } as any)
 const LayoutAppsAppIdIndexRoute = LayoutAppsAppIdIndexRouteImport.update({
   id: '/apps/$appId/',
   path: '/apps/$appId/',
@@ -93,11 +101,12 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/billing': typeof LayoutBillingRoute
   '/dashboard': typeof LayoutDashboardRoute
-  '/documentation': typeof LayoutDocumentationRoute
   '/examples': typeof LayoutExamplesRoute
   '/models': typeof LayoutModelsRoute
   '/usage': typeof LayoutUsageRoute
+  '/documentation/quickstart': typeof LayoutDocumentationQuickstartRoute
   '/apps/': typeof LayoutAppsIndexRoute
+  '/documentation/': typeof LayoutDocumentationIndexRoute
   '/apps/$appId/settings': typeof LayoutAppsAppIdSettingsRoute
   '/apps/$appId/usage': typeof LayoutAppsAppIdUsageRoute
   '/apps/$appId/': typeof LayoutAppsAppIdIndexRoute
@@ -107,11 +116,12 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/billing': typeof LayoutBillingRoute
   '/dashboard': typeof LayoutDashboardRoute
-  '/documentation': typeof LayoutDocumentationRoute
   '/examples': typeof LayoutExamplesRoute
   '/models': typeof LayoutModelsRoute
   '/usage': typeof LayoutUsageRoute
+  '/documentation/quickstart': typeof LayoutDocumentationQuickstartRoute
   '/apps': typeof LayoutAppsIndexRoute
+  '/documentation': typeof LayoutDocumentationIndexRoute
   '/apps/$appId/settings': typeof LayoutAppsAppIdSettingsRoute
   '/apps/$appId/usage': typeof LayoutAppsAppIdUsageRoute
   '/apps/$appId': typeof LayoutAppsAppIdIndexRoute
@@ -123,11 +133,12 @@ export interface FileRoutesById {
   '/_layout': typeof LayoutRouteWithChildren
   '/_layout/billing': typeof LayoutBillingRoute
   '/_layout/dashboard': typeof LayoutDashboardRoute
-  '/_layout/documentation': typeof LayoutDocumentationRoute
   '/_layout/examples': typeof LayoutExamplesRoute
   '/_layout/models': typeof LayoutModelsRoute
   '/_layout/usage': typeof LayoutUsageRoute
+  '/_layout/documentation/quickstart': typeof LayoutDocumentationQuickstartRoute
   '/_layout/apps/': typeof LayoutAppsIndexRoute
+  '/_layout/documentation/': typeof LayoutDocumentationIndexRoute
   '/_layout/apps/$appId/settings': typeof LayoutAppsAppIdSettingsRoute
   '/_layout/apps/$appId/usage': typeof LayoutAppsAppIdUsageRoute
   '/_layout/apps/$appId/': typeof LayoutAppsAppIdIndexRoute
@@ -139,11 +150,12 @@ export interface FileRouteTypes {
     | '/'
     | '/billing'
     | '/dashboard'
-    | '/documentation'
     | '/examples'
     | '/models'
     | '/usage'
+    | '/documentation/quickstart'
     | '/apps/'
+    | '/documentation/'
     | '/apps/$appId/settings'
     | '/apps/$appId/usage'
     | '/apps/$appId/'
@@ -153,11 +165,12 @@ export interface FileRouteTypes {
     | '/'
     | '/billing'
     | '/dashboard'
-    | '/documentation'
     | '/examples'
     | '/models'
     | '/usage'
+    | '/documentation/quickstart'
     | '/apps'
+    | '/documentation'
     | '/apps/$appId/settings'
     | '/apps/$appId/usage'
     | '/apps/$appId'
@@ -168,11 +181,12 @@ export interface FileRouteTypes {
     | '/_layout'
     | '/_layout/billing'
     | '/_layout/dashboard'
-    | '/_layout/documentation'
     | '/_layout/examples'
     | '/_layout/models'
     | '/_layout/usage'
+    | '/_layout/documentation/quickstart'
     | '/_layout/apps/'
+    | '/_layout/documentation/'
     | '/_layout/apps/$appId/settings'
     | '/_layout/apps/$appId/usage'
     | '/_layout/apps/$appId/'
@@ -221,13 +235,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LayoutExamplesRouteImport
       parentRoute: typeof LayoutRoute
     }
-    '/_layout/documentation': {
-      id: '/_layout/documentation'
-      path: '/documentation'
-      fullPath: '/documentation'
-      preLoaderRoute: typeof LayoutDocumentationRouteImport
-      parentRoute: typeof LayoutRoute
-    }
     '/_layout/dashboard': {
       id: '/_layout/dashboard'
       path: '/dashboard'
@@ -242,11 +249,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LayoutBillingRouteImport
       parentRoute: typeof LayoutRoute
     }
+    '/_layout/documentation/': {
+      id: '/_layout/documentation/'
+      path: '/documentation'
+      fullPath: '/documentation/'
+      preLoaderRoute: typeof LayoutDocumentationIndexRouteImport
+      parentRoute: typeof LayoutRoute
+    }
     '/_layout/apps/': {
       id: '/_layout/apps/'
       path: '/apps'
       fullPath: '/apps/'
       preLoaderRoute: typeof LayoutAppsIndexRouteImport
+      parentRoute: typeof LayoutRoute
+    }
+    '/_layout/documentation/quickstart': {
+      id: '/_layout/documentation/quickstart'
+      path: '/documentation/quickstart'
+      fullPath: '/documentation/quickstart'
+      preLoaderRoute: typeof LayoutDocumentationQuickstartRouteImport
       parentRoute: typeof LayoutRoute
     }
     '/_layout/apps/$appId/': {
@@ -283,11 +304,12 @@ declare module '@tanstack/react-router' {
 interface LayoutRouteChildren {
   LayoutBillingRoute: typeof LayoutBillingRoute
   LayoutDashboardRoute: typeof LayoutDashboardRoute
-  LayoutDocumentationRoute: typeof LayoutDocumentationRoute
   LayoutExamplesRoute: typeof LayoutExamplesRoute
   LayoutModelsRoute: typeof LayoutModelsRoute
   LayoutUsageRoute: typeof LayoutUsageRoute
+  LayoutDocumentationQuickstartRoute: typeof LayoutDocumentationQuickstartRoute
   LayoutAppsIndexRoute: typeof LayoutAppsIndexRoute
+  LayoutDocumentationIndexRoute: typeof LayoutDocumentationIndexRoute
   LayoutAppsAppIdSettingsRoute: typeof LayoutAppsAppIdSettingsRoute
   LayoutAppsAppIdUsageRoute: typeof LayoutAppsAppIdUsageRoute
   LayoutAppsAppIdIndexRoute: typeof LayoutAppsAppIdIndexRoute
@@ -297,11 +319,12 @@ interface LayoutRouteChildren {
 const LayoutRouteChildren: LayoutRouteChildren = {
   LayoutBillingRoute: LayoutBillingRoute,
   LayoutDashboardRoute: LayoutDashboardRoute,
-  LayoutDocumentationRoute: LayoutDocumentationRoute,
   LayoutExamplesRoute: LayoutExamplesRoute,
   LayoutModelsRoute: LayoutModelsRoute,
   LayoutUsageRoute: LayoutUsageRoute,
+  LayoutDocumentationQuickstartRoute: LayoutDocumentationQuickstartRoute,
   LayoutAppsIndexRoute: LayoutAppsIndexRoute,
+  LayoutDocumentationIndexRoute: LayoutDocumentationIndexRoute,
   LayoutAppsAppIdSettingsRoute: LayoutAppsAppIdSettingsRoute,
   LayoutAppsAppIdUsageRoute: LayoutAppsAppIdUsageRoute,
   LayoutAppsAppIdIndexRoute: LayoutAppsAppIdIndexRoute,
