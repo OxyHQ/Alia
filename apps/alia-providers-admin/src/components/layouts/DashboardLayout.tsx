@@ -68,7 +68,7 @@ export function DashboardLayout() {
                 <User className="h-4 w-4 text-muted-foreground flex-shrink-0" />
                 <div className="min-w-0">
                   <p className="text-xs font-medium truncate">{user.username}</p>
-                  <p className="text-xs text-muted-foreground truncate">{user.email}</p>
+                  <p className="text-xs text-muted-foreground truncate">Admin</p>
                 </div>
               </div>
               <Button
