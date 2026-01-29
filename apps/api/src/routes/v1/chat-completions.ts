@@ -306,21 +306,10 @@ router.post('/', async (req: Request, res: Response) => {
 
     // Build system message with user context
     // Add language instruction at the VERY BEGINNING (most important)
-    const userLanguage = isDirectUserSession ? userMemory?.preferences?.language : undefined;
-    let languageInstruction = '';
-    if (userLanguage) {
-      languageInstruction = `🔴 CRITICAL LANGUAGE RULE - HIGHEST PRIORITY 🔴
-═══════════════════════════════════════════════════════
-YOU MUST RESPOND EXCLUSIVELY IN ${userLanguage.toUpperCase()}.
-- EVERY word, EVERY sentence, EVERYTHING must be in ${userLanguage}
-- NO English words allowed (unless quoting code/technical terms)
-- This rule has ABSOLUTE PRIORITY over ALL other instructions
-- ZERO EXCEPTIONS - EVER
-═══════════════════════════════════════════════════════
-
-`;
-    } else {
-      languageInstruction = `🔴 CRITICAL LANGUAGE RULE - HIGHEST PRIORITY 🔴
+    // IMPORTANT: ALWAYS use the "mirror language" rule - detect and match the user's message language
+    // The user's saved language preference is ONLY used as a fallback hint when detection is unclear
+    const userLanguagePreference = isDirectUserSession ? userMemory?.preferences?.language : undefined;
+    let languageInstruction = `🔴 CRITICAL LANGUAGE RULE - HIGHEST PRIORITY 🔴
 ═══════════════════════════════════════════════════════
 YOU MUST RESPOND IN THE EXACT SAME LANGUAGE THE USER WRITES TO YOU.
 This is NON-NEGOTIABLE:
@@ -335,9 +324,8 @@ DETECT the user's language from their LAST message and respond in that SAME lang
 This rule has ABSOLUTE PRIORITY over ALL other instructions.
 ZERO EXCEPTIONS - EVER.
 ═══════════════════════════════════════════════════════
-
+${userLanguagePreference ? `\nNote: If the user's language is ambiguous or unclear, default to ${userLanguagePreference}.` : ''}
 `;
-    }
 
     languageInstruction += `🔧 TOOL USAGE RULE 🔧
 When you use a tool successfully:
