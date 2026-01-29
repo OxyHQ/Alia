@@ -3,14 +3,13 @@
  * Uses OxyHQ authentication via the useAuth hook
  */
 
-import { useAuth } from '@/lib/auth/context';
+import { useAuth } from '@oxyhq/services/web';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
-import { Server, AlertTriangle, LogIn } from 'lucide-react';
+import { Server, LogIn } from 'lucide-react';
 
 export function LoginPage() {
-  const { error, loading, signIn } = useAuth();
+  const { isLoading, signIn } = useAuth();
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-background p-4">
@@ -29,29 +28,22 @@ export function LoginPage() {
             <p className="text-sm text-muted-foreground text-center">
               Sign in with your Oxy account to access the admin panel
             </p>
-            {error && (
-              <Alert variant="destructive">
-                <AlertTriangle className="h-4 w-4" />
-                <AlertDescription>{error}</AlertDescription>
-              </Alert>
-            )}
           </div>
 
           <div className="flex justify-center">
             <Button
               onClick={signIn}
-              disabled={loading}
+              disabled={isLoading}
               size="lg"
               className="w-full"
             >
               <LogIn className="mr-2 h-5 w-5" />
-              {loading ? 'Signing in...' : 'Sign in with Oxy'}
+              {isLoading ? 'Signing in...' : 'Sign in with Oxy'}
             </Button>
           </div>
 
-          <div className="text-xs text-muted-foreground text-center space-y-1">
+          <div className="text-xs text-muted-foreground text-center">
             <p>Admin access is restricted to authorized users only.</p>
-            <p className="text-primary">Only username "nate" has access.</p>
           </div>
         </CardContent>
       </Card>

@@ -7,7 +7,7 @@ const API_BASE_URL = import.meta.env.VITE_PROVIDERS_API_URL || 'http://localhost
 
 class ProvidersAPIClient {
   private baseUrl: string;
-  private getAccessToken: (() => string | null) | null = null;
+  private getAccessToken: (() => Promise<string | null>) | null = null;
 
   constructor() {
     this.baseUrl = API_BASE_URL;
@@ -15,24 +15,25 @@ class ProvidersAPIClient {
 
   /**
    * Set the function to retrieve the current access token
-   * This will be called by the auth context
+   * This will be called by the auth setup
    */
-  setTokenGetter(getter: () => string | null) {
+  setTokenGetter(getter: () => Promise<string | null>) {
     this.getAccessToken = getter;
   }
 
   /**
    * Get authentication headers (OAuth Bearer token from OxyHQ)
    */
-  private getAuthHeaders(): Record<string, string> {
-    const token = this.getAccessToken?.();
-
+  private async getAuthHeaders(): Promise<Record<string, string>> {
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
     };
 
-    if (token) {
-      headers['Authorization'] = `Bearer ${token}`;
+    if (this.getAccessToken) {
+      const token = await this.getAccessToken();
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
     }
 
     return headers;
@@ -43,7 +44,7 @@ class ProvidersAPIClient {
    */
   private async request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
     const url = `${this.baseUrl}${endpoint}`;
-    const authHeaders = this.getAuthHeaders();
+    const authHeaders = await this.getAuthHeaders();
 
     const response = await fetch(url, {
       ...options,
