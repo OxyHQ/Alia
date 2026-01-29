@@ -1,12 +1,21 @@
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router';
 import { useState } from 'react';
 import { HugeiconsIcon } from '@hugeicons/react';
-import { Add01Icon, Key01Icon, ArrowRight01Icon } from '@hugeicons/core-free-icons';
+import {
+  Add01Icon,
+  Key01Icon,
+  ArrowRight01Icon,
+  Settings01Icon,
+  ChartLineData02Icon,
+  Delete02Icon,
+  Copy01Icon,
+} from '@hugeicons/core-free-icons';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import {
   Dialog,
   DialogContent,
@@ -15,7 +24,25 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { useApps, useCreateApp } from '@/hooks/use-developer';
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuSeparator,
+  ContextMenuShortcut,
+  ContextMenuTrigger,
+} from '@/components/ui/context-menu';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import { useApps, useCreateApp, useDeleteApp } from '@/hooks/use-developer';
 import { toast } from 'sonner';
 
 export const Route = createFileRoute('/_layout/apps/')({
@@ -26,11 +53,13 @@ function AppsPage() {
   const navigate = useNavigate();
   const { data: apps = [], isLoading } = useApps();
   const createAppMutation = useCreateApp();
+  const deleteAppMutation = useDeleteApp();
 
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [websiteUrl, setWebsiteUrl] = useState('');
+  const [deleteAppId, setDeleteAppId] = useState<string | null>(null);
 
   const handleCreateApp = async () => {
     if (!name.trim()) {
@@ -55,6 +84,22 @@ function AppsPage() {
     }
   };
 
+  const handleDeleteApp = async () => {
+    if (!deleteAppId) return;
+    try {
+      await deleteAppMutation.mutateAsync(deleteAppId);
+      setDeleteAppId(null);
+      toast.success('App deleted successfully');
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to delete app');
+    }
+  };
+
+  const handleCopyAppId = (appId: string) => {
+    navigator.clipboard.writeText(appId);
+    toast.success('App ID copied to clipboard');
+  };
+
   const handleOpenCreate = () => {
     setName('');
     setDescription('');
@@ -62,8 +107,10 @@ function AppsPage() {
     setShowCreateDialog(true);
   };
 
+  const appToDelete = apps.find((app) => app._id === deleteAppId);
+
   return (
-    <div className="flex-1 bg-background">
+    <ScrollArea className="flex-1 bg-background">
       {/* Header */}
       <div className="px-6 py-6 border-b border-border">
         <div className="flex items-center justify-between">
@@ -110,36 +157,91 @@ function AppsPage() {
         ) : (
           <div>
             {apps.map((app, index) => (
-              <Link
-                key={app._id}
-                to="/apps/$appId"
-                params={{ appId: app._id }}
-                className={`flex items-center justify-between py-4 hover:opacity-70 transition-opacity ${
-                  index < apps.length - 1 ? 'border-b border-border' : ''
-                }`}
-              >
-                <div className="flex-1">
-                  <div className="flex items-center gap-2">
-                    <p className="text-sm font-medium text-foreground">{app.name}</p>
-                    <Badge variant={app.isActive ? 'default' : 'secondary'} className="text-xs">
-                      {app.isActive ? 'Active' : 'Inactive'}
-                    </Badge>
-                  </div>
-                  {app.description && (
-                    <p className="text-sm text-muted-foreground mt-0.5 line-clamp-1">
-                      {app.description}
-                    </p>
-                  )}
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Created {new Date(app.createdAt).toLocaleDateString()}
-                  </p>
-                </div>
-                <HugeiconsIcon
-                  icon={ArrowRight01Icon}
-                  size={16}
-                  className="text-muted-foreground ml-4"
-                />
-              </Link>
+              <ContextMenu key={app._id}>
+                <ContextMenu.Trigger asChild>
+                  <Link
+                    to="/apps/$appId"
+                    params={{ appId: app._id }}
+                    className={`flex items-center justify-between py-4 hover:bg-muted/50 -mx-3 px-3 rounded-lg transition-colors ${
+                      index < apps.length - 1 ? 'border-b border-border mx-0 px-0 rounded-none hover:bg-transparent hover:opacity-70' : ''
+                    }`}
+                  >
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2">
+                        <p className="text-sm font-medium text-foreground">{app.name}</p>
+                        <Badge variant={app.isActive ? 'default' : 'secondary'} className="text-xs">
+                          {app.isActive ? 'Active' : 'Inactive'}
+                        </Badge>
+                      </div>
+                      {app.description && (
+                        <p className="text-sm text-muted-foreground mt-0.5 line-clamp-1">
+                          {app.description}
+                        </p>
+                      )}
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Created {new Date(app.createdAt).toLocaleDateString()}
+                      </p>
+                    </div>
+                    <HugeiconsIcon
+                      icon={ArrowRight01Icon}
+                      size={16}
+                      className="text-muted-foreground ml-4"
+                    />
+                  </Link>
+                </ContextMenu.Trigger>
+                <ContextMenuContent className="w-48">
+                  <ContextMenuItem
+                    onClick={(e) => {
+                      e.preventDefault();
+                      navigate({ to: '/apps/$appId', params: { appId: app._id } });
+                    }}
+                  >
+                    <HugeiconsIcon icon={Key01Icon} className="mr-2 size-4" />
+                    View Details
+                  </ContextMenuItem>
+                  <ContextMenuItem
+                    onClick={(e) => {
+                      e.preventDefault();
+                      navigate({ to: '/apps/$appId/settings', params: { appId: app._id } });
+                    }}
+                  >
+                    <HugeiconsIcon icon={Settings01Icon} className="mr-2 size-4" />
+                    Settings
+                  </ContextMenuItem>
+                  <ContextMenuItem
+                    onClick={(e) => {
+                      e.preventDefault();
+                      navigate({ to: '/apps/$appId/usage', params: { appId: app._id } });
+                    }}
+                  >
+                    <HugeiconsIcon icon={ChartLineData02Icon} className="mr-2 size-4" />
+                    Usage
+                  </ContextMenuItem>
+                  <ContextMenuSeparator />
+                  <ContextMenuItem
+                    onClick={(e) => {
+                      e.preventDefault();
+                      handleCopyAppId(app._id);
+                    }}
+                  >
+                    <HugeiconsIcon icon={Copy01Icon} className="mr-2 size-4" />
+                    Copy App ID
+                    <ContextMenuShortcut>⌘C</ContextMenuShortcut>
+                  </ContextMenuItem>
+                  <ContextMenuSeparator />
+                  <ContextMenuItem
+                    variant="destructive"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      setDeleteAppId(app._id);
+                    }}
+                  >
+                    <HugeiconsIcon icon={Delete02Icon} className="mr-2 size-4" />
+                    Delete
+                    <ContextMenuShortcut>⌫</ContextMenuShortcut>
+                  </ContextMenuItem>
+                </ContextMenuContent>
+              </ContextMenu>
             ))}
           </div>
         )}
@@ -205,6 +307,29 @@ function AppsPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>
+
+      {/* Delete App Confirmation */}
+      <AlertDialog open={!!deleteAppId} onOpenChange={(open) => !open && setDeleteAppId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete app</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete "{appToDelete?.name}"? This will also delete all API
+              keys and usage data. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteApp}
+              disabled={deleteAppMutation.isPending}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {deleteAppMutation.isPending ? 'Deleting...' : 'Delete'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </ScrollArea>
   );
 }
