@@ -1,9 +1,9 @@
 import mongoose, { Schema, Document } from 'mongoose';
 
 export interface IApiKeyUsage extends Document {
-  apiKeyId: mongoose.Types.ObjectId;
+  apiKeyId?: mongoose.Types.ObjectId;  // Optional: null for session-based auth
   oxyUserId: string;
-  appId: mongoose.Types.ObjectId;
+  appId?: mongoose.Types.ObjectId;  // Optional: null for session-based auth
   endpoint: string;
   method: string;
   statusCode: number;
@@ -13,6 +13,7 @@ export interface IApiKeyUsage extends Document {
   userAgent?: string;
   ipAddress?: string;
   timestamp: Date;
+  authType: 'api_key' | 'session';  // Track auth type for rate limiting
 }
 
 const ApiKeyUsageSchema = new Schema<IApiKeyUsage>(
@@ -20,7 +21,7 @@ const ApiKeyUsageSchema = new Schema<IApiKeyUsage>(
     apiKeyId: {
       type: Schema.Types.ObjectId,
       ref: 'DeveloperApiKey',
-      required: true,
+      required: false,  // Optional for session-based auth
       index: true,
     },
     oxyUserId: {
@@ -31,7 +32,13 @@ const ApiKeyUsageSchema = new Schema<IApiKeyUsage>(
     appId: {
       type: Schema.Types.ObjectId,
       ref: 'DeveloperApp',
-      required: true,
+      required: false,  // Optional for session-based auth
+      index: true,
+    },
+    authType: {
+      type: String,
+      enum: ['api_key', 'session'],
+      default: 'api_key',
       index: true,
     },
     endpoint: {

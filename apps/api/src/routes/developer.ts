@@ -3,6 +3,7 @@ import { authenticateToken } from '../middleware/auth';
 import DeveloperApp from '../models/developer-app';
 import DeveloperApiKey from '../models/developer-api-key';
 import ApiKeyUsage from '../models/api-key-usage';
+import { getApiKeyUsageStats } from '../middleware/api-key-rate-limit';
 import { z } from 'zod';
 
 const router = Router();
@@ -234,7 +235,15 @@ router.post('/apps/:appId/keys', async (req: Request, res: Response) => {
   }
 });
 
-// Update an API key (name, scopes, isActive)
+// Rate limit configuration schema
+const rateLimitSchema = z.object({
+  requestsPerMinute: z.number().int().min(1).nullable().optional(),
+  requestsPerDay: z.number().int().min(1).nullable().optional(),
+  tokensPerMinute: z.number().int().min(1).nullable().optional(),
+  tokensPerDay: z.number().int().min(1).nullable().optional(),
+});
+
+// Update an API key (name, scopes, isActive, rateLimit)
 const updateApiKeySchema = z.object({
   name: z.string().min(1).max(100).optional(),
   scopes: z.array(z.enum([
@@ -248,6 +257,7 @@ const updateApiKeySchema = z.object({
     'memory:write',
   ])).optional(),
   isActive: z.boolean().optional(),
+  rateLimit: rateLimitSchema.optional(),
 });
 
 router.patch('/apps/:appId/keys/:keyId', async (req: Request, res: Response) => {
@@ -308,6 +318,114 @@ router.delete('/apps/:appId/keys/:keyId', async (req: Request, res: Response) =>
   } catch (error) {
     console.error('Error deleting API key:', error);
     res.status(500).json({ error: 'Failed to delete API key' });
+  }
+});
+
+// Get rate limit status for an API key (current usage vs limits)
+router.get('/apps/:appId/keys/:keyId/rate-limits', async (req: Request, res: Response) => {
+  try {
+    const userId = req.user!.id;
+    const { appId, keyId } = req.params;
+
+    // Verify the app belongs to the user
+    const app = await DeveloperApp.findOne({ _id: appId, oxyUserId: userId });
+    if (!app) {
+      return res.status(404).json({ error: 'App not found' });
+    }
+
+    // Get the API key with rate limits
+    const apiKey = await DeveloperApiKey.findOne({ _id: keyId, appId, oxyUserId: userId })
+      .select('rateLimit name keyPrefix');
+
+    if (!apiKey) {
+      return res.status(404).json({ error: 'API key not found' });
+    }
+
+    // Get current usage stats
+    const usage = await getApiKeyUsageStats(keyId);
+
+    const rateLimit = apiKey.rateLimit || {
+      requestsPerMinute: null,
+      requestsPerDay: 1000,
+      tokensPerMinute: null,
+      tokensPerDay: null,
+    };
+
+    res.json({
+      keyName: apiKey.name,
+      keyPrefix: apiKey.keyPrefix,
+      limits: rateLimit,
+      currentUsage: usage,
+      status: {
+        requestsPerMinute: rateLimit.requestsPerMinute !== null
+          ? { current: usage.requestsLastMinute, limit: rateLimit.requestsPerMinute, remaining: Math.max(0, rateLimit.requestsPerMinute - usage.requestsLastMinute) }
+          : { current: usage.requestsLastMinute, limit: null, remaining: null },
+        requestsPerDay: rateLimit.requestsPerDay !== null
+          ? { current: usage.requestsLastDay, limit: rateLimit.requestsPerDay, remaining: Math.max(0, rateLimit.requestsPerDay - usage.requestsLastDay) }
+          : { current: usage.requestsLastDay, limit: null, remaining: null },
+        tokensPerMinute: rateLimit.tokensPerMinute !== null
+          ? { current: usage.tokensLastMinute, limit: rateLimit.tokensPerMinute, remaining: Math.max(0, rateLimit.tokensPerMinute - usage.tokensLastMinute) }
+          : { current: usage.tokensLastMinute, limit: null, remaining: null },
+        tokensPerDay: rateLimit.tokensPerDay !== null
+          ? { current: usage.tokensLastDay, limit: rateLimit.tokensPerDay, remaining: Math.max(0, rateLimit.tokensPerDay - usage.tokensLastDay) }
+          : { current: usage.tokensLastDay, limit: null, remaining: null },
+      },
+    });
+  } catch (error) {
+    console.error('Error fetching rate limit status:', error);
+    res.status(500).json({ error: 'Failed to fetch rate limit status' });
+  }
+});
+
+// Update rate limits for an API key
+router.patch('/apps/:appId/keys/:keyId/rate-limits', async (req: Request, res: Response) => {
+  try {
+    const userId = req.user!.id;
+    const { appId, keyId } = req.params;
+
+    // Verify the app belongs to the user
+    const app = await DeveloperApp.findOne({ _id: appId, oxyUserId: userId });
+    if (!app) {
+      return res.status(404).json({ error: 'App not found' });
+    }
+
+    const validatedData = rateLimitSchema.parse(req.body);
+
+    // Build update object for only provided fields
+    const updateFields: Record<string, number | null> = {};
+    if (validatedData.requestsPerMinute !== undefined) {
+      updateFields['rateLimit.requestsPerMinute'] = validatedData.requestsPerMinute;
+    }
+    if (validatedData.requestsPerDay !== undefined) {
+      updateFields['rateLimit.requestsPerDay'] = validatedData.requestsPerDay;
+    }
+    if (validatedData.tokensPerMinute !== undefined) {
+      updateFields['rateLimit.tokensPerMinute'] = validatedData.tokensPerMinute;
+    }
+    if (validatedData.tokensPerDay !== undefined) {
+      updateFields['rateLimit.tokensPerDay'] = validatedData.tokensPerDay;
+    }
+
+    const apiKey = await DeveloperApiKey.findOneAndUpdate(
+      { _id: keyId, appId, oxyUserId: userId },
+      { $set: updateFields },
+      { new: true }
+    ).select('-keyHash');
+
+    if (!apiKey) {
+      return res.status(404).json({ error: 'API key not found' });
+    }
+
+    res.json({
+      message: 'Rate limits updated successfully',
+      rateLimit: apiKey.rateLimit,
+    });
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return res.status(400).json({ error: 'Invalid input', details: error.errors });
+    }
+    console.error('Error updating rate limits:', error);
+    res.status(500).json({ error: 'Failed to update rate limits' });
   }
 });
 

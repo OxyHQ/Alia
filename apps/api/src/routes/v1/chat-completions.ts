@@ -9,6 +9,7 @@ import { UserCredits } from '../../models/user-credits.js';
 import { UserMemory } from '../../models/user-memory.js';
 import { Conversation } from '../../models/conversation.js';
 import { reserveCredits, finalizeCredits, type CreditReservation, type CreditUsage } from '../../lib/credits-manager.js';
+import { recordUsage } from '../../middleware/api-key-rate-limit.js';
 import { convertOpenAIToolsToToolSet } from '../../lib/tool-converter.js';
 import { getCurrentDateTool, getTimelineTool, saveUserMemoryTool, updateUserPreferencesTool, updateUserContextTool, createSendTelegramTool } from '../../lib/tools/index.js';
 import { oxyClient } from '../../middleware/auth.js';
@@ -542,6 +543,13 @@ When you use a tool successfully:
           const creditResult = await finalizeCredits(creditReservation, tokenUsage, aliasModelId);
           creditsCharged = creditResult.creditsCharged;
           creditsRemaining = creditResult.creditsRemaining;
+
+          // Record usage for session-based users (API key usage is recorded in auth middleware)
+          if (!req.apiKey) {
+            recordUsage(req, 200, tokenUsage.totalTokens).catch(err =>
+              console.error('[V1/Chat] Error recording session usage:', err)
+            );
+          }
         } catch (error) {
           console.error('[V1/Chat] Error finalizing credits:', error);
         }
@@ -816,6 +824,13 @@ When you use a tool successfully:
           tokenUsage,
           aliasModelId
         );
+
+        // Record usage for session-based users (API key usage is recorded in auth middleware)
+        if (!req.apiKey) {
+          recordUsage(req, 200, tokenUsage.totalTokens).catch(err =>
+            console.error('[V1/Chat] Error recording session usage:', err)
+          );
+        }
 
         // Send usage info as metadata chunk (must include choices array for SDK compatibility)
         const usageChunk = {
