@@ -18,6 +18,7 @@ import { Route as LayoutDashboardRouteImport } from './routes/_layout/dashboard'
 import { Route as LayoutBillingRouteImport } from './routes/_layout/billing'
 import { Route as LayoutDocumentationIndexRouteImport } from './routes/_layout/documentation/index'
 import { Route as LayoutAppsIndexRouteImport } from './routes/_layout/apps/index'
+import { Route as LayoutDocumentationSdksRouteImport } from './routes/_layout/documentation/sdks'
 import { Route as LayoutDocumentationQuickstartRouteImport } from './routes/_layout/documentation/quickstart'
 import { Route as LayoutDocumentationModelsRouteImport } from './routes/_layout/documentation/models'
 import { Route as LayoutDocumentationChatCompletionsRouteImport } from './routes/_layout/documentation/chat-completions'
@@ -70,6 +71,11 @@ const LayoutDocumentationIndexRoute =
 const LayoutAppsIndexRoute = LayoutAppsIndexRouteImport.update({
   id: '/apps/',
   path: '/apps/',
+  getParentRoute: () => LayoutRoute,
+} as any)
+const LayoutDocumentationSdksRoute = LayoutDocumentationSdksRouteImport.update({
+  id: '/documentation/sdks',
+  path: '/documentation/sdks',
   getParentRoute: () => LayoutRoute,
 } as any)
 const LayoutDocumentationQuickstartRoute =
@@ -129,6 +135,7 @@ export interface FileRoutesByFullPath {
   '/documentation/chat-completions': typeof LayoutDocumentationChatCompletionsRoute
   '/documentation/models': typeof LayoutDocumentationModelsRoute
   '/documentation/quickstart': typeof LayoutDocumentationQuickstartRoute
+  '/documentation/sdks': typeof LayoutDocumentationSdksRoute
   '/apps/': typeof LayoutAppsIndexRoute
   '/documentation/': typeof LayoutDocumentationIndexRoute
   '/apps/$appId/settings': typeof LayoutAppsAppIdSettingsRoute
@@ -147,6 +154,7 @@ export interface FileRoutesByTo {
   '/documentation/chat-completions': typeof LayoutDocumentationChatCompletionsRoute
   '/documentation/models': typeof LayoutDocumentationModelsRoute
   '/documentation/quickstart': typeof LayoutDocumentationQuickstartRoute
+  '/documentation/sdks': typeof LayoutDocumentationSdksRoute
   '/apps': typeof LayoutAppsIndexRoute
   '/documentation': typeof LayoutDocumentationIndexRoute
   '/apps/$appId/settings': typeof LayoutAppsAppIdSettingsRoute
@@ -167,6 +175,7 @@ export interface FileRoutesById {
   '/_layout/documentation/chat-completions': typeof LayoutDocumentationChatCompletionsRoute
   '/_layout/documentation/models': typeof LayoutDocumentationModelsRoute
   '/_layout/documentation/quickstart': typeof LayoutDocumentationQuickstartRoute
+  '/_layout/documentation/sdks': typeof LayoutDocumentationSdksRoute
   '/_layout/apps/': typeof LayoutAppsIndexRoute
   '/_layout/documentation/': typeof LayoutDocumentationIndexRoute
   '/_layout/apps/$appId/settings': typeof LayoutAppsAppIdSettingsRoute
@@ -187,6 +196,7 @@ export interface FileRouteTypes {
     | '/documentation/chat-completions'
     | '/documentation/models'
     | '/documentation/quickstart'
+    | '/documentation/sdks'
     | '/apps/'
     | '/documentation/'
     | '/apps/$appId/settings'
@@ -205,6 +215,7 @@ export interface FileRouteTypes {
     | '/documentation/chat-completions'
     | '/documentation/models'
     | '/documentation/quickstart'
+    | '/documentation/sdks'
     | '/apps'
     | '/documentation'
     | '/apps/$appId/settings'
@@ -224,6 +235,7 @@ export interface FileRouteTypes {
     | '/_layout/documentation/chat-completions'
     | '/_layout/documentation/models'
     | '/_layout/documentation/quickstart'
+    | '/_layout/documentation/sdks'
     | '/_layout/apps/'
     | '/_layout/documentation/'
     | '/_layout/apps/$appId/settings'
@@ -302,6 +314,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LayoutAppsIndexRouteImport
       parentRoute: typeof LayoutRoute
     }
+    '/_layout/documentation/sdks': {
+      id: '/_layout/documentation/sdks'
+      path: '/documentation/sdks'
+      fullPath: '/documentation/sdks'
+      preLoaderRoute: typeof LayoutDocumentationSdksRouteImport
+      parentRoute: typeof LayoutRoute
+    }
     '/_layout/documentation/quickstart': {
       id: '/_layout/documentation/quickstart'
       path: '/documentation/quickstart'
@@ -371,6 +390,7 @@ interface LayoutRouteChildren {
   LayoutDocumentationChatCompletionsRoute: typeof LayoutDocumentationChatCompletionsRoute
   LayoutDocumentationModelsRoute: typeof LayoutDocumentationModelsRoute
   LayoutDocumentationQuickstartRoute: typeof LayoutDocumentationQuickstartRoute
+  LayoutDocumentationSdksRoute: typeof LayoutDocumentationSdksRoute
   LayoutAppsIndexRoute: typeof LayoutAppsIndexRoute
   LayoutDocumentationIndexRoute: typeof LayoutDocumentationIndexRoute
   LayoutAppsAppIdSettingsRoute: typeof LayoutAppsAppIdSettingsRoute
@@ -391,6 +411,7 @@ const LayoutRouteChildren: LayoutRouteChildren = {
     LayoutDocumentationChatCompletionsRoute,
   LayoutDocumentationModelsRoute: LayoutDocumentationModelsRoute,
   LayoutDocumentationQuickstartRoute: LayoutDocumentationQuickstartRoute,
+  LayoutDocumentationSdksRoute: LayoutDocumentationSdksRoute,
   LayoutAppsIndexRoute: LayoutAppsIndexRoute,
   LayoutDocumentationIndexRoute: LayoutDocumentationIndexRoute,
   LayoutAppsAppIdSettingsRoute: LayoutAppsAppIdSettingsRoute,
