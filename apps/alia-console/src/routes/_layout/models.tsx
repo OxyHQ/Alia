@@ -1,5 +1,6 @@
 import { createFileRoute } from '@tanstack/react-router';
 import { Badge } from '@/components/ui/badge';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import { HugeiconsIcon } from '@hugeicons/react';
 import { CheckmarkCircle01Icon, Cancel01Icon } from '@hugeicons/core-free-icons';
 import { useModelsStats } from '@/hooks/use-developer';
@@ -14,7 +15,7 @@ function ModelsPage() {
   const models = modelsData?.models ?? [];
 
   return (
-    <div className="flex-1 bg-background">
+    <ScrollArea className="flex-1 bg-background">
       {/* Header */}
       <div className="px-6 py-6 border-b border-border">
         <h1 className="text-2xl font-semibold text-foreground">Models</h1>
