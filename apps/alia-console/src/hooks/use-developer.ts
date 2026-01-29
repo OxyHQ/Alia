@@ -80,14 +80,14 @@ async function fetchApps(): Promise<DeveloperApp[]> {
 }
 
 export function useApps() {
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, isReady } = useAuth();
 
   return useQuery({
     queryKey: ['developer-apps'],
     queryFn: fetchApps,
-    staleTime: 1000 * 60 * 5, // 5 minutes
+    staleTime: 1000 * 60 * 5,
     retry: 2,
-    enabled: isAuthenticated,
+    enabled: isReady && isAuthenticated,
   });
 }
 
@@ -97,11 +97,13 @@ async function fetchApp(id: string): Promise<DeveloperApp> {
 }
 
 export function useApp(id: string) {
+  const { isAuthenticated, isReady } = useAuth();
+
   return useQuery({
     queryKey: ['developer-app', id],
     queryFn: () => fetchApp(id),
-    enabled: !!id,
-    staleTime: 1000 * 60 * 2, // 2 minutes
+    enabled: isReady && isAuthenticated && !!id,
+    staleTime: 1000 * 60 * 2,
     retry: 1,
   });
 }
@@ -173,11 +175,13 @@ async function fetchApiKeys(appId: string): Promise<DeveloperApiKey[]> {
 }
 
 export function useApiKeys(appId: string) {
+  const { isAuthenticated, isReady } = useAuth();
+
   return useQuery({
     queryKey: ['developer-keys', appId],
     queryFn: () => fetchApiKeys(appId),
-    enabled: !!appId,
-    staleTime: 1000 * 60 * 2, // 2 minutes
+    enabled: isReady && isAuthenticated && !!appId,
+    staleTime: 1000 * 60 * 2,
     retry: 1,
   });
 }

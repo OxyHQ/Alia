@@ -60,7 +60,9 @@ const io = initSocket(server);
 // Middleware - Allow multiple origins for web and mobile app
 const allowedOrigins = [
   process.env.WEB_URL || 'http://localhost:3000',
+  'http://localhost:3000',
   'https://alia.onl',
+  'https://console.alia.onl',
   'http://localhost:8081',
   'exp://localhost:8081',
   'http://10.0.2.2:8081',
