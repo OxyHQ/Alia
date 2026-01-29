@@ -6,7 +6,7 @@ import {
   Key01Icon,
   Message01Icon,
   ArtificialIntelligence01Icon,
-  Code01Icon,
+  SourceCodeIcon,
   Book02Icon,
 } from '@hugeicons/core-free-icons';
 import { Card, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -44,7 +44,7 @@ const sections = [
     title: 'SDKs & Libraries',
     description: 'Official and community SDKs',
     href: '/documentation/sdks',
-    icon: Code01Icon,
+    icon: SourceCodeIcon,
   },
 ];
 

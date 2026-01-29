@@ -31,6 +31,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { useApp, useApiKeys, useCreateApiKey, useDeleteApp } from '@/hooks/use-developer';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import { toast } from 'sonner';
 
 export const Route = createFileRoute('/_layout/apps/$appId/')({
@@ -99,7 +100,7 @@ function AppDetailPage() {
   }
 
   return (
-    <div className="flex-1 bg-background overflow-auto">
+    <ScrollArea className="flex-1 bg-background">
       {/* Header */}
       <div className="px-6 py-6 border-b border-border">
         <Link
@@ -311,6 +312,6 @@ function AppDetailPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </div>
+    </ScrollArea>
   );
 }

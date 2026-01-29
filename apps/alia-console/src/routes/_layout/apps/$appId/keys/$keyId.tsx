@@ -15,6 +15,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { useApp, useApiKeys, useDeleteApiKey, useKeyUsage } from '@/hooks/use-developer';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import { toast } from 'sonner';
 
 export const Route = createFileRoute('/_layout/apps/$appId/keys/$keyId')({
@@ -53,7 +54,7 @@ function KeyDetailPage() {
   }
 
   return (
-    <div className="flex-1 bg-background">
+    <ScrollArea className="flex-1 bg-background">
       {/* Header */}
       <div className="px-6 py-6 border-b border-border">
         <Link
@@ -187,6 +188,6 @@ function KeyDetailPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </div>
+    </ScrollArea>
   );
 }
