@@ -1,5 +1,5 @@
 import { Router, Request, Response } from 'express';
-import { streamText, type ToolSet } from 'ai';
+import { streamText, generateText, type ToolSet } from 'ai';
 import { createGoogleGenerativeAI } from '@ai-sdk/google';
 import { createOpenAI } from '@ai-sdk/openai';
 import { createAnthropic } from '@ai-sdk/anthropic';
@@ -426,12 +426,8 @@ When you use a tool successfully:
       systemPromptTokens,
     };
 
-    // Set SSE headers
-    res.setHeader('Content-Type', 'text/event-stream');
-    res.setHeader('Cache-Control', 'no-cache');
-    res.setHeader('Connection', 'keep-alive');
-
-    const streamConfig: any = {
+    // Build common config for both streaming and non-streaming
+    const baseConfig: any = {
       model,
       messages: convertedMessages,
       temperature: body.temperature ?? 0.7,
@@ -455,12 +451,12 @@ When you use a tool successfully:
     };
 
     if (body.max_tokens) {
-      streamConfig.maxTokens = body.max_tokens;
+      baseConfig.maxTokens = body.max_tokens;
     }
 
     // Enable thinking mode for Anthropic if requested
     if (thinkingMode && resolved.provider === 'anthropic') {
-      streamConfig.experimental_thinking = true;
+      baseConfig.experimental_thinking = true;
       console.log('[V1/Chat] Enabled Anthropic thinking mode');
     }
 
@@ -474,25 +470,144 @@ When you use a tool successfully:
     }
 
     if (Object.keys(providerMetadata).length > 0) {
-      streamConfig.experimental_providerMetadata = providerMetadata;
+      baseConfig.experimental_providerMetadata = providerMetadata;
     }
 
-    console.log('[V1/Chat] AI SDK stream config:', JSON.stringify({
+    console.log('[V1/Chat] AI SDK config:', JSON.stringify({
       modelProvider: resolved.provider,
       model: resolved.keyConfig.modelId,
-      messageCount: streamConfig.messages.length,
-      hasTools: !!streamConfig.tools,
-      toolCount: streamConfig.tools ? Object.keys(streamConfig.tools).length : 0,
-      temperature: streamConfig.temperature,
-      maxTokens: streamConfig.maxTokens
+      messageCount: baseConfig.messages.length,
+      hasTools: !!baseConfig.tools,
+      toolCount: baseConfig.tools ? Object.keys(baseConfig.tools).length : 0,
+      temperature: baseConfig.temperature,
+      maxTokens: baseConfig.maxTokens,
+      stream: body.stream
     }, null, 2));
-    console.log('[V1/Chat] Messages:', JSON.stringify(streamConfig.messages.map((m: any) => ({
+    console.log('[V1/Chat] Messages:', JSON.stringify(baseConfig.messages.map((m: any) => ({
       role: m.role,
       contentLength: typeof m.content === 'string' ? m.content.length : (Array.isArray(m.content) ? m.content.length : 0),
       hasToolCalls: !!m.toolCalls
     })), null, 2));
 
-    const result = streamText(streamConfig);
+    // Handle non-streaming requests
+    if (body.stream !== true) {
+      console.log('[V1/Chat] Non-streaming request, using generateText');
+
+      const result = await generateText(baseConfig);
+
+      // Capture token usage
+      if (result.usage) {
+        tokenUsage = {
+          promptTokens: result.usage.promptTokens || 0,
+          completionTokens: result.usage.completionTokens || 0,
+          totalTokens: result.usage.totalTokens || 0,
+          systemPromptTokens,
+        };
+        console.log('[V1/Chat] Token usage:', tokenUsage);
+      }
+
+      const assistantResponse = result.text || '';
+
+      // Auto-save conversation if conversationId provided and user is authenticated
+      if (conversationId && typeof conversationId === 'string' && conversationId.trim() && req.user && assistantResponse) {
+        try {
+          const allMessages = [
+            ...messages.filter((m: any) => m && m.role).map((m: any) => ({
+              role: m.role,
+              content: m.content,
+              toolInvocations: m.toolInvocations
+            })),
+            {
+              role: 'assistant',
+              content: assistantResponse,
+            }
+          ].filter(msg => msg != null && msg.role && msg.content !== undefined);
+
+          let title: string | undefined;
+          const titleMatch = assistantResponse.match(/\[TITLE\](.*?)\[\/TITLE\]/);
+          if (titleMatch) {
+            title = titleMatch[1].trim();
+          }
+
+          await Conversation.findOneAndUpdate(
+            { oxyUserId: req.user.id, conversationId: conversationId },
+            {
+              conversationId: conversationId,
+              oxyUserId: req.user.id,
+              messages: allMessages,
+              ...(title && { title }),
+              updatedAt: new Date(),
+            },
+            { upsert: true, new: true }
+          );
+          console.log(`[V1/Chat] Conversation ${conversationId} saved`);
+        } catch (error) {
+          console.error('[V1/Chat] Error saving conversation:', error);
+        }
+      }
+
+      // Finalize credits
+      let creditsCharged = 0;
+      let creditsRemaining = 0;
+      if (creditReservation && req.user) {
+        try {
+          const creditResult = await finalizeCredits(creditReservation, tokenUsage, aliasModelId);
+          creditsCharged = creditResult.creditsCharged;
+          creditsRemaining = creditResult.creditsRemaining;
+        } catch (error) {
+          console.error('[V1/Chat] Error finalizing credits:', error);
+        }
+      }
+
+      // Build tool_calls array if there were any tool calls
+      const toolCalls = result.toolCalls?.map((tc: any, index: number) => {
+        const originalToolName = toolNameMapping.get(tc.toolName) || tc.toolName;
+        return {
+          id: tc.toolCallId || `call_${Date.now()}_${index}`,
+          type: 'function',
+          function: {
+            name: originalToolName,
+            arguments: JSON.stringify(tc.args || {})
+          }
+        };
+      });
+
+      // Return OpenAI-compatible non-streaming response
+      const response = {
+        id: `chatcmpl-${Date.now()}`,
+        object: 'chat.completion',
+        created: Math.floor(Date.now() / 1000),
+        model: aliasModelId,
+        choices: [{
+          index: 0,
+          message: {
+            role: 'assistant',
+            content: assistantResponse,
+            ...(toolCalls && toolCalls.length > 0 && { tool_calls: toolCalls })
+          },
+          finish_reason: result.finishReason || 'stop'
+        }],
+        usage: {
+          prompt_tokens: tokenUsage.promptTokens,
+          completion_tokens: tokenUsage.completionTokens,
+          total_tokens: tokenUsage.totalTokens,
+          system_prompt_tokens: tokenUsage.systemPromptTokens || 0,
+          billable_tokens: Math.max(0, tokenUsage.totalTokens - (tokenUsage.systemPromptTokens || 0)),
+          credits_charged: creditsCharged,
+          credits_remaining: creditsRemaining
+        }
+      };
+
+      res.json(response);
+      return;
+    }
+
+    // Streaming request - set SSE headers
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+
+    const result = streamText(baseConfig);
 
     // Stream OpenAI-compatible chunks
     console.log('[V1/Chat] Starting to process AI SDK stream...');
