@@ -133,6 +133,6 @@ function ModelsPage() {
           </div>
         )}
       </div>
-    </div>
+    </ScrollArea>
   );
 }
