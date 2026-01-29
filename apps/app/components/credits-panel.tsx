@@ -30,7 +30,7 @@ export function CreditsPanel() {
   };
 
   return (
-    <View className="flex-1 bg-background border-l border-border">
+    <View className="flex-1 bg-background">
       {/* Header */}
       <View className="flex-row items-center justify-between px-4 py-3 border-b border-border">
         <Text className="text-base font-semibold text-foreground">

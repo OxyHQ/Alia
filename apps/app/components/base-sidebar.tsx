@@ -41,7 +41,7 @@ export const BaseSidebar = React.memo(function BaseSidebar({
   showScrollIndicator = false,
 }: BaseSidebarProps) {
   return (
-    <View className={`flex-1 ${backgroundColor}`}>
+    <View className={`flex-1 ${backgroundColor} border-r border-border`}>
       {/* Header */}
       <View className="border-b border-border/50 p-4 md:p-3">
         {header}
