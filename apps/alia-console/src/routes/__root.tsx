@@ -1,22 +1,39 @@
 import { HeadContent, Outlet, Scripts, createRootRoute } from '@tanstack/react-router';
-import { TanStackRouterDevtoolsPanel } from '@tanstack/react-router-devtools';
-import { TanStackDevtools } from '@tanstack/react-devtools';
+import { lazy, Suspense } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { WebOxyProvider } from '@oxyhq/services/web';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { Toaster } from '@/components/ui/sonner';
+import { WorkspaceProvider } from '@/hooks/use-workspace';
 
 import appCss from '../styles.css?url';
 import config from '@/lib/config';
 
+// Optimized QueryClient with better caching for performance
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      staleTime: 1000 * 60, // 1 minute
+      staleTime: 1000 * 60 * 5, // 5 minutes - reduce unnecessary refetches
+      gcTime: 1000 * 60 * 30, // 30 minutes - keep data in cache longer
+      retry: 1,
+      refetchOnWindowFocus: false, // Don't refetch when user returns to tab
+      refetchOnReconnect: 'always',
+    },
+    mutations: {
       retry: 1,
     },
   },
 });
+
+// Lazy load devtools for better initial load performance
+const TanStackDevtools = lazy(() =>
+  import('@tanstack/react-devtools').then((mod) => ({ default: mod.TanStackDevtools }))
+);
+const TanStackRouterDevtoolsPanel = lazy(() =>
+  import('@tanstack/react-router-devtools').then((mod) => ({
+    default: mod.TanStackRouterDevtoolsPanel,
+  }))
+);
 
 export const Route = createRootRoute({
   head: () => ({
@@ -52,23 +69,29 @@ function RootComponent() {
       <body className="min-h-screen bg-background font-sans antialiased">
         <QueryClientProvider client={queryClient}>
           <WebOxyProvider baseURL={config.oxyUrl}>
-            <TooltipProvider>
-              <Outlet />
-              <Toaster />
-            </TooltipProvider>
+            <WorkspaceProvider>
+              <TooltipProvider delayDuration={300}>
+                <Outlet />
+                <Toaster position="bottom-right" richColors closeButton />
+              </TooltipProvider>
+            </WorkspaceProvider>
           </WebOxyProvider>
         </QueryClientProvider>
-        <TanStackDevtools
-          config={{
-            position: 'bottom-right',
-          }}
-          plugins={[
-            {
-              name: 'Tanstack Router',
-              render: <TanStackRouterDevtoolsPanel />,
-            },
-          ]}
-        />
+        {import.meta.env.DEV && (
+          <Suspense fallback={null}>
+            <TanStackDevtools
+              config={{
+                position: 'bottom-right',
+              }}
+              plugins={[
+                {
+                  name: 'Tanstack Router',
+                  render: <TanStackRouterDevtoolsPanel />,
+                },
+              ]}
+            />
+          </Suspense>
+        )}
         <Scripts />
       </body>
     </html>
