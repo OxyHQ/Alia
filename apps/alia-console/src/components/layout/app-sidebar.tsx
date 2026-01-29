@@ -93,6 +93,14 @@ export function AppSidebar() {
     return (name.first?.[0] || user?.username?.[0] || 'U').toUpperCase();
   };
 
+  const getAvatarUrl = () => {
+    if (!user?.avatar) return undefined;
+    // If it's already a full URL, return it
+    if (user.avatar.startsWith('http')) return user.avatar;
+    // Otherwise, construct the Oxy media URL
+    return `${config.oxyUrl}/media/${user.avatar}`;
+  };
+
   const getUserDisplayName = () => {
     if (!user) return 'User';
     const name = user.name as { first?: string; last?: string } | undefined;
@@ -186,7 +194,7 @@ export function AppSidebar() {
                     className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
                   >
                     <Avatar className="size-8 rounded-lg">
-                      {user?.avatar && <AvatarImage src={user.avatar} />}
+                      <AvatarImage src={getAvatarUrl()} />
                       <AvatarFallback className="rounded-lg">
                         {getUserInitials()}
                       </AvatarFallback>

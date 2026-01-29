@@ -8,47 +8,26 @@ const apiClient = axios.create({
   headers: {
     'Content-Type': 'application/json',
   },
+  withCredentials: true, // Include cookies for cross-origin requests
 });
 
-// Get session ID from localStorage (where @oxyhq/services/web stores it)
-function getSessionId(): string | null {
-  if (typeof window === 'undefined') return null;
-  try {
-    const sessionData = localStorage.getItem('oxy_session');
-    if (sessionData) {
-      const session = JSON.parse(sessionData);
-      return session?.id || session?._id || null;
-    }
-    return null;
-  } catch {
-    return null;
-  }
-}
+// Token getter - will be set by ApiAuthSetup component
+let getAccessToken: (() => Promise<string | null>) | null = null;
 
-// Get access token from localStorage
-function getAccessToken(): string | null {
-  if (typeof window === 'undefined') return null;
-  try {
-    return localStorage.getItem('oxy_access_token');
-  } catch {
-    return null;
-  }
+export function setTokenGetter(getter: () => Promise<string | null>) {
+  getAccessToken = getter;
 }
 
 // Request interceptor to add authentication
 apiClient.interceptors.request.use(
-  (config) => {
-    const sessionId = getSessionId();
-    if (sessionId) {
-      config.headers['x-session-id'] = sessionId;
+  async (requestConfig) => {
+    if (getAccessToken) {
+      const token = await getAccessToken();
+      if (token) {
+        requestConfig.headers['Authorization'] = `Bearer ${token}`;
+      }
     }
-
-    const accessToken = getAccessToken();
-    if (accessToken) {
-      config.headers['Authorization'] = `Bearer ${accessToken}`;
-    }
-
-    return config;
+    return requestConfig;
   },
   (error) => {
     return Promise.reject(error);
@@ -59,6 +38,10 @@ apiClient.interceptors.request.use(
 apiClient.interceptors.response.use(
   (response) => response,
   (error) => {
+    // Handle 401 errors - might need to refresh token
+    if (error.response?.status === 401) {
+      console.warn('API returned 401 - authentication may have expired');
+    }
     return Promise.reject(error);
   }
 );

@@ -18,6 +18,12 @@ const config = defineConfig({
     tanstackStart(),
     viteReact(),
   ],
+  optimizeDeps: {
+    exclude: ['@oxyhq/services'],
+  },
+  ssr: {
+    noExternal: ['@oxyhq/services'],
+  },
 })
 
 export default config
