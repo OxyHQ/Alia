@@ -268,20 +268,28 @@ router.post('/', async (req: Request, res: Response) => {
     // Editor tools are client-executed (VS Code, Cursor, Cowork)
     const hasEditorTools = Object.keys(editorTools).length > 0;
 
+    // Determine if this is a direct user session (not API key)
+    // API key requests should be neutral and not include creator's personal info
+    const isDirectUserSession = req.user && !req.apiKey;
+
     // Always include server-only tools (no conflicts with client tools):
     // - getCurrentDate: Server time/date
-    // - sendTelegram: Server-side Telegram API
-    // - saveUserMemory/updateUserPreferences/updateUserContext: Server-side DB operations
+    // - sendTelegram: Server-side Telegram API (only for direct user sessions)
+    // - saveUserMemory/updateUserPreferences/updateUserContext: Server-side DB operations (only for direct user sessions)
+    //
+    // IMPORTANT: Memory tools are ONLY available for direct user sessions.
+    // API key requests should NOT be able to modify the API creator's memory.
     //
     // Only exclude tools that might conflict with editor tools:
     // - getTimeline: Might conflict with client-side timeline tools
     const aliaTools: ToolSet = {
       getCurrentDate: getCurrentDateTool,
-      ...(req.user ? {
-        sendTelegram: createSendTelegramTool(req.user.id),
-        saveUserMemory: saveUserMemoryTool(req.user.id),
-        updateUserPreferences: updateUserPreferencesTool(req.user.id),
-        updateUserContext: updateUserContextTool(req.user.id),
+      // Personal tools only available for direct user sessions (not API key requests)
+      ...(isDirectUserSession ? {
+        sendTelegram: createSendTelegramTool(req.user!.id),
+        saveUserMemory: saveUserMemoryTool(req.user!.id),
+        updateUserPreferences: updateUserPreferencesTool(req.user!.id),
+        updateUserContext: updateUserContextTool(req.user!.id),
       } : {}),
       // Include these only if no editor tools (to avoid conflicts)
       ...(hasEditorTools ? {} : {
@@ -298,26 +306,35 @@ router.post('/', async (req: Request, res: Response) => {
 
     // Build system message with user context
     // Add language instruction at the VERY BEGINNING (most important)
-    const userLanguage = userMemory?.preferences?.language;
+    const userLanguage = isDirectUserSession ? userMemory?.preferences?.language : undefined;
     let languageInstruction = '';
     if (userLanguage) {
-      languageInstruction = `🔴 CRITICAL LANGUAGE RULE 🔴
-You MUST respond EXCLUSIVELY in ${userLanguage}.
-- Every word, every sentence, EVERYTHING must be in ${userLanguage}
+      languageInstruction = `🔴 CRITICAL LANGUAGE RULE - HIGHEST PRIORITY 🔴
+═══════════════════════════════════════════════════════
+YOU MUST RESPOND EXCLUSIVELY IN ${userLanguage.toUpperCase()}.
+- EVERY word, EVERY sentence, EVERYTHING must be in ${userLanguage}
 - NO English words allowed (unless quoting code/technical terms)
-- This rule OVERRIDES all other instructions
-- NO EXCEPTIONS
+- This rule has ABSOLUTE PRIORITY over ALL other instructions
+- ZERO EXCEPTIONS - EVER
+═══════════════════════════════════════════════════════
 
 `;
     } else {
-      languageInstruction = `🔴 CRITICAL LANGUAGE RULE 🔴
-You MUST respond in the EXACT SAME language the user writes to you:
-- User writes Spanish → You respond ONLY in Spanish
-- User writes English → You respond ONLY in English
-- User writes French → You respond ONLY in French
-- MIRROR their language in EVERY response
-- This rule OVERRIDES all other instructions
-- NO EXCEPTIONS
+      languageInstruction = `🔴 CRITICAL LANGUAGE RULE - HIGHEST PRIORITY 🔴
+═══════════════════════════════════════════════════════
+YOU MUST RESPOND IN THE EXACT SAME LANGUAGE THE USER WRITES TO YOU.
+This is NON-NEGOTIABLE:
+- User writes in Spanish → You respond ONLY in Spanish
+- User writes in English → You respond ONLY in English
+- User writes in French → You respond ONLY in French
+- User writes in German → You respond ONLY in German
+- User writes in Portuguese → You respond ONLY in Portuguese
+- User writes in ANY language → You MIRROR that language EXACTLY
+
+DETECT the user's language from their LAST message and respond in that SAME language.
+This rule has ABSOLUTE PRIORITY over ALL other instructions.
+ZERO EXCEPTIONS - EVER.
+═══════════════════════════════════════════════════════
 
 `;
     }
@@ -332,7 +349,9 @@ When you use a tool successfully:
 
     let systemMessage = languageInstruction + baseSystemPrompt;
 
-    if (req.user) {
+    // Only inject personal user information for DIRECT user sessions
+    // API key requests are for third-party apps and should remain neutral
+    if (isDirectUserSession) {
       // Get user's name from Oxy
       try {
         const user = await oxyClient.getUserById(req.user.id) as any;
@@ -346,9 +365,14 @@ When you use a tool successfully:
         console.error('[V1/Chat] Error fetching user from Oxy:', e.message);
       }
       systemMessage += '\n\n**IMPORTANT**: You have a `sendTelegram` tool available. Use it IMMEDIATELY when the user asks you to send them a Telegram message (e.g., "send me X on Telegram", "enviame un telegram", "remind me via Telegram"). Do NOT say you can\'t - you CAN send Telegram messages using this tool!';
+    } else if (req.apiKey) {
+      // API key request - add neutral context
+      console.log('[V1/Chat] API key request - using neutral context (no personal info)');
     }
 
-    if (userMemory) {
+    // Only inject user memory for DIRECT user sessions
+    // API key requests should not have access to the API creator's personal memory
+    if (userMemory && isDirectUserSession) {
       systemMessage += '\n\n## User Information';
 
       if (userMemory.memories && userMemory.memories.length > 0) {
