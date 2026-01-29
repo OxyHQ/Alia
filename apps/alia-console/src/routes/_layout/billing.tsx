@@ -1,5 +1,6 @@
 import { createFileRoute } from '@tanstack/react-router';
 import { Button } from '@/components/ui/button';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import { useCredits, useCreditPackages, useSubscription, useCreateCheckout } from '@/hooks/use-billing';
 
 export const Route = createFileRoute('/_layout/billing')({
@@ -28,7 +29,7 @@ function BillingPage() {
   };
 
   return (
-    <div className="flex-1 bg-background">
+    <ScrollArea className="flex-1 bg-background">
       {/* Header */}
       <div className="px-6 py-6 border-b border-border">
         <h1 className="text-2xl font-semibold text-foreground">Billing</h1>
@@ -152,6 +153,6 @@ function BillingPage() {
           </div>
         )}
       </div>
-    </div>
+    </ScrollArea>
   );
 }
