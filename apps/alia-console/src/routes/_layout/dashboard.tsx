@@ -17,7 +17,7 @@ function DashboardPage() {
   const { data: developerStats } = useDeveloperStats();
   const { data: credits } = useCredits();
 
-  const hasCredits = (credits?.total ?? 0) > 0;
+  const hasCredits = (credits?.credits ?? 0) > 0;
   const hasApiKey = (developerStats?.totalKeys ?? 0) > 0;
   const hasRequests = (developerStats?.last30Days?.totalRequests ?? 0) > 0;
 

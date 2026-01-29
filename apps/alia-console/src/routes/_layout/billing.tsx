@@ -51,19 +51,19 @@ function BillingPage() {
           <div className="flex flex-row gap-12">
             <div>
               <p className="text-2xl font-semibold text-foreground">
-                {(credits?.total ?? 0).toLocaleString()}
+                {(credits?.credits ?? 0).toLocaleString()}
               </p>
               <p className="text-sm text-muted-foreground mt-0.5">Total credits</p>
             </div>
             <div>
               <p className="text-2xl font-semibold text-foreground">
-                {(credits?.free ?? 0).toLocaleString()}
+                {(credits?.freeCredits ?? 0).toLocaleString()}
               </p>
               <p className="text-sm text-muted-foreground mt-0.5">Free credits</p>
             </div>
             <div>
               <p className="text-2xl font-semibold text-foreground">
-                {(credits?.paid ?? 0).toLocaleString()}
+                {(credits?.paidCredits ?? 0).toLocaleString()}
               </p>
               <p className="text-sm text-muted-foreground mt-0.5">Paid credits</p>
             </div>

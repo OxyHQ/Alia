@@ -55,9 +55,11 @@ export interface Transaction {
 }
 
 export interface Credits {
-  free: number;
-  paid: number;
-  total: number;
+  credits: number;
+  freeCredits: number;
+  paidCredits: number;
+  dailyRefresh: number;
+  lastRefresh: string | null;
 }
 
 // ======================
@@ -65,7 +67,7 @@ export interface Credits {
 // ======================
 
 async function fetchCredits(): Promise<Credits> {
-  const response = await apiClient.get('/billing/credits');
+  const response = await apiClient.get('/credits/');
   return response.data;
 }
 
