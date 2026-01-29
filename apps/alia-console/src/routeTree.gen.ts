@@ -19,6 +19,9 @@ import { Route as LayoutBillingRouteImport } from './routes/_layout/billing'
 import { Route as LayoutDocumentationIndexRouteImport } from './routes/_layout/documentation/index'
 import { Route as LayoutAppsIndexRouteImport } from './routes/_layout/apps/index'
 import { Route as LayoutDocumentationQuickstartRouteImport } from './routes/_layout/documentation/quickstart'
+import { Route as LayoutDocumentationModelsRouteImport } from './routes/_layout/documentation/models'
+import { Route as LayoutDocumentationChatCompletionsRouteImport } from './routes/_layout/documentation/chat-completions'
+import { Route as LayoutDocumentationAuthenticationRouteImport } from './routes/_layout/documentation/authentication'
 import { Route as LayoutAppsAppIdIndexRouteImport } from './routes/_layout/apps/$appId/index'
 import { Route as LayoutAppsAppIdUsageRouteImport } from './routes/_layout/apps/$appId/usage'
 import { Route as LayoutAppsAppIdSettingsRouteImport } from './routes/_layout/apps/$appId/settings'
@@ -75,6 +78,24 @@ const LayoutDocumentationQuickstartRoute =
     path: '/documentation/quickstart',
     getParentRoute: () => LayoutRoute,
   } as any)
+const LayoutDocumentationModelsRoute =
+  LayoutDocumentationModelsRouteImport.update({
+    id: '/documentation/models',
+    path: '/documentation/models',
+    getParentRoute: () => LayoutRoute,
+  } as any)
+const LayoutDocumentationChatCompletionsRoute =
+  LayoutDocumentationChatCompletionsRouteImport.update({
+    id: '/documentation/chat-completions',
+    path: '/documentation/chat-completions',
+    getParentRoute: () => LayoutRoute,
+  } as any)
+const LayoutDocumentationAuthenticationRoute =
+  LayoutDocumentationAuthenticationRouteImport.update({
+    id: '/documentation/authentication',
+    path: '/documentation/authentication',
+    getParentRoute: () => LayoutRoute,
+  } as any)
 const LayoutAppsAppIdIndexRoute = LayoutAppsAppIdIndexRouteImport.update({
   id: '/apps/$appId/',
   path: '/apps/$appId/',
@@ -104,6 +125,9 @@ export interface FileRoutesByFullPath {
   '/examples': typeof LayoutExamplesRoute
   '/models': typeof LayoutModelsRoute
   '/usage': typeof LayoutUsageRoute
+  '/documentation/authentication': typeof LayoutDocumentationAuthenticationRoute
+  '/documentation/chat-completions': typeof LayoutDocumentationChatCompletionsRoute
+  '/documentation/models': typeof LayoutDocumentationModelsRoute
   '/documentation/quickstart': typeof LayoutDocumentationQuickstartRoute
   '/apps/': typeof LayoutAppsIndexRoute
   '/documentation/': typeof LayoutDocumentationIndexRoute
@@ -119,6 +143,9 @@ export interface FileRoutesByTo {
   '/examples': typeof LayoutExamplesRoute
   '/models': typeof LayoutModelsRoute
   '/usage': typeof LayoutUsageRoute
+  '/documentation/authentication': typeof LayoutDocumentationAuthenticationRoute
+  '/documentation/chat-completions': typeof LayoutDocumentationChatCompletionsRoute
+  '/documentation/models': typeof LayoutDocumentationModelsRoute
   '/documentation/quickstart': typeof LayoutDocumentationQuickstartRoute
   '/apps': typeof LayoutAppsIndexRoute
   '/documentation': typeof LayoutDocumentationIndexRoute
@@ -136,6 +163,9 @@ export interface FileRoutesById {
   '/_layout/examples': typeof LayoutExamplesRoute
   '/_layout/models': typeof LayoutModelsRoute
   '/_layout/usage': typeof LayoutUsageRoute
+  '/_layout/documentation/authentication': typeof LayoutDocumentationAuthenticationRoute
+  '/_layout/documentation/chat-completions': typeof LayoutDocumentationChatCompletionsRoute
+  '/_layout/documentation/models': typeof LayoutDocumentationModelsRoute
   '/_layout/documentation/quickstart': typeof LayoutDocumentationQuickstartRoute
   '/_layout/apps/': typeof LayoutAppsIndexRoute
   '/_layout/documentation/': typeof LayoutDocumentationIndexRoute
@@ -153,6 +183,9 @@ export interface FileRouteTypes {
     | '/examples'
     | '/models'
     | '/usage'
+    | '/documentation/authentication'
+    | '/documentation/chat-completions'
+    | '/documentation/models'
     | '/documentation/quickstart'
     | '/apps/'
     | '/documentation/'
@@ -168,6 +201,9 @@ export interface FileRouteTypes {
     | '/examples'
     | '/models'
     | '/usage'
+    | '/documentation/authentication'
+    | '/documentation/chat-completions'
+    | '/documentation/models'
     | '/documentation/quickstart'
     | '/apps'
     | '/documentation'
@@ -184,6 +220,9 @@ export interface FileRouteTypes {
     | '/_layout/examples'
     | '/_layout/models'
     | '/_layout/usage'
+    | '/_layout/documentation/authentication'
+    | '/_layout/documentation/chat-completions'
+    | '/_layout/documentation/models'
     | '/_layout/documentation/quickstart'
     | '/_layout/apps/'
     | '/_layout/documentation/'
@@ -270,6 +309,27 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LayoutDocumentationQuickstartRouteImport
       parentRoute: typeof LayoutRoute
     }
+    '/_layout/documentation/models': {
+      id: '/_layout/documentation/models'
+      path: '/documentation/models'
+      fullPath: '/documentation/models'
+      preLoaderRoute: typeof LayoutDocumentationModelsRouteImport
+      parentRoute: typeof LayoutRoute
+    }
+    '/_layout/documentation/chat-completions': {
+      id: '/_layout/documentation/chat-completions'
+      path: '/documentation/chat-completions'
+      fullPath: '/documentation/chat-completions'
+      preLoaderRoute: typeof LayoutDocumentationChatCompletionsRouteImport
+      parentRoute: typeof LayoutRoute
+    }
+    '/_layout/documentation/authentication': {
+      id: '/_layout/documentation/authentication'
+      path: '/documentation/authentication'
+      fullPath: '/documentation/authentication'
+      preLoaderRoute: typeof LayoutDocumentationAuthenticationRouteImport
+      parentRoute: typeof LayoutRoute
+    }
     '/_layout/apps/$appId/': {
       id: '/_layout/apps/$appId/'
       path: '/apps/$appId'
@@ -307,6 +367,9 @@ interface LayoutRouteChildren {
   LayoutExamplesRoute: typeof LayoutExamplesRoute
   LayoutModelsRoute: typeof LayoutModelsRoute
   LayoutUsageRoute: typeof LayoutUsageRoute
+  LayoutDocumentationAuthenticationRoute: typeof LayoutDocumentationAuthenticationRoute
+  LayoutDocumentationChatCompletionsRoute: typeof LayoutDocumentationChatCompletionsRoute
+  LayoutDocumentationModelsRoute: typeof LayoutDocumentationModelsRoute
   LayoutDocumentationQuickstartRoute: typeof LayoutDocumentationQuickstartRoute
   LayoutAppsIndexRoute: typeof LayoutAppsIndexRoute
   LayoutDocumentationIndexRoute: typeof LayoutDocumentationIndexRoute
@@ -322,6 +385,11 @@ const LayoutRouteChildren: LayoutRouteChildren = {
   LayoutExamplesRoute: LayoutExamplesRoute,
   LayoutModelsRoute: LayoutModelsRoute,
   LayoutUsageRoute: LayoutUsageRoute,
+  LayoutDocumentationAuthenticationRoute:
+    LayoutDocumentationAuthenticationRoute,
+  LayoutDocumentationChatCompletionsRoute:
+    LayoutDocumentationChatCompletionsRoute,
+  LayoutDocumentationModelsRoute: LayoutDocumentationModelsRoute,
   LayoutDocumentationQuickstartRoute: LayoutDocumentationQuickstartRoute,
   LayoutAppsIndexRoute: LayoutAppsIndexRoute,
   LayoutDocumentationIndexRoute: LayoutDocumentationIndexRoute,
