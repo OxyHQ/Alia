@@ -10,7 +10,7 @@ import {
   AccordionTrigger,
 } from '@/components/ui/accordion';
 import { HugeiconsIcon } from '@hugeicons/react';
-import { ArtificialIntelligence01Icon, Settings01Icon, Code01Icon } from '@hugeicons/core-free-icons';
+import { ArtificialIntelligence01Icon, Settings01Icon, SourceCodeIcon } from '@hugeicons/core-free-icons';
 
 // Root component
 function Agent({ className, children, ...props }: React.ComponentProps<'div'>) {
@@ -83,7 +83,7 @@ function AgentTools({
   return (
     <div className="px-4 py-3">
       <div className="flex items-center gap-2 mb-2">
-        <HugeiconsIcon icon={Code01Icon} className="size-4 text-muted-foreground" />
+        <HugeiconsIcon icon={SourceCodeIcon} className="size-4 text-muted-foreground" />
         <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
           Tools
         </span>

@@ -1,7 +1,6 @@
 import { createFileRoute, Link } from '@tanstack/react-router';
 import { HugeiconsIcon } from '@hugeicons/react';
-import { ArrowLeft01Icon, ArrowRight01Icon, Copy01Icon, Tick02Icon } from '@hugeicons/core-free-icons';
-import { Button } from '@/components/ui/button';
+import { ArrowLeft01Icon, ArrowRight01Icon, SourceCodeIcon } from '@hugeicons/core-free-icons';
 import {
   EnvironmentVariables,
   EnvironmentVariablesHeader,
@@ -10,42 +9,18 @@ import {
   EnvironmentVariablesContent,
   EnvironmentVariable,
 } from '@/components/ui/environment-variables';
-import { useState } from 'react';
-import { toast } from 'sonner';
+import {
+  CodeBlock,
+  CodeBlockHeader,
+  CodeBlockTitle,
+  CodeBlockFilename,
+  CodeBlockActions,
+  CodeBlockCopyButton,
+} from '@/components/ui/code-block';
 
 export const Route = createFileRoute('/_layout/documentation/quickstart')({
   component: QuickStartPage,
 });
-
-function CodeBlock({ code, language = 'bash' }: { code: string; language?: string }) {
-  const [copied, setCopied] = useState(false);
-
-  const handleCopy = async () => {
-    await navigator.clipboard.writeText(code);
-    setCopied(true);
-    toast.success('Copied to clipboard');
-    setTimeout(() => setCopied(false), 2000);
-  };
-
-  return (
-    <div className="relative group">
-      <pre className="bg-muted p-4 rounded-lg overflow-x-auto text-sm font-mono">
-        {code}
-      </pre>
-      <Button
-        variant="ghost"
-        size="icon"
-        className="absolute top-2 right-2 h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity"
-        onClick={handleCopy}
-      >
-        <HugeiconsIcon
-          icon={copied ? Tick02Icon : Copy01Icon}
-          className={`size-4 ${copied ? 'text-green-500' : ''}`}
-        />
-      </Button>
-    </div>
-  );
-}
 
 function QuickStartPage() {
   return (
@@ -103,11 +78,31 @@ function QuickStartPage() {
         <div className="space-y-4">
           <div>
             <p className="text-xs font-medium text-muted-foreground mb-2">Node.js / JavaScript</p>
-            <CodeBlock code="npm install openai" />
+            <CodeBlock code="npm install openai" language="bash">
+              <CodeBlockHeader>
+                <CodeBlockTitle>
+                  <HugeiconsIcon icon={SourceCodeIcon} size={14} className="text-muted-foreground" />
+                  <CodeBlockFilename>Terminal</CodeBlockFilename>
+                </CodeBlockTitle>
+                <CodeBlockActions>
+                  <CodeBlockCopyButton />
+                </CodeBlockActions>
+              </CodeBlockHeader>
+            </CodeBlock>
           </div>
           <div>
             <p className="text-xs font-medium text-muted-foreground mb-2">Python</p>
-            <CodeBlock code="pip install openai" />
+            <CodeBlock code="pip install openai" language="bash">
+              <CodeBlockHeader>
+                <CodeBlockTitle>
+                  <HugeiconsIcon icon={SourceCodeIcon} size={14} className="text-muted-foreground" />
+                  <CodeBlockFilename>Terminal</CodeBlockFilename>
+                </CodeBlockTitle>
+                <CodeBlockActions>
+                  <CodeBlockCopyButton />
+                </CodeBlockActions>
+              </CodeBlockHeader>
+            </CodeBlock>
           </div>
         </div>
       </div>
@@ -124,6 +119,7 @@ function QuickStartPage() {
           Here's a simple example using cURL:
         </p>
         <CodeBlock
+          language="bash"
           code={`curl https://api.alia.onl/v1/chat/completions \\
   -H "Authorization: Bearer $ALIA_API_KEY" \\
   -H "Content-Type: application/json" \\
@@ -133,7 +129,17 @@ function QuickStartPage() {
       {"role": "user", "content": "Hello!"}
     ]
   }'`}
-        />
+        >
+          <CodeBlockHeader>
+            <CodeBlockTitle>
+              <HugeiconsIcon icon={SourceCodeIcon} size={14} className="text-muted-foreground" />
+              <CodeBlockFilename>cURL Request</CodeBlockFilename>
+            </CodeBlockTitle>
+            <CodeBlockActions>
+              <CodeBlockCopyButton />
+            </CodeBlockActions>
+          </CodeBlockHeader>
+        </CodeBlock>
       </div>
 
       {/* Step 4 */}
@@ -168,7 +174,17 @@ function QuickStartPage() {
     "total_tokens": 25
   }
 }`}
-        />
+        >
+          <CodeBlockHeader>
+            <CodeBlockTitle>
+              <HugeiconsIcon icon={SourceCodeIcon} size={14} className="text-muted-foreground" />
+              <CodeBlockFilename>Response</CodeBlockFilename>
+            </CodeBlockTitle>
+            <CodeBlockActions>
+              <CodeBlockCopyButton />
+            </CodeBlockActions>
+          </CodeBlockHeader>
+        </CodeBlock>
       </div>
 
       {/* Next Steps */}
