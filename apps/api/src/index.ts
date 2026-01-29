@@ -57,6 +57,37 @@ server.on('connection', (socket) => {
 import { initSocket } from './socket.js';
 const io = initSocket(server);
 
+// WebSocket for Voice API
+import { WebSocketServer } from 'ws';
+import { setupRealtimeEndpoint } from './routes/v1/realtime.js';
+
+const wss = new WebSocketServer({
+  noServer: true,
+  clientTracking: true,
+  maxPayload: 10 * 1024 * 1024, // 10MB max payload for audio
+});
+
+// Handle WebSocket upgrade for /v1/realtime path
+server.on('upgrade', (request, socket, head) => {
+  try {
+    const pathname = new URL(request.url!, `http://${request.headers.host}`).pathname;
+
+    if (pathname === '/v1/realtime') {
+      wss.handleUpgrade(request, socket, head, (ws) => {
+        wss.emit('connection', ws, request);
+      });
+    } else {
+      socket.destroy();
+    }
+  } catch (error) {
+    console.error('[Server] Error during WebSocket upgrade:', error);
+    socket.destroy();
+  }
+});
+
+// Setup realtime endpoint
+setupRealtimeEndpoint(wss);
+
 // Middleware - Allow multiple origins for web and mobile app
 const allowedOrigins = [
   process.env.WEB_URL || 'http://localhost:3000',

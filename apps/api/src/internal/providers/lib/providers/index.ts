@@ -1,4 +1,5 @@
 import type { Provider } from '../types';
+import type { VoiceProvider } from '../types-voice';
 
 import { googleProvider } from './google';
 import { groqProvider } from './groq';
@@ -10,10 +11,11 @@ import { openrouterProvider } from './openrouter';
 import { mistralProvider } from './mistral';
 import { cloudflareProvider } from './cloudflare';
 import { deepseekProvider } from './deepseek';
+import { grokVoiceProvider } from './grok-voice';
 
 // ============== REGISTRO DE PROVEEDORES ==============
 // Añadir nuevos proveedores aquí
-export const providers: Record<string, Provider> = {
+export const providers: Record<string, Provider | VoiceProvider> = {
   google: googleProvider,
   groq: groqProvider,
   openai: openaiProvider,
@@ -24,9 +26,10 @@ export const providers: Record<string, Provider> = {
   mistral: mistralProvider,
   cloudflare: cloudflareProvider,
   deepseek: deepseekProvider,
+  grok: grokVoiceProvider,
 };
 
-export function getProvider(name: string): Provider | undefined {
+export function getProvider(name: string): Provider | VoiceProvider | undefined {
   return providers[name];
 }
 

@@ -6,7 +6,7 @@
  * requests are routed to appropriate provider models.
  */
 
-export type AliaTier = 'lite' | 'v1' | 'v1-codea' | 'v1-cowork' | 'v1-browser' | 'v1-vision' | 'v1-audio' | 'v1-multimodal' | 'v1-pro' | 'v1-pro-max';
+export type AliaTier = 'lite' | 'v1' | 'v1-codea' | 'v1-cowork' | 'v1-browser' | 'v1-vision' | 'v1-audio' | 'v1-multimodal' | 'v1-pro' | 'v1-pro-max' | 'v1-voice' | 'v1-voice-pro';
 
 export type ModelCategory = 'general' | 'coding';
 export type PricingTier = 'free' | 'freemium' | 'paid';
@@ -15,6 +15,7 @@ export interface ModelCapabilities {
   vision: boolean;
   audio: boolean;
   video: boolean;
+  voice: boolean;                // Real-time voice conversations
   tools: boolean;
   codeExecution: boolean;       // Built-in code execution (Groq Compound)
   webSearch: boolean;            // Built-in web search (GPT-OSS)
@@ -47,6 +48,7 @@ export interface ModelMapping {
   pricingTier: PricingTier;
   costPer1MInput?: number;       // USD per 1M input tokens
   costPer1MOutput?: number;      // USD per 1M output tokens
+  costPerMinute?: number;        // USD per minute (for voice/realtime models)
   averageLatencyMs?: number;     // Tracked performance
   capabilities: ModelCapabilities;
 }
@@ -174,6 +176,28 @@ export const ALIA_MODELS: Record<string, AliaModel> = {
     maxTokens: 128000,
     supportsTools: true,
     supportsVision: true,
+    category: 'general',
+  },
+  'alia-v1-voice': {
+    id: 'alia-v1-voice',
+    name: 'Alia V1 Voice',
+    tier: 'v1-voice',
+    description: 'Real-time voice conversations with low latency',
+    creditMultiplier: 2.0,
+    maxTokens: 8192,
+    supportsTools: true,
+    supportsVision: false,
+    category: 'general',
+  },
+  'alia-v1-voice-pro': {
+    id: 'alia-v1-voice-pro',
+    name: 'Alia V1 Voice Pro',
+    tier: 'v1-voice-pro',
+    description: 'Premium voice with extended context and advanced features',
+    creditMultiplier: 4.0,
+    maxTokens: 32768,
+    supportsTools: true,
+    supportsVision: false,
     category: 'general',
   },
 };
