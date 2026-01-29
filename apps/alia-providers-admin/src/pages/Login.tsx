@@ -32,7 +32,7 @@ export function LoginPage() {
 
           <div className="flex justify-center">
             <Button
-              onClick={signIn}
+              onClick={() => signIn()}
               disabled={isLoading}
               size="lg"
               className="w-full"
