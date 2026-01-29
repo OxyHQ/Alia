@@ -2,7 +2,7 @@ import { createFileRoute } from '@tanstack/react-router';
 import { useState, useRef, useCallback } from 'react';
 import { HugeiconsIcon } from '@hugeicons/react';
 import {
-  Play01Icon,
+  PlayIcon,
   StopIcon,
   Delete02Icon,
   Copy01Icon,
@@ -25,7 +25,6 @@ import {
 import {
   Collapsible,
   CollapsibleContent,
-  CollapsibleTrigger,
 } from '@/components/ui/collapsible';
 import { useModelsStats } from '@/hooks/use-developer';
 import { useApiKeys, useApps } from '@/hooks/use-developer';
@@ -449,7 +448,7 @@ function PlaygroundPage() {
                   onClick={handleSend}
                   disabled={!userInput.trim()}
                 >
-                  <HugeiconsIcon icon={Play01Icon} size={20} />
+                  <HugeiconsIcon icon={PlayIcon} size={20} />
                 </Button>
               )}
             </div>
