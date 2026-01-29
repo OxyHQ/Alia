@@ -18,6 +18,7 @@ import { Route as LayoutDashboardRouteImport } from './routes/_layout/dashboard'
 import { Route as LayoutBillingRouteImport } from './routes/_layout/billing'
 import { Route as LayoutDocumentationIndexRouteImport } from './routes/_layout/documentation/index'
 import { Route as LayoutAppsIndexRouteImport } from './routes/_layout/apps/index'
+import { Route as LayoutSettingsWorkspaceRouteImport } from './routes/_layout/settings/workspace'
 import { Route as LayoutDocumentationSdksRouteImport } from './routes/_layout/documentation/sdks'
 import { Route as LayoutDocumentationQuickstartRouteImport } from './routes/_layout/documentation/quickstart'
 import { Route as LayoutDocumentationModelsRouteImport } from './routes/_layout/documentation/models'
@@ -71,6 +72,11 @@ const LayoutDocumentationIndexRoute =
 const LayoutAppsIndexRoute = LayoutAppsIndexRouteImport.update({
   id: '/apps/',
   path: '/apps/',
+  getParentRoute: () => LayoutRoute,
+} as any)
+const LayoutSettingsWorkspaceRoute = LayoutSettingsWorkspaceRouteImport.update({
+  id: '/settings/workspace',
+  path: '/settings/workspace',
   getParentRoute: () => LayoutRoute,
 } as any)
 const LayoutDocumentationSdksRoute = LayoutDocumentationSdksRouteImport.update({
@@ -136,6 +142,7 @@ export interface FileRoutesByFullPath {
   '/documentation/models': typeof LayoutDocumentationModelsRoute
   '/documentation/quickstart': typeof LayoutDocumentationQuickstartRoute
   '/documentation/sdks': typeof LayoutDocumentationSdksRoute
+  '/settings/workspace': typeof LayoutSettingsWorkspaceRoute
   '/apps/': typeof LayoutAppsIndexRoute
   '/documentation/': typeof LayoutDocumentationIndexRoute
   '/apps/$appId/settings': typeof LayoutAppsAppIdSettingsRoute
@@ -155,6 +162,7 @@ export interface FileRoutesByTo {
   '/documentation/models': typeof LayoutDocumentationModelsRoute
   '/documentation/quickstart': typeof LayoutDocumentationQuickstartRoute
   '/documentation/sdks': typeof LayoutDocumentationSdksRoute
+  '/settings/workspace': typeof LayoutSettingsWorkspaceRoute
   '/apps': typeof LayoutAppsIndexRoute
   '/documentation': typeof LayoutDocumentationIndexRoute
   '/apps/$appId/settings': typeof LayoutAppsAppIdSettingsRoute
@@ -176,6 +184,7 @@ export interface FileRoutesById {
   '/_layout/documentation/models': typeof LayoutDocumentationModelsRoute
   '/_layout/documentation/quickstart': typeof LayoutDocumentationQuickstartRoute
   '/_layout/documentation/sdks': typeof LayoutDocumentationSdksRoute
+  '/_layout/settings/workspace': typeof LayoutSettingsWorkspaceRoute
   '/_layout/apps/': typeof LayoutAppsIndexRoute
   '/_layout/documentation/': typeof LayoutDocumentationIndexRoute
   '/_layout/apps/$appId/settings': typeof LayoutAppsAppIdSettingsRoute
@@ -197,6 +206,7 @@ export interface FileRouteTypes {
     | '/documentation/models'
     | '/documentation/quickstart'
     | '/documentation/sdks'
+    | '/settings/workspace'
     | '/apps/'
     | '/documentation/'
     | '/apps/$appId/settings'
@@ -216,6 +226,7 @@ export interface FileRouteTypes {
     | '/documentation/models'
     | '/documentation/quickstart'
     | '/documentation/sdks'
+    | '/settings/workspace'
     | '/apps'
     | '/documentation'
     | '/apps/$appId/settings'
@@ -236,6 +247,7 @@ export interface FileRouteTypes {
     | '/_layout/documentation/models'
     | '/_layout/documentation/quickstart'
     | '/_layout/documentation/sdks'
+    | '/_layout/settings/workspace'
     | '/_layout/apps/'
     | '/_layout/documentation/'
     | '/_layout/apps/$appId/settings'
@@ -312,6 +324,13 @@ declare module '@tanstack/react-router' {
       path: '/apps'
       fullPath: '/apps/'
       preLoaderRoute: typeof LayoutAppsIndexRouteImport
+      parentRoute: typeof LayoutRoute
+    }
+    '/_layout/settings/workspace': {
+      id: '/_layout/settings/workspace'
+      path: '/settings/workspace'
+      fullPath: '/settings/workspace'
+      preLoaderRoute: typeof LayoutSettingsWorkspaceRouteImport
       parentRoute: typeof LayoutRoute
     }
     '/_layout/documentation/sdks': {
@@ -391,6 +410,7 @@ interface LayoutRouteChildren {
   LayoutDocumentationModelsRoute: typeof LayoutDocumentationModelsRoute
   LayoutDocumentationQuickstartRoute: typeof LayoutDocumentationQuickstartRoute
   LayoutDocumentationSdksRoute: typeof LayoutDocumentationSdksRoute
+  LayoutSettingsWorkspaceRoute: typeof LayoutSettingsWorkspaceRoute
   LayoutAppsIndexRoute: typeof LayoutAppsIndexRoute
   LayoutDocumentationIndexRoute: typeof LayoutDocumentationIndexRoute
   LayoutAppsAppIdSettingsRoute: typeof LayoutAppsAppIdSettingsRoute
@@ -412,6 +432,7 @@ const LayoutRouteChildren: LayoutRouteChildren = {
   LayoutDocumentationModelsRoute: LayoutDocumentationModelsRoute,
   LayoutDocumentationQuickstartRoute: LayoutDocumentationQuickstartRoute,
   LayoutDocumentationSdksRoute: LayoutDocumentationSdksRoute,
+  LayoutSettingsWorkspaceRoute: LayoutSettingsWorkspaceRoute,
   LayoutAppsIndexRoute: LayoutAppsIndexRoute,
   LayoutDocumentationIndexRoute: LayoutDocumentationIndexRoute,
   LayoutAppsAppIdSettingsRoute: LayoutAppsAppIdSettingsRoute,

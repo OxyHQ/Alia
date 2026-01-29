@@ -8,6 +8,7 @@ import {
   Doc01Icon,
   Money01Icon,
   Login01Icon,
+  Settings01Icon,
 } from '@hugeicons/core-free-icons';
 import { useAuth } from '@oxyhq/services/web';
 import {
@@ -72,6 +73,19 @@ const resourceNavItems = [
   },
 ];
 
+const settingsNavItems = [
+  {
+    title: 'Settings',
+    url: '/settings',
+    icon: Settings01Icon,
+    items: [
+      { title: 'Workspace', url: '/settings/workspace' },
+      { title: 'Team', url: '/settings/workspace' },
+      { title: 'Billing', url: '/billing' },
+    ],
+  },
+];
+
 export function AppSidebar() {
   const { isAuthenticated } = useAuth();
 
@@ -89,6 +103,7 @@ export function AppSidebar() {
         <NavMain items={mainNavItems} label="Platform" />
         <NavApps />
         <NavMain items={resourceNavItems} label="Resources" />
+        <NavMain items={settingsNavItems} label="Settings" />
       </SidebarContent>
 
       <SidebarFooter>

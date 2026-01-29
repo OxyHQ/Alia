@@ -1,6 +1,14 @@
 import * as React from 'react';
+import { Link } from '@tanstack/react-router';
 import { HugeiconsIcon } from '@hugeicons/react';
-import { AiBrain01Icon, ArrowDown01Icon, Add01Icon, Tick02Icon, UserMultiple02Icon } from '@hugeicons/core-free-icons';
+import {
+  AiBrain01Icon,
+  ArrowDown01Icon,
+  Add01Icon,
+  Tick02Icon,
+  UserMultiple02Icon,
+  Settings01Icon,
+} from '@hugeicons/core-free-icons';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -20,6 +28,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
 import {
   SidebarMenu,
   SidebarMenuButton,
@@ -34,6 +43,7 @@ export function SidebarHeaderBrand() {
   const { workspaces, currentWorkspace, setCurrentWorkspace, createWorkspace, isLoading } = useWorkspace();
   const [showCreateDialog, setShowCreateDialog] = React.useState(false);
   const [newWorkspaceName, setNewWorkspaceName] = React.useState('');
+  const [newWorkspaceDescription, setNewWorkspaceDescription] = React.useState('');
   const [isCreating, setIsCreating] = React.useState(false);
 
   const handleCreateWorkspace = () => {
@@ -44,10 +54,14 @@ export function SidebarHeaderBrand() {
 
     setIsCreating(true);
     try {
-      createWorkspace(newWorkspaceName.trim());
+      createWorkspace({
+        name: newWorkspaceName.trim(),
+        description: newWorkspaceDescription.trim() || undefined,
+      });
       toast.success(`Workspace "${newWorkspaceName.trim()}" created`);
       setShowCreateDialog(false);
       setNewWorkspaceName('');
+      setNewWorkspaceDescription('');
     } catch {
       toast.error('Failed to create workspace');
     } finally {
@@ -131,6 +145,13 @@ export function SidebarHeaderBrand() {
                 </DropdownMenuItem>
               ))}
               <DropdownMenuSeparator />
+              <DropdownMenuItem className="gap-2 p-2" asChild>
+                <Link to="/settings/workspace">
+                  <HugeiconsIcon icon={Settings01Icon} size={14} className="text-muted-foreground" />
+                  <span>Workspace settings</span>
+                </Link>
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
               <DropdownMenuItem className="gap-2 p-2" onClick={() => setShowCreateDialog(true)}>
                 <div className="flex size-6 items-center justify-center rounded-md border bg-transparent">
                   <HugeiconsIcon icon={Add01Icon} size={14} />
@@ -151,23 +172,31 @@ export function SidebarHeaderBrand() {
               later.
             </DialogDescription>
           </DialogHeader>
-          <div className="py-4">
-            <Label htmlFor="workspace-name" className="text-sm">
-              Workspace name
-            </Label>
-            <Input
-              id="workspace-name"
-              value={newWorkspaceName}
-              onChange={(e) => setNewWorkspaceName(e.target.value)}
-              placeholder="My Team"
-              className="mt-2"
-              maxLength={50}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') {
-                  handleCreateWorkspace();
-                }
-              }}
-            />
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="workspace-name" className="text-sm">
+                Workspace name *
+              </Label>
+              <Input
+                id="workspace-name"
+                value={newWorkspaceName}
+                onChange={(e) => setNewWorkspaceName(e.target.value)}
+                placeholder="My Team"
+                maxLength={50}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="workspace-description" className="text-sm">
+                Description
+              </Label>
+              <Textarea
+                id="workspace-description"
+                value={newWorkspaceDescription}
+                onChange={(e) => setNewWorkspaceDescription(e.target.value)}
+                placeholder="A brief description of your workspace"
+                rows={2}
+              />
+            </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowCreateDialog(false)}>
