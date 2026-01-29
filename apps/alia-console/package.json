@@ -16,7 +16,7 @@
     "@fontsource-variable/inter": "^5.2.8",
     "@hugeicons/core-free-icons": "^3.1.1",
     "@hugeicons/react": "^1.1.4",
-    "@oxyhq/services": "^5.26.3",
+    "@oxyhq/services": "^5.26.4",
     "@tailwindcss/vite": "^4.0.6",
     "@tanstack/react-devtools": "^0.7.0",
     "@tanstack/react-query": "^5.90.20",
