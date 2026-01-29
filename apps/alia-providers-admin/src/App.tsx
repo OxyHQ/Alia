@@ -1,5 +1,7 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { WebOxyProvider, useAuth } from '@oxyhq/services/web';
+import { useEffect } from 'react';
 import { DashboardLayout } from './components/layouts/DashboardLayout';
 import { DashboardPage } from './pages/Dashboard';
 import { KeysPage } from './pages/Keys';
@@ -7,7 +9,7 @@ import { ModelsPage } from './pages/Models';
 import { MonitoringPage } from './pages/Monitoring';
 import { LoginPage } from './pages/Login';
 import { RealtimeProvider } from './lib/websocket/provider';
-import { AuthProvider, useAuth } from './lib/auth/context';
+import { apiClient } from './lib/api/client';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -19,25 +21,45 @@ const queryClient = new QueryClient({
   },
 });
 
+function ApiAuthSetup({ children }: { children: React.ReactNode }) {
+  const { authManager } = useAuth();
+
+  useEffect(() => {
+    // Set up token getter for API client
+    apiClient.setTokenGetter(async () => {
+      try {
+        return await authManager.getAccessToken();
+      } catch (error) {
+        console.error('[Auth] Failed to get access token:', error);
+        return null;
+      }
+    });
+  }, [authManager]);
+
+  return <>{children}</>;
+}
+
 function App() {
   return (
-    <AuthProvider>
-      <RealtimeProvider>
-        <QueryClientProvider client={queryClient}>
-          <BrowserRouter>
-            <AppRoutes />
-          </BrowserRouter>
-        </QueryClientProvider>
-      </RealtimeProvider>
-    </AuthProvider>
+    <WebOxyProvider baseURL="https://api.oxy.so">
+      <ApiAuthSetup>
+        <RealtimeProvider>
+          <QueryClientProvider client={queryClient}>
+            <BrowserRouter>
+              <AppRoutes />
+            </BrowserRouter>
+          </QueryClientProvider>
+        </RealtimeProvider>
+      </ApiAuthSetup>
+    </WebOxyProvider>
   );
 }
 
 function AppRoutes() {
-  const { user, isAuthorized, loading } = useAuth();
+  const { user, isAuthenticated, isLoading } = useAuth();
 
   // Show loading state
-  if (loading) {
+  if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center space-y-4">
@@ -48,8 +70,8 @@ function AppRoutes() {
     );
   }
 
-  // Show login page if not authenticated or not authorized
-  if (!user || !isAuthorized) {
+  // Show login page if not authenticated
+  if (!isAuthenticated || !user) {
     return (
       <Routes>
         <Route path="*" element={<LoginPage />} />
@@ -57,7 +79,7 @@ function AppRoutes() {
     );
   }
 
-  // Show admin panel if authenticated and authorized
+  // Show admin panel if authenticated
   return (
     <Routes>
       <Route path="/" element={<DashboardLayout />}>
