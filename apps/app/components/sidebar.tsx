@@ -1,5 +1,5 @@
 import React from "react";
-import { View, Pressable, NativeSyntheticEvent, NativeScrollEvent } from "react-native";
+import { View, Pressable, NativeSyntheticEvent, NativeScrollEvent, Linking } from "react-native";
 import { Image } from "expo-image";
 import { Text } from "@/components/ui/text";
 import { Button } from "@/components/ui/button";
@@ -185,8 +185,9 @@ export const Sidebar = React.memo(function Sidebar() {
   }, [router]);
 
   const handleDevelopers = React.useCallback(() => {
-    router.push("/developers");
-  }, [router]);
+    // Open alia-console in browser
+    Linking.openURL("http://localhost:3000/dashboard");
+  }, []);
 
   const handleSelectProject = React.useCallback((id: string | null) => {
     setCurrentProject(id);
