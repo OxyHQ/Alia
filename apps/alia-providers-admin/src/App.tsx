@@ -22,19 +22,20 @@ const queryClient = new QueryClient({
 });
 
 function ApiAuthSetup({ children }: { children: React.ReactNode }) {
-  const { authManager } = useAuth();
+  const { oxyServices } = useAuth();
 
   useEffect(() => {
     // Set up token getter for API client
     apiClient.setTokenGetter(async () => {
       try {
-        return await authManager.getAccessToken();
+        const token = oxyServices.getAccessToken();
+        return token;
       } catch (error) {
         console.error('[Auth] Failed to get access token:', error);
         return null;
       }
     });
-  }, [authManager]);
+  }, [oxyServices]);
 
   return <>{children}</>;
 }
