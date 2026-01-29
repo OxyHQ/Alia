@@ -6,13 +6,13 @@
 
 import { useEffect, useState, createContext, useContext, type ReactNode } from 'react';
 import { WebOxyProvider, useAuth as useOxyAuth } from '@oxyhq/services/web';
-import type { User } from '@oxyhq/services/web';
+import type { MinimalUserData } from '@oxyhq/services/web';
 import { apiClient } from '@/lib/api/client';
 
 // ==================== Auth Context (extends Oxy's useAuth) ====================
 
 interface AuthContextType {
-  user: User | null;
+  user: MinimalUserData | null;
   loading: boolean;
   isAuthorized: boolean; // Only true if username === 'nate'
   signIn: () => Promise<void>;
@@ -36,7 +36,7 @@ function AuthProviderInner({ children }: { children: ReactNode }) {
   const [error, setError] = useState<string | null>(null);
 
   // Check if user is authorized (username must be 'nate')
-  const checkAuthorization = (user: User | null): boolean => {
+  const checkAuthorization = (user: MinimalUserData | null): boolean => {
     if (!user) return false;
     return user.username.toLowerCase() === 'nate';
   };
