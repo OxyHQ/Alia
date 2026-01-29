@@ -119,6 +119,7 @@ Use this role to guide your responses, maintaining the specified tone, style, an
         headers,
         body: JSON.stringify({
           messages: messagesToSend,
+          stream: true,
           ...(conversationId && { conversationId }),
           ...(thinkingMode && { thinkingMode: true }),
           ...(selectedModel && { model: selectedModel }),
