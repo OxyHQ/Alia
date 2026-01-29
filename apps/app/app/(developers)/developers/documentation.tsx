@@ -81,9 +81,9 @@ export default function DocumentationScreen() {
         <Text className="text-sm text-muted-foreground mt-3">
           The response is streamed in Server-Sent Events (SSE) format.
         </Text>
-        <View className="mt-3 p-3 bg-destructive/10 rounded-md">
-          <Text className="text-sm text-destructive font-medium">
-            Only /v1/chat/completions is supported. The /v1/responses endpoint is NOT available. If using Vercel AI SDK (v5+), use .chat() method: alia.chat('alia-v1') or use @ai-sdk/openai-compatible package.
+        <View className="mt-3 p-3 bg-primary/10 rounded-md">
+          <Text className="text-sm text-primary font-medium">
+            Both /v1/chat/completions and /v1/responses endpoints are supported. Works with OpenAI SDK and Vercel AI SDK.
           </Text>
         </View>
       </View>

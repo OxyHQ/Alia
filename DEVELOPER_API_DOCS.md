@@ -250,10 +250,7 @@ console.log(result.choices[0].message.content);
 
 **Example (Vercel AI SDK v5+):**
 
-> ⚠️ **Important:** Since AI SDK 5+, the default calls `/v1/responses` which is NOT supported by Alia API. You MUST use the `.chat()` method or `@ai-sdk/openai-compatible` package.
-
 ```typescript
-// Option 1: Using @ai-sdk/openai with .chat() method
 import { createOpenAI } from '@ai-sdk/openai';
 import { streamText } from 'ai';
 
@@ -263,28 +260,16 @@ const alia = createOpenAI({
 });
 
 const result = await streamText({
-  model: alia.chat('alia-v1'),  // Use .chat() to force /v1/chat/completions
+  model: alia('alia-v1'),
   messages: [{ role: 'user', content: 'Hello!' }],
 });
 
 for await (const chunk of result.textStream) {
   console.log(chunk);
 }
-
-// Option 2: Using @ai-sdk/openai-compatible
-import { createOpenAICompatible } from '@ai-sdk/openai-compatible';
-
-const alia = createOpenAICompatible({
-  name: 'alia',
-  apiKey: 'alia_sk_your_key',
-  baseURL: 'https://api.alia.onl/v1',
-});
-
-const result = await streamText({
-  model: alia('alia-v1'),
-  messages: [{ role: 'user', content: 'Hello!' }],
-});
 ```
+
+> ✅ Both `/v1/chat/completions` and `/v1/responses` endpoints are supported. Works out of the box with Vercel AI SDK.
 
 ### 4. Chat Completions (Streaming with SSE)
 
