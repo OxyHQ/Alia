@@ -1,6 +1,13 @@
 import mongoose, { Schema, Document } from 'mongoose';
 import crypto from 'crypto';
 
+export interface IRateLimitConfig {
+  requestsPerMinute: number | null;  // null = unlimited
+  requestsPerDay: number | null;
+  tokensPerMinute: number | null;
+  tokensPerDay: number | null;
+}
+
 export interface IDeveloperApiKey extends Document {
   oxyUserId: string;
   appId: mongoose.Types.ObjectId;
@@ -11,6 +18,7 @@ export interface IDeveloperApiKey extends Document {
   expiresAt?: Date;
   lastUsedAt?: Date;
   isActive: boolean;
+  rateLimit: IRateLimitConfig;
   createdAt: Date;
   updatedAt: Date;
 
@@ -71,6 +79,20 @@ const DeveloperApiKeySchema = new Schema<IDeveloperApiKey>(
     isActive: {
       type: Boolean,
       default: true,
+    },
+    rateLimit: {
+      type: {
+        requestsPerMinute: { type: Number, default: null },
+        requestsPerDay: { type: Number, default: 1000 },
+        tokensPerMinute: { type: Number, default: null },
+        tokensPerDay: { type: Number, default: null },
+      },
+      default: {
+        requestsPerMinute: null,  // unlimited by default
+        requestsPerDay: 1000,     // 1000 requests/day default
+        tokensPerMinute: null,    // unlimited by default
+        tokensPerDay: null,       // unlimited by default
+      },
     },
   },
   {

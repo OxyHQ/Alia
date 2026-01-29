@@ -3,6 +3,7 @@ import chatCompletionsRouter from './v1/chat-completions.js';
 import responsesRouter from './v1/responses.js';
 import modelsRouter from './v1/models.js';
 import { authenticateTokenOrApiKey } from '../middleware/auth.js';
+import { apiKeyRateLimit } from '../middleware/api-key-rate-limit.js';
 import { loadKeys } from '../lib/load-balancer.js';
 import { resolveAliaModel } from '../lib/model-resolver.js';
 import { UserCredits } from '../models/user-credits.js';
@@ -39,6 +40,9 @@ router.use('/models', modelsRouter);
 
 // Apply authentication to all other v1 routes (supports both JWT and API keys)
 router.use(authenticateTokenOrApiKey);
+
+// Apply rate limiting for API key authenticated requests
+router.use(apiKeyRateLimit);
 
 /**
  * GET /v1/me

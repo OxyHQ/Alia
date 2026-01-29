@@ -1,5 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { authenticateApiKey } from '../middleware/auth.js';
+import { apiKeyRateLimit } from '../middleware/api-key-rate-limit.js';
 import { Subscription } from '../models/subscription.js';
 import { UserCredits } from '../models/user-credits.js';
 import DeveloperApiKey from '../models/developer-api-key.js';
@@ -35,7 +36,7 @@ function mapPlanToAliaPlan(planName: string | undefined): string {
  *
  * Authentication: API Key (alia_sk_*)
  */
-router.get('/user', authenticateApiKey, async (req: Request, res: Response) => {
+router.get('/user', authenticateApiKey, apiKeyRateLimit, async (req: Request, res: Response) => {
   try {
     const userId = req.userId;
 
@@ -159,7 +160,7 @@ router.get('/user', authenticateApiKey, async (req: Request, res: Response) => {
  *
  * This endpoint can be used for additional token-based features.
  */
-router.get('/token', authenticateApiKey, async (req: Request, res: Response) => {
+router.get('/token', authenticateApiKey, apiKeyRateLimit, async (req: Request, res: Response) => {
   try {
     const userId = req.userId;
 
@@ -210,7 +211,7 @@ router.get('/token', authenticateApiKey, async (req: Request, res: Response) => 
  *
  * This endpoint returns available MCP servers for Codea Studio Code.
  */
-router.get('/mcp_registry', authenticateApiKey, async (_req: Request, res: Response) => {
+router.get('/mcp_registry', authenticateApiKey, apiKeyRateLimit, async (_req: Request, res: Response) => {
   try {
     // Return available MCP servers
     // This can be expanded to include user-specific or organization-specific servers
@@ -243,7 +244,7 @@ router.get('/health', (_req: Request, res: Response) => {
 /**
  * GET /me - Get current user info
  */
-router.get('/me', authenticateApiKey, async (req: Request, res: Response) => {
+router.get('/me', authenticateApiKey, apiKeyRateLimit, async (req: Request, res: Response) => {
   try {
     const userId = req.userId;
 
@@ -292,7 +293,7 @@ router.get('/me', authenticateApiKey, async (req: Request, res: Response) => {
  * Request body: { model: string }
  * Response: { provider: string, modelId: string, providerKey: string, sessionId: string }
  */
-router.post('/resolve-model', authenticateApiKey, async (req: Request, res: Response) => {
+router.post('/resolve-model', authenticateApiKey, apiKeyRateLimit, async (req: Request, res: Response) => {
   try {
     const userId = req.userId;
     if (!userId) {
@@ -363,7 +364,7 @@ router.post('/resolve-model', authenticateApiKey, async (req: Request, res: Resp
  *
  * Request body: { sessionId: string, usage: { promptTokens, completionTokens, totalTokens } }
  */
-router.post('/report-usage', authenticateApiKey, async (req: Request, res: Response) => {
+router.post('/report-usage', authenticateApiKey, apiKeyRateLimit, async (req: Request, res: Response) => {
   try {
     const { sessionId, usage } = req.body;
 

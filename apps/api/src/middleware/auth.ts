@@ -196,6 +196,7 @@ export async function authenticateApiKey(
           responseTime,
           userAgent: req.headers['user-agent'],
           ipAddress: req.ip || req.socket.remoteAddress,
+          authType: 'api_key',
         });
       } catch (err) {
         console.error('Failed to log API key usage:', err);
