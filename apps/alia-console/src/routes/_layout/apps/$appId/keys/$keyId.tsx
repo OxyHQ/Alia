@@ -43,6 +43,11 @@ function KeyDetailPage() {
 
   const apiKey = apiKeys.find((k) => k._id === keyId);
 
+  const handleCopyKeyPrefix = () => {
+    navigator.clipboard.writeText(apiKey?.keyPrefix || '');
+    toast.success('Key prefix copied to clipboard');
+  };
+
   const handleDeleteKey = async () => {
     try {
       await deleteKeyMutation.mutateAsync({ appId, keyId });
@@ -74,8 +79,24 @@ function KeyDetailPage() {
           <HugeiconsIcon icon={ArrowLeft01Icon} size={14} />
           Back to {app?.name || 'app'}
         </Link>
-        <h1 className="text-2xl font-semibold text-foreground">{apiKey.name}</h1>
-        <p className="text-sm text-muted-foreground font-mono mt-1">{apiKey.keyPrefix}...</p>
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-semibold text-foreground">{apiKey.name}</h1>
+            <p className="text-sm text-muted-foreground font-mono mt-1">{apiKey.keyPrefix}...</p>
+          </div>
+          <ButtonGroup>
+            <Button variant="outline" size="sm" onClick={handleCopyKeyPrefix}>
+              <HugeiconsIcon icon={Copy01Icon} size={14} className="mr-1.5" />
+              Copy prefix
+            </Button>
+            <Button variant="outline" size="sm" asChild>
+              <Link to="/apps/$appId/settings" params={{ appId }}>
+                <HugeiconsIcon icon={Settings01Icon} size={14} className="mr-1.5" />
+                Settings
+              </Link>
+            </Button>
+          </ButtonGroup>
+        </div>
       </div>
 
       {/* Key Details */}
@@ -120,6 +141,21 @@ function KeyDetailPage() {
             </div>
           )}
         </div>
+      </div>
+
+      {/* Environment Variables */}
+      <div className="px-6 py-6 border-b border-border">
+        <p className="text-sm font-semibold text-foreground mb-4">Environment configuration</p>
+        <EnvironmentVariables className="max-w-lg">
+          <EnvironmentVariablesHeader>
+            <EnvironmentVariablesTitle>API Key</EnvironmentVariablesTitle>
+            <EnvironmentVariablesToggle />
+          </EnvironmentVariablesHeader>
+          <EnvironmentVariablesContent>
+            <EnvironmentVariable name="ALIA_API_KEY" value={`${apiKey.keyPrefix}...`} />
+            <EnvironmentVariable name="ALIA_BASE_URL" value="https://api.alia.onl/v1" />
+          </EnvironmentVariablesContent>
+        </EnvironmentVariables>
       </div>
 
       {/* Scopes */}

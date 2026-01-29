@@ -1,15 +1,33 @@
 import { createFileRoute } from '@tanstack/react-router';
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import { HugeiconsIcon } from '@hugeicons/react';
-import { Copy01Icon, CheckmarkCircle01Icon } from '@hugeicons/core-free-icons';
+import { SourceCodeIcon } from '@hugeicons/core-free-icons';
+import {
+  CodeBlock,
+  CodeBlockHeader,
+  CodeBlockTitle,
+  CodeBlockFilename,
+  CodeBlockActions,
+  CodeBlockCopyButton,
+} from '@/components/ui/code-block';
+import {
+  Agent,
+  AgentHeader,
+  AgentContent,
+  AgentInstructions,
+  AgentTools,
+  AgentTool,
+} from '@/components/ui/agent';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 export const Route = createFileRoute('/_layout/examples')({
   component: ExamplesPage,
 });
 
 const examples = {
-  javascript: `const response = await fetch('https://api.alia.ai/v1/chat/completions', {
+  javascript: `const response = await fetch('https://api.alia.onl/v1/chat/completions', {
   method: 'POST',
   headers: {
     'Authorization': 'Bearer alia_sk_YOUR_API_KEY',
@@ -30,7 +48,7 @@ console.log(data.choices[0].message.content);`,
 
 client = openai.OpenAI(
     api_key="alia_sk_YOUR_API_KEY",
-    base_url="https://api.alia.ai/v1"
+    base_url="https://api.alia.onl/v1"
 )
 
 response = client.chat.completions.create(
@@ -46,7 +64,7 @@ print(response.choices[0].message.content)`,
 
 const openai = new OpenAI({
   apiKey: 'alia_sk_YOUR_API_KEY',
-  baseURL: 'https://api.alia.ai/v1',
+  baseURL: 'https://api.alia.onl/v1',
 });
 
 const completion = await openai.chat.completions.create({
@@ -58,7 +76,7 @@ const completion = await openai.chat.completions.create({
 
 console.log(completion.choices[0].message.content);`,
 
-  curl: `curl https://api.alia.ai/v1/chat/completions \\
+  curl: `curl https://api.alia.onl/v1/chat/completions \\
   -H "Authorization: Bearer alia_sk_YOUR_API_KEY" \\
   -H "Content-Type: application/json" \\
   -d '{
@@ -68,7 +86,7 @@ console.log(completion.choices[0].message.content);`,
     ]
   }'`,
 
-  streaming: `const response = await fetch('https://api.alia.ai/v1/chat/completions', {
+  streaming: `const response = await fetch('https://api.alia.onl/v1/chat/completions', {
   method: 'POST',
   headers: {
     'Authorization': 'Bearer alia_sk_YOUR_API_KEY',
@@ -98,6 +116,40 @@ while (true) {
     }
   }
 }`,
+
+  functionCalling: `import OpenAI from 'openai';
+
+const openai = new OpenAI({
+  apiKey: 'alia_sk_YOUR_API_KEY',
+  baseURL: 'https://api.alia.onl/v1',
+});
+
+const tools = [
+  {
+    type: 'function',
+    function: {
+      name: 'get_weather',
+      description: 'Get the current weather in a location',
+      parameters: {
+        type: 'object',
+        properties: {
+          location: { type: 'string', description: 'City and country' },
+          unit: { type: 'string', enum: ['celsius', 'fahrenheit'] }
+        },
+        required: ['location']
+      }
+    }
+  }
+];
+
+const completion = await openai.chat.completions.create({
+  model: 'alia-v1',
+  messages: [{ role: 'user', content: 'What is the weather in Madrid?' }],
+  tools,
+  tool_choice: 'auto',
+});
+
+console.log(completion.choices[0].message.tool_calls);`,
 };
 
 type ExampleKey = keyof typeof examples;
@@ -109,81 +161,154 @@ const tabs: { value: ExampleKey; label: string }[] = [
   { value: 'curl', label: 'cURL' },
 ];
 
-function CodeBlock({ code }: { code: string }) {
-  const [copied, setCopied] = useState(false);
+const languageMap: Record<ExampleKey, string> = {
+  javascript: 'javascript',
+  python: 'python',
+  nodejs: 'typescript',
+  curl: 'bash',
+  streaming: 'javascript',
+  functionCalling: 'typescript',
+};
 
-  const handleCopy = async () => {
-    await navigator.clipboard.writeText(code);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
-
-  return (
-    <div className="relative">
-      <Button
-        variant="ghost"
-        size="icon"
-        className="absolute top-2 right-2"
-        onClick={handleCopy}
-      >
-        <HugeiconsIcon
-          icon={copied ? CheckmarkCircle01Icon : Copy01Icon}
-          size={16}
-          className={copied ? 'text-green-500' : ''}
-        />
-      </Button>
-      <pre className="bg-muted p-4 rounded-lg overflow-x-auto text-sm">
-        <code>{code}</code>
-      </pre>
-    </div>
-  );
-}
+// Sample agent configuration
+const sampleAgent = {
+  name: 'Weather Assistant',
+  model: 'alia-v1',
+  instructions: `You are a helpful weather assistant. When the user asks about the weather, use the get_weather tool to fetch current conditions. Always be friendly and provide helpful weather-related advice.`,
+  tools: {
+    get_weather: {
+      description: 'Get current weather for a location',
+      parameters: {
+        jsonSchema: {
+          type: 'object',
+          properties: {
+            location: { type: 'string', description: 'City name' },
+            unit: { type: 'string', enum: ['celsius', 'fahrenheit'] },
+          },
+          required: ['location'],
+        },
+      },
+    },
+    get_forecast: {
+      description: 'Get weather forecast for the next 7 days',
+      parameters: {
+        jsonSchema: {
+          type: 'object',
+          properties: {
+            location: { type: 'string', description: 'City name' },
+            days: { type: 'number', description: 'Number of days' },
+          },
+          required: ['location'],
+        },
+      },
+    },
+  },
+};
 
 function ExamplesPage() {
   const [activeTab, setActiveTab] = useState<ExampleKey>('javascript');
 
   return (
-    <div className="flex-1 bg-background max-w-4xl">
-      {/* Header */}
-      <div className="px-6 py-6 border-b border-border">
-        <h1 className="text-2xl font-semibold text-foreground">Code Examples</h1>
-        <p className="text-sm text-muted-foreground mt-1">
-          Example code for integrating with the Alia API
-        </p>
-      </div>
-
-      {/* Basic Chat Completion */}
-      <div className="px-6 py-6 border-b border-border">
-        <p className="text-sm font-semibold text-foreground mb-1">Basic Chat Completion</p>
-        <p className="text-sm text-muted-foreground mb-4">
-          Make a simple chat completion request
-        </p>
-
-        {/* Language Tabs */}
-        <div className="flex gap-1 mb-4">
-          {tabs.map((tab) => (
-            <Button
-              key={tab.value}
-              variant={activeTab === tab.value ? 'default' : 'ghost'}
-              size="sm"
-              onClick={() => setActiveTab(tab.value)}
-            >
-              {tab.label}
-            </Button>
-          ))}
+    <ScrollArea className="flex-1 bg-background">
+      <div className="max-w-4xl">
+        {/* Header */}
+        <div className="px-6 py-6 border-b border-border">
+          <h1 className="text-2xl font-semibold text-foreground">Code Examples</h1>
+          <p className="text-sm text-muted-foreground mt-1">
+            Example code for integrating with the Alia API
+          </p>
         </div>
 
-        <CodeBlock code={examples[activeTab]} />
-      </div>
+        {/* Basic Chat Completion */}
+        <div className="px-6 py-6 border-b border-border">
+          <p className="text-sm font-semibold text-foreground mb-1">Basic Chat Completion</p>
+          <p className="text-sm text-muted-foreground mb-4">
+            Make a simple chat completion request
+          </p>
 
-      {/* Streaming Response */}
-      <div className="px-6 py-6">
-        <p className="text-sm font-semibold text-foreground mb-1">Streaming Response</p>
-        <p className="text-sm text-muted-foreground mb-4">
-          Stream responses for real-time output
-        </p>
-        <CodeBlock code={examples.streaming} />
+          <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as ExampleKey)}>
+            <TabsList className="mb-4">
+              {tabs.map((tab) => (
+                <TabsTrigger key={tab.value} value={tab.value}>
+                  {tab.label}
+                </TabsTrigger>
+              ))}
+            </TabsList>
+            {tabs.map((tab) => (
+              <TabsContent key={tab.value} value={tab.value}>
+                <CodeBlock code={examples[tab.value]} language={languageMap[tab.value] as any}>
+                  <CodeBlockHeader>
+                    <CodeBlockTitle>
+                      <HugeiconsIcon icon={SourceCodeIcon} size={14} className="text-muted-foreground" />
+                      <CodeBlockFilename>{tab.label}</CodeBlockFilename>
+                    </CodeBlockTitle>
+                    <CodeBlockActions>
+                      <CodeBlockCopyButton />
+                    </CodeBlockActions>
+                  </CodeBlockHeader>
+                </CodeBlock>
+              </TabsContent>
+            ))}
+          </Tabs>
+        </div>
+
+        {/* Streaming Response */}
+        <div className="px-6 py-6 border-b border-border">
+          <p className="text-sm font-semibold text-foreground mb-1">Streaming Response</p>
+          <p className="text-sm text-muted-foreground mb-4">
+            Stream responses for real-time output
+          </p>
+          <CodeBlock code={examples.streaming} language="javascript">
+            <CodeBlockHeader>
+              <CodeBlockTitle>
+                <HugeiconsIcon icon={SourceCodeIcon} size={14} className="text-muted-foreground" />
+                <CodeBlockFilename>Streaming Example</CodeBlockFilename>
+              </CodeBlockTitle>
+              <CodeBlockActions>
+                <CodeBlockCopyButton />
+              </CodeBlockActions>
+            </CodeBlockHeader>
+          </CodeBlock>
+        </div>
+
+        {/* Function Calling */}
+        <div className="px-6 py-6 border-b border-border">
+          <p className="text-sm font-semibold text-foreground mb-1">Function Calling</p>
+          <p className="text-sm text-muted-foreground mb-4">
+            Define custom tools and let the model call them
+          </p>
+          <CodeBlock code={examples.functionCalling} language="typescript">
+            <CodeBlockHeader>
+              <CodeBlockTitle>
+                <HugeiconsIcon icon={SourceCodeIcon} size={14} className="text-muted-foreground" />
+                <CodeBlockFilename>Function Calling</CodeBlockFilename>
+              </CodeBlockTitle>
+              <CodeBlockActions>
+                <CodeBlockCopyButton />
+              </CodeBlockActions>
+            </CodeBlockHeader>
+          </CodeBlock>
+        </div>
+
+        {/* Agent Configuration Example */}
+        <div className="px-6 py-6">
+          <p className="text-sm font-semibold text-foreground mb-1">Agent Configuration</p>
+          <p className="text-sm text-muted-foreground mb-4">
+            Build intelligent agents with custom tools and instructions
+          </p>
+          <Agent className="max-w-lg">
+            <AgentHeader name={sampleAgent.name} model={sampleAgent.model} />
+            <AgentContent>
+              <AgentInstructions>{sampleAgent.instructions}</AgentInstructions>
+              <AgentTools>
+                {Object.entries(sampleAgent.tools).map(([name, tool]) => (
+                  <AgentTool key={name} value={name} tool={tool} />
+                ))}
+              </AgentTools>
+            </AgentContent>
+          </Agent>
+        </div>
       </div>
-    </div>
+    </ScrollArea>
   );
 }
