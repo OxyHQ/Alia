@@ -75,11 +75,12 @@ function AgentInstructions({ children, className, ...props }: AgentInstructionsP
 }
 
 // Tools container
-function AgentTools({
-  className,
-  children,
-  ...props
-}: React.ComponentProps<typeof Accordion>) {
+interface AgentToolsProps {
+  className?: string;
+  children?: React.ReactNode;
+}
+
+function AgentTools({ className, children }: AgentToolsProps) {
   return (
     <div className="px-4 py-3">
       <div className="flex items-center gap-2 mb-2">
@@ -88,7 +89,7 @@ function AgentTools({
           Tools
         </span>
       </div>
-      <Accordion type="multiple" className={cn('', className)} {...props}>
+      <Accordion type="multiple" className={cn('', className)}>
         {children}
       </Accordion>
     </div>

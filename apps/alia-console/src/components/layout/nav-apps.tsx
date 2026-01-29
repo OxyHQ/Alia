@@ -2,7 +2,7 @@ import { Link } from '@tanstack/react-router';
 import { HugeiconsIcon } from '@hugeicons/react';
 import {
   Key01Icon,
-  MoreHorizontalIcon,
+  MoreHorizontalSquare01Icon,
   Settings01Icon,
   Delete02Icon,
   ChartLineData02Icon,
@@ -52,7 +52,7 @@ export function NavApps({ onDeleteApp }: NavAppsProps) {
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <SidebarMenuAction showOnHover>
-                  <HugeiconsIcon icon={MoreHorizontalIcon} size={16} />
+                  <HugeiconsIcon icon={MoreHorizontalSquare01Icon} size={16} />
                   <span className="sr-only">More</span>
                 </SidebarMenuAction>
               </DropdownMenuTrigger>
@@ -99,7 +99,7 @@ export function NavApps({ onDeleteApp }: NavAppsProps) {
           <SidebarMenuItem>
             <SidebarMenuButton asChild className="text-sidebar-foreground/70">
               <Link to="/apps">
-                <HugeiconsIcon icon={MoreHorizontalIcon} size={16} className="text-sidebar-foreground/70" />
+                <HugeiconsIcon icon={MoreHorizontalSquare01Icon} size={16} className="text-sidebar-foreground/70" />
                 <span>View all ({apps.length})</span>
               </Link>
             </SidebarMenuButton>
