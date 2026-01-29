@@ -9,6 +9,7 @@ import {
   Money01Icon,
   Login01Icon,
   Settings01Icon,
+  ConsoleLine01Icon,
 } from '@hugeicons/core-free-icons';
 import { useAuth } from '@oxyhq/services/web';
 import {
@@ -30,6 +31,11 @@ const mainNavItems = [
     title: 'Dashboard',
     url: '/dashboard',
     icon: Home09Icon,
+  },
+  {
+    title: 'Playground',
+    url: '/playground',
+    icon: ConsoleLine01Icon,
   },
   {
     title: 'API Keys',

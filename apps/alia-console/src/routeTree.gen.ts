@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as LayoutRouteImport } from './routes/_layout'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as LayoutUsageRouteImport } from './routes/_layout/usage'
+import { Route as LayoutPlaygroundRouteImport } from './routes/_layout/playground'
 import { Route as LayoutModelsRouteImport } from './routes/_layout/models'
 import { Route as LayoutExamplesRouteImport } from './routes/_layout/examples'
 import { Route as LayoutDashboardRouteImport } from './routes/_layout/dashboard'
@@ -41,6 +42,11 @@ const IndexRoute = IndexRouteImport.update({
 const LayoutUsageRoute = LayoutUsageRouteImport.update({
   id: '/usage',
   path: '/usage',
+  getParentRoute: () => LayoutRoute,
+} as any)
+const LayoutPlaygroundRoute = LayoutPlaygroundRouteImport.update({
+  id: '/playground',
+  path: '/playground',
   getParentRoute: () => LayoutRoute,
 } as any)
 const LayoutModelsRoute = LayoutModelsRouteImport.update({
@@ -136,6 +142,7 @@ export interface FileRoutesByFullPath {
   '/dashboard': typeof LayoutDashboardRoute
   '/examples': typeof LayoutExamplesRoute
   '/models': typeof LayoutModelsRoute
+  '/playground': typeof LayoutPlaygroundRoute
   '/usage': typeof LayoutUsageRoute
   '/documentation/authentication': typeof LayoutDocumentationAuthenticationRoute
   '/documentation/chat-completions': typeof LayoutDocumentationChatCompletionsRoute
@@ -156,6 +163,7 @@ export interface FileRoutesByTo {
   '/dashboard': typeof LayoutDashboardRoute
   '/examples': typeof LayoutExamplesRoute
   '/models': typeof LayoutModelsRoute
+  '/playground': typeof LayoutPlaygroundRoute
   '/usage': typeof LayoutUsageRoute
   '/documentation/authentication': typeof LayoutDocumentationAuthenticationRoute
   '/documentation/chat-completions': typeof LayoutDocumentationChatCompletionsRoute
@@ -178,6 +186,7 @@ export interface FileRoutesById {
   '/_layout/dashboard': typeof LayoutDashboardRoute
   '/_layout/examples': typeof LayoutExamplesRoute
   '/_layout/models': typeof LayoutModelsRoute
+  '/_layout/playground': typeof LayoutPlaygroundRoute
   '/_layout/usage': typeof LayoutUsageRoute
   '/_layout/documentation/authentication': typeof LayoutDocumentationAuthenticationRoute
   '/_layout/documentation/chat-completions': typeof LayoutDocumentationChatCompletionsRoute
@@ -200,6 +209,7 @@ export interface FileRouteTypes {
     | '/dashboard'
     | '/examples'
     | '/models'
+    | '/playground'
     | '/usage'
     | '/documentation/authentication'
     | '/documentation/chat-completions'
@@ -220,6 +230,7 @@ export interface FileRouteTypes {
     | '/dashboard'
     | '/examples'
     | '/models'
+    | '/playground'
     | '/usage'
     | '/documentation/authentication'
     | '/documentation/chat-completions'
@@ -241,6 +252,7 @@ export interface FileRouteTypes {
     | '/_layout/dashboard'
     | '/_layout/examples'
     | '/_layout/models'
+    | '/_layout/playground'
     | '/_layout/usage'
     | '/_layout/documentation/authentication'
     | '/_layout/documentation/chat-completions'
@@ -282,6 +294,13 @@ declare module '@tanstack/react-router' {
       path: '/usage'
       fullPath: '/usage'
       preLoaderRoute: typeof LayoutUsageRouteImport
+      parentRoute: typeof LayoutRoute
+    }
+    '/_layout/playground': {
+      id: '/_layout/playground'
+      path: '/playground'
+      fullPath: '/playground'
+      preLoaderRoute: typeof LayoutPlaygroundRouteImport
       parentRoute: typeof LayoutRoute
     }
     '/_layout/models': {
@@ -404,6 +423,7 @@ interface LayoutRouteChildren {
   LayoutDashboardRoute: typeof LayoutDashboardRoute
   LayoutExamplesRoute: typeof LayoutExamplesRoute
   LayoutModelsRoute: typeof LayoutModelsRoute
+  LayoutPlaygroundRoute: typeof LayoutPlaygroundRoute
   LayoutUsageRoute: typeof LayoutUsageRoute
   LayoutDocumentationAuthenticationRoute: typeof LayoutDocumentationAuthenticationRoute
   LayoutDocumentationChatCompletionsRoute: typeof LayoutDocumentationChatCompletionsRoute
@@ -424,6 +444,7 @@ const LayoutRouteChildren: LayoutRouteChildren = {
   LayoutDashboardRoute: LayoutDashboardRoute,
   LayoutExamplesRoute: LayoutExamplesRoute,
   LayoutModelsRoute: LayoutModelsRoute,
+  LayoutPlaygroundRoute: LayoutPlaygroundRoute,
   LayoutUsageRoute: LayoutUsageRoute,
   LayoutDocumentationAuthenticationRoute:
     LayoutDocumentationAuthenticationRoute,
