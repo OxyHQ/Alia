@@ -171,7 +171,7 @@ while (true) {
       {/* Vercel AI SDK Example */}
       <View className="px-6 py-6 border-b border-border">
         <Text className="text-sm font-semibold text-foreground mb-4">Vercel AI SDK (v5+)</Text>
-        <Text className="text-sm text-muted-foreground mb-3">Option 1: Using @ai-sdk/openai with .chat() method:</Text>
+        <Text className="text-sm text-muted-foreground mb-3">Using @ai-sdk/openai:</Text>
         <View className="p-3 bg-muted rounded-md">
           <Text className="text-sm font-mono text-foreground">
             {`import { createOpenAI } from '@ai-sdk/openai';
@@ -183,8 +183,7 @@ const alia = createOpenAI({
 });
 
 const result = await streamText({
-  // Use .chat() to force /v1/chat/completions
-  model: alia.chat('alia-v1'),
+  model: alia('alia-v1'),
   messages: [
     { role: 'user', content: 'Hello!' }
   ],
@@ -195,30 +194,9 @@ for await (const chunk of result.textStream) {
 }`}
           </Text>
         </View>
-        <Text className="text-sm text-muted-foreground mt-4 mb-3">Option 2: Using @ai-sdk/openai-compatible:</Text>
-        <View className="p-3 bg-muted rounded-md">
-          <Text className="text-sm font-mono text-foreground">
-            {`import { createOpenAICompatible } from
-  '@ai-sdk/openai-compatible';
-import { streamText } from 'ai';
-
-const alia = createOpenAICompatible({
-  name: 'alia',
-  apiKey: 'alia_sk_your_key',
-  baseURL: 'https://api.alia.onl/v1',
-});
-
-const result = await streamText({
-  model: alia('alia-v1'),
-  messages: [
-    { role: 'user', content: 'Hello!' }
-  ],
-});`}
-          </Text>
-        </View>
-        <View className="mt-3 p-3 bg-destructive/10 rounded-md">
-          <Text className="text-sm text-destructive font-medium">
-            Since AI SDK 5+, the default calls /v1/responses (not supported). You MUST use .chat() method or @ai-sdk/openai-compatible package.
+        <View className="mt-3 p-3 bg-primary/10 rounded-md">
+          <Text className="text-sm text-primary font-medium">
+            Both /v1/chat/completions and /v1/responses endpoints are supported. Works out of the box with Vercel AI SDK.
           </Text>
         </View>
       </View>

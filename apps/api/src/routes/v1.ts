@@ -1,5 +1,6 @@
 import { Router, Request, Response } from 'express';
 import chatCompletionsRouter from './v1/chat-completions.js';
+import responsesRouter from './v1/responses.js';
 import modelsRouter from './v1/models.js';
 import { authenticateTokenOrApiKey } from '../middleware/auth.js';
 import { loadKeys } from '../lib/load-balancer.js';
@@ -232,5 +233,8 @@ router.post('/report-usage', async (req: Request, res: Response) => {
 router.use('/codea/chat/completions', chatCompletionsRouter);
 
 router.use('/chat/completions', chatCompletionsRouter);
+
+// OpenAI Responses API support (for Vercel AI SDK compatibility)
+router.use('/responses', responsesRouter);
 
 export default router;
