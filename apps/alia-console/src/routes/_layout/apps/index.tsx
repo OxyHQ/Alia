@@ -158,7 +158,7 @@ function AppsPage() {
           <div>
             {apps.map((app, index) => (
               <ContextMenu key={app._id}>
-                <ContextMenu.Trigger asChild>
+                <ContextMenuTrigger asChild>
                   <Link
                     to="/apps/$appId"
                     params={{ appId: app._id }}
@@ -188,7 +188,7 @@ function AppsPage() {
                       className="text-muted-foreground ml-4"
                     />
                   </Link>
-                </ContextMenu.Trigger>
+                </ContextMenuTrigger>
                 <ContextMenuContent className="w-48">
                   <ContextMenuItem
                     onClick={(e) => {
