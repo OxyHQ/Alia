@@ -8,9 +8,10 @@ import { processMessage } from "@/lib/message-processor";
 import { cn } from "@/lib/utils";
 import { LottieLoader } from "@/components/lottie-loader";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Bot, Search, Link, Calendar, Database, Globe, Copy, ThumbsUp, ThumbsDown, Pencil, Check, Brain } from "lucide-react-native";
+import { Bot, Search, Link, Calendar, Database, Globe, Copy, ThumbsUp, ThumbsDown, Pencil, Check } from "lucide-react-native";
 import Animated, { FadeInUp } from "react-native-reanimated";
 import * as Clipboard from "expo-clipboard";
+import { Reasoning, ReasoningTrigger, ReasoningContent } from "@/components/ui/reasoning";
 
 type ToolInvocation = {
   toolName: string;
@@ -196,15 +197,16 @@ export const ChatInterface = forwardRef<ScrollView, ChatInterfaceProps>(
                   {/* Thinking Content (Extended Thinking Mode) */}
                   {m.role === "assistant" && (m as any).thinking && (
                     <View key="thinking-content" className="mb-3 w-full">
-                      <View className="rounded-2xl p-4" style={{ backgroundColor: '#a855f710', borderColor: '#a855f730', borderWidth: 1 }}>
-                        <View className="flex-row items-center gap-2 mb-2">
-                          <Brain size={16} color="#a855f7" />
-                          <Text className="text-xs font-medium" style={{ color: '#a855f7' }}>Thinking</Text>
-                        </View>
-                        <Text className="text-sm leading-6" style={{ color: '#a855f7', opacity: 0.8 }}>
-                          {(m as any).thinking}
-                        </Text>
-                      </View>
+                      <Reasoning
+                        isStreaming={
+                          isLoading &&
+                          m.id === messages[messages.length - 1]?.id &&
+                          !messageText
+                        }
+                      >
+                        <ReasoningTrigger />
+                        <ReasoningContent>{(m as any).thinking}</ReasoningContent>
+                      </Reasoning>
                     </View>
                   )}
 
