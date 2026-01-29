@@ -11,7 +11,7 @@ export default defineConfig({
       "@": path.resolve(__dirname, "./src"),
     },
   },
-  json: {
-    stringify: true, // Import JSON as strings to avoid parsing trailing commas
+  optimizeDeps: {
+    exclude: ['@oxyhq/services'],
   },
 })
