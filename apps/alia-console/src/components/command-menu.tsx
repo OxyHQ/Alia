@@ -14,6 +14,7 @@ import {
   CreditCardIcon,
 } from '@hugeicons/core-free-icons';
 import {
+  Command,
   CommandDialog,
   CommandEmpty,
   CommandGroup,
@@ -47,56 +48,58 @@ export function CommandMenu() {
 
   return (
     <CommandDialog open={open} onOpenChange={setOpen}>
-      <CommandInput placeholder="Type a command or search..." />
-      <CommandList>
-        <CommandEmpty>No results found.</CommandEmpty>
+      <Command className="[&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:font-medium [&_[cmdk-group-heading]]:text-muted-foreground [&_[cmdk-group]:not([hidden])_~[cmdk-group]]:pt-0 [&_[cmdk-input-wrapper]_svg]:h-5 [&_[cmdk-input-wrapper]_svg]:w-5 [&_[cmdk-input]]:h-12 [&_[cmdk-item]]:px-2 [&_[cmdk-item]]:py-3">
+        <CommandInput placeholder="Type a command or search..." />
+        <CommandList>
+          <CommandEmpty>No results found.</CommandEmpty>
 
-        <CommandGroup heading="Actions">
-          <CommandItem onSelect={() => runCommand(() => navigate({ to: '/apps' }))}>
-            <HugeiconsIcon icon={Add01Icon} />
-            <span>Create New App</span>
-            <CommandShortcut>⌘N</CommandShortcut>
-          </CommandItem>
-          <CommandItem onSelect={() => runCommand(() => navigate({ to: '/apps' }))}>
-            <HugeiconsIcon icon={Key01Icon} />
-            <span>Manage API Keys</span>
-          </CommandItem>
-        </CommandGroup>
+          <CommandGroup heading="Actions">
+            <CommandItem onSelect={() => runCommand(() => navigate({ to: '/apps' }))}>
+              <HugeiconsIcon icon={Add01Icon} />
+              <span>Create New App</span>
+              <CommandShortcut>⌘N</CommandShortcut>
+            </CommandItem>
+            <CommandItem onSelect={() => runCommand(() => navigate({ to: '/apps' }))}>
+              <HugeiconsIcon icon={Key01Icon} />
+              <span>Manage API Keys</span>
+            </CommandItem>
+          </CommandGroup>
 
-        <CommandSeparator />
+          <CommandSeparator />
 
-        <CommandGroup heading="Navigation">
-          <CommandItem onSelect={() => runCommand(() => navigate({ to: '/dashboard' }))}>
-            <HugeiconsIcon icon={Home01Icon} />
-            <span>Dashboard</span>
-            <CommandShortcut>⌘D</CommandShortcut>
-          </CommandItem>
-          <CommandItem onSelect={() => runCommand(() => navigate({ to: '/apps' }))}>
-            <HugeiconsIcon icon={Key01Icon} />
-            <span>API Keys</span>
-            <CommandShortcut>⌘1</CommandShortcut>
-          </CommandItem>
-          <CommandItem onSelect={() => runCommand(() => navigate({ to: '/usage' }))}>
-            <HugeiconsIcon icon={ChartLineData02Icon} />
-            <span>Usage</span>
-            <CommandShortcut>⌘2</CommandShortcut>
-          </CommandItem>
-          <CommandItem onSelect={() => runCommand(() => navigate({ to: '/billing' }))}>
-            <HugeiconsIcon icon={CreditCardIcon} />
-            <span>Billing</span>
-            <CommandShortcut>⌘3</CommandShortcut>
-          </CommandItem>
-          <CommandItem onSelect={() => runCommand(() => navigate({ to: '/models' }))}>
-            <HugeiconsIcon icon={ArtificialIntelligence01Icon} />
-            <span>Models</span>
-            <CommandShortcut>⌘4</CommandShortcut>
-          </CommandItem>
-          <CommandItem onSelect={() => runCommand(() => navigate({ to: '/documentation' }))}>
-            <HugeiconsIcon icon={SourceCodeIcon} />
-            <span>Documentation</span>
-          </CommandItem>
-        </CommandGroup>
-      </CommandList>
+          <CommandGroup heading="Navigation">
+            <CommandItem onSelect={() => runCommand(() => navigate({ to: '/dashboard' }))}>
+              <HugeiconsIcon icon={Home01Icon} />
+              <span>Dashboard</span>
+              <CommandShortcut>⌘D</CommandShortcut>
+            </CommandItem>
+            <CommandItem onSelect={() => runCommand(() => navigate({ to: '/apps' }))}>
+              <HugeiconsIcon icon={Key01Icon} />
+              <span>API Keys</span>
+              <CommandShortcut>⌘1</CommandShortcut>
+            </CommandItem>
+            <CommandItem onSelect={() => runCommand(() => navigate({ to: '/usage' }))}>
+              <HugeiconsIcon icon={ChartLineData02Icon} />
+              <span>Usage</span>
+              <CommandShortcut>⌘2</CommandShortcut>
+            </CommandItem>
+            <CommandItem onSelect={() => runCommand(() => navigate({ to: '/billing' }))}>
+              <HugeiconsIcon icon={CreditCardIcon} />
+              <span>Billing</span>
+              <CommandShortcut>⌘3</CommandShortcut>
+            </CommandItem>
+            <CommandItem onSelect={() => runCommand(() => navigate({ to: '/models' }))}>
+              <HugeiconsIcon icon={ArtificialIntelligence01Icon} />
+              <span>Models</span>
+              <CommandShortcut>⌘4</CommandShortcut>
+            </CommandItem>
+            <CommandItem onSelect={() => runCommand(() => navigate({ to: '/documentation' }))}>
+              <HugeiconsIcon icon={SourceCodeIcon} />
+              <span>Documentation</span>
+            </CommandItem>
+          </CommandGroup>
+        </CommandList>
+      </Command>
     </CommandDialog>
   );
 }
@@ -135,7 +138,7 @@ function CommandMenuContent({ onClose }: { onClose: () => void }) {
   );
 
   return (
-    <>
+    <Command className="[&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:font-medium [&_[cmdk-group-heading]]:text-muted-foreground [&_[cmdk-group]:not([hidden])_~[cmdk-group]]:pt-0 [&_[cmdk-input-wrapper]_svg]:h-5 [&_[cmdk-input-wrapper]_svg]:w-5 [&_[cmdk-input]]:h-12 [&_[cmdk-item]]:px-2 [&_[cmdk-item]]:py-3">
       <CommandInput placeholder="Type a command or search..." />
       <CommandList>
         <CommandEmpty>No results found.</CommandEmpty>
@@ -186,6 +189,6 @@ function CommandMenuContent({ onClose }: { onClose: () => void }) {
           </CommandItem>
         </CommandGroup>
       </CommandList>
-    </>
+    </Command>
   );
 }
