@@ -111,7 +111,7 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
   const [currentWorkspace, setCurrentWorkspaceState] = React.useState<Workspace | null>(null);
   const [isLoading, setIsLoading] = React.useState(true);
 
-  const userId = user?._id || user?.id || 'anonymous';
+  const userId = (user?._id as string) || (user?.id as string) || 'anonymous';
 
   // Persist workspaces to localStorage
   const persistWorkspaces = React.useCallback((updated: Workspace[]) => {
