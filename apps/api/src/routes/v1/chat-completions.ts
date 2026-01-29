@@ -690,12 +690,17 @@ When you use a tool successfully:
           aliasModelId
         );
 
-        // Send usage info as metadata chunk
+        // Send usage info as metadata chunk (must include choices array for SDK compatibility)
         const usageChunk = {
           id: `chatcmpl-${Date.now()}`,
           object: 'chat.completion.chunk',
           created: Math.floor(Date.now() / 1000),
           model: aliasModelId,
+          choices: [{
+            index: 0,
+            delta: {},
+            finish_reason: null
+          }],
           usage: {
             prompt_tokens: tokenUsage.promptTokens,
             completion_tokens: tokenUsage.completionTokens,

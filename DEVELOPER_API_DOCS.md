@@ -193,10 +193,39 @@ POST /api/v1/chat/completions
 }
 ```
 
-**Example (JavaScript):**
+**Example (Node.js - OpenAI SDK) - Recommended:**
+```typescript
+import OpenAI from 'openai';
+
+const openai = new OpenAI({
+  apiKey: 'alia_sk_your_key',
+  baseURL: 'https://api.alia.onl/v1',
+});
+
+// Streaming
+const stream = await openai.chat.completions.create({
+  model: 'alia-v1',
+  messages: [{ role: 'user', content: 'Hello!' }],
+  stream: true,
+});
+
+for await (const chunk of stream) {
+  const content = chunk.choices[0]?.delta?.content;
+  if (content) process.stdout.write(content);
+}
+
+// Non-streaming
+const response = await openai.chat.completions.create({
+  model: 'alia-v1',
+  messages: [{ role: 'user', content: 'Hello!' }],
+});
+console.log(response.choices[0].message.content);
+```
+
+**Example (JavaScript - Fetch API):**
 ```javascript
 async function chat(messages, model = 'alia-v1') {
-  const response = await fetch('/api/v1/chat/completions', {
+  const response = await fetch('https://api.alia.onl/v1/chat/completions', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -217,6 +246,44 @@ const result = await chat([
   { role: 'user', content: 'Hello!' }
 ]);
 console.log(result.choices[0].message.content);
+```
+
+**Example (Vercel AI SDK v5+):**
+
+> ⚠️ **Important:** Since AI SDK 5+, the default calls `/v1/responses` which is NOT supported by Alia API. You MUST use the `.chat()` method or `@ai-sdk/openai-compatible` package.
+
+```typescript
+// Option 1: Using @ai-sdk/openai with .chat() method
+import { createOpenAI } from '@ai-sdk/openai';
+import { streamText } from 'ai';
+
+const alia = createOpenAI({
+  apiKey: 'alia_sk_your_key',
+  baseURL: 'https://api.alia.onl/v1',
+});
+
+const result = await streamText({
+  model: alia.chat('alia-v1'),  // Use .chat() to force /v1/chat/completions
+  messages: [{ role: 'user', content: 'Hello!' }],
+});
+
+for await (const chunk of result.textStream) {
+  console.log(chunk);
+}
+
+// Option 2: Using @ai-sdk/openai-compatible
+import { createOpenAICompatible } from '@ai-sdk/openai-compatible';
+
+const alia = createOpenAICompatible({
+  name: 'alia',
+  apiKey: 'alia_sk_your_key',
+  baseURL: 'https://api.alia.onl/v1',
+});
+
+const result = await streamText({
+  model: alia('alia-v1'),
+  messages: [{ role: 'user', content: 'Hello!' }],
+});
 ```
 
 ### 4. Chat Completions (Streaming with SSE)
@@ -710,6 +777,6 @@ See our [GitHub repository](https://github.com/alia-ai/examples) for complete ex
 
 ---
 
-**Last Updated:** January 27, 2026
+**Last Updated:** January 29, 2026
 **API Version:** v1
 **Status:** Production Ready
