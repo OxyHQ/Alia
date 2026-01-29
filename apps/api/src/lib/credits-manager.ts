@@ -275,3 +275,173 @@ export async function getUserCredits(userId: string): Promise<{ free: number; pa
     return null;
   }
 }
+
+// ============== VOICE (TIME-BASED) BILLING ==============
+
+/**
+ * Calculate credits needed based on minutes and cost per minute
+ * Used for voice/realtime API calls that are billed per minute
+ *
+ * @param minutes - Total minutes of voice call
+ * @param aliasModelId - The Alia model being used
+ * @param costPerMinute - Provider's cost per minute (e.g., 0.05 for Grok)
+ * @returns Credits to charge
+ */
+export function calculateCreditsFromMinutes(
+  minutes: number,
+  aliasModelId: string,
+  costPerMinute: number
+): number {
+  if (minutes === 0) {
+    return CREDITS_CONFIG.MIN_CREDITS_PER_REQUEST;
+  }
+
+  const multiplier = getCreditMultiplier(aliasModelId);
+
+  // Convert to credits: $1 = 1000 credits
+  // Example: $0.05/min * 1000 = 50 credits/min
+  const baseCredits = Math.ceil(minutes * costPerMinute * 1000);
+  const calculatedCredits = Math.ceil(baseCredits * multiplier);
+
+  console.log(`[CreditsManager] Voice credits: ${minutes.toFixed(2)} min × $${costPerMinute}/min × ${multiplier}x = ${calculatedCredits} credits`);
+
+  return Math.max(calculatedCredits, CREDITS_CONFIG.MIN_CREDITS_PER_REQUEST);
+}
+
+/**
+ * Reserve credits for a voice call (time-based)
+ * Reserves credits for an estimated duration
+ *
+ * @param userId - User ID
+ * @param estimatedMinutes - Estimated call duration in minutes
+ * @param aliasModelId - The Alia model being used
+ * @param costPerMinute - Provider's cost per minute
+ * @returns Credit reservation or null if insufficient
+ */
+export async function reserveVoiceCredits(
+  userId: string,
+  estimatedMinutes: number = 1,
+  aliasModelId: string = 'alia-v1-voice',
+  costPerMinute: number = 0.05
+): Promise<CreditReservation | null> {
+  const estimatedCredits = calculateCreditsFromMinutes(
+    estimatedMinutes,
+    aliasModelId,
+    costPerMinute
+  );
+
+  console.log(`[CreditsManager] Reserving ${estimatedCredits} credits for estimated ${estimatedMinutes} min voice call`);
+
+  return reserveCredits(userId, estimatedCredits);
+}
+
+/**
+ * Finalize voice call credits based on actual duration
+ * Adjusts the reservation based on actual time used
+ *
+ * @param reservation - The initial credit reservation
+ * @param actualMinutes - Actual call duration in minutes
+ * @param aliasModelId - The Alia model used
+ * @param costPerMinute - Provider's cost per minute
+ * @returns Credits charged and remaining
+ */
+export async function finalizeVoiceCredits(
+  reservation: CreditReservation,
+  actualMinutes: number,
+  aliasModelId: string,
+  costPerMinute: number
+): Promise<{ creditsCharged: number; creditsRemaining: number }> {
+  try {
+    const actualCreditsNeeded = calculateCreditsFromMinutes(
+      actualMinutes,
+      aliasModelId,
+      costPerMinute
+    );
+    const creditAdjustment = reservation.creditsReserved - actualCreditsNeeded;
+
+    console.log(`[CreditsManager] Finalizing voice credits for user ${reservation.userId}`);
+    console.log(`[CreditsManager] Reserved: ${reservation.creditsReserved}, Actual needed: ${actualCreditsNeeded}`);
+    console.log(`[CreditsManager] Duration: ${actualMinutes.toFixed(2)} minutes at $${costPerMinute}/min`);
+    console.log(`[CreditsManager] Adjustment: ${creditAdjustment}`);
+
+    let updatedCredits = await UserCredits.findById(reservation.userId);
+
+    if (!updatedCredits) {
+      throw new Error('User credits not found');
+    }
+
+    // If we need to adjust (either refund or charge more)
+    if (creditAdjustment !== 0) {
+      if (creditAdjustment > 0) {
+        // Refund: we reserved more than needed
+        updatedCredits = await UserCredits.findByIdAndUpdate(
+          reservation.userId,
+          { $inc: { 'credits.free': creditAdjustment } },
+          { new: true, runValidators: false }
+        );
+        console.log(`[CreditsManager] Refunded ${creditAdjustment} credits`);
+      } else {
+        // Charge more: actual usage exceeded reservation
+        const additionalCredits = Math.abs(creditAdjustment);
+
+        // Try to deduct additional credits
+        updatedCredits = await UserCredits.findOneAndUpdate(
+          {
+            _id: reservation.userId,
+            $expr: {
+              $gte: [{ $add: ['$credits.free', '$credits.paid'] }, additionalCredits]
+            }
+          },
+          [
+            {
+              $set: {
+                'credits.free': {
+                  $cond: {
+                    if: { $gte: ['$credits.free', additionalCredits] },
+                    then: { $subtract: ['$credits.free', additionalCredits] },
+                    else: 0
+                  }
+                },
+                'credits.paid': {
+                  $cond: {
+                    if: { $gte: ['$credits.free', additionalCredits] },
+                    then: '$credits.paid',
+                    else: { $subtract: ['$credits.paid', { $subtract: [additionalCredits, '$credits.free'] }] }
+                  }
+                }
+              }
+            }
+          ],
+          { new: true, runValidators: false, updatePipeline: true }
+        );
+
+        if (!updatedCredits) {
+          // Insufficient credits for additional charge - set to 0
+          updatedCredits = await UserCredits.findByIdAndUpdate(
+            reservation.userId,
+            { $set: { 'credits.free': 0, 'credits.paid': 0 } },
+            { new: true }
+          );
+          console.log(`[CreditsManager] WARNING: Insufficient credits for additional charge. Set to 0.`);
+        } else {
+          console.log(`[CreditsManager] Charged additional ${additionalCredits} credits`);
+        }
+      }
+    }
+
+    if (!updatedCredits) {
+      throw new Error('Failed to update credits');
+    }
+
+    const totalRemaining = updatedCredits.credits.free + updatedCredits.credits.paid;
+    console.log(`[CreditsManager] Final voice credits: ${updatedCredits.credits.free} free, ${updatedCredits.credits.paid} paid (total: ${totalRemaining})`);
+
+    return {
+      creditsCharged: actualCreditsNeeded,
+      creditsRemaining: totalRemaining,
+    };
+  } catch (error) {
+    console.error('[CreditsManager] Error finalizing voice credits:', error);
+    throw error;
+  }
+}

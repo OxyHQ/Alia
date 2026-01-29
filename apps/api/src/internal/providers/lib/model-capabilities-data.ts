@@ -12,6 +12,7 @@ export const DEFAULT_CAPABILITIES: ModelCapabilities = {
   vision: false,
   audio: false,
   video: false,
+  voice: false,
   tools: true,
   codeExecution: false,
   webSearch: false,
@@ -492,6 +493,37 @@ export const MODEL_PRICING: Record<string, ModelPricing> = {
 
   // ============== CLOUDFLARE ==============
   '@cf/meta/llama-3.2-11b-vision-instruct': { tier: 'free', averageLatencyMs: 1000 },
+
+  // ============== GROK (VOICE/REALTIME) ==============
+  'grok-realtime': { tier: 'paid', averageLatencyMs: 700 },
+};
+
+// ============== MODEL CAPABILITIES ==============
+
+export const MODEL_CAPABILITIES: Record<string, ModelCapabilities> = {
+  // ... existing model capabilities ...
+
+  // ============== GROK (VOICE/REALTIME) ==============
+  'grok-realtime': createCapabilities({
+    voice: true,
+    audio: true,
+    streaming: true,
+    tools: true,
+    functionCalling: true,
+    maxContextTokens: 32768,
+    maxOutputTokens: 8192,
+  }),
+
+  // ============== OPENAI (VOICE/REALTIME) ==============
+  'gpt-4o-realtime-preview': createCapabilities({
+    voice: true,
+    audio: true,
+    streaming: true,
+    tools: true,
+    functionCalling: true,
+    maxContextTokens: 128000,
+    maxOutputTokens: 16384,
+  }),
 };
 
 // Get capabilities for a model, with fallback to defaults

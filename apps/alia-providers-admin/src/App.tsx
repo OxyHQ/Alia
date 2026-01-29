@@ -58,6 +58,15 @@ function App() {
 function AppRoutes() {
   const { user, isAuthenticated, isLoading } = useAuth();
 
+  // Debug logging
+  useEffect(() => {
+    console.log('[Auth Debug]', {
+      isLoading,
+      isAuthenticated,
+      user: user ? { username: user.username, email: user.email } : null,
+    });
+  }, [isLoading, isAuthenticated, user]);
+
   // Show loading state
   if (isLoading) {
     return (
@@ -70,8 +79,12 @@ function AppRoutes() {
     );
   }
 
-  // Show login page if not authenticated
-  if (!isAuthenticated || !user) {
+  // Check if user is authorized (only "nate" username allowed)
+  const isAuthorized = user?.username?.toLowerCase() === 'nate';
+
+  // Show login page if not authenticated or not authorized
+  if (!isAuthenticated || !user || !isAuthorized) {
+    console.log('[Auth] Redirecting to login. Authorized:', isAuthorized, 'User:', user?.username);
     return (
       <Routes>
         <Route path="*" element={<LoginPage />} />
@@ -79,7 +92,9 @@ function AppRoutes() {
     );
   }
 
-  // Show admin panel if authenticated
+  console.log('[Auth] Access granted for user:', user.username);
+
+  // Show admin panel if authenticated and authorized
   return (
     <Routes>
       <Route path="/" element={<DashboardLayout />}>

@@ -4,10 +4,14 @@ import {
   Key,
   Boxes,
   Activity,
-  Server
+  Server,
+  LogOut,
+  User
 } from 'lucide-react';
+import { useAuth } from '@oxyhq/services/web';
 import { cn } from '@/lib/utils';
 import { ConnectionStatus } from '@/components/ConnectionStatus';
+import { Button } from '@/components/ui/button';
 
 const navigation = [
   { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
@@ -17,6 +21,8 @@ const navigation = [
 ];
 
 export function DashboardLayout() {
+  const { user, signOut } = useAuth();
+
   return (
     <div className="flex h-screen bg-background">
       {/* Sidebar */}
@@ -52,8 +58,30 @@ export function DashboardLayout() {
         </nav>
 
         {/* Footer */}
-        <div className="p-4 border-t border-border">
+        <div className="p-4 border-t border-border space-y-3">
           <ConnectionStatus />
+
+          {/* User Info */}
+          {user && (
+            <div className="flex items-center justify-between gap-2 p-2 rounded-lg bg-muted">
+              <div className="flex items-center gap-2 min-w-0">
+                <User className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                <div className="min-w-0">
+                  <p className="text-xs font-medium truncate">{user.username}</p>
+                  <p className="text-xs text-muted-foreground truncate">{user.email}</p>
+                </div>
+              </div>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-7 w-7 flex-shrink-0"
+                onClick={signOut}
+                title="Sign out"
+              >
+                <LogOut className="h-4 w-4" />
+              </Button>
+            </div>
+          )}
         </div>
       </div>
 
