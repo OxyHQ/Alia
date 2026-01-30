@@ -52,9 +52,9 @@
     "react-dom": "19.1.0"
   },
   "dependencies": {
-    "@oxyhq/auth": "6.0.1",
-    "@oxyhq/core": "1.0.1",
-    "@oxyhq/services": "6.0.1",
+    "@oxyhq/auth": "latest",
+    "@oxyhq/core": "latest",
+    "@oxyhq/services": "latest",
     "@types/ws": "^8.18.1",
     "ws": "^8.19.0"
   }
