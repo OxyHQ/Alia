@@ -11,8 +11,8 @@ import type { WebSocketServer } from 'ws';
 import type { IncomingMessage } from 'http';
 import type WebSocket from 'ws';
 import { voiceSessionManager } from '../../internal/providers/lib/voice-session-manager.js';
-import { verifyToken } from '../../lib/auth-utils.js';
-import { DeveloperKey } from '../../models/developer-key.js';
+import { oxyClient } from '../../middleware/auth.js';
+import DeveloperApiKey from '../../models/developer-api-key.js';
 
 // ============== WEBSOCKET ENDPOINT SETUP ==============
 
@@ -36,10 +36,11 @@ export function setupRealtimeEndpoint(wss: WebSocketServer): void {
 
       // Authentication
       if (token) {
-        // JWT authentication (user sessions)
+        // JWT authentication (user sessions via Oxy)
         try {
-          const payload = verifyToken(token);
-          userId = payload.sub;
+          oxyClient.setTokens(token);
+          const session = await oxyClient.user.getSession();
+          userId = session.user._id;
           console.log(`[Realtime] Authenticated user via JWT: ${userId}`);
         } catch (error) {
           console.error('[Realtime] JWT verification failed:', error);
@@ -49,9 +50,9 @@ export function setupRealtimeEndpoint(wss: WebSocketServer): void {
       } else if (apiKey) {
         // API key authentication (developer keys)
         try {
-          const devKey = await DeveloperKey.findOne({
-            key: apiKey,
-            revoked: false,
+          const devKey = await DeveloperApiKey.findOne({
+            keyHash: apiKey,
+            isActive: true,
             $or: [{ expiresAt: { $exists: false } }, { expiresAt: { $gt: new Date() } }],
           });
 
