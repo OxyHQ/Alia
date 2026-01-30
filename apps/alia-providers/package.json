@@ -21,7 +21,7 @@
     "dotenv": "^16.3.1",
     "zod": "^3.22.4",
     "jsonwebtoken": "^9.0.2",
-    "@oxyhq/core": "1.0.1"
+    "@oxyhq/core": "latest"
   },
   "devDependencies": {
     "@types/express": "^4.17.21",
