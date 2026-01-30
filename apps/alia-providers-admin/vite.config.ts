@@ -12,6 +12,20 @@ export default defineConfig({
     },
   },
   optimizeDeps: {
-    exclude: ['@oxyhq/services'],
+    exclude: ['@oxyhq/services', 'react-native'],
+  },
+  build: {
+    commonjsOptions: {
+      ignore: ['react-native'],
+    },
+    rollupOptions: {
+      external: (id) => {
+        // Exclude all react-native and expo related imports
+        return id.includes('react-native') ||
+               id.includes('expo') ||
+               id.includes('@react-native') ||
+               id.includes('react-native-');
+      },
+    },
   },
 })
