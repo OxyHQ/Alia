@@ -4,7 +4,7 @@ import crypto from 'crypto';
 import mongoose from 'mongoose';
 import { TelegramUser } from '../models/telegram-user.js';
 import { emitTelegramLinked } from '../socket.js';
-import { OxyServices } from '@oxyhq/services/core';
+import { OxyServices } from '@oxyhq/core';
 
 // Initialize Oxy client for user lookups
 const OXY_API_URL = process.env.OXY_API_URL || 'https://api.oxy.so';

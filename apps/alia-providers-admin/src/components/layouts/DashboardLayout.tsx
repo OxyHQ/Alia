@@ -8,7 +8,7 @@ import {
   LogOut,
   User
 } from 'lucide-react';
-import { useAuth } from '@oxyhq/services/web';
+import { useAuth } from '@oxyhq/auth';
 import { cn } from '@/lib/utils';
 import { ConnectionStatus } from '@/components/ConnectionStatus';
 import { Button } from '@/components/ui/button';

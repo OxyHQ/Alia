@@ -1,6 +1,6 @@
 import crypto from 'crypto';
 import { Request, Response, NextFunction } from 'express';
-import { OxyServices } from '@oxyhq/services/core';
+import { OxyServices } from '@oxyhq/core';
 
 const SERVICE_SECRET = process.env.SERVICE_SECRET || '';
 const ALLOWED_SERVICES = (process.env.ALLOWED_SERVICES || 'alia-api').split(',').map((s) => s.trim());
