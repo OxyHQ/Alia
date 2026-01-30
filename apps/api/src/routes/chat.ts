@@ -11,7 +11,7 @@ import { resolveAliaModel, getDefaultAliaModel } from '../lib/model-resolver.js'
 import type { KeyConfig } from '../lib/types.js';
 import { getCurrentDateTool, createGoogleSearchTool, getTimelineTool, searchKnowledgeBaseTool, scrapeURLTool, saveUserMemoryTool, updateUserPreferencesTool, updateUserContextTool, createGetDeviceInfoTool, createSendTelegramTool, type DeviceInfo } from '../lib/tools/index.js';
 import { optionalAuth, oxyClient } from '../middleware/auth.js';
-import type { User as OxyUser } from '@oxyhq/services';
+import type { User as OxyUser } from '@oxyhq/core';
 import { UserCredits } from '../models/user-credits.js';
 import { UserMemory } from '../models/user-memory.js';
 import { Conversation } from '../models/conversation.js';

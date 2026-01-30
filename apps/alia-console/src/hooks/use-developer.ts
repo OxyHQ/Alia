@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useAuth } from '@oxyhq/services/web';
+import { useAuth } from '@oxyhq/auth';
 import apiClient from '@/lib/api/client';
 
 export interface DeveloperApp {

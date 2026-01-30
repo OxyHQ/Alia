@@ -22,7 +22,7 @@ import {
   SidebarMenuItem,
   useSidebar,
 } from '@/components/ui/sidebar';
-import { useAuth } from '@oxyhq/services/web';
+import { useAuth } from '@oxyhq/auth';
 import config from '@/lib/config';
 import { Link } from '@tanstack/react-router';
 

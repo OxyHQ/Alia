@@ -1,7 +1,7 @@
 "use client";
 
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
-import { OxyServices, createCrossDomainAuth } from '@oxyhq/services/core';
+import { OxyServices, createCrossDomainAuth } from '@oxyhq/core';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api.oxy.so';
 

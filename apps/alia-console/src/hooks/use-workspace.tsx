@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { useAuth } from '@oxyhq/services/web';
+import { useAuth } from '@oxyhq/auth';
 
 export type WorkspaceRole = 'owner' | 'admin' | 'member' | 'viewer';
 
