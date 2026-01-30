@@ -12,19 +12,20 @@ export default defineConfig({
     },
   },
   optimizeDeps: {
-    exclude: ['@oxyhq/services', 'react-native'],
+    exclude: ['@oxyhq/services'],
+  },
+  ssr: {
+    noExternal: ['@oxyhq/services'],
   },
   build: {
-    commonjsOptions: {
-      ignore: ['react-native'],
-    },
     rollupOptions: {
       external: (id) => {
-        // Exclude all react-native and expo related imports
+        // Exclude react-native and expo packages from the bundle
+        // These exist in the monorepo but are not needed for web
         return id.includes('react-native') ||
                id.includes('expo') ||
-               id.includes('@react-native') ||
-               id.includes('react-native-');
+               id.startsWith('@expo/') ||
+               id.startsWith('@react-native');
       },
     },
   },
