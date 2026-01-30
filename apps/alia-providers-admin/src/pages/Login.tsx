@@ -3,7 +3,7 @@
  * Uses OxyHQ authentication via the useAuth hook
  */
 
-import { useAuth } from '@oxyhq/services/web';
+import { useAuth } from '@oxyhq/auth';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Server, LogIn } from 'lucide-react';

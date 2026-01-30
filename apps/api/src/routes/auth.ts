@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { OxyServices } from '@oxyhq/services/core';
+import { OxyServices } from '@oxyhq/core';
 import { authenticateToken } from '../middleware/auth.js';
 import DeveloperApp from '../models/developer-app.js';
 import DeveloperApiKey from '../models/developer-api-key.js';
