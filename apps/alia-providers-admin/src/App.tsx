@@ -1,6 +1,6 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
-import { WebOxyProvider, useAuth } from '@oxyhq/services/web';
+import { WebOxyProvider, useAuth } from '@oxyhq/auth';
 import { useEffect } from 'react';
 import { DashboardLayout } from './components/layouts/DashboardLayout';
 import { DashboardPage } from './pages/Dashboard';

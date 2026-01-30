@@ -19,10 +19,10 @@ const config = defineConfig({
     viteReact(),
   ],
   optimizeDeps: {
-    exclude: ['@oxyhq/services'],
+    exclude: ['@oxyhq/auth'],
   },
   ssr: {
-    noExternal: ['@oxyhq/services'],
+    noExternal: ['@oxyhq/auth'],
   },
 })
 

@@ -1,5 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
-import { OxyServices } from '@oxyhq/services/core';
+import { OxyServices } from '@oxyhq/core';
 import DeveloperApiKey from '../models/developer-api-key.js';
 import DeveloperApp from '../models/developer-app.js';
 import ApiKeyUsage from '../models/api-key-usage.js';
