@@ -11,22 +11,4 @@ export default defineConfig({
       "@": path.resolve(__dirname, "./src"),
     },
   },
-  optimizeDeps: {
-    exclude: ['@oxyhq/auth'],
-  },
-  ssr: {
-    noExternal: ['@oxyhq/auth'],
-  },
-  build: {
-    rollupOptions: {
-      external: (id) => {
-        // Exclude react-native and expo packages from the bundle
-        // These exist in the monorepo but are not needed for web
-        return id.includes('react-native') ||
-               id.includes('expo') ||
-               id.startsWith('@expo/') ||
-               id.startsWith('@react-native');
-      },
-    },
-  },
 })
