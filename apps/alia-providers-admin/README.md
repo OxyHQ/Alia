@@ -40,17 +40,21 @@ Modern admin panel for managing the Alia Providers microservice. Built with Vite
 
 ## Clean Web-Only Architecture
 
-This admin panel uses **@oxyhq/services/web** - a clean, professional web-only module with **ZERO React Native dependencies**.
+This admin panel uses **@oxyhq/auth** + **@oxyhq/core** - the official web packages with **ZERO React Native dependencies**.
 
-### Why /web?
+### Why @oxyhq/auth for web?
 
-The `@oxyhq/services` package supports multiple platforms (Expo, React Native, Node.js, and Web). Instead of pulling in React Native dependencies and using react-native-web aliases, we use the dedicated `/web` entry point that only includes web-compatible code.
+The OxyHQ ecosystem provides platform-specific packages:
+- `@oxyhq/services` - For Expo and React Native apps (includes native dependencies)
+- `@oxyhq/auth` + `@oxyhq/core` - For web apps (Next.js, React, Vite)
+- `@oxyhq/core` - For backend/Node.js only
 
-This approach is:
-- ✅ **Professional**: No react-native aliases or workarounds in Vite config
-- ✅ **Clean**: Zero React Native dependencies in the bundle
+Using `@oxyhq/auth` for web apps means:
+- ✅ **Professional**: Web-first design, no React Native dependencies
+- ✅ **Clean**: Zero native dependencies in the bundle
 - ✅ **Fast**: Smaller bundle size, faster builds
 - ✅ **Simple**: No polyfills, shims, or special configuration needed
+- ✅ **Full-featured**: Cross-domain SSO with FedCM support
 
 ### Configuration
 
@@ -58,7 +62,8 @@ This approach is:
 ```json
 {
   "dependencies": {
-    "@oxyhq/services": "file:../../../../OxyHQServices/packages/services"
+    "@oxyhq/auth": "latest",
+    "@oxyhq/core": "latest"
   }
 }
 ```
@@ -100,23 +105,22 @@ The admin panel uses **OxyHQ's cross-domain SSO** for authentication with strict
 
 ### Code
 
-**Frontend** ([src/lib/auth/context.tsx](src/lib/auth/context.tsx)):
+**Frontend** ([src/App.tsx](src/App.tsx)):
 ```typescript
-import { WebOxyProvider, useAuth as useOxyAuth } from '@oxyhq/services/web';
+import { WebOxyProvider, useAuth } from '@oxyhq/auth';
+
+// In AppRoutes component
+const { user, isAuthenticated, isLoading } = useAuth();
 
 // Check if user is authorized (only "nate" allowed)
-const checkAuthorization = (user: User | null): boolean => {
-  if (!user) return false;
-  return user.username.toLowerCase() === 'nate';
-};
+const isAuthorized = user?.username?.toLowerCase() === 'nate';
 ```
 
 **Backend** (alia-providers [src/middleware/auth.ts](../alia-providers/src/middleware/auth.ts)):
 ```typescript
-import { OxyServices } from '@oxyhq/services/core';
+import { oxyClient } from '@oxyhq/core';
 
-const oxyServices = new OxyServices({ baseURL: 'https://api.oxy.so' });
-const user = await oxyServices.getCurrentUser();
+const user = await oxyClient.getCurrentUser();
 
 if (user.username.toLowerCase() !== 'nate') {
   return res.status(403).json({ error: 'Access denied' });
