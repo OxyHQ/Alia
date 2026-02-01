@@ -18,16 +18,15 @@ interface RealtimeProviderProps {
 }
 
 export function RealtimeProvider({ children }: RealtimeProviderProps) {
-  const { isAuthenticated, activeSessionId } = useAuth();
+  const { isAuthenticated, oxyServices } = useAuth();
 
   useEffect(() => {
-    // Set token getter so WebSocket can authenticate — send session ID, not JWT
-    // The server validates sessions via oxyClient.validateSession(sessionId)
-    realtimeClient.setTokenGetter(() => activeSessionId || null);
-  }, [activeSessionId]);
+    // Set token getter so WebSocket can authenticate with JWT access token
+    realtimeClient.setTokenGetter(() => oxyServices.getAccessToken() || null);
+  }, [oxyServices]);
 
   useEffect(() => {
-    if (isAuthenticated && activeSessionId) {
+    if (isAuthenticated) {
       realtimeClient.connect();
     } else {
       realtimeClient.disconnect();
@@ -36,7 +35,7 @@ export function RealtimeProvider({ children }: RealtimeProviderProps) {
     return () => {
       realtimeClient.disconnect();
     };
-  }, [isAuthenticated, activeSessionId]);
+  }, [isAuthenticated]);
 
   const value: RealtimeContextValue = {
     client: realtimeClient,
