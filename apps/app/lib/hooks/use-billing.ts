@@ -64,14 +64,14 @@ async function fetchPackages(): Promise<CreditPackage[]> {
 }
 
 export function useCreditPackages() {
-  const { activeSessionId } = useOxy();
+  const { isAuthenticated } = useOxy();
 
   return useQuery({
     queryKey: ['credit-packages'],
     queryFn: fetchPackages,
     staleTime: 1000 * 60 * 60, // 1 hour
     retry: 2,
-    enabled: !!activeSessionId,
+    enabled: isAuthenticated,
   });
 }
 
@@ -85,14 +85,14 @@ async function fetchPlans(): Promise<SubscriptionPlan[]> {
 }
 
 export function useSubscriptionPlans() {
-  const { activeSessionId } = useOxy();
+  const { isAuthenticated } = useOxy();
 
   return useQuery({
     queryKey: ['subscription-plans'],
     queryFn: fetchPlans,
     staleTime: 1000 * 60 * 60, // 1 hour
     retry: 2,
-    enabled: !!activeSessionId,
+    enabled: isAuthenticated,
   });
 }
 
@@ -106,14 +106,14 @@ async function fetchSubscription(): Promise<Subscription | null> {
 }
 
 export function useSubscription() {
-  const { activeSessionId } = useOxy();
+  const { isAuthenticated } = useOxy();
 
   return useQuery({
     queryKey: ['subscription'],
     queryFn: fetchSubscription,
     staleTime: 1000 * 60 * 2, // 2 minutes
     retry: 2,
-    enabled: !!activeSessionId,
+    enabled: isAuthenticated,
   });
 }
 
@@ -127,14 +127,14 @@ async function fetchTransactions(limit: number = 20, offset: number = 0): Promis
 }
 
 export function useTransactions(limit: number = 20, offset: number = 0) {
-  const { activeSessionId } = useOxy();
+  const { isAuthenticated } = useOxy();
 
   return useQuery({
     queryKey: ['transactions', limit, offset],
     queryFn: () => fetchTransactions(limit, offset),
     staleTime: 1000 * 60, // 1 minute
     retry: 1,
-    enabled: !!activeSessionId,
+    enabled: isAuthenticated,
   });
 }
 

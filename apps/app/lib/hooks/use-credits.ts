@@ -16,13 +16,13 @@ async function fetchCredits(): Promise<CreditsInfo> {
 }
 
 export function useCredits() {
-  const { activeSessionId } = useOxy();
+  const { isAuthenticated } = useOxy();
 
   return useQuery({
     queryKey: ['credits'],
     queryFn: fetchCredits,
     staleTime: 1000 * 60, // 1 minute
     retry: 2,
-    enabled: !!activeSessionId,
+    enabled: isAuthenticated,
   });
 }

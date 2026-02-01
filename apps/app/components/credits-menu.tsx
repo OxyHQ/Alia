@@ -6,14 +6,14 @@ import { useOxy } from "@oxyhq/services";
 import { useUIStore } from "@/lib/stores/ui-store";
 
 export function CreditsMenu() {
-  const { activeSessionId } = useOxy();
+  const { isAuthenticated } = useOxy();
   const { data } = useCredits();
   const toggleRightPanel = useUIStore((state) => state.toggleRightPanel);
 
   const credits = data?.credits ?? 0;
 
   // Hide credits menu if user is not signed in
-  if (!activeSessionId) {
+  if (!isAuthenticated) {
     return null;
   }
 
