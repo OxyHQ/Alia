@@ -73,8 +73,10 @@ export interface AliaModel {
   aliasModelId: string;
   displayName: string;
   tier: string;
+  description?: string;
+  features?: string[];
   providerMappings: Array<{
-    modelConfigId: string;
+    modelConfigId?: string;
     provider: string;
     modelId: string;
     priority: number;
@@ -82,19 +84,19 @@ export interface AliaModel {
     isActive: boolean;
   }>;
   creditMultiplier: number;
+  isFreeTier: boolean;
   aggregatedCapabilities: {
-    maxInputTokens: number;
-    maxOutputTokens: number;
-    supportsStreaming: boolean;
-    supportsTools: boolean;
-    supportsVision: boolean;
-    supportsJsonMode: boolean;
-    supportsPdf: boolean;
-    urlContext: boolean;
-    thinkingLevel: 'NONE' | 'LOW' | 'MEDIUM' | 'HIGH';
+    vision: boolean;
+    audio: boolean;
+    codeExecution: boolean;
+    webSearch: boolean;
+    thinking: boolean;
   };
   isActive: boolean;
-  description?: string;
+  isDeprecated: boolean;
+  totalRequests: number;
+  totalTokens: number;
+  averageLatencyMs: number;
   notes?: string;
   createdAt: string;
   updatedAt: string;
