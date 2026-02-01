@@ -21,12 +21,11 @@ const queryClient = new QueryClient({
 });
 
 function ApiAuthSetup({ children }: { children: React.ReactNode }) {
-  const { activeSessionId } = useAuth();
+  const { oxyServices } = useAuth();
 
   // Set token getter synchronously so it's available before child queries fire.
-  // useEffect runs after render, which is too late — queries in child components
-  // would fire without an auth token on the first render cycle.
-  apiClient.setTokenGetter(async () => activeSessionId || null);
+  // Uses oxyServices.getAccessToken() to get the JWT (not raw session ID).
+  apiClient.setTokenGetter(async () => oxyServices.getAccessToken() || null);
 
   return <>{children}</>;
 }

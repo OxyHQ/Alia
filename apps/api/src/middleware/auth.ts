@@ -34,9 +34,11 @@ declare global {
 export const authenticateToken = oxyClient.auth();
 
 /**
- * Optional auth - doesn't fail if no session
+ * Optional auth - attaches user if token present, doesn't block if absent
  * Tries bot auth first (Telegram), then Oxy JWT auth
  */
+const oxyOptionalAuth = oxyClient.auth({ optional: true });
+
 export function optionalAuth(
   req: Request,
   res: Response,
@@ -49,20 +51,15 @@ export function optionalAuth(
     return;
   }
 
-  // Skip if no token or if it's an API key
+  // API keys should not go through JWT auth
   const authHeader = req.headers['authorization'];
   const token = authHeader?.startsWith('Bearer ') ? authHeader.substring(7) : null;
-
-  if (!token || token.startsWith('alia_sk_')) {
+  if (token?.startsWith('alia_sk_')) {
     return next();
   }
 
-  // Try oxyClient.auth() but don't fail — silently continue without auth
-  const authMiddleware = oxyClient.auth();
-  authMiddleware(req, res, () => {
-    // Auth succeeded or failed — either way, continue
-    next();
-  });
+  // Use oxyClient.auth({ optional: true }) — attaches user if valid, continues if not
+  oxyOptionalAuth(req, res, next);
 }
 
 /**

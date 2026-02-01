@@ -78,7 +78,7 @@ server.on('upgrade', (request, socket, head) => {
         wss.emit('connection', ws, request);
       });
     } else if (pathname === '/internal/providers/ws') {
-      // Validate auth token from query string
+      // Validate JWT access token from query string
       const url = new URL(request.url!, `http://${request.headers.host}`);
       const token = url.searchParams.get('token');
       if (!token) {
@@ -86,18 +86,39 @@ server.on('upgrade', (request, socket, head) => {
         socket.destroy();
         return;
       }
-      oxyClient.validateSession(token).then(({ valid }) => {
-        if (!valid) {
+      // Decode JWT to extract sessionId, then validate session server-side
+      import('jwt-decode').then(({ jwtDecode }) => {
+        try {
+          const decoded = jwtDecode<{ sessionId?: string; userId?: string; id?: string; exp?: number }>(token);
+          // Check expiration
+          if (decoded.exp && decoded.exp < Math.floor(Date.now() / 1000)) {
+            socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n');
+            socket.destroy();
+            return;
+          }
+          if (!decoded.sessionId) {
+            socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n');
+            socket.destroy();
+            return;
+          }
+          // Validate session against Oxy API
+          oxyClient.validateSession(decoded.sessionId).then(({ valid }) => {
+            if (!valid) {
+              socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n');
+              socket.destroy();
+              return;
+            }
+            providersWss.handleUpgrade(request, socket, head, (ws) => {
+              providersWss.emit('connection', ws, request);
+            });
+          }).catch(() => {
+            socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n');
+            socket.destroy();
+          });
+        } catch {
           socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n');
           socket.destroy();
-          return;
         }
-        providersWss.handleUpgrade(request, socket, head, (ws) => {
-          providersWss.emit('connection', ws, request);
-        });
-      }).catch(() => {
-        socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n');
-        socket.destroy();
       });
     } else {
       socket.destroy();
