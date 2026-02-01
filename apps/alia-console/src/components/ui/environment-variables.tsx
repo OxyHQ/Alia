@@ -225,7 +225,7 @@ function EnvironmentVariableValue({
 }
 
 // Copy button
-interface EnvironmentVariableCopyButtonProps extends Omit<React.ComponentProps<typeof Button>, 'onClick'> {
+interface EnvironmentVariableCopyButtonProps extends Omit<React.ComponentProps<typeof Button>, 'onClick' | 'onError'> {
   copyFormat?: 'name' | 'value' | 'export';
   onCopy?: () => void;
   onError?: (error: Error) => void;

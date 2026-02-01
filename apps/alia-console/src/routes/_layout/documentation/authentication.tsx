@@ -10,7 +10,7 @@ export const Route = createFileRoute('/_layout/documentation/authentication')({
   component: AuthenticationPage,
 });
 
-function CodeBlock({ code, language = 'bash' }: { code: string; language?: string }) {
+function CodeBlock({ code, language: _language = 'bash' }: { code: string; language?: string }) {
   const [copied, setCopied] = useState(false);
 
   const handleCopy = async () => {
