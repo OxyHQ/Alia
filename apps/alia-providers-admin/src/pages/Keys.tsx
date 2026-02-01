@@ -57,10 +57,13 @@ const PROVIDERS = [
   'mistral',
   'deepseek',
   'together',
+  'fireworks',
   'cerebras',
   'cloudflare',
   'openrouter',
   'cohere',
+  'perplexity',
+  'xai',
 ];
 
 type KeyFormData = {
