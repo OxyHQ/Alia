@@ -115,7 +115,7 @@ export function KeysPage() {
   // Real-time data subscription
   const { data: realtimeKeysData, isConnected } = useRealtimeKeys(filters);
 
-  // Fallback to polling if WebSocket is not connected
+  // Always fetch initial data via HTTP; slow-poll as fallback when WS is down
   const { data: polledKeysData, isLoading } = useQuery({
     queryKey: ['keys', filterProvider, filterStatus],
     queryFn: () => {
@@ -126,7 +126,7 @@ export function KeysPage() {
       return apiClient.listKeys(queryFilters);
     },
     refetchInterval: isConnected ? false : 30000,
-    enabled: isAuthenticated && !isConnected,
+    enabled: isAuthenticated,
   });
 
   // Use real-time data if available, otherwise fall back to polled data
