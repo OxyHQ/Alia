@@ -47,7 +47,6 @@ function AppContent() {
         }}
       >
         <Stack.Screen name="(app)" options={{ headerShown: false }} />
-        <Stack.Screen name="(developers)" options={{ headerShown: false }} />
       </Stack>
       <PortalHost />
     </AuthSetup>
