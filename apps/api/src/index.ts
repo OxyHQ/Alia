@@ -56,7 +56,7 @@ server.on('connection', (socket) => {
 
 // Socket.io
 import { initSocket } from './socket.js';
-const io = initSocket(server);
+initSocket(server);
 
 // WebSocket for Voice API
 import { WebSocketServer } from 'ws';
