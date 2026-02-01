@@ -120,11 +120,16 @@ router.post('/', async (req: Request, res: Response) => {
             code: 'INVALID_REQUEST',
           });
         }
-        // Verify the provider model exists
+        // Resolve modelConfigId from provider model
         const modelConfig = await ModelConfig.findOne({ provider: mapping.provider, modelId: mapping.modelId });
-        if (modelConfig) {
-          mapping.modelConfigId = modelConfig._id;
+        if (!modelConfig) {
+          return res.status(400).json({
+            success: false,
+            error: `Provider model not found: ${mapping.provider}/${mapping.modelId}. Add it as a provider model first.`,
+            code: 'PROVIDER_MODEL_NOT_FOUND',
+          });
         }
+        mapping.modelConfigId = modelConfig._id;
       }
     }
 
@@ -188,9 +193,14 @@ router.patch('/:aliasModelId', async (req: Request, res: Response) => {
         // Resolve modelConfigId if not set
         if (!mapping.modelConfigId) {
           const modelConfig = await ModelConfig.findOne({ provider: mapping.provider, modelId: mapping.modelId });
-          if (modelConfig) {
-            mapping.modelConfigId = modelConfig._id;
+          if (!modelConfig) {
+            return res.status(400).json({
+              success: false,
+              error: `Provider model not found: ${mapping.provider}/${mapping.modelId}. Add it as a provider model first.`,
+              code: 'PROVIDER_MODEL_NOT_FOUND',
+            });
           }
+          mapping.modelConfigId = modelConfig._id;
         }
       }
     }
