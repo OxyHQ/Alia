@@ -16,6 +16,7 @@ const router = express.Router();
 const VALID_PROVIDERS = [
   'openai', 'anthropic', 'google', 'mistral', 'cohere', 'together',
   'groq', 'fireworks', 'deepseek', 'openrouter', 'perplexity', 'xai',
+  'cerebras', 'cloudflare',
 ];
 
 // Sanitize string input: must be a non-empty string within length limits

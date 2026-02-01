@@ -2,6 +2,7 @@ import express from 'express';
 import { authenticateService } from './middleware/auth';
 import providersRouter from './routes/providers';
 import modelsRouter from './routes/models';
+import aliaModelsRouter from './routes/alia-models';
 import keysRouter from './routes/keys';
 
 const providersModule = express.Router();
@@ -19,6 +20,7 @@ providersModule.get('/health', (_req, res) => {
 // API routes (require HMAC service auth or Bearer token auth)
 providersModule.use('/v1/providers', authenticateService, providersRouter);
 providersModule.use('/v1/models', authenticateService, modelsRouter);
+providersModule.use('/v1/alia-models', authenticateService, aliaModelsRouter);
 providersModule.use('/v1/keys', authenticateService, keysRouter);
 
 export default providersModule;
