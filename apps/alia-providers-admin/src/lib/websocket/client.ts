@@ -69,6 +69,7 @@ export class RealtimeClient {
         this.reconnectDelay = 1000;
         this.notifyConnectionHandlers('connected');
         this.startHeartbeat();
+        this.resubscribeChannels();
         this.flushPendingMessages();
       };
 
@@ -109,6 +110,7 @@ export class RealtimeClient {
   disconnect(): void {
     this.isIntentionallyClosed = true;
     this.stopHeartbeat();
+    this.pendingMessages.length = 0;
 
     if (this.reconnectTimeout) {
       clearTimeout(this.reconnectTimeout);
@@ -188,15 +190,20 @@ export class RealtimeClient {
       this.ws.send(JSON.stringify(message));
     } else if (this.ws?.readyState === WebSocket.CONNECTING) {
       this.pendingMessages.push(message);
-    } else {
-      console.warn('[WebSocket] Cannot send message, not connected');
     }
+    // Silently skip when not connected — channels are re-subscribed on connect
   }
 
   private flushPendingMessages(): void {
     const messages = this.pendingMessages.splice(0);
     for (const message of messages) {
       this.send(message);
+    }
+  }
+
+  private resubscribeChannels(): void {
+    for (const channel of this.messageHandlers.keys()) {
+      this.send({ type: 'subscribe', channel });
     }
   }
 
