@@ -80,14 +80,14 @@ async function fetchApps(): Promise<DeveloperApp[]> {
 }
 
 export function useApps() {
-  const { activeSessionId } = useOxy();
+  const { isAuthenticated } = useOxy();
 
   return useQuery({
     queryKey: ['developer-apps'],
     queryFn: fetchApps,
     staleTime: 1000 * 60 * 5, // 5 minutes
     retry: 2,
-    enabled: !!activeSessionId,
+    enabled: isAuthenticated,
   });
 }
 
@@ -315,14 +315,14 @@ async function fetchDeveloperStats(): Promise<DeveloperStats> {
 }
 
 export function useDeveloperStats() {
-  const { activeSessionId } = useOxy();
+  const { isAuthenticated } = useOxy();
 
   return useQuery({
     queryKey: ['developer-stats'],
     queryFn: fetchDeveloperStats,
     staleTime: 1000 * 60 * 5, // 5 minutes
     retry: 2,
-    enabled: !!activeSessionId,
+    enabled: isAuthenticated,
   });
 }
 
