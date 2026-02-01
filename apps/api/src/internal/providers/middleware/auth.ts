@@ -24,6 +24,7 @@ export async function authenticateService(req: Request, res: Response, next: Nex
     try {
       const { valid, user } = await oxyClient.validateSession(token);
       if (!valid || !user) {
+        console.warn('[Providers Auth] Invalid session:', { valid, hasUser: !!user, tokenPrefix: token.substring(0, 10) });
         return res.status(401).json({
           success: false,
           error: 'Invalid or expired session',
@@ -44,6 +45,7 @@ export async function authenticateService(req: Request, res: Response, next: Nex
       req.service = 'admin-ui';
       return next();
     } catch (error) {
+      console.error('[Providers Auth] Session validation error:', error instanceof Error ? error.message : error);
       return res.status(401).json({
         success: false,
         error: 'Session validation failed',
@@ -58,6 +60,13 @@ export async function authenticateService(req: Request, res: Response, next: Nex
 
   // Validate required headers
   if (!serviceName || !timestamp || !signature) {
+    console.warn('[Providers Auth] Missing headers:', {
+      hasServiceName: !!serviceName,
+      hasTimestamp: !!timestamp,
+      hasSignature: !!signature,
+      hasBearer: !!authHeader,
+      path: req.path,
+    });
     return res.status(401).json({
       success: false,
       error: 'Missing authentication headers',
