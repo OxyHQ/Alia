@@ -1,4 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
+import { useAuth } from '@oxyhq/auth';
 import { apiClient } from '@/lib/api/client';
 import { useRealtimeHealth, useRealtimeKeys } from '@/lib/websocket/hooks';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -16,6 +17,8 @@ import {
 import type { HealthMetrics, ProviderKey } from '@/types';
 
 export function DashboardPage() {
+  const { isAuthenticated } = useAuth();
+
   // Real-time data subscriptions
   const { data: realtimeHealthData, isConnected: healthConnected } = useRealtimeHealth();
   const { data: realtimeKeysData, isConnected: keysConnected } = useRealtimeKeys();
@@ -25,14 +28,14 @@ export function DashboardPage() {
     queryKey: ['provider-health'],
     queryFn: () => apiClient.getAllProviderHealth(),
     refetchInterval: healthConnected ? false : 30000,
-    enabled: !healthConnected, // Only poll if WebSocket is not connected
+    enabled: isAuthenticated && !healthConnected,
   });
 
   const { data: polledKeysData, isLoading: keysLoading } = useQuery({
     queryKey: ['keys'],
     queryFn: () => apiClient.listKeys(),
     refetchInterval: keysConnected ? false : 60000,
-    enabled: !keysConnected, // Only poll if WebSocket is not connected
+    enabled: isAuthenticated && !keysConnected,
   });
 
   // Use real-time data if available, otherwise fall back to polled data

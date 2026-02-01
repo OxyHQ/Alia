@@ -1,5 +1,6 @@
 import { useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { useAuth } from '@oxyhq/auth';
 import { apiClient } from '@/lib/api/client';
 import { useRealtimeHealth, useRealtimeKeys } from '@/lib/websocket/hooks';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -44,6 +45,7 @@ const COLORS = {
 };
 
 export function MonitoringPage() {
+  const { isAuthenticated } = useAuth();
   const [activeTab, setActiveTab] = useState('overview');
   const [filterProvider, setFilterProvider] = useState<string>('all');
 
@@ -56,14 +58,14 @@ export function MonitoringPage() {
     queryKey: ['provider-health'],
     queryFn: () => apiClient.getAllProviderHealth(),
     refetchInterval: healthConnected ? false : 10000,
-    enabled: !healthConnected, // Only poll if WebSocket is not connected
+    enabled: isAuthenticated && !healthConnected,
   });
 
   const { data: polledKeysData, isLoading: keysLoading } = useQuery({
     queryKey: ['keys'],
     queryFn: () => apiClient.listKeys(),
     refetchInterval: keysConnected ? false : 10000,
-    enabled: !keysConnected, // Only poll if WebSocket is not connected
+    enabled: isAuthenticated && !keysConnected,
   });
 
   // Use real-time data if available, otherwise fall back to polled data
