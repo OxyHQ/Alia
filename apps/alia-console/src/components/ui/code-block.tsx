@@ -135,7 +135,7 @@ function CodeBlockActions({
 }
 
 // Copy button
-interface CodeBlockCopyButtonProps extends Omit<React.ComponentProps<typeof Button>, 'onClick'> {
+interface CodeBlockCopyButtonProps extends Omit<React.ComponentProps<typeof Button>, 'onClick' | 'onError'> {
   onCopy?: () => void;
   onError?: (error: Error) => void;
   timeout?: number;
