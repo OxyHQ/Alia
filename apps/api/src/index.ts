@@ -6,7 +6,7 @@ import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import { connectDB } from './lib/db.js';
 
-// Importar rutas
+// Routes
 import healthRouter from './routes/health.js';
 import authRouter from './routes/auth.js';
 import conversationsRouter from './routes/conversations.js';
@@ -26,6 +26,11 @@ import modelsRouter from './routes/models.js';
 import modelsStatsRouter from './routes/models-stats.js';
 import providersModule from './internal/providers/index.js';
 import { providersWss } from './internal/providers/ws.js';
+
+// WebSocket and Socket.io
+import { WebSocketServer } from 'ws';
+import { setupRealtimeEndpoint } from './routes/v1/realtime.js';
+import { initSocket } from './socket.js';
 
 // Fix for ES Modules __dirname
 const __filename = fileURLToPath(import.meta.url);
@@ -54,13 +59,7 @@ server.on('connection', (socket) => {
   socket.setKeepAlive(true, 60000);
 });
 
-// Socket.io
-import { initSocket } from './socket.js';
 initSocket(server);
-
-// WebSocket for Voice API
-import { WebSocketServer } from 'ws';
-import { setupRealtimeEndpoint } from './routes/v1/realtime.js';
 
 const wss = new WebSocketServer({
   noServer: true,
@@ -112,7 +111,7 @@ app.use(cors({
     // Allow requests with no origin (like mobile apps or curl)
     if (!origin) return callback(null, true);
 
-    if (allowedOrigins.indexOf(origin) !== -1) {
+    if (allowedOrigins.includes(origin)) {
       callback(null, true);
     } else {
       callback(new Error('Not allowed by CORS'));
@@ -120,7 +119,7 @@ app.use(cors({
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin', 'X-Service-Name', 'X-Timestamp', 'X-Signature', 'X-Session-Id'],
   optionsSuccessStatus: 200
 }));
 
@@ -145,7 +144,7 @@ app.use('/alia/chat', (_req, res, next) => {
   next();
 });
 
-// Rutas
+// Routes
 app.use('/health', healthRouter);
 app.use('/auth', authRouter);
 app.use('/conversations', conversationsRouter);
@@ -165,7 +164,7 @@ app.use('/models', modelsRouter);
 app.use('/models', modelsStatsRouter);
 app.use('/internal/providers', providersModule);
 
-// Ruta raíz
+// Root route
 app.get('/', (_req, res) => {
   res.json({
     message: 'Alia API',
@@ -191,7 +190,7 @@ app.get('/', (_req, res) => {
   });
 });
 
-// Manejo de errores
+// Error handler
 app.use((err: any, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
   console.error(err.stack);
   res.status(500).json({ error: 'Something went wrong!' });

@@ -7,7 +7,7 @@ import keysRouter from './routes/keys';
 const providersModule = express.Router();
 
 // Health check (no auth)
-providersModule.get('/health', (req, res) => {
+providersModule.get('/health', (_req, res) => {
   res.json({
     success: true,
     service: 'alia-providers (internal)',
@@ -16,7 +16,7 @@ providersModule.get('/health', (req, res) => {
   });
 });
 
-// API routes (require HMAC auth for admin panel)
+// API routes (require HMAC service auth or Bearer token auth)
 providersModule.use('/v1/providers', authenticateService, providersRouter);
 providersModule.use('/v1/models', authenticateService, modelsRouter);
 providersModule.use('/v1/keys', authenticateService, keysRouter);

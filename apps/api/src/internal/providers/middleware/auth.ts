@@ -89,7 +89,9 @@ export async function authenticateService(req: Request, res: Response, next: Nex
   const payload = JSON.stringify({ timestamp, service: serviceName });
   const expectedSignature = crypto.createHmac('sha256', SERVICE_SECRET).update(payload).digest('hex');
 
-  if (signature !== expectedSignature) {
+  const sigBuffer = Buffer.from(signature, 'hex');
+  const expectedBuffer = Buffer.from(expectedSignature, 'hex');
+  if (sigBuffer.length !== expectedBuffer.length || !crypto.timingSafeEqual(sigBuffer, expectedBuffer)) {
     return res.status(401).json({
       success: false,
       error: 'Invalid signature',
