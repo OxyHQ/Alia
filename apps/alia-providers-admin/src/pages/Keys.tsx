@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useAuth } from '@oxyhq/auth';
 import { apiClient } from '@/lib/api/client';
 import { useRealtimeKeys } from '@/lib/websocket/hooks';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -99,6 +100,7 @@ export function KeysPage() {
 
   const [rotateKeyValue, setRotateKeyValue] = useState('');
 
+  const { isAuthenticated } = useAuth();
   const queryClient = useQueryClient();
 
   // Build filters object
@@ -121,7 +123,7 @@ export function KeysPage() {
       return apiClient.listKeys(queryFilters);
     },
     refetchInterval: isConnected ? false : 30000,
-    enabled: !isConnected, // Only poll if WebSocket is not connected
+    enabled: isAuthenticated && !isConnected,
   });
 
   // Use real-time data if available, otherwise fall back to polled data

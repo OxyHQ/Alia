@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useAuth } from '@oxyhq/auth';
 import { apiClient } from '@/lib/api/client';
 import { useRealtimeModels } from '@/lib/websocket/hooks';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -88,6 +89,7 @@ export function ModelsPage() {
     },
   });
 
+  const { isAuthenticated } = useAuth();
   const queryClient = useQueryClient();
 
   // Real-time data subscriptions
@@ -99,14 +101,14 @@ export function ModelsPage() {
     queryKey: ['provider-models'],
     queryFn: () => apiClient.listModels(),
     refetchInterval: providerModelsConnected ? false : 60000,
-    enabled: !providerModelsConnected, // Only poll if WebSocket is not connected
+    enabled: isAuthenticated && !providerModelsConnected,
   });
 
   const { data: polledAliaModelsData } = useQuery({
     queryKey: ['alia-models'],
     queryFn: () => apiClient.listModels({ aliaTier: 'all' }),
     refetchInterval: aliaModelsConnected ? false : 60000,
-    enabled: !aliaModelsConnected, // Only poll if WebSocket is not connected
+    enabled: isAuthenticated && !aliaModelsConnected,
   });
 
   // Use real-time data if available, otherwise fall back to polled data
