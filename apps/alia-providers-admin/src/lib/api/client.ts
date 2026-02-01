@@ -131,9 +131,10 @@ class ProvidersAPIClient {
       tpd?: number;
     };
   }) {
+    const { apiKey, ...rest } = data;
     return this.request('/v1/keys', {
       method: 'POST',
-      body: JSON.stringify(data),
+      body: JSON.stringify({ ...rest, key: apiKey }),
     });
   }
 
