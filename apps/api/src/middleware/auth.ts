@@ -28,93 +28,41 @@ declare global {
 }
 
 /**
- * Oxy session authentication middleware
- * Uses validateSession() for session-based auth (not JWT)
+ * Oxy authentication middleware (official @oxyhq/core)
+ * Validates JWT tokens and sets req.userId, req.user, req.accessToken
  */
-export async function authenticateToken(req: Request, res: Response, next: NextFunction): Promise<void> {
-  const sessionId = req.headers['x-session-id'] as string ||
-    (req.headers.authorization?.startsWith('Bearer ')
-      ? req.headers.authorization.substring(7)
-      : null);
-
-  try {
-    if (!sessionId) {
-      res.status(401).json({ error: 'Authentication required' });
-      return;
-    }
-
-    if (sessionId.startsWith('alia_sk_')) {
-      res.status(401).json({ error: 'Use API key authentication endpoint' });
-      return;
-    }
-
-    const { valid, user } = await oxyClient.validateSession(sessionId);
-
-    if (!valid || !user) {
-      res.status(401).json({ error: 'Invalid or expired session' });
-      return;
-    }
-
-    const rawUser = user as any;
-    const id = rawUser._id || rawUser.id;
-
-    if (!id) {
-      res.status(401).json({ error: 'Invalid user data' });
-      return;
-    }
-
-    req.userId = id;
-    req.user = { id };
-    next();
-  } catch (error) {
-    console.error('[Auth] Session validation error:', error instanceof Error ? error.message : error);
-    console.error('[Auth] Session validation stack trace:', error instanceof Error ? error.stack : 'No stack trace');
-    console.error('[Auth] Session ID:', sessionId?.substring(0, 10) + '...');
-    res.status(401).json({
-      error: 'Session validation failed',
-      details: error instanceof Error ? error.message : String(error)
-    });
-  }
-}
+export const authenticateToken = oxyClient.auth();
 
 /**
  * Optional auth - doesn't fail if no session
- * Tries bot auth first (Telegram), then session auth
+ * Tries bot auth first (Telegram), then Oxy JWT auth
  */
-export async function optionalAuth(
+export function optionalAuth(
   req: Request,
   res: Response,
   next: NextFunction
-): Promise<void> {
+): void {
   // Check if this is a Telegram bot request
   const telegramBotSecret = req.headers['x-telegram-bot-secret'] as string;
   if (telegramBotSecret) {
-    // Delegate to Telegram bot auth middleware
-    return authenticateTelegramBot(req, res, next);
+    authenticateTelegramBot(req, res, next);
+    return;
   }
 
-  // Otherwise try regular session auth
+  // Skip if no token or if it's an API key
   const authHeader = req.headers['authorization'];
-  const sessionId = req.headers['x-session-id'] as string;
-  const token = authHeader?.startsWith('Bearer ') ? authHeader.substring(7) : sessionId;
+  const token = authHeader?.startsWith('Bearer ') ? authHeader.substring(7) : null;
 
   if (!token || token.startsWith('alia_sk_')) {
     return next();
   }
 
-  // Try to authenticate but don't fail
-  try {
-    const { valid, user } = await oxyClient.validateSession(token);
-    if (valid && user) {
-      const rawUser = user as any;
-      req.userId = rawUser._id || rawUser.id;
-      req.user = { id: req.userId! };
-    }
-  } catch (error) {
-    // Silently continue without auth
-  }
-
-  next();
+  // Try oxyClient.auth() but don't fail — silently continue without auth
+  const authMiddleware = oxyClient.auth();
+  authMiddleware(req, res, () => {
+    // Auth succeeded or failed — either way, continue
+    next();
+  });
 }
 
 /**
@@ -211,38 +159,39 @@ export async function authenticateApiKey(
 }
 
 /**
- * Accepts both Oxy sessions and API keys
+ * Accepts both Oxy JWT tokens and API keys
  * Also supports Telegram bot authentication
  */
-export async function authenticateTokenOrApiKey(
+export function authenticateTokenOrApiKey(
   req: Request,
   res: Response,
   next: NextFunction
-): Promise<void> {
+): void {
   // Check for Telegram bot authentication first
   const telegramBotSecret = req.headers['x-telegram-bot-secret'] as string;
   if (telegramBotSecret) {
-    return authenticateTelegramBot(req, res, next);
+    authenticateTelegramBot(req, res, next);
+    return;
   }
 
   const authHeader = req.headers.authorization;
   const token = authHeader?.startsWith('Bearer ')
     ? authHeader.substring(7)
     : null;
-  const sessionId = req.headers['x-session-id'] as string;
 
-  if (!token && !sessionId) {
+  if (!token) {
     res.status(401).json({ error: 'Authentication required' });
     return;
   }
 
   // API key auth
-  if (token?.startsWith('alia_sk_')) {
-    return authenticateApiKey(req, res, next);
+  if (token.startsWith('alia_sk_')) {
+    authenticateApiKey(req, res, next);
+    return;
   }
 
-  // Oxy session auth
-  return authenticateToken(req, res, next);
+  // Oxy JWT auth
+  authenticateToken(req, res, next);
 }
 
 /**
