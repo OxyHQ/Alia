@@ -8,7 +8,7 @@ import * as Linking from 'expo-linking';
 import { Platform } from 'react-native';
 import { PortalHost } from '@rn-primitives/portal';
 import { useColorScheme } from '@/lib/useColorScheme';
-import { setSessionGetter } from '@/lib/api/client';
+import { setTokenGetter } from '@/lib/api/client';
 import 'react-native-reanimated';
 import '../global.css';
 import '@/lib/i18n';
@@ -25,11 +25,11 @@ const OXY_API_URL = process.env.EXPO_PUBLIC_OXY_API_URL || 'https://api.oxy.so';
 const AUTH_REDIRECT_URI = Linking.createURL('/');
 
 function AuthSetup({ children }: { children: React.ReactNode }) {
-  const { activeSessionId } = useOxy();
+  const { oxyServices } = useOxy();
 
   useEffect(() => {
-    setSessionGetter(() => activeSessionId ?? null);
-  }, [activeSessionId]);
+    setTokenGetter(() => oxyServices.getAccessToken() || null);
+  }, [oxyServices]);
 
   return <>{children}</>;
 }

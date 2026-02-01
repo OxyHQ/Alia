@@ -10,21 +10,20 @@ const apiClient = axios.create({
   },
 });
 
-// Session getter - will be set by OxyAuthSetup component
-let getSessionId: (() => string | null) | null = null;
+// Token getter - will be set by AuthSetup component
+let getAccessToken: (() => string | null) | null = null;
 
-export function setSessionGetter(getter: () => string | null) {
-  getSessionId = getter;
+export function setTokenGetter(getter: () => string | null) {
+  getAccessToken = getter;
 }
 
-// Request interceptor to add Oxy session ID
+// Request interceptor to add Bearer JWT token
 apiClient.interceptors.request.use(
   (config) => {
-    if (getSessionId) {
-      const sessionId = getSessionId();
-      if (sessionId) {
-        // Pass session as x-session-id header for Alia API
-        config.headers['x-session-id'] = sessionId;
+    if (getAccessToken) {
+      const token = getAccessToken();
+      if (token) {
+        config.headers['Authorization'] = `Bearer ${token}`;
       }
     }
     return config;
