@@ -12,13 +12,36 @@ const router = express.Router();
 
 // Note: Service authentication is applied at mount point in index.ts
 
+// Valid provider names
+const VALID_PROVIDERS = [
+  'openai', 'anthropic', 'google', 'mistral', 'cohere', 'together',
+  'groq', 'fireworks', 'deepseek', 'openrouter', 'perplexity', 'xai',
+];
+
+// Sanitize string input: must be a non-empty string within length limits
+function sanitizeString(value: unknown, maxLength = 200): string | null {
+  if (typeof value !== 'string') return null;
+  const trimmed = value.trim();
+  if (trimmed.length === 0 || trimmed.length > maxLength) return null;
+  return trimmed;
+}
+
+// Sanitize query param: reject objects (NoSQL injection prevention)
+function sanitizeQueryParam(value: unknown): string | undefined {
+  if (value === undefined || value === null) return undefined;
+  if (typeof value !== 'string') return undefined;
+  return value;
+}
+
 /**
  * GET /v1/keys
  * List all provider keys (returns hashed keys only, never actual keys)
  */
 router.get('/', async (req: Request, res: Response) => {
   try {
-    const { provider, environment, active } = req.query;
+    const provider = sanitizeQueryParam(req.query.provider);
+    const environment = sanitizeQueryParam(req.query.environment);
+    const active = sanitizeQueryParam(req.query.active);
 
     // Build query
     const query: any = {};
@@ -40,7 +63,7 @@ router.get('/', async (req: Request, res: Response) => {
     console.error('Error listing keys:', error);
     res.status(500).json({
       success: false,
-      error: error.message,
+      error: 'An internal error occurred',
       code: 'INTERNAL_ERROR',
     });
   }
@@ -72,7 +95,7 @@ router.get('/:keyId', async (req: Request, res: Response) => {
     console.error('Error getting key:', error);
     res.status(500).json({
       success: false,
-      error: error.message,
+      error: 'An internal error occurred',
       code: 'INTERNAL_ERROR',
     });
   }
@@ -91,6 +114,41 @@ router.post('/', async (req: Request, res: Response) => {
       return res.status(400).json({
         success: false,
         error: 'name, provider, and key are required',
+        code: 'INVALID_REQUEST',
+      });
+    }
+
+    // Validate field types and lengths
+    const sanitizedName = sanitizeString(name, 100);
+    if (!sanitizedName) {
+      return res.status(400).json({
+        success: false,
+        error: 'name must be a non-empty string (max 100 chars)',
+        code: 'INVALID_REQUEST',
+      });
+    }
+
+    const sanitizedProvider = sanitizeString(provider, 50);
+    if (!sanitizedProvider || !VALID_PROVIDERS.includes(sanitizedProvider.toLowerCase())) {
+      return res.status(400).json({
+        success: false,
+        error: `provider must be one of: ${VALID_PROVIDERS.join(', ')}`,
+        code: 'INVALID_REQUEST',
+      });
+    }
+
+    if (typeof key !== 'string' || key.length < 10 || key.length > 500) {
+      return res.status(400).json({
+        success: false,
+        error: 'key must be a string between 10 and 500 characters',
+        code: 'INVALID_REQUEST',
+      });
+    }
+
+    if (priority !== undefined && (typeof priority !== 'number' || priority < 0 || priority > 100)) {
+      return res.status(400).json({
+        success: false,
+        error: 'priority must be a number between 0 and 100',
         code: 'INVALID_REQUEST',
       });
     }
@@ -140,7 +198,7 @@ router.post('/', async (req: Request, res: Response) => {
     console.error('Error adding key:', error);
     res.status(500).json({
       success: false,
-      error: error.message,
+      error: 'An internal error occurred',
       code: 'INTERNAL_ERROR',
     });
   }
@@ -153,12 +211,23 @@ router.post('/', async (req: Request, res: Response) => {
 router.patch('/:keyId', async (req: Request, res: Response) => {
   try {
     const { keyId } = req.params;
-    const updates = req.body;
 
-    // Don't allow updating keyHash or keyPrefix
-    delete updates.keyHash;
-    delete updates.keyPrefix;
-    delete updates.encryptedKey;
+    // Allowlist of fields that can be updated via PATCH
+    const ALLOWED_FIELDS = ['name', 'isActive', 'priority', 'rateLimit', 'environment', 'isPaid', 'tier'];
+    const updates: Record<string, unknown> = {};
+    for (const field of ALLOWED_FIELDS) {
+      if (req.body[field] !== undefined) {
+        updates[field] = req.body[field];
+      }
+    }
+
+    if (Object.keys(updates).length === 0) {
+      return res.status(400).json({
+        success: false,
+        error: 'No valid fields to update',
+        code: 'INVALID_REQUEST',
+      });
+    }
 
     const key = await ProviderKey.findByIdAndUpdate(
       keyId,
@@ -185,7 +254,7 @@ router.patch('/:keyId', async (req: Request, res: Response) => {
     console.error('Error updating key:', error);
     res.status(500).json({
       success: false,
-      error: error.message,
+      error: 'An internal error occurred',
       code: 'INTERNAL_ERROR',
     });
   }
@@ -220,7 +289,7 @@ router.delete('/:keyId', async (req: Request, res: Response) => {
     console.error('Error deleting key:', error);
     res.status(500).json({
       success: false,
-      error: error.message,
+      error: 'An internal error occurred',
       code: 'INTERNAL_ERROR',
     });
   }
@@ -235,10 +304,10 @@ router.post('/:keyId/rotate', async (req: Request, res: Response) => {
     const { keyId } = req.params;
     const { newKey } = req.body;
 
-    if (!newKey) {
+    if (!newKey || typeof newKey !== 'string' || newKey.length < 10 || newKey.length > 500) {
       return res.status(400).json({
         success: false,
-        error: 'newKey is required',
+        error: 'newKey must be a string between 10 and 500 characters',
         code: 'INVALID_REQUEST',
       });
     }
@@ -288,7 +357,7 @@ router.post('/:keyId/rotate', async (req: Request, res: Response) => {
     console.error('Error rotating key:', error);
     res.status(500).json({
       success: false,
-      error: error.message,
+      error: 'An internal error occurred',
       code: 'INTERNAL_ERROR',
     });
   }
@@ -328,7 +397,7 @@ router.post('/:keyId/deactivate', async (req: Request, res: Response) => {
     console.error('Error deactivating key:', error);
     res.status(500).json({
       success: false,
-      error: error.message,
+      error: 'An internal error occurred',
       code: 'INTERNAL_ERROR',
     });
   }
@@ -368,7 +437,7 @@ router.post('/:keyId/activate', async (req: Request, res: Response) => {
     console.error('Error activating key:', error);
     res.status(500).json({
       success: false,
-      error: error.message,
+      error: 'An internal error occurred',
       code: 'INTERNAL_ERROR',
     });
   }

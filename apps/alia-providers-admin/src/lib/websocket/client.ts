@@ -15,7 +15,7 @@ interface WebSocketMessage {
 
 export class RealtimeClient {
   private ws: WebSocket | null = null;
-  private url: string;
+  private baseWsUrl: string;
   private reconnectAttempts = 0;
   private maxReconnectAttempts = 10;
   private reconnectDelay = 1000; // Start with 1 second
@@ -26,11 +26,19 @@ export class RealtimeClient {
   private isIntentionallyClosed = false;
   private heartbeatInterval: number | null = null;
   private heartbeatTimeout: number | null = null;
+  private getToken: (() => string | null) | null = null;
 
   constructor(apiUrl?: string) {
     // Convert HTTP URL to WebSocket URL
     const baseUrl = apiUrl || import.meta.env.VITE_PROVIDERS_API_URL || 'http://localhost:3002';
-    this.url = baseUrl.replace(/^http/, 'ws') + '/ws';
+    this.baseWsUrl = baseUrl.replace(/^http/, 'ws') + '/ws';
+  }
+
+  /**
+   * Set the function to retrieve the current auth token
+   */
+  setTokenGetter(getter: () => string | null): void {
+    this.getToken = getter;
   }
 
   /**
@@ -43,8 +51,16 @@ export class RealtimeClient {
 
     this.isIntentionallyClosed = false;
 
+    // Include auth token in connection URL
+    const token = this.getToken?.();
+    if (!token) {
+      console.warn('[WebSocket] No auth token available, skipping connection');
+      return;
+    }
+    const url = `${this.baseWsUrl}?token=${encodeURIComponent(token)}`;
+
     try {
-      this.ws = new WebSocket(this.url);
+      this.ws = new WebSocket(url);
 
       this.ws.onopen = () => {
         console.log('[WebSocket] Connected');
