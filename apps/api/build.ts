@@ -1,6 +1,5 @@
 import * as esbuild from 'esbuild';
 import { cp } from 'fs/promises';
-import { join } from 'path';
 
 await esbuild.build({
   entryPoints: ['src/index.ts'],
