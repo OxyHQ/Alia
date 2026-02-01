@@ -4,6 +4,7 @@
  */
 
 import { createContext, useContext, useEffect, type ReactNode } from 'react';
+import { useAuth } from '@oxyhq/auth';
 import { realtimeClient } from './client';
 
 interface RealtimeContextValue {
@@ -17,15 +18,24 @@ interface RealtimeProviderProps {
 }
 
 export function RealtimeProvider({ children }: RealtimeProviderProps) {
-  useEffect(() => {
-    // Connect when provider mounts
-    realtimeClient.connect();
+  const { isAuthenticated, oxyServices } = useAuth();
 
-    // Disconnect when provider unmounts
+  useEffect(() => {
+    // Set token getter so WebSocket can authenticate
+    realtimeClient.setTokenGetter(() => oxyServices.getAccessToken());
+  }, [oxyServices]);
+
+  useEffect(() => {
+    if (isAuthenticated) {
+      realtimeClient.connect();
+    } else {
+      realtimeClient.disconnect();
+    }
+
     return () => {
       realtimeClient.disconnect();
     };
-  }, []);
+  }, [isAuthenticated]);
 
   const value: RealtimeContextValue = {
     client: realtimeClient,

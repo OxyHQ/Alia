@@ -26,6 +26,7 @@ import modelsRouter from './routes/models.js';
 import modelsStatsRouter from './routes/models-stats.js';
 import providersModule from './internal/providers/index.js';
 import { providersWss } from './internal/providers/ws.js';
+import { oxyClient } from './middleware/auth.js';
 
 // WebSocket and Socket.io
 import { WebSocketServer } from 'ws';
@@ -77,8 +78,26 @@ server.on('upgrade', (request, socket, head) => {
         wss.emit('connection', ws, request);
       });
     } else if (pathname === '/internal/providers/ws') {
-      providersWss.handleUpgrade(request, socket, head, (ws) => {
-        providersWss.emit('connection', ws, request);
+      // Validate auth token from query string
+      const url = new URL(request.url!, `http://${request.headers.host}`);
+      const token = url.searchParams.get('token');
+      if (!token) {
+        socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n');
+        socket.destroy();
+        return;
+      }
+      oxyClient.validateSession(token).then(({ valid }) => {
+        if (!valid) {
+          socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n');
+          socket.destroy();
+          return;
+        }
+        providersWss.handleUpgrade(request, socket, head, (ws) => {
+          providersWss.emit('connection', ws, request);
+        });
+      }).catch(() => {
+        socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n');
+        socket.destroy();
       });
     } else {
       socket.destroy();
@@ -93,17 +112,25 @@ server.on('upgrade', (request, socket, head) => {
 setupRealtimeEndpoint(wss);
 
 // Middleware - Allow multiple origins for web and mobile app
-const allowedOrigins = [
-  process.env.WEB_URL || 'http://localhost:3000',
-  'http://localhost:3000',
+const PRODUCTION_ORIGINS = [
   'https://alia.onl',
   'https://console.alia.onl',
+  'https://providers.alia.onl',
+];
+
+const DEV_ORIGINS = process.env.NODE_ENV === 'production' ? [] : [
+  'http://localhost:3000',
+  'http://localhost:3002',
+  'http://localhost:5173',
   'http://localhost:8081',
   'exp://localhost:8081',
   'http://10.0.2.2:8081',
-  'http://localhost:3002',
-  'http://localhost:5173',
-  'https://providers.alia.onl',
+];
+
+const allowedOrigins = [
+  ...(process.env.WEB_URL ? [process.env.WEB_URL] : []),
+  ...PRODUCTION_ORIGINS,
+  ...DEV_ORIGINS,
 ];
 
 app.use(cors({
