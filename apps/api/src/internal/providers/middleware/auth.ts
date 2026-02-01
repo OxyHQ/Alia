@@ -1,6 +1,6 @@
 import crypto from 'crypto';
 import { Request, Response, NextFunction } from 'express';
-import { oxyClient } from '../../../middleware/auth.js';
+import { authenticateToken } from '../../../middleware/auth.js';
 
 const SERVICE_SECRET = process.env.SERVICE_SECRET || '';
 const ALLOWED_SERVICES = (process.env.ALLOWED_SERVICES || 'alia-api').split(',').map((s) => s.trim());
@@ -14,59 +14,33 @@ declare global {
   }
 }
 
+/**
+ * Authenticate requests to the providers module.
+ * Supports two methods:
+ * 1. Bearer token (admin UI) — delegates to the shared OxyHQ authenticateToken middleware
+ * 2. HMAC service auth (service-to-service) — validates X-Service-Name/X-Timestamp/X-Signature headers
+ */
 export async function authenticateService(req: Request, res: Response, next: NextFunction) {
   const serviceName = req.headers['x-service-name'] as string;
   const authHeader = req.headers.authorization;
 
-  // Try Bearer token auth (for admin UI users)
+  // Bearer token auth (admin UI) — delegate to shared OxyHQ middleware
   if (authHeader?.startsWith('Bearer ') && !serviceName) {
-    const token = authHeader.substring(7);
-    try {
-      const { valid, user } = await oxyClient.validateSession(token);
-      if (!valid || !user) {
-        console.warn('[Providers Auth] Invalid session:', { valid, hasUser: !!user, tokenPrefix: token.substring(0, 10) });
-        return res.status(401).json({
-          success: false,
-          error: 'Invalid or expired session',
-          code: 'INVALID_SESSION',
-        });
+    return authenticateToken(req, res, (err?: any) => {
+      if (err) return next(err);
+      // If authenticateToken called next() successfully, tag as admin-ui
+      if (req.userId) {
+        req.service = 'admin-ui';
       }
-      const rawUser = user as any;
-      const id = rawUser._id || rawUser.id;
-      if (!id) {
-        return res.status(401).json({
-          success: false,
-          error: 'Invalid user data',
-          code: 'INVALID_USER',
-        });
-      }
-      req.userId = id;
-      req.user = { id };
-      req.service = 'admin-ui';
-      return next();
-    } catch (error) {
-      console.error('[Providers Auth] Session validation error:', error instanceof Error ? error.message : error);
-      return res.status(401).json({
-        success: false,
-        error: 'Session validation failed',
-        code: 'SESSION_VALIDATION_FAILED',
-      });
-    }
+      next();
+    });
   }
 
-  // Fall back to HMAC service auth
+  // HMAC service-to-service auth
   const timestamp = req.headers['x-timestamp'] as string;
   const signature = req.headers['x-signature'] as string;
 
-  // Validate required headers
   if (!serviceName || !timestamp || !signature) {
-    console.warn('[Providers Auth] Missing headers:', {
-      hasServiceName: !!serviceName,
-      hasTimestamp: !!timestamp,
-      hasSignature: !!signature,
-      hasBearer: !!authHeader,
-      path: req.path,
-    });
     return res.status(401).json({
       success: false,
       error: 'Missing authentication headers',
@@ -74,7 +48,6 @@ export async function authenticateService(req: Request, res: Response, next: Nex
     });
   }
 
-  // Check if service is allowed
   if (!ALLOWED_SERVICES.includes(serviceName)) {
     return res.status(403).json({
       success: false,
@@ -94,7 +67,7 @@ export async function authenticateService(req: Request, res: Response, next: Nex
     });
   }
 
-  // Verify signature
+  // Verify HMAC signature
   const payload = JSON.stringify({ timestamp, service: serviceName });
   const expectedSignature = crypto.createHmac('sha256', SERVICE_SECRET).update(payload).digest('hex');
 
@@ -108,12 +81,11 @@ export async function authenticateService(req: Request, res: Response, next: Nex
     });
   }
 
-  // Authentication successful
   req.service = serviceName;
   next();
 }
 
-// Generate auth headers for outgoing requests (if this service needs to call others)
+// Generate auth headers for outgoing service-to-service requests
 export function generateAuthHeaders(serviceName: string): Record<string, string> {
   const timestamp = Date.now().toString();
   const payload = JSON.stringify({ timestamp, service: serviceName });
