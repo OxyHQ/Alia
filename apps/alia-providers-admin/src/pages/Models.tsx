@@ -71,6 +71,29 @@ export function ModelsPage() {
   const [isDeleteProviderModelOpen, setIsDeleteProviderModelOpen] = useState(false);
   const [selectedProviderModel, setSelectedProviderModel] = useState<ModelConfig | null>(null);
 
+  // Alia model dialog states
+  const [isAddAliaModelOpen, setIsAddAliaModelOpen] = useState(false);
+  const [isEditAliaModelOpen, setIsEditAliaModelOpen] = useState(false);
+  const [isDeleteAliaModelOpen, setIsDeleteAliaModelOpen] = useState(false);
+  const [selectedAliaModel, setSelectedAliaModel] = useState<AliaModel | null>(null);
+
+  const defaultAliaModelForm = {
+    aliasModelId: '',
+    displayName: '',
+    tier: 'v1' as string,
+    description: '',
+    creditMultiplier: 1.0,
+    isFreeTier: true,
+    providerMappings: [] as Array<{
+      provider: string;
+      modelId: string;
+      priority: number;
+      qualityScore: number;
+      isActive: boolean;
+    }>,
+  };
+  const [aliaModelForm, setAliaModelForm] = useState(defaultAliaModelForm);
+
   const [providerModelForm, setProviderModelForm] = useState({
     provider: 'openai',
     modelId: '',
