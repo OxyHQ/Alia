@@ -1,5 +1,6 @@
 import crypto from 'crypto';
 import { Request, Response, NextFunction } from 'express';
+import { oxyClient } from '../../../middleware/auth.js';
 
 const SERVICE_SECRET = process.env.SERVICE_SECRET || '';
 const ALLOWED_SERVICES = (process.env.ALLOWED_SERVICES || 'alia-api').split(',').map((s) => s.trim());
@@ -13,8 +14,45 @@ declare global {
   }
 }
 
-export function authenticateService(req: Request, res: Response, next: NextFunction) {
+export async function authenticateService(req: Request, res: Response, next: NextFunction) {
   const serviceName = req.headers['x-service-name'] as string;
+  const authHeader = req.headers.authorization;
+
+  // Try Bearer token auth (for admin UI users)
+  if (authHeader?.startsWith('Bearer ') && !serviceName) {
+    const token = authHeader.substring(7);
+    try {
+      const { valid, user } = await oxyClient.validateSession(token);
+      if (!valid || !user) {
+        return res.status(401).json({
+          success: false,
+          error: 'Invalid or expired session',
+          code: 'INVALID_SESSION',
+        });
+      }
+      const rawUser = user as any;
+      const id = rawUser._id || rawUser.id;
+      if (!id) {
+        return res.status(401).json({
+          success: false,
+          error: 'Invalid user data',
+          code: 'INVALID_USER',
+        });
+      }
+      req.userId = id;
+      req.user = { id };
+      req.service = 'admin-ui';
+      return next();
+    } catch (error) {
+      return res.status(401).json({
+        success: false,
+        error: 'Session validation failed',
+        code: 'SESSION_VALIDATION_FAILED',
+      });
+    }
+  }
+
+  // Fall back to HMAC service auth
   const timestamp = req.headers['x-timestamp'] as string;
   const signature = req.headers['x-signature'] as string;
 
