@@ -22,20 +22,15 @@ const queryClient = new QueryClient({
 });
 
 function ApiAuthSetup({ children }: { children: React.ReactNode }) {
-  const { oxyServices } = useAuth();
+  const { activeSessionId } = useAuth();
 
   useEffect(() => {
-    // Set up token getter for API client
+    // Set up token getter for API client — send session ID, not JWT
+    // The server validates sessions via oxyClient.validateSession(sessionId)
     apiClient.setTokenGetter(async () => {
-      try {
-        const token = oxyServices.getAccessToken();
-        return token;
-      } catch (error) {
-        console.error('[Auth] Failed to get access token:', error);
-        return null;
-      }
+      return activeSessionId || null;
     });
-  }, [oxyServices]);
+  }, [activeSessionId]);
 
   return <>{children}</>;
 }
