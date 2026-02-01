@@ -25,6 +25,7 @@ import codeaRouter from './routes/codea.js';
 import modelsRouter from './routes/models.js';
 import modelsStatsRouter from './routes/models-stats.js';
 import providersModule from './internal/providers/index.js';
+import { providersWss } from './internal/providers/ws.js';
 
 // Fix for ES Modules __dirname
 const __filename = fileURLToPath(import.meta.url);
@@ -75,6 +76,10 @@ server.on('upgrade', (request, socket, head) => {
     if (pathname === '/v1/realtime') {
       wss.handleUpgrade(request, socket, head, (ws) => {
         wss.emit('connection', ws, request);
+      });
+    } else if (pathname === '/internal/providers/ws') {
+      providersWss.handleUpgrade(request, socket, head, (ws) => {
+        providersWss.emit('connection', ws, request);
       });
     } else {
       socket.destroy();
