@@ -53,7 +53,7 @@
   },
   "dependencies": {
     "@oxyhq/auth": "^1.1.0",
-    "@oxyhq/core": "^1.2.1",
+    "@oxyhq/core": "^1.2.2",
     "@oxyhq/services": "^6.1.0",
     "@types/ws": "^8.18.1",
     "ws": "^8.19.0"
