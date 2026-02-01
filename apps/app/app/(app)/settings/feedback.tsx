@@ -28,7 +28,7 @@ const feedbackTypes: FeedbackTypeOption[] = [
 
 export default function FeedbackScreen() {
   const router = useRouter();
-  const { activeSessionId } = useOxy();
+  const { oxyServices } = useOxy();
   const [selectedType, setSelectedType] = useState<FeedbackType | null>(null);
   const [message, setMessage] = useState("");
   const [rating, setRating] = useState<number | null>(null);
@@ -54,12 +54,14 @@ export default function FeedbackScreen() {
       setSubmitting(true);
 
       const apiUrl = generateAPIUrl('/feedback');
+      const token = oxyServices.getAccessToken();
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+      };
+      if (token) headers['Authorization'] = `Bearer ${token}`;
       const response = await fetch(apiUrl, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-session-id': activeSessionId || '',
-        },
+        headers,
         body: JSON.stringify({
           type: selectedType,
           message: message.trim(),

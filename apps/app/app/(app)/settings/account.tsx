@@ -13,7 +13,7 @@ import { ConfirmationDialog } from "@/components/ui/confirmation-dialog";
 
 export default function AccountScreen() {
   const router = useRouter();
-  const { user, activeSessionId, logout } = useOxy();
+  const { user, oxyServices, logout } = useOxy();
   const [changingPassword, setChangingPassword] = useState(false);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const { pickImage } = useImagePicker();
@@ -84,11 +84,10 @@ export default function AccountScreen() {
       }
 
       const apiUrl = generateAPIUrl('/upload/avatar');
+      const token = oxyServices.getAccessToken();
       const uploadResponse = await fetch(apiUrl, {
         method: 'POST',
-        headers: {
-          'x-session-id': activeSessionId || '',
-        },
+        headers: token ? { 'Authorization': `Bearer ${token}` } : {},
         body: formData,
       });
 
@@ -115,11 +114,10 @@ export default function AccountScreen() {
     setDeletingAvatar(true);
     try {
       const apiUrl = generateAPIUrl('/upload/avatar');
+      const token = oxyServices.getAccessToken();
       const response = await fetch(apiUrl, {
         method: 'DELETE',
-        headers: {
-          'x-session-id': activeSessionId || '',
-        },
+        headers: token ? { 'Authorization': `Bearer ${token}` } : {},
       });
 
       if (response.ok) {

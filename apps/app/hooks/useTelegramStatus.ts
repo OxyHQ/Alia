@@ -9,14 +9,14 @@ interface TelegramStatus {
 }
 
 export function useTelegramStatus() {
-  const { isAuthenticated, activeSessionId } = useOxy();
+  const { isAuthenticated } = useOxy();
   const [status, setStatus] = useState<TelegramStatus | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
 
   useEffect(() => {
     async function fetchStatus() {
-      if (!isAuthenticated || !activeSessionId) {
+      if (!isAuthenticated) {
         setLoading(false);
         return;
       }
@@ -36,10 +36,10 @@ export function useTelegramStatus() {
     }
 
     fetchStatus();
-  }, [isAuthenticated, activeSessionId]);
+  }, [isAuthenticated]);
 
   const refresh = async () => {
-    if (!isAuthenticated || !activeSessionId) return;
+    if (!isAuthenticated) return;
 
     try {
       setLoading(true);

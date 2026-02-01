@@ -54,7 +54,7 @@ const LANGUAGES = [
 
 export default function SettingsScreen() {
   const router = useRouter();
-  const { user, isAuthenticated, activeSessionId } = useOxy();
+  const { user, isAuthenticated, oxyServices } = useOxy();
   const { memory, loading } = useUserData();
   const setMemory = useUserDataStore((state) => state.setMemory);
   const [saving, setSaving] = useState(false);
@@ -94,18 +94,21 @@ export default function SettingsScreen() {
   }, [memory]);
 
   const handleSave = async () => {
-    if (!activeSessionId) return;
+    if (!isAuthenticated) return;
 
     setSaving(true);
     try {
+      const token = oxyServices.getAccessToken();
+      const authHeaders: Record<string, string> = {
+        'Content-Type': 'application/json',
+      };
+      if (token) authHeaders['Authorization'] = `Bearer ${token}`;
+
       // Save preferences
       const preferencesUrl = generateAPIUrl('/memory/preferences');
       const prefRes = await fetch(preferencesUrl, {
         method: 'PUT',
-        headers: {
-          'x-session-id': activeSessionId,
-          'Content-Type': 'application/json',
-        },
+        headers: authHeaders,
         body: JSON.stringify({
           language,
           tone,
@@ -117,10 +120,7 @@ export default function SettingsScreen() {
       const contextUrl = generateAPIUrl('/memory/context');
       const contextRes = await fetch(contextUrl, {
         method: 'PUT',
-        headers: {
-          'x-session-id': activeSessionId,
-          'Content-Type': 'application/json',
-        },
+        headers: authHeaders,
         body: JSON.stringify({
           occupation,
           location,
@@ -144,16 +144,15 @@ export default function SettingsScreen() {
   };
 
   const handleUnlinkTelegram = async () => {
-    if (!activeSessionId) return;
+    if (!isAuthenticated) return;
 
     setUnlinking(true);
     try {
+      const token = oxyServices.getAccessToken();
       const apiUrl = generateAPIUrl('/telegram/unlink');
       const response = await fetch(apiUrl, {
         method: 'POST',
-        headers: {
-          'x-session-id': activeSessionId,
-        },
+        headers: token ? { 'Authorization': `Bearer ${token}` } : {},
       });
 
       if (response.ok) {

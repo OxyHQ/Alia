@@ -32,7 +32,7 @@ export function useStreamingChat(apiUrl: string, activeRole?: any, conversationI
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<Error | null>(null);
   const [conversationTitle, setConversationTitle] = useState<string | null>(null);
-  const { activeSessionId } = useOxy();
+  const { oxyServices } = useOxy();
   const queryClient = useQueryClient();
   const abortControllerRef = useRef<AbortController | null>(null);
 
@@ -63,8 +63,9 @@ export function useStreamingChat(apiUrl: string, activeRole?: any, conversationI
         'X-Device-Info': JSON.stringify(deviceInfo),
       };
 
-      if (activeSessionId) {
-        headers['x-session-id'] = activeSessionId;
+      const token = oxyServices.getAccessToken();
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
       }
 
       // Build system message with role context if active
@@ -390,7 +391,7 @@ Use this role to guide your responses, maintaining the specified tone, style, an
       abortControllerRef.current = null;
       setIsLoading(false);
     }
-  }, [apiUrl, messages, activeSessionId, activeRole, queryClient, thinkingMode, selectedModel]);
+  }, [apiUrl, messages, oxyServices, activeRole, queryClient, thinkingMode, selectedModel]);
 
   const stop = useCallback(() => {
     if (abortControllerRef.current) {

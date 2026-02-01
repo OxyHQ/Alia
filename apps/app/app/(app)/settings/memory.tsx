@@ -72,7 +72,7 @@ const SUGGESTED_CATEGORIES = ['preferencia', 'personal', 'trabajo', 'objetivo', 
 
 export default function MemoryScreen() {
   const router = useRouter();
-  const { isAuthenticated, activeSessionId } = useOxy();
+  const { isAuthenticated, oxyServices } = useOxy();
   const { memory, loading } = useUserData();
   const setMemory = useUserDataStore((state) => state.setMemory);
   const { colors } = useColorScheme();
@@ -162,8 +162,16 @@ export default function MemoryScreen() {
     setFormCategory("");
   };
 
+  const getAuthHeaders = (contentType?: boolean): Record<string, string> => {
+    const headers: Record<string, string> = {};
+    const token = oxyServices.getAccessToken();
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+    if (contentType) headers['Content-Type'] = 'application/json';
+    return headers;
+  };
+
   const handleSaveMemory = async () => {
-    if (!activeSessionId || !formKey.trim() || !formValue.trim()) {
+    if (!isAuthenticated || !formKey.trim() || !formValue.trim()) {
       toast.error("Key and value are required");
       return;
     }
@@ -175,10 +183,7 @@ export default function MemoryScreen() {
         const apiUrl = generateAPIUrl(`/memory/${editingMemory._id}`);
         const response = await fetch(apiUrl, {
           method: 'PUT',
-          headers: {
-            'x-session-id': activeSessionId,
-            'Content-Type': 'application/json',
-          },
+          headers: getAuthHeaders(true),
           body: JSON.stringify({
             key: formKey,
             value: formValue,
@@ -197,10 +202,7 @@ export default function MemoryScreen() {
         const apiUrl = generateAPIUrl('/memory/add');
         const response = await fetch(apiUrl, {
           method: 'POST',
-          headers: {
-            'x-session-id': activeSessionId,
-            'Content-Type': 'application/json',
-          },
+          headers: getAuthHeaders(true),
           body: JSON.stringify({
             key: formKey,
             value: formValue,
@@ -229,16 +231,14 @@ export default function MemoryScreen() {
   };
 
   const confirmDeleteMemory = async () => {
-    if (!activeSessionId || !memoryToDelete) return;
+    if (!isAuthenticated || !memoryToDelete) return;
 
     setDeleting(true);
     try {
       const apiUrl = generateAPIUrl(`/memory/${memoryToDelete}`);
       const response = await fetch(apiUrl, {
         method: 'DELETE',
-        headers: {
-          'x-session-id': activeSessionId,
-        },
+        headers: getAuthHeaders(),
       });
 
       if (response.ok) {
@@ -262,15 +262,13 @@ export default function MemoryScreen() {
 
   // Export handlers
   const loadExportStats = async () => {
-    if (!activeSessionId) return;
+    if (!isAuthenticated) return;
 
     try {
       const apiUrl = generateAPIUrl('/memory/export/preview');
       const response = await fetch(apiUrl, {
         method: 'GET',
-        headers: {
-          'x-session-id': activeSessionId,
-        },
+        headers: getAuthHeaders(),
       });
 
       if (response.ok) {
@@ -284,15 +282,13 @@ export default function MemoryScreen() {
   };
 
   const handleExport = async (format: 'json' | 'csv') => {
-    if (!activeSessionId) return;
+    if (!isAuthenticated) return;
 
     try {
       const apiUrl = generateAPIUrl(`/memory/export/${format}`);
       const response = await fetch(apiUrl, {
         method: 'GET',
-        headers: {
-          'x-session-id': activeSessionId,
-        },
+        headers: getAuthHeaders(),
       });
 
       if (response.ok) {
@@ -335,10 +331,7 @@ export default function MemoryScreen() {
       // Validate format
       const response = await fetch(generateAPIUrl('/memory/import/validate'), {
         method: 'POST',
-        headers: {
-          'x-session-id': activeSessionId!,
-          'Content-Type': 'application/json',
-        },
+        headers: getAuthHeaders(true),
         body: JSON.stringify({ data }),
       });
 
@@ -358,7 +351,7 @@ export default function MemoryScreen() {
   };
 
   const handleImport = async () => {
-    if (!importFile || !activeSessionId) return;
+    if (!importFile || !isAuthenticated) return;
 
     setImporting(true);
     try {
@@ -367,10 +360,7 @@ export default function MemoryScreen() {
 
       const response = await fetch(generateAPIUrl('/memory/import'), {
         method: 'POST',
-        headers: {
-          'x-session-id': activeSessionId,
-          'Content-Type': 'application/json',
-        },
+        headers: getAuthHeaders(true),
         body: JSON.stringify({ data, strategy: importStrategy }),
       });
 
@@ -379,7 +369,7 @@ export default function MemoryScreen() {
 
         // Refresh memory data
         const memResponse = await fetch(generateAPIUrl('/memory'), {
-          headers: { 'x-session-id': activeSessionId },
+          headers: getAuthHeaders(),
         });
         if (memResponse.ok) {
           setMemory(await memResponse.json());
