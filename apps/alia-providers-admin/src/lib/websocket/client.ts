@@ -27,6 +27,7 @@ export class RealtimeClient {
   private heartbeatInterval: number | null = null;
   private heartbeatTimeout: number | null = null;
   private getToken: (() => string | null) | null = null;
+  private pendingMessages: unknown[] = [];
 
   constructor(apiUrl?: string) {
     // Convert HTTP URL to WebSocket URL
@@ -68,6 +69,7 @@ export class RealtimeClient {
         this.reconnectDelay = 1000;
         this.notifyConnectionHandlers('connected');
         this.startHeartbeat();
+        this.flushPendingMessages();
       };
 
       this.ws.onmessage = (event) => {
@@ -184,8 +186,17 @@ export class RealtimeClient {
   send(message: unknown): void {
     if (this.ws?.readyState === WebSocket.OPEN) {
       this.ws.send(JSON.stringify(message));
+    } else if (this.ws?.readyState === WebSocket.CONNECTING) {
+      this.pendingMessages.push(message);
     } else {
       console.warn('[WebSocket] Cannot send message, not connected');
+    }
+  }
+
+  private flushPendingMessages(): void {
+    const messages = this.pendingMessages.splice(0);
+    for (const message of messages) {
+      this.send(message);
     }
   }
 
