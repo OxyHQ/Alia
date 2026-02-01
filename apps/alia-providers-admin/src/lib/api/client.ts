@@ -216,6 +216,54 @@ class ProvidersAPIClient {
   async getModelsByTier(tier: string) {
     return this.request(`/v1/models/by-tier/${tier}`);
   }
+
+  // ============ ALIA MODELS ============
+
+  async listAliaModels(filters?: { tier?: string; active?: boolean }) {
+    const params = new URLSearchParams();
+    if (filters?.tier) params.set('tier', filters.tier);
+    if (filters?.active !== undefined) params.set('active', filters.active.toString());
+
+    return this.request(`/v1/alia-models?${params}`);
+  }
+
+  async getAliaModel(aliasModelId: string) {
+    return this.request(`/v1/alia-models/${aliasModelId}`);
+  }
+
+  async createAliaModel(data: {
+    aliasModelId: string;
+    displayName: string;
+    tier: string;
+    description?: string;
+    creditMultiplier?: number;
+    isFreeTier?: boolean;
+    providerMappings?: Array<{
+      provider: string;
+      modelId: string;
+      priority: number;
+      qualityScore: number;
+      isActive: boolean;
+    }>;
+  }) {
+    return this.request('/v1/alia-models', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async updateAliaModel(aliasModelId: string, data: unknown) {
+    return this.request(`/v1/alia-models/${aliasModelId}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async deleteAliaModel(aliasModelId: string) {
+    return this.request(`/v1/alia-models/${aliasModelId}`, {
+      method: 'DELETE',
+    });
+  }
 }
 
 export const apiClient = new ProvidersAPIClient();
