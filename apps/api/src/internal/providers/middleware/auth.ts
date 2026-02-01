@@ -1,6 +1,6 @@
 import crypto from 'crypto';
 import { Request, Response, NextFunction } from 'express';
-import { authenticateToken } from '../../../middleware/auth.js';
+import { oxyClient } from '../../../middleware/auth.js';
 
 const SERVICE_SECRET = process.env.SERVICE_SECRET || '';
 const ALLOWED_SERVICES = (process.env.ALLOWED_SERVICES || 'alia-api').split(',').map((s) => s.trim());
@@ -24,11 +24,11 @@ export async function authenticateService(req: Request, res: Response, next: Nex
   const serviceName = req.headers['x-service-name'] as string;
   const authHeader = req.headers.authorization;
 
-  // Bearer token auth (admin UI) — delegate to shared OxyHQ middleware
+  // Bearer token auth (admin UI) — delegate to official oxyClient.auth() middleware
   if (authHeader?.startsWith('Bearer ') && !serviceName) {
-    return authenticateToken(req, res, (err?: any) => {
+    return oxyClient.auth()(req, res, (err?: any) => {
       if (err) return next(err);
-      // If authenticateToken called next() successfully, tag as admin-ui
+      // If auth succeeded, tag as admin-ui
       if (req.userId) {
         req.service = 'admin-ui';
       }
