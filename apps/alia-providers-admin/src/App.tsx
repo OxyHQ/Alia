@@ -1,7 +1,6 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { WebOxyProvider, useAuth } from '@oxyhq/auth';
-import { useEffect } from 'react';
 import { DashboardLayout } from './components/layouts/DashboardLayout';
 import { DashboardPage } from './pages/Dashboard';
 import { KeysPage } from './pages/Keys';
@@ -24,13 +23,10 @@ const queryClient = new QueryClient({
 function ApiAuthSetup({ children }: { children: React.ReactNode }) {
   const { activeSessionId } = useAuth();
 
-  useEffect(() => {
-    // Set up token getter for API client — send session ID, not JWT
-    // The server validates sessions via oxyClient.validateSession(sessionId)
-    apiClient.setTokenGetter(async () => {
-      return activeSessionId || null;
-    });
-  }, [activeSessionId]);
+  // Set token getter synchronously so it's available before child queries fire.
+  // useEffect runs after render, which is too late — queries in child components
+  // would fire without an auth token on the first render cycle.
+  apiClient.setTokenGetter(async () => activeSessionId || null);
 
   return <>{children}</>;
 }
