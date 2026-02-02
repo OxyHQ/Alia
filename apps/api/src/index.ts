@@ -22,7 +22,6 @@ import organizationRouter from './routes/organization.js';
 import canvasRouter from './routes/canvas/index.js';
 import feedbackRouter from './routes/feedback.js';
 import codeaRouter from './routes/codea.js';
-import modelsRouter from './routes/models.js';
 import modelsStatsRouter from './routes/models-stats.js';
 import providersModule from './internal/providers/index.js';
 import { providersWss } from './internal/providers/ws.js';
@@ -207,7 +206,6 @@ app.use('/organization', organizationRouter);
 app.use('/feedback', feedbackRouter);
 app.use('/api', canvasRouter);
 app.use('/codea', codeaRouter);
-app.use('/models', modelsRouter);
 app.use('/models', modelsStatsRouter);
 app.use('/internal/providers', providersModule);
 

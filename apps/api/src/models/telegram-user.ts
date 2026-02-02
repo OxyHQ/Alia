@@ -1,4 +1,5 @@
 import mongoose from 'mongoose';
+import { getAllAliaModels } from '../internal/providers/lib/alia-models.js';
 
 // Telegram User Schema
 const TelegramUserSchema = new mongoose.Schema(
@@ -33,7 +34,7 @@ const TelegramUserSchema = new mongoose.Schema(
     preferredModel: {
       type: String,
       default: 'alia-lite',
-      enum: ['alia-lite', 'alia-v1', 'alia-v1-codea', 'alia-v1-pro', 'alia-v1-pro-max'],
+      enum: getAllAliaModels().map(m => m.id),
     },
     isAuthenticated: {
       type: Boolean,

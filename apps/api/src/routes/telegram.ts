@@ -5,6 +5,7 @@ import mongoose from 'mongoose';
 import { TelegramUser } from '../models/telegram-user.js';
 import { emitTelegramLinked } from '../socket.js';
 import { OxyServices } from '@oxyhq/core';
+import { isAliaModel, getAllAliaModels } from '../lib/chat-core.js';
 
 // Initialize Oxy client for user lookups
 const OXY_API_URL = process.env.OXY_API_URL || 'https://api.oxy.so';
@@ -299,12 +300,11 @@ router.post('/users/:telegramId/model', async (req, res) => {
     const { telegramId } = req.params;
     const { model } = req.body;
 
-    const validModels = ['alia-lite', 'alia-v1', 'alia-v1-codea', 'alia-v1-pro', 'alia-v1-pro-max'];
-
-    if (!model || !validModels.includes(model)) {
+    if (!model || !isAliaModel(model)) {
+      const allModels = getAllAliaModels().map(m => m.id);
       return res.status(400).json({
         error: 'Invalid model',
-        details: `Model must be one of: ${validModels.join(', ')}`
+        details: `Model must be one of: ${allModels.join(', ')}`
       });
     }
 

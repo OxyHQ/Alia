@@ -1,45 +1,69 @@
 import { Router } from 'express';
-import { getAllAliaModels, getAliaModel, getAliaModelsByCategory, type ModelCategory } from '../../lib/chat-core.js';
+import {
+  getAllAliaModels,
+  getAliaModel,
+  getAliaModelsByCategory,
+  getDefaultModelForCategory,
+  type ModelCategory,
+} from '../../lib/chat-core.js';
 
 const router = Router();
 
+function serializeModel(model: ReturnType<typeof getAliaModel> & {}, isDefault = false) {
+  return {
+    id: model.id,
+    object: 'model',
+    created: Math.floor(Date.now() / 1000),
+    owned_by: 'alia',
+    name: model.name,
+    description: model.description,
+    category: model.category,
+    emoji: model.emoji,
+    is_default: isDefault,
+    capabilities: {
+      tools: model.supportsTools,
+      vision: model.supportsVision,
+      max_tokens: model.maxTokens,
+    },
+    pricing: {
+      credit_multiplier: model.creditMultiplier,
+    },
+  };
+}
+
 /**
  * GET /v1/models
- * List all available Alia models (OpenAI-compatible format)
+ * List available Alia models
  *
  * Query params:
- * - category: Filter by category ('coding' | 'general')
+ * - category: Filter by category ('general' | 'coding' | 'vision' | 'audio' | 'multimodal' | 'voice')
  */
 router.get('/', async (req, res) => {
   try {
     const category = req.query.category as ModelCategory | undefined;
-    const aliaModels = category ? getAliaModelsByCategory(category) : getAllAliaModels();
 
-    const models = aliaModels.map(model => ({
-      id: model.id,
-      object: 'model',
-      created: Math.floor(Date.now() / 1000),
-      owned_by: 'alia',
-      permission: [],
-      root: model.id,
-      parent: null,
-      // Alia-specific metadata
-      name: model.name,
-      description: model.description,
-      category: model.category,
-      capabilities: {
-        tools: model.supportsTools,
-        vision: model.supportsVision,
-        max_tokens: model.maxTokens,
-      },
-      pricing: {
-        credit_multiplier: model.creditMultiplier,
-      },
-    }));
+    const aliaModels = category
+      ? getAliaModelsByCategory(category)
+      : getAllAliaModels();
+
+    const defaultModel = category ? getDefaultModelForCategory(category) : null;
+
+    const data = aliaModels.map(model =>
+      serializeModel(model, model.id === defaultModel?.id)
+    );
+
+    // Sort: default first, then by credit multiplier
+    data.sort((a, b) => {
+      if (a.is_default && !b.is_default) return -1;
+      if (!a.is_default && b.is_default) return 1;
+      return a.pricing.credit_multiplier - b.pricing.credit_multiplier;
+    });
 
     res.json({
       object: 'list',
-      data: models,
+      data,
+      ...(category && { category }),
+      ...(defaultModel && { default_model: defaultModel.id }),
     });
   } catch (e: any) {
     console.error('[V1/Models] Error:', e);
@@ -60,26 +84,7 @@ router.get('/:modelId', async (req, res) => {
       return;
     }
 
-    res.json({
-      id: model.id,
-      object: 'model',
-      created: Math.floor(Date.now() / 1000),
-      owned_by: 'alia',
-      permission: [],
-      root: model.id,
-      parent: null,
-      name: model.name,
-      description: model.description,
-      category: model.category,
-      capabilities: {
-        tools: model.supportsTools,
-        vision: model.supportsVision,
-        max_tokens: model.maxTokens,
-      },
-      pricing: {
-        credit_multiplier: model.creditMultiplier,
-      },
-    });
+    res.json(serializeModel(model));
   } catch (e: any) {
     console.error('[V1/Models] Error:', e);
     res.status(500).json({ error: e.message });
