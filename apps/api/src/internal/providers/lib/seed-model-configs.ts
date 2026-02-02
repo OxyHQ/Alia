@@ -7,7 +7,8 @@
  */
 
 import { ModelConfig } from '../models/model-config.js';
-import { TIER_MODEL_MAPPINGS, type ModelCapabilities } from './alia-models.js';
+import { AliaModel } from '../models/alia-model.js';
+import { TIER_MODEL_MAPPINGS, ALIA_MODELS, type ModelCapabilities } from './alia-models.js';
 import { connectDB } from './db.js';
 import mongoose from 'mongoose';
 
@@ -136,6 +137,102 @@ export async function seedModelConfigs(): Promise<{ seeded: number; skipped: num
 }
 
 /**
+ * Seed AliaModel collection from ALIA_MODELS and TIER_MODEL_MAPPINGS
+ *
+ * Creates virtual Alia models (alia-v1, alia-lite, etc.) in MongoDB
+ * with their provider mappings linked to ModelConfig documents.
+ * Must run AFTER seedModelConfigs() so ModelConfig references exist.
+ */
+export async function seedAliaModels(): Promise<{ seeded: number; skipped: number }> {
+  await connectDB();
+
+  let seeded = 0;
+  let skipped = 0;
+
+  const validProviders = [
+    'openai', 'anthropic', 'google', 'groq', 'mistral',
+    'deepseek', 'together', 'cerebras', 'cloudflare', 'openrouter',
+  ];
+
+  for (const [modelId, aliaModel] of Object.entries(ALIA_MODELS)) {
+    try {
+      // Get tier mappings for this model's tier
+      const tierMappings = TIER_MODEL_MAPPINGS[aliaModel.tier] || [];
+
+      // Build provider mappings with ModelConfig references
+      const providerMappings = [];
+      for (const mapping of tierMappings) {
+        if (!validProviders.includes(mapping.provider)) continue;
+
+        const modelConfig = await ModelConfig.findOne({
+          provider: mapping.provider,
+          modelId: mapping.modelId,
+        });
+
+        if (modelConfig) {
+          providerMappings.push({
+            modelConfigId: modelConfig._id,
+            provider: mapping.provider,
+            modelId: mapping.modelId,
+            priority: mapping.priority,
+            qualityScore: mapping.qualityScore,
+            isActive: true,
+          });
+        }
+      }
+
+      // Determine aggregated capabilities from tier mappings
+      const hasVision = tierMappings.some(m => m.capabilities?.vision);
+      const hasAudio = tierMappings.some(m => m.capabilities?.audio);
+      const hasCodeExecution = tierMappings.some(m => m.capabilities?.codeExecution);
+      const hasWebSearch = tierMappings.some(m => m.capabilities?.webSearch);
+
+      const result = await AliaModel.updateOne(
+        { aliasModelId: modelId },
+        {
+          $setOnInsert: {
+            displayName: aliaModel.name,
+            tier: aliaModel.tier,
+            description: aliaModel.description,
+            creditMultiplier: aliaModel.creditMultiplier,
+            isFreeTier: aliaModel.creditMultiplier <= 1.0,
+            isActive: true,
+            isDeprecated: false,
+          },
+          $set: {
+            providerMappings,
+            aggregatedCapabilities: {
+              vision: hasVision,
+              audio: hasAudio,
+              codeExecution: hasCodeExecution,
+              webSearch: hasWebSearch,
+              thinking: false,
+            },
+          },
+        },
+        { upsert: true }
+      );
+
+      if (result.upsertedCount > 0) {
+        seeded++;
+        console.log(`[Seed] Created AliaModel: ${modelId} (tier: ${aliaModel.tier}, ${providerMappings.length} providers)`);
+      } else {
+        skipped++;
+      }
+    } catch (error: any) {
+      if (error.code === 11000) {
+        skipped++;
+      } else {
+        console.error(`[Seed] Error seeding AliaModel ${modelId}:`, error.message);
+      }
+    }
+  }
+
+  console.log(`[Seed] AliaModel seeding complete: ${seeded} created, ${skipped} skipped/existing`);
+  return { seeded, skipped };
+}
+
+/**
  * Reset all open circuit breakers to closed state
  */
 export async function resetAllCircuitBreakers(): Promise<number> {
@@ -176,6 +273,7 @@ export async function runStartupSeed(): Promise<void> {
   try {
     console.log('[Seed] Running startup seed operations...');
     await seedModelConfigs();
+    await seedAliaModels();
     await resetAllCircuitBreakers();
     console.log('[Seed] Startup seed complete');
   } catch (error) {
