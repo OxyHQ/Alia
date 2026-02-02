@@ -75,7 +75,7 @@ The backend needs to implement a WebSocket server to enable real-time functional
 
 ### WebSocket Endpoint
 
-**URL**: `ws://localhost:3002/ws` (or configured via `VITE_PROVIDERS_API_URL`)
+**URL**: `ws://localhost:3001/internal/providers/ws` (derived from `VITE_PROVIDERS_API_URL`)
 
 ### Message Protocol
 
@@ -252,7 +252,7 @@ Channels:
 
 ### Environment Variables
 
-- `VITE_PROVIDERS_API_URL` - Base HTTP URL (e.g., `http://localhost:3002`)
+- `VITE_PROVIDERS_API_URL` - Base HTTP URL (e.g., `http://localhost:3001/internal/providers`)
   - WebSocket URL is automatically derived by replacing `http` with `ws` and appending `/ws`
 
 ## Testing

@@ -4,6 +4,9 @@
  * Migrates keys from the old ApiKey collection (plaintext keys)
  * to the new ProviderKey collection (encrypted keys with priority rotation).
  *
+ * - Creates new ProviderKey documents for keys that don't exist yet
+ * - Updates existing ProviderKey documents that are missing encryptedKey
+ *
  * Usage:
  *   npx tsx apps/api/src/internal/providers/scripts/migrate-keys.ts
  *
@@ -23,16 +26,16 @@ async function migrate() {
   const mongoUri = process.env.MONGODB_URI || 'mongodb://localhost:27017/alia';
 
   if (!process.env.KEY_ENCRYPTION_SECRET) {
-    console.error('❌ KEY_ENCRYPTION_SECRET env var is required');
+    console.error('KEY_ENCRYPTION_SECRET env var is required');
     process.exit(1);
   }
 
-  console.log('🔄 Connecting to MongoDB...');
+  console.log('Connecting to MongoDB...');
   await mongoose.connect(mongoUri);
-  console.log('✅ Connected');
+  console.log('Connected');
 
   const apiKeys = await ApiKey.find({});
-  console.log(`📋 Found ${apiKeys.length} keys in ApiKey collection`);
+  console.log(`Found ${apiKeys.length} keys in ApiKey collection`);
 
   if (apiKeys.length === 0) {
     console.log('Nothing to migrate.');
@@ -40,23 +43,33 @@ async function migrate() {
     return;
   }
 
-  let migrated = 0;
+  let created = 0;
+  let updated = 0;
   let skipped = 0;
   let errors = 0;
 
   for (const oldKey of apiKeys) {
     try {
-      // Check if already migrated (by key hash)
       const keyHash = crypto.createHash('sha256').update(oldKey.key).digest('hex');
+      const encrypted = encryptKey(oldKey.key);
       const existing = await ProviderKey.findOne({ keyHash });
 
       if (existing) {
-        console.log(`⏭️  Skip ${oldKey.provider}/${oldKey.modelId} - already migrated (${oldKey.key.substring(0, 8)}...)`);
-        skipped++;
+        if (existing.encryptedKey) {
+          console.log(`  Skip ${oldKey.provider} (${oldKey.key.substring(0, 8)}...) - already has encryptedKey`);
+          skipped++;
+          continue;
+        }
+
+        // Update existing doc with missing encryptedKey
+        existing.encryptedKey = encrypted;
+        await existing.save();
+        console.log(`  Updated ${oldKey.provider} (${oldKey.key.substring(0, 8)}...) - added encryptedKey`);
+        updated++;
         continue;
       }
 
-      // Determine priority based on isPaid
+      // Create new ProviderKey
       const priority = oldKey.isPaid ? 5 : 10;
 
       const providerKey = new ProviderKey({
@@ -65,7 +78,7 @@ async function migrate() {
         environment: 'production',
         keyHash,
         keyPrefix: oldKey.key.substring(0, Math.min(8, oldKey.key.length)) + '...',
-        encryptedKey: encryptKey(oldKey.key),
+        encryptedKey: encrypted,
         rateLimit: {
           rpm: oldKey.rpm,
           rpd: oldKey.rpd,
@@ -87,21 +100,22 @@ async function migrate() {
       });
 
       await providerKey.save();
-      console.log(`✅ Migrated ${oldKey.provider}/${oldKey.modelId} (${oldKey.key.substring(0, 8)}...)`);
-      migrated++;
+      console.log(`  Created ${oldKey.provider} (${oldKey.key.substring(0, 8)}...)`);
+      created++;
     } catch (err: any) {
-      console.error(`❌ Error migrating ${oldKey.provider}/${oldKey.modelId}: ${err.message}`);
+      console.error(`  Error ${oldKey.provider}/${oldKey.modelId}: ${err.message}`);
       errors++;
     }
   }
 
-  console.log('\n📊 Migration summary:');
-  console.log(`   Migrated: ${migrated}`);
-  console.log(`   Skipped:  ${skipped}`);
-  console.log(`   Errors:   ${errors}`);
+  console.log('\nMigration summary:');
+  console.log(`  Created: ${created}`);
+  console.log(`  Updated: ${updated}`);
+  console.log(`  Skipped: ${skipped}`);
+  console.log(`  Errors:  ${errors}`);
 
   await mongoose.disconnect();
-  console.log('✅ Done');
+  console.log('Done');
 }
 
 migrate().catch((err) => {
