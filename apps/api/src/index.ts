@@ -172,6 +172,12 @@ app.use(cors({
   optionsSuccessStatus: 200
 }));
 
+// Allow cross-origin resource loading (fixes ERR_BLOCKED_BY_RESPONSE.NotSameOrigin)
+app.use((_req, res, next) => {
+  res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+  next();
+});
+
 // Stripe webhook needs raw body for signature verification
 app.use('/billing/webhook', express.raw({ type: 'application/json' }));
 

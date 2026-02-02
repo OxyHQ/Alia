@@ -31,13 +31,13 @@ declare global {
  * Oxy authentication middleware (official @oxyhq/core)
  * Validates JWT tokens and sets req.userId, req.user, req.accessToken
  */
-export const authenticateToken = oxyClient.auth();
+export const authenticateToken = oxyClient.auth({ debug: true });
 
 /**
  * Optional auth - attaches user if token present, doesn't block if absent
  * Tries bot auth first (Telegram), then Oxy JWT auth
  */
-const oxyOptionalAuth = oxyClient.auth({ optional: true });
+const oxyOptionalAuth = oxyClient.auth({ optional: true, debug: true });
 
 export function optionalAuth(
   req: Request,
