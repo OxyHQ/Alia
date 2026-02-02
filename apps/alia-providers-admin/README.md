@@ -1,6 +1,16 @@
 # Alia Providers Admin Panel
 
-Modern admin panel for managing the Alia Providers microservice. Built with Vite, React, TypeScript, and shadcn/ui.
+Modern admin panel for managing the Alia Providers module (internal to the main API). Built with Vite, React, TypeScript, and shadcn/ui.
+
+## Architecture
+
+The providers module lives inside the main API at `apps/api/src/internal/providers/`. It is **not** a separate microservice. The admin panel connects to `http://localhost:3001/internal/providers` (or the configured `VITE_PROVIDERS_API_URL`).
+
+```
+Admin Panel (this app)
+  └─→ Main API (apps/api, port 3001)
+       └─→ /internal/providers/*   ← providers module
+```
 
 ## Features
 
@@ -11,6 +21,7 @@ Modern admin panel for managing the Alia Providers microservice. Built with Vite
   - Free/Paid tier separation
   - Rate limit configuration
   - Key activation/deactivation
+  - AES-256-GCM encryption at rest
 
 - **Models Management**: Configure provider models and Alia virtual models:
   - Provider model configurations (pricing, capabilities, limits)
@@ -33,64 +44,10 @@ Modern admin panel for managing the Alia Providers microservice. Built with Vite
 - **Styling**: Tailwind CSS v4
 - **Data Fetching**: TanStack Query (React Query)
 - **Real-time**: WebSocket with automatic fallback to HTTP polling
-- **Authentication**: OxyHQ Services (cross-domain SSO)
+- **Authentication**: OxyHQ Auth (cross-domain SSO via `@oxyhq/auth`)
 - **Charts**: Recharts
 - **Routing**: React Router v7
 - **Icons**: Lucide React
-
-## Clean Web-Only Architecture
-
-This admin panel uses **@oxyhq/auth** + **@oxyhq/core** - the official web packages with **ZERO React Native dependencies**.
-
-### Why @oxyhq/auth for web?
-
-The OxyHQ ecosystem provides platform-specific packages:
-- `@oxyhq/services` - For Expo and React Native apps (includes native dependencies)
-- `@oxyhq/auth` + `@oxyhq/core` - For web apps (Next.js, React, Vite)
-- `@oxyhq/core` - For backend/Node.js only
-
-Using `@oxyhq/auth` for web apps means:
-- ✅ **Professional**: Web-first design, no React Native dependencies
-- ✅ **Clean**: Zero native dependencies in the bundle
-- ✅ **Fast**: Smaller bundle size, faster builds
-- ✅ **Simple**: No polyfills, shims, or special configuration needed
-- ✅ **Full-featured**: Cross-domain SSO with FedCM support
-
-### Configuration
-
-**package.json:**
-```json
-{
-  "dependencies": {
-    "@oxyhq/auth": "latest",
-    "@oxyhq/core": "latest"
-  }
-}
-```
-
-**vite.config.ts:**
-```typescript
-import path from "path"
-import tailwindcss from "@tailwindcss/vite"
-import react from "@vitejs/plugin-react"
-import { defineConfig } from "vite"
-
-export default defineConfig({
-  plugins: [react(), tailwindcss()],
-  resolve: {
-    alias: {
-      "@": path.resolve(__dirname, "./src"),
-    },
-  },
-})
-```
-
-That's it! Ultra-clean configuration:
-- No react-native aliases
-- No global polyfills
-- No special esbuild options
-- No exclusions or workarounds
-- Just standard Vite + React
 
 ## Authentication
 
@@ -98,10 +55,10 @@ The admin panel uses **OxyHQ's cross-domain SSO** for authentication with strict
 
 ### How it works
 
-1. **Frontend**: Uses `WebOxyProvider` and `useAuth` from `@oxyhq/services`
-2. **Login Flow**: Click "Sign in with Oxy" → redirects to auth.oxy.so → FedCM/popup/redirect → returns with session
+1. **Frontend**: Uses `WebOxyProvider` and `useAuth` from `@oxyhq/auth`
+2. **Login Flow**: Click "Sign in with Oxy" -> redirects to auth.oxy.so -> FedCM/popup/redirect -> returns with session
 3. **Authorization Check**: Only username `nate` is allowed admin access
-4. **Backend Validation**: Every API request validates the Oxy token and checks username
+4. **Backend Validation**: Every API request includes a Bearer token validated by the API's auth middleware
 
 ### Code
 
@@ -109,65 +66,21 @@ The admin panel uses **OxyHQ's cross-domain SSO** for authentication with strict
 ```typescript
 import { WebOxyProvider, useAuth } from '@oxyhq/auth';
 
-// In AppRoutes component
 const { user, isAuthenticated, isLoading } = useAuth();
-
-// Check if user is authorized (only "nate" allowed)
 const isAuthorized = user?.username?.toLowerCase() === 'nate';
 ```
 
-**Backend** (alia-providers [src/middleware/auth.ts](../alia-providers/src/middleware/auth.ts)):
+**Backend** (apps/api [src/internal/providers/middleware/auth.ts](../api/src/internal/providers/middleware/auth.ts)):
 ```typescript
-import { oxyClient } from '@oxyhq/core';
-
-const user = await oxyClient.getCurrentUser();
-
-if (user.username.toLowerCase() !== 'nate') {
-  return res.status(403).json({ error: 'Access denied' });
-}
+// Accepts both HMAC (service-to-service) and Bearer token (admin panel)
+// Bearer tokens are validated against OxyHQ and checked for admin username
 ```
-
-Unauthorized users are automatically signed out after 3 seconds with an error message.
 
 ## Real-time Updates
 
 The admin panel uses **WebSocket connections** for live data updates with automatic fallback to HTTP polling.
 
-### Architecture
-
-- **WebSocket Client** ([src/lib/websocket/client.ts](src/lib/websocket/client.ts)): Handles connections, reconnection, heartbeat, and pub/sub channels
-- **React Hooks** ([src/lib/websocket/hooks.ts](src/lib/websocket/hooks.ts)): Easy-to-use hooks like `useRealtimeHealth()`, `useRealtimeKeys()`
-- **Hybrid Approach**: WebSocket when connected, HTTP polling when disconnected
-
-### Usage Example
-
-```typescript
-import { useRealtimeHealth } from '@/lib/websocket/hooks';
-import { useQuery } from '@tanstack/react-query';
-
-function MonitoringPage() {
-  // WebSocket subscription
-  const { data: realtimeData, isConnected } = useRealtimeHealth();
-
-  // HTTP polling fallback (only enabled when WebSocket disconnected)
-  const { data: httpData } = useQuery({
-    queryKey: ['health'],
-    queryFn: fetchHealth,
-    refetchInterval: !isConnected ? 10000 : false,
-    enabled: !isConnected,
-  });
-
-  // Use WebSocket data if available, otherwise HTTP data
-  const healthData = realtimeData ?? httpData;
-}
-```
-
-### WebSocket Features
-
-- **Automatic Reconnection**: Exponential backoff on connection loss
-- **Heartbeat**: Detects stale connections and reconnects
-- **Channel Subscriptions**: Subscribe to specific data channels (health, keys, models)
-- **Status Tracking**: Always know connection state
+See [REALTIME.md](REALTIME.md) for full WebSocket protocol documentation.
 
 ## Setup
 
@@ -175,117 +88,61 @@ function MonitoringPage() {
 
 - Node.js 18+
 - npm or yarn
-- Running \`alia-providers\` service
+- Running main API service (`apps/api` on port 3001)
 - OxyHQ account (username must be "nate" for admin access)
 
 ### Installation
 
-\`\`\`bash
-# Install dependencies
+```bash
 npm install
-
-# Set up environment variables
 cp .env.example .env
-\`\`\`
+```
 
 ### Environment Variables
 
-Create a \`.env\` file in the root:
-
 **Development:**
-\`\`\`env
-# API endpoint for alia-providers service
-VITE_API_URL=http://localhost:3002
-
-# WebSocket endpoint (optional, defaults to ws://localhost:3002)
-VITE_WS_URL=ws://localhost:3002
-\`\`\`
+```env
+VITE_PROVIDERS_API_URL=http://localhost:3001/internal/providers
+VITE_OAUTH_CLIENT_ID=your-oxyauth-client-id
+VITE_OAUTH_AUTHORITY=https://auth.oxy.com
+VITE_OAUTH_REDIRECT_URI=http://localhost:5173/auth/callback
+VITE_OAUTH_SCOPE=openid profile email
+```
 
 **Production:**
-\`\`\`env
-VITE_API_URL=https://api.providers.alia.onl
-VITE_WS_URL=wss://api.providers.alia.onl
-\`\`\`
-
-**Note**: No service secret needed in the frontend! Authentication is handled by OxyHQ tokens.
+```env
+VITE_PROVIDERS_API_URL=https://api.alia.onl/internal/providers
+```
 
 ### Development
 
-\`\`\`bash
-# Start development server
+```bash
 npm run dev
-
 # Open browser at http://localhost:5173
-\`\`\`
+```
 
 ### Production Build
 
-\`\`\`bash
-# Build for production
+```bash
 npm run build
-
-# Preview production build
 npm run preview
-\`\`\`
+```
 
 ## Deployment
 
 ### Production Domains
 
 - **Admin Panel**: `https://providers.alia.onl`
-- **API Service**: `https://api.providers.alia.onl`
+- **API (providers endpoint)**: `https://api.alia.onl/internal/providers`
 
-The admin panel communicates with the providers API service. Ensure both services are deployed and the admin panel's `VITE_API_URL` environment variable points to the correct API domain.
-
-### Building for Production
-
-1. Set production environment variables in `.env`
-2. Install dependencies: `npm install`
-3. Build the application: `npm run build`
-   - TypeScript compilation happens first (`tsc -b`)
-   - Vite bundles and optimizes the code
-   - Clean, fast builds with zero React Native dependencies
-4. Deploy the `dist/` folder to your hosting service
-5. **Authentication**: Login is required - only OxyHQ username "nate" has access
+The admin panel communicates with the providers module inside the main API. Ensure the API is deployed and the `VITE_PROVIDERS_API_URL` environment variable points to the correct endpoint.
 
 ### Deployment Notes
 
 - **No VPN needed**: Authentication is handled by OxyHQ SSO
 - **Static hosting**: The `dist/` folder can be served by any static file server (Nginx, Vercel, Netlify, etc.)
-- **Environment variables**: Must be set at build time (they're compiled into the bundle)
-- **CORS**: Ensure the API service allows requests from the admin panel domain
-
-## Usage
-
-### Dashboard
-
-The main dashboard provides an overview of:
-- Total API keys (active, archived)
-- Provider health status
-- Average success rate
-- Failing keys count
-- Recent provider health metrics
-- Recent API key activity
-
-### Keys Management
-
-Manage provider API keys with full CRUD operations. Features include:
-- Free keys are always tried first
-- Failed keys automatically move to end of queue
-- Successful requests restore original priority
-- Archive after 100 total failures
-
-### Models Management
-
-Configure provider models and their capabilities, pricing, and limits.
-
-### Monitoring
-
-Real-time monitoring powered by WebSocket connections (with automatic fallback to HTTP polling). Shows live updates of:
-- Provider health and circuit breaker status
-- Request latency and success rates
-- Key rotation status and priority queues
-- Connection status indicator (Live/Reconnecting/Offline)
+- **Environment variables**: Must be set at build time (compiled into the bundle)
+- **CORS**: The API allows requests from the admin panel domain
 
 ## License
 

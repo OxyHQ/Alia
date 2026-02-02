@@ -141,7 +141,6 @@ const PRODUCTION_ORIGINS = [
 
 const DEV_ORIGINS = process.env.NODE_ENV === 'production' ? [] : [
   'http://localhost:3000',
-  'http://localhost:3002',
   'http://localhost:5173',
   'http://localhost:8081',
   'exp://localhost:8081',

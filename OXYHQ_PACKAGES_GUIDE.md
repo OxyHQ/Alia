@@ -76,8 +76,7 @@ function Component() {
 **Packages:** `@oxyhq/core` only
 
 **Apps using this:**
-- ✅ `api` - Main Alia API server
-- ✅ `alia-providers` - Providers microservice
+- ✅ `api` - Main Alia API server (includes internal providers module)
 
 **Usage:**
 ```typescript
@@ -127,10 +126,6 @@ const profile = await oxyClient.getUserByUsername('nate');
 **No changes needed**
 
 ### 5. ✅ api
-**Status:** Already correctly using `@oxyhq/core`
-**No changes needed**
-
-### 6. ✅ alia-providers
 **Status:** Already correctly using `@oxyhq/core`
 **No changes needed**
 
@@ -233,6 +228,6 @@ OXY_API_URL=https://api.oxy.so
 All apps are now correctly configured:
 - 3 web apps → `@oxyhq/auth` + `@oxyhq/core`
 - 1 mobile app → `@oxyhq/services` + `@oxyhq/core`
-- 2 backend services → `@oxyhq/core` only
+- 1 backend service → `@oxyhq/core` only
 
 Cross-domain SSO works automatically across all platforms! 🎉
