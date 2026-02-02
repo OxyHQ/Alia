@@ -114,6 +114,8 @@ const ModelConfigSchema = new Schema<IModelConfig>(
         'v1-multimodal',
         'v1-pro',
         'v1-pro-max',
+        'v1-voice',
+        'v1-voice-pro',
       ],
       index: true,
     },
