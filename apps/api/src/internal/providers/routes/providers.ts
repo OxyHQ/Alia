@@ -129,7 +129,7 @@ router.post('/:provider/proxy', async (req: Request, res: Response) => {
 
     // Proxy the request to the provider
     const startTime = Date.now();
-    const stream = await providerImpl.proxy(keyConfig, messages, tools, config);
+    const stream = await (providerImpl as Provider).proxy(keyConfig, messages, tools, config);
 
     // Set headers for streaming response
     res.setHeader('Content-Type', 'text/event-stream');
