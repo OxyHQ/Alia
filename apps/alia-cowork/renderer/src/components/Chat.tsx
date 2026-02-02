@@ -111,10 +111,9 @@ const toolLabels: Record<string, string> = {
   set_mode: "Mode",
 }
 
-// Default models
+// Default models (fallback until API responds)
 const defaultModels: Model[] = [
   { id: "alia-v1-cowork", name: "Cowork", description: "Fast assistant" },
-  { id: "alia-v1-pro", name: "Cowork Pro", description: "Advanced reasoning" },
 ]
 
 // Thinking phrases

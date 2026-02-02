@@ -2,6 +2,19 @@ import { Context } from 'telegraf';
 import { Markup } from 'telegraf';
 import { apiClient } from '../services/api-client';
 
+// Cache models from API (refreshed periodically)
+let cachedModels: { id: string; name: string; description: string; emoji?: string; category: string; pricing: { credit_multiplier: number } }[] = [];
+let lastFetchTime = 0;
+const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
+
+async function getModels() {
+  if (cachedModels.length === 0 || Date.now() - lastFetchTime > CACHE_TTL_MS) {
+    cachedModels = await apiClient.fetchModels();
+    lastFetchTime = Date.now();
+  }
+  return cachedModels;
+}
+
 export async function handleHelp(ctx: Context) {
   const helpMessage = `
 🤖 <b>Alia AI Bot - Help Guide</b>
@@ -68,62 +81,44 @@ export async function handleModel(ctx: Context) {
       return;
     }
 
+    const models = await getModels();
+    if (models.length === 0) {
+      await ctx.reply('❌ Unable to fetch available models. Please try again later.');
+      return;
+    }
+
     const currentModel = telegramUser.preferredModel || 'alia-lite';
 
-    const modelInfo = {
-      'alia-lite': {
-        name: 'Alia Lite',
-        description: 'Fast responses (0.5x credits)',
-        emoji: '⚡'
-      },
-      'alia-v1': {
-        name: 'Alia V1',
-        description: 'Balanced quality (1x credits)',
-        emoji: '🎯'
-      },
-      'alia-v1-codea': {
-        name: 'Alia V1 Codea',
-        description: 'Optimized for code (1.5x credits)',
-        emoji: '💻'
-      },
-      'alia-v1-pro': {
-        name: 'Alia V1 Pro',
-        description: 'High quality (3x credits)',
-        emoji: '⭐'
-      },
-      'alia-v1-pro-max': {
-        name: 'Alia V1 Pro Max',
-        description: 'Best quality (5x credits)',
-        emoji: '🚀'
-      }
-    };
-
     let message = '🤖 <b>Choose AI Model</b>\n\n';
-    message += `<b>Current Model:</b> ${modelInfo[currentModel as keyof typeof modelInfo].emoji} ${modelInfo[currentModel as keyof typeof modelInfo].name}\n\n`;
+    const currentInfo = models.find(m => m.id === currentModel);
+    message += `<b>Current Model:</b> ${currentInfo?.emoji || '🤖'} ${currentInfo?.name || currentModel}\n\n`;
     message += '<b>Available Models:</b>\n';
 
-    for (const [modelId, info] of Object.entries(modelInfo)) {
-      const current = modelId === currentModel ? ' ✓' : '';
-      message += `\n${info.emoji} <b>${info.name}</b>${current}\n`;
-      message += `   <i>${info.description}</i>`;
+    for (const model of models) {
+      const current = model.id === currentModel ? ' ✓' : '';
+      message += `\n${model.emoji || '🤖'} <b>${model.name}</b>${current}\n`;
+      message += `   <i>${model.description} (${model.pricing.credit_multiplier}x credits)</i>`;
     }
+
+    // Build button rows (2 per row)
+    const buttonRows: ReturnType<typeof Markup.button.callback>[][] = [];
+    let currentRow: ReturnType<typeof Markup.button.callback>[] = [];
+    for (const model of models) {
+      currentRow.push(Markup.button.callback(
+        `${model.emoji || '🤖'} ${model.name}`,
+        `model_${model.id}`
+      ));
+      if (currentRow.length === 2) {
+        buttonRows.push(currentRow);
+        currentRow = [];
+      }
+    }
+    if (currentRow.length > 0) buttonRows.push(currentRow);
+    buttonRows.push([Markup.button.callback('« Back', 'start')]);
 
     await ctx.reply(message, {
       parse_mode: 'HTML',
-      ...Markup.inlineKeyboard([
-        [
-          Markup.button.callback('⚡ Lite', 'model_alia-lite'),
-          Markup.button.callback('🎯 V1', 'model_alia-v1')
-        ],
-        [
-          Markup.button.callback('💻 Codea', 'model_alia-v1-codea'),
-          Markup.button.callback('⭐ Pro', 'model_alia-v1-pro')
-        ],
-        [
-          Markup.button.callback('🚀 Pro Max', 'model_alia-v1-pro-max')
-        ],
-        [Markup.button.callback('« Back', 'start')]
-      ])
+      ...Markup.inlineKeyboard(buttonRows)
     });
   } catch (error) {
     console.error('Model command error:', error);
@@ -139,23 +134,15 @@ export async function handleModelSelection(ctx: Context, modelId: string) {
   }
 
   try {
-    // Update the model
     await apiClient.updateTelegramModel(telegramId, modelId);
 
-    const modelInfo: Record<string, { name: string; emoji: string }> = {
-      'alia-lite': { name: 'Alia Lite', emoji: '⚡' },
-      'alia-v1': { name: 'Alia V1', emoji: '🎯' },
-      'alia-v1-codea': { name: 'Alia V1 Codea', emoji: '💻' },
-      'alia-v1-pro': { name: 'Alia V1 Pro', emoji: '⭐' },
-      'alia-v1-pro-max': { name: 'Alia V1 Pro Max', emoji: '🚀' }
-    };
+    const models = await getModels();
+    const info = models.find(m => m.id === modelId);
 
-    const info = modelInfo[modelId];
-
-    await ctx.answerCbQuery(`Model changed to ${info.name}`);
+    await ctx.answerCbQuery(`Model changed to ${info?.name || modelId}`);
     await ctx.reply(
-      `${info.emoji} <b>Model Updated</b>\n\n` +
-      `Your AI model has been changed to <b>${info.name}</b>.\n\n` +
+      `${info?.emoji || '🤖'} <b>Model Updated</b>\n\n` +
+      `Your AI model has been changed to <b>${info?.name || modelId}</b>.\n\n` +
       `All future conversations will use this model.`,
       {
         parse_mode: 'HTML',

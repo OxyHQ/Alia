@@ -59,12 +59,11 @@ async function initializeBot() {
     bot.action('new', handleNewConversation);
     bot.action('history', handleHistory);
 
-    // Register model selection callback handlers
-    bot.action('model_alia-lite', (ctx) => handleModelSelection(ctx, 'alia-lite'));
-    bot.action('model_alia-v1', (ctx) => handleModelSelection(ctx, 'alia-v1'));
-    bot.action('model_alia-v1-codea', (ctx) => handleModelSelection(ctx, 'alia-v1-codea'));
-    bot.action('model_alia-v1-pro', (ctx) => handleModelSelection(ctx, 'alia-v1-pro'));
-    bot.action('model_alia-v1-pro-max', (ctx) => handleModelSelection(ctx, 'alia-v1-pro-max'));
+    // Handle model selection dynamically (matches any model_<id> callback)
+    bot.action(/^model_(.+)$/, (ctx) => {
+      const modelId = ctx.match[1];
+      return handleModelSelection(ctx, modelId);
+    });
 
     // Answer all callback queries to remove loading state
     bot.on('callback_query', async (ctx, next) => {

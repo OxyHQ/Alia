@@ -58,7 +58,7 @@ export function NodeEditPanel({ node, onUpdate, onClose }: NodeEditPanelProps) {
               <div>
                 <Label htmlFor="model">Model</Label>
                 <Select
-                  value={node.data.model || "alia-v1-lite"}
+                  value={node.data.model || "alia-lite"}
                   onValueChange={(value) => handleChange("model", value)}
                 >
                   <SelectTrigger id="model">
@@ -118,7 +118,7 @@ export function NodeEditPanel({ node, onUpdate, onClose }: NodeEditPanelProps) {
               <div>
                 <Label htmlFor="model">Model</Label>
                 <Select
-                  value={node.data.model || "alia-v1-lite"}
+                  value={node.data.model || "alia-lite"}
                   onValueChange={(value) => handleChange("model", value)}
                 >
                   <SelectTrigger id="model">

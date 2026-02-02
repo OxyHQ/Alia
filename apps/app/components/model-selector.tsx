@@ -41,7 +41,6 @@ export function ModelSelector({
         .then((res) => res.json())
         .then((data) => {
           const fetchedModels = data.data
-            ?.filter((m: any) => m.id !== 'alia-v1-cowork') // Filter out Cowork-only model
             ?.map((m: any) => ({
               id: m.id,
               name: m.name,
@@ -53,13 +52,8 @@ export function ModelSelector({
         })
         .catch((error) => {
           console.error('[ModelSelector] Error fetching models:', error);
-          // Fallback to default models
           cachedModels = [
-            { id: "alia-lite", name: "Alia Lite", description: "Fast responses for simple tasks" },
             { id: "alia-v1", name: "Alia V1", description: "Balanced performance" },
-            { id: "alia-v1-codea", name: "Alia V1 Codea", description: "Optimized for coding" },
-            { id: "alia-v1-pro", name: "Alia V1 Pro", description: "High-quality responses" },
-            { id: "alia-v1-pro-max", name: "Alia V1 Pro Max", description: "Best available" },
           ];
           setModels(cachedModels);
           setLoading(false);
