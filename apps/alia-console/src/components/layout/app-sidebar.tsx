@@ -20,7 +20,6 @@ import {
   SidebarRail,
 } from '@/components/ui/sidebar';
 import { Button } from '@/components/ui/button';
-import config from '@/lib/config';
 import { NavMain } from './nav-main';
 import { NavApps } from './nav-apps';
 import { NavUser } from './nav-user';
@@ -91,11 +90,7 @@ const settingsNavItems = [
 ];
 
 export function AppSidebar() {
-  const { isAuthenticated } = useAuth();
-
-  const handleSignIn = () => {
-    window.location.href = `${config.oxyUrl}/login?redirect=${encodeURIComponent(window.location.href)}`;
-  };
+  const { isAuthenticated, signIn } = useAuth();
 
   return (
     <Sidebar collapsible="icon">
@@ -114,7 +109,7 @@ export function AppSidebar() {
         {isAuthenticated ? (
           <NavUser />
         ) : (
-          <Button variant="ghost" className="w-full justify-start gap-2 px-2" onClick={handleSignIn}>
+          <Button variant="ghost" className="w-full justify-start gap-2 px-2" onClick={signIn}>
             <HugeiconsIcon icon={Login01Icon} size={18} />
             <span>Sign in</span>
           </Button>
