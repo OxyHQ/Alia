@@ -8,7 +8,7 @@
 
 export type AliaTier = 'lite' | 'v1' | 'v1-codea' | 'v1-cowork' | 'v1-browser' | 'v1-vision' | 'v1-audio' | 'v1-multimodal' | 'v1-pro' | 'v1-pro-max' | 'v1-voice' | 'v1-voice-pro';
 
-export type ModelCategory = 'general' | 'coding';
+export type ModelCategory = 'general' | 'coding' | 'vision' | 'audio' | 'multimodal' | 'voice';
 export type PricingTier = 'free' | 'freemium' | 'paid';
 
 export interface ModelCapabilities {
@@ -38,6 +38,7 @@ export interface AliaModel {
   supportsTools: boolean;
   supportsVision: boolean;
   category: ModelCategory;
+  emoji?: string;
 }
 
 export interface ModelMapping {
@@ -67,6 +68,7 @@ export const ALIA_MODELS: Record<string, AliaModel> = {
     supportsTools: true,
     supportsVision: false,
     category: 'general',
+    emoji: '⚡',
   },
   'alia-v1': {
     id: 'alia-v1',
@@ -78,6 +80,7 @@ export const ALIA_MODELS: Record<string, AliaModel> = {
     supportsTools: true,
     supportsVision: true,
     category: 'general',
+    emoji: '🎯',
   },
   'alia-v1-codea': {
     id: 'alia-v1-codea',
@@ -89,6 +92,7 @@ export const ALIA_MODELS: Record<string, AliaModel> = {
     supportsTools: true,
     supportsVision: false,
     category: 'coding',
+    emoji: '💻',
   },
   'alia-v1-cowork': {
     id: 'alia-v1-cowork',
@@ -100,6 +104,7 @@ export const ALIA_MODELS: Record<string, AliaModel> = {
     supportsTools: true,
     supportsVision: true,
     category: 'coding',
+    emoji: '🖥️',
   },
   'alia-v1-browser': {
     id: 'alia-v1-browser',
@@ -111,6 +116,7 @@ export const ALIA_MODELS: Record<string, AliaModel> = {
     supportsTools: true,
     supportsVision: true,
     category: 'coding',
+    emoji: '🌐',
   },
   'alia-v1-vision': {
     id: 'alia-v1-vision',
@@ -121,7 +127,8 @@ export const ALIA_MODELS: Record<string, AliaModel> = {
     maxTokens: 16384,
     supportsTools: true,
     supportsVision: true,
-    category: 'general',
+    category: 'vision',
+    emoji: '👁️',
   },
   'alia-v1-audio': {
     id: 'alia-v1-audio',
@@ -132,7 +139,8 @@ export const ALIA_MODELS: Record<string, AliaModel> = {
     maxTokens: 8192,
     supportsTools: true,
     supportsVision: false,
-    category: 'general',
+    category: 'audio',
+    emoji: '🎤',
   },
   'alia-v1-multimodal': {
     id: 'alia-v1-multimodal',
@@ -143,7 +151,8 @@ export const ALIA_MODELS: Record<string, AliaModel> = {
     maxTokens: 32768,
     supportsTools: true,
     supportsVision: true,
-    category: 'general',
+    category: 'multimodal',
+    emoji: '🎨',
   },
   'alia-v1-pro': {
     id: 'alia-v1-pro',
@@ -155,6 +164,7 @@ export const ALIA_MODELS: Record<string, AliaModel> = {
     supportsTools: true,
     supportsVision: true,
     category: 'coding',
+    emoji: '⭐',
   },
   'alia-v1-thinking': {
     id: 'alia-v1-thinking',
@@ -166,6 +176,7 @@ export const ALIA_MODELS: Record<string, AliaModel> = {
     supportsTools: true,
     supportsVision: true,
     category: 'coding',
+    emoji: '🧠',
   },
   'alia-v1-pro-max': {
     id: 'alia-v1-pro-max',
@@ -177,6 +188,7 @@ export const ALIA_MODELS: Record<string, AliaModel> = {
     supportsTools: true,
     supportsVision: true,
     category: 'general',
+    emoji: '🚀',
   },
   'alia-v1-voice': {
     id: 'alia-v1-voice',
@@ -187,7 +199,8 @@ export const ALIA_MODELS: Record<string, AliaModel> = {
     maxTokens: 8192,
     supportsTools: true,
     supportsVision: false,
-    category: 'general',
+    category: 'voice',
+    emoji: '🗣️',
   },
   'alia-v1-voice-pro': {
     id: 'alia-v1-voice-pro',
@@ -198,7 +211,8 @@ export const ALIA_MODELS: Record<string, AliaModel> = {
     maxTokens: 32768,
     supportsTools: true,
     supportsVision: false,
-    category: 'general',
+    category: 'voice',
+    emoji: '🎙️',
   },
 };
 
@@ -256,4 +270,13 @@ export function getAllAliaModels(): AliaModel[] {
  */
 export function getAliaModelsByCategory(category: ModelCategory): AliaModel[] {
   return Object.values(ALIA_MODELS).filter(m => m.category === category);
+}
+
+/**
+ * Get the default model for a category (lowest credit multiplier)
+ */
+export function getDefaultModelForCategory(category: ModelCategory): AliaModel | null {
+  const models = getAliaModelsByCategory(category);
+  if (models.length === 0) return null;
+  return models.reduce((best, m) => m.creditMultiplier < best.creditMultiplier ? m : best);
 }

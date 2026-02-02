@@ -4,7 +4,7 @@ import responsesRouter from './v1/responses.js';
 import modelsRouter from './v1/models.js';
 import { authenticateTokenOrApiKey } from '../middleware/auth.js';
 import { apiKeyRateLimit } from '../middleware/api-key-rate-limit.js';
-import { resolveModel } from '../lib/chat-core.js';
+import { resolveModel, isAliaModel } from '../lib/chat-core.js';
 import { UserCredits } from '../models/user-credits.js';
 import { reserveCredits, finalizeCredits, type CreditReservation } from '../lib/credits-manager.js';
 import * as crypto from 'crypto';
@@ -103,29 +103,16 @@ router.post('/resolve-model', async (req: Request, res: Response) => {
       return res.status(401).json({ error: 'User not found' });
     }
 
-    const { model, clientType } = req.body;
+    const { model } = req.body;
     if (!model) {
       return res.status(400).json({ error: 'Model is required' });
     }
 
-    console.log('[V1/ResolveModel] Resolving model:', model, 'for user:', userId, 'client:', clientType || 'unknown');
+    console.log('[V1/ResolveModel] Resolving model:', model, 'for user:', userId);
 
-    // Apply client-type restrictions on models
-    let filteredModel = model;
-    if (clientType === 'telegram') {
-      // Telegram bot can only use lite models
-      const allowedTelegramModels = ['alia-lite', 'alia-v1-lite'];
-      if (!allowedTelegramModels.includes(model)) {
-        console.log('[V1/ResolveModel] Telegram bot attempted to use non-lite model, forcing alia-lite');
-        filteredModel = 'alia-lite';
-      }
-    } else if (clientType === 'codea') {
-      // Codea has access to coding-optimized models
-      // No restrictions, but log for monitoring
-      console.log('[V1/ResolveModel] Codea requesting model:', model);
-    } else if (clientType === 'cowork') {
-      // Cowork has access to all models
-      console.log('[V1/ResolveModel] Cowork requesting model:', model);
+    // Validate that the requested model exists
+    if (!isAliaModel(model)) {
+      return res.status(400).json({ error: `Unknown model: ${model}` });
     }
 
     // Reserve credits
@@ -148,14 +135,12 @@ router.post('/resolve-model', async (req: Request, res: Response) => {
       });
     }
 
-    // Resolve model with optional client-type filtering
-    const resolved = await resolveModel(filteredModel);
+    const resolved = await resolveModel(model);
 
     if (!resolved) {
       return res.status(503).json({
         error: 'No models available',
-        requested_model: model,
-        client_type: clientType
+        requested_model: model
       });
     }
 
@@ -176,7 +161,7 @@ router.post('/resolve-model', async (req: Request, res: Response) => {
       modelId: resolved.modelId,
       providerKey: resolved.keyConfig.key,
       sessionId,
-      aliaModel: filteredModel // Return the filtered Alia model ID so client knows what was actually used
+      aliaModel: model
     });
   } catch (error: any) {
     console.error('[V1/ResolveModel] Error:', error);
