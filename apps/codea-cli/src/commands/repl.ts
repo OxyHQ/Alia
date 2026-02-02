@@ -241,7 +241,20 @@ async function handleSlashCommand(
         console.log(chalk.green(`Model switched to ${options.model}`));
       } else {
         console.log(chalk.gray('Current model: ') + chalk.cyan(options.model));
-        console.log(chalk.gray('Available: codea, codea-pro, codea-thinking'));
+        try {
+          const { fetchModels } = await import('../utils/api.js');
+          const apiModels = await fetchModels();
+          if (apiModels.length > 0) {
+            console.log(chalk.gray('Available models:'));
+            for (const m of apiModels) {
+              console.log(chalk.gray('  ') + chalk.cyan(m.id) + chalk.gray(` - ${m.name}`));
+            }
+          } else {
+            console.log(chalk.gray('Available: codea, codea-pro, codea-thinking'));
+          }
+        } catch {
+          console.log(chalk.gray('Available: codea, codea-pro, codea-thinking'));
+        }
       }
       break;
 

@@ -42,7 +42,7 @@ const initialNodes: WorkflowNode[] = [
     position: { x: 450, y: 150 },
     data: {
       label: "Generate README",
-      model: "alia-v1-lite",
+      model: "alia-lite",
       prompt:
         "Based on the following repository context, generate a comprehensive README.md file with sections for: Overview, Features, Installation, Usage, API Reference (if applicable), and Contributing guidelines.\n\n{{input}}",
       systemPrompt: "You are a technical documentation expert.",
@@ -92,14 +92,14 @@ function WorkflowEditorInner() {
   const defaultNodeData: Record<WorkflowNodeType, object> = {
     aiText: {
       label: "AI Text",
-      model: "alia-v1-lite",
+      model: "alia-lite",
       prompt: "",
       systemPrompt: "",
       temperature: 0.7,
     },
     aiImage: {
       label: "AI Image",
-      model: "alia-v1-lite",
+      model: "alia-lite",
       prompt: "",
       size: "1024x1024",
     },

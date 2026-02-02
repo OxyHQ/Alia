@@ -170,6 +170,16 @@ class APIClient {
     return response.data;
   }
 
+  // Models
+  async fetchModels(): Promise<{ id: string; name: string; description: string; emoji?: string; category: string; pricing: { credit_multiplier: number } }[]> {
+    try {
+      const response = await this.client.get('/v1/models');
+      return response.data.data || [];
+    } catch {
+      return [];
+    }
+  }
+
   // Generate auth URL for user verification
   getAuthURL(authToken: string): string {
     return `${this.baseURL}/telegram/verify?token=${authToken}`;

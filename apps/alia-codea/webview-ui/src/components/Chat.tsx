@@ -179,11 +179,9 @@ interface Model {
   category?: string
 }
 
-// Default models (fallback)
+// Default models (fallback until API responds)
 const defaultModels: Model[] = [
   { id: "alia-v1-codea", name: "Codea", description: "Fast coding assistant" },
-  { id: "alia-v1-pro", name: "Codea Pro", description: "Advanced reasoning" },
-  { id: "alia-v1-thinking", name: "Codea Thinking", description: "Extended thinking for complex tasks" },
 ]
 
 // Context item interface
