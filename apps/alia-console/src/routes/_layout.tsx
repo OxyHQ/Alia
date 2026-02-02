@@ -1,5 +1,4 @@
 import { createFileRoute, Outlet } from '@tanstack/react-router';
-import { useEffect } from 'react';
 import { useAuth } from '@oxyhq/auth';
 import { SidebarProvider, SidebarInset, SidebarTrigger } from '@/components/ui/sidebar';
 import { AppSidebar } from '@/components/layout/app-sidebar';
@@ -14,9 +13,9 @@ export const Route = createFileRoute('/_layout')({
 function ApiAuthSetup({ children }: { children: React.ReactNode }) {
   const { authManager } = useAuth();
 
-  useEffect(() => {
-    setTokenGetter(() => authManager.getAccessToken());
-  }, [authManager]);
+  // Set token getter synchronously during render to avoid race condition
+  // where child effects (React Query) fire before this parent's useEffect
+  setTokenGetter(() => authManager.getAccessToken());
 
   return <>{children}</>;
 }
