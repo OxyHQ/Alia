@@ -5,6 +5,7 @@
 
 import express, { Request, Response } from 'express';
 import { providers } from '../lib/providers';
+import type { Provider } from '../lib/types';
 import { resolveAliaModel } from '../lib/model-resolver';
 import {
   getProviderHealth,
