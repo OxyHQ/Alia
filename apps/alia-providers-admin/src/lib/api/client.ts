@@ -264,6 +264,15 @@ class ProvidersAPIClient {
       method: 'DELETE',
     });
   }
+  // ============ USAGE ============
+
+  async getUsage(period: string = '7d') {
+    return this.request(`/v1/usage?period=${period}`);
+  }
+
+  async getUsageCosts(period: string = '7d') {
+    return this.request(`/v1/usage/costs?period=${period}`);
+  }
 }
 
 export const apiClient = new ProvidersAPIClient();

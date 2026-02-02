@@ -5,6 +5,7 @@
 
 import express, { Request, Response } from 'express';
 import { ModelConfig } from '../models/model-config';
+import { broadcastModelsUpdate } from '../lib/broadcast-helpers';
 
 const router = express.Router();
 
@@ -104,6 +105,8 @@ router.post('/', async (req: Request, res: Response) => {
       success: true,
       data: model,
     });
+
+    broadcastModelsUpdate(modelData.provider);
   } catch (error: any) {
     console.error('Error creating model:', error);
     res.status(500).json({
@@ -145,6 +148,8 @@ router.patch('/:provider/:modelId', async (req: Request, res: Response) => {
       success: true,
       data: model,
     });
+
+    broadcastModelsUpdate(provider);
   } catch (error: any) {
     console.error('Error updating model:', error);
     res.status(500).json({
@@ -177,6 +182,8 @@ router.delete('/:provider/:modelId', async (req: Request, res: Response) => {
       success: true,
       message: 'Model deleted successfully',
     });
+
+    broadcastModelsUpdate(provider);
   } catch (error: any) {
     console.error('Error deleting model:', error);
     res.status(500).json({

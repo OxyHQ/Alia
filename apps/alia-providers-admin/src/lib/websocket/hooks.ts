@@ -73,6 +73,13 @@ export function useRealtimeKeys(filters?: { provider?: string; environment?: str
 }
 
 /**
+ * Hook for real-time Alia models data
+ */
+export function useRealtimeAliaModels() {
+  return useRealtimeData('alia-models:all');
+}
+
+/**
  * Hook for real-time models data
  */
 export function useRealtimeModels(filters?: { provider?: string; aliaTier?: string; active?: boolean }) {

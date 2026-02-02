@@ -7,6 +7,7 @@ import express, { Request, Response } from 'express';
 import crypto from 'crypto';
 import { ProviderKey } from '../models/provider-key';
 import { invalidateKeyCache } from '../lib/key-manager';
+import { broadcastKeysUpdate } from '../lib/broadcast-helpers';
 
 const router = express.Router();
 
@@ -197,6 +198,8 @@ router.post('/', async (req: Request, res: Response) => {
         message: 'Key added successfully',
       },
     });
+
+    broadcastKeysUpdate(provider);
   } catch (error: any) {
     console.error('Error adding key:', error);
     res.status(500).json({
@@ -253,6 +256,8 @@ router.patch('/:keyId', async (req: Request, res: Response) => {
       success: true,
       data: key,
     });
+
+    broadcastKeysUpdate(key.provider);
   } catch (error: any) {
     console.error('Error updating key:', error);
     res.status(500).json({
@@ -288,6 +293,8 @@ router.delete('/:keyId', async (req: Request, res: Response) => {
       success: true,
       message: 'Key deleted successfully',
     });
+
+    broadcastKeysUpdate(key.provider);
   } catch (error: any) {
     console.error('Error deleting key:', error);
     res.status(500).json({
@@ -357,6 +364,8 @@ router.post('/:keyId/rotate', async (req: Request, res: Response) => {
         message: 'Key rotated successfully',
       },
     });
+
+    broadcastKeysUpdate(key.provider);
   } catch (error: any) {
     console.error('Error rotating key:', error);
     res.status(500).json({
@@ -397,6 +406,8 @@ router.post('/:keyId/deactivate', async (req: Request, res: Response) => {
       data: key,
       message: 'Key deactivated successfully',
     });
+
+    broadcastKeysUpdate(key.provider);
   } catch (error: any) {
     console.error('Error deactivating key:', error);
     res.status(500).json({
@@ -437,8 +448,65 @@ router.post('/:keyId/activate', async (req: Request, res: Response) => {
       data: key,
       message: 'Key activated successfully',
     });
+
+    broadcastKeysUpdate(key.provider);
   } catch (error: any) {
     console.error('Error activating key:', error);
+    res.status(500).json({
+      success: false,
+      error: 'An internal error occurred',
+      code: 'INTERNAL_ERROR',
+    });
+  }
+});
+
+/**
+ * GET /v1/keys/diagnostics
+ * Check if all keys have stored key values and are usable
+ */
+router.get('/diagnostics', async (req: Request, res: Response) => {
+  try {
+    const keys = await ProviderKey.find({ isArchived: false }).select(
+      'name provider keyPrefix isActive key isPaid currentPriority totalRequests successCount totalFailures lastFailureReason'
+    );
+
+    const diagnostics = keys.map((k) => ({
+      name: k.name,
+      provider: k.provider,
+      keyPrefix: k.keyPrefix,
+      isActive: k.isActive,
+      hasKeyValue: !!k.key,
+      keyLength: k.key ? k.key.length : 0,
+      isPaid: k.isPaid,
+      currentPriority: k.currentPriority,
+      totalRequests: k.totalRequests,
+      successCount: k.successCount,
+      totalFailures: k.totalFailures,
+      lastFailureReason: k.lastFailureReason || null,
+    }));
+
+    const issues: string[] = [];
+    for (const d of diagnostics) {
+      if (!d.hasKeyValue) {
+        issues.push(`Key "${d.name}" (${d.provider}) has no stored key value`);
+      }
+      if (!d.isActive) {
+        issues.push(`Key "${d.name}" (${d.provider}) is inactive`);
+      }
+    }
+
+    res.json({
+      success: true,
+      data: {
+        totalKeys: diagnostics.length,
+        keysWithValues: diagnostics.filter((d) => d.hasKeyValue).length,
+        activeKeys: diagnostics.filter((d) => d.isActive).length,
+        issues,
+        keys: diagnostics,
+      },
+    });
+  } catch (error: any) {
+    console.error('Error running key diagnostics:', error);
     res.status(500).json({
       success: false,
       error: 'An internal error occurred',

@@ -4,6 +4,7 @@ import providersRouter from './routes/providers';
 import modelsRouter from './routes/models';
 import aliaModelsRouter from './routes/alia-models';
 import keysRouter from './routes/keys';
+import usageRouter from './routes/usage';
 
 const providersModule = express.Router();
 
@@ -22,5 +23,6 @@ providersModule.use('/v1/providers', authenticateService, providersRouter);
 providersModule.use('/v1/models', authenticateService, modelsRouter);
 providersModule.use('/v1/alia-models', authenticateService, aliaModelsRouter);
 providersModule.use('/v1/keys', authenticateService, keysRouter);
+providersModule.use('/v1/usage', authenticateService, usageRouter);
 
 export default providersModule;
