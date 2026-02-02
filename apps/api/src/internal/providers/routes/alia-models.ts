@@ -6,6 +6,7 @@
 import express, { Request, Response } from 'express';
 import { AliaModel } from '../models/alia-model';
 import { ModelConfig } from '../models/model-config';
+import { broadcastAliaModelsUpdate } from '../lib/broadcast-helpers';
 
 const router = express.Router();
 
@@ -149,6 +150,8 @@ router.post('/', async (req: Request, res: Response) => {
       success: true,
       data: model,
     });
+
+    broadcastAliaModelsUpdate();
   } catch (error: any) {
     console.error('Error creating alia model:', error);
     res.status(500).json({
@@ -223,6 +226,8 @@ router.patch('/:aliasModelId', async (req: Request, res: Response) => {
       success: true,
       data: model,
     });
+
+    broadcastAliaModelsUpdate();
   } catch (error: any) {
     console.error('Error updating alia model:', error);
     res.status(500).json({
@@ -255,6 +260,8 @@ router.delete('/:aliasModelId', async (req: Request, res: Response) => {
       success: true,
       message: 'Alia model deleted successfully',
     });
+
+    broadcastAliaModelsUpdate();
   } catch (error: any) {
     console.error('Error deleting alia model:', error);
     res.status(500).json({

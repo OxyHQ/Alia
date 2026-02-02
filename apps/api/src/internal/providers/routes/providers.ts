@@ -12,10 +12,13 @@ import {
   getAllProviderHealth,
   recordSuccess,
   recordFailure,
-  isProviderAvailable
+  isProviderAvailable,
+  resetProviderHealth
 } from '../lib/provider-health';
+import mongoose from 'mongoose';
 import { getBestKeyForModel, recordKeyUsage } from '../lib/key-manager';
 import { sanitizeError } from '../lib/error-handler';
+import { broadcastHealthUpdate } from '../lib/broadcast-helpers';
 
 const router = express.Router();
 
@@ -273,6 +276,8 @@ router.post('/health/record', async (req: Request, res: Response) => {
         currentSuccessRate: health.successRate,
       },
     });
+
+    broadcastHealthUpdate(provider, modelId);
   } catch (error: any) {
     console.error('Error recording health:', error);
     res.status(500).json({
@@ -312,6 +317,90 @@ router.get('/available', async (req: Request, res: Response) => {
     });
   } catch (error: any) {
     console.error('Error checking availability:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message,
+      code: 'INTERNAL_ERROR',
+    });
+  }
+});
+
+/**
+ * POST /v1/providers/health/reset-all
+ * Reset all provider health records (clear circuit breakers)
+ */
+router.post('/health/reset-all', async (req: Request, res: Response) => {
+  try {
+    const ProviderHealth = mongoose.models.ProviderHealth;
+    if (!ProviderHealth) {
+      return res.status(500).json({
+        success: false,
+        error: 'ProviderHealth model not available',
+        code: 'INTERNAL_ERROR',
+      });
+    }
+
+    const result = await ProviderHealth.updateMany(
+      {},
+      {
+        $set: {
+          successCount: 0,
+          failureCount: 0,
+          totalRequests: 0,
+          successRate: 100,
+          consecutiveFailures: 0,
+          consecutiveSuccesses: 0,
+          circuitState: 'closed',
+          circuitOpenedAt: null,
+          halfOpenAttempts: 0,
+          isHealthy: true,
+          lastHealthCheck: new Date(),
+        },
+      }
+    );
+
+    res.json({
+      success: true,
+      data: {
+        resetCount: result.modifiedCount,
+        message: 'All provider health records reset to healthy state',
+      },
+    });
+  } catch (error: any) {
+    console.error('Error resetting all health:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message,
+      code: 'INTERNAL_ERROR',
+    });
+  }
+});
+
+/**
+ * POST /v1/providers/health/reset
+ * Reset health for a specific provider/model
+ */
+router.post('/health/reset', async (req: Request, res: Response) => {
+  try {
+    const { provider, modelId } = req.body;
+
+    if (!provider || !modelId) {
+      return res.status(400).json({
+        success: false,
+        error: 'provider and modelId are required',
+        code: 'INVALID_REQUEST',
+      });
+    }
+
+    await resetProviderHealth(provider, modelId);
+    const health = await getProviderHealth(provider, modelId);
+
+    res.json({
+      success: true,
+      data: health,
+    });
+  } catch (error: any) {
+    console.error('Error resetting health:', error);
     res.status(500).json({
       success: false,
       error: error.message,
