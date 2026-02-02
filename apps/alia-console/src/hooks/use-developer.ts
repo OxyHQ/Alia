@@ -295,14 +295,14 @@ async function fetchDeveloperStats(): Promise<DeveloperStats> {
 }
 
 export function useDeveloperStats() {
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, isReady } = useAuth();
 
   return useQuery({
     queryKey: ['developer-stats'],
     queryFn: fetchDeveloperStats,
     staleTime: 1000 * 60 * 5, // 5 minutes
     retry: 2,
-    enabled: isAuthenticated,
+    enabled: isReady && isAuthenticated,
   });
 }
 

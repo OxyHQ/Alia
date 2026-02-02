@@ -72,14 +72,14 @@ async function fetchCredits(): Promise<Credits> {
 }
 
 export function useCredits() {
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, isReady } = useAuth();
 
   return useQuery({
     queryKey: ['credits'],
     queryFn: fetchCredits,
     staleTime: 1000 * 60, // 1 minute
     retry: 2,
-    enabled: isAuthenticated,
+    enabled: isReady && isAuthenticated,
   });
 }
 
@@ -93,14 +93,14 @@ async function fetchPackages(): Promise<CreditPackage[]> {
 }
 
 export function useCreditPackages() {
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, isReady } = useAuth();
 
   return useQuery({
     queryKey: ['credit-packages'],
     queryFn: fetchPackages,
     staleTime: 1000 * 60 * 60, // 1 hour
     retry: 2,
-    enabled: isAuthenticated,
+    enabled: isReady && isAuthenticated,
   });
 }
 
@@ -114,14 +114,14 @@ async function fetchPlans(): Promise<SubscriptionPlan[]> {
 }
 
 export function useSubscriptionPlans() {
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, isReady } = useAuth();
 
   return useQuery({
     queryKey: ['subscription-plans'],
     queryFn: fetchPlans,
     staleTime: 1000 * 60 * 60, // 1 hour
     retry: 2,
-    enabled: isAuthenticated,
+    enabled: isReady && isAuthenticated,
   });
 }
 
@@ -135,14 +135,14 @@ async function fetchSubscription(): Promise<Subscription | null> {
 }
 
 export function useSubscription() {
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, isReady } = useAuth();
 
   return useQuery({
     queryKey: ['subscription'],
     queryFn: fetchSubscription,
     staleTime: 1000 * 60 * 2, // 2 minutes
     retry: 2,
-    enabled: isAuthenticated,
+    enabled: isReady && isAuthenticated,
   });
 }
 
@@ -159,14 +159,14 @@ async function fetchTransactions(
 }
 
 export function useTransactions(limit: number = 20, offset: number = 0) {
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, isReady } = useAuth();
 
   return useQuery({
     queryKey: ['transactions', limit, offset],
     queryFn: () => fetchTransactions(limit, offset),
     staleTime: 1000 * 60, // 1 minute
     retry: 1,
-    enabled: isAuthenticated,
+    enabled: isReady && isAuthenticated,
   });
 }
 
