@@ -14,6 +14,7 @@ const router = express.Router();
 const VALID_TIERS = [
   'lite', 'v1', 'v1-codea', 'v1-cowork', 'v1-browser',
   'v1-vision', 'v1-audio', 'v1-multimodal', 'v1-pro', 'v1-pro-max',
+  'v1-voice', 'v1-voice-pro',
 ];
 
 /**
