@@ -37,10 +37,25 @@ apiClient.interceptors.request.use(
 // Response interceptor for error handling
 apiClient.interceptors.response.use(
   (response) => response,
-  (error) => {
-    // Handle 401 errors - might need to refresh token
+  async (error) => {
     if (error.response?.status === 401) {
-      console.warn('API returned 401 - authentication may have expired');
+      const errorData = error.response.data;
+      const errorCode = errorData?.code || 'UNKNOWN';
+      console.error(`[Auth] 401 on ${error.config?.url}: ${errorCode} - ${errorData?.message || 'Unknown error'}`);
+
+      // Retry once with a fresh token for expired tokens
+      if (
+        !error.config._authRetried &&
+        getAccessToken &&
+        (errorCode === 'TOKEN_EXPIRED' || errorCode === 'INVALID_SESSION' || errorCode === 'SESSION_VALIDATION_ERROR')
+      ) {
+        error.config._authRetried = true;
+        const freshToken = await getAccessToken();
+        if (freshToken) {
+          error.config.headers['Authorization'] = `Bearer ${freshToken}`;
+          return apiClient(error.config);
+        }
+      }
     }
     return Promise.reject(error);
   }
