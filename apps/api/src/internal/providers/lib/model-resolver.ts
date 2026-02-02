@@ -15,7 +15,7 @@ import {
   type AliaModel,
   type AliaTier,
 } from './alia-models';
-import { getBestKeyForModel } from './load-balancer';
+import { getBestKeyForModel } from './key-manager';
 import { isProviderAvailable } from './provider-health';
 
 export interface ResolvedModel {
@@ -31,15 +31,15 @@ export interface ResolvedModel {
 /**
  * Resolve an Alia model ID to a concrete provider and model.
  *
+ * Keys are loaded internally from MongoDB via key-manager.
+ *
  * @param requestedModel - The model ID requested (can be Alia model or legacy model name)
- * @param keyPool - Pool of available API keys
  * @param tokens - Estimated tokens for rate limit checking
  * @param skipProviders - Optional set of providers to skip (for retry scenarios)
  * @returns Resolved model with key config, or null if no models available
  */
 export async function resolveAliaModel(
   requestedModel: string,
-  keyPool: KeyConfig[],
   tokens: number = 1000,
   skipProviders: Set<string> = new Set()
 ): Promise<ResolvedModel | null> {
@@ -83,7 +83,6 @@ export async function resolveAliaModel(
     console.log(`[ModelResolver] Trying ${mapping.provider}/${mapping.modelId} (priority ${mapping.priority})`);
 
     const keyConfig = await getBestKeyForModel(
-      keyPool,
       mapping.provider,
       mapping.modelId,
       tokens

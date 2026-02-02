@@ -1,5 +1,5 @@
 import { UserCredits } from '../models/user-credits.js';
-import { getAliaModel } from './alia-models.js';
+import { getAliaModel } from './chat-core.js';
 
 /**
  * Credits Manager

@@ -269,7 +269,7 @@ router.post('/token', async (req, res) => {
 
       apiKey.keyHash = keyHash;
       apiKey.keyPrefix = keyPrefix;
-      apiKey.lastUsed = undefined;
+      apiKey.lastUsedAt = undefined;
       await apiKey.save();
     } else {
       // Create new API key

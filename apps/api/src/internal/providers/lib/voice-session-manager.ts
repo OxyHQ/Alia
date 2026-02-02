@@ -16,7 +16,6 @@ import type {
   VoiceSessionConfig,
   VoiceProvider,
 } from './types-voice.js';
-import { loadKeys, getBestKeyForModel } from './load-balancer.js';
 import { resolveAliaModel } from './model-resolver.js';
 import {
   reserveVoiceCredits,
@@ -65,14 +64,8 @@ export class VoiceSessionManager {
       const sessionId = randomUUID();
       console.log(`[VoiceSessionManager] Creating session ${sessionId} for user ${userId}, model: ${model}`);
 
-      // Load API keys
-      const keyPool = await loadKeys();
-      if (keyPool.length === 0) {
-        throw new Error('No API keys available');
-      }
-
       // Resolve Alia model to provider model
-      const resolved = await resolveAliaModel(model, keyPool, 1000);
+      const resolved = await resolveAliaModel(model, 1000);
       if (!resolved) {
         throw new Error(`Unable to resolve model: ${model}`);
       }

@@ -5,7 +5,7 @@
  * IMPORTANT: Only use REAL, currently available model IDs
  */
 
-import type { ModelMapping, AliaTier } from './alia-models';
+import type { ModelMapping, AliaTier } from '../internal/providers/lib/alia-models';
 import { getModelCapabilities, getModelPricing } from './model-capabilities-data';
 
 // Helper to create a model mapping with all required fields
@@ -101,5 +101,13 @@ export const GENERATED_TIER_MAPPINGS: Record<AliaTier, ModelMapping[]> = {
     createMapping('google', 'gemini-2.5-pro', 2, 96),
     createMapping('openai', 'o1', 3, 95),
     createMapping('deepseek', 'deepseek-reasoner', 4, 94),
+  ],
+  'v1-voice': [
+    createMapping('openai', 'gpt-4o-realtime-preview', 1, 95),
+    createMapping('google', 'gemini-2.5-flash', 2, 90),
+  ],
+  'v1-voice-pro': [
+    createMapping('openai', 'gpt-4o-realtime-preview', 1, 97),
+    createMapping('google', 'gemini-2.5-pro', 2, 95),
   ],
 };

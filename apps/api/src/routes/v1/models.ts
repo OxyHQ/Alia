@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { getAllAliaModels, getAliaModel, getAliaModelsByCategory, type ModelCategory } from '../../lib/alia-models.js';
+import { getAllAliaModels, getAliaModel, getAliaModelsByCategory, type ModelCategory } from '../../lib/chat-core.js';
 
 const router = Router();
 

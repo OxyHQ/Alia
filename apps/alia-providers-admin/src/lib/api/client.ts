@@ -3,7 +3,7 @@
  * Uses OxyHQ authentication for admin access
  */
 
-const API_BASE_URL = import.meta.env.VITE_PROVIDERS_API_URL || 'http://localhost:3002';
+const API_BASE_URL = import.meta.env.VITE_PROVIDERS_API_URL || 'http://localhost:3001/internal/providers';
 
 class ProvidersAPIClient {
   private baseUrl: string;

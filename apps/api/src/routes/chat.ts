@@ -3,12 +3,8 @@
 
 import { Router } from 'express';
 import { streamText, stepCountIs, type ToolSet } from 'ai';
-import { createGoogleGenerativeAI } from '@ai-sdk/google';
-import { createOpenAI } from '@ai-sdk/openai';
-import { createAnthropic } from '@ai-sdk/anthropic';
-import { loadKeys } from '../lib/load-balancer.js';
-import { resolveAliaModel, getDefaultAliaModel } from '../lib/model-resolver.js';
-import type { KeyConfig } from '../lib/types.js';
+import { resolveModel, getAIModel, getDefaultAliaModel, reportModelUsage } from '../lib/chat-core.js';
+import type { KeyConfig } from '../internal/providers/lib/types.js';
 import { getCurrentDateTool, createGoogleSearchTool, getTimelineTool, searchKnowledgeBaseTool, scrapeURLTool, saveUserMemoryTool, updateUserPreferencesTool, updateUserContextTool, createGetDeviceInfoTool, createSendTelegramTool, type DeviceInfo } from '../lib/tools/index.js';
 import { optionalAuth, oxyClient } from '../middleware/auth.js';
 import type { User as OxyUser } from '@oxyhq/core';
@@ -44,49 +40,7 @@ function autoGenerateTitle(content: string, userMessage?: string): string {
   return extractWords(content) || extractWords(userMessage || '') || 'Nueva conversación';
 }
 
-// Create AI SDK provider based on key
-function getAIModel(keyConfig: KeyConfig) {
-  const apiKey = keyConfig.key;
-  const modelId = keyConfig.modelId;
-
-  switch (keyConfig.provider) {
-    case 'google': {
-      const google = createGoogleGenerativeAI({ apiKey });
-      return google(modelId || 'gemini-2.5-flash');
-    }
-    case 'openai': {
-      const openai = createOpenAI({ apiKey });
-      return openai(modelId || 'gpt-4o-mini');
-    }
-    case 'anthropic': {
-      const anthropic = createAnthropic({ apiKey });
-      return anthropic(modelId || 'claude-sonnet-4-20250514');
-    }
-    case 'groq': {
-      const groq = createOpenAI({
-        apiKey,
-        baseURL: 'https://api.groq.com/openai/v1'
-      });
-      return groq(modelId || 'llama-3.3-70b-versatile');
-    }
-    case 'together': {
-      const together = createOpenAI({
-        apiKey,
-        baseURL: 'https://api.together.ai/v1'
-      });
-      return together(modelId || 'meta-llama/Llama-3.3-70B-Instruct-Turbo');
-    }
-    case 'cerebras': {
-      const cerebras = createOpenAI({
-        apiKey,
-        baseURL: 'https://api.cerebras.ai/v1'
-      });
-      return cerebras(modelId || 'llama-3.3-70b');
-    }
-    default:
-      throw new Error(`Provider "${keyConfig.provider}" not supported for Alia chat`);
-  }
-}
+// getAIModel is now imported from chat-core.ts
 
 // Function to build personalized system prompt
 function buildSystemPrompt(oxyUser?: OxyUser | null, memory?: IUserMemory | null, platform: 'app' | 'telegram' = 'app'): string {
@@ -352,16 +306,12 @@ router.post('/', optionalAuth, async (req, res) => {
       }
     }
 
-    let keyPool;
     let resolved;
 
     try {
-      console.log('[Alia/Chat] Loading API keys...');
-      keyPool = await loadKeys();
-      console.log(`[Alia/Chat] Loaded ${keyPool.length} keys`);
-
       const aliasModelId = requestedModel || getDefaultAliaModel();
-      resolved = await resolveAliaModel(aliasModelId, keyPool);
+      console.log(`[Alia/Chat] Resolving model: ${aliasModelId}`);
+      resolved = await resolveModel(aliasModelId);
       console.log('[Alia/Chat] Resolved model:', resolved ? `${resolved.aliasModelId} -> ${resolved.provider}/${resolved.modelId}` : 'none');
     } catch (keyError: any) {
       console.error('[Alia/Chat] Error loading keys:', keyError.message);
@@ -405,7 +355,7 @@ router.post('/', optionalAuth, async (req, res) => {
 
     const model = getAIModel(resolved.keyConfig);
 
-    const googleApiKey = keyPool.find(k => k.provider === 'google')?.key || null;
+    const googleApiKey = resolved.keyConfig.provider === 'google' ? resolved.keyConfig.key : null;
     const tools: ToolSet = {
       getCurrentDate: getCurrentDateTool,
       getTimeline: getTimelineTool,
@@ -538,13 +488,13 @@ router.post('/', optionalAuth, async (req, res) => {
     try {
       for await (const chunk of result.fullStream) {
         // Mark that we've received content
-        if (chunk.type === 'text-delta' || chunk.type === 'tool-call' || chunk.type === 'thinking-delta') {
+        if (chunk.type === 'text-delta' || chunk.type === 'tool-call' || (chunk as any).type === 'thinking-delta') {
           hasReceivedContent = true;
           if (streamTimeout) clearTimeout(streamTimeout);
         }
 
         // Handle thinking deltas (extended thinking mode)
-        if (chunk.type === 'thinking-delta' && thinkingMode) {
+        if ((chunk as any).type === 'thinking-delta' && thinkingMode) {
           // Flush any pending text first
           flushTextBuffer();
 
@@ -772,24 +722,17 @@ router.post('/', optionalAuth, async (req, res) => {
 });
 
 router.get('/', async (req, res) => {
-  try {
-    const keyPool = await loadKeys();
-    const googleApiKey = keyPool.find(k => k.provider === 'google')?.key || null;
-
-    res.json({
-      status: '🟢 Online',
-      service: 'Alia AI Chat',
-      tools: {
-        getCurrentDate: true,
-        googleSearch: !!googleApiKey,
-        getTimeline: true,
-        searchKnowledgeBase: true,
-        scrapeURL: true
-      }
-    });
-  } catch (e: any) {
-    res.status(500).json({ error: e.message });
-  }
+  res.json({
+    status: '🟢 Online',
+    service: 'Alia AI Chat',
+    tools: {
+      getCurrentDate: true,
+      googleSearch: true,
+      getTimeline: true,
+      searchKnowledgeBase: true,
+      scrapeURL: true
+    }
+  });
 });
 
 export default router;
