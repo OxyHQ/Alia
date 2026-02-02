@@ -7,7 +7,6 @@ import express, { Request, Response } from 'express';
 import crypto from 'crypto';
 import { ProviderKey } from '../models/provider-key';
 import { invalidateKeyCache } from '../lib/key-manager';
-import { encryptKey } from '../lib/key-encryption';
 
 const router = express.Router();
 
@@ -51,9 +50,9 @@ router.get('/', async (req: Request, res: Response) => {
     if (environment) query.environment = environment;
     if (active !== undefined) query.isActive = active === 'true';
 
-    // Get keys (exclude keyHash and encryptedKey for security)
+    // Get keys (exclude keyHash and key for security)
     const keys = await ProviderKey.find(query)
-      .select('-keyHash -encryptedKey')
+      .select('-keyHash -key')
       .sort({ provider: 1, priority: 1 });
 
     res.json({
@@ -79,7 +78,7 @@ router.get('/:keyId', async (req: Request, res: Response) => {
   try {
     const { keyId } = req.params;
 
-    const key = await ProviderKey.findById(keyId).select('-keyHash -encryptedKey');
+    const key = await ProviderKey.findById(keyId).select('-keyHash -key');
 
     if (!key) {
       return res.status(404).json({
@@ -158,9 +157,6 @@ router.post('/', async (req: Request, res: Response) => {
     // Hash the key for deduplication
     const keyHash = crypto.createHash('sha256').update(key).digest('hex');
 
-    // Encrypt the key for secure storage
-    const encryptedKey = encryptKey(key);
-
     // Check if key already exists
     const existing = await ProviderKey.findOne({ keyHash });
     if (existing) {
@@ -180,7 +176,7 @@ router.post('/', async (req: Request, res: Response) => {
       provider,
       keyHash,
       keyPrefix,
-      encryptedKey,
+      key,
       environment: environment || 'production',
       isPaid: isPaid || false,
       tier: tier || 'free',
@@ -240,7 +236,7 @@ router.patch('/:keyId', async (req: Request, res: Response) => {
       keyId,
       { $set: updates },
       { new: true, runValidators: true }
-    ).select('-keyHash -encryptedKey');
+    ).select('-keyHash -key');
 
     if (!key) {
       return res.status(404).json({
@@ -342,14 +338,11 @@ router.post('/:keyId/rotate', async (req: Request, res: Response) => {
       });
     }
 
-    // Encrypt the new key
-    const encryptedNewKey = encryptKey(newKey);
-
     // Update key
     const newKeyPrefix = newKey.substring(0, Math.min(8, newKey.length)) + '...';
     key.keyHash = newKeyHash;
     key.keyPrefix = newKeyPrefix;
-    key.encryptedKey = encryptedNewKey;
+    key.key = newKey;
     key.rotatedAt = new Date();
     await key.save();
 
@@ -386,7 +379,7 @@ router.post('/:keyId/deactivate', async (req: Request, res: Response) => {
       keyId,
       { $set: { isActive: false } },
       { new: true }
-    ).select('-keyHash -encryptedKey');
+    ).select('-keyHash -key');
 
     if (!key) {
       return res.status(404).json({
@@ -426,7 +419,7 @@ router.post('/:keyId/activate', async (req: Request, res: Response) => {
       keyId,
       { $set: { isActive: true } },
       { new: true }
-    ).select('-keyHash -encryptedKey');
+    ).select('-keyHash -key');
 
     if (!key) {
       return res.status(404).json({

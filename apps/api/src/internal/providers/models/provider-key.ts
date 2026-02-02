@@ -19,7 +19,7 @@ export interface IProviderKey extends Document {
   // Security
   keyHash: string;
   keyPrefix: string;
-  encryptedKey?: string;
+  key: string;
 
   // Rate Limits
   rateLimit: IRateLimit;
@@ -114,9 +114,9 @@ const ProviderKeySchema = new Schema<IProviderKey>(
       required: true,
       maxlength: 20,
     },
-    encryptedKey: {
+    key: {
       type: String,
-      required: false,
+      required: true,
     },
     rateLimit: {
       rpm: { type: Number },
