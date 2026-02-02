@@ -1,12 +1,15 @@
 import * as vscode from 'vscode';
+import type { AliaAuthenticationProvider } from './authProvider';
 
 export class AliaChatParticipant {
-  private apiKey: string = '';
   private apiBaseUrl: string = '';
   private model: string = '';
   private participant: vscode.ChatParticipant | undefined;
 
-  constructor(context: vscode.ExtensionContext) {
+  constructor(
+    context: vscode.ExtensionContext,
+    private readonly authProvider: AliaAuthenticationProvider
+  ) {
     this.loadConfig();
 
     // Listen for config changes
@@ -22,7 +25,6 @@ export class AliaChatParticipant {
 
   private loadConfig() {
     const config = vscode.workspace.getConfiguration('codea');
-    this.apiKey = config.get('apiKey', '');
     this.apiBaseUrl = config.get('apiBaseUrl', 'https://api.alia.onl');
     this.model = config.get('model', 'alia-v1-codea');
   }
@@ -77,9 +79,10 @@ export class AliaChatParticipant {
     token: vscode.CancellationToken
   ): Promise<vscode.ChatResult | void> {
 
-    if (!this.apiKey) {
-      stream.markdown('❌ **API Key Required**\n\nPlease configure your Alia API key in settings:\n```\nCtrl+, → Search "Codea" → Set API Key\n```');
-      return { metadata: { error: 'No API key configured' } };
+    const accessToken = await this.authProvider.getAccessToken();
+    if (!accessToken) {
+      stream.markdown('**Sign-in Required**\n\nPlease sign in using the `Codea: Sign In` command (Ctrl+Shift+P).');
+      return { metadata: { error: 'Not authenticated' } };
     }
 
     try {
@@ -90,12 +93,12 @@ export class AliaChatParticipant {
       const messages = this.buildMessages(request, context);
 
       // Stream the response
-      await this.streamResponse(messages, stream, token);
+      await this.streamResponse(messages, stream, token, accessToken);
 
       return { metadata: { success: true } };
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      stream.markdown(`❌ **Error**: ${errorMessage}`);
+      stream.markdown(`**Error**: ${errorMessage}`);
       return { metadata: { error: errorMessage } };
     }
   }
@@ -162,7 +165,8 @@ export class AliaChatParticipant {
   private async streamResponse(
     messages: Array<{ role: string; content: string }>,
     stream: vscode.ChatResponseStream,
-    token: vscode.CancellationToken
+    token: vscode.CancellationToken,
+    accessToken: string
   ): Promise<void> {
     const config = vscode.workspace.getConfiguration('codea');
     const maxTokens = config.get('maxTokens', 4096);
@@ -172,7 +176,7 @@ export class AliaChatParticipant {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${this.apiKey}`
+        'Authorization': `Bearer ${accessToken}`
       },
       body: JSON.stringify({
         model: this.model,

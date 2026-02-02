@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import OpenAI from 'openai';
 import { fileTools, ToolExecutor } from './tools';
+import type { AliaAuthenticationProvider } from './authProvider';
 
 interface Conversation {
   id: string;
@@ -23,23 +24,28 @@ export class CodeaChatViewProvider implements vscode.WebviewViewProvider {
 
   constructor(
     private readonly _extensionUri: vscode.Uri,
-    private readonly _context: vscode.ExtensionContext
+    private readonly _context: vscode.ExtensionContext,
+    private readonly _authProvider: AliaAuthenticationProvider
   ) {
     this._toolExecutor = new ToolExecutor();
+
+    // Re-fetch user info when auth state changes (sign-in/sign-out)
+    this._authProvider.onDidChangeSessions(() => {
+      this.fetchAndSendUserInfo();
+    });
   }
 
   private async fetchAndSendUserInfo(): Promise<void> {
-    const config = vscode.workspace.getConfiguration('codea');
-    const apiKey = config.get<string>('apiKey');
-    const baseUrl = config.get<string>('apiBaseUrl') || 'https://api.alia.onl';
+    const accessToken = await this._authProvider.getAccessToken();
 
-    if (!apiKey) {
+    if (!accessToken) {
       this._view?.webview.postMessage({ type: 'userInfo', userName: null });
       return;
     }
 
     try {
-      const userInfo = await this.fetchUserInfo(baseUrl, apiKey);
+      const oxyServices = this._authProvider.getOxyServices();
+      const userInfo = await oxyServices.getCurrentUser() as any;
       this._userName = userInfo?.name?.first || userInfo?.username || userInfo?.email?.split('@')[0] || null;
       this._view?.webview.postMessage({ type: 'userInfo', userName: this._userName });
     } catch (error) {
@@ -59,6 +65,16 @@ export class CodeaChatViewProvider implements vscode.WebviewViewProvider {
     }
   }
 
+  private async handleSignOut(): Promise<void> {
+    const sessions = await this._authProvider.getSessions();
+    if (sessions.length > 0) {
+      await this._authProvider.removeSession(sessions[0].id);
+    }
+    this._userName = null;
+    this._view?.webview.postMessage({ type: 'userInfo', userName: null });
+    vscode.window.showInformationMessage('Signed out of Codea');
+  }
+
   private async fetchModels(baseUrl: string): Promise<any[]> {
     const url = `${baseUrl}/v1/models?category=coding`;
 
@@ -69,21 +85,6 @@ export class CodeaChatViewProvider implements vscode.WebviewViewProvider {
       return parsed.data || [];
     } catch (e) {
       return [];
-    }
-  }
-
-  private async fetchUserInfo(baseUrl: string, apiKey: string): Promise<any> {
-    const url = `${baseUrl}/codea/me`;
-
-    try {
-      const response = await fetch(url, {
-        method: 'GET',
-        headers: { 'Authorization': `Bearer ${apiKey}` }
-      });
-      if (!response.ok) return null;
-      return await response.json();
-    } catch {
-      return null;
     }
   }
 
@@ -123,6 +124,12 @@ export class CodeaChatViewProvider implements vscode.WebviewViewProvider {
           break;
         case 'addContext':
           await this.handleAddContext();
+          break;
+        case 'signIn':
+          vscode.commands.executeCommand('codea.signIn');
+          break;
+        case 'signOut':
+          await this.handleSignOut();
           break;
       }
     });
@@ -511,17 +518,17 @@ export class CodeaChatViewProvider implements vscode.WebviewViewProvider {
     }
 
     const config = vscode.workspace.getConfiguration('codea');
-    const apiKey = config.get<string>('apiKey');
+    const accessToken = await this._authProvider.getAccessToken();
     const baseUrl = config.get<string>('apiBaseUrl') || 'https://api.alia.onl';
     const model = selectedModel || config.get<string>('model') || 'alia-v1-codea';
 
-    if (!apiKey) {
+    if (!accessToken) {
       vscode.window.showErrorMessage(
-        'Please set your Alia API key in settings (codea.apiKey)',
-        'Open Settings'
+        'Please sign in to use Codea',
+        'Sign In'
       ).then(selection => {
-        if (selection === 'Open Settings') {
-          vscode.commands.executeCommand('workbench.action.openSettings', 'codea.apiKey');
+        if (selection === 'Sign In') {
+          vscode.commands.executeCommand('codea.signIn');
         }
       });
       return;
@@ -561,7 +568,7 @@ export class CodeaChatViewProvider implements vscode.WebviewViewProvider {
     });
 
     this._isProcessing = true;
-    await this.processConversation(baseUrl, apiKey, model, clientContext);
+    await this.processConversation(baseUrl, accessToken, model, clientContext);
   }
 
   private buildClientContext(mode: string, context: any): string {
@@ -618,12 +625,12 @@ You are running inside Visual Studio Code, Microsoft's popular code editor.
     return clientContext;
   }
 
-  private async processConversation(baseUrl: string, apiKey: string, model: string, clientContext: string): Promise<void> {
+  private async processConversation(baseUrl: string, accessToken: string, model: string, clientContext: string): Promise<void> {
     this._view?.webview.postMessage({ type: 'startAssistantMessage' });
 
     try {
       const openai = new OpenAI({
-        apiKey,
+        apiKey: accessToken,
         baseURL: `${baseUrl}/v1`
       });
 

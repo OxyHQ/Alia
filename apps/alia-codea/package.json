@@ -2,7 +2,7 @@
   "name": "alia-codea",
   "displayName": "Codea by Alia",
   "description": "AI coding assistant powered by Alia",
-  "version": "1.0.0",
+  "version": "1.0.6",
   "publisher": "oxy",
   "license": "MIT",
   "repository": {
@@ -27,7 +27,8 @@
     "codea"
   ],
   "activationEvents": [
-    "onStartupFinished"
+    "onStartupFinished",
+    "onUri"
   ],
   "main": "./dist/extension.js",
   "browser": "./dist/web/extension.js",
@@ -147,8 +148,8 @@
         "codea.apiKey": {
           "type": "string",
           "default": "",
-          "description": "Your Alia API key (starts with alia_sk_)",
-          "order": 1
+          "description": "(Deprecated: Use 'Codea: Sign In' command instead) Legacy API key (alia_sk_*)",
+          "order": 10
         },
         "codea.apiBaseUrl": {
           "type": "string",
@@ -253,13 +254,14 @@
     "vscode:prepublish": "npm run build",
     "build": "npm run build:webview && npm run build:extension && npm run build:browser",
     "build:extension": "esbuild ./src/extension.ts --bundle --outfile=dist/extension.js --external:vscode --format=cjs --platform=node",
-    "build:browser": "esbuild ./src/extension.ts --bundle --outfile=dist/web/extension.js --external:vscode --external:child_process --format=cjs --platform=browser",
+    "build:browser": "esbuild ./src/extension.ts --bundle --outfile=dist/web/extension.js --external:vscode --external:child_process --external:crypto --format=cjs --platform=browser",
     "build:webview": "cd webview-ui && npm run build",
     "watch": "esbuild ./src/extension.ts --bundle --outfile=dist/extension.js --external:vscode --format=cjs --platform=node --watch",
     "watch:webview": "cd webview-ui && npm run dev",
     "package": "vsce package --no-dependencies"
   },
   "dependencies": {
+    "@oxyhq/core": "^1.2.3",
     "openai": "^6.16.0"
   },
   "devDependencies": {
