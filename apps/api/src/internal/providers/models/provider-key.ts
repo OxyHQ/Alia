@@ -19,7 +19,7 @@ export interface IProviderKey extends Document {
   // Security
   keyHash: string;
   keyPrefix: string;
-  key: string;
+  key?: string;
 
   // Rate Limits
   rateLimit: IRateLimit;
@@ -116,7 +116,7 @@ const ProviderKeySchema = new Schema<IProviderKey>(
     },
     key: {
       type: String,
-      required: true,
+      required: false,
     },
     rateLimit: {
       rpm: { type: Number },
@@ -216,12 +216,10 @@ const ProviderKeySchema = new Schema<IProviderKey>(
     },
     ownerId: {
       type: String,
-      sparse: true,
     },
     organizationId: {
       type: Schema.Types.ObjectId,
       ref: 'Organization',
-      sparse: true,
     },
   },
   {
