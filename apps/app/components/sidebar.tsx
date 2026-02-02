@@ -22,6 +22,7 @@ import {
   Plus,
   BrainCircuit,
   Code,
+  CloudCog,
   MoreHorizontal,
   Edit,
   Briefcase,
@@ -182,6 +183,10 @@ export const Sidebar = React.memo(function Sidebar() {
 
   const handleRoles = React.useCallback(() => {
     router.push("/(app)/roles");
+  }, [router]);
+
+  const handleAutomations = React.useCallback(() => {
+    router.push("/(app)/automations");
   }, [router]);
 
   const handleDevelopers = React.useCallback(() => {
@@ -437,6 +442,14 @@ export const Sidebar = React.memo(function Sidebar() {
         >
           <Library size={16} className="text-muted-foreground" />
           <Text className="text-sm md:text-xs">Library</Text>
+        </Button>
+        <Button
+          variant="ghost"
+          className="h-10 md:h-8 flex-row items-center justify-start gap-2 rounded-full px-3 md:px-2 w-full"
+          onPress={handleAutomations}
+        >
+          <CloudCog size={16} className="text-muted-foreground" />
+          <Text className="text-sm md:text-xs">Automations</Text>
         </Button>
         <Button
           variant="ghost"
