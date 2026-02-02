@@ -28,6 +28,7 @@ import providersModule from './internal/providers/index.js';
 import { providersWss } from './internal/providers/ws.js';
 import { oxyClient } from './middleware/auth.js';
 import { syncZeroEval } from './scripts/sync-zeroeval.js';
+import { runStartupSeed } from './internal/providers/lib/seed-model-configs.js';
 
 // WebSocket and Socket.io
 import { WebSocketServer } from 'ws';
@@ -250,6 +251,8 @@ connectDB()
   .then(() => {
     server.listen(PORT, '0.0.0.0', () => {
       console.log(`🚀 API Server running on http://0.0.0.0:${PORT}`);
+      // Seed model configs and reset circuit breakers (non-blocking)
+      runStartupSeed().catch((err) => console.error('[Seed] Startup seed error:', err));
       // Sync external models in background (non-blocking)
       syncZeroEval().catch((err) => console.error('[ZeroEval] Background sync error:', err));
     });

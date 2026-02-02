@@ -149,7 +149,7 @@ router.patch('/:provider/:modelId', async (req: Request, res: Response) => {
       data: model,
     });
 
-    broadcastModelsUpdate(provider);
+    broadcastModelsUpdate(provider as string);
   } catch (error: any) {
     console.error('Error updating model:', error);
     res.status(500).json({
@@ -183,7 +183,7 @@ router.delete('/:provider/:modelId', async (req: Request, res: Response) => {
       message: 'Model deleted successfully',
     });
 
-    broadcastModelsUpdate(provider);
+    broadcastModelsUpdate(provider as string);
   } catch (error: any) {
     console.error('Error deleting model:', error);
     res.status(500).json({
