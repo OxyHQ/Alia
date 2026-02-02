@@ -66,7 +66,7 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { useModelsStats } from '@/hooks/use-developer';
-import { useApiKeys, useApps } from '@/hooks/use-developer';
+import { useAuth } from '@oxyhq/auth';
 import config from '@/lib/config';
 import { toast } from 'sonner';
 
@@ -87,9 +87,7 @@ interface UsageStats {
 
 function PlaygroundPage() {
   const { data: modelsData, isLoading: modelsLoading } = useModelsStats();
-  const { data: apps } = useApps();
-  const firstApp = apps?.[0];
-  const { data: apiKeys } = useApiKeys(firstApp?._id || '');
+  const { authManager, isAuthenticated } = useAuth();
 
   // Chat state
   const [messages, setMessages] = useState<Message[]>([]);
@@ -103,7 +101,6 @@ function PlaygroundPage() {
 
   // Settings state
   const [selectedModel, setSelectedModel] = useState('alia-lite');
-  const [selectedApiKey, setSelectedApiKey] = useState('');
   const [temperature, setTemperature] = useState([0.7]);
   const [maxTokens, setMaxTokens] = useState(1024);
 
@@ -115,9 +112,14 @@ function PlaygroundPage() {
   const handleSend = useCallback(async () => {
     if (!userInput.trim() || isStreaming) return;
 
-    const apiKey = selectedApiKey || apiKeys?.[0]?.keyPrefix;
-    if (!apiKey) {
-      toast.error('No API key available. Create one in the Apps section.');
+    if (!isAuthenticated) {
+      toast.error('Please sign in to use the playground.');
+      return;
+    }
+
+    const token = await authManager.getAccessToken();
+    if (!token) {
+      toast.error('Authentication expired. Please sign in again.');
       return;
     }
 
@@ -136,11 +138,11 @@ function PlaygroundPage() {
     abortControllerRef.current = new AbortController();
 
     try {
-      const response = await fetch(`${config.apiUrl}/chat/completions`, {
+      const response = await fetch(`${config.apiUrl}/v1/chat/completions`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${apiKey}`,
+          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
           model: selectedModel,
@@ -210,11 +212,11 @@ function PlaygroundPage() {
   }, [
     userInput,
     isStreaming,
+    isAuthenticated,
+    authManager,
     messages,
     systemPrompt,
     selectedModel,
-    selectedApiKey,
-    apiKeys,
     temperature,
     maxTokens,
   ]);
@@ -295,41 +297,10 @@ function PlaygroundPage() {
             </DropdownMenuContent>
           </DropdownMenu>
 
-          {/* API Key Selector */}
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="sm" className="gap-2">
-                <span className="font-mono text-xs">
-                  {selectedApiKey || apiKeys?.[0]?.keyPrefix || 'No key'}...
-                </span>
-                <HugeiconsIcon
-                  icon={ArrowDown01Icon}
-                  size={14}
-                  className="text-muted-foreground"
-                />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="start">
-              <DropdownMenuLabel className="text-muted-foreground text-xs font-normal">
-                API Keys
-              </DropdownMenuLabel>
-              <DropdownMenuRadioGroup
-                value={selectedApiKey || apiKeys?.[0]?.keyPrefix || ''}
-                onValueChange={setSelectedApiKey}
-              >
-                {apiKeys?.map((key) => (
-                  <DropdownMenuRadioItem key={key._id} value={key.keyPrefix}>
-                    <span className="font-mono text-xs">{key.keyPrefix}...</span>
-                    <span className="ml-2 text-muted-foreground text-xs">{key.name}</span>
-                  </DropdownMenuRadioItem>
-                )) || (
-                  <div className="px-2 py-1.5 text-sm text-muted-foreground">
-                    No API keys available
-                  </div>
-                )}
-              </DropdownMenuRadioGroup>
-            </DropdownMenuContent>
-          </DropdownMenu>
+          {/* Auth Status */}
+          <span className="text-xs text-muted-foreground">
+            {isAuthenticated ? 'Using session auth' : 'Not signed in'}
+          </span>
         </div>
 
         <div className="flex items-center gap-2">

@@ -257,16 +257,35 @@ export function useDeleteApiKey() {
 // Usage Stats
 // ======================
 
+async function fetchGlobalUsage(period: string): Promise<AppUsageStats> {
+  const response = await apiClient.get(`/developer/usage?period=${period}`);
+  return response.data;
+}
+
+export function useGlobalUsage(period: string = '7d') {
+  const { isAuthenticated, isReady } = useAuth();
+
+  return useQuery({
+    queryKey: ['developer-global-usage', period],
+    queryFn: () => fetchGlobalUsage(period),
+    enabled: isReady && isAuthenticated,
+    staleTime: 1000 * 60, // 1 minute
+    retry: 1,
+  });
+}
+
 async function fetchAppUsage(appId: string, period: string): Promise<AppUsageStats> {
   const response = await apiClient.get(`/developer/apps/${appId}/usage?period=${period}`);
   return response.data;
 }
 
 export function useAppUsage(appId: string, period: string = '7d') {
+  const { isAuthenticated, isReady } = useAuth();
+
   return useQuery({
     queryKey: ['developer-usage', appId, period],
     queryFn: () => fetchAppUsage(appId, period),
-    enabled: !!appId,
+    enabled: isReady && isAuthenticated && !!appId,
     staleTime: 1000 * 60, // 1 minute
     retry: 1,
   });
@@ -280,10 +299,12 @@ async function fetchKeyUsage(appId: string, keyId: string, period: string): Prom
 }
 
 export function useKeyUsage(appId: string, keyId: string, period: string = '7d') {
+  const { isAuthenticated, isReady } = useAuth();
+
   return useQuery({
     queryKey: ['developer-key-usage', appId, keyId, period],
     queryFn: () => fetchKeyUsage(appId, keyId, period),
-    enabled: !!appId && !!keyId,
+    enabled: isReady && isAuthenticated && !!appId && !!keyId,
     staleTime: 1000 * 60, // 1 minute
     retry: 1,
   });

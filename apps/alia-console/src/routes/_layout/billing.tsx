@@ -1,7 +1,26 @@
 import { createFileRoute } from '@tanstack/react-router';
+import { useState } from 'react';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { useCredits, useCreditPackages, useSubscription, useCreateCheckout } from '@/hooks/use-billing';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import {
+  useCredits,
+  useCreditPackages,
+  useSubscription,
+  useSubscriptionPlans,
+  useCreateCheckout,
+  useCreateSubscriptionCheckout,
+  useTransactions,
+} from '@/hooks/use-billing';
+import { toast } from 'sonner';
 
 export const Route = createFileRoute('/_layout/billing')({
   component: BillingPage,
@@ -11,7 +30,12 @@ function BillingPage() {
   const { data: credits, isLoading: isLoadingCredits } = useCredits();
   const { data: packages = [], isLoading: isLoadingPackages } = useCreditPackages();
   const { data: subscription } = useSubscription();
+  const { data: plans = [] } = useSubscriptionPlans();
+  const { data: transactionsData, isLoading: isLoadingTransactions } = useTransactions();
   const createCheckout = useCreateCheckout();
+  const createSubscriptionCheckout = useCreateSubscriptionCheckout();
+
+  const [showUpgradeDialog, setShowUpgradeDialog] = useState(false);
 
   const handlePurchase = async (packageId: string) => {
     try {
@@ -23,10 +47,27 @@ function BillingPage() {
       if (result.url) {
         window.location.href = result.url;
       }
-    } catch (error) {
-      console.error('Failed to create checkout:', error);
+    } catch (error: any) {
+      toast.error(error?.response?.data?.error || 'Failed to create checkout session');
     }
   };
+
+  const handleUpgrade = async (planId: string) => {
+    try {
+      const result = await createSubscriptionCheckout.mutateAsync({
+        planId,
+        successUrl: `${window.location.origin}/billing?success=true`,
+        cancelUrl: `${window.location.origin}/billing?canceled=true`,
+      });
+      if (result.url) {
+        window.location.href = result.url;
+      }
+    } catch (error: any) {
+      toast.error(error?.response?.data?.error || 'Failed to create subscription checkout');
+    }
+  };
+
+  const transactions = transactionsData?.transactions ?? [];
 
   return (
     <ScrollArea className="flex-1 bg-background">
@@ -85,14 +126,21 @@ function BillingPage() {
                 : '300 free credits daily refresh'}
             </p>
           </div>
-          <Button variant="outline" size="sm">
-            Upgrade plan
-          </Button>
+          {!subscription && (
+            <Button variant="outline" size="sm" onClick={() => setShowUpgradeDialog(true)}>
+              Upgrade plan
+            </Button>
+          )}
+          {subscription && (
+            <Badge variant={subscription.cancelAtPeriodEnd ? 'secondary' : 'default'}>
+              {subscription.cancelAtPeriodEnd ? 'Cancels at period end' : 'Active'}
+            </Badge>
+          )}
         </div>
       </div>
 
       {/* Credit Packages */}
-      <div className="px-6 py-6">
+      <div className="px-6 py-6 border-b border-border">
         <p className="text-sm font-semibold text-foreground mb-4">Purchase credits</p>
         {isLoadingPackages ? (
           <div className="animate-pulse space-y-4">
@@ -129,30 +177,100 @@ function BillingPage() {
             ))}
           </div>
         ) : (
+          <p className="text-sm text-muted-foreground py-4">
+            No credit packages available at the moment.
+          </p>
+        )}
+      </div>
+
+      {/* Transaction History */}
+      <div className="px-6 py-6">
+        <p className="text-sm font-semibold text-foreground mb-4">Transaction history</p>
+        {isLoadingTransactions ? (
+          <div className="animate-pulse space-y-3">
+            {[1, 2, 3].map((i) => (
+              <div key={i} className="h-12 bg-muted rounded" />
+            ))}
+          </div>
+        ) : transactions.length > 0 ? (
           <div>
-            {[
-              { credits: 10000, price: '$10' },
-              { credits: 50000, price: '$45' },
-              { credits: 100000, price: '$80' },
-            ].map((pkg, index) => (
+            {transactions.map((tx, index) => (
               <div
-                key={pkg.credits}
-                className={`flex items-center justify-between py-4 ${index < 2 ? 'border-b border-border' : ''}`}
+                key={tx._id}
+                className={`flex items-center justify-between py-3 ${
+                  index < transactions.length - 1 ? 'border-b border-border' : ''
+                }`}
               >
                 <div>
                   <p className="text-sm font-medium text-foreground">
-                    {pkg.credits.toLocaleString()} credits
+                    {tx.description || tx.type.replace(/_/g, ' ')}
                   </p>
-                  <p className="text-sm text-muted-foreground">{pkg.price}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {new Date(tx.createdAt).toLocaleDateString()}
+                  </p>
                 </div>
-                <Button variant="outline" size="sm" disabled>
-                  Purchase
-                </Button>
+                <div className="text-right">
+                  <p className="text-sm font-medium text-foreground">
+                    +{tx.credits.toLocaleString()} credits
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    ${(tx.amount / 100).toFixed(2)} {tx.currency.toUpperCase()}
+                  </p>
+                </div>
               </div>
             ))}
           </div>
+        ) : (
+          <p className="text-sm text-muted-foreground py-4">No transactions yet.</p>
         )}
       </div>
+
+      {/* Upgrade Plan Dialog */}
+      <Dialog open={showUpgradeDialog} onOpenChange={setShowUpgradeDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Upgrade your plan</DialogTitle>
+            <DialogDescription>
+              Choose a subscription plan to get more credits each month.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            {plans.map((plan) => (
+              <div
+                key={plan.id}
+                className="flex items-center justify-between p-4 border border-border rounded-lg"
+              >
+                <div>
+                  <p className="text-sm font-semibold text-foreground">{plan.name}</p>
+                  <p className="text-sm text-muted-foreground">
+                    {plan.creditsPerMonth.toLocaleString()} credits/month
+                  </p>
+                  <p className="text-sm text-muted-foreground">
+                    ${(plan.price / 100).toFixed(2)}/month
+                  </p>
+                </div>
+                <Button
+                  size="sm"
+                  onClick={() => handleUpgrade(plan.id)}
+                  disabled={createSubscriptionCheckout.isPending}
+                >
+                  {createSubscriptionCheckout.isPending ? 'Loading...' : 'Subscribe'}
+                </Button>
+              </div>
+            ))}
+            {plans.length === 0 && (
+              <p className="text-sm text-muted-foreground text-center py-4">
+                No subscription plans available at the moment.
+              </p>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowUpgradeDialog(false)}>
+              Cancel
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </ScrollArea>
   );
 }

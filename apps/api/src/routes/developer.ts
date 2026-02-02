@@ -669,6 +669,128 @@ router.get('/apps/:appId/keys/:keyId/usage', async (req: Request, res: Response)
   }
 });
 
+// Get global usage statistics across all apps
+router.get('/usage', async (req: Request, res: Response) => {
+  try {
+    const userId = req.user!.id;
+    const { period = '7d' } = req.query;
+
+    // Calculate date range
+    const now = new Date();
+    let startDate = new Date();
+
+    switch (period) {
+      case '24h':
+        startDate.setHours(now.getHours() - 24);
+        break;
+      case '7d':
+        startDate.setDate(now.getDate() - 7);
+        break;
+      case '30d':
+        startDate.setDate(now.getDate() - 30);
+        break;
+      case '90d':
+        startDate.setDate(now.getDate() - 90);
+        break;
+      default:
+        startDate.setDate(now.getDate() - 7);
+    }
+
+    // Get aggregated usage statistics across all user's apps
+    const usage = await ApiKeyUsage.aggregate([
+      {
+        $match: {
+          oxyUserId: userId,
+          timestamp: { $gte: startDate },
+        },
+      },
+      {
+        $group: {
+          _id: null,
+          totalRequests: { $sum: 1 },
+          totalTokens: { $sum: '$tokensUsed' },
+          totalCredits: { $sum: '$creditsUsed' },
+          avgResponseTime: { $avg: '$responseTime' },
+          successfulRequests: {
+            $sum: {
+              $cond: [{ $lt: ['$statusCode', 400] }, 1, 0],
+            },
+          },
+          errorRequests: {
+            $sum: {
+              $cond: [{ $gte: ['$statusCode', 400] }, 1, 0],
+            },
+          },
+        },
+      },
+    ]);
+
+    // Get usage by day
+    const usageByDay = await ApiKeyUsage.aggregate([
+      {
+        $match: {
+          oxyUserId: userId,
+          timestamp: { $gte: startDate },
+        },
+      },
+      {
+        $group: {
+          _id: {
+            $dateToString: { format: '%Y-%m-%d', date: '$timestamp' },
+          },
+          requests: { $sum: 1 },
+          tokens: { $sum: '$tokensUsed' },
+          credits: { $sum: '$creditsUsed' },
+        },
+      },
+      {
+        $sort: { _id: 1 },
+      },
+    ]);
+
+    // Get usage by endpoint
+    const usageByEndpoint = await ApiKeyUsage.aggregate([
+      {
+        $match: {
+          oxyUserId: userId,
+          timestamp: { $gte: startDate },
+        },
+      },
+      {
+        $group: {
+          _id: '$endpoint',
+          requests: { $sum: 1 },
+          tokens: { $sum: '$tokensUsed' },
+        },
+      },
+      {
+        $sort: { requests: -1 },
+      },
+      {
+        $limit: 10,
+      },
+    ]);
+
+    const summary = usage[0] || {
+      totalRequests: 0,
+      totalTokens: 0,
+      totalCredits: 0,
+      avgResponseTime: 0,
+      successfulRequests: 0,
+      errorRequests: 0,
+    };
+
+    res.json({
+      summary,
+      byDay: usageByDay,
+      byEndpoint: usageByEndpoint,
+    });
+  } catch (error) {
+    console.error('Error fetching global usage statistics:', error);
+    res.status(500).json({ error: 'Failed to fetch usage statistics' });
+  }
+});
+
 // Get overall developer statistics
 router.get('/stats', async (req: Request, res: Response) => {
   try {
