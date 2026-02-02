@@ -16,8 +16,25 @@ import { oxyClient } from '../../middleware/auth.js';
 import type { KeyConfig } from '../../lib/types.js';
 import type { IUserMemory } from '../../models/user-memory.js';
 import { estimateMessageTokens } from '../../lib/token-counter.js';
+import { recordFailure } from '../../lib/provider-health.js';
 
 const router = Router();
+
+/**
+ * Check if an error is retryable (rate limit, overloaded, etc.)
+ * Used to decide whether to try the next provider in the tier.
+ */
+function isRetryableError(error: unknown): boolean {
+  const status = (error as any)?.status || (error as any)?.statusCode;
+  const code = (error as any)?.code;
+  // 429 = rate limit, 503 = service unavailable, 529 = overloaded
+  if ([429, 503, 529].includes(status)) return true;
+  if (code === 'RATE_LIMIT_EXCEEDED' || code === 'RESOURCE_EXHAUSTED') return true;
+  // AI SDK wraps errors - check message
+  const msg = (error as any)?.message || '';
+  if (msg.includes('429') || msg.includes('rate limit') || msg.includes('quota') || msg.includes('RESOURCE_EXHAUSTED')) return true;
+  return false;
+}
 
 /**
  * Convert OpenAI-format messages to AI SDK ModelMessage format.
@@ -229,6 +246,8 @@ router.post('/', async (req: Request, res: Response) => {
     // Resolve Alia model to concrete provider/model
     const requestedModel = body.model || getDefaultAliaModel();
     const keyPool = await loadKeys();
+
+    // Initial resolution (will be re-resolved inside retry loop)
     resolved = await resolveAliaModel(requestedModel, keyPool);
 
     if (!resolved) {
@@ -236,7 +255,6 @@ router.post('/', async (req: Request, res: Response) => {
       return;
     }
 
-    const model = getAIModel(resolved.keyConfig);
     aliasModelId = resolved.aliasModelId;
     console.log(`[V1/Chat] Using provider: ${resolved.provider}/${resolved.modelId}`);
 
@@ -415,12 +433,32 @@ When you use a tool successfully:
       systemPromptTokens,
     };
 
+    // Provider fallback retry loop
+    // When a provider returns 429/rate-limit, try the next provider in the tier
+    const MAX_PROVIDER_RETRIES = 3;
+    const skipProviders = new Set<string>();
+
+    for (let providerAttempt = 0; providerAttempt < MAX_PROVIDER_RETRIES; providerAttempt++) {
+    // Re-resolve model on retry (skipping failed providers)
+    if (providerAttempt > 0) {
+      resolved = await resolveAliaModel(requestedModel, keyPool, 1000, skipProviders);
+      if (!resolved) {
+        console.warn(`[V1/Chat] No more providers available after ${providerAttempt} retries`);
+        break;
+      }
+      aliasModelId = resolved.aliasModelId;
+      console.log(`[V1/Chat] Retry ${providerAttempt}: Using provider ${resolved.provider}/${resolved.modelId}`);
+    }
+
+    const model = getAIModel(resolved!.keyConfig);
+
     // Build common config for both streaming and non-streaming
     const baseConfig: any = {
       model,
       messages: convertedMessages,
       temperature: body.temperature ?? 0.7,
       tools: allTools,
+      maxRetries: 0, // Fail fast to application-level provider fallback
       // Enable maxSteps to continue with tool results automatically
       // For client tools (Cowork, Codea), this allows the model to see tool results
       // For server tools (Telegram, Memory), this executes them automatically
@@ -444,7 +482,7 @@ When you use a tool successfully:
     }
 
     // Enable thinking mode for Anthropic if requested
-    if (thinkingMode && resolved.provider === 'anthropic') {
+    if (thinkingMode && resolved!.provider === 'anthropic') {
       baseConfig.experimental_thinking = true;
       console.log('[V1/Chat] Enabled Anthropic thinking mode');
     }
@@ -452,7 +490,7 @@ When you use a tool successfully:
     // Configure provider-specific features for reasoning
     const providerMetadata: any = {};
 
-    if (resolved.provider === 'google') {
+    if (resolved!.provider === 'google') {
       // Enable thought summaries for Gemini
       providerMetadata.google = { includeThoughts: true };
       console.log('[V1/Chat] Enabled Gemini thought summaries');
@@ -463,8 +501,8 @@ When you use a tool successfully:
     }
 
     console.log('[V1/Chat] AI SDK config:', JSON.stringify({
-      modelProvider: resolved.provider,
-      model: resolved.keyConfig.modelId,
+      modelProvider: resolved!.provider,
+      model: resolved!.keyConfig.modelId,
       messageCount: baseConfig.messages.length,
       hasTools: !!baseConfig.tools,
       toolCount: baseConfig.tools ? Object.keys(baseConfig.tools).length : 0,
@@ -477,6 +515,10 @@ When you use a tool successfully:
       contentLength: typeof m.content === 'string' ? m.content.length : (Array.isArray(m.content) ? m.content.length : 0),
       hasToolCalls: !!m.toolCalls
     })), null, 2));
+
+    let hasStreamedContent = false;
+
+    try { // Provider attempt try block
 
     // Handle non-streaming requests
     if (body.stream !== true) {
@@ -598,11 +640,7 @@ When you use a tool successfully:
       return;
     }
 
-    // Streaming request - set SSE headers
-    res.setHeader('Content-Type', 'text/event-stream');
-    res.setHeader('Cache-Control', 'no-cache');
-    res.setHeader('Connection', 'keep-alive');
-
+    // Streaming request
     const result = streamText(baseConfig);
 
     // Stream OpenAI-compatible chunks
@@ -615,6 +653,14 @@ When you use a tool successfully:
       console.log(`[V1/Chat] Chunk ${chunkCount} full:`, JSON.stringify(chunk, null, 2));
 
       if (chunk.type === 'text-delta' && chunk.text) {
+        // Set SSE headers on first content (deferred for retry support)
+        if (!hasStreamedContent) {
+          res.setHeader('Content-Type', 'text/event-stream');
+          res.setHeader('Cache-Control', 'no-cache');
+          res.setHeader('Connection', 'keep-alive');
+          hasStreamedContent = true;
+        }
+
         // Extract <thinking> tags for chain-of-thought (Anthropic, DeepSeek, etc.)
         const thinkingMatch = chunk.text.match(/<thinking>([\s\S]*?)<\/thinking>/g);
         if (thinkingMatch) {
@@ -660,6 +706,14 @@ When you use a tool successfully:
           res.write(`data: ${JSON.stringify(openAIChunk)}\n\n`);
         }
       } else if ((chunk as any).type === 'thought-delta' || (chunk as any).type === 'reasoning-delta') {
+        // Set SSE headers on first content
+        if (!hasStreamedContent) {
+          res.setHeader('Content-Type', 'text/event-stream');
+          res.setHeader('Cache-Control', 'no-cache');
+          res.setHeader('Connection', 'keep-alive');
+          hasStreamedContent = true;
+        }
+
         // Handle Gemini thought summaries and other reasoning tokens
         const reasoningText = (chunk as any).text || (chunk as any).thoughtDelta || (chunk as any).reasoningDelta;
         if (reasoningText && typeof reasoningText === 'string' && reasoningText.trim()) {
@@ -681,6 +735,14 @@ When you use a tool successfully:
           console.log('[V1/Chat] Reasoning chunk (provider):', reasoningText.slice(0, 100));
         }
       } else if (chunk.type === 'tool-call') {
+        // Set SSE headers on first content
+        if (!hasStreamedContent) {
+          res.setHeader('Content-Type', 'text/event-stream');
+          res.setHeader('Cache-Control', 'no-cache');
+          res.setHeader('Connection', 'keep-alive');
+          hasStreamedContent = true;
+        }
+
         // Restore original tool name if it was sanitized
         const originalToolName = toolNameMapping.get(chunk.toolName) || chunk.toolName;
 
@@ -729,13 +791,20 @@ When you use a tool successfully:
         console.error('[V1/Chat] Error chunk received:', (chunk as any).error);
 
         // Record failure for circuit breaker - next request will use different provider
-        const { recordFailure } = await import('../../lib/provider-health.js');
-        await recordFailure(resolved.provider, resolved.modelId, (chunk as any).error?.code || 'STREAM_ERROR');
+        await recordFailure(resolved!.provider, resolved!.modelId, (chunk as any).error?.code || 'STREAM_ERROR');
 
         // CRITICAL: Translate error to remove provider information!
         const { translateError, sanitizeMessage } = await import('../../lib/error-handler.js');
         const rawError = (chunk as any).error;
-        const aliaError = translateError(rawError, resolved.provider, resolved.modelId);
+        const aliaError = translateError(rawError, resolved!.provider, resolved!.modelId);
+
+        // If we haven't streamed content yet, we can still set headers
+        if (!hasStreamedContent) {
+          res.setHeader('Content-Type', 'text/event-stream');
+          res.setHeader('Cache-Control', 'no-cache');
+          res.setHeader('Connection', 'keep-alive');
+          hasStreamedContent = true;
+        }
 
         const errorChunk = {
           id: `chatcmpl-${Date.now()}`,
@@ -753,6 +822,13 @@ When you use a tool successfully:
         res.write(`data: ${JSON.stringify(errorChunk)}\n\n`);
       } else if (chunk.type === 'finish') {
         console.log('[V1/Chat] Finish chunk received');
+        // Set SSE headers if not set yet (edge case: empty response)
+        if (!hasStreamedContent) {
+          res.setHeader('Content-Type', 'text/event-stream');
+          res.setHeader('Cache-Control', 'no-cache');
+          res.setHeader('Connection', 'keep-alive');
+          hasStreamedContent = true;
+        }
         const finishChunk = {
           id: `chatcmpl-${Date.now()}`,
           object: 'chat.completion.chunk',
@@ -861,17 +937,35 @@ When you use a tool successfully:
 
     res.write('data: [DONE]\n\n');
     res.end();
+    return; // Success - exit the route handler
+
+    } catch (providerError: unknown) {
+      // Provider attempt failed
+      console.error(`[V1/Chat] Provider ${resolved!.provider}/${resolved!.modelId} failed:`, providerError);
+      await recordFailure(resolved!.provider, resolved!.modelId, (providerError as any)?.code || 'REQUEST_ERROR');
+
+      // If retryable and we haven't streamed content yet, try next provider
+      if (isRetryableError(providerError) && !hasStreamedContent && providerAttempt < MAX_PROVIDER_RETRIES - 1) {
+        console.log(`[V1/Chat] Provider ${resolved!.provider} failed with retryable error, trying next provider...`);
+        skipProviders.add(resolved!.provider);
+        continue; // Try next provider
+      }
+
+      // Non-retryable error, already streamed content, or last attempt - throw to outer handler
+      throw providerError;
+    }
+
+    } // End of provider retry loop
+
+    // If we get here, all providers were exhausted (resolved was null in the loop)
+    if (!res.headersSent) {
+      res.status(503).json({ error: 'All providers exhausted', requested_model: requestedModel });
+    }
 
   } catch (e: unknown) {
     console.error('❌ [V1/Chat] Error:', e);
     const stack = e instanceof Error ? e.stack : undefined;
     console.error('❌ [V1/Chat] Stack:', stack);
-
-    // Record failure for circuit breaker - next request will use different provider
-    if (resolved) {
-      const { recordFailure } = await import('../../lib/provider-health.js');
-      await recordFailure(resolved.provider, resolved.modelId, (e as any)?.code || 'REQUEST_ERROR');
-    }
 
     // CRITICAL: Translate error to remove provider information!
     const { translateError, formatErrorResponse, sanitizeMessage } = await import('../../lib/error-handler.js');
