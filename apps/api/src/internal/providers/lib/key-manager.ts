@@ -155,6 +155,12 @@ export async function getBestKeyForModel(
       continue;
     }
 
+    // Skip keys without a stored key value
+    if (!key.key) {
+      console.warn(`[KeyManager] Key ${key.keyPrefix} (${key.provider}) has no key value, skipping`);
+      continue;
+    }
+
     // Found a suitable key
     return {
       keyId: key._id.toString(),
