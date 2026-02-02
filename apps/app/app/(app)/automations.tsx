@@ -16,7 +16,7 @@ import {
 import { CloudCog, Plus, Clock } from 'lucide-react-native';
 import { useColorScheme } from '@/lib/useColorScheme';
 
-const AUTOMATION_SUGGESTIONS = [
+const INITIAL_SUGGESTIONS = [
   {
     emoji: '🔍',
     description: 'Find and fix a bug every morning with a short summary',
@@ -55,6 +55,33 @@ const AUTOMATION_SUGGESTIONS = [
   },
 ];
 
+const MORE_SUGGESTIONS = [
+  {
+    emoji: '🛡️',
+    description: 'Run a security audit every week and summarize findings',
+  },
+  {
+    emoji: '📈',
+    description: 'Generate a weekly performance report from monitoring data',
+  },
+  {
+    emoji: '🧹',
+    description: 'Clean up stale branches every Friday afternoon',
+  },
+  {
+    emoji: '📝',
+    description: 'Summarize daily standups and post to the team channel every morning',
+  },
+  {
+    emoji: '🔔',
+    description: 'Check for dependency updates every Monday and open upgrade PRs',
+  },
+  {
+    emoji: '💡',
+    description: 'Review new issues every morning and suggest labels and priorities',
+  },
+];
+
 const DAYS_OF_WEEK = [
   { label: 'Mo', value: 'monday' },
   { label: 'Tu', value: 'tuesday' },
@@ -67,6 +94,7 @@ const DAYS_OF_WEEK = [
 
 export default function AutomationsScreen() {
   const { colors } = useColorScheme();
+  const [expanded, setExpanded] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [name, setName] = useState('');
   const [workspace, setWorkspace] = useState('');
@@ -117,7 +145,7 @@ export default function AutomationsScreen() {
         {/* Automation Cards Grid */}
         <View className="px-6 pb-6">
           <View className="flex-row flex-wrap gap-3 max-w-3xl mx-auto">
-            {AUTOMATION_SUGGESTIONS.map((item, index) => (
+            {(expanded ? [...INITIAL_SUGGESTIONS, ...MORE_SUGGESTIONS] : INITIAL_SUGGESTIONS).map((item, index) => (
               <Pressable
                 key={index}
                 onPress={() => handleCardPress(item.description)}
@@ -132,13 +160,15 @@ export default function AutomationsScreen() {
           </View>
 
           {/* Explore More */}
-          <View className="items-center mt-6">
-            <Pressable className="active:opacity-70">
-              <Text className="text-sm text-muted-foreground">
-                Explore more
-              </Text>
-            </Pressable>
-          </View>
+          {!expanded && (
+            <View className="items-center mt-6">
+              <Pressable className="active:opacity-70" onPress={() => setExpanded(true)}>
+                <Text className="text-sm text-muted-foreground">
+                  Explore more
+                </Text>
+              </Pressable>
+            </View>
+          )}
         </View>
       </ScrollView>
 
