@@ -4,14 +4,12 @@ import {
   Key01Icon,
   MoreHorizontalSquare01Icon,
   Settings01Icon,
-  Delete02Icon,
   ChartLineData02Icon,
 } from '@hugeicons/core-free-icons';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import {
@@ -25,11 +23,7 @@ import {
 } from '@/components/ui/sidebar';
 import { useApps } from '@/hooks/use-developer';
 
-interface NavAppsProps {
-  onDeleteApp?: (appId: string) => void;
-}
-
-export function NavApps({ onDeleteApp }: NavAppsProps) {
+export function NavApps() {
   const { isMobile } = useSidebar();
   const { data: apps = [] } = useApps();
 
@@ -82,14 +76,6 @@ export function NavApps({ onDeleteApp }: NavAppsProps) {
                     />
                     <span>Usage</span>
                   </Link>
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem
-                  className="text-destructive"
-                  onClick={() => onDeleteApp?.(app._id)}
-                >
-                  <HugeiconsIcon icon={Delete02Icon} size={14} className="text-muted-foreground" />
-                  <span>Delete</span>
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>

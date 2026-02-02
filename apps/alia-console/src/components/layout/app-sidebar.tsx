@@ -86,8 +86,6 @@ const settingsNavItems = [
     icon: Settings01Icon,
     items: [
       { title: 'Workspace', url: '/settings/workspace' },
-      { title: 'Team', url: '/settings/workspace' },
-      { title: 'Billing', url: '/billing' },
     ],
   },
 ];
