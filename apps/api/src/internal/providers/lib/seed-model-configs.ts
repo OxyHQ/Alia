@@ -7,7 +7,7 @@
  */
 
 import { ModelConfig } from '../models/model-config.js';
-import { TIER_MODEL_MAPPINGS } from './alia-models.js';
+import { TIER_MODEL_MAPPINGS, type ModelCapabilities } from './alia-models.js';
 import { connectDB } from './db.js';
 import mongoose from 'mongoose';
 
@@ -65,7 +65,7 @@ export async function seedModelConfigs(): Promise<{ seeded: number; skipped: num
         continue;
       }
 
-      const capabilities = mapping.capabilities || {};
+      const capabilities: Partial<ModelCapabilities> = mapping.capabilities || {};
 
       try {
         const result = await ModelConfig.updateOne(
