@@ -37,8 +37,8 @@ router.post('/resolve', async (req: Request, res: Response) => {
     }
 
     // Resolve the model
-    const skipSet = new Set(skipProviders);
-    const resolved = await resolveAliaModel(aliasModelId, null, skipSet);
+    const skipSet = new Set<string>(skipProviders);
+    const resolved = await resolveAliaModel(aliasModelId, estimatedTokens, skipSet);
 
     if (!resolved) {
       return res.status(503).json({
@@ -62,12 +62,9 @@ router.post('/resolve', async (req: Request, res: Response) => {
         isFallback: resolved.isFallback,
         fallbackIndex: resolved.fallbackIndex,
         capabilities: {
-          vision: modelConfig.capabilities?.vision || false,
-          audio: modelConfig.capabilities?.audio || false,
-          codeExecution: modelConfig.capabilities?.codeExecution || false,
-          webSearch: modelConfig.capabilities?.webSearch || false,
+          vision: modelConfig.supportsVision || false,
+          tools: modelConfig.supportsTools || false,
         },
-        pricing: modelConfig.pricing || null,
       },
     });
   } catch (error: any) {
@@ -86,7 +83,7 @@ router.post('/resolve', async (req: Request, res: Response) => {
  */
 router.post('/:provider/proxy', async (req: Request, res: Response) => {
   try {
-    const { provider } = req.params;
+    const provider = req.params.provider as string;
     const { modelId, messages, tools, config, keyPreference = {} } = req.body;
 
     // Validate inputs
@@ -214,11 +211,12 @@ router.post('/:provider/proxy', async (req: Request, res: Response) => {
  */
 router.get('/health', async (req: Request, res: Response) => {
   try {
-    const { provider, modelId } = req.query;
+    const provider = req.query.provider as string | undefined;
+    const modelId = req.query.modelId as string | undefined;
 
     if (provider && modelId) {
       // Get specific provider/model health
-      const health = await getProviderHealth(provider as string, modelId as string);
+      const health = await getProviderHealth(provider, modelId);
       res.json({
         success: true,
         data: health,
@@ -290,7 +288,8 @@ router.post('/health/record', async (req: Request, res: Response) => {
  */
 router.get('/available', async (req: Request, res: Response) => {
   try {
-    const { provider, modelId } = req.query;
+    const provider = req.query.provider as string | undefined;
+    const modelId = req.query.modelId as string | undefined;
 
     if (!provider || !modelId) {
       return res.status(400).json({
@@ -300,7 +299,7 @@ router.get('/available', async (req: Request, res: Response) => {
       });
     }
 
-    const available = await isProviderAvailable(provider as string, modelId as string);
+    const available = await isProviderAvailable(provider, modelId);
 
     res.json({
       success: true,

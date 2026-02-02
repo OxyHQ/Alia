@@ -7,6 +7,7 @@ import express, { Request, Response } from 'express';
 import crypto from 'crypto';
 import { ProviderKey } from '../models/provider-key';
 import { invalidateKeyCache } from '../lib/key-manager';
+import { encryptKey } from '../lib/key-encryption';
 
 const router = express.Router();
 
@@ -154,8 +155,11 @@ router.post('/', async (req: Request, res: Response) => {
       });
     }
 
-    // Hash the key
+    // Hash the key for deduplication
     const keyHash = crypto.createHash('sha256').update(key).digest('hex');
+
+    // Encrypt the key for secure storage
+    const encryptedKey = encryptKey(key);
 
     // Check if key already exists
     const existing = await ProviderKey.findOne({ keyHash });
@@ -176,10 +180,12 @@ router.post('/', async (req: Request, res: Response) => {
       provider,
       keyHash,
       keyPrefix,
+      encryptedKey,
       environment: environment || 'production',
       isPaid: isPaid || false,
       tier: tier || 'free',
-      priority: priority || 10,
+      currentPriority: priority || 10,
+      originalPriority: priority || 10,
       rateLimit: rateLimit || {},
       isActive: true,
     });
@@ -336,10 +342,14 @@ router.post('/:keyId/rotate', async (req: Request, res: Response) => {
       });
     }
 
+    // Encrypt the new key
+    const encryptedNewKey = encryptKey(newKey);
+
     // Update key
     const newKeyPrefix = newKey.substring(0, Math.min(8, newKey.length)) + '...';
     key.keyHash = newKeyHash;
     key.keyPrefix = newKeyPrefix;
+    key.encryptedKey = encryptedNewKey;
     key.rotatedAt = new Date();
     await key.save();
 

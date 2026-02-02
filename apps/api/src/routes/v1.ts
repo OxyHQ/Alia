@@ -4,8 +4,7 @@ import responsesRouter from './v1/responses.js';
 import modelsRouter from './v1/models.js';
 import { authenticateTokenOrApiKey } from '../middleware/auth.js';
 import { apiKeyRateLimit } from '../middleware/api-key-rate-limit.js';
-import { loadKeys } from '../lib/load-balancer.js';
-import { resolveAliaModel } from '../lib/model-resolver.js';
+import { resolveModel } from '../lib/chat-core.js';
 import { UserCredits } from '../models/user-credits.js';
 import { reserveCredits, finalizeCredits, type CreditReservation } from '../lib/credits-manager.js';
 import * as crypto from 'crypto';
@@ -75,8 +74,8 @@ router.get('/me', async (req: Request, res: Response) => {
 
     res.json({
       id: userId,
-      email: req.user?.email || '',
-      name: req.user?.displayName || req.user?.email || '',
+      email: (req.user as any)?.email || '',
+      name: (req.user as any)?.displayName || (req.user as any)?.email || '',
       credits: {
         free: userCredits.credits.free,
         paid: userCredits.credits.paid,
@@ -150,8 +149,7 @@ router.post('/resolve-model', async (req: Request, res: Response) => {
     }
 
     // Resolve model with optional client-type filtering
-    const keyPool = await loadKeys();
-    const resolved = await resolveAliaModel(filteredModel, keyPool);
+    const resolved = await resolveModel(filteredModel);
 
     if (!resolved) {
       return res.status(503).json({

@@ -4,7 +4,7 @@
  * Comprehensive capability definitions for all supported models
  */
 
-import type { ModelCapabilities, PricingTier } from './alia-models';
+import type { ModelCapabilities, PricingTier } from '../internal/providers/lib/alia-models';
 
 // ============== CAPABILITY PRESETS ==============
 
@@ -12,6 +12,7 @@ export const DEFAULT_CAPABILITIES: ModelCapabilities = {
   vision: false,
   audio: false,
   video: false,
+  voice: false,
   tools: true,
   codeExecution: false,
   webSearch: false,

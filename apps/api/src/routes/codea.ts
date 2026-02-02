@@ -4,8 +4,7 @@ import { apiKeyRateLimit } from '../middleware/api-key-rate-limit.js';
 import { Subscription } from '../models/subscription.js';
 import { UserCredits } from '../models/user-credits.js';
 import DeveloperApiKey from '../models/developer-api-key.js';
-import { loadKeys } from '../lib/load-balancer.js';
-import { resolveAliaModel } from '../lib/model-resolver.js';
+import { resolveModel } from '../lib/chat-core.js';
 import { reserveCredits, finalizeCredits, type CreditReservation } from '../lib/credits-manager.js';
 import * as crypto from 'crypto';
 
@@ -328,8 +327,7 @@ router.post('/resolve-model', authenticateApiKey, apiKeyRateLimit, async (req: R
     }
 
     // Resolve model
-    const keyPool = await loadKeys();
-    const resolved = await resolveAliaModel(model, keyPool);
+    const resolved = await resolveModel(model);
 
     if (!resolved) {
       return res.status(503).json({ error: 'No models available', requested_model: model });

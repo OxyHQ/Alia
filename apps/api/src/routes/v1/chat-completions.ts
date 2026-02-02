@@ -1,10 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { streamText, generateText, type ToolSet } from 'ai';
-import { createGoogleGenerativeAI } from '@ai-sdk/google';
-import { createOpenAI } from '@ai-sdk/openai';
-import { createAnthropic } from '@ai-sdk/anthropic';
-import { loadKeys } from '../../lib/load-balancer.js';
-import { resolveAliaModel, getDefaultAliaModel } from '../../lib/model-resolver.js';
+import { resolveModel, getAIModel, getDefaultAliaModel, reportModelUsage } from '../../lib/chat-core.js';
 import { UserCredits } from '../../models/user-credits.js';
 import { UserMemory } from '../../models/user-memory.js';
 import { Conversation } from '../../models/conversation.js';
@@ -13,10 +9,10 @@ import { recordUsage } from '../../middleware/api-key-rate-limit.js';
 import { convertOpenAIToolsToToolSet } from '../../lib/tool-converter.js';
 import { getCurrentDateTool, getTimelineTool, saveUserMemoryTool, updateUserPreferencesTool, updateUserContextTool, createSendTelegramTool } from '../../lib/tools/index.js';
 import { oxyClient } from '../../middleware/auth.js';
-import type { KeyConfig } from '../../lib/types.js';
+import type { KeyConfig } from '../../internal/providers/lib/types.js';
 import type { IUserMemory } from '../../models/user-memory.js';
 import { estimateMessageTokens } from '../../lib/token-counter.js';
-import { recordFailure } from '../../lib/provider-health.js';
+// recordFailure is now handled via reportModelUsage from chat-core
 
 const router = Router();
 
@@ -130,49 +126,7 @@ function convertToAISDKMessages(messages: any[], toolNameMapping: Map<string, st
   return result;
 }
 
-// Create AI SDK provider based on key
-function getAIModel(keyConfig: KeyConfig) {
-  const apiKey = keyConfig.key;
-  const modelId = keyConfig.modelId;
-
-  switch (keyConfig.provider) {
-    case 'google': {
-      const google = createGoogleGenerativeAI({ apiKey });
-      return google(modelId || 'gemini-2.0-flash-exp');
-    }
-    case 'openai': {
-      const openai = createOpenAI({ apiKey });
-      return openai(modelId || 'gpt-4o-mini');
-    }
-    case 'anthropic': {
-      const anthropic = createAnthropic({ apiKey });
-      return anthropic(modelId || 'claude-sonnet-4-20250514');
-    }
-    case 'groq': {
-      const groq = createOpenAI({
-        apiKey,
-        baseURL: 'https://api.groq.com/openai/v1'
-      });
-      return groq(modelId || 'llama-3.3-70b-versatile');
-    }
-    case 'together': {
-      const together = createOpenAI({
-        apiKey,
-        baseURL: 'https://api.together.ai/v1'
-      });
-      return together(modelId || 'meta-llama/Llama-3.3-70B-Instruct-Turbo');
-    }
-    case 'cerebras': {
-      const cerebras = createOpenAI({
-        apiKey,
-        baseURL: 'https://api.cerebras.ai/v1'
-      });
-      return cerebras(modelId || 'llama-3.3-70b');
-    }
-    default:
-      throw new Error(`Provider "${keyConfig.provider}" not supported`);
-  }
-}
+// getAIModel is now imported from chat-core.ts
 
 /**
  * POST /v1/chat/completions
@@ -180,7 +134,7 @@ function getAIModel(keyConfig: KeyConfig) {
  */
 router.post('/', async (req: Request, res: Response) => {
   let creditReservation: CreditReservation | null = null;
-  let resolved: Awaited<ReturnType<typeof resolveAliaModel>> = null;
+  let resolved: Awaited<ReturnType<typeof resolveModel>> = null;
   let aliasModelId: string = 'alia-v1';
 
   try {
@@ -245,10 +199,9 @@ router.post('/', async (req: Request, res: Response) => {
 
     // Resolve Alia model to concrete provider/model
     const requestedModel = body.model || getDefaultAliaModel();
-    const keyPool = await loadKeys();
 
     // Initial resolution (will be re-resolved inside retry loop)
-    resolved = await resolveAliaModel(requestedModel, keyPool);
+    resolved = await resolveModel(requestedModel);
 
     if (!resolved) {
       res.status(503).json({ error: 'No models available', requested_model: requestedModel });
@@ -441,7 +394,7 @@ When you use a tool successfully:
     for (let providerAttempt = 0; providerAttempt < MAX_PROVIDER_RETRIES; providerAttempt++) {
     // Re-resolve model on retry (skipping failed providers)
     if (providerAttempt > 0) {
-      resolved = await resolveAliaModel(requestedModel, keyPool, 1000, skipProviders);
+      resolved = await resolveModel(requestedModel, skipProviders);
       if (!resolved) {
         console.warn(`[V1/Chat] No more providers available after ${providerAttempt} retries`);
         break;
@@ -791,7 +744,7 @@ When you use a tool successfully:
         console.error('[V1/Chat] Error chunk received:', (chunk as any).error);
 
         // Record failure for circuit breaker - next request will use different provider
-        await recordFailure(resolved!.provider, resolved!.modelId, (chunk as any).error?.code || 'STREAM_ERROR');
+        await reportModelUsage(resolved!.keyConfig?.keyId, resolved!.provider, resolved!.modelId, false, 0, (chunk as any).error?.code || 'STREAM_ERROR');
 
         // CRITICAL: Translate error to remove provider information!
         const { translateError, sanitizeMessage } = await import('../../lib/error-handler.js');
@@ -942,7 +895,7 @@ When you use a tool successfully:
     } catch (providerError: unknown) {
       // Provider attempt failed
       console.error(`[V1/Chat] Provider ${resolved!.provider}/${resolved!.modelId} failed:`, providerError);
-      await recordFailure(resolved!.provider, resolved!.modelId, (providerError as any)?.code || 'REQUEST_ERROR');
+      await reportModelUsage(resolved!.keyConfig?.keyId, resolved!.provider, resolved!.modelId, false, 0, (providerError as any)?.code || 'REQUEST_ERROR');
 
       // If retryable and we haven't streamed content yet, try next provider
       if (isRetryableError(providerError) && !hasStreamedContent && providerAttempt < MAX_PROVIDER_RETRIES - 1) {
@@ -1000,27 +953,11 @@ When you use a tool successfully:
  * Health check and stats endpoint
  */
 router.get('/', async (_req: Request, res: Response) => {
-  try {
-    console.log('📡 [API/GET] Request received');
-    const keyPool = await loadKeys();
-    const stats = {
-      total: keyPool.length,
-      free: keyPool.filter(k => !k.isPaid).length,
-      paid: keyPool.filter(k => k.isPaid).length,
-      providers: [...new Set(keyPool.map(k => k.provider))]
-    };
-
-    res.json({
-      status: '🟢 Online',
-      service: 'Alia AI Agent System',
-      keys: stats,
-      endpoint: '/v1/chat/completions'
-    });
-  } catch (e: unknown) {
-    console.error('❌ [API/GET] Error:', e);
-    const message = e instanceof Error ? e.message : 'Unknown error';
-    res.status(500).json({ error: message });
-  }
+  res.json({
+    status: '🟢 Online',
+    service: 'Alia AI Agent System',
+    endpoint: '/v1/chat/completions'
+  });
 });
 
 export default router;

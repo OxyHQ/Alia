@@ -3,13 +3,15 @@ import mongoose, { Schema, Model, Document } from 'mongoose';
 export interface IApiUsage extends Document {
   keyId: mongoose.Types.ObjectId;
   provider: string;
+  modelId: string;
   tokens: number;
   timestamp: Date;
 }
 
 const ApiUsageSchema = new Schema<IApiUsage>({
-  keyId: { type: Schema.Types.ObjectId, ref: 'ApiKey', required: true, index: true },
+  keyId: { type: Schema.Types.ObjectId, ref: 'ProviderKey', required: true, index: true },
   provider: { type: String, required: true, index: true },
+  modelId: { type: String, required: true },
   tokens: { type: Number, default: 0 },
   timestamp: { type: Date, default: Date.now, index: true }
 });

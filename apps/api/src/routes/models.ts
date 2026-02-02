@@ -6,7 +6,7 @@
  */
 
 import { Router, Request, Response } from 'express';
-import { getAllAliaModels, type AliaModel } from '../lib/alia-models.js';
+import { getAllAliaModels, type AliaModel } from '../lib/chat-core.js';
 
 const router = Router();
 

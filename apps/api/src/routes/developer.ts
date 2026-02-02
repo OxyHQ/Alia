@@ -342,7 +342,7 @@ router.get('/apps/:appId/keys/:keyId/rate-limits', async (req: Request, res: Res
     }
 
     // Get current usage stats
-    const usage = await getApiKeyUsageStats(keyId);
+    const usage = await getApiKeyUsageStats(keyId as string);
 
     const rateLimit = apiKey.rateLimit || {
       requestsPerMinute: null,

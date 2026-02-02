@@ -1,6 +1,6 @@
 import mongoose, { Schema, Model, Document } from 'mongoose';
 
-export interface IUserCredits extends Document {
+export interface IUserCredits extends Document<string> {
   _id: string; // Oxy user ID
   credits: {
     free: number;

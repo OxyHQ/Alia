@@ -5,18 +5,8 @@
 
 import { ProviderKey, IProviderKey } from '../models/provider-key';
 import { ApiUsage } from '../models/api-usage';
-
-export interface KeyConfig {
-  keyId: string;
-  provider: string;
-  modelId: string;
-  key: string;
-  isPaid: boolean;
-  rpm?: number;
-  rpd?: number;
-  tpm?: number;
-  tpd?: number;
-}
+import { decryptKey } from './key-encryption';
+import type { KeyConfig } from './types';
 
 // Cache for loaded keys (TTL: 30 seconds)
 const keyCache = new Map<string, { keys: IProviderKey[]; timestamp: number }>();
@@ -166,12 +156,26 @@ export async function getBestKeyForModel(
       continue;
     }
 
+    // Decrypt the actual API key
+    if (!key.encryptedKey) {
+      console.warn(`[KeyManager] Key ${key.keyPrefix} (${key.provider}) has no encryptedKey, skipping`);
+      continue;
+    }
+
+    let decryptedKey: string;
+    try {
+      decryptedKey = decryptKey(key.encryptedKey);
+    } catch (err: any) {
+      console.error(`[KeyManager] Failed to decrypt key ${key.keyPrefix} (${key.provider}):`, err.message);
+      continue;
+    }
+
     // Found a suitable key
     return {
       keyId: key._id.toString(),
       provider: key.provider,
       modelId,
-      key: key.keyHash, // Note: this is the hash, actual key needs to be stored/retrieved securely
+      key: decryptedKey,
       isPaid: key.isPaid,
       rpm: key.rateLimit.rpm,
       rpd: key.rateLimit.rpd,

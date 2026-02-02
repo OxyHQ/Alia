@@ -6,8 +6,9 @@
  */
 
 import { Router, Request, Response } from 'express';
-import { getAllAliaModels, TIER_MODEL_MAPPINGS, type AliaModel } from '../lib/alia-models.js';
-import { getProviderHealth } from '../lib/provider-health.js';
+import { getAllAliaModels, type AliaModel } from '../lib/chat-core.js';
+import { TIER_MODEL_MAPPINGS } from '../internal/providers/lib/alia-models.js';
+import { getProviderHealth } from '../internal/providers/lib/provider-health.js';
 import { connectDB } from '../lib/db.js';
 import mongoose from 'mongoose';
 

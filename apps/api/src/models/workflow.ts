@@ -56,9 +56,8 @@ const WorkflowSchema = new Schema<IWorkflow>({
 });
 
 // Update the updatedAt field on save
-WorkflowSchema.pre('save', function(next) {
+WorkflowSchema.pre('save', function() {
   this.updatedAt = new Date();
-  next();
 });
 
 export const Workflow: Model<IWorkflow> = mongoose.models.Workflow || mongoose.model<IWorkflow>('Workflow', WorkflowSchema);
