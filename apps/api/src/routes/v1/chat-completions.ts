@@ -746,9 +746,16 @@ When you use a tool successfully:
         // Record failure for circuit breaker - next request will use different provider
         await reportModelUsage(resolved!.keyConfig?.keyId, resolved!.provider, resolved!.modelId, false, 0, (chunk as any).error?.code || 'STREAM_ERROR');
 
+        const rawError = (chunk as any).error;
+
+        // If retryable and no content streamed yet, throw to trigger provider fallback
+        if (!hasStreamedContent && isRetryableError(rawError)) {
+          console.log(`[V1/Chat] Retryable stream error from ${resolved!.provider}/${resolved!.modelId}, will try next provider...`);
+          throw rawError;
+        }
+
         // CRITICAL: Translate error to remove provider information!
         const { translateError, sanitizeMessage } = await import('../../lib/error-handler.js');
-        const rawError = (chunk as any).error;
         const aliaError = translateError(rawError, resolved!.provider, resolved!.modelId);
 
         // If we haven't streamed content yet, we can still set headers
