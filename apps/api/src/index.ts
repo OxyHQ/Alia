@@ -23,9 +23,11 @@ import canvasRouter from './routes/canvas/index.js';
 import feedbackRouter from './routes/feedback.js';
 import codeaRouter from './routes/codea.js';
 import modelsStatsRouter from './routes/models-stats.js';
+import externalModelsRouter from './routes/external-models.js';
 import providersModule from './internal/providers/index.js';
 import { providersWss } from './internal/providers/ws.js';
 import { oxyClient } from './middleware/auth.js';
+import { syncZeroEval } from './scripts/sync-zeroeval.js';
 
 // WebSocket and Socket.io
 import { WebSocketServer } from 'ws';
@@ -207,6 +209,7 @@ app.use('/feedback', feedbackRouter);
 app.use('/api', canvasRouter);
 app.use('/codea', codeaRouter);
 app.use('/models', modelsStatsRouter);
+app.use('/external-models', externalModelsRouter);
 app.use('/internal/providers', providersModule);
 
 // Root route
@@ -230,6 +233,7 @@ app.get('/', (_req, res) => {
       '/feedback',
       '/codea',
       '/models',
+      '/external-models',
       '/internal/providers'
     ]
   });
@@ -246,6 +250,8 @@ connectDB()
   .then(() => {
     server.listen(PORT, '0.0.0.0', () => {
       console.log(`🚀 API Server running on http://0.0.0.0:${PORT}`);
+      // Sync external models in background (non-blocking)
+      syncZeroEval().catch((err) => console.error('[ZeroEval] Background sync error:', err));
     });
   })
   .catch((error) => {
