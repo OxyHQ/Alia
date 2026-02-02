@@ -37,6 +37,9 @@ import {
   NoteIcon,
   AlertCircleIcon,
   StopIcon,
+  UserIcon,
+  Login01Icon,
+  Logout01Icon,
 } from "@hugeicons/core-free-icons"
 
 // Types
@@ -413,6 +416,38 @@ export function Chat() {
         </DropdownMenu>
         <div className="flex-1" />
 
+        {userName ? (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="sm" className="gap-1.5 px-2 h-7">
+                <HugeiconsIcon icon={UserIcon} strokeWidth={2} className="size-4" />
+                <span className="text-xs font-medium truncate max-w-[80px]">{userName}</span>
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-40">
+              <DropdownMenuRadioGroup>
+                <button
+                  className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-accent cursor-pointer"
+                  onClick={() => vscode?.postMessage({ type: "signOut" })}
+                >
+                  <HugeiconsIcon icon={Logout01Icon} strokeWidth={2} className="size-4" />
+                  Sign out
+                </button>
+              </DropdownMenuRadioGroup>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        ) : (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button variant="ghost" size="sm" className="gap-1.5 px-2 h-7" onClick={() => vscode?.postMessage({ type: "signIn" })}>
+                <HugeiconsIcon icon={Login01Icon} strokeWidth={2} className="size-4" />
+                <span className="text-xs">Sign in</span>
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Sign in with Oxy account</TooltipContent>
+          </Tooltip>
+        )}
+
         <Tooltip>
           <TooltipTrigger asChild>
             <Button variant="ghost" size="icon" className="size-7" onClick={() => vscode?.postMessage({ type: "openSettings" })}>
@@ -734,10 +769,21 @@ function WelcomeScreen({ userName, onSuggestionClick }: { userName: string | nul
           <p className="text-sm text-muted-foreground">
             {userName
               ? "I'm your AI coding assistant. Ask questions, get help with code, or explore ideas."
-              : "Your AI coding assistant. Ask questions, get help with code, or explore ideas."}
+              : "Sign in to get started with your AI coding assistant."}
           </p>
         </div>
       </div>
+
+      {!userName && (
+        <Button
+          size="sm"
+          className="gap-2"
+          onClick={() => vscode?.postMessage({ type: "signIn" })}
+        >
+          <HugeiconsIcon icon={Login01Icon} strokeWidth={2} className="size-4" />
+          Sign in with Oxy
+        </Button>
+      )}
 
       <div className="flex flex-wrap justify-center gap-2">
         {suggestions.map((s) => (

@@ -1,11 +1,11 @@
 import * as vscode from 'vscode';
+import type { AliaAuthenticationProvider } from './authProvider';
 
 export class AliaInlineCompletionProvider implements vscode.InlineCompletionItemProvider {
-  private apiKey: string = '';
   private apiBaseUrl: string = '';
   private model: string = '';
 
-  constructor() {
+  constructor(private readonly authProvider: AliaAuthenticationProvider) {
     this.loadConfig();
 
     // Listen for config changes
@@ -18,7 +18,6 @@ export class AliaInlineCompletionProvider implements vscode.InlineCompletionItem
 
   private loadConfig() {
     const config = vscode.workspace.getConfiguration('codea');
-    this.apiKey = config.get('apiKey', '');
     this.apiBaseUrl = config.get('apiBaseUrl', 'https://api.alia.onl');
     this.model = config.get('model', 'alia-v1-codea');
   }
@@ -37,8 +36,9 @@ export class AliaInlineCompletionProvider implements vscode.InlineCompletionItem
       return null;
     }
 
-    // Don't provide completions if no API key
-    if (!this.apiKey) {
+    // Don't provide completions if not authenticated
+    const accessToken = await this.authProvider.getAccessToken();
+    if (!accessToken) {
       return null;
     }
 
@@ -50,7 +50,7 @@ export class AliaInlineCompletionProvider implements vscode.InlineCompletionItem
     }
 
     try {
-      const completion = await this.getCompletion(document, position, token);
+      const completion = await this.getCompletion(document, position, token, accessToken);
 
       if (!completion || token.isCancellationRequested) {
         return null;
@@ -71,7 +71,8 @@ export class AliaInlineCompletionProvider implements vscode.InlineCompletionItem
   private async getCompletion(
     document: vscode.TextDocument,
     position: vscode.Position,
-    token: vscode.CancellationToken
+    token: vscode.CancellationToken,
+    accessToken: string
   ): Promise<string | null> {
     // Get context around the cursor
     const prefix = document.getText(new vscode.Range(
@@ -92,7 +93,7 @@ export class AliaInlineCompletionProvider implements vscode.InlineCompletionItem
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${this.apiKey}`
+          'Authorization': `Bearer ${accessToken}`
         },
         body: JSON.stringify({
           model: this.model,
@@ -117,7 +118,7 @@ export class AliaInlineCompletionProvider implements vscode.InlineCompletionItem
         throw new Error(`API error: ${response.status}`);
       }
 
-      const data = await response.json();
+      const data = await response.json() as any;
       const completion = data.choices?.[0]?.message?.content?.trim();
 
       if (!completion) {
