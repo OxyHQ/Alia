@@ -21,25 +21,21 @@ const ApiKeyUsageSchema = new Schema<IApiKeyUsage>(
     apiKeyId: {
       type: Schema.Types.ObjectId,
       ref: 'DeveloperApiKey',
-      required: false,  // Optional for session-based auth
-      index: true,
+      required: false,
     },
     oxyUserId: {
       type: String,
       required: true,
-      index: true,
     },
     appId: {
       type: Schema.Types.ObjectId,
       ref: 'DeveloperApp',
-      required: false,  // Optional for session-based auth
-      index: true,
+      required: false,
     },
     authType: {
       type: String,
       enum: ['api_key', 'session'],
       default: 'api_key',
-      index: true,
     },
     endpoint: {
       type: String,
@@ -84,6 +80,7 @@ const ApiKeyUsageSchema = new Schema<IApiKeyUsage>(
 // Compound indexes for efficient queries
 ApiKeyUsageSchema.index({ apiKeyId: 1, timestamp: -1 });
 ApiKeyUsageSchema.index({ oxyUserId: 1, timestamp: -1 });
+ApiKeyUsageSchema.index({ oxyUserId: 1, authType: 1, timestamp: -1 });
 ApiKeyUsageSchema.index({ appId: 1, timestamp: -1 });
 
 // TTL index to auto-delete old usage data after 90 days

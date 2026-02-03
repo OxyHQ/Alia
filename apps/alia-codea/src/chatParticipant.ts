@@ -172,21 +172,36 @@ export class AliaChatParticipant {
     const maxTokens = config.get('maxTokens', 4096);
     const temperature = config.get('temperature', 0.7);
 
-    const response = await fetch(`${this.apiBaseUrl}/v1/chat/completions`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${accessToken}`
-      },
-      body: JSON.stringify({
-        model: this.model,
-        messages,
-        max_tokens: maxTokens,
-        temperature,
-        stream: true
-      }),
-      signal: token.isCancellationRequested ? AbortSignal.abort() : undefined
-    });
+    const makeRequest = async (bearerToken: string) => {
+      return fetch(`${this.apiBaseUrl}/v1/chat/completions`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${bearerToken}`
+        },
+        body: JSON.stringify({
+          model: this.model,
+          messages,
+          max_tokens: maxTokens,
+          temperature,
+          stream: true
+        }),
+        signal: token.isCancellationRequested ? AbortSignal.abort() : undefined
+      });
+    };
+
+    let response = await makeRequest(accessToken);
+
+    // On 401, try refreshing the token and retry once
+    if (response.status === 401) {
+      const refreshed = await this.authProvider.refreshToken();
+      if (refreshed) {
+        const newToken = await this.authProvider.getAccessToken();
+        if (newToken && newToken !== accessToken) {
+          response = await makeRequest(newToken);
+        }
+      }
+    }
 
     if (!response.ok) {
       throw new Error(`API error: ${response.status} ${response.statusText}`);
