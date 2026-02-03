@@ -11,7 +11,7 @@ import { toast } from "@/components/sonner";
 
 function getOriginUrl(): string {
   if (Platform.OS === 'web' && typeof window !== 'undefined') {
-    return getOriginUrl();
+    return window.location.origin;
   }
   return 'https://alia.onl';
 }

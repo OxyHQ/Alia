@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 import * as crypto from 'crypto';
 import { OxyServices, createAuthManager } from '@oxyhq/core';
 import type { AuthManager, StorageAdapter, SessionLoginResponse, MinimalUserData } from '@oxyhq/core';
+import { jwtDecode } from 'jwt-decode';
 
 const AUTH_URL = 'https://auth.oxy.so';
 const OXY_PLATFORM_URL = 'https://api.oxy.so';
@@ -119,7 +120,7 @@ export class AliaAuthenticationProvider
       let resolvedSessionId = sessionId || `browser-${Date.now()}`;
 
       try {
-        const payload = JSON.parse(Buffer.from(token.split('.')[1], 'base64').toString());
+        const payload = jwtDecode<{ userId?: string; sub?: string; id?: string; username?: string; sessionId?: string }>(token);
         userId = payload.userId || payload.sub || payload.id || '';
         username = payload.username || '';
         if (payload.sessionId) { resolvedSessionId = payload.sessionId; }
