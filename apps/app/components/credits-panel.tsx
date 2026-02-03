@@ -6,20 +6,20 @@ import { Sparkles, Calendar, X } from "lucide-react-native";
 import { useCredits, useCreditsUsage } from "@/lib/hooks/use-credits";
 import { useRouter } from "expo-router";
 import { useUIStore } from "@/lib/stores/ui-store";
+import { useTranslation } from "@/hooks/useTranslation";
 
 type ChartPeriod = "7d" | "30d";
 
-const DAY_LABELS = ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"];
-
-function formatDayLabel(dateStr: string, isLast: boolean): string {
-  if (isLast) return "Hoy";
+function formatDayLabel(dateStr: string, isLast: boolean, todayLabel: string): string {
+  if (isLast) return todayLabel;
   const d = new Date(dateStr + "T00:00:00");
-  return DAY_LABELS[d.getDay()];
+  return d.toLocaleDateString(undefined, { weekday: "short" }).slice(0, 3);
 }
 
 function UsageChart() {
   const [period, setPeriod] = useState<ChartPeriod>("7d");
   const { data: usageData, isLoading } = useCreditsUsage(period);
+  const { t } = useTranslation();
 
   const items = usageData ?? [];
   const maxValue = items.length > 0 ? Math.max(...items.map((d) => d.used)) : 0;
@@ -30,7 +30,7 @@ function UsageChart() {
       {/* Chart Header */}
       <View className="flex-row items-center justify-between">
         <View>
-          <Text className="text-xs text-muted-foreground">Uso total</Text>
+          <Text className="text-xs text-muted-foreground">{t('credits.totalUsage')}</Text>
           <Text className="text-lg font-bold text-foreground">
             {isLoading ? "–" : totalUsed.toLocaleString()}
           </Text>
@@ -67,18 +67,18 @@ function UsageChart() {
       <View className="flex-row items-end gap-1.5" style={{ height: 100 }}>
         {isLoading ? (
           <View className="flex-1 items-center justify-center">
-            <Text className="text-xs text-muted-foreground">Cargando...</Text>
+            <Text className="text-xs text-muted-foreground">{t('credits.loading')}</Text>
           </View>
         ) : totalUsed === 0 ? (
           <View className="flex-1 items-center justify-center">
-            <Text className="text-xs text-muted-foreground">Sin uso en este periodo</Text>
+            <Text className="text-xs text-muted-foreground">{t('credits.noUsage')}</Text>
           </View>
         ) : (
           items.map((item, i) => {
             const barHeight = maxValue > 0 ? (item.used / maxValue) * 100 : 0;
             const isLast = i === items.length - 1;
             const label = period === "7d"
-              ? formatDayLabel(item.date, isLast)
+              ? formatDayLabel(item.date, isLast, t('credits.today'))
               : (i % 5 === 0 || isLast ? item.date.slice(5) : "");
             return (
               <View key={item.date} className="flex-1 items-center gap-1.5">
@@ -118,9 +118,10 @@ export function CreditsPanel() {
   const router = useRouter();
   const { data } = useCredits();
   const setRightPanel = useUIStore((state) => state.setRightPanel);
+  const { t } = useTranslation();
 
   const credits = data?.credits ?? 0;
-  const freeCredits = data?.freeCredits ?? 0;
+  const freeLimit = data?.freeLimit ?? 0;
   const dailyRefresh = data?.dailyRefresh ?? 0;
 
   const handleUpgrade = () => {
@@ -142,7 +143,7 @@ export function CreditsPanel() {
       {/* Header */}
       <View className="flex-row items-center justify-between px-4 py-3 border-b border-border">
         <Text className="text-base font-semibold text-foreground">
-          Créditos
+          {t('credits.title')}
         </Text>
         <Pressable
           className="p-1 rounded-lg active:opacity-70"
@@ -158,13 +159,13 @@ export function CreditsPanel() {
           <View className="flex-row items-center gap-2">
             <View className="px-2 py-0.5 rounded-full bg-muted">
               <Text className="text-xs font-medium text-muted-foreground">
-                Free
+                {t('credits.free')}
               </Text>
             </View>
           </View>
           <Button onPress={handleUpgrade} className="h-8 px-4 rounded-full">
             <Text className="text-sm font-medium text-primary-foreground">
-              Upgrade
+              {t('credits.upgrade')}
             </Text>
           </Button>
         </View>
@@ -176,19 +177,19 @@ export function CreditsPanel() {
             <View className="flex-row items-center gap-2">
               <Sparkles size={18} className="text-foreground" />
               <Text className="text-sm font-semibold text-foreground">
-                Créditos
+                {t('credits.credits')}
               </Text>
             </View>
             <View className="flex-row items-baseline justify-between pl-6">
               <Text className="text-sm text-muted-foreground">
-                Créditos gratis
+                {t('credits.freeCredits')}
               </Text>
               <View className="flex-row items-baseline gap-1">
                 <Text className="text-2xl font-bold text-foreground">
                   {credits.toLocaleString()}
                 </Text>
                 <Text className="text-sm text-muted-foreground">
-                  / {freeCredits.toLocaleString()}
+                  / {freeLimit.toLocaleString()}
                 </Text>
               </View>
             </View>
@@ -199,11 +200,11 @@ export function CreditsPanel() {
             <View className="flex-row items-center gap-2">
               <Calendar size={18} className="text-foreground" />
               <Text className="text-sm font-semibold text-foreground">
-                Recarga diaria
+                {t('credits.dailyRefresh')}
               </Text>
             </View>
             <View className="flex-row items-baseline justify-between pl-6">
-              <Text className="text-sm text-muted-foreground">a las 00:00</Text>
+              <Text className="text-sm text-muted-foreground">{t('credits.atMidnight')}</Text>
               <Text className="text-2xl font-bold text-foreground">
                 {dailyRefresh}
               </Text>
@@ -215,7 +216,7 @@ export function CreditsPanel() {
         <View className="px-4 pb-4">
           <View className="border border-border rounded-xl p-3">
             <Text className="text-xs font-medium text-muted-foreground mb-2">
-              Uso de créditos
+              {t('credits.creditUsage')}
             </Text>
             <UsageChart />
           </View>
@@ -228,9 +229,9 @@ export function CreditsPanel() {
             className="flex-row items-center gap-1 active:opacity-70"
           >
             <Text className="text-sm font-medium text-primary">
-              Ver historial completo
+              {t('credits.viewFullHistory')}
             </Text>
-            <Text className="text-sm text-primary">›</Text>
+            <Text className="text-sm text-primary">&rsaquo;</Text>
           </Pressable>
         </View>
       </ScrollView>
