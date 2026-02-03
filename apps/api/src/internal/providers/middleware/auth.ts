@@ -2,7 +2,7 @@ import crypto from 'crypto';
 import { Request, Response, NextFunction } from 'express';
 import { oxyClient } from '../../../middleware/auth.js';
 
-const SERVICE_SECRET = process.env.SERVICE_SECRET || '';
+const SERVICE_SECRET = process.env.SERVICE_SECRET;
 const ALLOWED_SERVICES = (process.env.ALLOWED_SERVICES || 'alia-api').split(',').map((s) => s.trim());
 
 // Add service name to request
@@ -53,6 +53,14 @@ export async function authenticateService(req: Request, res: Response, next: Nex
     });
   }
 
+  if (!SERVICE_SECRET) {
+    return res.status(500).json({
+      success: false,
+      error: 'Service authentication not configured',
+      code: 'SERVICE_AUTH_NOT_CONFIGURED',
+    });
+  }
+
   if (!ALLOWED_SERVICES.includes(serviceName)) {
     return res.status(403).json({
       success: false,
@@ -92,6 +100,9 @@ export async function authenticateService(req: Request, res: Response, next: Nex
 
 // Generate auth headers for outgoing service-to-service requests
 export function generateAuthHeaders(serviceName: string): Record<string, string> {
+  if (!SERVICE_SECRET) {
+    throw new Error('SERVICE_SECRET is not configured');
+  }
   const timestamp = Date.now().toString();
   const payload = JSON.stringify({ timestamp, service: serviceName });
   const signature = crypto.createHmac('sha256', SERVICE_SECRET).update(payload).digest('hex');

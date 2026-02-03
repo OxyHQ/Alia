@@ -51,8 +51,9 @@ export function setupRealtimeEndpoint(wss: WebSocketServer): void {
       } else if (apiKey) {
         // API key authentication (developer keys)
         try {
+          const keyHash = (DeveloperApiKey as any).hashKey(apiKey);
           const devKey = await DeveloperApiKey.findOne({
-            keyHash: apiKey,
+            keyHash,
             isActive: true,
             $or: [{ expiresAt: { $exists: false } }, { expiresAt: { $gt: new Date() } }],
           });

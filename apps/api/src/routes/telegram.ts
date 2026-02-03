@@ -1,5 +1,5 @@
 import express from 'express';
-import { authenticateToken } from '../middleware/auth.js';
+import { authenticateToken, authenticateTelegramBot } from '../middleware/auth.js';
 import crypto from 'crypto';
 import mongoose from 'mongoose';
 import { TelegramUser } from '../models/telegram-user.js';
@@ -135,7 +135,7 @@ function generateAuthToken(): string {
 }
 
 // Get or create telegram user
-router.post('/users', async (req, res) => {
+router.post('/users', authenticateTelegramBot, async (req, res) => {
   try {
     const { telegramId, chatId, username, firstName, lastName } = req.body;
 
@@ -182,7 +182,7 @@ router.post('/users', async (req, res) => {
 });
 
 // Get telegram user by telegram ID
-router.get('/users/:telegramId', async (req, res) => {
+router.get('/users/:telegramId', authenticateTelegramBot, async (req, res) => {
   try {
     const { telegramId } = req.params;
 
@@ -211,7 +211,7 @@ router.get('/users/:telegramId', async (req, res) => {
 });
 
 // Create auth request for login/registro con Telegram
-router.post('/auth-request', async (req, res) => {
+router.post('/auth-request', authenticateTelegramBot, async (req, res) => {
   try {
     const { telegramId } = req.body;
     if (!telegramId) {
@@ -242,7 +242,7 @@ router.post('/auth-request', async (req, res) => {
 });
 
 // Create link request para vincular Telegram a cuenta existente
-router.post('/link-request', async (req, res) => {
+router.post('/link-request', authenticateTelegramBot, async (req, res) => {
   try {
     const { telegramId } = req.body;
     if (!telegramId) {
@@ -273,7 +273,7 @@ router.post('/link-request', async (req, res) => {
 });
 
 // Update conversation ID for telegram user
-router.post('/users/:telegramId/conversation', async (req, res) => {
+router.post('/users/:telegramId/conversation', authenticateTelegramBot, async (req, res) => {
   try {
     const { telegramId } = req.params;
     const { conversationId } = req.body;
@@ -295,7 +295,7 @@ router.post('/users/:telegramId/conversation', async (req, res) => {
 });
 
 // Update preferred model for telegram user
-router.post('/users/:telegramId/model', async (req, res) => {
+router.post('/users/:telegramId/model', authenticateTelegramBot, async (req, res) => {
   try {
     const { telegramId } = req.params;
     const { model } = req.body;
@@ -325,7 +325,7 @@ router.post('/users/:telegramId/model', async (req, res) => {
 });
 
 // Logout telegram user
-router.post('/users/:telegramId/logout', async (req, res) => {
+router.post('/users/:telegramId/logout', authenticateTelegramBot, async (req, res) => {
   try {
     const { telegramId } = req.params;
 
@@ -585,7 +585,7 @@ router.post('/link', authenticateToken, async (req, res) => {
 
 // Complete sign-in flow from Telegram bot
 // NOTE: Account creation via Telegram is disabled. Users must sign in via Oxy first and then link their Telegram.
-router.post('/signin-complete', async (req, res) => {
+router.post('/signin-complete', authenticateTelegramBot, async (req, res) => {
   try {
     const { authCode, telegramId, chatId, username, firstName, lastName } = req.body;
 

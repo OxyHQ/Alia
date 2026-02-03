@@ -14,18 +14,6 @@ const router = Router();
 // Store active sessions for usage tracking (for direct AI SDK usage by clients)
 const activeSessions = new Map<string, { userId: string; reservation: CreditReservation; aliaModelId: string }>();
 
-// Debug middleware to log all v1 requests
-router.use((req, res, next) => {
-  console.log(`[V1] ${req.method} ${req.path}`);
-  console.log('[V1] Headers:', JSON.stringify(req.headers, null, 2));
-  console.log('[V1] Body type:', typeof req.body);
-  console.log('[V1] Body is object:', typeof req.body === 'object' && req.body !== null);
-  if (req.body && typeof req.body === 'object') {
-    console.log('[V1] Body keys:', Object.keys(req.body));
-    console.log('[V1] Has messages:', 'messages' in req.body);
-  }
-  next();
-});
 
 router.get('/', (req, res) => {
   res.json({
@@ -156,13 +144,19 @@ router.post('/resolve-model', async (req: Request, res: Response) => {
 
     console.log('[V1/ResolveModel] Resolved to:', resolved.provider, resolved.modelId, 'sessionId:', sessionId);
 
-    res.json({
+    // Only return provider key to trusted services (telegram bot)
+    const isTrustedService = !!req.headers['x-telegram-bot-secret'];
+    const response: Record<string, any> = {
       provider: resolved.provider,
       modelId: resolved.modelId,
-      providerKey: resolved.keyConfig.key,
       sessionId,
       aliaModel: model
-    });
+    };
+    if (isTrustedService) {
+      response.providerKey = resolved.keyConfig.key;
+    }
+
+    res.json(response);
   } catch (error: any) {
     console.error('[V1/ResolveModel] Error:', error);
     res.status(500).json({ error: error.message || 'Failed to resolve model' });

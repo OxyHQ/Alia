@@ -2,17 +2,18 @@ import { Router } from 'express';
 import { randomUUID } from 'crypto';
 import { Workflow } from '../../models/workflow.js';
 import { WorkflowExecution } from '../../models/workflow-execution.js';
+import { authenticateToken } from '../../middleware/auth.js';
 import type { Request, Response } from 'express';
 
 const router = Router();
 
-// Temporary demo user ID (will be replaced with auth library later)
-const DEMO_USER_ID = '000000000000000000000001';
+// Require authentication for all canvas workflow routes
+router.use(authenticateToken);
 
 // Get all workflows
 router.get('/', async (req: Request, res: Response) => {
   try {
-    const workflows = await Workflow.find({ oxyUserId: DEMO_USER_ID })
+    const workflows = await Workflow.find({ oxyUserId: req.userId })
       .select('workflowId name description nodes edges createdAt updatedAt')
       .sort({ updatedAt: -1 })
       .limit(100);
@@ -38,7 +39,7 @@ router.get('/', async (req: Request, res: Response) => {
 router.get('/:id', async (req: Request, res: Response) => {
   try {
     const workflow = await Workflow.findOne({
-      oxyUserId: DEMO_USER_ID,
+      oxyUserId: req.userId,
       workflowId: req.params.id
     });
 
@@ -75,7 +76,7 @@ router.post('/', async (req: Request, res: Response) => {
     const workflowId = randomUUID();
 
     const workflow = await Workflow.create({
-      oxyUserId: DEMO_USER_ID,
+      oxyUserId: req.userId,
       workflowId,
       name,
       description: description || '',
@@ -109,7 +110,7 @@ router.put('/:id', async (req: Request, res: Response) => {
 
     const workflow = await Workflow.findOneAndUpdate(
       {
-        oxyUserId: DEMO_USER_ID,
+        oxyUserId: req.userId,
         workflowId: req.params.id
       },
       {
@@ -147,7 +148,7 @@ router.put('/:id', async (req: Request, res: Response) => {
 router.delete('/:id', async (req: Request, res: Response) => {
   try {
     const workflow = await Workflow.findOneAndDelete({
-      oxyUserId: DEMO_USER_ID,
+      oxyUserId: req.userId,
       workflowId: req.params.id
     });
 
@@ -169,7 +170,7 @@ router.delete('/:id', async (req: Request, res: Response) => {
 router.get('/:id/executions', async (req: Request, res: Response) => {
   try {
     const executions = await WorkflowExecution.find({
-      oxyUserId: DEMO_USER_ID,
+      oxyUserId: req.userId,
       workflowId: req.params.id
     })
       .sort({ startedAt: -1 })
