@@ -1,5 +1,5 @@
 import React from "react";
-import { View, Pressable, NativeSyntheticEvent, NativeScrollEvent, Linking } from "react-native";
+import { View, Pressable, Platform, NativeSyntheticEvent, NativeScrollEvent, Linking } from "react-native";
 import { Image } from "expo-image";
 import { Text } from "@/components/ui/text";
 import { Button } from "@/components/ui/button";
@@ -189,9 +189,8 @@ export const Sidebar = React.memo(function Sidebar() {
     router.push("/(app)/automations");
   }, [router]);
 
-  const handleDevelopers = React.useCallback(() => {
-    // Open alia-console in browser
-    Linking.openURL("http://localhost:3000/dashboard");
+  const handleConsole = React.useCallback(() => {
+    Linking.openURL("https://console.alia.onl");
   }, []);
 
   const handleSelectProject = React.useCallback((id: string | null) => {
@@ -451,14 +450,16 @@ export const Sidebar = React.memo(function Sidebar() {
           <CloudCog size={16} className="text-muted-foreground" />
           <Text className="text-sm md:text-xs">Automations</Text>
         </Button>
-        <Button
-          variant="ghost"
-          className="h-10 md:h-8 flex-row items-center justify-start gap-2 rounded-full px-3 md:px-2 w-full"
-          onPress={handleDevelopers}
-        >
-          <Code size={16} className="text-muted-foreground" />
-          <Text className="text-sm md:text-xs">Developers</Text>
-        </Button>
+        {Platform.OS === "web" && (
+          <Button
+            variant="ghost"
+            className="h-10 md:h-8 flex-row items-center justify-start gap-2 rounded-full px-3 md:px-2 w-full"
+            onPress={handleConsole}
+          >
+            <Code size={16} className="text-muted-foreground" />
+            <Text className="text-sm md:text-xs">Console</Text>
+          </Button>
+        )}
         <Button
           variant="ghost"
           className="h-10 md:h-8 flex-row items-center justify-start gap-2 rounded-full px-3 md:px-2 w-full"

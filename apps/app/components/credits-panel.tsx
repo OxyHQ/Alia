@@ -3,27 +3,27 @@ import { View, Pressable, ScrollView } from "react-native";
 import { Text } from "@/components/ui/text";
 import { Button } from "@/components/ui/button";
 import { Sparkles, Calendar, X } from "lucide-react-native";
-import { useCredits } from "@/lib/hooks/use-credits";
+import { useCredits, useCreditsUsage } from "@/lib/hooks/use-credits";
 import { useRouter } from "expo-router";
 import { useUIStore } from "@/lib/stores/ui-store";
 
-// TODO: replace with real usage data from API
-const USAGE_DATA = [
-  { day: "Lun", used: 32 },
-  { day: "Mar", used: 45 },
-  { day: "Mié", used: 28 },
-  { day: "Jue", used: 64 },
-  { day: "Vie", used: 52 },
-  { day: "Sáb", used: 18 },
-  { day: "Hoy", used: 41 },
-];
-
 type ChartPeriod = "7d" | "30d";
+
+const DAY_LABELS = ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"];
+
+function formatDayLabel(dateStr: string, isLast: boolean): string {
+  if (isLast) return "Hoy";
+  const d = new Date(dateStr + "T00:00:00");
+  return DAY_LABELS[d.getDay()];
+}
 
 function UsageChart() {
   const [period, setPeriod] = useState<ChartPeriod>("7d");
-  const maxValue = Math.max(...USAGE_DATA.map((d) => d.used));
-  const totalUsed = USAGE_DATA.reduce((acc, d) => acc + d.used, 0);
+  const { data: usageData } = useCreditsUsage(period);
+
+  const items = usageData ?? [];
+  const maxValue = items.length > 0 ? Math.max(...items.map((d) => d.used)) : 0;
+  const totalUsed = items.reduce((acc, d) => acc + d.used, 0);
 
   return (
     <View className="gap-3">
@@ -65,18 +65,21 @@ function UsageChart() {
 
       {/* Bars */}
       <View className="flex-row items-end gap-1.5" style={{ height: 100 }}>
-        {USAGE_DATA.map((item, i) => {
+        {items.map((item, i) => {
           const barHeight = maxValue > 0 ? (item.used / maxValue) * 100 : 0;
-          const isToday = i === USAGE_DATA.length - 1;
+          const isLast = i === items.length - 1;
+          const label = period === "7d"
+            ? formatDayLabel(item.date, isLast)
+            : (i % 5 === 0 || isLast ? item.date.slice(5) : "");
           return (
-            <View key={item.day} className="flex-1 items-center gap-1.5">
+            <View key={item.date} className="flex-1 items-center gap-1.5">
               <View
                 className="w-full items-center justify-end"
                 style={{ height: 80 }}
               >
                 <View
                   className={`w-full rounded-t-sm ${
-                    isToday ? "bg-primary" : "bg-primary/30"
+                    isLast ? "bg-primary" : "bg-primary/30"
                   }`}
                   style={{
                     height: `${Math.max(barHeight, 4)}%`,
@@ -86,12 +89,12 @@ function UsageChart() {
               </View>
               <Text
                 className={`text-[10px] ${
-                  isToday
+                  isLast
                     ? "text-foreground font-medium"
                     : "text-muted-foreground"
                 }`}
               >
-                {item.day}
+                {label}
               </Text>
             </View>
           );
