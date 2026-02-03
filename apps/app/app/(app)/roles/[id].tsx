@@ -17,6 +17,7 @@ import {
 } from 'lucide-react-native';
 import { useRolesStore } from '@/lib/stores/roles-store';
 import { useRouter, useLocalSearchParams } from 'expo-router';
+import { toast } from '@/components/sonner';
 
 export default function RoleDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -40,12 +41,11 @@ export default function RoleDetailScreen() {
     await incrementUsage(role.id);
 
     // Navigate to home page with role
-    router.replace(`/(app)?roleId=${role.id}`);
+    router.replace({ pathname: '/(app)', params: { roleId: role.id } });
   };
 
   const handleFork = () => {
-    // TODO: Implement fork functionality
-    console.log('Fork role:', id);
+    toast.info('Fork functionality coming soon!');
   };
 
   if (!role) {

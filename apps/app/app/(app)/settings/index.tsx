@@ -1,4 +1,4 @@
-import { View, ScrollView, TextInput as RNTextInput, Pressable, Linking } from "react-native";
+import { View, ScrollView, TextInput as RNTextInput, Pressable, Linking, Platform } from "react-native";
 import { Text } from "@/components/ui/text";
 import { Button } from "@/components/ui/button";
 import { useState, useEffect } from "react";
@@ -54,7 +54,7 @@ const LANGUAGES = [
 
 export default function SettingsScreen() {
   const router = useRouter();
-  const { user, isAuthenticated, oxyServices } = useOxy();
+  const { user, isAuthenticated, oxyServices, showBottomSheet } = useOxy();
   const { memory, loading } = useUserData();
   const setMemory = useUserDataStore((state) => state.setMemory);
   const [saving, setSaving] = useState(false);
@@ -128,12 +128,14 @@ export default function SettingsScreen() {
         }),
       });
 
-      if (contextRes.ok) {
+      if (prefRes.ok && contextRes.ok) {
         const updatedMemory = await contextRes.json();
         // Update cache
         setMemory(updatedMemory);
         toast.success(t('settings.saveSuccess'));
         router.back();
+      } else {
+        toast.error(t('settings.saveFailed'));
       }
     } catch (error) {
       console.error("Error saving memory:", error);
@@ -157,8 +159,8 @@ export default function SettingsScreen() {
 
       if (response.ok) {
         toast.success("Telegram unlinked successfully");
-        // Refresh page to update status
-        window.location.reload();
+        // Refresh by navigating back to settings
+        router.replace("/(app)/settings");
       } else {
         const error = await response.json();
         toast.error(error.error || "Failed to unlink Telegram");
@@ -213,7 +215,7 @@ export default function SettingsScreen() {
             </Pressable>
 
             <Pressable
-              onPress={() => router.push("/(app)/settings/account")}
+              onPress={() => showBottomSheet('AccountSettings')}
               className="border border-border rounded-lg p-4 bg-surface flex-row items-center justify-between active:bg-muted"
             >
               <View className="flex-row items-center gap-3">
