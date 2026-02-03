@@ -11,7 +11,7 @@ import type { WebSocketServer } from 'ws';
 import type { IncomingMessage } from 'http';
 import type WebSocket from 'ws';
 import { voiceSessionManager } from '../../internal/providers/lib/voice-session-manager.js';
-import { oxyClient } from '../../middleware/auth.js';
+import { OxyServices } from '@oxyhq/core';
 import DeveloperApiKey from '../../models/developer-api-key.js';
 
 // ============== WEBSOCKET ENDPOINT SETUP ==============
@@ -36,10 +36,11 @@ export function setupRealtimeEndpoint(wss: WebSocketServer): void {
 
       // Authentication
       if (token) {
-        // JWT authentication (user sessions via Oxy)
+        // JWT authentication (user sessions via Oxy) — per-request instance for concurrency safety
         try {
-          oxyClient.setTokens(token);
-          const session = await oxyClient.user.getSession();
+          const perRequestOxy = new OxyServices({ baseURL: process.env.OXY_API_URL || 'https://api.oxy.so' });
+          perRequestOxy.setTokens(token);
+          const session = await perRequestOxy.user.getSession();
           userId = session.user._id;
           console.log(`[Realtime] Authenticated user via JWT: ${userId}`);
         } catch (error) {

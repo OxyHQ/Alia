@@ -51,7 +51,10 @@ router.get('/usage', authenticateToken, async (req, res) => {
         $match: {
           oxyUserId: req.user!.id,
           timestamp: { $gte: since },
-          creditsUsed: { $gt: 0 },
+          $or: [
+            { creditsUsed: { $gt: 0 } },
+            { tokensUsed: { $gt: 0 } },
+          ],
         },
       },
       {
@@ -59,7 +62,15 @@ router.get('/usage', authenticateToken, async (req, res) => {
           _id: {
             $dateToString: { format: '%Y-%m-%d', date: '$timestamp' },
           },
-          used: { $sum: '$creditsUsed' },
+          used: {
+            $sum: {
+              $cond: {
+                if: { $gt: ['$creditsUsed', 0] },
+                then: '$creditsUsed',
+                else: { $max: [{ $ceil: { $divide: ['$tokensUsed', 1000] } }, 1] },
+              },
+            },
+          },
         },
       },
       { $sort: { _id: 1 } },
