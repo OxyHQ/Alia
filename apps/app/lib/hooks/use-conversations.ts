@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient, useInfiniteQuery } from '@tanstack/react-query';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { toast } from '@/components/sonner';
 import apiClient from '../api/client';
 
 export interface Message {
@@ -249,6 +250,9 @@ export function useSaveConversation() {
       // Update individual conversation cache with full data including messages
       queryClient.setQueryData(['conversation', data.id], data);
     },
+    onError: (error: any) => {
+      toast.error(error.message || 'Failed to save conversation');
+    },
   });
 }
 
@@ -289,6 +293,9 @@ export function useDeleteConversation() {
 
       // Invalidate individual conversation cache
       queryClient.removeQueries({ queryKey: ['conversation', id] });
+    },
+    onError: (error: any) => {
+      toast.error(error.message || 'Failed to delete conversation');
     },
   });
 }
@@ -368,6 +375,9 @@ export function useCreateConversation() {
 
       // Set individual conversation cache
       queryClient.setQueryData(['conversation', data.id], data);
+    },
+    onError: (error: any) => {
+      toast.error(error.message || 'Failed to create conversation');
     },
   });
 }

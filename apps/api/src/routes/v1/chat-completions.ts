@@ -539,12 +539,10 @@ When you use a tool successfully:
           creditsCharged = creditResult.creditsCharged;
           creditsRemaining = creditResult.creditsRemaining;
 
-          // Record usage for session-based users (API key usage is recorded in auth middleware)
-          if (!req.apiKey) {
-            recordUsage(req, 200, tokenUsage.totalTokens).catch(err =>
-              console.error('[V1/Chat] Error recording session usage:', err)
-            );
-          }
+          // Record usage with credits info (API key basic usage is also logged in auth middleware)
+          recordUsage(req, 200, tokenUsage.totalTokens, undefined, creditsCharged).catch(err =>
+            console.error('[V1/Chat] Error recording session usage:', err)
+          );
         } catch (error) {
           console.error('[V1/Chat] Error finalizing credits:', error);
         }
@@ -861,12 +859,10 @@ When you use a tool successfully:
           aliasModelId
         );
 
-        // Record usage for session-based users (API key usage is recorded in auth middleware)
-        if (!req.apiKey) {
-          recordUsage(req, 200, tokenUsage.totalTokens).catch(err =>
-            console.error('[V1/Chat] Error recording session usage:', err)
-          );
-        }
+        // Record usage with credits info
+        recordUsage(req, 200, tokenUsage.totalTokens, undefined, creditsCharged).catch(err =>
+          console.error('[V1/Chat] Error recording session usage:', err)
+        );
 
         // Send usage info as metadata chunk (must include choices array for SDK compatibility)
         const usageChunk = {
