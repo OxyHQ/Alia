@@ -276,7 +276,7 @@ export default function RoleDetailScreen() {
             {role.tone && (
               <Card>
                 <CardContent className="p-4">
-                  <Text className="text-xs font-semibold text-muted-foreground mb-1">Tone:</Text>
+                  <Text className="text-xs font-semibold text-muted-foreground mb-1">{t('roles.tone')}</Text>
                   <Text className="text-sm text-foreground">{role.tone}</Text>
                 </CardContent>
               </Card>
@@ -284,7 +284,7 @@ export default function RoleDetailScreen() {
             {role.priorities && role.priorities.length > 0 && (
               <Card>
                 <CardContent className="p-4">
-                  <Text className="text-xs font-semibold text-muted-foreground mb-2">Priorities:</Text>
+                  <Text className="text-xs font-semibold text-muted-foreground mb-2">{t('roles.priorities')}</Text>
                   <View className="flex-row flex-wrap gap-2">
                     {role.priorities.map((priority: string, index: number) => (
                       <View key={index} className="px-3 py-1 bg-muted rounded-full">

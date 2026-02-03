@@ -18,6 +18,7 @@ import { FileCard } from '@/components/file-card';
 import { cn } from '@/lib/utils';
 import { toast } from '@/components/sonner';
 import { useColorScheme } from '@/lib/useColorScheme';
+import { useTranslation } from '@/hooks/useTranslation';
 
 export default function LibraryScreen() {
   const files = useLibraryStore((state) => state.files);
@@ -29,6 +30,7 @@ export default function LibraryScreen() {
   const { pickImage } = useImagePicker();
   const { pickDocument } = useDocumentPicker();
   const { colors } = useColorScheme();
+  const { t } = useTranslation();
 
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
@@ -37,12 +39,12 @@ export default function LibraryScreen() {
     loadFiles();
   }, [loadFiles]);
 
-  const categories = [
-    { value: null, label: 'All', icon: LibraryIcon },
-    { value: 'documents', label: 'Documents', icon: FileText },
-    { value: 'images', label: 'Images', icon: ImageIcon },
-    { value: 'other', label: 'Other', icon: File },
-  ];
+  const categories = useMemo(() => [
+    { value: null, label: t('common.all'), icon: LibraryIcon },
+    { value: 'documents', label: t('library.documents'), icon: FileText },
+    { value: 'images', label: t('library.images'), icon: ImageIcon },
+    { value: 'other', label: t('library.other'), icon: File },
+  ], [t]);
 
   // Filter files based on search and category
   const filteredFiles = useMemo(() => {
@@ -81,10 +83,10 @@ export default function LibraryScreen() {
             thumbnail: uri,
           });
         }
-        toast.success(`${uris.length} image(s) uploaded successfully`);
+        toast.success(t('library.imagesUploaded', { count: uris.length }));
       }
     } catch (error) {
-      toast.error('Failed to upload images');
+      toast.error(t('library.failedUploadImages'));
     }
   };
 
@@ -108,19 +110,19 @@ export default function LibraryScreen() {
             thumbnail: doc.mimeType.startsWith('image/') ? doc.uri : undefined,
           });
         }
-        toast.success(`${docs.length} file(s) uploaded successfully`);
+        toast.success(t('library.filesUploaded', { count: docs.length }));
       }
     } catch (error) {
-      toast.error('Failed to upload files');
+      toast.error(t('library.failedUploadFiles'));
     }
   };
 
   const handleDeleteFile = async (fileId: string) => {
     try {
       await deleteFile(fileId);
-      toast.success('File deleted successfully');
+      toast.success(t('library.fileDeleted'));
     } catch (error) {
-      toast.error('Failed to delete file');
+      toast.error(t('library.failedDeleteFile'));
     }
   };
 
@@ -135,10 +137,10 @@ export default function LibraryScreen() {
         <View className="items-center px-6 py-12">
           <LibraryIcon size={48} className="text-primary mb-4" />
           <Text className="text-4xl font-bold text-foreground mb-3 text-center">
-            Library
+            {t('library.title')}
           </Text>
           <Text className="text-base text-muted-foreground mb-6 text-center max-w-md">
-            Upload and manage your files, documents, and resources for use with Alia
+            {t('library.subtitle')}
           </Text>
 
           {/* Search Bar */}
@@ -147,7 +149,7 @@ export default function LibraryScreen() {
             <TextInput
               value={searchQuery}
               onChangeText={setSearchQuery}
-              placeholder="Search files..."
+              placeholder={t('library.searchPlaceholder')}
               placeholderTextColor={colors.mutedForeground}
               className="flex-1 text-sm text-foreground"
             />
@@ -163,7 +165,7 @@ export default function LibraryScreen() {
               <View className="flex-row items-center gap-2">
                 <ImageIcon size={18} className="text-foreground" />
                 <Text className="text-sm font-semibold text-foreground">
-                  Add Images
+                  {t('library.addImages')}
                 </Text>
               </View>
             </Button>
@@ -174,7 +176,7 @@ export default function LibraryScreen() {
               <View className="flex-row items-center gap-2">
                 <Upload size={18} className="text-primary-foreground" />
                 <Text className="text-sm font-semibold text-primary-foreground">
-                  Upload Files
+                  {t('library.uploadFiles')}
                 </Text>
               </View>
             </Button>
@@ -237,18 +239,18 @@ export default function LibraryScreen() {
         <View className="px-6 pb-6">
           {loading ? (
             <View className="items-center justify-center py-20">
-              <Text className="text-muted-foreground">Loading...</Text>
+              <Text className="text-muted-foreground">{t('common.loading')}</Text>
             </View>
           ) : filteredFiles.length === 0 ? (
             <View className="items-center justify-center py-20">
               <LibraryIcon size={64} className="text-muted-foreground opacity-50" />
               <Text className="text-lg font-medium text-foreground mt-4">
-                {searchQuery ? 'No files found' : 'No files yet'}
+                {searchQuery ? t('library.noFilesFound') : t('library.noFiles')}
               </Text>
               <Text className="text-sm text-muted-foreground text-center mt-2 max-w-md">
                 {searchQuery
-                  ? 'Try a different search term'
-                  : 'Upload images or documents to get started'}
+                  ? t('common.tryDifferentSearch')
+                  : t('library.uploadToStart')}
               </Text>
             </View>
           ) : (
@@ -257,16 +259,16 @@ export default function LibraryScreen() {
               <View className="flex-row items-center border-b border-border px-3 py-2 bg-muted/30">
                 <View className="w-8 mr-2" />
                 <View className="flex-1 mr-3">
-                  <Text className="text-xs font-medium text-muted-foreground">Name</Text>
+                  <Text className="text-xs font-medium text-muted-foreground">{t('common.name')}</Text>
                 </View>
                 <View className="w-20 mr-3 hidden md:flex">
-                  <Text className="text-xs font-medium text-muted-foreground">Category</Text>
+                  <Text className="text-xs font-medium text-muted-foreground">{t('common.category')}</Text>
                 </View>
                 <View className="w-16 mr-3 hidden md:flex">
-                  <Text className="text-xs font-medium text-muted-foreground">Size</Text>
+                  <Text className="text-xs font-medium text-muted-foreground">{t('common.size')}</Text>
                 </View>
                 <View className="w-20 mr-3 hidden md:flex">
-                  <Text className="text-xs font-medium text-muted-foreground">Date</Text>
+                  <Text className="text-xs font-medium text-muted-foreground">{t('common.date')}</Text>
                 </View>
                 <View className="w-8" />
               </View>
