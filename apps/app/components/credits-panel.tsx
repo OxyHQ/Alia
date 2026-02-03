@@ -19,7 +19,7 @@ function formatDayLabel(dateStr: string, isLast: boolean): string {
 
 function UsageChart() {
   const [period, setPeriod] = useState<ChartPeriod>("7d");
-  const { data: usageData } = useCreditsUsage(period);
+  const { data: usageData, isLoading } = useCreditsUsage(period);
 
   const items = usageData ?? [];
   const maxValue = items.length > 0 ? Math.max(...items.map((d) => d.used)) : 0;
@@ -32,7 +32,7 @@ function UsageChart() {
         <View>
           <Text className="text-xs text-muted-foreground">Uso total</Text>
           <Text className="text-lg font-bold text-foreground">
-            {totalUsed.toLocaleString()}
+            {isLoading ? "–" : totalUsed.toLocaleString()}
           </Text>
         </View>
         <View className="flex-row bg-muted rounded-lg overflow-hidden">
@@ -65,40 +65,50 @@ function UsageChart() {
 
       {/* Bars */}
       <View className="flex-row items-end gap-1.5" style={{ height: 100 }}>
-        {items.map((item, i) => {
-          const barHeight = maxValue > 0 ? (item.used / maxValue) * 100 : 0;
-          const isLast = i === items.length - 1;
-          const label = period === "7d"
-            ? formatDayLabel(item.date, isLast)
-            : (i % 5 === 0 || isLast ? item.date.slice(5) : "");
-          return (
-            <View key={item.date} className="flex-1 items-center gap-1.5">
-              <View
-                className="w-full items-center justify-end"
-                style={{ height: 80 }}
-              >
+        {isLoading ? (
+          <View className="flex-1 items-center justify-center">
+            <Text className="text-xs text-muted-foreground">Cargando...</Text>
+          </View>
+        ) : totalUsed === 0 ? (
+          <View className="flex-1 items-center justify-center">
+            <Text className="text-xs text-muted-foreground">Sin uso en este periodo</Text>
+          </View>
+        ) : (
+          items.map((item, i) => {
+            const barHeight = maxValue > 0 ? (item.used / maxValue) * 100 : 0;
+            const isLast = i === items.length - 1;
+            const label = period === "7d"
+              ? formatDayLabel(item.date, isLast)
+              : (i % 5 === 0 || isLast ? item.date.slice(5) : "");
+            return (
+              <View key={item.date} className="flex-1 items-center gap-1.5">
                 <View
-                  className={`w-full rounded-t-sm ${
-                    isLast ? "bg-primary" : "bg-primary/30"
+                  className="w-full items-center justify-end"
+                  style={{ height: 80 }}
+                >
+                  <View
+                    className={`w-full rounded-t-sm ${
+                      isLast ? "bg-primary" : "bg-primary/30"
+                    }`}
+                    style={{
+                      height: `${Math.max(barHeight, 4)}%`,
+                      minHeight: 3,
+                    }}
+                  />
+                </View>
+                <Text
+                  className={`text-[10px] ${
+                    isLast
+                      ? "text-foreground font-medium"
+                      : "text-muted-foreground"
                   }`}
-                  style={{
-                    height: `${Math.max(barHeight, 4)}%`,
-                    minHeight: 3,
-                  }}
-                />
+                >
+                  {label}
+                </Text>
               </View>
-              <Text
-                className={`text-[10px] ${
-                  isLast
-                    ? "text-foreground font-medium"
-                    : "text-muted-foreground"
-                }`}
-              >
-                {label}
-              </Text>
-            </View>
-          );
-        })}
+            );
+          })
+        )}
       </View>
     </View>
   );
