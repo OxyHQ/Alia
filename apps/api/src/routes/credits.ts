@@ -27,6 +27,7 @@ router.get('/', authenticateToken, async (req, res) => {
     res.json({
       credits: userCredits.credits.free + userCredits.credits.paid,
       freeCredits: userCredits.credits.free,
+      freeLimit: userCredits.credits.freeLimit,
       paidCredits: userCredits.credits.paid,
       dailyRefresh: userCredits.credits.dailyRefresh,
       lastRefresh: userCredits.credits.lastRefresh,

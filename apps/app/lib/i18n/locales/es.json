@@ -123,5 +123,20 @@
     "newChat": "Nueva conversación",
     "messagePlaceholder": "Escribe un mensaje...",
     "sendButton": "Enviar"
+  },
+  "credits": {
+    "title": "Créditos",
+    "free": "Gratis",
+    "upgrade": "Mejorar",
+    "credits": "Créditos",
+    "freeCredits": "Créditos gratis",
+    "dailyRefresh": "Recarga diaria",
+    "atMidnight": "a las 00:00",
+    "totalUsage": "Uso total",
+    "creditUsage": "Uso de créditos",
+    "loading": "Cargando...",
+    "noUsage": "Sin uso en este periodo",
+    "viewFullHistory": "Ver historial completo",
+    "today": "Hoy"
   }
 }

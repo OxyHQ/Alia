@@ -5,6 +5,7 @@ import apiClient from '../api/client';
 export interface CreditsInfo {
   credits: number;
   freeCredits: number;
+  freeLimit: number;
   paidCredits: number;
   dailyRefresh: number;
   lastRefresh: string;
@@ -43,7 +44,8 @@ export function useCreditsUsage(period: '7d' | '30d' = '7d') {
   return useQuery({
     queryKey: ['credits-usage', period],
     queryFn: () => fetchCreditsUsage(period),
-    staleTime: 1000 * 60 * 5, // 5 minutes
+    staleTime: 1000 * 30, // 30 seconds
+    refetchOnMount: 'always',
     retry: 2,
     enabled: isAuthenticated,
   });
