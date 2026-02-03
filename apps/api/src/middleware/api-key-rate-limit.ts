@@ -498,7 +498,8 @@ export async function recordUsage(
   req: Request,
   statusCode: number,
   tokensUsed?: number,
-  responseTime?: number
+  responseTime?: number,
+  creditsUsed?: number
 ): Promise<void> {
   try {
     const usageRecord: any = {
@@ -507,6 +508,7 @@ export async function recordUsage(
       method: req.method,
       statusCode,
       tokensUsed: tokensUsed || 0,
+      creditsUsed: creditsUsed || 0,
       responseTime,
       userAgent: req.headers['user-agent'],
       ipAddress: req.ip || req.socket?.remoteAddress,

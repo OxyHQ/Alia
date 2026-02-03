@@ -15,6 +15,7 @@ import type { IUserMemory } from '../models/user-memory.js';
 import { processMessagesForPlatform } from '../lib/message-processor.js';
 import { reserveCredits, finalizeCredits, refundReservation, type CreditReservation, type CreditUsage } from '../lib/credits-manager.js';
 import { estimateMessageTokens } from '../lib/token-counter.js';
+import { recordUsage } from '../middleware/api-key-rate-limit.js';
 
 const router = Router();
 
@@ -620,6 +621,11 @@ router.post('/', optionalAuth, async (req, res) => {
         };
         console.log('[Alia/Chat] Sending credit update event:', creditUpdate);
         writeSSE(res, `data: ${JSON.stringify(creditUpdate)}\n\n`);
+
+        // Record usage so the credits usage chart has data
+        recordUsage(req, 200, tokenUsage.totalTokens, undefined, creditsCharged).catch(err =>
+          console.error('[Alia/Chat] Error recording usage:', err)
+        );
       } catch (error) {
         console.error('[Alia/Chat] Error finalizing credits:', error);
       }
