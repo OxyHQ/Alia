@@ -263,6 +263,7 @@ Use this role to guide your responses, maintaining the specified tone, style, an
                   if (!old) return old;
                   return { ...old, credits: parsed.usage.credits_remaining };
                 });
+                queryClient.invalidateQueries({ queryKey: ['credits-usage'] });
               }
 
               // Note: Tool calls in OpenAI format come in delta.tool_calls
@@ -336,6 +337,7 @@ Use this role to guide your responses, maintaining the specified tone, style, an
                   if (!old) return old;
                   return { ...old, credits: parsed.credits };
                 });
+                queryClient.invalidateQueries({ queryKey: ['credits-usage'] });
               }
 
               // Handle error events from server
