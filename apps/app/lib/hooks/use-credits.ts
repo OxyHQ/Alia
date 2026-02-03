@@ -26,3 +26,25 @@ export function useCredits() {
     enabled: isAuthenticated,
   });
 }
+
+export interface DailyUsage {
+  date: string;
+  used: number;
+}
+
+async function fetchCreditsUsage(period: string): Promise<DailyUsage[]> {
+  const response = await apiClient.get('/credits/usage', { params: { period } });
+  return response.data;
+}
+
+export function useCreditsUsage(period: '7d' | '30d' = '7d') {
+  const { isAuthenticated } = useOxy();
+
+  return useQuery({
+    queryKey: ['credits-usage', period],
+    queryFn: () => fetchCreditsUsage(period),
+    staleTime: 1000 * 60 * 5, // 5 minutes
+    retry: 2,
+    enabled: isAuthenticated,
+  });
+}
