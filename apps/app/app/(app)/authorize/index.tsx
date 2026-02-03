@@ -96,7 +96,6 @@ export default function AuthorizeScreen() {
       callbackUrl.searchParams.set('code', code);
       const finalUrl = callbackUrl.toString();
 
-      console.log('Redirecting to:', finalUrl);
       setRedirectUrl(finalUrl);
       setStatus('success');
       setMessage('Authorization successful! Redirecting back to the app...');
@@ -344,7 +343,6 @@ export default function AuthorizeScreen() {
                   <>
                     <Button
                       onPress={() => {
-                        console.log('Manual redirect to:', redirectUrl);
                         if (Platform.OS === 'web') {
                           const link = document.createElement('a');
                           link.href = redirectUrl;

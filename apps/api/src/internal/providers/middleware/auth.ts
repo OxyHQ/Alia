@@ -26,12 +26,17 @@ export async function authenticateService(req: Request, res: Response, next: Nex
 
   // Bearer token auth (admin UI) — delegate to official oxyClient.auth() middleware
   if (authHeader?.startsWith('Bearer ') && !serviceName) {
-    return oxyClient.auth()(req, res, (err?: any) => {
+    return oxyClient.auth({ loadUser: true })(req, res, (err?: any) => {
       if (err) return next(err);
-      // If auth succeeded, tag as admin-ui
-      if (req.userId) {
-        req.service = 'admin-ui';
+      if (!req.userId) return next();
+
+      // Admin gate: only allowed usernames can access providers admin
+      const ADMIN_USERNAMES = (process.env.ADMIN_USERNAMES || 'nate').split(',').map((s) => s.trim().toLowerCase());
+      if (!req.user?.username || !ADMIN_USERNAMES.includes(req.user.username.toLowerCase())) {
+        return res.status(403).json({ success: false, error: 'Admin access required', code: 'ADMIN_REQUIRED' });
       }
+
+      req.service = 'admin-ui';
       next();
     });
   }

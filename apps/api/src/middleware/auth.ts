@@ -16,7 +16,7 @@ declare global {
     interface Request {
       userId?: string;
       accessToken?: string;
-      user?: { id: string };
+      user?: { id: string; username?: string; [key: string]: any };
       apiKey?: {
         id: string;
         appId: string;

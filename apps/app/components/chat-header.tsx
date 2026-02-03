@@ -19,6 +19,7 @@ interface ChatHeaderProps {
   onGhostModePress?: () => void;
   ghostModeActive?: boolean;
   onSearchPress?: () => void;
+  onClear?: () => void;
 }
 
 export function ChatHeader({
@@ -28,6 +29,7 @@ export function ChatHeader({
   onGhostModePress,
   ghostModeActive = false,
   onSearchPress,
+  onClear,
 }: ChatHeaderProps) {
   const insets = useSafeAreaInsets();
   const dimensions = useWindowDimensions();
@@ -44,8 +46,7 @@ export function ChatHeader({
   };
 
   const confirmClearConversation = () => {
-    console.log('Clear conversation');
-    // TODO: Implement clear conversation logic
+    onClear?.();
   };
 
   const handleExport = () => {

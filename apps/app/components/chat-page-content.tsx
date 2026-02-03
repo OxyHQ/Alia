@@ -24,6 +24,7 @@ interface ChatPageContentProps {
   onSuggestionPress: (message: string) => void;
   onEditMessage: (messageId: string, newContent: string) => void;
   onStop?: () => void;
+  onClear?: () => void;
   selectedModel: string;
   onModelChange: (model: string) => void;
   activeRole?: { id: string; name: string };
@@ -76,6 +77,7 @@ export const ChatPageContent = ({
   onSuggestionPress,
   onEditMessage,
   onStop,
+  onClear,
   selectedModel,
   onModelChange,
   activeRole,
@@ -261,6 +263,7 @@ export const ChatPageContent = ({
         onModelChange={onModelChange}
         onGhostModePress={handleGhostMode}
         ghostModeActive={ghostMode}
+        onClear={onClear}
       />
 
       <View className="flex-1">
