@@ -130,6 +130,7 @@
     "upgrade": "Upgrade",
     "credits": "Credits",
     "freeCredits": "Free credits",
+    "paidCredits": "Paid credits",
     "dailyRefresh": "Daily refresh",
     "atMidnight": "at 00:00",
     "totalUsage": "Total usage",
@@ -137,6 +138,12 @@
     "loading": "Loading...",
     "noUsage": "No usage in this period",
     "viewFullHistory": "View full history",
-    "today": "Today"
+    "today": "Today",
+    "subscription": "Subscription",
+    "perMonth": "/mo",
+    "creditsPerMonth": "{{count}} credits/month",
+    "renewsOn": "Renews {{date}}",
+    "cancelsOn": "Cancels {{date}}",
+    "manageBilling": "Manage billing"
   }
 }

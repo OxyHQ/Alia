@@ -130,6 +130,7 @@
     "upgrade": "Mejorar",
     "credits": "Créditos",
     "freeCredits": "Créditos gratis",
+    "paidCredits": "Créditos pagados",
     "dailyRefresh": "Recarga diaria",
     "atMidnight": "a las 00:00",
     "totalUsage": "Uso total",
@@ -137,6 +138,12 @@
     "loading": "Cargando...",
     "noUsage": "Sin uso en este periodo",
     "viewFullHistory": "Ver historial completo",
-    "today": "Hoy"
+    "today": "Hoy",
+    "subscription": "Suscripción",
+    "perMonth": "/mes",
+    "creditsPerMonth": "{{count}} créditos/mes",
+    "renewsOn": "Se renueva el {{date}}",
+    "cancelsOn": "Se cancela el {{date}}",
+    "manageBilling": "Gestionar facturación"
   }
 }

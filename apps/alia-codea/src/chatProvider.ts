@@ -629,20 +629,43 @@ You are running inside Visual Studio Code, Microsoft's popular code editor.
     this._view?.webview.postMessage({ type: 'startAssistantMessage' });
 
     try {
-      const openai = new OpenAI({
-        apiKey: accessToken,
-        baseURL: `${baseUrl}/v1`
-      });
+      let currentToken = accessToken;
 
-      this._abortController = new AbortController();
+      const makeRequest = async (token: string) => {
+        const openai = new OpenAI({
+          apiKey: token,
+          baseURL: `${baseUrl}/v1`
+        });
 
-      // Add client context as system message for first message
-      // The backend will prepend its own model-specific prompt
-      const messages: Array<OpenAI.Chat.ChatCompletionMessageParam> = this._messages.length === 1
-        ? [{ role: 'system', content: clientContext }, ...this._messages]
-        : this._messages; // Don't add system message on continuation
+        this._abortController = new AbortController();
 
-      await this.streamChatCompletion(openai, model, messages);
+        // Add client context as system message for first message
+        // The backend will prepend its own model-specific prompt
+        const messages: Array<OpenAI.Chat.ChatCompletionMessageParam> = this._messages.length === 1
+          ? [{ role: 'system', content: clientContext }, ...this._messages]
+          : this._messages; // Don't add system message on continuation
+
+        await this.streamChatCompletion(openai, model, messages);
+      };
+
+      try {
+        await makeRequest(currentToken);
+      } catch (error: any) {
+        // On 401, try refreshing the token and retry once
+        if (error?.status === 401 || error?.message?.includes('401')) {
+          const refreshed = await this._authProvider.refreshToken();
+          if (refreshed) {
+            const newToken = await this._authProvider.getAccessToken();
+            if (newToken && newToken !== currentToken) {
+              currentToken = newToken;
+              await makeRequest(currentToken);
+              this._view?.webview.postMessage({ type: 'endAssistantMessage' });
+              return;
+            }
+          }
+        }
+        throw error;
+      }
 
       this._view?.webview.postMessage({ type: 'endAssistantMessage' });
     } catch (error: any) {
@@ -948,7 +971,7 @@ You are running inside Visual Studio Code, Microsoft's popular code editor.
     if (message.includes('402') || message.toLowerCase().includes('insufficient credits')) {
       return 'Insufficient credits. Please add more credits at alia.onl';
     } else if (message.includes('401') || message.toLowerCase().includes('unauthorized')) {
-      return 'Invalid API key. Please check your settings.';
+      return 'Authentication failed. Please sign in again using the "Codea: Sign In" command.';
     } else if (message.includes('429') || message.toLowerCase().includes('rate limit')) {
       return 'Rate limit exceeded. Please wait a moment and try again.';
     } else if (message.includes('500')) {

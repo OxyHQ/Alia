@@ -2,8 +2,9 @@ import { useState } from "react";
 import { View, Pressable, ScrollView } from "react-native";
 import { Text } from "@/components/ui/text";
 import { Button } from "@/components/ui/button";
-import { Sparkles, Calendar, X } from "lucide-react-native";
+import { Sparkles, Calendar, X, Crown } from "lucide-react-native";
 import { useCredits, useCreditsUsage } from "@/lib/hooks/use-credits";
+import { useSubscription } from "@/lib/hooks/use-billing";
 import { useRouter } from "expo-router";
 import { useUIStore } from "@/lib/stores/ui-store";
 import { useTranslation } from "@/hooks/useTranslation";
@@ -27,7 +28,6 @@ function UsageChart() {
 
   return (
     <View className="gap-3">
-      {/* Chart Header */}
       <View className="flex-row items-center justify-between">
         <View>
           <Text className="text-xs text-muted-foreground">{t('credits.totalUsage')}</Text>
@@ -63,7 +63,6 @@ function UsageChart() {
         </View>
       </View>
 
-      {/* Bars */}
       <View className="flex-row items-end gap-1.5" style={{ height: 100 }}>
         {isLoading ? (
           <View className="flex-1 items-center justify-center">
@@ -87,20 +86,13 @@ function UsageChart() {
                   style={{ height: 80 }}
                 >
                   <View
-                    className={`w-full rounded-t-sm ${
-                      isLast ? "bg-primary" : "bg-primary/30"
-                    }`}
-                    style={{
-                      height: `${Math.max(barHeight, 4)}%`,
-                      minHeight: 3,
-                    }}
+                    className={`w-full rounded-t-sm ${isLast ? "bg-primary" : "bg-primary/30"}`}
+                    style={{ height: `${Math.max(barHeight, 4)}%`, minHeight: 3 }}
                   />
                 </View>
                 <Text
                   className={`text-[10px] ${
-                    isLast
-                      ? "text-foreground font-medium"
-                      : "text-muted-foreground"
+                    isLast ? "text-foreground font-medium" : "text-muted-foreground"
                   }`}
                 >
                   {label}
@@ -117,25 +109,19 @@ function UsageChart() {
 export function CreditsPanel() {
   const router = useRouter();
   const { data } = useCredits();
+  const { data: subscription } = useSubscription();
   const setRightPanel = useUIStore((state) => state.setRightPanel);
   const { t } = useTranslation();
 
   const credits = data?.credits ?? 0;
   const freeLimit = data?.freeLimit ?? 0;
+  const paidCredits = data?.paidCredits ?? 0;
   const dailyRefresh = data?.dailyRefresh ?? 0;
+  const isSubscribed = subscription?.status === 'active';
 
-  const handleUpgrade = () => {
+  const navigate = (path: string) => {
     setRightPanel(null);
-    router.push("/(app)/billing");
-  };
-
-  const handleViewUsage = () => {
-    setRightPanel(null);
-    router.push("/(app)/billing");
-  };
-
-  const handleClose = () => {
-    setRightPanel(null);
+    router.push(path as any);
   };
 
   return (
@@ -147,7 +133,7 @@ export function CreditsPanel() {
         </Text>
         <Pressable
           className="p-1 rounded-lg active:opacity-70"
-          onPress={handleClose}
+          onPress={() => setRightPanel(null)}
         >
           <X size={20} className="text-muted-foreground" />
         </Pressable>
@@ -157,15 +143,21 @@ export function CreditsPanel() {
         {/* Plan Badge & Upgrade */}
         <View className="flex-row items-center justify-between px-4 py-3 border-b border-border">
           <View className="flex-row items-center gap-2">
-            <View className="px-2 py-0.5 rounded-full bg-muted">
-              <Text className="text-xs font-medium text-muted-foreground">
-                {t('credits.free')}
-              </Text>
+            <View className={`px-2 py-0.5 rounded-full ${isSubscribed ? 'bg-primary/10' : 'bg-muted'}`}>
+              {isSubscribed ? (
+                <Text className="text-xs font-medium text-primary">
+                  {subscription.plan.name}
+                </Text>
+              ) : (
+                <Text className="text-xs font-medium text-muted-foreground">
+                  {t('credits.free')}
+                </Text>
+              )}
             </View>
           </View>
-          <Button onPress={handleUpgrade} className="h-8 px-4 rounded-full">
+          <Button onPress={() => navigate("/(app)/billing")} className="h-8 px-4 rounded-full">
             <Text className="text-sm font-medium text-primary-foreground">
-              {t('credits.upgrade')}
+              {isSubscribed ? t('credits.manageBilling') : t('credits.upgrade')}
             </Text>
           </Button>
         </View>
@@ -186,14 +178,54 @@ export function CreditsPanel() {
               </Text>
               <View className="flex-row items-baseline gap-1">
                 <Text className="text-2xl font-bold text-foreground">
-                  {credits.toLocaleString()}
+                  {(credits - paidCredits).toLocaleString()}
                 </Text>
                 <Text className="text-sm text-muted-foreground">
                   / {freeLimit.toLocaleString()}
                 </Text>
               </View>
             </View>
+            {paidCredits > 0 && (
+              <View className="flex-row items-baseline justify-between pl-6">
+                <Text className="text-sm text-muted-foreground">
+                  {t('credits.paidCredits')}
+                </Text>
+                <Text className="text-base font-semibold text-foreground">
+                  {paidCredits.toLocaleString()}
+                </Text>
+              </View>
+            )}
           </View>
+
+          {/* Subscription Info */}
+          {isSubscribed && (
+            <View className="gap-2">
+              <View className="flex-row items-center gap-2">
+                <Crown size={18} className="text-foreground" />
+                <Text className="text-sm font-semibold text-foreground">
+                  {t('credits.subscription')}
+                </Text>
+              </View>
+              <View className="pl-6 gap-1">
+                <View className="flex-row items-baseline justify-between">
+                  <Text className="text-sm text-muted-foreground">
+                    {subscription.plan.name}
+                  </Text>
+                  <Text className="text-base font-semibold text-foreground">
+                    ${(subscription.plan.price / 100).toFixed(2)}{t('credits.perMonth')}
+                  </Text>
+                </View>
+                <Text className="text-xs text-muted-foreground">
+                  {t('credits.creditsPerMonth', { count: subscription.plan.creditsPerMonth.toLocaleString() })}
+                </Text>
+                <Text className="text-xs text-muted-foreground">
+                  {subscription.cancelAtPeriodEnd
+                    ? t('credits.cancelsOn', { date: new Date(subscription.currentPeriodEnd).toLocaleDateString() })
+                    : t('credits.renewsOn', { date: new Date(subscription.currentPeriodEnd).toLocaleDateString() })}
+                </Text>
+              </View>
+            </View>
+          )}
 
           {/* Daily Refresh */}
           <View className="gap-2">
@@ -225,7 +257,7 @@ export function CreditsPanel() {
         {/* View Usage Link */}
         <View className="px-4 pb-4">
           <Pressable
-            onPress={handleViewUsage}
+            onPress={() => navigate("/(app)/billing")}
             className="flex-row items-center gap-1 active:opacity-70"
           >
             <Text className="text-sm font-medium text-primary">
