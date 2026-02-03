@@ -1,4 +1,4 @@
-import { View, ScrollView, Pressable, Linking, Platform } from "react-native";
+import { View, ScrollView, Pressable, Linking } from "react-native";
 import { Text } from "@/components/ui/text";
 import { Button } from "@/components/ui/button";
 import { useRouter, useLocalSearchParams } from "expo-router";
@@ -8,13 +8,6 @@ import { useCreditPackages, useSubscriptionPlans, useSubscription, useCreateChec
 import { useEffect, useState } from "react";
 import { useAuth } from "@oxyhq/services";
 import { toast } from "@/components/sonner";
-
-function getOriginUrl(): string {
-  if (Platform.OS === 'web' && typeof window !== 'undefined') {
-    return window.location.origin;
-  }
-  return 'https://alia.onl';
-}
 
 export default function BillingScreen() {
   const router = useRouter();
@@ -82,8 +75,8 @@ export default function BillingScreen() {
     try {
       const { url } = await createCheckoutMutation.mutateAsync({
         packageId,
-        successUrl: getOriginUrl() + "/billing?success=true",
-        cancelUrl: getOriginUrl() + "/billing",
+        successUrl: Linking.createURL("/billing?success=true"),
+        cancelUrl: Linking.createURL("/billing"),
       });
 
       if (url) {
@@ -98,8 +91,8 @@ export default function BillingScreen() {
     try {
       const { url } = await createSubscriptionCheckoutMutation.mutateAsync({
         planId,
-        successUrl: getOriginUrl() + "/billing?success=true",
-        cancelUrl: getOriginUrl() + "/billing",
+        successUrl: Linking.createURL("/billing?success=true"),
+        cancelUrl: Linking.createURL("/billing"),
       });
 
       if (url) {
@@ -121,7 +114,7 @@ export default function BillingScreen() {
 
   const handleManagePayment = async () => {
     try {
-      const url = await createPortalMutation.mutateAsync(getOriginUrl() + "/billing");
+      const url = await createPortalMutation.mutateAsync(Linking.createURL("/billing"));
       if (url) {
         await Linking.openURL(url);
       }
