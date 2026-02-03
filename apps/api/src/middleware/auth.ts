@@ -127,8 +127,9 @@ export async function authenticateApiKey(
       lastUsedAt: new Date(),
     }).catch((err) => console.error('Failed to update lastUsedAt:', err));
 
-    // Log usage after response
+    // Log usage after response (skip if the route already recorded usage via recordUsage())
     res.on('finish', async () => {
+      if ((req as any)._usageRecorded) return;
       const responseTime = Date.now() - startTime;
       try {
         await ApiKeyUsage.create({

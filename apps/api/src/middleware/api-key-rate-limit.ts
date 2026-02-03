@@ -523,6 +523,9 @@ export async function recordUsage(
       usageRecord.authType = 'session';
     }
 
+    // Mark that usage was explicitly recorded, so the auth middleware skips its own logging
+    (req as any)._usageRecorded = true;
+
     await ApiKeyUsage.create(usageRecord);
   } catch (error) {
     console.error('Failed to record usage:', error);
