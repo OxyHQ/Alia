@@ -15,6 +15,7 @@ import {
 } from '@/components/ui/dialog';
 import { CloudCog, Plus, Clock } from 'lucide-react-native';
 import { useColorScheme } from '@/lib/useColorScheme';
+import { toast } from '@/components/sonner';
 
 const INITIAL_SUGGESTIONS = [
   {
@@ -124,8 +125,8 @@ export default function AutomationsScreen() {
   };
 
   const handleCreate = () => {
-    // TODO: submit automation
     setDialogOpen(false);
+    toast.info('Automations coming soon!');
   };
 
   return (

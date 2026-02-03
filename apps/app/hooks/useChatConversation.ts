@@ -99,6 +99,10 @@ export function useChatConversation({ conversationId, activeRole, thinkingMode, 
     stop();
   }, [stop]);
 
+  const clearConversation = useCallback(() => {
+    setMessages([]);
+  }, [setMessages]);
+
   return {
     // State
     conversationId,
@@ -111,5 +115,6 @@ export function useChatConversation({ conversationId, activeRole, thinkingMode, 
     createNewConversation,
     editMessage,
     stopGeneration,
+    clearConversation,
   };
 }

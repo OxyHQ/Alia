@@ -20,6 +20,7 @@ const ChatConversationPage = () => {
     sendMessage,
     editMessage,
     stopGeneration,
+    clearConversation,
   } = useChatConversation({ conversationId: id, activeRole, thinkingMode, selectedModel });
 
   return (
@@ -31,6 +32,7 @@ const ChatConversationPage = () => {
       onSuggestionPress={sendMessage}
       onEditMessage={editMessage}
       onStop={stopGeneration}
+      onClear={clearConversation}
       selectedModel={selectedModel}
       onModelChange={setSelectedModel}
       activeRole={activeRole}

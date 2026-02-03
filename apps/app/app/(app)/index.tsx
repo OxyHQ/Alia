@@ -19,6 +19,7 @@ const ChatPage = () => {
     scrollViewRef,
     createNewConversation,
     editMessage,
+    clearConversation,
   } = useChatConversation({ activeRole, selectedModel });
 
   return (
@@ -38,6 +39,7 @@ const ChatPage = () => {
         onSubmit={createNewConversation}
         onSuggestionPress={createNewConversation}
         onEditMessage={editMessage}
+        onClear={clearConversation}
         selectedModel={selectedModel}
         onModelChange={setSelectedModel}
         activeRole={activeRole}

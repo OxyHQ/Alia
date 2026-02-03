@@ -15,6 +15,7 @@ import {
 } from 'lucide-react-native';
 import { useRolesStore } from '@/lib/stores/roles-store';
 import { useRouter } from 'expo-router';
+import { toast } from '@/components/sonner';
 import { cn } from '@/lib/utils';
 import { useColorScheme } from '@/lib/useColorScheme';
 
@@ -35,7 +36,7 @@ export default function RolesScreen() {
   };
 
   const handleCreateRole = () => {
-    console.log('Create new role');
+    toast.info('Create role coming soon!');
   };
 
   // Get unique categories
