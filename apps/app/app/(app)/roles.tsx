@@ -15,11 +15,13 @@ import {
 } from 'lucide-react-native';
 import { useRolesStore } from '@/lib/stores/roles-store';
 import { useRouter } from 'expo-router';
+import { useTranslation } from '@/hooks/useTranslation';
 import { toast } from '@/components/sonner';
 import { cn } from '@/lib/utils';
 import { useColorScheme } from '@/lib/useColorScheme';
 
 export default function RolesScreen() {
+  const { t } = useTranslation();
   const roles = useRolesStore((state) => state.roles);
   const loadRoles = useRolesStore((state) => state.loadRoles);
   const [searchQuery, setSearchQuery] = useState('');
@@ -36,21 +38,21 @@ export default function RolesScreen() {
   };
 
   const handleCreateRole = () => {
-    toast.info('Create role coming soon!');
+    toast.info(t('roles.createComingSoon'));
   };
 
   // Get unique categories
   const categories = useMemo(() => {
     const cats = new Set(roles.map(r => r.category));
-    return ['All', ...Array.from(cats)];
-  }, [roles]);
+    return [t('common.all'), ...Array.from(cats)];
+  }, [roles, t]);
 
   // Filter roles based on search query and category
   const filteredRoles = useMemo(() => {
     let filtered = roles;
 
     // Filter by category
-    if (selectedCategory && selectedCategory !== 'All') {
+    if (selectedCategory && selectedCategory !== t('common.all')) {
       filtered = filtered.filter(role => role.category === selectedCategory);
     }
 
@@ -75,10 +77,10 @@ export default function RolesScreen() {
         <View className="items-center px-6 py-12">
           <BrainCircuit size={48} className="text-primary mb-4" />
           <Text className="text-4xl font-bold text-foreground mb-3 text-center">
-            Roles
+            {t('roles.title')}
           </Text>
           <Text className="text-base text-muted-foreground mb-6 text-center max-w-md">
-            An app store for ways of thinking. Discover, customize, and share AI personalities.
+            {t('roles.subtitle')}
           </Text>
 
           {/* Search Bar */}
@@ -87,7 +89,7 @@ export default function RolesScreen() {
             <TextInput
               value={searchQuery}
               onChangeText={setSearchQuery}
-              placeholder="Search roles..."
+              placeholder={t('roles.searchPlaceholder')}
               placeholderTextColor={colors.mutedForeground}
               className="flex-1 text-sm text-foreground"
             />
@@ -101,7 +103,7 @@ export default function RolesScreen() {
             <View className="flex-row items-center gap-2">
               <Plus size={18} className="text-primary-foreground" />
               <Text className="text-sm font-semibold text-primary-foreground">
-                Create Role
+                {t('roles.createRole')}
               </Text>
             </View>
           </Button>
@@ -114,18 +116,18 @@ export default function RolesScreen() {
               {categories.map((category) => (
                 <Pressable
                   key={category}
-                  onPress={() => setSelectedCategory(category === 'All' ? null : category)}
+                  onPress={() => setSelectedCategory(category === t('common.all') ? null : category)}
                   className="active:opacity-70"
                 >
                   <View className={cn(
                     "px-4 py-2 rounded-full border",
-                    (selectedCategory === category || (!selectedCategory && category === 'All'))
+                    (selectedCategory === category || (!selectedCategory && category === t('common.all')))
                       ? "bg-primary border-primary"
                       : "bg-background border-border"
                   )}>
                     <Text className={cn(
                       "text-sm font-medium",
-                      (selectedCategory === category || (!selectedCategory && category === 'All'))
+                      (selectedCategory === category || (!selectedCategory && category === t('common.all')))
                         ? "text-primary-foreground"
                         : "text-foreground"
                     )}>
@@ -154,10 +156,10 @@ export default function RolesScreen() {
             <View className="items-center justify-center py-20">
               <BrainCircuit size={64} className="text-muted-foreground opacity-50" />
               <Text className="text-lg font-medium text-foreground mt-4">
-                No roles found
+                {t('roles.noRoles')}
               </Text>
               <Text className="text-sm text-muted-foreground text-center mt-2 max-w-md">
-                {searchQuery ? 'Try a different search term' : 'Create your own custom role to get started'}
+                {searchQuery ? t('common.tryDifferentSearch') : t('roles.createToStart')}
               </Text>
             </View>
           )}

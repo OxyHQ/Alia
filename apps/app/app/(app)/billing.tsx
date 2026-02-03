@@ -8,6 +8,7 @@ import { useCreditPackages, useSubscriptionPlans, useSubscription, useCreateChec
 import { useEffect, useState } from "react";
 import { useAuth } from "@oxyhq/services";
 import { toast } from "@/components/sonner";
+import { useTranslation } from "@/hooks/useTranslation";
 
 export default function BillingScreen() {
   const router = useRouter();
@@ -23,31 +24,24 @@ export default function BillingScreen() {
   const cancelSubscriptionMutation = useCancelSubscription();
   const createPortalMutation = useCreatePortalSession();
   const [isMounted, setIsMounted] = useState(false);
+  const { t } = useTranslation();
 
-  // Set mounted state
   useEffect(() => {
     setIsMounted(true);
   }, []);
 
-  // Redirect if not authenticated
   useEffect(() => {
     if (isMounted && !isAuthenticated) {
       router.replace("/login");
     }
   }, [isMounted, isAuthenticated]);
 
-  // Handle successful payment
   useEffect(() => {
     if (isMounted && success === 'true') {
-      // Refetch all billing data
       refetch();
       refetchSubscription();
       refetchTransactions();
-
-      // Show success message
-      toast.success("Payment successful! Your credits have been added.");
-
-      // Remove success param from URL
+      toast.success(t('billing.paymentSuccess'));
       setTimeout(() => {
         router.replace("/billing");
       }, 100);
@@ -63,11 +57,11 @@ export default function BillingScreen() {
     const hoursUntil = Math.max(0, 24 - hoursSince);
 
     if (hoursUntil < 1) {
-      return "Less than 1 hour";
+      return t('billing.lessThanOneHour');
     } else if (hoursUntil < 2) {
-      return "About 1 hour";
+      return t('billing.aboutOneHour');
     } else {
-      return `About ${Math.floor(hoursUntil)} hours`;
+      return t('billing.aboutHours', { count: Math.floor(hoursUntil) });
     }
   };
 
@@ -83,7 +77,7 @@ export default function BillingScreen() {
         await Linking.openURL(url);
       }
     } catch (error: any) {
-      toast.error(error.message || "Failed to create checkout");
+      toast.error(error.message || t('billing.failedCheckout'));
     }
   };
 
@@ -99,16 +93,16 @@ export default function BillingScreen() {
         await Linking.openURL(url);
       }
     } catch (error: any) {
-      toast.error(error.message || "Failed to create checkout");
+      toast.error(error.message || t('billing.failedCheckout'));
     }
   };
 
   const handleCancelSubscription = async () => {
     try {
       await cancelSubscriptionMutation.mutateAsync();
-      toast.success("Subscription will be canceled at the end of the billing period");
+      toast.success(t('billing.cancelSubscriptionSuccess'));
     } catch (error: any) {
-      toast.error(error.message || "Failed to cancel subscription");
+      toast.error(error.message || t('billing.failedCancelSubscription'));
     }
   };
 
@@ -119,7 +113,7 @@ export default function BillingScreen() {
         await Linking.openURL(url);
       }
     } catch (error: any) {
-      toast.error(error.message || "Failed to open customer portal");
+      toast.error(error.message || t('billing.failedPortal'));
     }
   };
 
@@ -129,32 +123,32 @@ export default function BillingScreen() {
       <View className="px-6 py-6 border-b border-border">
         <Pressable onPress={() => router.back()} className="flex-row items-center mb-4">
           <ArrowLeft size={16} className="text-muted-foreground mr-2" />
-          <Text className="text-sm text-muted-foreground">Back</Text>
+          <Text className="text-sm text-muted-foreground">{t('common.back')}</Text>
         </Pressable>
-        <Text className="text-2xl font-semibold text-foreground">Billing</Text>
+        <Text className="text-2xl font-semibold text-foreground">{t('billing.title')}</Text>
         <Text className="text-sm text-muted-foreground mt-1">
-          Manage your credits and usage
+          {t('billing.subtitle')}
         </Text>
       </View>
 
       {isLoading ? (
         <View className="px-6 py-6">
-          <Text className="text-sm text-muted-foreground">Loading...</Text>
+          <Text className="text-sm text-muted-foreground">{t('common.loading')}</Text>
         </View>
       ) : creditsInfo ? (
         <>
           {/* Current Balance */}
           <View className="px-6 py-6 border-b border-border">
-            <Text className="text-sm font-semibold text-foreground mb-4">Current balance</Text>
+            <Text className="text-sm font-semibold text-foreground mb-4">{t('billing.currentBalance')}</Text>
             <View className="flex-row items-baseline gap-2 mb-2">
               <Text className="text-4xl font-semibold text-foreground">
                 {creditsInfo.credits.toLocaleString()}
               </Text>
-              <Text className="text-sm text-muted-foreground">credits</Text>
+              <Text className="text-sm text-muted-foreground">{t('billing.credits')}</Text>
             </View>
             {creditsInfo.paidCredits > 0 && (
               <Text className="text-sm text-muted-foreground">
-                {creditsInfo.paidCredits.toLocaleString()} paid credits
+                {t('billing.paidCreditsCount', { count: creditsInfo.paidCredits.toLocaleString() })}
               </Text>
             )}
           </View>
@@ -162,21 +156,21 @@ export default function BillingScreen() {
           {/* Active Subscription */}
           {subscription && subscription.status === 'active' && (
             <View className="px-6 py-6 border-b border-border">
-              <Text className="text-sm font-semibold text-foreground mb-4">Active subscription</Text>
+              <Text className="text-sm font-semibold text-foreground mb-4">{t('billing.activeSubscription')}</Text>
               <View className="p-4 rounded-md bg-blue-50 border border-blue-200 mb-4">
                 <View className="flex-row items-center justify-between mb-2">
                   <Text className="text-base font-semibold text-blue-900">{subscription.plan.name}</Text>
                   <Text className="text-sm font-semibold text-blue-900">
-                    ${(subscription.plan.price / 100).toFixed(2)}/mo
+                    ${(subscription.plan.price / 100).toFixed(2)}{t('credits.perMonth')}
                   </Text>
                 </View>
                 <Text className="text-sm text-blue-800 mb-2">
-                  {subscription.plan.creditsPerMonth.toLocaleString()} credits per month
+                  {t('billing.creditsPerMonth', { count: subscription.plan.creditsPerMonth.toLocaleString() })}
                 </Text>
                 <Text className="text-xs text-blue-700">
                   {subscription.cancelAtPeriodEnd
-                    ? `Cancels on ${new Date(subscription.currentPeriodEnd).toLocaleDateString()}`
-                    : `Renews on ${new Date(subscription.currentPeriodEnd).toLocaleDateString()}`}
+                    ? t('billing.cancelsOn', { date: new Date(subscription.currentPeriodEnd).toLocaleDateString() })
+                    : t('billing.renewsOn', { date: new Date(subscription.currentPeriodEnd).toLocaleDateString() })}
                 </Text>
               </View>
               {!subscription.cancelAtPeriodEnd && (
@@ -189,7 +183,7 @@ export default function BillingScreen() {
                 >
                   <X size={14} className="text-foreground mr-1.5" />
                   <Text className="text-foreground font-medium text-sm">
-                    {cancelSubscriptionMutation.isPending ? "Canceling..." : "Cancel subscription"}
+                    {cancelSubscriptionMutation.isPending ? t('billing.canceling') : t('billing.cancelSubscription')}
                   </Text>
                 </Button>
               )}
@@ -198,7 +192,7 @@ export default function BillingScreen() {
 
           {/* Purchase Credits */}
           <View className="px-6 py-6 border-b border-border">
-            <Text className="text-sm font-semibold text-foreground mb-4">Purchase credits</Text>
+            <Text className="text-sm font-semibold text-foreground mb-4">{t('billing.purchaseCredits')}</Text>
             <View className="gap-3">
               {packages.map((pkg) => (
                 <Pressable
@@ -214,7 +208,7 @@ export default function BillingScreen() {
                     </Text>
                   </View>
                   <Text className="text-sm text-muted-foreground">
-                    ${((pkg.price / pkg.credits) * 1000 / 100).toFixed(2)} per 1,000 credits
+                    {t('billing.perThousandCredits', { price: `$${((pkg.price / pkg.credits) * 1000 / 100).toFixed(2)}` })}
                   </Text>
                 </Pressable>
               ))}
@@ -224,7 +218,7 @@ export default function BillingScreen() {
           {/* Subscription Plans */}
           {!subscription && plans.length > 0 && (
             <View className="px-6 py-6 border-b border-border">
-              <Text className="text-sm font-semibold text-foreground mb-4">Subscription plans</Text>
+              <Text className="text-sm font-semibold text-foreground mb-4">{t('billing.subscriptionPlans')}</Text>
               <View className="gap-3">
                 {plans.map((plan) => (
                   <Pressable
@@ -236,14 +230,14 @@ export default function BillingScreen() {
                     <View className="flex-row items-center justify-between mb-2">
                       <Text className="text-base font-semibold text-foreground">{plan.name}</Text>
                       <Text className="text-base font-semibold text-foreground">
-                        ${(plan.price / 100).toFixed(2)}/mo
+                        ${(plan.price / 100).toFixed(2)}{t('credits.perMonth')}
                       </Text>
                     </View>
                     <Text className="text-sm text-muted-foreground mb-1">
-                      {plan.creditsPerMonth.toLocaleString()} credits per month
+                      {t('billing.creditsPerMonth', { count: plan.creditsPerMonth.toLocaleString() })}
                     </Text>
                     <Text className="text-xs text-muted-foreground">
-                      ${((plan.price / plan.creditsPerMonth) * 1000 / 100).toFixed(2)} per 1,000 credits
+                      {t('billing.perThousandCredits', { price: `$${((plan.price / plan.creditsPerMonth) * 1000 / 100).toFixed(2)}` })}
                     </Text>
                   </Pressable>
                 ))}
@@ -253,7 +247,7 @@ export default function BillingScreen() {
 
           {/* Payment Methods */}
           <View className="px-6 py-6 border-b border-border">
-            <Text className="text-sm font-semibold text-foreground mb-4">Payment methods</Text>
+            <Text className="text-sm font-semibold text-foreground mb-4">{t('billing.paymentMethods')}</Text>
             <Button
               variant="outline"
               onPress={handleManagePayment}
@@ -263,7 +257,7 @@ export default function BillingScreen() {
             >
               <CreditCard size={14} className="text-foreground mr-1.5" />
               <Text className="text-foreground font-medium text-sm">
-                {createPortalMutation.isPending ? "Loading..." : "Manage payment methods"}
+                {createPortalMutation.isPending ? t('common.loading') : t('billing.managePaymentMethods')}
               </Text>
               <ExternalLink size={12} className="text-muted-foreground ml-1.5" />
             </Button>
@@ -272,7 +266,7 @@ export default function BillingScreen() {
           {/* Recent Transactions */}
           {transactionsData && transactionsData.transactions.length > 0 && (
             <View className="px-6 py-6 border-b border-border">
-              <Text className="text-sm font-semibold text-foreground mb-4">Recent transactions</Text>
+              <Text className="text-sm font-semibold text-foreground mb-4">{t('billing.recentTransactions')}</Text>
               <View>
                 {transactionsData.transactions.map((transaction, index) => (
                   <View
@@ -284,7 +278,7 @@ export default function BillingScreen() {
                         {transaction.description || transaction.type}
                       </Text>
                       <Text className="text-sm text-foreground">
-                        +{transaction.credits.toLocaleString()} credits
+                        +{transaction.credits.toLocaleString()} {t('billing.credits')}
                       </Text>
                     </View>
                     <View className="flex-row items-center justify-between">
@@ -303,24 +297,24 @@ export default function BillingScreen() {
 
           {/* Free Credits Info */}
           <View className="px-6 py-6 border-b border-border">
-            <Text className="text-sm font-semibold text-foreground mb-4">Free credits</Text>
+            <Text className="text-sm font-semibold text-foreground mb-4">{t('billing.freeCredits')}</Text>
 
             <View className="mb-4">
-              <Text className="text-sm text-muted-foreground mb-1">Daily allowance</Text>
+              <Text className="text-sm text-muted-foreground mb-1">{t('billing.dailyAllowance')}</Text>
               <Text className="text-sm text-foreground">
-                {creditsInfo.freeCredits.toLocaleString()} credits
+                {t('billing.creditsCount', { count: creditsInfo.freeCredits.toLocaleString() })}
               </Text>
             </View>
 
             <View className="mb-4">
-              <Text className="text-sm text-muted-foreground mb-1">Daily refresh</Text>
+              <Text className="text-sm text-muted-foreground mb-1">{t('billing.dailyRefresh')}</Text>
               <Text className="text-sm text-foreground">
-                +{creditsInfo.dailyRefresh.toLocaleString()} credits every 24 hours
+                {t('billing.creditsEvery24h', { count: creditsInfo.dailyRefresh.toLocaleString() })}
               </Text>
             </View>
 
             <View>
-              <Text className="text-sm text-muted-foreground mb-1">Next refresh</Text>
+              <Text className="text-sm text-muted-foreground mb-1">{t('billing.nextRefresh')}</Text>
               <Text className="text-sm text-foreground">{getTimeUntilRefresh()}</Text>
             </View>
           </View>
@@ -332,13 +326,13 @@ export default function BillingScreen() {
               className="flex-row items-center justify-center py-3 px-4 rounded-md border border-border bg-background active:opacity-70"
             >
               <RefreshCw size={16} className="text-foreground mr-2" />
-              <Text className="text-sm font-medium text-foreground">Refresh balance</Text>
+              <Text className="text-sm font-medium text-foreground">{t('billing.refreshBalance')}</Text>
             </Pressable>
           </View>
         </>
       ) : (
         <View className="px-6 py-6">
-          <Text className="text-sm text-muted-foreground">Failed to load billing information</Text>
+          <Text className="text-sm text-muted-foreground">{t('billing.failedToLoad')}</Text>
         </View>
       )}
     </ScrollView>

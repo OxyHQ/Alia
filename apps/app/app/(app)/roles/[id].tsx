@@ -18,6 +18,7 @@ import {
 import { useRolesStore } from '@/lib/stores/roles-store';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { toast } from '@/components/sonner';
+import { useTranslation } from '@/hooks/useTranslation';
 
 export default function RoleDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -25,6 +26,7 @@ export default function RoleDetailScreen() {
   const loadRoles = useRolesStore((state) => state.loadRoles);
   const incrementUsage = useRolesStore((state) => state.incrementUsage);
   const router = useRouter();
+  const { t } = useTranslation();
 
   const role = roles.find((r) => r.id === id);
 
@@ -45,13 +47,13 @@ export default function RoleDetailScreen() {
   };
 
   const handleFork = () => {
-    toast.info('Fork functionality coming soon!');
+    toast.info(t('roles.forkComingSoon'));
   };
 
   if (!role) {
     return (
       <View className="flex-1 bg-background items-center justify-center">
-        <Text className="text-muted-foreground">Role not found</Text>
+        <Text className="text-muted-foreground">{t('roles.notFound')}</Text>
       </View>
     );
   }
@@ -64,7 +66,7 @@ export default function RoleDetailScreen() {
           <Pressable onPress={() => router.back()} className="active:opacity-70">
             <ArrowLeft size={24} className="text-foreground" />
           </Pressable>
-          <Text className="text-xl font-bold text-foreground">Role Details</Text>
+          <Text className="text-xl font-bold text-foreground">{t('roles.detail')}</Text>
         </View>
       </View>
 
@@ -89,19 +91,19 @@ export default function RoleDetailScreen() {
                 {role.isFeatured && (
                   <View className="bg-amber-500/20 px-2 py-0.5 rounded-full flex-row items-center gap-1">
                     <Sparkles size={10} className="text-amber-600" />
-                    <Text className="text-xs font-medium text-amber-600">Featured</Text>
+                    <Text className="text-xs font-medium text-amber-600">{t('roles.featured')}</Text>
                   </View>
                 )}
                 {role.isTrending && (
                   <View className="bg-orange-500/20 px-2 py-0.5 rounded-full flex-row items-center gap-1">
                     <Flame size={10} className="text-orange-600" />
-                    <Text className="text-xs font-medium text-orange-600">Trending</Text>
+                    <Text className="text-xs font-medium text-orange-600">{t('roles.trending')}</Text>
                   </View>
                 )}
                 {role.isVerified && (
                   <View className="bg-blue-500/20 px-2 py-0.5 rounded-full flex-row items-center gap-1">
                     <CheckCircle2 size={10} className="text-blue-600" />
-                    <Text className="text-xs font-medium text-blue-600">Verified</Text>
+                    <Text className="text-xs font-medium text-blue-600">{t('roles.verified')}</Text>
                   </View>
                 )}
               </View>
@@ -121,13 +123,13 @@ export default function RoleDetailScreen() {
               {role.usageCount !== undefined && (
                 <View className="flex-row items-center gap-1">
                   <Users size={16} className="text-muted-foreground" />
-                  <Text className="text-sm text-muted-foreground">{role.usageCount.toLocaleString()} uses</Text>
+                  <Text className="text-sm text-muted-foreground">{t('roles.uses', { count: role.usageCount.toLocaleString() })}</Text>
                 </View>
               )}
               {role.forkCount !== undefined && (
                 <View className="flex-row items-center gap-1">
                   <GitFork size={16} className="text-muted-foreground" />
-                  <Text className="text-sm text-muted-foreground">{role.forkCount} forks</Text>
+                  <Text className="text-sm text-muted-foreground">{t('roles.forks', { count: role.forkCount })}</Text>
                 </View>
               )}
               {role.version && (
@@ -143,7 +145,7 @@ export default function RoleDetailScreen() {
                 <Text className="text-sm text-muted-foreground">{role.category}</Text>
               </View>
               <View className="flex-row items-center gap-1">
-                <Text className="text-sm text-muted-foreground">by {role.author}</Text>
+                <Text className="text-sm text-muted-foreground">{t('roles.by', { author: role.author })}</Text>
                 {role.authorVerified && (
                   <CheckCircle2 size={14} className="text-blue-600" />
                 )}
@@ -159,7 +161,7 @@ export default function RoleDetailScreen() {
                 <View className="flex-row items-center gap-2">
                   <MessageSquare size={18} className="text-primary-foreground" />
                   <Text className="text-sm font-semibold text-primary-foreground">
-                    Start Chat
+                    {t('roles.startChat')}
                   </Text>
                 </View>
               </Button>
@@ -170,7 +172,7 @@ export default function RoleDetailScreen() {
               >
                 <View className="flex-row items-center gap-2">
                   <GitFork size={18} className="text-foreground" />
-                  <Text className="text-sm font-medium text-foreground">Fork</Text>
+                  <Text className="text-sm font-medium text-foreground">{t('roles.fork')}</Text>
                 </View>
               </Button>
             </View>
@@ -189,7 +191,7 @@ export default function RoleDetailScreen() {
           {role.useCase && (
             <Card className="mb-4">
               <CardContent className="p-4">
-                <Text className="text-sm font-semibold text-foreground mb-2">When to use:</Text>
+                <Text className="text-sm font-semibold text-foreground mb-2">{t('roles.whenToUse')}</Text>
                 <Text className="text-sm text-muted-foreground">{role.useCase}</Text>
               </CardContent>
             </Card>
@@ -203,7 +205,7 @@ export default function RoleDetailScreen() {
                   <CardContent className="p-4">
                     <View className="flex-row items-center gap-2 mb-3">
                       <ThumbsUp size={16} className="text-green-600" />
-                      <Text className="text-sm font-semibold text-foreground">Good at:</Text>
+                      <Text className="text-sm font-semibold text-foreground">{t('roles.goodAt')}</Text>
                     </View>
                     <View className="gap-2">
                       {role.goodAt.map((item: string, i: number) => (
@@ -221,7 +223,7 @@ export default function RoleDetailScreen() {
                   <CardContent className="p-4">
                     <View className="flex-row items-center gap-2 mb-3">
                       <ThumbsDown size={16} className="text-orange-600" />
-                      <Text className="text-sm font-semibold text-foreground">Not for:</Text>
+                      <Text className="text-sm font-semibold text-foreground">{t('roles.notFor')}</Text>
                     </View>
                     <View className="gap-2">
                       {role.notGoodAt.map((item: string, i: number) => (
@@ -241,7 +243,7 @@ export default function RoleDetailScreen() {
           {role.examplePrompts && role.examplePrompts.length > 0 && (
             <Card className="mb-4">
               <CardContent className="p-4">
-                <Text className="text-sm font-semibold text-foreground mb-3">Try these prompts:</Text>
+                <Text className="text-sm font-semibold text-foreground mb-3">{t('roles.tryPrompts')}</Text>
                 <View className="gap-2">
                   {role.examplePrompts.map((prompt: string, i: number) => (
                     <View key={i} className="p-3 bg-muted/50 rounded-lg border border-border/50">
@@ -258,7 +260,7 @@ export default function RoleDetailScreen() {
             {role.reasoning && (
               <Card>
                 <CardContent className="p-4">
-                  <Text className="text-xs font-semibold text-muted-foreground mb-1">Reasoning:</Text>
+                  <Text className="text-xs font-semibold text-muted-foreground mb-1">{t('roles.reasoning')}</Text>
                   <Text className="text-sm text-foreground">{role.reasoning}</Text>
                 </CardContent>
               </Card>
@@ -266,7 +268,7 @@ export default function RoleDetailScreen() {
             {role.writingStyle && (
               <Card>
                 <CardContent className="p-4">
-                  <Text className="text-xs font-semibold text-muted-foreground mb-1">Writing Style:</Text>
+                  <Text className="text-xs font-semibold text-muted-foreground mb-1">{t('roles.writingStyle')}</Text>
                   <Text className="text-sm text-foreground">{role.writingStyle}</Text>
                 </CardContent>
               </Card>
