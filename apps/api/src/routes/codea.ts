@@ -345,12 +345,18 @@ router.post('/resolve-model', authenticateApiKey, apiKeyRateLimit, async (req: R
 
     console.log('[Codea] Resolved to:', resolved.provider, resolved.modelId, 'sessionId:', sessionId);
 
-    res.json({
+    // Only return provider key to trusted services (telegram bot)
+    const isTrustedService = !!req.headers['x-telegram-bot-secret'];
+    const response: Record<string, any> = {
       provider: resolved.provider,
       modelId: resolved.modelId,
-      providerKey: resolved.keyConfig.key,
       sessionId
-    });
+    };
+    if (isTrustedService) {
+      response.providerKey = resolved.keyConfig.key;
+    }
+
+    res.json(response);
   } catch (error: any) {
     console.error('[Codea] Error resolving model:', error);
     res.status(500).json({ error: error.message || 'Failed to resolve model' });

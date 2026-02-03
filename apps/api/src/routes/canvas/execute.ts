@@ -1,12 +1,13 @@
 import { Router } from 'express';
 import { randomUUID } from 'crypto';
 import { WorkflowExecution } from '../../models/workflow-execution.js';
+import { authenticateToken } from '../../middleware/auth.js';
 import type { Request, Response } from 'express';
 
 const router = Router();
 
-// Temporary demo user ID (will be replaced with auth library later)
-const DEMO_USER_ID = '000000000000000000000001';
+// Require authentication for all canvas execute routes
+router.use(authenticateToken);
 
 interface WorkflowNode {
   id: string;
@@ -44,7 +45,7 @@ router.post('/', async (req: Request, res: Response) => {
 
     // Create execution record
     const execution = await WorkflowExecution.create({
-      oxyUserId: DEMO_USER_ID,
+      oxyUserId: req.userId,
       workflowId: workflowId || 'temp',
       executionId,
       status: 'running',
@@ -55,7 +56,7 @@ router.post('/', async (req: Request, res: Response) => {
 
     try {
       // Execute the workflow
-      const { results, finalOutput } = await executeWorkflow(nodes, edges, DEMO_USER_ID);
+      const { results, finalOutput } = await executeWorkflow(nodes, edges, req.userId!);
 
       // Update execution with results
       execution.status = 'completed';
