@@ -16,6 +16,7 @@ import {
 import { CloudCog, Plus, Clock } from 'lucide-react-native';
 import { useColorScheme } from '@/lib/useColorScheme';
 import { toast } from '@/components/sonner';
+import { useTranslation } from '@/hooks/useTranslation';
 
 const INITIAL_SUGGESTIONS = [
   {
@@ -94,6 +95,7 @@ const DAYS_OF_WEEK = [
 ];
 
 export default function AutomationsScreen() {
+  const { t } = useTranslation();
   const { colors } = useColorScheme();
   const [expanded, setExpanded] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -126,7 +128,7 @@ export default function AutomationsScreen() {
 
   const handleCreate = () => {
     setDialogOpen(false);
-    toast.info('Automations coming soon!');
+    toast.info(t('automations.comingSoon'));
   };
 
   return (
@@ -136,10 +138,10 @@ export default function AutomationsScreen() {
         <View className="items-center px-6 py-16">
           <CloudCog size={48} className="text-foreground mb-4" />
           <Text className="text-3xl font-bold text-foreground mb-2 text-center">
-            Let's automate
+            {t('automations.title')}
           </Text>
           <Text className="text-base text-muted-foreground text-center max-w-md">
-            Automate work by setting up scheduled tasks
+            {t('automations.subtitle')}
           </Text>
         </View>
 
@@ -165,7 +167,7 @@ export default function AutomationsScreen() {
             <View className="items-center mt-6">
               <Pressable className="active:opacity-70" onPress={() => setExpanded(true)}>
                 <Text className="text-sm text-muted-foreground">
-                  Explore more
+                  {t('automations.exploreMore')}
                 </Text>
               </Pressable>
             </View>
@@ -189,39 +191,39 @@ export default function AutomationsScreen() {
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent closeButton={false}>
           <DialogHeader>
-            <DialogTitle>Create automation</DialogTitle>
+            <DialogTitle>{t('automations.createAutomation')}</DialogTitle>
           </DialogHeader>
 
           <View className="gap-5">
             {/* Name Field */}
             <View className="gap-2">
-              <Label>Name</Label>
+              <Label>{t('automations.name')}</Label>
               <Input
                 value={name}
                 onChangeText={setName}
-                placeholder="My automation"
+                placeholder={t('automations.namePlaceholder')}
                 placeholderTextColor={colors.mutedForeground}
               />
             </View>
 
             {/* Workspaces Field */}
             <View className="gap-2">
-              <Label>Workspaces</Label>
+              <Label>{t('automations.workspaces')}</Label>
               <Input
                 value={workspace}
                 onChangeText={setWorkspace}
-                placeholder="Choose a folder"
+                placeholder={t('automations.workspacesPlaceholder')}
                 placeholderTextColor={colors.mutedForeground}
               />
             </View>
 
             {/* Prompt Field */}
             <View className="gap-2">
-              <Label>Prompt</Label>
+              <Label>{t('automations.prompt')}</Label>
               <Textarea
                 value={prompt}
                 onChangeText={setPrompt}
-                placeholder="Describe what this automation should do..."
+                placeholder={t('automations.promptPlaceholder')}
                 placeholderTextColor={colors.mutedForeground}
               />
             </View>
@@ -229,7 +231,7 @@ export default function AutomationsScreen() {
             {/* Schedule Section */}
             <View className="gap-3">
               <View className="flex-row items-center justify-between">
-                <Label>Schedule</Label>
+                <Label>{t('automations.schedule')}</Label>
                 <ToggleGroup
                   type="single"
                   value={scheduleType}
@@ -244,7 +246,7 @@ export default function AutomationsScreen() {
                     activeClassName="bg-foreground"
                     activeTextClassName="text-background"
                   >
-                    Daily
+                    {t('automations.daily')}
                   </ToggleGroupItem>
                   <ToggleGroupItem
                     value="interval"
@@ -252,7 +254,7 @@ export default function AutomationsScreen() {
                     activeClassName="bg-foreground"
                     activeTextClassName="text-background"
                   >
-                    Interval
+                    {t('automations.interval')}
                   </ToggleGroupItem>
                 </ToggleGroup>
               </View>
@@ -315,11 +317,11 @@ export default function AutomationsScreen() {
               variant="ghost"
               onPress={() => setDialogOpen(false)}
             >
-              <Text className="text-sm text-muted-foreground">Cancel</Text>
+              <Text className="text-sm text-muted-foreground">{t('common.cancel')}</Text>
             </Button>
             <Button onPress={handleCreate}>
               <Text className="text-sm font-medium text-primary-foreground">
-                Create
+                {t('common.create')}
               </Text>
             </Button>
           </DialogFooter>
