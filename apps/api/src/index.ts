@@ -117,7 +117,15 @@ server.on('upgrade', (request, socket, head) => {
 // Setup realtime endpoint
 setupRealtimeEndpoint(wss);
 
-// Middleware - Allow multiple origins for web and mobile app
+// Public API routes (/v1) - allow all origins
+app.use('/v1', cors({
+  origin: '*',
+  methods: ['GET', 'POST', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  optionsSuccessStatus: 200
+}));
+
+// Internal routes - restricted to known origins
 const PRODUCTION_ORIGINS = [
   'https://alia.onl',
   'https://console.alia.onl',
