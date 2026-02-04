@@ -118,11 +118,11 @@ server.on('upgrade', (request, socket, head) => {
 // Setup realtime endpoint
 setupRealtimeEndpoint(wss);
 
-// Public API routes (/v1) - allow all origins
+// Public API routes (/v1) - allow all origins (like OpenAI's API)
 app.use('/v1', cors({
   origin: '*',
   methods: ['GET', 'POST', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin', 'X-Service-Name', 'X-Timestamp', 'X-Signature', 'X-Session-Id', 'X-Device-Info'],
   optionsSuccessStatus: 200
 }));
 
