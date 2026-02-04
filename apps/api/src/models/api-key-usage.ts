@@ -13,7 +13,8 @@ export interface IApiKeyUsage extends Document {
   userAgent?: string;
   ipAddress?: string;
   timestamp: Date;
-  authType: 'api_key' | 'session';  // Track auth type for rate limiting
+  authType: 'api_key' | 'session' | 'internal';  // Track auth type for rate limiting
+  serviceApp?: string;  // Service app name for internal auth
 }
 
 const ApiKeyUsageSchema = new Schema<IApiKeyUsage>(
@@ -34,8 +35,11 @@ const ApiKeyUsageSchema = new Schema<IApiKeyUsage>(
     },
     authType: {
       type: String,
-      enum: ['api_key', 'session'],
+      enum: ['api_key', 'session', 'internal'],
       default: 'api_key',
+    },
+    serviceApp: {
+      type: String,
     },
     endpoint: {
       type: String,

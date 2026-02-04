@@ -10,7 +10,7 @@ export const oxyClient = new OxyServices({
   baseURL: OXY_API_URL,
 });
 
-// Extend Express Request for API keys
+// Extend Express Request for API keys and service tokens
 declare global {
   namespace Express {
     interface Request {
@@ -23,15 +23,25 @@ declare global {
         userId: string;
         scopes: string[];
       };
+      serviceApp?: {
+        appId: string;
+        appName: string;
+      };
     }
   }
 }
 
 /**
  * Oxy authentication middleware (official @oxyhq/core)
- * Validates JWT tokens and sets req.userId, req.user, req.accessToken
+ * Validates JWT tokens (including service tokens) and sets req.userId, req.user, req.accessToken
  */
 export const authenticateToken = oxyClient.auth({ debug: true });
+
+/**
+ * Service-only auth — rejects anything that isn't a service token.
+ * Use for internal-only endpoints (e.g., /internal/trigger).
+ */
+export const oxyServiceAuth = oxyClient.serviceAuth({ debug: true });
 
 /**
  * Optional auth - attaches user if token present, doesn't block if absent

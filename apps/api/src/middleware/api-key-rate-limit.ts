@@ -318,6 +318,11 @@ export async function apiKeyRateLimit(
   res: Response,
   next: NextFunction
 ): Promise<void> {
+  // Internal service tokens bypass rate limiting (platform cost)
+  if (req.serviceApp) {
+    return next();
+  }
+
   // Handle API key rate limiting
   if (req.apiKey) {
     try {
@@ -515,7 +520,10 @@ export async function recordUsage(
       timestamp: new Date(),
     };
 
-    if (req.apiKey) {
+    if (req.serviceApp) {
+      usageRecord.authType = 'internal';
+      usageRecord.serviceApp = req.serviceApp.appName;
+    } else if (req.apiKey) {
       usageRecord.apiKeyId = req.apiKey.id;
       usageRecord.appId = req.apiKey.appId;
       usageRecord.authType = 'api_key';

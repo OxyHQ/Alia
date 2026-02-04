@@ -7,7 +7,7 @@ import { Conversation } from '../../models/conversation.js';
 import { reserveCredits, finalizeCredits, type CreditReservation, type CreditUsage } from '../../lib/credits-manager.js';
 import { recordUsage } from '../../middleware/api-key-rate-limit.js';
 import { convertOpenAIToolsToToolSet } from '../../lib/tool-converter.js';
-import { getCurrentDateTool, getTimelineTool, saveUserMemoryTool, updateUserPreferencesTool, updateUserContextTool, createSendTelegramTool } from '../../lib/tools/index.js';
+import { getCurrentDateTool, getTimelineTool, saveUserMemoryTool, updateUserPreferencesTool, updateUserContextTool, createSendTelegramTool, createProvidersAdminTool } from '../../lib/tools/index.js';
 import { oxyClient } from '../../middleware/auth.js';
 import type { KeyConfig } from '../../internal/providers/lib/types.js';
 import type { IUserMemory } from '../../models/user-memory.js';
@@ -320,6 +320,10 @@ When you use a tool successfully:
         if (userName) {
           systemMessage += `\n\nThe user's name is ${userName}.`;
           console.log('[V1/Chat] Added user name to system message:', userName);
+        }
+        // Add admin tools for authorized users
+        if (user?.username === 'nate') {
+          allTools.providersAdmin = createProvidersAdminTool();
         }
       } catch (e: any) {
         console.error('[V1/Chat] Error fetching user from Oxy:', e.message);

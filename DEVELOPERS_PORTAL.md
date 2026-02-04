@@ -92,6 +92,8 @@ A comprehensive developer portal that allows users to create applications and ge
   responseTime?: number   // Response time in ms
   userAgent?: string
   ipAddress?: string
+  authType: 'api_key' | 'session' | 'internal'  // Auth method used
+  serviceApp?: string     // Service app name (for internal auth)
   timestamp: Date
 }
 ```
@@ -119,14 +121,21 @@ A comprehensive developer portal that allows users to create applications and ge
 #### Authentication Middleware
 
 **JWT Authentication** (`authenticateToken`)
-- Validates Bearer JWT tokens
+- Validates Bearer JWT tokens (including service tokens)
 - Used for user-facing endpoints
+- Service tokens (type: 'service') are recognized automatically — sets `req.serviceApp`
 
 **API Key Authentication** (`authenticateApiKey`)
 - Validates Bearer API keys (format: `alia_sk_...`)
 - Checks key validity, expiration, and scopes
 - Logs usage automatically
 - Updates last used timestamp
+
+**Service Token Authentication** (`oxyServiceAuth`)
+- Only allows Oxy service tokens (rejects user JWTs and API keys)
+- Used for internal-only endpoints (`/internal/trigger`)
+- Sets `req.serviceApp` with `{ appId, appName }`
+- User delegation via `X-Oxy-User-Id` header
 
 **Hybrid Authentication** (`authenticateTokenOrApiKey`)
 - Accepts both JWT tokens and API keys
@@ -136,6 +145,37 @@ A comprehensive developer portal that allows users to create applications and ge
 **Scope Validation** (`requireScope`)
 - Middleware factory for scope-based authorization
 - Example: `requireScope('chat:write')`
+
+#### Internal Trigger Endpoint
+
+**`POST /internal/trigger`** — Autonomous AI processing for internal services.
+
+Auth: Service tokens only (via `oxyServiceAuth`). No credits charged.
+
+```bash
+curl -X POST https://api.alia.onl/internal/trigger \
+  -H "Authorization: Bearer <service-token>" \
+  -H "X-Oxy-User-Id: <userId>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "event": "email.received",
+    "data": { "subject": "Meeting at 3pm", "from": "boss@company.com" },
+    "instructions": "Notify user if urgent"
+  }'
+```
+
+Response:
+```json
+{
+  "event": "email.received",
+  "response": "I notified the user via Telegram about the meeting.",
+  "toolCalls": [{ "tool": "sendTelegramMessage", "args": { "message": "..." } }],
+  "usage": { "promptTokens": 150, "completionTokens": 80, "totalTokens": 230 },
+  "responseTime": 1200
+}
+```
+
+Available tools: `sendTelegramMessage`, `saveUserMemory`, `updateUserPreferences`, `updateUserContext`, `getCurrentDate`, `scrapeURL`, `googleSearch`.
 
 ### Frontend (Mobile App)
 
