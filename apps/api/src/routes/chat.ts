@@ -5,7 +5,7 @@ import { Router } from 'express';
 import { streamText, stepCountIs, type ToolSet } from 'ai';
 import { resolveModel, getAIModel, getDefaultAliaModel, reportModelUsage } from '../lib/chat-core.js';
 import type { KeyConfig } from '../internal/providers/lib/types.js';
-import { getCurrentDateTool, createGoogleSearchTool, getTimelineTool, searchKnowledgeBaseTool, scrapeURLTool, saveUserMemoryTool, updateUserPreferencesTool, updateUserContextTool, createGetDeviceInfoTool, createSendTelegramTool, type DeviceInfo } from '../lib/tools/index.js';
+import { getCurrentDateTool, createGoogleSearchTool, getTimelineTool, searchKnowledgeBaseTool, scrapeURLTool, saveUserMemoryTool, updateUserPreferencesTool, updateUserContextTool, createGetDeviceInfoTool, createSendTelegramTool, createProvidersAdminTool, type DeviceInfo } from '../lib/tools/index.js';
 import { optionalAuth, oxyClient } from '../middleware/auth.js';
 import type { User as OxyUser } from '@oxyhq/core';
 import { UserCredits } from '../models/user-credits.js';
@@ -382,6 +382,11 @@ router.post('/', optionalAuth, async (req, res) => {
       } catch (e) {
         console.log('[Alia/Chat] Could not fetch Oxy user profile:', e);
       }
+    }
+
+    // Add admin tools for authorized users
+    if (oxyUser?.username === 'nate') {
+      tools.providersAdmin = createProvidersAdminTool();
     }
 
     // Build personalized system prompt

@@ -24,6 +24,7 @@ import feedbackRouter from './routes/feedback.js';
 import codeaRouter from './routes/codea.js';
 import modelsStatsRouter from './routes/models-stats.js';
 import externalModelsRouter from './routes/external-models.js';
+import internalRouter from './routes/internal.js';
 import providersModule from './internal/providers/index.js';
 import { providersWss } from './internal/providers/ws.js';
 import { oxyClient } from './middleware/auth.js';
@@ -159,7 +160,7 @@ app.use(cors({
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin', 'X-Service-Name', 'X-Timestamp', 'X-Signature', 'X-Session-Id', 'X-Device-Info'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin', 'X-Service-Name', 'X-Timestamp', 'X-Signature', 'X-Session-Id', 'X-Device-Info', 'X-Oxy-User-Id'],
   optionsSuccessStatus: 200
 }));
 
@@ -208,6 +209,7 @@ app.use('/api', canvasRouter);
 app.use('/codea', codeaRouter);
 app.use('/models', modelsStatsRouter);
 app.use('/external-models', externalModelsRouter);
+app.use('/internal', internalRouter);
 app.use('/internal/providers', providersModule);
 
 // Root route
@@ -232,6 +234,7 @@ app.get('/', (_req, res) => {
       '/codea',
       '/models',
       '/external-models',
+      '/internal/trigger',
       '/internal/providers'
     ]
   });

@@ -8,3 +8,4 @@ export { scrapeURLTool } from './web-reader';
 export { saveUserMemoryTool, updateUserPreferencesTool, updateUserContextTool } from './user-memory';
 export { createGetDeviceInfoTool, type DeviceInfo } from './device-info';
 export { createSendTelegramTool } from './telegram';
+export { createProvidersAdminTool } from './providers-admin';
