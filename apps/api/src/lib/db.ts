@@ -1,5 +1,12 @@
 import mongoose from 'mongoose';
 
+const APP_NAME = "alia";
+
+function getDatabaseName(): string {
+  const env = process.env.NODE_ENV || "development";
+  return `${APP_NAME}-${env}`;
+}
+
 // Singleton promise to ensure only one connection attempt at a time
 let connectionPromise: Promise<typeof mongoose> | null = null;
 
@@ -21,8 +28,11 @@ export async function connectDB() {
     return connectionPromise;
   }
 
+  const dbName = getDatabaseName();
+
   // Create a new connection
   const opts = {
+    dbName,
     bufferCommands: false,
     maxPoolSize: 10,
     serverSelectionTimeoutMS: 10000, // Increased from 5s to 10s for production
