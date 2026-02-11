@@ -12,7 +12,7 @@ static_sites:
     source_dir: /apps/alia-providers-admin
 
     # Build configuration
-    build_command: npm ci --include=dev && npm run build
+    build_command: npm install --include=dev && npm run build
 
     # Output directory (relative to source_dir)
     output_dir: dist
