@@ -106,6 +106,20 @@ export default function AppLayout() {
               }}
             />
             <Drawer.Screen
+              name="skills"
+              options={{
+                drawerItemStyle: { display: 'none' },
+                title: 'Skills',
+              }}
+            />
+            <Drawer.Screen
+              name="skills/[id]"
+              options={{
+                drawerItemStyle: { display: 'none' },
+                title: 'Skill Detail',
+              }}
+            />
+            <Drawer.Screen
               name="roles/[id]"
               options={{
                 drawerItemStyle: { display: 'none' },

@@ -8,24 +8,31 @@
     "apps/app",
     "apps/canvas",
     "apps/telegram-bot",
-    "packages/*"
+    "apps/alia-console",
+    "apps/alia-providers-admin",
+    "apps/alia-codea",
+    "apps/alia-cowork",
+    "apps/codea-cli"
   ],
   "scripts": {
     "dev": "npm run dev --workspaces --if-present",
     "dev:app": "npm run dev --workspace=@alia/app --clear --tunnel",
     "dev:api": "npm run dev --workspace=@alia/api",
-    "dev:admin": "npm run dev --workspace=@alia/admin",
+    "dev:admin": "npm run dev --workspace=alia-console",
     "dev:canvas": "npm run dev --workspace=alia-canvas",
     "dev:telegram": "npm run dev --workspace=@ai-api-server/telegram-bot",
+    "dev:providers-admin": "npm run dev --workspace=alia-providers-admin",
+    "dev:codea": "npm run dev --workspace=alia-codea",
+    "dev:cowork": "npm run dev --workspace=alia-cowork",
     "build": "npm run build --workspaces --if-present",
     "build:app": "npm run build --workspace=@alia/app",
     "build:api": "npm run build --workspace=@alia/api",
-    "build:admin": "npm run build --workspace=@alia/admin",
+    "build:admin": "npm run build --workspace=alia-console",
     "build:canvas": "npm run build --workspace=alia-canvas",
     "build:telegram": "npm run build --workspace=@ai-api-server/telegram-bot",
     "start:app": "npm run start --workspace=@alia/app",
     "start:api": "npm run start --workspace=@alia/api",
-    "start:admin": "npm run start --workspace=@alia/admin",
+    "start:admin": "npm run start --workspace=alia-console",
     "start:canvas": "npm run start --workspace=alia-canvas",
     "start:telegram": "npm run start --workspace=@ai-api-server/telegram-bot",
     "lint": "npm run lint --workspaces --if-present",
@@ -52,9 +59,9 @@
     "react-dom": "19.1.0"
   },
   "dependencies": {
-    "@oxyhq/auth": "^1.1.3",
-    "@oxyhq/core": "1.5.0",
-    "@oxyhq/services": "6.2.0",
+    "@oxyhq/auth": "^1.1.4",
+    "@oxyhq/core": "1.6.1",
+    "@oxyhq/services": "6.3.1",
     "@types/ws": "^8.18.1",
     "ws": "^8.19.0"
   }

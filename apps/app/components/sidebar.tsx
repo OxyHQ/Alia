@@ -22,6 +22,7 @@ import {
   Plus,
   BrainCircuit,
   Code,
+  BookOpen,
   CloudCog,
   MoreHorizontal,
   Edit,
@@ -187,6 +188,10 @@ export const Sidebar = React.memo(function Sidebar() {
 
   const handleAutomations = React.useCallback(() => {
     router.push("/(app)/automations");
+  }, [router]);
+
+  const handleSkills = React.useCallback(() => {
+    router.push("/(app)/skills");
   }, [router]);
 
   const handleConsole = React.useCallback(() => {
@@ -449,6 +454,14 @@ export const Sidebar = React.memo(function Sidebar() {
         >
           <CloudCog size={16} className="text-muted-foreground" />
           <Text className="text-sm md:text-xs">Automations</Text>
+        </Button>
+        <Button
+          variant="ghost"
+          className="h-10 md:h-8 flex-row items-center justify-start gap-2 rounded-full px-3 md:px-2 w-full"
+          onPress={handleSkills}
+        >
+          <BookOpen size={16} className="text-muted-foreground" />
+          <Text className="text-sm md:text-xs">Skills</Text>
         </Button>
         {Platform.OS === "web" && (
           <Button

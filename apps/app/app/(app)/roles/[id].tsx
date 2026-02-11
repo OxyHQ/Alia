@@ -2,23 +2,17 @@ import React, { useEffect } from 'react';
 import { View, ScrollView, Pressable } from 'react-native';
 import { Text } from '@/components/ui/text';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
 import {
-  Star,
-  Users,
   GitFork,
   CheckCircle2,
-  ThumbsUp,
-  ThumbsDown,
-  Sparkles,
-  Flame,
   ArrowLeft,
-  MessageSquare
+  MessageSquare,
 } from 'lucide-react-native';
 import { useRolesStore } from '@/lib/stores/roles-store';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { toast } from '@/components/sonner';
 import { useTranslation } from '@/hooks/useTranslation';
+import { StatsRow, SectionLabel, PromptChipList, GoodAtNotFor, PillList } from '@/components/detail';
 
 export default function RoleDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -38,11 +32,7 @@ export default function RoleDetailScreen() {
 
   const handleStartChat = async () => {
     if (!role) return;
-
-    // Increment usage count
     await incrementUsage(role.id);
-
-    // Navigate to home page with role
     router.replace({ pathname: '/(app)', params: { roleId: role.id } });
   };
 
@@ -61,241 +51,141 @@ export default function RoleDetailScreen() {
   return (
     <View className="flex-1 bg-background">
       {/* Header */}
-      <View className="border-b border-border/50 px-6 py-4">
-        <View className="flex-row items-center gap-3">
-          <Pressable onPress={() => router.back()} className="active:opacity-70">
-            <ArrowLeft size={24} className="text-foreground" />
-          </Pressable>
-          <Text className="text-xl font-bold text-foreground">{t('roles.detail')}</Text>
-        </View>
+      <View className="px-5 py-3">
+        <Pressable onPress={() => router.back()} className="active:opacity-70 self-start">
+          <ArrowLeft size={22} className="text-foreground" />
+        </Pressable>
       </View>
 
-      <ScrollView className="flex-1">
-        <View className="px-6 py-6">
-          {/* Hero Section */}
-          <View className="mb-6">
-            <View className="flex-row items-start justify-between mb-2">
-              <View className="flex-1 pr-4">
-                <Text className="text-3xl font-bold text-foreground mb-2">
+      <ScrollView className="flex-1" showsVerticalScrollIndicator={false}>
+        <View className="px-5 pb-6">
+          {/* Identity */}
+          <View className="flex-row items-center gap-3 mb-3">
+            <View className="w-14 h-14 rounded-2xl bg-muted items-center justify-center">
+              <Text className="text-xl font-bold text-foreground">
+                {role.name.charAt(0)}
+              </Text>
+            </View>
+            <View className="flex-1">
+              <View className="flex-row items-center gap-1.5">
+                <Text className="text-xl font-bold text-foreground">
                   {role.name}
                 </Text>
-                {role.tagline && (
-                  <Text className="text-base text-muted-foreground mb-3">
-                    {role.tagline}
-                  </Text>
-                )}
-              </View>
-
-              {/* Badges */}
-              <View className="flex-col gap-1">
-                {role.isFeatured && (
-                  <View className="bg-amber-500/20 px-2 py-0.5 rounded-full flex-row items-center gap-1">
-                    <Sparkles size={10} className="text-amber-600" />
-                    <Text className="text-xs font-medium text-amber-600">{t('roles.featured')}</Text>
-                  </View>
-                )}
-                {role.isTrending && (
-                  <View className="bg-orange-500/20 px-2 py-0.5 rounded-full flex-row items-center gap-1">
-                    <Flame size={10} className="text-orange-600" />
-                    <Text className="text-xs font-medium text-orange-600">{t('roles.trending')}</Text>
-                  </View>
-                )}
                 {role.isVerified && (
-                  <View className="bg-blue-500/20 px-2 py-0.5 rounded-full flex-row items-center gap-1">
-                    <CheckCircle2 size={10} className="text-blue-600" />
-                    <Text className="text-xs font-medium text-blue-600">{t('roles.verified')}</Text>
-                  </View>
+                  <CheckCircle2 size={16} className="text-blue-500" fill="#3b82f6" strokeWidth={0} />
                 )}
-              </View>
-            </View>
-
-            {/* Stats */}
-            <View className="flex-row items-center gap-4 flex-wrap mb-4">
-              {role.rating !== undefined && (
-                <View className="flex-row items-center gap-1">
-                  <Star size={16} className="text-amber-500" fill="#f59e0b" />
-                  <Text className="text-base font-semibold text-foreground">{role.rating}</Text>
-                  {role.reviewCount !== undefined && (
-                    <Text className="text-sm text-muted-foreground">({role.reviewCount})</Text>
-                  )}
-                </View>
-              )}
-              {role.usageCount !== undefined && (
-                <View className="flex-row items-center gap-1">
-                  <Users size={16} className="text-muted-foreground" />
-                  <Text className="text-sm text-muted-foreground">{t('roles.uses', { count: role.usageCount.toLocaleString() })}</Text>
-                </View>
-              )}
-              {role.forkCount !== undefined && (
-                <View className="flex-row items-center gap-1">
-                  <GitFork size={16} className="text-muted-foreground" />
-                  <Text className="text-sm text-muted-foreground">{t('roles.forks', { count: role.forkCount })}</Text>
-                </View>
-              )}
-              {role.version && (
-                <View className="px-2 py-1 bg-muted rounded-md">
-                  <Text className="text-xs text-muted-foreground">v{role.version}</Text>
-                </View>
-              )}
-            </View>
-
-            {/* Author & Category */}
-            <View className="flex-row items-center gap-2 flex-wrap mb-4">
-              <View className="px-2 py-1 bg-muted rounded-md">
-                <Text className="text-sm text-muted-foreground">{role.category}</Text>
               </View>
               <View className="flex-row items-center gap-1">
-                <Text className="text-sm text-muted-foreground">{t('roles.by', { author: role.author })}</Text>
+                <Text className="text-[13px] text-muted-foreground">
+                  {role.author}
+                </Text>
                 {role.authorVerified && (
-                  <CheckCircle2 size={14} className="text-blue-600" />
+                  <CheckCircle2 size={11} className="text-blue-500" fill="#3b82f6" strokeWidth={0} />
                 )}
+                <Text className="text-[13px] text-muted-foreground mx-1">·</Text>
+                <Text className="text-[13px] text-muted-foreground">{role.category}</Text>
               </View>
             </View>
+          </View>
 
-            {/* Action Buttons */}
-            <View className="flex-row gap-2">
-              <Button
-                onPress={handleStartChat}
-                className="flex-1 h-12 rounded-full"
-              >
-                <View className="flex-row items-center gap-2">
-                  <MessageSquare size={18} className="text-primary-foreground" />
-                  <Text className="text-sm font-semibold text-primary-foreground">
-                    {t('roles.startChat')}
-                  </Text>
-                </View>
-              </Button>
-              <Button
-                variant="outline"
-                onPress={handleFork}
-                className="h-12 px-4 rounded-full"
-              >
-                <View className="flex-row items-center gap-2">
-                  <GitFork size={18} className="text-foreground" />
-                  <Text className="text-sm font-medium text-foreground">{t('roles.fork')}</Text>
-                </View>
-              </Button>
-            </View>
+          {/* Tagline */}
+          {role.tagline && (
+            <Text className="text-[14px] text-muted-foreground leading-5 mb-3">
+              {role.tagline}
+            </Text>
+          )}
+
+          {/* Stats Row */}
+          <StatsRow
+            rating={role.rating}
+            reviewCount={role.reviewCount}
+            usageCount={role.usageCount}
+            forkCount={role.forkCount}
+            version={role.version}
+          />
+
+          {/* Action Buttons */}
+          <View className="flex-row gap-2 mb-5">
+            <Button
+              onPress={handleStartChat}
+              className="flex-1 h-11 rounded-full"
+            >
+              <View className="flex-row items-center gap-2">
+                <MessageSquare size={15} className="text-primary-foreground" />
+                <Text className="text-[13px] font-semibold text-primary-foreground">
+                  {t('roles.startChat')}
+                </Text>
+              </View>
+            </Button>
+            <Button
+              variant="secondary"
+              onPress={handleFork}
+              className="h-11 px-4 rounded-full"
+            >
+              <View className="flex-row items-center gap-1.5">
+                <GitFork size={15} className="text-foreground" />
+                <Text className="text-[13px] font-medium text-foreground">{t('roles.fork')}</Text>
+              </View>
+            </Button>
           </View>
 
           {/* Description */}
-          <Card className="mb-4">
-            <CardContent className="p-4">
-              <Text className="text-base text-foreground">
-                {role.description}
-              </Text>
-            </CardContent>
-          </Card>
+          <Text className="text-[14px] text-foreground leading-5 mb-5">
+            {role.description}
+          </Text>
 
-          {/* Use Case */}
+          {/* When to use */}
           {role.useCase && (
-            <Card className="mb-4">
-              <CardContent className="p-4">
-                <Text className="text-sm font-semibold text-foreground mb-2">{t('roles.whenToUse')}</Text>
-                <Text className="text-sm text-muted-foreground">{role.useCase}</Text>
-              </CardContent>
-            </Card>
-          )}
-
-          {/* Good At / Not Good At */}
-          {(role.goodAt || role.notGoodAt) && (
-            <View className="flex-row gap-3 mb-4">
-              {role.goodAt && role.goodAt.length > 0 && (
-                <Card className="flex-1">
-                  <CardContent className="p-4">
-                    <View className="flex-row items-center gap-2 mb-3">
-                      <ThumbsUp size={16} className="text-green-600" />
-                      <Text className="text-sm font-semibold text-foreground">{t('roles.goodAt')}</Text>
-                    </View>
-                    <View className="gap-2">
-                      {role.goodAt.map((item: string, i: number) => (
-                        <View key={i} className="flex-row items-start gap-2">
-                          <Text className="text-sm text-muted-foreground">•</Text>
-                          <Text className="text-sm text-muted-foreground flex-1">{item}</Text>
-                        </View>
-                      ))}
-                    </View>
-                  </CardContent>
-                </Card>
-              )}
-              {role.notGoodAt && role.notGoodAt.length > 0 && (
-                <Card className="flex-1">
-                  <CardContent className="p-4">
-                    <View className="flex-row items-center gap-2 mb-3">
-                      <ThumbsDown size={16} className="text-orange-600" />
-                      <Text className="text-sm font-semibold text-foreground">{t('roles.notFor')}</Text>
-                    </View>
-                    <View className="gap-2">
-                      {role.notGoodAt.map((item: string, i: number) => (
-                        <View key={i} className="flex-row items-start gap-2">
-                          <Text className="text-sm text-muted-foreground">•</Text>
-                          <Text className="text-sm text-muted-foreground flex-1">{item}</Text>
-                        </View>
-                      ))}
-                    </View>
-                  </CardContent>
-                </Card>
-              )}
+            <View className="mb-5">
+              <SectionLabel>{t('roles.whenToUse')}</SectionLabel>
+              <Text className="text-[13px] text-foreground leading-5">{role.useCase}</Text>
             </View>
           )}
 
+          {/* Good At / Not For */}
+          <GoodAtNotFor goodAt={role.goodAt} notGoodAt={role.notGoodAt} />
+
           {/* Example Prompts */}
           {role.examplePrompts && role.examplePrompts.length > 0 && (
-            <Card className="mb-4">
-              <CardContent className="p-4">
-                <Text className="text-sm font-semibold text-foreground mb-3">{t('roles.tryPrompts')}</Text>
-                <View className="gap-2">
-                  {role.examplePrompts.map((prompt: string, i: number) => (
-                    <View key={i} className="p-3 bg-muted/50 rounded-lg border border-border/50">
-                      <Text className="text-sm text-foreground">"{prompt}"</Text>
-                    </View>
-                  ))}
-                </View>
-              </CardContent>
-            </Card>
+            <View className="mb-5">
+              <SectionLabel>{t('roles.tryPrompts')}</SectionLabel>
+              <PromptChipList items={role.examplePrompts} />
+            </View>
           )}
 
-          {/* Additional Details */}
-          <View className="gap-3">
-            {role.reasoning && (
-              <Card>
-                <CardContent className="p-4">
-                  <Text className="text-xs font-semibold text-muted-foreground mb-1">{t('roles.reasoning')}</Text>
-                  <Text className="text-sm text-foreground">{role.reasoning}</Text>
-                </CardContent>
-              </Card>
-            )}
-            {role.writingStyle && (
-              <Card>
-                <CardContent className="p-4">
-                  <Text className="text-xs font-semibold text-muted-foreground mb-1">{t('roles.writingStyle')}</Text>
-                  <Text className="text-sm text-foreground">{role.writingStyle}</Text>
-                </CardContent>
-              </Card>
-            )}
-            {role.tone && (
-              <Card>
-                <CardContent className="p-4">
-                  <Text className="text-xs font-semibold text-muted-foreground mb-1">{t('roles.tone')}</Text>
-                  <Text className="text-sm text-foreground">{role.tone}</Text>
-                </CardContent>
-              </Card>
-            )}
-            {role.priorities && role.priorities.length > 0 && (
-              <Card>
-                <CardContent className="p-4">
-                  <Text className="text-xs font-semibold text-muted-foreground mb-2">{t('roles.priorities')}</Text>
-                  <View className="flex-row flex-wrap gap-2">
-                    {role.priorities.map((priority: string, index: number) => (
-                      <View key={index} className="px-3 py-1 bg-muted rounded-full">
-                        <Text className="text-xs text-foreground">{priority}</Text>
-                      </View>
-                    ))}
+          {/* Details */}
+          {(role.reasoning || role.writingStyle || role.tone) && (
+            <View className="mb-5">
+              <View className="gap-3">
+                {role.tone && (
+                  <View className="flex-row">
+                    <Text className="text-[12px] text-muted-foreground w-20">{t('roles.tone')}</Text>
+                    <Text className="text-[13px] text-foreground flex-1">{role.tone}</Text>
                   </View>
-                </CardContent>
-              </Card>
-            )}
-          </View>
+                )}
+                {role.writingStyle && (
+                  <View className="flex-row">
+                    <Text className="text-[12px] text-muted-foreground w-20">{t('roles.writingStyle')}</Text>
+                    <Text className="text-[13px] text-foreground flex-1">{role.writingStyle}</Text>
+                  </View>
+                )}
+                {role.reasoning && (
+                  <View className="flex-row">
+                    <Text className="text-[12px] text-muted-foreground w-20">{t('roles.reasoning')}</Text>
+                    <Text className="text-[13px] text-foreground flex-1">{role.reasoning}</Text>
+                  </View>
+                )}
+              </View>
+            </View>
+          )}
+
+          {/* Priorities */}
+          {role.priorities && role.priorities.length > 0 && (
+            <View>
+              <SectionLabel>{t('roles.priorities')}</SectionLabel>
+              <PillList items={role.priorities} />
+            </View>
+          )}
         </View>
       </ScrollView>
     </View>
