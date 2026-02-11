@@ -18,9 +18,6 @@ const config = defineConfig({
     tanstackStart(),
     viteReact(),
   ],
-  optimizeDeps: {
-    exclude: ['@oxyhq/auth'],
-  },
   ssr: {
     noExternal: ['@oxyhq/auth'],
   },

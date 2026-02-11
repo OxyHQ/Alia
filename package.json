@@ -55,8 +55,8 @@
     "typescript": "^5.9.3"
   },
   "overrides": {
-    "react": "19.1.0",
-    "react-dom": "19.1.0"
+    "react": "19.2.0",
+    "react-dom": "19.2.0"
   },
   "dependencies": {
     "@oxyhq/auth": "^1.1.4",
