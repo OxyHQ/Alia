@@ -135,6 +135,8 @@
     "library": "Library",
     "roles": "Roles",
     "automations": "Automations",
+    "skills": "Skills",
+    "skillDetail": "Skill Detail",
     "roleDetail": "Role Detail",
     "billing": "Billing"
   },
@@ -263,5 +265,17 @@
     "schedule": "Schedule",
     "daily": "Daily",
     "interval": "Interval"
+  },
+  "skills": {
+    "title": "Skills",
+    "subtitle": "Modular capabilities that turn Alia into a specialist. Load skills on demand for consistent, domain-specific results.",
+    "exploreMore": "Explore more",
+    "comingSoon": "Coming soon!",
+    "detail": "Skill Detail",
+    "notFound": "Skill not found",
+    "useSkill": "Use Skill",
+    "addToLibrary": "Add to Library",
+    "triggers": "Triggers",
+    "includes": "Includes"
   }
 }

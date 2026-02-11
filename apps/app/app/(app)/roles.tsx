@@ -2,16 +2,13 @@ import React, { useEffect, useState, useMemo } from 'react';
 import { View, ScrollView, Pressable, TextInput } from 'react-native';
 import { Text } from '@/components/ui/text';
 import { Button } from '@/components/ui/button';
-import { Card } from '@/components/ui/card';
 import {
-  BrainCircuit,
   Plus,
   Star,
-  Users,
   CheckCircle2,
-  Sparkles,
-  Flame,
-  Search
+  Search,
+  ArrowRight,
+  TrendingUp
 } from 'lucide-react-native';
 import { useRolesStore } from '@/lib/stores/roles-store';
 import { useRouter } from 'expo-router';
@@ -41,22 +38,16 @@ export default function RolesScreen() {
     toast.info(t('roles.createComingSoon'));
   };
 
-  // Get unique categories
   const categories = useMemo(() => {
     const cats = new Set(roles.map(r => r.category));
     return [t('common.all'), ...Array.from(cats)];
   }, [roles, t]);
 
-  // Filter roles based on search query and category
   const filteredRoles = useMemo(() => {
     let filtered = roles;
-
-    // Filter by category
     if (selectedCategory && selectedCategory !== t('common.all')) {
       filtered = filtered.filter(role => role.category === selectedCategory);
     }
-
-    // Filter by search query
     if (searchQuery.trim()) {
       const query = searchQuery.toLowerCase();
       filtered = filtered.filter(role =>
@@ -66,99 +57,121 @@ export default function RolesScreen() {
         role.category.toLowerCase().includes(query)
       );
     }
-
     return filtered;
   }, [roles, searchQuery, selectedCategory]);
 
+  const featuredRoles = useMemo(() => roles.filter(r => r.isFeatured), [roles]);
+
   return (
     <View className="flex-1 bg-background">
-      <ScrollView className="flex-1">
-        {/* Hero Section - Centered */}
-        <View className="items-center px-6 py-12">
-          <BrainCircuit size={48} className="text-primary mb-4" />
-          <Text className="text-4xl font-bold text-foreground mb-3 text-center">
-            {t('roles.title')}
-          </Text>
-          <Text className="text-base text-muted-foreground mb-6 text-center max-w-md">
+      <ScrollView className="flex-1" showsVerticalScrollIndicator={false}>
+        {/* Header */}
+        <View className="px-5 pt-6 pb-1">
+          <View className="flex-row items-center justify-between">
+            <Text className="text-2xl font-bold text-foreground">
+              {t('roles.title')}
+            </Text>
+            <Button
+              onPress={handleCreateRole}
+              size="icon"
+              className="rounded-full h-8 w-8"
+            >
+              <Plus size={16} className="text-primary-foreground" />
+            </Button>
+          </View>
+          <Text className="text-[13px] text-muted-foreground mt-0.5">
             {t('roles.subtitle')}
           </Text>
+        </View>
 
-          {/* Search Bar */}
-          <View className="w-full max-w-md flex-row items-center gap-2 bg-muted rounded-full px-4 py-3 mb-4">
-            <Search size={18} className="text-muted-foreground" />
+        {/* Search */}
+        <View className="px-5 pt-3 pb-2">
+          <View className="flex-row items-center gap-2 bg-muted/70 rounded-lg px-3 py-2">
+            <Search size={15} className="text-muted-foreground" />
             <TextInput
               value={searchQuery}
               onChangeText={setSearchQuery}
               placeholder={t('roles.searchPlaceholder')}
               placeholderTextColor={colors.mutedForeground}
-              className="flex-1 text-sm text-foreground"
+              className="flex-1 text-[13px] text-foreground"
             />
           </View>
-
-          {/* Create Button */}
-          <Button
-            onPress={handleCreateRole}
-            className="h-11 px-6 rounded-full"
-          >
-            <View className="flex-row items-center gap-2">
-              <Plus size={18} className="text-primary-foreground" />
-              <Text className="text-sm font-semibold text-primary-foreground">
-                {t('roles.createRole')}
-              </Text>
-            </View>
-          </Button>
         </View>
 
         {/* Category Chips */}
-        <View className="px-6 pb-4">
-          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-            <View className="flex-row gap-2">
-              {categories.map((category) => (
-                <Pressable
-                  key={category}
-                  onPress={() => setSelectedCategory(category === t('common.all') ? null : category)}
-                  className="active:opacity-70"
-                >
-                  <View className={cn(
-                    "px-4 py-2 rounded-full border",
-                    (selectedCategory === category || (!selectedCategory && category === t('common.all')))
-                      ? "bg-primary border-primary"
-                      : "bg-background border-border"
-                  )}>
-                    <Text className={cn(
-                      "text-sm font-medium",
-                      (selectedCategory === category || (!selectedCategory && category === t('common.all')))
-                        ? "text-primary-foreground"
-                        : "text-foreground"
+        <View className="py-2">
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 20 }}>
+            <View className="flex-row gap-1.5">
+              {categories.map((category) => {
+                const isActive = selectedCategory === category || (!selectedCategory && category === t('common.all'));
+                return (
+                  <Pressable
+                    key={category}
+                    onPress={() => setSelectedCategory(category === t('common.all') ? null : category)}
+                    className="active:opacity-70"
+                  >
+                    <View className={cn(
+                      "px-3 py-1 rounded-full",
+                      isActive ? "bg-foreground" : "bg-muted/70"
                     )}>
-                      {category}
-                    </Text>
-                  </View>
-                </Pressable>
-              ))}
+                      <Text className={cn(
+                        "text-xs font-medium",
+                        isActive ? "text-background" : "text-muted-foreground"
+                      )}>
+                        {category}
+                      </Text>
+                    </View>
+                  </Pressable>
+                );
+              })}
             </View>
           </ScrollView>
         </View>
 
-        {/* Roles Grid */}
-        <View className="px-6 pb-6">
-          <View className="flex-row flex-wrap gap-3">
+        {/* Featured Section */}
+        {!searchQuery && !selectedCategory && featuredRoles.length > 0 && (
+          <View className="mt-2 mb-4">
+            <View className="px-5 mb-2">
+              <Text className="text-[11px] font-semibold text-muted-foreground tracking-wider uppercase">
+                {t('roles.featured')}
+              </Text>
+            </View>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 20 }}>
+              {featuredRoles.map((role) => (
+                <FeaturedRoleCard key={role.id} role={role} onPress={handleSelectRole} />
+              ))}
+            </ScrollView>
+          </View>
+        )}
+
+        {/* All Roles List */}
+        <View className="px-5 pb-6">
+          {(searchQuery || selectedCategory) && (
+            <View className="mb-2">
+              <Text className="text-[11px] font-semibold text-muted-foreground tracking-wider uppercase">
+                {filteredRoles.length} {filteredRoles.length === 1 ? 'role' : 'roles'}
+              </Text>
+            </View>
+          )}
+          {!searchQuery && !selectedCategory && (
+            <View className="mb-2">
+              <Text className="text-[11px] font-semibold text-muted-foreground tracking-wider uppercase">
+                {t('common.all')}
+              </Text>
+            </View>
+          )}
+          <View>
             {filteredRoles.map((role) => (
-              <RoleCard
-                key={role.id}
-                role={role}
-                onPress={handleSelectRole}
-              />
+              <RoleListItem key={role.id} role={role} onPress={handleSelectRole} />
             ))}
           </View>
 
           {filteredRoles.length === 0 && (
-            <View className="items-center justify-center py-20">
-              <BrainCircuit size={64} className="text-muted-foreground opacity-50" />
-              <Text className="text-lg font-medium text-foreground mt-4">
+            <View className="items-center justify-center py-16">
+              <Text className="text-sm font-medium text-foreground">
                 {t('roles.noRoles')}
               </Text>
-              <Text className="text-sm text-muted-foreground text-center mt-2 max-w-md">
+              <Text className="text-xs text-muted-foreground text-center mt-1">
                 {searchQuery ? t('common.tryDifferentSearch') : t('roles.createToStart')}
               </Text>
             </View>
@@ -169,7 +182,7 @@ export default function RolesScreen() {
   );
 }
 
-function RoleCard({
+function FeaturedRoleCard({
   role,
   onPress,
 }: {
@@ -179,84 +192,80 @@ function RoleCard({
   return (
     <Pressable
       onPress={() => onPress(role.id)}
-      className="active:opacity-70 w-[48%] md:w-[31%]"
+      className="active:opacity-80 mr-2.5"
+      style={{ width: 220 }}
     >
-      <Card className="overflow-hidden h-full">
-        <View className="p-4">
-          {/* Badges */}
-          <View className="flex-row items-center gap-1 mb-3 flex-wrap">
-            {role.isFeatured && (
-              <View className="bg-amber-500/20 px-1.5 py-0.5 rounded-full">
-                <Sparkles size={8} className="text-amber-600" />
-              </View>
-            )}
-            {role.isTrending && (
-              <View className="bg-orange-500/20 px-1.5 py-0.5 rounded-full">
-                <Flame size={8} className="text-orange-600" />
-              </View>
-            )}
-            {role.isVerified && (
-              <View className="bg-blue-500/20 px-1.5 py-0.5 rounded-full">
-                <CheckCircle2 size={8} className="text-blue-600" />
-              </View>
-            )}
-          </View>
-
-          {/* Role Name */}
-          <Text className="text-base font-semibold text-foreground mb-1" numberOfLines={1}>
-            {role.name}
-          </Text>
-
-          {/* Tagline */}
-          {role.tagline && (
-            <Text className="text-xs text-muted-foreground mb-3" numberOfLines={2}>
-              {role.tagline}
-            </Text>
+      <View className="bg-muted/50 rounded-xl p-4">
+        <View className="flex-row items-center gap-1.5 mb-2">
+          {role.isVerified && (
+            <CheckCircle2 size={12} className="text-blue-500" fill="#3b82f6" strokeWidth={0} />
           )}
-
-          {/* Author Info */}
-          <View className="flex-row items-center gap-2 mb-3">
-            <View className="w-6 h-6 rounded-full bg-primary/20 items-center justify-center">
-              <Text className="text-xs font-semibold text-primary">
-                {role.author.charAt(0).toUpperCase()}
-              </Text>
+          <Text className="text-[11px] font-medium text-muted-foreground">{role.category}</Text>
+        </View>
+        <Text className="text-[15px] font-bold text-foreground mb-0.5" numberOfLines={1}>
+          {role.name}
+        </Text>
+        <Text className="text-xs text-muted-foreground mb-3 leading-4" numberOfLines={2}>
+          {role.tagline}
+        </Text>
+        <View className="flex-row items-center justify-between">
+          <View className="flex-row items-center gap-2.5">
+            <View className="flex-row items-center gap-0.5">
+              <Star size={11} className="text-amber-500" fill="#f59e0b" />
+              <Text className="text-[11px] font-semibold text-foreground">{role.rating}</Text>
             </View>
-            <View className="flex-row items-center gap-1 flex-1">
-              <Text className="text-xs text-muted-foreground" numberOfLines={1}>
-                {role.author}
-              </Text>
-              {role.authorVerified && (
-                <CheckCircle2 size={10} className="text-blue-600" />
-              )}
-            </View>
-          </View>
-
-          {/* Category */}
-          <View className="px-2 py-1 bg-muted rounded-md self-start mb-3">
-            <Text className="text-xs text-muted-foreground">
-              {role.category}
+            <Text className="text-[11px] text-muted-foreground">
+              {role.usageCount > 1000 ? `${(role.usageCount / 1000).toFixed(1)}k` : role.usageCount} uses
             </Text>
           </View>
+          <ArrowRight size={14} className="text-muted-foreground" />
+        </View>
+      </View>
+    </Pressable>
+  );
+}
 
-          {/* Stats */}
-          <View className="flex-row items-center gap-3">
-            {role.rating !== undefined && (
-              <View className="flex-row items-center gap-0.5">
-                <Star size={10} className="text-amber-500" fill="#f59e0b" />
-                <Text className="text-xs font-semibold text-foreground">{role.rating}</Text>
-              </View>
-            )}
-            {role.usageCount !== undefined && (
-              <View className="flex-row items-center gap-0.5">
-                <Users size={10} className="text-muted-foreground" />
-                <Text className="text-xs text-muted-foreground">
-                  {role.usageCount > 1000 ? `${(role.usageCount / 1000).toFixed(1)}k` : role.usageCount}
-                </Text>
-              </View>
+function RoleListItem({
+  role,
+  onPress,
+}: {
+  role: any;
+  onPress: (id: string) => void;
+}) {
+  return (
+    <Pressable
+      onPress={() => onPress(role.id)}
+      className="active:opacity-70"
+    >
+      <View className="flex-row items-center py-2.5 gap-3">
+        {/* Avatar */}
+        <View className="w-9 h-9 rounded-full bg-muted items-center justify-center">
+          <Text className="text-xs font-bold text-foreground">
+            {role.name.charAt(0)}
+          </Text>
+        </View>
+
+        {/* Content */}
+        <View className="flex-1">
+          <View className="flex-row items-center gap-1">
+            <Text className="text-[14px] font-semibold text-foreground" numberOfLines={1}>
+              {role.name}
+            </Text>
+            {role.isVerified && (
+              <CheckCircle2 size={12} className="text-blue-500" fill="#3b82f6" strokeWidth={0} />
             )}
           </View>
+          <Text className="text-xs text-muted-foreground" numberOfLines={1}>
+            {role.tagline}
+          </Text>
         </View>
-      </Card>
+
+        {/* Right side */}
+        <View className="flex-row items-center gap-1">
+          <Star size={10} className="text-amber-500" fill="#f59e0b" />
+          <Text className="text-[11px] font-medium text-foreground">{role.rating}</Text>
+        </View>
+      </View>
     </Pressable>
   );
 }

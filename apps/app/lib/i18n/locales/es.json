@@ -135,6 +135,8 @@
     "library": "Biblioteca",
     "roles": "Roles",
     "automations": "Automatizaciones",
+    "skills": "Habilidades",
+    "skillDetail": "Detalle de habilidad",
     "roleDetail": "Detalle del rol",
     "billing": "Facturación"
   },
@@ -263,5 +265,17 @@
     "schedule": "Horario",
     "daily": "Diario",
     "interval": "Intervalo"
+  },
+  "skills": {
+    "title": "Habilidades",
+    "subtitle": "Capacidades modulares que convierten a Alia en un especialista. Carga habilidades bajo demanda para resultados consistentes y específicos.",
+    "exploreMore": "Explorar más",
+    "comingSoon": "Próximamente!",
+    "detail": "Detalle de habilidad",
+    "notFound": "Habilidad no encontrada",
+    "useSkill": "Usar habilidad",
+    "addToLibrary": "Añadir a biblioteca",
+    "triggers": "Activadores",
+    "includes": "Incluye"
   }
 }
