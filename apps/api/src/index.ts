@@ -25,12 +25,24 @@ import codeaRouter from './routes/codea.js';
 import modelsStatsRouter from './routes/models-stats.js';
 import externalModelsRouter from './routes/external-models.js';
 import internalRouter from './routes/internal.js';
+import skillsRouter from './routes/skills.js';
+import automationsRouter from './routes/automations.js';
+import analyticsRouter from './routes/analytics.js';
+import channelsRouter from './routes/channels.js';
+import webhooksRouter from './routes/webhooks.js';
 import providersModule from './internal/providers/index.js';
+
+// Register hooks (side-effect import)
+import './lib/hooks/index.js';
 import { providersWss } from './internal/providers/ws.js';
 import { oxyClient } from './middleware/auth.js';
 import { OxyServices } from '@oxyhq/core';
 import { syncZeroEval } from './scripts/sync-zeroeval.js';
 import { runStartupSeed } from './internal/providers/lib/seed-model-configs.js';
+import { seedSkills } from './lib/seed-skills.js';
+import { startScheduler } from './lib/automation-scheduler.js';
+import { initChannels } from './lib/channels/index.js';
+import { startLiveKitAgent } from './lib/livekit-agent.js';
 
 // WebSocket and Socket.io
 import { WebSocketServer } from 'ws';
@@ -43,6 +55,9 @@ const __dirname = dirname(__filename);
 
 // Load .env from the api directory (not the monorepo root)
 dotenv.config({ path: join(__dirname, '../.env') });
+
+// Initialize multi-channel gateway
+initChannels();
 
 const app = express();
 const PORT = parseInt(process.env.PORT || '3001', 10);
@@ -209,6 +224,11 @@ app.use('/api', canvasRouter);
 app.use('/codea', codeaRouter);
 app.use('/models', modelsStatsRouter);
 app.use('/external-models', externalModelsRouter);
+app.use('/skills', skillsRouter);
+app.use('/automations', automationsRouter);
+app.use('/analytics', analyticsRouter);
+app.use('/channels', channelsRouter);
+app.use('/webhooks', webhooksRouter);
 app.use('/internal', internalRouter);
 app.use('/internal/providers', providersModule);
 
@@ -234,6 +254,11 @@ app.get('/', (_req, res) => {
       '/codea',
       '/models',
       '/external-models',
+      '/skills',
+      '/automations',
+      '/analytics',
+      '/channels',
+      '/webhooks',
       '/internal/trigger',
       '/internal/providers'
     ]
@@ -253,8 +278,14 @@ connectDB()
       console.log(`🚀 API Server running on http://0.0.0.0:${PORT}`);
       // Seed model configs and reset circuit breakers (non-blocking)
       runStartupSeed().catch((err) => console.error('[Seed] Startup seed error:', err));
+      // Seed built-in skills (non-blocking)
+      seedSkills().catch((err) => console.error('[Skills] Seed error:', err));
       // Sync external models in background (non-blocking)
       syncZeroEval().catch((err) => console.error('[ZeroEval] Background sync error:', err));
+      // Start automation scheduler (non-blocking)
+      startScheduler().catch((err) => console.error('[Scheduler] Startup error:', err));
+      // Start LiveKit voice agent (non-blocking)
+      startLiveKitAgent().catch((err) => console.error('[LiveKit] Agent startup error:', err));
     });
   })
   .catch((error) => {

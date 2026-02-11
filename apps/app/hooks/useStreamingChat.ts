@@ -27,7 +27,7 @@ function extractTitle(content: string): { content: string; title: string | null 
   return { content, title: null };
 }
 
-export function useStreamingChat(apiUrl: string, activeRole?: any, conversationId?: string, thinkingMode?: boolean, selectedModel?: string) {
+export function useStreamingChat(apiUrl: string, activeRole?: any, conversationId?: string, thinkingMode?: boolean, selectedModel?: string, skillId?: string | null) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<Error | null>(null);
@@ -124,6 +124,7 @@ Use this role to guide your responses, maintaining the specified tone, style, an
           ...(conversationId && { conversationId }),
           ...(thinkingMode && { thinkingMode: true }),
           ...(selectedModel && { model: selectedModel }),
+          ...(skillId && { skillId }),
         }),
         signal: abortControllerRef.current.signal,
       });
@@ -393,7 +394,7 @@ Use this role to guide your responses, maintaining the specified tone, style, an
       abortControllerRef.current = null;
       setIsLoading(false);
     }
-  }, [apiUrl, messages, oxyServices, activeRole, queryClient, thinkingMode, selectedModel]);
+  }, [apiUrl, messages, oxyServices, activeRole, queryClient, thinkingMode, selectedModel, skillId]);
 
   const stop = useCallback(() => {
     if (abortControllerRef.current) {

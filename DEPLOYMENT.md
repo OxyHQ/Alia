@@ -9,6 +9,7 @@ This guide covers deploying Alia AI to production, specifically for DigitalOcean
 - [Environment Variables](#environment-variables)
 - [Deployment Process](#deployment-process)
 - [Post-Deployment Verification](#post-deployment-verification)
+- [LiveKit Server Setup](#livekit-server-setup)
 - [Troubleshooting](#troubleshooting)
 
 ## Prerequisites
@@ -73,6 +74,23 @@ STRIPE_SECRET_KEY=sk_live_...                    # Stripe secret key
 STRIPE_WEBHOOK_SECRET=whsec_...                  # Stripe webhook secret
 STRIPE_PRO_PRICE_ID=price_...                    # Pro plan price ID
 STRIPE_BUSINESS_PRICE_ID=price_...               # Business plan price ID
+
+# LiveKit Voice (Self-hosted)
+LIVEKIT_URL=ws://your-livekit-server:7880      # LiveKit server WebSocket URL
+LIVEKIT_API_KEY=your-api-key                    # LiveKit API key
+LIVEKIT_API_SECRET=your-api-secret              # LiveKit API secret
+
+# Channel Gateway Bot Secrets
+DISCORD_BOT_TOKEN=your-discord-bot-token        # Discord bot token
+DISCORD_BOT_SECRET=<generate-with-openssl>      # Discord bot webhook secret
+DISCORD_PUBLIC_KEY=your-discord-public-key      # Discord application public key
+WHATSAPP_ACCESS_TOKEN=your-whatsapp-token       # Meta Business API token
+WHATSAPP_PHONE_NUMBER_ID=your-phone-id          # WhatsApp phone number ID
+WHATSAPP_WEBHOOK_SECRET=<generate>              # WhatsApp webhook verify token
+SLACK_BOT_TOKEN=xoxb-your-slack-token           # Slack bot token
+SLACK_SIGNING_SECRET=your-signing-secret        # Slack signing secret
+SIGNAL_CLI_URL=http://signal-cli:8080           # Signal CLI REST API URL
+SIGNAL_BOT_NUMBER=+1234567890                   # Signal bot phone number
 ```
 
 #### Frontend App (`apps/app`)
@@ -132,6 +150,8 @@ Before deploying, verify:
 - [ ] `MONGODB_URI` is correct and accessible
 - [ ] LLM API keys are valid
 - [ ] `TELEGRAM_BOT_SECRET` is configured
+- [ ] LiveKit server is deployed and accessible (if using voice mode)
+- [ ] Channel bot tokens are configured (for each enabled channel)
 - [ ] Build completes successfully locally
 - [ ] Tests pass (if applicable)
 
@@ -209,6 +229,37 @@ Check DigitalOcean metrics for:
 - Memory usage (should be stable)
 - CPU usage (spikes during AI requests are normal)
 - Error rate (should be minimal)
+
+## LiveKit Server Setup
+
+For voice mode, deploy a self-hosted LiveKit server on DigitalOcean:
+
+### Option 1: Docker (Single Node)
+1. Create a compute-optimized droplet (minimum 2 vCPU, 4GB RAM)
+2. Open UDP ports 7880-7881 and 50000-60000
+3. Run LiveKit:
+   ```bash
+   docker run -d --network host \
+     -e LIVEKIT_KEYS="your-api-key: your-api-secret" \
+     livekit/livekit-server
+   ```
+
+### Option 2: Kubernetes (DOKS)
+1. Add LiveKit Helm chart:
+   ```bash
+   helm repo add livekit https://helm.livekit.io
+   helm install livekit livekit/livekit-server \
+     --set keys.your-api-key=your-api-secret
+   ```
+
+### Generating LiveKit Keys
+```bash
+# Install livekit-cli
+brew install livekit-cli  # or download from GitHub
+
+# Generate API key pair
+livekit-cli generate-keys
+```
 
 ## Troubleshooting
 
@@ -495,4 +546,4 @@ For deployment issues:
 
 ---
 
-**Last Updated:** January 24, 2024
+**Last Updated:** February 11, 2026

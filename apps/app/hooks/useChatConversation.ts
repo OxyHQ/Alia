@@ -12,9 +12,10 @@ interface UseChatConversationOptions {
   activeRole?: Role;
   thinkingMode?: boolean;
   selectedModel?: string;
+  skillId?: string | null;
 }
 
-export function useChatConversation({ conversationId, activeRole, thinkingMode, selectedModel }: UseChatConversationOptions = {}) {
+export function useChatConversation({ conversationId, activeRole, thinkingMode, selectedModel, skillId }: UseChatConversationOptions = {}) {
   const router = useRouter();
   const scrollViewRef = useRef<GHScrollView>(null);
   const hasSentPendingMessage = useRef(false);
@@ -30,7 +31,7 @@ export function useChatConversation({ conversationId, activeRole, thinkingMode, 
     isLoading,
     setMessages,
     stop,
-  } = useStreamingChat(generateAPIUrl('/v1/chat/completions'), activeRole, conversationId, thinkingMode, selectedModel);
+  } = useStreamingChat(generateAPIUrl('/v1/chat/completions'), activeRole, conversationId, thinkingMode, selectedModel, skillId);
 
   // Sync chatId and load messages when conversation changes
   useEffect(() => {

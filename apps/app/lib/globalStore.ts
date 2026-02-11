@@ -22,6 +22,9 @@ interface StoreState {
   pendingInitialMessage: string | null;
   setPendingInitialMessage: (message: string) => void;
   clearPendingInitialMessage: () => void;
+
+  activeSkillId: string | null;
+  setActiveSkillId: (skillId: string | null) => void;
 }
 
 export const useStore = create<StoreState>((set, get) => ({
@@ -50,4 +53,7 @@ export const useStore = create<StoreState>((set, get) => ({
   pendingInitialMessage: null,
   setPendingInitialMessage: (message: string) => set({ pendingInitialMessage: message }),
   clearPendingInitialMessage: () => set({ pendingInitialMessage: null }),
+
+  activeSkillId: null,
+  setActiveSkillId: (skillId: string | null) => set({ activeSkillId: skillId }),
 }));
