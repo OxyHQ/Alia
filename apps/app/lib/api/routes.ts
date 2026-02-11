@@ -53,6 +53,29 @@ export const API_ROUTES = {
     alia: '/alia/chat',
   },
 
+  // Skills routes
+  skills: {
+    list: '/skills',
+    get: (skillId: string) => `/skills/${skillId}`,
+    prompt: (skillId: string) => `/skills/${skillId}/prompt`,
+  },
+
+  // Automations routes
+  automations: {
+    list: '/automations',
+    create: '/automations',
+    update: (id: string) => `/automations/${id}`,
+    delete: (id: string) => `/automations/${id}`,
+    run: (id: string) => `/automations/${id}/run`,
+  },
+
+  // Analytics routes
+  analytics: {
+    usage: '/analytics/usage',
+    models: '/analytics/models',
+    credits: '/analytics/credits',
+  },
+
   // Health check
   health: '/health',
 

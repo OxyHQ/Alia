@@ -2,7 +2,8 @@ import { useState } from "react";
 import { View, Pressable } from "react-native";
 import type { ScrollView as GHScrollView } from "react-native-gesture-handler";
 import { useStore } from "@/lib/globalStore";
-import { Plus, Globe, ArrowUp, ImageIcon, MoreHorizontal, X, FileText, Ghost, Check, Search, ShoppingBag, BookOpen, ExternalLink, PenTool, Sparkles, Square, Brain } from "lucide-react-native";
+import { ActivityIndicator } from "react-native";
+import { Plus, Globe, ArrowUp, ImageIcon, MoreHorizontal, X, FileText, Ghost, Check, Search, ShoppingBag, BookOpen, ExternalLink, PenTool, Sparkles, Square, Brain, Mic, MicOff } from "lucide-react-native";
 import { useImagePicker } from "@/hooks/useImagePicker";
 import * as DocumentPicker from 'expo-document-picker';
 import { AttachmentPreview } from "@/components/attachment-preview";
@@ -15,6 +16,9 @@ import { ChatHeader } from "@/components/chat-header";
 import { useAuth } from "@oxyhq/services";
 import type { Message } from "@/types/chat";
 import { toast } from "@/components/sonner";
+import { VoiceChat } from "@/components/voice-chat";
+import { CanvasPanel } from "@/components/canvas-panel";
+import { useSpeechToText } from "@/lib/hooks/use-speech-to-text";
 
 interface ChatPageContentProps {
   messages: Message[];
@@ -37,34 +41,37 @@ const SubmitButtonWrapper = ({
   isLoading,
   stop,
   inputValue,
-  attachments
+  attachments,
+  onVoicePress,
 }: {
   isLoading: boolean;
   stop?: () => void;
   inputValue: string;
-  attachments: any[]
+  attachments: any[];
+  onVoicePress?: () => void;
 }) => {
   const { onSubmit } = usePromptInput();
+  const hasContent = inputValue.trim() || attachments.length > 0;
+
+  if (isLoading) {
+    return (
+      <Button size="icon" onPress={stop} className="h-8 w-8 rounded-full">
+        <Square size={12} color="white" className="fill-current" />
+      </Button>
+    );
+  }
+
+  if (!hasContent) {
+    return (
+      <Button size="icon" onPress={onVoicePress} className="h-8 w-8 rounded-full">
+        <Mic size={16} color="white" />
+      </Button>
+    );
+  }
 
   return (
-    <Button
-      size="icon"
-      onPress={isLoading && stop ? stop : onSubmit}
-      disabled={(!inputValue.trim() && attachments.length === 0) && !isLoading}
-      className="h-8 w-8 rounded-full"
-    >
-      {isLoading ? (
-        <Square
-          size={12}
-          color="white"
-          className="fill-current"
-        />
-      ) : (
-        <ArrowUp
-          size={16}
-          color="white"
-        />
-      )}
+    <Button size="icon" onPress={onSubmit} className="h-8 w-8 rounded-full">
+      <ArrowUp size={16} color="white" />
     </Button>
   );
 };
@@ -91,8 +98,12 @@ export const ChatPageContent = ({
   const [agentMode, setAgentMode] = useState(false);
   const [ghostMode, setGhostMode] = useState(false);
   const [inputValue, setInputValue] = useState("");
+  const [showVoice, setShowVoice] = useState(false);
+  const [showCanvas, setShowCanvas] = useState(false);
+  const [canvasComponents, setCanvasComponents] = useState<any[]>([]);
   const [loadingImageUris, setLoadingImageUris] = useState<Set<string>>(new Set());
   const { pickImage } = useImagePicker();
+  const stt = useSpeechToText();
 
   const handleSubmit = () => {
     if (!inputValue.trim() || isLoading) return;
@@ -252,7 +263,20 @@ export const ChatPageContent = ({
   };
 
   const handleCanvas = () => {
-    toast.info('Canvas mode for collaborative editing coming soon!');
+    setShowCanvas(true);
+  };
+
+  const handleMicPress = async () => {
+    if (stt.isRecording) {
+      const text = await stt.stopAndTranscribe();
+      if (text) {
+        setInputValue((prev) => (prev ? `${prev} ${text}` : text));
+      }
+    } else if (stt.isTranscribing) {
+      // Already transcribing, do nothing
+    } else {
+      stt.startRecording();
+    }
   };
 
   return (
@@ -424,12 +448,28 @@ export const ChatPageContent = ({
                       </Dropdown>
                     </View>
 
-                    <SubmitButtonWrapper
-                      isLoading={isLoading}
-                      stop={onStop}
-                      inputValue={inputValue}
-                      attachments={attachments}
-                    />
+                    <View className="flex-row items-center gap-1.5">
+                      <Pressable
+                        onPress={handleMicPress}
+                        disabled={stt.isTranscribing}
+                        className="h-8 w-8 rounded-full items-center justify-center active:opacity-70"
+                      >
+                        {stt.isTranscribing ? (
+                          <ActivityIndicator size="small" color="#6366f1" />
+                        ) : stt.isRecording ? (
+                          <MicOff size={16} color="#ef4444" />
+                        ) : (
+                          <Mic size={16} className="text-muted-foreground" />
+                        )}
+                      </Pressable>
+                      <SubmitButtonWrapper
+                        isLoading={isLoading}
+                        stop={onStop}
+                        inputValue={inputValue}
+                        attachments={attachments}
+                        onVoicePress={() => setShowVoice(true)}
+                      />
+                    </View>
                   </PromptInputActions>
                 </PromptInput>
               </View>
@@ -437,6 +477,9 @@ export const ChatPageContent = ({
           </View>
         </View>
       </View>
+
+      <VoiceChat visible={showVoice} onClose={() => setShowVoice(false)} />
+      <CanvasPanel visible={showCanvas} onClose={() => setShowCanvas(false)} components={canvasComponents} />
     </View>
   );
 };

@@ -7,11 +7,13 @@ import { Conversation } from '../../models/conversation.js';
 import { reserveCredits, finalizeCredits, type CreditReservation, type CreditUsage } from '../../lib/credits-manager.js';
 import { recordUsage } from '../../middleware/api-key-rate-limit.js';
 import { convertOpenAIToolsToToolSet } from '../../lib/tool-converter.js';
-import { getCurrentDateTool, getTimelineTool, saveUserMemoryTool, updateUserPreferencesTool, updateUserContextTool, createSendTelegramTool, createProvidersAdminTool } from '../../lib/tools/index.js';
+import { getCurrentDateTool, getTimelineTool, saveUserMemoryTool, updateUserPreferencesTool, updateUserContextTool, createSendTelegramTool, createProvidersAdminTool, webScraperTool, generateFileTool } from '../../lib/tools/index.js';
 import { oxyClient } from '../../middleware/auth.js';
 import type { KeyConfig } from '../../internal/providers/lib/types.js';
 import type { IUserMemory } from '../../models/user-memory.js';
+import { Skill } from '../../models/skill.js';
 import { estimateMessageTokens } from '../../lib/token-counter.js';
+import { runAfterChatHooks } from '../../lib/hooks/index.js';
 // recordFailure is now handled via reportModelUsage from chat-core
 
 const router = Router();
@@ -136,6 +138,7 @@ router.post('/', async (req: Request, res: Response) => {
   let creditReservation: CreditReservation | null = null;
   let resolved: Awaited<ReturnType<typeof resolveModel>> = null;
   let aliasModelId: string = 'alia-v1';
+  const requestStartTime = Date.now();
 
   try {
     console.log('📬 [V1/Chat] Request received');
@@ -256,6 +259,8 @@ router.post('/', async (req: Request, res: Response) => {
     // - getTimeline: Might conflict with client-side timeline tools
     const aliaTools: ToolSet = {
       getCurrentDate: getCurrentDateTool,
+      webScraper: webScraperTool,
+      generateFile: generateFileTool,
       // Personal tools only available for direct user sessions (not API key requests)
       ...(isDirectUserSession ? {
         sendTelegram: createSendTelegramTool(req.user!.id),
@@ -357,6 +362,19 @@ When you use a tool successfully:
         if (ctx.length > 0) {
           systemMessage += '\n### Context:\n' + ctx.join('\n');
         }
+      }
+    }
+
+    // Inject skill system prompt if skillId provided in request body
+    if (body.skillId && isDirectUserSession) {
+      try {
+        const skill = await Skill.findOne({ skillId: body.skillId }).select('systemPrompt title').lean();
+        if (skill?.systemPrompt) {
+          systemMessage = `# ACTIVE SKILL: ${skill.title}\n\n${skill.systemPrompt}\n\n---\n\n${systemMessage}`;
+          console.log(`[V1/Chat] Skill activated: ${skill.title}`);
+        }
+      } catch (e) {
+        console.error('[V1/Chat] Error loading skill:', e);
       }
     }
 
@@ -551,6 +569,21 @@ When you use a tool successfully:
           console.error('[V1/Chat] Error finalizing credits:', error);
         }
       }
+
+      // Fire afterChat hooks (non-blocking)
+      runAfterChatHooks({
+        userId: req.user?.id,
+        conversationId: body.conversationId,
+        messages,
+        model: aliasModelId,
+        skillId: body.skillId,
+        platform: req.apiKey ? 'telegram' as const : 'app' as const,
+        metadata: { provider: resolved?.provider || 'unknown' },
+        response: assistantResponse,
+        tokenUsage,
+        modelUsed: resolved?.keyConfig?.modelId || aliasModelId,
+        latencyMs: Date.now() - requestStartTime,
+      }).catch(err => console.error('[V1/Chat] Error in afterChat hooks:', err));
 
       // Build tool_calls array if there were any tool calls
       const toolCalls = result.toolCalls?.map((tc: any, index: number) => {
@@ -894,6 +927,21 @@ When you use a tool successfully:
         console.error('[V1/Chat] Error finalizing credits:', error);
       }
     }
+
+    // Fire afterChat hooks (non-blocking)
+    runAfterChatHooks({
+      userId: req.user?.id,
+      conversationId: body.conversationId,
+      messages,
+      model: aliasModelId,
+      skillId: body.skillId,
+      platform: req.apiKey ? 'telegram' as const : 'app' as const,
+      metadata: { provider: resolved?.provider || 'unknown' },
+      response: assistantResponse,
+      tokenUsage,
+      modelUsed: resolved?.keyConfig?.modelId || aliasModelId,
+      latencyMs: Date.now() - requestStartTime,
+    }).catch(err => console.error('[V1/Chat] Error in afterChat hooks:', err));
 
     res.write('data: [DONE]\n\n');
     res.end();

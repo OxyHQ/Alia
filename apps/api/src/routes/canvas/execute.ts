@@ -1,8 +1,25 @@
 import { Router } from 'express';
 import { randomUUID } from 'crypto';
+import { generateText } from 'ai';
 import { WorkflowExecution } from '../../models/workflow-execution.js';
 import { authenticateToken } from '../../middleware/auth.js';
+import { resolveModel, getAIModel, getDefaultAliaModel } from '../../lib/chat-core.js';
+import { UserMemory } from '../../models/user-memory.js';
+import { getIO } from '../../socket.js';
 import type { Request, Response } from 'express';
+
+// Response types for external API calls
+interface OpenAIImageResponse {
+  data: { url: string }[];
+}
+
+interface OpenAIErrorResponse {
+  error?: { message?: string };
+}
+
+interface GitHubContentResponse {
+  content: string;
+}
 
 const router = Router();
 
@@ -56,7 +73,7 @@ router.post('/', async (req: Request, res: Response) => {
 
     try {
       // Execute the workflow
-      const { results, finalOutput } = await executeWorkflow(nodes, edges, req.userId!);
+      const { results, finalOutput } = await executeWorkflow(nodes, edges, req.userId!, executionId);
 
       // Update execution with results
       execution.status = 'completed';
@@ -92,7 +109,8 @@ router.post('/', async (req: Request, res: Response) => {
 async function executeWorkflow(
   nodes: WorkflowNode[],
   edges: WorkflowEdge[],
-  userId: string
+  userId: string,
+  executionId: string
 ): Promise<{ results: any[]; finalOutput: string }> {
   const results: any[] = [];
   const nodeOutputs = new Map<string, any>();
@@ -151,10 +169,8 @@ async function executeWorkflow(
         }
       }
 
-      // Execute the node
-      const output = await executeNode(node, inputs.join('\n\n'));
+      const output = await executeNode(node, inputs.join('\n\n'), userId);
 
-      // Store output
       nodeOutputs.set(nodeId, output);
 
       results.push({
@@ -164,6 +180,17 @@ async function executeWorkflow(
         error: undefined,
         timestamp: new Date()
       });
+
+      const io = getIO();
+      if (io) {
+        io.to(`workflow:${executionId}`).emit('workflow-progress', {
+          executionId,
+          nodeId: node.id,
+          nodeType: node.type,
+          status: 'completed',
+          output
+        });
+      }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       results.push({
@@ -193,24 +220,91 @@ async function executeWorkflow(
   return { results, finalOutput };
 }
 
-// Execute a single node
-async function executeNode(node: WorkflowNode, input: string): Promise<any> {
+async function executeNode(node: WorkflowNode, input: string, userId: string): Promise<any> {
   switch (node.type) {
     case 'textInput':
       return node.data.text || '';
 
-    case 'aiText':
-      // TODO: Implement AI text generation
-      // For now, return a placeholder
-      return `AI Text Node (${node.data.label}): Would generate text using ${node.data.provider} ${node.data.model}\nPrompt: ${node.data.prompt}\nInput: ${input}`;
+    case 'aiText': {
+      const modelId = node.data.model || getDefaultAliaModel();
+      const resolved = await resolveModel(modelId);
+      const model = getAIModel(resolved.keyConfig);
+      const builtPrompt = node.data.prompt
+        ? node.data.prompt.replace(/\{\{input\}\}/g, input)
+        : input;
+      const result = await generateText({
+        model,
+        prompt: builtPrompt,
+        system: node.data.systemPrompt
+      });
+      return result.text;
+    }
 
-    case 'aiImage':
-      // TODO: Implement AI image generation
-      return `AI Image Node (${node.data.label}): Would generate image using ${node.data.provider}`;
+    case 'aiImage': {
+      const apiKey = process.env.OPENAI_API_KEY;
+      if (!apiKey) {
+        throw new Error('OPENAI_API_KEY environment variable is not set');
+      }
+      const imagePrompt = node.data.prompt
+        ? node.data.prompt.replace(/\{\{input\}\}/g, input)
+        : input;
+      const response = await fetch('https://api.openai.com/v1/images/generations', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${apiKey}`
+        },
+        body: JSON.stringify({
+          prompt: imagePrompt,
+          n: 1,
+          size: node.data.size || '1024x1024'
+        })
+      });
+      if (!response.ok) {
+        const err = await response.json() as OpenAIErrorResponse;
+        throw new Error(`OpenAI image generation failed: ${err.error?.message || response.statusText}`);
+      }
+      const data = await response.json() as OpenAIImageResponse;
+      return data.data[0].url;
+    }
 
-    case 'github':
-      // TODO: Implement GitHub integration
-      return `GitHub Node (${node.data.label}): Would fetch from ${node.data.githubUrl}`;
+    case 'github': {
+      const githubUrl = node.data.githubUrl;
+      if (!githubUrl) {
+        throw new Error('GitHub URL is required');
+      }
+      const url = new URL(githubUrl);
+      const parts = url.pathname.split('/').filter(Boolean);
+      if (parts.length < 2) {
+        throw new Error('Invalid GitHub URL: must contain owner and repo');
+      }
+      const owner = parts[0];
+      const repo = parts[1];
+      let apiUrl: string;
+      if (parts.length >= 4 && parts[2] === 'blob') {
+        const path = parts.slice(4).join('/');
+        apiUrl = `https://api.github.com/repos/${owner}/${repo}/contents/${path}?ref=${parts[3]}`;
+      } else if (parts.length >= 3) {
+        const path = parts.slice(2).join('/');
+        apiUrl = `https://api.github.com/repos/${owner}/${repo}/contents/${path}`;
+      } else {
+        apiUrl = `https://api.github.com/repos/${owner}/${repo}/readme`;
+      }
+      const headers: Record<string, string> = {
+        'Accept': 'application/vnd.github.v3+json',
+        'User-Agent': 'Alia-Workflow-Engine'
+      };
+      if (node.data.token) {
+        headers['Authorization'] = `Bearer ${node.data.token}`;
+      }
+      const ghResponse = await fetch(apiUrl, { headers });
+      if (!ghResponse.ok) {
+        throw new Error(`GitHub API error: ${ghResponse.status} ${ghResponse.statusText}`);
+      }
+      const ghData = await ghResponse.json() as GitHubContentResponse;
+      const content = Buffer.from(ghData.content, 'base64').toString('utf-8');
+      return content;
+    }
 
     case 'merge':
       return input;
@@ -218,13 +312,70 @@ async function executeNode(node: WorkflowNode, input: string): Promise<any> {
     case 'output':
       return input;
 
-    case 'condition':
-      // TODO: Implement condition logic
-      return input;
+    case 'condition': {
+      const operator = node.data.operator;
+      const value = node.data.value || '';
+      let matches = false;
+      switch (operator) {
+        case 'contains':
+          matches = input.includes(value);
+          break;
+        case 'equals':
+          matches = input === value;
+          break;
+        case 'startsWith':
+          matches = input.startsWith(value);
+          break;
+        case 'endsWith':
+          matches = input.endsWith(value);
+          break;
+        case 'matches':
+          matches = new RegExp(value).test(input);
+          break;
+        case 'greaterThan':
+          matches = parseFloat(input) > parseFloat(value);
+          break;
+        case 'lessThan':
+          matches = parseFloat(input) < parseFloat(value);
+          break;
+        default:
+          matches = !!input;
+      }
+      return matches ? input : '';
+    }
 
-    case 'memory':
-      // TODO: Implement memory operations
-      return `Memory Node (${node.data.label}): ${node.data.operation} ${node.data.memoryKey}`;
+    case 'memory': {
+      const operation = node.data.operation;
+      const memoryKey = node.data.memoryKey;
+      if (!memoryKey) {
+        throw new Error('Memory key is required');
+      }
+      if (operation === 'read') {
+        const userMemory = await UserMemory.findOne({ oxyUserId: userId });
+        if (!userMemory) return '';
+        const entry = userMemory.memories.find(m => m.key === memoryKey);
+        return entry ? entry.value : '';
+      } else if (operation === 'write') {
+        const existing = await UserMemory.findOne({
+          oxyUserId: userId,
+          'memories.key': memoryKey
+        });
+        if (existing) {
+          await UserMemory.updateOne(
+            { oxyUserId: userId, 'memories.key': memoryKey },
+            { $set: { 'memories.$.value': input, 'memories.$.updatedAt': new Date() } }
+          );
+        } else {
+          await UserMemory.findOneAndUpdate(
+            { oxyUserId: userId },
+            { $push: { memories: { key: memoryKey, value: input, createdAt: new Date(), updatedAt: new Date() } } },
+            { upsert: true }
+          );
+        }
+        return input;
+      }
+      throw new Error(`Unknown memory operation: ${operation}`);
+    }
 
     default:
       throw new Error(`Unknown node type: ${node.type}`);

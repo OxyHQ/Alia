@@ -9,3 +9,6 @@ export { saveUserMemoryTool, updateUserPreferencesTool, updateUserContextTool } 
 export { createGetDeviceInfoTool, type DeviceInfo } from './device-info';
 export { createSendTelegramTool } from './telegram';
 export { createProvidersAdminTool } from './providers-admin';
+export { webScraperTool } from './web-scraper';
+export { generateFileTool } from './file-generator';
+export { canvasTool } from './canvas';

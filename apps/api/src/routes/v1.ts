@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express';
 import chatCompletionsRouter from './v1/chat-completions.js';
 import responsesRouter from './v1/responses.js';
 import modelsRouter from './v1/models.js';
+import voiceRouter from './v1/voice.js';
 import { authenticateTokenOrApiKey } from '../middleware/auth.js';
 import { apiKeyRateLimit } from '../middleware/api-key-rate-limit.js';
 import { resolveModel, isAliaModel } from '../lib/chat-core.js';
@@ -217,5 +218,8 @@ router.use('/chat/completions', chatCompletionsRouter);
 
 // OpenAI Responses API support (for Vercel AI SDK compatibility)
 router.use('/responses', responsesRouter);
+
+// Voice mode (LiveKit token + transcription)
+router.use('/voice', voiceRouter);
 
 export default router;

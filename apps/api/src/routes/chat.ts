@@ -5,17 +5,21 @@ import { Router } from 'express';
 import { streamText, stepCountIs, type ToolSet } from 'ai';
 import { resolveModel, getAIModel, getDefaultAliaModel, reportModelUsage } from '../lib/chat-core.js';
 import type { KeyConfig } from '../internal/providers/lib/types.js';
-import { getCurrentDateTool, createGoogleSearchTool, getTimelineTool, searchKnowledgeBaseTool, scrapeURLTool, saveUserMemoryTool, updateUserPreferencesTool, updateUserContextTool, createGetDeviceInfoTool, createSendTelegramTool, createProvidersAdminTool, type DeviceInfo } from '../lib/tools/index.js';
+import { getCurrentDateTool, createGoogleSearchTool, getTimelineTool, searchKnowledgeBaseTool, scrapeURLTool, saveUserMemoryTool, updateUserPreferencesTool, updateUserContextTool, createGetDeviceInfoTool, createSendTelegramTool, createProvidersAdminTool, webScraperTool, generateFileTool, canvasTool, type DeviceInfo } from '../lib/tools/index.js';
 import { optionalAuth, oxyClient } from '../middleware/auth.js';
 import type { User as OxyUser } from '@oxyhq/core';
 import { UserCredits } from '../models/user-credits.js';
 import { UserMemory } from '../models/user-memory.js';
 import { Conversation } from '../models/conversation.js';
+import { CanvasSession } from '../models/canvas-session.js';
+import { Skill } from '../models/skill.js';
 import type { IUserMemory } from '../models/user-memory.js';
 import { processMessagesForPlatform } from '../lib/message-processor.js';
 import { reserveCredits, finalizeCredits, refundReservation, type CreditReservation, type CreditUsage } from '../lib/credits-manager.js';
 import { estimateMessageTokens } from '../lib/token-counter.js';
 import { recordUsage } from '../middleware/api-key-rate-limit.js';
+import { runAfterChatHooks } from '../lib/hooks/index.js';
+import { emitCanvasUpdate } from '../socket.js';
 
 const router = Router();
 
@@ -44,11 +48,16 @@ function autoGenerateTitle(content: string, userMessage?: string): string {
 // getAIModel is now imported from chat-core.ts
 
 // Function to build personalized system prompt
-function buildSystemPrompt(oxyUser?: OxyUser | null, memory?: IUserMemory | null, platform: 'app' | 'telegram' = 'app'): string {
+function buildSystemPrompt(oxyUser?: OxyUser | null, memory?: IUserMemory | null, platform: 'app' | 'telegram' = 'app', skillPrompt?: string | null): string {
   let prompt = ALIA_SYSTEM_PROMPT;
 
   if (platform === 'telegram') {
     prompt = ALIA_TELEGRAM_PROMPT;
+  }
+
+  // Inject skill system prompt before the base prompt
+  if (skillPrompt) {
+    prompt = `${skillPrompt}\n\n---\n\n${prompt}`;
   }
 
   const userContext: string[] = [];
@@ -203,13 +212,15 @@ router.post('/', optionalAuth, async (req, res) => {
 
   // Declare creditReservation outside try block so it's accessible in catch
   let creditReservation: CreditReservation | null = null;
+  const requestStartTime = Date.now();
 
   try {
-    const { messages, conversationId, model: requestedModel, thinkingMode } = req.body as {
+    const { messages, conversationId, model: requestedModel, thinkingMode, skillId } = req.body as {
       messages: any[];
       conversationId?: string;
       model?: string;
       thinkingMode?: boolean;
+      skillId?: string;
     };
 
     if (!messages || !messages.length) {
@@ -362,6 +373,9 @@ router.post('/', optionalAuth, async (req, res) => {
       getTimeline: getTimelineTool,
       searchKnowledgeBase: searchKnowledgeBaseTool,
       scrapeURL: scrapeURLTool,
+      webScraper: webScraperTool,
+      generateFile: generateFileTool,
+      canvas: canvasTool,
       ...(googleApiKey ? { googleSearch: createGoogleSearchTool(googleApiKey) } : {}),
       // Add device info tool if device info is available
       ...(deviceInfo ? { getDeviceInfo: createGetDeviceInfoTool(deviceInfo) } : {}),
@@ -389,8 +403,22 @@ router.post('/', optionalAuth, async (req, res) => {
       tools.providersAdmin = createProvidersAdminTool();
     }
 
-    // Build personalized system prompt
-    const systemPrompt = buildSystemPrompt(oxyUser, memory, platform);
+    // Look up active skill system prompt if skillId provided
+    let skillPrompt: string | null = null;
+    if (skillId) {
+      try {
+        const skill = await Skill.findOne({ skillId }).select('systemPrompt title').lean();
+        if (skill?.systemPrompt) {
+          skillPrompt = `# ACTIVE SKILL: ${skill.title}\n\n${skill.systemPrompt}`;
+          console.log(`[Alia/Chat] Skill activated: ${skill.title}`);
+        }
+      } catch (e) {
+        console.error('[Alia/Chat] Error loading skill:', e);
+      }
+    }
+
+    // Build personalized system prompt (with skill injection)
+    const systemPrompt = buildSystemPrompt(oxyUser, memory, platform, skillPrompt);
 
     // Estimate system prompt tokens (so we don't charge users for our system prompts)
     const systemPromptTokens = estimateMessageTokens('system', systemPrompt);
@@ -550,6 +578,22 @@ router.post('/', optionalAuth, async (req, res) => {
             }
           }
 
+          // Handle canvas tool results - persist and emit via Socket.IO
+          if (chunk.type === 'tool-result' && (chunk as any).toolName === 'canvas' && (chunk as any).result) {
+            const component = (chunk as any).result;
+            if (conversationId && req.user?.id) {
+              CanvasSession.findOneAndUpdate(
+                { oxyUserId: req.user.id, conversationId },
+                { $push: { components: { ...component, createdAt: new Date() } } },
+                { upsert: true, new: true }
+              ).catch(err => console.error('[Alia/Chat] Canvas save error:', err));
+              emitCanvasUpdate(conversationId, component);
+            }
+            // Send as canvas-component event to SSE
+            const canvasEvent = JSON.stringify({ type: 'canvas-component', component });
+            writeSSE(res, `data: ${canvasEvent}\n\n`);
+          }
+
           // Send non-text event
           const event = JSON.stringify(chunk);
           writeSSE(res, `data: ${event}\n\n`);
@@ -640,6 +684,21 @@ router.post('/', optionalAuth, async (req, res) => {
         hasUser: !!req.user
       });
     }
+
+    // Fire afterChat hooks (non-blocking)
+    runAfterChatHooks({
+      userId: req.user?.id,
+      conversationId,
+      messages,
+      model: resolved?.aliasModelId || 'alia-v1',
+      skillId,
+      platform: 'app',
+      metadata: { provider: resolved?.provider || 'unknown' },
+      response: assistantResponse,
+      tokenUsage,
+      modelUsed: resolved?.keyConfig?.modelId || 'unknown',
+      latencyMs: Date.now() - requestStartTime,
+    }).catch(err => console.error('[Alia/Chat] Error in afterChat hooks:', err));
 
     // Auto-save conversation if conversationId provided and user is authenticated
     if (conversationId && typeof conversationId === 'string' && conversationId.trim() && req.user && assistantResponse) {

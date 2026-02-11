@@ -1,12 +1,14 @@
 import { useState } from "react";
 import { useLocalSearchParams } from "expo-router";
 import { useRolesStore } from "@/lib/stores/roles-store";
+import { useStore } from "@/lib/globalStore";
 import { useChatConversation } from "@/hooks/useChatConversation";
 import { ChatPageContent } from "@/components/chat-page-content";
 
 const ChatConversationPage = () => {
   const { id, roleId } = useLocalSearchParams<{ id: string; roleId?: string }>();
   const roles = useRolesStore((state) => state.roles);
+  const activeSkillId = useStore((state) => state.activeSkillId);
 
   const [selectedModel, setSelectedModel] = useState("alia-v1");
   const [activeRoleId, setActiveRoleId] = useState<string | undefined>(roleId);
@@ -21,7 +23,7 @@ const ChatConversationPage = () => {
     editMessage,
     stopGeneration,
     clearConversation,
-  } = useChatConversation({ conversationId: id, activeRole, thinkingMode, selectedModel });
+  } = useChatConversation({ conversationId: id, activeRole, thinkingMode, selectedModel, skillId: activeSkillId });
 
   return (
     <ChatPageContent

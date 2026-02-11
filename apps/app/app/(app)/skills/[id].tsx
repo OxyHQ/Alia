@@ -28,7 +28,7 @@ export default function SkillDetailScreen() {
   };
 
   const handleUseSkill = () => {
-    router.replace({ pathname: '/(app)' });
+    router.replace({ pathname: '/(app)', params: { skillId: skill.id } });
   };
 
   return (

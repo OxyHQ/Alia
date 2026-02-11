@@ -65,6 +65,80 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Provides estimated final total
 - **File size limits**: 5MB maximum for imports
 
+#### Skills as System Prompts
+- **Skills system** with built-in and custom skill support
+- **Skills API routes** (`/skills`) with full CRUD operations
+- Skills applied as system prompts during chat
+- Built-in skills seeded on startup (Creative Writer, Code Reviewer, etc.)
+- Skills selection UI in the app
+
+#### Automations & Cron Jobs
+- **Automation scheduler** with cron-based triggers
+- Atomic execution with `findOneAndUpdate` to prevent race conditions
+- **Automations API routes** (`/automations`) with full CRUD
+- Automation management UI in app
+
+#### Chat Hooks Pipeline
+- **Pre-chat and post-chat hook system**
+- Built-in analytics hook for tracking usage
+- Hook runner with ordered execution
+- Side-effect import registration pattern
+
+#### Improved AI Tools
+- **Web scraper tool** for deep page content extraction
+- **File generator tool** for creating downloadable files
+- **Canvas tool** for pushing rich UI components to client
+- Google search, device info, Telegram messaging tools
+
+#### Analytics Dashboard
+- **Chat analytics model** tracking per-conversation metrics
+- **Analytics API routes** (`/analytics`) with aggregation queries
+- Frontend analytics dashboard with charts
+
+#### Multi-Channel Gateway (Plugin Architecture)
+- **Composable channel plugin system** with typed adapters (config, outbound, security, normalize, webhook)
+- Plugin registry with discovery and caching
+- 4 channel plugins: Discord, WhatsApp, Slack, Signal
+- **Unified channel routes** (`/channels`) for user management and account linking
+- **Unified webhook routes** (`/webhooks`) with per-channel signature verification
+- Generic `ChannelUser` model with channel type discriminator
+- Channel-specific bot authentication middleware
+- Outbound message service with per-channel text chunking
+
+#### Workflow Execution Engine
+- Complete node implementations: `aiText`, `aiImage`, `github`, `condition`, `memory`
+- Topological sort (Kahn's algorithm) for execution ordering
+- Socket.IO progress emission per node during execution
+- `WorkflowExecution` model for tracking runs
+- Typed API response interfaces for OpenAI and GitHub
+
+#### Canvas Live (Agent-to-UI)
+- **Canvas tool** registered in chat for AI to push dynamic UI components
+- Canvas session model with persistence per conversation
+- **Canvas session API routes** (GET/DELETE per conversation)
+- Socket.IO canvas update emission
+- SSE `canvas-component` events during chat streaming
+- Frontend `CanvasPanel` with slide-in modal
+- 6 component renderers: chart, table, code, form, markdown, canvas-component dispatcher
+- Copy-to-clipboard in code renderer, interactive forms
+
+#### Voice Mode with LiveKit + Speech-to-Text
+- **Self-hosted LiveKit integration** for real-time voice conversations
+- LiveKit agent worker with OpenAI Realtime multimodal model
+- LiveKit token generation for users and agents
+- Voice token endpoint (`POST /v1/voice/token`)
+- Speech-to-text transcription endpoint (`POST /v1/voice/transcribe`) using OpenAI Whisper
+- `VoiceChat` component rewritten with LiveKit client (connect, mute, agent state indicators)
+- Speech-to-text hook (`useSpeechToText`) with expo-audio recording
+- Send button morphs: Mic (empty input) -> ArrowUp (has text) -> Square (loading)
+- Small mic icon for STT transcription with recording/transcribing indicators
+
+#### Socket.IO Enhancements
+- `getIO()` export for accessing Socket.IO instance from any module
+- Workflow progress rooms (`subscribe-workflow`)
+- Canvas update rooms (`subscribe-canvas`)
+- `emitCanvasUpdate()` and `emitWorkflowProgress()` helper exports
+
 #### Frontend Features
 - **Export UI** in memory settings ([apps/app/app/(app)/settings/memory.tsx](apps/app/app/(app)/settings/memory.tsx))
   - Format selection (JSON/CSV)
@@ -93,7 +167,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Version History
 
-### [1.0.0] - 2024-01-24
+### [1.0.0] - 2026-02-11
 
 #### Initial Release
 - Multi-agent AI platform (Alia, Developer, Social Manager, Business)
