@@ -108,7 +108,7 @@ server.on('upgrade', (request, socket, head) => {
       // Validate token using per-request OxyServices instance
       const perRequestOxy = new OxyServices({ baseURL: process.env.OXY_API_URL || 'https://api.oxy.so' });
       perRequestOxy.setTokens(token);
-      perRequestOxy.validate().then(({ valid }: { valid: boolean }) => {
+      perRequestOxy.validate().then((valid: boolean) => {
         if (!valid) {
           socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n');
           socket.destroy();
