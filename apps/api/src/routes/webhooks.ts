@@ -1,7 +1,150 @@
 import express from 'express';
+import crypto from 'crypto';
+import { generateText } from 'ai';
 import { getChannel } from '../lib/channels/registry.js';
+import { resolveModel, getAIModel, reportModelUsage } from '../lib/chat-core.js';
+import { sendChannelMessage } from '../lib/channels/outbound.js';
 import { ChannelUser } from '../models/channel-user.js';
-import type { ChannelId } from '../lib/channels/types.js';
+import { Conversation } from '../models/conversation.js';
+import type { ChannelId, ChannelInboundMessage } from '../lib/channels/types.js';
+
+const CHANNEL_SYSTEM_PROMPT = `You are Alia, a helpful AI assistant. Be concise and friendly. Respond in the same language the user writes to you.`;
+
+function generateAuthToken(): string {
+  return crypto.randomBytes(32).toString('hex');
+}
+
+async function processChannelMessage(
+  channelType: ChannelId,
+  channelUser: any,
+  message: ChannelInboundMessage
+): Promise<void> {
+  try {
+    // Check authentication
+    if (!channelUser.isAuthenticated || !channelUser.oxyUserId) {
+      // Generate auth token and send auth link
+      const authToken = generateAuthToken();
+      channelUser.authToken = authToken;
+      channelUser.authTokenExpiry = new Date(Date.now() + 15 * 60 * 1000);
+      await channelUser.save();
+
+      const apiBaseUrl = process.env.API_BASE_URL || 'http://localhost:3001';
+      const authUrl = `${apiBaseUrl}/channels/${channelType}/verify?token=${authToken}`;
+
+      await sendChannelMessage(
+        channelType,
+        message.chatId,
+        `Hi! To use Alia, please link your account first:\n${authUrl}\n\nThis link expires in 15 minutes.`,
+        { replyToId: message.replyToId, threadId: message.threadId }
+      );
+      return;
+    }
+
+    // Load or create conversation
+    let conversationId = channelUser.conversationId;
+    if (!conversationId) {
+      conversationId = crypto.randomUUID();
+      channelUser.conversationId = conversationId;
+      await channelUser.save();
+    }
+
+    // Load conversation history
+    let messages: Array<{ role: string; content: string }> = [];
+    try {
+      const conversation = await Conversation.findOne({
+        oxyUserId: channelUser.oxyUserId,
+        conversationId,
+      });
+      if (conversation?.messages?.length) {
+        messages = conversation.messages.slice(-20).map((m: any) => ({
+          role: m.role,
+          content: m.content,
+        }));
+      }
+    } catch (error) {
+      console.error(`[Webhook] Failed to load history for ${channelType}:`, error);
+    }
+
+    // Add the new user message
+    messages.push({ role: 'user', content: message.text });
+
+    // Resolve AI model
+    const resolved = await resolveModel(channelUser.preferredModel || 'alia-lite');
+    if (!resolved) {
+      await sendChannelMessage(channelType, message.chatId, 'Sorry, no AI models are available right now.', {
+        replyToId: message.replyToId,
+        threadId: message.threadId,
+      });
+      return;
+    }
+
+    const model = getAIModel(resolved.keyConfig);
+
+    // Generate AI response
+    const startTime = Date.now();
+    const result = await generateText({
+      model,
+      system: CHANNEL_SYSTEM_PROMPT,
+      messages: messages.map(m => ({
+        role: m.role as 'user' | 'assistant',
+        content: m.content,
+      })),
+      temperature: 0.7,
+      maxOutputTokens: 2048,
+    });
+
+    const latencyMs = Date.now() - startTime;
+    const fullResponse = result.text;
+
+    // Send response back via outbound adapter
+    if (fullResponse) {
+      await sendChannelMessage(channelType, message.chatId, fullResponse, {
+        replyToId: message.replyToId,
+        threadId: message.threadId,
+      });
+    }
+
+    // Report model usage for health tracking
+    await reportModelUsage(
+      resolved.keyConfig.keyId,
+      resolved.provider,
+      resolved.modelId,
+      true,
+      latencyMs
+    );
+
+    // Save conversation
+    if (fullResponse) {
+      messages.push({ role: 'assistant', content: fullResponse });
+      await Conversation.findOneAndUpdate(
+        { oxyUserId: channelUser.oxyUserId, conversationId },
+        {
+          $set: {
+            messages,
+            lastMessage: fullResponse.slice(0, 100),
+            updatedAt: new Date(),
+          },
+          $setOnInsert: {
+            oxyUserId: channelUser.oxyUserId,
+            conversationId,
+            source: channelType,
+            title: message.text.slice(0, 50),
+            createdAt: new Date(),
+          },
+        },
+        { upsert: true }
+      );
+    }
+  } catch (error) {
+    console.error(`[Webhook] Chat processing error for ${channelType}:`, error);
+    try {
+      await sendChannelMessage(channelType, message.chatId, 'Sorry, an error occurred. Please try again.', {
+        replyToId: message.replyToId,
+        threadId: message.threadId,
+      });
+    } catch { /* ignore send errors */ }
+  }
+}
 
 const router = express.Router();
 
@@ -101,8 +244,13 @@ router.post('/:type', async (req, res) => {
       if (updated) await channelUser.save();
     }
 
-    // Chat forwarding will be wired later
+    // Respond immediately to webhook (Slack has 3s timeout)
     res.sendStatus(200);
+
+    // Process message asynchronously
+    processChannelMessage(channelType, channelUser, message).catch(error => {
+      console.error(`[Webhook] Async processing error for ${channelType}:`, error);
+    });
   } catch (error) {
     console.error(`[Webhook] Error processing ${channelType} message:`, error);
     res.sendStatus(200);

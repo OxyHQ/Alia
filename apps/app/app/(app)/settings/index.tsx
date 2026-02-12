@@ -5,9 +5,10 @@ import { useState, useEffect } from "react";
 import { useOxy } from "@oxyhq/services";
 import { useRouter } from "expo-router";
 import { generateAPIUrl } from "@/lib/generate-api-url";
-import { Globe, MapPin, Briefcase, User as UserIcon, Languages, MessageSquare, ChevronDown, Check, ChevronRight, Brain, User, Moon, Sun, Monitor, MessageSquarePlus, Send } from "lucide-react-native";
+import { Globe, MapPin, Briefcase, User as UserIcon, Languages, MessageSquare, ChevronDown, Check, ChevronRight, Brain, User, Moon, Sun, Monitor, MessageSquarePlus, Send, Smartphone } from "lucide-react-native";
 import { useUserData } from "@/hooks/useUserData";
 import { useTelegramStatus } from "@/hooks/useTelegramStatus";
+import { useWhatsAppStatus } from "@/hooks/useWhatsAppStatus";
 import { useUserDataStore } from "@/lib/stores/user-data-store";
 import {
   DropdownMenu,
@@ -61,6 +62,7 @@ export default function SettingsScreen() {
   const { mode, setColorScheme } = useColorScheme();
   const { t } = useTranslation();
   const { status: telegramStatus, loading: telegramLoading } = useTelegramStatus();
+  const { status: whatsappStatus, loading: whatsappLoading } = useWhatsAppStatus();
 
   // Form state
   const [language, setLanguage] = useState("");
@@ -313,6 +315,36 @@ export default function SettingsScreen() {
               ) : (
                 <ChevronRight size={20} className="text-muted-foreground" />
               )}
+            </Pressable>
+            {/* WhatsApp */}
+            <Pressable
+              onPress={() => router.push("/(app)/settings/whatsapp")}
+              className="border border-border rounded-lg p-4 bg-surface flex-row items-center justify-between active:bg-muted"
+            >
+              <View className="flex-row items-center gap-3">
+                <View className="bg-[#25D366]/10 p-2 rounded-lg">
+                  <Smartphone size={24} color="#25D366" />
+                </View>
+                <View className="flex-1">
+                  <Text className="text-base font-semibold">
+                    {whatsappLoading
+                      ? "WhatsApp"
+                      : whatsappStatus?.status === 'connected'
+                        ? "WhatsApp Connected"
+                        : "Connect WhatsApp"
+                    }
+                  </Text>
+                  <Text className="text-sm text-muted-foreground">
+                    {whatsappLoading
+                      ? "Checking status..."
+                      : whatsappStatus?.status === 'connected'
+                        ? `Connected${whatsappStatus.phoneNumber ? ` (+${whatsappStatus.phoneNumber})` : ''}`
+                        : "Link your WhatsApp account"
+                    }
+                  </Text>
+                </View>
+              </View>
+              <ChevronRight size={20} className="text-muted-foreground" />
             </Pressable>
           </View>
 

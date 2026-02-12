@@ -423,4 +423,99 @@ router.get('/:type/users/token/:token', async (req, res) => {
   }
 });
 
+// ============================================
+// WhatsApp Session Management (proxy to gateway)
+// ============================================
+// These endpoints require JWT auth and proxy requests to the WhatsApp Gateway service.
+// The gateway manages Baileys sessions; users scan QR codes to connect their WhatsApp.
+
+const WHATSAPP_GATEWAY_URL = process.env.WHATSAPP_GATEWAY_URL;
+const WHATSAPP_GATEWAY_SECRET = process.env.WHATSAPP_GATEWAY_SECRET;
+
+// Start a new WhatsApp session (returns QR code)
+router.post('/whatsapp/session/connect', authenticateToken, async (req, res) => {
+  if (!WHATSAPP_GATEWAY_URL || !WHATSAPP_GATEWAY_SECRET) {
+    return res.status(503).json({ error: 'WhatsApp gateway not configured' });
+  }
+
+  try {
+    const oxyUserId = req.userId;
+    const response = await fetch(`${WHATSAPP_GATEWAY_URL}/sessions/connect`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Gateway-Secret': WHATSAPP_GATEWAY_SECRET,
+      },
+      body: JSON.stringify({ oxyUserId }),
+    });
+
+    const data = await response.json();
+    res.status(response.status).json(data);
+  } catch (error) {
+    console.error('[Channels] WhatsApp connect error:', error);
+    res.status(502).json({ error: 'Failed to connect to WhatsApp gateway' });
+  }
+});
+
+// Poll for QR code
+router.get('/whatsapp/session/qr', authenticateToken, async (req, res) => {
+  if (!WHATSAPP_GATEWAY_URL || !WHATSAPP_GATEWAY_SECRET) {
+    return res.status(503).json({ error: 'WhatsApp gateway not configured' });
+  }
+
+  try {
+    const oxyUserId = req.userId;
+    const response = await fetch(`${WHATSAPP_GATEWAY_URL}/sessions/${oxyUserId}/qr`, {
+      headers: { 'X-Gateway-Secret': WHATSAPP_GATEWAY_SECRET },
+    });
+
+    const data = await response.json();
+    res.status(response.status).json(data);
+  } catch (error) {
+    console.error('[Channels] WhatsApp QR error:', error);
+    res.status(502).json({ error: 'Failed to get QR code' });
+  }
+});
+
+// Get WhatsApp session status
+router.get('/whatsapp/session/status', authenticateToken, async (req, res) => {
+  if (!WHATSAPP_GATEWAY_URL || !WHATSAPP_GATEWAY_SECRET) {
+    return res.status(503).json({ error: 'WhatsApp gateway not configured' });
+  }
+
+  try {
+    const oxyUserId = req.userId;
+    const response = await fetch(`${WHATSAPP_GATEWAY_URL}/sessions/${oxyUserId}/status`, {
+      headers: { 'X-Gateway-Secret': WHATSAPP_GATEWAY_SECRET },
+    });
+
+    const data = await response.json();
+    res.status(response.status).json(data);
+  } catch (error) {
+    console.error('[Channels] WhatsApp status error:', error);
+    res.status(502).json({ error: 'Failed to get session status' });
+  }
+});
+
+// Disconnect WhatsApp session
+router.post('/whatsapp/session/disconnect', authenticateToken, async (req, res) => {
+  if (!WHATSAPP_GATEWAY_URL || !WHATSAPP_GATEWAY_SECRET) {
+    return res.status(503).json({ error: 'WhatsApp gateway not configured' });
+  }
+
+  try {
+    const oxyUserId = req.userId;
+    const response = await fetch(`${WHATSAPP_GATEWAY_URL}/sessions/${oxyUserId}/disconnect`, {
+      method: 'POST',
+      headers: { 'X-Gateway-Secret': WHATSAPP_GATEWAY_SECRET },
+    });
+
+    const data = await response.json();
+    res.status(response.status).json(data);
+  } catch (error) {
+    console.error('[Channels] WhatsApp disconnect error:', error);
+    res.status(502).json({ error: 'Failed to disconnect WhatsApp' });
+  }
+});
+
 export default router;
