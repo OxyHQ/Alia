@@ -783,9 +783,9 @@ When you use a tool successfully:
 
         const rawError = (chunk as any).error;
 
-        // If retryable and no content streamed yet, throw to trigger provider fallback
-        if (!hasStreamedContent && isRetryableError(rawError)) {
-          console.log(`[V1/Chat] Retryable stream error from ${resolved!.provider}/${resolved!.modelId}, will try next provider...`);
+        // If no content streamed yet, throw to trigger provider fallback
+        if (!hasStreamedContent) {
+          console.log(`[V1/Chat] Stream error from ${resolved!.provider}/${resolved!.modelId} (no content sent), trying next provider...`);
           throw rawError;
         }
 
@@ -952,9 +952,9 @@ When you use a tool successfully:
       console.error(`[V1/Chat] Provider ${resolved!.provider}/${resolved!.modelId} failed:`, providerError);
       await reportModelUsage(resolved!.keyConfig?.keyId, resolved!.provider, resolved!.modelId, false, 0, (providerError as any)?.code || 'REQUEST_ERROR');
 
-      // If retryable and we haven't streamed content yet, try next provider
-      if (isRetryableError(providerError) && !hasStreamedContent && providerAttempt < MAX_PROVIDER_RETRIES - 1) {
-        console.log(`[V1/Chat] Provider ${resolved!.provider} failed with retryable error, trying next provider...`);
+      // If we haven't streamed content yet, try next provider (any error is retryable pre-content)
+      if (!hasStreamedContent && providerAttempt < MAX_PROVIDER_RETRIES - 1) {
+        console.log(`[V1/Chat] Provider ${resolved!.provider} failed, trying next provider...`);
         skipProviders.add(resolved!.provider);
         continue; // Try next provider
       }
