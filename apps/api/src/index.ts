@@ -264,6 +264,9 @@ app.get('/', (_req, res) => {
       '/analytics',
       '/channels',
       '/webhooks',
+      '/v1/voice/token',
+      '/v1/voice/transcribe',
+      '/v1/realtime (WebSocket)',
       '/internal/trigger',
       '/internal/providers'
     ]
