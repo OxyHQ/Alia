@@ -10,16 +10,17 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Text } from '@/components/ui/text';
 import { Separator } from '@/components/ui/separator';
 
-type AppType = 'codea' | 'cowork' | 'telegram';
+type AppType = string;
 type Status = 'loading' | 'authorize' | 'authorizing' | 'success' | 'error' | 'needLogin';
 
 interface AppConfig {
   name: string;
   displayName: string;
   permissions: string[];
+  isChannel?: boolean;
 }
 
-const APP_CONFIGS: Record<AppType, AppConfig> = {
+const APP_CONFIGS: Record<string, AppConfig> = {
   codea: {
     name: 'codea',
     displayName: 'Alia Codea',
@@ -46,8 +47,31 @@ const APP_CONFIGS: Record<AppType, AppConfig> = {
       'Send messages via Telegram',
       'Receive notifications',
     ],
+    isChannel: true,
+  },
+  discord: {
+    name: 'discord',
+    displayName: 'Discord',
+    permissions: [
+      'Link your Discord account',
+      'Send messages via Discord',
+      'Receive notifications',
+    ],
+    isChannel: true,
   },
 };
+
+function getAppConfig(app: string): AppConfig {
+  return APP_CONFIGS[app] || {
+    name: app,
+    displayName: app.charAt(0).toUpperCase() + app.slice(1),
+    permissions: [
+      `Link your ${app} account`,
+      `Send messages via ${app}`,
+    ],
+    isChannel: true,
+  };
+}
 
 export default function AuthorizeScreen() {
   const router = useRouter();
@@ -57,7 +81,8 @@ export default function AuthorizeScreen() {
 
   // Determine app type from params
   const app = (params.app as AppType) || 'codea';
-  const appConfig = APP_CONFIGS[app] || APP_CONFIGS.codea;
+  const channel = params.channel as string | undefined;
+  const appConfig = getAppConfig(app);
 
   const [status, setStatus] = useState<Status>('loading');
   const [message, setMessage] = useState('');
@@ -115,7 +140,7 @@ export default function AuthorizeScreen() {
     }
   };
 
-  // Handle Telegram link flow
+  // Handle Telegram link flow (legacy /telegram/* endpoints)
   const handleTelegramAuth = useCallback(async () => {
     const { token } = params;
 
@@ -188,12 +213,78 @@ export default function AuthorizeScreen() {
     setMessage('Invalid token mode. Please request a new link from the Telegram bot.');
   }, [params, isOxyAuth, router, app]);
 
+  // Handle generic channel link flow (uses /channels/{type}/* endpoints)
+  const handleChannelAuth = useCallback(async () => {
+    const { token } = params;
+    const channelType = channel || app;
+
+    setStatus('authorizing');
+
+    if (!token || typeof token !== 'string') {
+      setStatus('error');
+      setMessage('Invalid authentication token. The link you followed is not valid.');
+      return;
+    }
+
+    // Verify token is valid
+    try {
+      const res = await apiClient.get(`/channels/${channelType}/check-token/${token}`);
+      if (!res.data?.valid) {
+        setStatus('error');
+        setMessage(res.data?.error || 'This link has expired. Please request a new one.');
+        return;
+      }
+    } catch (e: any) {
+      setStatus('error');
+      setMessage('Invalid or expired token. Please request a new link.');
+      return;
+    }
+
+    if (!isOxyAuth) {
+      setStatus('needLogin');
+      setMessage(`You need to log in first to link your ${appConfig.displayName} account.`);
+      setTimeout(() => {
+        const returnTo = `/authorize?app=${channelType}&token=${token}&channel=${channelType}`;
+        router.replace(`/login?returnTo=${encodeURIComponent(returnTo)}`);
+      }, 1500);
+      return;
+    }
+
+    // Link the channel account
+    try {
+      const response = await apiClient.post(`/channels/${channelType}/link`, {
+        authToken: token,
+      });
+      if (response.data.success) {
+        setStatus('success');
+        setMessage(`Your ${appConfig.displayName} account has been linked successfully!`);
+      } else {
+        setStatus('error');
+        setMessage('Failed to link your account. Please try again.');
+      }
+    } catch (error: any) {
+      console.error('Channel link error:', error);
+      const errorMessage = error.response?.data?.error || 'Failed to link account';
+      setStatus('error');
+      setMessage(errorMessage);
+    }
+  }, [params, isOxyAuth, router, channel, app, appConfig.displayName]);
+
   useEffect(() => {
     if (authLoading) return;
 
-    if (app === 'telegram') {
+    if (app === 'telegram' && !channel) {
+      // Legacy Telegram flow using /telegram/* endpoints
       if (params.token) {
         handleTelegramAuth();
+      } else {
+        setStatus('error');
+        setMessage('Missing authentication token.');
+      }
+    } else if (appConfig.isChannel || channel) {
+      // Generic channel flow (Discord, etc.) using /channels/{type}/* endpoints
+      if (params.token) {
+        handleChannelAuth();
       } else {
         setStatus('error');
         setMessage('Missing authentication token.');
@@ -211,7 +302,7 @@ export default function AuthorizeScreen() {
       }
       setStatus('authorize');
     }
-  }, [isAuthenticated, authLoading, app, params, router, handleTelegramAuth]);
+  }, [isAuthenticated, authLoading, app, channel, params, router, handleTelegramAuth, handleChannelAuth, appConfig.isChannel]);
 
   const handleCancel = () => {
     const { callback } = params;
@@ -295,7 +386,7 @@ export default function AuthorizeScreen() {
               <View className="items-center py-4 gap-3">
                 <ActivityIndicator size="large" color="#667eea" />
                 <Text className="text-xl font-semibold text-foreground">
-                  {app === 'telegram' ? 'Linking account...' : 'Authorizing...'}
+                  {appConfig.isChannel ? 'Linking account...' : 'Authorizing...'}
                 </Text>
                 <Text className="text-muted-foreground text-center">
                   Please wait while we set up your access
@@ -333,7 +424,7 @@ export default function AuthorizeScreen() {
                 <Text className="text-4xl">✅</Text>
                 <View className="gap-2 items-center">
                   <Text className="text-xl font-semibold text-foreground">
-                    {app === 'telegram' ? 'Linked!' : 'Authorized!'}
+                    {appConfig.isChannel ? 'Linked!' : 'Authorized!'}
                   </Text>
                   <Text className="text-muted-foreground text-center">
                     {message}
@@ -359,9 +450,9 @@ export default function AuthorizeScreen() {
                       {redirectUrl}
                     </Text>
                   </>
-                ) : app === 'telegram' ? (
+                ) : appConfig.isChannel ? (
                   <Text className="text-xs text-muted-foreground text-center">
-                    You can now return to Telegram and start chatting with Alia!
+                    You can now return to {appConfig.displayName} and start chatting with Alia!
                   </Text>
                 ) : (
                   <Text className="text-xs text-muted-foreground text-center">
@@ -380,7 +471,7 @@ export default function AuthorizeScreen() {
                 <Text className="text-4xl">❌</Text>
                 <View className="gap-2 items-center">
                   <Text className="text-xl font-semibold text-foreground">
-                    {app === 'telegram' ? 'Link Failed' : 'Authorization Failed'}
+                    {appConfig.isChannel ? 'Link Failed' : 'Authorization Failed'}
                   </Text>
                   <Text className="text-muted-foreground text-center">
                     {message}
@@ -388,8 +479,10 @@ export default function AuthorizeScreen() {
                 </View>
                 <Button
                   onPress={() => {
-                    if (app === 'telegram') {
+                    if (app === 'telegram' && !channel) {
                       handleTelegramAuth();
+                    } else if (appConfig.isChannel || channel) {
+                      handleChannelAuth();
                     } else {
                       setStatus('authorize');
                     }
