@@ -489,6 +489,10 @@ router.get('/whatsapp/session/status', authenticateToken, async (req, res) => {
       headers: { 'X-Gateway-Secret': WHATSAPP_GATEWAY_SECRET },
     });
 
+    if (response.status === 404) {
+      return res.json({ status: 'not-found' });
+    }
+
     const data = await response.json();
     res.status(response.status).json(data);
   } catch (error) {
