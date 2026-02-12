@@ -9,16 +9,17 @@ import { createGoogleGenerativeAI } from '@ai-sdk/google';
 import { createOpenAI } from '@ai-sdk/openai';
 import { createAnthropic } from '@ai-sdk/anthropic';
 
-import { resolveAliaModel as internalResolveAliaModel, getDefaultAliaModel } from '../internal/providers/lib/model-resolver';
+import { resolveAliaModel as internalResolveAliaModel, resolveAliaModelWithAttempts, getDefaultAliaModel } from '../internal/providers/lib/model-resolver';
+import type { FallbackResult, FallbackAttempt } from '../internal/providers/lib/model-resolver';
 import { recordKeySuccess, recordKeyFailure } from '../internal/providers/lib/key-manager';
 import { recordSuccess, recordFailure } from '../internal/providers/lib/provider-health';
-import { isAliaModel, getAliaModel, getAllAliaModels, getAliaModelsByCategory, getDefaultModelForCategory } from '../internal/providers/lib/alia-models';
+import { isAliaModel, getAliaModel, getAllAliaModels, getAliaModelsByCategory, getDefaultModelForCategory, getAvailableModels } from '../internal/providers/lib/alia-models';
 import type { KeyConfig } from '../internal/providers/lib/types';
-import type { AliaModel, ModelCategory } from '../internal/providers/lib/alia-models';
+import type { AliaModel, AliaModelWithAvailability, ModelCategory } from '../internal/providers/lib/alia-models';
 
 // Re-export types and helpers that chat routes need
-export { getDefaultAliaModel, isAliaModel, getAliaModel, getAllAliaModels, getAliaModelsByCategory, getDefaultModelForCategory };
-export type { KeyConfig, AliaModel, ModelCategory };
+export { getDefaultAliaModel, isAliaModel, getAliaModel, getAllAliaModels, getAliaModelsByCategory, getDefaultModelForCategory, getAvailableModels, resolveAliaModelWithAttempts };
+export type { KeyConfig, AliaModel, AliaModelWithAvailability, ModelCategory, FallbackResult, FallbackAttempt };
 
 /**
  * Result of resolving an Alia model to a concrete provider/model.

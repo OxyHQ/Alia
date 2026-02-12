@@ -74,8 +74,6 @@ export default function Root({ children }: PropsWithChildren) {
         <link rel="apple-touch-icon" sizes="120x120" href="/icon-192.png" />
 
         {/* Apple Mobile Web App */}
-        <meta name="apple-mobile-web-app-capable" content="yes" />
-        <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
         <meta name="apple-mobile-web-app-title" content="Alia" />
 
         {/* Disable body scrolling for native-like feel on web */}

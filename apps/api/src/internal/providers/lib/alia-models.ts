@@ -235,6 +235,7 @@ export const ALIA_MODELS: Record<string, AliaModel> = {
 
 // Import the generated mappings with full capabilities and pricing data
 import { GENERATED_TIER_MAPPINGS } from './generate-model-mappings';
+import { isProviderAvailable } from './provider-health';
 export const TIER_MODEL_MAPPINGS = GENERATED_TIER_MAPPINGS;
 
 /**
@@ -279,4 +280,33 @@ export function getDefaultModelForCategory(category: ModelCategory): AliaModel |
   const models = getAliaModelsByCategory(category);
   if (models.length === 0) return null;
   return models.reduce((best, m) => m.creditMultiplier < best.creditMultiplier ? m : best);
+}
+
+export interface AliaModelWithAvailability extends AliaModel {
+  isAvailable: boolean;
+}
+
+/**
+ * Get all Alia models with their current availability status.
+ * A model is "available" if at least one provider in its tier has a healthy circuit breaker.
+ */
+export async function getAvailableModels(): Promise<AliaModelWithAvailability[]> {
+  const models = getAllAliaModels();
+  const results: AliaModelWithAvailability[] = [];
+
+  for (const model of models) {
+    const mappings = TIER_MODEL_MAPPINGS[model.tier] || [];
+    // A model is available if at least ONE provider in its tier is healthy
+    let isAvailable = false;
+    for (const mapping of mappings) {
+      const available = await isProviderAvailable(mapping.provider, mapping.modelId);
+      if (available) {
+        isAvailable = true;
+        break; // No need to check more - at least one is available
+      }
+    }
+    results.push({ ...model, isAvailable });
+  }
+
+  return results;
 }

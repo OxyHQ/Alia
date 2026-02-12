@@ -5,6 +5,8 @@ import modelsRouter from './routes/models';
 import aliaModelsRouter from './routes/alia-models';
 import keysRouter from './routes/keys';
 import usageRouter from './routes/usage';
+import authHealthRouter from './routes/auth-health';
+import fallbackStatsRouter from './routes/fallback-stats';
 
 const providersModule = express.Router();
 
@@ -24,5 +26,7 @@ providersModule.use('/v1/models', authenticateService, modelsRouter);
 providersModule.use('/v1/alia-models', authenticateService, aliaModelsRouter);
 providersModule.use('/v1/keys', authenticateService, keysRouter);
 providersModule.use('/v1/usage', authenticateService, usageRouter);
+providersModule.use('/v1/auth-health', authenticateService, authHealthRouter);
+providersModule.use('/v1/fallback-stats', authenticateService, fallbackStatsRouter);
 
 export default providersModule;

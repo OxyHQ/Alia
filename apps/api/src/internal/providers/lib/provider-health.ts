@@ -94,6 +94,13 @@ function setCachedHealth(provider: string, modelId: string, metrics: HealthMetri
   });
 }
 
+/**
+ * Clear the entire in-memory health cache (used during config reload)
+ */
+export function clearHealthCache(): void {
+  healthCache.clear();
+}
+
 // ============== HEALTH MONITORING API ==============
 
 /**

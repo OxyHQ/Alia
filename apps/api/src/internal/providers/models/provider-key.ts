@@ -45,6 +45,7 @@ export interface IProviderKey extends Document {
   totalFailures: number;
   lastFailureAt?: Date;
   lastFailureReason?: string;
+  cooldownUntil?: Date | null;
 
   // Archiving (only after many total failures)
   maxTotalFailures: number;     // Archive after X total failures (default: 100)
@@ -188,6 +189,10 @@ const ProviderKeySchema = new Schema<IProviderKey>(
     lastFailureReason: {
       type: String,
       maxlength: 500,
+    },
+    cooldownUntil: {
+      type: Date,
+      default: null,
     },
     maxTotalFailures: {
       type: Number,

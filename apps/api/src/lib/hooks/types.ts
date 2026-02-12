@@ -29,6 +29,7 @@ export type AfterChatHook = (ctx: AfterChatContext) => Promise<void>;
 
 export interface ChatHook {
   name: string;
+  priority?: number;  // Lower number = runs first (default: 100)
   beforeChat?: BeforeChatHook;
   afterChat?: AfterChatHook;
 }

@@ -148,7 +148,14 @@ export async function getBestKeyForModel(
 
   // Try keys in order of currentPriority (already sorted)
   // Failed keys will have been moved to end of queue
+  const now = new Date();
   for (const key of keys) {
+    // Skip keys in cooldown period
+    if (key.cooldownUntil && key.cooldownUntil > now) {
+      console.log(`[KeyManager] Key ${key.keyPrefix} (${key.provider}) in cooldown until ${key.cooldownUntil.toISOString()}, skipping`);
+      continue;
+    }
+
     // Check rate limits
     const isLimited = await isKeyRateLimited(key, estimatedTokens);
     if (isLimited) {
@@ -175,7 +182,7 @@ export async function getBestKeyForModel(
     };
   }
 
-  console.warn(`All keys rate-limited for provider: ${provider}`);
+  console.warn(`All keys rate-limited or in cooldown for provider: ${provider}`);
   return null;
 }
 
@@ -204,13 +211,20 @@ export async function recordKeyUsage(
 }
 
 /**
- * Record key success (resets failure counters, restores original priority)
+ * Record key success (resets failure counters, restores original priority, clears cooldown)
  */
 export async function recordKeySuccess(keyId: string): Promise<void> {
   try {
     const key = await ProviderKey.findById(keyId);
     if (key) {
       await key.recordSuccess();
+
+      // Clear cooldown atomically
+      await ProviderKey.updateOne(
+        { _id: keyId },
+        { $set: { cooldownUntil: null } }
+      );
+
       // Invalidate cache to pick up priority changes
       invalidateKeyCache(key.provider);
     }
@@ -221,6 +235,7 @@ export async function recordKeySuccess(keyId: string): Promise<void> {
 
 /**
  * Record key failure (moves key to last priority within its group - free or paid)
+ * Also sets exponential cooldown: 30s * 2^consecutiveFailures, max 30min
  */
 export async function recordKeyFailure(keyId: string, reason: string): Promise<void> {
   try {
@@ -243,6 +258,19 @@ export async function recordKeyFailure(keyId: string, reason: string): Promise<v
 
     // Record failure and move to end of its group's queue
     await key.recordFailure(reason, maxPriority);
+
+    // Set cooldown with exponential backoff (atomic $set)
+    // 30s base, doubles per consecutive failure, capped at 30min
+    const consecutiveFailures = (key.consecutiveFailures || 0) + 1; // +1 because recordFailure already incremented
+    const cooldownMs = Math.min(30000 * Math.pow(2, consecutiveFailures - 1), 1800000);
+    const cooldownUntil = new Date(Date.now() + cooldownMs);
+
+    await ProviderKey.updateOne(
+      { _id: keyId },
+      { $set: { cooldownUntil } }
+    );
+
+    console.log(`[KeyManager] Key ${key.keyPrefix} (${key.provider}) cooldown set for ${cooldownMs / 1000}s until ${cooldownUntil.toISOString()}`);
 
     // Invalidate cache to pick up priority changes
     invalidateKeyCache(key.provider);
