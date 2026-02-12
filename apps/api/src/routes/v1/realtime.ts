@@ -1,18 +1,29 @@
 /**
  * Realtime Voice API Endpoint
  *
- * WebSocket endpoint for real-time voice conversations
- * Compatible with OpenAI Realtime API specification
+ * WebSocket endpoint for real-time voice conversations.
+ * Compatible with OpenAI Realtime API specification.
  *
- * Endpoint: ws://localhost:3001/v1/realtime?model=alia-v1-voice&token=<jwt>
+ * Connection: ws(s)://host/v1/realtime?model=alia-v1-voice&token=<jwt>[&voice=alloy][&instructions=...]
+ *
+ * Auth: JWT token (via ?token=) or API key (via ?api_key=)
+ *
+ * The endpoint builds rich voice instructions including:
+ * - Model-specific system prompt (from prompt-loader)
+ * - User name, memory, preferences, and context (from Oxy + UserMemory)
+ * - Language mirroring instructions
+ * - Voice-appropriate tools (getCurrentDate)
  */
 
 import type { WebSocketServer } from 'ws';
 import type { IncomingMessage } from 'http';
 import type WebSocket from 'ws';
+import type { OpenAITool } from '../../internal/providers/lib/types.js';
 import { voiceSessionManager } from '../../internal/providers/lib/voice-session-manager.js';
 import { OxyServices } from '@oxyhq/core';
 import DeveloperApiKey from '../../models/developer-api-key.js';
+import { buildSystemPrompt } from '../../lib/prompt-loader.js';
+import { buildUserContext } from '../../lib/user-context.js';
 
 // ============== WEBSOCKET ENDPOINT SETUP ==============
 
@@ -89,12 +100,50 @@ export function setupRealtimeEndpoint(wss: WebSocketServer): void {
         return;
       }
 
+      // Build rich voice instructions (mirrors chat-completions.ts context building)
+      let voiceInstructions = 'You are in a real-time voice conversation. Keep responses concise and conversational — avoid long lists, markdown, or code blocks. Speak naturally.\n\n';
+
+      // Load model-specific system prompt
+      try {
+        const basePrompt = await buildSystemPrompt(model);
+        voiceInstructions += basePrompt;
+      } catch (e) {
+        console.error('[Realtime] Error loading system prompt:', e);
+      }
+
+      // Add user context (name, memory, preferences, language) via shared utility
+      const userContext = await buildUserContext(userId);
+      voiceInstructions += userContext.contextString;
+      if (userContext.language) {
+        voiceInstructions += `\n\nIMPORTANT: Mirror the user's language. If their language is unclear, default to ${userContext.language}.`;
+      }
+
+      // Override with client-provided instructions if explicitly set
+      if (instructions) {
+        voiceInstructions = instructions;
+      }
+
+      console.log(`[Realtime] Built voice instructions (${voiceInstructions.length} chars)`);
+
+      // Voice-appropriate tools
+      const voiceTools: OpenAITool[] = [
+        {
+          type: 'function',
+          function: {
+            name: 'getCurrentDate',
+            description: 'Get the current date, time, and day of the week',
+            parameters: { type: 'object', properties: {}, required: [] },
+          },
+        },
+      ];
+
       // Create voice session
       try {
         const session = await voiceSessionManager.createSession(userId, ws, model, {
           model,
-          instructions: instructions || undefined,
+          instructions: voiceInstructions,
           voice: voice || undefined,
+          tools: voiceTools,
         });
 
         sessionId = session.sessionId;

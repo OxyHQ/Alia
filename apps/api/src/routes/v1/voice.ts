@@ -43,7 +43,8 @@ router.post('/token', async (req: Request, res: Response) => {
 
 /**
  * POST /v1/voice/transcribe
- * Speech-to-text transcription using OpenAI Whisper API
+ * Speech-to-text transcription using OpenAI Whisper or Groq Whisper API
+ * Timeout: 30 seconds per request (returns 504 if provider hangs)
  */
 router.post('/transcribe', async (req: Request, res: Response) => {
   try {
@@ -125,17 +126,33 @@ router.post('/transcribe', async (req: Request, res: Response) => {
     const mimeType = format || 'audio/m4a';
     const ext = mimeType.split('/')[1] || 'm4a';
 
-    // Call Whisper API (OpenAI or Groq)
+    // Call Whisper API (OpenAI or Groq) with 30s timeout
     const formData = new FormData();
     const blob = new Blob([audioBuffer], { type: mimeType });
     formData.append('file', blob, `audio.${ext}`);
     formData.append('model', whisperModel);
 
-    const response = await fetch(whisperUrl, {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${apiKey}` },
-      body: formData,
-    });
+    const controller = new AbortController();
+    const fetchTimeout = setTimeout(() => controller.abort(), 30000);
+
+    let response: globalThis.Response;
+    try {
+      response = await fetch(whisperUrl, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${apiKey}` },
+        body: formData,
+        signal: controller.signal,
+      });
+      clearTimeout(fetchTimeout);
+    } catch (fetchError: any) {
+      clearTimeout(fetchTimeout);
+      if (fetchError.name === 'AbortError') {
+        log.general.error({ whisperModel, whisperUrl }, 'Whisper API timeout (30s)');
+        await finalizeCredits(reservation, { promptTokens: 0, completionTokens: 0, totalTokens: 0 });
+        return res.status(504).json({ error: 'Transcription timed out' });
+      }
+      throw fetchError;
+    }
 
     if (!response.ok) {
       const errorBody = await response.text();
