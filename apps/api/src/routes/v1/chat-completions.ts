@@ -7,7 +7,7 @@ import { Conversation } from '../../models/conversation.js';
 import { reserveCredits, finalizeCredits, type CreditReservation, type CreditUsage } from '../../lib/credits-manager.js';
 import { recordUsage } from '../../middleware/api-key-rate-limit.js';
 import { convertOpenAIToolsToToolSet } from '../../lib/tool-converter.js';
-import { getCurrentDateTool, getTimelineTool, saveUserMemoryTool, updateUserPreferencesTool, updateUserContextTool, createSendTelegramTool, createProvidersAdminTool, webScraperTool, generateFileTool } from '../../lib/tools/index.js';
+import { getCurrentDateTool, getTimelineTool, saveUserMemoryTool, updateUserPreferencesTool, updateUserContextTool, createSendTelegramTool, createGetWhatsAppChatsTool, createGetWhatsAppMessagesTool, createSendWhatsAppMessageTool, createProvidersAdminTool, webScraperTool, generateFileTool } from '../../lib/tools/index.js';
 import { oxyClient } from '../../middleware/auth.js';
 import type { KeyConfig } from '../../internal/providers/lib/types.js';
 import type { IUserMemory } from '../../models/user-memory.js';
@@ -275,6 +275,9 @@ router.post('/', async (req: Request, res: Response) => {
       // Personal tools only available for direct user sessions (not API key requests)
       ...(isDirectUserSession ? {
         sendTelegram: createSendTelegramTool(req.user!.id),
+        getWhatsAppChats: createGetWhatsAppChatsTool(req.user!.id),
+        getWhatsAppMessages: createGetWhatsAppMessagesTool(req.user!.id),
+        sendWhatsAppMessage: createSendWhatsAppMessageTool(req.user!.id),
         saveUserMemory: saveUserMemoryTool(req.user!.id),
         updateUserPreferences: updateUserPreferencesTool(req.user!.id),
         updateUserContext: updateUserContextTool(req.user!.id),
@@ -345,6 +348,7 @@ When you use a tool successfully:
         console.error('[V1/Chat] Error fetching user from Oxy:', e.message);
       }
       systemMessage += '\n\n**IMPORTANT**: You have a `sendTelegram` tool available. Use it IMMEDIATELY when the user asks you to send them a Telegram message (e.g., "send me X on Telegram", "enviame un telegram", "remind me via Telegram"). Do NOT say you can\'t - you CAN send Telegram messages using this tool!';
+      systemMessage += '\n\n**IMPORTANT**: You have WhatsApp tools available: `getWhatsAppChats` to see the user\'s WhatsApp conversations, `getWhatsAppMessages` to read messages from a specific chat (requires JID from getWhatsAppChats), and `sendWhatsAppMessage` to send messages. When the user asks about their WhatsApp, use getWhatsAppChats first, then getWhatsAppMessages to read specific conversations.';
     } else if (req.apiKey) {
       // API key request - add neutral context
       console.log('[V1/Chat] API key request - using neutral context (no personal info)');

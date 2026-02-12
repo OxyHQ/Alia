@@ -1,5 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { sessionManager } from '../session-manager';
+import { WhatsAppChat } from '../models/whatsapp-chat';
+import { WhatsAppMessage } from '../models/whatsapp-message';
 
 const router = Router();
 
@@ -165,6 +167,100 @@ router.get('/', async (_req: Request, res: Response) => {
   } catch (error: any) {
     console.error('[Sessions] List error:', error);
     return res.status(500).json({ error: error.message || 'Failed to list sessions' });
+  }
+});
+
+/**
+ * GET /sessions/:userId/chats
+ * Returns the user's recent WhatsApp chats from MongoDB.
+ */
+router.get('/:userId/chats', async (req: Request, res: Response) => {
+  const { userId } = req.params;
+
+  try {
+    const dbChats = await WhatsAppChat.find({ oxyUserId: userId })
+      .sort({ conversationTimestamp: -1 })
+      .limit(50)
+      .lean();
+
+    // Enrich with last message preview from MongoDB
+    const chats = await Promise.all(
+      dbChats.map(async (c) => {
+        const lastMsg = await WhatsAppMessage.findOne({ oxyUserId: userId, jid: c.jid })
+          .sort({ timestamp: -1 })
+          .lean();
+
+        return {
+          jid: c.jid,
+          name: c.name || c.jid.split('@')[0],
+          unreadCount: c.unreadCount || 0,
+          lastMessageTimestamp: c.conversationTimestamp || null,
+          lastMessagePreview: lastMsg?.text?.slice(0, 100) || '',
+        };
+      })
+    );
+
+    return res.json({ chats });
+  } catch (error: any) {
+    console.error('[Sessions] Chats error:', error);
+    return res.status(500).json({ error: error.message || 'Failed to get chats' });
+  }
+});
+
+/**
+ * GET /sessions/:userId/chats/:jid/messages
+ * Returns recent messages from a specific chat (from MongoDB).
+ * Query: ?limit=20 (default 20, max 50)
+ */
+router.get('/:userId/chats/:jid/messages', async (req: Request, res: Response) => {
+  const { userId, jid } = req.params;
+  const limit = Math.min(parseInt(req.query.limit as string) || 20, 50);
+
+  try {
+    const messages = await WhatsAppMessage.find({ oxyUserId: userId, jid })
+      .sort({ timestamp: -1 })
+      .limit(limit)
+      .lean();
+
+    return res.json({
+      messages: messages.map((m) => ({
+        id: m.messageId,
+        fromMe: m.fromMe,
+        timestamp: m.timestamp,
+        text: m.text,
+        pushName: m.pushName || null,
+      })),
+    });
+  } catch (error: any) {
+    console.error('[Sessions] Messages error:', error);
+    return res.status(500).json({ error: error.message || 'Failed to get messages' });
+  }
+});
+
+/**
+ * POST /sessions/:userId/send
+ * Send a message to a specific JID.
+ * Body: { jid: string, text: string }
+ */
+router.post('/:userId/send', async (req: Request, res: Response) => {
+  const { userId } = req.params;
+  const { jid, text } = req.body;
+
+  if (!jid || !text) {
+    return res.status(400).json({ error: 'jid and text are required' });
+  }
+
+  try {
+    const sock = sessionManager.getSocket(userId);
+    if (!sock) {
+      return res.status(404).json({ error: 'No active session found' });
+    }
+
+    const result = await sock.sendMessage(jid, { text });
+    return res.json({ success: true, messageId: result?.key?.id });
+  } catch (error: any) {
+    console.error('[Sessions] Send error:', error);
+    return res.status(500).json({ error: error.message || 'Failed to send message' });
   }
 });
 
