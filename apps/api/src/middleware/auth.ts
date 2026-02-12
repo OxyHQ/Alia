@@ -3,6 +3,8 @@ import { OxyServices } from '@oxyhq/core';
 import DeveloperApiKey from '../models/developer-api-key.js';
 import DeveloperApp from '../models/developer-app.js';
 import ApiKeyUsage from '../models/api-key-usage.js';
+import { log } from '../lib/logger.js';
+import { getClientIp } from '../lib/net-utils.js';
 
 // Initialize Oxy client
 const OXY_API_URL = process.env.OXY_API_URL || 'https://api.oxy.so';
@@ -135,7 +137,7 @@ export async function authenticateApiKey(
     // Update last used (async)
     DeveloperApiKey.findByIdAndUpdate(developerApiKey._id, {
       lastUsedAt: new Date(),
-    }).catch((err) => console.error('Failed to update lastUsedAt:', err));
+    }).catch((err) => log.auth.error({ err }, 'Failed to update lastUsedAt'));
 
     // Log usage after response (skip if the route already recorded usage via recordUsage())
     res.on('finish', async () => {
@@ -151,17 +153,17 @@ export async function authenticateApiKey(
           statusCode: res.statusCode,
           responseTime,
           userAgent: req.headers['user-agent'],
-          ipAddress: req.ip || req.socket.remoteAddress,
+          ipAddress: getClientIp(req),
           authType: 'api_key',
         });
       } catch (err) {
-        console.error('Failed to log API key usage:', err);
+        log.auth.error({ err }, 'Failed to log API key usage');
       }
     });
 
     next();
   } catch (error) {
-    console.error('API key authentication error:', error);
+    log.auth.error({ err: error, ip: getClientIp(req) }, 'API key authentication error');
     res.status(500).json({ error: 'Authentication failed' });
   }
 }
@@ -248,14 +250,14 @@ export async function authenticateTelegramBot(
     // Verify bot secret is configured
     const expectedSecret = process.env.TELEGRAM_BOT_SECRET;
     if (!expectedSecret) {
-      console.error('[TelegramAuth] TELEGRAM_BOT_SECRET not configured');
+      log.auth.error('TELEGRAM_BOT_SECRET not configured');
       res.status(500).json({ error: 'Bot authentication not configured' });
       return;
     }
 
     // Verify secret provided
     if (!botSecret) {
-      console.warn('[TelegramAuth] Missing bot secret from:', req.ip);
+      log.auth.warn({ ip: getClientIp(req) }, 'Missing bot secret');
       res.status(401).json({ error: 'Bot authentication required' });
       return;
     }
@@ -265,48 +267,42 @@ export async function authenticateTelegramBot(
     const providedBuffer = Buffer.from(botSecret);
 
     if (expectedBuffer.length !== providedBuffer.length) {
-      console.warn('[TelegramAuth] Invalid bot secret length from:', req.ip);
+      log.auth.warn({ ip: getClientIp(req) }, 'Invalid bot secret length');
       res.status(401).json({ error: 'Invalid bot authentication' });
       return;
     }
 
     const crypto = await import('crypto');
     if (!crypto.timingSafeEqual(expectedBuffer, providedBuffer)) {
-      console.warn('[TelegramAuth] Invalid bot secret from:', req.ip);
+      log.auth.warn({ ip: getClientIp(req) }, 'Invalid bot secret');
       res.status(401).json({ error: 'Invalid bot authentication' });
       return;
     }
 
     // Verify user ID is provided
     if (!oxyUserId) {
-      console.warn('[TelegramAuth] Missing user ID in bot request');
+      log.auth.warn('Missing user ID in bot request');
       res.status(400).json({ error: 'User ID required for bot requests' });
       return;
     }
 
     // Verify telegram ID is provided
     if (!telegramId) {
-      console.warn('[TelegramAuth] Missing telegram ID in bot request');
+      log.auth.warn('Missing telegram ID in bot request');
       res.status(400).json({ error: 'Telegram ID required for bot requests' });
       return;
     }
 
     // Log successful auth for audit trail
     const duration = Date.now() - startTime;
-    console.log('[TelegramAuth] Authenticated bot request:', {
-      telegramId,
-      oxyUserId,
-      ip: req.ip,
-      endpoint: req.path,
-      duration: `${duration}ms`
-    });
+    log.auth.info({ telegramId, oxyUserId, ip: getClientIp(req), endpoint: req.path, durationMs: duration }, 'Telegram bot authenticated');
 
     // Set user context - the bot is acting on behalf of this user
     req.userId = oxyUserId;
     req.user = { id: oxyUserId };
     next();
   } catch (error) {
-    console.error('[TelegramAuth] Bot authentication error:', error);
+    log.auth.error({ err: error }, 'Bot authentication error');
     res.status(500).json({ error: 'Authentication failed' });
   }
 }

@@ -1,13 +1,99 @@
 import { Router } from 'express';
+import mongoose from 'mongoose';
+import { getAllProviderHealth, type HealthMetrics } from '../internal/providers/lib/provider-health.js';
 
 const router = Router();
 
-router.get('/', (req, res) => {
-  res.json({
-    status: 'ok',
+// ============== HEALTH STATE CACHE ==============
+// Avoid querying providers on every health check
+
+let healthCache: { data: any; expiry: number } | null = null;
+const HEALTH_CACHE_TTL_MS = 10_000; // 10 seconds
+
+async function getHealthSnapshot() {
+  if (healthCache && healthCache.expiry > Date.now()) {
+    return healthCache.data;
+  }
+
+  const mongoState = mongoose.connection.readyState;
+  const mongoStatus = mongoState === 1 ? 'connected'
+    : mongoState === 2 ? 'connecting'
+    : mongoState === 3 ? 'disconnecting'
+    : 'disconnected';
+
+  let providersSummary = { total: 0, healthy: 0, unhealthy: 0, openCircuits: 0 };
+  try {
+    const providers = await getAllProviderHealth();
+    providersSummary = {
+      total: providers.length,
+      healthy: providers.filter((p: HealthMetrics) => p.isHealthy).length,
+      unhealthy: providers.filter((p: HealthMetrics) => !p.isHealthy).length,
+      openCircuits: providers.filter((p: HealthMetrics) => p.circuitState === 'open').length,
+    };
+  } catch {
+    // If we can't reach providers health, still report what we know
+  }
+
+  const mem = process.memoryUsage();
+
+  const snapshot = {
+    status: mongoState === 1 && providersSummary.healthy > 0 ? 'healthy' : 'degraded',
     timestamp: new Date().toISOString(),
-    uptime: process.uptime()
-  });
+    uptime: Math.round(process.uptime()),
+    mongodb: mongoStatus,
+    providers: providersSummary,
+    memory: {
+      rss: Math.round(mem.rss / 1024 / 1024),       // MB
+      heapUsed: Math.round(mem.heapUsed / 1024 / 1024), // MB
+      heapTotal: Math.round(mem.heapTotal / 1024 / 1024), // MB
+    },
+  };
+
+  healthCache = { data: snapshot, expiry: Date.now() + HEALTH_CACHE_TTL_MS };
+  return snapshot;
+}
+
+// Full health check with details
+router.get('/', async (_req, res) => {
+  try {
+    const snapshot = await getHealthSnapshot();
+    const statusCode = snapshot.status === 'healthy' ? 200 : 503;
+    res.status(statusCode).json(snapshot);
+  } catch {
+    res.status(503).json({
+      status: 'error',
+      timestamp: new Date().toISOString(),
+      uptime: Math.round(process.uptime()),
+    });
+  }
+});
+
+// Liveness probe: process is running -> 200
+// Used by k8s/DO App Platform to detect crashed processes
+router.get('/live', (_req, res) => {
+  res.status(200).json({ status: 'alive' });
+});
+
+// Readiness probe: MongoDB connected + at least 1 provider healthy
+// Used by load balancers to decide if this instance should receive traffic
+router.get('/ready', async (_req, res) => {
+  const mongoReady = mongoose.connection.readyState === 1;
+
+  if (!mongoReady) {
+    return res.status(503).json({ status: 'not_ready', reason: 'database_unavailable' });
+  }
+
+  try {
+    const providers = await getAllProviderHealth();
+    const hasHealthyProvider = providers.some((p: HealthMetrics) => p.isHealthy);
+    if (!hasHealthyProvider && providers.length > 0) {
+      return res.status(503).json({ status: 'not_ready', reason: 'no_healthy_providers' });
+    }
+  } catch {
+    // If we can't check providers, still consider ready if MongoDB is up
+  }
+
+  res.status(200).json({ status: 'ready' });
 });
 
 export default router;
