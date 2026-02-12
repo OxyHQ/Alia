@@ -1,7 +1,9 @@
 import makeWASocket, {
+  BufferJSON,
   DisconnectReason,
   fetchLatestBaileysVersion,
   initAuthCreds,
+  makeCacheableSignalKeyStore,
   type AuthenticationCreds,
   type AuthenticationState,
   type SignalKeyStore,
@@ -9,6 +11,21 @@ import makeWASocket, {
 } from '@whiskeysockets/baileys';
 import { WhatsAppSession, type IWhatsAppSession } from './models/whatsapp-session';
 import { handleIncomingMessage } from './handlers/chat';
+
+/** Convert Buffers to base64 JSON objects before MongoDB storage (avoids BSON Binary). */
+function serialize(data: unknown): unknown {
+  return JSON.parse(JSON.stringify(data, BufferJSON.replacer));
+}
+
+/** Restore Buffers from MongoDB (handles both base64 JSON and legacy BSON Binary). */
+function deserialize<T = unknown>(data: unknown): T {
+  return JSON.parse(JSON.stringify(data, (_key, value) => {
+    if (value?._bsontype === 'Binary') {
+      return { type: 'Buffer', data: Buffer.from(value.buffer).toString('base64') };
+    }
+    return value;
+  }), BufferJSON.reviver);
+}
 
 /**
  * Pending QR resolver used while a session is being created and the user
@@ -24,6 +41,7 @@ class SessionManager {
   private sessions: Map<string, WASocket> = new Map();
   private reconnectTimers: Map<string, NodeJS.Timeout> = new Map();
   private pendingQRs: Map<string, PendingQR> = new Map();
+  private credsSaveQueue: Promise<void> = Promise.resolve();
 
   /**
    * On startup, load all 'connected' or 'disconnected' sessions from MongoDB
@@ -228,91 +246,65 @@ class SessionManager {
   async createMongoAuthState(
     oxyUserId: string,
     sessionData: IWhatsAppSession
-  ): Promise<{ state: AuthenticationState; saveCreds: () => Promise<void> }> {
+  ): Promise<{ state: AuthenticationState; saveCreds: () => void }> {
     // Load creds from DB or initialize fresh ones for a new session.
     // initAuthCreds() generates the identity keys that Baileys needs to
     // perform the Noise handshake with WhatsApp servers.
     let creds: AuthenticationCreds = sessionData.authState
-      ? (sessionData.authState as AuthenticationCreds)
+      ? deserialize<AuthenticationCreds>(sessionData.authState)
       : initAuthCreds();
 
-    const keys: SignalKeyStore = {
+    const store: SignalKeyStore = {
       get: async (type: string, ids: string[]) => {
         const result: Record<string, any> = {};
-
-        // Reload fresh data from DB to avoid stale reads
         const fresh = await WhatsAppSession.findOne({ oxyUserId }).lean();
-        const authKeys = fresh?.authKeys as Map<string, any> | Record<string, any> | undefined;
+        const authKeys = fresh?.authKeys as Record<string, any> | undefined;
 
         for (const id of ids) {
-          const mapKey = `${type}-${id}`;
-          let value: any = undefined;
-
-          if (authKeys instanceof Map) {
-            value = authKeys.get(mapKey);
-          } else if (authKeys && typeof authKeys === 'object') {
-            value = (authKeys as Record<string, any>)[mapKey];
-          }
-
+          const value = authKeys?.[`${type}-${id}`];
           if (value) {
-            result[id] = value;
+            result[id] = deserialize(value);
           }
         }
         return result;
       },
 
       set: async (data: Record<string, Record<string, any>>) => {
-        const updates: Record<string, any> = {};
+        const $set: Record<string, any> = {};
+        const $unset: Record<string, any> = {};
 
         for (const [type, entries] of Object.entries(data)) {
           for (const [id, value] of Object.entries(entries)) {
-            const mapKey = `${type}-${id}`;
+            const key = `authKeys.${type}-${id}`;
             if (value) {
-              updates[`authKeys.${mapKey}`] = value;
+              $set[key] = serialize(value);
             } else {
-              // null / undefined means delete
-              updates[`authKeys.${mapKey}`] = undefined;
+              $unset[key] = '';
             }
           }
         }
 
-        // Separate $set and $unset
-        const $set: Record<string, any> = {};
-        const $unset: Record<string, any> = {};
+        const ops: Record<string, any> = {};
+        if (Object.keys($set).length > 0) ops['$set'] = $set;
+        if (Object.keys($unset).length > 0) ops['$unset'] = $unset;
 
-        for (const [key, value] of Object.entries(updates)) {
-          if (value === undefined) {
-            $unset[key] = '';
-          } else {
-            $set[key] = value;
-          }
-        }
-
-        const updateOps: Record<string, any> = {};
-        if (Object.keys($set).length > 0) updateOps['$set'] = $set;
-        if (Object.keys($unset).length > 0) updateOps['$unset'] = $unset;
-
-        if (Object.keys(updateOps).length > 0) {
-          await WhatsAppSession.updateOne({ oxyUserId }, updateOps);
+        if (Object.keys(ops).length > 0) {
+          await WhatsAppSession.updateOne({ oxyUserId }, ops);
         }
       },
     };
 
-    const saveCreds = async () => {
-      await WhatsAppSession.updateOne(
-        { oxyUserId },
-        { $set: { authState: creds } }
-      );
+    // In-memory cache reduces MongoDB reads for frequently-accessed signal keys
+    const keys = makeCacheableSignalKeyStore(store);
+
+    const saveCreds = () => {
+      this.credsSaveQueue = this.credsSaveQueue
+        .then(() => WhatsAppSession.updateOne({ oxyUserId }, { $set: { authState: serialize(creds) } }))
+        .then(() => {})
+        .catch((err) => console.error(`[WhatsApp] Failed to save creds for ${oxyUserId}:`, err));
     };
 
-    // The creds object is mutated by Baileys in-place.
-    // We keep the reference so saveCreds always persists the latest state.
-    const state: AuthenticationState = {
-      creds,
-      keys,
-    };
-
-    return { state, saveCreds };
+    return { state: { creds, keys }, saveCreds };
   }
 
   /**
