@@ -131,10 +131,12 @@ async function fetchConversation(id: string): Promise<Conversation> {
 
 // Hook to get a single conversation with messages
 export function useConversation(id: string) {
+  const { isAuthenticated } = useOxy();
+
   return useQuery({
     queryKey: ['conversation', id],
     queryFn: () => fetchConversation(id),
-    enabled: !!id,
+    enabled: isAuthenticated && !!id,
     staleTime: 1000 * 60 * 2, // 2 minutes
     retry: 1,
   });

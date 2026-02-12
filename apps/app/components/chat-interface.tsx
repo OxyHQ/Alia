@@ -141,7 +141,7 @@ export const ChatInterface = forwardRef<ScrollView, ChatInterfaceProps>(
           {!messages.length && <WelcomeMessage onSuggestionPress={onSuggestionPress} />}
 
           <View className="gap-2">
-            {messages.filter(m => m != null).map((m, index) => {
+            {messages.filter(m => m != null && m.role).map((m, index) => {
               const messageText = getMessageText(m);
 
               return (
