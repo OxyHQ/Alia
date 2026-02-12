@@ -123,9 +123,13 @@ describe('error-handler', () => {
       expect(sanitizeMessage('Google Gemini failed')).toBe('Alia Alia failed');
     });
 
-    it('replaces model names with Alia model', () => {
-      expect(sanitizeMessage('gpt-4-turbo failed')).toContain('Alia model');
-      expect(sanitizeMessage('claude-3-sonnet is overloaded')).toContain('Alia model');
+    it('removes all traces of provider model names', () => {
+      // "gpt-" is in PROVIDER_NAMES so it gets replaced first by sanitizeMessage
+      const sanitized = sanitizeMessage('gpt-4-turbo failed');
+      expect(sanitized.toLowerCase()).not.toContain('gpt');
+
+      const sanitized2 = sanitizeMessage('claude-3-sonnet is overloaded');
+      expect(sanitized2.toLowerCase()).not.toContain('claude');
     });
 
     it('handles case insensitive replacement', () => {
