@@ -78,6 +78,7 @@ export function getAIModel(keyConfig: KeyConfig) {
       const groq = createOpenAI({
         apiKey,
         baseURL: 'https://api.groq.com/openai/v1',
+        compatibility: 'compatible',
       });
       return groq(modelId || 'llama-3.3-70b-versatile');
     }
@@ -85,6 +86,7 @@ export function getAIModel(keyConfig: KeyConfig) {
       const together = createOpenAI({
         apiKey,
         baseURL: 'https://api.together.ai/v1',
+        compatibility: 'compatible',
       });
       return together(modelId || 'meta-llama/Llama-3.3-70B-Instruct-Turbo');
     }
@@ -92,6 +94,7 @@ export function getAIModel(keyConfig: KeyConfig) {
       const cerebras = createOpenAI({
         apiKey,
         baseURL: 'https://api.cerebras.ai/v1',
+        compatibility: 'compatible',
       });
       return cerebras(modelId || 'llama-3.3-70b');
     }
@@ -99,6 +102,7 @@ export function getAIModel(keyConfig: KeyConfig) {
       const mistral = createOpenAI({
         apiKey,
         baseURL: 'https://api.mistral.ai/v1',
+        compatibility: 'compatible',
       });
       return mistral(modelId || 'mistral-large-latest');
     }
@@ -106,6 +110,7 @@ export function getAIModel(keyConfig: KeyConfig) {
       const deepseek = createOpenAI({
         apiKey,
         baseURL: 'https://api.deepseek.com',
+        compatibility: 'compatible',
       });
       return deepseek(modelId || 'deepseek-chat');
     }
@@ -113,6 +118,7 @@ export function getAIModel(keyConfig: KeyConfig) {
       const openrouter = createOpenAI({
         apiKey,
         baseURL: 'https://openrouter.ai/api/v1',
+        compatibility: 'compatible',
       });
       return openrouter(modelId || 'meta-llama/llama-3.3-70b-instruct');
     }
