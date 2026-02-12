@@ -55,10 +55,9 @@ export async function seedModelConfigs(): Promise<{ seeded: number; skipped: num
     for (const mapping of mappings) {
       const uniqueKey = `${mapping.provider}:${mapping.modelId}`;
 
-      // Skip voice providers not in the schema enum (e.g., 'grok')
       const validProviders = [
         'openai', 'anthropic', 'google', 'groq', 'mistral',
-        'deepseek', 'together', 'cerebras', 'cloudflare', 'openrouter',
+        'deepseek', 'together', 'cerebras', 'cloudflare', 'openrouter', 'xai',
       ];
       if (!validProviders.includes(mapping.provider)) {
         console.log(`[Seed] Skipping ${uniqueKey} - provider not in schema enum`);
@@ -151,7 +150,7 @@ export async function seedAliaModels(): Promise<{ seeded: number; skipped: numbe
 
   const validProviders = [
     'openai', 'anthropic', 'google', 'groq', 'mistral',
-    'deepseek', 'together', 'cerebras', 'cloudflare', 'openrouter',
+    'deepseek', 'together', 'cerebras', 'cloudflare', 'openrouter', 'xai',
   ];
 
   for (const [modelId, aliaModel] of Object.entries(ALIA_MODELS)) {

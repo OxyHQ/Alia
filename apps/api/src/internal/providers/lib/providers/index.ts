@@ -31,7 +31,7 @@ export const providers: Record<string, Provider | VoiceProvider | CombinedProvid
   mistral: mistralProvider,
   cloudflare: cloudflareProvider,
   deepseek: deepseekProvider,
-  grok: grokVoiceProvider,
+  xai: grokVoiceProvider,
 };
 
 export function getProvider(name: string): Provider | VoiceProvider | undefined {

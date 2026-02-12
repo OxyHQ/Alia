@@ -65,7 +65,7 @@ const SubmitButtonWrapper = ({
   if (!hasContent) {
     return (
       <Button size="icon" onPress={onVoicePress} className="h-8 w-8 rounded-full">
-        <Entypo name="mic" size={16} color="white" />
+        <Entypo name="sound" size={16} color="white" />
       </Button>
     );
   }
