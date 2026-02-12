@@ -5,6 +5,7 @@ import { resolveModel } from '../../lib/chat-core.js';
 import { getBestKeyForModel } from '../../internal/providers/lib/key-manager.js';
 import { reserveCredits, finalizeCredits } from '../../lib/credits-manager.js';
 import { UserCredits } from '../../models/user-credits.js';
+import { log } from '../../lib/logger.js';
 import type { Request, Response } from 'express';
 
 const router = Router();
@@ -35,7 +36,7 @@ router.post('/token', async (req: Request, res: Response) => {
       roomName,
     });
   } catch (error: any) {
-    console.error('[Voice] Token error:', error);
+    log.general.error({ err: error, userId: req.user?.id }, 'Voice token generation failed');
     res.status(500).json({ error: error.message || 'Failed to create voice token' });
   }
 });
@@ -138,7 +139,7 @@ router.post('/transcribe', async (req: Request, res: Response) => {
 
     if (!response.ok) {
       const errorBody = await response.text();
-      console.error(`[Voice] Whisper API error (${whisperModel}):`, errorBody);
+      log.general.error({ whisperModel, statusCode: response.status, errorBody }, 'Whisper API error');
       await finalizeCredits(reservation, { promptTokens: 0, completionTokens: 0, totalTokens: 0 });
       return res.status(502).json({ error: 'Transcription failed' });
     }
@@ -154,7 +155,7 @@ router.post('/transcribe', async (req: Request, res: Response) => {
 
     res.json({ text: result.text });
   } catch (error: any) {
-    console.error('[Voice] Transcribe error:', error);
+    log.general.error({ err: error, userId: req.user?.id }, 'Voice transcription failed');
     res.status(500).json({ error: error.message || 'Transcription failed' });
   }
 });
