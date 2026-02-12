@@ -96,8 +96,6 @@ export function generateMetaTags(config: MetaTagsConfig): Record<string, string>
     // Mobile
     'viewport': 'width=device-width, initial-scale=1, maximum-scale=5',
     'theme-color': '#ca52e9',
-    'apple-mobile-web-app-capable': 'yes',
-    'apple-mobile-web-app-status-bar-style': 'black-translucent',
     'format-detection': 'telephone=no',
   };
 

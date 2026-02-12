@@ -71,6 +71,14 @@ export const saveUserMemoryTool = (oxyUserId: string) => tool({
       // Save to database
       await memory.save();
 
+      // Generate embedding in background (fire-and-forget)
+      import('../memory/index.js').then(async ({ generateEmbedding, upsertMemoryEmbedding }) => {
+        const embedding = await generateEmbedding(`${key}: ${value}`);
+        if (embedding) {
+          await upsertMemoryEmbedding(oxyUserId, key, embedding);
+        }
+      }).catch(() => {}); // Never block the tool response
+
       return {
         success: true,
         message: `Recuerdo guardado exitosamente: ${key} = ${value}`,

@@ -287,6 +287,45 @@ connectDB()
       // Start LiveKit voice agent (non-blocking)
       startLiveKitAgent().catch((err) => console.error('[LiveKit] Agent startup error:', err));
     });
+
+    // Graceful shutdown handler
+    const shutdown = async (signal: string) => {
+      console.log(`\n[Shutdown] Received ${signal}. Starting graceful shutdown...`);
+
+      // Stop accepting new connections
+      server.close(() => {
+        console.log('[Shutdown] HTTP server closed (no new connections)');
+      });
+
+      // Give in-flight requests 10 seconds to complete
+      const forceTimeout = setTimeout(() => {
+        console.error('[Shutdown] Force exit after 10s grace period');
+        process.exit(1);
+      }, 10000);
+      forceTimeout.unref(); // Don't keep the process alive for this timer
+
+      try {
+        // Stop background processes
+        const { stopHealthCheckMonitor } = await import('./internal/providers/lib/provider-health.js');
+        stopHealthCheckMonitor();
+        console.log('[Shutdown] Health check monitor stopped');
+
+        // Close MongoDB connection
+        const mongoose = await import('mongoose');
+        await mongoose.default.connection.close();
+        console.log('[Shutdown] MongoDB connection closed');
+
+        clearTimeout(forceTimeout);
+        console.log('[Shutdown] Graceful shutdown complete');
+        process.exit(0);
+      } catch (error) {
+        console.error('[Shutdown] Error during shutdown:', error);
+        process.exit(1);
+      }
+    };
+
+    process.on('SIGTERM', () => shutdown('SIGTERM'));
+    process.on('SIGINT', () => shutdown('SIGINT'));
   })
   .catch((error) => {
     console.error('Failed to connect to MongoDB:', error);

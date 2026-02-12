@@ -6,6 +6,7 @@
  */
 
 import type { Response } from 'express';
+import { type AliaError, toSSEError } from './errors';
 
 // ============== SSE EVENT TYPES ==============
 
@@ -19,7 +20,10 @@ export type SSEEventType =
   | 'cache_hit'     // Response from cache
   | 'cost'          // Cost information
   | 'done'          // Stream complete
-  | 'error';        // Error occurred
+  | 'error'         // Error occurred
+  | 'directive';    // Directive (model switch, retry, rate limited)
+
+export type DirectiveType = 'switch_model' | 'retry' | 'rate_limited';
 
 export interface SSEMetadata {
   model: string;              // ONLY Alia model name!
@@ -201,6 +205,28 @@ export class SSEStream {
   sendError(error: SSEError): void {
     this.sendEvent('error', {
       ...error,
+      timestamp: Date.now() - this.startTime
+    });
+  }
+
+  /**
+   * Send an AliaError as an SSE error event.
+   * Convenience method that converts AliaError to SSEError shape automatically.
+   * The user-facing message from AliaError is used (never exposes provider names).
+   */
+  sendAliaError(error: AliaError): void {
+    this.sendError(toSSEError(error));
+  }
+
+  /**
+   * Send a directive event to the client.
+   * Used to notify about model switches, retries, or rate limiting during streaming.
+   * IMPORTANT: Messages must NEVER expose provider names!
+   */
+  sendDirective(type: DirectiveType, message: string): void {
+    this.sendEvent('directive', {
+      directive: type,
+      message,
       timestamp: Date.now() - this.startTime
     });
   }

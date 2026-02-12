@@ -7,6 +7,7 @@ import express, { Request, Response } from 'express';
 import crypto from 'crypto';
 import { ProviderKey } from '../models/provider-key';
 import { invalidateKeyCache } from '../lib/key-manager';
+import { clearHealthCache } from '../lib/provider-health';
 import { broadcastKeysUpdate } from '../lib/broadcast-helpers';
 
 const router = express.Router();
@@ -34,6 +35,39 @@ function sanitizeQueryParam(value: unknown): string | undefined {
   if (typeof value !== 'string') return undefined;
   return value;
 }
+
+/**
+ * POST /v1/keys/reload
+ * Invalidate all in-memory caches and reload provider configuration
+ */
+router.post('/reload', async (req: Request, res: Response) => {
+  try {
+    // Clear all in-memory caches
+    invalidateKeyCache();
+    clearHealthCache();
+
+    // Compute config hash for tracking
+    const keyCount = await ProviderKey.countDocuments({ isArchived: false, isActive: true });
+    const configHash = crypto
+      .createHash('sha256')
+      .update(JSON.stringify({ keyCount, reloadedAt: Date.now() }))
+      .digest('hex')
+      .substring(0, 12);
+
+    console.log(`[ConfigReload] Caches invalidated. Config hash: ${configHash}, Keys: ${keyCount}`);
+
+    res.json({
+      success: true,
+      message: 'Configuration reloaded successfully',
+      configHash,
+      keyCount,
+      reloadedAt: new Date().toISOString(),
+    });
+  } catch (error: any) {
+    console.error('[ConfigReload] Error:', error);
+    res.status(500).json({ success: false, error: 'Failed to reload configuration' });
+  }
+});
 
 /**
  * GET /v1/keys

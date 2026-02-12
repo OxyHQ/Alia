@@ -1,4 +1,5 @@
 import { useQuery, useMutation, useQueryClient, useInfiniteQuery } from '@tanstack/react-query';
+import { useOxy } from '@oxyhq/services';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { toast } from '@/components/sonner';
 import apiClient from '../api/client';
@@ -29,6 +30,19 @@ export interface Conversation {
 
 const CONVERSATIONS_STORAGE_KEY = "alia-conversations";
 
+// Fetch all conversations from local storage (offline fallback)
+async function fetchConversations(): Promise<Conversation[]> {
+  const stored = await AsyncStorage.getItem(CONVERSATIONS_STORAGE_KEY);
+  if (stored) {
+    return JSON.parse(stored).map((conv: Conversation) => ({
+      ...conv,
+      createdAt: new Date(conv.createdAt),
+      updatedAt: new Date(conv.updatedAt),
+    }));
+  }
+  return [];
+}
+
 // Fetch conversations from API or local storage (paginated)
 async function fetchConversationsPage({ pageParam }: { pageParam?: string }): Promise<{
   conversations: Conversation[];
@@ -55,28 +69,16 @@ async function fetchConversationsPage({ pageParam }: { pageParam?: string }): Pr
   } catch (error: any) {
     // If unauthorized, fall back to local storage
     if (error.response?.status === 401) {
-      const stored = await AsyncStorage.getItem(CONVERSATIONS_STORAGE_KEY);
-      if (stored) {
-        const parsed = JSON.parse(stored);
-        const conversations = parsed.map((conv: any) => ({
-          ...conv,
-          createdAt: new Date(conv.createdAt),
-          updatedAt: new Date(conv.updatedAt),
-          messages: [],
-        }));
+      const conversations = (await fetchConversations()).map((c) => ({ ...c, messages: [] as Message[] }));
+      const offset = pageParam ? parseInt(pageParam) : 0;
+      const limit = 20;
+      const page = conversations.slice(offset, offset + limit);
 
-        // Simple pagination for local storage
-        const offset = pageParam ? parseInt(pageParam) : 0;
-        const limit = 20;
-        const page = conversations.slice(offset, offset + limit);
-
-        return {
-          conversations: page,
-          nextCursor: offset + limit < conversations.length ? String(offset + limit) : null,
-          hasMore: offset + limit < conversations.length,
-        };
-      }
-      return { conversations: [], nextCursor: null, hasMore: false };
+      return {
+        conversations: page,
+        nextCursor: offset + limit < conversations.length ? String(offset + limit) : null,
+        hasMore: offset + limit < conversations.length,
+      };
     }
     throw error;
   }
@@ -84,6 +86,8 @@ async function fetchConversationsPage({ pageParam }: { pageParam?: string }): Pr
 
 // Hook to get all conversations with infinite scroll
 export function useConversations() {
+  const { isAuthenticated } = useOxy();
+
   return useInfiniteQuery({
     queryKey: ['conversations'],
     queryFn: fetchConversationsPage,
@@ -91,6 +95,7 @@ export function useConversations() {
     getNextPageParam: (lastPage) => lastPage.hasMore ? lastPage.nextCursor : undefined,
     staleTime: 1000 * 60 * 5, // 5 minutes
     retry: 2,
+    enabled: isAuthenticated,
   });
 }
 

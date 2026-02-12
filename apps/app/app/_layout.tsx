@@ -27,9 +27,8 @@ const AUTH_REDIRECT_URI = Linking.createURL('/');
 function AuthSetup({ children }: { children: React.ReactNode }) {
   const { oxyServices } = useOxy();
 
-  useEffect(() => {
-    setTokenGetter(() => oxyServices.getAccessToken() || null);
-  }, [oxyServices]);
+  // Set synchronously so token is available before child queries fire
+  setTokenGetter(() => oxyServices.getAccessToken() || null);
 
   return <>{children}</>;
 }

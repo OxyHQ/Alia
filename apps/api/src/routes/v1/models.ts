@@ -4,12 +4,14 @@ import {
   getAliaModel,
   getAliaModelsByCategory,
   getDefaultModelForCategory,
+  getAvailableModels,
   type ModelCategory,
+  type AliaModelWithAvailability,
 } from '../../lib/chat-core.js';
 
 const router = Router();
 
-function serializeModel(model: ReturnType<typeof getAliaModel> & {}, isDefault = false) {
+function serializeModel(model: ReturnType<typeof getAliaModel> & {}, isDefault = false, isAvailable = true) {
   return {
     id: model.id,
     object: 'model',
@@ -20,6 +22,7 @@ function serializeModel(model: ReturnType<typeof getAliaModel> & {}, isDefault =
     category: model.category,
     emoji: model.emoji,
     is_default: isDefault,
+    is_available: isAvailable,
     capabilities: {
       tools: model.supportsTools,
       vision: model.supportsVision,
@@ -33,7 +36,7 @@ function serializeModel(model: ReturnType<typeof getAliaModel> & {}, isDefault =
 
 /**
  * GET /v1/models
- * List available Alia models
+ * List available Alia models with live availability status
  *
  * Query params:
  * - category: Filter by category ('general' | 'coding' | 'vision' | 'audio' | 'multimodal' | 'voice')
@@ -42,14 +45,17 @@ router.get('/', async (req, res) => {
   try {
     const category = req.query.category as ModelCategory | undefined;
 
+    // Get all models with availability status
+    const allModelsWithAvailability = await getAvailableModels();
+
     const aliaModels = category
-      ? getAliaModelsByCategory(category)
-      : getAllAliaModels();
+      ? allModelsWithAvailability.filter(m => m.category === category)
+      : allModelsWithAvailability;
 
     const defaultModel = category ? getDefaultModelForCategory(category) : null;
 
     const data = aliaModels.map(model =>
-      serializeModel(model, model.id === defaultModel?.id)
+      serializeModel(model, model.id === defaultModel?.id, model.isAvailable)
     );
 
     // Sort: default first, then by credit multiplier

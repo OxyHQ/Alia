@@ -211,6 +211,74 @@ router.post('/add', async (req, res) => {
 });
 
 /**
+ * GET /api/memory/semantic-search
+ * Semantic search across memories using vector similarity + text matching
+ */
+router.get('/semantic-search', async (req, res) => {
+  try {
+    const { q, limit = '5' } = req.query;
+    if (!q || typeof q !== 'string') {
+      res.status(400).json({ error: 'Query parameter "q" is required' });
+      return;
+    }
+
+    const topK = Math.min(Number(limit) || 5, 20);
+    const memory = await UserMemory.findOne({ oxyUserId: req.user!.id });
+    if (!memory || memory.memories.length === 0) {
+      res.json({ results: [], method: 'none' });
+      return;
+    }
+
+    // Try vector search first
+    const { generateEmbedding, searchByVector } = await import('../lib/memory/index.js');
+    const queryEmbedding = await generateEmbedding(q);
+
+    let vectorResults: { memoryKey: string; score: number }[] = [];
+    if (queryEmbedding) {
+      vectorResults = await searchByVector(req.user!.id, queryEmbedding, topK);
+    }
+
+    // Text search fallback
+    const queryLower = q.toLowerCase();
+    const textResults = memory.memories
+      .map(m => {
+        const keyScore = m.key.toLowerCase().includes(queryLower) ? 0.8 : 0;
+        const valueScore = m.value.toLowerCase().includes(queryLower) ? 0.6 : 0;
+        return { memoryKey: m.key, score: Math.max(keyScore, valueScore) };
+      })
+      .filter(r => r.score > 0);
+
+    // Hybrid scoring: 0.7 * vector + 0.3 * text
+    const scoreMap = new Map<string, number>();
+    for (const vr of vectorResults) {
+      scoreMap.set(vr.memoryKey, (scoreMap.get(vr.memoryKey) || 0) + vr.score * 0.7);
+    }
+    for (const tr of textResults) {
+      scoreMap.set(tr.memoryKey, (scoreMap.get(tr.memoryKey) || 0) + tr.score * 0.3);
+    }
+
+    // Sort by hybrid score and look up full memory data
+    const sorted = Array.from(scoreMap.entries())
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, topK);
+
+    const results = sorted.map(([key, score]) => {
+      const mem = memory.memories.find(m => m.key === key);
+      return mem ? { key: mem.key, value: mem.value, category: mem.category, score: Math.round(score * 1000) / 1000 } : null;
+    }).filter(Boolean);
+
+    res.json({
+      results,
+      method: queryEmbedding ? 'hybrid' : 'text',
+      totalMemories: memory.memories.length,
+    });
+  } catch (error) {
+    console.error('Semantic search error:', error);
+    res.status(500).json({ error: 'Search failed' });
+  }
+});
+
+/**
  * PUT /api/memory/:memoryId
  * Update a specific memory
  */

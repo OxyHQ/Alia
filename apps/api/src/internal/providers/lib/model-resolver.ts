@@ -2,8 +2,10 @@
  * Model Resolver
  *
  * Resolves Alia model IDs to concrete provider/model combinations.
- * Handles fallback logic within tiers when primary models are unavailable.
- * Integrates provider health monitoring for automatic failure handling.
+ * Delegates to the fallback engine for smart retry logic, key cooldown,
+ * and analytics recording.
+ *
+ * The public API (resolveAliaModel) remains backward-compatible.
  */
 
 import type { KeyConfig } from './types';
@@ -15,8 +17,7 @@ import {
   type AliaModel,
   type AliaTier,
 } from './alia-models';
-import { getBestKeyForModel } from './key-manager';
-import { isProviderAvailable } from './provider-health';
+import { resolveWithFallback, type FallbackResult, type FallbackAttempt } from './fallback-engine';
 
 export interface ResolvedModel {
   aliasModelId: string;
@@ -32,6 +33,7 @@ export interface ResolvedModel {
  * Resolve an Alia model ID to a concrete provider and model.
  *
  * Keys are loaded internally from MongoDB via key-manager.
+ * Uses the fallback engine for smart retry logic based on error classification.
  *
  * @param requestedModel - The model ID requested (can be Alia model or legacy model name)
  * @param tokens - Estimated tokens for rate limit checking
@@ -43,73 +45,25 @@ export async function resolveAliaModel(
   tokens: number = 1000,
   skipProviders: Set<string> = new Set()
 ): Promise<ResolvedModel | null> {
-  // Get Alia model config (default to alia-v1 if invalid)
-  const aliasModelId = isAliaModel(requestedModel) ? requestedModel : 'alia-v1';
-  const aliaModel = getAliaModel(aliasModelId);
+  const result = await resolveWithFallback(requestedModel, tokens, skipProviders);
+  return result.resolved;
+}
 
-  if (!aliaModel) {
-    console.error(`[ModelResolver] Failed to get model config for: ${aliasModelId}`);
-    return null;
-  }
-
-  // Get model mappings for this tier
-  const mappings = TIER_MODEL_MAPPINGS[aliaModel.tier];
-
-  if (!mappings || mappings.length === 0) {
-    console.error(`[ModelResolver] No mappings for tier: ${aliaModel.tier}`);
-    return null;
-  }
-
-  // Sort by priority (lower = higher priority)
-  const sortedMappings = [...mappings].sort((a, b) => a.priority - b.priority);
-
-  // Try each model in priority order
-  for (let i = 0; i < sortedMappings.length; i++) {
-    const mapping = sortedMappings[i];
-
-    // Skip providers that have failed (for retry scenarios)
-    if (skipProviders.has(mapping.provider)) {
-      console.log(`[ModelResolver] Skipping ${mapping.provider} (in skip list)`);
-      continue;
-    }
-
-    // Check provider health (circuit breaker)
-    const isAvailable = await isProviderAvailable(mapping.provider, mapping.modelId);
-    if (!isAvailable) {
-      console.warn(`[ModelResolver] ⚠️ Skipping ${mapping.provider}/${mapping.modelId} - circuit breaker open (unhealthy)`);
-      continue;
-    }
-
-    console.log(`[ModelResolver] Trying ${mapping.provider}/${mapping.modelId} (priority ${mapping.priority})`);
-
-    const keyConfig = await getBestKeyForModel(
-      mapping.provider,
-      mapping.modelId,
-      tokens
-    );
-
-    if (keyConfig) {
-      const isFallback = i > 0;
-      if (isFallback) {
-        console.log(`[ModelResolver] Using fallback: ${mapping.provider}/${mapping.modelId} (was priority ${i + 1})`);
-      } else {
-        console.log(`[ModelResolver] Resolved ${aliasModelId} -> ${mapping.provider}/${mapping.modelId}`);
-      }
-
-      return {
-        aliasModelId,
-        provider: mapping.provider,
-        modelId: mapping.modelId,
-        keyConfig,
-        aliaModel,
-        isFallback,
-        fallbackIndex: i,
-      };
-    }
-  }
-
-  console.warn(`[ModelResolver] No available keys for any model in tier: ${aliaModel.tier}`);
-  return null;
+/**
+ * Extended resolution that returns the full fallback result including attempt history.
+ * Use this when you need access to fallback analytics (e.g., for logging or debugging).
+ *
+ * @param requestedModel - The model ID requested
+ * @param tokens - Estimated tokens for rate limit checking
+ * @param skipProviders - Optional set of providers to skip
+ * @returns Full FallbackResult with resolved model, attempts, and metadata
+ */
+export async function resolveAliaModelWithAttempts(
+  requestedModel: string,
+  tokens: number = 1000,
+  skipProviders: Set<string> = new Set()
+): Promise<FallbackResult> {
+  return resolveWithFallback(requestedModel, tokens, skipProviders);
 }
 
 /**
@@ -128,3 +82,6 @@ export function isValidModel(modelId: string): boolean {
 
 // Re-export utilities from alia-models
 export { isAliaModel, getAliaModel, ALIA_MODELS, type AliaModel, type AliaTier };
+
+// Re-export fallback types for consumers
+export type { FallbackResult, FallbackAttempt };
