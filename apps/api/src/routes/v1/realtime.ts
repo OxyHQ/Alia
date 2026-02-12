@@ -40,8 +40,12 @@ export function setupRealtimeEndpoint(wss: WebSocketServer): void {
         try {
           const perRequestOxy = new OxyServices({ baseURL: process.env.OXY_API_URL || 'https://api.oxy.so' });
           perRequestOxy.setTokens(token);
-          const session = await perRequestOxy.user.getSession();
-          userId = session.user._id;
+          const valid = await perRequestOxy.validate();
+          if (!valid) throw new Error('Invalid token');
+          // Decode JWT payload to extract user ID
+          const payload = JSON.parse(Buffer.from(token.split('.')[1], 'base64url').toString());
+          userId = payload.userId || payload.sub || payload._id;
+          if (!userId) throw new Error('No user ID in token');
           console.log(`[Realtime] Authenticated user via JWT: ${userId}`);
         } catch (error) {
           console.error('[Realtime] JWT verification failed:', error);

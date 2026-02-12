@@ -94,6 +94,7 @@ const ModelConfigSchema = new Schema<IModelConfig>(
         'cerebras',
         'cloudflare',
         'openrouter',
+        'xai',
       ],
       index: true,
     },
