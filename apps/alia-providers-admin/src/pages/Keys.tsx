@@ -107,7 +107,7 @@ export function KeysPage() {
   const queryClient = useQueryClient();
 
   // Build filters object
-  const filters: any = {};
+  const filters: { provider?: string; active?: boolean } = {};
   if (filterProvider !== 'all') filters.provider = filterProvider;
   if (filterStatus === 'active') filters.active = true;
   if (filterStatus === 'archived') filters.active = false;
@@ -119,7 +119,7 @@ export function KeysPage() {
   const { data: polledKeysData, isLoading } = useQuery({
     queryKey: ['keys', filterProvider, filterStatus],
     queryFn: () => {
-      const queryFilters: any = {};
+      const queryFilters: { provider?: string; active?: boolean } = {};
       if (filterProvider !== 'all') queryFilters.provider = filterProvider;
       if (filterStatus === 'active') queryFilters.active = true;
       if (filterStatus === 'archived') queryFilters.active = false;
@@ -225,7 +225,7 @@ export function KeysPage() {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (isEditDialogOpen && selectedKey) {
-      const updateData: any = {
+      const updateData: Record<string, unknown> = {
         name: formData.name,
         isPaid: formData.isPaid,
         priority: formData.priority,

@@ -10,4 +10,14 @@ export default defineConfig({
       "@": path.resolve(__dirname, "./src"),
     },
   },
+  server: {
+    proxy: {
+      '/api/providers': {
+        target: 'https://api.alia.onl',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/api\/providers/, '/internal/providers'),
+        ws: true,
+      },
+    },
+  },
 })

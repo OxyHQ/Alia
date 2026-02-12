@@ -144,7 +144,7 @@ export function ModelsPage() {
 
   // Create provider model mutation
   const createProviderModelMutation = useMutation({
-    mutationFn: (data: any) => apiClient.createModel(data),
+    mutationFn: (data: Record<string, unknown>) => apiClient.createModel(data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['provider-models'] });
       setIsAddProviderModelOpen(false);
@@ -154,7 +154,7 @@ export function ModelsPage() {
 
   // Update provider model mutation
   const updateProviderModelMutation = useMutation({
-    mutationFn: ({ provider, modelId, data }: { provider: string; modelId: string; data: any }) =>
+    mutationFn: ({ provider, modelId, data }: { provider: string; modelId: string; data: Record<string, unknown> }) =>
       apiClient.updateModel(provider, modelId, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['provider-models'] });
@@ -585,12 +585,12 @@ export function ModelsPage() {
                       <Label htmlFor="thinkingLevel">Thinking Level</Label>
                       <Select
                         value={providerModelForm.capabilities.thinkingLevel}
-                        onValueChange={(value: any) =>
+                        onValueChange={(value: string) =>
                           setProviderModelForm({
                             ...providerModelForm,
                             capabilities: {
                               ...providerModelForm.capabilities,
-                              thinkingLevel: value,
+                              thinkingLevel: value as 'NONE' | 'LOW' | 'MEDIUM' | 'HIGH',
                             },
                           })
                         }
@@ -1221,12 +1221,12 @@ export function ModelsPage() {
                 <Label htmlFor="edit-thinkingLevel">Thinking Level</Label>
                 <Select
                   value={providerModelForm.capabilities.thinkingLevel}
-                  onValueChange={(value: any) =>
+                  onValueChange={(value: string) =>
                     setProviderModelForm({
                       ...providerModelForm,
                       capabilities: {
                         ...providerModelForm.capabilities,
-                        thinkingLevel: value,
+                        thinkingLevel: value as 'NONE' | 'LOW' | 'MEDIUM' | 'HIGH',
                       },
                     })
                   }
