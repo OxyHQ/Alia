@@ -73,8 +73,13 @@ router.post('/transcribe', async (req: Request, res: Response) => {
       return res.status(402).json({ error: 'Insufficient credits' });
     }
 
-    // Find an OpenAI key for Whisper
+    // Resolve a Whisper-compatible provider key and API endpoint
+    // Priority: OpenAI key from model config > OpenAI from providers > Groq from providers > env var
     let apiKey: string | null = null;
+    let whisperUrl = 'https://api.openai.com/v1/audio/transcriptions';
+    let whisperModel = 'whisper-1';
+
+    // 1. Try alia-v1 model config (if it resolves to OpenAI)
     try {
       const resolved = await resolveModel('alia-v1');
       if (resolved?.keyConfig.provider === 'openai') {
@@ -82,7 +87,7 @@ router.post('/transcribe', async (req: Request, res: Response) => {
       }
     } catch {}
 
-    // Try fetching an OpenAI key directly from providers
+    // 2. Try OpenAI key directly from providers
     if (!apiKey) {
       try {
         const openaiKey = await getBestKeyForModel('openai', 'whisper-1');
@@ -92,7 +97,19 @@ router.post('/transcribe', async (req: Request, res: Response) => {
       } catch {}
     }
 
-    // Fallback to env var
+    // 3. Try Groq (has Whisper API at /openai/v1/audio/transcriptions)
+    if (!apiKey) {
+      try {
+        const groqKey = await getBestKeyForModel('groq', 'whisper-large-v3-turbo');
+        if (groqKey?.key) {
+          apiKey = groqKey.key;
+          whisperUrl = 'https://api.groq.com/openai/v1/audio/transcriptions';
+          whisperModel = 'whisper-large-v3-turbo';
+        }
+      } catch {}
+    }
+
+    // 4. Fallback to env var (OpenAI)
     if (!apiKey) {
       apiKey = process.env.OPENAI_API_KEY || null;
     }
@@ -107,13 +124,13 @@ router.post('/transcribe', async (req: Request, res: Response) => {
     const mimeType = format || 'audio/m4a';
     const ext = mimeType.split('/')[1] || 'm4a';
 
-    // Call OpenAI Whisper API
+    // Call Whisper API (OpenAI or Groq)
     const formData = new FormData();
     const blob = new Blob([audioBuffer], { type: mimeType });
     formData.append('file', blob, `audio.${ext}`);
-    formData.append('model', 'whisper-1');
+    formData.append('model', whisperModel);
 
-    const response = await fetch('https://api.openai.com/v1/audio/transcriptions', {
+    const response = await fetch(whisperUrl, {
       method: 'POST',
       headers: { Authorization: `Bearer ${apiKey}` },
       body: formData,
@@ -121,7 +138,7 @@ router.post('/transcribe', async (req: Request, res: Response) => {
 
     if (!response.ok) {
       const errorBody = await response.text();
-      console.error('[Voice] Whisper API error:', errorBody);
+      console.error(`[Voice] Whisper API error (${whisperModel}):`, errorBody);
       await finalizeCredits(reservation, { promptTokens: 0, completionTokens: 0, totalTokens: 0 });
       return res.status(502).json({ error: 'Transcription failed' });
     }
