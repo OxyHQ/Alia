@@ -72,6 +72,61 @@ router.get('/', async (req: Request, res: Response) => {
 });
 
 /**
+ * GET /v1/keys/diagnostics
+ * Check if all keys have stored key values and are usable
+ */
+router.get('/diagnostics', async (req: Request, res: Response) => {
+  try {
+    const keys = await ProviderKey.find({ isArchived: false }).select(
+      'name provider keyPrefix isActive key isPaid currentPriority totalRequests successCount totalFailures lastFailureReason'
+    );
+
+    const diagnostics = keys.map((k) => ({
+      name: k.name,
+      provider: k.provider,
+      keyPrefix: k.keyPrefix,
+      isActive: k.isActive,
+      hasKeyValue: !!k.key,
+      keyLength: k.key ? k.key.length : 0,
+      isPaid: k.isPaid,
+      currentPriority: k.currentPriority,
+      totalRequests: k.totalRequests,
+      successCount: k.successCount,
+      totalFailures: k.totalFailures,
+      lastFailureReason: k.lastFailureReason || null,
+    }));
+
+    const issues: string[] = [];
+    for (const d of diagnostics) {
+      if (!d.hasKeyValue) {
+        issues.push(`Key "${d.name}" (${d.provider}) has no stored key value`);
+      }
+      if (!d.isActive) {
+        issues.push(`Key "${d.name}" (${d.provider}) is inactive`);
+      }
+    }
+
+    res.json({
+      success: true,
+      data: {
+        totalKeys: diagnostics.length,
+        keysWithValues: diagnostics.filter((d) => d.hasKeyValue).length,
+        activeKeys: diagnostics.filter((d) => d.isActive).length,
+        issues,
+        keys: diagnostics,
+      },
+    });
+  } catch (error: any) {
+    console.error('Error running key diagnostics:', error);
+    res.status(500).json({
+      success: false,
+      error: 'An internal error occurred',
+      code: 'INTERNAL_ERROR',
+    });
+  }
+});
+
+/**
  * GET /v1/keys/:keyId
  * Get specific key details (without actual key value)
  */
@@ -452,61 +507,6 @@ router.post('/:keyId/activate', async (req: Request, res: Response) => {
     broadcastKeysUpdate(key.provider);
   } catch (error: any) {
     console.error('Error activating key:', error);
-    res.status(500).json({
-      success: false,
-      error: 'An internal error occurred',
-      code: 'INTERNAL_ERROR',
-    });
-  }
-});
-
-/**
- * GET /v1/keys/diagnostics
- * Check if all keys have stored key values and are usable
- */
-router.get('/diagnostics', async (req: Request, res: Response) => {
-  try {
-    const keys = await ProviderKey.find({ isArchived: false }).select(
-      'name provider keyPrefix isActive key isPaid currentPriority totalRequests successCount totalFailures lastFailureReason'
-    );
-
-    const diagnostics = keys.map((k) => ({
-      name: k.name,
-      provider: k.provider,
-      keyPrefix: k.keyPrefix,
-      isActive: k.isActive,
-      hasKeyValue: !!k.key,
-      keyLength: k.key ? k.key.length : 0,
-      isPaid: k.isPaid,
-      currentPriority: k.currentPriority,
-      totalRequests: k.totalRequests,
-      successCount: k.successCount,
-      totalFailures: k.totalFailures,
-      lastFailureReason: k.lastFailureReason || null,
-    }));
-
-    const issues: string[] = [];
-    for (const d of diagnostics) {
-      if (!d.hasKeyValue) {
-        issues.push(`Key "${d.name}" (${d.provider}) has no stored key value`);
-      }
-      if (!d.isActive) {
-        issues.push(`Key "${d.name}" (${d.provider}) is inactive`);
-      }
-    }
-
-    res.json({
-      success: true,
-      data: {
-        totalKeys: diagnostics.length,
-        keysWithValues: diagnostics.filter((d) => d.hasKeyValue).length,
-        activeKeys: diagnostics.filter((d) => d.isActive).length,
-        issues,
-        keys: diagnostics,
-      },
-    });
-  } catch (error: any) {
-    console.error('Error running key diagnostics:', error);
     res.status(500).json({
       success: false,
       error: 'An internal error occurred',

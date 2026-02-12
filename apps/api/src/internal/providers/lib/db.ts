@@ -1,59 +1,33 @@
 import mongoose from 'mongoose';
 
-const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/alia';
-
-let cachedConnection: typeof mongoose | null = null;
-let connectionPromise: Promise<typeof mongoose> | null = null;
-
+/**
+ * Ensure mongoose is connected.
+ * The main API server establishes the mongoose connection at startup.
+ * This function is a safety net for seed scripts and health monitoring
+ * that may run before or outside the main server lifecycle.
+ */
 export async function connectDB(): Promise<typeof mongoose> {
-  // Return cached connection if exists
-  if (cachedConnection && mongoose.connection.readyState === 1) {
-    return cachedConnection;
+  // Already connected — reuse existing connection
+  if (mongoose.connection.readyState === 1) {
+    return mongoose;
   }
 
-  // Return existing connection attempt if in progress
-  if (connectionPromise) {
-    return connectionPromise;
-  }
-
-  // Create new connection
-  connectionPromise = mongoose
-    .connect(MONGODB_URI, {
-      bufferCommands: false,
-      maxPoolSize: 10,
-      serverSelectionTimeoutMS: 10000,
-      socketTimeoutMS: 45000,
-    })
-    .then((mongooseInstance) => {
-      console.log('✅ MongoDB conectado exitosamente (alia-providers)');
-      cachedConnection = mongooseInstance;
-      connectionPromise = null;
-      return mongooseInstance;
-    })
-    .catch((error) => {
-      console.error('❌ Error al conectar a MongoDB (alia-providers):', error.message);
-      connectionPromise = null;
-      throw error;
+  // Connecting in progress — wait for it
+  if (mongoose.connection.readyState === 2) {
+    return new Promise((resolve, reject) => {
+      mongoose.connection.once('connected', () => resolve(mongoose));
+      mongoose.connection.once('error', reject);
     });
-
-  return connectionPromise;
-}
-
-export async function disconnectDB(): Promise<void> {
-  if (cachedConnection) {
-    await mongoose.disconnect();
-    cachedConnection = null;
-    console.log('MongoDB desconectado (alia-providers)');
   }
+
+  // Not connected — connect (only happens in standalone scripts)
+  const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/alia';
+  await mongoose.connect(MONGODB_URI, {
+    bufferCommands: false,
+    maxPoolSize: 10,
+    serverSelectionTimeoutMS: 10000,
+    socketTimeoutMS: 45000,
+  });
+
+  return mongoose;
 }
-
-// Handle process termination
-process.on('SIGINT', async () => {
-  await disconnectDB();
-  process.exit(0);
-});
-
-process.on('SIGTERM', async () => {
-  await disconnectDB();
-  process.exit(0);
-});

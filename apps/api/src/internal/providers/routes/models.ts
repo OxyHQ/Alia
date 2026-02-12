@@ -45,6 +45,36 @@ router.get('/', async (req: Request, res: Response) => {
 });
 
 /**
+ * GET /v1/models/by-tier/:tier
+ * Get all models for a specific Alia tier
+ */
+router.get('/by-tier/:tier', async (req: Request, res: Response) => {
+  try {
+    const { tier } = req.params;
+
+    const models = await ModelConfig.find({
+      aliaTier: tier,
+      isActive: true,
+      isDeprecated: false,
+    }).sort({ priority: 1 });
+
+    res.json({
+      success: true,
+      tier,
+      count: models.length,
+      data: models,
+    });
+  } catch (error: any) {
+    console.error('Error getting models by tier:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message,
+      code: 'INTERNAL_ERROR',
+    });
+  }
+});
+
+/**
  * GET /v1/models/:provider/:modelId
  * Get specific model configuration
  */
@@ -186,36 +216,6 @@ router.delete('/:provider/:modelId', async (req: Request, res: Response) => {
     broadcastModelsUpdate(provider as string);
   } catch (error: any) {
     console.error('Error deleting model:', error);
-    res.status(500).json({
-      success: false,
-      error: error.message,
-      code: 'INTERNAL_ERROR',
-    });
-  }
-});
-
-/**
- * GET /v1/models/by-tier/:tier
- * Get all models for a specific Alia tier
- */
-router.get('/by-tier/:tier', async (req: Request, res: Response) => {
-  try {
-    const { tier } = req.params;
-
-    const models = await ModelConfig.find({
-      aliaTier: tier,
-      isActive: true,
-      isDeprecated: false,
-    }).sort({ priority: 1 });
-
-    res.json({
-      success: true,
-      tier,
-      count: models.length,
-      data: models,
-    });
-  } catch (error: any) {
-    console.error('Error getting models by tier:', error);
     res.status(500).json({
       success: false,
       error: error.message,

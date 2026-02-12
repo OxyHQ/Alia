@@ -28,7 +28,13 @@ export async function authenticateService(req: Request, res: Response, next: Nex
   if (authHeader?.startsWith('Bearer ') && !serviceName) {
     return oxyClient.auth({ loadUser: true })(req, res, (err?: any) => {
       if (err) return next(err);
-      if (!req.userId) return next();
+      if (!req.userId) {
+        return res.status(401).json({
+          success: false,
+          error: 'Authentication required',
+          code: 'AUTHENTICATION_REQUIRED',
+        });
+      }
 
       // Admin gate: only allowed usernames can access providers admin
       const ADMIN_USERNAMES = (process.env.ADMIN_USERNAMES || 'nate').split(',').map((s) => s.trim().toLowerCase());

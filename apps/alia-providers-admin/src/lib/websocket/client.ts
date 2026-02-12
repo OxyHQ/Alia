@@ -55,7 +55,6 @@ export class RealtimeClient {
     // Include auth token in connection URL
     const token = this.getToken?.();
     if (!token) {
-      console.warn('[WebSocket] No auth token available, skipping connection');
       return;
     }
     const url = `${this.baseWsUrl}?token=${encodeURIComponent(token)}`;
@@ -64,7 +63,6 @@ export class RealtimeClient {
       this.ws = new WebSocket(url);
 
       this.ws.onopen = () => {
-        console.log('[WebSocket] Connected');
         this.reconnectAttempts = 0;
         this.reconnectDelay = 1000;
         this.notifyConnectionHandlers('connected');
@@ -82,12 +80,11 @@ export class RealtimeClient {
         }
       };
 
-      this.ws.onerror = (error) => {
-        console.error('[WebSocket] Error:', error);
+      this.ws.onerror = () => {
+        // Connection error — reconnect will be triggered by onclose
       };
 
       this.ws.onclose = () => {
-        console.log('[WebSocket] Disconnected');
         this.stopHeartbeat();
         this.notifyConnectionHandlers('disconnected');
 
@@ -96,8 +93,7 @@ export class RealtimeClient {
           this.scheduleReconnect();
         }
       };
-    } catch (error) {
-      console.error('[WebSocket] Connection failed:', error);
+    } catch {
       if (!this.isIntentionallyClosed) {
         this.scheduleReconnect();
       }
@@ -128,7 +124,6 @@ export class RealtimeClient {
    */
   private scheduleReconnect(): void {
     if (this.reconnectAttempts >= this.maxReconnectAttempts) {
-      console.error('[WebSocket] Max reconnection attempts reached');
       return;
     }
 
@@ -140,8 +135,6 @@ export class RealtimeClient {
       this.reconnectDelay * Math.pow(2, this.reconnectAttempts - 1),
       this.maxReconnectDelay
     );
-
-    console.log(`[WebSocket] Reconnecting in ${delay}ms (attempt ${this.reconnectAttempts}/${this.maxReconnectAttempts})`);
 
     this.reconnectTimeout = setTimeout(() => {
       this.connect();
@@ -161,7 +154,6 @@ export class RealtimeClient {
 
         // Expect pong within 5 seconds
         this.heartbeatTimeout = setTimeout(() => {
-          console.warn('[WebSocket] Heartbeat timeout, reconnecting...');
           this.ws?.close();
         }, 5000);
       }

@@ -148,7 +148,7 @@ const PRODUCTION_ORIGINS = [
   'https://providers.alia.onl',
 ];
 
-const DEV_ORIGINS = process.env.NODE_ENV === 'production' ? [] : [
+const DEV_ORIGINS = [
   'http://localhost:3000',
   'http://localhost:5173',
   'http://localhost:8081',

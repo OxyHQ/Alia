@@ -210,7 +210,6 @@ export async function recordSuccess(
           health.circuitOpenedAt = null;
           health.halfOpenAttempts = 0;
           health.isHealthy = true;
-          console.log(`[ProviderHealth] ✅ Circuit closed for ${provider}/${modelId} - provider recovered`);
         }
       }
 
@@ -225,8 +224,6 @@ export async function recordSuccess(
 
     // Invalidate cache
     healthCache.delete(getCacheKey(provider, modelId));
-
-    console.log(`[ProviderHealth] ✅ Success recorded for ${provider}/${modelId} (${latencyMs}ms)`);
   } catch (error) {
     console.error(`[ProviderHealth] Error recording success:`, error);
   }
@@ -277,7 +274,6 @@ export async function recordFailure(
           health.circuitState = 'open';
           health.circuitOpenedAt = new Date();
           health.isHealthy = false;
-          console.warn(`[ProviderHealth] ⚠️ Circuit opened for ${provider}/${modelId} - ${health.consecutiveFailures} consecutive failures`);
         }
       } else if (health.circuitState === 'half-open') {
         // Failed in half-open state - re-open circuit
@@ -285,7 +281,6 @@ export async function recordFailure(
         health.circuitOpenedAt = new Date();
         health.halfOpenAttempts = 0;
         health.isHealthy = false;
-        console.warn(`[ProviderHealth] ⚠️ Circuit re-opened for ${provider}/${modelId} - failure during recovery`);
       }
 
       // Check overall health
@@ -299,8 +294,6 @@ export async function recordFailure(
 
     // Invalidate cache
     healthCache.delete(getCacheKey(provider, modelId));
-
-    console.log(`[ProviderHealth] ❌ Failure recorded for ${provider}/${modelId} (error: ${errorCode || 'unknown'})`);
   } catch (error) {
     console.error(`[ProviderHealth] Error recording failure:`, error);
   }
@@ -333,7 +326,6 @@ export async function isProviderAvailable(provider: string, modelId: string): Pr
             }
           );
           healthCache.delete(getCacheKey(provider, modelId));
-          console.log(`[ProviderHealth] 🔄 Circuit half-opened for ${provider}/${modelId} - testing recovery`);
           return true;
         } catch (error) {
           console.error(`[ProviderHealth] Error transitioning to half-open:`, error);
@@ -390,7 +382,6 @@ export async function resetProviderHealth(provider: string, modelId: string): Pr
       { upsert: true }
     );
     healthCache.delete(getCacheKey(provider, modelId));
-    console.log(`[ProviderHealth] 🔄 Health reset for ${provider}/${modelId}`);
   } catch (error) {
     console.error(`[ProviderHealth] Error resetting health:`, error);
   }
@@ -424,8 +415,6 @@ let healthCheckInterval: NodeJS.Timeout | null = null;
 export function startHealthCheckMonitor(): void {
   if (healthCheckInterval) return; // Already running
 
-  console.log('[ProviderHealth] 🏥 Starting health check monitor...');
-
   healthCheckInterval = setInterval(async () => {
     try {
       await connectDB();
@@ -441,7 +430,6 @@ export function startHealthCheckMonitor(): void {
             health.circuitState = 'half-open';
             health.halfOpenAttempts = 0;
             await health.save();
-            console.log(`[ProviderHealth] 🔄 Auto-transitioned ${health.provider}/${health.modelId} to half-open`);
           }
         }
       }
@@ -455,7 +443,6 @@ export function stopHealthCheckMonitor(): void {
   if (healthCheckInterval) {
     clearInterval(healthCheckInterval);
     healthCheckInterval = null;
-    console.log('[ProviderHealth] Stopped health check monitor');
   }
 }
 
