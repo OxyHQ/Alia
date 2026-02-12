@@ -6,6 +6,7 @@
 import { ProviderKey, IProviderKey } from '../models/provider-key';
 import { ApiUsage } from '../models/api-usage';
 import type { KeyConfig } from './types';
+import { log } from '../../../lib/logger.js';
 
 // Cache for loaded keys (TTL: 30 seconds)
 const keyCache = new Map<string, { keys: IProviderKey[]; timestamp: number }>();
@@ -142,7 +143,7 @@ export async function getBestKeyForModel(
   const keys = await loadProviderKeys(provider);
 
   if (keys.length === 0) {
-    console.warn(`No keys found for provider: ${provider}`);
+    log.keys.warn({ provider }, 'No keys found for provider');
     return null;
   }
 
@@ -152,7 +153,7 @@ export async function getBestKeyForModel(
   for (const key of keys) {
     // Skip keys in cooldown period
     if (key.cooldownUntil && key.cooldownUntil > now) {
-      console.log(`[KeyManager] Key ${key.keyPrefix} (${key.provider}) in cooldown until ${key.cooldownUntil.toISOString()}, skipping`);
+      log.keys.debug({ keyPrefix: key.keyPrefix, provider: key.provider, cooldownUntil: key.cooldownUntil }, 'Key in cooldown, skipping');
       continue;
     }
 
@@ -164,7 +165,7 @@ export async function getBestKeyForModel(
 
     // Skip keys without a stored key value
     if (!key.key) {
-      console.warn(`[KeyManager] Key ${key.keyPrefix} (${key.provider}) has no key value, skipping`);
+      log.keys.warn({ keyPrefix: key.keyPrefix, provider: key.provider }, 'Key has no value, skipping');
       continue;
     }
 
@@ -182,7 +183,7 @@ export async function getBestKeyForModel(
     };
   }
 
-  console.warn(`All keys rate-limited or in cooldown for provider: ${provider}`);
+  log.keys.warn({ provider }, 'All keys rate-limited or in cooldown');
   return null;
 }
 
@@ -207,7 +208,7 @@ export async function recordKeyUsage(
   ProviderKey.findByIdAndUpdate(keyId, {
     $set: { lastUsedAt: new Date() },
     $inc: { totalRequests: 1, totalTokens: tokens },
-  }).catch((err) => console.error('Failed to update key stats:', err));
+  }).catch((err) => log.keys.error({ err }, 'Failed to update key stats'));
 }
 
 /**
@@ -229,7 +230,7 @@ export async function recordKeySuccess(keyId: string): Promise<void> {
       invalidateKeyCache(key.provider);
     }
   } catch (error: any) {
-    console.error('Failed to record key success:', error);
+    log.keys.error({ err: error }, 'Failed to record key success');
   }
 }
 
@@ -241,7 +242,7 @@ export async function recordKeyFailure(keyId: string, reason: string): Promise<v
   try {
     const key = await ProviderKey.findById(keyId);
     if (!key) {
-      console.warn(`Key not found: ${keyId}`);
+      log.keys.warn({ keyId }, 'Key not found');
       return;
     }
 
@@ -270,12 +271,12 @@ export async function recordKeyFailure(keyId: string, reason: string): Promise<v
       { $set: { cooldownUntil } }
     );
 
-    console.log(`[KeyManager] Key ${key.keyPrefix} (${key.provider}) cooldown set for ${cooldownMs / 1000}s until ${cooldownUntil.toISOString()}`);
+    log.keys.info({ keyPrefix: key.keyPrefix, provider: key.provider, cooldownSec: cooldownMs / 1000 }, 'Key cooldown set');
 
     // Invalidate cache to pick up priority changes
     invalidateKeyCache(key.provider);
   } catch (error: any) {
-    console.error('Failed to record key failure:', error);
+    log.keys.error({ err: error }, 'Failed to record key failure');
   }
 }
 

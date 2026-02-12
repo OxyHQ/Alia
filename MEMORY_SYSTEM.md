@@ -13,6 +13,7 @@ The Alia AI memory system allows the AI to remember user preferences, personal i
 - [AI Tools](#ai-tools)
 - [Export/Import](#exportimport)
 - [Frontend Integration](#frontend-integration)
+- [Semantic Search](#semantic-search)
 - [Recent Bug Fixes](#recent-bug-fixes)
 
 ## Architecture
@@ -35,6 +36,16 @@ The Alia AI memory system allows the AI to remember user preferences, personal i
 - **Tools**: [apps/api/src/lib/tools/user-memory.ts](apps/api/src/lib/tools/user-memory.ts)
 - **Automatic Saving**: AI automatically saves user preferences during conversations
 - **Context Injection**: Memory is injected into system prompts for personalization
+
+### Vector Embeddings Layer
+- **Embedding Model**: OpenAI `text-embedding-3-small` (1536 dimensions)
+- **Storage**: Separate `MemoryEmbedding` collection with compound unique index on `(oxyUserId, memoryKey)`
+- **Generation**: Fire-and-forget on memory save — embedding is generated in the background after the AI tool saves a memory
+- **Graceful Degradation**: If the embedding API fails, the memory is still saved and text-only search remains available
+- **Files**:
+  - [apps/api/src/lib/memory/embeddings.ts](apps/api/src/lib/memory/embeddings.ts) — Embedding generation via OpenAI API
+  - [apps/api/src/lib/memory/vector-search.ts](apps/api/src/lib/memory/vector-search.ts) — Cosine similarity search and `MemoryEmbedding` model
+  - [apps/api/src/lib/memory/index.ts](apps/api/src/lib/memory/index.ts) — Barrel export
 
 ## Data Model
 
@@ -259,6 +270,47 @@ Detects potential duplicate memories based on:
 }
 ```
 
+### Semantic Search
+
+#### Semantic Search Memories
+```http
+GET /api/memory/semantic-search?q=what+food+do+they+like&limit=5
+```
+
+Searches memories using hybrid scoring that combines vector similarity with text matching. For example, searching "what food do they like" will find a memory like "favorite_cuisine = Italian" even though the words don't overlap.
+
+**Query Parameters:**
+- `q` (required): Search query string
+- `limit` (optional): Max results to return (default: 5, max: 20)
+
+**Response:**
+```json
+{
+  "results": [
+    {
+      "key": "favorite_cuisine",
+      "value": "Italian",
+      "category": "preference",
+      "score": 0.782
+    }
+  ],
+  "method": "hybrid",
+  "totalMemories": 42
+}
+```
+
+**How it works:**
+1. The query is embedded using OpenAI `text-embedding-3-small`
+2. Cosine similarity is computed against all of the user's memory embeddings
+3. Text matching scores are computed (key/value substring match)
+4. Hybrid score = `0.7 * vectorScore + 0.3 * textScore`
+5. Results are sorted by hybrid score and returned
+
+**Method field values:**
+- `hybrid` — Both vector and text search were used
+- `text` — Embedding generation failed, fell back to text-only
+- `none` — No memories exist for this user
+
 ### Export Functionality
 
 #### Export Preview
@@ -459,6 +511,7 @@ Automatically saves user information during conversations.
 - Updates existing memory if key matches
 - Checks memory limit before adding new
 - Returns helpful error if limit exceeded
+- Generates a vector embedding in the background (fire-and-forget) for semantic search
 
 ### updateUserPreferences
 
@@ -662,6 +715,13 @@ UserMemorySchema.index({ 'memories.updatedAt': -1 });
    - Detects similar keys
    - Helps maintain data quality
 
+6. **Semantic Search with Vector Embeddings**
+   - OpenAI `text-embedding-3-small` (1536 dimensions)
+   - Hybrid scoring: 0.7 * vector similarity + 0.3 * text match
+   - Graceful degradation to text-only if embedding API fails
+   - Embeddings stored in separate `MemoryEmbedding` collection
+   - Generated automatically on memory save (fire-and-forget)
+
 ## Error Handling
 
 ### Common Errors
@@ -764,5 +824,5 @@ For issues or questions:
 
 ---
 
-**Last Updated:** January 24, 2024
-**Version:** 1.0.0
+**Last Updated:** February 12, 2026
+**Version:** 1.1.0

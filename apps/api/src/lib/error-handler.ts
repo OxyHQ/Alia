@@ -6,6 +6,8 @@
  * Provider details are only logged internally for debugging.
  */
 
+import { log } from './logger.js';
+
 // ============== USER-FACING ERROR TYPES ==============
 
 export enum AliaErrorCode {
@@ -181,9 +183,9 @@ function createAliaError(
 
   // Log internally (server logs only)
   if (provider) {
-    console.error(`[AliaError] ${code} from ${provider}/${modelId}: ${internalMessage}`);
+    log.providers.error({ code, provider, modelId, internalMessage }, 'Provider error translated');
   } else {
-    console.error(`[AliaError] ${code}: ${internalMessage}`);
+    log.general.error({ code, internalMessage }, 'Error translated');
   }
 
   return {

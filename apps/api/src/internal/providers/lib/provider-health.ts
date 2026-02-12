@@ -7,6 +7,7 @@
 
 import { connectDB } from './db';
 import mongoose from 'mongoose';
+import { log } from '../../../lib/logger.js';
 
 // ============== HEALTH METRICS ==============
 
@@ -140,7 +141,7 @@ export async function getProviderHealth(provider: string, modelId: string): Prom
     setCachedHealth(provider, modelId, metrics);
     return metrics;
   } catch (error) {
-    console.error(`[ProviderHealth] Error fetching health for ${provider}/${modelId}:`, error);
+    log.providers.error({ err: error, provider, modelId }, 'Error fetching health');
     // Return default healthy state on error
     return {
       provider,
@@ -232,7 +233,7 @@ export async function recordSuccess(
     // Invalidate cache
     healthCache.delete(getCacheKey(provider, modelId));
   } catch (error) {
-    console.error(`[ProviderHealth] Error recording success:`, error);
+    log.providers.error({ err: error }, 'Error recording success');
   }
 }
 
@@ -302,7 +303,7 @@ export async function recordFailure(
     // Invalidate cache
     healthCache.delete(getCacheKey(provider, modelId));
   } catch (error) {
-    console.error(`[ProviderHealth] Error recording failure:`, error);
+    log.providers.error({ err: error }, 'Error recording failure');
   }
 }
 
@@ -335,7 +336,7 @@ export async function isProviderAvailable(provider: string, modelId: string): Pr
           healthCache.delete(getCacheKey(provider, modelId));
           return true;
         } catch (error) {
-          console.error(`[ProviderHealth] Error transitioning to half-open:`, error);
+          log.providers.error({ err: error, provider, modelId }, 'Error transitioning to half-open');
           return false;
         }
       }
@@ -360,7 +361,7 @@ export async function getAllProviderHealth(): Promise<HealthMetrics[]> {
     const healthRecords = await ProviderHealth.find({}).sort({ updatedAt: -1 });
     return healthRecords.map(healthToMetrics);
   } catch (error) {
-    console.error(`[ProviderHealth] Error fetching all health metrics:`, error);
+    log.providers.error({ err: error }, 'Error fetching all health metrics');
     return [];
   }
 }
@@ -390,7 +391,7 @@ export async function resetProviderHealth(provider: string, modelId: string): Pr
     );
     healthCache.delete(getCacheKey(provider, modelId));
   } catch (error) {
-    console.error(`[ProviderHealth] Error resetting health:`, error);
+    log.providers.error({ err: error }, 'Error resetting health');
   }
 }
 
@@ -441,7 +442,7 @@ export function startHealthCheckMonitor(): void {
         }
       }
     } catch (error) {
-      console.error('[ProviderHealth] Error in health check monitor:', error);
+      log.providers.error({ err: error }, 'Error in health check monitor');
     }
   }, 5 * 60 * 1000); // Every 5 minutes
 }
