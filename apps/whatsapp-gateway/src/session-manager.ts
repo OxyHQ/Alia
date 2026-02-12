@@ -4,12 +4,15 @@ import makeWASocket, {
   fetchLatestBaileysVersion,
   initAuthCreds,
   makeCacheableSignalKeyStore,
+  makeInMemoryStore,
   type AuthenticationCreds,
   type AuthenticationState,
   type SignalKeyStore,
   type WASocket,
 } from '@whiskeysockets/baileys';
 import { WhatsAppSession, type IWhatsAppSession } from './models/whatsapp-session';
+import { WhatsAppChat } from './models/whatsapp-chat';
+import { WhatsAppMessage } from './models/whatsapp-message';
 import { handleIncomingMessage } from './handlers/chat';
 
 /** Convert Buffers to base64 JSON objects before MongoDB storage (avoids BSON Binary). */
@@ -39,6 +42,7 @@ interface PendingQR {
 
 class SessionManager {
   private sessions: Map<string, WASocket> = new Map();
+  private stores: Map<string, ReturnType<typeof makeInMemoryStore>> = new Map();
   private reconnectTimers: Map<string, NodeJS.Timeout> = new Map();
   private pendingQRs: Map<string, PendingQR> = new Map();
   private credsSaveQueue: Promise<void> = Promise.resolve();
@@ -123,15 +127,19 @@ class SessionManager {
 
     const { version } = await fetchLatestBaileysVersion();
 
+    const store = makeInMemoryStore({});
+    this.stores.set(oxyUserId, store);
+
     const sock = makeWASocket({
       version,
       auth: state,
       printQRInTerminal: false,
       browser: ['Alia', 'Chrome', '120.0'],
       generateHighQualityLinkPreview: false,
-      syncFullHistory: false,
+      syncFullHistory: true,
     });
 
+    store.bind(sock.ev);
     this.sessions.set(oxyUserId, sock);
 
     // ---- Connection updates ----
@@ -221,6 +229,40 @@ class SessionManager {
 
     // ---- Incoming messages ----
     sock.ev.on('messages.upsert', async ({ messages, type }) => {
+      // Persist all messages to MongoDB (both notify and history sync)
+      for (const msg of messages) {
+        const text = msg.message?.conversation
+          || msg.message?.extendedTextMessage?.text
+          || '';
+        if (!text || !msg.key.id || !msg.key.remoteJid) continue;
+
+        const ts = msg.messageTimestamp;
+        const timestamp = typeof ts === 'number' ? ts : (ts as any)?.low || Math.floor(Date.now() / 1000);
+
+        try {
+          await WhatsAppMessage.updateOne(
+            { oxyUserId, messageId: msg.key.id },
+            {
+              $setOnInsert: {
+                oxyUserId,
+                jid: msg.key.remoteJid,
+                messageId: msg.key.id,
+                fromMe: msg.key.fromMe || false,
+                timestamp,
+                text,
+                pushName: msg.pushName || undefined,
+              },
+            },
+            { upsert: true }
+          );
+        } catch (err: any) {
+          if (err.code !== 11000) { // ignore duplicate key
+            console.error(`[WhatsApp] Error persisting message for ${oxyUserId}:`, err);
+          }
+        }
+      }
+
+      // Only forward real-time incoming messages to the chat handler
       if (type !== 'notify') return;
 
       for (const msg of messages) {
@@ -230,6 +272,186 @@ class SessionManager {
           await handleIncomingMessage(oxyUserId, sock, msg);
         } catch (err) {
           console.error(`[WhatsApp] Error handling message for ${oxyUserId}:`, err);
+        }
+      }
+    });
+
+    // ---- Chat sync (persist chats to MongoDB) ----
+    sock.ev.on('chats.upsert', async (chats) => {
+      for (const chat of chats) {
+        if (chat.id === 'status@broadcast') continue;
+        const ts = chat.conversationTimestamp;
+        const timestamp = typeof ts === 'number' ? ts : (ts as any)?.low || 0;
+
+        try {
+          await WhatsAppChat.updateOne(
+            { oxyUserId, jid: chat.id },
+            {
+              $set: {
+                name: chat.name || chat.id.split('@')[0],
+                unreadCount: chat.unreadCount || 0,
+                conversationTimestamp: timestamp,
+              },
+              $setOnInsert: { oxyUserId, jid: chat.id },
+            },
+            { upsert: true }
+          );
+        } catch (err) {
+          console.error(`[WhatsApp] Error persisting chat for ${oxyUserId}:`, err);
+        }
+      }
+    });
+
+    sock.ev.on('chats.update', async (updates) => {
+      for (const update of updates) {
+        if (!update.id || update.id === 'status@broadcast') continue;
+        const $set: Record<string, any> = {};
+        if (update.name) $set.name = update.name;
+        if (update.unreadCount !== undefined) $set.unreadCount = update.unreadCount;
+        if (update.conversationTimestamp) {
+          const ts = update.conversationTimestamp;
+          $set.conversationTimestamp = typeof ts === 'number' ? ts : (ts as any)?.low || 0;
+        }
+
+        if (Object.keys($set).length > 0) {
+          try {
+            await WhatsAppChat.updateOne(
+              { oxyUserId, jid: update.id },
+              { $set, $setOnInsert: { oxyUserId, jid: update.id } },
+              { upsert: true }
+            );
+          } catch (err) {
+            console.error(`[WhatsApp] Error updating chat for ${oxyUserId}:`, err);
+          }
+        }
+      }
+    });
+
+    // ---- Deletions (keep MongoDB in sync) ----
+    sock.ev.on('chats.delete', async (deletedJids) => {
+      for (const jid of deletedJids) {
+        try {
+          await WhatsAppChat.deleteOne({ oxyUserId, jid });
+          await WhatsAppMessage.deleteMany({ oxyUserId, jid });
+        } catch (err) {
+          console.error(`[WhatsApp] Error deleting chat ${jid} for ${oxyUserId}:`, err);
+        }
+      }
+    });
+
+    sock.ev.on('messages.delete', async (item) => {
+      if ('keys' in item) {
+        // Individual message deletions
+        for (const key of item.keys) {
+          if (!key.id) continue;
+          try {
+            await WhatsAppMessage.deleteOne({ oxyUserId, messageId: key.id });
+          } catch (err) {
+            console.error(`[WhatsApp] Error deleting message for ${oxyUserId}:`, err);
+          }
+        }
+      } else if ('jid' in item && item.all) {
+        // All messages in chat cleared
+        try {
+          await WhatsAppMessage.deleteMany({ oxyUserId, jid: (item as any).jid });
+        } catch (err) {
+          console.error(`[WhatsApp] Error clearing messages for ${oxyUserId}:`, err);
+        }
+      }
+    });
+
+    sock.ev.on('messages.update', async (updates) => {
+      for (const update of updates) {
+        if (!update.key?.id) continue;
+        // Handle message edits
+        const newText = update.update?.message?.conversation
+          || update.update?.message?.extendedTextMessage?.text;
+        if (newText) {
+          try {
+            await WhatsAppMessage.updateOne(
+              { oxyUserId, messageId: update.key.id },
+              { $set: { text: newText } }
+            );
+          } catch (err) {
+            console.error(`[WhatsApp] Error updating message for ${oxyUserId}:`, err);
+          }
+        }
+      }
+    });
+
+    // ---- History sync (bulk chat/message sets from WhatsApp) ----
+    sock.ev.on('messaging-history.set', async ({ chats, messages, isLatest }) => {
+      console.log(`[WhatsApp] History sync for ${oxyUserId}: ${chats.length} chats, ${messages.length} messages (isLatest: ${isLatest})`);
+
+      // Bulk upsert chats
+      if (chats.length > 0) {
+        const chatOps = chats
+          .filter((c: any) => c.id !== 'status@broadcast')
+          .map((c: any) => {
+            const ts = c.conversationTimestamp;
+            const timestamp = typeof ts === 'number' ? ts : (ts as any)?.low || 0;
+            return {
+              updateOne: {
+                filter: { oxyUserId, jid: c.id },
+                update: {
+                  $set: {
+                    name: c.name || c.id.split('@')[0],
+                    unreadCount: c.unreadCount || 0,
+                    conversationTimestamp: timestamp,
+                  },
+                  $setOnInsert: { oxyUserId, jid: c.id },
+                },
+                upsert: true,
+              },
+            };
+          });
+
+        if (chatOps.length > 0) {
+          try {
+            await WhatsAppChat.bulkWrite(chatOps, { ordered: false });
+          } catch (err) {
+            console.error(`[WhatsApp] Error bulk upserting chats for ${oxyUserId}:`, err);
+          }
+        }
+      }
+
+      // Bulk upsert messages
+      if (messages.length > 0) {
+        const msgOps = messages
+          .filter((m: any) => {
+            const text = m.message?.conversation || m.message?.extendedTextMessage?.text || '';
+            return text && m.key?.id && m.key?.remoteJid;
+          })
+          .map((m: any) => {
+            const text = m.message?.conversation || m.message?.extendedTextMessage?.text || '';
+            const ts = m.messageTimestamp;
+            const timestamp = typeof ts === 'number' ? ts : (ts as any)?.low || Math.floor(Date.now() / 1000);
+            return {
+              updateOne: {
+                filter: { oxyUserId, messageId: m.key.id },
+                update: {
+                  $setOnInsert: {
+                    oxyUserId,
+                    jid: m.key.remoteJid,
+                    messageId: m.key.id,
+                    fromMe: m.key.fromMe || false,
+                    timestamp,
+                    text,
+                    pushName: m.pushName || undefined,
+                  },
+                },
+                upsert: true,
+              },
+            };
+          });
+
+        if (msgOps.length > 0) {
+          try {
+            await WhatsAppMessage.bulkWrite(msgOps, { ordered: false });
+            console.log(`[WhatsApp] Persisted ${msgOps.length} messages for ${oxyUserId}`);
+          } catch (err) {
+            console.error(`[WhatsApp] Error bulk upserting messages for ${oxyUserId}:`, err);
+          }
         }
       }
     });
@@ -323,6 +545,8 @@ class SessionManager {
       this.sessions.delete(oxyUserId);
     }
 
+    this.stores.delete(oxyUserId);
+
     // Clear reconnect timer
     const timer = this.reconnectTimers.get(oxyUserId);
     if (timer) {
@@ -358,6 +582,13 @@ class SessionManager {
   }
 
   /**
+   * Get the in-memory store for a user (contains chats, contacts, messages).
+   */
+  getStore(oxyUserId: string) {
+    return this.stores.get(oxyUserId);
+  }
+
+  /**
    * List all sessions from MongoDB.
    */
   async listSessions() {
@@ -387,6 +618,7 @@ class SessionManager {
       }
     }
     this.sessions.clear();
+    this.stores.clear();
 
     console.log('[WhatsApp] All sessions shut down');
   }
@@ -403,6 +635,14 @@ class SessionManager {
         // ignore
       }
       this.sessions.delete(oxyUserId);
+    }
+
+    this.stores.delete(oxyUserId);
+
+    const pending = this.pendingQRs.get(oxyUserId);
+    if (pending) {
+      pending.reject(new Error('Session was reset'));
+      this.pendingQRs.delete(oxyUserId);
     }
 
     const timer = this.reconnectTimers.get(oxyUserId);

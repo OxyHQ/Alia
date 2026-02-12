@@ -11,6 +11,7 @@ import { saveUserMemoryTool, updateUserPreferencesTool, updateUserContextTool } 
 import { createGetDeviceInfoTool } from './device-info.js';
 import { createSendTelegramTool } from './telegram.js';
 import { createProvidersAdminTool } from './providers-admin.js';
+import { createGetWhatsAppChatsTool, createGetWhatsAppMessagesTool, createSendWhatsAppMessageTool } from './whatsapp.js';
 import { webScraperTool } from './web-scraper.js';
 import { generateFileTool } from './file-generator.js';
 import { canvasTool } from './canvas.js';
@@ -135,6 +136,30 @@ registerTool({
 });
 
 registerTool({
+  name: 'getWhatsAppChats',
+  description: 'Get user\'s recent WhatsApp conversations',
+  tool: createGetWhatsAppChatsTool,  // factory: (userId) => Tool
+  enabledByDefault: true,
+  category: 'communication',
+});
+
+registerTool({
+  name: 'getWhatsAppMessages',
+  description: 'Get messages from a specific WhatsApp chat',
+  tool: createGetWhatsAppMessagesTool, // factory: (userId) => Tool
+  enabledByDefault: true,
+  category: 'communication',
+});
+
+registerTool({
+  name: 'sendWhatsAppMessage',
+  description: 'Send a WhatsApp message to a contact',
+  tool: createSendWhatsAppMessageTool, // factory: (userId) => Tool
+  enabledByDefault: true,
+  category: 'communication',
+});
+
+registerTool({
   name: 'providersAdmin',
   description: 'Manage AI providers infrastructure (keys, models, usage)',
   tool: createProvidersAdminTool,   // factory: () => Tool
@@ -154,6 +179,7 @@ export { scrapeURLTool } from './web-reader.js';
 export { saveUserMemoryTool, updateUserPreferencesTool, updateUserContextTool } from './user-memory.js';
 export { createGetDeviceInfoTool, type DeviceInfo } from './device-info.js';
 export { createSendTelegramTool } from './telegram.js';
+export { createGetWhatsAppChatsTool, createGetWhatsAppMessagesTool, createSendWhatsAppMessageTool } from './whatsapp.js';
 export { createProvidersAdminTool } from './providers-admin.js';
 export { webScraperTool } from './web-scraper.js';
 export { generateFileTool } from './file-generator.js';
