@@ -103,11 +103,11 @@ export const GENERATED_TIER_MAPPINGS: Record<AliaTier, ModelMapping[]> = {
     createMapping('deepseek', 'deepseek-reasoner', 4, 94),
   ],
   'v1-voice': [
-    createMapping('openai', 'gpt-4o-realtime-preview', 1, 95),
-    createMapping('google', 'gemini-2.5-flash', 2, 90),
+    createMapping('grok', 'grok-realtime', 1, 92),
+    createMapping('openai', 'gpt-4o-realtime-preview', 2, 95),
   ],
   'v1-voice-pro': [
     createMapping('openai', 'gpt-4o-realtime-preview', 1, 97),
-    createMapping('google', 'gemini-2.5-pro', 2, 95),
+    createMapping('grok', 'grok-realtime', 2, 92),
   ],
 };

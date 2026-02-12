@@ -79,8 +79,10 @@ export const MODEL_CAPABILITIES: Record<string, ModelCapabilities> = {
   'gpt-4o-2024-11-20': createCapabilities({ vision: true, maxContextTokens: 128000, maxOutputTokens: 16384 }),
   'gpt-4o-mini': createCapabilities({ vision: true, maxContextTokens: 128000, maxOutputTokens: 16384 }),
   'gpt-4o-mini-2024-07-18': createCapabilities({ vision: true, maxContextTokens: 128000, maxOutputTokens: 16384 }),
-  'gpt-4o-realtime': createCapabilities({ vision: true, audio: true, maxContextTokens: 128000, maxOutputTokens: 16384 }),
-  'gpt-4o-mini-realtime': createCapabilities({ vision: true, audio: true, maxContextTokens: 128000, maxOutputTokens: 16384 }),
+  'gpt-4o-realtime': createCapabilities({ voice: true, audio: true, maxContextTokens: 128000, maxOutputTokens: 16384 }),
+  'gpt-4o-realtime-preview': createCapabilities({ voice: true, audio: true, maxContextTokens: 128000, maxOutputTokens: 16384 }),
+  'gpt-4o-mini-realtime': createCapabilities({ voice: true, audio: true, maxContextTokens: 128000, maxOutputTokens: 16384 }),
+  'gpt-4o-mini-realtime-preview': createCapabilities({ voice: true, audio: true, maxContextTokens: 128000, maxOutputTokens: 16384 }),
   'gpt-4o-audio-preview': createCapabilities({ vision: true, audio: true, maxContextTokens: 128000, maxOutputTokens: 16384 }),
   'gpt-4o-search-preview': createCapabilities({ vision: true, webSearch: true, maxContextTokens: 128000, maxOutputTokens: 16384 }),
   'chatgpt-4o-latest': createCapabilities({ vision: true, maxContextTokens: 128000, maxOutputTokens: 16384 }),
@@ -199,6 +201,7 @@ export const MODEL_CAPABILITIES: Record<string, ModelCapabilities> = {
   'grok-4': createCapabilities({ vision: true, maxContextTokens: 128000, maxOutputTokens: 8192 }),
   'grok-3-mini': createCapabilities({ maxContextTokens: 128000, maxOutputTokens: 8192 }),
   'grok-3': createCapabilities({ vision: true, maxContextTokens: 128000, maxOutputTokens: 8192 }),
+  'grok-realtime': createCapabilities({ voice: true, audio: true, maxContextTokens: 128000, maxOutputTokens: 8192 }),
 
   // ============== DEEPSEEK ==============
   'deepseek-chat': createCapabilities({ maxContextTokens: 64000, maxOutputTokens: 8192 }),
@@ -316,7 +319,9 @@ export const MODEL_PRICING: Record<string, ModelPricing> = {
   'gpt-4o-mini': { tier: 'paid', costPer1MInput: 0.15, costPer1MOutput: 0.60, averageLatencyMs: 800 },
   'gpt-4o-mini-2024-07-18': { tier: 'paid', costPer1MInput: 0.15, costPer1MOutput: 0.60 },
   'gpt-4o-realtime': { tier: 'paid', costPer1MInput: 4.00, costPer1MOutput: 16.00 },
+  'gpt-4o-realtime-preview': { tier: 'paid', costPer1MInput: 4.00, costPer1MOutput: 16.00, averageLatencyMs: 500 },
   'gpt-4o-mini-realtime': { tier: 'paid', costPer1MInput: 0.60, costPer1MOutput: 2.40 },
+  'gpt-4o-mini-realtime-preview': { tier: 'paid', costPer1MInput: 0.60, costPer1MOutput: 2.40, averageLatencyMs: 500 },
   'gpt-4o-audio-preview': { tier: 'paid', costPer1MInput: 2.50, costPer1MOutput: 10.00 },
   'gpt-4o-search-preview': { tier: 'paid', costPer1MInput: 2.50, costPer1MOutput: 10.00 },
   'chatgpt-4o-latest': { tier: 'paid', costPer1MInput: 5.00, costPer1MOutput: 15.00 },
@@ -435,6 +440,7 @@ export const MODEL_PRICING: Record<string, ModelPricing> = {
   'grok-4': { tier: 'paid', costPer1MInput: 3.00, costPer1MOutput: 15.00 },
   'grok-3-mini': { tier: 'paid', costPer1MInput: 0.30, costPer1MOutput: 0.50 },
   'grok-3': { tier: 'paid', costPer1MInput: 3.00, costPer1MOutput: 15.00 },
+  'grok-realtime': { tier: 'paid', costPer1MInput: 0.50, costPer1MOutput: 2.00, averageLatencyMs: 700 },
 
   // ============== DEEPSEEK ==============
   'deepseek-chat': { tier: 'freemium', costPer1MInput: 0.27, costPer1MOutput: 1.00, averageLatencyMs: 1000 },
