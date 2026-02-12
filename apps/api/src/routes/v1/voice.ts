@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { randomUUID } from 'crypto';
 import { createVoiceToken, isLiveKitConfigured, getLiveKitUrl } from '../../lib/livekit-token.js';
 import { resolveModel } from '../../lib/chat-core.js';
+import { getBestKeyForModel } from '../../internal/providers/lib/key-manager.js';
 import { reserveCredits, finalizeCredits } from '../../lib/credits-manager.js';
 import { UserCredits } from '../../models/user-credits.js';
 import type { Request, Response } from 'express';
@@ -80,6 +81,16 @@ router.post('/transcribe', async (req: Request, res: Response) => {
         apiKey = resolved.keyConfig.key;
       }
     } catch {}
+
+    // Try fetching an OpenAI key directly from providers
+    if (!apiKey) {
+      try {
+        const openaiKey = await getBestKeyForModel('openai', 'whisper-1');
+        if (openaiKey?.key) {
+          apiKey = openaiKey.key;
+        }
+      } catch {}
+    }
 
     // Fallback to env var
     if (!apiKey) {
