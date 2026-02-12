@@ -4,6 +4,7 @@ import type { ScrollView as GHScrollView } from "react-native-gesture-handler";
 import { useStore } from "@/lib/globalStore";
 import { ActivityIndicator } from "react-native";
 import { Plus, Globe, ArrowUp, ImageIcon, MoreHorizontal, X, FileText, Ghost, Check, Search, ShoppingBag, BookOpen, ExternalLink, PenTool, Sparkles, Square, Brain, Mic, MicOff } from "lucide-react-native";
+import Entypo from '@expo/vector-icons/Entypo';
 import { useImagePicker } from "@/hooks/useImagePicker";
 import * as DocumentPicker from 'expo-document-picker';
 import { AttachmentPreview } from "@/components/attachment-preview";
@@ -64,7 +65,7 @@ const SubmitButtonWrapper = ({
   if (!hasContent) {
     return (
       <Button size="icon" onPress={onVoicePress} className="h-8 w-8 rounded-full">
-        <Mic size={16} color="white" />
+        <Entypo name="mic" size={16} color="white" />
       </Button>
     );
   }

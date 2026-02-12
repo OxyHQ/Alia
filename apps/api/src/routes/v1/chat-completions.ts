@@ -140,6 +140,17 @@ router.post('/', async (req: Request, res: Response) => {
   let aliasModelId: string = 'alia-v1';
   const requestStartTime = Date.now();
 
+  // Global request timeout guard — send a proper error BEFORE DO's gateway timeout (~120s)
+  const GLOBAL_TIMEOUT_MS = 80_000;
+  let globalTimedOut = false;
+  const globalTimer = setTimeout(() => {
+    globalTimedOut = true;
+    if (!res.headersSent) {
+      console.error('[V1/Chat] Global request timeout after 80s');
+      res.status(503).json({ error: 'Request timeout', message: 'The request took too long. Please try again.' });
+    }
+  }, GLOBAL_TIMEOUT_MS);
+
   try {
     console.log('📬 [V1/Chat] Request received');
     const body = req.body;
@@ -414,6 +425,9 @@ When you use a tool successfully:
     const skipProviders = new Set<string>();
 
     for (let providerAttempt = 0; providerAttempt < MAX_PROVIDER_RETRIES; providerAttempt++) {
+    // Check global timeout before each provider attempt
+    if (globalTimedOut) break;
+
     // Re-resolve model on retry (skipping failed providers)
     if (providerAttempt > 0) {
       resolved = await resolveModel(requestedModel, skipProviders);
@@ -493,6 +507,17 @@ When you use a tool successfully:
 
     let hasStreamedContent = false;
 
+    // Per-provider first-byte timeout — abort if no response within 20s
+    const FIRST_BYTE_TIMEOUT_MS = 20_000;
+    const providerAbort = new AbortController();
+    let firstByteTimer: NodeJS.Timeout | null = setTimeout(() => {
+      if (!hasStreamedContent) {
+        console.warn(`[V1/Chat] Provider ${resolved!.provider}/${resolved!.modelId} first-byte timeout (${FIRST_BYTE_TIMEOUT_MS}ms)`);
+        providerAbort.abort(new Error('Provider first-byte timeout'));
+      }
+    }, FIRST_BYTE_TIMEOUT_MS);
+    baseConfig.abortSignal = providerAbort.signal;
+
     try { // Provider attempt try block
 
     // Handle non-streaming requests
@@ -500,6 +525,7 @@ When you use a tool successfully:
       console.log('[V1/Chat] Non-streaming request, using generateText');
 
       const result = await generateText(baseConfig);
+      if (firstByteTimer) { clearTimeout(firstByteTimer); firstByteTimer = null; }
 
       // Capture token usage (AI SDK uses inputTokens/outputTokens)
       if (result.usage) {
@@ -625,6 +651,7 @@ When you use a tool successfully:
       };
 
       res.json(response);
+      clearTimeout(globalTimer);
       return;
     }
 
@@ -637,6 +664,8 @@ When you use a tool successfully:
     let assistantResponse = ''; // Track assistant's response for conversation save
     for await (const chunk of result.fullStream) {
       chunkCount++;
+      // Clear first-byte timer on first chunk (provider responded)
+      if (firstByteTimer) { clearTimeout(firstByteTimer); firstByteTimer = null; }
       console.log(`[V1/Chat] Chunk ${chunkCount} type:`, chunk.type);
       console.log(`[V1/Chat] Chunk ${chunkCount} full:`, JSON.stringify(chunk, null, 2));
 
@@ -945,9 +974,12 @@ When you use a tool successfully:
 
     res.write('data: [DONE]\n\n');
     res.end();
+    clearTimeout(globalTimer);
     return; // Success - exit the route handler
 
     } catch (providerError: unknown) {
+      // Clean up first-byte timer on provider failure
+      if (firstByteTimer) { clearTimeout(firstByteTimer); firstByteTimer = null; }
       // Provider attempt failed
       console.error(`[V1/Chat] Provider ${resolved!.provider}/${resolved!.modelId} failed:`, providerError);
       await reportModelUsage(resolved!.keyConfig?.keyId, resolved!.provider, resolved!.modelId, false, 0, (providerError as any)?.code || 'REQUEST_ERROR');
@@ -966,11 +998,13 @@ When you use a tool successfully:
     } // End of provider retry loop
 
     // If we get here, all providers were exhausted (resolved was null in the loop)
+    clearTimeout(globalTimer);
     if (!res.headersSent) {
       res.status(503).json({ error: 'All providers exhausted', requested_model: requestedModel });
     }
 
   } catch (e: unknown) {
+    clearTimeout(globalTimer);
     console.error('❌ [V1/Chat] Error:', e);
     const stack = e instanceof Error ? e.stack : undefined;
     console.error('❌ [V1/Chat] Stack:', stack);

@@ -12,13 +12,18 @@ import { mistralProvider } from './mistral';
 import { cloudflareProvider } from './cloudflare';
 import { deepseekProvider } from './deepseek';
 import { grokVoiceProvider } from './grok-voice';
+import { openaiVoiceProvider } from './openai-voice';
 
-// ============== REGISTRO DE PROVEEDORES ==============
-// Añadir nuevos proveedores aquí
-export const providers: Record<string, Provider | VoiceProvider> = {
+// ============== PROVIDER REGISTRY ==============
+
+// Combined provider type: text (proxy) + voice capabilities on a single key
+type CombinedProvider = Provider & Pick<VoiceProvider, 'voice'>;
+
+export const providers: Record<string, Provider | VoiceProvider | CombinedProvider> = {
   google: googleProvider,
   groq: groqProvider,
-  openai: openaiProvider,
+  // OpenAI supports both text chat (proxy) and realtime voice
+  openai: { ...openaiProvider, voice: openaiVoiceProvider.voice } as CombinedProvider,
   anthropic: anthropicProvider,
   cerebras: cerebrasProvider,
   together: togetherProvider,
