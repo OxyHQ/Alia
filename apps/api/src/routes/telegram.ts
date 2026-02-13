@@ -207,6 +207,7 @@ router.get('/users/:telegramId', authenticateTelegramBot, async (req, res) => {
       isAuthenticated: channelUser.isAuthenticated,
       oxyUserId: channelUser.oxyUserId,
       conversationId: channelUser.conversationId,
+      sessionToken: channelUser.metadata?.sessionToken,
       linkedAt: channelUser.linkedAt,
       preferredModel: channelUser.preferredModel,
     });
