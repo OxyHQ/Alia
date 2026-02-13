@@ -37,8 +37,6 @@ const ReferralSchema = new Schema<IReferral>({
   timestamps: true,
 });
 
-ReferralSchema.index({ inviteCode: 1 }, { unique: true });
-
 function generateInviteCode(): string {
   return crypto.randomBytes(6).toString('base64url').slice(0, 8).toUpperCase();
 }

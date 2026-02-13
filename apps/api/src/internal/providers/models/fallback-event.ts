@@ -27,7 +27,7 @@ export interface IFallbackEvent extends Document {
 }
 
 const FallbackEventSchema = new Schema<IFallbackEvent>({
-  timestamp: { type: Date, default: Date.now, index: true },
+  timestamp: { type: Date, default: Date.now },
   aliasModel: { type: String, required: true },
   attempts: [{
     provider: String,
