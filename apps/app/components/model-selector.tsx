@@ -16,6 +16,7 @@ interface Model {
   id: string;
   name: string;
   description: string;
+  requiredPlan: string | null;
 }
 
 // Cache models in memory (they don't change frequently)
@@ -45,6 +46,7 @@ export function ModelSelector({
               id: m.id,
               name: m.name,
               description: m.description,
+              requiredPlan: m.required_plan ?? null,
             })) || [];
           cachedModels = fetchedModels;
           setModels(fetchedModels);
@@ -53,7 +55,7 @@ export function ModelSelector({
         .catch((error) => {
           console.error('[ModelSelector] Error fetching models:', error);
           cachedModels = [
-            { id: "alia-v1", name: "Alia V1", description: "Balanced performance" },
+            { id: "alia-v1", name: "Alia V1", description: "Balanced performance", requiredPlan: null },
           ];
           setModels(cachedModels);
           setLoading(false);
@@ -78,7 +80,7 @@ export function ModelSelector({
           <ChevronDown size={14} className="text-muted-foreground" />
         </Pressable>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-60">
+      <DropdownMenuContent align="end" className="w-64">
         <DropdownMenuLabel className="text-xs text-muted-foreground font-normal px-2.5">
           Select Model
         </DropdownMenuLabel>
@@ -91,9 +93,18 @@ export function ModelSelector({
             models.map((model) => (
               <DropdownMenuRadioItem key={model.id} value={model.id} className="py-2.5">
                 <View className="flex-col gap-0.5 flex-1">
-                  <Text className="text-sm font-medium text-foreground">
-                    {model.name}
-                  </Text>
+                  <View className="flex-row items-center gap-1.5">
+                    <Text className="text-sm font-medium text-foreground">
+                      {model.name}
+                    </Text>
+                    {model.requiredPlan && (
+                      <View className="bg-primary/10 px-1.5 py-0.5 rounded-full">
+                        <Text className="text-[10px] font-semibold text-primary">
+                          {model.requiredPlan}
+                        </Text>
+                      </View>
+                    )}
+                  </View>
                   <Text className="text-xs text-muted-foreground">
                     {model.description}
                   </Text>

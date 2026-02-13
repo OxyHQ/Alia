@@ -11,6 +11,12 @@ import {
 
 const router = Router();
 
+function getRequiredPlan(creditMultiplier: number): string | null {
+  if (creditMultiplier <= 1.0) return null;
+  if (creditMultiplier <= 2.0) return 'Go';
+  return 'Pro';
+}
+
 function serializeModel(model: ReturnType<typeof getAliaModel> & {}, isDefault = false, isAvailable = true) {
   return {
     id: model.id,
@@ -23,6 +29,7 @@ function serializeModel(model: ReturnType<typeof getAliaModel> & {}, isDefault =
     emoji: model.emoji,
     is_default: isDefault,
     is_available: isAvailable,
+    required_plan: getRequiredPlan(model.creditMultiplier),
     capabilities: {
       tools: model.supportsTools,
       vision: model.supportsVision,
