@@ -67,7 +67,7 @@
     "react-dom": "19.2.0"
   },
   "dependencies": {
-    "@oxyhq/auth": "^1.2.0",
+    "@oxyhq/auth": "^2.0.0",
     "@oxyhq/core": "1.6.1",
     "@oxyhq/services": "6.4.0",
     "@types/ws": "^8.18.1",
