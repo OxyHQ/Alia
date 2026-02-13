@@ -4,7 +4,6 @@ import makeWASocket, {
   fetchLatestBaileysVersion,
   initAuthCreds,
   makeCacheableSignalKeyStore,
-  makeInMemoryStore,
   type AuthenticationCreds,
   type AuthenticationState,
   type SignalKeyStore,
@@ -42,7 +41,6 @@ interface PendingQR {
 
 class SessionManager {
   private sessions: Map<string, WASocket> = new Map();
-  private stores: Map<string, ReturnType<typeof makeInMemoryStore>> = new Map();
   private reconnectTimers: Map<string, NodeJS.Timeout> = new Map();
   private pendingQRs: Map<string, PendingQR> = new Map();
   private credsSaveQueue: Promise<void> = Promise.resolve();
@@ -127,9 +125,6 @@ class SessionManager {
 
     const { version } = await fetchLatestBaileysVersion();
 
-    const store = makeInMemoryStore({});
-    this.stores.set(oxyUserId, store);
-
     const sock = makeWASocket({
       version,
       auth: state,
@@ -139,7 +134,6 @@ class SessionManager {
       syncFullHistory: true,
     });
 
-    store.bind(sock.ev);
     this.sessions.set(oxyUserId, sock);
 
     // ---- Connection updates ----
@@ -279,7 +273,7 @@ class SessionManager {
     // ---- Chat sync (persist chats to MongoDB) ----
     sock.ev.on('chats.upsert', async (chats) => {
       for (const chat of chats) {
-        if (chat.id === 'status@broadcast') continue;
+        if (!chat.id || chat.id === 'status@broadcast') continue;
         const ts = chat.conversationTimestamp;
         const timestamp = typeof ts === 'number' ? ts : (ts as any)?.low || 0;
 
@@ -545,8 +539,6 @@ class SessionManager {
       this.sessions.delete(oxyUserId);
     }
 
-    this.stores.delete(oxyUserId);
-
     // Clear reconnect timer
     const timer = this.reconnectTimers.get(oxyUserId);
     if (timer) {
@@ -582,13 +574,6 @@ class SessionManager {
   }
 
   /**
-   * Get the in-memory store for a user (contains chats, contacts, messages).
-   */
-  getStore(oxyUserId: string) {
-    return this.stores.get(oxyUserId);
-  }
-
-  /**
    * List all sessions from MongoDB.
    */
   async listSessions() {
@@ -618,7 +603,6 @@ class SessionManager {
       }
     }
     this.sessions.clear();
-    this.stores.clear();
 
     console.log('[WhatsApp] All sessions shut down');
   }
@@ -636,8 +620,6 @@ class SessionManager {
       }
       this.sessions.delete(oxyUserId);
     }
-
-    this.stores.delete(oxyUserId);
 
     const pending = this.pendingQRs.get(oxyUserId);
     if (pending) {
