@@ -3,7 +3,8 @@ import { Image } from "expo-image";
 import { CustomMarkdown } from "@/components/ui/markdown";
 import { Text } from "@/components/ui/text";
 import { WelcomeMessage } from "@/components/welcome-message";
-import React, { forwardRef, useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
+import type { ScrollView as GHScrollView } from "react-native-gesture-handler";
 import { processMessage } from "@/lib/message-processor";
 import { cn } from "@/lib/utils";
 import { LottieLoader } from "@/components/lottie-loader";
@@ -39,7 +40,7 @@ type Message = {
 
 type ChatInterfaceProps = {
   messages: Message[];
-  scrollViewRef: React.RefObject<ScrollView>;
+  scrollViewRef: React.RefObject<GHScrollView>;
   isLoading?: boolean;
   onSuggestionPress?: (message: string) => void;
   onEditMessage?: (messageId: string, newContent: string) => void;
@@ -65,8 +66,7 @@ function getMessageText(message: Message): string {
   return processed.text;
 }
 
-export const ChatInterface = forwardRef<ScrollView, ChatInterfaceProps>(
-  ({ messages, scrollViewRef, isLoading, onSuggestionPress, onEditMessage, onCopyMessage }, ref) => {
+export const ChatInterface = React.memo(function ChatInterface({ messages, scrollViewRef, isLoading, onSuggestionPress, onEditMessage, onCopyMessage }: ChatInterfaceProps) {
     const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
     const [editedContent, setEditedContent] = useState("");
     const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
@@ -115,7 +115,7 @@ export const ChatInterface = forwardRef<ScrollView, ChatInterfaceProps>(
 
     return (
       <ScrollView
-        ref={ref}
+        ref={scrollViewRef}
         className="flex-1 bg-background px-4 py-4"
         contentContainerStyle={{ flexGrow: 1 }}
         showsVerticalScrollIndicator={false}
@@ -313,7 +313,4 @@ export const ChatInterface = forwardRef<ScrollView, ChatInterfaceProps>(
         </View>
       </ScrollView>
     );
-  }
-);
-
-ChatInterface.displayName = "ChatInterface";
+});

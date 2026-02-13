@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { View, Pressable } from "react-native";
 import type { ScrollView as GHScrollView } from "react-native-gesture-handler";
 import { useStore } from "@/lib/globalStore";
@@ -117,10 +117,10 @@ export const ChatPageContent = ({
     useStore.getState().clearImageUris();
   };
 
-  const handleSuggestionPress = (message: string) => {
+  const handleSuggestionPress = useCallback((message: string) => {
     if (isLoading) return;
     onSuggestionPress(message);
-  };
+  }, [isLoading, onSuggestionPress]);
 
   const handleAddPhotos = async () => {
     if (!isAuthenticated) {
