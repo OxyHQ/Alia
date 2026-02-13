@@ -20,6 +20,7 @@ interface PlanSeed {
   sortOrder: number;
   isFree: boolean;
   features: IFeatureGroup[];
+  modelIds: string[];
 }
 
 const SEED_PLANS: PlanSeed[] = [
@@ -37,19 +38,12 @@ const SEED_PLANS: PlanSeed[] = [
     isFeatured: false,
     sortOrder: 0,
     isFree: true,
+    modelIds: ['alia-lite', 'alia-v1', 'alia-v1-audio'],
     features: [
       {
         category: 'Credits',
         items: [
           { label: '300 credits / day', description: 'Resets to 300 each day — unused credits do not carry over' },
-        ],
-      },
-      {
-        category: 'Models',
-        items: [
-          { label: 'Alia Lite', description: 'Fast, lightweight model for quick tasks' },
-          { label: 'Alia V1', description: 'Balanced general-purpose model' },
-          { label: 'Alia V1 Audio', description: 'Audio understanding and transcription' },
         ],
       },
       {
@@ -84,23 +78,12 @@ const SEED_PLANS: PlanSeed[] = [
     isFeatured: false,
     sortOrder: 1,
     isFree: false,
+    modelIds: ['alia-v1-codea', 'alia-v1-vision', 'alia-v1-browser', 'alia-v1-cowork', 'alia-v1-multimodal', 'alia-v1-voice'],
     features: [
       {
         category: 'Credits',
         items: [
           { label: '4,000 credits / month', description: 'Monthly allowance plus 300 daily refresh on top' },
-        ],
-      },
-      {
-        category: 'Models',
-        items: [
-          { label: 'All Free models', description: 'Alia Lite, Alia V1, Alia V1 Audio' },
-          { label: 'Codea', description: 'AI coding assistant for everyday tasks' },
-          { label: 'Vision', description: 'Image understanding and analysis' },
-          { label: 'Browser', description: 'Web browsing and live data retrieval' },
-          { label: 'Cowork', description: 'Collaborative multi-step task assistant' },
-          { label: 'Multimodal', description: 'Process text, images, and documents together' },
-          { label: 'Voice', description: 'Natural voice conversations' },
         ],
       },
       {
@@ -138,21 +121,12 @@ const SEED_PLANS: PlanSeed[] = [
     isFeatured: true,
     sortOrder: 2,
     isFree: false,
+    modelIds: ['alia-v1-pro', 'alia-v1-thinking', 'alia-v1-pro-max', 'alia-v1-voice-pro'],
     features: [
       {
         category: 'Credits',
         items: [
           { label: '10,000 credits / month', description: 'Monthly allowance plus 300 daily refresh on top' },
-        ],
-      },
-      {
-        category: 'Models',
-        items: [
-          { label: 'All Go models' },
-          { label: 'Codea Pro', description: 'Advanced coding with deeper understanding' },
-          { label: 'Codea Thinking', description: 'Step-by-step reasoning for complex code problems' },
-          { label: 'Alia V1 Pro Max', description: 'Most capable general-purpose model' },
-          { label: 'Voice Pro', description: 'Premium voice with natural intonation' },
         ],
       },
       {
@@ -190,17 +164,12 @@ const SEED_PLANS: PlanSeed[] = [
     isFeatured: false,
     sortOrder: 3,
     isFree: false,
+    modelIds: [],
     features: [
       {
         category: 'Credits',
         items: [
           { label: '50,000 credits / month', description: 'Monthly allowance plus 300 daily refresh on top' },
-        ],
-      },
-      {
-        category: 'Models',
-        items: [
-          { label: 'All Pro models', description: 'Priority access with reduced wait times' },
         ],
       },
       {
@@ -237,17 +206,12 @@ const SEED_PLANS: PlanSeed[] = [
     isFeatured: false,
     sortOrder: 4,
     isFree: false,
+    modelIds: [],
     features: [
       {
         category: 'Credits',
         items: [
           { label: '100,000 credits / month', description: 'Monthly allowance plus 300 daily refresh on top' },
-        ],
-      },
-      {
-        category: 'Models',
-        items: [
-          { label: 'All Pro models', description: 'Top priority — no wait times, ever' },
         ],
       },
       {
@@ -284,19 +248,12 @@ const SEED_PLANS: PlanSeed[] = [
     isFeatured: false,
     sortOrder: 0,
     isFree: false,
+    modelIds: ['alia-v1-codea', 'alia-v1-pro', 'alia-v1-thinking'],
     features: [
       {
         category: 'Credits',
         items: [
           { label: '10,000 credits / month', description: 'Shared with your Alia plan — 300 daily refresh on top' },
-        ],
-      },
-      {
-        category: 'Models',
-        items: [
-          { label: 'Codea', description: 'AI coding assistant for everyday tasks' },
-          { label: 'Codea Pro', description: 'Advanced coding with deeper understanding' },
-          { label: 'Codea Thinking', description: 'Step-by-step reasoning for complex code problems' },
         ],
       },
       {
@@ -333,17 +290,12 @@ const SEED_PLANS: PlanSeed[] = [
     isFeatured: true,
     sortOrder: 1,
     isFree: false,
+    modelIds: ['alia-v1-codea', 'alia-v1-pro', 'alia-v1-thinking'],
     features: [
       {
         category: 'Credits',
         items: [
           { label: '50,000 credits / month', description: 'Shared with your Alia plan — 300 daily refresh on top' },
-        ],
-      },
-      {
-        category: 'Models',
-        items: [
-          { label: 'All Codea Pro models', description: 'Priority access with reduced wait times' },
         ],
       },
       {
@@ -394,6 +346,7 @@ export async function seedPlans(): Promise<{ seeded: number; skipped: number }> 
             sortOrder: planData.sortOrder,
             isFree: planData.isFree,
             features: planData.features,
+            modelIds: planData.modelIds,
             isActive: true,
           },
         },

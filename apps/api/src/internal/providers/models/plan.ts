@@ -32,6 +32,7 @@ export interface IPlan extends Document {
   isFeatured: boolean;
   sortOrder: number;
   features: IFeatureGroup[];
+  modelIds: string[];  // AliaModel aliasModelIds included in this plan
 
   // Status
   isActive: boolean;
@@ -115,6 +116,10 @@ const PlanSchema = new Schema<IPlan>(
     },
     features: {
       type: [FeatureGroupSchema],
+      default: [],
+    },
+    modelIds: {
+      type: [String],
       default: [],
     },
     isActive: {
