@@ -29,7 +29,10 @@ const ChatConversationPage = () => {
     clearError,
   } = useChatConversation({ conversationId: id, activeRole, thinkingMode, selectedModel, skillId: activeSkillId });
 
-  const usageLimitError = error instanceof UsageLimitError ? error : null;
+  // Check both instanceof AND name — Hermes can break instanceof for Error subclasses
+  const usageLimitError = (error instanceof UsageLimitError || (error as any)?.name === 'UsageLimitError')
+    ? (error as UsageLimitError)
+    : null;
 
   return (
     <>

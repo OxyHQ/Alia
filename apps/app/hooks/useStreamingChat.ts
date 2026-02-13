@@ -133,7 +133,15 @@ Use this role to guide your responses, maintaining the specified tone, style, an
       if (!response.ok) {
         let errorData: any = null;
         try {
-          errorData = await response.json();
+          // expoFetch is streaming-oriented; .json() may not work for error responses.
+          // Read the body manually via the ReadableStream reader.
+          if (response.body) {
+            const errReader = response.body.getReader();
+            const { value } = await errReader.read();
+            if (value) {
+              errorData = JSON.parse(new TextDecoder().decode(value));
+            }
+          }
         } catch {}
 
         // Detect usage limit errors (429 rate limit or 402 insufficient credits)
@@ -386,14 +394,15 @@ Use this role to guide your responses, maintaining the specified tone, style, an
                     // If assistant message is empty, show error in it
                     updated[updated.length - 1] = {
                       ...lastMessage,
-                      content: `⚠️ Error: ${parsed.error}`,
+                      content: `⚠️ Error: ${typeof parsed.error === 'string' ? parsed.error : (parsed.error?.message || 'Unknown error')}`,
                     };
                   }
                   return updated;
                 });
 
                 // Set error state and stop loading
-                setError(new Error(parsed.error));
+                const errMsg = typeof parsed.error === 'string' ? parsed.error : (parsed.error?.message || JSON.stringify(parsed.error));
+                setError(new Error(errMsg));
                 setIsLoading(false);
 
                 // Abort the stream
@@ -413,13 +422,46 @@ Use this role to guide your responses, maintaining the specified tone, style, an
           }
         }
       }
-    } catch (e) {
+    } catch (e: any) {
       // Ignore abort errors (user cancelled)
       if (e instanceof Error && e.name === 'AbortError') {
         return;
       }
+
+      // UsageLimitError thrown from the 429/402 handler above
+      // Check both instanceof AND name — Hermes can break instanceof for Error subclasses
+      if (e instanceof UsageLimitError || e?.name === 'UsageLimitError') {
+        setError(e);
+        setMessages((prev) => prev.filter((m) => m.id !== assistantMessageId));
+        return;
+      }
+
+      // expoFetch may throw a non-Error object (e.g. the response body)
+      // Try to detect rate limit / credit errors from the thrown object
+      if (e && typeof e === 'object' && !(e instanceof Error)) {
+        const status = e.status || e.statusCode;
+        const errBody = e.error || e.body?.error || e;
+        if (status === 429 || status === 402 || errBody?.code === 'RATE_LIMIT_EXCEEDED' || errBody?.code === 'INSUFFICIENT_CREDITS') {
+          const isCredits = status === 402 || errBody?.code === 'INSUFFICIENT_CREDITS';
+          const usageError = new UsageLimitError({
+            type: isCredits ? 'credits' : 'rate_limit',
+            code: errBody?.code || (isCredits ? 'INSUFFICIENT_CREDITS' : 'RATE_LIMIT_EXCEEDED'),
+            message: errBody?.message || (isCredits ? "You've run out of credits." : "You've sent too many messages."),
+            retryable: errBody?.retryable ?? !isCredits,
+            retryAfterSeconds: errBody?.retryAfter,
+            suggestedAction: errBody?.suggestedAction || (isCredits ? 'upgrade' : 'wait'),
+          });
+          setError(usageError);
+          setMessages((prev) => prev.filter((m) => m.id !== assistantMessageId));
+          return;
+        }
+      }
+
       console.error('[useStreamingChat] Error:', e);
-      setError(e as Error);
+      const finalError = e instanceof Error
+        ? e
+        : new Error(typeof e === 'string' ? e : (e?.message || 'An unexpected error occurred'));
+      setError(finalError);
 
       // Remove the empty assistant message on error
       setMessages((prev) => prev.filter((m) => m.id !== assistantMessageId));
