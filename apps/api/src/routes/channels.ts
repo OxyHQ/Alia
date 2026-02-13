@@ -427,226 +427,163 @@ router.get('/:type/users/token/:token', async (req, res) => {
 });
 
 // ============================================
-// Gateway Proxy (WhatsApp, Telegram, Signal)
+// Integrations Proxy (unified gateway for all messaging + browser + terminal)
 // ============================================
-// These endpoints require JWT auth and proxy requests to standalone gateway services.
-// Each gateway manages per-session connections; users scan QR codes to link accounts.
+// All external integrations run in a single service. The API proxies
+// authenticated requests through to it with retry + backoff.
 
-function createGatewayProxy(gatewayUrl: string | undefined, gatewaySecret: string | undefined, name: string) {
-  const requireGateway = (_req: express.Request, res: express.Response, next: express.NextFunction): void => {
-    if (!gatewayUrl || !gatewaySecret) {
-      res.status(503).json({ error: `${name} gateway not configured` });
-      return;
-    }
-    next();
-  };
+const INTEGRATIONS_URL = process.env.INTEGRATIONS_URL;
+const INTEGRATIONS_SECRET = process.env.INTEGRATIONS_SECRET;
 
-  const proxy = async (
-    res: express.Response,
-    path: string,
-    options?: RequestInit,
-    label = `${name} proxy`,
-  ) => {
-    const MAX_ATTEMPTS = 3;
-    const BACKOFF_MS = [1000, 2000, 4000];
+const requireIntegrations = (_req: express.Request, res: express.Response, next: express.NextFunction): void => {
+  if (!INTEGRATIONS_URL || !INTEGRATIONS_SECRET) {
+    res.status(503).json({ error: 'Integrations service not configured' });
+    return;
+  }
+  next();
+};
 
-    for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+async function proxyToIntegrations(
+  res: express.Response,
+  path: string,
+  options?: RequestInit,
+  label = 'integrations proxy',
+) {
+  const MAX_ATTEMPTS = 3;
+  const BACKOFF_MS = [1000, 2000, 4000];
+
+  for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+    try {
+      const response = await fetch(`${INTEGRATIONS_URL}${path}`, {
+        ...options,
+        headers: { 'X-Gateway-Secret': INTEGRATIONS_SECRET!, ...options?.headers },
+      });
+
+      let data: any;
       try {
-        const response = await fetch(`${gatewayUrl}${path}`, {
-          ...options,
-          headers: { 'X-Gateway-Secret': gatewaySecret!, ...options?.headers },
-        });
-
-        let data: any;
-        try {
-          data = await response.json();
-        } catch {
-          if (attempt < MAX_ATTEMPTS - 1) {
-            await new Promise(r => setTimeout(r, BACKOFF_MS[attempt]));
-            continue;
-          }
-          res.status(502).json({ error: `${label}: gateway returned non-JSON response` });
-          return;
-        }
-
-        if (response.status >= 500 && attempt < MAX_ATTEMPTS - 1) {
-          await new Promise(r => setTimeout(r, BACKOFF_MS[attempt]));
-          continue;
-        }
-
-        res.status(response.status).json(data);
-        return;
-      } catch (error) {
-        console.error(`[Channels] ${label} attempt ${attempt + 1}/${MAX_ATTEMPTS} error:`, error);
+        data = await response.json();
+      } catch {
         if (attempt < MAX_ATTEMPTS - 1) {
           await new Promise(r => setTimeout(r, BACKOFF_MS[attempt]));
           continue;
         }
-        res.status(502).json({ error: `Failed: ${label}` });
+        res.status(502).json({ error: `${label}: non-JSON response` });
+        return;
       }
-    }
-  };
 
-  return { requireGateway, proxy };
+      if (response.status >= 500 && attempt < MAX_ATTEMPTS - 1) {
+        await new Promise(r => setTimeout(r, BACKOFF_MS[attempt]));
+        continue;
+      }
+
+      res.status(response.status).json(data);
+      return;
+    } catch (error) {
+      console.error(`[Channels] ${label} attempt ${attempt + 1}/${MAX_ATTEMPTS} error:`, error);
+      if (attempt < MAX_ATTEMPTS - 1) {
+        await new Promise(r => setTimeout(r, BACKOFF_MS[attempt]));
+        continue;
+      }
+      res.status(502).json({ error: `Failed: ${label}` });
+    }
+  }
 }
 
-// --- WhatsApp Gateway ---
-const wa = createGatewayProxy(process.env.WHATSAPP_GATEWAY_URL, process.env.WHATSAPP_GATEWAY_SECRET, 'WhatsApp');
-const waSession = [authenticateToken, wa.requireGateway] as const;
+const authedIntegrations = [authenticateToken, requireIntegrations] as const;
 
-router.post('/whatsapp/session/connect', ...waSession, async (req, res) => {
-  await wa.proxy(res, '/sessions/connect', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ oxyUserId: req.userId }),
-  }, 'WhatsApp connect');
-});
+// --- Helper: generate platform gateway routes ---
+// All platforms share the same REST pattern; only the platform prefix
+// and connect/disconnect verb differ.
 
-router.get('/whatsapp/sessions', ...waSession, async (req, res) => {
-  await wa.proxy(res, `/sessions/user/${req.userId}`, undefined, 'WhatsApp sessions');
-});
+function mountGatewayRoutes(
+  platform: string,
+  connectEndpoint = 'connect',
+  disconnectEndpoint = 'disconnect',
+  chatIdParam = 'chatId',
+) {
+  // Connect / link
+  router.post(`/${platform}/session/${connectEndpoint}`, ...authedIntegrations, async (req, res) => {
+    await proxyToIntegrations(res, `/${platform}/sessions/${connectEndpoint}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ oxyUserId: req.userId }),
+    }, `${platform} ${connectEndpoint}`);
+  });
 
-router.get('/whatsapp/session/:sessionId/qr', ...waSession, async (req, res) => {
-  await wa.proxy(res, `/sessions/${req.params.sessionId}/qr`, undefined, 'WhatsApp QR');
-});
+  // List user sessions
+  router.get(`/${platform}/sessions`, ...authedIntegrations, async (req, res) => {
+    await proxyToIntegrations(res, `/${platform}/sessions/user/${req.userId}`, undefined, `${platform} sessions`);
+  });
 
-router.get('/whatsapp/session/:sessionId/status', ...waSession, async (req, res) => {
-  await wa.proxy(res, `/sessions/${req.params.sessionId}/status`, undefined, 'WhatsApp status');
-});
+  // Session QR
+  router.get(`/${platform}/session/:sessionId/qr`, ...authedIntegrations, async (req, res) => {
+    await proxyToIntegrations(res, `/${platform}/sessions/${req.params.sessionId}/qr`, undefined, `${platform} QR`);
+  });
 
-router.post('/whatsapp/session/:sessionId/disconnect', ...waSession, async (req, res) => {
-  await wa.proxy(res, `/sessions/${req.params.sessionId}/disconnect`, {
-    method: 'POST',
-  }, 'WhatsApp disconnect');
-});
+  // Session status
+  router.get(`/${platform}/session/:sessionId/status`, ...authedIntegrations, async (req, res) => {
+    await proxyToIntegrations(res, `/${platform}/sessions/${req.params.sessionId}/status`, undefined, `${platform} status`);
+  });
 
-router.get('/whatsapp/session/:sessionId/chats', ...waSession, async (req, res) => {
-  await wa.proxy(res, `/sessions/${req.params.sessionId}/chats`, undefined, 'WhatsApp chats');
-});
+  // Disconnect / unlink
+  router.post(`/${platform}/session/:sessionId/${disconnectEndpoint}`, ...authedIntegrations, async (req, res) => {
+    await proxyToIntegrations(res, `/${platform}/sessions/${req.params.sessionId}/${disconnectEndpoint}`, {
+      method: 'POST',
+    }, `${platform} ${disconnectEndpoint}`);
+  });
 
-router.get('/whatsapp/session/:sessionId/chats/:jid/messages', ...waSession, async (req, res) => {
-  const { sessionId, jid } = req.params;
-  const limit = (req.query.limit as string) || '20';
-  await wa.proxy(
-    res,
-    `/sessions/${sessionId}/chats/${encodeURIComponent(jid)}/messages?limit=${limit}`,
-    undefined,
-    'WhatsApp messages',
-  );
-});
+  // Chats
+  router.get(`/${platform}/session/:sessionId/chats`, ...authedIntegrations, async (req, res) => {
+    await proxyToIntegrations(res, `/${platform}/sessions/${req.params.sessionId}/chats`, undefined, `${platform} chats`);
+  });
 
-router.post('/whatsapp/session/:sessionId/send', ...waSession, async (req, res) => {
-  await wa.proxy(res, `/sessions/${req.params.sessionId}/send`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(req.body),
-  }, 'WhatsApp send');
-});
+  // Chat messages
+  router.get(`/${platform}/session/:sessionId/chats/:chatId/messages`, ...authedIntegrations, async (req, res) => {
+    const { sessionId, chatId } = req.params;
+    const limit = (req.query.limit as string) || '20';
+    await proxyToIntegrations(
+      res,
+      `/${platform}/sessions/${sessionId}/chats/${encodeURIComponent(chatId)}/messages?limit=${limit}`,
+      undefined,
+      `${platform} messages`,
+    );
+  });
 
-// --- Telegram Gateway ---
-const tg = createGatewayProxy(process.env.TELEGRAM_GATEWAY_URL, process.env.TELEGRAM_GATEWAY_SECRET, 'Telegram');
-const tgSession = [authenticateToken, tg.requireGateway] as const;
+  // Send message
+  router.post(`/${platform}/session/:sessionId/send`, ...authedIntegrations, async (req, res) => {
+    await proxyToIntegrations(res, `/${platform}/sessions/${req.params.sessionId}/send`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(req.body),
+    }, `${platform} send`);
+  });
+}
 
-router.post('/telegram-gateway/session/connect', ...tgSession, async (req, res) => {
-  await tg.proxy(res, '/sessions/connect', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ oxyUserId: req.userId }),
-  }, 'Telegram connect');
-});
+// Mount all gateway platforms
+mountGatewayRoutes('whatsapp', 'connect', 'disconnect', 'jid');
+mountGatewayRoutes('telegram-gateway', 'connect', 'disconnect', 'chatId');
+mountGatewayRoutes('signal-gateway', 'link', 'unlink', 'contactId');
 
-router.get('/telegram-gateway/sessions', ...tgSession, async (req, res) => {
-  await tg.proxy(res, `/sessions/user/${req.userId}`, undefined, 'Telegram sessions');
-});
-
-router.get('/telegram-gateway/session/:sessionId/qr', ...tgSession, async (req, res) => {
-  await tg.proxy(res, `/sessions/${req.params.sessionId}/qr`, undefined, 'Telegram QR');
-});
-
-router.get('/telegram-gateway/session/:sessionId/status', ...tgSession, async (req, res) => {
-  await tg.proxy(res, `/sessions/${req.params.sessionId}/status`, undefined, 'Telegram status');
-});
-
-router.post('/telegram-gateway/session/:sessionId/disconnect', ...tgSession, async (req, res) => {
-  await tg.proxy(res, `/sessions/${req.params.sessionId}/disconnect`, {
-    method: 'POST',
-  }, 'Telegram disconnect');
-});
-
-router.get('/telegram-gateway/session/:sessionId/chats', ...tgSession, async (req, res) => {
-  await tg.proxy(res, `/sessions/${req.params.sessionId}/chats`, undefined, 'Telegram chats');
-});
-
-router.get('/telegram-gateway/session/:sessionId/chats/:chatId/messages', ...tgSession, async (req, res) => {
-  const { sessionId, chatId } = req.params;
-  const limit = (req.query.limit as string) || '20';
-  await tg.proxy(
-    res,
-    `/sessions/${sessionId}/chats/${encodeURIComponent(chatId)}/messages?limit=${limit}`,
-    undefined,
-    'Telegram messages',
-  );
-});
-
-router.post('/telegram-gateway/session/:sessionId/send', ...tgSession, async (req, res) => {
-  await tg.proxy(res, `/sessions/${req.params.sessionId}/send`, {
+// --- Browser proxy ---
+router.post('/browser/session/:sessionId/navigate', ...authedIntegrations, async (req, res) => {
+  await proxyToIntegrations(res, `/browser/session/${req.params.sessionId}/navigate`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(req.body),
-  }, 'Telegram send');
+  }, 'browser navigate');
 });
 
-// --- Signal Gateway ---
-const sg = createGatewayProxy(process.env.SIGNAL_GATEWAY_URL, process.env.SIGNAL_GATEWAY_SECRET, 'Signal');
-const sgSession = [authenticateToken, sg.requireGateway] as const;
-
-router.post('/signal-gateway/session/link', ...sgSession, async (req, res) => {
-  await sg.proxy(res, '/sessions/link', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ oxyUserId: req.userId }),
-  }, 'Signal link');
+router.get('/browser/session/:sessionId/screenshot', ...authedIntegrations, async (req, res) => {
+  await proxyToIntegrations(res, `/browser/session/${req.params.sessionId}/screenshot`, undefined, 'browser screenshot');
 });
 
-router.get('/signal-gateway/sessions', ...sgSession, async (req, res) => {
-  await sg.proxy(res, `/sessions/user/${req.userId}`, undefined, 'Signal sessions');
-});
-
-router.get('/signal-gateway/session/:sessionId/qr', ...sgSession, async (req, res) => {
-  await sg.proxy(res, `/sessions/${req.params.sessionId}/qr`, undefined, 'Signal QR');
-});
-
-router.get('/signal-gateway/session/:sessionId/status', ...sgSession, async (req, res) => {
-  await sg.proxy(res, `/sessions/${req.params.sessionId}/status`, undefined, 'Signal status');
-});
-
-router.post('/signal-gateway/session/:sessionId/unlink', ...sgSession, async (req, res) => {
-  await sg.proxy(res, `/sessions/${req.params.sessionId}/unlink`, {
-    method: 'POST',
-  }, 'Signal unlink');
-});
-
-router.get('/signal-gateway/session/:sessionId/chats', ...sgSession, async (req, res) => {
-  await sg.proxy(res, `/sessions/${req.params.sessionId}/chats`, undefined, 'Signal chats');
-});
-
-router.get('/signal-gateway/session/:sessionId/chats/:contactId/messages', ...sgSession, async (req, res) => {
-  const { sessionId, contactId } = req.params;
-  const limit = (req.query.limit as string) || '20';
-  await sg.proxy(
-    res,
-    `/sessions/${sessionId}/chats/${encodeURIComponent(contactId)}/messages?limit=${limit}`,
-    undefined,
-    'Signal messages',
-  );
-});
-
-router.post('/signal-gateway/session/:sessionId/send', ...sgSession, async (req, res) => {
-  await sg.proxy(res, `/sessions/${req.params.sessionId}/send`, {
+// --- Terminal proxy ---
+router.post('/terminal/session/:sessionId/run', ...authedIntegrations, async (req, res) => {
+  await proxyToIntegrations(res, `/terminal/session/${req.params.sessionId}/run`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(req.body),
-  }, 'Signal send');
+  }, 'terminal run');
 });
 
 export default router;

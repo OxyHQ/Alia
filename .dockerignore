@@ -1,0 +1,11 @@
+node_modules
+dist
+.env
+.env.*
+*.log
+signal-data
+.git
+.github
+.vscode
+.claude
+docs
