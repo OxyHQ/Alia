@@ -20,8 +20,8 @@ export interface IUserCredits extends Document<string> {
 const UserCreditsSchema = new Schema<IUserCredits>({
   _id: { type: String, required: true },
   credits: {
-    free: { type: Number, default: 1000 },
-    freeLimit: { type: Number, default: 1000 },
+    free: { type: Number, default: 300 },
+    freeLimit: { type: Number, default: 300 },
     dailyRefresh: { type: Number, default: 300 },
     lastRefresh: { type: Date, default: Date.now },
     paid: { type: Number, default: 0 },

@@ -13,6 +13,7 @@ export interface CreditPackage {
 export interface SubscriptionPlan {
   id: string;
   name: string;
+  product: 'alia' | 'codea';
   creditsPerMonth: number;
   monthlyPrice: number;
   annualPrice: number;
@@ -31,6 +32,7 @@ export interface Subscription {
   cancelAtPeriodEnd: boolean;
   plan: {
     name: string;
+    product: 'alia' | 'codea';
     creditsPerMonth: number;
     price: number;
     currency: string;
@@ -108,17 +110,18 @@ export function useCreditPackages() {
 // Subscription Plans
 // ======================
 
-async function fetchPlans(): Promise<SubscriptionPlan[]> {
-  const response = await apiClient.get('/billing/plans');
+async function fetchPlans(product?: 'alia' | 'codea'): Promise<SubscriptionPlan[]> {
+  const params = product ? `?product=${product}` : '';
+  const response = await apiClient.get(`/billing/plans${params}`);
   return response.data.plans;
 }
 
-export function useSubscriptionPlans() {
+export function useSubscriptionPlans(product?: 'alia' | 'codea') {
   const { isAuthenticated, isReady } = useAuth();
 
   return useQuery({
-    queryKey: ['subscription-plans'],
-    queryFn: fetchPlans,
+    queryKey: ['subscription-plans', product],
+    queryFn: () => fetchPlans(product),
     staleTime: 1000 * 60 * 60, // 1 hour
     retry: 2,
     enabled: isReady && isAuthenticated,
@@ -129,17 +132,18 @@ export function useSubscriptionPlans() {
 // Current Subscription
 // ======================
 
-async function fetchSubscription(): Promise<Subscription | null> {
-  const response = await apiClient.get('/billing/subscription');
+async function fetchSubscription(product?: 'alia' | 'codea'): Promise<Subscription | null> {
+  const params = product ? `?product=${product}` : '';
+  const response = await apiClient.get(`/billing/subscription${params}`);
   return response.data.subscription;
 }
 
-export function useSubscription() {
+export function useSubscription(product?: 'alia' | 'codea') {
   const { isAuthenticated, isReady } = useAuth();
 
   return useQuery({
-    queryKey: ['subscription'],
-    queryFn: fetchSubscription,
+    queryKey: ['subscription', product],
+    queryFn: () => fetchSubscription(product),
     staleTime: 1000 * 60 * 2, // 2 minutes
     retry: 2,
     enabled: isReady && isAuthenticated,

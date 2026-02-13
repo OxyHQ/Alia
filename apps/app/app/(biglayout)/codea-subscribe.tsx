@@ -18,79 +18,43 @@ import {
   BillingToggle,
   PlanGrid,
   BackButton,
-  TeamBanner,
-  SecurityBanner,
   PageFooter,
 } from '@/components/subscribe-shared';
 
-// ─── Feature lists (plain text) ─────────────────────────────────────
+// ─── Codea feature lists ─────────────────────────────────────────────
 
-const ALIA_FEATURES: Record<string, string[]> = {
-  free: [
-    '300 credits refreshed daily',
-    'Access to standard models',
-    'Basic research and chat',
-    '5 concurrent tasks',
-  ],
-  go: [
-    '4,000 credits per month',
-    '300 daily refresh credits',
-    'All standard models',
-    'Early access to beta features',
-    '10 concurrent tasks',
-  ],
-  pro: [
+const CODEA_FEATURES: Record<string, string[]> = {
+  'codea-pro': [
     '10,000 credits per month',
     '300 daily refresh credits',
-    'All models including premium',
-    'Web search & file processing',
-    '20 concurrent tasks',
+    'AI code completions',
+    'Chat-based code assistance',
+    'Multi-file editing',
+    'All standard models',
   ],
-  max: [
+  'codea-max': [
     '50,000 credits per month',
     '300 daily refresh credits',
-    'Priority access to all models',
-    'Extended context & output',
+    'Priority model access',
+    'Extended context windows',
+    'Advanced code analysis',
     'Dedicated capacity',
-    '50 concurrent tasks',
-  ],
-  ultra: [
-    '100,000 credits per month',
-    '300 daily refresh credits',
-    'Top priority model access',
-    'Maximum context & output',
-    'Dedicated heavy-workload capacity',
-    '100 concurrent tasks',
   ],
 };
 
-const ALIA_CONFIG: Record<string, { subtitle: string; isFeatured: boolean }> = {
-  free:  { subtitle: 'subscribe.freeUsage',  isFeatured: false },
-  go:    { subtitle: 'subscribe.goUsage',    isFeatured: false },
-  pro:   { subtitle: 'subscribe.proUsage',   isFeatured: true },
-  max:   { subtitle: 'subscribe.maxUsage',   isFeatured: false },
-  ultra: { subtitle: 'subscribe.ultraUsage', isFeatured: false },
+const CODEA_CONFIG: Record<string, { subtitle: string; isFeatured: boolean }> = {
+  'codea-pro': { subtitle: 'subscribe.codeaProUsage', isFeatured: false },
+  'codea-max': { subtitle: 'subscribe.codeaMaxUsage', isFeatured: true },
 };
 
-function buildTiers(
+function buildCodeaTiers(
   apiPlans: SubscriptionPlan[],
   t: (key: string) => string,
 ): PricingTier[] {
-  const tiers: PricingTier[] = [
-    {
-      id: 'free',
-      name: 'Free',
-      subtitle: t('subscribe.freeUsage'),
-      monthlyPrice: 0,
-      annualPrice: 0,
-      features: ALIA_FEATURES.free,
-      isFeatured: false,
-      creditsLabel: '300 credits / day',
-    },
-  ];
+  const tiers: PricingTier[] = [];
 
   for (const plan of apiPlans) {
-    const config = ALIA_CONFIG[plan.id];
+    const config = CODEA_CONFIG[plan.id];
     if (!config) continue;
     tiers.push({
       id: plan.id,
@@ -98,7 +62,7 @@ function buildTiers(
       subtitle: t(config.subtitle),
       monthlyPrice: plan.monthlyPrice,
       annualPrice: plan.annualPrice,
-      features: ALIA_FEATURES[plan.id] || ALIA_FEATURES.pro,
+      features: CODEA_FEATURES[plan.id] || CODEA_FEATURES['codea-pro'],
       isFeatured: config.isFeatured,
       creditsLabel: `${plan.creditsPerMonth.toLocaleString()} credits / mo`,
     });
@@ -109,23 +73,23 @@ function buildTiers(
 
 // ─── Main Screen ─────────────────────────────────────────────────────
 
-export default function SubscribeScreen() {
+export default function CodeaSubscribeScreen() {
   const router = useRouter();
   const { success } = useLocalSearchParams();
   const { isAuthenticated } = useAuth();
   const { width } = useWindowDimensions();
-  const isWideLayout = width >= 900;
+  const isWideLayout = width >= 600;
   const { t } = useTranslation();
 
   const [billingPeriod, setBillingPeriod] = useState<BillingPeriod>('annual');
   const [isMounted, setIsMounted] = useState(false);
 
-  const { data: apiPlans = [] } = useSubscriptionPlans('alia');
+  const { data: apiPlans = [] } = useSubscriptionPlans('codea');
   const { data: subscription, refetch: refetchSubscription } =
-    useSubscription('alia');
+    useSubscription('codea');
   const checkoutMutation = useCreateSubscriptionCheckout();
 
-  const tiers = useMemo(() => buildTiers(apiPlans, t), [apiPlans, t]);
+  const tiers = useMemo(() => buildCodeaTiers(apiPlans, t), [apiPlans, t]);
 
   useEffect(() => {
     setIsMounted(true);
@@ -136,7 +100,7 @@ export default function SubscribeScreen() {
       refetchSubscription();
       toast.success(t('subscribe.paymentSuccess'));
       setTimeout(() => {
-        router.replace('/(biglayout)/subscribe');
+        router.replace('/(biglayout)/codea-subscribe');
       }, 100);
     }
   }, [isMounted, success]);
@@ -151,8 +115,8 @@ export default function SubscribeScreen() {
       const { url } = await checkoutMutation.mutateAsync({
         planId,
         billingPeriod,
-        successUrl: Linking.createURL('/(biglayout)/subscribe?success=true'),
-        cancelUrl: Linking.createURL('/(biglayout)/subscribe'),
+        successUrl: Linking.createURL('/(biglayout)/codea-subscribe?success=true'),
+        cancelUrl: Linking.createURL('/(biglayout)/codea-subscribe'),
       });
 
       if (url) {
@@ -165,14 +129,17 @@ export default function SubscribeScreen() {
 
   return (
     <ScrollView className="flex-1 bg-background">
-      <View className="w-full max-w-[1200px] mx-auto">
+      <View className="w-full max-w-[800px] mx-auto">
         {/* Header */}
         <View className="px-6 pt-6 pb-2">
           <BackButton t={t} />
 
-          <View className="items-center gap-4 mb-8">
+          <View className="items-center gap-3 mb-8">
             <Text className="text-2xl font-bold text-foreground">
-              {t('subscribe.title')}
+              {t('subscribe.codeaTitle')}
+            </Text>
+            <Text className="text-sm text-muted-foreground">
+              {t('subscribe.codeaSubtitle')}
             </Text>
             <BillingToggle
               value={billingPeriod}
@@ -196,9 +163,14 @@ export default function SubscribeScreen() {
           t={t}
         />
 
-        {/* Bottom */}
-        <TeamBanner t={t} />
-        <SecurityBanner t={t} />
+        {/* Shared credits note */}
+        <View className="mx-4 mt-6 p-4 rounded-xl bg-muted/50 items-center">
+          <Text className="text-xs text-muted-foreground text-center">
+            {t('subscribe.sharedCredits')}
+          </Text>
+        </View>
+
+        {/* Footer */}
         <PageFooter t={t} />
       </View>
     </ScrollView>

@@ -33,7 +33,7 @@ async function getOrCreateUserCredits(userId: string) {
     {
       $setOnInsert: {
         _id: userId,
-        credits: { free: 1000, freeLimit: 1000, dailyRefresh: 300, lastRefresh: new Date(), paid: 0 },
+        credits: { free: 300, freeLimit: 300, dailyRefresh: 300, lastRefresh: new Date(), paid: 0 },
       },
     },
     { upsert: true, new: true }
@@ -81,13 +81,37 @@ const CREDIT_PACKAGES = [
   { id: 'credits_50000', name: '50,000 Credits', credits: 50000, price: 15000, currency: 'usd' },
 ];
 
-const SUBSCRIPTION_PLANS = [
-  { id: 'basic', name: 'Basic', creditsPerMonth: 4000, monthlyPrice: 399, annualPrice: 3830, currency: 'usd' },
-  { id: 'standard', name: 'Standard', creditsPerMonth: 10000, monthlyPrice: 999, annualPrice: 9590, currency: 'usd' },
-  { id: 'pro', name: 'Pro', creditsPerMonth: 20000, monthlyPrice: 1999, annualPrice: 19190, currency: 'usd' },
-  { id: 'max', name: 'Max', creditsPerMonth: 50000, monthlyPrice: 4999, annualPrice: 47990, currency: 'usd' },
-  { id: 'ultra', name: 'Ultra', creditsPerMonth: 100000, monthlyPrice: 9999, annualPrice: 95990, currency: 'usd' },
+type Product = 'alia' | 'codea';
+
+interface PlanDef {
+  id: string;
+  name: string;
+  product: Product;
+  creditsPerMonth: number;
+  monthlyPrice: number;
+  annualPrice: number;
+  currency: string;
+}
+
+const ALIA_PLANS: PlanDef[] = [
+  { id: 'go',    name: 'Go',    product: 'alia', creditsPerMonth: 4000,   monthlyPrice: 399,   annualPrice: 3830,   currency: 'usd' },
+  { id: 'pro',   name: 'Pro',   product: 'alia', creditsPerMonth: 10000,  monthlyPrice: 999,   annualPrice: 9590,   currency: 'usd' },
+  { id: 'max',   name: 'Max',   product: 'alia', creditsPerMonth: 50000,  monthlyPrice: 4999,  annualPrice: 47990,  currency: 'usd' },
+  { id: 'ultra', name: 'Ultra', product: 'alia', creditsPerMonth: 100000, monthlyPrice: 9999,  annualPrice: 95990,  currency: 'usd' },
 ];
+
+const CODEA_PLANS: PlanDef[] = [
+  { id: 'codea-pro', name: 'Codea Pro', product: 'codea', creditsPerMonth: 10000,  monthlyPrice: 999,   annualPrice: 9590,   currency: 'usd' },
+  { id: 'codea-max', name: 'Codea Max', product: 'codea', creditsPerMonth: 50000,  monthlyPrice: 4999,  annualPrice: 47990,  currency: 'usd' },
+];
+
+const ALL_PLANS: PlanDef[] = [...ALIA_PLANS, ...CODEA_PLANS];
+
+// Legacy plan ID mapping for existing Stripe subscriptions
+const LEGACY_PLAN_MAP: Record<string, string> = {
+  basic: 'go',
+  standard: 'pro',
+};
 
 router.get('/packages', async (_req: Request, res: Response) => {
   res.json({ packages: CREDIT_PACKAGES });
@@ -139,10 +163,17 @@ router.post('/checkout/credits', authenticateToken, async (req: Request, res: Re
   }
 });
 
-router.get('/plans', async (_req: Request, res: Response) => {
-  const plans = SUBSCRIPTION_PLANS.map(p => ({
+router.get('/plans', async (req: Request, res: Response) => {
+  const product = req.query.product as string | undefined;
+  let source: PlanDef[];
+  if (product === 'codea') source = CODEA_PLANS;
+  else if (product === 'alia') source = ALIA_PLANS;
+  else source = ALL_PLANS;
+
+  const plans = source.map(p => ({
     id: p.id,
     name: p.name,
+    product: p.product,
     creditsPerMonth: p.creditsPerMonth,
     monthlyPrice: p.monthlyPrice,
     annualPrice: p.annualPrice,
@@ -163,7 +194,7 @@ router.post('/checkout/subscription', authenticateToken, async (req: Request, re
     const { planId, billingPeriod, successUrl, cancelUrl } = createSubscriptionSchema.parse(req.body);
     const userId = req.user!.id;
 
-    const plan = SUBSCRIPTION_PLANS.find((p) => p.id === planId);
+    const plan = ALL_PLANS.find((p) => p.id === planId);
     if (!plan) {
       return res.status(400).json({ error: 'Invalid plan ID' });
     }
@@ -187,8 +218,8 @@ router.post('/checkout/subscription', authenticateToken, async (req: Request, re
       mode: 'subscription',
       success_url: successUrl,
       cancel_url: cancelUrl,
-      metadata: { userId, planId: plan.id, billingPeriod },
-      subscription_data: { metadata: { userId, planId: plan.id, billingPeriod } },
+      metadata: { userId, planId: plan.id, billingPeriod, product: plan.product },
+      subscription_data: { metadata: { userId, planId: plan.id, billingPeriod, product: plan.product } },
     });
 
     res.json({ sessionId: session.id, url: session.url });
@@ -203,10 +234,15 @@ router.post('/checkout/subscription', authenticateToken, async (req: Request, re
 
 router.get('/subscription', authenticateToken, async (req: Request, res: Response) => {
   try {
-    const subscription = await Subscription.findOne({
+    const product = req.query.product as string | undefined;
+    const query: any = {
       oxyUserId: req.user!.id,
       status: { $in: ['active', 'trialing'] },
-    });
+    };
+    if (product) {
+      query['plan.product'] = product;
+    }
+    const subscription = await Subscription.findOne(query);
     res.json({ subscription });
   } catch (error: any) {
     console.error('[Billing] Error fetching subscription:', error);
@@ -340,7 +376,8 @@ async function handleSubscriptionUpdate(stripeSubscription: Stripe.Subscription)
 
   // Match plan by metadata (set via subscription_data.metadata in checkout)
   const metadata = stripeSubscription.metadata;
-  const plan = SUBSCRIPTION_PLANS.find((p) => p.id === metadata?.planId);
+  const resolvedPlanId = LEGACY_PLAN_MAP[metadata?.planId || ''] || metadata?.planId;
+  const plan = ALL_PLANS.find((p) => p.id === resolvedPlanId);
   if (!plan) return;
 
   const isAnnual = metadata?.billingPeriod === 'annual';
@@ -358,7 +395,7 @@ async function handleSubscriptionUpdate(stripeSubscription: Stripe.Subscription)
       currentPeriodStart: new Date(sub.current_period_start * 1000),
       currentPeriodEnd: new Date(sub.current_period_end * 1000),
       cancelAtPeriodEnd: sub.cancel_at_period_end,
-      plan: { name: plan.name, creditsPerMonth: plan.creditsPerMonth, price, currency: plan.currency, billingPeriod: isAnnual ? 'annual' : 'monthly' },
+      plan: { name: plan.name, product: plan.product, creditsPerMonth: plan.creditsPerMonth, price, currency: plan.currency, billingPeriod: isAnnual ? 'annual' : 'monthly' },
     },
     { upsert: true, new: true }
   );

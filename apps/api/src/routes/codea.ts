@@ -20,11 +20,17 @@ function mapPlanToAliaPlan(planName: string | undefined): string {
   if (!planName) return 'free';
 
   const name = planName.toLowerCase();
+  // Codea-specific plans
+  if (name.includes('codea max')) return 'alia_max';
+  if (name.includes('codea pro')) return 'alia_pro';
+  // Alia plans
   if (name.includes('ultra')) return 'alia_ultra';
   if (name.includes('max')) return 'alia_max';
   if (name.includes('pro')) return 'alia_pro';
-  if (name.includes('standard')) return 'alia_standard';
-  if (name.includes('basic')) return 'alia_basic';
+  if (name.includes('go')) return 'alia_go';
+  // Legacy backward compat
+  if (name.includes('standard')) return 'alia_pro';
+  if (name.includes('basic')) return 'alia_go';
   return 'alia_free';
 }
 
@@ -44,11 +50,12 @@ router.get('/user', authenticateApiKey, apiKeyRateLimit, async (req: Request, re
       return res.status(401).json({ error: 'User not found' });
     }
 
-    // Get subscription status
-    const subscription = await Subscription.findOne({
+    // Get all active subscriptions (user may have both Alia and Codea)
+    const subscriptions = await Subscription.find({
       oxyUserId: userId,
       status: { $in: ['active', 'trialing'] }
     }).sort({ createdAt: -1 });
+    const subscription = subscriptions[0] || null;
 
     // Get user credits
     let userCredits = await UserCredits.findById(userId);
@@ -57,8 +64,8 @@ router.get('/user', authenticateApiKey, apiKeyRateLimit, async (req: Request, re
       userCredits = await UserCredits.create({
         _id: userId,
         credits: {
-          free: 1000,
-          freeLimit: 1000,
+          free: 300,
+          freeLimit: 300,
           dailyRefresh: 300,
           lastRefresh: new Date(),
           paid: 0,
@@ -77,10 +84,17 @@ router.get('/user', authenticateApiKey, apiKeyRateLimit, async (req: Request, re
     const resetDate = new Date();
     resetDate.setDate(resetDate.getDate() + 1); // Next day for daily refresh
 
-    // Determine plan type
-    const hasActiveSubscription = !!subscription;
+    // Determine highest plan across all active subscriptions
+    const hasActiveSubscription = subscriptions.length > 0;
+    const planHierarchy = ['free', 'alia_go', 'alia_pro', 'alia_max', 'alia_ultra'];
+    let aliaPlan = 'alia_free';
+    for (const sub of subscriptions) {
+      const mapped = mapPlanToAliaPlan(sub.plan?.name);
+      if (planHierarchy.indexOf(mapped) > planHierarchy.indexOf(aliaPlan)) {
+        aliaPlan = mapped;
+      }
+    }
     const planName = subscription?.plan?.name;
-    const aliaPlan = mapPlanToAliaPlan(planName);
 
     // Build entitlement response in the format Codea Studio Code expects
     const entitlementData = {
@@ -174,8 +188,8 @@ router.get('/token', authenticateApiKey, apiKeyRateLimit, async (req: Request, r
       userCredits = await UserCredits.create({
         _id: userId,
         credits: {
-          free: 1000,
-          freeLimit: 1000,
+          free: 300,
+          freeLimit: 300,
           dailyRefresh: 300,
           lastRefresh: new Date(),
           paid: 0,
@@ -258,8 +272,8 @@ router.get('/me', authenticateApiKey, apiKeyRateLimit, async (req: Request, res:
       userCredits = await UserCredits.create({
         _id: userId,
         credits: {
-          free: 1000,
-          freeLimit: 1000,
+          free: 300,
+          freeLimit: 300,
           dailyRefresh: 300,
           lastRefresh: new Date(),
           paid: 0,
@@ -313,7 +327,7 @@ router.post('/resolve-model', authenticateApiKey, apiKeyRateLimit, async (req: R
       {
         $setOnInsert: {
           _id: userId,
-          credits: { free: 1000, freeLimit: 1000, dailyRefresh: 300, lastRefresh: new Date(), paid: 0 },
+          credits: { free: 300, freeLimit: 300, dailyRefresh: 300, lastRefresh: new Date(), paid: 0 },
         },
       },
       { upsert: true, new: true }

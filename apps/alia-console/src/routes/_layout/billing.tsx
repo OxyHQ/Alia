@@ -29,8 +29,8 @@ export const Route = createFileRoute('/_layout/billing')({
 function BillingPage() {
   const { data: credits, isLoading: isLoadingCredits } = useCredits();
   const { data: packages = [], isLoading: isLoadingPackages } = useCreditPackages();
-  const { data: subscription } = useSubscription();
-  const { data: plans = [] } = useSubscriptionPlans();
+  const { data: subscription } = useSubscription('alia');
+  const { data: plans = [] } = useSubscriptionPlans('alia');
   const { data: transactionsData, isLoading: isLoadingTransactions } = useTransactions();
   const createCheckout = useCreateCheckout();
   const createSubscriptionCheckout = useCreateSubscriptionCheckout();
@@ -237,7 +237,7 @@ function BillingPage() {
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 py-4">
             {plans.map((plan) => {
               const isCurrentPlan = subscription?.plan?.name === plan.name && subscription?.status === 'active';
-              const isPopular = plan.name === 'Standard';
+              const isPopular = plan.name === 'Pro';
               return (
                 <div
                   key={plan.id}
