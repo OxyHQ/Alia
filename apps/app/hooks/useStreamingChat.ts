@@ -316,6 +316,7 @@ Use this role to guide your responses, maintaining the specified tone, style, an
                     daysRemaining: w.daysRemaining,
                     todaySpend: w.todaySpend,
                     avgDailySpend: w.avgDailySpend,
+                    currentModelMultiplier: w.currentModelMultiplier,
                   });
                 }
               }

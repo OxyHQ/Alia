@@ -20,8 +20,8 @@ import { toast } from "@/components/sonner";
 import { VoiceChat } from "@/components/voice-chat";
 import { CanvasPanel } from "@/components/canvas-panel";
 import { useSpeechToText } from "@/lib/hooks/use-speech-to-text";
-import { useQueryClient } from "@tanstack/react-query";
-import { AlertTriangle, Zap } from "lucide-react-native";
+import { AlertTriangle } from "lucide-react-native";
+import { CreditWarningBanner } from "@/components/credit-warning-banner";
 
 interface ChatPageContentProps {
   messages: Message[];
@@ -99,9 +99,7 @@ export const ChatPageContent = ({
 }: ChatPageContentProps) => {
   const selectedImageUris = useStore((state) => state.selectedImageUris);
   const { isAuthenticated } = useAuth();
-  const queryClient = useQueryClient();
   const [searchMode, setSearchMode] = useState(false);
-  const [warningDismissed, setWarningDismissed] = useState(false);
   const [agentMode, setAgentMode] = useState(false);
   const [ghostMode, setGhostMode] = useState(false);
   const [inputValue, setInputValue] = useState("");
@@ -307,34 +305,7 @@ export const ChatPageContent = ({
             onEditMessage={onEditMessage}
           />
 
-          {/* Usage warning banner */}
-          {(() => {
-            const usageWarning = queryClient.getQueryData<{ level: string; daysRemaining: number; todaySpend: number; avgDailySpend: number }>(['usage-warning']);
-            if (usageWarning && !warningDismissed && selectedModel !== 'alia-lite') {
-              const isCritical = usageWarning.level === 'critical';
-              const days = Math.round(usageWarning.daysRemaining);
-              return (
-                <View className={`mx-auto w-full max-w-3xl px-4 pb-1`}>
-                  <View className={`flex-row items-center gap-2 rounded-lg px-3 py-2 ${isCritical ? 'bg-destructive/10' : 'bg-yellow-500/10'}`}>
-                    <Zap size={14} className={isCritical ? 'text-destructive' : 'text-yellow-600'} />
-                    <Text className={`text-xs flex-1 ${isCritical ? 'text-destructive' : 'text-yellow-700 dark:text-yellow-400'}`}>
-                      {isCritical
-                        ? `High usage — credits may run out in ~${days} day${days !== 1 ? 's' : ''}.`
-                        : `Spending more than usual today. At this rate, credits last ~${days} days.`
-                      } Switch to Alia Lite for 2x fewer credits.
-                    </Text>
-                    <Pressable onPress={() => onModelChange('alia-lite')} className="active:opacity-70">
-                      <Text className="text-xs font-medium text-primary">Switch</Text>
-                    </Pressable>
-                    <Pressable onPress={() => setWarningDismissed(true)} className="active:opacity-70">
-                      <X size={12} className="text-muted-foreground" />
-                    </Pressable>
-                  </View>
-                </View>
-              );
-            }
-            return null;
-          })()}
+          <CreditWarningBanner selectedModel={selectedModel} onSwitchModel={onModelChange} />
 
           {/* Disabled banner when limit hit */}
           {disabled && (
