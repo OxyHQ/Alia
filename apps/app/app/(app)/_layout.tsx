@@ -106,13 +106,6 @@ export default function AppLayout() {
               }}
             />
             <Drawer.Screen
-              name="analytics"
-              options={{
-                drawerItemStyle: { display: 'none' },
-                title: 'Analytics',
-              }}
-            />
-            <Drawer.Screen
               name="skills"
               options={{
                 drawerItemStyle: { display: 'none' },

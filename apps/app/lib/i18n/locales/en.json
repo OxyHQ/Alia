@@ -220,7 +220,13 @@
     "creditsPerMonth": "{{count}} credits/month",
     "renewsOn": "Renews {{date}}",
     "cancelsOn": "Cancels {{date}}",
-    "manageBilling": "Manage billing"
+    "manageBilling": "Manage billing",
+    "activity": "Activity",
+    "conversations": "Conversations",
+    "tokensUsed": "Tokens used",
+    "models": "Models",
+    "noActivity": "No activity yet",
+    "conversationsCount": "{{count}} conversations"
   },
   "roles": {
     "title": "Roles",

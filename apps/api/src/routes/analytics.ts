@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express';
 import mongoose from 'mongoose';
 import { authenticateToken } from '../middleware/auth.js';
 import { ChatAnalytics } from '../lib/hooks/built-in/analytics-hook.js';
+import { getAliaModel } from '../internal/providers/lib/alia-models.js';
 
 const router = Router();
 router.use(authenticateToken);
@@ -40,11 +41,11 @@ router.get('/models', async (req: Request, res: Response) => {
     const startDate = new Date();
     startDate.setDate(startDate.getDate() - days);
 
-    const models = await ChatAnalytics.aggregate([
+    const raw = await ChatAnalytics.aggregate([
       { $match: { oxyUserId: new mongoose.Types.ObjectId(req.user!.id), createdAt: { $gte: startDate } } },
       {
         $group: {
-          _id: '$model',
+          _id: { $ifNull: ['$aliaModelId', '$model'] },
           count: { $sum: 1 },
           totalTokens: { $sum: '$totalTokens' },
           avgLatency: { $avg: '$latencyMs' },
@@ -52,6 +53,15 @@ router.get('/models', async (req: Request, res: Response) => {
       },
       { $sort: { count: -1 } },
     ]);
+
+    const models = raw.map((m) => {
+      const aliaModel = getAliaModel(m._id);
+      return {
+        ...m,
+        name: aliaModel?.name ?? m._id,
+        emoji: aliaModel?.emoji,
+      };
+    });
 
     res.json({ models, period: days });
   } catch (error: any) {
