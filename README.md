@@ -1,169 +1,76 @@
-# 🤖 Alia
+# Alia
 
-Alia es una plataforma avanzada de agentes de IA diseñada para potenciar la productividad y automatizar flujos de trabajo mediante expertos especializados.
+Alia is an advanced AI agent platform designed to boost productivity through specialized experts.
 
-🌐 **Dominio oficial:** [alia.onl](https://alia.onl)
+**Domain:** [alia.onl](https://alia.onl)
 
-## 🚀 Agentes de Alia
+## Agents
 
-Alia no es solo una IA, es un equipo de expertos a tu disposición:
-- **Alia**: El asistente general inteligente.
-- **Alia Developer**: Especializado en arquitectura de software, debugging y desarrollo.
-- **Alia Social Manager**: Experto en estrategia de contenido y redes sociales.
-- **Alia Business**: Analista estratégico de mercado y negocios.
+Four specialized agents are available:
 
-## ✨ Características Principal
+| Agent | Focus |
+|-------|-------|
+| **Alia** | General-purpose intelligent assistant |
+| **Alia Developer** | Software architecture, debugging, development |
+| **Alia Social Manager** | Content strategy and social media |
+| **Alia Business** | Market analysis and business strategy |
 
-- **Multiaplicación**: Accede a distintos perfiles de IA según tu necesidad.
-- **Interfaz Fluida**: Chat optimizado con entrada de comandos persistente.
-- **Administración Inteligente**: Gestión avanzada de modelos y proveedores.
-- **Privacidad y Control**: Datos seguros y gestión de acceso.
+## Monorepo Structure
 
-## 📁 Estructura del Proyecto
+| App | Stack | Description |
+|-----|-------|-------------|
+| `apps/app` | Expo | Main Alia app (web + iOS + Android) |
+| `apps/api` | Express + TypeScript | API server |
+| `apps/alia-codea` | VS Code Extension | AI-assisted coding in VS Code |
+| `apps/alia-cowork` | Electron | Desktop AI assistant |
+| `apps/alia-console` | TanStack Start + React | Admin console |
+| `apps/alia-providers-admin` | Vite + React | Provider management panel |
+| `apps/canvas` | Next.js | Web canvas app |
+| `apps/codea-cli` | CLI | Terminal AI coding assistant |
+| `apps/telegram-bot` | Node.js | Telegram bot integration |
+| `apps/discord-bot` | Node.js | Discord bot integration |
+| `apps/whatsapp-gateway` | Node.js | WhatsApp gateway |
 
-Este proyecto está organizado como un monorepo con tres aplicaciones principales:
+## Quick Start
 
-```
-/
-├── apps/
-│   ├── app/          # Expo (web + iOS + Android) - Aplicación principal
-│   ├── api/          # API standalone (Express)
-│   └── admin/        # Next.js - Panel de administración
-├── packages/
-│   └── shared/       # Código compartido (tipos, utilidades)
-└── package.json      # Root monorepo
-```
-
-**apps/app** es la aplicación principal de Alia que funciona en:
-- 🌐 **Web** - Versión web con Expo for Web
-- 📱 **iOS** - App nativa con Expo
-- 🤖 **Android** - App nativa con Expo
-
-**apps/admin** es el panel de administración (Next.js) solo para gestión interna.
-
-## ⚙️ Instalación
-
-### 1. Instalar dependencias del monorepo
 ```bash
 npm install
+npm run dev        # All apps in parallel
+npm run dev:app    # Main app (Expo)
+npm run dev:api    # API server
 ```
 
-### 2. Configurar variables de entorno
-
-**Para la App principal** (`apps/app/lib/config.ts`):
-La configuración de URLs está en el código para diferentes entornos (dev, staging, prod).
-
-**Para el Admin** (`apps/admin/.env`):
-```env
-MONGODB_URI='mongodb://localhost:27017/alia'
-NEXTAUTH_SECRET='tu-secret-key'
-NEXTAUTH_URL='http://localhost:3000'
-# API Keys de proveedores
-OPENAI_API_KEY=
-ANTHROPIC_API_KEY=
-GOOGLE_API_KEY=
-```
-
-**Para la API** (`apps/api/.env`):
-```env
-API_PORT=3001
-MONGODB_URI='mongodb://localhost:27017/alia'
-WEB_URL='http://localhost:3000'
-# API Keys de proveedores
-OPENAI_API_KEY=
-ANTHROPIC_API_KEY=
-GOOGLE_API_KEY=
-```
-
-### 3. Iniciar el proyecto
-
-**Todas las aplicaciones en paralelo:**
-```bash
-npm run dev
-```
-
-**O iniciar cada aplicación individualmente:**
+Platform commands for the main app:
 
 ```bash
-# App principal (Expo - web + mobile)
-npm run dev:app
-
-# API Server (Express)
-npm run dev:api
-
-# Panel Admin (Next.js)
-npm run dev:admin
+npm run web
+npm run android
+npm run ios
 ```
 
-## 📱 Desarrollo de la App
+## Documentation
 
-Para ejecutar la app principal en diferentes plataformas:
+### Technical Docs
 
-```bash
-# Desde el root
-npm run web       # Web (http://localhost:8081)
-npm run android   # Android
-npm run ios       # iOS (requiere macOS)
+- [Alia Agents](docs/agents.md)
+- [Developer API Reference](docs/api-reference.md)
+- [Production Deployment Guide](docs/deployment.md)
+- [Developer Portal](docs/developers-portal.md)
+- [Memory System](docs/memory-system.md)
+- [OxyHQ Authentication Guide](docs/oxyhq-auth.md)
 
-# O desde apps/app
-cd apps/app
-npm start         # Expo DevTools
-npm run web       # Solo web
-npm run android   # Solo Android
-npm run ios       # Solo iOS
-```
+### App READMEs
 
-## 🔨 Scripts Disponibles
-
-### Desarrollo
-- `npm run dev` - Iniciar todas las apps en modo desarrollo
-- `npm run dev:app` - Iniciar solo la app (Expo)
-- `npm run dev:api` - Iniciar solo la API
-- `npm run dev:admin` - Iniciar solo el admin
-
-### Plataformas (App)
-- `npm run web` - App en web
-- `npm run android` - App en Android
-- `npm run ios` - App en iOS
-
-### Build
-- `npm run build` - Compilar todas las apps
-- `npm run build:app` - Compilar la app
-- `npm run build:api` - Compilar la API
-- `npm run build:admin` - Compilar el admin
-
-### Producción
-- `npm run start:app` - Iniciar app en producción
-- `npm run start:api` - Iniciar API en producción
-- `npm run start:admin` - Iniciar admin en producción
-
-## 🔌 API y Extensibilidad
-
-Alia permite la integración de nuevos agentes y la conexión con múltiples proveedores de LLM de forma transparente para el usuario final.
-
-### Endpoints de la API
-
-La API standalone expone los siguientes endpoints:
-
-- `/api/health` - Estado del servidor
-- `/api/auth` - Autenticación y registro
-- `/api/conversations` - Gestión de conversaciones
-- `/api/folders` - Gestión de carpetas
-- `/api/alia/chat` - Chat streaming
-- `/api/v1` - API compatible con OpenAI
-
-## 📚 Documentación de cada app
-
-- [apps/app/README.md](apps/app/README.md) - Aplicación principal (Expo)
-- [apps/api/README.md](apps/api/README.md) - API Server
-- [apps/admin/README.md](apps/admin/README.md) - Panel de administración
-
-## 📖 Documentación Técnica
-
-- [MEMORY_SYSTEM.md](MEMORY_SYSTEM.md) - Sistema de memoria completo (API, export/import, límites por plan)
-- [DEPLOYMENT.md](DEPLOYMENT.md) - Guía de despliegue a producción (DigitalOcean, variables de entorno, troubleshooting)
-- [CHANGELOG.md](CHANGELOG.md) - Registro de cambios y mejoras
+- [apps/app](apps/app/README.md)
+- [apps/api](apps/api/README.md)
+- [apps/alia-codea](apps/alia-codea/README.md)
+- [apps/alia-cowork](apps/alia-cowork/README.md)
+- [apps/alia-console](apps/alia-console/README.md)
+- [apps/alia-providers-admin](apps/alia-providers-admin/README.md)
+- [apps/canvas](apps/canvas/README.md)
+- [apps/codea-cli](apps/codea-cli/README.md)
+- [apps/telegram-bot](apps/telegram-bot/README.md)
 
 ---
-© 2026 Alia - The Agent Era
-Hello
+
+2026 Alia

@@ -1,52 +1,52 @@
 # Alia API
 
-API standalone de Alia construida con Express y TypeScript.
+Standalone API for Alia built with Express and TypeScript.
 
-## Características
+## Features
 
-- API RESTful con Express
-- Conexión a MongoDB con Mongoose
-- **Unified OpenAI-Compatible API**: Todos los proveedores de IA (Google, Anthropic, OpenAI, Groq, etc.) se exponen a través de una API compatible con OpenAI
-- Soporte para múltiples proveedores de IA usando AI SDK internamente
-- Autenticación y gestión de usuarios
-- Chat streaming con SSE (Server-Sent Events)
-- Conversión automática de modelos Alia a proveedores específicos
+- RESTful API with Express
+- MongoDB connection with Mongoose
+- **Unified OpenAI-Compatible API**: All AI providers (Google, Anthropic, OpenAI, Groq, etc.) are exposed through an OpenAI-compatible API
+- Support for multiple AI providers using AI SDK internally
+- Authentication and user management
+- Chat streaming with SSE (Server-Sent Events)
+- Automatic conversion from Alia models to specific providers
 
-## Arquitectura
+## Architecture
 
-La API actúa como un **unified gateway** que:
+The API acts as a **unified gateway** that:
 
-1. **Recibe requests en formato OpenAI** desde cualquier cliente
-2. **Internamente usa AI SDK** con proveedores oficiales (Google, Anthropic, OpenAI, Groq, etc.)
-3. **Convierte todo a formato OpenAI** en el stream de respuesta
+1. **Receives requests in OpenAI format** from any client
+2. **Internally uses AI SDK** with official providers (Google, Anthropic, OpenAI, Groq, etc.)
+3. **Converts everything to OpenAI format** in the response stream
 
 ```
-Cliente (OpenAI SDK)
-    ↓
+Client (OpenAI SDK)
+    |
 API /v1/chat/completions (OpenAI format)
-    ↓
-AI SDK con proveedores oficiales
-    ↓
+    |
+AI SDK with official providers
+    |
 Google / Anthropic / OpenAI / Groq / etc.
-    ↓
-Conversión a OpenAI SSE stream
-    ↓
-Cliente recibe formato OpenAI estándar
+    |
+Conversion to OpenAI SSE stream
+    |
+Client receives standard OpenAI format
 ```
 
-### Beneficios
+### Benefits
 
-- **Clientes simples**: Todos los clientes usan OpenAI SDK (no necesitan AI SDK ni custom providers)
-- **Centralización**: Lógica de routing, créditos, y provider management en un solo lugar
-- **Compatibilidad**: Cualquier herramienta compatible con OpenAI funciona con Alia
-- **Transparencia**: Los usuarios no necesitan saber qué provider interno se usa (Gemini, Claude, etc.)
+- **Simple clients**: All clients use OpenAI SDK (no need for AI SDK or custom providers)
+- **Centralization**: Routing logic, credits, and provider management in a single place
+- **Compatibility**: Any OpenAI-compatible tool works with Alia
+- **Transparency**: Users don't need to know which internal provider is used (Gemini, Claude, etc.)
 
-### Formato de Streaming
+### Streaming Format
 
-El API emite chunks en formato OpenAI con extensiones para reasoning:
+The API emits chunks in OpenAI format with extensions for reasoning:
 
 ```typescript
-// Chunk de texto regular
+// Regular text chunk
 {
   id: "chatcmpl-...",
   object: "chat.completion.chunk",
@@ -54,19 +54,19 @@ El API emite chunks en formato OpenAI con extensiones para reasoning:
   model: "alia-v1-cowork",
   choices: [{
     index: 0,
-    delta: { content: "texto..." },
+    delta: { content: "text..." },
     finish_reason: null
   }]
 }
 
-// Chunk de reasoning (chain-of-thought)
+// Reasoning chunk (chain-of-thought)
 {
   choices: [{
-    delta: { reasoning: "pensamiento..." }
+    delta: { reasoning: "thinking..." }
   }]
 }
 
-// Chunk de tool call
+// Tool call chunk
 {
   choices: [{
     delta: {
@@ -83,13 +83,87 @@ El API emite chunks en formato OpenAI con extensiones para reasoning:
 }
 ```
 
-## Desarrollo
+## Alia Models
+
+| ID | Name | Description | Multiplier | Max Tokens |
+|----|------|-------------|------------|------------|
+| `alia-lite` | Alia Lite | Fast responses | 0.5x | 4,096 |
+| `alia-v1` | Alia V1 | Performance/quality balance | 1x | 8,192 |
+| `alia-v1-codea` | Alia V1 Codea | Optimized for code | 1.5x | 16,384 |
+| `alia-v1-pro` | Alia V1 Pro | High quality | 3x | 32,768 |
+| `alia-v1-pro-max` | Alia V1 Pro Max | Best available | 5x | 128,000 |
+
+## Internal Model Mappings
+
+Each Alia tier maps to real provider models with automatic fallback:
+
+### alia-lite
+1. Gemini 2.0 Flash (**default**)
+2. Llama 3.3 70B (Groq)
+3. Llama 3.3 70B (Cerebras)
+4. Llama 3.3 70B (Together)
+
+### alia-v1
+1. Gemini 2.5 Flash (**default**)
+2. GPT-4o-mini
+3. Llama 3.3 70B (Groq)
+
+### alia-v1-codea
+1. Gemini 2.5 Pro (**default**)
+2. GPT-4o
+3. Claude Sonnet 4
+
+### alia-v1-pro
+1. GPT-4o (**default**)
+2. Claude Sonnet 4
+3. Gemini 2.5 Pro
+
+### alia-v1-pro-max
+1. Claude Sonnet 4 (**default**)
+2. GPT-4o
+3. Gemini 2.5 Pro
+
+## Credit System
+
+**Formula**: `credits = Math.ceil(tokens / 1000) * multiplier`
+
+**Example**:
+- 1,500 tokens with `alia-v1` (1x) = 2 credits
+- 1,500 tokens with `alia-v1-codea` (1.5x) = 3 credits
+- 1,500 tokens with `alia-v1-pro-max` (5x) = 8 credits
+
+**Minimum**: 1 credit per request
+
+## Authentication
+
+### JWT Sessions (Oxy)
+```http
+Authorization: Bearer <session-token>
+```
+or
+```http
+X-Session-Id: <session-token>
+```
+
+### API Keys (Developers)
+```http
+Authorization: Bearer alia_sk_<key>
+```
+
+### Telegram Bot (Internal)
+```http
+X-Telegram-Bot-Secret: <secret>
+X-Oxy-User-Id: <user-id>
+X-Telegram-Id: <telegram-id>
+```
+
+## Development
 
 ```bash
-# Desde el root del monorepo
+# From the monorepo root
 npm run dev:api
 
-# O desde apps/api
+# Or from apps/api
 npm run dev
 ```
 
@@ -100,9 +174,9 @@ npm run build
 npm run start
 ```
 
-## Variables de Entorno
+## Environment Variables
 
-Crea un archivo `.env` en `apps/api/`:
+Create a `.env` file in `apps/api/`:
 
 ```env
 API_PORT=3001
@@ -122,48 +196,48 @@ NEXTAUTH_URL='http://localhost:3001'
 
 ## Endpoints
 
-- `GET /` - Información de la API
+- `GET /` - API information
 - `GET /health` - Health check
-- `POST /auth/register` - Registro de usuarios
-- `POST /auth/login` - Login de usuarios
-- `POST /auth/forgot-password` - Recuperar contraseña
-- `POST /auth/reset-password` - Restablecer contraseña
-- `GET /conversations` - Listar conversaciones
-- `POST /conversations` - Crear conversación
-- `GET /conversations/:id` - Obtener conversación
-- `PUT /conversations/:id` - Actualizar conversación
-- `DELETE /conversations/:id` - Eliminar conversación
-- `GET /folders` - Listar carpetas
-- `POST /folders` - Crear carpeta
-- `DELETE /folders/:id` - Eliminar carpeta
-- `GET /memory` - Obtener memoria del usuario
-- `POST /memory/add` - Agregar memoria
-- `PUT /memory/:id` - Actualizar memoria
-- `DELETE /memory/:id` - Eliminar memoria
-- `PUT /memory/preferences` - Actualizar preferencias
-- `PUT /memory/context` - Actualizar contexto
-- `POST /upload/avatar` - Subir avatar
-- `DELETE /upload/avatar` - Eliminar avatar
-- `GET /credits` - Obtener créditos del usuario
-- `POST /alia/chat` - Chat streaming con Alia
-- `POST /v1/chat/completions` - Chat completions (compatible OpenAI)
-- `GET /v1/models` - Listar modelos disponibles
-- `GET /billing/plans` - Listar planes de suscripción (desde DB)
-- `GET /billing/packages` - Listar paquetes de créditos
-- `POST /billing/checkout/credits` - Crear checkout de créditos (Stripe)
-- `POST /billing/checkout/subscription` - Crear checkout de suscripción (Stripe)
-- `GET /billing/subscription` - Obtener suscripción actual
-- `POST /billing/subscription/cancel` - Cancelar suscripción
-- `GET /billing/transactions` - Historial de transacciones
-- `POST /billing/portal` - Crear sesión del portal de Stripe
-- `POST /billing/webhook` - Webhook de Stripe
+- `POST /auth/register` - User registration
+- `POST /auth/login` - User login
+- `POST /auth/forgot-password` - Forgot password
+- `POST /auth/reset-password` - Reset password
+- `GET /conversations` - List conversations
+- `POST /conversations` - Create conversation
+- `GET /conversations/:id` - Get conversation
+- `PUT /conversations/:id` - Update conversation
+- `DELETE /conversations/:id` - Delete conversation
+- `GET /folders` - List folders
+- `POST /folders` - Create folder
+- `DELETE /folders/:id` - Delete folder
+- `GET /memory` - Get user memory
+- `POST /memory/add` - Add memory
+- `PUT /memory/:id` - Update memory
+- `DELETE /memory/:id` - Delete memory
+- `PUT /memory/preferences` - Update preferences
+- `PUT /memory/context` - Update context
+- `POST /upload/avatar` - Upload avatar
+- `DELETE /upload/avatar` - Delete avatar
+- `GET /credits` - Get user credits
+- `POST /alia/chat` - Streaming chat with Alia
+- `POST /v1/chat/completions` - Chat completions (OpenAI-compatible)
+- `GET /v1/models` - List available models
+- `GET /billing/plans` - List subscription plans (from DB)
+- `GET /billing/packages` - List credit packages
+- `POST /billing/checkout/credits` - Create credit checkout (Stripe)
+- `POST /billing/checkout/subscription` - Create subscription checkout (Stripe)
+- `GET /billing/subscription` - Get current subscription
+- `POST /billing/subscription/cancel` - Cancel subscription
+- `GET /billing/transactions` - Transaction history
+- `POST /billing/portal` - Create Stripe portal session
+- `POST /billing/webhook` - Stripe webhook
 
-## Estructura
+## Project Structure
 
 ```
 src/
-├── index.ts          # Punto de entrada
-├── routes/           # Rutas de la API
+├── index.ts          # Entry point
+├── routes/           # API routes
 │   ├── health.ts
 │   ├── auth.ts
 │   ├── conversations.ts
@@ -173,13 +247,13 @@ src/
 │   └── v1/
 │       ├── chat-completions.ts
 │       └── models.ts
-├── models/           # Modelos de MongoDB
-├── lib/              # Utilidades y providers
-└── internal/         # ⚠️ INTERNAL MODULES - NOT PUBLIC
+├── models/           # MongoDB models
+├── lib/              # Utilities and providers
+└── internal/         # INTERNAL MODULES - NOT PUBLIC
     └── providers/    # Provider management (admin only, HMAC auth)
 ```
 
-### ⚠️ Internal Modules
+### Internal Modules -- WARNING
 
 The `internal/` directory contains modules that are **NOT part of the public API**:
 
@@ -189,13 +263,3 @@ The `internal/` directory contains modules that are **NOT part of the public API
 - **Documentation**: See [internal/README.md](src/internal/README.md) for details
 
 **NEVER expose these endpoints publicly or document them in external API docs.**
-
-## TODO
-
-Las siguientes funcionalidades necesitan ser migradas desde las API routes de Next.js:
-
-- [ ] Lógica de autenticación (registro, login, reset password)
-- [ ] CRUD de conversaciones
-- [ ] CRUD de folders
-- [ ] Chat streaming con AI providers
-- [ ] API v1 compatible con OpenAI

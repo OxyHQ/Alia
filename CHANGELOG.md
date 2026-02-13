@@ -155,7 +155,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Enhanced error messages to include upgrade suggestions when limits are exceeded
 
 ### Documentation
-- Added comprehensive [MEMORY_SYSTEM.md](MEMORY_SYSTEM.md) documentation covering:
+- Added comprehensive [docs/memory-system.md](docs/memory-system.md) documentation covering:
   - System architecture and data model
   - All API endpoints with examples
   - Export/import workflows
@@ -213,7 +213,7 @@ If you're upgrading from an older version:
 When adding new features or fixing bugs:
 
 1. Update this CHANGELOG.md with your changes
-2. Document any new API endpoints in MEMORY_SYSTEM.md (or relevant docs)
+2. Document any new API endpoints in docs/memory-system.md (or relevant docs)
 3. Add tests for new functionality
 4. Update the README.md if user-facing changes are made
 

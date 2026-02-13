@@ -250,7 +250,7 @@ pm2 startup
 
 See detailed guides:
 - **[Quick Deploy Guide](./DEPLOY_QUICK.md)** - 5-minute deployment to App Platform
-- **[Full Deployment Guide](../../DEPLOY_TELEGRAM.md)** - Complete guide with all options
+- **[Full Deployment Guide](../../docs/deployment.md)** - Complete deployment guide
 
 **Recommended**: Use DigitalOcean App Platform ($5/month)
 1. Push code to Git
@@ -298,6 +298,156 @@ The bot can run anywhere Node.js is supported:
 - Test: `curl https://your-api-url.com/telegram/users/test`
 - Check firewall settings if using VPS
 - Ensure HTTPS is working (for production)
+
+## App Integration Examples
+
+Your app needs a screen/page that handles the Telegram auth callback. When a user clicks the auth link from the bot, they are directed to your app with a `token` query parameter. The app must exchange this token (along with the user's session JWT) via the `/telegram/link` endpoint to complete account linking.
+
+### React / Next.js
+
+```typescript
+// pages/telegram-auth.tsx or app/telegram-auth/page.tsx
+'use client';
+
+import { useEffect, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
+
+export default function TelegramAuth() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const token = searchParams.get('token');
+  const [status, setStatus] = useState('checking');
+
+  useEffect(() => {
+    async function linkAccount() {
+      if (!token) {
+        setStatus('error');
+        return;
+      }
+
+      try {
+        // Get user's JWT token (from your auth system)
+        const sessionToken = localStorage.getItem('authToken');
+
+        if (!sessionToken) {
+          // User not logged in - redirect to login with return URL
+          router.push(`/login?returnTo=/telegram-auth?token=${token}`);
+          return;
+        }
+
+        // Link the Telegram account
+        const response = await fetch('/api/telegram/link', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ authToken: token, sessionToken }),
+        });
+
+        if (response.ok) {
+          setStatus('success');
+        } else {
+          setStatus('error');
+        }
+      } catch (error) {
+        console.error('Link error:', error);
+        setStatus('error');
+      }
+    }
+
+    linkAccount();
+  }, [token, router]);
+
+  return (
+    <div style={{ textAlign: 'center', padding: '2rem' }}>
+      {status === 'checking' && <p>Linking your Telegram account...</p>}
+      {status === 'success' && (
+        <>
+          <h1>✅ Success!</h1>
+          <p>Your Telegram account has been linked.</p>
+          <p>You can now return to Telegram and start chatting with Alia!</p>
+        </>
+      )}
+      {status === 'error' && (
+        <>
+          <h1>❌ Error</h1>
+          <p>Failed to link your account. Please try again.</p>
+        </>
+      )}
+    </div>
+  );
+}
+```
+
+### React Native
+
+```typescript
+// screens/TelegramAuthScreen.tsx
+import React, { useEffect, useState } from 'react';
+import { View, Text } from 'react-native';
+import { useRoute } from '@react-navigation/native';
+
+export default function TelegramAuthScreen() {
+  const route = useRoute();
+  const token = route.params?.token;
+  const [status, setStatus] = useState('checking');
+
+  useEffect(() => {
+    async function linkAccount() {
+      if (!token) {
+        setStatus('error');
+        return;
+      }
+
+      try {
+        // Get user's JWT token (from your auth context/storage)
+        const sessionToken = await AsyncStorage.getItem('authToken');
+
+        if (!sessionToken) {
+          // Navigate to login screen
+          navigation.navigate('Login', { returnTo: 'TelegramAuth', token });
+          return;
+        }
+
+        // Link the Telegram account
+        const response = await fetch('http://localhost:3001/telegram/link', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ authToken: token, sessionToken }),
+        });
+
+        if (response.ok) {
+          setStatus('success');
+        } else {
+          setStatus('error');
+        }
+      } catch (error) {
+        console.error('Link error:', error);
+        setStatus('error');
+      }
+    }
+
+    linkAccount();
+  }, [token]);
+
+  return (
+    <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+      {status === 'checking' && <Text>Linking your Telegram account...</Text>}
+      {status === 'success' && (
+        <>
+          <Text style={{ fontSize: 24 }}>✅ Success!</Text>
+          <Text>Your Telegram account has been linked.</Text>
+          <Text>Return to Telegram and start chatting!</Text>
+        </>
+      )}
+      {status === 'error' && (
+        <>
+          <Text style={{ fontSize: 24 }}>❌ Error</Text>
+          <Text>Failed to link account. Please try again.</Text>
+        </>
+      )}
+    </View>
+  );
+}
+```
 
 ## Contributing
 

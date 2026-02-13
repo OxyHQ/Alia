@@ -1,89 +1,106 @@
-# 🚀 Estrategia SEO Completa para Alia by Oxy (2026)
+# Complete SEO Strategy for Alia by Oxy (2026)
 
-**Objetivo**: Posicionar Alia en los primeros resultados de Google y generar tráfico orgánico masivo compitiendo con ChatGPT, Claude y Gemini.
+**Goal**: Position Alia in the top Google results and generate massive organic traffic competing with ChatGPT, Claude, and Gemini.
 
 ---
 
-## ✅ FASE 1: FUNDAMENTOS SEO TÉCNICO (COMPLETADO)
+## Current Status
 
-### Implementado
+The following SEO fundamentals are implemented and working in production without React errors:
 
-1. **✅ Sitemap Dinámico Automático**
-   - Archivo: `apps/app/scripts/generate-sitemap.ts`
-   - Genera sitemap.xml con todas las rutas (estáticas y dinámicas)
-   - Ejecutar: `npm run generate-sitemap` (añadir script a package.json)
-   - Actualización automática recomendada: cada build o deploy
+- **Sitemap generator** - Auto-generates sitemap.xml (`npm run generate-sitemap`)
+- **Robots.txt** - Optimized for SEO, blocks private routes and aggressive scraping bots
+- **Home page SEO** - Title, description, and Open Graph tags applied
+- **Login/Register meta tags** - Basic meta tags in place
+- **Simple Head usage pattern** - Using `Head` from `expo-router/head` directly with clean meta tags (avoids complex components and React hydration issues)
+- **package.json** - Configured with sitemap script
 
-2. **✅ Robots.txt Optimizado**
-   - Archivo: `apps/app/public/robots.txt`
-   - Bloquea rutas privadas (/settings, /billing, /c/)
-   - Permite crawling de contenido público
-   - Bloquea bots de scraping agresivos (Ahrefs, Semrush)
-   - Múltiples sitemaps declarados
+Available SEO helper files (for advanced usage when needed):
+- `lib/seo/meta-tags.ts` - Meta tag presets and helpers
+- `lib/seo/structured-data.ts` - Schema.org JSON-LD helpers
 
-3. **✅ Meta Tags Dinámicos + Open Graph**
-   - Archivo: `apps/app/lib/seo/meta-tags.ts`
-   - Sistema completo de meta tags por página
-   - Open Graph para compartir en redes sociales
+---
+
+## PHASE 1: TECHNICAL SEO FOUNDATIONS (COMPLETED)
+
+### Implemented
+
+1. **Automatic Dynamic Sitemap**
+   - File: `apps/app/scripts/generate-sitemap.ts`
+   - Generates sitemap.xml with all routes (static and dynamic)
+   - Run: `npm run generate-sitemap` (add script to package.json)
+   - Recommended automatic update: every build or deploy
+
+2. **Optimized Robots.txt**
+   - File: `apps/app/public/robots.txt`
+   - Blocks private routes (/settings, /billing, /c/)
+   - Allows crawling of public content
+   - Blocks aggressive scraping bots (Ahrefs, Semrush)
+   - Multiple sitemaps declared
+
+3. **Dynamic Meta Tags + Open Graph**
+   - File: `apps/app/lib/seo/meta-tags.ts`
+   - Complete per-page meta tag system
+   - Open Graph for social media sharing
    - Twitter Cards
-   - Hreflang tags para i18n
-   - Presets predefinidos para páginas comunes
+   - Hreflang tags for i18n
+   - Predefined presets for common pages
 
-4. **✅ Componente SEOHead Reutilizable**
-   - Archivo: `apps/app/components/seo/SEOHead.tsx`
-   - Uso: `<SEOHead {...META_PRESETS.home} />`
-   - Integración perfecta con Expo Router
+4. **Reusable SEOHead Component**
+   - File: `apps/app/components/seo/SEOHead.tsx`
+   - Usage: `<SEOHead {...META_PRESETS.home} />`
+   - Seamless integration with Expo Router
 
-5. **✅ Structured Data (Schema.org)**
-   - Archivo: `apps/app/lib/seo/structured-data.ts`
+5. **Structured Data (Schema.org)**
+   - File: `apps/app/lib/seo/structured-data.ts`
    - WebApplication schema
    - SoftwareApplication schema
    - FAQ schema
    - Article schema (blog)
    - Breadcrumb schema
    - HowTo schema
-   - Product schema (comparaciones)
+   - Product schema (comparisons)
 
-6. **✅ Landing Pages SEO-Optimizadas**
+6. **SEO-Optimized Landing Pages**
    - `/ai-chat` - Keywords: "ai chat", "chat with ai"
-   - `/features` - Features con FAQ structured data
-   - `/pricing` - Pricing con FAQ
-   - `/vs/chatgpt` - Comparison page (alto valor SEO)
+   - `/features` - Features with FAQ structured data
+   - `/pricing` - Pricing with FAQ
+   - `/vs/chatgpt` - Comparison page (high SEO value)
 
 ---
 
-## 🎯 KEYWORDS ESTRATÉGICAS (2026)
+## STRATEGIC KEYWORDS (2026)
 
-### Keywords Primarias (Alto volumen)
-| Keyword | Volumen mensual | Dificultad | Prioridad |
-|---------|----------------|------------|-----------|
-| ai chat | 450K | Alta | 🔴 Crítica |
-| chatbot ai | 301K | Alta | 🔴 Crítica |
-| ai assistant | 246K | Alta | 🔴 Crítica |
-| chatgpt alternative | 90K | Media-Alta | 🟡 Alta |
-| free ai chat | 165K | Media | 🟡 Alta |
+### Primary Keywords (High Volume)
+| Keyword | Monthly Volume | Difficulty | Priority |
+|---------|----------------|------------|----------|
+| ai chat | 450K | High | Critical |
+| chatbot ai | 301K | High | Critical |
+| ai assistant | 246K | High | Critical |
+| chatgpt alternative | 90K | Medium-High | High |
+| free ai chat | 165K | Medium | High |
 
-### Keywords Long-tail (Menor competencia, mejor conversión)
-| Keyword | Volumen | Dificultad | Prioridad |
-|---------|---------|------------|-----------|
-| ai chat for coding | 18K | Media | 🟢 Media |
-| multilingual ai chatbot | 8K | Baja | 🟢 Media |
-| ai assistant with memory | 12K | Baja-Media | 🟡 Alta |
-| chatbot for developers | 14K | Media | 🟢 Media |
-| openai api alternative | 6K | Baja | 🟢 Media |
+### Long-tail Keywords (Lower Competition, Better Conversion)
+| Keyword | Volume | Difficulty | Priority |
+|---------|--------|------------|----------|
+| ai chat for coding | 18K | Medium | Medium |
+| multilingual ai chatbot | 8K | Low | Medium |
+| ai assistant with memory | 12K | Low-Medium | High |
+| chatbot for developers | 14K | Medium | Medium |
+| openai api alternative | 6K | Low | Medium |
 
-### Comparison Keywords (Conversión alta)
-- "alia vs chatgpt" (creciendo)
-- "alia vs claude" (creciendo)
-- "chatgpt vs claude vs gemini" (85K - crear contenido)
+### Comparison Keywords (High Conversion)
+- "alia vs chatgpt" (growing)
+- "alia vs claude" (growing)
+- "chatgpt vs claude vs gemini" (85K - create content)
 
 ---
 
-## 📋 FASE 2: IMPLEMENTACIÓN PRIORITARIA (PRÓXIMOS PASOS)
+## PHASE 2: PRIORITY IMPLEMENTATION (NEXT STEPS)
 
-### 1. Actualizar Home Page con SEO
+### 1. Update Home Page with SEO
 
-**Archivo**: `apps/app/app/(app)/index.tsx`
+**File**: `apps/app/app/(app)/index.tsx`
 
 ```tsx
 import { SEOHead } from '@/components/seo/SEOHead';
@@ -97,18 +114,18 @@ export default function Home() {
       <SEOHead {...META_PRESETS.home}>
         <StructuredData data={STRUCTURED_DATA_PRESETS.homepage} />
       </SEOHead>
-      {/* ... resto del contenido */}
+      {/* ... rest of content */}
     </>
   );
 }
 ```
 
-### 2. Añadir SEO a Todas las Páginas Existentes
+### 2. Add SEO to All Existing Pages
 
-**Patrón a seguir**:
+**Pattern to follow**:
 
 ```tsx
-// En cada página:
+// In each page:
 import { SEOHead } from '@/components/seo/SEOHead';
 import { META_PRESETS } from '@/lib/seo/meta-tags';
 
@@ -116,47 +133,47 @@ export default function MyPage() {
   return (
     <>
       <SEOHead
-        title="Título único y descriptivo"
-        description="Descripción de 155-160 caracteres"
+        title="Unique and descriptive title"
+        description="Description of 155-160 characters"
         keywords={['keyword1', 'keyword2']}
         canonicalUrl="https://alia.onl/my-page"
       />
-      {/* contenido */}
+      {/* content */}
     </>
   );
 }
 ```
 
-**Páginas a actualizar**:
-- ✅ `/` (Home) - META_PRESETS.home
-- ✅ `/login` - META_PRESETS.login
-- ✅ `/register` - META_PRESETS.register
+**Pages to update**:
+- [done] `/` (Home) - META_PRESETS.home
+- [done] `/login` - META_PRESETS.login
+- [done] `/register` - META_PRESETS.register
 - `/developers` - META_PRESETS.developers
 - `/developers/documentation` - META_PRESETS.developers
-- `/roles` - Crear preset personalizado
-- `/library` - Crear preset personalizado
+- `/roles` - Create custom preset
+- `/library` - Create custom preset
 
-### 3. Crear Páginas de Comparación Adicionales
+### 3. Create Additional Comparison Pages
 
-**Alta prioridad para SEO**:
+**High priority for SEO**:
 
 ```bash
-# Crear estas páginas:
+# Create these pages:
 apps/app/app/vs/claude.tsx
 apps/app/app/vs/gemini.tsx
 apps/app/app/vs/copilot.tsx
 ```
 
-Usar `/vs/chatgpt.tsx` como template.
+Use `/vs/chatgpt.tsx` as a template.
 
-### 4. Implementar Blog con Artículos SEO
+### 4. Implement Blog with SEO Articles
 
-**Estructura recomendada**:
+**Recommended structure**:
 
 ```
 apps/app/app/blog/
-├── index.tsx                   (Listado de artículos)
-├── [slug].tsx                  (Artículo individual)
+├── index.tsx                   (Article listing)
+├── [slug].tsx                  (Individual article)
 └── _posts/
     ├── best-ai-chat-2026.md
     ├── chatgpt-alternatives.md
@@ -165,23 +182,23 @@ apps/app/app/blog/
     └── ...
 ```
 
-**Posts recomendados (long-tail keywords)**:
+**Recommended posts (long-tail keywords)**:
 1. "Best AI Chat Tools in 2026" (keyword: best ai chat)
 2. "Top ChatGPT Alternatives" (keyword: chatgpt alternatives)
 3. "How to Use AI for Coding" (keyword: ai for coding)
 4. "AI Chatbots with Memory: Complete Guide" (keyword: ai with memory)
 5. "Alia Tutorial for Beginners" (keyword: alia tutorial)
 
-### 5. OG Images Dinámicas
+### 5. Dynamic OG Images
 
-**Implementar generador de Open Graph images**:
+**Implement Open Graph image generator**:
 
-Opciones:
-- **Vercel OG**: `@vercel/og` (solo si usas Vercel)
-- **Serverless con Playwright**: Genera imágenes on-demand
-- **Pre-generadas**: Para páginas estáticas
+Options:
+- **Vercel OG**: `@vercel/og` (only if using Vercel)
+- **Serverless with Playwright**: Generates images on-demand
+- **Pre-generated**: For static pages
 
-**Estructura**:
+**Structure**:
 
 ```typescript
 // apps/app/app/api/og/route.ts
@@ -189,12 +206,12 @@ export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const title = searchParams.get('title');
 
-  // Generar imagen con título dinámico
+  // Generate image with dynamic title
   return new ImageResponse(...);
 }
 ```
 
-**Actualizar meta-tags.ts**:
+**Update meta-tags.ts**:
 
 ```typescript
 export function generateOGImageURL(params: {
@@ -207,16 +224,16 @@ export function generateOGImageURL(params: {
 
 ---
 
-## 🌍 FASE 3: SEO MULTILINGÜE (i18n Avanzado)
+## PHASE 3: MULTILINGUAL SEO (Advanced i18n)
 
-Tu app ya tiene i18n con `i18n-js`. Ahora necesitas SEO multilingüe.
+Your app already has i18n with `i18n-js`. Now you need multilingual SEO.
 
-### Implementar Hreflang Tags
+### Implement Hreflang Tags
 
-**El sistema ya está preparado en `meta-tags.ts`**. Solo falta usarlo:
+**The system is already prepared in `meta-tags.ts`**. You just need to use it:
 
 ```tsx
-// Ejemplo en /ai-chat
+// Example in /ai-chat
 <SEOHead
   {...META_PRESETS.aiChat}
   locale="en-US"
@@ -228,26 +245,26 @@ Tu app ya tiene i18n con `i18n-js`. Ahora necesitas SEO multilingüe.
 />
 ```
 
-### Estrategia de URLs Multilingüe
+### Multilingual URL Strategy
 
-**Opción A: Subdirectorios** (Recomendado)
+**Option A: Subdirectories** (Recommended)
 ```
-https://alia.onl/          (inglés, default)
-https://alia.onl/es/       (español)
-https://alia.onl/fr/       (francés)
-https://alia.onl/de/       (alemán)
-```
-
-**Opción B: Subdominos**
-```
-https://alia.onl/          (inglés)
-https://es.alia.onl/       (español)
-https://fr.alia.onl/       (francés)
+https://alia.onl/          (English, default)
+https://alia.onl/es/       (Spanish)
+https://alia.onl/fr/       (French)
+https://alia.onl/de/       (German)
 ```
 
-**Implementación con Expo Router**:
+**Option B: Subdomains**
+```
+https://alia.onl/          (English)
+https://es.alia.onl/       (Spanish)
+https://fr.alia.onl/       (French)
+```
 
-Crear estructura:
+**Implementation with Expo Router**:
+
+Create structure:
 ```
 apps/app/app/[locale]/
 ├── _layout.tsx
@@ -259,9 +276,9 @@ apps/app/app/[locale]/
 
 ---
 
-## ⚡ FASE 4: CORE WEB VITALS & PERFORMANCE
+## PHASE 4: CORE WEB VITALS & PERFORMANCE
 
-### Optimizaciones Críticas
+### Critical Optimizations
 
 1. **Code Splitting**
 
@@ -285,7 +302,7 @@ export default function Page() {
 ```tsx
 import { Image } from 'expo-image';
 
-// Usar Expo Image con optimizaciones
+// Use Expo Image with optimizations
 <Image
   source={{ uri: 'https://...' }}
   contentFit="cover"
@@ -296,16 +313,16 @@ import { Image } from 'expo-image';
 
 3. **Font Preloading**
 
-Ya está en `+html.tsx`:
+Already in `+html.tsx`:
 ```html
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="dns-prefetch" href="https://fonts.gstatic.com" />
 ```
 
-4. **Reducir JavaScript Bundle**
+4. **Reduce JavaScript Bundle**
 
 ```bash
-# Analizar bundle
+# Analyze bundle
 npx expo export --platform web --clear
 npx source-map-explorer 'dist/**/*.js'
 ```
@@ -316,27 +333,27 @@ npx source-map-explorer 'dist/**/*.js'
 // app/_layout.tsx
 export const unstable_settings = {
   initialRouteName: '(app)',
-  // Expo Router ya hace lazy loading automático de rutas
+  // Expo Router already does automatic lazy loading of routes
 };
 ```
 
 ---
 
-## 📊 FASE 5: MONITOREO Y ANALYTICS
+## PHASE 5: MONITORING AND ANALYTICS
 
 ### Google Search Console
 
-1. Verificar propiedad en: https://search.google.com/search-console
-2. Enviar sitemap: `https://alia.onl/sitemap.xml`
-3. Monitorear:
-   - Impresiones y clicks
-   - CTR por query
-   - Páginas mejor posicionadas
-   - Errores de indexación
+1. Verify ownership at: https://search.google.com/search-console
+2. Submit sitemap: `https://alia.onl/sitemap.xml`
+3. Monitor:
+   - Impressions and clicks
+   - CTR by query
+   - Top-ranked pages
+   - Indexing errors
 
 ### Google Analytics 4
 
-**Añadir a `+html.tsx`**:
+**Add to `+html.tsx`**:
 
 ```tsx
 {/* Google Analytics */}
@@ -377,40 +394,40 @@ export function reportWebVitals() {
 
 ---
 
-## 📝 ESTRATEGIA DE CONTENIDO LONG-TAIL
+## LONG-TAIL CONTENT STRATEGY
 
-### Blog Post Ideas (Alto impacto SEO)
+### Blog Post Ideas (High SEO Impact)
 
 1. **"10 Best ChatGPT Alternatives in 2026"**
    - Target: "chatgpt alternatives" (90K vol)
-   - Incluir Alia en posición #1 o #2
-   - Comparación honesta con pros/cons
+   - Include Alia in position #1 or #2
+   - Honest comparison with pros/cons
 
 2. **"AI Chat for Developers: Complete Guide"**
    - Target: "ai for developers", "coding ai" (18K vol)
-   - Showcasear API de Alia
-   - Ejemplos de código
+   - Showcase Alia's API
+   - Code examples
 
 3. **"Free AI Chat Tools: Which One is Best?"**
    - Target: "free ai chat" (165K vol)
-   - Comparar planes gratuitos
-   - CTA a registro de Alia
+   - Compare free plans
+   - CTA to Alia registration
 
 4. **"How to Use AI Chatbots Effectively"**
    - Target: "how to use ai chatbot" (35K vol)
-   - Tutorial práctico
-   - Ejemplos con Alia
+   - Practical tutorial
+   - Examples with Alia
 
 5. **"ChatGPT vs Claude vs Gemini vs Alia"**
    - Target: "chatgpt vs claude vs gemini" (85K vol)
    - Mega comparison
-   - Tabla comparativa detallada
+   - Detailed comparison table
 
 ---
 
-## 🎯 QUICK WINS (Implementar Ya)
+## QUICK WINS (Implement Now)
 
-### 1. Actualizar package.json
+### 1. Update package.json
 
 ```json
 {
@@ -422,14 +439,14 @@ export function reportWebVitals() {
 }
 ```
 
-### 2. Crear OG Image Default
+### 2. Create Default OG Image
 
-Diseñar y añadir:
+Design and add:
 - `apps/app/public/og-image-default.png` (1200x630px)
-- Marca Alia
+- Alia branding
 - Tagline: "Chat with AI that remembers"
 
-### 3. Añadir Breadcrumbs UI
+### 3. Add Breadcrumbs UI
 
 ```tsx
 // components/Breadcrumbs.tsx
@@ -447,7 +464,7 @@ export function Breadcrumbs({ items }: { items: Array<{name: string, href: strin
 }
 ```
 
-### 4. Actualizar +html.tsx con Canonical
+### 4. Update +html.tsx with Canonical
 
 ```tsx
 // apps/app/app/+html.tsx
@@ -456,108 +473,108 @@ export function Breadcrumbs({ items }: { items: Array<{name: string, href: strin
 
 ---
 
-## 📈 MÉTRICAS DE ÉXITO
+## SUCCESS METRICS
 
-### KPIs a Monitorear (Mensual)
+### KPIs to Monitor (Monthly)
 
-| Métrica | Objetivo Mes 1 | Objetivo Mes 3 | Objetivo Mes 6 |
-|---------|----------------|----------------|----------------|
-| Tráfico orgánico | 1K visitas | 10K visitas | 50K+ visitas |
-| Keywords posicionadas (Top 10) | 5 keywords | 20 keywords | 50+ keywords |
+| Metric | Month 1 Goal | Month 3 Goal | Month 6 Goal |
+|--------|--------------|--------------|--------------|
+| Organic traffic | 1K visits | 10K visits | 50K+ visits |
+| Keywords ranked (Top 10) | 5 keywords | 20 keywords | 50+ keywords |
 | Backlinks | 10 | 50 | 200+ |
 | Domain Authority | 15 | 25 | 35+ |
-| Conversión orgánica | 2% | 3% | 5%+ |
+| Organic conversion | 2% | 3% | 5%+ |
 
-### Herramientas de Tracking
+### Tracking Tools
 
-- **Google Search Console**: Posiciones y CTR
-- **Google Analytics 4**: Tráfico y conversiones
-- **Ahrefs / Semrush**: Keywords y competencia
+- **Google Search Console**: Rankings and CTR
+- **Google Analytics 4**: Traffic and conversions
+- **Ahrefs / Semrush**: Keywords and competition
 - **PageSpeed Insights**: Core Web Vitals
-- **Hotjar**: Behavior analytics (opcional)
+- **Hotjar**: Behavior analytics (optional)
 
 ---
 
-## 🔗 LINK BUILDING STRATEGY
+## LINK BUILDING STRATEGY
 
-### Tácticas de Alto Impacto
+### High-Impact Tactics
 
 1. **Product Hunt Launch**
-   - Lanzar en Product Hunt
-   - Objetivo: Backlink + tráfico inicial
-   - Preparar demo video
+   - Launch on Product Hunt
+   - Goal: Backlink + initial traffic
+   - Prepare demo video
 
 2. **Developer Communities**
-   - Post en Dev.to, Hashnode, Medium
+   - Post on Dev.to, Hashnode, Medium
    - Tutorial: "Build with Alia API"
-   - Backlinks de alta calidad
+   - High-quality backlinks
 
 3. **AI Tools Directories**
-   - Enviar a directorios:
+   - Submit to directories:
      - There's An AI For That
      - Future Tools
      - AI Tool Guru
      - Futurepedia
 
 4. **Guest Posting**
-   - Escribir para blogs de AI/Tech
-   - Tema: "Future of conversational AI"
-   - Backlink a alia.onl
+   - Write for AI/Tech blogs
+   - Topic: "Future of conversational AI"
+   - Backlink to alia.onl
 
 5. **Open Source**
-   - Liberar SDKs en GitHub
+   - Release SDKs on GitHub
    - NPM packages
-   - Documentación bien linkeda
+   - Well-linked documentation
 
 ---
 
-## 🚨 ERRORES A EVITAR
+## MISTAKES TO AVOID
 
-### ❌ NO hacer:
+### Do NOT:
 
-1. **Keyword Stuffing**: Títulos limpios (ver actualización)
-2. **Duplicate Content**: Cada página única
-3. **Thin Content**: Mínimo 300 palabras por página
-4. **Missing Alt Text**: Todas las imágenes con alt
-5. **Slow Loading**: Core Web Vitals crítico
-6. **Mobile Issues**: Mobile-first siempre
-7. **Broken Links**: Verificar regularmente
-8. **No SSL**: HTTPS obligatorio
-9. **Ignored Search Console**: Revisar semanalmente
-10. **Black Hat SEO**: Nunca comprar links
+1. **Keyword Stuffing**: Keep titles clean (see update)
+2. **Duplicate Content**: Each page must be unique
+3. **Thin Content**: Minimum 300 words per page
+4. **Missing Alt Text**: All images must have alt text
+5. **Slow Loading**: Core Web Vitals are critical
+6. **Mobile Issues**: Always mobile-first
+7. **Broken Links**: Check regularly
+8. **No SSL**: HTTPS is mandatory
+9. **Ignored Search Console**: Review weekly
+10. **Black Hat SEO**: Never buy links
 
 ---
 
-## ✨ RESUMEN EJECUTIVO
+## EXECUTIVE SUMMARY
 
-### ✅ Completado (Fase 1)
+### Completed (Phase 1)
 
-- Sitemap dinámico
-- Robots.txt optimizado
-- Sistema de meta tags
-- Componentes SEO reutilizables
-- Schema.org estructurado
+- Dynamic sitemap
+- Optimized robots.txt
+- Meta tag system
+- Reusable SEO components
+- Schema.org structured data
 - Landing pages: /ai-chat, /features, /pricing
-- Página comparación: /vs/chatgpt
+- Comparison page: /vs/chatgpt
 
-### 🔜 Siguiente (Prioridad Alta)
+### Up Next (High Priority)
 
-1. Actualizar home page con SEO
-2. Crear /vs/claude y /vs/gemini
-3. Implementar blog con 5 artículos
-4. Generar OG images dinámicas
-5. Code splitting y performance
+1. Update home page with SEO
+2. Create /vs/claude and /vs/gemini
+3. Implement blog with 5 articles
+4. Generate dynamic OG images
+5. Code splitting and performance
 6. Google Search Console setup
 
-### 📆 Roadmap (3 meses)
+### Roadmap (3 Months)
 
-**Mes 1**: Fundamentos técnicos + contenido inicial
-**Mes 2**: Blog activo + link building + i18n
-**Mes 3**: Optimización continua + expansión contenido
+**Month 1**: Technical foundations + initial content
+**Month 2**: Active blog + link building + i18n
+**Month 3**: Continuous optimization + content expansion
 
 ---
 
-## 🎓 RECURSOS ADICIONALES
+## ADDITIONAL RESOURCES
 
 - [Google Search Central](https://developers.google.com/search)
 - [Schema.org](https://schema.org/)
@@ -567,6 +584,5 @@ export function Breadcrumbs({ items }: { items: Array<{name: string, href: strin
 
 ---
 
-**Última actualización**: 2026-01-24
-**Siguiente revisión**: 2026-02-24
-
+**Last updated**: 2026-02-13
+**Next review**: 2026-03-13
