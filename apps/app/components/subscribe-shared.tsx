@@ -1,5 +1,5 @@
-import React, { useEffect } from 'react';
-import { View, Pressable, ScrollView, Text as RNText } from 'react-native';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { View, Pressable, Platform, ScrollView, Text as RNText } from 'react-native';
 import { useRouter } from 'expo-router';
 import Animated, {
   useSharedValue,
@@ -7,7 +7,7 @@ import Animated, {
   withTiming,
   Easing,
 } from 'react-native-reanimated';
-import { ArrowLeft, Shield, Building2, Check } from 'lucide-react-native';
+import { ArrowLeft, ChevronLeft, ChevronRight, Shield, Building2, Check } from 'lucide-react-native';
 import { Text } from '@/components/ui/text';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
@@ -138,6 +138,15 @@ function OdometerDigit({
   );
 }
 
+// Resolve foreground color: CSS variable on web, hex on native
+function useForegroundColor(): string {
+  const { colors } = useColorScheme();
+  if (Platform.OS === 'web') {
+    return 'hsl(var(--foreground))' as any;
+  }
+  return colors.foreground;
+}
+
 function SlotPrice({
   cents,
   fontSize = 32,
@@ -147,7 +156,7 @@ function SlotPrice({
   fontSize?: number;
   fontWeight?: string;
 }) {
-  const { colors } = useColorScheme();
+  const textColor = useForegroundColor();
   const text = formatPrice(cents);
   const chars = text.split('');
 
@@ -163,7 +172,7 @@ function SlotPrice({
               digit={char}
               fontSize={fontSize}
               fontWeight={fontWeight}
-              color={colors.foreground}
+              color={textColor}
             />
           );
         }
@@ -175,7 +184,7 @@ function SlotPrice({
               fontWeight: fontWeight as any,
               height: DIGIT_HEIGHT,
               lineHeight: DIGIT_HEIGHT,
-              color: colors.foreground,
+              color: textColor,
             }}
           >
             {char}
@@ -350,36 +359,95 @@ export function PlanGrid({
   isWideLayout: boolean;
   t: (key: string) => string;
 }) {
+  const CARD_WIDTH = 260;
+  const SNAP_WIDTH = CARD_WIDTH + 2; // card + separator gap
+  const scrollRef = useRef<ScrollView>(null);
+  const [activeIndex, setActiveIndex] = useState(0);
+
+  const scrollToIndex = useCallback((index: number) => {
+    const clamped = Math.max(0, Math.min(index, tiers.length - 1));
+    scrollRef.current?.scrollTo({ x: clamped * SNAP_WIDTH, animated: true });
+    setActiveIndex(clamped);
+  }, [tiers.length]);
+
   if (!isWideLayout) {
-    // Narrow: horizontal scroll with fixed-width plan cards
     return (
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={{ paddingHorizontal: 8, gap: 2 }}
-      >
-        {tiers.map((tier, index) => (
-          <React.Fragment key={tier.id}>
-            {index > 0 && (
-              <Separator orientation="vertical" className="mx-0" />
+      <View>
+        {/* Arrows */}
+        <View className="flex-row items-center justify-between px-4 mb-2">
+          <Pressable
+            onPress={() => scrollToIndex(activeIndex - 1)}
+            className={cn(
+              'w-8 h-8 rounded-full bg-muted items-center justify-center',
+              activeIndex === 0 && 'opacity-30',
             )}
-            <View style={{ width: 260 }}>
-              <PlanColumn
-                tier={tier}
-                billingPeriod={billingPeriod}
-                isCurrentPlan={
-                  tier.id === 'free'
-                    ? !hasActiveSubscription
-                    : currentPlanName === tier.name
-                }
-                onSubscribe={onSubscribe}
-                isLoading={isLoading}
-                t={t}
-              />
-            </View>
-          </React.Fragment>
-        ))}
-      </ScrollView>
+            disabled={activeIndex === 0}
+          >
+            <ChevronLeft size={18} className="text-foreground" />
+          </Pressable>
+          {/* Dot indicators */}
+          <View className="flex-row gap-1.5">
+            {tiers.map((tier, i) => (
+              <Pressable
+                key={tier.id}
+                onPress={() => scrollToIndex(i)}
+              >
+                <View
+                  className={cn(
+                    'w-2 h-2 rounded-full',
+                    i === activeIndex ? 'bg-primary' : 'bg-muted-foreground/30',
+                  )}
+                />
+              </Pressable>
+            ))}
+          </View>
+          <Pressable
+            onPress={() => scrollToIndex(activeIndex + 1)}
+            className={cn(
+              'w-8 h-8 rounded-full bg-muted items-center justify-center',
+              activeIndex === tiers.length - 1 && 'opacity-30',
+            )}
+            disabled={activeIndex === tiers.length - 1}
+          >
+            <ChevronRight size={18} className="text-foreground" />
+          </Pressable>
+        </View>
+        {/* Horizontal snap scroll */}
+        <ScrollView
+          ref={scrollRef}
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          snapToInterval={SNAP_WIDTH}
+          decelerationRate="fast"
+          contentContainerStyle={{ paddingHorizontal: 8 }}
+          onMomentumScrollEnd={(e) => {
+            const idx = Math.round(e.nativeEvent.contentOffset.x / SNAP_WIDTH);
+            setActiveIndex(Math.max(0, Math.min(idx, tiers.length - 1)));
+          }}
+        >
+          {tiers.map((tier, index) => (
+            <React.Fragment key={tier.id}>
+              {index > 0 && (
+                <Separator orientation="vertical" className="mx-0" />
+              )}
+              <View style={{ width: CARD_WIDTH }}>
+                <PlanColumn
+                  tier={tier}
+                  billingPeriod={billingPeriod}
+                  isCurrentPlan={
+                    tier.id === 'free'
+                      ? !hasActiveSubscription
+                      : currentPlanName === tier.name
+                  }
+                  onSubscribe={onSubscribe}
+                  isLoading={isLoading}
+                  t={t}
+                />
+              </View>
+            </React.Fragment>
+          ))}
+        </ScrollView>
+      </View>
     );
   }
 
