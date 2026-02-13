@@ -82,8 +82,11 @@ const CREDIT_PACKAGES = [
 ];
 
 const SUBSCRIPTION_PLANS = [
-  { id: 'pro', name: 'Pro', creditsPerMonth: 10000, monthlyPrice: 2999, annualPrice: 29870, currency: 'usd' },
-  { id: 'business', name: 'Business', creditsPerMonth: 50000, monthlyPrice: 9999, annualPrice: 99590, currency: 'usd' },
+  { id: 'basic', name: 'Basic', creditsPerMonth: 4000, monthlyPrice: 399, annualPrice: 3830, currency: 'usd' },
+  { id: 'standard', name: 'Standard', creditsPerMonth: 10000, monthlyPrice: 999, annualPrice: 9590, currency: 'usd' },
+  { id: 'pro', name: 'Pro', creditsPerMonth: 20000, monthlyPrice: 1999, annualPrice: 19190, currency: 'usd' },
+  { id: 'max', name: 'Max', creditsPerMonth: 50000, monthlyPrice: 4999, annualPrice: 47990, currency: 'usd' },
+  { id: 'ultra', name: 'Ultra', creditsPerMonth: 100000, monthlyPrice: 9999, annualPrice: 95990, currency: 'usd' },
 ];
 
 router.get('/packages', async (_req: Request, res: Response) => {

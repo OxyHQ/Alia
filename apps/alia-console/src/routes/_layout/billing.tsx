@@ -227,39 +227,49 @@ function BillingPage() {
 
       {/* Upgrade Plan Dialog */}
       <Dialog open={showUpgradeDialog} onOpenChange={setShowUpgradeDialog}>
-        <DialogContent>
+        <DialogContent className="max-w-3xl">
           <DialogHeader>
-            <DialogTitle>Upgrade your plan</DialogTitle>
+            <DialogTitle>Choose your plan</DialogTitle>
             <DialogDescription>
-              Choose a subscription plan to get more credits each month.
+              All plans include Alia Chat + Codea (VS Code &amp; CLI). Credits are shared across all products.
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-4 py-4">
-            {plans.map((plan) => (
-              <div
-                key={plan.id}
-                className="flex items-center justify-between p-4 border border-border rounded-lg"
-              >
-                <div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 py-4">
+            {plans.map((plan) => {
+              const isCurrentPlan = subscription?.plan?.name === plan.name && subscription?.status === 'active';
+              const isPopular = plan.name === 'Standard';
+              return (
+                <div
+                  key={plan.id}
+                  className={`relative flex flex-col p-4 border rounded-lg ${isPopular ? 'border-blue-500 border-2' : 'border-border'}`}
+                >
+                  {isPopular && (
+                    <span className="absolute -top-2.5 left-3 bg-blue-500 text-white text-[10px] font-semibold px-2 py-0.5 rounded-full">
+                      Most popular
+                    </span>
+                  )}
                   <p className="text-sm font-semibold text-foreground">{plan.name}</p>
-                  <p className="text-sm text-muted-foreground">
+                  <p className="text-2xl font-bold text-foreground mt-1">
+                    ${(plan.monthlyPrice / 100).toFixed(2)}
+                    <span className="text-xs font-normal text-muted-foreground">/mo</span>
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-1">
                     {plan.creditsPerMonth.toLocaleString()} credits/month
                   </p>
-                  <p className="text-sm text-muted-foreground">
-                    ${(plan.price / 100).toFixed(2)}/month
-                  </p>
+                  <Button
+                    size="sm"
+                    variant={isPopular ? 'default' : 'outline'}
+                    className="mt-3 w-full"
+                    onClick={() => handleUpgrade(plan.id)}
+                    disabled={isCurrentPlan || createSubscriptionCheckout.isPending}
+                  >
+                    {isCurrentPlan ? 'Current plan' : createSubscriptionCheckout.isPending ? 'Loading...' : 'Subscribe'}
+                  </Button>
                 </div>
-                <Button
-                  size="sm"
-                  onClick={() => handleUpgrade(plan.id)}
-                  disabled={createSubscriptionCheckout.isPending}
-                >
-                  {createSubscriptionCheckout.isPending ? 'Loading...' : 'Subscribe'}
-                </Button>
-              </div>
-            ))}
+              );
+            })}
             {plans.length === 0 && (
-              <p className="text-sm text-muted-foreground text-center py-4">
+              <p className="text-sm text-muted-foreground text-center py-4 col-span-full">
                 No subscription plans available at the moment.
               </p>
             )}
