@@ -14,8 +14,8 @@ export interface SubscriptionPlan {
   id: string;
   name: string;
   creditsPerMonth: number;
-  price: number;
-  stripePriceId: string;
+  monthlyPrice: number;
+  annualPrice: number;
   currency: string;
 }
 
@@ -167,15 +167,18 @@ export function useCreateSubscriptionCheckout() {
   return useMutation({
     mutationFn: async ({
       planId,
+      billingPeriod,
       successUrl,
       cancelUrl,
     }: {
       planId: string;
+      billingPeriod: 'monthly' | 'annual';
       successUrl: string;
       cancelUrl: string;
     }) => {
       const response = await apiClient.post('/billing/checkout/subscription', {
         planId,
+        billingPeriod,
         successUrl,
         cancelUrl,
       });

@@ -1,4 +1,5 @@
-import { View, ScrollView, Pressable, Linking } from "react-native";
+import { View, ScrollView, Pressable } from "react-native";
+import * as Linking from "expo-linking";
 import { Text } from "@/components/ui/text";
 import { Button } from "@/components/ui/button";
 import { useRouter, useLocalSearchParams } from "expo-router";
@@ -85,6 +86,7 @@ export default function BillingScreen() {
     try {
       const { url } = await createSubscriptionCheckoutMutation.mutateAsync({
         planId,
+        billingPeriod: 'monthly',
         successUrl: Linking.createURL("/billing?success=true"),
         cancelUrl: Linking.createURL("/billing"),
       });
@@ -230,14 +232,14 @@ export default function BillingScreen() {
                     <View className="flex-row items-center justify-between mb-2">
                       <Text className="text-base font-semibold text-foreground">{plan.name}</Text>
                       <Text className="text-base font-semibold text-foreground">
-                        ${(plan.price / 100).toFixed(2)}{t('credits.perMonth')}
+                        ${(plan.monthlyPrice / 100).toFixed(2)}{t('credits.perMonth')}
                       </Text>
                     </View>
                     <Text className="text-sm text-muted-foreground mb-1">
                       {t('billing.creditsPerMonth', { count: plan.creditsPerMonth.toLocaleString() })}
                     </Text>
                     <Text className="text-xs text-muted-foreground">
-                      {t('billing.perThousandCredits', { price: `$${((plan.price / plan.creditsPerMonth) * 1000 / 100).toFixed(2)}` })}
+                      {t('billing.perThousandCredits', { price: `$${((plan.monthlyPrice / plan.creditsPerMonth) * 1000 / 100).toFixed(2)}` })}
                     </Text>
                   </Pressable>
                 ))}

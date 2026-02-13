@@ -14,6 +14,7 @@ export interface ISubscription extends Document {
     creditsPerMonth: number;
     price: number;
     currency: string;
+    billingPeriod: 'monthly' | 'annual';
   };
   createdAt: Date;
   updatedAt: Date;
@@ -60,6 +61,7 @@ const SubscriptionSchema = new Schema<ISubscription>({
     creditsPerMonth: { type: Number, required: true },
     price: { type: Number, required: true },
     currency: { type: String, default: 'usd' },
+    billingPeriod: { type: String, enum: ['monthly', 'annual'], default: 'monthly' },
   },
 }, {
   timestamps: true,
