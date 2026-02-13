@@ -16,7 +16,10 @@ export type RealtimeEvent =
   | { type: 'response.audio.delta'; delta: string }
   | { type: 'response.audio.done' }
   | { type: 'response.text.delta'; delta: string }
+  | { type: 'response.audio_transcript.delta'; delta: string }
+  | { type: 'response.audio_transcript.done'; transcript: string }
   | { type: 'response.done' }
+  | { type: 'conversation.item.input_audio_transcription.completed'; transcript: string }
   | { type: 'input_audio_buffer.speech_started' }
   | { type: 'input_audio_buffer.speech_stopped' }
   | { type: 'error'; error: { message: string; code?: string } }
@@ -32,6 +35,9 @@ export interface RealtimeClientCallbacks {
   onResponseCreated: () => void;
   onResponseDone: () => void;
   onError: (message: string) => void;
+  onTranscriptDelta?: (delta: string) => void;
+  onTranscriptDone?: (transcript: string) => void;
+  onUserTranscriptCompleted?: (transcript: string) => void;
 }
 
 export interface RealtimeClientConfig {
@@ -143,6 +149,24 @@ export class RealtimeClient {
       case 'response.audio.done':
       case 'response.done':
         this.callbacks.onResponseDone();
+        break;
+
+      case 'response.audio_transcript.delta':
+        if (event.delta) {
+          this.callbacks.onTranscriptDelta?.(event.delta);
+        }
+        break;
+
+      case 'response.audio_transcript.done':
+        if (event.transcript) {
+          this.callbacks.onTranscriptDone?.(event.transcript);
+        }
+        break;
+
+      case 'conversation.item.input_audio_transcription.completed':
+        if (event.transcript) {
+          this.callbacks.onUserTranscriptCompleted?.(event.transcript);
+        }
         break;
 
       case 'input_audio_buffer.speech_started':
