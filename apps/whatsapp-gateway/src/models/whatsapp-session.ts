@@ -1,8 +1,9 @@
 import mongoose, { Schema, Document } from 'mongoose';
 
-export type SessionStatus = 'qr-pending' | 'connected' | 'disconnected' | 'logged-out';
+export type SessionStatus = 'qr-pending' | 'connected' | 'disconnected' | 'logged-out' | 'failed';
 
 export interface IWhatsAppSession extends Document {
+  sessionId: string;
   oxyUserId: string;
   phoneNumber?: string;
   displayName?: string;
@@ -18,10 +19,15 @@ export interface IWhatsAppSession extends Document {
 
 const WhatsAppSessionSchema = new Schema<IWhatsAppSession>(
   {
-    oxyUserId: {
+    sessionId: {
       type: String,
       required: true,
       unique: true,
+      index: true,
+    },
+    oxyUserId: {
+      type: String,
+      required: true,
       index: true,
     },
     phoneNumber: {
@@ -32,7 +38,7 @@ const WhatsAppSessionSchema = new Schema<IWhatsAppSession>(
     },
     status: {
       type: String,
-      enum: ['qr-pending', 'connected', 'disconnected', 'logged-out'],
+      enum: ['qr-pending', 'connected', 'disconnected', 'logged-out', 'failed'],
       default: 'qr-pending',
     },
     authState: {

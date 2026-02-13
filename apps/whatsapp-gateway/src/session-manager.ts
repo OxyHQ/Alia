@@ -9,6 +9,7 @@ import makeWASocket, {
   type SignalKeyStore,
   type WASocket,
 } from '@whiskeysockets/baileys';
+import { v4 as uuidv4 } from 'uuid';
 import { WhatsAppSession, type IWhatsAppSession } from './models/whatsapp-session';
 import { WhatsAppChat } from './models/whatsapp-chat';
 import { WhatsAppMessage } from './models/whatsapp-message';
@@ -63,35 +64,29 @@ class SessionManager {
 
     for (const session of activeSessions) {
       try {
-        await this.startSession(session.oxyUserId);
+        await this.startSession(session.sessionId);
       } catch (err) {
-        console.error(`[WhatsApp] Failed to restore session for ${session.oxyUserId}:`, err);
+        console.error(`[WhatsApp] Failed to restore session ${session.sessionId} (user ${session.oxyUserId}):`, err);
       }
     }
   }
 
   /**
    * Create a brand-new session for a user who wants to link their WhatsApp.
-   * Returns a promise that resolves with the first QR code string.
+   * Returns the sessionId and a promise that resolves with the first QR code string.
    */
-  async createSession(oxyUserId: string): Promise<{ qrPromise: Promise<string> }> {
-    // Clean up any existing session/socket for this user
-    await this.cleanupSocket(oxyUserId);
+  async createSession(oxyUserId: string): Promise<{ sessionId: string; qrPromise: Promise<string> }> {
+    const sessionId = uuidv4();
 
-    // Upsert the MongoDB document
-    await WhatsAppSession.findOneAndUpdate(
-      { oxyUserId },
-      {
-        $set: {
-          status: 'qr-pending',
-          authState: null,
-          authKeys: new Map(),
-          lastQR: null,
-        },
-        $setOnInsert: { oxyUserId },
-      },
-      { upsert: true, new: true }
-    );
+    // Create a new MongoDB document for this session
+    await WhatsAppSession.create({
+      sessionId,
+      oxyUserId,
+      status: 'qr-pending',
+      authState: null,
+      authKeys: new Map(),
+      lastQR: null,
+    });
 
     // Set up a QR promise that the HTTP handler can await
     let qrResolve!: (qr: string) => void;
@@ -100,34 +95,39 @@ class SessionManager {
       qrResolve = resolve;
       qrReject = reject;
     });
-    this.pendingQRs.set(oxyUserId, { resolve: qrResolve, reject: qrReject, promise: qrPromise });
+    this.pendingQRs.set(sessionId, { resolve: qrResolve, reject: qrReject, promise: qrPromise });
 
     // Auto-reject if no QR received within 30 seconds
     setTimeout(() => {
-      const pending = this.pendingQRs.get(oxyUserId);
+      const pending = this.pendingQRs.get(sessionId);
       if (pending) {
         pending.reject(new Error('QR code generation timed out'));
-        this.pendingQRs.delete(oxyUserId);
+        this.pendingQRs.delete(sessionId);
       }
     }, 30000);
 
     // Start the session (which will emit the QR)
-    await this.startSession(oxyUserId);
+    await this.startSession(sessionId);
 
-    return { qrPromise };
+    return { sessionId, qrPromise };
   }
 
   /**
    * Start or reconnect an existing session using auth stored in MongoDB.
    */
-  async startSession(oxyUserId: string): Promise<void> {
-    const sessionData = await WhatsAppSession.findOne({ oxyUserId });
+  async startSession(sessionId: string): Promise<void> {
+    const sessionData = await WhatsAppSession.findOne({ sessionId });
     if (!sessionData) {
-      throw new Error(`No session record found for user ${oxyUserId}`);
+      throw new Error(`No session record found for sessionId ${sessionId}`);
     }
 
+    const oxyUserId = sessionData.oxyUserId;
+
+    // Clean up any existing socket for this sessionId
+    await this.cleanupSocket(sessionId);
+
     // Build MongoDB-backed auth state
-    const { state, saveCreds } = await this.createMongoAuthState(oxyUserId, sessionData);
+    const { state, saveCreds } = await this.createMongoAuthState(sessionId, sessionData);
 
     const { version } = await fetchLatestBaileysVersion();
 
@@ -140,7 +140,7 @@ class SessionManager {
       syncFullHistory: true,
     });
 
-    this.sessions.set(oxyUserId, sock);
+    this.sessions.set(sessionId, sock);
 
     // ---- Connection updates ----
     sock.ev.on('connection.update', async (update) => {
@@ -149,28 +149,28 @@ class SessionManager {
       if (qr) {
         // Store QR for polling endpoint and resolve the pending promise
         await WhatsAppSession.updateOne(
-          { oxyUserId },
+          { sessionId },
           { $set: { status: 'qr-pending', lastQR: qr } }
         );
 
-        const pending = this.pendingQRs.get(oxyUserId);
+        const pending = this.pendingQRs.get(sessionId);
         if (pending) {
           pending.resolve(qr);
-          this.pendingQRs.delete(oxyUserId);
+          this.pendingQRs.delete(sessionId);
         }
 
-        console.log(`[WhatsApp] QR code generated for user ${oxyUserId}`);
+        console.log(`[WhatsApp] QR code generated for session ${sessionId} (user ${oxyUserId})`);
       }
 
       if (connection === 'open') {
         // Reset reconnect counter on successful connection
-        this.reconnectAttempts.delete(oxyUserId);
+        this.reconnectAttempts.delete(sessionId);
 
         const phoneNumber = sock.user?.id?.split(':')[0] || '';
         const displayName = sock.user?.name || '';
 
         await WhatsAppSession.updateOne(
-          { oxyUserId },
+          { sessionId },
           {
             $set: {
               status: 'connected',
@@ -181,27 +181,27 @@ class SessionManager {
             },
           }
         );
-        console.log(`[WhatsApp] Session connected for user ${oxyUserId} (${phoneNumber})`);
+        console.log(`[WhatsApp] Session ${sessionId} connected for user ${oxyUserId} (${phoneNumber})`);
       }
 
       if (connection === 'close') {
         const statusCode = (lastDisconnect?.error as any)?.output?.statusCode;
         const shouldReconnect = statusCode !== DisconnectReason.loggedOut;
 
-        this.sessions.delete(oxyUserId);
+        this.sessions.delete(sessionId);
 
         if (shouldReconnect) {
-          const attempts = (this.reconnectAttempts.get(oxyUserId) || 0) + 1;
-          this.reconnectAttempts.set(oxyUserId, attempts);
+          const attempts = (this.reconnectAttempts.get(sessionId) || 0) + 1;
+          this.reconnectAttempts.set(sessionId, attempts);
 
           if (attempts > SessionManager.MAX_RECONNECT_ATTEMPTS) {
             await WhatsAppSession.updateOne(
-              { oxyUserId },
+              { sessionId },
               { $set: { status: 'failed', lastDisconnected: new Date() } }
             );
-            this.reconnectAttempts.delete(oxyUserId);
+            this.reconnectAttempts.delete(sessionId);
             console.error(
-              `[WhatsApp] Session for ${oxyUserId} failed after ${SessionManager.MAX_RECONNECT_ATTEMPTS} reconnect attempts`
+              `[WhatsApp] Session ${sessionId} for ${oxyUserId} failed after ${SessionManager.MAX_RECONNECT_ATTEMPTS} reconnect attempts`
             );
           } else {
             const delay = Math.min(
@@ -210,28 +210,28 @@ class SessionManager {
             ) + Math.floor(Math.random() * SessionManager.JITTER_MAX_MS);
 
             await WhatsAppSession.updateOne(
-              { oxyUserId },
+              { sessionId },
               { $set: { status: 'disconnected', lastDisconnected: new Date() } }
             );
             console.log(
-              `[WhatsApp] Session disconnected for user ${oxyUserId} (status ${statusCode}), reconnecting in ${Math.round(delay / 1000)}s (attempt ${attempts}/${SessionManager.MAX_RECONNECT_ATTEMPTS})...`
+              `[WhatsApp] Session ${sessionId} disconnected for user ${oxyUserId} (status ${statusCode}), reconnecting in ${Math.round(delay / 1000)}s (attempt ${attempts}/${SessionManager.MAX_RECONNECT_ATTEMPTS})...`
             );
 
             // Clear any existing reconnect timer
-            const existing = this.reconnectTimers.get(oxyUserId);
+            const existing = this.reconnectTimers.get(sessionId);
             if (existing) clearTimeout(existing);
 
             const timer = setTimeout(() => {
-              this.reconnectTimers.delete(oxyUserId);
-              this.startSession(oxyUserId).catch((err) =>
-                console.error(`[WhatsApp] Reconnect failed for ${oxyUserId}:`, err)
+              this.reconnectTimers.delete(sessionId);
+              this.startSession(sessionId).catch((err) =>
+                console.error(`[WhatsApp] Reconnect failed for session ${sessionId}:`, err)
               );
             }, delay);
-            this.reconnectTimers.set(oxyUserId, timer);
+            this.reconnectTimers.set(sessionId, timer);
           }
         } else {
           await WhatsAppSession.updateOne(
-            { oxyUserId },
+            { sessionId },
             {
               $set: {
                 status: 'logged-out',
@@ -241,7 +241,7 @@ class SessionManager {
               },
             }
           );
-          console.log(`[WhatsApp] Session logged out for user ${oxyUserId}`);
+          console.log(`[WhatsApp] Session ${sessionId} logged out for user ${oxyUserId}`);
         }
       }
     });
@@ -263,9 +263,10 @@ class SessionManager {
 
         try {
           await WhatsAppMessage.updateOne(
-            { oxyUserId, messageId: msg.key.id },
+            { sessionId, messageId: msg.key.id },
             {
               $setOnInsert: {
+                sessionId,
                 oxyUserId,
                 jid: msg.key.remoteJid,
                 messageId: msg.key.id,
@@ -279,7 +280,7 @@ class SessionManager {
           );
         } catch (err: any) {
           if (err.code !== 11000) { // ignore duplicate key
-            console.error(`[WhatsApp] Error persisting message for ${oxyUserId}:`, err);
+            console.error(`[WhatsApp] Error persisting message for session ${sessionId}:`, err);
           }
         }
       }
@@ -291,9 +292,9 @@ class SessionManager {
         if (msg.key.fromMe) continue;
         if (!msg.message) continue;
         try {
-          await handleIncomingMessage(oxyUserId, sock, msg);
+          await handleIncomingMessage(sessionId, sock, msg);
         } catch (err) {
-          console.error(`[WhatsApp] Error handling message for ${oxyUserId}:`, err);
+          console.error(`[WhatsApp] Error handling message for session ${sessionId}:`, err);
         }
       }
     });
@@ -307,19 +308,19 @@ class SessionManager {
 
         try {
           await WhatsAppChat.updateOne(
-            { oxyUserId, jid: chat.id },
+            { sessionId, jid: chat.id },
             {
               $set: {
                 name: chat.name || chat.id.split('@')[0],
                 unreadCount: chat.unreadCount || 0,
                 conversationTimestamp: timestamp,
               },
-              $setOnInsert: { oxyUserId, jid: chat.id },
+              $setOnInsert: { sessionId, oxyUserId, jid: chat.id },
             },
             { upsert: true }
           );
         } catch (err) {
-          console.error(`[WhatsApp] Error persisting chat for ${oxyUserId}:`, err);
+          console.error(`[WhatsApp] Error persisting chat for session ${sessionId}:`, err);
         }
       }
     });
@@ -338,12 +339,12 @@ class SessionManager {
         if (Object.keys($set).length > 0) {
           try {
             await WhatsAppChat.updateOne(
-              { oxyUserId, jid: update.id },
-              { $set, $setOnInsert: { oxyUserId, jid: update.id } },
+              { sessionId, jid: update.id },
+              { $set, $setOnInsert: { sessionId, oxyUserId, jid: update.id } },
               { upsert: true }
             );
           } catch (err) {
-            console.error(`[WhatsApp] Error updating chat for ${oxyUserId}:`, err);
+            console.error(`[WhatsApp] Error updating chat for session ${sessionId}:`, err);
           }
         }
       }
@@ -353,10 +354,10 @@ class SessionManager {
     sock.ev.on('chats.delete', async (deletedJids) => {
       for (const jid of deletedJids) {
         try {
-          await WhatsAppChat.deleteOne({ oxyUserId, jid });
-          await WhatsAppMessage.deleteMany({ oxyUserId, jid });
+          await WhatsAppChat.deleteOne({ sessionId, jid });
+          await WhatsAppMessage.deleteMany({ sessionId, jid });
         } catch (err) {
-          console.error(`[WhatsApp] Error deleting chat ${jid} for ${oxyUserId}:`, err);
+          console.error(`[WhatsApp] Error deleting chat ${jid} for session ${sessionId}:`, err);
         }
       }
     });
@@ -367,17 +368,17 @@ class SessionManager {
         for (const key of item.keys) {
           if (!key.id) continue;
           try {
-            await WhatsAppMessage.deleteOne({ oxyUserId, messageId: key.id });
+            await WhatsAppMessage.deleteOne({ sessionId, messageId: key.id });
           } catch (err) {
-            console.error(`[WhatsApp] Error deleting message for ${oxyUserId}:`, err);
+            console.error(`[WhatsApp] Error deleting message for session ${sessionId}:`, err);
           }
         }
       } else if ('jid' in item && item.all) {
         // All messages in chat cleared
         try {
-          await WhatsAppMessage.deleteMany({ oxyUserId, jid: (item as any).jid });
+          await WhatsAppMessage.deleteMany({ sessionId, jid: (item as any).jid });
         } catch (err) {
-          console.error(`[WhatsApp] Error clearing messages for ${oxyUserId}:`, err);
+          console.error(`[WhatsApp] Error clearing messages for session ${sessionId}:`, err);
         }
       }
     });
@@ -391,11 +392,11 @@ class SessionManager {
         if (newText) {
           try {
             await WhatsAppMessage.updateOne(
-              { oxyUserId, messageId: update.key.id },
+              { sessionId, messageId: update.key.id },
               { $set: { text: newText } }
             );
           } catch (err) {
-            console.error(`[WhatsApp] Error updating message for ${oxyUserId}:`, err);
+            console.error(`[WhatsApp] Error updating message for session ${sessionId}:`, err);
           }
         }
       }
@@ -403,7 +404,7 @@ class SessionManager {
 
     // ---- History sync (bulk chat/message sets from WhatsApp) ----
     sock.ev.on('messaging-history.set', async ({ chats, messages, isLatest }) => {
-      console.log(`[WhatsApp] History sync for ${oxyUserId}: ${chats.length} chats, ${messages.length} messages (isLatest: ${isLatest})`);
+      console.log(`[WhatsApp] History sync for session ${sessionId}: ${chats.length} chats, ${messages.length} messages (isLatest: ${isLatest})`);
 
       // Bulk upsert chats
       if (chats.length > 0) {
@@ -414,14 +415,14 @@ class SessionManager {
             const timestamp = typeof ts === 'number' ? ts : (ts as any)?.low || 0;
             return {
               updateOne: {
-                filter: { oxyUserId, jid: c.id },
+                filter: { sessionId, jid: c.id },
                 update: {
                   $set: {
                     name: c.name || c.id.split('@')[0],
                     unreadCount: c.unreadCount || 0,
                     conversationTimestamp: timestamp,
                   },
-                  $setOnInsert: { oxyUserId, jid: c.id },
+                  $setOnInsert: { sessionId, oxyUserId, jid: c.id },
                 },
                 upsert: true,
               },
@@ -432,7 +433,7 @@ class SessionManager {
           try {
             await WhatsAppChat.bulkWrite(chatOps, { ordered: false });
           } catch (err) {
-            console.error(`[WhatsApp] Error bulk upserting chats for ${oxyUserId}:`, err);
+            console.error(`[WhatsApp] Error bulk upserting chats for session ${sessionId}:`, err);
           }
         }
       }
@@ -450,9 +451,10 @@ class SessionManager {
             const timestamp = typeof ts === 'number' ? ts : (ts as any)?.low || Math.floor(Date.now() / 1000);
             return {
               updateOne: {
-                filter: { oxyUserId, messageId: m.key.id },
+                filter: { sessionId, messageId: m.key.id },
                 update: {
                   $setOnInsert: {
+                    sessionId,
                     oxyUserId,
                     jid: m.key.remoteJid,
                     messageId: m.key.id,
@@ -470,9 +472,9 @@ class SessionManager {
         if (msgOps.length > 0) {
           try {
             await WhatsAppMessage.bulkWrite(msgOps, { ordered: false });
-            console.log(`[WhatsApp] Persisted ${msgOps.length} messages for ${oxyUserId}`);
+            console.log(`[WhatsApp] Persisted ${msgOps.length} messages for session ${sessionId}`);
           } catch (err) {
-            console.error(`[WhatsApp] Error bulk upserting messages for ${oxyUserId}:`, err);
+            console.error(`[WhatsApp] Error bulk upserting messages for session ${sessionId}:`, err);
           }
         }
       }
@@ -488,7 +490,7 @@ class SessionManager {
    *   where each key is `${type}-${id}` and the value is the serialized key data.
    */
   async createMongoAuthState(
-    oxyUserId: string,
+    sessionId: string,
     sessionData: IWhatsAppSession
   ): Promise<{ state: AuthenticationState; saveCreds: () => void }> {
     // Load creds from DB or initialize fresh ones for a new session.
@@ -501,7 +503,7 @@ class SessionManager {
     const store: SignalKeyStore = {
       get: async (type: string, ids: string[]) => {
         const result: Record<string, any> = {};
-        const fresh = await WhatsAppSession.findOne({ oxyUserId }).lean();
+        const fresh = await WhatsAppSession.findOne({ sessionId }).lean();
         const authKeys = fresh?.authKeys as Record<string, any> | undefined;
 
         for (const id of ids) {
@@ -533,7 +535,7 @@ class SessionManager {
         if (Object.keys($unset).length > 0) ops['$unset'] = $unset;
 
         if (Object.keys(ops).length > 0) {
-          await WhatsAppSession.updateOne({ oxyUserId }, ops);
+          await WhatsAppSession.updateOne({ sessionId }, ops);
         }
       },
     };
@@ -543,40 +545,40 @@ class SessionManager {
 
     const saveCreds = () => {
       this.credsSaveQueue = this.credsSaveQueue
-        .then(() => WhatsAppSession.updateOne({ oxyUserId }, { $set: { authState: serialize(creds) } }))
+        .then(() => WhatsAppSession.updateOne({ sessionId }, { $set: { authState: serialize(creds) } }))
         .then(() => {})
-        .catch((err) => console.error(`[WhatsApp] Failed to save creds for ${oxyUserId}:`, err));
+        .catch((err) => console.error(`[WhatsApp] Failed to save creds for session ${sessionId}:`, err));
     };
 
     return { state: { creds, keys }, saveCreds };
   }
 
   /**
-   * Disconnect and log out a user's session (removes auth data).
+   * Disconnect and log out a session (removes auth data).
    */
-  async disconnectSession(oxyUserId: string): Promise<void> {
-    const sock = this.sessions.get(oxyUserId);
+  async disconnectSession(sessionId: string): Promise<void> {
+    const sock = this.sessions.get(sessionId);
     if (sock) {
       try {
         await sock.logout();
       } catch (err) {
-        console.error(`[WhatsApp] Logout error for ${oxyUserId}:`, err);
+        console.error(`[WhatsApp] Logout error for session ${sessionId}:`, err);
         // Force-close even if logout fails
         sock.end(undefined);
       }
-      this.sessions.delete(oxyUserId);
+      this.sessions.delete(sessionId);
     }
 
     // Clear reconnect timer and attempts
-    const timer = this.reconnectTimers.get(oxyUserId);
+    const timer = this.reconnectTimers.get(sessionId);
     if (timer) {
       clearTimeout(timer);
-      this.reconnectTimers.delete(oxyUserId);
+      this.reconnectTimers.delete(sessionId);
     }
-    this.reconnectAttempts.delete(oxyUserId);
+    this.reconnectAttempts.delete(sessionId);
 
     await WhatsAppSession.updateOne(
-      { oxyUserId },
+      { sessionId },
       {
         $set: {
           status: 'logged-out',
@@ -589,17 +591,26 @@ class SessionManager {
   }
 
   /**
-   * Get session status from MongoDB.
+   * Get session status from MongoDB by sessionId.
    */
-  async getStatus(oxyUserId: string) {
-    return WhatsAppSession.findOne({ oxyUserId }).lean();
+  async getStatus(sessionId: string) {
+    return WhatsAppSession.findOne({ sessionId }).lean();
   }
 
   /**
-   * Get the active WASocket for a user.
+   * Get all sessions for a specific user.
    */
-  getSocket(oxyUserId: string): WASocket | undefined {
-    return this.sessions.get(oxyUserId);
+  async getUserSessions(oxyUserId: string) {
+    return WhatsAppSession.find({ oxyUserId })
+      .select('sessionId oxyUserId phoneNumber displayName status lastConnected lastDisconnected createdAt')
+      .lean();
+  }
+
+  /**
+   * Get the active WASocket for a session.
+   */
+  getSocket(sessionId: string): WASocket | undefined {
+    return this.sessions.get(sessionId);
   }
 
   /**
@@ -607,7 +618,7 @@ class SessionManager {
    */
   async listSessions() {
     return WhatsAppSession.find()
-      .select('oxyUserId phoneNumber displayName status lastConnected lastDisconnected createdAt')
+      .select('sessionId oxyUserId phoneNumber displayName status lastConnected lastDisconnected createdAt')
       .lean();
   }
 
@@ -618,20 +629,20 @@ class SessionManager {
     console.log(`[WhatsApp] Shutting down ${this.sessions.size} session(s)...`);
 
     // Clear all reconnect timers
-    for (const [userId, timer] of this.reconnectTimers) {
+    for (const [sessionId, timer] of this.reconnectTimers) {
       clearTimeout(timer);
-      this.reconnectTimers.delete(userId);
+      this.reconnectTimers.delete(sessionId);
     }
 
     // Clear reconnect attempts
     this.reconnectAttempts.clear();
 
     // Close all sockets
-    for (const [userId, sock] of this.sessions) {
+    for (const [sessionId, sock] of this.sessions) {
       try {
         sock.end(undefined);
       } catch (err) {
-        console.error(`[WhatsApp] Error closing socket for ${userId}:`, err);
+        console.error(`[WhatsApp] Error closing socket for session ${sessionId}:`, err);
       }
     }
     this.sessions.clear();
@@ -640,32 +651,32 @@ class SessionManager {
   }
 
   /**
-   * Internal: clean up socket and timers for a user before creating a new session.
+   * Internal: clean up socket and timers for a session before creating a new one.
    */
-  private async cleanupSocket(oxyUserId: string): Promise<void> {
-    const existingSock = this.sessions.get(oxyUserId);
+  private async cleanupSocket(sessionId: string): Promise<void> {
+    const existingSock = this.sessions.get(sessionId);
     if (existingSock) {
       try {
         existingSock.end(undefined);
       } catch {
         // ignore
       }
-      this.sessions.delete(oxyUserId);
+      this.sessions.delete(sessionId);
     }
 
-    const pending = this.pendingQRs.get(oxyUserId);
+    const pending = this.pendingQRs.get(sessionId);
     if (pending) {
       pending.reject(new Error('Session was reset'));
-      this.pendingQRs.delete(oxyUserId);
+      this.pendingQRs.delete(sessionId);
     }
 
-    const timer = this.reconnectTimers.get(oxyUserId);
+    const timer = this.reconnectTimers.get(sessionId);
     if (timer) {
       clearTimeout(timer);
-      this.reconnectTimers.delete(oxyUserId);
+      this.reconnectTimers.delete(sessionId);
     }
 
-    this.reconnectAttempts.delete(oxyUserId);
+    this.reconnectAttempts.delete(sessionId);
   }
 }
 

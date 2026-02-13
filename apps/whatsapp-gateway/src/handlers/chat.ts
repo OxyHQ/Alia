@@ -4,6 +4,7 @@ import { generateText } from 'ai';
 import { resolveModel, reportUsage } from '../services/model-resolver';
 import { apiClient } from '../services/api-client';
 import { v4 as uuidv4 } from 'uuid';
+import { WhatsAppSession } from '../models/whatsapp-session';
 
 /**
  * Deduplication set: keeps track of recently-processed message IDs
@@ -13,7 +14,7 @@ import { v4 as uuidv4 } from 'uuid';
 const processedMessages = new Set<string>();
 
 export async function handleIncomingMessage(
-  oxyUserId: string,
+  sessionId: string,
   sock: WASocket,
   msg: proto.IWebMessageInfo
 ): Promise<void> {
@@ -35,6 +36,14 @@ export async function handleIncomingMessage(
 
   const remoteJid = msg.key?.remoteJid;
   if (!remoteJid) return;
+
+  // Look up the oxyUserId from the session document
+  const sessionDoc = await WhatsAppSession.findOne({ sessionId }).lean();
+  if (!sessionDoc) {
+    console.error(`[WhatsApp/Chat] No session found for sessionId ${sessionId}`);
+    return;
+  }
+  const oxyUserId = sessionDoc.oxyUserId;
 
   const botSecret = process.env.WHATSAPP_GATEWAY_SECRET;
   const apiBaseUrl = process.env.API_BASE_URL || 'http://localhost:3001';
