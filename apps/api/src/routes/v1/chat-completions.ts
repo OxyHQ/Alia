@@ -683,7 +683,11 @@ When you use a tool successfully:
       // Detect spending anomalies for proactive warnings
       if (req.user?.id) {
         try {
-          response.usage.credit_warning = await detectCreditAnomaly(req.user.id);
+          const warning = await detectCreditAnomaly(req.user.id);
+          if (warning) {
+            warning.currentModelMultiplier = getAliaModel(aliasModelId)?.creditMultiplier || 1;
+          }
+          response.usage.credit_warning = warning;
         } catch {}
       }
 
@@ -1053,6 +1057,9 @@ When you use a tool successfully:
         if (req.user?.id) {
           try {
             creditWarning = await detectCreditAnomaly(req.user.id);
+            if (creditWarning) {
+              creditWarning.currentModelMultiplier = getAliaModel(aliasModelId)?.creditMultiplier || 1;
+            }
           } catch {}
         }
 
