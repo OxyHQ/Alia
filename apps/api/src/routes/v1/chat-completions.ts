@@ -1,5 +1,5 @@
 import { Router, Request, Response } from 'express';
-import { streamText, generateText, type ToolSet } from 'ai';
+import { streamText, generateText, stepCountIs, type ToolSet } from 'ai';
 import { resolveModel, getAIModel, getDefaultAliaModel, reportModelUsage } from '../../lib/chat-core.js';
 import { UserCredits } from '../../models/user-credits.js';
 import { UserMemory } from '../../models/user-memory.js';
@@ -452,10 +452,9 @@ When you use a tool successfully:
       temperature: body.temperature ?? 0.7,
       tools: allTools,
       maxRetries: 0, // Fail fast to application-level provider fallback
-      // Enable maxSteps to continue with tool results automatically
-      // For client tools (Cowork, Codea), this allows the model to see tool results
-      // For server tools (Telegram, Memory), this executes them automatically
-      maxSteps: 5,
+      // AI SDK v6: stopWhen replaces maxSteps. Without this, the SDK defaults to
+      // stepCountIs(1) which stops after tool calls without generating a text response.
+      stopWhen: stepCountIs(5),
       onFinish: async (result: any) => {
         // Capture token usage from AI SDK
         if (result.usage) {
