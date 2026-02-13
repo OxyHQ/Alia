@@ -13,7 +13,7 @@ import { handleMessage, handleNewConversation, handleHistory } from './handlers/
 import { handleHelp, handleModel, handleModelSelection } from './handlers/commands';
 
 // Validate environment variables
-const requiredEnvVars = ['TELEGRAM_BOT_TOKEN', 'API_BASE_URL'];
+const requiredEnvVars = ['TELEGRAM_BOT_TOKEN', 'API_BASE_URL', 'TELEGRAM_BOT_SECRET'];
 for (const envVar of requiredEnvVars) {
   if (!process.env[envVar]) {
     console.error(`Missing required environment variable: ${envVar}`);
@@ -51,6 +51,12 @@ async function initializeBot() {
     bot.command('new', handleNewConversation);
     bot.command('history', handleHistory);
 
+    // Answer all callback queries to remove loading state (must be before action handlers)
+    bot.on('callback_query', async (ctx, next) => {
+      await ctx.answerCbQuery();
+      return next();
+    });
+
     // Register callback query handlers for inline buttons
     bot.action('start', handleStart);
     bot.action('logout', handleLogout);
@@ -63,12 +69,6 @@ async function initializeBot() {
     bot.action(/^model_(.+)$/, (ctx) => {
       const modelId = ctx.match[1];
       return handleModelSelection(ctx, modelId);
-    });
-
-    // Answer all callback queries to remove loading state
-    bot.on('callback_query', async (ctx, next) => {
-      await ctx.answerCbQuery();
-      return next();
     });
 
     // Handle all text messages (chat with Alia)

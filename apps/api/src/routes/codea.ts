@@ -20,10 +20,11 @@ function mapPlanToAliaPlan(planName: string | undefined): string {
   if (!planName) return 'free';
 
   const name = planName.toLowerCase();
-  if (name.includes('enterprise')) return 'alia_enterprise';
-  if (name.includes('business')) return 'alia_business';
-  if (name.includes('pro+') || name.includes('pro plus') || name.includes('proplus')) return 'alia_pro_plus';
+  if (name.includes('ultra')) return 'alia_ultra';
+  if (name.includes('max')) return 'alia_max';
   if (name.includes('pro')) return 'alia_pro';
+  if (name.includes('standard')) return 'alia_standard';
+  if (name.includes('basic')) return 'alia_basic';
   return 'alia_free';
 }
 

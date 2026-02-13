@@ -14,8 +14,8 @@ export interface SubscriptionPlan {
   id: string;
   name: string;
   creditsPerMonth: number;
-  price: number;
-  stripePriceId: string;
+  monthlyPrice: number;
+  annualPrice: number;
   currency: string;
 }
 

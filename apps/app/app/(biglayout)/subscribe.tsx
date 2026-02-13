@@ -53,92 +53,110 @@ interface PricingTier {
   creditsLabel: string;
 }
 
-// ─── Feature lists (matching Manus screenshots) ─────────────────────
+// ─── Feature lists ───────────────────────────────────────────────────
 
-const FREE_FEATURES: PricingFeature[] = [
-  { icon: RefreshCw, label: '300 refresh credits everyday' },
-  { icon: Sparkles, label: '4,000 credits per month' },
-  { icon: Search, label: 'In-depth research for everyday tasks' },
-  { icon: Globe, label: 'Professional websites for standard output' },
-  { icon: FileSliders, label: 'Insightful slides for regular content' },
-  { icon: Network, label: 'Task scaling with Wide Research' },
-  { icon: FlaskConical, label: 'Early access to beta features' },
-  { icon: Layers, label: '20 concurrent tasks' },
-  { icon: Calendar, label: '20 scheduled tasks' },
-];
-
-const PRO_FEATURES: PricingFeature[] = [
-  { icon: RefreshCw, label: '300 refresh credits everyday' },
-  { icon: Sparkles, label: '8,000 credits per month' },
-  { icon: Search, label: 'In-depth research with self-set usage' },
-  { icon: Globe, label: 'Professional websites for changing needs' },
-  { icon: FileSliders, label: 'Insightful slides for steady creation' },
-  { icon: Network, label: 'Wide Research scaled to your chosen plan' },
-  { icon: FlaskConical, label: 'Early access to beta features' },
-  { icon: Layers, label: '20 concurrent tasks' },
-  { icon: Calendar, label: '20 scheduled tasks' },
-];
-
-const BUSINESS_FEATURES: PricingFeature[] = [
-  { icon: RefreshCw, label: '300 refresh credits everyday' },
-  { icon: Sparkles, label: '40,000 credits per month' },
-  { icon: Search, label: 'In-depth research for large-scale tasks' },
-  { icon: Globe, label: 'Professional websites with data analytics' },
-  { icon: FileSliders, label: 'Insightful slides for batch production' },
-  { icon: Network, label: 'Wide Research for sustained heavy use' },
-  { icon: FlaskConical, label: 'Early access to beta features' },
-  { icon: Layers, label: '20 concurrent tasks' },
-  { icon: Calendar, label: '20 scheduled tasks' },
-];
+const TIER_FEATURES: Record<string, PricingFeature[]> = {
+  free: [
+    { icon: RefreshCw, label: '300 refresh credits everyday' },
+    { icon: Sparkles, label: '1,000 credits per month' },
+    { icon: Search, label: 'Basic research and chat' },
+    { icon: Globe, label: 'Access to standard models' },
+    { icon: Layers, label: '5 concurrent tasks' },
+  ],
+  basic: [
+    { icon: RefreshCw, label: '300 refresh credits everyday' },
+    { icon: Sparkles, label: '4,000 credits per month' },
+    { icon: Search, label: 'Research for everyday tasks' },
+    { icon: Globe, label: 'Access to all standard models' },
+    { icon: FlaskConical, label: 'Early access to beta features' },
+    { icon: Layers, label: '10 concurrent tasks' },
+  ],
+  standard: [
+    { icon: RefreshCw, label: '300 refresh credits everyday' },
+    { icon: Sparkles, label: '10,000 credits per month' },
+    { icon: Search, label: 'In-depth research and analysis' },
+    { icon: Globe, label: 'Access to all models including premium' },
+    { icon: Network, label: 'Web search and file processing' },
+    { icon: FlaskConical, label: 'Early access to beta features' },
+    { icon: Layers, label: '20 concurrent tasks' },
+    { icon: Calendar, label: '20 scheduled tasks' },
+  ],
+  pro: [
+    { icon: RefreshCw, label: '300 refresh credits everyday' },
+    { icon: Sparkles, label: '20,000 credits per month' },
+    { icon: Search, label: 'Advanced research for complex tasks' },
+    { icon: Globe, label: 'Priority access to all models' },
+    { icon: FileSliders, label: 'Full API access for integrations' },
+    { icon: Network, label: 'Higher rate limits' },
+    { icon: FlaskConical, label: 'Early access to beta features' },
+    { icon: Layers, label: '20 concurrent tasks' },
+    { icon: Calendar, label: '20 scheduled tasks' },
+  ],
+  max: [
+    { icon: RefreshCw, label: '300 refresh credits everyday' },
+    { icon: Sparkles, label: '50,000 credits per month' },
+    { icon: Search, label: 'Deep research for large-scale tasks' },
+    { icon: Globe, label: 'Priority access to all models' },
+    { icon: FileSliders, label: 'Maximum context and output length' },
+    { icon: Network, label: 'Dedicated capacity' },
+    { icon: FlaskConical, label: 'Early access to beta features' },
+    { icon: Layers, label: '50 concurrent tasks' },
+    { icon: Calendar, label: '50 scheduled tasks' },
+  ],
+  ultra: [
+    { icon: RefreshCw, label: '300 refresh credits everyday' },
+    { icon: Sparkles, label: '100,000 credits per month' },
+    { icon: Search, label: 'Unlimited research and deep analysis' },
+    { icon: Globe, label: 'Top priority access to all models' },
+    { icon: FileSliders, label: 'Maximum context and output length' },
+    { icon: Network, label: 'Dedicated capacity for heavy workloads' },
+    { icon: FlaskConical, label: 'Early access to all features' },
+    { icon: Layers, label: '100 concurrent tasks' },
+    { icon: Calendar, label: '100 scheduled tasks' },
+  ],
+};
 
 // ─── Helpers ─────────────────────────────────────────────────────────
+
+const TIER_CONFIG: Record<string, { subtitle: string; isFeatured: boolean; ctaLabel: string }> = {
+  Basic: { subtitle: 'subscribe.basicUsage', isFeatured: false, ctaLabel: 'subscribe.upgrade' },
+  Standard: { subtitle: 'subscribe.standardUsage', isFeatured: true, ctaLabel: 'subscribe.getStartedFree' },
+  Pro: { subtitle: 'subscribe.proUsage', isFeatured: false, ctaLabel: 'subscribe.upgrade' },
+  Max: { subtitle: 'subscribe.extendedUsage', isFeatured: false, ctaLabel: 'subscribe.upgrade' },
+  Ultra: { subtitle: 'subscribe.unlimitedUsage', isFeatured: false, ctaLabel: 'subscribe.upgrade' },
+};
 
 function buildTiers(
   apiPlans: SubscriptionPlan[],
   t: (key: string) => string,
 ): PricingTier[] {
-  const proPlan = apiPlans.find((p) => p.name === 'Pro');
-  const businessPlan = apiPlans.find((p) => p.name === 'Business');
-
   const tiers: PricingTier[] = [
     {
       id: 'free',
       name: 'Free',
-      subtitle: t('subscribe.standardUsage'),
+      subtitle: t('subscribe.freeUsage'),
       monthlyPrice: 0,
       annualPrice: 0,
-      features: FREE_FEATURES,
+      features: TIER_FEATURES.free,
       isFeatured: false,
       ctaLabel: t('subscribe.upgrade'),
-      creditsLabel: '4,000 credits / month',
+      creditsLabel: '1,000 credits / month',
     },
   ];
 
-  if (proPlan) {
+  for (const plan of apiPlans) {
+    const config = TIER_CONFIG[plan.name];
+    if (!config) continue;
     tiers.push({
-      id: proPlan.id,
-      name: '7-Day Free',
-      subtitle: t('subscribe.customizableUsage'),
-      monthlyPrice: proPlan.monthlyPrice,
-      annualPrice: proPlan.annualPrice,
-      features: PRO_FEATURES,
-      isFeatured: true,
-      ctaLabel: t('subscribe.getStartedFree'),
-      creditsLabel: '8,000 credits / month',
-    });
-  }
-
-  if (businessPlan) {
-    tiers.push({
-      id: businessPlan.id,
-      name: '',
-      subtitle: t('subscribe.extendedUsage'),
-      monthlyPrice: businessPlan.monthlyPrice,
-      annualPrice: businessPlan.annualPrice,
-      features: BUSINESS_FEATURES,
-      isFeatured: false,
-      ctaLabel: t('subscribe.upgrade'),
-      creditsLabel: '40,000 credits / month',
+      id: plan.id,
+      name: plan.name,
+      subtitle: t(config.subtitle),
+      monthlyPrice: plan.monthlyPrice,
+      annualPrice: plan.annualPrice,
+      features: TIER_FEATURES[plan.id] || TIER_FEATURES.standard,
+      isFeatured: config.isFeatured,
+      ctaLabel: t(config.ctaLabel),
+      creditsLabel: `${plan.creditsPerMonth.toLocaleString()} credits / month`,
     });
   }
 
