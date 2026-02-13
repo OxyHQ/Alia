@@ -4,7 +4,7 @@
 
 import { tool } from 'ai';
 import { z } from 'zod';
-import { runCommand, createSession, destroySession } from './manager';
+import { runCommand, destroySession } from './manager';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 
@@ -20,8 +20,7 @@ export function getTerminalTools(sessionId: string) {
       parameters: z.object({
         command: z.string().describe('The shell command to execute'),
       }),
-      execute: async ({ command }) => {
-        // Ensure workspace exists
+      execute: async ({ command }: { command: string }) => {
         await fs.mkdir(WORK_DIR, { recursive: true }).catch(() => {});
         const output = await runCommand(sessionId, `cd ${WORK_DIR} && ${command}`);
         return { output: output.slice(0, 10000), command };
@@ -33,9 +32,8 @@ export function getTerminalTools(sessionId: string) {
       parameters: z.object({
         filepath: z.string().describe('Path to the file (relative to workspace or absolute under /tmp)'),
       }),
-      execute: async ({ filepath }) => {
+      execute: async ({ filepath }: { filepath: string }) => {
         const resolved = filepath.startsWith('/') ? filepath : path.join(WORK_DIR, filepath);
-        // Security: only allow reading under /tmp
         if (!resolved.startsWith('/tmp')) {
           return { error: 'Can only read files under /tmp' };
         }
@@ -54,7 +52,7 @@ export function getTerminalTools(sessionId: string) {
         filepath: z.string().describe('Path to the file (relative to workspace or absolute under /tmp)'),
         content: z.string().describe('Content to write'),
       }),
-      execute: async ({ filepath, content }) => {
+      execute: async ({ filepath, content }: { filepath: string; content: string }) => {
         const resolved = filepath.startsWith('/') ? filepath : path.join(WORK_DIR, filepath);
         if (!resolved.startsWith('/tmp')) {
           return { error: 'Can only write files under /tmp' };
@@ -74,7 +72,7 @@ export function getTerminalTools(sessionId: string) {
       parameters: z.object({
         dir: z.string().optional().describe('Directory to list (defaults to workspace root)'),
       }),
-      execute: async ({ dir }) => {
+      execute: async ({ dir }: { dir?: string }) => {
         const resolved = dir
           ? dir.startsWith('/') ? dir : path.join(WORK_DIR, dir)
           : WORK_DIR;
@@ -98,7 +96,7 @@ export function getTerminalTools(sessionId: string) {
     close_terminal: tool({
       description: 'Close the terminal session.',
       parameters: z.object({}),
-      execute: async () => {
+      execute: async (_args: Record<string, never>) => {
         destroySession(sessionId);
         return { closed: true };
       },

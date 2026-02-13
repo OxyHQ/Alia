@@ -17,14 +17,13 @@ export function getBrowserTools(sessionId: string) {
       parameters: z.object({
         url: z.string().describe('The URL to navigate to'),
       }),
-      execute: async ({ url }) => {
+      execute: async ({ url }: { url: string }) => {
         const { page } = await getOrCreateContext(sessionId);
         await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 15000 });
         const title = await page.title();
         const text = await page.evaluate(() => {
           const body = document.body;
-          // Remove scripts/styles for cleaner text
-          body.querySelectorAll('script, style, noscript').forEach((el) => el.remove());
+          body.querySelectorAll('script, style, noscript').forEach((el: Element) => el.remove());
           return body.innerText.slice(0, 8000);
         });
         broadcastEvent(sessionId, 'browser', { action: 'navigate', url, title });
@@ -37,7 +36,7 @@ export function getBrowserTools(sessionId: string) {
       parameters: z.object({
         selector: z.string().describe('CSS selector or text to click on (e.g., "button.submit" or "text=Sign In")'),
       }),
-      execute: async ({ selector }) => {
+      execute: async ({ selector }: { selector: string }) => {
         const { page } = await getOrCreateContext(sessionId);
         await page.click(selector, { timeout: 5000 });
         await page.waitForLoadState('domcontentloaded', { timeout: 5000 }).catch(() => {});
@@ -52,7 +51,7 @@ export function getBrowserTools(sessionId: string) {
         selector: z.string().describe('CSS selector for the input element'),
         text: z.string().describe('Text to type'),
       }),
-      execute: async ({ selector, text }) => {
+      execute: async ({ selector, text }: { selector: string; text: string }) => {
         const { page } = await getOrCreateContext(sessionId);
         await page.fill(selector, text, { timeout: 5000 });
         broadcastEvent(sessionId, 'browser', { action: 'type', selector });
@@ -65,14 +64,14 @@ export function getBrowserTools(sessionId: string) {
       parameters: z.object({
         selector: z.string().optional().describe('CSS selector to extract from (defaults to full page body)'),
       }),
-      execute: async ({ selector }) => {
+      execute: async ({ selector }: { selector?: string }) => {
         const { page } = await getOrCreateContext(sessionId);
         let text: string;
         if (selector) {
           text = await page.locator(selector).first().innerText({ timeout: 5000 });
         } else {
           text = await page.evaluate(() => {
-            document.querySelectorAll('script, style, noscript').forEach((el) => el.remove());
+            document.querySelectorAll('script, style, noscript').forEach((el: Element) => el.remove());
             return document.body.innerText.slice(0, 8000);
           });
         }
@@ -83,7 +82,7 @@ export function getBrowserTools(sessionId: string) {
     web_screenshot: tool({
       description: 'Take a screenshot of the current browser page.',
       parameters: z.object({}),
-      execute: async () => {
+      execute: async (_args: Record<string, never>) => {
         const screenshot = await takeScreenshot(sessionId);
         if (!screenshot) return { error: 'No active browser session' };
         const base64 = screenshot.toString('base64');
@@ -95,7 +94,7 @@ export function getBrowserTools(sessionId: string) {
     web_close: tool({
       description: 'Close the browser session.',
       parameters: z.object({}),
-      execute: async () => {
+      execute: async (_args: Record<string, never>) => {
         await closeContext(sessionId);
         broadcastEvent(sessionId, 'browser', { action: 'close' });
         return { closed: true };
