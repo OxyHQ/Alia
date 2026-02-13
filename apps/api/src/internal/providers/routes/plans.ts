@@ -21,7 +21,7 @@ router.get('/', async (req: Request, res: Response) => {
     if (product && typeof product === 'string') query.product = product;
     if (active !== undefined) query.isActive = active === 'true';
 
-    const plans = await Plan.find(query).sort({ product: 1, sortOrder: 1 });
+    const plans = await Plan.find(query).sort({ product: 1, sortOrder: 1 }).lean();
 
     res.json({
       success: true,
@@ -45,7 +45,7 @@ router.get('/', async (req: Request, res: Response) => {
 router.get('/:planId', async (req: Request, res: Response) => {
   try {
     const { planId } = req.params;
-    const plan = await Plan.findOne({ planId });
+    const plan = await Plan.findOne({ planId }).lean();
 
     if (!plan) {
       return res.status(404).json({
@@ -89,6 +89,16 @@ router.post('/', async (req: Request, res: Response) => {
       return res.status(400).json({
         success: false,
         error: 'product must be "alia" or "codea"',
+        code: 'INVALID_REQUEST',
+      });
+    }
+
+    if ((typeof creditsPerMonth === 'number' && creditsPerMonth < 0) ||
+        (typeof monthlyPrice === 'number' && monthlyPrice < 0) ||
+        (typeof annualPrice === 'number' && annualPrice < 0)) {
+      return res.status(400).json({
+        success: false,
+        error: 'creditsPerMonth, monthlyPrice, and annualPrice must not be negative',
         code: 'INVALID_REQUEST',
       });
     }
@@ -145,6 +155,16 @@ router.patch('/:planId', async (req: Request, res: Response) => {
       return res.status(400).json({
         success: false,
         error: 'product must be "alia" or "codea"',
+        code: 'INVALID_REQUEST',
+      });
+    }
+
+    if ((typeof updates.creditsPerMonth === 'number' && updates.creditsPerMonth < 0) ||
+        (typeof updates.monthlyPrice === 'number' && updates.monthlyPrice < 0) ||
+        (typeof updates.annualPrice === 'number' && updates.annualPrice < 0)) {
+      return res.status(400).json({
+        success: false,
+        error: 'creditsPerMonth, monthlyPrice, and annualPrice must not be negative',
         code: 'INVALID_REQUEST',
       });
     }

@@ -273,6 +273,7 @@ export function PlansPage() {
       queryClient.invalidateQueries({ queryKey: ['plans'] });
       setEditOpen(false);
     },
+    onError: (err: any) => alert(err?.response?.data?.error || err.message || 'Failed to create plan'),
   });
 
   const updateMutation = useMutation({
@@ -283,6 +284,7 @@ export function PlansPage() {
       setEditOpen(false);
       setSelectedPlan(null);
     },
+    onError: (err: any) => alert(err?.response?.data?.error || err.message || 'Failed to update plan'),
   });
 
   const deleteMutation = useMutation({
@@ -292,6 +294,7 @@ export function PlansPage() {
       setDeleteOpen(false);
       setSelectedPlan(null);
     },
+    onError: (err: any) => alert(err?.response?.data?.error || err.message || 'Failed to delete plan'),
   });
 
   // Handlers
@@ -314,10 +317,27 @@ export function PlansPage() {
   };
 
   const handleSave = () => {
+    if (isCreating && !form.planId.trim()) {
+      return alert('Plan ID is required');
+    }
+    if (!form.name.trim()) {
+      return alert('Name is required');
+    }
+    if (form.creditsPerMonth < 0 || form.monthlyPrice < 0 || form.annualPrice < 0) {
+      return alert('Credits and prices must not be negative');
+    }
+
+    // Strip empty feature groups/items
+    const cleanedFeatures = form.features
+      .filter(g => g.category.trim())
+      .map(g => ({ ...g, items: g.items.filter(i => i.label.trim()) }));
+
+    const cleanedForm = { ...form, features: cleanedFeatures };
+
     if (isCreating) {
-      createMutation.mutate(form);
+      createMutation.mutate(cleanedForm);
     } else if (selectedPlan) {
-      const { planId, ...updates } = form;
+      const { planId, ...updates } = cleanedForm;
       updateMutation.mutate({ planId: selectedPlan.planId, data: updates });
     }
   };

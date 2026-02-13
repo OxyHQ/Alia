@@ -235,9 +235,9 @@ function BillingPage() {
             </DialogDescription>
           </DialogHeader>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 py-4">
-            {plans.map((plan) => {
-              const isCurrentPlan = subscription?.plan?.name === plan.name && subscription?.status === 'active';
-              const isPopular = plan.name === 'Pro';
+            {plans.filter(p => !p.isFree).map((plan) => {
+              const isCurrentPlan = subscription?.plan?.planId === plan.id && subscription?.status === 'active';
+              const isPopular = plan.isFeatured ?? false;
               return (
                 <div
                   key={plan.id}

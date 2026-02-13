@@ -144,7 +144,7 @@ router.get('/plans', async (req: Request, res: Response) => {
     const query: any = { isActive: true };
     if (product) query.product = product;
 
-    const dbPlans = await Plan.find(query).sort({ sortOrder: 1 });
+    const dbPlans = await Plan.find(query).sort({ sortOrder: 1 }).lean();
 
     const plans = dbPlans.map(p => ({
       id: p.planId,
@@ -179,7 +179,7 @@ router.post('/checkout/subscription', authenticateToken, async (req: Request, re
     const { planId, billingPeriod, successUrl, cancelUrl } = createSubscriptionSchema.parse(req.body);
     const userId = req.user!.id;
 
-    const plan = await Plan.findOne({ planId, isActive: true, isFree: false });
+    const plan = await Plan.findOne({ planId, isActive: true, isFree: false }).lean();
     if (!plan) {
       return res.status(400).json({ error: 'Invalid plan ID' });
     }
@@ -227,7 +227,7 @@ router.get('/subscription', authenticateToken, async (req: Request, res: Respons
     if (product) {
       query['plan.product'] = product;
     }
-    const subscription = await Subscription.findOne(query);
+    const subscription = await Subscription.findOne(query).lean();
     res.json({ subscription });
   } catch (error: any) {
     console.error('[Billing] Error fetching subscription:', error);
@@ -266,7 +266,8 @@ router.get('/transactions', authenticateToken, async (req: Request, res: Respons
     const transactions = await Transaction.find({ oxyUserId: req.user!.id })
       .sort({ createdAt: -1 })
       .limit(Number(limit))
-      .skip(Number(offset));
+      .skip(Number(offset))
+      .lean();
     const total = await Transaction.countDocuments({ oxyUserId: req.user!.id });
     res.json({ transactions, total });
   } catch (error: any) {
@@ -341,29 +342,44 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
   await userCredits.addCredits(credits, 'paid');
   console.log(`[Billing] Added ${credits} credits to user ${metadata.userId}`);
 
-  await Transaction.create({
-    oxyUserId: metadata.userId,
-    stripeCustomerId: session.customer as string,
-    stripePaymentIntentId: session.payment_intent as string,
-    type: 'credit_purchase',
-    amount: session.amount_total || 0,
-    currency: session.currency || 'usd',
-    credits,
-    status: 'completed',
-    description: `Purchased ${credits.toLocaleString()} credits`,
-  });
+  try {
+    await Transaction.create({
+      oxyUserId: metadata.userId,
+      stripeCustomerId: session.customer as string,
+      stripePaymentIntentId: session.payment_intent as string,
+      type: 'credit_purchase',
+      amount: session.amount_total || 0,
+      currency: session.currency || 'usd',
+      credits,
+      status: 'completed',
+      description: `Purchased ${credits.toLocaleString()} credits`,
+    });
+  } catch (err: any) {
+    // Duplicate stripePaymentIntentId means this event was already processed
+    if (err.code === 11000) {
+      console.warn(`[Billing] Duplicate checkout event for payment_intent ${session.payment_intent}, skipping`);
+      return;
+    }
+    throw err;
+  }
 }
 
 async function handleSubscriptionUpdate(stripeSubscription: Stripe.Subscription) {
   const customerId = stripeSubscription.customer as string;
   const userCredits = await UserCredits.findOne({ stripeCustomerId: customerId });
-  if (!userCredits) return;
+  if (!userCredits) {
+    console.warn(`[Billing] No UserCredits found for stripeCustomerId ${customerId}, skipping subscription update`);
+    return;
+  }
 
   // Match plan by metadata (set via subscription_data.metadata in checkout)
   const metadata = stripeSubscription.metadata;
   const resolvedPlanId = LEGACY_PLAN_MAP[metadata?.planId || ''] || metadata?.planId;
-  const plan = await Plan.findOne({ planId: resolvedPlanId });
-  if (!plan) return;
+  const plan = await Plan.findOne({ planId: resolvedPlanId }).lean();
+  if (!plan) {
+    console.error(`[Billing] Plan not found for subscription ${stripeSubscription.id}, planId: ${resolvedPlanId}`);
+    return;
+  }
 
   const isAnnual = metadata?.billingPeriod === 'annual';
   const price = isAnnual ? plan.annualPrice : plan.monthlyPrice;
@@ -380,14 +396,22 @@ async function handleSubscriptionUpdate(stripeSubscription: Stripe.Subscription)
       currentPeriodStart: new Date(sub.current_period_start * 1000),
       currentPeriodEnd: new Date(sub.current_period_end * 1000),
       cancelAtPeriodEnd: sub.cancel_at_period_end,
-      plan: { name: plan.name, product: plan.product, creditsPerMonth: plan.creditsPerMonth, price, currency: plan.currency, billingPeriod: isAnnual ? 'annual' : 'monthly' },
+      plan: { planId: plan.planId, name: plan.name, product: plan.product, creditsPerMonth: plan.creditsPerMonth, price, currency: plan.currency, billingPeriod: isAnnual ? 'annual' : 'monthly' },
     },
     { upsert: true, new: true }
   );
 
+  // Add subscription credits with dedup protection
   if (stripeSubscription.status === 'active') {
     const now = Date.now() / 1000;
     if (Math.abs(now - sub.current_period_start) < 300) {
+      const dedupKey = `${stripeSubscription.id}_${sub.current_period_start}`;
+      const existing = await Transaction.findOne({ 'metadata.dedup': dedupKey }).lean();
+      if (existing) {
+        console.warn(`[Billing] Duplicate subscription credit event for ${dedupKey}, skipping`);
+        return;
+      }
+
       await userCredits.addCredits(plan.creditsPerMonth, 'paid');
       await Transaction.create({
         oxyUserId: userCredits._id,
@@ -398,6 +422,7 @@ async function handleSubscriptionUpdate(stripeSubscription: Stripe.Subscription)
         credits: plan.creditsPerMonth,
         status: 'completed',
         description: `${plan.name} subscription credits (${isAnnual ? 'annual' : 'monthly'})`,
+        metadata: { dedup: dedupKey },
       });
     }
   }

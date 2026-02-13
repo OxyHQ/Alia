@@ -46,6 +46,7 @@ export interface Subscription {
   currentPeriodEnd: string;
   cancelAtPeriodEnd: boolean;
   plan: {
+    planId?: string;
     name: string;
     product: 'alia' | 'codea';
     creditsPerMonth: number;
