@@ -142,7 +142,7 @@
   },
   "billing": {
     "title": "Billing",
-    "subtitle": "Manage your credits and usage",
+    "subtitle": "Manage your subscription and payment methods",
     "paymentSuccess": "Payment successful! Your credits have been added.",
     "currentBalance": "Current balance",
     "credits": "credits",
@@ -170,6 +170,7 @@
     "failedToLoad": "Failed to load billing information",
     "failedCheckout": "Failed to create checkout",
     "failedCancelSubscription": "Failed to cancel subscription",
+    "changePlan": "Change plan",
     "failedPortal": "Failed to open customer portal",
     "lessThanOneHour": "Less than 1 hour",
     "aboutOneHour": "About 1 hour",
@@ -226,7 +227,10 @@
     "tokensUsed": "Tokens used",
     "models": "Models",
     "noActivity": "No activity yet",
-    "conversationsCount": "{{count}} conversations"
+    "conversationsCount": "{{count}} conversations",
+    "buyCredits": "Buy credits",
+    "buyCreditsDescription": "One-time credit packages",
+    "perThousand": "{{price}} / 1K"
   },
   "roles": {
     "title": "Roles",

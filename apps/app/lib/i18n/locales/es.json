@@ -142,7 +142,7 @@
   },
   "billing": {
     "title": "Facturación",
-    "subtitle": "Administra tus créditos y uso",
+    "subtitle": "Administra tu suscripción y métodos de pago",
     "paymentSuccess": "¡Pago exitoso! Tus créditos han sido añadidos.",
     "currentBalance": "Saldo actual",
     "credits": "créditos",
@@ -170,6 +170,7 @@
     "failedToLoad": "Error al cargar información de facturación",
     "failedCheckout": "Error al crear el pago",
     "failedCancelSubscription": "Error al cancelar la suscripción",
+    "changePlan": "Cambiar plan",
     "failedPortal": "Error al abrir el portal del cliente",
     "lessThanOneHour": "Menos de 1 hora",
     "aboutOneHour": "Aproximadamente 1 hora",
@@ -226,7 +227,10 @@
     "tokensUsed": "Tokens usados",
     "models": "Modelos",
     "noActivity": "Sin actividad aún",
-    "conversationsCount": "{{count}} conversaciones"
+    "conversationsCount": "{{count}} conversaciones",
+    "buyCredits": "Comprar créditos",
+    "buyCreditsDescription": "Paquetes de créditos únicos",
+    "perThousand": "{{price}} / 1K"
   },
   "roles": {
     "title": "Roles",

@@ -1,14 +1,16 @@
 import { useState, useMemo } from "react";
 import { View, Pressable, ScrollView } from "react-native";
+import * as Linking from "expo-linking";
 import { Text } from "@/components/ui/text";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Sparkles, Calendar, X, Crown, MessageSquare, Layers } from "lucide-react-native";
+import { Sparkles, Calendar, X, Crown, MessageSquare, Layers, ShoppingCart } from "lucide-react-native";
 import { useCredits, useCreditsUsage, useAnalytics, PERIODS, type UsagePeriod } from "@/lib/hooks/use-credits";
-import { useSubscription } from "@/lib/hooks/use-billing";
+import { useSubscription, useCreditPackages, useCreateCheckout } from "@/lib/hooks/use-billing";
 import { useRouter } from "expo-router";
 import { useUIStore } from "@/lib/stores/ui-store";
 import { useTranslation } from "@/hooks/useTranslation";
+import { toast } from "@/components/sonner";
 
 function PeriodToggle({ value, onChange }: { value: UsagePeriod; onChange: (p: UsagePeriod) => void }) {
   return (
@@ -176,9 +178,11 @@ function formatTokens(n: number): string {
 
 export function CreditsPanel() {
   const router = useRouter();
-  const [period, setPeriod] = useState<UsagePeriod>('24h');
+  const [period, setPeriod] = useState<UsagePeriod>('7d');
   const { data, isLoading: creditsLoading } = useCredits();
   const { data: subscription } = useSubscription();
+  const { data: packages = [] } = useCreditPackages();
+  const createCheckoutMutation = useCreateCheckout();
   const { data: analytics, isLoading: analyticsLoading } = useAnalytics(period);
   const setRightPanel = useUIStore((s) => s.setRightPanel);
   const { t } = useTranslation();
@@ -203,6 +207,21 @@ export function CreditsPanel() {
   const navigate = (path: string) => {
     setRightPanel(null);
     router.push(path as any);
+  };
+
+  const handlePurchaseCredits = async (packageId: string) => {
+    try {
+      const { url } = await createCheckoutMutation.mutateAsync({
+        packageId,
+        successUrl: Linking.createURL("/billing?success=true"),
+        cancelUrl: Linking.createURL("/billing"),
+      });
+      if (url) {
+        await Linking.openURL(url);
+      }
+    } catch (error: any) {
+      toast.error(error.message || t('billing.failedCheckout'));
+    }
   };
 
   return (
@@ -314,6 +333,38 @@ export function CreditsPanel() {
           </View>
         </View>
 
+        {/* Buy Credits */}
+        {packages.length > 0 && (
+          <View className="px-4 pb-4">
+            <View className="border border-border rounded-xl p-3">
+              <View className="flex-row items-center gap-2 mb-2">
+                <ShoppingCart size={14} className="text-muted-foreground" />
+                <Text className="text-xs font-medium text-muted-foreground">{t('credits.buyCredits')}</Text>
+              </View>
+              <View className="gap-2">
+                {packages.map((pkg) => (
+                  <Pressable
+                    key={pkg.id}
+                    onPress={() => handlePurchaseCredits(pkg.id)}
+                    disabled={createCheckoutMutation.isPending}
+                    className="flex-row items-center justify-between py-2 px-3 rounded-lg border border-border bg-background active:bg-muted"
+                  >
+                    <View>
+                      <Text className="text-sm font-medium text-foreground">{pkg.name}</Text>
+                      <Text className="text-[10px] text-muted-foreground">
+                        {t('credits.perThousand', { price: `$${((pkg.price / pkg.credits) * 1000 / 100).toFixed(2)}` })}
+                      </Text>
+                    </View>
+                    <Text className="text-sm font-semibold text-foreground">
+                      ${(pkg.price / 100).toFixed(2)}
+                    </Text>
+                  </Pressable>
+                ))}
+              </View>
+            </View>
+          </View>
+        )}
+
         {/* Activity & Models */}
         <View className="p-4">
           {analyticsLoading ? (
@@ -363,10 +414,10 @@ export function CreditsPanel() {
           )}
         </View>
 
-        {/* View Usage Link */}
-        <View className="px-4 pb-4">
+        {/* Footer Links */}
+        <View className="px-4 pb-4 gap-2">
           <Pressable onPress={() => navigate("/(app)/billing")} className="flex-row items-center gap-1 active:opacity-70">
-            <Text className="text-sm font-medium text-primary">{t('credits.viewFullHistory')}</Text>
+            <Text className="text-sm font-medium text-primary">{t('credits.manageBilling')}</Text>
             <Text className="text-sm text-primary">&rsaquo;</Text>
           </Pressable>
         </View>
