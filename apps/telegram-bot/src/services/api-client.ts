@@ -135,10 +135,17 @@ class APIClient {
   }
 
   async getTelegramUser(telegramId: string): Promise<any> {
-    const response = await this.client.get(`/telegram/users/${telegramId}`, {
-      headers: this.getTelegramBotHeaders(telegramId),
-    });
-    return response.data;
+    try {
+      const response = await this.client.get(`/telegram/users/${telegramId}`, {
+        headers: this.getTelegramBotHeaders(telegramId),
+      });
+      return response.data;
+    } catch (error: any) {
+      if (error.response?.status === 404) {
+        return null;
+      }
+      throw error;
+    }
   }
 
   async createOrUpdateTelegramUser(data: {
