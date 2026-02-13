@@ -35,6 +35,8 @@ import {
   Upload,
   FileJson,
   FileText,
+  Wand2,
+  Copy,
 } from "lucide-react-native";
 import { useUserData } from "@/hooks/useUserData";
 import { useUserDataStore } from "@/lib/stores/user-data-store";
@@ -96,6 +98,16 @@ export default function MemoryScreen() {
   const [importStrategy, setImportStrategy] = useState<'merge' | 'replace' | 'skip-duplicates'>('merge');
   const [importPreview, setImportPreview] = useState<any>(null);
   const [importing, setImporting] = useState(false);
+
+  // Semantic search state
+  const [semanticMode, setSemanticMode] = useState(false);
+  const [semanticResults, setSemanticResults] = useState<any[] | null>(null);
+  const [semanticLoading, setSemanticLoading] = useState(false);
+
+  // Duplicate detection state
+  const [showDuplicatesDialog, setShowDuplicatesDialog] = useState(false);
+  const [duplicates, setDuplicates] = useState<any[]>([]);
+  const [duplicatesLoading, setDuplicatesLoading] = useState(false);
 
   // Delete confirmation state
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
@@ -260,6 +272,92 @@ export default function MemoryScreen() {
     return CATEGORY_CONFIG[cat] || CATEGORY_CONFIG.default;
   };
 
+  // Semantic search handler
+  const performSemanticSearch = async (query: string) => {
+    if (!isAuthenticated || !query.trim()) {
+      setSemanticResults(null);
+      return;
+    }
+
+    setSemanticLoading(true);
+    try {
+      const apiUrl = generateAPIUrl(`/memory/semantic-search?q=${encodeURIComponent(query)}&limit=20`);
+      const response = await fetch(apiUrl, {
+        method: 'GET',
+        headers: getAuthHeaders(),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setSemanticResults(data.results || []);
+      } else {
+        // Fallback to text search silently
+        setSemanticResults(null);
+        toast.error("Semantic search unavailable, using text search");
+        setSemanticMode(false);
+      }
+    } catch (error) {
+      console.error("Semantic search error:", error);
+      setSemanticResults(null);
+      setSemanticMode(false);
+    } finally {
+      setSemanticLoading(false);
+    }
+  };
+
+  // Debounced semantic search
+  useEffect(() => {
+    if (!semanticMode || !searchQuery.trim()) {
+      setSemanticResults(null);
+      return;
+    }
+
+    const timer = setTimeout(() => {
+      performSemanticSearch(searchQuery);
+    }, 500);
+
+    return () => clearTimeout(timer);
+  }, [searchQuery, semanticMode]);
+
+  // Duplicate detection handler
+  const loadDuplicates = async () => {
+    if (!isAuthenticated) return;
+
+    setDuplicatesLoading(true);
+    try {
+      const apiUrl = generateAPIUrl('/memory/duplicates');
+      const response = await fetch(apiUrl, {
+        method: 'GET',
+        headers: getAuthHeaders(),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setDuplicates(data.duplicates || []);
+        setShowDuplicatesDialog(true);
+      } else {
+        toast.error("Failed to check for duplicates");
+      }
+    } catch (error) {
+      console.error("Duplicates error:", error);
+      toast.error("Failed to check for duplicates");
+    } finally {
+      setDuplicatesLoading(false);
+    }
+  };
+
+  // Determine which memories to show
+  const displayMemories = useMemo(() => {
+    if (semanticMode && semanticResults) {
+      // Map semantic results back to memory objects
+      return semanticResults.map((r: any) => {
+        const found = memories.find(m => m.key === r.key && m.value === r.value);
+        return found || { _id: r.key, key: r.key, value: r.value, category: r.category, score: r.score, createdAt: '', updatedAt: '' };
+      });
+    }
+    return filteredMemories;
+  }, [semanticMode, semanticResults, filteredMemories, memories]);
+
   // Export handlers
   const loadExportStats = async () => {
     if (!isAuthenticated) return;
@@ -422,10 +520,32 @@ export default function MemoryScreen() {
             <Input
               value={searchQuery}
               onChangeText={setSearchQuery}
-              placeholder="Search memories..."
+              placeholder={semanticMode ? "AI-powered search..." : "Search memories..."}
               className="flex-1 border-0 bg-transparent h-auto p-0 web:focus-visible:ring-0"
               placeholderTextColor={colors.mutedForeground}
             />
+            {semanticLoading && (
+              <Text className="text-xs text-muted-foreground">...</Text>
+            )}
+            <Pressable
+              onPress={() => {
+                setSemanticMode(!semanticMode);
+                if (!semanticMode) {
+                  toast.info("AI search enabled — finds semantically related memories");
+                }
+              }}
+              className={cn(
+                "px-2.5 py-1 rounded-full border",
+                semanticMode ? "bg-primary/10 border-primary" : "border-transparent"
+              )}
+            >
+              <View className="flex-row items-center gap-1">
+                <Wand2 size={12} className={semanticMode ? "text-primary" : "text-muted-foreground"} />
+                <Text className={cn("text-xs font-medium", semanticMode ? "text-primary" : "text-muted-foreground")}>
+                  AI
+                </Text>
+              </View>
+            </Pressable>
           </View>
 
           {/* Create Button */}
@@ -441,7 +561,7 @@ export default function MemoryScreen() {
             </View>
           </Button>
 
-          {/* Export/Import Buttons */}
+          {/* Export/Import/Duplicates Buttons */}
           <View className="flex-row gap-2 mt-3">
             <Button
               onPress={() => {
@@ -449,10 +569,10 @@ export default function MemoryScreen() {
                 loadExportStats();
               }}
               variant="outline"
-              className="h-11 px-6 rounded-full flex-1"
+              className="h-11 px-4 rounded-full flex-1"
             >
               <View className="flex-row items-center gap-2">
-                <Download size={18} className="text-foreground" />
+                <Download size={16} className="text-foreground" />
                 <Text className="text-sm font-semibold text-foreground">
                   Export
                 </Text>
@@ -462,12 +582,26 @@ export default function MemoryScreen() {
             <Button
               onPress={() => setShowImportDialog(true)}
               variant="outline"
-              className="h-11 px-6 rounded-full flex-1"
+              className="h-11 px-4 rounded-full flex-1"
             >
               <View className="flex-row items-center gap-2">
-                <Upload size={18} className="text-foreground" />
+                <Upload size={16} className="text-foreground" />
                 <Text className="text-sm font-semibold text-foreground">
                   Import
+                </Text>
+              </View>
+            </Button>
+
+            <Button
+              onPress={loadDuplicates}
+              variant="outline"
+              className="h-11 px-4 rounded-full flex-1"
+              disabled={duplicatesLoading}
+            >
+              <View className="flex-row items-center gap-2">
+                <Copy size={16} className="text-foreground" />
+                <Text className="text-sm font-semibold text-foreground">
+                  {duplicatesLoading ? "..." : "Duplicates"}
                 </Text>
               </View>
             </Button>
@@ -495,7 +629,7 @@ export default function MemoryScreen() {
 
         {/* Memories Grid */}
         <View className="px-6 pb-6">
-          {filteredMemories.length === 0 ? (
+          {displayMemories.length === 0 ? (
             <View className="items-center justify-center py-20">
               <Brain size={64} className="text-muted-foreground opacity-50" />
               <Text className="text-lg font-medium text-foreground mt-4">
@@ -503,14 +637,14 @@ export default function MemoryScreen() {
               </Text>
               <Text className="text-sm text-muted-foreground text-center mt-2 max-w-md">
                 {searchQuery
-                  ? 'Try a different search term'
+                  ? semanticMode ? 'No semantically related memories found' : 'Try a different search term'
                   : 'Share personal information with Alia and it will be saved here automatically'
                 }
               </Text>
             </View>
           ) : (
             <View className="flex-row flex-wrap gap-3">
-              {filteredMemories.map((memory) => (
+              {displayMemories.map((memory) => (
                 <MemoryCard
                   key={memory._id}
                   memory={memory}
@@ -769,6 +903,83 @@ export default function MemoryScreen() {
               disabled={!importFile || importing}
             >
               <Text>{importing ? 'Importing...' : 'Import'}</Text>
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Duplicates Dialog */}
+      <Dialog open={showDuplicatesDialog} onOpenChange={setShowDuplicatesDialog}>
+        <DialogContent closeButton={true}>
+          <DialogHeader>
+            <DialogTitle>Duplicate Memories</DialogTitle>
+            <DialogDescription>
+              {duplicates.length === 0
+                ? 'No duplicates found — your memory is clean!'
+                : `Found ${duplicates.length} potential duplicate${duplicates.length === 1 ? '' : 's'}`}
+            </DialogDescription>
+          </DialogHeader>
+
+          {duplicates.length > 0 && (
+            <ScrollView style={{ maxHeight: 400 }}>
+              <View className="gap-3">
+                {duplicates.map((dup: any, i: number) => (
+                  <View key={i} className="border border-border rounded-lg p-3 gap-2">
+                    <View className="bg-muted rounded-md px-2 py-1 self-start">
+                      <Text className="text-[10px] text-muted-foreground font-medium">
+                        {dup.reason === 'identical_value' ? 'Identical value' : 'Similar key'}
+                      </Text>
+                    </View>
+                    <View className="gap-1">
+                      <Text className="text-xs font-semibold text-foreground">
+                        {dup.memory1?.key}
+                      </Text>
+                      <Text className="text-xs text-muted-foreground" numberOfLines={2}>
+                        {dup.memory1?.value}
+                      </Text>
+                    </View>
+                    <View className="h-px bg-border" />
+                    <View className="gap-1">
+                      <Text className="text-xs font-semibold text-foreground">
+                        {dup.memory2?.key}
+                      </Text>
+                      <Text className="text-xs text-muted-foreground" numberOfLines={2}>
+                        {dup.memory2?.value}
+                      </Text>
+                    </View>
+                    <View className="flex-row gap-2 mt-1">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="flex-1 h-7"
+                        onPress={() => {
+                          handleDeleteMemory(dup.memory2?._id);
+                          setDuplicates(prev => prev.filter((_, idx) => idx !== i));
+                        }}
+                      >
+                        <Text className="text-xs">Keep first</Text>
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="flex-1 h-7"
+                        onPress={() => {
+                          handleDeleteMemory(dup.memory1?._id);
+                          setDuplicates(prev => prev.filter((_, idx) => idx !== i));
+                        }}
+                      >
+                        <Text className="text-xs">Keep second</Text>
+                      </Button>
+                    </View>
+                  </View>
+                ))}
+              </View>
+            </ScrollView>
+          )}
+
+          <DialogFooter>
+            <Button onPress={() => setShowDuplicatesDialog(false)}>
+              <Text>Done</Text>
             </Button>
           </DialogFooter>
         </DialogContent>
