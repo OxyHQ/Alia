@@ -5,6 +5,8 @@ import { UserCredits } from '../models/user-credits.js';
 import { Subscription } from '../models/subscription.js';
 import { Transaction } from '../models/transaction.js';
 import { Plan } from '../internal/providers/models/plan.js';
+import { AliaModel as AliaModelDB } from '../internal/providers/models/alia-model.js';
+import { ALIA_MODELS } from '../internal/providers/lib/alia-models.js';
 import { z } from 'zod';
 
 const router = Router();
@@ -146,20 +148,52 @@ router.get('/plans', async (req: Request, res: Response) => {
 
     const dbPlans = await Plan.find(query).sort({ sortOrder: 1 }).lean();
 
-    const plans = dbPlans.map(p => ({
-      id: p.planId,
-      name: p.name,
-      product: p.product,
-      creditsPerMonth: p.creditsPerMonth,
-      monthlyPrice: p.monthlyPrice,
-      annualPrice: p.annualPrice,
-      currency: p.currency,
-      features: p.features,
-      subtitle: p.subtitle,
-      creditsLabel: p.creditsLabel,
-      isFeatured: p.isFeatured,
-      isFree: p.isFree,
-    }));
+    // Load all active Alia models from DB, fall back to hardcoded
+    let modelMap: Record<string, { displayName: string; description?: string }> = {};
+    try {
+      const dbModels = await AliaModelDB.find({ isActive: true }).lean();
+      if (dbModels.length > 0) {
+        for (const m of dbModels) modelMap[m.aliasModelId] = { displayName: m.displayName, description: m.description };
+      }
+    } catch { /* ignore */ }
+    // Fall back to hardcoded models for any IDs not in DB
+    for (const [id, m] of Object.entries(ALIA_MODELS)) {
+      if (!modelMap[id]) modelMap[id] = { displayName: m.name, description: m.description };
+    }
+
+    const plans = dbPlans.map(p => {
+      // Build "Models" feature group from modelIds
+      const modelIds: string[] = (p as any).modelIds || [];
+      const features = [...(p.features || [])];
+
+      if (modelIds.length > 0) {
+        const modelItems = modelIds
+          .map(id => modelMap[id])
+          .filter(Boolean)
+          .map(m => ({ label: m!.displayName, description: m!.description }));
+
+        if (modelItems.length > 0) {
+          // Insert after first group (Credits) if it exists, otherwise at start
+          const insertAt = features.length > 0 ? 1 : 0;
+          features.splice(insertAt, 0, { category: 'Models', items: modelItems });
+        }
+      }
+
+      return {
+        id: p.planId,
+        name: p.name,
+        product: p.product,
+        creditsPerMonth: p.creditsPerMonth,
+        monthlyPrice: p.monthlyPrice,
+        annualPrice: p.annualPrice,
+        currency: p.currency,
+        features,
+        subtitle: p.subtitle,
+        creditsLabel: p.creditsLabel,
+        isFeatured: p.isFeatured,
+        isFree: p.isFree,
+      };
+    });
     res.json({ plans });
   } catch (error: any) {
     console.error('[Billing] Error fetching plans:', error);

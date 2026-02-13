@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@oxyhq/auth';
 import { apiClient } from '@/lib/api/client';
-import type { SubscriptionPlan, PlanFeatureGroup, PlanFeatureItem } from '@/types';
+import type { SubscriptionPlan, PlanFeatureGroup, PlanFeatureItem, AliaModel } from '@/types';
 import {
   Table,
   TableBody,
@@ -41,7 +41,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { MoreHorizontal, Plus, Trash2, PlusCircle } from 'lucide-react';
+import { MoreHorizontal, Plus, Trash2, PlusCircle, X } from 'lucide-react';
 
 function formatCents(cents: number): string {
   return `$${(cents / 100).toFixed(2)}`;
@@ -196,6 +196,7 @@ interface PlanFormState {
   sortOrder: number;
   isActive: boolean;
   features: PlanFeatureGroup[];
+  modelIds: string[];
   description: string;
   notes: string;
 }
@@ -215,6 +216,7 @@ const DEFAULT_FORM: PlanFormState = {
   sortOrder: 0,
   isActive: true,
   features: [],
+  modelIds: [],
   description: '',
   notes: '',
 };
@@ -235,6 +237,7 @@ function planToForm(plan: SubscriptionPlan): PlanFormState {
     sortOrder: plan.sortOrder,
     isActive: plan.isActive,
     features: plan.features || [],
+    modelIds: plan.modelIds || [],
     description: plan.description || '',
     notes: plan.notes || '',
   };
@@ -261,6 +264,13 @@ export function PlansPage() {
     refetchInterval: 60000,
     enabled: isAuthenticated,
   });
+
+  const { data: modelsResponse } = useQuery({
+    queryKey: ['alia-models'],
+    queryFn: () => apiClient.listAliaModels() as Promise<{ success: boolean; data: AliaModel[] }>,
+    enabled: isAuthenticated,
+  });
+  const allModels = modelsResponse?.data || [];
 
   const plans = plansResponse?.data || [];
   const aliaPlans = plans.filter(p => p.product === 'alia').sort((a, b) => a.sortOrder - b.sortOrder);
@@ -388,6 +398,9 @@ export function PlansPage() {
               </TableCell>
               <TableCell className="text-xs text-muted-foreground">
                 {featureCount(plan.features)}
+                {plan.modelIds?.length > 0 && (
+                  <span className="block">{plan.modelIds.length} models</span>
+                )}
               </TableCell>
               <TableCell>
                 <Badge variant={plan.isActive ? 'default' : 'secondary'}>
@@ -615,6 +628,71 @@ export function PlansPage() {
                 />
                 <Label className="text-xs">Active</Label>
               </div>
+            </div>
+
+            {/* Models */}
+            <div className="space-y-3">
+              <h4 className="text-sm font-semibold">Models</h4>
+              <p className="text-xs text-muted-foreground">
+                Select which Alia models are included in this plan. A "Models" feature group is auto-generated on the billing API from these.
+              </p>
+              <div className="border rounded-lg p-3 space-y-1.5 max-h-48 overflow-y-auto">
+                {allModels.length === 0 ? (
+                  <p className="text-xs text-muted-foreground py-2 text-center">No models loaded</p>
+                ) : (
+                  allModels
+                    .sort((a, b) => a.displayName.localeCompare(b.displayName))
+                    .map((model) => {
+                      const checked = form.modelIds.includes(model.aliasModelId);
+                      return (
+                        <label
+                          key={model._id}
+                          className="flex items-center gap-2 px-2 py-1 rounded hover:bg-muted/50 cursor-pointer"
+                        >
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            onChange={() => {
+                              setForm({
+                                ...form,
+                                modelIds: checked
+                                  ? form.modelIds.filter((id) => id !== model.aliasModelId)
+                                  : [...form.modelIds, model.aliasModelId],
+                              });
+                            }}
+                            className="rounded border-input"
+                          />
+                          <span className="text-sm">{model.displayName}</span>
+                          <span className="text-xs text-muted-foreground ml-auto font-mono">
+                            {model.aliasModelId}
+                          </span>
+                          {!model.isActive && (
+                            <Badge variant="secondary" className="text-[10px]">Inactive</Badge>
+                          )}
+                        </label>
+                      );
+                    })
+                )}
+              </div>
+              {form.modelIds.length > 0 && (
+                <div className="flex flex-wrap gap-1.5">
+                  {form.modelIds.map((id) => {
+                    const model = allModels.find((m) => m.aliasModelId === id);
+                    return (
+                      <Badge key={id} variant="outline" className="text-xs gap-1">
+                        {model?.displayName || id}
+                        <button
+                          type="button"
+                          onClick={() => setForm({ ...form, modelIds: form.modelIds.filter((mid) => mid !== id) })}
+                          className="ml-0.5 hover:text-destructive"
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      </Badge>
+                    );
+                  })}
+                </div>
+              )}
             </div>
 
             {/* Features */}

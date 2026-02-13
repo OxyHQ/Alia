@@ -146,6 +146,7 @@ export interface SubscriptionPlan {
   isFree: boolean;
   sortOrder: number;
   features: PlanFeatureGroup[];
+  modelIds: string[];
   isActive: boolean;
   stripeMonthlyPriceId?: string;
   stripeAnnualPriceId?: string;
