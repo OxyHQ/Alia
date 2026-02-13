@@ -53,6 +53,7 @@ export default function SubscribeScreen() {
   const { t } = useTranslation();
 
   const [billingPeriod, setBillingPeriod] = useState<BillingPeriod>('monthly');
+  const [loadingPlanId, setLoadingPlanId] = useState<string>();
   const [isMounted, setIsMounted] = useState(false);
 
   const { data: apiPlans = [], isLoading: plansLoading, isError: plansError } = useSubscriptionPlans('alia');
@@ -82,6 +83,7 @@ export default function SubscribeScreen() {
       return;
     }
 
+    setLoadingPlanId(planId);
     try {
       const { url } = await checkoutMutation.mutateAsync({
         planId,
@@ -95,6 +97,8 @@ export default function SubscribeScreen() {
       }
     } catch (error: any) {
       toast.error(error.message || t('subscribe.failedCheckout'));
+    } finally {
+      setLoadingPlanId(undefined);
     }
   };
 
@@ -135,7 +139,7 @@ export default function SubscribeScreen() {
               !!subscription && subscription.status === 'active'
             }
             onSubscribe={handleSubscribe}
-            isLoading={checkoutMutation.isPending}
+            loadingPlanId={loadingPlanId}
             isWideLayout={isWideLayout}
             t={t}
           />

@@ -52,6 +52,7 @@ export default function CodeaSubscribeScreen() {
   const { t } = useTranslation();
 
   const [billingPeriod, setBillingPeriod] = useState<BillingPeriod>('monthly');
+  const [loadingPlanId, setLoadingPlanId] = useState<string>();
   const [isMounted, setIsMounted] = useState(false);
 
   const { data: apiPlans = [], isLoading: plansLoading, isError: plansError } = useSubscriptionPlans('codea');
@@ -81,6 +82,7 @@ export default function CodeaSubscribeScreen() {
       return;
     }
 
+    setLoadingPlanId(planId);
     try {
       const { url } = await checkoutMutation.mutateAsync({
         planId,
@@ -94,6 +96,8 @@ export default function CodeaSubscribeScreen() {
       }
     } catch (error: any) {
       toast.error(error.message || t('subscribe.failedCheckout'));
+    } finally {
+      setLoadingPlanId(undefined);
     }
   };
 
@@ -137,7 +141,7 @@ export default function CodeaSubscribeScreen() {
               !!subscription && subscription.status === 'active'
             }
             onSubscribe={handleSubscribe}
-            isLoading={checkoutMutation.isPending}
+            loadingPlanId={loadingPlanId}
             isWideLayout={isWideLayout}
             t={t}
           />
