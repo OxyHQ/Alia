@@ -305,7 +305,7 @@ Be concise and friendly. Use these Telegram features when appropriate.`;
         `<a href="${appUrl}">Open Alia to add credits</a>`,
         {
           parse_mode: 'HTML',
-          link_preview_is_disabled: true,
+          link_preview_options: { is_disabled: true },
         }
       );
     // Check if it's an authentication error
