@@ -92,7 +92,7 @@ export function Banner({ type = 'info', title, content }: { type?: BannerType; t
         <Icon size={18} className={config.textColor} />
         <View className="flex-1">
           <Text className={cn('font-semibold mb-1', config.textColor)}>{title}</Text>
-          <Text className={cn(config.textColor)}>{content}</Text>
+          <Text className={cn('text-base', config.textColor)}>{content}</Text>
         </View>
       </View>
     </View>
@@ -133,14 +133,14 @@ export function Comparison({
       <View className="gap-2">
         <View className={cn('rounded-md border-l-4 bg-zinc-50 dark:bg-zinc-800/50 p-2.5', getToneColor(left.tone))}>
           <Text className="font-medium mb-1">{left.title}</Text>
-          <Text className="text-muted-foreground">{left.content}</Text>
+          <Text className="text-base text-muted-foreground">{left.content}</Text>
           {left.source && (
             <Text className="text-sm text-muted-foreground mt-1 italic">Source: {left.source}</Text>
           )}
         </View>
         <View className={cn('rounded-md border-l-4 bg-zinc-50 dark:bg-zinc-800/50 p-2.5', getToneColor(right.tone))}>
           <Text className="font-medium mb-1">{right.title}</Text>
-          <Text className="text-muted-foreground">{right.content}</Text>
+          <Text className="text-base text-muted-foreground">{right.content}</Text>
           {right.source && (
             <Text className="text-sm text-muted-foreground mt-1 italic">Source: {right.source}</Text>
           )}
@@ -179,7 +179,7 @@ export function Timeline({ title, items }: { title: string; items: TimelineItem[
               <Text className="text-sm text-muted-foreground mb-0.5">{item.date}</Text>
               <Text className="font-medium">{item.title}</Text>
               {item.description && (
-                <Text className="text-muted-foreground mt-0.5">{item.description}</Text>
+                <Text className="text-base text-muted-foreground mt-0.5">{item.description}</Text>
               )}
             </View>
           </View>

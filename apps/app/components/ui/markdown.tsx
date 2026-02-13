@@ -1,5 +1,5 @@
 import React from "react";
-import { View } from "react-native";
+import { View, Platform } from "react-native";
 import Markdown from "react-native-markdown-display";
 import { useColorScheme } from "@/lib/useColorScheme";
 import {
@@ -100,6 +100,14 @@ const rules = {
   paragraph: (node: any, children: any) => {
     return <P className="mb-2 text-base leading-7 text-foreground">{children}</P>;
   },
+  blockquote: (node: any, children: any) => (
+    <Div className="my-2 border-l-4 border-zinc-300 dark:border-zinc-600 bg-zinc-50 dark:bg-zinc-800/50 px-3 py-1 rounded-r-md">
+      {children}
+    </Div>
+  ),
+  hr: () => (
+    <Div className="my-4 h-px bg-zinc-300 dark:bg-zinc-600" />
+  ),
   text: (node: any) => {
     return node.content;
   },
@@ -281,14 +289,121 @@ export function CustomMarkdown({ content }: { content: string }) {
   const blocks = parseSpecialBlocks(content);
   const { colorScheme } = useColorScheme();
 
-  // Define base text color for markdown based on color scheme
+  const textColor = colorScheme === 'dark' ? '#ffffff' : '#0a0a0a';
+  const monoFont = Platform.select({ ios: 'Courier', android: 'monospace', default: 'monospace' });
+
+  // Comprehensive styles to ensure consistent font sizing across all markdown elements.
+  // Setting fontSize/lineHeight on body+text ensures the library's style inheritance
+  // cascade applies 16px/28px to ALL descendant text nodes — matching the Text component.
   const markdownStyles = {
     body: {
-      color: colorScheme === 'dark' ? '#ffffff' : '#0a0a0a',
+      color: textColor,
+      fontSize: 16,
+      lineHeight: 28,
     },
     text: {
-      color: colorScheme === 'dark' ? '#ffffff' : '#0a0a0a',
+      color: textColor,
+      fontSize: 16,
+      lineHeight: 28,
     },
+    paragraph: {
+      marginTop: 0,
+      marginBottom: 8,
+    },
+    strong: {
+      fontWeight: '600' as const,
+    },
+    em: {
+      fontStyle: 'italic' as const,
+    },
+    s: {
+      textDecorationLine: 'line-through' as const,
+    },
+    bullet_list_icon: {
+      marginLeft: 0,
+      marginRight: 8,
+      fontSize: 16,
+      lineHeight: 28,
+    },
+    ordered_list_icon: {
+      marginLeft: 0,
+      marginRight: 8,
+      fontSize: 16,
+      lineHeight: 28,
+    },
+    bullet_list_content: {
+      flex: 1,
+    },
+    ordered_list_content: {
+      flex: 1,
+    },
+    code_inline: {
+      fontSize: 13,
+      fontFamily: monoFont,
+      backgroundColor: colorScheme === 'dark' ? '#27272a' : '#f4f4f5',
+      borderWidth: 0,
+      borderRadius: 3,
+      paddingHorizontal: 4,
+      paddingVertical: 1,
+    },
+    code_block: {
+      fontSize: 13,
+      fontFamily: monoFont,
+      backgroundColor: colorScheme === 'dark' ? '#18181b' : '#f4f4f5',
+      borderWidth: 1,
+      borderColor: colorScheme === 'dark' ? '#3f3f46' : '#e4e4e7',
+      borderRadius: 6,
+      padding: 12,
+    },
+    fence: {
+      fontSize: 13,
+      fontFamily: monoFont,
+      backgroundColor: colorScheme === 'dark' ? '#18181b' : '#f4f4f5',
+      borderWidth: 1,
+      borderColor: colorScheme === 'dark' ? '#3f3f46' : '#e4e4e7',
+      borderRadius: 6,
+      padding: 12,
+    },
+    table: {
+      borderWidth: 1,
+      borderColor: colorScheme === 'dark' ? '#3f3f46' : '#d4d4d8',
+      borderRadius: 6,
+    },
+    th: {
+      flex: 1,
+      padding: 8,
+      fontWeight: '600' as const,
+      fontSize: 16,
+      lineHeight: 28,
+    },
+    td: {
+      flex: 1,
+      padding: 8,
+      fontSize: 16,
+      lineHeight: 28,
+    },
+    tr: {
+      borderBottomWidth: 1,
+      borderColor: colorScheme === 'dark' ? '#3f3f46' : '#d4d4d8',
+      flexDirection: 'row' as const,
+    },
+    link: {
+      textDecorationLine: 'underline' as const,
+      color: colorScheme === 'dark' ? '#60a5fa' : '#2563eb',
+      fontSize: 16,
+      lineHeight: 28,
+    },
+    hr: {
+      backgroundColor: colorScheme === 'dark' ? '#3f3f46' : '#d4d4d8',
+      height: 1,
+      marginVertical: 16,
+    },
+    heading1: { fontSize: 18, fontWeight: '600' as const },
+    heading2: { fontSize: 16, fontWeight: '600' as const },
+    heading3: { fontSize: 16, fontWeight: '600' as const },
+    heading4: { fontSize: 16, fontWeight: '500' as const },
+    heading5: { fontSize: 16, fontWeight: '500' as const },
+    heading6: { fontSize: 16, fontWeight: '500' as const },
   };
 
   return (
