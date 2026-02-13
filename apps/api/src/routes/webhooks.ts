@@ -51,7 +51,7 @@ async function processChannelMessage(
       {
         $setOnInsert: {
           _id: userId,
-          credits: { free: 1000, freeLimit: 1000, dailyRefresh: 300, lastRefresh: new Date(), paid: 0 },
+          credits: { free: 300, freeLimit: 300, dailyRefresh: 300, lastRefresh: new Date(), paid: 0 },
         },
       },
       { upsert: true, new: true }

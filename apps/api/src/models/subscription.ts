@@ -11,6 +11,7 @@ export interface ISubscription extends Document {
   cancelAtPeriodEnd: boolean;
   plan: {
     name: string;
+    product: 'alia' | 'codea';
     creditsPerMonth: number;
     price: number;
     currency: string;
@@ -58,6 +59,7 @@ const SubscriptionSchema = new Schema<ISubscription>({
   },
   plan: {
     name: { type: String, required: true },
+    product: { type: String, enum: ['alia', 'codea'], default: 'alia' },
     creditsPerMonth: { type: Number, required: true },
     price: { type: Number, required: true },
     currency: { type: String, default: 'usd' },
@@ -69,6 +71,7 @@ const SubscriptionSchema = new Schema<ISubscription>({
 
 // Indexes
 SubscriptionSchema.index({ oxyUserId: 1, status: 1 });
+SubscriptionSchema.index({ oxyUserId: 1, 'plan.product': 1, status: 1 });
 SubscriptionSchema.index({ stripeCustomerId: 1 });
 
 export const Subscription: Model<ISubscription> = mongoose.models.Subscription || mongoose.model<ISubscription>('Subscription', SubscriptionSchema);

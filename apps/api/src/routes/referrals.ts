@@ -58,7 +58,7 @@ router.post('/redeem', authenticateToken, async (req, res) => {
       {
         $setOnInsert: {
           _id: userId,
-          credits: { free: 1000, freeLimit: 1000, dailyRefresh: 300, lastRefresh: new Date(), paid: 0 },
+          credits: { free: 300, freeLimit: 300, dailyRefresh: 300, lastRefresh: new Date(), paid: 0 },
         },
       },
       { upsert: true, new: true }
@@ -71,7 +71,7 @@ router.post('/redeem', authenticateToken, async (req, res) => {
       {
         $setOnInsert: {
           _id: referrer._id,
-          credits: { free: 1000, freeLimit: 1000, dailyRefresh: 300, lastRefresh: new Date(), paid: 0 },
+          credits: { free: 300, freeLimit: 300, dailyRefresh: 300, lastRefresh: new Date(), paid: 0 },
         },
       },
       { upsert: true, new: true }

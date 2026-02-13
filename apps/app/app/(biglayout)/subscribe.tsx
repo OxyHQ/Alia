@@ -1,26 +1,8 @@
 import { useState, useMemo, useEffect } from 'react';
-import { View, ScrollView, Pressable, useWindowDimensions } from 'react-native';
+import { View, ScrollView, useWindowDimensions } from 'react-native';
 import * as Linking from 'expo-linking';
 import { useRouter, useLocalSearchParams } from 'expo-router';
-import {
-  ArrowLeft,
-  RefreshCw,
-  Sparkles,
-  Search,
-  Globe,
-  FileSliders,
-  Network,
-  FlaskConical,
-  Layers,
-  Calendar,
-  Shield,
-  Building2,
-  ChevronDown,
-  Info,
-} from 'lucide-react-native';
 import { Text } from '@/components/ui/text';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
 import {
   useSubscriptionPlans,
   useSubscription,
@@ -29,101 +11,65 @@ import {
 } from '@/lib/hooks/use-billing';
 import { useAuth } from '@oxyhq/services';
 import { toast } from '@/components/sonner';
-import { cn } from '@/lib/utils';
 import { useTranslation } from '@/hooks/useTranslation';
+import {
+  type BillingPeriod,
+  type PricingTier,
+  BillingToggle,
+  PlanGrid,
+  BackButton,
+  TeamBanner,
+  SecurityBanner,
+  PageFooter,
+} from '@/components/subscribe-shared';
 
-// ─── Types ───────────────────────────────────────────────────────────
+// ─── Feature lists (plain text) ─────────────────────────────────────
 
-type BillingPeriod = 'monthly' | 'annual';
-
-interface PricingFeature {
-  icon: React.ElementType;
-  label: string;
-}
-
-interface PricingTier {
-  id: string;
-  name: string;
-  subtitle: string;
-  monthlyPrice: number; // cents
-  annualPrice: number; // cents
-  features: PricingFeature[];
-  isFeatured: boolean;
-  ctaLabel: string;
-  creditsLabel: string;
-}
-
-// ─── Feature lists ───────────────────────────────────────────────────
-
-const TIER_FEATURES: Record<string, PricingFeature[]> = {
+const ALIA_FEATURES: Record<string, string[]> = {
   free: [
-    { icon: RefreshCw, label: '300 refresh credits everyday' },
-    { icon: Sparkles, label: '1,000 credits per month' },
-    { icon: Search, label: 'Basic research and chat' },
-    { icon: Globe, label: 'Access to standard models' },
-    { icon: Layers, label: '5 concurrent tasks' },
+    '300 credits refreshed daily',
+    'Access to standard models',
+    'Basic research and chat',
+    '5 concurrent tasks',
   ],
-  basic: [
-    { icon: RefreshCw, label: '300 refresh credits everyday' },
-    { icon: Sparkles, label: '4,000 credits per month' },
-    { icon: Search, label: 'Research for everyday tasks' },
-    { icon: Globe, label: 'Access to all standard models' },
-    { icon: FlaskConical, label: 'Early access to beta features' },
-    { icon: Layers, label: '10 concurrent tasks' },
-  ],
-  standard: [
-    { icon: RefreshCw, label: '300 refresh credits everyday' },
-    { icon: Sparkles, label: '10,000 credits per month' },
-    { icon: Search, label: 'In-depth research and analysis' },
-    { icon: Globe, label: 'Access to all models including premium' },
-    { icon: Network, label: 'Web search and file processing' },
-    { icon: FlaskConical, label: 'Early access to beta features' },
-    { icon: Layers, label: '20 concurrent tasks' },
-    { icon: Calendar, label: '20 scheduled tasks' },
+  go: [
+    '4,000 credits per month',
+    '300 daily refresh credits',
+    'All standard models',
+    'Early access to beta features',
+    '10 concurrent tasks',
   ],
   pro: [
-    { icon: RefreshCw, label: '300 refresh credits everyday' },
-    { icon: Sparkles, label: '20,000 credits per month' },
-    { icon: Search, label: 'Advanced research for complex tasks' },
-    { icon: Globe, label: 'Priority access to all models' },
-    { icon: FileSliders, label: 'Full API access for integrations' },
-    { icon: Network, label: 'Higher rate limits' },
-    { icon: FlaskConical, label: 'Early access to beta features' },
-    { icon: Layers, label: '20 concurrent tasks' },
-    { icon: Calendar, label: '20 scheduled tasks' },
+    '10,000 credits per month',
+    '300 daily refresh credits',
+    'All models including premium',
+    'Web search & file processing',
+    '20 concurrent tasks',
   ],
   max: [
-    { icon: RefreshCw, label: '300 refresh credits everyday' },
-    { icon: Sparkles, label: '50,000 credits per month' },
-    { icon: Search, label: 'Deep research for large-scale tasks' },
-    { icon: Globe, label: 'Priority access to all models' },
-    { icon: FileSliders, label: 'Maximum context and output length' },
-    { icon: Network, label: 'Dedicated capacity' },
-    { icon: FlaskConical, label: 'Early access to beta features' },
-    { icon: Layers, label: '50 concurrent tasks' },
-    { icon: Calendar, label: '50 scheduled tasks' },
+    '50,000 credits per month',
+    '300 daily refresh credits',
+    'Priority access to all models',
+    'Extended context & output',
+    'Dedicated capacity',
+    '50 concurrent tasks',
   ],
   ultra: [
-    { icon: RefreshCw, label: '300 refresh credits everyday' },
-    { icon: Sparkles, label: '100,000 credits per month' },
-    { icon: Search, label: 'Unlimited research and deep analysis' },
-    { icon: Globe, label: 'Top priority access to all models' },
-    { icon: FileSliders, label: 'Maximum context and output length' },
-    { icon: Network, label: 'Dedicated capacity for heavy workloads' },
-    { icon: FlaskConical, label: 'Early access to all features' },
-    { icon: Layers, label: '100 concurrent tasks' },
-    { icon: Calendar, label: '100 scheduled tasks' },
+    '100,000 credits per month',
+    '300 daily refresh credits',
+    'Top priority model access',
+    'Maximum context & output',
+    'Dedicated heavy-workload capacity',
+    '100 concurrent tasks',
   ],
 };
 
-// ─── Helpers ─────────────────────────────────────────────────────────
-
-const TIER_CONFIG: Record<string, { subtitle: string; isFeatured: boolean; ctaLabel: string }> = {
-  Basic: { subtitle: 'subscribe.basicUsage', isFeatured: false, ctaLabel: 'subscribe.upgrade' },
-  Standard: { subtitle: 'subscribe.standardUsage', isFeatured: true, ctaLabel: 'subscribe.getStartedFree' },
-  Pro: { subtitle: 'subscribe.proUsage', isFeatured: false, ctaLabel: 'subscribe.upgrade' },
-  Max: { subtitle: 'subscribe.extendedUsage', isFeatured: false, ctaLabel: 'subscribe.upgrade' },
-  Ultra: { subtitle: 'subscribe.unlimitedUsage', isFeatured: false, ctaLabel: 'subscribe.upgrade' },
+const ALIA_CONFIG: Record<string, { subtitle: string; isFeatured: boolean }> = {
+  free:  { subtitle: 'subscribe.freeUsage',  isFeatured: false },
+  go:    { subtitle: 'subscribe.goUsage',    isFeatured: false },
+  pro:   { subtitle: 'subscribe.proUsage',   isFeatured: true },
+  max:   { subtitle: 'subscribe.maxUsage',   isFeatured: false },
+  ultra: { subtitle: 'subscribe.ultraUsage', isFeatured: false },
 };
 
 function buildTiers(
@@ -137,15 +83,14 @@ function buildTiers(
       subtitle: t('subscribe.freeUsage'),
       monthlyPrice: 0,
       annualPrice: 0,
-      features: TIER_FEATURES.free,
+      features: ALIA_FEATURES.free,
       isFeatured: false,
-      ctaLabel: t('subscribe.upgrade'),
-      creditsLabel: '1,000 credits / month',
+      creditsLabel: '300 credits / day',
     },
   ];
 
   for (const plan of apiPlans) {
-    const config = TIER_CONFIG[plan.name];
+    const config = ALIA_CONFIG[plan.id];
     if (!config) continue;
     tiers.push({
       id: plan.id,
@@ -153,259 +98,13 @@ function buildTiers(
       subtitle: t(config.subtitle),
       monthlyPrice: plan.monthlyPrice,
       annualPrice: plan.annualPrice,
-      features: TIER_FEATURES[plan.id] || TIER_FEATURES.standard,
+      features: ALIA_FEATURES[plan.id] || ALIA_FEATURES.pro,
       isFeatured: config.isFeatured,
-      ctaLabel: t(config.ctaLabel),
-      creditsLabel: `${plan.creditsPerMonth.toLocaleString()} credits / month`,
+      creditsLabel: `${plan.creditsPerMonth.toLocaleString()} credits / mo`,
     });
   }
 
   return tiers;
-}
-
-function formatPrice(cents: number): string {
-  const dollars = cents / 100;
-  return dollars % 1 === 0 ? `$${dollars}` : `$${dollars.toFixed(0)}`;
-}
-
-// ─── BillingToggle ───────────────────────────────────────────────────
-
-function BillingToggle({
-  value,
-  onChange,
-  t,
-}: {
-  value: BillingPeriod;
-  onChange: (v: BillingPeriod) => void;
-  t: (key: string) => string;
-}) {
-  return (
-    <View className="flex-row bg-surface rounded-lg p-1">
-      <Pressable
-        onPress={() => onChange('monthly')}
-        className={cn(
-          'px-4 py-2 rounded-md',
-          value === 'monthly' && 'bg-background',
-        )}
-      >
-        <Text
-          className={cn(
-            'text-sm font-medium',
-            value === 'monthly' ? 'text-foreground' : 'text-muted-foreground',
-          )}
-        >
-          {t('subscribe.monthly')}
-        </Text>
-      </Pressable>
-      <Pressable
-        onPress={() => onChange('annual')}
-        className={cn(
-          'px-4 py-2 rounded-md flex-row items-center gap-2',
-          value === 'annual' && 'bg-background',
-        )}
-      >
-        <Text
-          className={cn(
-            'text-sm font-medium',
-            value === 'annual' ? 'text-foreground' : 'text-muted-foreground',
-          )}
-        >
-          {t('subscribe.annuallySave')}
-        </Text>
-      </Pressable>
-    </View>
-  );
-}
-
-// ─── PricingCard ─────────────────────────────────────────────────────
-
-function PricingCard({
-  tier,
-  billingPeriod,
-  isCurrentPlan,
-  onSubscribe,
-  isLoading,
-  t,
-}: {
-  tier: PricingTier;
-  billingPeriod: BillingPeriod;
-  isCurrentPlan: boolean;
-  onSubscribe: (planId: string) => void;
-  isLoading: boolean;
-  t: (key: string) => string;
-}) {
-  const price =
-    billingPeriod === 'annual'
-      ? Math.round(tier.annualPrice / 12)
-      : tier.monthlyPrice;
-
-  return (
-    <Card
-      className={cn(
-        'flex-1 overflow-hidden',
-        tier.isFeatured && 'border-primary border-2',
-      )}
-    >
-      <CardContent className="p-6 gap-5">
-        {/* Price section */}
-        <View className="gap-1">
-          {tier.monthlyPrice === 0 ? (
-            <View className="flex-row items-baseline gap-1">
-              <Text className="text-4xl font-bold text-foreground">Free</Text>
-            </View>
-          ) : tier.isFeatured ? (
-            <View className="gap-1">
-              <Text className="text-2xl font-bold text-foreground">
-                {tier.name}
-              </Text>
-              <Text className="text-sm text-muted-foreground">
-                {billingPeriod === 'annual'
-                  ? `${formatPrice(price)} ${t('subscribe.perMonthBilledYearly')}`
-                  : `${t('subscribe.then')} ${formatPrice(tier.monthlyPrice)} ${t('subscribe.perMonth')}`}
-              </Text>
-            </View>
-          ) : (
-            <View className="gap-1">
-              <View className="flex-row items-baseline gap-1">
-                <Text className="text-4xl font-bold text-foreground">
-                  {formatPrice(price)}
-                </Text>
-                <Text className="text-sm text-muted-foreground">
-                  {billingPeriod === 'annual'
-                    ? t('subscribe.perMonthBilledYearly')
-                    : t('subscribe.perMonth')}
-                </Text>
-              </View>
-            </View>
-          )}
-          <Text className="text-sm text-muted-foreground mt-1">
-            {tier.subtitle}
-          </Text>
-        </View>
-
-        {/* CTA Button */}
-        <Button
-          variant={tier.isFeatured ? 'default' : 'outline'}
-          size="lg"
-          className={cn('w-full', tier.isFeatured && 'bg-[#2563eb]')}
-          onPress={() => {
-            if (tier.id === 'free') return;
-            onSubscribe(tier.id);
-          }}
-          disabled={isCurrentPlan || tier.id === 'free' || isLoading}
-          isLoading={isLoading}
-        >
-          <Text
-            className={cn(
-              'text-sm font-semibold',
-              tier.isFeatured ? 'text-white' : 'text-foreground',
-            )}
-          >
-            {isCurrentPlan ? t('subscribe.currentPlan') : tier.ctaLabel}
-          </Text>
-        </Button>
-
-        {/* Credits selector (for featured tier) */}
-        {tier.isFeatured && (
-          <View className="flex-row items-center justify-between bg-surface rounded-lg px-4 py-3">
-            <Text className="text-sm text-foreground">
-              {tier.creditsLabel}
-            </Text>
-            <View className="flex-row items-center gap-1 bg-primary/20 px-2.5 py-1 rounded-full">
-              <Text className="text-xs font-medium text-primary">
-                {t('subscribe.freeTrial')}
-              </Text>
-              <ChevronDown size={12} className="text-primary" />
-            </View>
-          </View>
-        )}
-
-        {/* Feature list */}
-        <View className="gap-3.5">
-          {tier.features.map((feature, i) => (
-            <View key={i} className="flex-row items-center gap-3">
-              <feature.icon size={16} className="text-muted-foreground" />
-              <Text className="text-sm text-foreground flex-1">
-                {feature.label}
-              </Text>
-              <Info size={14} className="text-muted-foreground opacity-40" />
-            </View>
-          ))}
-        </View>
-      </CardContent>
-    </Card>
-  );
-}
-
-// ─── Bottom Banners ──────────────────────────────────────────────────
-
-function TeamBanner({ t }: { t: (key: string) => string }) {
-  return (
-    <View className="mx-4 mt-8 p-5 rounded-2xl bg-surface border border-border flex-row items-center justify-between">
-      <View className="flex-row items-center gap-3 flex-1">
-        <Building2 size={24} className="text-foreground" />
-        <View className="flex-1">
-          <Text className="text-base font-semibold text-foreground">
-            {t('subscribe.teamTitle')}
-          </Text>
-          <Text className="text-sm text-muted-foreground">
-            {t('subscribe.teamDescription')}
-          </Text>
-        </View>
-      </View>
-      <Button variant="outline" size="default">
-        <Text className="text-sm font-medium text-foreground">
-          {t('subscribe.getTeam')}
-        </Text>
-      </Button>
-    </View>
-  );
-}
-
-function SecurityBanner({ t }: { t: (key: string) => string }) {
-  return (
-    <View className="mx-4 mt-4 mb-8 p-5 rounded-2xl bg-surface border border-border flex-row items-center justify-between">
-      <View className="flex-row items-center gap-3 flex-1">
-        <Shield size={24} className="text-foreground" />
-        <View className="flex-1">
-          <Text className="text-base font-semibold text-foreground">
-            {t('subscribe.securityTitle')}
-          </Text>
-          <Text className="text-sm text-muted-foreground">
-            {t('subscribe.securityDescription')}
-          </Text>
-        </View>
-      </View>
-      <Button variant="outline" size="default">
-        <Text className="text-sm font-medium text-foreground">
-          {t('subscribe.learnMore')}
-        </Text>
-      </Button>
-    </View>
-  );
-}
-
-// ─── Footer ──────────────────────────────────────────────────────────
-
-function PageFooter({ t }: { t: (key: string) => string }) {
-  const router = useRouter();
-
-  return (
-    <View className="flex-row items-center justify-between px-6 py-4">
-      <Text className="text-sm text-muted-foreground">
-        {t('subscribe.helpText')}{' '}
-        <Text className="text-sm text-foreground underline">
-          {t('subscribe.helpCenter')}
-        </Text>
-        .
-      </Text>
-      <Pressable onPress={() => router.push('/(app)/billing' as any)}>
-        <Text className="text-sm text-muted-foreground">
-          {t('subscribe.editBilling')} &rsaquo;
-        </Text>
-      </Pressable>
-    </View>
-  );
 }
 
 // ─── Main Screen ─────────────────────────────────────────────────────
@@ -421,9 +120,9 @@ export default function SubscribeScreen() {
   const [billingPeriod, setBillingPeriod] = useState<BillingPeriod>('annual');
   const [isMounted, setIsMounted] = useState(false);
 
-  const { data: apiPlans = [] } = useSubscriptionPlans();
+  const { data: apiPlans = [] } = useSubscriptionPlans('alia');
   const { data: subscription, refetch: refetchSubscription } =
-    useSubscription();
+    useSubscription('alia');
   const checkoutMutation = useCreateSubscriptionCheckout();
 
   const tiers = useMemo(() => buildTiers(apiPlans, t), [apiPlans, t]);
@@ -469,18 +168,10 @@ export default function SubscribeScreen() {
       <View className="w-full max-w-[1200px] mx-auto">
         {/* Header */}
         <View className="px-6 pt-6 pb-2">
-          <Pressable
-            onPress={() => router.back()}
-            className="flex-row items-center mb-6"
-          >
-            <ArrowLeft size={16} className="text-muted-foreground mr-2" />
-            <Text className="text-sm text-muted-foreground">
-              {t('subscribe.back')}
-            </Text>
-          </Pressable>
+          <BackButton t={t} />
 
           <View className="items-center gap-4 mb-8">
-            <Text className="text-3xl font-bold text-foreground">
+            <Text className="text-2xl font-bold text-foreground">
               {t('subscribe.title')}
             </Text>
             <BillingToggle
@@ -491,31 +182,21 @@ export default function SubscribeScreen() {
           </View>
         </View>
 
-        {/* Pricing Cards */}
-        <View
-          className={cn(
-            'px-4 gap-4',
-            isWideLayout ? 'flex-row' : 'flex-col',
-          )}
-        >
-          {tiers.map((tier) => (
-            <PricingCard
-              key={tier.id}
-              tier={tier}
-              billingPeriod={billingPeriod}
-              isCurrentPlan={
-                tier.id === 'free'
-                  ? !subscription || subscription.status !== 'active'
-                  : subscription?.plan?.name === tier.name && subscription?.status === 'active'
-              }
-              onSubscribe={handleSubscribe}
-              isLoading={checkoutMutation.isPending}
-              t={t}
-            />
-          ))}
-        </View>
+        {/* Pricing Grid */}
+        <PlanGrid
+          tiers={tiers}
+          billingPeriod={billingPeriod}
+          currentPlanName={subscription?.plan?.name}
+          hasActiveSubscription={
+            !!subscription && subscription.status === 'active'
+          }
+          onSubscribe={handleSubscribe}
+          isLoading={checkoutMutation.isPending}
+          isWideLayout={isWideLayout}
+          t={t}
+        />
 
-        {/* Bottom Banners */}
+        {/* Bottom */}
         <TeamBanner t={t} />
         <SecurityBanner t={t} />
         <PageFooter t={t} />

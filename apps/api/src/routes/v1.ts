@@ -50,8 +50,8 @@ router.get('/me', async (req: Request, res: Response) => {
       userCredits = await UserCredits.create({
         _id: userId,
         credits: {
-          free: 1000,
-          freeLimit: 1000,
+          free: 300,
+          freeLimit: 300,
           dailyRefresh: 300,
           lastRefresh: new Date(),
           paid: 0,
@@ -110,7 +110,7 @@ router.post('/resolve-model', async (req: Request, res: Response) => {
       {
         $setOnInsert: {
           _id: userId,
-          credits: { free: 1000, freeLimit: 1000, dailyRefresh: 300, lastRefresh: new Date(), paid: 0 },
+          credits: { free: 300, freeLimit: 300, dailyRefresh: 300, lastRefresh: new Date(), paid: 0 },
         },
       },
       { upsert: true, new: true }
