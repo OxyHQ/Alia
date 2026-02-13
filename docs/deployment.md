@@ -541,9 +541,9 @@ Consider integrating:
 For deployment issues:
 - Check logs in DigitalOcean dashboard
 - Review this troubleshooting guide
-- Consult [MEMORY_SYSTEM.md](MEMORY_SYSTEM.md) for API details
+- Consult [memory-system.md](memory-system.md) for API details
 - Open issue on GitHub for persistent problems
 
 ---
 
-**Last Updated:** February 11, 2026
+**Last Updated:** February 13, 2026

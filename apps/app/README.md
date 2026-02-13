@@ -1,94 +1,94 @@
 # Alia App
 
-Aplicación principal de Alia construida con Expo Router y React Native. Funciona en web, iOS y Android.
+Main Alia application built with Expo Router and React Native. Runs on web, iOS, and Android.
 
-## 🚀 Características
+## Features
 
-- **Expo Router** - File-based routing como Next.js
-- **AI SDK** - Integración con @ai-sdk/react para chat streaming
-- **NativeWind** - Tailwind CSS para React Native
-- **Hugeicons** - Mismos iconos que el admin
-- **UI Consistente** - Componentes basados en shadcn/ui adaptados a RN
-- **Multi-plataforma** - Una sola base de código para web, iOS y Android
+- **Expo Router** - File-based routing like Next.js
+- **AI SDK** - Integration with @ai-sdk/react for chat streaming
+- **NativeWind** - Tailwind CSS for React Native
+- **Hugeicons** - Same icons as the admin
+- **Consistent UI** - Components based on shadcn/ui adapted for RN
+- **Multi-platform** - A single codebase for web, iOS, and Android
 
-## 📁 Estructura de Rutas
+## Route Structure
 
 ```
 app/
-├── index.tsx         # Redirección inicial
-├── login.tsx         # /login - Pantalla de login
-├── register.tsx      # /register - Pantalla de registro
+├── index.tsx         # Initial redirect
+├── login.tsx         # /login - Login screen
+├── register.tsx      # /register - Registration screen
 └── (chat)/
-    └── index.tsx     # /chat - Pantalla de chat principal
+    └── index.tsx     # /chat - Main chat screen
 ```
 
-## ⚙️ Desarrollo
+## Development
 
-### Iniciar el servidor de desarrollo:
+### Start the development server:
 
 ```bash
-# Desde el root del monorepo
+# From the monorepo root
 npm run dev:app
 
-# O desde apps/app
+# Or from apps/app
 npm start
 ```
 
-### Ejecutar en plataformas específicas:
+### Run on specific platforms:
 
 ```bash
-# Desde el root
+# From the root
 npm run web       # Web
 npm run android   # Android
 npm run ios       # iOS
 
-# O desde apps/app
+# Or from apps/app
 npm run web
 npm run android
 npm run ios
 ```
 
-## 🔧 Configuración
+## Configuration
 
-### URL de la API
+### API URL
 
-La configuración de la URL de la API se encuentra en [lib/config.ts](lib/config.ts):
+The API URL configuration is located in [lib/config.ts](lib/config.ts):
 
-- **Desarrollo**: `http://localhost:3000`
+- **Development**: `http://localhost:3000`
 - **Staging**: `https://staging-api.alia.onl`
-- **Producción**: `https://api.alia.onl`
+- **Production**: `https://api.alia.onl`
 
-Para desarrollo local, asegúrate de que la API esté corriendo en `http://localhost:3000`.
+For local development, make sure the API is running at `http://localhost:3000`.
 
-## 🎨 Componentes UI
+## UI Components
 
-Los componentes están en [components/ui/](components/ui/) y están diseñados para ser compatibles con React Native mientras mantienen la API de shadcn/ui:
+Components are in [components/ui/](components/ui/) and are designed to be compatible with React Native while maintaining the shadcn/ui API:
 
-- `Button` - Botones con variantes (default, outline, ghost, etc.)
-- `Input` - Campos de texto estilizados
+- `Button` - Buttons with variants (default, outline, ghost, etc.)
+- `Input` - Styled text fields
 
-## 📱 Pantallas
+## Screens
 
 ### Login ([app/login.tsx](app/login.tsx))
-- Formulario de autenticación
-- Validación de email y contraseña
-- Navegación a registro
+- Authentication form
+- Email and password validation
+- Navigation to registration
 
 ### Register ([app/register.tsx](app/register.tsx))
-- Formulario de registro
-- Confirmación de contraseña
-- Validación de datos
+- Registration form
+- Password confirmation
+- Data validation
 
 ### Chat ([app/(chat)/index.tsx](app/(chat)/index.tsx))
-- Integración con `useChat` hook del AI SDK
-- Streaming de respuestas en tiempo real
-- Renderizado de Markdown
-- Auto-scroll a nuevos mensajes
-- UI consistente en web y móvil
+- Integration with `useChat` hook from the AI SDK
+- Real-time response streaming
+- Markdown rendering
+- Auto-scroll to new messages
+- Consistent UI across web and mobile
 
-## 🔌 AI SDK Integration
+## AI SDK Integration
 
-La app usa el mismo sistema que el admin:
+The app uses the same system as the admin:
 
 ```tsx
 const { messages, input, handleInputChange, handleSubmit, isLoading } = useChat({
@@ -96,22 +96,22 @@ const { messages, input, handleInputChange, handleSubmit, isLoading } = useChat(
 });
 ```
 
-## 📦 Build para Producción
+## Production Build
 
-### Configurar EAS:
+### Configure EAS:
 
 ```bash
-# Instalar EAS CLI globalmente
+# Install EAS CLI globally
 npm install -g eas-cli
 
 # Login
 eas login
 
-# Configurar el proyecto
+# Configure the project
 eas build:configure
 ```
 
-### Crear builds:
+### Create builds:
 
 ```bash
 # Android
@@ -120,31 +120,18 @@ npm run build:android
 # iOS
 npm run build:ios
 
-# Ambas plataformas
+# Both platforms
 eas build --platform all
 ```
 
-## 🌐 Web vs Mobile
+## Web vs Mobile
 
-Esta aplicación funciona tanto en web como en móvil usando la misma base de código:
+This application works on both web and mobile using the same codebase:
 
-- **Web**: Se renderiza con React Native Web (similar a como funciona React Native en web)
-- **iOS/Android**: Usa componentes nativos de React Native
+- **Web**: Renders with React Native Web (similar to how React Native works on the web)
+- **iOS/Android**: Uses native React Native components
 
-## 🎯 TODO
-
-- [ ] Implementar autenticación real con la API
-- [ ] Agregar manejo de sesiones (tokens, refresh)
-- [ ] Implementar persistencia de conversaciones
-- [ ] Agregar modo offline
-- [ ] Implementar notificaciones push
-- [ ] Agregar tema oscuro/claro
-- [ ] Implementar compartir conversaciones
-- [ ] Agregar gestión de modelos de IA
-- [ ] Implementar carpetas de conversaciones
-- [ ] Agregar configuración de usuario
-
-## 📚 Recursos
+## Resources
 
 - [Expo Documentation](https://docs.expo.dev/)
 - [Expo Router](https://docs.expo.dev/router/introduction/)

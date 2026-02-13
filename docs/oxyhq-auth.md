@@ -1,18 +1,78 @@
-# Getting Started with @oxyhq/services
+# OxyHQ Authentication & Packages Guide
 
-Zero-config authentication for Expo and React Native apps. Cross-domain SSO is automatic.
+This document explains which OxyHQ packages to use for each platform and provides detailed code examples for integration.
 
-> **Web apps:** Use `@oxyhq/auth` + `@oxyhq/core` instead. See the [Platform Guide](./PLATFORM_GUIDE.md).
->
-> **Backend / Node.js:** Use `@oxyhq/core` only. See the [Platform Guide](./PLATFORM_GUIDE.md).
+## Decision Tree: Which Package Should I Use?
 
-## Installation
+```
+Are you building...
+|-- A web app (React, Next.js, Vite)?
+|   -> Use @oxyhq/auth + @oxyhq/core
+|
+|-- A mobile app (Expo, React Native)?
+|   -> Use @oxyhq/services + @oxyhq/core
+|
+|-- A backend (Node.js, Express)?
+    -> Use @oxyhq/core only
+```
+
+---
+
+## Package Selection by Platform
+
+### Web Apps (React, Next.js, Vite)
+
+**Packages:** `@oxyhq/auth` + `@oxyhq/core`
+
+**Apps using this:**
+- `alia-providers-admin` - Vite + React admin panel
+- `alia-console` - Vite + React console
+- `canvas` - Next.js web app
+
+**Features:**
+- FedCM (Federated Credential Management) support
+- Cross-domain SSO
+- Zero React Native dependencies
+- Optimized for web browsers
+
+### Expo / React Native Apps
+
+**Packages:** `@oxyhq/services` + `@oxyhq/core`
+
+**Apps using this:**
+- `app` - Expo mobile app
+
+**Features:**
+- Native bottom sheet screens
+- Secure keychain storage
+- Cross-domain SSO (native)
+- Account switching
+- Multi-session support
+
+### Backend / Node.js (Express, API servers)
+
+**Packages:** `@oxyhq/core` only
+
+**Apps using this:**
+- `api` - Main Alia API server (includes internal providers module)
+
+**Features:**
+- Session validation
+- User management
+- Server-side API calls
+- No UI dependencies
+
+---
+
+## Native Apps (React Native / Expo)
+
+### Installation
 
 ```bash
 npm install @oxyhq/services @oxyhq/core
 ```
 
-### Peer Dependencies
+#### Peer Dependencies
 
 ```bash
 npm install react-native-reanimated react-native-gesture-handler \
@@ -21,11 +81,16 @@ npm install react-native-reanimated react-native-gesture-handler \
   @react-navigation/native @tanstack/react-query
 ```
 
----
+### Setup Entry Point
 
-## Quick Start
+Add polyfill at the very top of your entry file:
 
-### 1. Wrap with Provider
+```javascript
+// index.js or App.js (first line)
+import 'react-native-url-polyfill/auto';
+```
+
+### Wrap with Provider
 
 ```tsx
 import { OxyProvider } from '@oxyhq/services';
@@ -41,7 +106,7 @@ export default function App() {
 
 `OxyProvider` works on iOS, Android, and Expo web. Always use `OxyProvider` in Expo apps.
 
-### 2. Use Authentication
+### Use Authentication
 
 ```tsx
 import { useAuth, OxySignInButton } from '@oxyhq/services';
@@ -69,48 +134,9 @@ function HomeScreen() {
 }
 ```
 
-That is it. Cross-domain SSO is automatic. If a user is signed in on any Oxy domain (accounts.oxy.so, mention.earth, homiio.com, etc.), they are automatically signed in on your app.
+Cross-domain SSO is automatic. If a user is signed in on any Oxy domain (accounts.oxy.so, mention.earth, homiio.com, etc.), they are automatically signed in on your app.
 
----
-
-## useAuth Hook Reference
-
-```tsx
-import { useAuth } from '@oxyhq/services';
-
-const {
-  // State
-  user,              // User | null - current user
-  isAuthenticated,   // boolean - is user signed in
-  isLoading,         // boolean - initial auth check
-  isReady,           // boolean - ready for API calls
-  error,             // string | null - error message
-
-  // Actions
-  signIn,            // () => Promise<User> - trigger sign in
-  signOut,           // () => Promise<void> - sign out current session
-  signOutAll,        // () => Promise<void> - sign out all devices
-  refresh,           // () => Promise<void> - refresh auth state
-
-  // Advanced
-  oxyServices,       // OxyServices instance
-} = useAuth();
-```
-
----
-
-## Native Apps (React Native / Expo)
-
-### Setup Entry Point
-
-Add polyfill at the very top of your entry file:
-
-```javascript
-// index.js or App.js (first line)
-import 'react-native-url-polyfill/auto';
-```
-
-### Full Example
+### Full Expo Example
 
 ```tsx
 // app/_layout.tsx
@@ -157,11 +183,61 @@ showBottomSheet('KarmaCenter');        // Karma
 showBottomSheet({ screen: 'PaymentGateway', props: { amount: 10 } });
 ```
 
+### useAuth Hook Reference
+
+```tsx
+import { useAuth } from '@oxyhq/services';
+
+const {
+  // State
+  user,              // User | null - current user
+  isAuthenticated,   // boolean - is user signed in
+  isLoading,         // boolean - initial auth check
+  isReady,           // boolean - ready for API calls
+  error,             // string | null - error message
+
+  // Actions
+  signIn,            // () => Promise<User> - trigger sign in
+  signOut,           // () => Promise<void> - sign out current session
+  signOutAll,        // () => Promise<void> - sign out all devices
+  refresh,           // () => Promise<void> - refresh auth state
+
+  // Advanced
+  oxyServices,       // OxyServices instance
+} = useAuth();
+```
+
+### Advanced: useOxy Hook
+
+For full control in Expo/RN apps, use `useOxy` instead of `useAuth`:
+
+```tsx
+import { useOxy } from '@oxyhq/services';
+
+const {
+  // All useAuth properties plus:
+  sessions,            // All active sessions
+  activeSessionId,     // Current session ID
+  switchSession,       // Switch between accounts
+  refreshSessions,     // Refresh session list
+
+  // Language
+  currentLanguage,     // 'en', 'es', etc.
+  setLanguage,         // Change language
+
+  // UI
+  showBottomSheet,     // Show bottom sheet screens
+  openAvatarPicker,    // Open avatar picker
+
+  // Identity
+  hasIdentity,         // Check for crypto identity
+  getPublicKey,        // Get public key
+} = useOxy();
+```
+
 ---
 
 ## Web Apps (Next.js / React)
-
-For web apps without Expo/React Native, use the `@oxyhq/auth` package with `@oxyhq/core`.
 
 ### Installation
 
@@ -214,6 +290,25 @@ export default function Home() {
 }
 ```
 
+### Vite + React Example
+
+```typescript
+import { WebOxyProvider, useAuth } from '@oxyhq/auth';
+
+export function App() {
+  return (
+    <WebOxyProvider baseURL="https://api.oxy.so">
+      <YourApp />
+    </WebOxyProvider>
+  );
+}
+
+function Component() {
+  const { user, isAuthenticated, signIn, signOut } = useAuth();
+  // ...
+}
+```
+
 ### How Web SSO Works
 
 Cross-domain SSO uses **FedCM** (Federated Credential Management) -- the browser-native identity API that works without third-party cookies.
@@ -230,8 +325,6 @@ Cross-domain SSO uses **FedCM** (Federated Credential Management) -- the browser
 
 ## Backend (Node.js / Express / Next.js API)
 
-For server-side usage, install `@oxyhq/core` only.
-
 ### Installation
 
 ```bash
@@ -241,13 +334,18 @@ npm install @oxyhq/core
 ### Quick Start
 
 ```typescript
-import { oxyClient } from '@oxyhq/core';
+import { OxyServices } from '@oxyhq/core';
 
-// Get user
-const user = await oxyClient.getUserById('123');
+const oxyClient = new OxyServices({
+  baseURL: process.env.OXY_API_URL || 'https://api.oxy.so'
+});
 
-// Validate session
+// Validate sessions
 const { valid, user } = await oxyClient.validateSession(sessionId);
+
+// Get user data
+const user = await oxyClient.getCurrentUser();
+const profile = await oxyClient.getUserByUsername('nate');
 ```
 
 ### Express Middleware
@@ -327,42 +425,73 @@ await oxyClient.deleteFile(fileId);
 
 ---
 
-## Advanced: useOxy Hook
+## Common Mistakes to Avoid
 
-For full control in Expo/RN apps, use `useOxy` instead of `useAuth`:
+### Don't use `@oxyhq/services` in web apps
 
-```tsx
-import { useOxy } from '@oxyhq/services';
+```typescript
+// WRONG - for web apps
+import { OxyProvider } from '@oxyhq/services';
+```
 
-const {
-  // All useAuth properties plus:
-  sessions,            // All active sessions
-  activeSessionId,     // Current session ID
-  switchSession,       // Switch between accounts
-  refreshSessions,     // Refresh session list
+Instead use `@oxyhq/auth`:
 
-  // Language
-  currentLanguage,     // 'en', 'es', etc.
-  setLanguage,         // Change language
+```typescript
+// CORRECT - for web apps
+import { WebOxyProvider } from '@oxyhq/auth';
+```
 
-  // UI
-  showBottomSheet,     // Show bottom sheet screens
-  openAvatarPicker,    // Open avatar picker
+### Don't use `@oxyhq/auth` in Expo/RN apps
 
-  // Identity
-  hasIdentity,         // Check for crypto identity
-  getPublicKey,        // Get public key
-} = useOxy();
+```typescript
+// WRONG - for mobile apps
+import { WebOxyProvider } from '@oxyhq/auth';
+```
+
+Instead use `@oxyhq/services`:
+
+```typescript
+// CORRECT - for mobile apps
+import { OxyProvider } from '@oxyhq/services';
+```
+
+### Don't use `@oxyhq/services` or `@oxyhq/auth` in backend
+
+```typescript
+// WRONG - for backend
+import { WebOxyProvider } from '@oxyhq/auth';
+```
+
+Instead use `@oxyhq/core` only:
+
+```typescript
+// CORRECT - for backend
+import { OxyServices } from '@oxyhq/core';
 ```
 
 ---
 
 ## Environment Variables
 
-```bash
-# React Native/Expo
-EXPO_PUBLIC_API_URL=https://api.oxy.so
+### Web Apps
 
+```env
+# React/Next.js/Vite
+VITE_API_URL=https://api.oxy.so
+# or
+NEXT_PUBLIC_API_URL=https://api.oxy.so
+```
+
+### Mobile Apps
+
+```env
+# Expo
+EXPO_PUBLIC_API_URL=https://api.oxy.so
+```
+
+### Backend
+
+```env
 # Node.js
 OXY_API_URL=https://api.oxy.so
 ```
@@ -390,8 +519,11 @@ Wrap your app with `<OxyProvider>` (Expo/RN) or `<WebOxyProvider>` from `@oxyhq/
 
 ---
 
-## Full Documentation
+## Summary
 
-- [README.md](./README.md) - Full API reference
-- [PLATFORM_GUIDE.md](./PLATFORM_GUIDE.md) - Platform-specific setup guide
-- [CROSS_DOMAIN_AUTH.md](../../CROSS_DOMAIN_AUTH.md) - SSO deep dive
+All apps in this monorepo are configured as follows:
+- 3 web apps use `@oxyhq/auth` + `@oxyhq/core`
+- 1 mobile app uses `@oxyhq/services` + `@oxyhq/core`
+- 1 backend service uses `@oxyhq/core` only
+
+Cross-domain SSO works automatically across all platforms.
