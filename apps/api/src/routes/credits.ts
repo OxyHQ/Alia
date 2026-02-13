@@ -42,7 +42,8 @@ router.get('/', authenticateToken, async (req, res) => {
 router.get('/usage', authenticateToken, async (req, res) => {
   try {
     const period = (req.query.period as string) || '7d';
-    const days = period === '30d' ? 30 : 7;
+    const periodMap: Record<string, number> = { '24h': 1, '48h': 2, '72h': 3, '7d': 7, '30d': 30 };
+    const days = periodMap[period] ?? 7;
     const since = new Date();
     since.setDate(since.getDate() - days);
     since.setHours(0, 0, 0, 0);

@@ -5,6 +5,7 @@ interface IChatAnalyticsFields {
   oxyUserId: mongoose.Types.ObjectId;
   conversationId?: string;
   model: string;
+  aliaModelId?: string;
   provider: string;
   promptTokens: number;
   completionTokens: number;
@@ -21,6 +22,7 @@ const ChatAnalyticsSchema = new Schema<IChatAnalytics>({
   oxyUserId: { type: Schema.Types.ObjectId, ref: 'User', required: true, index: true },
   conversationId: String,
   model: { type: String, required: true },
+  aliaModelId: String,
   provider: { type: String, required: true },
   promptTokens: { type: Number, default: 0 },
   completionTokens: { type: Number, default: 0 },
@@ -44,6 +46,7 @@ registerHook({
         oxyUserId: ctx.userId,
         conversationId: ctx.conversationId,
         model: ctx.modelUsed,
+        aliaModelId: ctx.model,
         provider: ctx.metadata.provider || 'unknown',
         promptTokens: ctx.tokenUsage.promptTokens,
         completionTokens: ctx.tokenUsage.completionTokens,

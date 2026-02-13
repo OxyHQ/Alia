@@ -220,7 +220,13 @@
     "creditsPerMonth": "{{count}} créditos/mes",
     "renewsOn": "Se renueva el {{date}}",
     "cancelsOn": "Se cancela el {{date}}",
-    "manageBilling": "Gestionar facturación"
+    "manageBilling": "Gestionar facturación",
+    "activity": "Actividad",
+    "conversations": "Conversaciones",
+    "tokensUsed": "Tokens usados",
+    "models": "Modelos",
+    "noActivity": "Sin actividad aún",
+    "conversationsCount": "{{count}} conversaciones"
   },
   "roles": {
     "title": "Roles",
