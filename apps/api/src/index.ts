@@ -30,6 +30,7 @@ import automationsRouter from './routes/automations.js';
 import analyticsRouter from './routes/analytics.js';
 import channelsRouter from './routes/channels.js';
 import webhooksRouter from './routes/webhooks.js';
+import referralsRouter from './routes/referrals.js';
 import providersModule from './internal/providers/index.js';
 
 // Register hooks (side-effect import)
@@ -234,6 +235,7 @@ app.use('/automations', automationsRouter);
 app.use('/analytics', analyticsRouter);
 app.use('/channels', channelsRouter);
 app.use('/webhooks', webhooksRouter);
+app.use('/referrals', referralsRouter);
 app.use('/internal', internalRouter);
 app.use('/internal/providers', providersModule);
 
