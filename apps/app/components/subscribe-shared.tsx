@@ -194,14 +194,14 @@ export function PlanColumn({
   billingPeriod,
   isCurrentPlan,
   onSubscribe,
-  isLoading,
+  loadingPlanId,
   t,
 }: {
   tier: PricingTier;
   billingPeriod: BillingPeriod;
   isCurrentPlan: boolean;
   onSubscribe: (planId: string) => void;
-  isLoading: boolean;
+  loadingPlanId?: string;
   t: (key: string) => string;
 }) {
   const price =
@@ -264,8 +264,8 @@ export function PlanColumn({
           if (tier.isFree) return;
           onSubscribe(tier.id);
         }}
-        disabled={isCurrentPlan || tier.isFree || isLoading}
-        isLoading={isLoading}
+        disabled={isCurrentPlan || tier.isFree || !!loadingPlanId}
+        isLoading={loadingPlanId === tier.id}
       >
         <Text
           className={cn(
@@ -313,7 +313,7 @@ export function PlanGrid({
   currentPlanId,
   hasActiveSubscription,
   onSubscribe,
-  isLoading,
+  loadingPlanId,
   isWideLayout,
   t,
 }: {
@@ -322,7 +322,7 @@ export function PlanGrid({
   currentPlanId?: string;
   hasActiveSubscription: boolean;
   onSubscribe: (planId: string) => void;
-  isLoading: boolean;
+  loadingPlanId?: string;
   isWideLayout: boolean;
   t: (key: string) => string;
 }) {
@@ -376,7 +376,7 @@ export function PlanGrid({
           : currentPlanId === tier.id
       }
       onSubscribe={onSubscribe}
-      isLoading={isLoading}
+      loadingPlanId={loadingPlanId}
       t={t}
     />
   );
