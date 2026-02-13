@@ -1,10 +1,10 @@
 import React from "react";
-import { View, Pressable, ScrollView, Linking } from "react-native";
+import { View, Pressable, ScrollView, Linking, Share } from "react-native";
 import { HeartHandshake, Copy, Send } from "lucide-react-native";
+import Fontisto from "@expo/vector-icons/Fontisto";
 import * as Clipboard from "expo-clipboard";
 import { Text } from "@/components/ui/text";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import {
   Dialog,
   DialogContent,
@@ -12,39 +12,37 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog";
-import { useReferralInfo, useSendInviteEmail } from "@/lib/hooks/use-referrals";
+import { useReferralInfo } from "@/lib/hooks/use-referrals";
+
+const SHARE_TEXT = "Check out Alia — sign up with my link and we both get 500 credits!";
 
 interface InviteDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }
 
-// Simple social brand icons as styled text in circles
-function SocialButton({
-  label,
+const SocialButton = React.memo(function SocialButton({
+  iconName,
   onPress,
 }: {
-  label: string;
+  iconName: React.ComponentProps<typeof Fontisto>["name"];
   onPress: () => void;
 }) {
   return (
     <Pressable
       onPress={onPress}
-      className="flex-1 h-11 items-center justify-center rounded-xl border border-border active:bg-muted"
+      className="h-11 w-11 items-center justify-center rounded-full border border-border active:bg-muted"
     >
-      <Text className="text-base font-bold text-foreground">{label}</Text>
+      <Fontisto name={iconName} size={18} className="text-foreground" />
     </Pressable>
   );
-}
+});
 
 export function InviteDialog({ open, onOpenChange }: InviteDialogProps) {
   const { data: referralInfo } = useReferralInfo();
-  const sendInvite = useSendInviteEmail();
-  const [email, setEmail] = React.useState("");
   const [copied, setCopied] = React.useState(false);
 
   const inviteUrl = referralInfo?.inviteUrl || "";
-  const shareText = `Check out Alia — sign up with my link and we both get 500 credits!`;
 
   const handleCopy = React.useCallback(async () => {
     if (!inviteUrl) return;
@@ -61,9 +59,9 @@ export function InviteDialog({ open, onOpenChange }: InviteDialogProps) {
 
   const handleShareX = React.useCallback(() => {
     Linking.openURL(
-      `https://twitter.com/intent/tweet?text=${encodeURIComponent(shareText)}&url=${encodeURIComponent(inviteUrl)}`
+      `https://twitter.com/intent/tweet?text=${encodeURIComponent(SHARE_TEXT)}&url=${encodeURIComponent(inviteUrl)}`
     );
-  }, [inviteUrl, shareText]);
+  }, [inviteUrl]);
 
   const handleShareLinkedIn = React.useCallback(() => {
     Linking.openURL(
@@ -73,22 +71,41 @@ export function InviteDialog({ open, onOpenChange }: InviteDialogProps) {
 
   const handleShareReddit = React.useCallback(() => {
     Linking.openURL(
-      `https://reddit.com/submit?url=${encodeURIComponent(inviteUrl)}&title=${encodeURIComponent(shareText)}`
+      `https://reddit.com/submit?url=${encodeURIComponent(inviteUrl)}&title=${encodeURIComponent(SHARE_TEXT)}`
     );
-  }, [inviteUrl, shareText]);
+  }, [inviteUrl]);
 
-  const handleSendEmail = React.useCallback(async () => {
-    if (!email.trim()) return;
-    const result = await sendInvite.mutateAsync(email.trim());
-    if (result.mailtoUrl) {
-      Linking.openURL(result.mailtoUrl);
-    }
-    setEmail("");
-  }, [email, sendInvite]);
+  const handleShareWhatsApp = React.useCallback(() => {
+    Linking.openURL(
+      `https://wa.me/?text=${encodeURIComponent(`${SHARE_TEXT}\n${inviteUrl}`)}`
+    );
+  }, [inviteUrl]);
+
+  const handleShareTelegram = React.useCallback(() => {
+    Linking.openURL(
+      `https://t.me/share/url?url=${encodeURIComponent(inviteUrl)}&text=${encodeURIComponent(SHARE_TEXT)}`
+    );
+  }, [inviteUrl]);
+
+  const handleSharePinterest = React.useCallback(() => {
+    Linking.openURL(
+      `https://pinterest.com/pin/create/button/?url=${encodeURIComponent(inviteUrl)}&description=${encodeURIComponent(SHARE_TEXT)}`
+    );
+  }, [inviteUrl]);
+
+  const handleShare = React.useCallback(async () => {
+    if (!inviteUrl) return;
+    await Share.share({
+      message: `${SHARE_TEXT}\n${inviteUrl}`,
+    });
+  }, [inviteUrl]);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md">
+      <DialogContent
+        overlayClassName="p-0 sm:p-6"
+        className="flex-1 max-w-full rounded-none sm:flex-initial sm:max-w-md sm:rounded-2xl"
+      >
         <ScrollView showsVerticalScrollIndicator={false}>
           {/* Header Icon */}
           <View className="items-center mb-4">
@@ -111,7 +128,7 @@ export function InviteDialog({ open, onOpenChange }: InviteDialogProps) {
             <Text className="text-sm font-medium text-foreground">
               Share invitation link
             </Text>
-            <View className="flex-row items-center gap-2 rounded-xl border border-input bg-muted/30 px-3.5 h-11">
+            <View className="flex-row items-center gap-2 rounded-full border border-input bg-muted/30 pl-4 pr-1.5 h-11">
               <Text
                 className="flex-1 text-sm text-muted-foreground"
                 numberOfLines={1}
@@ -120,7 +137,7 @@ export function InviteDialog({ open, onOpenChange }: InviteDialogProps) {
               </Text>
               <Pressable
                 onPress={handleCopy}
-                className="flex-row items-center gap-1.5 px-3 py-1.5 rounded-lg bg-background border border-border active:bg-muted"
+                className="flex-row items-center gap-1.5 py-1.5 px-2.5 rounded-full bg-background border border-border active:bg-muted"
               >
                 <Copy size={14} className="text-foreground" />
                 <Text className="text-sm font-medium text-foreground">
@@ -131,42 +148,25 @@ export function InviteDialog({ open, onOpenChange }: InviteDialogProps) {
           </View>
 
           {/* Social Sharing */}
-          <View className="flex-row gap-2 mb-4">
-            <SocialButton label="f" onPress={handleShareFacebook} />
-            <SocialButton label="X" onPress={handleShareX} />
-            <SocialButton label="in" onPress={handleShareLinkedIn} />
-            <SocialButton label="r/" onPress={handleShareReddit} />
+          <View className="flex-row flex-wrap justify-center gap-3 mb-4">
+            <SocialButton iconName="facebook" onPress={handleShareFacebook} />
+            <SocialButton iconName="twitter" onPress={handleShareX} />
+            <SocialButton iconName="linkedin" onPress={handleShareLinkedIn} />
+            <SocialButton iconName="reddit" onPress={handleShareReddit} />
+            <SocialButton iconName="whatsapp" onPress={handleShareWhatsApp} />
+            <SocialButton iconName="telegram" onPress={handleShareTelegram} />
+            <SocialButton iconName="pinterest" onPress={handleSharePinterest} />
           </View>
 
-          {/* Send Email */}
-          <View className="gap-2 mb-4">
-            <Text className="text-sm font-medium text-foreground">
-              Send invitation email
-            </Text>
-            <View className="flex-row items-center gap-2">
-              <View className="flex-1">
-                <Input
-                  value={email}
-                  onChangeText={setEmail}
-                  placeholder="Enter email address"
-                  keyboardType="email-address"
-                  autoCapitalize="none"
-                />
-              </View>
-              <Button
-                onPress={handleSendEmail}
-                disabled={!email.trim() || sendInvite.isPending}
-                className="h-11 px-4 rounded-xl"
-              >
-                <View className="flex-row items-center gap-1.5">
-                  <Send size={14} className="text-primary-foreground" />
-                  <Text className="text-sm font-medium text-primary-foreground">
-                    Send
-                  </Text>
-                </View>
-              </Button>
+          {/* Share */}
+          <Button onPress={handleShare} className="h-11 rounded-full mb-4">
+            <View className="flex-row items-center gap-1.5">
+              <Send size={14} className="text-primary-foreground" />
+              <Text className="text-sm font-medium text-primary-foreground">
+                Share invite link
+              </Text>
             </View>
-          </View>
+          </Button>
 
           {/* Stats Card */}
           <View className="flex-row rounded-xl bg-muted/50 border border-border p-4 mb-4">
