@@ -11,6 +11,7 @@ class APIClient {
       timeout: 30000,
       headers: {
         'Content-Type': 'application/json',
+        'X-Telegram-Bot-Secret': process.env.TELEGRAM_BOT_SECRET || '',
       },
     });
   }
@@ -45,23 +46,17 @@ class APIClient {
   }
 
   // Conversations
-  async getConversations(botSecret: string, oxyUserId: string): Promise<any[]> {
+  async getConversations(oxyUserId: string): Promise<any[]> {
     const response = await this.client.get('/conversations', {
-      headers: {
-        'X-Telegram-Bot-Secret': botSecret,
-        'X-Oxy-User-Id': oxyUserId,
-      },
+      headers: { 'X-Oxy-User-Id': oxyUserId },
     });
     return response.data;
   }
 
-  async getConversation(botSecret: string, oxyUserId: string, conversationId: string): Promise<any> {
+  async getConversation(oxyUserId: string, conversationId: string): Promise<any> {
     try {
       const response = await this.client.get(`/conversations/${conversationId}`, {
-        headers: {
-          'X-Telegram-Bot-Secret': botSecret,
-          'X-Oxy-User-Id': oxyUserId,
-        },
+        headers: { 'X-Oxy-User-Id': oxyUserId },
       });
       return response.data;
     } catch (error: any) {
@@ -73,7 +68,6 @@ class APIClient {
   }
 
   async saveConversation(
-    botSecret: string,
     oxyUserId: string,
     conversationId: string,
     messages: any[],
@@ -87,10 +81,7 @@ class APIClient {
         title,
       },
       {
-        headers: {
-          'X-Telegram-Bot-Secret': botSecret,
-          'X-Oxy-User-Id': oxyUserId,
-        },
+        headers: { 'X-Oxy-User-Id': oxyUserId },
       }
     );
     return response.data;
@@ -118,18 +109,10 @@ class APIClient {
     return response.data;
   }
 
-  // Telegram bot auth headers
-  private getTelegramBotHeaders(telegramId: string) {
-    return {
-      'X-Telegram-Bot-Secret': process.env.TELEGRAM_BOT_SECRET || '',
-      'X-Telegram-Id': telegramId,
-    };
-  }
-
   // Telegram User Management
   async requestTelegramLink(telegramId: string): Promise<{ authToken: string; authUrl: string; expiresAt: Date }> {
     const response = await this.client.post('/telegram/link-request', { telegramId }, {
-      headers: this.getTelegramBotHeaders(telegramId),
+      headers: { 'X-Telegram-Id': telegramId },
     });
     return response.data;
   }
@@ -137,7 +120,7 @@ class APIClient {
   async getTelegramUser(telegramId: string): Promise<any> {
     try {
       const response = await this.client.get(`/telegram/users/${telegramId}`, {
-        headers: this.getTelegramBotHeaders(telegramId),
+        headers: { 'X-Telegram-Id': telegramId },
       });
       return response.data;
     } catch (error: any) {
@@ -156,34 +139,34 @@ class APIClient {
     lastName?: string;
   }): Promise<any> {
     const response = await this.client.post('/telegram/users', data, {
-      headers: this.getTelegramBotHeaders(data.telegramId),
+      headers: { 'X-Telegram-Id': data.telegramId },
     });
     return response.data;
   }
 
   async requestTelegramAuth(telegramId: string): Promise<{ authToken: string; authUrl: string; expiresAt: Date }> {
     const response = await this.client.post('/telegram/auth-request', { telegramId }, {
-      headers: this.getTelegramBotHeaders(telegramId),
+      headers: { 'X-Telegram-Id': telegramId },
     });
     return response.data;
   }
 
   async updateTelegramConversation(telegramId: string, conversationId: string): Promise<void> {
     await this.client.post(`/telegram/users/${telegramId}/conversation`, { conversationId }, {
-      headers: this.getTelegramBotHeaders(telegramId),
+      headers: { 'X-Telegram-Id': telegramId },
     });
   }
 
   async updateTelegramModel(telegramId: string, model: string): Promise<{ success: boolean; model: string }> {
     const response = await this.client.post(`/telegram/users/${telegramId}/model`, { model }, {
-      headers: this.getTelegramBotHeaders(telegramId),
+      headers: { 'X-Telegram-Id': telegramId },
     });
     return response.data;
   }
 
   async logoutTelegram(telegramId: string): Promise<void> {
     await this.client.post(`/telegram/users/${telegramId}/logout`, {}, {
-      headers: this.getTelegramBotHeaders(telegramId),
+      headers: { 'X-Telegram-Id': telegramId },
     });
   }
 
@@ -196,7 +179,7 @@ class APIClient {
     lastName?: string;
   }): Promise<{ success: boolean; isNewUser: boolean; user?: any }> {
     const response = await this.client.post('/telegram/signin-complete', data, {
-      headers: this.getTelegramBotHeaders(data.telegramId),
+      headers: { 'X-Telegram-Id': data.telegramId },
     });
     return response.data;
   }
