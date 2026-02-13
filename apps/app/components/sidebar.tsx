@@ -4,7 +4,6 @@ import { Image } from "expo-image";
 import { Text } from "@/components/ui/text";
 import { Button } from "@/components/ui/button";
 import { BaseSidebar } from "@/components/base-sidebar";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   Sparkles,
   Trash2,
@@ -42,6 +41,10 @@ import {
   BookMarked,
   FolderClosed,
   BarChart3,
+  Gift,
+  SlidersHorizontal,
+  Palette,
+  Smartphone,
   type LucideIcon,
 } from "lucide-react-native";
 import { useStore } from "@/lib/globalStore";
@@ -60,6 +63,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { ProjectEditDialog } from "@/components/project-edit-dialog";
+import { InviteDialog } from "@/components/invite-dialog";
 import { FolderEditDialog } from "@/components/folder-edit-dialog";
 import { ConversationItem } from "@/components/sidebar/conversation-item";
 import { FolderSection } from "@/components/sidebar/folder-section";
@@ -130,6 +134,7 @@ export const Sidebar = React.memo(function Sidebar() {
   const [editingFolder, setEditingFolder] = React.useState<FolderType | null>(null);
   const [projectsCollapsed, setProjectsCollapsed] = React.useState(false);
   const [historyCollapsed, setHistoryCollapsed] = React.useState(false);
+  const [inviteDialogOpen, setInviteDialogOpen] = React.useState(false);
 
   // Group and flatten conversations for display
   const conversationsNotInProjects = React.useMemo(() => {
@@ -201,6 +206,14 @@ export const Sidebar = React.memo(function Sidebar() {
 
   const handleConsole = React.useCallback(() => {
     Linking.openURL("https://console.alia.onl");
+  }, []);
+
+  const handleAppDownload = React.useCallback(() => {
+    Linking.openURL("https://alia.onl/download");
+  }, []);
+
+  const handleDocs = React.useCallback(() => {
+    Linking.openURL("https://docs.alia.onl");
   }, []);
 
   const handleSelectProject = React.useCallback((id: string | null) => {
@@ -350,16 +363,6 @@ export const Sidebar = React.memo(function Sidebar() {
     },
     [toggleFavorite]
   );
-
-  // Get user initials for avatar
-  const getUserInitials = React.useCallback(() => {
-    if (!user?.name) return user?.username?.[0]?.toUpperCase() || "U";
-    const { first, last } = user.name;
-    if (first && last) {
-      return `${first[0]}${last[0]}`.toUpperCase();
-    }
-    return (first?.[0] || user?.username?.[0] || "U").toUpperCase();
-  }, [user]);
 
   // Get display name for user
   const getUserDisplayName = React.useCallback(() => {
@@ -716,64 +719,99 @@ export const Sidebar = React.memo(function Sidebar() {
     </View>
   );
 
-  // Footer with user dropdown or auth buttons
+  // Footer with share banner + icon bar or auth buttons
   const footer = (
     <>
         {isAuthenticated ? (
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Pressable className="flex-row items-center gap-3 md:gap-2 rounded-full p-2 md:p-1.5 active:bg-muted">
-                <Avatar className="h-8 w-8 md:h-7 md:w-7">
-                  {user?.avatar ? (
-                    <AvatarImage source={{ uri: user.avatar }} />
-                  ) : null}
-                  <AvatarFallback className="bg-primary">
-                    <Text className="text-xs md:text-[10px] text-primary-foreground">{getUserInitials()}</Text>
-                  </AvatarFallback>
-                </Avatar>
-                <View className="flex-1">
-                  <Text className="text-sm md:text-xs font-medium text-foreground">
-                    {getUserDisplayName()}
-                  </Text>
-                  <Text className="text-xs md:text-[10px] text-muted-foreground">
-                    {user?.email || ""}
-                  </Text>
-                </View>
-              </Pressable>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent
-              side="top"
-              align="start"
-              className="w-64"
+          <View className="gap-2">
+            {/* Share Banner */}
+            <Pressable
+              onPress={() => setInviteDialogOpen(true)}
+              className="flex-row items-center gap-3 md:gap-2 p-2.5 md:p-2 rounded-xl bg-muted/50 active:bg-muted"
             >
-              <View className="flex flex-col space-y-1 p-2">
-                <Text className="text-sm font-medium text-foreground">{getUserDisplayName()}</Text>
-                <Text className="text-xs text-muted-foreground">{user?.email || ""}</Text>
+              <Gift size={18} className="text-primary" />
+              <View className="flex-1">
+                <Text className="text-sm md:text-xs font-medium text-foreground">
+                  Share Alia with a friend
+                </Text>
+                <Text className="text-xs md:text-[10px] text-muted-foreground">
+                  Get 500 credits each
+                </Text>
               </View>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem>
-                <Sparkle size={16} className="text-muted-foreground" />
-                <Text className="text-sm">Upgrade to Pro</Text>
-              </DropdownMenuItem>
-              <DropdownMenuItem onPress={handleAccount}>
-                <UserCircle size={16} className="text-muted-foreground" />
-                <Text className="text-sm">Account</Text>
-              </DropdownMenuItem>
-              <DropdownMenuItem>
-                <CreditCard size={16} className="text-muted-foreground" />
-                <Text className="text-sm">Billing</Text>
-              </DropdownMenuItem>
-              <DropdownMenuItem>
-                <Bell size={16} className="text-muted-foreground" />
-                <Text className="text-sm">Notifications</Text>
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem variant="destructive" onPress={handleLogout}>
-                <LogOut size={16} className="text-destructive" />
-                <Text className="text-sm">Log out</Text>
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+              <ChevronRight size={16} className="text-muted-foreground" />
+            </Pressable>
+
+            {/* Icon Button Bar */}
+            <View className="flex-row items-center">
+              {/* Settings - opens user account dropdown */}
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Pressable className="h-9 w-9 md:h-8 md:w-8 items-center justify-center rounded-lg active:bg-muted">
+                    <SlidersHorizontal size={18} className="text-muted-foreground" />
+                  </Pressable>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent
+                  side="top"
+                  align="start"
+                  className="w-64"
+                >
+                  <View className="flex flex-col space-y-1 p-2">
+                    <Text className="text-sm font-medium text-foreground">{getUserDisplayName()}</Text>
+                    <Text className="text-xs text-muted-foreground">{user?.email || ""}</Text>
+                  </View>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem>
+                    <Sparkle size={16} className="text-muted-foreground" />
+                    <Text className="text-sm">Upgrade to Pro</Text>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onPress={handleAccount}>
+                    <UserCircle size={16} className="text-muted-foreground" />
+                    <Text className="text-sm">Account</Text>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem>
+                    <CreditCard size={16} className="text-muted-foreground" />
+                    <Text className="text-sm">Billing</Text>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem>
+                    <Bell size={16} className="text-muted-foreground" />
+                    <Text className="text-sm">Notifications</Text>
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem variant="destructive" onPress={handleLogout}>
+                    <LogOut size={16} className="text-destructive" />
+                    <Text className="text-sm">Log out</Text>
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+
+              {/* Personalization */}
+              <Pressable
+                onPress={handleSettings}
+                className="h-9 w-9 md:h-8 md:w-8 items-center justify-center rounded-lg active:bg-muted"
+              >
+                <Palette size={18} className="text-muted-foreground" />
+              </Pressable>
+
+              {/* App Download */}
+              <Pressable
+                onPress={handleAppDownload}
+                className="h-9 w-9 md:h-8 md:w-8 items-center justify-center rounded-lg active:bg-muted"
+              >
+                <Smartphone size={18} className="text-muted-foreground" />
+              </Pressable>
+
+              {/* Spacer */}
+              <View className="flex-1" />
+
+              {/* Docs */}
+              <Pressable
+                onPress={handleDocs}
+                className="h-9 w-9 md:h-8 md:w-8 items-center justify-center rounded-lg active:bg-muted"
+              >
+                <BookOpen size={18} className="text-muted-foreground" />
+              </Pressable>
+            </View>
+          </View>
         ) : (
           <View className="gap-2 md:gap-1.5">
             <Button
@@ -831,6 +869,12 @@ export const Sidebar = React.memo(function Sidebar() {
         onOpenChange={setFolderEditDialogOpen}
         folder={editingFolder}
         onSave={handleSaveFolder}
+      />
+
+      {/* Invite/Referral Dialog */}
+      <InviteDialog
+        open={inviteDialogOpen}
+        onOpenChange={setInviteDialogOpen}
       />
     </>
   );
