@@ -133,6 +133,13 @@ export default function AppLayout() {
                 title: 'Role Detail',
               }}
             />
+            <Drawer.Screen
+              name="invite/[code]"
+              options={{
+                drawerItemStyle: { display: 'none' },
+                title: 'Invite',
+              }}
+            />
           </Drawer>
         </View>
         {/* Right Panel - flex on desktop, modal on mobile */}
