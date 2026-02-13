@@ -72,7 +72,15 @@ router.post('/transcribe', async (req: Request, res: Response) => {
 
     const reservation = await reserveCredits(userId);
     if (!reservation) {
-      return res.status(402).json({ error: 'Insufficient credits' });
+      return res.status(402).json({
+        error: {
+          code: 'INSUFFICIENT_CREDITS',
+          message: "You've run out of credits. Add more or upgrade your plan to continue.",
+          retryable: false,
+          suggestedAction: 'upgrade',
+          details: { limitType: 'credits' },
+        },
+      });
     }
 
     // Resolve a Whisper-compatible provider key and API endpoint

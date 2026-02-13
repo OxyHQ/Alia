@@ -119,8 +119,13 @@ router.post('/resolve-model', async (req: Request, res: Response) => {
     const reservation = await reserveCredits(userId);
     if (!reservation) {
       return res.status(402).json({
-        error: 'Insufficient credits',
-        details: 'You need credits to use the API'
+        error: {
+          code: 'INSUFFICIENT_CREDITS',
+          message: "You've run out of credits. Add more or upgrade your plan to continue.",
+          retryable: false,
+          suggestedAction: 'upgrade',
+          details: { limitType: 'credits' },
+        },
       });
     }
 

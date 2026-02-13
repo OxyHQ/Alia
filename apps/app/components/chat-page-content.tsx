@@ -20,6 +20,8 @@ import { toast } from "@/components/sonner";
 import { VoiceChat } from "@/components/voice-chat";
 import { CanvasPanel } from "@/components/canvas-panel";
 import { useSpeechToText } from "@/lib/hooks/use-speech-to-text";
+import { useQueryClient } from "@tanstack/react-query";
+import { AlertTriangle, Zap } from "lucide-react-native";
 
 interface ChatPageContentProps {
   messages: Message[];
@@ -36,6 +38,7 @@ interface ChatPageContentProps {
   onRemoveRole?: () => void;
   thinkingMode?: boolean;
   onThinkingModeChange?: (value: boolean) => void;
+  disabled?: boolean;
 }
 
 const SubmitButtonWrapper = ({
@@ -92,10 +95,13 @@ export const ChatPageContent = ({
   onRemoveRole,
   thinkingMode = false,
   onThinkingModeChange,
+  disabled = false,
 }: ChatPageContentProps) => {
   const selectedImageUris = useStore((state) => state.selectedImageUris);
   const { isAuthenticated } = useAuth();
+  const queryClient = useQueryClient();
   const [searchMode, setSearchMode] = useState(false);
+  const [warningDismissed, setWarningDismissed] = useState(false);
   const [agentMode, setAgentMode] = useState(false);
   const [ghostMode, setGhostMode] = useState(false);
   const [inputValue, setInputValue] = useState("");
@@ -107,7 +113,7 @@ export const ChatPageContent = ({
   const stt = useSpeechToText();
 
   const handleSubmit = () => {
-    if (!inputValue.trim() || isLoading) return;
+    if (!inputValue.trim() || isLoading || disabled) return;
     onSubmit(inputValue);
     setInputValue("");
     useStore.getState().clearImageUris();
@@ -301,6 +307,44 @@ export const ChatPageContent = ({
             onEditMessage={onEditMessage}
           />
 
+          {/* Usage warning banner */}
+          {(() => {
+            const usageWarning = queryClient.getQueryData<{ level: string; ratio: number; creditsRemaining: number }>(['usage-warning']);
+            if (usageWarning && !warningDismissed && selectedModel !== 'alia-lite') {
+              const percent = Math.round(usageWarning.ratio * 100);
+              const isCritical = usageWarning.level === 'critical';
+              return (
+                <View className={`mx-auto w-full max-w-3xl px-4 pb-1`}>
+                  <View className={`flex-row items-center gap-2 rounded-lg px-3 py-2 ${isCritical ? 'bg-destructive/10' : 'bg-yellow-500/10'}`}>
+                    <Zap size={14} className={isCritical ? 'text-destructive' : 'text-yellow-600'} />
+                    <Text className={`text-xs flex-1 ${isCritical ? 'text-destructive' : 'text-yellow-700 dark:text-yellow-400'}`}>
+                      {percent}% of daily limit used. Switch to Alia Lite to use 2x fewer credits.
+                    </Text>
+                    <Pressable onPress={() => onModelChange('alia-lite')} className="active:opacity-70">
+                      <Text className="text-xs font-medium text-primary">Switch</Text>
+                    </Pressable>
+                    <Pressable onPress={() => setWarningDismissed(true)} className="active:opacity-70">
+                      <X size={12} className="text-muted-foreground" />
+                    </Pressable>
+                  </View>
+                </View>
+              );
+            }
+            return null;
+          })()}
+
+          {/* Disabled banner when limit hit */}
+          {disabled && (
+            <View className="mx-auto w-full max-w-3xl px-4 pb-1">
+              <View className="flex-row items-center gap-2 rounded-lg bg-destructive/10 px-3 py-2">
+                <AlertTriangle size={14} className="text-destructive" />
+                <Text className="text-xs text-destructive flex-1">
+                  Usage limit reached. Upgrade or wait to continue.
+                </Text>
+              </View>
+            </View>
+          )}
+
           <View className="p-4 bg-background border-t border-border">
             <View className="mx-auto w-full max-w-3xl flex-row items-end gap-2">
               <Dropdown
@@ -330,7 +374,7 @@ export const ChatPageContent = ({
                   onValueChange={setInputValue}
                   onSubmit={handleSubmit}
                   isLoading={isLoading}
-                  disabled={isLoading}
+                  disabled={isLoading || disabled}
                   onImagePaste={handleImagePaste}
                 >
                   <AttachmentPreview
@@ -341,7 +385,8 @@ export const ChatPageContent = ({
                   <PromptInputTextarea
                     value={inputValue}
                     onChangeText={setInputValue}
-                    placeholder="Message Alia..."
+                    placeholder={disabled ? "Usage limit reached" : "Message Alia..."}
+                    editable={!disabled}
                     className="min-h-[44px] text-base md:text-base py-3"
                   />
                   <PromptInputActions className="flex-row items-center justify-between gap-2 mt-2 mb-1">

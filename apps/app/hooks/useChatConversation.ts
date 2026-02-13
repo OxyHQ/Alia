@@ -29,6 +29,8 @@ export function useChatConversation({ conversationId, activeRole, thinkingMode, 
     messages,
     append,
     isLoading,
+    error,
+    clearError,
     setMessages,
     stop,
   } = useStreamingChat(generateAPIUrl('/v1/chat/completions'), activeRole, conversationId, thinkingMode, selectedModel, skillId);
@@ -112,6 +114,7 @@ export function useChatConversation({ conversationId, activeRole, thinkingMode, 
     conversationId,
     messages,
     isLoading,
+    error,
     scrollViewRef,
 
     // Actions
@@ -120,5 +123,6 @@ export function useChatConversation({ conversationId, activeRole, thinkingMode, 
     editMessage,
     stopGeneration,
     clearConversation,
+    clearError,
   };
 }

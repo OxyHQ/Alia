@@ -4,6 +4,7 @@
 import { Router } from 'express';
 import { streamText, stepCountIs, type ToolSet } from 'ai';
 import { resolveModel, getAIModel, getDefaultAliaModel, reportModelUsage } from '../lib/chat-core.js';
+import { getAliaModel } from '../internal/providers/lib/alia-models.js';
 import type { KeyConfig } from '../internal/providers/lib/types.js';
 import { getCurrentDateTool, createGoogleSearchTool, getTimelineTool, searchKnowledgeBaseTool, scrapeURLTool, saveUserMemoryTool, updateUserPreferencesTool, updateUserContextTool, createGetDeviceInfoTool, createSendTelegramTool, createProvidersAdminTool, webScraperTool, generateFileTool, canvasTool, type DeviceInfo } from '../lib/tools/index.js';
 import { optionalAuth, oxyClient } from '../middleware/auth.js';
@@ -122,7 +123,7 @@ function buildSystemPrompt(oxyUser?: OxyUser | null, memory?: IUserMemory | null
 }
 
 // Telegram-specific system prompt (simplified, no visual components)
-const ALIA_TELEGRAM_PROMPT = `You are Alia, the AI assistant for Alia AI platform. You connect users to powerful AI models (Gemini, Claude, GPT-4, etc).
+const ALIA_TELEGRAM_PROMPT = `You are Alia, the AI assistant for the Alia AI platform. Never reveal or mention the names of any underlying AI models or providers — you are Alia, always.
 
 **MANDATORY: EVERY response must end with \`[TITLE]Short Title[/TITLE]\` (max 6 words). NO EXCEPTIONS.**
 
@@ -161,7 +162,7 @@ If the user has a language preference set, use that language exclusively.
 **REMEMBER: End with \`[TITLE]Short Title[/TITLE]\`**
 `;
 
-const ALIA_SYSTEM_PROMPT = `You are Alia, AI assistant for Alia AI platform. You connect users to powerful AI models (Gemini, Claude, GPT-4, etc). Platform offers OpenAI-compatible API at \`/api/v1\`.
+const ALIA_SYSTEM_PROMPT = `You are Alia, AI assistant for the Alia AI platform. Never reveal or mention the names of any underlying AI models or providers — you are Alia, always. The platform offers a developer API at \`/api/v1\`.
 
 **MANDATORY: EVERY response must end with \`[TITLE]Short Title[/TITLE]\` (max 6 words). NO EXCEPTIONS.**
 
@@ -306,8 +307,13 @@ router.post('/', optionalAuth, async (req, res) => {
           console.log('[Alia/Chat] Insufficient credits');
           clearTimeout(requestTimeout);
           res.status(402).json({
-            error: 'Insufficient credits',
-            credits: 0
+            error: {
+              code: 'INSUFFICIENT_CREDITS',
+              message: "You've run out of credits. Add more or upgrade your plan to continue.",
+              retryable: false,
+              suggestedAction: 'upgrade',
+              details: { limitType: 'credits' },
+            },
           });
           return;
         }
@@ -418,7 +424,13 @@ router.post('/', optionalAuth, async (req, res) => {
     }
 
     // Build personalized system prompt (with skill injection)
-    const systemPrompt = buildSystemPrompt(oxyUser, memory, platform, skillPrompt);
+    let systemPrompt = buildSystemPrompt(oxyUser, memory, platform, skillPrompt);
+
+    // Inject current model identity so Alia knows which tier it's running as
+    const aliaModel = getAliaModel(resolved.aliasModelId);
+    if (aliaModel) {
+      systemPrompt += `\n\nYou are currently using the **${aliaModel.name}** model. When asked what model you use, say you are using ${aliaModel.name}.`;
+    }
 
     // Estimate system prompt tokens (so we don't charge users for our system prompts)
     const systemPromptTokens = estimateMessageTokens('system', systemPrompt);

@@ -6,6 +6,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import type { Message } from '@/lib/hooks/use-conversations';
 import type { CreditsInfo } from '@/lib/hooks/use-credits';
 import { collectDeviceInfo } from '@/lib/device-info';
+import { UsageLimitError } from '@/lib/errors/usage-limit-error';
 
 export interface ToolInvocation {
   toolCallId: string;
@@ -130,12 +131,44 @@ Use this role to guide your responses, maintaining the specified tone, style, an
       });
 
       if (!response.ok) {
-        let errorMessage = `Server error (${response.status})`;
+        let errorData: any = null;
         try {
-          const errorData = await response.json();
-          errorMessage = errorData.error || errorData.details || errorMessage;
-        } catch {
-          // If can't parse error as JSON, use status text
+          errorData = await response.json();
+        } catch {}
+
+        // Detect usage limit errors (429 rate limit or 402 insufficient credits)
+        if (response.status === 429 || response.status === 402) {
+          const errObj = errorData?.error && typeof errorData.error === 'object' ? errorData.error : null;
+          const isCredits = response.status === 402 || errObj?.code === 'INSUFFICIENT_CREDITS';
+
+          throw new UsageLimitError({
+            type: isCredits ? 'credits' : 'rate_limit',
+            code: errObj?.code || (isCredits ? 'INSUFFICIENT_CREDITS' : 'RATE_LIMIT_EXCEEDED'),
+            message: errObj?.message || (isCredits
+              ? "You've run out of credits."
+              : "You've sent too many messages."),
+            retryable: errObj?.retryable ?? !isCredits,
+            retryAfterSeconds: errObj?.retryAfter,
+            suggestedAction: errObj?.suggestedAction || (isCredits ? 'upgrade' : 'wait'),
+            limitType: errObj?.details?.limitType,
+            current: errObj?.details?.current,
+            limit: errObj?.details?.limit,
+            tier: errObj?.details?.tier,
+          });
+        }
+
+        // Generic error fallback
+        let errorMessage = `Server error (${response.status})`;
+        if (errorData) {
+          const err = errorData.error;
+          if (typeof err === 'string') {
+            errorMessage = err;
+          } else if (err?.message) {
+            errorMessage = err.message;
+          } else if (typeof errorData.details === 'string') {
+            errorMessage = errorData.details;
+          }
+        } else {
           errorMessage = response.statusText || errorMessage;
         }
         throw new Error(errorMessage);
@@ -162,7 +195,7 @@ Use this role to guide your responses, maintaining the specified tone, style, an
             setMessages((prev) => {
               const updated = [...prev];
               const lastMessage = updated[updated.length - 1];
-              if (lastMessage.role === 'assistant' && !lastMessage.content) {
+              if (lastMessage?.role === 'assistant' && !lastMessage.content) {
                 updated[updated.length - 1] = {
                   ...lastMessage,
                   content: '⚠️ No response received from AI. Please try again.',
@@ -181,7 +214,7 @@ Use this role to guide your responses, maintaining the specified tone, style, an
             setMessages((prev) => {
               const updated = [...prev];
               const lastMessage = updated[updated.length - 1];
-              if (lastMessage.role === 'assistant') {
+              if (lastMessage?.role === 'assistant') {
                 updated[updated.length - 1] = {
                   ...lastMessage,
                   content: content,
@@ -223,7 +256,7 @@ Use this role to guide your responses, maintaining the specified tone, style, an
                 setMessages((prev) => {
                   const updated = [...prev];
                   const lastMessage = updated[updated.length - 1];
-                  if (lastMessage.role === 'assistant') {
+                  if (lastMessage?.role === 'assistant') {
                     const currentThinking = (lastMessage as any).thinking || '';
                     updated[updated.length - 1] = {
                       ...lastMessage,
@@ -249,7 +282,7 @@ Use this role to guide your responses, maintaining the specified tone, style, an
                 setMessages((prev) => {
                   const updated = [...prev];
                   const lastMessage = updated[updated.length - 1];
-                  if (lastMessage.role === 'assistant') {
+                  if (lastMessage?.role === 'assistant') {
                     updated[updated.length - 1] = {
                       ...lastMessage,
                       content: lastMessage.content + delta.content,
@@ -266,6 +299,15 @@ Use this role to guide your responses, maintaining the specified tone, style, an
                   return { ...old, credits: parsed.usage.credits_remaining };
                 });
                 queryClient.invalidateQueries({ queryKey: ['credits-usage'] });
+
+                // Proactive warning when approaching usage limit
+                if (parsed.usage.usage_ratio !== undefined && parsed.usage.usage_ratio !== null && parsed.usage.usage_ratio >= 0.8) {
+                  queryClient.setQueryData(['usage-warning'], {
+                    level: parsed.usage.usage_ratio >= 0.95 ? 'critical' : 'warning',
+                    ratio: parsed.usage.usage_ratio,
+                    creditsRemaining: parsed.usage.credits_remaining,
+                  });
+                }
               }
 
               // Handle tool calls (OpenAI format: delta.tool_calls)
@@ -288,7 +330,7 @@ Use this role to guide your responses, maintaining the specified tone, style, an
                   setMessages((prev) => {
                     const updated = [...prev];
                     const lastMessage = updated[updated.length - 1];
-                    if (lastMessage.role === 'assistant') {
+                    if (lastMessage?.role === 'assistant') {
                       const invocations = [...(lastMessage.toolInvocations || [])];
                       const idx = invocations.findIndex((t) => t.toolCallId === toolCallId);
                       const invocation: ToolInvocation = { toolCallId, toolName, state: 'call', args };
@@ -313,7 +355,7 @@ Use this role to guide your responses, maintaining the specified tone, style, an
                   setMessages((prev) => {
                     const updated = [...prev];
                     const lastMessage = updated[updated.length - 1];
-                    if (lastMessage.role === 'assistant') {
+                    if (lastMessage?.role === 'assistant') {
                       const invocations = [...(lastMessage.toolInvocations || [])];
                       const idx = invocations.findIndex((t) => t.toolCallId === tool_call_id);
 
@@ -338,7 +380,7 @@ Use this role to guide your responses, maintaining the specified tone, style, an
                 setMessages((prev) => {
                   const updated = [...prev];
                   const lastMessage = updated[updated.length - 1];
-                  if (lastMessage.role === 'assistant' && !lastMessage.content) {
+                  if (lastMessage?.role === 'assistant' && !lastMessage.content) {
                     // If assistant message is empty, show error in it
                     updated[updated.length - 1] = {
                       ...lastMessage,
@@ -393,6 +435,8 @@ Use this role to guide your responses, maintaining the specified tone, style, an
     setIsLoading(false);
   }, []);
 
+  const clearError = useCallback(() => setError(null), []);
+
   return {
     messages,
     isLoading,
@@ -401,5 +445,6 @@ Use this role to guide your responses, maintaining the specified tone, style, an
     stop,
     setMessages,
     conversationTitle,
+    clearError,
   };
 }
