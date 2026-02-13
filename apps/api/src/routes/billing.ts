@@ -5,8 +5,10 @@ import { UserCredits } from '../models/user-credits.js';
 import { Subscription } from '../models/subscription.js';
 import { Transaction } from '../models/transaction.js';
 import { Plan } from '../internal/providers/models/plan.js';
+import { CreditPackage } from '../internal/providers/models/credit-package.js';
 import { AliaModel as AliaModelDB } from '../internal/providers/models/alia-model.js';
 import { ALIA_MODELS } from '../internal/providers/lib/alia-models.js';
+import { getOrCreateUserCredits } from '../lib/user-credits-helpers.js';
 import { z } from 'zod';
 
 const router = Router();
@@ -27,20 +29,6 @@ function getStripe(): Stripe {
 
 function getWebhookSecret(): string {
   return process.env.STRIPE_WEBHOOK_SECRET || '';
-}
-
-// Helper to get or create UserCredits record
-async function getOrCreateUserCredits(userId: string) {
-  return UserCredits.findByIdAndUpdate(
-    userId,
-    {
-      $setOnInsert: {
-        _id: userId,
-        credits: { free: 300, freeLimit: 300, dailyRefresh: 300, lastRefresh: new Date(), paid: 0 },
-      },
-    },
-    { upsert: true, new: true }
-  );
 }
 
 // Helper to get or create Stripe customer
@@ -77,13 +65,6 @@ async function getOrCreateStripeCustomer(userId: string, userCredits: any): Prom
   return customer.id;
 }
 
-const CREDIT_PACKAGES = [
-  { id: 'credits_1000', name: '1,000 Credits', credits: 1000, price: 500, currency: 'usd' },
-  { id: 'credits_5000', name: '5,000 Credits', credits: 5000, price: 2000, currency: 'usd' },
-  { id: 'credits_10000', name: '10,000 Credits', credits: 10000, price: 3500, currency: 'usd' },
-  { id: 'credits_50000', name: '50,000 Credits', credits: 50000, price: 15000, currency: 'usd' },
-];
-
 // Legacy plan ID mapping for existing Stripe subscriptions
 const LEGACY_PLAN_MAP: Record<string, string> = {
   basic: 'go',
@@ -91,7 +72,21 @@ const LEGACY_PLAN_MAP: Record<string, string> = {
 };
 
 router.get('/packages', async (_req: Request, res: Response) => {
-  res.json({ packages: CREDIT_PACKAGES });
+  try {
+    const packages = await CreditPackage.find({ isActive: true }).sort({ sortOrder: 1 }).lean();
+    res.json({
+      packages: packages.map(p => ({
+        id: p.packageId,
+        name: p.name,
+        credits: p.credits,
+        price: p.price,
+        currency: p.currency,
+      })),
+    });
+  } catch (error: any) {
+    console.error('[Billing] Error fetching packages:', error);
+    res.status(500).json({ error: error.message });
+  }
 });
 
 const createCheckoutSchema = z.object({
@@ -105,7 +100,7 @@ router.post('/checkout/credits', authenticateToken, async (req: Request, res: Re
     const { packageId, successUrl, cancelUrl } = createCheckoutSchema.parse(req.body);
     const userId = req.user!.id;
 
-    const pkg = CREDIT_PACKAGES.find((p) => p.id === packageId);
+    const pkg = await CreditPackage.findOne({ packageId, isActive: true }).lean();
     if (!pkg) {
       return res.status(400).json({ error: 'Invalid package ID' });
     }
@@ -113,21 +108,25 @@ router.post('/checkout/credits', authenticateToken, async (req: Request, res: Re
     const userCredits = await getOrCreateUserCredits(userId);
     const customerId = await getOrCreateStripeCustomer(userId, userCredits);
 
+    const lineItem = pkg.stripePriceId
+      ? { price: pkg.stripePriceId, quantity: 1 }
+      : {
+          price_data: {
+            currency: pkg.currency,
+            product_data: { name: pkg.name, description: `${pkg.credits.toLocaleString()} AI credits` },
+            unit_amount: pkg.price,
+          },
+          quantity: 1,
+        };
+
     const session = await getStripe().checkout.sessions.create({
       customer: customerId,
       payment_method_types: ['card'],
-      line_items: [{
-        price_data: {
-          currency: pkg.currency,
-          product_data: { name: pkg.name, description: `${pkg.credits.toLocaleString()} AI credits` },
-          unit_amount: pkg.price,
-        },
-        quantity: 1,
-      }],
+      line_items: [lineItem],
       mode: 'payment',
       success_url: successUrl,
       cancel_url: cancelUrl,
-      metadata: { userId, type: 'credit_purchase', packageId: pkg.id, credits: pkg.credits.toString() },
+      metadata: { userId, type: 'credit_purchase', packageId: pkg.packageId, credits: pkg.credits.toString() },
     });
 
     res.json({ sessionId: session.id, url: session.url });
@@ -222,18 +221,24 @@ router.post('/checkout/subscription', authenticateToken, async (req: Request, re
     const customerId = await getOrCreateStripeCustomer(userId, userCredits);
 
     const isAnnual = billingPeriod === 'annual';
+    const stripePriceId = isAnnual ? plan.stripeAnnualPriceId : plan.stripeMonthlyPriceId;
+
+    const lineItem = stripePriceId
+      ? { price: stripePriceId, quantity: 1 }
+      : {
+          price_data: {
+            currency: plan.currency,
+            product_data: { name: `${plan.name} Plan (${isAnnual ? 'Annual' : 'Monthly'})` },
+            unit_amount: isAnnual ? plan.annualPrice : plan.monthlyPrice,
+            recurring: { interval: isAnnual ? ('year' as const) : ('month' as const) },
+          },
+          quantity: 1,
+        };
+
     const session = await getStripe().checkout.sessions.create({
       customer: customerId,
       payment_method_types: ['card'],
-      line_items: [{
-        price_data: {
-          currency: plan.currency,
-          product_data: { name: `${plan.name} Plan (${isAnnual ? 'Annual' : 'Monthly'})` },
-          unit_amount: isAnnual ? plan.annualPrice : plan.monthlyPrice,
-          recurring: { interval: isAnnual ? 'year' : 'month' },
-        },
-        quantity: 1,
-      }],
+      line_items: [lineItem],
       mode: 'subscription',
       success_url: successUrl,
       cancel_url: cancelUrl,
@@ -430,6 +435,8 @@ async function handleSubscriptionUpdate(stripeSubscription: Stripe.Subscription)
       currentPeriodStart: new Date(sub.current_period_start * 1000),
       currentPeriodEnd: new Date(sub.current_period_end * 1000),
       cancelAtPeriodEnd: sub.cancel_at_period_end,
+      planId: plan.planId,
+      billingPeriod: isAnnual ? 'annual' : 'monthly',
       plan: { planId: plan.planId, name: plan.name, product: plan.product, creditsPerMonth: plan.creditsPerMonth, price, currency: plan.currency, billingPeriod: isAnnual ? 'annual' : 'monthly' },
     },
     { upsert: true, new: true }

@@ -44,7 +44,8 @@ import {
 import { MoreHorizontal, Plus, Trash2, PlusCircle, X } from 'lucide-react';
 
 function formatCents(cents: number): string {
-  return `$${(cents / 100).toFixed(2)}`;
+  const dollars = cents / 100;
+  return dollars % 1 === 0 ? `$${dollars}` : `$${dollars.toFixed(2)}`;
 }
 
 function featureCount(features: PlanFeatureGroup[]): string {
@@ -186,6 +187,7 @@ interface PlanFormState {
   name: string;
   product: 'alia' | 'codea';
   creditsPerMonth: number;
+  dailyFreeCredits: number;
   monthlyPrice: number;
   annualPrice: number;
   currency: string;
@@ -199,6 +201,8 @@ interface PlanFormState {
   modelIds: string[];
   description: string;
   notes: string;
+  stripeMonthlyPriceId: string;
+  stripeAnnualPriceId: string;
 }
 
 const DEFAULT_FORM: PlanFormState = {
@@ -206,6 +210,7 @@ const DEFAULT_FORM: PlanFormState = {
   name: '',
   product: 'alia',
   creditsPerMonth: 0,
+  dailyFreeCredits: 300,
   monthlyPrice: 0,
   annualPrice: 0,
   currency: 'usd',
@@ -219,6 +224,8 @@ const DEFAULT_FORM: PlanFormState = {
   modelIds: [],
   description: '',
   notes: '',
+  stripeMonthlyPriceId: '',
+  stripeAnnualPriceId: '',
 };
 
 function planToForm(plan: SubscriptionPlan): PlanFormState {
@@ -227,6 +234,7 @@ function planToForm(plan: SubscriptionPlan): PlanFormState {
     name: plan.name,
     product: plan.product,
     creditsPerMonth: plan.creditsPerMonth,
+    dailyFreeCredits: plan.dailyFreeCredits ?? 300,
     monthlyPrice: plan.monthlyPrice,
     annualPrice: plan.annualPrice,
     currency: plan.currency,
@@ -240,6 +248,8 @@ function planToForm(plan: SubscriptionPlan): PlanFormState {
     modelIds: plan.modelIds || [],
     description: plan.description || '',
     notes: plan.notes || '',
+    stripeMonthlyPriceId: plan.stripeMonthlyPriceId || '',
+    stripeAnnualPriceId: plan.stripeAnnualPriceId || '',
   };
 }
 
@@ -534,13 +544,22 @@ export function PlansPage() {
             {/* Pricing */}
             <div className="space-y-3">
               <h4 className="text-sm font-semibold">Pricing</h4>
-              <div className="grid grid-cols-4 gap-3">
+              <div className="grid grid-cols-5 gap-3">
                 <div>
                   <Label className="text-xs">Credits / Month</Label>
                   <Input
                     type="number"
                     value={form.creditsPerMonth}
                     onChange={(e) => setForm({ ...form, creditsPerMonth: parseInt(e.target.value) || 0 })}
+                    className="h-8 text-sm"
+                  />
+                </div>
+                <div>
+                  <Label className="text-xs">Daily Free</Label>
+                  <Input
+                    type="number"
+                    value={form.dailyFreeCredits}
+                    onChange={(e) => setForm({ ...form, dailyFreeCredits: parseInt(e.target.value) || 0 })}
                     className="h-8 text-sm"
                   />
                 </div>
@@ -567,6 +586,31 @@ export function PlansPage() {
                   <Input
                     value={form.currency}
                     onChange={(e) => setForm({ ...form, currency: e.target.value })}
+                    className="h-8 text-sm"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Stripe Integration */}
+            <div className="space-y-3">
+              <h4 className="text-sm font-semibold">Stripe Integration</h4>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <Label className="text-xs">Monthly Stripe Price ID</Label>
+                  <Input
+                    value={form.stripeMonthlyPriceId}
+                    onChange={(e) => setForm({ ...form, stripeMonthlyPriceId: e.target.value })}
+                    placeholder="price_..."
+                    className="h-8 text-sm"
+                  />
+                </div>
+                <div>
+                  <Label className="text-xs">Annual Stripe Price ID</Label>
+                  <Input
+                    value={form.stripeAnnualPriceId}
+                    onChange={(e) => setForm({ ...form, stripeAnnualPriceId: e.target.value })}
+                    placeholder="price_..."
                     className="h-8 text-sm"
                   />
                 </div>

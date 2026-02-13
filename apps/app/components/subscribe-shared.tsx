@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef } from 'react';
 import { View, Pressable, ScrollView } from 'react-native';
 import { useRouter } from 'expo-router';
 import Animated, {
@@ -7,10 +7,9 @@ import Animated, {
   withTiming,
   Easing,
 } from 'react-native-reanimated';
-import { ArrowLeft, ChevronLeft, ChevronRight, Shield, Building2, Check } from 'lucide-react-native';
+import { ArrowLeft, Shield, Building2, Check } from 'lucide-react-native';
 import { Text } from '@/components/ui/text';
 import { Button } from '@/components/ui/button';
-import { Separator } from '@/components/ui/separator';
 import { cn } from '@/lib/utils';
 
 // ─── Types ───────────────────────────────────────────────────────────
@@ -187,125 +186,9 @@ function AnimatedSubtext({
   );
 }
 
-// ─── PlanColumn ──────────────────────────────────────────────────────
-
-export function PlanColumn({
-  tier,
-  billingPeriod,
-  isCurrentPlan,
-  onSubscribe,
-  loadingPlanId,
-  t,
-}: {
-  tier: PricingTier;
-  billingPeriod: BillingPeriod;
-  isCurrentPlan: boolean;
-  onSubscribe: (planId: string) => void;
-  loadingPlanId?: string;
-  t: (key: string) => string;
-}) {
-  const price =
-    billingPeriod === 'annual'
-      ? Math.round(tier.annualPrice / 12)
-      : tier.monthlyPrice;
-
-  return (
-    <View
-      className={cn(
-        'flex-1 py-5 px-4 gap-3',
-        tier.isFeatured && 'bg-primary/5',
-      )}
-    >
-      {/* Plan name + badge */}
-      <View className="flex-row items-center gap-2">
-        <Text className="text-lg font-bold text-foreground">{tier.name}</Text>
-        {tier.isFeatured && (
-          <View className="bg-primary px-2 py-0.5 rounded-full">
-            <Text className="text-[10px] font-semibold text-primary-foreground">
-              Popular
-            </Text>
-          </View>
-        )}
-      </View>
-
-      {/* Subtitle */}
-      <Text className="text-xs text-muted-foreground">{tier.subtitle}</Text>
-
-      {/* Price */}
-      {tier.monthlyPrice === 0 ? (
-        <View className="gap-1">
-          <Text className="text-3xl font-bold text-foreground">Free</Text>
-          <Text className="text-sm text-muted-foreground">{tier.creditsLabel}</Text>
-        </View>
-      ) : (
-        <View className="gap-1">
-          <View className="flex-row items-center gap-1">
-            <SlotPrice cents={price} />
-            <Text className="text-sm text-muted-foreground">
-              {t('subscribe.perMonth')}
-            </Text>
-          </View>
-          {billingPeriod === 'annual' && (
-            <AnimatedSubtext
-              text={`${formatPrice(tier.annualPrice)}${t('subscribe.perYear')}`}
-              billingPeriod={billingPeriod}
-            />
-          )}
-          <Text className="text-sm text-muted-foreground">{tier.creditsLabel}</Text>
-        </View>
-      )}
-
-      {/* CTA Button */}
-      <Button
-        variant={tier.isFeatured ? 'default' : 'outline'}
-        size="sm"
-        className="w-full rounded-full"
-        onPress={() => {
-          if (tier.isFree) return;
-          onSubscribe(tier.id);
-        }}
-        disabled={isCurrentPlan || tier.isFree || !!loadingPlanId}
-        isLoading={loadingPlanId === tier.id}
-      >
-        <Text
-          className={cn(
-            'text-sm font-medium',
-            tier.isFeatured ? 'text-primary-foreground' : 'text-foreground',
-          )}
-        >
-          {isCurrentPlan ? t('subscribe.currentPlan') : t('subscribe.upgrade')}
-        </Text>
-      </Button>
-
-      {/* Feature list */}
-      <View className="gap-3 mt-2">
-        {tier.features.map((group, gi) => (
-          <View key={gi} className="gap-1.5">
-            <Text className="text-xs font-semibold text-foreground uppercase tracking-wider">
-              {group.category}
-            </Text>
-            {group.items.map((feature, fi) => (
-              <View key={fi} className="flex-row items-start gap-2">
-                <Check size={14} className="text-primary mt-0.5 shrink-0" />
-                <View className="flex-1">
-                  <Text className="text-sm text-muted-foreground">{feature.label}</Text>
-                  {feature.description && (
-                    <Text className="text-xs text-muted-foreground/70 mt-0.5">{feature.description}</Text>
-                  )}
-                </View>
-              </View>
-            ))}
-          </View>
-        ))}
-      </View>
-    </View>
-  );
-}
-
 // ─── PlanGrid ────────────────────────────────────────────────────────
 
-const CARD_WIDTH = 260;
-const SNAP_WIDTH = CARD_WIDTH + 1;
+const COL_WIDTH = 220;
 
 export function PlanGrid({
   tiers,
@@ -327,136 +210,167 @@ export function PlanGrid({
   t: (key: string) => string;
 }) {
   const scrollRef = useRef<ScrollView>(null);
-  const [activeIndex, setActiveIndex] = useState(0);
   const scrollTimeoutRef = useRef<ReturnType<typeof setTimeout>>();
-
-  if (tiers.length === 0) return null;
-
-  const lastIndex = tiers.length - 1;
 
   const snapToNearest = useCallback(
     (offsetX: number) => {
       if (scrollTimeoutRef.current) clearTimeout(scrollTimeoutRef.current);
-      const idx = Math.round(offsetX / SNAP_WIDTH);
-      const clamped = Math.max(0, Math.min(idx, lastIndex));
-      setActiveIndex(clamped);
-      scrollRef.current?.scrollTo({ x: clamped * SNAP_WIDTH, animated: true });
+      const idx = Math.round(offsetX / COL_WIDTH);
+      const clamped = Math.max(0, Math.min(idx, tiers.length - 1));
+      scrollRef.current?.scrollTo({ x: clamped * COL_WIDTH, animated: true });
     },
-    [lastIndex],
-  );
-
-  const scrollToIndex = useCallback(
-    (index: number) => {
-      const clamped = Math.max(0, Math.min(index, lastIndex));
-      scrollRef.current?.scrollTo({ x: clamped * SNAP_WIDTH, animated: true });
-      setActiveIndex(clamped);
-    },
-    [lastIndex],
+    [tiers.length],
   );
 
   const handleScroll = useCallback(
     (offsetX: number) => {
-      const idx = Math.round(offsetX / SNAP_WIDTH);
-      setActiveIndex(Math.max(0, Math.min(idx, lastIndex)));
-
-      // Quick debounced snap for web (snapToInterval doesn't work on web)
       if (scrollTimeoutRef.current) clearTimeout(scrollTimeoutRef.current);
       scrollTimeoutRef.current = setTimeout(() => snapToNearest(offsetX), 80);
     },
-    [lastIndex, snapToNearest],
+    [snapToNearest],
   );
 
-  const renderPlanColumn = (tier: PricingTier) => (
-    <PlanColumn
-      tier={tier}
-      billingPeriod={billingPeriod}
-      isCurrentPlan={
-        tier.isFree
-          ? !hasActiveSubscription
-          : currentPlanId === tier.id
-      }
-      onSubscribe={onSubscribe}
-      loadingPlanId={loadingPlanId}
-      t={t}
-    />
+  if (tiers.length === 0) return null;
+
+  // Collect unique categories in order across all tiers
+  const categories: string[] = [];
+  for (const tier of tiers) {
+    for (const group of tier.features) {
+      if (!categories.includes(group.category)) categories.push(group.category);
+    }
+  }
+
+  const isCurrentPlan = (tier: PricingTier) =>
+    tier.isFree ? !hasActiveSubscription : currentPlanId === tier.id;
+
+  const tableContent = (
+    <View style={isWideLayout ? undefined : { width: tiers.length * COL_WIDTH }}>
+      {/* Header band: name + price + button */}
+      <View className="flex-row border-b border-border">
+        {tiers.map((tier, i) => {
+          const price = billingPeriod === 'annual' ? Math.round(tier.annualPrice / 12) : tier.monthlyPrice;
+          const current = isCurrentPlan(tier);
+          return (
+            <View key={tier.id} className={cn(isWideLayout ? 'flex-1' : '', 'py-5 px-4 gap-3 border-l border-border', i === 0 && 'border-l-0', tier.isFeatured && 'bg-primary/5')} style={isWideLayout ? undefined : { width: COL_WIDTH }}>
+              <View className="flex-row items-center gap-2">
+                <Text className="text-lg font-bold text-foreground">{tier.name}</Text>
+                {tier.isFeatured && (
+                  <View className="bg-primary px-2 py-0.5 rounded-full">
+                    <Text className="text-[10px] font-semibold text-primary-foreground">Popular</Text>
+                  </View>
+                )}
+              </View>
+              <Text className="text-xs text-muted-foreground">{tier.subtitle}</Text>
+              {tier.monthlyPrice === 0 ? (
+                <View className="gap-1">
+                  <Text className="text-3xl font-bold text-foreground">Free</Text>
+                  <Text className="text-sm text-muted-foreground">{tier.creditsLabel}</Text>
+                </View>
+              ) : (
+                <View className="gap-1">
+                  <View className="flex-row items-center gap-1">
+                    <SlotPrice cents={price} />
+                    <Text className="text-sm text-muted-foreground">{t('subscribe.perMonth')}</Text>
+                  </View>
+                  {billingPeriod === 'annual' && (
+                    <AnimatedSubtext
+                      text={`${formatPrice(tier.annualPrice)}${t('subscribe.perYear')}`}
+                      billingPeriod={billingPeriod}
+                    />
+                  )}
+                  <Text className="text-sm text-muted-foreground">{tier.creditsLabel}</Text>
+                </View>
+              )}
+              <Button
+                variant={tier.isFeatured ? 'default' : 'outline'}
+                size="sm"
+                className="w-full rounded-full"
+                onPress={() => { if (!tier.isFree) onSubscribe(tier.id); }}
+                disabled={current || tier.isFree || !!loadingPlanId}
+                isLoading={loadingPlanId === tier.id}
+              >
+                <Text className={cn('text-sm font-medium', tier.isFeatured ? 'text-primary-foreground' : 'text-foreground')}>
+                  {current ? t('subscribe.currentPlan') : t('subscribe.upgrade')}
+                </Text>
+              </Button>
+            </View>
+          );
+        })}
+      </View>
+
+      {/* Feature rows by category */}
+      {categories.map((cat) => {
+        // Max number of feature items in this category across all plans
+        let maxItems = 0;
+        for (const tier of tiers) {
+          const group = tier.features.find((g) => g.category === cat);
+          if (group && group.items.length > maxItems) maxItems = group.items.length;
+        }
+
+        return (
+          <React.Fragment key={cat}>
+            {/* Category header row */}
+            <View className="flex-row border-b border-border">
+              {tiers.map((tier, i) => (
+                <View key={tier.id} className={cn(isWideLayout ? 'flex-1' : '', 'py-2 px-4 border-l border-border', i === 0 && 'border-l-0', tier.isFeatured && 'bg-primary/5')} style={isWideLayout ? undefined : { width: COL_WIDTH }}>
+                  <Text className="text-xs font-semibold text-foreground uppercase tracking-wider">
+                    {cat}
+                  </Text>
+                </View>
+              ))}
+            </View>
+
+            {/* Feature rows aligned by position */}
+            {Array.from({ length: maxItems }, (_, rowIdx) => (
+              <View key={rowIdx} className="flex-row border-b border-border">
+                {tiers.map((tier, i) => {
+                  const group = tier.features.find((g) => g.category === cat);
+                  const feature = group?.items[rowIdx];
+                  return (
+                    <View key={tier.id} className={cn(isWideLayout ? 'flex-1' : '', 'py-2.5 px-4 border-l border-border', i === 0 && 'border-l-0', tier.isFeatured && 'bg-primary/5')} style={isWideLayout ? undefined : { width: COL_WIDTH }}>
+                      {feature ? (
+                        <View className="flex-row items-start gap-2">
+                          <Check size={14} className="text-primary mt-0.5 shrink-0" />
+                          <View className="flex-1">
+                            <Text className="text-sm text-muted-foreground">{feature.label}</Text>
+                            {feature.description && (
+                              <Text className="text-xs text-muted-foreground/70 mt-0.5">{feature.description}</Text>
+                            )}
+                          </View>
+                        </View>
+                      ) : (
+                        <Text className="text-sm text-muted-foreground/30">—</Text>
+                      )}
+                    </View>
+                  );
+                })}
+              </View>
+            ))}
+          </React.Fragment>
+        );
+      })}
+    </View>
   );
 
   if (isWideLayout) {
-    return (
-      <View className="flex-row px-2">
-        {tiers.map((tier, index) => (
-          <React.Fragment key={tier.id}>
-            {index > 0 && <Separator orientation="vertical" />}
-            {renderPlanColumn(tier)}
-          </React.Fragment>
-        ))}
-      </View>
-    );
+    return <View className="px-2">{tableContent}</View>;
   }
 
   return (
-    <View>
-      {/* Navigation */}
-      <View className="flex-row items-center justify-between px-4 mb-2">
-        {activeIndex > 0 ? (
-          <Pressable
-            onPress={() => scrollToIndex(activeIndex - 1)}
-            className="w-8 h-8 rounded-full bg-muted items-center justify-center"
-          >
-            <ChevronLeft size={18} className="text-foreground" />
-          </Pressable>
-        ) : (
-          <View className="w-8 h-8" />
-        )}
-
-        <View className="flex-row gap-1.5">
-          {tiers.map((_, i) => (
-            <Pressable key={i} onPress={() => scrollToIndex(i)}>
-              <View
-                className={cn(
-                  'w-2 h-2 rounded-full',
-                  i === activeIndex ? 'bg-primary' : 'bg-muted-foreground/30',
-                )}
-              />
-            </Pressable>
-          ))}
-        </View>
-
-        {activeIndex < lastIndex ? (
-          <Pressable
-            onPress={() => scrollToIndex(activeIndex + 1)}
-            className="w-8 h-8 rounded-full bg-muted items-center justify-center"
-          >
-            <ChevronRight size={18} className="text-foreground" />
-          </Pressable>
-        ) : (
-          <View className="w-8 h-8" />
-        )}
-      </View>
-
-      {/* Horizontal snap scroll */}
-      <ScrollView
-        ref={scrollRef}
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        snapToInterval={SNAP_WIDTH}
-        decelerationRate="fast"
-        contentContainerStyle={{ paddingLeft: 8, paddingRight: CARD_WIDTH * 0.5 }}
-        onScrollEndDrag={(e) => snapToNearest(e.nativeEvent.contentOffset.x)}
-        onMomentumScrollEnd={(e) => snapToNearest(e.nativeEvent.contentOffset.x)}
-        onScroll={(e) => handleScroll(e.nativeEvent.contentOffset.x)}
-        scrollEventThrottle={16}
-      >
-        {tiers.map((tier, index) => (
-          <React.Fragment key={tier.id}>
-            {index > 0 && <Separator orientation="vertical" />}
-            <View style={{ width: CARD_WIDTH }}>
-              {renderPlanColumn(tier)}
-            </View>
-          </React.Fragment>
-        ))}
-      </ScrollView>
-    </View>
+    <ScrollView
+      ref={scrollRef}
+      horizontal
+      showsHorizontalScrollIndicator={false}
+      snapToInterval={COL_WIDTH}
+      decelerationRate="fast"
+      contentContainerStyle={{ paddingHorizontal: 8 }}
+      onScrollEndDrag={(e) => snapToNearest(e.nativeEvent.contentOffset.x)}
+      onMomentumScrollEnd={(e) => snapToNearest(e.nativeEvent.contentOffset.x)}
+      onScroll={(e) => handleScroll(e.nativeEvent.contentOffset.x)}
+      scrollEventThrottle={16}
+    >
+      {tableContent}
+    </ScrollView>
   );
 }
 

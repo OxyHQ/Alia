@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { authenticateToken } from '../middleware/auth.js';
 import { Referral, getOrCreateReferral } from '../models/referral.js';
-import { UserCredits } from '../models/user-credits.js';
+import { getOrCreateUserCredits } from '../lib/user-credits-helpers.js';
 
 const router = Router();
 
@@ -53,29 +53,11 @@ router.post('/redeem', authenticateToken, async (req, res) => {
     }
 
     // Award credits to referred user
-    const userCredits = await UserCredits.findByIdAndUpdate(
-      userId,
-      {
-        $setOnInsert: {
-          _id: userId,
-          credits: { free: 300, freeLimit: 300, dailyRefresh: 300, lastRefresh: new Date(), paid: 0 },
-        },
-      },
-      { upsert: true, new: true }
-    );
+    const userCredits = await getOrCreateUserCredits(userId);
     await userCredits.addCredits(REFERRAL_CREDIT_REWARD, 'paid');
 
     // Award credits to referrer
-    const referrerCredits = await UserCredits.findByIdAndUpdate(
-      referrer._id,
-      {
-        $setOnInsert: {
-          _id: referrer._id,
-          credits: { free: 300, freeLimit: 300, dailyRefresh: 300, lastRefresh: new Date(), paid: 0 },
-        },
-      },
-      { upsert: true, new: true }
-    );
+    const referrerCredits = await getOrCreateUserCredits(referrer._id);
     await referrerCredits.addCredits(REFERRAL_CREDIT_REWARD, 'paid');
 
     // Update referrer's record

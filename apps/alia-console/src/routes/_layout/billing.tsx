@@ -26,6 +26,14 @@ export const Route = createFileRoute('/_layout/billing')({
   component: BillingPage,
 });
 
+/** Format cents → "$3.99", dropping ".00" when even */
+function formatPrice(cents: number, currency = 'usd'): string {
+  const dollars = cents / 100;
+  const formatted = dollars % 1 === 0 ? dollars.toFixed(0) : dollars.toFixed(2);
+  const symbol = currency === 'usd' ? '$' : currency.toUpperCase() + ' ';
+  return `${symbol}${formatted}`;
+}
+
 function BillingPage() {
   const { data: credits, isLoading: isLoadingCredits } = useCredits();
   const { data: packages = [], isLoading: isLoadingPackages } = useCreditPackages();
@@ -36,6 +44,7 @@ function BillingPage() {
   const createSubscriptionCheckout = useCreateSubscriptionCheckout();
 
   const [showUpgradeDialog, setShowUpgradeDialog] = useState(false);
+  const [billingPeriod, setBillingPeriod] = useState<'monthly' | 'annual'>('monthly');
 
   const handlePurchase = async (packageId: string) => {
     try {
@@ -56,6 +65,7 @@ function BillingPage() {
     try {
       const result = await createSubscriptionCheckout.mutateAsync({
         planId,
+        billingPeriod,
         successUrl: `${window.location.origin}/billing?success=true`,
         cancelUrl: `${window.location.origin}/billing?canceled=true`,
       });
@@ -162,7 +172,7 @@ function BillingPage() {
                     {pkg.credits.toLocaleString()} credits
                   </p>
                   <p className="text-sm text-muted-foreground">
-                    ${(pkg.price / 100).toFixed(2)} {pkg.currency.toUpperCase()}
+                    {formatPrice(pkg.price, pkg.currency)}
                   </p>
                 </div>
                 <Button
@@ -214,7 +224,7 @@ function BillingPage() {
                     +{tx.credits.toLocaleString()} credits
                   </p>
                   <p className="text-xs text-muted-foreground">
-                    ${(tx.amount / 100).toFixed(2)} {tx.currency.toUpperCase()}
+                    {formatPrice(tx.amount, tx.currency)}
                   </p>
                 </div>
               </div>
@@ -234,10 +244,31 @@ function BillingPage() {
               All plans include Alia Chat + Codea (VS Code &amp; CLI). Credits are shared across all products.
             </DialogDescription>
           </DialogHeader>
+
+          {/* Billing period toggle */}
+          <div className="flex items-center justify-center gap-3 py-2">
+            <button
+              className={`text-sm font-medium px-3 py-1.5 rounded-md transition-colors ${billingPeriod === 'monthly' ? 'bg-foreground text-background' : 'text-muted-foreground hover:text-foreground'}`}
+              onClick={() => setBillingPeriod('monthly')}
+            >
+              Monthly
+            </button>
+            <button
+              className={`text-sm font-medium px-3 py-1.5 rounded-md transition-colors ${billingPeriod === 'annual' ? 'bg-foreground text-background' : 'text-muted-foreground hover:text-foreground'}`}
+              onClick={() => setBillingPeriod('annual')}
+            >
+              Annual
+              <span className="ml-1.5 text-[10px] font-semibold text-green-600">Save ~20%</span>
+            </button>
+          </div>
+
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 py-4">
             {plans.filter(p => !p.isFree).map((plan) => {
               const isCurrentPlan = subscription?.plan?.planId === plan.id && subscription?.status === 'active';
               const isPopular = plan.isFeatured ?? false;
+              const displayPrice = billingPeriod === 'annual'
+                ? Math.round(plan.annualPrice / 12)
+                : plan.monthlyPrice;
               return (
                 <div
                   key={plan.id}
@@ -250,9 +281,14 @@ function BillingPage() {
                   )}
                   <p className="text-sm font-semibold text-foreground">{plan.name}</p>
                   <p className="text-2xl font-bold text-foreground mt-1">
-                    ${(plan.monthlyPrice / 100).toFixed(2)}
+                    {formatPrice(displayPrice, plan.currency)}
                     <span className="text-xs font-normal text-muted-foreground">/mo</span>
                   </p>
+                  {billingPeriod === 'annual' && (
+                    <p className="text-[11px] text-muted-foreground">
+                      {formatPrice(plan.annualPrice, plan.currency)}/year
+                    </p>
+                  )}
                   <p className="text-xs text-muted-foreground mt-1">
                     {plan.creditsPerMonth.toLocaleString()} credits/month
                   </p>

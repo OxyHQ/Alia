@@ -9,6 +9,7 @@ import { ProviderKey } from '../models/provider-key';
 import { ModelConfig } from '../models/model-config';
 import { AliaModel } from '../models/alia-model';
 import { Plan } from '../models/plan';
+import { CreditPackage } from '../models/credit-package';
 import { getAllProviderHealth, getProviderHealth } from './provider-health';
 
 export async function broadcastKeysUpdate(provider: string): Promise<void> {
@@ -52,6 +53,15 @@ export async function broadcastPlansUpdate(): Promise<void> {
     broadcast('plans:all', { success: true, count: plans.length, data: plans });
   } catch (error) {
     console.error('[Broadcast] Error broadcasting plans update:', error);
+  }
+}
+
+export async function broadcastCreditPackagesUpdate(): Promise<void> {
+  try {
+    const packages = await CreditPackage.find({}).sort({ sortOrder: 1 }).lean();
+    broadcast('credit-packages:all', { success: true, count: packages.length, data: packages });
+  } catch (error) {
+    console.error('[Broadcast] Error broadcasting credit-packages update:', error);
   }
 }
 

@@ -298,6 +298,62 @@ class ProvidersAPIClient {
     });
   }
 
+  // ============ CREDIT PACKAGES ============
+
+  async listCreditPackages(filters?: { active?: boolean }) {
+    const params = new URLSearchParams();
+    if (filters?.active !== undefined) params.set('active', filters.active.toString());
+    return this.request(`/v1/credit-packages?${params}`);
+  }
+
+  async getCreditPackage(packageId: string) {
+    return this.request(`/v1/credit-packages/${packageId}`);
+  }
+
+  async createCreditPackage(data: unknown) {
+    return this.request('/v1/credit-packages', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async updateCreditPackage(packageId: string, data: unknown) {
+    return this.request(`/v1/credit-packages/${packageId}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async deleteCreditPackage(packageId: string) {
+    return this.request(`/v1/credit-packages/${packageId}`, {
+      method: 'DELETE',
+    });
+  }
+
+  // ============ BILLING ADMIN ============
+
+  async listTransactions(filters?: { status?: string; type?: string; limit?: number; offset?: number }) {
+    const params = new URLSearchParams();
+    if (filters?.status) params.set('status', filters.status);
+    if (filters?.type) params.set('type', filters.type);
+    if (filters?.limit) params.set('limit', filters.limit.toString());
+    if (filters?.offset) params.set('offset', filters.offset.toString());
+    return this.request(`/v1/billing/transactions?${params}`);
+  }
+
+  async listSubscriptions(filters?: { status?: string; product?: string; limit?: number; offset?: number }) {
+    const params = new URLSearchParams();
+    if (filters?.status) params.set('status', filters.status);
+    if (filters?.product) params.set('product', filters.product);
+    if (filters?.limit) params.set('limit', filters.limit.toString());
+    if (filters?.offset) params.set('offset', filters.offset.toString());
+    return this.request(`/v1/billing/subscriptions?${params}`);
+  }
+
+  async getUserBilling(userId: string) {
+    return this.request(`/v1/billing/user/${userId}`);
+  }
+
   // ============ USAGE ============
 
   async getUsage(period: string = '7d') {
