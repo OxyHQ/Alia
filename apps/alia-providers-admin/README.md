@@ -28,6 +28,14 @@ Admin Panel (this app)
   - Model capabilities (vision, tools, JSON mode, PDF, etc.)
   - Thinking level configuration
 
+- **Plans Management**: Full CRUD for subscription plans (Alia & Codea):
+  - Plan identity (planId, name, product)
+  - Pricing (credits/month, monthly/annual price in cents, currency)
+  - Display config (subtitle i18n key, creditsLabel, sortOrder, isFeatured, isFree)
+  - Nested feature groups with categorized items (label + description)
+  - Stripe price ID mapping for monthly/annual billing
+  - Changes reflected in subscribe screens without code deploys
+
 - **Real-time Monitoring**: Live monitoring with auto-refresh:
   - Provider health metrics
   - Success rate tracking
