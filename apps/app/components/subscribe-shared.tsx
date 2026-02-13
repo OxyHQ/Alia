@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { View, Pressable } from 'react-native';
+import { View, Pressable, ScrollView, Text as RNText } from 'react-native';
 import { useRouter } from 'expo-router';
 import Animated, {
   useSharedValue,
@@ -12,6 +12,7 @@ import { Text } from '@/components/ui/text';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { cn } from '@/lib/utils';
+import { useColorScheme } from '@/lib/useColorScheme';
 
 // ─── Types ───────────────────────────────────────────────────────────
 
@@ -86,24 +87,25 @@ export function BillingToggle({
 
 // ─── Slot-machine odometer ───────────────────────────────────────────
 
-const DIGIT_HEIGHT = 28;
+const DIGIT_HEIGHT = 40;
 const DIGITS = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9'];
 
 function OdometerDigit({
   digit,
   fontSize,
   fontWeight,
+  color,
 }: {
   digit: string;
   fontSize: number;
   fontWeight: string;
+  color: string;
 }) {
   const idx = DIGITS.indexOf(digit);
   const translateY = useSharedValue(-idx * DIGIT_HEIGHT);
 
   useEffect(() => {
-    const target = -idx * DIGIT_HEIGHT;
-    translateY.value = withTiming(target, {
+    translateY.value = withTiming(-idx * DIGIT_HEIGHT, {
       duration: 350,
       easing: Easing.out(Easing.cubic),
     });
@@ -114,21 +116,22 @@ function OdometerDigit({
   }));
 
   return (
-    <View style={{ height: DIGIT_HEIGHT, overflow: 'hidden' }}>
+    <View style={{ height: DIGIT_HEIGHT, width: fontSize * 0.65, overflow: 'hidden' }}>
       <Animated.View style={columnStyle}>
         {DIGITS.map((d) => (
-          <Text
+          <RNText
             key={d}
-            className="text-foreground text-center"
             style={{
               height: DIGIT_HEIGHT,
               lineHeight: DIGIT_HEIGHT,
               fontSize,
               fontWeight: fontWeight as any,
+              color,
+              textAlign: 'center',
             }}
           >
             {d}
-          </Text>
+          </RNText>
         ))}
       </Animated.View>
     </View>
@@ -137,20 +140,20 @@ function OdometerDigit({
 
 function SlotPrice({
   cents,
-  fontSize = 24,
+  fontSize = 32,
   fontWeight = '700',
 }: {
   cents: number;
   fontSize?: number;
   fontWeight?: string;
 }) {
+  const { colors } = useColorScheme();
   const text = formatPrice(cents);
   const chars = text.split('');
 
   return (
-    <View style={{ flexDirection: 'row', alignItems: 'baseline' }}>
+    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
       {chars.map((char, i) => {
-        // Key from right so digits in same place-value animate together
         const key = `${chars.length - i}-${char >= '0' && char <= '9' ? 'd' : char}`;
         const isDigit = char >= '0' && char <= '9';
         if (isDigit) {
@@ -160,22 +163,23 @@ function SlotPrice({
               digit={char}
               fontSize={fontSize}
               fontWeight={fontWeight}
+              color={colors.foreground}
             />
           );
         }
         return (
-          <Text
+          <RNText
             key={key}
-            className="text-foreground"
             style={{
               fontSize,
               fontWeight: fontWeight as any,
               height: DIGIT_HEIGHT,
               lineHeight: DIGIT_HEIGHT,
+              color: colors.foreground,
             }}
           >
             {char}
-          </Text>
+          </RNText>
         );
       })}
     </View>
@@ -204,12 +208,11 @@ function AnimatedSubtext({
   }));
 
   return (
-    <Animated.Text
-      style={animStyle}
-      className="text-xs text-muted-foreground"
-    >
-      {text}
-    </Animated.Text>
+    <Animated.View style={animStyle}>
+      <Text className="text-xs text-muted-foreground">
+        {text}
+      </Text>
+    </Animated.View>
   );
 }
 
@@ -244,7 +247,7 @@ export function PlanColumn({
     >
       {/* Plan name + badge */}
       <View className="flex-row items-center gap-2">
-        <Text className="text-base font-bold text-foreground">
+        <Text className="text-lg font-bold text-foreground">
           {tier.name}
         </Text>
         {tier.isFeatured && (
@@ -263,17 +266,17 @@ export function PlanColumn({
 
       {/* Price */}
       {tier.monthlyPrice === 0 ? (
-        <View className="gap-0.5">
-          <Text className="text-2xl font-bold text-foreground">Free</Text>
-          <Text className="text-xs text-muted-foreground">
+        <View className="gap-1">
+          <Text className="text-3xl font-bold text-foreground">Free</Text>
+          <Text className="text-sm text-muted-foreground">
             {tier.creditsLabel}
           </Text>
         </View>
       ) : (
-        <View className="gap-0.5">
-          <View className="flex-row items-baseline gap-1">
+        <View className="gap-1">
+          <View className="flex-row items-center gap-1">
             <SlotPrice cents={price} />
-            <Text className="text-xs text-muted-foreground">
+            <Text className="text-sm text-muted-foreground">
               {t('subscribe.perMonth')}
             </Text>
           </View>
@@ -283,7 +286,7 @@ export function PlanColumn({
               billingPeriod={billingPeriod}
             />
           )}
-          <Text className="text-xs text-muted-foreground mt-0.5">
+          <Text className="text-sm text-muted-foreground">
             {tier.creditsLabel}
           </Text>
         </View>
@@ -312,11 +315,11 @@ export function PlanColumn({
       </Button>
 
       {/* Feature list */}
-      <View className="gap-2 mt-1">
+      <View className="gap-2.5 mt-2">
         {tier.features.map((feature, i) => (
           <View key={i} className="flex-row items-start gap-2">
-            <Check size={14} className="text-muted-foreground mt-0.5 shrink-0" />
-            <Text className="text-xs text-muted-foreground flex-1">
+            <Check size={16} className="text-primary mt-0.5 shrink-0" />
+            <Text className="text-sm text-muted-foreground flex-1">
               {feature}
             </Text>
           </View>
@@ -347,20 +350,45 @@ export function PlanGrid({
   isWideLayout: boolean;
   t: (key: string) => string;
 }) {
+  if (!isWideLayout) {
+    // Narrow: horizontal scroll with fixed-width plan cards
+    return (
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={{ paddingHorizontal: 8, gap: 2 }}
+      >
+        {tiers.map((tier, index) => (
+          <React.Fragment key={tier.id}>
+            {index > 0 && (
+              <Separator orientation="vertical" className="mx-0" />
+            )}
+            <View style={{ width: 260 }}>
+              <PlanColumn
+                tier={tier}
+                billingPeriod={billingPeriod}
+                isCurrentPlan={
+                  tier.id === 'free'
+                    ? !hasActiveSubscription
+                    : currentPlanName === tier.name
+                }
+                onSubscribe={onSubscribe}
+                isLoading={isLoading}
+                t={t}
+              />
+            </View>
+          </React.Fragment>
+        ))}
+      </ScrollView>
+    );
+  }
+
   return (
-    <View
-      className={cn(
-        'px-2',
-        isWideLayout ? 'flex-row' : 'flex-col',
-      )}
-    >
+    <View className="flex-row px-2">
       {tiers.map((tier, index) => (
         <React.Fragment key={tier.id}>
           {index > 0 && (
-            <Separator
-              orientation={isWideLayout ? 'vertical' : 'horizontal'}
-              className={isWideLayout ? 'mx-0' : 'my-1'}
-            />
+            <Separator orientation="vertical" className="mx-0" />
           )}
           <PlanColumn
             tier={tier}
