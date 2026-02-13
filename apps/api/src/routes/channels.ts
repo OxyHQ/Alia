@@ -440,24 +440,51 @@ function requireGateway(_req: express.Request, res: express.Response, next: expr
   next();
 }
 
-/** Proxy a request to the WhatsApp gateway and forward the response. */
+/** Proxy a request to the WhatsApp gateway with retry + exponential backoff. */
 async function proxyToGateway(
   res: express.Response,
   path: string,
   options?: RequestInit,
   label = 'WhatsApp proxy',
 ) {
-  try {
-    const response = await fetch(`${WHATSAPP_GATEWAY_URL}${path}`, {
-      ...options,
-      headers: { 'X-Gateway-Secret': WHATSAPP_GATEWAY_SECRET!, ...options?.headers },
-    });
+  const MAX_ATTEMPTS = 3;
+  const BACKOFF_MS = [1000, 2000, 4000];
 
-    const data = await response.json();
-    res.status(response.status).json(data);
-  } catch (error) {
-    console.error(`[Channels] ${label} error:`, error);
-    res.status(502).json({ error: `Failed: ${label}` });
+  for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+    try {
+      const response = await fetch(`${WHATSAPP_GATEWAY_URL}${path}`, {
+        ...options,
+        headers: { 'X-Gateway-Secret': WHATSAPP_GATEWAY_SECRET!, ...options?.headers },
+      });
+
+      let data: any;
+      try {
+        data = await response.json();
+      } catch {
+        // Gateway returned non-JSON (e.g. HTML error page)
+        if (attempt < MAX_ATTEMPTS - 1) {
+          await new Promise(r => setTimeout(r, BACKOFF_MS[attempt]));
+          continue;
+        }
+        res.status(502).json({ error: `${label}: gateway returned non-JSON response` });
+        return;
+      }
+
+      if (response.status >= 500 && attempt < MAX_ATTEMPTS - 1) {
+        await new Promise(r => setTimeout(r, BACKOFF_MS[attempt]));
+        continue;
+      }
+
+      res.status(response.status).json(data);
+      return;
+    } catch (error) {
+      console.error(`[Channels] ${label} attempt ${attempt + 1}/${MAX_ATTEMPTS} error:`, error);
+      if (attempt < MAX_ATTEMPTS - 1) {
+        await new Promise(r => setTimeout(r, BACKOFF_MS[attempt]));
+        continue;
+      }
+      res.status(502).json({ error: `Failed: ${label}` });
+    }
   }
 }
 

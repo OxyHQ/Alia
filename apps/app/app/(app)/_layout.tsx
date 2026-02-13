@@ -41,7 +41,7 @@ export default function AppLayout() {
                 width: 255,
                 backgroundColor: colors.background,
                 borderRightWidth: 0,
-                shadowOpacity: 0,
+                boxShadow: 'none',
                 elevation: 0,
               },
               drawerType: isLargeScreen ? 'permanent' : 'front',

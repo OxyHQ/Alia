@@ -2,7 +2,7 @@ import express from 'express';
 import { authenticateToken, authenticateTelegramBot } from '../middleware/auth.js';
 import crypto from 'crypto';
 import mongoose from 'mongoose';
-import { TelegramUser } from '../models/telegram-user.js';
+import { ChannelUser } from '../models/channel-user.js';
 import { emitTelegramLinked } from '../socket.js';
 import { OxyServices } from '@oxyhq/core';
 import { isAliaModel, getAllAliaModels } from '../lib/chat-core.js';
@@ -15,6 +15,8 @@ const oxyClient = new OxyServices({
 
 const router = express.Router();
 
+const CHANNEL_TYPE = 'telegram';
+
 // Obtener info y modo de un token de Telegram
 router.get('/users/token/:token', async (req, res) => {
   try {
@@ -22,21 +24,22 @@ router.get('/users/token/:token', async (req, res) => {
     if (!token) {
       return res.status(400).json({ error: 'Token is required' });
     }
-    const telegramUser = await TelegramUser.findOne({
+    const channelUser = await ChannelUser.findOne({
+      channelType: CHANNEL_TYPE,
       authToken: token,
       authTokenExpiry: { $gt: new Date() },
     });
-    if (!telegramUser) {
+    if (!channelUser) {
       return res.status(404).json({ error: 'Token not found or expired' });
     }
     // Exponer solo los campos necesarios (sin email, ya que no existe en el modelo)
     res.json({
-      telegramId: telegramUser.telegramId,
-      authTokenMode: telegramUser.authTokenMode,
-      oxyUserId: telegramUser.oxyUserId,
-      sessionToken: telegramUser.sessionToken,
-      name: telegramUser.firstName || telegramUser.username || '',
-      isAuthenticated: telegramUser.isAuthenticated,
+      telegramId: channelUser.channelUserId,
+      authTokenMode: channelUser.authTokenMode,
+      oxyUserId: channelUser.oxyUserId,
+      sessionToken: channelUser.metadata?.sessionToken,
+      name: channelUser.displayName || channelUser.username || '',
+      isAuthenticated: channelUser.isAuthenticated,
     });
   } catch (error) {
     console.error('Token info (users/token) error:', error);
@@ -53,19 +56,20 @@ router.get('/link-status', authenticateToken, async (req, res) => {
       return res.status(401).json({ error: 'User ID not found' });
     }
 
-    const telegramUser = await TelegramUser.findOne({
+    const channelUser = await ChannelUser.findOne({
+      channelType: CHANNEL_TYPE,
       oxyUserId: new mongoose.Types.ObjectId(oxyUserId),
       isAuthenticated: true,
     });
 
-    if (!telegramUser) {
+    if (!channelUser) {
       return res.json({ linked: false });
     }
 
     res.json({
       linked: true,
-      telegramUsername: telegramUser.username,
-      linkedAt: telegramUser.linkedAt,
+      telegramUsername: channelUser.username,
+      linkedAt: channelUser.linkedAt,
     });
   } catch (error) {
     console.error('Telegram link status error:', error);
@@ -82,26 +86,27 @@ router.post('/unlink', authenticateToken, async (req, res) => {
       return res.status(401).json({ error: 'User ID not found' });
     }
 
-    const telegramUser = await TelegramUser.findOne({
+    const channelUser = await ChannelUser.findOne({
+      channelType: CHANNEL_TYPE,
       oxyUserId: new mongoose.Types.ObjectId(oxyUserId),
       isAuthenticated: true,
     });
 
-    if (!telegramUser) {
+    if (!channelUser) {
       return res.status(404).json({ error: 'No linked Telegram account found' });
     }
 
-    // Unlink the account but keep the Telegram user record
-    telegramUser.oxyUserId = undefined as any;
-    telegramUser.isAuthenticated = false;
-    telegramUser.conversationId = undefined;
-    telegramUser.linkedAt = undefined;
-    await telegramUser.save();
+    // Unlink the account but keep the channel user record
+    channelUser.oxyUserId = undefined as any;
+    channelUser.isAuthenticated = false;
+    channelUser.conversationId = undefined;
+    channelUser.linkedAt = undefined;
+    await channelUser.save();
 
     // Optionally send notification to Telegram
     try {
       const botToken = process.env.TELEGRAM_BOT_TOKEN;
-      if (botToken && telegramUser.chatId) {
+      if (botToken && channelUser.chatId) {
         const message =
           `🔗 <b>Account Unlinked</b>\n\n` +
           `Your Telegram account has been unlinked from Oxy.\n\n` +
@@ -111,7 +116,7 @@ router.post('/unlink', authenticateToken, async (req, res) => {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            chat_id: telegramUser.chatId,
+            chat_id: channelUser.chatId,
             text: message,
             parse_mode: 'HTML',
           }),
@@ -143,37 +148,38 @@ router.post('/users', authenticateTelegramBot, async (req, res) => {
       return res.status(400).json({ error: 'telegramId and chatId are required' });
     }
 
-    // Find existing or create new
-    let telegramUser = await TelegramUser.findOne({ telegramId });
+    const displayName = [firstName, lastName].filter(Boolean).join(' ') || undefined;
 
-    if (!telegramUser) {
-      telegramUser = new TelegramUser({
-        telegramId,
+    // Find existing or create new
+    let channelUser = await ChannelUser.findOne({ channelType: CHANNEL_TYPE, channelUserId: telegramId });
+
+    if (!channelUser) {
+      channelUser = new ChannelUser({
+        channelType: CHANNEL_TYPE,
+        channelUserId: telegramId,
         chatId,
         username,
-        firstName,
-        lastName,
+        displayName,
       });
-      await telegramUser.save();
+      await channelUser.save();
     } else {
       // Update fields if changed
-      if (chatId) telegramUser.chatId = chatId;
-      if (username) telegramUser.username = username;
-      if (firstName) telegramUser.firstName = firstName;
-      if (lastName) telegramUser.lastName = lastName;
-      await telegramUser.save();
+      if (chatId) channelUser.chatId = chatId;
+      if (username) channelUser.username = username;
+      if (displayName) channelUser.displayName = displayName;
+      await channelUser.save();
     }
 
     res.json({
-      telegramId: telegramUser.telegramId,
-      chatId: telegramUser.chatId,
-      username: telegramUser.username,
-      firstName: telegramUser.firstName,
-      lastName: telegramUser.lastName,
-      isAuthenticated: telegramUser.isAuthenticated,
-      conversationId: telegramUser.conversationId,
-      sessionToken: telegramUser.sessionToken,
-      preferredModel: telegramUser.preferredModel,
+      telegramId: channelUser.channelUserId,
+      chatId: channelUser.chatId,
+      username: channelUser.username,
+      firstName: channelUser.displayName?.split(' ')[0],
+      lastName: channelUser.displayName?.split(' ').slice(1).join(' ') || undefined,
+      isAuthenticated: channelUser.isAuthenticated,
+      conversationId: channelUser.conversationId,
+      sessionToken: channelUser.metadata?.sessionToken,
+      preferredModel: channelUser.preferredModel,
     });
   } catch (error) {
     console.error('Create/update telegram user error:', error);
@@ -186,23 +192,23 @@ router.get('/users/:telegramId', authenticateTelegramBot, async (req, res) => {
   try {
     const { telegramId } = req.params;
 
-    const telegramUser = await TelegramUser.findOne({ telegramId });
+    const channelUser = await ChannelUser.findOne({ channelType: CHANNEL_TYPE, channelUserId: telegramId });
 
-    if (!telegramUser) {
+    if (!channelUser) {
       return res.status(404).json({ error: 'Telegram user not found' });
     }
 
     res.json({
-      telegramId: telegramUser.telegramId,
-      chatId: telegramUser.chatId,
-      username: telegramUser.username,
-      firstName: telegramUser.firstName,
-      lastName: telegramUser.lastName,
-      isAuthenticated: telegramUser.isAuthenticated,
-      oxyUserId: telegramUser.oxyUserId,
-      conversationId: telegramUser.conversationId,
-      linkedAt: telegramUser.linkedAt,
-      preferredModel: telegramUser.preferredModel,
+      telegramId: channelUser.channelUserId,
+      chatId: channelUser.chatId,
+      username: channelUser.username,
+      firstName: channelUser.displayName?.split(' ')[0],
+      lastName: channelUser.displayName?.split(' ').slice(1).join(' ') || undefined,
+      isAuthenticated: channelUser.isAuthenticated,
+      oxyUserId: channelUser.oxyUserId,
+      conversationId: channelUser.conversationId,
+      linkedAt: channelUser.linkedAt,
+      preferredModel: channelUser.preferredModel,
     });
   } catch (error) {
     console.error('Get telegram user error:', error);
@@ -217,22 +223,21 @@ router.post('/auth-request', authenticateTelegramBot, async (req, res) => {
     if (!telegramId) {
       return res.status(400).json({ error: 'telegramId is required' });
     }
-    let telegramUser = await TelegramUser.findOne({ telegramId });
-    if (!telegramUser) {
+    let channelUser = await ChannelUser.findOne({ channelType: CHANNEL_TYPE, channelUserId: telegramId });
+    if (!channelUser) {
       return res.status(404).json({ error: 'Telegram user not found' });
     }
     // Generar token para login
     const authToken = generateAuthToken();
-    telegramUser.authToken = authToken;
-    telegramUser.authTokenExpiry = new Date(Date.now() + 15 * 60 * 1000);
-    telegramUser.authTokenMode = 'signin';
-    await telegramUser.save();
-    const appUrl = process.env.APP_URL || process.env.WEB_URL || 'http://localhost:3000';
+    channelUser.authToken = authToken;
+    channelUser.authTokenExpiry = new Date(Date.now() + 15 * 60 * 1000);
+    channelUser.authTokenMode = 'signin';
+    await channelUser.save();
     const authUrl = `${process.env.API_BASE_URL || 'http://localhost:3001'}/telegram/verify?token=${authToken}`;
     res.json({
       authToken,
       authUrl,
-      expiresAt: telegramUser.authTokenExpiry,
+      expiresAt: channelUser.authTokenExpiry,
       mode: 'signin',
     });
   } catch (error) {
@@ -248,22 +253,21 @@ router.post('/link-request', authenticateTelegramBot, async (req, res) => {
     if (!telegramId) {
       return res.status(400).json({ error: 'telegramId is required' });
     }
-    let telegramUser = await TelegramUser.findOne({ telegramId });
-    if (!telegramUser) {
+    let channelUser = await ChannelUser.findOne({ channelType: CHANNEL_TYPE, channelUserId: telegramId });
+    if (!channelUser) {
       return res.status(404).json({ error: 'Telegram user not found' });
     }
     // Generar token para vinculación
     const authToken = generateAuthToken();
-    telegramUser.authToken = authToken;
-    telegramUser.authTokenExpiry = new Date(Date.now() + 15 * 60 * 1000);
-    telegramUser.authTokenMode = 'link';
-    await telegramUser.save();
-    const appUrl = process.env.APP_URL || process.env.WEB_URL || 'http://localhost:3000';
+    channelUser.authToken = authToken;
+    channelUser.authTokenExpiry = new Date(Date.now() + 15 * 60 * 1000);
+    channelUser.authTokenMode = 'link';
+    await channelUser.save();
     const authUrl = `${process.env.API_BASE_URL || 'http://localhost:3001'}/telegram/verify?token=${authToken}`;
     res.json({
       authToken,
       authUrl,
-      expiresAt: telegramUser.authTokenExpiry,
+      expiresAt: channelUser.authTokenExpiry,
       mode: 'link',
     });
   } catch (error) {
@@ -278,14 +282,14 @@ router.post('/users/:telegramId/conversation', authenticateTelegramBot, async (r
     const { telegramId } = req.params;
     const { conversationId } = req.body;
 
-    const telegramUser = await TelegramUser.findOne({ telegramId });
+    const channelUser = await ChannelUser.findOne({ channelType: CHANNEL_TYPE, channelUserId: telegramId });
 
-    if (!telegramUser) {
+    if (!channelUser) {
       return res.status(404).json({ error: 'Telegram user not found' });
     }
 
-    telegramUser.conversationId = conversationId;
-    await telegramUser.save();
+    channelUser.conversationId = conversationId;
+    await channelUser.save();
 
     res.json({ success: true, conversationId });
   } catch (error) {
@@ -308,14 +312,14 @@ router.post('/users/:telegramId/model', authenticateTelegramBot, async (req, res
       });
     }
 
-    const telegramUser = await TelegramUser.findOne({ telegramId });
+    const channelUser = await ChannelUser.findOne({ channelType: CHANNEL_TYPE, channelUserId: telegramId });
 
-    if (!telegramUser) {
+    if (!channelUser) {
       return res.status(404).json({ error: 'Telegram user not found' });
     }
 
-    telegramUser.preferredModel = model;
-    await telegramUser.save();
+    channelUser.preferredModel = model;
+    await channelUser.save();
 
     res.json({ success: true, model });
   } catch (error) {
@@ -329,17 +333,17 @@ router.post('/users/:telegramId/logout', authenticateTelegramBot, async (req, re
   try {
     const { telegramId } = req.params;
 
-    const telegramUser = await TelegramUser.findOne({ telegramId });
+    const channelUser = await ChannelUser.findOne({ channelType: CHANNEL_TYPE, channelUserId: telegramId });
 
-    if (!telegramUser) {
+    if (!channelUser) {
       return res.status(404).json({ error: 'Telegram user not found' });
     }
 
-    telegramUser.isAuthenticated = false;
-    telegramUser.sessionToken = undefined;
-    telegramUser.oxyUserId = undefined as any;
-    telegramUser.conversationId = undefined;
-    await telegramUser.save();
+    channelUser.isAuthenticated = false;
+    channelUser.metadata = { ...channelUser.metadata, sessionToken: undefined };
+    channelUser.oxyUserId = undefined as any;
+    channelUser.conversationId = undefined;
+    await channelUser.save();
 
     res.json({ success: true, message: 'Logged out successfully' });
   } catch (error) {
@@ -385,7 +389,7 @@ router.get('/verify', async (req, res) => {
         </head>
         <body>
           <div class="container">
-            <h1>❌ Invalid Token</h1>
+            <h1>Invalid Token</h1>
             <p class="error">The authentication token is missing or invalid.</p>
             <p>Please request a new authentication link from the Telegram bot.</p>
           </div>
@@ -395,13 +399,14 @@ router.get('/verify', async (req, res) => {
   }
 
   try {
-    // Find telegram user with this auth token
-      const telegramUser = await TelegramUser.findOne({
-        authToken: token,
+    // Find channel user with this auth token
+    const channelUser = await ChannelUser.findOne({
+      channelType: CHANNEL_TYPE,
+      authToken: token,
       authTokenExpiry: { $gt: new Date() },
     });
 
-    if (!telegramUser) {
+    if (!channelUser) {
       return res.status(404).send(`
         <!DOCTYPE html>
         <html>
@@ -434,7 +439,7 @@ router.get('/verify', async (req, res) => {
           </head>
           <body>
             <div class="container">
-              <h1>❌ Token Expired</h1>
+              <h1>Token Expired</h1>
               <p class="error">This authentication token has expired or does not exist.</p>
               <p>Please request a new authentication link from the Telegram bot.</p>
             </div>
@@ -445,7 +450,7 @@ router.get('/verify', async (req, res) => {
 
     // Redirect to app/web with token
     const appUrl = process.env.APP_URL || process.env.WEB_URL || 'http://localhost:3000';
-      const redirectUrl = `${appUrl}/telegram-auth?token=${token}`;
+    const redirectUrl = `${appUrl}/telegram-auth?token=${token}`;
 
     res.redirect(redirectUrl);
   } catch (error) {
@@ -463,13 +468,14 @@ router.get('/check-token/:token', async (req, res) => {
       return res.status(400).json({ error: 'Token is required' });
     }
 
-    // Find telegram user with this auth token
-      const telegramUser = await TelegramUser.findOne({
-        authToken: token,
+    // Find channel user with this auth token
+    const channelUser = await ChannelUser.findOne({
+      channelType: CHANNEL_TYPE,
+      authToken: token,
       authTokenExpiry: { $gt: new Date() },
     });
 
-    if (!telegramUser) {
+    if (!channelUser) {
       return res.json({
         valid: false,
         error: 'Token not found or expired',
@@ -478,7 +484,7 @@ router.get('/check-token/:token', async (req, res) => {
 
     res.json({
       valid: true,
-      expiresAt: telegramUser.authTokenExpiry,
+      expiresAt: channelUser.authTokenExpiry,
     });
   } catch (error) {
     console.error('Token check error:', error);
@@ -500,13 +506,14 @@ router.post('/link', authenticateToken, async (req, res) => {
       return res.status(401).json({ error: 'User ID not found' });
     }
 
-    // Find telegram user with this auth token (solo modo link)
-    const telegramUser = await TelegramUser.findOne({
+    // Find channel user with this auth token (solo modo link)
+    const channelUser = await ChannelUser.findOne({
+      channelType: CHANNEL_TYPE,
       authToken: authToken,
       authTokenExpiry: { $gt: new Date() },
       authTokenMode: 'link',
     });
-    if (!telegramUser) {
+    if (!channelUser) {
       return res.status(404).json({ error: 'Auth token not found, expired, or not for linking' });
     }
 
@@ -520,15 +527,15 @@ router.post('/link', authenticateToken, async (req, res) => {
     }
 
     // Link the accounts
-    telegramUser.oxyUserId = new mongoose.Types.ObjectId(oxyUserId);
-    telegramUser.isAuthenticated = true;
-    telegramUser.linkedAt = new Date();
-    telegramUser.authToken = undefined;
-    telegramUser.authTokenExpiry = undefined;
-    await telegramUser.save();
+    channelUser.oxyUserId = new mongoose.Types.ObjectId(oxyUserId);
+    channelUser.isAuthenticated = true;
+    channelUser.linkedAt = new Date();
+    channelUser.authToken = undefined;
+    channelUser.authTokenExpiry = undefined;
+    await channelUser.save();
 
     emitTelegramLinked(authToken, {
-      oxyUserId: telegramUser.oxyUserId,
+      oxyUserId: channelUser.oxyUserId,
       email: user.email,
       name: user.name?.full || user.name?.first || '',
       type: 'linked',
@@ -539,19 +546,19 @@ router.post('/link', authenticateToken, async (req, res) => {
       const botToken = process.env.TELEGRAM_BOT_TOKEN;
       if (!botToken) {
         console.warn('[Telegram] Bot token not configured, skipping notification');
-      } else if (!telegramUser.chatId) {
-        console.warn('[Telegram] No chat ID for user:', telegramUser.telegramId);
+      } else if (!channelUser.chatId) {
+        console.warn('[Telegram] No chat ID for user:', channelUser.channelUserId);
       } else {
         // Use the user's name for the message
-        const userName = user.name?.full || user.name?.first || telegramUser.firstName || telegramUser.username || '';
+        const userName = user.name?.full || user.name?.first || channelUser.displayName || channelUser.username || '';
         const message =
           `✅ <b>¡Autenticación Exitosa!</b>\n\n` +
           `¡Bienvenido ${userName}! Tu cuenta de Telegram ahora está vinculada a Alia.\n\n` +
           `Puedes empezar a chatear conmigo ahora mismo. ¡Solo envíame cualquier mensaje! 💬`;
 
         console.log('[Telegram] Sending authentication success message to:', {
-          telegramId: telegramUser.telegramId,
-          chatId: telegramUser.chatId,
+          telegramId: channelUser.channelUserId,
+          chatId: channelUser.chatId,
           userName
         });
 
@@ -559,7 +566,7 @@ router.post('/link', authenticateToken, async (req, res) => {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            chat_id: telegramUser.chatId,
+            chat_id: channelUser.chatId,
             text: message,
             parse_mode: 'HTML',
           }),
@@ -569,7 +576,7 @@ router.post('/link', authenticateToken, async (req, res) => {
         if (!response.ok) {
           console.error('[Telegram] Failed to send message:', result);
         } else {
-          console.log('[Telegram] Successfully sent authentication message to user:', telegramUser.telegramId);
+          console.log('[Telegram] Successfully sent authentication message to user:', channelUser.channelUserId);
         }
       }
     } catch (notifyError) {
@@ -594,8 +601,11 @@ router.post('/signin-complete', authenticateTelegramBot, async (req, res) => {
       return res.status(400).json({ error: 'Missing required fields' });
     }
 
+    const displayName = [firstName, lastName].filter(Boolean).join(' ') || undefined;
+
     // Find the pending auth request
-    const pendingAuth = await TelegramUser.findOne({
+    const pendingAuth = await ChannelUser.findOne({
+      channelType: CHANNEL_TYPE,
       authToken: authCode,
       authTokenMode: 'signin',
       authTokenExpiry: { $gt: new Date() },
@@ -607,29 +617,28 @@ router.post('/signin-complete', authenticateTelegramBot, async (req, res) => {
     }
 
     // Check if this Telegram user is already linked to an Oxy user
-    let telegramUser = await TelegramUser.findOne({ telegramId });
+    let channelUser = await ChannelUser.findOne({ channelType: CHANNEL_TYPE, channelUserId: telegramId });
 
-    if (telegramUser && telegramUser.oxyUserId) {
+    if (channelUser && channelUser.oxyUserId) {
       // User has linked Telegram before - update their info and keep them authenticated
-      telegramUser.chatId = chatId;
-      telegramUser.username = username;
-      telegramUser.firstName = firstName;
-      telegramUser.lastName = lastName;
-      telegramUser.isAuthenticated = true;
-      telegramUser.authToken = undefined;
-      telegramUser.authTokenExpiry = undefined;
-      telegramUser.authTokenMode = undefined;
-      await telegramUser.save();
+      channelUser.chatId = chatId;
+      channelUser.username = username;
+      channelUser.displayName = displayName;
+      channelUser.isAuthenticated = true;
+      channelUser.authToken = undefined;
+      channelUser.authTokenExpiry = undefined;
+      channelUser.authTokenMode = undefined;
+      await channelUser.save();
 
       // Clean up pending auth if different
-      if (pendingAuth._id.toString() !== telegramUser._id.toString()) {
-        await TelegramUser.deleteOne({ _id: pendingAuth._id });
+      if (pendingAuth._id.toString() !== channelUser._id.toString()) {
+        await ChannelUser.deleteOne({ _id: pendingAuth._id });
       }
 
       // Fetch user data from Oxy
       try {
-        const user = await oxyClient.getUserById(telegramUser.oxyUserId.toString());
-        console.log('[signin-complete] Telegram user signed in with existing link', { telegramId, oxyUserId: telegramUser.oxyUserId });
+        const user = await oxyClient.getUserById(channelUser.oxyUserId.toString());
+        console.log('[signin-complete] Telegram user signed in with existing link', { telegramId, oxyUserId: channelUser.oxyUserId });
 
         return res.json({
           success: true,
@@ -642,28 +651,27 @@ router.post('/signin-complete', authenticateTelegramBot, async (req, res) => {
           },
         });
       } catch (error) {
-        console.error('[signin-complete] Failed to fetch Oxy user', { telegramId, oxyUserId: telegramUser.oxyUserId, error });
+        console.error('[signin-complete] Failed to fetch Oxy user', { telegramId, oxyUserId: channelUser.oxyUserId, error });
         return res.status(404).json({ error: 'Linked Oxy user not found' });
       }
     } else {
       // Telegram not linked to any Oxy account - user must link via Oxy first
-      // Update telegram user info for future linking
-      if (!telegramUser) {
-        telegramUser = pendingAuth;
-        telegramUser.telegramId = telegramId;
+      // Update channel user info for future linking
+      if (!channelUser) {
+        channelUser = pendingAuth;
+        channelUser.channelUserId = telegramId;
       }
-      telegramUser.chatId = chatId;
-      telegramUser.username = username;
-      telegramUser.firstName = firstName;
-      telegramUser.lastName = lastName;
-      telegramUser.isAuthenticated = false;
-      telegramUser.authToken = undefined;
-      telegramUser.authTokenExpiry = undefined;
-      telegramUser.authTokenMode = undefined;
-      await telegramUser.save();
+      channelUser.chatId = chatId;
+      channelUser.username = username;
+      channelUser.displayName = displayName;
+      channelUser.isAuthenticated = false;
+      channelUser.authToken = undefined;
+      channelUser.authTokenExpiry = undefined;
+      channelUser.authTokenMode = undefined;
+      await channelUser.save();
 
       // Clean up any duplicates
-      await TelegramUser.deleteMany({ telegramId, _id: { $ne: telegramUser._id } });
+      await ChannelUser.deleteMany({ channelType: CHANNEL_TYPE, channelUserId: telegramId, _id: { $ne: channelUser._id } });
 
       console.log('[signin-complete] Telegram user not linked to Oxy account', { telegramId });
       return res.status(403).json({
@@ -685,25 +693,26 @@ router.get('/token-info/:token', async (req, res) => {
     if (!token) {
       return res.status(400).json({ error: 'Token is required' });
     }
-    // Buscar usuario de Telegram por token válido
-    const telegramUser = await TelegramUser.findOne({
+    // Buscar channel user por token válido
+    const channelUser = await ChannelUser.findOne({
+      channelType: CHANNEL_TYPE,
       authToken: token,
       authTokenExpiry: { $gt: new Date() },
       authTokenMode: 'signin',
     });
-    if (!telegramUser) {
+    if (!channelUser) {
       return res.status(404).json({ error: 'Token not found or expired' });
     }
     // Si ya está vinculado a un usuario Oxy y autenticado
-    if (telegramUser.oxyUserId && telegramUser.isAuthenticated) {
+    if (channelUser.oxyUserId && channelUser.isAuthenticated) {
       // Buscar datos del usuario en Oxy
       try {
-        const user = await oxyClient.getUserById(telegramUser.oxyUserId.toString());
+        const user = await oxyClient.getUserById(channelUser.oxyUserId.toString());
 
         // Enviar mensaje de Telegram para notificar login
         try {
           const botToken = process.env.TELEGRAM_BOT_TOKEN;
-          if (botToken && telegramUser.chatId) {
+          if (botToken && channelUser.chatId) {
             const message =
               `🔑 <b>Inicio de sesión en Alia</b>\n\n` +
               `Tu cuenta de Telegram fue usada para iniciar sesión en Alia.\n` +
@@ -712,7 +721,7 @@ router.get('/token-info/:token', async (req, res) => {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
-                chat_id: telegramUser.chatId,
+                chat_id: channelUser.chatId,
                 text: message,
                 parse_mode: 'HTML',
               }),
@@ -728,13 +737,13 @@ router.get('/token-info/:token', async (req, res) => {
           : user.username || '';
 
         emitTelegramLinked(token, {
-          oxyUserId: telegramUser.oxyUserId,
+          oxyUserId: channelUser.oxyUserId,
           email: user.email,
           name: fullName,
         });
 
         return res.json({
-          oxyUserId: telegramUser.oxyUserId,
+          oxyUserId: channelUser.oxyUserId,
           email: user.email,
           username: user.username,
           name: fullName,

@@ -12,7 +12,7 @@ import QRCode from "react-native-qrcode-svg";
 export default function WhatsAppSetupScreen() {
   const router = useRouter();
   const [polling, setPolling] = useState(false);
-  const { status, loading, connect, disconnect, refresh } = useWhatsAppStatus(polling);
+  const { status, loading, connect, disconnect, refresh, stopPolling } = useWhatsAppStatus(polling);
   const [connecting, setConnecting] = useState(false);
   const [qrData, setQrData] = useState<string | null>(null);
   const [showDisconnectDialog, setShowDisconnectDialog] = useState(false);
@@ -20,6 +20,11 @@ export default function WhatsAppSetupScreen() {
 
   const isConnected = status?.status === 'connected';
   const isQrPending = status?.status === 'qr-pending';
+
+  // Stop polling on unmount
+  useEffect(() => {
+    return () => stopPolling();
+  }, []);
 
   // Start polling when QR is pending
   useEffect(() => {

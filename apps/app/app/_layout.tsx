@@ -7,6 +7,7 @@ import { OxyProvider, useOxy } from '@oxyhq/services';
 import * as Linking from 'expo-linking';
 import { Platform } from 'react-native';
 import { PortalHost } from '@rn-primitives/portal';
+import { KeyboardProvider } from 'react-native-keyboard-controller';
 import { useColorScheme } from '@/lib/useColorScheme';
 import { setTokenGetter } from '@/lib/api/client';
 import 'react-native-reanimated';
@@ -38,16 +39,18 @@ function AppContent() {
 
   return (
     <AuthSetup>
-      <Stack
-        screenOptions={{
-          contentStyle: {
-            backgroundColor: colors.background,
-          },
-        }}
-      >
-        <Stack.Screen name="(app)" options={{ headerShown: false }} />
-        <Stack.Screen name="(biglayout)" options={{ headerShown: false }} />
-      </Stack>
+      <KeyboardProvider>
+        <Stack
+          screenOptions={{
+            contentStyle: {
+              backgroundColor: colors.background,
+            },
+          }}
+        >
+          <Stack.Screen name="(app)" options={{ headerShown: false }} />
+          <Stack.Screen name="(biglayout)" options={{ headerShown: false }} />
+        </Stack>
+      </KeyboardProvider>
       <PortalHost />
     </AuthSetup>
   );

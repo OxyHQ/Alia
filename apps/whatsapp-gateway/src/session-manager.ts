@@ -42,8 +42,14 @@ interface PendingQR {
 class SessionManager {
   private sessions: Map<string, WASocket> = new Map();
   private reconnectTimers: Map<string, NodeJS.Timeout> = new Map();
+  private reconnectAttempts: Map<string, number> = new Map();
   private pendingQRs: Map<string, PendingQR> = new Map();
   private credsSaveQueue: Promise<void> = Promise.resolve();
+
+  private static readonly MAX_RECONNECT_ATTEMPTS = 10;
+  private static readonly BASE_RECONNECT_MS = 5000;
+  private static readonly MAX_RECONNECT_MS = 60000;
+  private static readonly JITTER_MAX_MS = 1000;
 
   /**
    * On startup, load all 'connected' or 'disconnected' sessions from MongoDB
@@ -157,6 +163,9 @@ class SessionManager {
       }
 
       if (connection === 'open') {
+        // Reset reconnect counter on successful connection
+        this.reconnectAttempts.delete(oxyUserId);
+
         const phoneNumber = sock.user?.id?.split(':')[0] || '';
         const displayName = sock.user?.name || '';
 
@@ -182,25 +191,44 @@ class SessionManager {
         this.sessions.delete(oxyUserId);
 
         if (shouldReconnect) {
-          await WhatsAppSession.updateOne(
-            { oxyUserId },
-            { $set: { status: 'disconnected', lastDisconnected: new Date() } }
-          );
-          console.log(
-            `[WhatsApp] Session disconnected for user ${oxyUserId} (status ${statusCode}), reconnecting in 5s...`
-          );
+          const attempts = (this.reconnectAttempts.get(oxyUserId) || 0) + 1;
+          this.reconnectAttempts.set(oxyUserId, attempts);
 
-          // Clear any existing reconnect timer
-          const existing = this.reconnectTimers.get(oxyUserId);
-          if (existing) clearTimeout(existing);
-
-          const timer = setTimeout(() => {
-            this.reconnectTimers.delete(oxyUserId);
-            this.startSession(oxyUserId).catch((err) =>
-              console.error(`[WhatsApp] Reconnect failed for ${oxyUserId}:`, err)
+          if (attempts > SessionManager.MAX_RECONNECT_ATTEMPTS) {
+            await WhatsAppSession.updateOne(
+              { oxyUserId },
+              { $set: { status: 'failed', lastDisconnected: new Date() } }
             );
-          }, 5000);
-          this.reconnectTimers.set(oxyUserId, timer);
+            this.reconnectAttempts.delete(oxyUserId);
+            console.error(
+              `[WhatsApp] Session for ${oxyUserId} failed after ${SessionManager.MAX_RECONNECT_ATTEMPTS} reconnect attempts`
+            );
+          } else {
+            const delay = Math.min(
+              SessionManager.BASE_RECONNECT_MS * Math.pow(2, attempts - 1),
+              SessionManager.MAX_RECONNECT_MS,
+            ) + Math.floor(Math.random() * SessionManager.JITTER_MAX_MS);
+
+            await WhatsAppSession.updateOne(
+              { oxyUserId },
+              { $set: { status: 'disconnected', lastDisconnected: new Date() } }
+            );
+            console.log(
+              `[WhatsApp] Session disconnected for user ${oxyUserId} (status ${statusCode}), reconnecting in ${Math.round(delay / 1000)}s (attempt ${attempts}/${SessionManager.MAX_RECONNECT_ATTEMPTS})...`
+            );
+
+            // Clear any existing reconnect timer
+            const existing = this.reconnectTimers.get(oxyUserId);
+            if (existing) clearTimeout(existing);
+
+            const timer = setTimeout(() => {
+              this.reconnectTimers.delete(oxyUserId);
+              this.startSession(oxyUserId).catch((err) =>
+                console.error(`[WhatsApp] Reconnect failed for ${oxyUserId}:`, err)
+              );
+            }, delay);
+            this.reconnectTimers.set(oxyUserId, timer);
+          }
         } else {
           await WhatsAppSession.updateOne(
             { oxyUserId },
@@ -539,12 +567,13 @@ class SessionManager {
       this.sessions.delete(oxyUserId);
     }
 
-    // Clear reconnect timer
+    // Clear reconnect timer and attempts
     const timer = this.reconnectTimers.get(oxyUserId);
     if (timer) {
       clearTimeout(timer);
       this.reconnectTimers.delete(oxyUserId);
     }
+    this.reconnectAttempts.delete(oxyUserId);
 
     await WhatsAppSession.updateOne(
       { oxyUserId },
@@ -594,6 +623,9 @@ class SessionManager {
       this.reconnectTimers.delete(userId);
     }
 
+    // Clear reconnect attempts
+    this.reconnectAttempts.clear();
+
     // Close all sockets
     for (const [userId, sock] of this.sessions) {
       try {
@@ -632,6 +664,8 @@ class SessionManager {
       clearTimeout(timer);
       this.reconnectTimers.delete(oxyUserId);
     }
+
+    this.reconnectAttempts.delete(oxyUserId);
   }
 }
 
