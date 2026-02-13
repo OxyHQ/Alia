@@ -1,6 +1,12 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { View, Pressable } from 'react-native';
 import { useRouter } from 'expo-router';
+import Animated, {
+  useSharedValue,
+  useAnimatedStyle,
+  withTiming,
+  Easing,
+} from 'react-native-reanimated';
 import { ArrowLeft, Shield, Building2, Check } from 'lucide-react-native';
 import { Text } from '@/components/ui/text';
 import { Button } from '@/components/ui/button';
@@ -78,6 +84,70 @@ export function BillingToggle({
   );
 }
 
+// ─── AnimatedPrice ───────────────────────────────────────────────────
+
+function AnimatedPrice({
+  cents,
+  billingPeriod,
+  className,
+}: {
+  cents: number;
+  billingPeriod: BillingPeriod;
+  className?: string;
+}) {
+  const opacity = useSharedValue(1);
+  const translateY = useSharedValue(0);
+
+  useEffect(() => {
+    opacity.value = 0;
+    translateY.value = 8;
+    opacity.value = withTiming(1, { duration: 250, easing: Easing.out(Easing.cubic) });
+    translateY.value = withTiming(0, { duration: 250, easing: Easing.out(Easing.cubic) });
+  }, [billingPeriod]);
+
+  const animStyle = useAnimatedStyle(() => ({
+    opacity: opacity.value,
+    transform: [{ translateY: translateY.value }],
+  }));
+
+  return (
+    <Animated.Text
+      style={animStyle}
+      className={cn('text-2xl font-bold text-foreground', className)}
+    >
+      {formatPrice(cents)}
+    </Animated.Text>
+  );
+}
+
+function AnimatedSubtext({
+  text,
+  billingPeriod,
+}: {
+  text: string;
+  billingPeriod: BillingPeriod;
+}) {
+  const opacity = useSharedValue(1);
+
+  useEffect(() => {
+    opacity.value = 0;
+    opacity.value = withTiming(1, { duration: 300, easing: Easing.out(Easing.cubic) });
+  }, [billingPeriod]);
+
+  const animStyle = useAnimatedStyle(() => ({
+    opacity: opacity.value,
+  }));
+
+  return (
+    <Animated.Text
+      style={animStyle}
+      className="text-xs text-muted-foreground"
+    >
+      {text}
+    </Animated.Text>
+  );
+}
+
 // ─── PlanColumn ──────────────────────────────────────────────────────
 
 export function PlanColumn({
@@ -137,17 +207,19 @@ export function PlanColumn({
       ) : (
         <View className="gap-0.5">
           <View className="flex-row items-baseline gap-1">
-            <Text className="text-2xl font-bold text-foreground">
-              {formatPrice(price)}
-            </Text>
+            <AnimatedPrice
+              cents={price}
+              billingPeriod={billingPeriod}
+            />
             <Text className="text-xs text-muted-foreground">
               {t('subscribe.perMonth')}
             </Text>
           </View>
           {billingPeriod === 'annual' && (
-            <Text className="text-xs text-muted-foreground">
-              {formatPrice(tier.annualPrice)}{t('subscribe.perYear')}
-            </Text>
+            <AnimatedSubtext
+              text={`${formatPrice(tier.annualPrice)}${t('subscribe.perYear')}`}
+              billingPeriod={billingPeriod}
+            />
           )}
           <Text className="text-xs text-muted-foreground mt-0.5">
             {tier.creditsLabel}
