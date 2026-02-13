@@ -388,16 +388,25 @@ export function PlanGrid({
         showsHorizontalScrollIndicator={false}
         snapToInterval={SNAP_WIDTH}
         decelerationRate="fast"
+        className="snap-x snap-mandatory"
         contentContainerStyle={{ paddingHorizontal: 8 }}
         onMomentumScrollEnd={(e) => {
           const idx = Math.round(e.nativeEvent.contentOffset.x / SNAP_WIDTH);
           setActiveIndex(Math.max(0, Math.min(idx, tiers.length - 1)));
         }}
+        onScroll={(e) => {
+          const idx = Math.round(e.nativeEvent.contentOffset.x / SNAP_WIDTH);
+          const clamped = Math.max(0, Math.min(idx, tiers.length - 1));
+          if (clamped !== activeIndex) setActiveIndex(clamped);
+        }}
+        scrollEventThrottle={100}
       >
         {tiers.map((tier, index) => (
           <React.Fragment key={tier.id}>
             {index > 0 && <Separator orientation="vertical" />}
-            <View style={{ width: CARD_WIDTH }}>{renderPlanColumn(tier)}</View>
+            <View className="snap-start" style={{ width: CARD_WIDTH }}>
+              {renderPlanColumn(tier)}
+            </View>
           </React.Fragment>
         ))}
       </ScrollView>
