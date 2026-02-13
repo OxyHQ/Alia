@@ -6,6 +6,8 @@ import { resolveModel, getAIModel, reportModelUsage } from '../lib/chat-core.js'
 import { sendChannelMessage } from '../lib/channels/outbound.js';
 import { ChannelUser } from '../models/channel-user.js';
 import { Conversation } from '../models/conversation.js';
+import { UserCredits } from '../models/user-credits.js';
+import { reserveCredits, finalizeCredits, type CreditReservation, type CreditUsage } from '../lib/credits-manager.js';
 import type { ChannelId, ChannelInboundMessage } from '../lib/channels/types.js';
 
 const CHANNEL_SYSTEM_PROMPT = `You are Alia, a helpful AI assistant. Be concise and friendly. Respond in the same language the user writes to you.`;
@@ -40,6 +42,33 @@ async function processChannelMessage(
       return;
     }
 
+    const userId = channelUser.oxyUserId.toString();
+    const aliasModelId = channelUser.preferredModel || 'alia-lite';
+
+    // Reserve credits before processing
+    await UserCredits.findByIdAndUpdate(
+      userId,
+      {
+        $setOnInsert: {
+          _id: userId,
+          credits: { free: 1000, freeLimit: 1000, dailyRefresh: 300, lastRefresh: new Date(), paid: 0 },
+        },
+      },
+      { upsert: true, new: true }
+    );
+
+    const creditReservation = await reserveCredits(userId);
+    if (!creditReservation) {
+      const appUrl = process.env.APP_URL || process.env.WEB_URL || 'https://alia.onl';
+      await sendChannelMessage(
+        channelType,
+        message.chatId,
+        `You've run out of credits. Add more at ${appUrl} to continue using Alia.`,
+        { replyToId: message.replyToId, threadId: message.threadId }
+      );
+      return;
+    }
+
     // Load or create conversation
     let conversationId = channelUser.conversationId;
     if (!conversationId) {
@@ -69,7 +98,7 @@ async function processChannelMessage(
     messages.push({ role: 'user', content: message.text });
 
     // Resolve AI model
-    const resolved = await resolveModel(channelUser.preferredModel || 'alia-lite');
+    const resolved = await resolveModel(aliasModelId);
     if (!resolved) {
       await sendChannelMessage(channelType, message.chatId, 'Sorry, no AI models are available right now.', {
         replyToId: message.replyToId,
@@ -95,6 +124,19 @@ async function processChannelMessage(
 
     const latencyMs = Date.now() - startTime;
     const fullResponse = result.text;
+
+    // Finalize credits based on actual token usage
+    const tokenUsage: CreditUsage = {
+      promptTokens: result.usage?.promptTokens || 0,
+      completionTokens: result.usage?.completionTokens || 0,
+      totalTokens: result.usage?.totalTokens || 0,
+    };
+
+    try {
+      await finalizeCredits(creditReservation, tokenUsage, aliasModelId);
+    } catch (error) {
+      console.error(`[Webhook] Error finalizing credits for ${channelType}:`, error);
+    }
 
     // Send response back via outbound adapter
     if (fullResponse) {

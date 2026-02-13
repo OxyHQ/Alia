@@ -315,8 +315,7 @@
     "outOfCreditsTitle": "Out of credits",
     "outOfCreditsDescription": "Add more credits or upgrade your plan to continue chatting with Alia.",
     "limitReachedTitle": "Limit reached",
-    "limitReachedDescription": "Your free plan allows {{limit}} tokens per day. Upgrade for higher limits.",
-    "limitReachedGeneric": "You've reached the daily limit for your plan. Upgrade for more.",
+    "limitReachedDescription": "You've reached the limit for your plan. Upgrade for more.",
     "slowDownTitle": "Slow down",
     "slowDownDescription": "You've hit your rate limit. Try again in {{time}}.",
     "slowDownGeneric": "You've hit your rate limit. Please try again shortly.",
@@ -327,7 +326,8 @@
     "gotIt": "Got it",
     "inputDisabledPlaceholder": "Usage limit reached",
     "limitReachedBanner": "Usage limit reached. Upgrade or wait to continue.",
-    "usageWarning": "{{percent}}% of daily limit used. Switch to Alia Lite to use 2x fewer credits.",
+    "warningMessage": "Spending more than usual today. At this rate, credits last ~{{days}} days.",
+    "criticalMessage": "High usage — credits may run out in ~{{days}} day(s).",
     "switchModel": "Switch"
   }
 }

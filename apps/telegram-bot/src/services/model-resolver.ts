@@ -44,15 +44,22 @@ export async function resolveModel(
 
     if (!response.ok) {
       const errorData = await response.text();
-      try {
-        const error = JSON.parse(errorData);
-        throw new Error(error.error || `HTTP ${response.status}`);
-      } catch (e) {
-        if (e instanceof SyntaxError) {
-          throw new Error(`HTTP ${response.status}: ${errorData}`);
-        }
-        throw e;
+      let parsed: any;
+      try { parsed = JSON.parse(errorData); } catch { parsed = null; }
+
+      // Propagate structured credit errors so the chat handler can show a proper message
+      if (response.status === 402) {
+        const errObj = parsed?.error;
+        const err = new Error(
+          (typeof errObj === 'object' ? errObj?.message : errObj) || "You've run out of credits."
+        ) as any;
+        err.code = 'INSUFFICIENT_CREDITS';
+        err.status = 402;
+        throw err;
       }
+
+      const msg = typeof parsed?.error === 'string' ? parsed.error : parsed?.error?.message || `HTTP ${response.status}`;
+      throw new Error(msg);
     }
 
     const parsed = await response.json() as { provider: string; modelId: string; providerKey: string; sessionId: string };
@@ -65,6 +72,8 @@ export async function resolveModel(
       sessionId: parsed.sessionId
     };
   } catch (error: any) {
+    // Re-throw credit errors without wrapping
+    if (error.code === 'INSUFFICIENT_CREDITS') throw error;
     throw new Error(`Failed to resolve model: ${error.message}`);
   }
 }

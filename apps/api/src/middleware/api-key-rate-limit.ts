@@ -13,35 +13,36 @@ interface RateLimitStatus {
 }
 
 // Rate limits by subscription tier for session-based users
-// These are the default limits when using the app directly (not via API key)
+// Credits are the sole usage gate — these are burst/abuse protection only (per-minute).
+// Daily limits are intentionally null; credits control total usage.
 export const TIER_RATE_LIMITS: Record<string, IRateLimitConfig> = {
   free: {
     requestsPerMinute: 20,
-    requestsPerDay: 200,
+    requestsPerDay: null,
     tokensPerMinute: null,
-    tokensPerDay: 100000,
+    tokensPerDay: null,
   },
   pro: {
     requestsPerMinute: 60,
-    requestsPerDay: 1000,
+    requestsPerDay: null,
     tokensPerMinute: null,
-    tokensPerDay: 500000,
+    tokensPerDay: null,
   },
   pro_plus: {
     requestsPerMinute: 120,
-    requestsPerDay: 2000,
+    requestsPerDay: null,
     tokensPerMinute: null,
-    tokensPerDay: 1000000,
+    tokensPerDay: null,
   },
   business: {
     requestsPerMinute: 200,
-    requestsPerDay: 5000,
+    requestsPerDay: null,
     tokensPerMinute: null,
-    tokensPerDay: null,  // unlimited
+    tokensPerDay: null,
   },
   enterprise: {
-    requestsPerMinute: null,  // unlimited
-    requestsPerDay: null,     // unlimited
+    requestsPerMinute: null,
+    requestsPerDay: null,
     tokensPerMinute: null,
     tokensPerDay: null,
   },

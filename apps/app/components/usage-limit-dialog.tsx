@@ -78,9 +78,7 @@ export function UsageLimitDialog({ error, onDismiss }: UsageLimitDialogProps) {
   if (isCredits) {
     description = 'Add more credits or upgrade your plan to continue chatting with Alia.';
   } else if (showUpgrade) {
-    description = error.details.limit
-      ? `Your free plan allows ${error.details.limit.toLocaleString()} tokens per day. Upgrade for higher limits.`
-      : "You've reached the daily limit for your plan. Upgrade for more.";
+    description = "You've reached the limit for your plan. Upgrade for more.";
   } else {
     description = countdown > 0
       ? `You've hit your rate limit. Try again in ${formatCountdown(countdown)}.`

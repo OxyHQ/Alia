@@ -296,8 +296,20 @@ Be concise and friendly. Use these Telegram features when appropriate.`;
   } catch (error: any) {
     console.error('Chat error:', error);
 
+    // Check if it's an insufficient credits error
+    if (error.code === 'INSUFFICIENT_CREDITS' || error.status === 402) {
+      const appUrl = process.env.APP_URL || 'https://alia.onl';
+      await ctx.reply(
+        `💳 <b>Out of Credits</b>\n\n` +
+        `You've run out of credits. Add more to continue using Alia.\n\n` +
+        `<a href="${appUrl}">Open Alia to add credits</a>`,
+        {
+          parse_mode: 'HTML',
+          link_preview_is_disabled: true,
+        }
+      );
     // Check if it's an authentication error
-    if (error.response?.status === 401 || error.message?.includes('401')) {
+    } else if (error.response?.status === 401 || error.message?.includes('401')) {
       await ctx.reply(
         '🔒 <b>Session Expired</b>\n\n' +
         'Your authentication session has expired.\n' +
