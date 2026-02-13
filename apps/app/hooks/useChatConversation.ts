@@ -43,9 +43,12 @@ export function useChatConversation({ conversationId, activeRole, thinkingMode, 
     lastConversationId.current = conversationId;
     hasSentPendingMessage.current = false;
 
-    const validMessages = (conversation?.messages || []).filter(
-      msg => msg?.role && msg?.content !== undefined
-    );
+    const validMessages = (conversation?.messages || [])
+      .filter(msg => msg?.role && msg?.content !== undefined)
+      .map((msg, index) => ({
+        ...msg,
+        id: msg.id || `db-${conversationId}-${index}`,
+      }));
     setMessages(validMessages);
   }, [conversationId, conversation, conversationLoading, setMessages]);
 

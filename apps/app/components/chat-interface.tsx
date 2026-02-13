@@ -8,10 +8,11 @@ import { processMessage } from "@/lib/message-processor";
 import { cn } from "@/lib/utils";
 import { LottieLoader } from "@/components/lottie-loader";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Bot, Search, Link, Calendar, Database, Globe, Copy, ThumbsUp, ThumbsDown, Pencil, Check } from "lucide-react-native";
+import { Bot, Globe, Copy, ThumbsUp, ThumbsDown, Pencil, Check } from "lucide-react-native";
 import Animated, { FadeInUp } from "react-native-reanimated";
 import * as Clipboard from "expo-clipboard";
 import { Reasoning, ReasoningTrigger, ReasoningContent } from "@/components/ui/reasoning";
+import { getToolIcon, getToolLabel } from "@/lib/tool-registry";
 
 type ToolInvocation = {
   toolName: string;
@@ -19,24 +20,6 @@ type ToolInvocation = {
   state: 'partial-call' | 'call' | 'result';
   args?: any;
   result?: any;
-};
-
-// Tool icon mapping
-const TOOL_ICONS: Record<string, any> = {
-  googleSearch: Search,
-  scrapeURL: Link,
-  getTimeline: Calendar,
-  searchKnowledgeBase: Database,
-  getCurrentDate: Calendar,
-};
-
-// Tool name labels
-const TOOL_LABELS: Record<string, string> = {
-  googleSearch: 'Searching the web',
-  scrapeURL: 'Reading URL',
-  getTimeline: 'Getting timeline',
-  searchKnowledgeBase: 'Searching knowledge base',
-  getCurrentDate: 'Getting current date',
 };
 
 type MessagePart = {
@@ -146,19 +129,20 @@ export const ChatInterface = forwardRef<ScrollView, ChatInterfaceProps>(
 
               return (
                 <Animated.View
-                  key={m.id}
+                  key={m.id || `msg-${index}`}
                   entering={FadeInUp.delay(index * 50).springify()}
                 >
                   {/* Tool Invocations */}
-                  {m.toolInvocations?.map((t) => {
-                    const ToolIcon = TOOL_ICONS[t.toolName] || Globe;
-                    const toolLabel = TOOL_LABELS[t.toolName] || t.toolName;
+                  {m.toolInvocations?.map((t, ti) => {
+                    const key = t.toolCallId || `tool-${m.id}-${ti}`;
+                    const ToolIcon = getToolIcon(t.toolName);
+                    const toolLabel = getToolLabel(t.toolName);
 
                     // Show loading state for calls
                     if (t.state === 'call' || t.state === 'partial-call') {
                       return (
                         <View
-                          key={t.toolCallId}
+                          key={key}
                           className="mb-2 flex-row items-center justify-start"
                         >
                           <View className="rounded-full bg-muted/50 px-3 py-1.5 flex-row items-center gap-1.5">
@@ -178,7 +162,7 @@ export const ChatInterface = forwardRef<ScrollView, ChatInterfaceProps>(
                     if (t.state === 'result') {
                       return (
                         <View
-                          key={t.toolCallId}
+                          key={key}
                           className="mb-2 flex-row items-center justify-start"
                         >
                           <View className="rounded-full bg-primary/10 border border-primary/20 px-3 py-1.5 flex-row items-center gap-1.5">
