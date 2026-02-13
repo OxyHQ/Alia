@@ -198,6 +198,10 @@ export const Sidebar = React.memo(function Sidebar() {
     router.push("/(app)/skills");
   }, [router]);
 
+  const handleAgents = React.useCallback(() => {
+    router.push("/(app)/agents");
+  }, [router]);
+
   const handleConsole = React.useCallback(() => {
     Linking.openURL("https://console.alia.onl");
   }, []);
@@ -437,6 +441,7 @@ export const Sidebar = React.memo(function Sidebar() {
         <Button
           variant="ghost"
           className="h-10 md:h-8 flex-row items-center justify-start gap-2 rounded-full px-3 md:px-2 w-full"
+          onPress={handleAgents}
         >
           <Users size={16} className="text-muted-foreground" />
           <Text className="text-sm md:text-xs">Agents</Text>

@@ -18,11 +18,22 @@ import { AudioPipeline } from '../realtime/audio-pipeline';
 
 export type AgentState = 'idle' | 'listening' | 'thinking' | 'speaking';
 
+export interface VoiceMessage {
+  id: string;
+  role: 'user' | 'assistant';
+  content: string;
+  timestamp: number;
+  isStreaming: boolean;
+}
+
 export function useRealtimeVoice() {
   const [voiceState, setVoiceState] = useState<RealtimeState>('disconnected');
   const [agentState, setAgentState] = useState<AgentState>('idle');
   const [isMuted, setIsMuted] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [messages, setMessages] = useState<VoiceMessage[]>([]);
+  const currentAiTextRef = useRef<string>('');
+  const msgIdRef = useRef(0);
   const { oxyServices } = useOxy();
 
   const clientRef = useRef<RealtimeClient | null>(null);
@@ -67,9 +78,48 @@ export function useRealtimeVoice() {
             setAgentState('speaking');
             pipeline.playAudio(base64);
           },
+          onTranscriptDelta: (delta) => {
+            currentAiTextRef.current += delta;
+            const text = currentAiTextRef.current;
+            setMessages((prev) => {
+              const last = prev[prev.length - 1];
+              if (last && last.role === 'assistant' && last.isStreaming) {
+                return [...prev.slice(0, -1), { ...last, content: text }];
+              }
+              msgIdRef.current++;
+              return [...prev, { id: `vm-${msgIdRef.current}`, role: 'assistant', content: text, timestamp: Date.now(), isStreaming: true }];
+            });
+          },
+          onTranscriptDone: (transcript) => {
+            currentAiTextRef.current = '';
+            setMessages((prev) => {
+              const last = prev[prev.length - 1];
+              if (last && last.role === 'assistant' && last.isStreaming) {
+                return [...prev.slice(0, -1), { ...last, content: transcript, isStreaming: false }];
+              }
+              return prev;
+            });
+          },
+          onUserTranscriptCompleted: (transcript) => {
+            if (!transcript.trim()) return;
+            msgIdRef.current++;
+            setMessages((prev) => [...prev, { id: `vm-${msgIdRef.current}`, role: 'user', content: transcript.trim(), timestamp: Date.now(), isStreaming: false }]);
+          },
           onSpeechStarted: () => {
             setAgentState('listening');
             pipeline.clearPlayback(); // Barge-in: stop current response
+            // Finalize any in-progress AI transcript
+            if (currentAiTextRef.current) {
+              const partial = currentAiTextRef.current;
+              currentAiTextRef.current = '';
+              setMessages((prev) => {
+                const last = prev[prev.length - 1];
+                if (last && last.role === 'assistant' && last.isStreaming) {
+                  return [...prev.slice(0, -1), { ...last, content: partial, isStreaming: false }];
+                }
+                return prev;
+              });
+            }
           },
           onSpeechStopped: () => {
             setAgentState('thinking');
@@ -101,6 +151,8 @@ export function useRealtimeVoice() {
     setAgentState('idle');
     setError(null);
     setIsMuted(false);
+    setMessages([]);
+    currentAiTextRef.current = '';
   }, [cleanup]);
 
   const toggleMute = useCallback(() => {
@@ -117,6 +169,7 @@ export function useRealtimeVoice() {
     agentState,
     isMuted,
     error,
+    messages,
     connect,
     disconnect,
     toggleMute,

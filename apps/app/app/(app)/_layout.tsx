@@ -113,6 +113,13 @@ export default function AppLayout() {
               }}
             />
             <Drawer.Screen
+              name="agents"
+              options={{
+                drawerItemStyle: { display: 'none' },
+                title: 'Agents',
+              }}
+            />
+            <Drawer.Screen
               name="skills/[id]"
               options={{
                 drawerItemStyle: { display: 'none' },
