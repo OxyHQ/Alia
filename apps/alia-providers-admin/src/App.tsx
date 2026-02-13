@@ -7,6 +7,7 @@ import { KeysPage } from './pages/Keys';
 import { ModelsPage } from './pages/Models';
 import { MonitoringPage } from './pages/Monitoring';
 import { UsagePage } from './pages/Usage';
+import { PlansPage } from './pages/Plans';
 import { LoginPage } from './pages/Login';
 import { RealtimeProvider } from './lib/websocket/provider';
 import { apiClient } from './lib/api/client';
@@ -82,6 +83,7 @@ function AppRoutes() {
         <Route path="dashboard" element={<DashboardPage />} />
         <Route path="keys" element={<KeysPage />} />
         <Route path="models" element={<ModelsPage />} />
+        <Route path="plans" element={<PlansPage />} />
         <Route path="monitoring" element={<MonitoringPage />} />
         <Route path="usage" element={<UsagePage />} />
       </Route>

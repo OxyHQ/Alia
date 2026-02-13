@@ -18,93 +18,27 @@ import {
   BillingToggle,
   PlanGrid,
   BackButton,
-  TeamBanner,
-  SecurityBanner,
+  InfoBanners,
   PageFooter,
 } from '@/components/subscribe-shared';
-
-// ─── Feature lists (plain text) ─────────────────────────────────────
-
-const ALIA_FEATURES: Record<string, string[]> = {
-  free: [
-    '300 credits refreshed daily',
-    'Access to standard models',
-    'Basic research and chat',
-    '5 concurrent tasks',
-  ],
-  go: [
-    '4,000 credits per month',
-    '300 daily refresh credits',
-    'All standard models',
-    'Early access to beta features',
-    '10 concurrent tasks',
-  ],
-  pro: [
-    '10,000 credits per month',
-    '300 daily refresh credits',
-    'All models including premium',
-    'Web search & file processing',
-    '20 concurrent tasks',
-  ],
-  max: [
-    '50,000 credits per month',
-    '300 daily refresh credits',
-    'Priority access to all models',
-    'Extended context & output',
-    'Dedicated capacity',
-    '50 concurrent tasks',
-  ],
-  ultra: [
-    '100,000 credits per month',
-    '300 daily refresh credits',
-    'Top priority model access',
-    'Maximum context & output',
-    'Dedicated heavy-workload capacity',
-    '100 concurrent tasks',
-  ],
-};
-
-const ALIA_CONFIG: Record<string, { subtitle: string; isFeatured: boolean }> = {
-  free:  { subtitle: 'subscribe.freeUsage',  isFeatured: false },
-  go:    { subtitle: 'subscribe.goUsage',    isFeatured: false },
-  pro:   { subtitle: 'subscribe.proUsage',   isFeatured: true },
-  max:   { subtitle: 'subscribe.maxUsage',   isFeatured: false },
-  ultra: { subtitle: 'subscribe.ultraUsage', isFeatured: false },
-};
 
 function buildTiers(
   apiPlans: SubscriptionPlan[],
   t: (key: string) => string,
 ): PricingTier[] {
-  const tiers: PricingTier[] = [
-    {
-      id: 'free',
-      name: 'Free',
-      subtitle: t('subscribe.freeUsage'),
-      monthlyPrice: 0,
-      annualPrice: 0,
-      features: ALIA_FEATURES.free,
-      isFeatured: false,
-      creditsLabel: '300 credits / day',
-    },
-  ];
-
-  for (const plan of apiPlans) {
-    const config = ALIA_CONFIG[plan.id];
-    if (!config) continue;
-    tiers.push({
-      id: plan.id,
-      name: plan.name,
-      subtitle: t(config.subtitle),
-      monthlyPrice: plan.monthlyPrice,
-      annualPrice: plan.annualPrice,
-      features: ALIA_FEATURES[plan.id] || ALIA_FEATURES.pro,
-      isFeatured: config.isFeatured,
-      creditsLabel: `${plan.creditsPerMonth.toLocaleString()} credits / mo`,
-    });
-  }
-
-  return tiers;
+  return apiPlans.map((plan) => ({
+    id: plan.id,
+    name: plan.name,
+    subtitle: plan.subtitle ? t(plan.subtitle) : '',
+    monthlyPrice: plan.monthlyPrice,
+    annualPrice: plan.annualPrice,
+    features: (plan.features || []).map((g) => ({
+      category: g.category,
+      items: g.items.map((item) => ({ label: item.label, description: item.description })),
+    })),
+    isFeatured: plan.isFeatured || false,
+    creditsLabel: plan.creditsLabel || `${plan.creditsPerMonth.toLocaleString()} credits / mo`,
+  }));
 }
 
 // ─── Main Screen ─────────────────────────────────────────────────────
@@ -117,7 +51,7 @@ export default function SubscribeScreen() {
   const isWideLayout = width >= 900;
   const { t } = useTranslation();
 
-  const [billingPeriod, setBillingPeriod] = useState<BillingPeriod>('annual');
+  const [billingPeriod, setBillingPeriod] = useState<BillingPeriod>('monthly');
   const [isMounted, setIsMounted] = useState(false);
 
   const { data: apiPlans = [] } = useSubscriptionPlans('alia');
@@ -197,8 +131,7 @@ export default function SubscribeScreen() {
         />
 
         {/* Bottom */}
-        <TeamBanner t={t} />
-        <SecurityBanner t={t} />
+        <InfoBanners t={t} />
         <PageFooter t={t} />
       </View>
     </ScrollView>

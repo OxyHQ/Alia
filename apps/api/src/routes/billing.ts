@@ -4,6 +4,7 @@ import { authenticateToken, oxyClient } from '../middleware/auth.js';
 import { UserCredits } from '../models/user-credits.js';
 import { Subscription } from '../models/subscription.js';
 import { Transaction } from '../models/transaction.js';
+import { Plan } from '../internal/providers/models/plan.js';
 import { z } from 'zod';
 
 const router = Router();
@@ -81,32 +82,6 @@ const CREDIT_PACKAGES = [
   { id: 'credits_50000', name: '50,000 Credits', credits: 50000, price: 15000, currency: 'usd' },
 ];
 
-type Product = 'alia' | 'codea';
-
-interface PlanDef {
-  id: string;
-  name: string;
-  product: Product;
-  creditsPerMonth: number;
-  monthlyPrice: number;
-  annualPrice: number;
-  currency: string;
-}
-
-const ALIA_PLANS: PlanDef[] = [
-  { id: 'go',    name: 'Go',    product: 'alia', creditsPerMonth: 4000,   monthlyPrice: 399,   annualPrice: 3830,   currency: 'usd' },
-  { id: 'pro',   name: 'Pro',   product: 'alia', creditsPerMonth: 10000,  monthlyPrice: 999,   annualPrice: 9590,   currency: 'usd' },
-  { id: 'max',   name: 'Max',   product: 'alia', creditsPerMonth: 50000,  monthlyPrice: 4999,  annualPrice: 47990,  currency: 'usd' },
-  { id: 'ultra', name: 'Ultra', product: 'alia', creditsPerMonth: 100000, monthlyPrice: 9999,  annualPrice: 95990,  currency: 'usd' },
-];
-
-const CODEA_PLANS: PlanDef[] = [
-  { id: 'codea-pro', name: 'Codea Pro', product: 'codea', creditsPerMonth: 10000,  monthlyPrice: 999,   annualPrice: 9590,   currency: 'usd' },
-  { id: 'codea-max', name: 'Codea Max', product: 'codea', creditsPerMonth: 50000,  monthlyPrice: 4999,  annualPrice: 47990,  currency: 'usd' },
-];
-
-const ALL_PLANS: PlanDef[] = [...ALIA_PLANS, ...CODEA_PLANS];
-
 // Legacy plan ID mapping for existing Stripe subscriptions
 const LEGACY_PLAN_MAP: Record<string, string> = {
   basic: 'go',
@@ -164,22 +139,32 @@ router.post('/checkout/credits', authenticateToken, async (req: Request, res: Re
 });
 
 router.get('/plans', async (req: Request, res: Response) => {
-  const product = req.query.product as string | undefined;
-  let source: PlanDef[];
-  if (product === 'codea') source = CODEA_PLANS;
-  else if (product === 'alia') source = ALIA_PLANS;
-  else source = ALL_PLANS;
+  try {
+    const product = req.query.product as string | undefined;
+    const query: any = { isActive: true };
+    if (product) query.product = product;
 
-  const plans = source.map(p => ({
-    id: p.id,
-    name: p.name,
-    product: p.product,
-    creditsPerMonth: p.creditsPerMonth,
-    monthlyPrice: p.monthlyPrice,
-    annualPrice: p.annualPrice,
-    currency: p.currency,
-  }));
-  res.json({ plans });
+    const dbPlans = await Plan.find(query).sort({ sortOrder: 1 });
+
+    const plans = dbPlans.map(p => ({
+      id: p.planId,
+      name: p.name,
+      product: p.product,
+      creditsPerMonth: p.creditsPerMonth,
+      monthlyPrice: p.monthlyPrice,
+      annualPrice: p.annualPrice,
+      currency: p.currency,
+      features: p.features,
+      subtitle: p.subtitle,
+      creditsLabel: p.creditsLabel,
+      isFeatured: p.isFeatured,
+      isFree: p.isFree,
+    }));
+    res.json({ plans });
+  } catch (error: any) {
+    console.error('[Billing] Error fetching plans:', error);
+    res.status(500).json({ error: error.message });
+  }
 });
 
 const createSubscriptionSchema = z.object({
@@ -194,7 +179,7 @@ router.post('/checkout/subscription', authenticateToken, async (req: Request, re
     const { planId, billingPeriod, successUrl, cancelUrl } = createSubscriptionSchema.parse(req.body);
     const userId = req.user!.id;
 
-    const plan = ALL_PLANS.find((p) => p.id === planId);
+    const plan = await Plan.findOne({ planId, isActive: true, isFree: false });
     if (!plan) {
       return res.status(400).json({ error: 'Invalid plan ID' });
     }
@@ -218,8 +203,8 @@ router.post('/checkout/subscription', authenticateToken, async (req: Request, re
       mode: 'subscription',
       success_url: successUrl,
       cancel_url: cancelUrl,
-      metadata: { userId, planId: plan.id, billingPeriod, product: plan.product },
-      subscription_data: { metadata: { userId, planId: plan.id, billingPeriod, product: plan.product } },
+      metadata: { userId, planId: plan.planId, billingPeriod, product: plan.product },
+      subscription_data: { metadata: { userId, planId: plan.planId, billingPeriod, product: plan.product } },
     });
 
     res.json({ sessionId: session.id, url: session.url });
@@ -377,7 +362,7 @@ async function handleSubscriptionUpdate(stripeSubscription: Stripe.Subscription)
   // Match plan by metadata (set via subscription_data.metadata in checkout)
   const metadata = stripeSubscription.metadata;
   const resolvedPlanId = LEGACY_PLAN_MAP[metadata?.planId || ''] || metadata?.planId;
-  const plan = ALL_PLANS.find((p) => p.id === resolvedPlanId);
+  const plan = await Plan.findOne({ planId: resolvedPlanId });
   if (!plan) return;
 
   const isAnnual = metadata?.billingPeriod === 'annual';

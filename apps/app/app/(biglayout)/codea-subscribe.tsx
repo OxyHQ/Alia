@@ -21,54 +21,23 @@ import {
   PageFooter,
 } from '@/components/subscribe-shared';
 
-// ─── Codea feature lists ─────────────────────────────────────────────
-
-const CODEA_FEATURES: Record<string, string[]> = {
-  'codea-pro': [
-    '10,000 credits per month',
-    '300 daily refresh credits',
-    'AI code completions',
-    'Chat-based code assistance',
-    'Multi-file editing',
-    'All standard models',
-  ],
-  'codea-max': [
-    '50,000 credits per month',
-    '300 daily refresh credits',
-    'Priority model access',
-    'Extended context windows',
-    'Advanced code analysis',
-    'Dedicated capacity',
-  ],
-};
-
-const CODEA_CONFIG: Record<string, { subtitle: string; isFeatured: boolean }> = {
-  'codea-pro': { subtitle: 'subscribe.codeaProUsage', isFeatured: false },
-  'codea-max': { subtitle: 'subscribe.codeaMaxUsage', isFeatured: true },
-};
-
 function buildCodeaTiers(
   apiPlans: SubscriptionPlan[],
   t: (key: string) => string,
 ): PricingTier[] {
-  const tiers: PricingTier[] = [];
-
-  for (const plan of apiPlans) {
-    const config = CODEA_CONFIG[plan.id];
-    if (!config) continue;
-    tiers.push({
-      id: plan.id,
-      name: plan.name,
-      subtitle: t(config.subtitle),
-      monthlyPrice: plan.monthlyPrice,
-      annualPrice: plan.annualPrice,
-      features: CODEA_FEATURES[plan.id] || CODEA_FEATURES['codea-pro'],
-      isFeatured: config.isFeatured,
-      creditsLabel: `${plan.creditsPerMonth.toLocaleString()} credits / mo`,
-    });
-  }
-
-  return tiers;
+  return apiPlans.map((plan) => ({
+    id: plan.id,
+    name: plan.name,
+    subtitle: plan.subtitle ? t(plan.subtitle) : '',
+    monthlyPrice: plan.monthlyPrice,
+    annualPrice: plan.annualPrice,
+    features: (plan.features || []).map((g) => ({
+      category: g.category,
+      items: g.items.map((item) => ({ label: item.label, description: item.description })),
+    })),
+    isFeatured: plan.isFeatured || false,
+    creditsLabel: plan.creditsLabel || `${plan.creditsPerMonth.toLocaleString()} credits / mo`,
+  }));
 }
 
 // ─── Main Screen ─────────────────────────────────────────────────────
@@ -81,7 +50,7 @@ export default function CodeaSubscribeScreen() {
   const isWideLayout = width >= 600;
   const { t } = useTranslation();
 
-  const [billingPeriod, setBillingPeriod] = useState<BillingPeriod>('annual');
+  const [billingPeriod, setBillingPeriod] = useState<BillingPeriod>('monthly');
   const [isMounted, setIsMounted] = useState(false);
 
   const { data: apiPlans = [] } = useSubscriptionPlans('codea');

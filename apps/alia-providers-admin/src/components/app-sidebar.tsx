@@ -4,6 +4,7 @@ import {
   Boxes,
   Activity,
   BarChart3,
+  CreditCard,
   Server,
 } from 'lucide-react';
 import { NavMain } from '@/components/nav-main';
@@ -24,6 +25,7 @@ const navItems = [
   { title: 'Dashboard', url: '/dashboard', icon: LayoutDashboard },
   { title: 'API Keys', url: '/keys', icon: Key },
   { title: 'Models', url: '/models', icon: Boxes },
+  { title: 'Plans', url: '/plans', icon: CreditCard },
   { title: 'Monitoring', url: '/monitoring', icon: Activity },
   { title: 'Usage', url: '/usage', icon: BarChart3 },
 ];

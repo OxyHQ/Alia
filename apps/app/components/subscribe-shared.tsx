@@ -17,13 +17,23 @@ import { cn } from '@/lib/utils';
 
 export type BillingPeriod = 'monthly' | 'annual';
 
+export interface FeatureItem {
+  label: string;
+  description?: string;
+}
+
+export interface FeatureGroup {
+  category: string;
+  items: FeatureItem[];
+}
+
 export interface PricingTier {
   id: string;
   name: string;
   subtitle: string;
   monthlyPrice: number; // cents
   annualPrice: number; // cents
-  features: string[];
+  features: FeatureGroup[];
   isFeatured: boolean;
   creditsLabel: string;
 }
@@ -146,6 +156,8 @@ function SlotPrice({ cents, fontSize = 32 }: { cents: number; fontSize?: number 
   );
 }
 
+// ─── Animated subtext ────────────────────────────────────────────────
+
 function AnimatedSubtext({
   text,
   billingPeriod,
@@ -200,7 +212,7 @@ export function PlanColumn({
     <View
       className={cn(
         'flex-1 py-5 px-4 gap-3',
-        tier.isFeatured && 'bg-primary/5 rounded-2xl',
+        tier.isFeatured && 'bg-primary/5',
       )}
     >
       {/* Plan name + badge */}
@@ -246,7 +258,7 @@ export function PlanColumn({
       <Button
         variant={tier.isFeatured ? 'default' : 'outline'}
         size="sm"
-        className="w-full"
+        className="w-full rounded-full"
         onPress={() => {
           if (tier.id === 'free') return;
           onSubscribe(tier.id);
@@ -265,11 +277,23 @@ export function PlanColumn({
       </Button>
 
       {/* Feature list */}
-      <View className="gap-2.5 mt-2">
-        {tier.features.map((feature, i) => (
-          <View key={i} className="flex-row items-start gap-2">
-            <Check size={16} className="text-primary mt-0.5 shrink-0" />
-            <Text className="text-sm text-muted-foreground flex-1">{feature}</Text>
+      <View className="gap-3 mt-2">
+        {tier.features.map((group, gi) => (
+          <View key={gi} className="gap-1.5">
+            <Text className="text-xs font-semibold text-foreground uppercase tracking-wider">
+              {t(group.category)}
+            </Text>
+            {group.items.map((feature, fi) => (
+              <View key={fi} className="flex-row items-start gap-2">
+                <Check size={14} className="text-primary mt-0.5 shrink-0" />
+                <View className="flex-1">
+                  <Text className="text-sm text-muted-foreground">{t(feature.label)}</Text>
+                  {feature.description && (
+                    <Text className="text-xs text-muted-foreground/70 mt-0.5">{t(feature.description)}</Text>
+                  )}
+                </View>
+              </View>
+            ))}
           </View>
         ))}
       </View>
@@ -303,14 +327,39 @@ export function PlanGrid({
 }) {
   const scrollRef = useRef<ScrollView>(null);
   const [activeIndex, setActiveIndex] = useState(0);
+  const scrollTimeoutRef = useRef<ReturnType<typeof setTimeout>>();
+  const lastIndex = tiers.length - 1;
+
+  const snapToNearest = useCallback(
+    (offsetX: number) => {
+      if (scrollTimeoutRef.current) clearTimeout(scrollTimeoutRef.current);
+      const idx = Math.round(offsetX / SNAP_WIDTH);
+      const clamped = Math.max(0, Math.min(idx, lastIndex));
+      setActiveIndex(clamped);
+      scrollRef.current?.scrollTo({ x: clamped * SNAP_WIDTH, animated: true });
+    },
+    [lastIndex],
+  );
 
   const scrollToIndex = useCallback(
     (index: number) => {
-      const clamped = Math.max(0, Math.min(index, tiers.length - 1));
+      const clamped = Math.max(0, Math.min(index, lastIndex));
       scrollRef.current?.scrollTo({ x: clamped * SNAP_WIDTH, animated: true });
       setActiveIndex(clamped);
     },
-    [tiers.length],
+    [lastIndex],
+  );
+
+  const handleScroll = useCallback(
+    (offsetX: number) => {
+      const idx = Math.round(offsetX / SNAP_WIDTH);
+      setActiveIndex(Math.max(0, Math.min(idx, lastIndex)));
+
+      // Quick debounced snap for web (snapToInterval doesn't work on web)
+      if (scrollTimeoutRef.current) clearTimeout(scrollTimeoutRef.current);
+      scrollTimeoutRef.current = setTimeout(() => snapToNearest(offsetX), 80);
+    },
+    [lastIndex, snapToNearest],
   );
 
   const renderPlanColumn = (tier: PricingTier) => (
@@ -345,16 +394,16 @@ export function PlanGrid({
     <View>
       {/* Navigation */}
       <View className="flex-row items-center justify-between px-4 mb-2">
-        <Pressable
-          onPress={() => scrollToIndex(activeIndex - 1)}
-          disabled={activeIndex === 0}
-          className={cn(
-            'w-8 h-8 rounded-full bg-muted items-center justify-center',
-            activeIndex === 0 && 'opacity-30',
-          )}
-        >
-          <ChevronLeft size={18} className="text-foreground" />
-        </Pressable>
+        {activeIndex > 0 ? (
+          <Pressable
+            onPress={() => scrollToIndex(activeIndex - 1)}
+            className="w-8 h-8 rounded-full bg-muted items-center justify-center"
+          >
+            <ChevronLeft size={18} className="text-foreground" />
+          </Pressable>
+        ) : (
+          <View className="w-8 h-8" />
+        )}
 
         <View className="flex-row gap-1.5">
           {tiers.map((_, i) => (
@@ -369,16 +418,16 @@ export function PlanGrid({
           ))}
         </View>
 
-        <Pressable
-          onPress={() => scrollToIndex(activeIndex + 1)}
-          disabled={activeIndex === tiers.length - 1}
-          className={cn(
-            'w-8 h-8 rounded-full bg-muted items-center justify-center',
-            activeIndex === tiers.length - 1 && 'opacity-30',
-          )}
-        >
-          <ChevronRight size={18} className="text-foreground" />
-        </Pressable>
+        {activeIndex < lastIndex ? (
+          <Pressable
+            onPress={() => scrollToIndex(activeIndex + 1)}
+            className="w-8 h-8 rounded-full bg-muted items-center justify-center"
+          >
+            <ChevronRight size={18} className="text-foreground" />
+          </Pressable>
+        ) : (
+          <View className="w-8 h-8" />
+        )}
       </View>
 
       {/* Horizontal snap scroll */}
@@ -388,23 +437,16 @@ export function PlanGrid({
         showsHorizontalScrollIndicator={false}
         snapToInterval={SNAP_WIDTH}
         decelerationRate="fast"
-        className="snap-x snap-mandatory"
-        contentContainerStyle={{ paddingHorizontal: 8 }}
-        onMomentumScrollEnd={(e) => {
-          const idx = Math.round(e.nativeEvent.contentOffset.x / SNAP_WIDTH);
-          setActiveIndex(Math.max(0, Math.min(idx, tiers.length - 1)));
-        }}
-        onScroll={(e) => {
-          const idx = Math.round(e.nativeEvent.contentOffset.x / SNAP_WIDTH);
-          const clamped = Math.max(0, Math.min(idx, tiers.length - 1));
-          if (clamped !== activeIndex) setActiveIndex(clamped);
-        }}
-        scrollEventThrottle={100}
+        contentContainerStyle={{ paddingLeft: 8, paddingRight: CARD_WIDTH * 0.5 }}
+        onScrollEndDrag={(e) => snapToNearest(e.nativeEvent.contentOffset.x)}
+        onMomentumScrollEnd={(e) => snapToNearest(e.nativeEvent.contentOffset.x)}
+        onScroll={(e) => handleScroll(e.nativeEvent.contentOffset.x)}
+        scrollEventThrottle={16}
       >
         {tiers.map((tier, index) => (
           <React.Fragment key={tier.id}>
             {index > 0 && <Separator orientation="vertical" />}
-            <View className="snap-start" style={{ width: CARD_WIDTH }}>
+            <View style={{ width: CARD_WIDTH }}>
               {renderPlanColumn(tier)}
             </View>
           </React.Fragment>
@@ -416,48 +458,40 @@ export function PlanGrid({
 
 // ─── Banners ─────────────────────────────────────────────────────────
 
-export function TeamBanner({ t }: { t: (key: string) => string }) {
+export function InfoBanners({ t }: { t: (key: string) => string }) {
   return (
-    <View className="mx-4 mt-8 p-4 rounded-xl bg-muted/50 flex-row items-center justify-between">
-      <View className="flex-row items-center gap-3 flex-1">
-        <Building2 size={20} className="text-foreground" />
-        <View className="flex-1">
-          <Text className="text-sm font-semibold text-foreground">
-            {t('subscribe.teamTitle')}
-          </Text>
-          <Text className="text-xs text-muted-foreground">
-            {t('subscribe.teamDescription')}
-          </Text>
-        </View>
-      </View>
-      <Button variant="outline" size="sm">
-        <Text className="text-xs font-medium text-foreground">
-          {t('subscribe.getTeam')}
+    <View className="flex-row flex-wrap gap-4 mx-4 mt-8 mb-8">
+      {/* Team */}
+      <View className="flex-1 min-w-[260px] p-5 rounded-2xl bg-muted/50 gap-3">
+        <Building2 size={24} className="text-primary" />
+        <Text className="text-base font-bold text-foreground">
+          {t('subscribe.teamTitle')}
         </Text>
-      </Button>
-    </View>
-  );
-}
+        <Text className="text-sm text-muted-foreground">
+          {t('subscribe.teamDescription')}
+        </Text>
+        <Button variant="outline" size="sm" className="rounded-full self-start mt-1">
+          <Text className="text-xs font-medium text-foreground">
+            {t('subscribe.getTeam')}
+          </Text>
+        </Button>
+      </View>
 
-export function SecurityBanner({ t }: { t: (key: string) => string }) {
-  return (
-    <View className="mx-4 mt-3 mb-8 p-4 rounded-xl bg-muted/50 flex-row items-center justify-between">
-      <View className="flex-row items-center gap-3 flex-1">
-        <Shield size={20} className="text-foreground" />
-        <View className="flex-1">
-          <Text className="text-sm font-semibold text-foreground">
-            {t('subscribe.securityTitle')}
-          </Text>
-          <Text className="text-xs text-muted-foreground">
-            {t('subscribe.securityDescription')}
-          </Text>
-        </View>
-      </View>
-      <Button variant="outline" size="sm">
-        <Text className="text-xs font-medium text-foreground">
-          {t('subscribe.learnMore')}
+      {/* Security & Compliance */}
+      <View className="flex-1 min-w-[260px] p-5 rounded-2xl bg-muted/50 gap-3">
+        <Shield size={24} className="text-primary" />
+        <Text className="text-base font-bold text-foreground">
+          {t('subscribe.securityTitle')}
         </Text>
-      </Button>
+        <Text className="text-sm text-muted-foreground">
+          {t('subscribe.securityDescription')}
+        </Text>
+        <Button variant="outline" size="sm" className="rounded-full self-start mt-1">
+          <Text className="text-xs font-medium text-foreground">
+            {t('subscribe.learnMore')}
+          </Text>
+        </Button>
+      </View>
     </View>
   );
 }

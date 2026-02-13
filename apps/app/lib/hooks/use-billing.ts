@@ -10,6 +10,16 @@ export interface CreditPackage {
   currency: string;
 }
 
+export interface PlanFeatureItem {
+  label: string;
+  description?: string;
+}
+
+export interface PlanFeatureGroup {
+  category: string;
+  items: PlanFeatureItem[];
+}
+
 export interface SubscriptionPlan {
   id: string;
   name: string;
@@ -18,6 +28,11 @@ export interface SubscriptionPlan {
   monthlyPrice: number;
   annualPrice: number;
   currency: string;
+  features?: PlanFeatureGroup[];
+  subtitle?: string;
+  creditsLabel?: string;
+  isFeatured?: boolean;
+  isFree?: boolean;
 }
 
 export interface Subscription {
