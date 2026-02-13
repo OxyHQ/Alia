@@ -61,7 +61,7 @@ export const useChatStore = create<ChatState>()(
       conversations: [],
       folders: [],
       currentConversationId: null,
-      selectedModel: 'alia',
+      selectedModel: 'alia-v1',
 
       createConversation: (title = 'Nueva conversación', folderId) => {
         const id = `conv_${Date.now()}`;
@@ -190,7 +190,7 @@ export const useChatStore = create<ChatState>()(
           conversations: [],
           folders: [],
           currentConversationId: null,
-          selectedModel: 'alia',
+          selectedModel: 'alia-v1',
         }),
     }),
     {
