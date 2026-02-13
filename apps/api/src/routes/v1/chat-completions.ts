@@ -1,11 +1,12 @@
 import { Router, Request, Response } from 'express';
 import { streamText, generateText, stepCountIs, type ToolSet } from 'ai';
 import { resolveModel, getAIModel, getDefaultAliaModel, reportModelUsage } from '../../lib/chat-core.js';
+import { getAliaModel } from '../../internal/providers/lib/alia-models.js';
 import { UserCredits } from '../../models/user-credits.js';
 import { UserMemory } from '../../models/user-memory.js';
 import { Conversation } from '../../models/conversation.js';
 import { reserveCredits, finalizeCredits, type CreditReservation, type CreditUsage } from '../../lib/credits-manager.js';
-import { recordUsage } from '../../middleware/api-key-rate-limit.js';
+import { recordUsage, getUserUsageStats } from '../../middleware/api-key-rate-limit.js';
 import { convertOpenAIToolsToToolSet } from '../../lib/tool-converter.js';
 import { getCurrentDateTool, getTimelineTool, saveUserMemoryTool, updateUserPreferencesTool, updateUserContextTool, createSendTelegramTool, createGetWhatsAppChatsTool, createGetWhatsAppMessagesTool, createSendWhatsAppMessageTool, createProvidersAdminTool, webScraperTool, generateFileTool } from '../../lib/tools/index.js';
 import { oxyClient } from '../../middleware/auth.js';
@@ -201,8 +202,13 @@ router.post('/', async (req: Request, res: Response) => {
 
         if (!creditReservation) {
           res.status(402).json({
-            error: 'Insufficient credits',
-            details: 'You need credits to use the API'
+            error: {
+              code: 'INSUFFICIENT_CREDITS',
+              message: "You've run out of credits. Add more or upgrade your plan to continue.",
+              retryable: false,
+              suggestedAction: 'upgrade',
+              details: { limitType: 'credits' },
+            },
           });
           return;
         }
@@ -327,6 +333,12 @@ When you use a tool successfully:
 `;
 
     let systemMessage = languageInstruction + baseSystemPrompt;
+
+    // Inject current model identity so Alia knows which tier it's running as
+    const aliaModel = getAliaModel(aliasModelId);
+    if (aliaModel) {
+      systemMessage += `\n\nYou are currently using the **${aliaModel.name}** model. When asked what model you use, say you are using ${aliaModel.name}.`;
+    }
 
     // Only inject personal user information for DIRECT user sessions
     // API key requests are for third-party apps and should remain neutral
@@ -662,9 +674,21 @@ When you use a tool successfully:
           system_prompt_tokens: tokenUsage.systemPromptTokens || 0,
           billable_tokens: Math.max(0, tokenUsage.totalTokens - (tokenUsage.systemPromptTokens || 0)),
           credits_charged: creditsCharged,
-          credits_remaining: creditsRemaining
+          credits_remaining: creditsRemaining,
+          usage_ratio: null as number | null,
         }
       };
+
+      // Calculate daily usage ratio for proactive warnings
+      if (req.user?.id) {
+        try {
+          const stats = await getUserUsageStats(req.user.id);
+          const dailyLimit = stats.limits.tokensPerDay;
+          if (dailyLimit) {
+            response.usage.usage_ratio = stats.tokensLastDay / dailyLimit;
+          }
+        } catch {}
+      }
 
       res.json(response);
       clearTimeout(globalTimer);
@@ -1027,6 +1051,18 @@ When you use a tool successfully:
           console.error('[V1/Chat] Error recording session usage:', err)
         );
 
+        // Calculate daily usage ratio for proactive warnings
+        let usageRatio: number | null = null;
+        if (req.user?.id) {
+          try {
+            const stats = await getUserUsageStats(req.user.id);
+            const dailyLimit = stats.limits.tokensPerDay;
+            if (dailyLimit) {
+              usageRatio = stats.tokensLastDay / dailyLimit;
+            }
+          } catch {}
+        }
+
         // Send usage info as metadata chunk (must include choices array for SDK compatibility)
         const usageChunk = {
           id: `chatcmpl-${Date.now()}`,
@@ -1045,7 +1081,8 @@ When you use a tool successfully:
             system_prompt_tokens: tokenUsage.systemPromptTokens || 0,
             billable_tokens: Math.max(0, tokenUsage.totalTokens - (tokenUsage.systemPromptTokens || 0)),
             credits_charged: creditsCharged,
-            credits_remaining: creditsRemaining
+            credits_remaining: creditsRemaining,
+            usage_ratio: usageRatio,
           }
         };
         res.write(`data: ${JSON.stringify(usageChunk)}\n\n`);

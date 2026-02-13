@@ -397,7 +397,7 @@ function sendRateLimitResponse(
       message: `Rate limit exceeded: ${status.current}/${status.limit} ${limitTypeMessages[status.limitType!]}`,
       retryable: true,
       retryAfter: status.resetInSeconds,
-      suggestedAction: `Wait ${status.resetInSeconds} seconds before trying again`,
+      suggestedAction: tier === 'free' ? 'upgrade' : 'wait',
       details: {
         limitType: status.limitType,
         current: status.current,

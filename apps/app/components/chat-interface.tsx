@@ -8,7 +8,7 @@ import { processMessage } from "@/lib/message-processor";
 import { cn } from "@/lib/utils";
 import { LottieLoader } from "@/components/lottie-loader";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Bot, Globe, Copy, ThumbsUp, ThumbsDown, Pencil, Check } from "lucide-react-native";
+import { Bot, Copy, ThumbsUp, ThumbsDown, Pencil, Check } from "lucide-react-native";
 import Animated, { FadeInUp } from "react-native-reanimated";
 import * as Clipboard from "expo-clipboard";
 import { Reasoning, ReasoningTrigger, ReasoningContent } from "@/components/ui/reasoning";
