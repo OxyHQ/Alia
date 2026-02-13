@@ -12,7 +12,6 @@ import { Text } from '@/components/ui/text';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { cn } from '@/lib/utils';
-import { useColorScheme } from '@/lib/useColorScheme';
 
 // ─── Types ───────────────────────────────────────────────────────────
 
@@ -94,12 +93,10 @@ function OdometerDigit({
   digit,
   fontSize,
   fontWeight,
-  color,
 }: {
   digit: string;
   fontSize: number;
   fontWeight: string;
-  color: string;
 }) {
   const idx = DIGITS.indexOf(digit);
   const translateY = useSharedValue(-idx * DIGIT_HEIGHT);
@@ -120,19 +117,18 @@ function OdometerDigit({
     <View style={{ height: DIGIT_HEIGHT, overflow: 'hidden' }}>
       <Animated.View style={columnStyle}>
         {DIGITS.map((d) => (
-          <Animated.Text
+          <Text
             key={d}
+            className="text-foreground text-center"
             style={{
               height: DIGIT_HEIGHT,
               lineHeight: DIGIT_HEIGHT,
               fontSize,
               fontWeight: fontWeight as any,
-              color,
-              textAlign: 'center',
             }}
           >
             {d}
-          </Animated.Text>
+          </Text>
         ))}
       </Animated.View>
     </View>
@@ -148,7 +144,6 @@ function SlotPrice({
   fontSize?: number;
   fontWeight?: string;
 }) {
-  const { colors } = useColorScheme();
   const text = formatPrice(cents);
   const chars = text.split('');
 
@@ -165,23 +160,22 @@ function SlotPrice({
               digit={char}
               fontSize={fontSize}
               fontWeight={fontWeight}
-              color={colors.foreground}
             />
           );
         }
         return (
-          <Animated.Text
+          <Text
             key={key}
+            className="text-foreground"
             style={{
               fontSize,
               fontWeight: fontWeight as any,
               height: DIGIT_HEIGHT,
               lineHeight: DIGIT_HEIGHT,
-              color: colors.foreground,
             }}
           >
             {char}
-          </Animated.Text>
+          </Text>
         );
       })}
     </View>
