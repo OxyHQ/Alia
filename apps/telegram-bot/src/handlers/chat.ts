@@ -100,7 +100,6 @@ export async function handleMessage(ctx: Context) {
     let messages: Array<{ role: string; content: string }> = [];
     try {
       const conversation = await apiClient.getConversation(
-        botSecret,
         telegramUser.oxyUserId.toString(),
         conversationId
       );
@@ -282,7 +281,6 @@ Be concise and friendly. Use these Telegram features when appropriate.`;
 
         // Save updated conversation
         await apiClient.saveConversation(
-          botSecret,
           telegramUser.oxyUserId.toString(),
           conversationId,
           messages
@@ -389,16 +387,8 @@ export async function handleHistory(ctx: Context) {
       return;
     }
 
-    // Get bot secret for authentication
-    const botSecret = process.env.TELEGRAM_BOT_SECRET;
-    if (!botSecret) {
-      console.error('[History] TELEGRAM_BOT_SECRET not configured');
-      await ctx.reply('⚠️ Bot configuration error. Please contact support.');
-      return;
-    }
-
     try {
-      const conversations = await apiClient.getConversations(botSecret, telegramUser.oxyUserId.toString());
+      const conversations = await apiClient.getConversations(telegramUser.oxyUserId.toString());
 
       if (!conversations || conversations.length === 0) {
         await ctx.reply(
