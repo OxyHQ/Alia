@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect } from 'react';
-import { View, ScrollView, useWindowDimensions } from 'react-native';
+import { View, ScrollView, useWindowDimensions, ActivityIndicator } from 'react-native';
 import * as Linking from 'expo-linking';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Text } from '@/components/ui/text';
@@ -37,6 +37,7 @@ function buildTiers(
       items: g.items.map((item) => ({ label: item.label, description: item.description })),
     })),
     isFeatured: plan.isFeatured || false,
+    isFree: plan.isFree || false,
     creditsLabel: plan.creditsLabel || `${plan.creditsPerMonth.toLocaleString()} credits / mo`,
   }));
 }
@@ -54,7 +55,7 @@ export default function SubscribeScreen() {
   const [billingPeriod, setBillingPeriod] = useState<BillingPeriod>('monthly');
   const [isMounted, setIsMounted] = useState(false);
 
-  const { data: apiPlans = [] } = useSubscriptionPlans('alia');
+  const { data: apiPlans = [], isLoading: plansLoading, isError: plansError } = useSubscriptionPlans('alia');
   const { data: subscription, refetch: refetchSubscription } =
     useSubscription('alia');
   const checkoutMutation = useCreateSubscriptionCheckout();
@@ -117,18 +118,28 @@ export default function SubscribeScreen() {
         </View>
 
         {/* Pricing Grid */}
-        <PlanGrid
-          tiers={tiers}
-          billingPeriod={billingPeriod}
-          currentPlanName={subscription?.plan?.name}
-          hasActiveSubscription={
-            !!subscription && subscription.status === 'active'
-          }
-          onSubscribe={handleSubscribe}
-          isLoading={checkoutMutation.isPending}
-          isWideLayout={isWideLayout}
-          t={t}
-        />
+        {plansLoading && tiers.length === 0 ? (
+          <View className="items-center justify-center py-16">
+            <ActivityIndicator size="large" />
+          </View>
+        ) : plansError ? (
+          <View className="items-center justify-center py-16 gap-2">
+            <Text className="text-sm text-muted-foreground">{t('subscribe.loadError')}</Text>
+          </View>
+        ) : (
+          <PlanGrid
+            tiers={tiers}
+            billingPeriod={billingPeriod}
+            currentPlanId={subscription?.plan?.planId}
+            hasActiveSubscription={
+              !!subscription && subscription.status === 'active'
+            }
+            onSubscribe={handleSubscribe}
+            isLoading={checkoutMutation.isPending}
+            isWideLayout={isWideLayout}
+            t={t}
+          />
+        )}
 
         {/* Bottom */}
         <InfoBanners t={t} />

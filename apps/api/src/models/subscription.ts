@@ -5,7 +5,7 @@ export interface ISubscription extends Document {
   stripeCustomerId: string;
   stripeSubscriptionId: string;
   stripePriceId: string;
-  status: 'active' | 'canceled' | 'past_due' | 'unpaid' | 'trialing';
+  status: 'active' | 'canceled' | 'past_due' | 'unpaid' | 'trialing' | 'incomplete' | 'incomplete_expired';
   currentPeriodStart: Date;
   currentPeriodEnd: Date;
   cancelAtPeriodEnd: boolean;
@@ -42,7 +42,7 @@ const SubscriptionSchema = new Schema<ISubscription>({
   },
   status: {
     type: String,
-    enum: ['active', 'canceled', 'past_due', 'unpaid', 'trialing'],
+    enum: ['active', 'canceled', 'past_due', 'unpaid', 'trialing', 'incomplete', 'incomplete_expired'],
     required: true,
   },
   currentPeriodStart: {
@@ -58,6 +58,7 @@ const SubscriptionSchema = new Schema<ISubscription>({
     default: false,
   },
   plan: {
+    planId: { type: String },
     name: { type: String, required: true },
     product: { type: String, enum: ['alia', 'codea'], default: 'alia' },
     creditsPerMonth: { type: Number, required: true },

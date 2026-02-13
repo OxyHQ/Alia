@@ -64,5 +64,6 @@ const TransactionSchema = new Schema<ITransaction>({
 // Indexes (stripePaymentIntentId is already indexed via unique: true)
 TransactionSchema.index({ oxyUserId: 1, createdAt: -1 });
 TransactionSchema.index({ status: 1 });
+TransactionSchema.index({ 'metadata.dedup': 1 }, { unique: true, sparse: true });
 
 export const Transaction: Model<ITransaction> = mongoose.models.Transaction || mongoose.model<ITransaction>('Transaction', TransactionSchema);

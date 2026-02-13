@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect } from 'react';
-import { View, ScrollView, useWindowDimensions } from 'react-native';
+import { View, ScrollView, useWindowDimensions, ActivityIndicator } from 'react-native';
 import * as Linking from 'expo-linking';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Text } from '@/components/ui/text';
@@ -36,6 +36,7 @@ function buildCodeaTiers(
       items: g.items.map((item) => ({ label: item.label, description: item.description })),
     })),
     isFeatured: plan.isFeatured || false,
+    isFree: plan.isFree || false,
     creditsLabel: plan.creditsLabel || `${plan.creditsPerMonth.toLocaleString()} credits / mo`,
   }));
 }
@@ -53,7 +54,7 @@ export default function CodeaSubscribeScreen() {
   const [billingPeriod, setBillingPeriod] = useState<BillingPeriod>('monthly');
   const [isMounted, setIsMounted] = useState(false);
 
-  const { data: apiPlans = [] } = useSubscriptionPlans('codea');
+  const { data: apiPlans = [], isLoading: plansLoading, isError: plansError } = useSubscriptionPlans('codea');
   const { data: subscription, refetch: refetchSubscription } =
     useSubscription('codea');
   const checkoutMutation = useCreateSubscriptionCheckout();
@@ -119,18 +120,28 @@ export default function CodeaSubscribeScreen() {
         </View>
 
         {/* Pricing Grid */}
-        <PlanGrid
-          tiers={tiers}
-          billingPeriod={billingPeriod}
-          currentPlanName={subscription?.plan?.name}
-          hasActiveSubscription={
-            !!subscription && subscription.status === 'active'
-          }
-          onSubscribe={handleSubscribe}
-          isLoading={checkoutMutation.isPending}
-          isWideLayout={isWideLayout}
-          t={t}
-        />
+        {plansLoading && tiers.length === 0 ? (
+          <View className="items-center justify-center py-16">
+            <ActivityIndicator size="large" />
+          </View>
+        ) : plansError ? (
+          <View className="items-center justify-center py-16 gap-2">
+            <Text className="text-sm text-muted-foreground">{t('subscribe.loadError')}</Text>
+          </View>
+        ) : (
+          <PlanGrid
+            tiers={tiers}
+            billingPeriod={billingPeriod}
+            currentPlanId={subscription?.plan?.planId}
+            hasActiveSubscription={
+              !!subscription && subscription.status === 'active'
+            }
+            onSubscribe={handleSubscribe}
+            isLoading={checkoutMutation.isPending}
+            isWideLayout={isWideLayout}
+            t={t}
+          />
+        )}
 
         {/* Shared credits note */}
         <View className="mx-4 mt-6 p-4 rounded-xl bg-muted/50 items-center">

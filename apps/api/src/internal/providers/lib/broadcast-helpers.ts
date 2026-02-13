@@ -48,7 +48,7 @@ export async function broadcastAliaModelsUpdate(): Promise<void> {
 
 export async function broadcastPlansUpdate(): Promise<void> {
   try {
-    const plans = await Plan.find({}).sort({ product: 1, sortOrder: 1 });
+    const plans = await Plan.find({}).sort({ product: 1, sortOrder: 1 }).lean();
     broadcast('plans:all', { success: true, count: plans.length, data: plans });
   } catch (error) {
     console.error('[Broadcast] Error broadcasting plans update:', error);

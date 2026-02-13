@@ -35,6 +35,7 @@ export interface PricingTier {
   annualPrice: number; // cents
   features: FeatureGroup[];
   isFeatured: boolean;
+  isFree: boolean;
   creditsLabel: string;
 }
 
@@ -260,10 +261,10 @@ export function PlanColumn({
         size="sm"
         className="w-full rounded-full"
         onPress={() => {
-          if (tier.id === 'free') return;
+          if (tier.isFree) return;
           onSubscribe(tier.id);
         }}
-        disabled={isCurrentPlan || tier.id === 'free' || isLoading}
+        disabled={isCurrentPlan || tier.isFree || isLoading}
         isLoading={isLoading}
       >
         <Text
@@ -281,15 +282,15 @@ export function PlanColumn({
         {tier.features.map((group, gi) => (
           <View key={gi} className="gap-1.5">
             <Text className="text-xs font-semibold text-foreground uppercase tracking-wider">
-              {t(group.category)}
+              {group.category}
             </Text>
             {group.items.map((feature, fi) => (
               <View key={fi} className="flex-row items-start gap-2">
                 <Check size={14} className="text-primary mt-0.5 shrink-0" />
                 <View className="flex-1">
-                  <Text className="text-sm text-muted-foreground">{t(feature.label)}</Text>
+                  <Text className="text-sm text-muted-foreground">{feature.label}</Text>
                   {feature.description && (
-                    <Text className="text-xs text-muted-foreground/70 mt-0.5">{t(feature.description)}</Text>
+                    <Text className="text-xs text-muted-foreground/70 mt-0.5">{feature.description}</Text>
                   )}
                 </View>
               </View>
@@ -309,7 +310,7 @@ const SNAP_WIDTH = CARD_WIDTH + 1;
 export function PlanGrid({
   tiers,
   billingPeriod,
-  currentPlanName,
+  currentPlanId,
   hasActiveSubscription,
   onSubscribe,
   isLoading,
@@ -318,7 +319,7 @@ export function PlanGrid({
 }: {
   tiers: PricingTier[];
   billingPeriod: BillingPeriod;
-  currentPlanName?: string;
+  currentPlanId?: string;
   hasActiveSubscription: boolean;
   onSubscribe: (planId: string) => void;
   isLoading: boolean;
@@ -328,6 +329,9 @@ export function PlanGrid({
   const scrollRef = useRef<ScrollView>(null);
   const [activeIndex, setActiveIndex] = useState(0);
   const scrollTimeoutRef = useRef<ReturnType<typeof setTimeout>>();
+
+  if (tiers.length === 0) return null;
+
   const lastIndex = tiers.length - 1;
 
   const snapToNearest = useCallback(
@@ -367,9 +371,9 @@ export function PlanGrid({
       tier={tier}
       billingPeriod={billingPeriod}
       isCurrentPlan={
-        tier.id === 'free'
+        tier.isFree
           ? !hasActiveSubscription
-          : currentPlanName === tier.name
+          : currentPlanId === tier.id
       }
       onSubscribe={onSubscribe}
       isLoading={isLoading}
