@@ -1,6 +1,7 @@
 import mongoose, { Schema, Document } from 'mongoose';
 
 export interface IWhatsAppChat extends Document {
+  sessionId: string;
   oxyUserId: string;
   jid: string;
   name?: string;
@@ -11,6 +12,7 @@ export interface IWhatsAppChat extends Document {
 
 const WhatsAppChatSchema = new Schema<IWhatsAppChat>(
   {
+    sessionId: { type: String, required: true, index: true },
     oxyUserId: { type: String, required: true, index: true },
     jid: { type: String, required: true },
     name: String,
@@ -20,7 +22,7 @@ const WhatsAppChatSchema = new Schema<IWhatsAppChat>(
   { timestamps: true }
 );
 
-WhatsAppChatSchema.index({ oxyUserId: 1, jid: 1 }, { unique: true });
-WhatsAppChatSchema.index({ oxyUserId: 1, conversationTimestamp: -1 });
+WhatsAppChatSchema.index({ sessionId: 1, jid: 1 }, { unique: true });
+WhatsAppChatSchema.index({ sessionId: 1, conversationTimestamp: -1 });
 
 export const WhatsAppChat = mongoose.model<IWhatsAppChat>('WhatsAppChat', WhatsAppChatSchema);

@@ -1,19 +1,19 @@
 import { Router, Request, Response } from 'express';
 import { sessionManager } from '../session-manager';
-import { WhatsAppChat } from '../models/whatsapp-chat';
-import { WhatsAppMessage } from '../models/whatsapp-message';
+import { TelegramChat } from '../models/telegram-chat';
+import { TelegramMessage } from '../models/telegram-message';
 
 const router = Router();
 
 /**
- * Middleware: authenticate all session routes with WHATSAPP_GATEWAY_SECRET.
+ * Middleware: authenticate all session routes with TELEGRAM_GATEWAY_SECRET.
  */
 router.use((req: Request, res: Response, next) => {
   const secret = req.headers['x-gateway-secret'] || req.headers['x-channel-bot-secret'];
-  const expected = process.env.WHATSAPP_GATEWAY_SECRET;
+  const expected = process.env.TELEGRAM_GATEWAY_SECRET;
 
   if (!expected) {
-    return res.status(500).json({ error: 'WHATSAPP_GATEWAY_SECRET not configured on server' });
+    return res.status(500).json({ error: 'TELEGRAM_GATEWAY_SECRET not configured on server' });
   }
 
   if (secret !== expected) {
@@ -25,10 +25,10 @@ router.use((req: Request, res: Response, next) => {
 
 /**
  * POST /sessions/connect
- * Create a new session for a user. Returns sessionId, initial status, and QR code.
+ * Create a new session for a user. Returns initial status and begins QR generation.
  *
  * Body: { oxyUserId: string }
- * Response: { sessionId, status, qr }
+ * Response: { sessionId, status, qr? }
  */
 router.post('/connect', async (req: Request, res: Response) => {
   const { oxyUserId } = req.body;
@@ -48,7 +48,7 @@ router.post('/connect', async (req: Request, res: Response) => {
       sessionId,
       status: 'qr-pending',
       qr,
-      message: 'Scan the QR code with WhatsApp to connect',
+      message: 'Scan the QR code with Telegram to connect',
     });
   } catch (error: any) {
     console.error('[Sessions] Connect error:', error);
@@ -114,6 +114,7 @@ router.get('/:sessionId/status', async (req: Request, res: Response) => {
     return res.json({
       sessionId: session.sessionId,
       oxyUserId: session.oxyUserId,
+      telegramUserId: session.telegramUserId || null,
       status: session.status,
       phoneNumber: session.phoneNumber || null,
       displayName: session.displayName || null,
@@ -130,7 +131,7 @@ router.get('/:sessionId/status', async (req: Request, res: Response) => {
 
 /**
  * POST /sessions/:sessionId/disconnect
- * Disconnects a specific WhatsApp session and clears auth data.
+ * Disconnects a Telegram session and clears session string.
  */
 router.post('/:sessionId/disconnect', async (req: Request, res: Response) => {
   const { sessionId } = req.params;
@@ -149,7 +150,7 @@ router.post('/:sessionId/disconnect', async (req: Request, res: Response) => {
 
 /**
  * GET /sessions/user/:userId
- * List all sessions for a specific user.
+ * Returns all sessions for a given oxyUserId (multi-account support).
  */
 router.get('/user/:userId', async (req: Request, res: Response) => {
   const { userId } = req.params;
@@ -179,29 +180,30 @@ router.get('/', async (_req: Request, res: Response) => {
 
 /**
  * GET /sessions/:sessionId/chats
- * Returns the session's recent WhatsApp chats from MongoDB.
+ * Returns the session's recent Telegram chats from MongoDB.
  */
 router.get('/:sessionId/chats', async (req: Request, res: Response) => {
   const { sessionId } = req.params;
 
   try {
-    const dbChats = await WhatsAppChat.find({ sessionId })
-      .sort({ conversationTimestamp: -1 })
+    const dbChats = await TelegramChat.find({ sessionId })
+      .sort({ lastMessageTimestamp: -1 })
       .limit(50)
       .lean();
 
     // Enrich with last message preview from MongoDB
     const chats = await Promise.all(
       dbChats.map(async (c) => {
-        const lastMsg = await WhatsAppMessage.findOne({ sessionId, jid: c.jid })
+        const lastMsg = await TelegramMessage.findOne({ sessionId, chatId: c.chatId })
           .sort({ timestamp: -1 })
           .lean();
 
         return {
-          jid: c.jid,
-          name: c.name || c.jid.split('@')[0],
+          chatId: c.chatId,
+          name: c.name || c.chatId,
+          chatType: c.chatType,
           unreadCount: c.unreadCount || 0,
-          lastMessageTimestamp: c.conversationTimestamp || null,
+          lastMessageTimestamp: c.lastMessageTimestamp || null,
           lastMessagePreview: lastMsg?.text?.slice(0, 100) || '',
         };
       })
@@ -215,16 +217,16 @@ router.get('/:sessionId/chats', async (req: Request, res: Response) => {
 });
 
 /**
- * GET /sessions/:sessionId/chats/:jid/messages
+ * GET /sessions/:sessionId/chats/:chatId/messages
  * Returns recent messages from a specific chat (from MongoDB).
  * Query: ?limit=20 (default 20, max 50)
  */
-router.get('/:sessionId/chats/:jid/messages', async (req: Request, res: Response) => {
-  const { sessionId, jid } = req.params;
+router.get('/:sessionId/chats/:chatId/messages', async (req: Request, res: Response) => {
+  const { sessionId, chatId } = req.params;
   const limit = Math.min(parseInt(req.query.limit as string) || 20, 50);
 
   try {
-    const messages = await WhatsAppMessage.find({ sessionId, jid })
+    const messages = await TelegramMessage.find({ sessionId, chatId })
       .sort({ timestamp: -1 })
       .limit(limit)
       .lean();
@@ -235,7 +237,7 @@ router.get('/:sessionId/chats/:jid/messages', async (req: Request, res: Response
         fromMe: m.fromMe,
         timestamp: m.timestamp,
         text: m.text,
-        pushName: m.pushName || null,
+        senderName: m.senderName || null,
       })),
     });
   } catch (error: any) {
@@ -246,25 +248,25 @@ router.get('/:sessionId/chats/:jid/messages', async (req: Request, res: Response
 
 /**
  * POST /sessions/:sessionId/send
- * Send a message to a specific JID via a specific session.
- * Body: { jid: string, text: string }
+ * Send a message to a specific chatId.
+ * Body: { chatId: string, text: string }
  */
 router.post('/:sessionId/send', async (req: Request, res: Response) => {
   const { sessionId } = req.params;
-  const { jid, text } = req.body;
+  const { chatId, text } = req.body;
 
-  if (!jid || !text) {
-    return res.status(400).json({ error: 'jid and text are required' });
+  if (!chatId || !text) {
+    return res.status(400).json({ error: 'chatId and text are required' });
   }
 
   try {
-    const sock = sessionManager.getSocket(sessionId);
-    if (!sock) {
+    const client = sessionManager.getSocket(sessionId);
+    if (!client) {
       return res.status(404).json({ error: 'No active session found' });
     }
 
-    const result = await sock.sendMessage(jid, { text });
-    return res.json({ success: true, messageId: result?.key?.id });
+    const result = await client.sendMessage(chatId, { message: text });
+    return res.json({ success: true, messageId: result?.id?.toString() });
   } catch (error: any) {
     console.error('[Sessions] Send error:', error);
     return res.status(500).json({ error: error.message || 'Failed to send message' });

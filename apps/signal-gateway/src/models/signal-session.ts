@@ -1,15 +1,16 @@
 import mongoose, { Schema, Document } from 'mongoose';
 
-export type SessionStatus = 'qr-pending' | 'connected' | 'disconnected' | 'logged-out' | 'failed';
+export type SessionStatus = 'linking' | 'connected' | 'disconnected' | 'unlinked' | 'failed';
 
-export interface IWhatsAppSession extends Document {
+export interface ISignalSession extends Document {
   sessionId: string;
   oxyUserId: string;
   phoneNumber?: string;
   displayName?: string;
   status: SessionStatus;
-  authState: any; // Serialized Baileys auth creds
-  authKeys: Map<string, any>; // Serialized Baileys auth keys (pre-keys, sessions, sender-keys, etc.)
+  dataDir: string;
+  daemonPort?: number;
+  daemonPid?: number;
   lastConnected?: Date;
   lastDisconnected?: Date;
   lastQR?: string;
@@ -17,7 +18,7 @@ export interface IWhatsAppSession extends Document {
   updatedAt: Date;
 }
 
-const WhatsAppSessionSchema = new Schema<IWhatsAppSession>(
+const SignalSessionSchema = new Schema<ISignalSession>(
   {
     sessionId: {
       type: String,
@@ -38,17 +39,18 @@ const WhatsAppSessionSchema = new Schema<IWhatsAppSession>(
     },
     status: {
       type: String,
-      enum: ['qr-pending', 'connected', 'disconnected', 'logged-out', 'failed'],
-      default: 'qr-pending',
+      enum: ['linking', 'connected', 'disconnected', 'unlinked', 'failed'],
+      default: 'linking',
     },
-    authState: {
-      type: Schema.Types.Mixed,
-      default: null,
+    dataDir: {
+      type: String,
+      required: true,
     },
-    authKeys: {
-      type: Map,
-      of: Schema.Types.Mixed,
-      default: new Map(),
+    daemonPort: {
+      type: Number,
+    },
+    daemonPid: {
+      type: Number,
     },
     lastConnected: {
       type: Date,
@@ -65,7 +67,7 @@ const WhatsAppSessionSchema = new Schema<IWhatsAppSession>(
   }
 );
 
-export const WhatsAppSession = mongoose.model<IWhatsAppSession>(
-  'WhatsAppSession',
-  WhatsAppSessionSchema
+export const SignalSession = mongoose.model<ISignalSession>(
+  'SignalSession',
+  SignalSessionSchema
 );

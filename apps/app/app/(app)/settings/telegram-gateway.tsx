@@ -4,14 +4,14 @@ import { Button } from "@/components/ui/button";
 import { useState, useEffect } from "react";
 import { useRouter } from "expo-router";
 import { useGatewaySessions, type GatewaySession } from "@/hooks/useGatewaySessions";
-import { ChevronLeft, Smartphone, CheckCircle, Plus, Trash2 } from "lucide-react-native";
+import { ChevronLeft, Send, CheckCircle, XCircle, Plus, Trash2 } from "lucide-react-native";
 import { toast } from "@/components/sonner";
 import { ConfirmationDialog } from "@/components/ui/confirmation-dialog";
 import QRCode from "react-native-qrcode-svg";
 
-export default function WhatsAppSetupScreen() {
+export default function TelegramGatewayScreen() {
   const router = useRouter();
-  const { sessions, loading, connectNew, disconnect, stopPolling } = useGatewaySessions('whatsapp');
+  const { sessions, loading, connectNew, disconnect, stopPolling, refresh } = useGatewaySessions('telegram-gateway');
   const [connecting, setConnecting] = useState(false);
   const [qrData, setQrData] = useState<string | null>(null);
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
@@ -22,10 +22,12 @@ export default function WhatsAppSetupScreen() {
   const pendingSession = sessions.find(s => s.sessionId === activeSessionId);
   const isQrPending = pendingSession?.status === 'qr-pending';
 
+  // Stop polling on unmount
   useEffect(() => {
     return () => stopPolling();
   }, []);
 
+  // Update QR data from session status
   useEffect(() => {
     if (pendingSession?.lastQR) {
       setQrData(pendingSession.lastQR);
@@ -34,7 +36,7 @@ export default function WhatsAppSetupScreen() {
       setConnecting(false);
       setQrData(null);
       setActiveSessionId(null);
-      toast.success("WhatsApp connected!");
+      toast.success("Telegram connected!");
     }
   }, [pendingSession]);
 
@@ -47,7 +49,7 @@ export default function WhatsAppSetupScreen() {
         setQrData(data.qr);
       }
     } catch (err) {
-      toast.error("Failed to start WhatsApp connection");
+      toast.error("Failed to start Telegram connection");
       setConnecting(false);
     }
   };
@@ -57,9 +59,9 @@ export default function WhatsAppSetupScreen() {
     try {
       setDisconnecting(true);
       await disconnect(disconnectTarget.sessionId);
-      toast.success("WhatsApp disconnected");
+      toast.success("Telegram disconnected");
     } catch (err) {
-      toast.error("Failed to disconnect WhatsApp");
+      toast.error("Failed to disconnect Telegram");
     } finally {
       setDisconnecting(false);
       setDisconnectTarget(null);
@@ -81,9 +83,9 @@ export default function WhatsAppSetupScreen() {
           <ChevronLeft size={24} className="text-foreground" />
         </Pressable>
         <View>
-          <Text className="text-xl font-bold">WhatsApp Gateway</Text>
+          <Text className="text-xl font-bold">Telegram Gateway</Text>
           <Text className="text-sm text-muted-foreground">
-            Link your WhatsApp accounts for Alia to respond as you
+            Link your Telegram accounts for Alia to respond as you
           </Text>
         </View>
       </View>
@@ -107,12 +109,12 @@ export default function WhatsAppSetupScreen() {
                       key={session.sessionId}
                       className="border border-border rounded-xl p-4 bg-surface flex-row items-center gap-3"
                     >
-                      <View className="bg-[#25D366]/10 p-2 rounded-full">
-                        <CheckCircle size={24} color="#25D366" />
+                      <View className="bg-[#0088CC]/10 p-2 rounded-full">
+                        <CheckCircle size={24} color="#0088CC" />
                       </View>
                       <View className="flex-1">
                         <Text className="text-base font-semibold">
-                          {session.displayName || 'WhatsApp Account'}
+                          {session.displayName || 'Telegram Account'}
                         </Text>
                         {session.phoneNumber && (
                           <Text className="text-sm text-muted-foreground">
@@ -136,7 +138,7 @@ export default function WhatsAppSetupScreen() {
                 <View className="items-center gap-4">
                   <Text className="text-lg font-semibold text-center">Scan QR Code</Text>
                   <Text className="text-sm text-muted-foreground text-center">
-                    Open WhatsApp on your phone, go to Settings &gt; Linked Devices &gt; Link a Device, then scan this code.
+                    Open Telegram on your phone, go to Settings &gt; Devices &gt; Link Desktop Device, then scan this code.
                   </Text>
 
                   {qrData ? (
@@ -169,20 +171,20 @@ export default function WhatsAppSetupScreen() {
                 <View className="items-center gap-4">
                   {connectedSessions.length === 0 && (
                     <>
-                      <View className="bg-[#25D366]/10 p-6 rounded-full">
-                        <Smartphone size={48} color="#25D366" />
+                      <View className="bg-[#0088CC]/10 p-6 rounded-full">
+                        <Send size={48} color="#0088CC" />
                       </View>
-                      <Text className="text-xl font-bold text-center">Link Your WhatsApp</Text>
+                      <Text className="text-xl font-bold text-center">Link Your Telegram</Text>
                       <Text className="text-sm text-muted-foreground text-center leading-5">
-                        Connect your WhatsApp account to let Alia respond to messages on your behalf. You'll scan a QR code with your phone, just like WhatsApp Web.
+                        Connect your Telegram account to let Alia respond to messages on your behalf. You'll scan a QR code with your phone, just like Telegram Desktop.
                       </Text>
 
                       <View className="bg-muted/50 rounded-xl p-4 w-full gap-2 mt-2">
                         <Text className="text-sm font-medium">How it works:</Text>
                         <Text className="text-sm text-muted-foreground">1. Tap "Connect" below</Text>
                         <Text className="text-sm text-muted-foreground">2. A QR code will appear</Text>
-                        <Text className="text-sm text-muted-foreground">3. Open WhatsApp &gt; Linked Devices &gt; Link a Device</Text>
-                        <Text className="text-sm text-muted-foreground">4. Scan the QR code with your phone</Text>
+                        <Text className="text-sm text-muted-foreground">3. Open Telegram &gt; Settings &gt; Devices</Text>
+                        <Text className="text-sm text-muted-foreground">4. Tap "Link Desktop Device" and scan</Text>
                       </View>
                     </>
                   )}
@@ -198,8 +200,8 @@ export default function WhatsAppSetupScreen() {
                         {connecting
                           ? "Connecting..."
                           : connectedSessions.length > 0
-                            ? "Add Another WhatsApp"
-                            : "Connect WhatsApp"
+                            ? "Add Another Telegram"
+                            : "Connect Telegram"
                         }
                       </Text>
                     </View>
@@ -214,8 +216,8 @@ export default function WhatsAppSetupScreen() {
       <ConfirmationDialog
         open={!!disconnectTarget}
         onOpenChange={(open) => !open && setDisconnectTarget(null)}
-        title="Disconnect WhatsApp"
-        description={`This will disconnect ${disconnectTarget?.displayName || 'this WhatsApp account'} from Alia. You'll need to scan the QR code again to reconnect.`}
+        title="Disconnect Telegram"
+        description={`This will disconnect ${disconnectTarget?.displayName || 'this Telegram account'} from Alia. You'll need to scan the QR code again to reconnect.`}
         confirmText="Disconnect"
         cancelText="Cancel"
         confirmVariant="destructive"

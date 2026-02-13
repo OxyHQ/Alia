@@ -2,22 +2,22 @@ import mongoose, { Schema, Document } from 'mongoose';
 
 export type SessionStatus = 'qr-pending' | 'connected' | 'disconnected' | 'logged-out' | 'failed';
 
-export interface IWhatsAppSession extends Document {
+export interface ITelegramSession extends Document {
   sessionId: string;
   oxyUserId: string;
+  telegramUserId?: string;
   phoneNumber?: string;
   displayName?: string;
   status: SessionStatus;
-  authState: any; // Serialized Baileys auth creds
-  authKeys: Map<string, any>; // Serialized Baileys auth keys (pre-keys, sessions, sender-keys, etc.)
+  sessionString: string | null; // GramJS StringSession data
   lastConnected?: Date;
   lastDisconnected?: Date;
-  lastQR?: string;
+  lastQR?: string; // tg://login?token=... URL
   createdAt: Date;
   updatedAt: Date;
 }
 
-const WhatsAppSessionSchema = new Schema<IWhatsAppSession>(
+const TelegramSessionSchema = new Schema<ITelegramSession>(
   {
     sessionId: {
       type: String,
@@ -28,7 +28,10 @@ const WhatsAppSessionSchema = new Schema<IWhatsAppSession>(
     oxyUserId: {
       type: String,
       required: true,
-      index: true,
+      index: true, // non-unique — multiple sessions per user
+    },
+    telegramUserId: {
+      type: String,
     },
     phoneNumber: {
       type: String,
@@ -41,14 +44,9 @@ const WhatsAppSessionSchema = new Schema<IWhatsAppSession>(
       enum: ['qr-pending', 'connected', 'disconnected', 'logged-out', 'failed'],
       default: 'qr-pending',
     },
-    authState: {
-      type: Schema.Types.Mixed,
+    sessionString: {
+      type: String,
       default: null,
-    },
-    authKeys: {
-      type: Map,
-      of: Schema.Types.Mixed,
-      default: new Map(),
     },
     lastConnected: {
       type: Date,
@@ -65,7 +63,7 @@ const WhatsAppSessionSchema = new Schema<IWhatsAppSession>(
   }
 );
 
-export const WhatsAppSession = mongoose.model<IWhatsAppSession>(
-  'WhatsAppSession',
-  WhatsAppSessionSchema
+export const TelegramSession = mongoose.model<ITelegramSession>(
+  'TelegramSession',
+  TelegramSessionSchema
 );

@@ -1,76 +1,56 @@
-import type { WASocket } from '@whiskeysockets/baileys';
-import { proto } from '@whiskeysockets/baileys';
 import { generateText } from 'ai';
 import { resolveModel, reportUsage } from '../services/model-resolver';
 import { apiClient } from '../services/api-client';
 import { v4 as uuidv4 } from 'uuid';
-import { WhatsAppSession } from '../models/whatsapp-session';
+import { SignalSession } from '../models/signal-session';
 
 /**
- * Deduplication set: keeps track of recently-processed message IDs
- * to prevent handling the same message twice (Baileys can emit duplicates
- * during reconnections).
+ * Deduplication set: keeps track of recently-processed message senders+timestamps
+ * to prevent handling the same message twice (polling can return duplicates).
  */
 const processedMessages = new Set<string>();
 
 export async function handleIncomingMessage(
   sessionId: string,
-  sock: WASocket,
-  msg: proto.IWebMessageInfo
+  daemonPort: number,
+  sender: string,
+  text: string
 ): Promise<void> {
   // ---- Deduplication ----
-  const msgId = msg.key?.id;
-  if (!msgId || processedMessages.has(msgId)) return;
-  processedMessages.add(msgId);
+  const dedupKey = `${sessionId}:${sender}:${text}:${Date.now().toString().slice(0, -3)}`;
+  if (processedMessages.has(dedupKey)) return;
+  processedMessages.add(dedupKey);
   // Remove from dedup set after 60 seconds
-  setTimeout(() => processedMessages.delete(msgId), 60000);
+  setTimeout(() => processedMessages.delete(dedupKey), 60000);
 
-  // ---- Extract text content ----
-  const text =
-    msg.message?.conversation ||
-    msg.message?.extendedTextMessage?.text ||
-    msg.message?.imageMessage?.caption ||
-    '';
+  if (!text || !sender) return;
 
-  if (!text) return;
-
-  const remoteJid = msg.key?.remoteJid;
-  if (!remoteJid) return;
-
-  // Look up the oxyUserId from the session document
-  const sessionDoc = await WhatsAppSession.findOne({ sessionId }).lean();
-  if (!sessionDoc) {
-    console.error(`[WhatsApp/Chat] No session found for sessionId ${sessionId}`);
-    return;
-  }
-  const oxyUserId = sessionDoc.oxyUserId;
-
-  const botSecret = process.env.WHATSAPP_GATEWAY_SECRET;
+  const botSecret = process.env.SIGNAL_GATEWAY_SECRET;
   const apiBaseUrl = process.env.API_BASE_URL || 'http://localhost:3001';
 
   if (!botSecret) {
-    console.error('[WhatsApp/Chat] WHATSAPP_GATEWAY_SECRET not configured');
+    console.error('[Signal/Chat] SIGNAL_GATEWAY_SECRET not configured');
     return;
   }
 
   try {
+    // ---- Look up oxyUserId from the session ----
+    const session = await SignalSession.findOne({ sessionId }).lean();
+    if (!session) {
+      console.error(`[Signal/Chat] No session found for ${sessionId}`);
+      return;
+    }
+    const oxyUserId = session.oxyUserId;
+
     // ---- Get channel user from API ----
     const channelUser = await apiClient.getChannelUser(oxyUserId);
 
     if (!channelUser || !channelUser.isAuthenticated || !channelUser.oxyUserId) {
-      // User's WhatsApp is connected but they haven't linked their Alia account
-      await sock.sendMessage(remoteJid, {
-        text: 'Please link your Alia account first. Visit the Alia app and go to Settings > Connect WhatsApp.',
-      });
+      // User's Signal is connected but they haven't linked their Alia account
+      await sendMessage(daemonPort, sender,
+        'Please link your Alia account first. Visit the Alia app and go to Settings > Connect Signal.'
+      );
       return;
-    }
-
-    // ---- Show typing indicator ----
-    try {
-      await sock.presenceSubscribe(remoteJid);
-      await sock.sendPresenceUpdate('composing', remoteJid);
-    } catch {
-      // Presence updates are best-effort
     }
 
     // ---- Conversation management ----
@@ -94,7 +74,7 @@ export async function handleIncomingMessage(
         }));
       }
     } catch (error) {
-      console.error('[WhatsApp/Chat] Failed to load history:', error);
+      console.error('[Signal/Chat] Failed to load history:', error);
       // Continue with empty history
     }
 
@@ -109,8 +89,8 @@ export async function handleIncomingMessage(
       channelUser.preferredModel || 'alia-lite'
     );
 
-    // ---- Generate AI response (non-streaming for WhatsApp) ----
-    const systemPrompt = `You are Alia, a helpful AI assistant accessible via WhatsApp. Be concise and friendly. Respond in the same language the user writes to you. Keep responses under 3000 characters when possible.`;
+    // ---- Generate AI response (non-streaming for Signal) ----
+    const systemPrompt = `You are Alia, a helpful AI assistant responding via Signal on the user's behalf. Be concise and friendly. Respond in the same language the user writes to you. Keep responses under 3000 characters when possible.`;
 
     const result = await generateText({
       model: resolved.model,
@@ -128,17 +108,10 @@ export async function handleIncomingMessage(
 
     // ---- Send response (with chunking for long messages) ----
     if (fullResponse) {
-      const chunks = chunkText(fullResponse, 4000);
+      const chunks = chunkText(fullResponse, 4096);
       for (const chunk of chunks) {
-        await sock.sendMessage(remoteJid, { text: chunk });
+        await sendMessage(daemonPort, sender, chunk);
       }
-    }
-
-    // ---- Clear typing indicator ----
-    try {
-      await sock.sendPresenceUpdate('available', remoteJid);
-    } catch {
-      // Best-effort
     }
 
     // ---- Save conversation ----
@@ -146,7 +119,7 @@ export async function handleIncomingMessage(
       messages.push({ role: 'assistant', content: fullResponse });
       await apiClient
         .saveConversation(channelUser.oxyUserId, conversationId, messages)
-        .catch((err) => console.error('[WhatsApp/Chat] Save conversation error:', err));
+        .catch((err) => console.error('[Signal/Chat] Save conversation error:', err));
     }
 
     // ---- Report usage ----
@@ -155,20 +128,32 @@ export async function handleIncomingMessage(
         promptTokens: result.usage.inputTokens || 0,
         completionTokens: result.usage.outputTokens || 0,
         totalTokens: result.usage.totalTokens || 0,
-      }).catch((err) => console.error('[WhatsApp/Chat] Report usage error:', err));
+      }).catch((err) => console.error('[Signal/Chat] Report usage error:', err));
     }
   } catch (error: any) {
-    console.error('[WhatsApp/Chat] Error:', error);
-    await sock
-      .sendMessage(remoteJid, {
-        text: 'Sorry, an error occurred. Please try again.',
-      })
-      .catch(() => {});
+    console.error('[Signal/Chat] Error:', error);
+    await sendMessage(daemonPort, sender, 'Sorry, an error occurred. Please try again.').catch(
+      () => {}
+    );
   }
 }
 
 /**
- * Split long text into chunks that respect WhatsApp's message length limits.
+ * Send a message via the signal-cli daemon's HTTP API.
+ */
+async function sendMessage(daemonPort: number, recipient: string, message: string): Promise<void> {
+  await fetch(`http://127.0.0.1:${daemonPort}/api/v1/send`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      recipients: [recipient],
+      message,
+    }),
+  });
+}
+
+/**
+ * Split long text into chunks that respect Signal's message length limits.
  * Prefers breaking at newlines, then spaces, and falls back to hard cut.
  */
 function chunkText(text: string, limit: number): string[] {

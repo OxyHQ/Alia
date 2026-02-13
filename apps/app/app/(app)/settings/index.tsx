@@ -5,10 +5,10 @@ import { useState, useEffect } from "react";
 import { useOxy } from "@oxyhq/services";
 import { useRouter } from "expo-router";
 import { generateAPIUrl } from "@/lib/generate-api-url";
-import { Globe, MapPin, Briefcase, User as UserIcon, Languages, MessageSquare, ChevronDown, Check, ChevronRight, Brain, User, Moon, Sun, Monitor, MessageSquarePlus, Send, Smartphone } from "lucide-react-native";
+import { Globe, MapPin, Briefcase, User as UserIcon, Languages, MessageSquare, ChevronDown, Check, ChevronRight, Brain, User, Moon, Sun, Monitor, MessageSquarePlus, Send, Smartphone, Shield } from "lucide-react-native";
 import { useUserData } from "@/hooks/useUserData";
 import { useTelegramStatus } from "@/hooks/useTelegramStatus";
-import { useWhatsAppStatus } from "@/hooks/useWhatsAppStatus";
+import { useGatewaySessions } from "@/hooks/useGatewaySessions";
 import { useUserDataStore } from "@/lib/stores/user-data-store";
 import {
   DropdownMenu,
@@ -62,7 +62,9 @@ export default function SettingsScreen() {
   const { mode, setColorScheme } = useColorScheme();
   const { t } = useTranslation();
   const { status: telegramStatus, loading: telegramLoading, refresh: refreshTelegram } = useTelegramStatus();
-  const { status: whatsappStatus, loading: whatsappLoading } = useWhatsAppStatus();
+  const { connectedCount: whatsappCount, loading: whatsappLoading } = useGatewaySessions('whatsapp');
+  const { connectedCount: telegramGwCount, loading: telegramGwLoading } = useGatewaySessions('telegram-gateway');
+  const { connectedCount: signalGwCount, loading: signalGwLoading } = useGatewaySessions('signal-gateway');
 
   // Form state
   const [language, setLanguage] = useState("");
@@ -315,7 +317,7 @@ export default function SettingsScreen() {
                 <ChevronRight size={20} className="text-muted-foreground" />
               )}
             </Pressable>
-            {/* WhatsApp */}
+            {/* WhatsApp Gateway */}
             <Pressable
               onPress={() => router.push("/(app)/settings/whatsapp")}
               className="border border-border rounded-lg p-4 bg-surface flex-row items-center justify-between active:bg-muted"
@@ -328,17 +330,77 @@ export default function SettingsScreen() {
                   <Text className="text-base font-semibold">
                     {whatsappLoading
                       ? "WhatsApp"
-                      : whatsappStatus?.status === 'connected'
-                        ? "WhatsApp Connected"
+                      : whatsappCount > 0
+                        ? `WhatsApp (${whatsappCount} connected)`
                         : "Connect WhatsApp"
                     }
                   </Text>
                   <Text className="text-sm text-muted-foreground">
                     {whatsappLoading
                       ? "Checking status..."
-                      : whatsappStatus?.status === 'connected'
-                        ? `Connected${whatsappStatus.phoneNumber ? ` (+${whatsappStatus.phoneNumber})` : ''}`
+                      : whatsappCount > 0
+                        ? "Alia responds as you on WhatsApp"
                         : "Link your WhatsApp account"
+                    }
+                  </Text>
+                </View>
+              </View>
+              <ChevronRight size={20} className="text-muted-foreground" />
+            </Pressable>
+            {/* Telegram Gateway */}
+            <Pressable
+              onPress={() => router.push("/(app)/settings/telegram-gateway")}
+              className="border border-border rounded-lg p-4 bg-surface flex-row items-center justify-between active:bg-muted"
+            >
+              <View className="flex-row items-center gap-3">
+                <View className="bg-[#0088CC]/10 p-2 rounded-lg">
+                  <Send size={24} color="#0088CC" />
+                </View>
+                <View className="flex-1">
+                  <Text className="text-base font-semibold">
+                    {telegramGwLoading
+                      ? "Telegram Gateway"
+                      : telegramGwCount > 0
+                        ? `Telegram Gateway (${telegramGwCount} connected)`
+                        : "Connect Telegram Gateway"
+                    }
+                  </Text>
+                  <Text className="text-sm text-muted-foreground">
+                    {telegramGwLoading
+                      ? "Checking status..."
+                      : telegramGwCount > 0
+                        ? "Alia responds as you on Telegram"
+                        : "Link your Telegram account"
+                    }
+                  </Text>
+                </View>
+              </View>
+              <ChevronRight size={20} className="text-muted-foreground" />
+            </Pressable>
+            {/* Signal Gateway */}
+            <Pressable
+              onPress={() => router.push("/(app)/settings/signal-gateway")}
+              className="border border-border rounded-lg p-4 bg-surface flex-row items-center justify-between active:bg-muted"
+            >
+              <View className="flex-row items-center gap-3">
+                <View className="bg-[#3A76F0]/10 p-2 rounded-lg">
+                  <Shield size={24} color="#3A76F0" />
+                </View>
+                <View className="flex-1">
+                  <Text className="text-base font-semibold">
+                    {signalGwLoading
+                      ? "Signal Gateway"
+                      : signalGwCount > 0
+                        ? `Signal Gateway (${signalGwCount} connected)`
+                        : "Connect Signal Gateway"
+                    }
+                  </Text>
+                  <Text className="text-sm text-muted-foreground">
+                    {signalGwLoading
+                      ? "Checking status..."
+                      : signalGwCount > 0
+                        ? "Alia responds as you on Signal"
+                        : "Link your Signal account"
                     }
                   </Text>
                 </View>

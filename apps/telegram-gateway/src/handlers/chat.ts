@@ -1,74 +1,74 @@
-import type { WASocket } from '@whiskeysockets/baileys';
-import { proto } from '@whiskeysockets/baileys';
+import { TelegramClient } from 'telegram';
+import { Api } from 'telegram/tl';
 import { generateText } from 'ai';
 import { resolveModel, reportUsage } from '../services/model-resolver';
 import { apiClient } from '../services/api-client';
+import { TelegramSession } from '../models/telegram-session';
 import { v4 as uuidv4 } from 'uuid';
-import { WhatsAppSession } from '../models/whatsapp-session';
 
 /**
  * Deduplication set: keeps track of recently-processed message IDs
- * to prevent handling the same message twice (Baileys can emit duplicates
+ * to prevent handling the same message twice (GramJS can emit duplicates
  * during reconnections).
  */
 const processedMessages = new Set<string>();
 
 export async function handleIncomingMessage(
   sessionId: string,
-  sock: WASocket,
-  msg: proto.IWebMessageInfo
+  client: TelegramClient,
+  message: any
 ): Promise<void> {
   // ---- Deduplication ----
-  const msgId = msg.key?.id;
-  if (!msgId || processedMessages.has(msgId)) return;
-  processedMessages.add(msgId);
+  const msgId = message.id?.toString();
+  if (!msgId || processedMessages.has(`${sessionId}:${msgId}`)) return;
+  processedMessages.add(`${sessionId}:${msgId}`);
   // Remove from dedup set after 60 seconds
-  setTimeout(() => processedMessages.delete(msgId), 60000);
+  setTimeout(() => processedMessages.delete(`${sessionId}:${msgId}`), 60000);
 
   // ---- Extract text content ----
-  const text =
-    msg.message?.conversation ||
-    msg.message?.extendedTextMessage?.text ||
-    msg.message?.imageMessage?.caption ||
-    '';
-
+  const text = message.text || message.message || '';
   if (!text) return;
 
-  const remoteJid = msg.key?.remoteJid;
-  if (!remoteJid) return;
+  const chatId = message.chatId?.toString();
+  if (!chatId) return;
 
-  // Look up the oxyUserId from the session document
-  const sessionDoc = await WhatsAppSession.findOne({ sessionId }).lean();
-  if (!sessionDoc) {
-    console.error(`[WhatsApp/Chat] No session found for sessionId ${sessionId}`);
-    return;
-  }
-  const oxyUserId = sessionDoc.oxyUserId;
-
-  const botSecret = process.env.WHATSAPP_GATEWAY_SECRET;
+  const botSecret = process.env.TELEGRAM_GATEWAY_SECRET;
   const apiBaseUrl = process.env.API_BASE_URL || 'http://localhost:3001';
 
   if (!botSecret) {
-    console.error('[WhatsApp/Chat] WHATSAPP_GATEWAY_SECRET not configured');
+    console.error('[Telegram/Chat] TELEGRAM_GATEWAY_SECRET not configured');
     return;
   }
 
   try {
+    // ---- Look up oxyUserId from session document ----
+    const sessionDoc = await TelegramSession.findOne({ sessionId }).lean();
+    if (!sessionDoc || !sessionDoc.oxyUserId) {
+      console.error(`[Telegram/Chat] No session or oxyUserId found for ${sessionId}`);
+      return;
+    }
+
+    const oxyUserId = sessionDoc.oxyUserId;
+
     // ---- Get channel user from API ----
     const channelUser = await apiClient.getChannelUser(oxyUserId);
 
     if (!channelUser || !channelUser.isAuthenticated || !channelUser.oxyUserId) {
-      // User's WhatsApp is connected but they haven't linked their Alia account
-      await sock.sendMessage(remoteJid, {
-        text: 'Please link your Alia account first. Visit the Alia app and go to Settings > Connect WhatsApp.',
+      // User's Telegram is connected but they haven't linked their Alia account
+      await client.sendMessage(chatId, {
+        message: 'Please link your Alia account first. Visit the Alia app and go to Settings > Connect Telegram.',
       });
       return;
     }
 
     // ---- Show typing indicator ----
     try {
-      await sock.presenceSubscribe(remoteJid);
-      await sock.sendPresenceUpdate('composing', remoteJid);
+      await client.invoke(
+        new Api.messages.SetTyping({
+          peer: chatId,
+          action: new Api.SendMessageTypingAction(),
+        })
+      );
     } catch {
       // Presence updates are best-effort
     }
@@ -94,7 +94,7 @@ export async function handleIncomingMessage(
         }));
       }
     } catch (error) {
-      console.error('[WhatsApp/Chat] Failed to load history:', error);
+      console.error('[Telegram/Chat] Failed to load history:', error);
       // Continue with empty history
     }
 
@@ -109,8 +109,8 @@ export async function handleIncomingMessage(
       channelUser.preferredModel || 'alia-lite'
     );
 
-    // ---- Generate AI response (non-streaming for WhatsApp) ----
-    const systemPrompt = `You are Alia, a helpful AI assistant accessible via WhatsApp. Be concise and friendly. Respond in the same language the user writes to you. Keep responses under 3000 characters when possible.`;
+    // ---- Generate AI response (non-streaming for Telegram) ----
+    const systemPrompt = `You are Alia, a helpful AI assistant responding via Telegram on the user's behalf. Be concise and friendly. Respond in the same language the user writes to you. Keep responses under 4000 characters when possible.`;
 
     const result = await generateText({
       model: resolved.model,
@@ -128,15 +128,20 @@ export async function handleIncomingMessage(
 
     // ---- Send response (with chunking for long messages) ----
     if (fullResponse) {
-      const chunks = chunkText(fullResponse, 4000);
+      const chunks = chunkText(fullResponse, 4096);
       for (const chunk of chunks) {
-        await sock.sendMessage(remoteJid, { text: chunk });
+        await client.sendMessage(chatId, { message: chunk });
       }
     }
 
-    // ---- Clear typing indicator ----
+    // ---- Cancel typing indicator ----
     try {
-      await sock.sendPresenceUpdate('available', remoteJid);
+      await client.invoke(
+        new Api.messages.SetTyping({
+          peer: chatId,
+          action: new Api.SendMessageCancelAction(),
+        })
+      );
     } catch {
       // Best-effort
     }
@@ -146,7 +151,7 @@ export async function handleIncomingMessage(
       messages.push({ role: 'assistant', content: fullResponse });
       await apiClient
         .saveConversation(channelUser.oxyUserId, conversationId, messages)
-        .catch((err) => console.error('[WhatsApp/Chat] Save conversation error:', err));
+        .catch((err) => console.error('[Telegram/Chat] Save conversation error:', err));
     }
 
     // ---- Report usage ----
@@ -155,20 +160,20 @@ export async function handleIncomingMessage(
         promptTokens: result.usage.inputTokens || 0,
         completionTokens: result.usage.outputTokens || 0,
         totalTokens: result.usage.totalTokens || 0,
-      }).catch((err) => console.error('[WhatsApp/Chat] Report usage error:', err));
+      }).catch((err) => console.error('[Telegram/Chat] Report usage error:', err));
     }
   } catch (error: any) {
-    console.error('[WhatsApp/Chat] Error:', error);
-    await sock
-      .sendMessage(remoteJid, {
-        text: 'Sorry, an error occurred. Please try again.',
+    console.error('[Telegram/Chat] Error:', error);
+    await client
+      .sendMessage(chatId, {
+        message: 'Sorry, an error occurred. Please try again.',
       })
       .catch(() => {});
   }
 }
 
 /**
- * Split long text into chunks that respect WhatsApp's message length limits.
+ * Split long text into chunks that respect Telegram's message length limits.
  * Prefers breaking at newlines, then spaces, and falls back to hard cut.
  */
 function chunkText(text: string, limit: number): string[] {

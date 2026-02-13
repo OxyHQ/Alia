@@ -1,19 +1,19 @@
 import { Router, Request, Response } from 'express';
 import { sessionManager } from '../session-manager';
-import { WhatsAppChat } from '../models/whatsapp-chat';
-import { WhatsAppMessage } from '../models/whatsapp-message';
+import { SignalChat } from '../models/signal-chat';
+import { SignalMessage } from '../models/signal-message';
 
 const router = Router();
 
 /**
- * Middleware: authenticate all session routes with WHATSAPP_GATEWAY_SECRET.
+ * Middleware: authenticate all session routes with SIGNAL_GATEWAY_SECRET.
  */
 router.use((req: Request, res: Response, next) => {
   const secret = req.headers['x-gateway-secret'] || req.headers['x-channel-bot-secret'];
-  const expected = process.env.WHATSAPP_GATEWAY_SECRET;
+  const expected = process.env.SIGNAL_GATEWAY_SECRET;
 
   if (!expected) {
-    return res.status(500).json({ error: 'WHATSAPP_GATEWAY_SECRET not configured on server' });
+    return res.status(500).json({ error: 'SIGNAL_GATEWAY_SECRET not configured on server' });
   }
 
   if (secret !== expected) {
@@ -24,13 +24,14 @@ router.use((req: Request, res: Response, next) => {
 });
 
 /**
- * POST /sessions/connect
- * Create a new session for a user. Returns sessionId, initial status, and QR code.
+ * POST /sessions/link
+ * Start linking a new Signal device for a user.
+ * Returns sessionId and the sgnl:// QR URI once available.
  *
  * Body: { oxyUserId: string }
  * Response: { sessionId, status, qr }
  */
-router.post('/connect', async (req: Request, res: Response) => {
+router.post('/link', async (req: Request, res: Response) => {
   const { oxyUserId } = req.body;
 
   if (!oxyUserId) {
@@ -38,27 +39,26 @@ router.post('/connect', async (req: Request, res: Response) => {
   }
 
   try {
-    // Create a new session and wait for the first QR code
-    const { sessionId, qrPromise } = await sessionManager.createSession(oxyUserId);
+    const { sessionId, qrPromise } = await sessionManager.linkDevice(oxyUserId);
 
-    // Wait for the QR code to be generated (with timeout)
+    // Wait for the QR URI to be generated (with timeout)
     const qr = await qrPromise;
 
     return res.json({
       sessionId,
-      status: 'qr-pending',
+      status: 'linking',
       qr,
-      message: 'Scan the QR code with WhatsApp to connect',
+      message: 'Scan the QR code with Signal to link this device',
     });
   } catch (error: any) {
-    console.error('[Sessions] Connect error:', error);
-    return res.status(500).json({ error: error.message || 'Failed to create session' });
+    console.error('[Sessions] Link error:', error);
+    return res.status(500).json({ error: error.message || 'Failed to start linking' });
   }
 });
 
 /**
  * GET /sessions/:sessionId/qr
- * Returns the current QR code for a session that is awaiting scanning.
+ * Returns the current QR URI for a session that is awaiting scanning.
  */
 router.get('/:sessionId/qr', async (req: Request, res: Response) => {
   const { sessionId } = req.params;
@@ -88,6 +88,7 @@ router.get('/:sessionId/qr', async (req: Request, res: Response) => {
     }
 
     return res.json({
+      sessionId: session.sessionId,
       status: session.status,
       qr: session.lastQR,
     });
@@ -117,6 +118,7 @@ router.get('/:sessionId/status', async (req: Request, res: Response) => {
       status: session.status,
       phoneNumber: session.phoneNumber || null,
       displayName: session.displayName || null,
+      daemonPort: session.daemonPort || null,
       lastConnected: session.lastConnected || null,
       lastDisconnected: session.lastDisconnected || null,
       createdAt: session.createdAt,
@@ -129,21 +131,21 @@ router.get('/:sessionId/status', async (req: Request, res: Response) => {
 });
 
 /**
- * POST /sessions/:sessionId/disconnect
- * Disconnects a specific WhatsApp session and clears auth data.
+ * POST /sessions/:sessionId/unlink
+ * Unlinks a Signal device, kills daemon, and removes data.
  */
-router.post('/:sessionId/disconnect', async (req: Request, res: Response) => {
+router.post('/:sessionId/unlink', async (req: Request, res: Response) => {
   const { sessionId } = req.params;
 
   try {
-    await sessionManager.disconnectSession(sessionId);
+    await sessionManager.unlinkDevice(sessionId);
     return res.json({
-      status: 'logged-out',
-      message: 'Session disconnected successfully',
+      status: 'unlinked',
+      message: 'Session unlinked successfully',
     });
   } catch (error: any) {
-    console.error('[Sessions] Disconnect error:', error);
-    return res.status(500).json({ error: error.message || 'Failed to disconnect session' });
+    console.error('[Sessions] Unlink error:', error);
+    return res.status(500).json({ error: error.message || 'Failed to unlink session' });
   }
 });
 
@@ -179,29 +181,30 @@ router.get('/', async (_req: Request, res: Response) => {
 
 /**
  * GET /sessions/:sessionId/chats
- * Returns the session's recent WhatsApp chats from MongoDB.
+ * Returns the session's recent Signal chats from MongoDB.
  */
 router.get('/:sessionId/chats', async (req: Request, res: Response) => {
   const { sessionId } = req.params;
 
   try {
-    const dbChats = await WhatsAppChat.find({ sessionId })
-      .sort({ conversationTimestamp: -1 })
+    const dbChats = await SignalChat.find({ sessionId })
+      .sort({ lastMessageTimestamp: -1 })
       .limit(50)
       .lean();
 
     // Enrich with last message preview from MongoDB
     const chats = await Promise.all(
       dbChats.map(async (c) => {
-        const lastMsg = await WhatsAppMessage.findOne({ sessionId, jid: c.jid })
+        const lastMsg = await SignalMessage.findOne({ sessionId, contactId: c.contactId })
           .sort({ timestamp: -1 })
           .lean();
 
         return {
-          jid: c.jid,
-          name: c.name || c.jid.split('@')[0],
+          contactId: c.contactId,
+          name: c.name || c.contactId,
           unreadCount: c.unreadCount || 0,
-          lastMessageTimestamp: c.conversationTimestamp || null,
+          chatType: c.chatType || 'direct',
+          lastMessageTimestamp: c.lastMessageTimestamp || null,
           lastMessagePreview: lastMsg?.text?.slice(0, 100) || '',
         };
       })
@@ -215,27 +218,27 @@ router.get('/:sessionId/chats', async (req: Request, res: Response) => {
 });
 
 /**
- * GET /sessions/:sessionId/chats/:jid/messages
+ * GET /sessions/:sessionId/chats/:contactId/messages
  * Returns recent messages from a specific chat (from MongoDB).
  * Query: ?limit=20 (default 20, max 50)
  */
-router.get('/:sessionId/chats/:jid/messages', async (req: Request, res: Response) => {
-  const { sessionId, jid } = req.params;
+router.get('/:sessionId/chats/:contactId/messages', async (req: Request, res: Response) => {
+  const { sessionId, contactId } = req.params;
   const limit = Math.min(parseInt(req.query.limit as string) || 20, 50);
 
   try {
-    const messages = await WhatsAppMessage.find({ sessionId, jid })
+    const messages = await SignalMessage.find({ sessionId, contactId })
       .sort({ timestamp: -1 })
       .limit(limit)
       .lean();
 
     return res.json({
       messages: messages.map((m) => ({
-        id: m.messageId,
+        messageTimestamp: m.messageTimestamp,
         fromMe: m.fromMe,
         timestamp: m.timestamp,
         text: m.text,
-        pushName: m.pushName || null,
+        senderName: m.senderName || null,
       })),
     });
   } catch (error: any) {
@@ -246,25 +249,39 @@ router.get('/:sessionId/chats/:jid/messages', async (req: Request, res: Response
 
 /**
  * POST /sessions/:sessionId/send
- * Send a message to a specific JID via a specific session.
- * Body: { jid: string, text: string }
+ * Send a message to a specific contact via signal-cli daemon.
+ * Body: { contactId: string, text: string }
  */
 router.post('/:sessionId/send', async (req: Request, res: Response) => {
   const { sessionId } = req.params;
-  const { jid, text } = req.body;
+  const { contactId, text } = req.body;
 
-  if (!jid || !text) {
-    return res.status(400).json({ error: 'jid and text are required' });
+  if (!contactId || !text) {
+    return res.status(400).json({ error: 'contactId and text are required' });
   }
 
   try {
-    const sock = sessionManager.getSocket(sessionId);
-    if (!sock) {
-      return res.status(404).json({ error: 'No active session found' });
+    const session = await sessionManager.getStatus(sessionId);
+    if (!session?.daemonPort) {
+      return res.status(404).json({ error: 'No active daemon for this session' });
     }
 
-    const result = await sock.sendMessage(jid, { text });
-    return res.json({ success: true, messageId: result?.key?.id });
+    const response = await fetch(`http://127.0.0.1:${session.daemonPort}/api/v1/send`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        recipients: [contactId],
+        message: text,
+      }),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      return res.status(502).json({ error: `signal-cli error: ${errorText}` });
+    }
+
+    const result = await response.json();
+    return res.json({ success: true, result });
   } catch (error: any) {
     console.error('[Sessions] Send error:', error);
     return res.status(500).json({ error: error.message || 'Failed to send message' });

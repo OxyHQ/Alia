@@ -1,6 +1,7 @@
 import mongoose, { Schema, Document } from 'mongoose';
 
 export interface IWhatsAppMessage extends Document {
+  sessionId: string;
   oxyUserId: string;
   jid: string;
   messageId: string;
@@ -13,6 +14,7 @@ export interface IWhatsAppMessage extends Document {
 
 const WhatsAppMessageSchema = new Schema<IWhatsAppMessage>(
   {
+    sessionId: { type: String, required: true, index: true },
     oxyUserId: { type: String, required: true, index: true },
     jid: { type: String, required: true },
     messageId: { type: String, required: true },
@@ -24,7 +26,7 @@ const WhatsAppMessageSchema = new Schema<IWhatsAppMessage>(
   { timestamps: true }
 );
 
-WhatsAppMessageSchema.index({ oxyUserId: 1, jid: 1, timestamp: -1 });
-WhatsAppMessageSchema.index({ oxyUserId: 1, messageId: 1 }, { unique: true });
+WhatsAppMessageSchema.index({ sessionId: 1, jid: 1, timestamp: -1 });
+WhatsAppMessageSchema.index({ sessionId: 1, messageId: 1 }, { unique: true });
 
 export const WhatsAppMessage = mongoose.model<IWhatsAppMessage>('WhatsAppMessage', WhatsAppMessageSchema);
