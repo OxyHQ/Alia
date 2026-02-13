@@ -318,7 +318,7 @@ class SessionManager {
             oxyUserId: sessionDoc.oxyUserId,
             chatId: remoteJid,
             messageText: text,
-            sendResponse: (text) => sock.sendMessage(remoteJid, { text }),
+            sendResponse: async (text) => { await sock.sendMessage(remoteJid, { text }); },
             setTyping: async (typing) => {
               await sock.presenceSubscribe(remoteJid);
               await sock.sendPresenceUpdate(typing ? 'composing' : 'available', remoteJid);
