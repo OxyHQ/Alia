@@ -544,6 +544,18 @@ When you use a tool successfully:
 
       const assistantResponse = result.text || '';
 
+      // Build tool invocations from generateText result
+      const nonStreamToolInvocations = (result.toolCalls || []).map((tc: any) => {
+        const toolResult = (result.toolResults || []).find((tr: any) => tr.toolCallId === tc.toolCallId);
+        return {
+          toolCallId: tc.toolCallId,
+          toolName: toolNameMapping.get(tc.toolName) || tc.toolName,
+          state: toolResult ? 'result' as const : 'call' as const,
+          args: tc.args,
+          ...(toolResult && { result: toolResult.output }),
+        };
+      });
+
       // Auto-save conversation if conversationId provided and user is authenticated
       if (conversationId && typeof conversationId === 'string' && conversationId.trim() && req.user && assistantResponse) {
         try {
@@ -556,6 +568,7 @@ When you use a tool successfully:
             {
               role: 'assistant',
               content: assistantResponse,
+              ...(nonStreamToolInvocations.length > 0 && { toolInvocations: nonStreamToolInvocations }),
             }
           ].filter(msg => msg != null && msg.role && msg.content !== undefined);
 
@@ -666,12 +679,15 @@ When you use a tool successfully:
     console.log('[V1/Chat] Starting to process AI SDK stream...');
     let chunkCount = 0;
     let assistantResponse = ''; // Track assistant's response for conversation save
+    const toolInvocations: Array<{ toolCallId: string; toolName: string; state: 'call' | 'result'; args?: any; result?: any }> = [];
     for await (const chunk of result.fullStream) {
       chunkCount++;
       // Clear first-byte timer on first chunk (provider responded)
       if (firstByteTimer) { clearTimeout(firstByteTimer); firstByteTimer = null; }
-      console.log(`[V1/Chat] Chunk ${chunkCount} type:`, chunk.type);
-      console.log(`[V1/Chat] Chunk ${chunkCount} full:`, JSON.stringify(chunk, null, 2));
+      // Log chunk type (skip high-frequency text-delta to reduce noise)
+      if (chunk.type !== 'text-delta') {
+        console.log(`[V1/Chat] Chunk ${chunkCount} type:`, chunk.type);
+      }
 
       if (chunk.type === 'text-delta' && chunk.text) {
         // Set SSE headers on first content (deferred for retry support)
@@ -792,22 +808,98 @@ When you use a tool successfully:
           }]
         };
         res.write(`data: ${JSON.stringify(toolCallChunk)}\n\n`);
+
+        // Track tool invocation for conversation save
+        toolInvocations.push({
+          toolCallId: chunk.toolCallId,
+          toolName: originalToolName,
+          state: 'call',
+          args: chunk.input,
+        });
       } else if (chunk.type === 'tool-result') {
-        console.log('[V1/Chat] Tool result:', chunk.toolName, chunk.output);
+        // Set SSE headers on first content
+        if (!hasStreamedContent) {
+          res.setHeader('Content-Type', 'text/event-stream');
+          res.setHeader('Cache-Control', 'no-cache');
+          res.setHeader('Connection', 'keep-alive');
+          hasStreamedContent = true;
+        }
+
+        const originalToolName = toolNameMapping.get(chunk.toolName) || chunk.toolName;
+        console.log('[V1/Chat] Tool result:', originalToolName, chunk.output);
+
+        // Stream tool result to the client
+        const toolResultChunk = {
+          id: `chatcmpl-${Date.now()}`,
+          object: 'chat.completion.chunk',
+          created: Math.floor(Date.now() / 1000),
+          model: aliasModelId,
+          choices: [{
+            index: 0,
+            delta: {
+              tool_result: {
+                tool_call_id: chunk.toolCallId,
+                name: originalToolName,
+                output: chunk.output,
+              }
+            },
+            finish_reason: null
+          }]
+        };
+        res.write(`data: ${JSON.stringify(toolResultChunk)}\n\n`);
+
+        // Update tool invocation state for conversation save
+        const existingIdx = toolInvocations.findIndex(t => t.toolCallId === chunk.toolCallId);
+        if (existingIdx >= 0) {
+          toolInvocations[existingIdx].state = 'result';
+          toolInvocations[existingIdx].result = chunk.output;
+        } else {
+          toolInvocations.push({
+            toolCallId: chunk.toolCallId,
+            toolName: originalToolName,
+            state: 'result',
+            result: chunk.output,
+          });
+        }
+      } else if (chunk.type === 'tool-error') {
+        // Handle tool execution errors
+        if (!hasStreamedContent) {
+          res.setHeader('Content-Type', 'text/event-stream');
+          res.setHeader('Cache-Control', 'no-cache');
+          res.setHeader('Connection', 'keep-alive');
+          hasStreamedContent = true;
+        }
+
+        const originalToolName = toolNameMapping.get((chunk as any).toolName) || (chunk as any).toolName;
+        console.error('[V1/Chat] Tool error:', originalToolName, (chunk as any).error);
+
+        // Send tool error as text content so the user sees what happened
+        const errorMessage = (chunk as any).error?.message || 'Tool execution failed';
+        const errorChunk = {
+          id: `chatcmpl-${Date.now()}`,
+          object: 'chat.completion.chunk',
+          created: Math.floor(Date.now() / 1000),
+          model: aliasModelId,
+          choices: [{
+            index: 0,
+            delta: { content: `\n\n⚠️ Tool error (${originalToolName}): ${errorMessage}` },
+            finish_reason: null
+          }]
+        };
+        res.write(`data: ${JSON.stringify(errorChunk)}\n\n`);
+        assistantResponse += `\n\n⚠️ Tool error (${originalToolName}): ${errorMessage}`;
       } else if (chunk.type === 'start') {
         console.log('[V1/Chat] Stream started');
       } else if (chunk.type === 'start-step') {
         console.log('[V1/Chat] Step started');
-      } else if (chunk.type === 'text-start') {
-        console.log('[V1/Chat] Text generation started');
-      } else if (chunk.type === 'text-end') {
-        console.log('[V1/Chat] Text generation ended');
+      } else if (chunk.type === 'text-start' || chunk.type === 'text-end') {
+        // Text generation lifecycle events - no action needed
+      } else if (chunk.type === 'tool-input-start' || chunk.type === 'tool-input-end' || chunk.type === 'tool-input-delta') {
+        // Tool input streaming events - no action needed
+      } else if (chunk.type === 'source' || chunk.type === 'file' || chunk.type === 'raw') {
+        // Source/file/raw events - no action needed
       } else if (chunk.type === 'finish-step') {
         console.log('[V1/Chat] Step finished');
-        // Log usage from finish-step if available
-        if ((chunk as any).usage) {
-          console.log('[V1/Chat] Step usage:', (chunk as any).usage);
-        }
       } else if (chunk.type === 'error') {
         console.error('[V1/Chat] Error chunk received:', (chunk as any).error);
 
@@ -877,7 +969,8 @@ When you use a tool successfully:
     console.log('[V1/Chat] Stream processing complete, total chunks:', chunkCount);
 
     // Auto-save conversation if conversationId provided and user is authenticated
-    if (conversationId && typeof conversationId === 'string' && conversationId.trim() && req.user && assistantResponse) {
+    // Save when there's text content OR tool invocations (tools without text are valid responses)
+    if (conversationId && typeof conversationId === 'string' && conversationId.trim() && req.user && (assistantResponse || toolInvocations.length > 0)) {
       try {
         // Build complete messages array (user messages + assistant response)
         const allMessages = [
@@ -889,6 +982,7 @@ When you use a tool successfully:
           {
             role: 'assistant',
             content: assistantResponse,
+            ...(toolInvocations.length > 0 && { toolInvocations }),
           }
         ].filter(msg => msg != null && msg.role && msg.content !== undefined);
 

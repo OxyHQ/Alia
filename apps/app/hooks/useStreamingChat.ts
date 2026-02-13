@@ -150,13 +150,14 @@ Use this role to guide your responses, maintaining the specified tone, style, an
       let buffer = '';
       let fullContent = '';
       let charCount = 0;
+      let hasToolInvocations = false;
 
       while (true) {
         const { done, value } = await reader.read();
 
         if (done) {
           // Check if we received any content
-          if (!fullContent && !error) {
+          if (!fullContent && !error && !hasToolInvocations) {
             console.error('[useStreamingChat] Stream ended without content');
             setMessages((prev) => {
               const updated = [...prev];
@@ -267,78 +268,66 @@ Use this role to guide your responses, maintaining the specified tone, style, an
                 queryClient.invalidateQueries({ queryKey: ['credits-usage'] });
               }
 
-              // Note: Tool calls in OpenAI format come in delta.tool_calls
-              // But for the main app, tools are executed server-side
-              // so we don't need to handle them here
+              // Handle tool calls (OpenAI format: delta.tool_calls)
+              if (delta.tool_calls && Array.isArray(delta.tool_calls)) {
+                hasToolInvocations = true;
+                for (const tc of delta.tool_calls) {
+                  const toolCallId = tc.id;
+                  const toolName = tc.function?.name;
+                  if (!toolCallId || !toolName) continue;
 
-              // Legacy tool call handling (if backend sends old format)
-              if (parsed.type === 'tool-call') {
-                setMessages((prev) => {
-                  const updated = [...prev];
-                  const lastMessage = updated[updated.length - 1];
-                  if (lastMessage.role === 'assistant') {
-                    const toolInvocations = [...(lastMessage.toolInvocations || [])];
-                    const existingIndex = toolInvocations.findIndex(
-                      (t) => t.toolCallId === parsed.toolCallId
-                    );
-
-                    const newInvocation: ToolInvocation = {
-                      toolCallId: parsed.toolCallId,
-                      toolName: parsed.toolName,
-                      state: 'call',
-                      args: parsed.args,
-                    };
-
-                    if (existingIndex >= 0) {
-                      toolInvocations[existingIndex] = newInvocation;
-                    } else {
-                      toolInvocations.push(newInvocation);
+                  let args: any;
+                  if (tc.function?.arguments) {
+                    try {
+                      args = JSON.parse(tc.function.arguments);
+                    } catch {
+                      args = { _raw: tc.function.arguments };
                     }
-
-                    updated[updated.length - 1] = {
-                      ...lastMessage,
-                      toolInvocations,
-                    };
                   }
-                  return updated;
-                });
+
+                  setMessages((prev) => {
+                    const updated = [...prev];
+                    const lastMessage = updated[updated.length - 1];
+                    if (lastMessage.role === 'assistant') {
+                      const invocations = [...(lastMessage.toolInvocations || [])];
+                      const idx = invocations.findIndex((t) => t.toolCallId === toolCallId);
+                      const invocation: ToolInvocation = { toolCallId, toolName, state: 'call', args };
+
+                      if (idx >= 0) {
+                        invocations[idx] = invocation;
+                      } else {
+                        invocations.push(invocation);
+                      }
+
+                      updated[updated.length - 1] = { ...lastMessage, toolInvocations: invocations };
+                    }
+                    return updated;
+                  });
+                }
               }
 
-              // Handle tool results
-              if (parsed.type === 'tool-result') {
-                setMessages((prev) => {
-                  const updated = [...prev];
-                  const lastMessage = updated[updated.length - 1];
-                  if (lastMessage.role === 'assistant') {
-                    const toolInvocations = [...(lastMessage.toolInvocations || [])];
-                    const existingIndex = toolInvocations.findIndex(
-                      (t) => t.toolCallId === parsed.toolCallId
-                    );
+              // Handle tool results (custom extension: delta.tool_result)
+              if (delta.tool_result) {
+                const { tool_call_id, name, output } = delta.tool_result;
+                if (tool_call_id) {
+                  setMessages((prev) => {
+                    const updated = [...prev];
+                    const lastMessage = updated[updated.length - 1];
+                    if (lastMessage.role === 'assistant') {
+                      const invocations = [...(lastMessage.toolInvocations || [])];
+                      const idx = invocations.findIndex((t) => t.toolCallId === tool_call_id);
 
-                    if (existingIndex >= 0) {
-                      toolInvocations[existingIndex] = {
-                        ...toolInvocations[existingIndex],
-                        state: 'result',
-                        result: parsed.result,
-                      };
+                      if (idx >= 0) {
+                        invocations[idx] = { ...invocations[idx], state: 'result', result: output };
+                      } else {
+                        invocations.push({ toolCallId: tool_call_id, toolName: name || 'unknown', state: 'result', result: output });
+                      }
+
+                      updated[updated.length - 1] = { ...lastMessage, toolInvocations: invocations };
                     }
-
-                    updated[updated.length - 1] = {
-                      ...lastMessage,
-                      toolInvocations,
-                    };
-                  }
-                  return updated;
-                });
-              }
-
-              // Handle credit updates - update React Query cache
-              if (parsed.type === 'credit-update') {
-                queryClient.setQueryData<CreditsInfo>(['credits'], (old) => {
-                  if (!old) return old;
-                  return { ...old, credits: parsed.credits };
-                });
-                queryClient.invalidateQueries({ queryKey: ['credits-usage'] });
+                    return updated;
+                  });
+                }
               }
 
               // Handle error events from server
