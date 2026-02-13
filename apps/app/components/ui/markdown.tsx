@@ -46,22 +46,22 @@ const Div = cssInterop(ExpoDiv, { className: "style" });
 
 const rules = {
   heading1: (node: any, children: any) => (
-    <H1 className="mb-2 mt-3 text-lg font-semibold text-foreground leading-snug">{children}</H1>
+    <H1 className="mb-2 mt-3 text-lg font-semibold text-foreground leading-snug font-sans">{children}</H1>
   ),
   heading2: (node: any, children: any) => (
-    <H2 className="mb-2 mt-3 text-base font-semibold text-foreground leading-snug">{children}</H2>
+    <H2 className="mb-2 mt-3 text-base font-semibold text-foreground leading-snug font-sans">{children}</H2>
   ),
   heading3: (node: any, children: any) => (
-    <H3 className="mb-1.5 mt-2 text-base font-semibold text-foreground leading-snug">{children}</H3>
+    <H3 className="mb-1.5 mt-2 text-base font-semibold text-foreground leading-snug font-sans">{children}</H3>
   ),
   heading4: (node: any, children: any) => (
-    <H4 className="mb-1.5 mt-2 text-base font-medium text-foreground leading-snug">{children}</H4>
+    <H4 className="mb-1.5 mt-2 text-base font-medium text-foreground leading-snug font-sans">{children}</H4>
   ),
   heading5: (node: any, children: any) => (
-    <H5 className="mb-1 mt-2 text-base font-medium text-foreground leading-snug">{children}</H5>
+    <H5 className="mb-1 mt-2 text-base font-medium text-foreground leading-snug font-sans">{children}</H5>
   ),
   heading6: (node: any, children: any) => (
-    <H6 className="mb-1 mt-2 text-base font-medium text-foreground leading-snug">{children}</H6>
+    <H6 className="mb-1 mt-2 text-base font-medium text-foreground leading-snug font-sans">{children}</H6>
   ),
   code: (node: any, children: any, parent: any) => {
     return parent.length > 1 ? (
@@ -77,7 +77,7 @@ const rules = {
       </Code>
     );
   },
-  list_item: (node: any, children: any) => <Li className="py-0.5 text-base leading-7 text-foreground">{children}</Li>,
+  list_item: (node: any, children: any) => <Li className="py-0.5 text-base leading-7 text-foreground font-sans">{children}</Li>,
   ordered_list: (node: any, children: any) => (
     <Ol className="ml-5 my-2 list-outside list-decimal text-foreground">{children}</Ol>
   ),
@@ -98,7 +98,7 @@ const rules = {
     </A>
   ),
   paragraph: (node: any, children: any) => {
-    return <P className="mb-2 text-base leading-7 text-foreground">{children}</P>;
+    return <P className="mb-2 text-base leading-7 text-foreground font-sans">{children}</P>;
   },
   blockquote: (node: any, children: any) => (
     <Div className="my-2 border-l-4 border-zinc-300 dark:border-zinc-600 bg-zinc-50 dark:bg-zinc-800/50 px-3 py-1 rounded-r-md">
@@ -112,7 +112,7 @@ const rules = {
     return node.content;
   },
   body: (node: any, children: any) => {
-    return <Div className="text-foreground">{children}</Div>;
+    return <Div className="text-base leading-7 text-foreground font-sans">{children}</Div>;
   },
 };
 
@@ -290,6 +290,7 @@ export function CustomMarkdown({ content }: { content: string }) {
   const { colorScheme } = useColorScheme();
 
   const textColor = colorScheme === 'dark' ? '#ffffff' : '#0a0a0a';
+  const sansFont = Platform.select({ ios: 'Inter', android: 'Inter', default: 'Inter, sans-serif' });
   const monoFont = Platform.select({ ios: 'Courier', android: 'monospace', default: 'monospace' });
 
   // Comprehensive styles to ensure consistent font sizing across all markdown elements.
@@ -300,11 +301,13 @@ export function CustomMarkdown({ content }: { content: string }) {
       color: textColor,
       fontSize: 16,
       lineHeight: 28,
+      fontFamily: sansFont,
     },
     text: {
       color: textColor,
       fontSize: 16,
       lineHeight: 28,
+      fontFamily: sansFont,
     },
     paragraph: {
       marginTop: 0,
