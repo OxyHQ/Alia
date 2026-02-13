@@ -279,13 +279,6 @@ export async function authenticateTelegramBot(
       return;
     }
 
-    // Verify user ID is provided
-    if (!oxyUserId) {
-      log.auth.warn('Missing user ID in bot request');
-      res.status(400).json({ error: 'User ID required for bot requests' });
-      return;
-    }
-
     // Verify telegram ID is provided
     if (!telegramId) {
       log.auth.warn('Missing telegram ID in bot request');
@@ -295,11 +288,13 @@ export async function authenticateTelegramBot(
 
     // Log successful auth for audit trail
     const duration = Date.now() - startTime;
-    log.auth.info({ telegramId, oxyUserId, ip: getClientIp(req), endpoint: req.path, durationMs: duration }, 'Telegram bot authenticated');
+    log.auth.info({ telegramId, oxyUserId: oxyUserId || 'unknown', ip: getClientIp(req), endpoint: req.path, durationMs: duration }, 'Telegram bot authenticated');
 
-    // Set user context - the bot is acting on behalf of this user
-    req.userId = oxyUserId;
-    req.user = { id: oxyUserId };
+    // Set user context if provided - the bot is acting on behalf of this user
+    if (oxyUserId) {
+      req.userId = oxyUserId;
+      req.user = { id: oxyUserId };
+    }
     next();
   } catch (error) {
     log.auth.error({ err: error }, 'Bot authentication error');
