@@ -275,6 +275,8 @@ export async function runStartupSeed(): Promise<void> {
     await seedAliaModels();
     const { seedPlans } = await import('./seed-plans.js');
     await seedPlans();
+    const { seedCreditPackages } = await import('./seed-credit-packages.js');
+    await seedCreditPackages();
     await resetAllCircuitBreakers();
     console.log('[Seed] Startup seed complete');
   } catch (error) {

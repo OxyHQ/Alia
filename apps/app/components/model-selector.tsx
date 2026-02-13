@@ -36,6 +36,10 @@ export function ModelSelector({
   const [loading, setLoading] = useState(!cachedModels);
 
   useEffect(() => {
+    setValue(selectedModel);
+  }, [selectedModel]);
+
+  useEffect(() => {
     // Only fetch if not cached
     if (!cachedModels) {
       fetch(`${config.apiUrl}/v1/models`)

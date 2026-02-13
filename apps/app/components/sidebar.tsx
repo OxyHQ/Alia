@@ -214,6 +214,18 @@ export const Sidebar = React.memo(function Sidebar() {
     Linking.openURL("https://console.alia.onl/documentation");
   }, []);
 
+  const handleUpgrade = React.useCallback(() => {
+    router.push("/(biglayout)/subscribe");
+  }, [router]);
+
+  const handleBilling = React.useCallback(() => {
+    router.push("/(app)/billing");
+  }, [router]);
+
+  const handleNotifications = React.useCallback(() => {
+    router.push("/(app)/notifications");
+  }, [router]);
+
   const handleSelectProject = React.useCallback((id: string | null) => {
     setCurrentProject(id);
   }, [setCurrentProject]);
@@ -731,7 +743,7 @@ export const Sidebar = React.memo(function Sidebar() {
                     <Text className="text-xs text-muted-foreground">{user?.email || ""}</Text>
                   </View>
                   <DropdownMenuSeparator />
-                  <DropdownMenuItem>
+                  <DropdownMenuItem onPress={handleUpgrade}>
                     <Sparkle size={16} className="text-muted-foreground" />
                     <Text className="text-sm">Upgrade to Pro</Text>
                   </DropdownMenuItem>
@@ -739,11 +751,11 @@ export const Sidebar = React.memo(function Sidebar() {
                     <UserCircle size={16} className="text-muted-foreground" />
                     <Text className="text-sm">Account</Text>
                   </DropdownMenuItem>
-                  <DropdownMenuItem>
+                  <DropdownMenuItem onPress={handleBilling}>
                     <CreditCard size={16} className="text-muted-foreground" />
                     <Text className="text-sm">Billing</Text>
                   </DropdownMenuItem>
-                  <DropdownMenuItem>
+                  <DropdownMenuItem onPress={handleNotifications}>
                     <Bell size={16} className="text-muted-foreground" />
                     <Text className="text-sm">Notifications</Text>
                   </DropdownMenuItem>
