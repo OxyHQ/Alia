@@ -148,6 +148,15 @@ NEXTAUTH_URL='http://localhost:3001'
 - `POST /alia/chat` - Chat streaming con Alia
 - `POST /v1/chat/completions` - Chat completions (compatible OpenAI)
 - `GET /v1/models` - Listar modelos disponibles
+- `GET /billing/plans` - Listar planes de suscripción (desde DB)
+- `GET /billing/packages` - Listar paquetes de créditos
+- `POST /billing/checkout/credits` - Crear checkout de créditos (Stripe)
+- `POST /billing/checkout/subscription` - Crear checkout de suscripción (Stripe)
+- `GET /billing/subscription` - Obtener suscripción actual
+- `POST /billing/subscription/cancel` - Cancelar suscripción
+- `GET /billing/transactions` - Historial de transacciones
+- `POST /billing/portal` - Crear sesión del portal de Stripe
+- `POST /billing/webhook` - Webhook de Stripe
 
 ## Estructura
 

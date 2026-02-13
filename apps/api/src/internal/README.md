@@ -20,10 +20,12 @@ The providers module was previously a separate microservice but has been integra
 ```
 Main API (Port 3001)
 ├── Public Endpoints (/health, /auth, /chat, etc.)
+├── Public Billing (/billing/plans, /billing/checkout, /billing/subscription)
 └── Internal Providers (/internal/providers)
     ├── /v1/providers (model resolution, health monitoring)
     ├── /v1/models (model configuration)
-    └── /v1/keys (API key management)
+    ├── /v1/keys (API key management)
+    └── /v1/plans (subscription plan CRUD, seeded on startup)
 ```
 
 ### Authentication:
