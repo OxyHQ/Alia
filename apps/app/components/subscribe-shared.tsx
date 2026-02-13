@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { View, Pressable, Platform, ScrollView, Text as RNText } from 'react-native';
+import { View, Pressable, ScrollView } from 'react-native';
 import { useRouter } from 'expo-router';
 import Animated, {
   useSharedValue,
@@ -12,7 +12,6 @@ import { Text } from '@/components/ui/text';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { cn } from '@/lib/utils';
-import { useColorScheme } from '@/lib/useColorScheme';
 
 // ─── Types ───────────────────────────────────────────────────────────
 
@@ -90,17 +89,7 @@ export function BillingToggle({
 const DIGIT_HEIGHT = 40;
 const DIGITS = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9'];
 
-function OdometerDigit({
-  digit,
-  fontSize,
-  fontWeight,
-  color,
-}: {
-  digit: string;
-  fontSize: number;
-  fontWeight: string;
-  color: string;
-}) {
+function OdometerDigit({ digit, fontSize }: { digit: string; fontSize: number }) {
   const idx = DIGITS.indexOf(digit);
   const translateY = useSharedValue(-idx * DIGIT_HEIGHT);
 
@@ -119,76 +108,38 @@ function OdometerDigit({
     <View style={{ height: DIGIT_HEIGHT, width: fontSize * 0.65, overflow: 'hidden' }}>
       <Animated.View style={columnStyle}>
         {DIGITS.map((d) => (
-          <RNText
+          <Text
             key={d}
-            style={{
-              height: DIGIT_HEIGHT,
-              lineHeight: DIGIT_HEIGHT,
-              fontSize,
-              fontWeight: fontWeight as any,
-              color,
-              textAlign: 'center',
-            }}
+            className="text-foreground font-bold text-center"
+            style={{ height: DIGIT_HEIGHT, lineHeight: DIGIT_HEIGHT, fontSize }}
           >
             {d}
-          </RNText>
+          </Text>
         ))}
       </Animated.View>
     </View>
   );
 }
 
-// Resolve foreground color: CSS variable on web, hex on native
-function useForegroundColor(): string {
-  const { colors } = useColorScheme();
-  if (Platform.OS === 'web') {
-    return 'hsl(var(--foreground))' as any;
-  }
-  return colors.foreground;
-}
-
-function SlotPrice({
-  cents,
-  fontSize = 32,
-  fontWeight = '700',
-}: {
-  cents: number;
-  fontSize?: number;
-  fontWeight?: string;
-}) {
-  const textColor = useForegroundColor();
+function SlotPrice({ cents, fontSize = 32 }: { cents: number; fontSize?: number }) {
   const text = formatPrice(cents);
   const chars = text.split('');
 
   return (
-    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+    <View className="flex-row items-center">
       {chars.map((char, i) => {
         const key = `${chars.length - i}-${char >= '0' && char <= '9' ? 'd' : char}`;
-        const isDigit = char >= '0' && char <= '9';
-        if (isDigit) {
-          return (
-            <OdometerDigit
-              key={key}
-              digit={char}
-              fontSize={fontSize}
-              fontWeight={fontWeight}
-              color={textColor}
-            />
-          );
+        if (char >= '0' && char <= '9') {
+          return <OdometerDigit key={key} digit={char} fontSize={fontSize} />;
         }
         return (
-          <RNText
+          <Text
             key={key}
-            style={{
-              fontSize,
-              fontWeight: fontWeight as any,
-              height: DIGIT_HEIGHT,
-              lineHeight: DIGIT_HEIGHT,
-              color: textColor,
-            }}
+            className="text-foreground font-bold"
+            style={{ height: DIGIT_HEIGHT, lineHeight: DIGIT_HEIGHT, fontSize }}
           >
             {char}
-          </RNText>
+          </Text>
         );
       })}
     </View>
@@ -218,9 +169,7 @@ function AnimatedSubtext({
 
   return (
     <Animated.View style={animStyle}>
-      <Text className="text-xs text-muted-foreground">
-        {text}
-      </Text>
+      <Text className="text-xs text-muted-foreground">{text}</Text>
     </Animated.View>
   );
 }
@@ -256,9 +205,7 @@ export function PlanColumn({
     >
       {/* Plan name + badge */}
       <View className="flex-row items-center gap-2">
-        <Text className="text-lg font-bold text-foreground">
-          {tier.name}
-        </Text>
+        <Text className="text-lg font-bold text-foreground">{tier.name}</Text>
         {tier.isFeatured && (
           <View className="bg-primary px-2 py-0.5 rounded-full">
             <Text className="text-[10px] font-semibold text-primary-foreground">
@@ -269,17 +216,13 @@ export function PlanColumn({
       </View>
 
       {/* Subtitle */}
-      <Text className="text-xs text-muted-foreground">
-        {tier.subtitle}
-      </Text>
+      <Text className="text-xs text-muted-foreground">{tier.subtitle}</Text>
 
       {/* Price */}
       {tier.monthlyPrice === 0 ? (
         <View className="gap-1">
           <Text className="text-3xl font-bold text-foreground">Free</Text>
-          <Text className="text-sm text-muted-foreground">
-            {tier.creditsLabel}
-          </Text>
+          <Text className="text-sm text-muted-foreground">{tier.creditsLabel}</Text>
         </View>
       ) : (
         <View className="gap-1">
@@ -295,9 +238,7 @@ export function PlanColumn({
               billingPeriod={billingPeriod}
             />
           )}
-          <Text className="text-sm text-muted-foreground">
-            {tier.creditsLabel}
-          </Text>
+          <Text className="text-sm text-muted-foreground">{tier.creditsLabel}</Text>
         </View>
       )}
 
@@ -328,9 +269,7 @@ export function PlanColumn({
         {tier.features.map((feature, i) => (
           <View key={i} className="flex-row items-start gap-2">
             <Check size={16} className="text-primary mt-0.5 shrink-0" />
-            <Text className="text-sm text-muted-foreground flex-1">
-              {feature}
-            </Text>
+            <Text className="text-sm text-muted-foreground flex-1">{feature}</Text>
           </View>
         ))}
       </View>
@@ -339,6 +278,9 @@ export function PlanColumn({
 }
 
 // ─── PlanGrid ────────────────────────────────────────────────────────
+
+const CARD_WIDTH = 260;
+const SNAP_WIDTH = CARD_WIDTH + 1;
 
 export function PlanGrid({
   tiers,
@@ -359,119 +301,106 @@ export function PlanGrid({
   isWideLayout: boolean;
   t: (key: string) => string;
 }) {
-  const CARD_WIDTH = 260;
-  const SNAP_WIDTH = CARD_WIDTH + 2; // card + separator gap
   const scrollRef = useRef<ScrollView>(null);
   const [activeIndex, setActiveIndex] = useState(0);
 
-  const scrollToIndex = useCallback((index: number) => {
-    const clamped = Math.max(0, Math.min(index, tiers.length - 1));
-    scrollRef.current?.scrollTo({ x: clamped * SNAP_WIDTH, animated: true });
-    setActiveIndex(clamped);
-  }, [tiers.length]);
+  const scrollToIndex = useCallback(
+    (index: number) => {
+      const clamped = Math.max(0, Math.min(index, tiers.length - 1));
+      scrollRef.current?.scrollTo({ x: clamped * SNAP_WIDTH, animated: true });
+      setActiveIndex(clamped);
+    },
+    [tiers.length],
+  );
 
-  if (!isWideLayout) {
+  const renderPlanColumn = (tier: PricingTier) => (
+    <PlanColumn
+      tier={tier}
+      billingPeriod={billingPeriod}
+      isCurrentPlan={
+        tier.id === 'free'
+          ? !hasActiveSubscription
+          : currentPlanName === tier.name
+      }
+      onSubscribe={onSubscribe}
+      isLoading={isLoading}
+      t={t}
+    />
+  );
+
+  if (isWideLayout) {
     return (
-      <View>
-        {/* Arrows */}
-        <View className="flex-row items-center justify-between px-4 mb-2">
-          <Pressable
-            onPress={() => scrollToIndex(activeIndex - 1)}
-            className={cn(
-              'w-8 h-8 rounded-full bg-muted items-center justify-center',
-              activeIndex === 0 && 'opacity-30',
-            )}
-            disabled={activeIndex === 0}
-          >
-            <ChevronLeft size={18} className="text-foreground" />
-          </Pressable>
-          {/* Dot indicators */}
-          <View className="flex-row gap-1.5">
-            {tiers.map((tier, i) => (
-              <Pressable
-                key={tier.id}
-                onPress={() => scrollToIndex(i)}
-              >
-                <View
-                  className={cn(
-                    'w-2 h-2 rounded-full',
-                    i === activeIndex ? 'bg-primary' : 'bg-muted-foreground/30',
-                  )}
-                />
-              </Pressable>
-            ))}
-          </View>
-          <Pressable
-            onPress={() => scrollToIndex(activeIndex + 1)}
-            className={cn(
-              'w-8 h-8 rounded-full bg-muted items-center justify-center',
-              activeIndex === tiers.length - 1 && 'opacity-30',
-            )}
-            disabled={activeIndex === tiers.length - 1}
-          >
-            <ChevronRight size={18} className="text-foreground" />
-          </Pressable>
-        </View>
-        {/* Horizontal snap scroll */}
-        <ScrollView
-          ref={scrollRef}
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          snapToInterval={SNAP_WIDTH}
-          decelerationRate="fast"
-          contentContainerStyle={{ paddingHorizontal: 8 }}
-          onMomentumScrollEnd={(e) => {
-            const idx = Math.round(e.nativeEvent.contentOffset.x / SNAP_WIDTH);
-            setActiveIndex(Math.max(0, Math.min(idx, tiers.length - 1)));
-          }}
-        >
-          {tiers.map((tier, index) => (
-            <React.Fragment key={tier.id}>
-              {index > 0 && (
-                <Separator orientation="vertical" className="mx-0" />
-              )}
-              <View style={{ width: CARD_WIDTH }}>
-                <PlanColumn
-                  tier={tier}
-                  billingPeriod={billingPeriod}
-                  isCurrentPlan={
-                    tier.id === 'free'
-                      ? !hasActiveSubscription
-                      : currentPlanName === tier.name
-                  }
-                  onSubscribe={onSubscribe}
-                  isLoading={isLoading}
-                  t={t}
-                />
-              </View>
-            </React.Fragment>
-          ))}
-        </ScrollView>
+      <View className="flex-row px-2">
+        {tiers.map((tier, index) => (
+          <React.Fragment key={tier.id}>
+            {index > 0 && <Separator orientation="vertical" />}
+            {renderPlanColumn(tier)}
+          </React.Fragment>
+        ))}
       </View>
     );
   }
 
   return (
-    <View className="flex-row px-2">
-      {tiers.map((tier, index) => (
-        <React.Fragment key={tier.id}>
-          {index > 0 && (
-            <Separator orientation="vertical" className="mx-0" />
+    <View>
+      {/* Navigation */}
+      <View className="flex-row items-center justify-between px-4 mb-2">
+        <Pressable
+          onPress={() => scrollToIndex(activeIndex - 1)}
+          disabled={activeIndex === 0}
+          className={cn(
+            'w-8 h-8 rounded-full bg-muted items-center justify-center',
+            activeIndex === 0 && 'opacity-30',
           )}
-          <PlanColumn
-            tier={tier}
-            billingPeriod={billingPeriod}
-            isCurrentPlan={
-              tier.id === 'free'
-                ? !hasActiveSubscription
-                : currentPlanName === tier.name
-            }
-            onSubscribe={onSubscribe}
-            isLoading={isLoading}
-            t={t}
-          />
-        </React.Fragment>
-      ))}
+        >
+          <ChevronLeft size={18} className="text-foreground" />
+        </Pressable>
+
+        <View className="flex-row gap-1.5">
+          {tiers.map((_, i) => (
+            <Pressable key={i} onPress={() => scrollToIndex(i)}>
+              <View
+                className={cn(
+                  'w-2 h-2 rounded-full',
+                  i === activeIndex ? 'bg-primary' : 'bg-muted-foreground/30',
+                )}
+              />
+            </Pressable>
+          ))}
+        </View>
+
+        <Pressable
+          onPress={() => scrollToIndex(activeIndex + 1)}
+          disabled={activeIndex === tiers.length - 1}
+          className={cn(
+            'w-8 h-8 rounded-full bg-muted items-center justify-center',
+            activeIndex === tiers.length - 1 && 'opacity-30',
+          )}
+        >
+          <ChevronRight size={18} className="text-foreground" />
+        </Pressable>
+      </View>
+
+      {/* Horizontal snap scroll */}
+      <ScrollView
+        ref={scrollRef}
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        snapToInterval={SNAP_WIDTH}
+        decelerationRate="fast"
+        contentContainerStyle={{ paddingHorizontal: 8 }}
+        onMomentumScrollEnd={(e) => {
+          const idx = Math.round(e.nativeEvent.contentOffset.x / SNAP_WIDTH);
+          setActiveIndex(Math.max(0, Math.min(idx, tiers.length - 1)));
+        }}
+      >
+        {tiers.map((tier, index) => (
+          <React.Fragment key={tier.id}>
+            {index > 0 && <Separator orientation="vertical" />}
+            <View style={{ width: CARD_WIDTH }}>{renderPlanColumn(tier)}</View>
+          </React.Fragment>
+        ))}
+      </ScrollView>
     </View>
   );
 }
@@ -554,9 +483,7 @@ export function BackButton({ t }: { t: (key: string) => string }) {
       className="flex-row items-center mb-6"
     >
       <ArrowLeft size={16} className="text-muted-foreground mr-2" />
-      <Text className="text-sm text-muted-foreground">
-        {t('subscribe.back')}
-      </Text>
+      <Text className="text-sm text-muted-foreground">{t('subscribe.back')}</Text>
     </Pressable>
   );
 }
