@@ -315,8 +315,7 @@
     "outOfCreditsTitle": "Sin créditos",
     "outOfCreditsDescription": "Agrega más créditos o mejora tu plan para seguir chateando con Alia.",
     "limitReachedTitle": "Límite alcanzado",
-    "limitReachedDescription": "Tu plan gratuito permite {{limit}} tokens por día. Mejora para obtener más.",
-    "limitReachedGeneric": "Has alcanzado el límite diario de tu plan. Mejora para obtener más.",
+    "limitReachedDescription": "Has alcanzado el límite de tu plan. Mejora para obtener más.",
     "slowDownTitle": "Más despacio",
     "slowDownDescription": "Has alcanzado tu límite. Inténtalo de nuevo en {{time}}.",
     "slowDownGeneric": "Has alcanzado tu límite. Por favor, inténtalo de nuevo en un momento.",
@@ -327,7 +326,8 @@
     "gotIt": "Entendido",
     "inputDisabledPlaceholder": "Límite de uso alcanzado",
     "limitReachedBanner": "Límite de uso alcanzado. Mejora o espera para continuar.",
-    "usageWarning": "{{percent}}% del límite diario usado. Cambia a Alia Lite para usar 2x menos créditos.",
+    "warningMessage": "Estás gastando más de lo habitual hoy. A este ritmo, los créditos duran ~{{days}} días.",
+    "criticalMessage": "Uso elevado — los créditos podrían agotarse en ~{{days}} día(s).",
     "switchModel": "Cambiar"
   }
 }

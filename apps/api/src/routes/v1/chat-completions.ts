@@ -6,7 +6,8 @@ import { UserCredits } from '../../models/user-credits.js';
 import { UserMemory } from '../../models/user-memory.js';
 import { Conversation } from '../../models/conversation.js';
 import { reserveCredits, finalizeCredits, type CreditReservation, type CreditUsage } from '../../lib/credits-manager.js';
-import { recordUsage, getUserUsageStats } from '../../middleware/api-key-rate-limit.js';
+import { recordUsage } from '../../middleware/api-key-rate-limit.js';
+import { detectCreditAnomaly } from '../../lib/credit-anomaly.js';
 import { convertOpenAIToolsToToolSet } from '../../lib/tool-converter.js';
 import { getCurrentDateTool, getTimelineTool, saveUserMemoryTool, updateUserPreferencesTool, updateUserContextTool, createSendTelegramTool, createGetWhatsAppChatsTool, createGetWhatsAppMessagesTool, createSendWhatsAppMessageTool, createProvidersAdminTool, webScraperTool, generateFileTool } from '../../lib/tools/index.js';
 import { oxyClient } from '../../middleware/auth.js';
@@ -675,18 +676,14 @@ When you use a tool successfully:
           billable_tokens: Math.max(0, tokenUsage.totalTokens - (tokenUsage.systemPromptTokens || 0)),
           credits_charged: creditsCharged,
           credits_remaining: creditsRemaining,
-          usage_ratio: null as number | null,
+          credit_warning: null as any,
         }
       };
 
-      // Calculate daily usage ratio for proactive warnings
+      // Detect spending anomalies for proactive warnings
       if (req.user?.id) {
         try {
-          const stats = await getUserUsageStats(req.user.id);
-          const dailyLimit = stats.limits.tokensPerDay;
-          if (dailyLimit) {
-            response.usage.usage_ratio = stats.tokensLastDay / dailyLimit;
-          }
+          response.usage.credit_warning = await detectCreditAnomaly(req.user.id);
         } catch {}
       }
 
@@ -1051,15 +1048,11 @@ When you use a tool successfully:
           console.error('[V1/Chat] Error recording session usage:', err)
         );
 
-        // Calculate daily usage ratio for proactive warnings
-        let usageRatio: number | null = null;
+        // Detect spending anomalies for proactive warnings
+        let creditWarning: any = null;
         if (req.user?.id) {
           try {
-            const stats = await getUserUsageStats(req.user.id);
-            const dailyLimit = stats.limits.tokensPerDay;
-            if (dailyLimit) {
-              usageRatio = stats.tokensLastDay / dailyLimit;
-            }
+            creditWarning = await detectCreditAnomaly(req.user.id);
           } catch {}
         }
 
@@ -1082,7 +1075,7 @@ When you use a tool successfully:
             billable_tokens: Math.max(0, tokenUsage.totalTokens - (tokenUsage.systemPromptTokens || 0)),
             credits_charged: creditsCharged,
             credits_remaining: creditsRemaining,
-            usage_ratio: usageRatio,
+            credit_warning: creditWarning,
           }
         };
         res.write(`data: ${JSON.stringify(usageChunk)}\n\n`);

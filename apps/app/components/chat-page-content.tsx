@@ -309,16 +309,19 @@ export const ChatPageContent = ({
 
           {/* Usage warning banner */}
           {(() => {
-            const usageWarning = queryClient.getQueryData<{ level: string; ratio: number; creditsRemaining: number }>(['usage-warning']);
+            const usageWarning = queryClient.getQueryData<{ level: string; daysRemaining: number; todaySpend: number; avgDailySpend: number }>(['usage-warning']);
             if (usageWarning && !warningDismissed && selectedModel !== 'alia-lite') {
-              const percent = Math.round(usageWarning.ratio * 100);
               const isCritical = usageWarning.level === 'critical';
+              const days = Math.round(usageWarning.daysRemaining);
               return (
                 <View className={`mx-auto w-full max-w-3xl px-4 pb-1`}>
                   <View className={`flex-row items-center gap-2 rounded-lg px-3 py-2 ${isCritical ? 'bg-destructive/10' : 'bg-yellow-500/10'}`}>
                     <Zap size={14} className={isCritical ? 'text-destructive' : 'text-yellow-600'} />
                     <Text className={`text-xs flex-1 ${isCritical ? 'text-destructive' : 'text-yellow-700 dark:text-yellow-400'}`}>
-                      {percent}% of daily limit used. Switch to Alia Lite to use 2x fewer credits.
+                      {isCritical
+                        ? `High usage — credits may run out in ~${days} day${days !== 1 ? 's' : ''}.`
+                        : `Spending more than usual today. At this rate, credits last ~${days} days.`
+                      } Switch to Alia Lite for 2x fewer credits.
                     </Text>
                     <Pressable onPress={() => onModelChange('alia-lite')} className="active:opacity-70">
                       <Text className="text-xs font-medium text-primary">Switch</Text>

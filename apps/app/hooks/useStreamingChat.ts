@@ -300,12 +300,14 @@ Use this role to guide your responses, maintaining the specified tone, style, an
                 });
                 queryClient.invalidateQueries({ queryKey: ['credits-usage'] });
 
-                // Proactive warning when approaching usage limit
-                if (parsed.usage.usage_ratio !== undefined && parsed.usage.usage_ratio !== null && parsed.usage.usage_ratio >= 0.8) {
+                // Proactive warning when spending anomaly detected
+                if (parsed.usage.credit_warning) {
+                  const w = parsed.usage.credit_warning;
                   queryClient.setQueryData(['usage-warning'], {
-                    level: parsed.usage.usage_ratio >= 0.95 ? 'critical' : 'warning',
-                    ratio: parsed.usage.usage_ratio,
-                    creditsRemaining: parsed.usage.credits_remaining,
+                    level: w.level,
+                    daysRemaining: w.daysRemaining,
+                    todaySpend: w.todaySpend,
+                    avgDailySpend: w.avgDailySpend,
                   });
                 }
               }
