@@ -242,6 +242,9 @@ router.post('/:type/link', authenticateToken, async (req, res) => {
     channelUser.linkedAt = new Date();
     channelUser.authToken = undefined;
     channelUser.authTokenExpiry = undefined;
+    if (req.accessToken) {
+      channelUser.metadata = { ...channelUser.metadata, sessionToken: req.accessToken };
+    }
     await channelUser.save();
 
     res.json({ success: true });
