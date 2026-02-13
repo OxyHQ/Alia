@@ -8,6 +8,7 @@ import {
   Coins,
   Receipt,
   Server,
+  Sparkles,
 } from 'lucide-react';
 import { NavMain } from '@/components/nav-main';
 import { NavUser } from '@/components/nav-user';
@@ -28,6 +29,7 @@ const navItems = [
   { title: 'API Keys', url: '/keys', icon: Key },
   { title: 'Models', url: '/models', icon: Boxes },
   { title: 'Plans', url: '/plans', icon: CreditCard },
+  { title: 'Features', url: '/features', icon: Sparkles },
   { title: 'Credit Packages', url: '/credit-packages', icon: Coins },
   { title: 'Billing', url: '/billing', icon: Receipt },
   { title: 'Monitoring', url: '/monitoring', icon: Activity },

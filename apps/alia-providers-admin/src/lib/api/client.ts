@@ -354,6 +354,71 @@ class ProvidersAPIClient {
     return this.request(`/v1/billing/user/${userId}`);
   }
 
+  // ============ FEATURES ============
+
+  async listFeatures(filters?: { category?: string; active?: boolean }) {
+    const params = new URLSearchParams();
+    if (filters?.category) params.set('category', filters.category);
+    if (filters?.active !== undefined) params.set('active', filters.active.toString());
+    return this.request(`/v1/features?${params}`);
+  }
+
+  async getFeature(featureId: string) {
+    return this.request(`/v1/features/${featureId}`);
+  }
+
+  async createFeature(data: unknown) {
+    return this.request('/v1/features', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async updateFeature(featureId: string, data: unknown) {
+    return this.request(`/v1/features/${featureId}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async deleteFeature(featureId: string) {
+    return this.request(`/v1/features/${featureId}`, {
+      method: 'DELETE',
+    });
+  }
+
+  // ============ PLAN FEATURES ============
+
+  async listPlanFeatures(filters?: { planId?: string }) {
+    const params = new URLSearchParams();
+    if (filters?.planId) params.set('planId', filters.planId);
+    return this.request(`/v1/plan-features?${params}`);
+  }
+
+  async getPlanFeaturesMatrix() {
+    return this.request('/v1/plan-features/matrix');
+  }
+
+  async upsertPlanFeature(planId: string, featureId: string, data: unknown) {
+    return this.request(`/v1/plan-features/${planId}/${featureId}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async bulkUpsertPlanFeatures(mappings: unknown[]) {
+    return this.request('/v1/plan-features/bulk', {
+      method: 'POST',
+      body: JSON.stringify({ mappings }),
+    });
+  }
+
+  async deletePlanFeature(planId: string, featureId: string) {
+    return this.request(`/v1/plan-features/${planId}/${featureId}`, {
+      method: 'DELETE',
+    });
+  }
+
   // ============ USAGE ============
 
   async getUsage(period: string = '7d') {

@@ -10,6 +10,7 @@ import { UsagePage } from './pages/Usage';
 import { PlansPage } from './pages/Plans';
 import { CreditPackagesPage } from './pages/CreditPackages';
 import { BillingPage } from './pages/Billing';
+import { FeaturesPage } from './pages/Features';
 import { LoginPage } from './pages/Login';
 import { RealtimeProvider } from './lib/websocket/provider';
 import { apiClient } from './lib/api/client';
@@ -87,6 +88,7 @@ function AppRoutes() {
         <Route path="models" element={<ModelsPage />} />
         <Route path="plans" element={<PlansPage />} />
         <Route path="credit-packages" element={<CreditPackagesPage />} />
+        <Route path="features" element={<FeaturesPage />} />
         <Route path="billing" element={<BillingPage />} />
         <Route path="monitoring" element={<MonitoringPage />} />
         <Route path="usage" element={<UsagePage />} />

@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@oxyhq/auth';
 import { apiClient } from '@/lib/api/client';
-import type { SubscriptionPlan, PlanFeatureGroup, PlanFeatureItem, AliaModel } from '@/types';
+import type { SubscriptionPlan, AliaModel } from '@/types';
 import {
   Table,
   TableBody,
@@ -41,143 +41,11 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { MoreHorizontal, Plus, Trash2, PlusCircle, X } from 'lucide-react';
+import { MoreHorizontal, Plus, X } from 'lucide-react';
 
 function formatCents(cents: number): string {
   const dollars = cents / 100;
   return dollars % 1 === 0 ? `$${dollars}` : `$${dollars.toFixed(2)}`;
-}
-
-function featureCount(features: PlanFeatureGroup[]): string {
-  const groups = features.length;
-  const items = features.reduce((acc, g) => acc + g.items.length, 0);
-  return `${groups} groups, ${items} items`;
-}
-
-// ─── Feature Groups Editor ──────────────────────────────────
-
-function FeatureGroupsEditor({
-  features,
-  onChange,
-}: {
-  features: PlanFeatureGroup[];
-  onChange: (f: PlanFeatureGroup[]) => void;
-}) {
-  const addGroup = () => {
-    onChange([...features, { category: '', items: [] }]);
-  };
-
-  const removeGroup = (gi: number) => {
-    onChange(features.filter((_, i) => i !== gi));
-  };
-
-  const updateGroupCategory = (gi: number, category: string) => {
-    const updated = [...features];
-    updated[gi] = { ...updated[gi], category };
-    onChange(updated);
-  };
-
-  const addItem = (gi: number) => {
-    const updated = [...features];
-    updated[gi] = {
-      ...updated[gi],
-      items: [...updated[gi].items, { label: '' }],
-    };
-    onChange(updated);
-  };
-
-  const removeItem = (gi: number, fi: number) => {
-    const updated = [...features];
-    updated[gi] = {
-      ...updated[gi],
-      items: updated[gi].items.filter((_, i) => i !== fi),
-    };
-    onChange(updated);
-  };
-
-  const updateItem = (gi: number, fi: number, field: keyof PlanFeatureItem, value: string) => {
-    const updated = [...features];
-    updated[gi] = {
-      ...updated[gi],
-      items: updated[gi].items.map((item, i) =>
-        i === fi ? { ...item, [field]: value || undefined } : item
-      ),
-    };
-    onChange(updated);
-  };
-
-  return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <Label className="text-sm font-medium">Feature Groups</Label>
-        <Button type="button" variant="outline" size="sm" onClick={addGroup}>
-          <PlusCircle className="h-3.5 w-3.5 mr-1" />
-          Add Group
-        </Button>
-      </div>
-
-      {features.map((group, gi) => (
-        <div key={gi} className="border rounded-lg p-3 space-y-2">
-          <div className="flex items-center gap-2">
-            <Input
-              value={group.category}
-              onChange={(e) => updateGroupCategory(gi, e.target.value)}
-              placeholder="Category name (e.g. Credits, Models, Features)"
-              className="flex-1 h-8 text-sm"
-            />
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              onClick={() => removeGroup(gi)}
-              className="h-8 w-8 p-0 text-destructive"
-            >
-              <Trash2 className="h-3.5 w-3.5" />
-            </Button>
-          </div>
-
-          {group.items.map((item, fi) => (
-            <div key={fi} className="flex items-start gap-2 pl-4">
-              <div className="flex-1 space-y-1">
-                <Input
-                  value={item.label}
-                  onChange={(e) => updateItem(gi, fi, 'label', e.target.value)}
-                  placeholder="Feature label"
-                  className="h-7 text-sm"
-                />
-                <Input
-                  value={item.description || ''}
-                  onChange={(e) => updateItem(gi, fi, 'description', e.target.value)}
-                  placeholder="Description (optional)"
-                  className="h-7 text-xs text-muted-foreground"
-                />
-              </div>
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                onClick={() => removeItem(gi, fi)}
-                className="h-7 w-7 p-0 text-destructive shrink-0 mt-0.5"
-              >
-                <Trash2 className="h-3 w-3" />
-              </Button>
-            </div>
-          ))}
-
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            onClick={() => addItem(gi)}
-            className="ml-4 h-7 text-xs"
-          >
-            <Plus className="h-3 w-3 mr-1" />
-            Add Item
-          </Button>
-        </div>
-      ))}
-    </div>
-  );
 }
 
 // ─── Plan Form ──────────────────────────────────────────────
@@ -197,7 +65,6 @@ interface PlanFormState {
   isFree: boolean;
   sortOrder: number;
   isActive: boolean;
-  features: PlanFeatureGroup[];
   modelIds: string[];
   description: string;
   notes: string;
@@ -220,7 +87,6 @@ const DEFAULT_FORM: PlanFormState = {
   isFree: false,
   sortOrder: 0,
   isActive: true,
-  features: [],
   modelIds: [],
   description: '',
   notes: '',
@@ -244,7 +110,6 @@ function planToForm(plan: SubscriptionPlan): PlanFormState {
     isFree: plan.isFree,
     sortOrder: plan.sortOrder,
     isActive: plan.isActive,
-    features: plan.features || [],
     modelIds: plan.modelIds || [],
     description: plan.description || '',
     notes: plan.notes || '',
@@ -347,17 +212,10 @@ export function PlansPage() {
       return alert('Credits and prices must not be negative');
     }
 
-    // Strip empty feature groups/items
-    const cleanedFeatures = form.features
-      .filter(g => g.category.trim())
-      .map(g => ({ ...g, items: g.items.filter(i => i.label.trim()) }));
-
-    const cleanedForm = { ...form, features: cleanedFeatures };
-
     if (isCreating) {
-      createMutation.mutate(cleanedForm);
+      createMutation.mutate(form);
     } else if (selectedPlan) {
-      const { planId, ...updates } = cleanedForm;
+      const { planId, ...updates } = form;
       updateMutation.mutate({ planId: selectedPlan.planId, data: updates });
     }
   };
@@ -373,7 +231,7 @@ export function PlansPage() {
           <TableHead className="text-right">Credits/mo</TableHead>
           <TableHead className="text-right">Monthly</TableHead>
           <TableHead className="text-right">Annual</TableHead>
-          <TableHead>Features</TableHead>
+          <TableHead>Models</TableHead>
           <TableHead>Status</TableHead>
           <TableHead className="text-right">Order</TableHead>
           <TableHead className="w-10"></TableHead>
@@ -407,10 +265,7 @@ export function PlansPage() {
                 {formatCents(plan.annualPrice)}
               </TableCell>
               <TableCell className="text-xs text-muted-foreground">
-                {featureCount(plan.features)}
-                {plan.modelIds?.length > 0 && (
-                  <span className="block">{plan.modelIds.length} models</span>
-                )}
+                {plan.modelIds?.length || 0} models
               </TableCell>
               <TableCell>
                 <Badge variant={plan.isActive ? 'default' : 'secondary'}>
@@ -739,11 +594,12 @@ export function PlansPage() {
               )}
             </div>
 
-            {/* Features */}
-            <FeatureGroupsEditor
-              features={form.features}
-              onChange={(features) => setForm({ ...form, features })}
-            />
+            {/* Features note */}
+            <div className="rounded-lg border border-dashed p-3">
+              <p className="text-xs text-muted-foreground">
+                Plan features are managed via the <a href="/features" className="text-primary underline">Features</a> page using the plan-feature matrix editor.
+              </p>
+            </div>
           </div>
 
           <DialogFooter>

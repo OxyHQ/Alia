@@ -7,6 +7,8 @@ import { Transaction } from '../models/transaction.js';
 import { Plan } from '../internal/providers/models/plan.js';
 import { CreditPackage } from '../internal/providers/models/credit-package.js';
 import { AliaModel as AliaModelDB } from '../internal/providers/models/alia-model.js';
+import { Feature } from '../internal/providers/models/feature.js';
+import { PlanFeature } from '../internal/providers/models/plan-feature.js';
 import { ALIA_MODELS } from '../internal/providers/lib/alia-models.js';
 import { getOrCreateUserCredits } from '../lib/user-credits-helpers.js';
 import { z } from 'zod';
@@ -145,7 +147,18 @@ router.get('/plans', async (req: Request, res: Response) => {
     const query: any = { isActive: true };
     if (product) query.product = product;
 
-    const dbPlans = await Plan.find(query).sort({ sortOrder: 1 }).lean();
+    const [dbPlans, allFeatures, allPlanFeatures] = await Promise.all([
+      Plan.find(query).sort({ sortOrder: 1 }).lean(),
+      Feature.find({ isActive: true, isVisibleOnPricing: true }).sort({ category: 1, sortOrder: 1 }).lean(),
+      PlanFeature.find({ enabled: true }).lean(),
+    ]);
+
+    // Build lookup: planId -> featureId -> PlanFeature mapping
+    const pfMap: Record<string, Record<string, any>> = {};
+    for (const pf of allPlanFeatures) {
+      if (!pfMap[pf.planId]) pfMap[pf.planId] = {};
+      pfMap[pf.planId][pf.featureId] = pf;
+    }
 
     // Load all active Alia models from DB, fall back to hardcoded
     let modelMap: Record<string, { displayName: string; description?: string }> = {};
@@ -155,16 +168,44 @@ router.get('/plans', async (req: Request, res: Response) => {
         for (const m of dbModels) modelMap[m.aliasModelId] = { displayName: m.displayName, description: m.description };
       }
     } catch { /* ignore */ }
-    // Fall back to hardcoded models for any IDs not in DB
     for (const [id, m] of Object.entries(ALIA_MODELS)) {
       if (!modelMap[id]) modelMap[id] = { displayName: m.name, description: m.description };
     }
 
     const plans = dbPlans.map(p => {
-      // Build "Models" feature group from modelIds
-      const modelIds: string[] = (p as any).modelIds || [];
-      const features = [...(p.features || [])];
+      const planId = (p as any).planId;
+      const planMappings = pfMap[planId] || {};
 
+      // Build feature groups from Feature + PlanFeature collections
+      const groupMap = new Map<string, { label: string; description?: string }[]>();
+
+      for (const feat of allFeatures) {
+        const mapping = planMappings[feat.featureId];
+        if (!mapping) continue;
+
+        const category = feat.category;
+        if (!groupMap.has(category)) groupMap.set(category, []);
+
+        groupMap.get(category)!.push({
+          label: mapping.displayLabel || feat.label,
+          description: mapping.displayDescription || feat.description,
+        });
+      }
+
+      // Convert to array, preserving category order from features query
+      const features: { category: string; items: { label: string; description?: string }[] }[] = [];
+      const seenCategories = new Set<string>();
+      for (const feat of allFeatures) {
+        if (seenCategories.has(feat.category)) continue;
+        const items = groupMap.get(feat.category);
+        if (items && items.length > 0) {
+          features.push({ category: feat.category, items });
+          seenCategories.add(feat.category);
+        }
+      }
+
+      // Insert "Models" group from modelIds (after Credits if present, else at start)
+      const modelIds: string[] = (p as any).modelIds || [];
       if (modelIds.length > 0) {
         const modelItems = modelIds
           .map(id => modelMap[id])
@@ -172,14 +213,13 @@ router.get('/plans', async (req: Request, res: Response) => {
           .map(m => ({ label: m!.displayName, description: m!.description }));
 
         if (modelItems.length > 0) {
-          // Insert after first group (Credits) if it exists, otherwise at start
-          const insertAt = features.length > 0 ? 1 : 0;
+          const insertAt = features.length > 0 && features[0].category === 'Credits' ? 1 : 0;
           features.splice(insertAt, 0, { category: 'Models', items: modelItems });
         }
       }
 
       return {
-        id: p.planId,
+        id: planId,
         name: p.name,
         product: p.product,
         creditsPerMonth: p.creditsPerMonth,

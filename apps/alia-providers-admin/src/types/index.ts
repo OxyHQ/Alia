@@ -121,16 +121,6 @@ export interface HealthMetrics {
 
 // ─── Plans ──────────────────────────────────────────────────
 
-export interface PlanFeatureItem {
-  label: string;
-  description?: string;
-}
-
-export interface PlanFeatureGroup {
-  category: string;
-  items: PlanFeatureItem[];
-}
-
 export interface SubscriptionPlan {
   _id: string;
   planId: string;
@@ -146,13 +136,41 @@ export interface SubscriptionPlan {
   isFeatured: boolean;
   isFree: boolean;
   sortOrder: number;
-  features: PlanFeatureGroup[];
   modelIds: string[];
   isActive: boolean;
   stripeMonthlyPriceId?: string;
   stripeAnnualPriceId?: string;
   description?: string;
   notes?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// ─── Features ──────────────────────────────────────────────
+
+export interface AdminFeature {
+  _id: string;
+  featureId: string;
+  label: string;
+  description?: string;
+  icon?: string;
+  category: string;
+  featureType: 'boolean' | 'limit';
+  sortOrder: number;
+  isVisibleOnPricing: boolean;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AdminPlanFeature {
+  _id: string;
+  planId: string;
+  featureId: string;
+  enabled: boolean;
+  limitValue?: number;
+  displayLabel?: string;
+  displayDescription?: string;
   createdAt: string;
   updatedAt: string;
 }
