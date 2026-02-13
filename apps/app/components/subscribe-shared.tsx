@@ -12,6 +12,7 @@ import { Text } from '@/components/ui/text';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { cn } from '@/lib/utils';
+import { useColorScheme } from '@/lib/useColorScheme';
 
 // ─── Types ───────────────────────────────────────────────────────────
 
@@ -84,39 +85,106 @@ export function BillingToggle({
   );
 }
 
-// ─── AnimatedPrice ───────────────────────────────────────────────────
+// ─── Slot-machine odometer ───────────────────────────────────────────
 
-function AnimatedPrice({
-  cents,
-  billingPeriod,
-  className,
+const DIGIT_HEIGHT = 28;
+const DIGITS = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9'];
+
+function OdometerDigit({
+  digit,
+  fontSize,
+  fontWeight,
+  color,
 }: {
-  cents: number;
-  billingPeriod: BillingPeriod;
-  className?: string;
+  digit: string;
+  fontSize: number;
+  fontWeight: string;
+  color: string;
 }) {
-  const opacity = useSharedValue(1);
-  const translateY = useSharedValue(0);
+  const idx = DIGITS.indexOf(digit);
+  const translateY = useSharedValue(-idx * DIGIT_HEIGHT);
 
   useEffect(() => {
-    opacity.value = 0;
-    translateY.value = 8;
-    opacity.value = withTiming(1, { duration: 250, easing: Easing.out(Easing.cubic) });
-    translateY.value = withTiming(0, { duration: 250, easing: Easing.out(Easing.cubic) });
-  }, [billingPeriod]);
+    const target = -idx * DIGIT_HEIGHT;
+    translateY.value = withTiming(target, {
+      duration: 350,
+      easing: Easing.out(Easing.cubic),
+    });
+  }, [idx]);
 
-  const animStyle = useAnimatedStyle(() => ({
-    opacity: opacity.value,
+  const columnStyle = useAnimatedStyle(() => ({
     transform: [{ translateY: translateY.value }],
   }));
 
   return (
-    <Animated.Text
-      style={animStyle}
-      className={cn('text-2xl font-bold text-foreground', className)}
-    >
-      {formatPrice(cents)}
-    </Animated.Text>
+    <View style={{ height: DIGIT_HEIGHT, overflow: 'hidden' }}>
+      <Animated.View style={columnStyle}>
+        {DIGITS.map((d) => (
+          <Animated.Text
+            key={d}
+            style={{
+              height: DIGIT_HEIGHT,
+              lineHeight: DIGIT_HEIGHT,
+              fontSize,
+              fontWeight: fontWeight as any,
+              color,
+              textAlign: 'center',
+            }}
+          >
+            {d}
+          </Animated.Text>
+        ))}
+      </Animated.View>
+    </View>
+  );
+}
+
+function SlotPrice({
+  cents,
+  fontSize = 24,
+  fontWeight = '700',
+}: {
+  cents: number;
+  fontSize?: number;
+  fontWeight?: string;
+}) {
+  const { colors } = useColorScheme();
+  const text = formatPrice(cents);
+  const chars = text.split('');
+
+  return (
+    <View style={{ flexDirection: 'row', alignItems: 'baseline' }}>
+      {chars.map((char, i) => {
+        // Key from right so digits in same place-value animate together
+        const key = `${chars.length - i}-${char >= '0' && char <= '9' ? 'd' : char}`;
+        const isDigit = char >= '0' && char <= '9';
+        if (isDigit) {
+          return (
+            <OdometerDigit
+              key={key}
+              digit={char}
+              fontSize={fontSize}
+              fontWeight={fontWeight}
+              color={colors.foreground}
+            />
+          );
+        }
+        return (
+          <Animated.Text
+            key={key}
+            style={{
+              fontSize,
+              fontWeight: fontWeight as any,
+              height: DIGIT_HEIGHT,
+              lineHeight: DIGIT_HEIGHT,
+              color: colors.foreground,
+            }}
+          >
+            {char}
+          </Animated.Text>
+        );
+      })}
+    </View>
   );
 }
 
@@ -131,7 +199,10 @@ function AnimatedSubtext({
 
   useEffect(() => {
     opacity.value = 0;
-    opacity.value = withTiming(1, { duration: 300, easing: Easing.out(Easing.cubic) });
+    opacity.value = withTiming(1, {
+      duration: 300,
+      easing: Easing.out(Easing.cubic),
+    });
   }, [billingPeriod]);
 
   const animStyle = useAnimatedStyle(() => ({
@@ -207,10 +278,7 @@ export function PlanColumn({
       ) : (
         <View className="gap-0.5">
           <View className="flex-row items-baseline gap-1">
-            <AnimatedPrice
-              cents={price}
-              billingPeriod={billingPeriod}
-            />
+            <SlotPrice cents={price} />
             <Text className="text-xs text-muted-foreground">
               {t('subscribe.perMonth')}
             </Text>
