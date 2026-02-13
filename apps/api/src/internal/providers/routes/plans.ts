@@ -5,6 +5,7 @@
 
 import express, { Request, Response } from 'express';
 import { Plan } from '../models/plan.js';
+import { AliaModel } from '../models/alia-model.js';
 import { broadcastPlansUpdate } from '../lib/broadcast-helpers.js';
 
 const router = express.Router();
@@ -112,6 +113,19 @@ router.post('/', async (req: Request, res: Response) => {
       });
     }
 
+    if (rest.modelIds && Array.isArray(rest.modelIds) && rest.modelIds.length > 0) {
+      const validModels = await AliaModel.find({ modelId: { $in: rest.modelIds } }).select('modelId').lean();
+      const validIds = new Set(validModels.map((m: any) => m.modelId));
+      const invalid = rest.modelIds.filter((id: string) => !validIds.has(id));
+      if (invalid.length > 0) {
+        return res.status(400).json({
+          success: false,
+          error: `Invalid modelIds: ${invalid.join(', ')}`,
+          code: 'INVALID_MODEL_IDS',
+        });
+      }
+    }
+
     const plan = await Plan.create({
       planId: planId.toLowerCase(),
       name,
@@ -167,6 +181,19 @@ router.patch('/:planId', async (req: Request, res: Response) => {
         error: 'creditsPerMonth, monthlyPrice, and annualPrice must not be negative',
         code: 'INVALID_REQUEST',
       });
+    }
+
+    if (updates.modelIds && Array.isArray(updates.modelIds) && updates.modelIds.length > 0) {
+      const validModels = await AliaModel.find({ modelId: { $in: updates.modelIds } }).select('modelId').lean();
+      const validIds = new Set(validModels.map((m: any) => m.modelId));
+      const invalid = updates.modelIds.filter((id: string) => !validIds.has(id));
+      if (invalid.length > 0) {
+        return res.status(400).json({
+          success: false,
+          error: `Invalid modelIds: ${invalid.join(', ')}`,
+          code: 'INVALID_MODEL_IDS',
+        });
+      }
     }
 
     const plan = await Plan.findOneAndUpdate(

@@ -8,6 +8,8 @@ import usageRouter from './routes/usage';
 import authHealthRouter from './routes/auth-health';
 import fallbackStatsRouter from './routes/fallback-stats';
 import plansRouter from './routes/plans';
+import creditPackagesRouter from './routes/credit-packages';
+import billingAdminRouter from './routes/billing-admin';
 
 const providersModule = express.Router();
 
@@ -30,5 +32,7 @@ providersModule.use('/v1/usage', authenticateService, usageRouter);
 providersModule.use('/v1/auth-health', authenticateService, authHealthRouter);
 providersModule.use('/v1/fallback-stats', authenticateService, fallbackStatsRouter);
 providersModule.use('/v1/plans', authenticateService, plansRouter);
+providersModule.use('/v1/credit-packages', authenticateService, creditPackagesRouter);
+providersModule.use('/v1/billing', authenticateService, billingAdminRouter);
 
 export default providersModule;

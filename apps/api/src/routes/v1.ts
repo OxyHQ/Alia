@@ -7,6 +7,7 @@ import { authenticateTokenOrApiKey } from '../middleware/auth.js';
 import { apiKeyRateLimit } from '../middleware/api-key-rate-limit.js';
 import { resolveModel, isAliaModel } from '../lib/chat-core.js';
 import { UserCredits } from '../models/user-credits.js';
+import { getOrCreateUserCredits } from '../lib/user-credits-helpers.js';
 import { reserveCredits, finalizeCredits, type CreditReservation } from '../lib/credits-manager.js';
 import * as crypto from 'crypto';
 
@@ -105,16 +106,7 @@ router.post('/resolve-model', async (req: Request, res: Response) => {
     }
 
     // Reserve credits
-    await UserCredits.findByIdAndUpdate(
-      userId,
-      {
-        $setOnInsert: {
-          _id: userId,
-          credits: { free: 300, freeLimit: 300, dailyRefresh: 300, lastRefresh: new Date(), paid: 0 },
-        },
-      },
-      { upsert: true, new: true }
-    );
+    await getOrCreateUserCredits(userId);
 
     const reservation = await reserveCredits(userId);
     if (!reservation) {

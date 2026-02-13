@@ -9,8 +9,8 @@ import type { KeyConfig } from '../internal/providers/lib/types.js';
 import { getCurrentDateTool, createGoogleSearchTool, getTimelineTool, searchKnowledgeBaseTool, scrapeURLTool, saveUserMemoryTool, updateUserPreferencesTool, updateUserContextTool, createGetDeviceInfoTool, createSendTelegramTool, createProvidersAdminTool, webScraperTool, generateFileTool, canvasTool, type DeviceInfo } from '../lib/tools/index.js';
 import { optionalAuth, oxyClient } from '../middleware/auth.js';
 import type { User as OxyUser } from '@oxyhq/core';
-import { UserCredits } from '../models/user-credits.js';
 import { UserMemory } from '../models/user-memory.js';
+import { getOrCreateUserCredits } from '../lib/user-credits-helpers.js';
 import { Conversation } from '../models/conversation.js';
 import { CanvasSession } from '../models/canvas-session.js';
 import { Skill } from '../models/skill.js';
@@ -273,16 +273,7 @@ router.post('/', optionalAuth, async (req, res) => {
         console.log('[Alia/Chat] Loading user data...');
 
         // Get or create local credits record
-        userCredits = await UserCredits.findByIdAndUpdate(
-          req.user.id,
-          {
-            $setOnInsert: {
-              _id: req.user.id,
-              credits: { free: 300, freeLimit: 300, dailyRefresh: 300, lastRefresh: new Date(), paid: 0 },
-            },
-          },
-          { upsert: true, new: true }
-        );
+        userCredits = await getOrCreateUserCredits(req.user.id);
 
         memory = await UserMemory.findOne({ oxyUserId: req.user.id });
 

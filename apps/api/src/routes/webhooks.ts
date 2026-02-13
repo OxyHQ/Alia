@@ -6,7 +6,7 @@ import { resolveModel, getAIModel, reportModelUsage } from '../lib/chat-core.js'
 import { sendChannelMessage } from '../lib/channels/outbound.js';
 import { ChannelUser } from '../models/channel-user.js';
 import { Conversation } from '../models/conversation.js';
-import { UserCredits } from '../models/user-credits.js';
+import { getOrCreateUserCredits } from '../lib/user-credits-helpers.js';
 import { reserveCredits, finalizeCredits, type CreditReservation, type CreditUsage } from '../lib/credits-manager.js';
 import type { ChannelId, ChannelInboundMessage } from '../lib/channels/types.js';
 
@@ -66,16 +66,7 @@ async function processChannelMessage(
     const aliasModelId = channelUser.preferredModel || 'alia-lite';
 
     // Reserve credits before processing
-    await UserCredits.findByIdAndUpdate(
-      userId,
-      {
-        $setOnInsert: {
-          _id: userId,
-          credits: { free: 300, freeLimit: 300, dailyRefresh: 300, lastRefresh: new Date(), paid: 0 },
-        },
-      },
-      { upsert: true, new: true }
-    );
+    await getOrCreateUserCredits(userId);
 
     const creditReservation = await reserveCredits(userId);
     if (!creditReservation) {

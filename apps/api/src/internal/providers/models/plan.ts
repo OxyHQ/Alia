@@ -22,6 +22,7 @@ export interface IPlan extends Document {
 
   // Pricing
   creditsPerMonth: number;
+  dailyFreeCredits: number;
   monthlyPrice: number;
   annualPrice: number;
   currency: string;
@@ -82,6 +83,11 @@ const PlanSchema = new Schema<IPlan>(
       type: Number,
       required: true,
       default: 0,
+    },
+    dailyFreeCredits: {
+      type: Number,
+      required: true,
+      default: 300,
     },
     monthlyPrice: {
       type: Number,

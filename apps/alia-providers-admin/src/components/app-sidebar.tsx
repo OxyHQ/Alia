@@ -5,6 +5,8 @@ import {
   Activity,
   BarChart3,
   CreditCard,
+  Coins,
+  Receipt,
   Server,
 } from 'lucide-react';
 import { NavMain } from '@/components/nav-main';
@@ -26,6 +28,8 @@ const navItems = [
   { title: 'API Keys', url: '/keys', icon: Key },
   { title: 'Models', url: '/models', icon: Boxes },
   { title: 'Plans', url: '/plans', icon: CreditCard },
+  { title: 'Credit Packages', url: '/credit-packages', icon: Coins },
+  { title: 'Billing', url: '/billing', icon: Receipt },
   { title: 'Monitoring', url: '/monitoring', icon: Activity },
   { title: 'Usage', url: '/usage', icon: BarChart3 },
 ];

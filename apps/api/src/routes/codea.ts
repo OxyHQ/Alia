@@ -3,6 +3,7 @@ import { authenticateApiKey } from '../middleware/auth.js';
 import { apiKeyRateLimit } from '../middleware/api-key-rate-limit.js';
 import { Subscription } from '../models/subscription.js';
 import { UserCredits } from '../models/user-credits.js';
+import { getOrCreateUserCredits } from '../lib/user-credits-helpers.js';
 import DeveloperApiKey from '../models/developer-api-key.js';
 import { resolveModel } from '../lib/chat-core.js';
 import { reserveCredits, finalizeCredits, type CreditReservation } from '../lib/credits-manager.js';
@@ -322,16 +323,7 @@ router.post('/resolve-model', authenticateApiKey, apiKeyRateLimit, async (req: R
     console.log('[Codea] Resolving model:', model, 'for user:', userId);
 
     // Reserve credits
-    await UserCredits.findByIdAndUpdate(
-      userId,
-      {
-        $setOnInsert: {
-          _id: userId,
-          credits: { free: 300, freeLimit: 300, dailyRefresh: 300, lastRefresh: new Date(), paid: 0 },
-        },
-      },
-      { upsert: true, new: true }
-    );
+    await getOrCreateUserCredits(userId);
 
     const reservation = await reserveCredits(userId);
     if (!reservation) {

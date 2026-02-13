@@ -1,23 +1,9 @@
 import { Router } from 'express';
 import { authenticateToken } from '../middleware/auth.js';
-import { UserCredits } from '../models/user-credits.js';
+import { getOrCreateUserCredits } from '../lib/user-credits-helpers.js';
 import ApiKeyUsage from '../models/api-key-usage.js';
 
 const router = Router();
-
-// Helper to get or create UserCredits record
-async function getOrCreateUserCredits(userId: string) {
-  return UserCredits.findByIdAndUpdate(
-    userId,
-    {
-      $setOnInsert: {
-        _id: userId,
-        credits: { free: 300, freeLimit: 300, dailyRefresh: 300, lastRefresh: new Date(), paid: 0 },
-      },
-    },
-    { upsert: true, new: true }
-  );
-}
 
 router.get('/', authenticateToken, async (req, res) => {
   try {

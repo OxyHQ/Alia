@@ -4,7 +4,7 @@ import { createVoiceToken, isLiveKitConfigured, getLiveKitUrl } from '../../lib/
 import { resolveModel } from '../../lib/chat-core.js';
 import { getBestKeyForModel } from '../../internal/providers/lib/key-manager.js';
 import { reserveCredits, finalizeCredits } from '../../lib/credits-manager.js';
-import { UserCredits } from '../../models/user-credits.js';
+import { getOrCreateUserCredits } from '../../lib/user-credits-helpers.js';
 import { log } from '../../lib/logger.js';
 import type { Request, Response } from 'express';
 
@@ -59,16 +59,7 @@ router.post('/transcribe', async (req: Request, res: Response) => {
     }
 
     // Ensure user has credits
-    await UserCredits.findByIdAndUpdate(
-      userId,
-      {
-        $setOnInsert: {
-          _id: userId,
-          credits: { free: 300, freeLimit: 300, dailyRefresh: 300, lastRefresh: new Date(), paid: 0 },
-        },
-      },
-      { upsert: true, new: true }
-    );
+    await getOrCreateUserCredits(userId);
 
     const reservation = await reserveCredits(userId);
     if (!reservation) {

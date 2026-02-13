@@ -2,8 +2,8 @@ import { Router, Request, Response } from 'express';
 import { streamText, generateText, stepCountIs, type ToolSet } from 'ai';
 import { resolveModel, getAIModel, getDefaultAliaModel, reportModelUsage } from '../../lib/chat-core.js';
 import { getAliaModel } from '../../internal/providers/lib/alia-models.js';
-import { UserCredits } from '../../models/user-credits.js';
 import { UserMemory } from '../../models/user-memory.js';
+import { getOrCreateUserCredits } from '../../lib/user-credits-helpers.js';
 import { Conversation } from '../../models/conversation.js';
 import { reserveCredits, finalizeCredits, type CreditReservation, type CreditUsage } from '../../lib/credits-manager.js';
 import { recordUsage } from '../../middleware/api-key-rate-limit.js';
@@ -187,16 +187,7 @@ router.post('/', async (req: Request, res: Response) => {
     if (req.user) {
       try {
         // Get or create credits record
-        await UserCredits.findByIdAndUpdate(
-          req.user.id,
-          {
-            $setOnInsert: {
-              _id: req.user.id,
-              credits: { free: 300, freeLimit: 300, dailyRefresh: 300, lastRefresh: new Date(), paid: 0 },
-            },
-          },
-          { upsert: true, new: true }
-        );
+        await getOrCreateUserCredits(req.user.id);
 
         // Reserve credits
         creditReservation = await reserveCredits(req.user.id);

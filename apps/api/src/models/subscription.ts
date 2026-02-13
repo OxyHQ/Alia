@@ -9,7 +9,10 @@ export interface ISubscription extends Document {
   currentPeriodStart: Date;
   currentPeriodEnd: Date;
   cancelAtPeriodEnd: boolean;
+  planId?: string;
+  billingPeriod: 'monthly' | 'annual';
   plan: {
+    planId?: string;
     name: string;
     product: 'alia' | 'codea';
     creditsPerMonth: number;
@@ -56,6 +59,15 @@ const SubscriptionSchema = new Schema<ISubscription>({
   cancelAtPeriodEnd: {
     type: Boolean,
     default: false,
+  },
+  planId: {
+    type: String,
+    index: true,
+  },
+  billingPeriod: {
+    type: String,
+    enum: ['monthly', 'annual'],
+    default: 'monthly',
   },
   plan: {
     planId: { type: String },

@@ -137,6 +137,7 @@ export interface SubscriptionPlan {
   name: string;
   product: 'alia' | 'codea';
   creditsPerMonth: number;
+  dailyFreeCredits: number;
   monthlyPrice: number;
   annualPrice: number;
   currency: string;
@@ -152,6 +153,66 @@ export interface SubscriptionPlan {
   stripeAnnualPriceId?: string;
   description?: string;
   notes?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// ─── Credit Packages ────────────────────────────────────────
+
+export interface CreditPackage {
+  _id: string;
+  packageId: string;
+  name: string;
+  credits: number;
+  price: number;
+  currency: string;
+  stripePriceId?: string;
+  sortOrder: number;
+  isActive: boolean;
+  description?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// ─── Billing Admin ─────────────────────────────────────────
+
+export interface AdminTransaction {
+  _id: string;
+  oxyUserId: string;
+  stripeCustomerId?: string;
+  stripePaymentIntentId?: string;
+  type: 'credit_purchase' | 'subscription_payment' | 'refund';
+  amount: number;
+  currency: string;
+  credits: number;
+  status: 'pending' | 'completed' | 'failed' | 'refunded';
+  description?: string;
+  metadata?: Record<string, any>;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AdminSubscription {
+  _id: string;
+  oxyUserId: string;
+  stripeCustomerId: string;
+  stripeSubscriptionId: string;
+  stripePriceId: string;
+  status: 'active' | 'canceled' | 'past_due' | 'unpaid' | 'trialing' | 'incomplete' | 'incomplete_expired';
+  currentPeriodStart: string;
+  currentPeriodEnd: string;
+  cancelAtPeriodEnd: boolean;
+  planId?: string;
+  billingPeriod: 'monthly' | 'annual';
+  plan: {
+    planId?: string;
+    name: string;
+    product: 'alia' | 'codea';
+    creditsPerMonth: number;
+    price: number;
+    currency: string;
+    billingPeriod: 'monthly' | 'annual';
+  };
   createdAt: string;
   updatedAt: string;
 }
