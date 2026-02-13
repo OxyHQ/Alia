@@ -41,7 +41,6 @@ import {
   BookMarked,
   FolderClosed,
   Gift,
-  SlidersHorizontal,
   Palette,
   Smartphone,
   type LucideIcon,
@@ -208,7 +207,7 @@ export const Sidebar = React.memo(function Sidebar() {
   }, []);
 
   const handleDocs = React.useCallback(() => {
-    Linking.openURL("https://docs.alia.onl");
+    Linking.openURL("https://console.alia.onl/documentation");
   }, []);
 
   const handleSelectProject = React.useCallback((id: string | null) => {
@@ -466,26 +465,6 @@ export const Sidebar = React.memo(function Sidebar() {
           <BookOpen size={16} className="text-muted-foreground" />
           <Text className="text-sm md:text-xs">Skills</Text>
         </Button>
-        {Platform.OS === "web" && (
-          <Button
-            variant="ghost"
-            className="h-10 md:h-8 flex-row items-center justify-start gap-2 rounded-full px-3 md:px-2 w-full"
-            onPress={handleConsole}
-          >
-            <Code size={16} className="text-muted-foreground" />
-            <Text className="text-sm md:text-xs">Console</Text>
-          </Button>
-        )}
-        <Button
-          variant="ghost"
-          className="h-10 md:h-8 flex-row items-center justify-start gap-2 rounded-full px-3 md:px-2 w-full"
-          onPress={handleSettings}
-        >
-          <Settings2 size={16} className="text-muted-foreground" />
-          <Text className="text-sm md:text-xs">
-            Settings
-          </Text>
-        </Button>
     </>
   );
 
@@ -734,7 +713,7 @@ export const Sidebar = React.memo(function Sidebar() {
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Pressable className="h-9 w-9 md:h-8 md:w-8 items-center justify-center rounded-lg active:bg-muted">
-                    <SlidersHorizontal size={18} className="text-muted-foreground" />
+                    <Settings2 size={18} className="text-muted-foreground" />
                   </Pressable>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent
@@ -779,13 +758,25 @@ export const Sidebar = React.memo(function Sidebar() {
                 <Palette size={18} className="text-muted-foreground" />
               </Pressable>
 
-              {/* App Download */}
-              <Pressable
-                onPress={handleAppDownload}
-                className="h-9 w-9 md:h-8 md:w-8 items-center justify-center rounded-lg active:bg-muted"
-              >
-                <Smartphone size={18} className="text-muted-foreground" />
-              </Pressable>
+              {/* App Download - web only */}
+              {Platform.OS === "web" && (
+                <Pressable
+                  onPress={handleAppDownload}
+                  className="h-9 w-9 md:h-8 md:w-8 items-center justify-center rounded-lg active:bg-muted"
+                >
+                  <Smartphone size={18} className="text-muted-foreground" />
+                </Pressable>
+              )}
+
+              {/* Console - web only */}
+              {Platform.OS === "web" && (
+                <Pressable
+                  onPress={handleConsole}
+                  className="h-9 w-9 md:h-8 md:w-8 items-center justify-center rounded-lg active:bg-muted"
+                >
+                  <Code size={18} className="text-muted-foreground" />
+                </Pressable>
+              )}
 
               {/* Spacer */}
               <View className="flex-1" />
