@@ -7,6 +7,11 @@
 # --- Stage 1: Builder ---
 FROM node:22-bookworm-slim AS builder
 
+# Install build tools for native modules (node-pty requires python3 + make + g++)
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends python3 make g++ && \
+    rm -rf /var/lib/apt/lists/*
+
 WORKDIR /build
 
 # Copy root workspace files
