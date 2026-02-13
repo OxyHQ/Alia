@@ -5,16 +5,6 @@
 
 import mongoose, { Document, Schema } from 'mongoose';
 
-export interface IFeatureItem {
-  label: string;
-  description?: string;
-}
-
-export interface IFeatureGroup {
-  category: string;
-  items: IFeatureItem[];
-}
-
 export interface IPlan extends Document {
   planId: string;
   name: string;
@@ -32,7 +22,6 @@ export interface IPlan extends Document {
   creditsLabel: string;
   isFeatured: boolean;
   sortOrder: number;
-  features: IFeatureGroup[];
   modelIds: string[];  // AliaModel aliasModelIds included in this plan
 
   // Status
@@ -50,16 +39,6 @@ export interface IPlan extends Document {
   createdAt: Date;
   updatedAt: Date;
 }
-
-const FeatureItemSchema = new Schema({
-  label: { type: String, required: true },
-  description: { type: String },
-}, { _id: false });
-
-const FeatureGroupSchema = new Schema({
-  category: { type: String, required: true },
-  items: { type: [FeatureItemSchema], default: [] },
-}, { _id: false });
 
 const PlanSchema = new Schema<IPlan>(
   {
@@ -119,10 +98,6 @@ const PlanSchema = new Schema<IPlan>(
     sortOrder: {
       type: Number,
       default: 0,
-    },
-    features: {
-      type: [FeatureGroupSchema],
-      default: [],
     },
     modelIds: {
       type: [String],

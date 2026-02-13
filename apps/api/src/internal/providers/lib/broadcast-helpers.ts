@@ -10,6 +10,8 @@ import { ModelConfig } from '../models/model-config';
 import { AliaModel } from '../models/alia-model';
 import { Plan } from '../models/plan';
 import { CreditPackage } from '../models/credit-package';
+import { Feature } from '../models/feature';
+import { PlanFeature } from '../models/plan-feature';
 import { getAllProviderHealth, getProviderHealth } from './provider-health';
 
 export async function broadcastKeysUpdate(provider: string): Promise<void> {
@@ -62,6 +64,24 @@ export async function broadcastCreditPackagesUpdate(): Promise<void> {
     broadcast('credit-packages:all', { success: true, count: packages.length, data: packages });
   } catch (error) {
     console.error('[Broadcast] Error broadcasting credit-packages update:', error);
+  }
+}
+
+export async function broadcastFeaturesUpdate(): Promise<void> {
+  try {
+    const features = await Feature.find({}).sort({ category: 1, sortOrder: 1 }).lean();
+    broadcast('features:all', { success: true, count: features.length, data: features });
+  } catch (error) {
+    console.error('[Broadcast] Error broadcasting features update:', error);
+  }
+}
+
+export async function broadcastPlanFeaturesUpdate(): Promise<void> {
+  try {
+    const mappings = await PlanFeature.find({}).lean();
+    broadcast('plan-features:all', { success: true, count: mappings.length, data: mappings });
+  } catch (error) {
+    console.error('[Broadcast] Error broadcasting plan-features update:', error);
   }
 }
 
