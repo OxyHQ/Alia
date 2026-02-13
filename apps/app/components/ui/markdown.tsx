@@ -1,24 +1,8 @@
 import React from "react";
-import { View, Platform } from "react-native";
+import { View, Platform, Linking } from "react-native";
 import Markdown from "react-native-markdown-display";
 import { useColorScheme } from "@/lib/useColorScheme";
-import {
-  H1 as ExpoH1,
-  H2 as ExpoH2,
-  H3 as ExpoH3,
-  H4 as ExpoH4,
-  H5 as ExpoH5,
-  H6 as ExpoH6,
-  Code as ExpoCode,
-  Pre as ExpoPre,
-  UL as ExpoUl,
-  LI as ExpoLI,
-  Strong as ExpoStrong,
-  A as ExpoA,
-  P as ExpoP,
-  Div as ExpoDiv,
-} from "@expo/html-elements";
-import { cssInterop } from "nativewind";
+import { Text } from "@/components/ui/text";
 import {
   CompactList,
   Banner,
@@ -28,91 +12,89 @@ import {
   Credibility,
 } from "./rich-blocks";
 
-const H1 = cssInterop(ExpoH1, { className: "style" });
-const H2 = cssInterop(ExpoH2, { className: "style" });
-const H3 = cssInterop(ExpoH3, { className: "style" });
-const H4 = cssInterop(ExpoH4, { className: "style" });
-const H5 = cssInterop(ExpoH5, { className: "style" });
-const H6 = cssInterop(ExpoH6, { className: "style" });
-const Code = cssInterop(ExpoCode, { className: "style" });
-const Pre = cssInterop(ExpoPre, { className: "style" });
-const Ol = cssInterop(ExpoUl, { className: "style" });
-const Ul = cssInterop(ExpoUl, { className: "style" });
-const Li = cssInterop(ExpoLI, { className: "style" });
-const Strong = cssInterop(ExpoStrong, { className: "style" });
-const A = cssInterop(ExpoA, { className: "style" });
-const P = cssInterop(ExpoP, { className: "style" });
-const Div = cssInterop(ExpoDiv, { className: "style" });
-
 const rules = {
   heading1: (node: any, children: any) => (
-    <H1 className="mb-2 mt-3 text-lg font-semibold text-foreground leading-snug font-sans">{children}</H1>
+    <Text key={node.key} className="mb-2 mt-3 text-lg font-semibold leading-snug">{children}</Text>
   ),
   heading2: (node: any, children: any) => (
-    <H2 className="mb-2 mt-3 text-base font-semibold text-foreground leading-snug font-sans">{children}</H2>
+    <Text key={node.key} className="mb-2 mt-3 font-semibold leading-snug">{children}</Text>
   ),
   heading3: (node: any, children: any) => (
-    <H3 className="mb-1.5 mt-2 text-base font-semibold text-foreground leading-snug font-sans">{children}</H3>
+    <Text key={node.key} className="mb-1.5 mt-2 font-semibold leading-snug">{children}</Text>
   ),
   heading4: (node: any, children: any) => (
-    <H4 className="mb-1.5 mt-2 text-base font-medium text-foreground leading-snug font-sans">{children}</H4>
+    <Text key={node.key} className="mb-1.5 mt-2 font-medium leading-snug">{children}</Text>
   ),
   heading5: (node: any, children: any) => (
-    <H5 className="mb-1 mt-2 text-base font-medium text-foreground leading-snug font-sans">{children}</H5>
+    <Text key={node.key} className="mb-1 mt-2 font-medium leading-snug">{children}</Text>
   ),
   heading6: (node: any, children: any) => (
-    <H6 className="mb-1 mt-2 text-base font-medium text-foreground leading-snug font-sans">{children}</H6>
+    <Text key={node.key} className="mb-1 mt-2 font-medium leading-snug">{children}</Text>
   ),
   code: (node: any, children: any, parent: any) => {
     return parent.length > 1 ? (
-      <Pre className="my-2 max-w-full overflow-x-auto rounded-md bg-zinc-100 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 p-3 text-[13px] text-foreground">
-        <Code className="text-foreground font-mono">{children}</Code>
-      </Pre>
+      <View key={node.key} className="my-2 max-w-full overflow-hidden rounded-md bg-zinc-100 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 p-3">
+        <Text className="text-[13px] font-mono">{children}</Text>
+      </View>
     ) : (
-      <Code
-        className="bg-zinc-100 dark:bg-zinc-800 px-1 py-px text-[13px] text-foreground font-mono"
+      <Text
+        key={node.key}
+        className="bg-zinc-100 dark:bg-zinc-800 px-1 py-px text-[13px] font-mono"
         style={{ borderRadius: 3 }}
       >
         {children}
-      </Code>
+      </Text>
     );
   },
-  list_item: (node: any, children: any) => <Li className="py-0.5 text-base leading-7 text-foreground font-sans">{children}</Li>,
+  list_item: (node: any, children: any, parent: any, styles: any) => {
+    const isOrdered = parent[parent.length - 1]?.type === 'ordered_list';
+    const bullet = isOrdered
+      ? `${parent[parent.length - 1].children.indexOf(node) + 1}.`
+      : '\u2022';
+
+    return (
+      <View key={node.key} className="flex-row py-0.5 pl-4">
+        <Text className="mr-2 text-muted-foreground" style={{ minWidth: 14 }}>{bullet}</Text>
+        <Text className="flex-1">{children}</Text>
+      </View>
+    );
+  },
   ordered_list: (node: any, children: any) => (
-    <Ol className="ml-5 my-2 list-outside list-decimal text-foreground">{children}</Ol>
+    <View key={node.key} className="my-2">{children}</View>
   ),
   unordered_list: (node: any, children: any) => (
-    <Ul className="ml-5 my-2 list-outside list-disc text-foreground">{children}</Ul>
+    <View key={node.key} className="my-2">{children}</View>
   ),
   strong: (node: any, children: any) => (
-    <Strong className="font-semibold text-foreground">{children}</Strong>
+    <Text key={node.key} className="font-semibold">{children}</Text>
   ),
   link: (node: any, children: any) => (
-    <A
-      className="text-blue-600 dark:text-blue-400 underline hover:text-blue-700 dark:hover:text-blue-300"
-      target="_blank"
-      rel="noreferrer"
-      href={node.attributes.href}
+    <Text
+      key={node.key}
+      className="text-blue-600 dark:text-blue-400 underline"
+      onPress={() => {
+        if (node.attributes?.href) Linking.openURL(node.attributes.href);
+      }}
     >
       {children}
-    </A>
+    </Text>
   ),
   paragraph: (node: any, children: any) => {
-    return <P className="mb-2 text-base leading-7 text-foreground font-sans">{children}</P>;
+    return <Text key={node.key} className="mb-2">{children}</Text>;
   },
   blockquote: (node: any, children: any) => (
-    <Div className="my-2 border-l-4 border-zinc-300 dark:border-zinc-600 bg-zinc-50 dark:bg-zinc-800/50 px-3 py-1 rounded-r-md">
+    <View key={node.key} className="my-2 border-l-4 border-zinc-300 dark:border-zinc-600 bg-zinc-50 dark:bg-zinc-800/50 px-3 py-1 rounded-r-md">
       {children}
-    </Div>
+    </View>
   ),
-  hr: () => (
-    <Div className="my-4 h-px bg-zinc-300 dark:bg-zinc-600" />
+  hr: (node: any) => (
+    <View key={node.key} className="my-4 h-px bg-zinc-300 dark:bg-zinc-600" />
   ),
   text: (node: any) => {
     return node.content;
   },
   body: (node: any, children: any) => {
-    return <Div className="text-base leading-7 text-foreground font-sans">{children}</Div>;
+    return <View key={node.key}>{children}</View>;
   },
 };
 
@@ -293,9 +275,9 @@ export function CustomMarkdown({ content }: { content: string }) {
   const sansFont = Platform.select({ ios: 'Inter', android: 'Inter', default: 'Inter, sans-serif' });
   const monoFont = Platform.select({ ios: 'Courier', android: 'monospace', default: 'monospace' });
 
-  // Comprehensive styles to ensure consistent font sizing across all markdown elements.
-  // Setting fontSize/lineHeight on body+text ensures the library's style inheritance
-  // cascade applies 16px/28px to ALL descendant text nodes — matching the Text component.
+  // Styles for elements rendered by the library's internal rules (not overridden by custom rules).
+  // fontSize/lineHeight on body+text cascade to all descendant text nodes via the library's
+  // style inheritance system, ensuring consistent sizing even for em, s, textgroup, etc.
   const markdownStyles = {
     body: {
       color: textColor,
