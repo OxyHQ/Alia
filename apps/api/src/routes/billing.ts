@@ -82,8 +82,8 @@ const CREDIT_PACKAGES = [
 ];
 
 const SUBSCRIPTION_PLANS = [
-  { id: 'pro_monthly', name: 'Pro', creditsPerMonth: 10000, price: 2999, stripePriceId: process.env.STRIPE_PRO_PRICE_ID || '', currency: 'usd' },
-  { id: 'business_monthly', name: 'Business', creditsPerMonth: 50000, price: 9999, stripePriceId: process.env.STRIPE_BUSINESS_PRICE_ID || '', currency: 'usd' },
+  { id: 'pro', name: 'Pro', creditsPerMonth: 10000, monthlyPrice: 2999, annualPrice: 29870, currency: 'usd' },
+  { id: 'business', name: 'Business', creditsPerMonth: 50000, monthlyPrice: 9999, annualPrice: 99590, currency: 'usd' },
 ];
 
 router.get('/packages', async (_req: Request, res: Response) => {
@@ -137,36 +137,55 @@ router.post('/checkout/credits', authenticateToken, async (req: Request, res: Re
 });
 
 router.get('/plans', async (_req: Request, res: Response) => {
-  res.json({ plans: SUBSCRIPTION_PLANS });
+  const plans = SUBSCRIPTION_PLANS.map(p => ({
+    id: p.id,
+    name: p.name,
+    creditsPerMonth: p.creditsPerMonth,
+    monthlyPrice: p.monthlyPrice,
+    annualPrice: p.annualPrice,
+    currency: p.currency,
+  }));
+  res.json({ plans });
 });
 
 const createSubscriptionSchema = z.object({
   planId: z.string(),
+  billingPeriod: z.enum(['monthly', 'annual']).default('monthly'),
   successUrl: z.string().url(),
   cancelUrl: z.string().url(),
 });
 
 router.post('/checkout/subscription', authenticateToken, async (req: Request, res: Response) => {
   try {
-    const { planId, successUrl, cancelUrl } = createSubscriptionSchema.parse(req.body);
+    const { planId, billingPeriod, successUrl, cancelUrl } = createSubscriptionSchema.parse(req.body);
     const userId = req.user!.id;
 
     const plan = SUBSCRIPTION_PLANS.find((p) => p.id === planId);
-    if (!plan || !plan.stripePriceId) {
+    if (!plan) {
       return res.status(400).json({ error: 'Invalid plan ID' });
     }
 
     const userCredits = await getOrCreateUserCredits(userId);
     const customerId = await getOrCreateStripeCustomer(userId, userCredits);
 
+    const isAnnual = billingPeriod === 'annual';
     const session = await getStripe().checkout.sessions.create({
       customer: customerId,
       payment_method_types: ['card'],
-      line_items: [{ price: plan.stripePriceId, quantity: 1 }],
+      line_items: [{
+        price_data: {
+          currency: plan.currency,
+          product_data: { name: `${plan.name} Plan (${isAnnual ? 'Annual' : 'Monthly'})` },
+          unit_amount: isAnnual ? plan.annualPrice : plan.monthlyPrice,
+          recurring: { interval: isAnnual ? 'year' : 'month' },
+        },
+        quantity: 1,
+      }],
       mode: 'subscription',
       success_url: successUrl,
       cancel_url: cancelUrl,
-      metadata: { userId, planId: plan.id },
+      metadata: { userId, planId: plan.id, billingPeriod },
+      subscription_data: { metadata: { userId, planId: plan.id, billingPeriod } },
     });
 
     res.json({ sessionId: session.id, url: session.url });
@@ -316,9 +335,13 @@ async function handleSubscriptionUpdate(stripeSubscription: Stripe.Subscription)
   const userCredits = await UserCredits.findOne({ stripeCustomerId: customerId });
   if (!userCredits) return;
 
-  const plan = SUBSCRIPTION_PLANS.find((p) => p.stripePriceId === stripeSubscription.items.data[0].price.id);
+  // Match plan by metadata (set via subscription_data.metadata in checkout)
+  const metadata = stripeSubscription.metadata;
+  const plan = SUBSCRIPTION_PLANS.find((p) => p.id === metadata?.planId);
   if (!plan) return;
 
+  const isAnnual = metadata?.billingPeriod === 'annual';
+  const price = isAnnual ? plan.annualPrice : plan.monthlyPrice;
   const sub = stripeSubscription as any;
 
   await Subscription.findOneAndUpdate(
@@ -332,7 +355,7 @@ async function handleSubscriptionUpdate(stripeSubscription: Stripe.Subscription)
       currentPeriodStart: new Date(sub.current_period_start * 1000),
       currentPeriodEnd: new Date(sub.current_period_end * 1000),
       cancelAtPeriodEnd: sub.cancel_at_period_end,
-      plan: { name: plan.name, creditsPerMonth: plan.creditsPerMonth, price: plan.price, currency: plan.currency },
+      plan: { name: plan.name, creditsPerMonth: plan.creditsPerMonth, price, currency: plan.currency, billingPeriod: isAnnual ? 'annual' : 'monthly' },
     },
     { upsert: true, new: true }
   );
@@ -345,11 +368,11 @@ async function handleSubscriptionUpdate(stripeSubscription: Stripe.Subscription)
         oxyUserId: userCredits._id,
         stripeCustomerId: customerId,
         type: 'subscription_payment',
-        amount: plan.price,
+        amount: price,
         currency: plan.currency,
         credits: plan.creditsPerMonth,
         status: 'completed',
-        description: `${plan.name} subscription credits`,
+        description: `${plan.name} subscription credits (${isAnnual ? 'annual' : 'monthly'})`,
       });
     }
   }

@@ -229,7 +229,7 @@ export function CreditsPanel() {
               )}
             </View>
           </View>
-          <Button onPress={() => navigate("/(app)/billing")} className="h-8 px-4 rounded-full">
+          <Button onPress={() => navigate(isSubscribed ? "/(app)/billing" : "/(biglayout)/subscribe")} className="h-8 px-4 rounded-full">
             <Text className="text-sm font-medium text-primary-foreground">
               {isSubscribed ? t('credits.manageBilling') : t('credits.upgrade')}
             </Text>
