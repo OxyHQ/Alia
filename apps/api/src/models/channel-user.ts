@@ -11,6 +11,7 @@ export interface IChannelUser extends Document {
   linkedAt?: Date;
   authToken?: string;
   authTokenExpiry?: Date;
+  authTokenMode?: 'link' | 'signin';
   conversationId?: string;
   preferredModel?: string;
   metadata: Record<string, any>;
@@ -45,6 +46,10 @@ const ChannelUserSchema = new Schema<IChannelUser>(
     linkedAt: Date,
     authToken: String,
     authTokenExpiry: Date,
+    authTokenMode: {
+      type: String,
+      enum: ['link', 'signin'],
+    },
     conversationId: String,
     preferredModel: String,
     metadata: {

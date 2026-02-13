@@ -5,10 +5,12 @@ import Head from 'expo-router/head';
 import { AuthContainer, AuthLogo } from '@/components/auth';
 import { useAuth, useOxy } from '@oxyhq/services';
 import apiClient from '@/lib/api/client';
+import config from '@/lib/config';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Text } from '@/components/ui/text';
 import { Separator } from '@/components/ui/separator';
+import { io as socketIO } from 'socket.io-client';
 
 type AppType = string;
 type Status = 'loading' | 'authorize' | 'authorizing' | 'success' | 'error' | 'needLogin';
@@ -140,80 +142,8 @@ export default function AuthorizeScreen() {
     }
   };
 
-  // Handle Telegram link flow (legacy /telegram/* endpoints)
-  const handleTelegramAuth = useCallback(async () => {
-    const { token } = params;
-
-    setStatus('authorizing');
-
-    if (!token || typeof token !== 'string') {
-      setStatus('error');
-      setMessage('Invalid authentication token. The link you followed is not valid.');
-      return;
-    }
-
-    let tokenMode: 'signin' | 'link' | null = null;
-    let tgUser: any = null;
-
-    try {
-      const res = await apiClient.get(`/telegram/users/token/${token}`);
-      tokenMode = res.data?.authTokenMode || null;
-      tgUser = res.data;
-    } catch (e: any) {
-      setStatus('error');
-      const errorMsg = e.response?.data?.error || 'Invalid or expired token';
-      setMessage(errorMsg);
-      return;
-    }
-
-    if (tokenMode === 'link') {
-      if (isOxyAuth) {
-        try {
-          const response = await apiClient.post('/telegram/link', {
-            authToken: token,
-          });
-          if (response.data.success) {
-            setStatus('success');
-            setMessage('Your Telegram account has been linked successfully!');
-          } else {
-            setStatus('error');
-            setMessage('Failed to link your account. Please try again.');
-          }
-        } catch (error: any) {
-          console.error('Link error:', error);
-          const errorMessage = error.response?.data?.error || 'Failed to link account';
-          setStatus('error');
-          setMessage(errorMessage);
-        }
-      } else {
-        setStatus('needLogin');
-        setMessage('You need to log in first to link your Telegram account.');
-        setTimeout(() => {
-          router.replace(`/login?returnTo=/authorize?app=telegram&token=${token}`);
-        }, 1500);
-      }
-      return;
-    }
-
-    if (tokenMode === 'signin') {
-      if (tgUser && tgUser.oxyUserId) {
-        setStatus('success');
-        setMessage('Redirecting to complete sign in...');
-        setTimeout(() => {
-          router.replace('/login');
-        }, 1200);
-      } else {
-        setStatus('error');
-        setMessage('This Telegram account is not linked to any Oxy account yet. Please create an Oxy account and link your Telegram from the settings.');
-      }
-      return;
-    }
-
-    setStatus('error');
-    setMessage('Invalid token mode. Please request a new link from the Telegram bot.');
-  }, [params, isOxyAuth, router, app]);
-
-  // Handle generic channel link flow (uses /channels/{type}/* endpoints)
+  // Unified channel auth handler for all channel types (Telegram, Discord, etc.)
+  // All channels now use /channels/{type}/* endpoints via the ChannelUser model.
   const handleChannelAuth = useCallback(async () => {
     const { token } = params;
     const channelType = channel || app;
@@ -273,16 +203,8 @@ export default function AuthorizeScreen() {
   useEffect(() => {
     if (authLoading) return;
 
-    if (app === 'telegram' && !channel) {
-      // Legacy Telegram flow using /telegram/* endpoints
-      if (params.token) {
-        handleTelegramAuth();
-      } else {
-        setStatus('error');
-        setMessage('Missing authentication token.');
-      }
-    } else if (appConfig.isChannel || channel) {
-      // Generic channel flow (Discord, etc.) using /channels/{type}/* endpoints
+    if (appConfig.isChannel || channel) {
+      // Channel flow (Telegram, Discord, etc.) using /channels/{type}/* endpoints
       if (params.token) {
         handleChannelAuth();
       } else {
@@ -302,7 +224,28 @@ export default function AuthorizeScreen() {
       }
       setStatus('authorize');
     }
-  }, [isAuthenticated, authLoading, app, channel, params, router, handleTelegramAuth, handleChannelAuth, appConfig.isChannel]);
+  }, [isAuthenticated, authLoading, app, channel, params, router, handleChannelAuth, appConfig.isChannel]);
+
+  // Real-time socket subscription for Telegram token linking
+  useEffect(() => {
+    const token = params.token as string | undefined;
+    if (app !== 'telegram' || !token) return;
+
+    const socket = socketIO(config.apiUrl, { transports: ['websocket'] });
+
+    socket.on('connect', () => {
+      socket.emit('subscribe-telegram-token', token);
+    });
+
+    socket.on('telegram-linked', () => {
+      setStatus('success');
+      setMessage('Your Telegram account has been linked successfully!');
+    });
+
+    return () => {
+      socket.disconnect();
+    };
+  }, [app, params.token]);
 
   const handleCancel = () => {
     const { callback } = params;
@@ -477,20 +420,35 @@ export default function AuthorizeScreen() {
                     {message}
                   </Text>
                 </View>
-                <Button
-                  onPress={() => {
-                    if (app === 'telegram' && !channel) {
-                      handleTelegramAuth();
-                    } else if (appConfig.isChannel || channel) {
-                      handleChannelAuth();
-                    } else {
-                      setStatus('authorize');
-                    }
-                  }}
-                  size="lg"
-                >
-                  <Text>Try Again</Text>
-                </Button>
+                {message.includes('expired') ? (
+                  <Button
+                    onPress={() => {
+                      const botUsername = process.env.EXPO_PUBLIC_TELEGRAM_BOT_USERNAME || 'alia_onlbot';
+                      const botUrl = `https://t.me/${botUsername}?start=link`;
+                      if (Platform.OS === 'web') {
+                        window.open(botUrl, '_blank');
+                      } else {
+                        Linking.openURL(botUrl);
+                      }
+                    }}
+                    size="lg"
+                  >
+                    <Text>Request New Link</Text>
+                  </Button>
+                ) : (
+                  <Button
+                    onPress={() => {
+                      if (appConfig.isChannel || channel) {
+                        handleChannelAuth();
+                      } else {
+                        setStatus('authorize');
+                      }
+                    }}
+                    size="lg"
+                  >
+                    <Text>Try Again</Text>
+                  </Button>
+                )}
               </View>
             </CardContent>
           </Card>

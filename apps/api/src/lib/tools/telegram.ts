@@ -1,7 +1,7 @@
 import { tool } from 'ai';
 import { z } from 'zod';
 import mongoose from 'mongoose';
-import { TelegramUser } from '../../models/telegram-user.js';
+import { ChannelUser } from '../../models/channel-user.js';
 
 /**
  * Create sendTelegramMessage tool for a specific user
@@ -16,12 +16,13 @@ export function createSendTelegramTool(userId: string) {
     execute: async ({ message }) => {
       try {
         // Find user's Telegram account
-        const telegramUser = await TelegramUser.findOne({
+        const channelUser = await ChannelUser.findOne({
+          channelType: 'telegram',
           oxyUserId: new mongoose.Types.ObjectId(userId),
           isAuthenticated: true
         });
 
-        if (!telegramUser || !telegramUser.chatId) {
+        if (!channelUser || !channelUser.chatId) {
           return {
             success: false,
             message: 'User does not have a linked Telegram account'
@@ -41,7 +42,7 @@ export function createSendTelegramTool(userId: string) {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            chat_id: telegramUser.chatId,
+            chat_id: channelUser.chatId,
             text: message,
             parse_mode: 'HTML',
           }),
@@ -57,7 +58,7 @@ export function createSendTelegramTool(userId: string) {
           };
         }
 
-        console.log('[SendTelegram] Message sent successfully to:', telegramUser.telegramId);
+        console.log('[SendTelegram] Message sent successfully to:', channelUser.channelUserId);
         return {
           success: true,
           message: 'Telegram message sent successfully'

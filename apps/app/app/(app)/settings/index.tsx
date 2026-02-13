@@ -61,7 +61,7 @@ export default function SettingsScreen() {
   const [saving, setSaving] = useState(false);
   const { mode, setColorScheme } = useColorScheme();
   const { t } = useTranslation();
-  const { status: telegramStatus, loading: telegramLoading } = useTelegramStatus();
+  const { status: telegramStatus, loading: telegramLoading, refresh: refreshTelegram } = useTelegramStatus();
   const { status: whatsappStatus, loading: whatsappLoading } = useWhatsAppStatus();
 
   // Form state
@@ -161,8 +161,7 @@ export default function SettingsScreen() {
 
       if (response.ok) {
         toast.success("Telegram unlinked successfully");
-        // Refresh by navigating back to settings
-        router.replace("/(app)/settings");
+        await refreshTelegram();
       } else {
         const error = await response.json();
         toast.error(error.error || "Failed to unlink Telegram");

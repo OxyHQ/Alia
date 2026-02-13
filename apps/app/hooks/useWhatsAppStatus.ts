@@ -38,22 +38,29 @@ export function useWhatsAppStatus(poll = false) {
     }
   }, [isAuthenticated]);
 
+  // Keep a stable ref to fetchStatus so the polling effect doesn't re-trigger
+  const fetchStatusRef = useRef(fetchStatus);
+  useEffect(() => {
+    fetchStatusRef.current = fetchStatus;
+  }, [fetchStatus]);
+
   useEffect(() => {
     fetchStatus();
   }, [fetchStatus]);
 
   // Polling for QR code / connection status
   useEffect(() => {
+    if (intervalRef.current) {
+      clearInterval(intervalRef.current);
+      intervalRef.current = null;
+    }
     if (poll && isAuthenticated) {
-      intervalRef.current = setInterval(fetchStatus, 3000);
-      return () => {
-        if (intervalRef.current) clearInterval(intervalRef.current);
-      };
+      intervalRef.current = setInterval(() => fetchStatusRef.current(), 3000);
     }
     return () => {
       if (intervalRef.current) clearInterval(intervalRef.current);
     };
-  }, [poll, isAuthenticated, fetchStatus]);
+  }, [poll, isAuthenticated]);
 
   const connect = async () => {
     try {

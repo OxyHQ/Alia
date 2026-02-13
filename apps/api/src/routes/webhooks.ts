@@ -12,6 +12,26 @@ import type { ChannelId, ChannelInboundMessage } from '../lib/channels/types.js'
 
 const CHANNEL_SYSTEM_PROMPT = `You are Alia, a helpful AI assistant. Be concise and friendly. Respond in the same language the user writes to you.`;
 
+/**
+ * Deduplication map: prevents processing the same webhook message twice.
+ * Key format: `${channelType}:${channelUserId}:${messageId || hash(text)}`
+ * Entries are automatically removed after 60 seconds.
+ */
+const processedWebhookMessages = new Set<string>();
+
+function getDeduplicationKey(channelType: ChannelId, message: ChannelInboundMessage): string {
+  const contentHash = crypto.createHash('md5').update(message.text).digest('hex').slice(0, 12);
+  return `${channelType}:${message.channelUserId}:${contentHash}`;
+}
+
+function isDuplicate(channelType: ChannelId, message: ChannelInboundMessage): boolean {
+  const key = getDeduplicationKey(channelType, message);
+  if (processedWebhookMessages.has(key)) return true;
+  processedWebhookMessages.add(key);
+  setTimeout(() => processedWebhookMessages.delete(key), 60000);
+  return false;
+}
+
 function generateAuthToken(): string {
   return crypto.randomBytes(32).toString('hex');
 }
@@ -241,6 +261,12 @@ router.post('/:type', async (req, res) => {
   // Parse the inbound message
   const message = channel.webhook.parseMessage(req.body);
   if (!message) {
+    return res.sendStatus(200);
+  }
+
+  // Deduplicate: skip if this message was already processed recently
+  if (isDuplicate(channelType, message)) {
+    console.log(`[Webhook] Duplicate ${channelType} message skipped for ${message.channelUserId}`);
     return res.sendStatus(200);
   }
 
