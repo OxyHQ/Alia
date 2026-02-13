@@ -42,6 +42,7 @@ i18n.locale = getDeviceLocale();
 // Enable fallback to base language if specific regional variant is missing
 // e.g., if es-MX is not found, it will try 'es', then 'en'
 i18n.enableFallback = true;
+i18n.missingBehavior = 'guess';
 
 // Default locale
 i18n.defaultLocale = 'en-US';
