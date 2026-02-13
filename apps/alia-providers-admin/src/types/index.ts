@@ -119,6 +119,44 @@ export interface HealthMetrics {
   isHealthy: boolean;
 }
 
+// ─── Plans ──────────────────────────────────────────────────
+
+export interface PlanFeatureItem {
+  label: string;
+  description?: string;
+}
+
+export interface PlanFeatureGroup {
+  category: string;
+  items: PlanFeatureItem[];
+}
+
+export interface SubscriptionPlan {
+  _id: string;
+  planId: string;
+  name: string;
+  product: 'alia' | 'codea';
+  creditsPerMonth: number;
+  monthlyPrice: number;
+  annualPrice: number;
+  currency: string;
+  subtitle: string;
+  creditsLabel: string;
+  isFeatured: boolean;
+  isFree: boolean;
+  sortOrder: number;
+  features: PlanFeatureGroup[];
+  isActive: boolean;
+  stripeMonthlyPriceId?: string;
+  stripeAnnualPriceId?: string;
+  description?: string;
+  notes?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// ─── Providers & Tiers ──────────────────────────────────────
+
 export const PROVIDERS = [
   'openai',
   'anthropic',

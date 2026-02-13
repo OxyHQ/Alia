@@ -264,6 +264,40 @@ class ProvidersAPIClient {
       method: 'DELETE',
     });
   }
+  // ============ PLANS ============
+
+  async listPlans(filters?: { product?: string; active?: boolean }) {
+    const params = new URLSearchParams();
+    if (filters?.product) params.set('product', filters.product);
+    if (filters?.active !== undefined) params.set('active', filters.active.toString());
+
+    return this.request(`/v1/plans?${params}`);
+  }
+
+  async getPlan(planId: string) {
+    return this.request(`/v1/plans/${planId}`);
+  }
+
+  async createPlan(data: unknown) {
+    return this.request('/v1/plans', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async updatePlan(planId: string, data: unknown) {
+    return this.request(`/v1/plans/${planId}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async deletePlan(planId: string) {
+    return this.request(`/v1/plans/${planId}`, {
+      method: 'DELETE',
+    });
+  }
+
   // ============ USAGE ============
 
   async getUsage(period: string = '7d') {

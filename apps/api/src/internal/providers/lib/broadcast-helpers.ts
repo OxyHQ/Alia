@@ -8,6 +8,7 @@ import { broadcast } from '../ws';
 import { ProviderKey } from '../models/provider-key';
 import { ModelConfig } from '../models/model-config';
 import { AliaModel } from '../models/alia-model';
+import { Plan } from '../models/plan';
 import { getAllProviderHealth, getProviderHealth } from './provider-health';
 
 export async function broadcastKeysUpdate(provider: string): Promise<void> {
@@ -42,6 +43,15 @@ export async function broadcastAliaModelsUpdate(): Promise<void> {
     broadcast('alia-models:all', { success: true, count: models.length, data: models });
   } catch (error) {
     console.error('[Broadcast] Error broadcasting alia-models update:', error);
+  }
+}
+
+export async function broadcastPlansUpdate(): Promise<void> {
+  try {
+    const plans = await Plan.find({}).sort({ product: 1, sortOrder: 1 });
+    broadcast('plans:all', { success: true, count: plans.length, data: plans });
+  } catch (error) {
+    console.error('[Broadcast] Error broadcasting plans update:', error);
   }
 }
 

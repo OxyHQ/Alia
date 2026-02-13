@@ -7,6 +7,7 @@ import keysRouter from './routes/keys';
 import usageRouter from './routes/usage';
 import authHealthRouter from './routes/auth-health';
 import fallbackStatsRouter from './routes/fallback-stats';
+import plansRouter from './routes/plans';
 
 const providersModule = express.Router();
 
@@ -28,5 +29,6 @@ providersModule.use('/v1/keys', authenticateService, keysRouter);
 providersModule.use('/v1/usage', authenticateService, usageRouter);
 providersModule.use('/v1/auth-health', authenticateService, authHealthRouter);
 providersModule.use('/v1/fallback-stats', authenticateService, fallbackStatsRouter);
+providersModule.use('/v1/plans', authenticateService, plansRouter);
 
 export default providersModule;
