@@ -68,7 +68,7 @@ export function getAIModel(keyConfig: KeyConfig) {
     }
     case 'openai': {
       const openai = createOpenAI({ apiKey });
-      return openai(modelId || 'gpt-4o-mini');
+      return openai.chat(modelId || 'gpt-4o-mini');
     }
     case 'anthropic': {
       const anthropic = createAnthropic({ apiKey });
@@ -78,49 +78,43 @@ export function getAIModel(keyConfig: KeyConfig) {
       const groq = createOpenAI({
         apiKey,
         baseURL: 'https://api.groq.com/openai/v1',
-        compatibility: 'compatible',
       });
-      return groq(modelId || 'llama-3.3-70b-versatile');
+      return groq.chat(modelId || 'llama-3.3-70b-versatile');
     }
     case 'together': {
       const together = createOpenAI({
         apiKey,
         baseURL: 'https://api.together.ai/v1',
-        compatibility: 'compatible',
       });
-      return together(modelId || 'meta-llama/Llama-3.3-70B-Instruct-Turbo');
+      return together.chat(modelId || 'meta-llama/Llama-3.3-70B-Instruct-Turbo');
     }
     case 'cerebras': {
       const cerebras = createOpenAI({
         apiKey,
         baseURL: 'https://api.cerebras.ai/v1',
-        compatibility: 'compatible',
       });
-      return cerebras(modelId || 'llama-3.3-70b');
+      return cerebras.chat(modelId || 'llama-3.3-70b');
     }
     case 'mistral': {
       const mistral = createOpenAI({
         apiKey,
         baseURL: 'https://api.mistral.ai/v1',
-        compatibility: 'compatible',
       });
-      return mistral(modelId || 'mistral-large-latest');
+      return mistral.chat(modelId || 'mistral-large-latest');
     }
     case 'deepseek': {
       const deepseek = createOpenAI({
         apiKey,
         baseURL: 'https://api.deepseek.com',
-        compatibility: 'compatible',
       });
-      return deepseek(modelId || 'deepseek-chat');
+      return deepseek.chat(modelId || 'deepseek-chat');
     }
     case 'openrouter': {
       const openrouter = createOpenAI({
         apiKey,
         baseURL: 'https://openrouter.ai/api/v1',
-        compatibility: 'compatible',
       });
-      return openrouter(modelId || 'meta-llama/llama-3.3-70b-instruct');
+      return openrouter.chat(modelId || 'meta-llama/llama-3.3-70b-instruct');
     }
     default:
       throw new Error(`Provider "${keyConfig.provider}" not supported`);

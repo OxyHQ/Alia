@@ -16,6 +16,7 @@ import type { IUserMemory } from '../../models/user-memory.js';
 import { Skill } from '../../models/skill.js';
 import { estimateMessageTokens } from '../../lib/token-counter.js';
 import { runAfterChatHooks } from '../../lib/hooks/index.js';
+import { buildSystemPrompt } from '../../lib/prompt-loader.js';
 // recordFailure is now handled via reportModelUsage from chat-core
 
 const router = Router();
@@ -183,38 +184,72 @@ router.post('/', async (req: Request, res: Response) => {
 
     console.log(`✅ [V1/Chat] Processing ${messages.length} messages${conversationId ? ` (conversation: ${conversationId})` : ''}${thinkingMode ? ' (thinking mode enabled)' : ''}`);
 
-    // Reserve credits if user is authenticated
-    if (req.user) {
-      try {
-        // Get or create credits record
-        await getOrCreateUserCredits(req.user.id);
-
-        // Reserve credits
-        creditReservation = await reserveCredits(req.user.id);
-
-        if (!creditReservation) {
-          res.status(402).json({
-            error: {
-              code: 'INSUFFICIENT_CREDITS',
-              message: "You've run out of credits. Add more or upgrade your plan to continue.",
-              retryable: false,
-              suggestedAction: 'upgrade',
-              details: { limitType: 'credits' },
-            },
-          });
-          return;
-        }
-      } catch (error) {
-        console.error('[V1/Chat] Error reserving credits:', error);
-      }
-    }
-
-    // Resolve Alia model to concrete provider/model
+    // Determine if this is a direct user session (not API key)
+    // API key requests should be neutral and not include creator's personal info
+    const isDirectUserSession = req.user && !req.apiKey;
     const requestedModel = body.model || getDefaultAliaModel();
 
-    // Initial resolution (will be re-resolved inside retry loop)
-    resolved = await resolveModel(requestedModel);
+    // Extract client context from first system message if present (from editor/client)
+    let clientContext: string | undefined;
+    if (messages.length > 0 && messages[0].role === 'system') {
+      clientContext = messages[0].content as string;
+    }
 
+    // --- PARALLEL PRE-STREAMING OPERATIONS ---
+    // Run independent operations concurrently to reduce time-to-first-token
+    const preStreamStart = Date.now();
+
+    const [creditResult, resolvedResult, userMemory, oxyUser, skill] = await Promise.all([
+      // Credits: sequential pair (getOrCreate → reserve), parallel with everything else
+      req.user ? (async () => {
+        await getOrCreateUserCredits(req.user!.id);
+        const reservation = await reserveCredits(req.user!.id);
+        return { reservation, error: false as const };
+      })().catch((error) => {
+        console.error('[V1/Chat] Error reserving credits:', error);
+        return { reservation: null, error: true as const };
+      }) : Promise.resolve({ reservation: null, error: false as const }),
+
+      // Model resolution (includes key loading, rate limit checks, circuit breaker)
+      resolveModel(requestedModel),
+
+      // User memory
+      req.user
+        ? UserMemory.findOne({ oxyUserId: req.user.id }).catch(() => null)
+        : Promise.resolve(null),
+
+      // User profile from Oxy (HTTP call - often the slowest operation)
+      isDirectUserSession
+        ? (oxyClient.getUserById(req.user!.id) as Promise<any>).catch(() => null)
+        : Promise.resolve(null),
+
+      // Skill loading
+      (body.skillId && isDirectUserSession)
+        ? Skill.findOne({ skillId: body.skillId }).select('systemPrompt title').lean().catch(() => null)
+        : Promise.resolve(null),
+    ]);
+
+    console.log(`[V1/Chat] Pre-stream setup: ${Date.now() - preStreamStart}ms`);
+
+    // Validate credit reservation
+    // Only return 402 if reserveCredits explicitly returned null (insufficient credits),
+    // not if there was a DB error (original behavior: continue without credits on error)
+    creditReservation = creditResult.reservation;
+    if (req.user && !creditReservation && !creditResult.error) {
+      res.status(402).json({
+        error: {
+          code: 'INSUFFICIENT_CREDITS',
+          message: "You've run out of credits. Add more or upgrade your plan to continue.",
+          retryable: false,
+          suggestedAction: 'upgrade',
+          details: { limitType: 'credits' },
+        },
+      });
+      return;
+    }
+
+    // Validate model resolution
+    resolved = resolvedResult;
     if (!resolved) {
       res.status(503).json({ error: 'No models available', requested_model: requestedModel });
       return;
@@ -223,26 +258,8 @@ router.post('/', async (req: Request, res: Response) => {
     aliasModelId = resolved.aliasModelId;
     console.log(`[V1/Chat] Using provider: ${resolved.provider}/${resolved.modelId}`);
 
-    // Extract client context from first system message if present (from editor/client)
-    let clientContext: string | undefined;
-    if (messages.length > 0 && messages[0].role === 'system') {
-      clientContext = messages[0].content as string;
-    }
-
-    // Load model-specific system prompt from markdown files
-    const { buildSystemPrompt } = await import('../../lib/prompt-loader.js');
+    // Build system prompt (depends on aliasModelId from model resolution)
     const baseSystemPrompt = await buildSystemPrompt(aliasModelId, clientContext);
-
-    // Load user memory if authenticated
-    let userMemory: IUserMemory | null = null;
-    if (req.user) {
-      try {
-        userMemory = await UserMemory.findOne({ oxyUserId: req.user.id });
-        console.log('[V1/Chat] User memory loaded for:', req.user.id, userMemory ? `(${userMemory.memories?.length || 0} memories)` : '(none)');
-      } catch (error) {
-        console.error('[V1/Chat] Error loading user memory:', error);
-      }
-    }
 
     // Convert editor tools from OpenAI format and sanitize names for Google compatibility
     const toolNameMapping = new Map<string, string>();
@@ -251,10 +268,6 @@ router.post('/', async (req: Request, res: Response) => {
     // Alia internal tools are server-executed
     // Editor tools are client-executed (VS Code, Cursor, Cowork)
     const hasEditorTools = Object.keys(editorTools).length > 0;
-
-    // Determine if this is a direct user session (not API key)
-    // API key requests should be neutral and not include creator's personal info
-    const isDirectUserSession = req.user && !req.apiKey;
 
     // Always include server-only tools (no conflicts with client tools):
     // - getCurrentDate: Server time/date
@@ -335,21 +348,14 @@ When you use a tool successfully:
     // Only inject personal user information for DIRECT user sessions
     // API key requests are for third-party apps and should remain neutral
     if (isDirectUserSession) {
-      // Get user's name from Oxy
-      try {
-        const user = await oxyClient.getUserById(req.user.id) as any;
-        console.log('[V1/Chat] User data from Oxy:', { id: req.user.id, name: user?.name, username: user?.username });
-        const userName = user?.name?.full || user?.name?.first || user?.username;
-        if (userName) {
-          systemMessage += `\n\nThe user's name is ${userName}.`;
-          console.log('[V1/Chat] Added user name to system message:', userName);
-        }
-        // Add admin tools for authorized users
-        if (user?.username === 'nate') {
-          allTools.providersAdmin = createProvidersAdminTool();
-        }
-      } catch (e: any) {
-        console.error('[V1/Chat] Error fetching user from Oxy:', e.message);
+      // Use user profile fetched in parallel
+      const userName = oxyUser?.name?.full || oxyUser?.name?.first || oxyUser?.username;
+      if (userName) {
+        systemMessage += `\n\nThe user's name is ${userName}.`;
+      }
+      // Add admin tools for authorized users
+      if (oxyUser?.username === 'nate') {
+        allTools.providersAdmin = createProvidersAdminTool();
       }
       systemMessage += '\n\n**IMPORTANT**: You have a `sendTelegram` tool available. Use it IMMEDIATELY when the user asks you to send them a Telegram message (e.g., "send me X on Telegram", "enviame un telegram", "remind me via Telegram"). Do NOT say you can\'t - you CAN send Telegram messages using this tool!';
       systemMessage += '\n\n**IMPORTANT**: You have WhatsApp tools available: `getWhatsAppChats` to see the user\'s WhatsApp conversations, `getWhatsAppMessages` to read messages from a specific chat (requires JID from getWhatsAppChats), and `sendWhatsAppMessage` to send messages. When the user asks about their WhatsApp, use getWhatsAppChats first, then getWhatsAppMessages to read specific conversations.';
@@ -384,17 +390,10 @@ When you use a tool successfully:
       }
     }
 
-    // Inject skill system prompt if skillId provided in request body
-    if (body.skillId && isDirectUserSession) {
-      try {
-        const skill = await Skill.findOne({ skillId: body.skillId }).select('systemPrompt title').lean();
-        if (skill?.systemPrompt) {
-          systemMessage = `# ACTIVE SKILL: ${skill.title}\n\n${skill.systemPrompt}\n\n---\n\n${systemMessage}`;
-          console.log(`[V1/Chat] Skill activated: ${skill.title}`);
-        }
-      } catch (e) {
-        console.error('[V1/Chat] Error loading skill:', e);
-      }
+    // Inject skill system prompt if skillId provided (already loaded in parallel)
+    if (skill && (skill as any).systemPrompt && isDirectUserSession) {
+      systemMessage = `# ACTIVE SKILL: ${(skill as any).title}\n\n${(skill as any).systemPrompt}\n\n---\n\n${systemMessage}`;
+      console.log(`[V1/Chat] Skill activated: ${(skill as any).title}`);
     }
 
     // REPEAT language instruction at the end (most memorable position)
@@ -412,12 +411,9 @@ When you use a tool successfully:
 
     // Estimate system prompt tokens (for credit calculation)
     const systemPromptTokens = estimateMessageTokens('system', systemMessage);
-    console.log(`[V1/Chat] Estimated system prompt tokens: ${systemPromptTokens}`);
 
     // Convert OpenAI-format messages to AI SDK format (handles tool messages)
     const convertedMessages = convertToAISDKMessages(rawMessages, toolNameMapping);
-    console.log(`[V1/Chat] Converted ${rawMessages.length} messages to AI SDK format`);
-    console.log(`[V1/Chat] System message preview:`, rawMessages[0]?.content?.substring(0, 500));
 
     // Track token usage
     let tokenUsage: CreditUsage = {
@@ -496,21 +492,15 @@ When you use a tool successfully:
       baseConfig.experimental_providerMetadata = providerMetadata;
     }
 
-    console.log('[V1/Chat] AI SDK config:', JSON.stringify({
-      modelProvider: resolved!.provider,
-      model: resolved!.keyConfig.modelId,
-      messageCount: baseConfig.messages.length,
-      hasTools: !!baseConfig.tools,
-      toolCount: baseConfig.tools ? Object.keys(baseConfig.tools).length : 0,
-      temperature: baseConfig.temperature,
-      maxTokens: baseConfig.maxTokens,
-      stream: body.stream
-    }, null, 2));
-    console.log('[V1/Chat] Messages:', JSON.stringify(baseConfig.messages.map((m: any) => ({
-      role: m.role,
-      contentLength: typeof m.content === 'string' ? m.content.length : (Array.isArray(m.content) ? m.content.length : 0),
-      hasToolCalls: !!m.toolCalls
-    })), null, 2));
+    if (process.env.NODE_ENV !== 'production') {
+      console.log('[V1/Chat] AI SDK config:', JSON.stringify({
+        modelProvider: resolved!.provider,
+        model: resolved!.keyConfig.modelId,
+        messageCount: baseConfig.messages.length,
+        toolCount: baseConfig.tools ? Object.keys(baseConfig.tools).length : 0,
+        stream: body.stream
+      }));
+    }
 
     let hasStreamedContent = false;
 
