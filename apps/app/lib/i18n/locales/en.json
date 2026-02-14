@@ -126,7 +126,6 @@
     "saveFailed": "Failed to save preferences",
     "sections": {
       "account": "Account",
-      "workspace": "Workspace",
       "general": "General",
       "usage": "Usage",
       "personalization": "Personalization",

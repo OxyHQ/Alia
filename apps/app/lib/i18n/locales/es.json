@@ -126,7 +126,6 @@
     "saveFailed": "Error al guardar preferencias",
     "sections": {
       "account": "Cuenta",
-      "workspace": "Espacio de trabajo",
       "general": "General",
       "usage": "Uso",
       "personalization": "Personalización",

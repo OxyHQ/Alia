@@ -74,20 +74,22 @@ export interface DeveloperStats {
 // Apps
 // ======================
 
-async function fetchApps(): Promise<DeveloperApp[]> {
-  const response = await apiClient.get('/developer/apps');
+async function fetchApps(workspaceId: string): Promise<DeveloperApp[]> {
+  const response = await apiClient.get('/developer/apps', {
+    params: { organizationId: workspaceId },
+  });
   return response.data.apps;
 }
 
-export function useApps() {
+export function useApps(workspaceId: string) {
   const { isAuthenticated, isReady } = useAuth();
 
   return useQuery({
-    queryKey: ['developer-apps'],
-    queryFn: fetchApps,
+    queryKey: ['developer-apps', workspaceId],
+    queryFn: () => fetchApps(workspaceId),
     staleTime: 1000 * 60 * 5,
     retry: 2,
-    enabled: isReady && isAuthenticated,
+    enabled: isReady && isAuthenticated && !!workspaceId,
   });
 }
 
@@ -108,21 +110,24 @@ export function useApp(id: string) {
   });
 }
 
-export function useCreateApp() {
+export function useCreateApp(workspaceId: string) {
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: async (data: Partial<DeveloperApp>) => {
-      const response = await apiClient.post('/developer/apps', data);
+      const response = await apiClient.post('/developer/apps', {
+        ...data,
+        organizationId: workspaceId === 'personal' ? undefined : workspaceId,
+      });
       return response.data.app;
     },
     onSuccess: (newApp) => {
-      queryClient.setQueryData<DeveloperApp[]>(['developer-apps'], (old) => {
+      queryClient.setQueryData<DeveloperApp[]>(['developer-apps', workspaceId], (old) => {
         if (!old) return [newApp];
         return [newApp, ...old];
       });
       queryClient.setQueryData(['developer-app', newApp._id], newApp);
-      queryClient.invalidateQueries({ queryKey: ['developer-stats'] });
+      queryClient.invalidateQueries({ queryKey: ['developer-stats', workspaceId] });
     },
   });
 }
@@ -154,10 +159,8 @@ export function useDeleteApp() {
       return id;
     },
     onSuccess: (id) => {
-      queryClient.setQueryData<DeveloperApp[]>(['developer-apps'], (old) => {
-        if (!old) return [];
-        return old.filter((app) => app._id !== id);
-      });
+      // Invalidate all workspace-scoped app lists
+      queryClient.invalidateQueries({ queryKey: ['developer-apps'] });
       queryClient.removeQueries({ queryKey: ['developer-app', id] });
       queryClient.invalidateQueries({ queryKey: ['developer-keys', id] });
       queryClient.invalidateQueries({ queryKey: ['developer-stats'] });
@@ -257,19 +260,21 @@ export function useDeleteApiKey() {
 // Usage Stats
 // ======================
 
-async function fetchGlobalUsage(period: string): Promise<AppUsageStats> {
-  const response = await apiClient.get(`/developer/usage?period=${period}`);
+async function fetchGlobalUsage(workspaceId: string, period: string): Promise<AppUsageStats> {
+  const response = await apiClient.get('/developer/usage', {
+    params: { organizationId: workspaceId, period },
+  });
   return response.data;
 }
 
-export function useGlobalUsage(period: string = '7d') {
+export function useGlobalUsage(workspaceId: string, period: string = '7d') {
   const { isAuthenticated, isReady } = useAuth();
 
   return useQuery({
-    queryKey: ['developer-global-usage', period],
-    queryFn: () => fetchGlobalUsage(period),
-    enabled: isReady && isAuthenticated,
-    staleTime: 1000 * 60, // 1 minute
+    queryKey: ['developer-global-usage', workspaceId, period],
+    queryFn: () => fetchGlobalUsage(workspaceId, period),
+    enabled: isReady && isAuthenticated && !!workspaceId,
+    staleTime: 1000 * 60,
     retry: 1,
   });
 }
@@ -310,20 +315,22 @@ export function useKeyUsage(appId: string, keyId: string, period: string = '7d')
   });
 }
 
-async function fetchDeveloperStats(): Promise<DeveloperStats> {
-  const response = await apiClient.get('/developer/stats');
+async function fetchDeveloperStats(workspaceId: string): Promise<DeveloperStats> {
+  const response = await apiClient.get('/developer/stats', {
+    params: { organizationId: workspaceId },
+  });
   return response.data;
 }
 
-export function useDeveloperStats() {
+export function useDeveloperStats(workspaceId: string) {
   const { isAuthenticated, isReady } = useAuth();
 
   return useQuery({
-    queryKey: ['developer-stats'],
-    queryFn: fetchDeveloperStats,
-    staleTime: 1000 * 60 * 5, // 5 minutes
+    queryKey: ['developer-stats', workspaceId],
+    queryFn: () => fetchDeveloperStats(workspaceId),
+    staleTime: 1000 * 60 * 5,
     retry: 2,
-    enabled: isReady && isAuthenticated,
+    enabled: isReady && isAuthenticated && !!workspaceId,
   });
 }
 
