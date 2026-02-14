@@ -51,82 +51,40 @@ export async function loadProviderKeys(provider: string): Promise<IProviderKey[]
 }
 
 /**
- * Check if a key has exceeded rate limits
+ * Check if a key has exceeded rate limits.
+ * Uses a single $facet aggregation to check all limits in one DB round-trip.
  */
 async function isKeyRateLimited(key: IProviderKey, tokens: number = 0): Promise<boolean> {
+  // No limits configured = not rate limited
+  if (!key.rateLimit.rpm && !key.rateLimit.rpd && !key.rateLimit.tpm && !key.rateLimit.tpd) {
+    return false;
+  }
+
   const now = Date.now();
   const oneMinuteAgo = new Date(now - 60000);
   const oneDayAgo = new Date(now - 86400000);
 
-  // Check requests per minute (RPM)
-  if (key.rateLimit.rpm) {
-    const recentRequests = await ApiUsage.countDocuments({
-      keyId: key._id,
-      timestamp: { $gte: oneMinuteAgo },
-    });
+  // Single aggregation with $facet to check all limits at once
+  const [result] = await ApiUsage.aggregate([
+    { $match: { keyId: key._id, timestamp: { $gte: oneDayAgo } } },
+    { $facet: {
+      minuteStats: [
+        { $match: { timestamp: { $gte: oneMinuteAgo } } },
+        { $group: { _id: null, count: { $sum: 1 }, tokens: { $sum: '$tokens' } } }
+      ],
+      dayStats: [
+        { $group: { _id: null, count: { $sum: 1 }, tokens: { $sum: '$tokens' } } }
+      ]
+    }}
+  ]);
 
-    if (recentRequests >= key.rateLimit.rpm) {
-      return true;
-    }
-  }
+  const minute = result?.minuteStats?.[0] || { count: 0, tokens: 0 };
+  const day = result?.dayStats?.[0] || { count: 0, tokens: 0 };
 
-  // Check requests per day (RPD)
-  if (key.rateLimit.rpd) {
-    const dailyRequests = await ApiUsage.countDocuments({
-      keyId: key._id,
-      timestamp: { $gte: oneDayAgo },
-    });
-
-    if (dailyRequests >= key.rateLimit.rpd) {
-      return true;
-    }
-  }
-
-  // Check tokens per minute (TPM)
-  if (key.rateLimit.tpm && tokens > 0) {
-    const recentTokens = await ApiUsage.aggregate([
-      {
-        $match: {
-          keyId: key._id,
-          timestamp: { $gte: oneMinuteAgo },
-        },
-      },
-      {
-        $group: {
-          _id: null,
-          totalTokens: { $sum: '$tokens' },
-        },
-      },
-    ]);
-
-    const tokenCount = recentTokens[0]?.totalTokens || 0;
-    if (tokenCount + tokens > key.rateLimit.tpm) {
-      return true;
-    }
-  }
-
-  // Check tokens per day (TPD)
-  if (key.rateLimit.tpd && tokens > 0) {
-    const dailyTokens = await ApiUsage.aggregate([
-      {
-        $match: {
-          keyId: key._id,
-          timestamp: { $gte: oneDayAgo },
-        },
-      },
-      {
-        $group: {
-          _id: null,
-          totalTokens: { $sum: '$tokens' },
-        },
-      },
-    ]);
-
-    const tokenCount = dailyTokens[0]?.totalTokens || 0;
-    if (tokenCount + tokens > key.rateLimit.tpd) {
-      return true;
-    }
-  }
+  if (key.rateLimit.rpm && minute.count >= key.rateLimit.rpm) return true;
+  if (key.rateLimit.rpd && day.count >= key.rateLimit.rpd) return true;
+  if (key.rateLimit.tpm && tokens > 0 && minute.tokens + tokens > key.rateLimit.tpm) return true;
+  if (key.rateLimit.tpd && tokens > 0 && day.tokens + tokens > key.rateLimit.tpd) return true;
 
   return false;
 }
