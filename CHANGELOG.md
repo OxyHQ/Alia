@@ -13,8 +13,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Updated `updateUserPreferencesTool` to use correct field name
   - Updated `updateUserContextTool` to use correct field name
   - Memory now saves correctly when users share information with Alia
+- **504 Gateway Timeout**: Fixed intermittent 504 errors on `/v1/chat/completions` streaming requests
+  - Early SSE headers + keep-alive comment sent before async work to satisfy proxy first-byte timeout
+  - `X-Accel-Buffering: no` middleware on all `/v1` routes to disable nginx proxy buffering
+  - 5-second timeout on `getUserById` to prevent slow auth from blocking response
+  - `clearTimeout` on early returns to prevent timer leaks
+  - `.catch()` on `resolveModel` in `Promise.all` to prevent rejection propagation
+  - All-providers-exhausted error now sent as SSE event instead of silent close
+- **Stream flag consistency**: Changed `body.stream !== false` to `body.stream === true` so undefined/omitted stream field doesn't trigger SSE headers
 
 ### Added
+
+#### Streaming Reliability
+- **Timeout tests**: 8 Vitest tests covering all 504 fix behaviors (early SSE, non-streaming, credits, no models, auth timeout, resolve catch, providers exhausted, no double headers)
+- **`ensureSSEHeaders()` helper**: Extracted repeated SSE header-setting logic into an idempotent helper function
 
 #### Memory System Improvements
 - **Plan-based memory limits** ([apps/api/src/models/user-memory.ts](apps/api/src/models/user-memory.ts))

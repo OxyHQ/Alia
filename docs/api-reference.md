@@ -273,7 +273,7 @@ for await (const chunk of result.textStream) {
 
 ### 4. Chat Completions (Streaming with SSE)
 
-Stream responses in real-time using Server-Sent Events.
+Stream responses in real-time using Server-Sent Events. The stream uses **standard OpenAI-compatible format** — any OpenAI SDK or compatible client works out of the box.
 
 ```
 POST /api/v1/chat/completions
@@ -286,99 +286,73 @@ Content-Type: application/json
 }
 ```
 
-**SSE Events:**
+**Wire Format:**
 
-The stream sends multiple event types:
+The response is a stream of `data:` lines, each containing a JSON chunk. The stream ends with `data: [DONE]`.
 
-#### `metadata` - Initial metadata
+```
+: keep-alive
+
+data: {"id":"chatcmpl-abc123","object":"chat.completion.chunk","created":1234567890,"model":"alia-v1","choices":[{"index":0,"delta":{"role":"assistant"},"finish_reason":null}]}
+
+data: {"id":"chatcmpl-abc123","object":"chat.completion.chunk","created":1234567890,"model":"alia-v1","choices":[{"index":0,"delta":{"content":"The"},"finish_reason":null}]}
+
+data: {"id":"chatcmpl-abc123","object":"chat.completion.chunk","created":1234567890,"model":"alia-v1","choices":[{"index":0,"delta":{"content":" capital"},"finish_reason":null}]}
+
+data: {"id":"chatcmpl-abc123","object":"chat.completion.chunk","created":1234567890,"model":"alia-v1","choices":[{"index":0,"delta":{},"finish_reason":"stop"}]}
+
+data: [DONE]
+```
+
+> The initial `: keep-alive` comment is sent immediately before any processing begins. This prevents reverse-proxy first-byte timeouts (e.g., DigitalOcean's 60s limit) on longer requests.
+
+**Chunk Shape:**
+
 ```json
 {
+  "id": "chatcmpl-abc123",
+  "object": "chat.completion.chunk",
+  "created": 1234567890,
   "model": "alia-v1",
-  "requestId": "req_1234567890",
-  "cached": false,
-  "estimatedCost": 0.00023,
-  "maxTokens": 8192,
-  "timestamp": "2026-01-27T10:30:00.000Z",
-  "streamId": "1234567890-abc123"
+  "choices": [{
+    "index": 0,
+    "delta": {
+      "content": "text...",
+      "reasoning": "thinking...",
+      "tool_calls": [{ "id": "call_...", "type": "function", "function": { "name": "...", "arguments": "..." } }]
+    },
+    "finish_reason": null
+  }]
 }
 ```
 
-#### `chunk` - Content chunks
-```json
-{
-  "content": "The capital",
-  "index": 0,
-  "finishReason": null,
-  "timestamp": 123
-}
+- `delta.content` — text token (most common)
+- `delta.reasoning` — chain-of-thought token (thinking models only)
+- `delta.tool_calls` — tool call chunks (when tools are enabled)
+- `finish_reason` — `null` during streaming, `"stop"` on final chunk
+
+**Error Events:**
+
+If an error occurs mid-stream, it's sent as a data line before the stream closes:
+
+```
+data: {"error":{"message":"All providers exhausted","code":"SERVICE_UNAVAILABLE"}}
+
+data: [DONE]
 ```
 
-#### `cache_hit` - Response from cache
-```json
-{
-  "message": "Response retrieved from cache",
-  "savedCost": 0.00023,
-  "savedTokens": 150,
-  "instantResponse": true
-}
-```
+> **Recommended:** Use the OpenAI SDK or Vercel AI SDK (shown in section 3 above) — they handle SSE parsing, buffering, and error handling automatically. The manual examples below are for custom implementations.
 
-#### `fallback` - Using backup model
-```json
-{
-  "message": "Using backup model due to high demand...",
-  "timestamp": 234
-}
-```
-
-#### `cost` - Final cost information
-```json
-{
-  "inputTokens": 15,
-  "outputTokens": 8,
-  "totalTokens": 23,
-  "cost": 0.000023,
-  "cached": false,
-  "costPerToken": 0.000001,
-  "duration": 1234
-}
-```
-
-#### `done` - Stream complete
-```json
-{
-  "message": "Stream complete",
-  "duration": 1234,
-  "totalTokens": 23,
-  "cost": 0.000023
-}
-```
-
-#### `error` - Error occurred
-```json
-{
-  "code": "RATE_LIMIT_EXCEEDED",
-  "message": "You've made too many requests. Please wait a moment.",
-  "retryable": true,
-  "retryAfter": 60,
-  "timestamp": 345
-}
-```
-
-**Example (JavaScript with EventSource):**
+**Example (JavaScript - Manual Fetch):**
 ```javascript
-async function chatStreaming(messages, model = 'alia-v1', onChunk, onDone) {
+async function chatStreaming(messages, model = 'alia-v1', onToken) {
   const response = await fetch('/api/v1/chat/completions', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
       'Authorization': `Bearer ${API_KEY}`
     },
-    body: JSON.stringify({
-      model,
-      messages,
-      stream: true
-    })
+    body: JSON.stringify({ model, messages, stream: true })
   });
 
   const reader = response.body.getReader();
@@ -394,21 +368,11 @@ async function chatStreaming(messages, model = 'alia-v1', onChunk, onDone) {
     buffer = lines.pop() || '';
 
     for (const line of lines) {
-      if (line.startsWith('event: ')) {
-        const eventType = line.slice(7).trim();
-        continue;
-      }
+      if (!line.startsWith('data: ') || line === 'data: [DONE]') continue;
 
-      if (line.startsWith('data: ')) {
-        const data = JSON.parse(line.slice(6));
-
-        // Handle different event types
-        if (data.content) {
-          onChunk(data.content); // Content chunk
-        } else if (data.message === 'Stream complete') {
-          onDone(data); // Done
-        }
-      }
+      const chunk = JSON.parse(line.slice(6));
+      const content = chunk.choices?.[0]?.delta?.content;
+      if (content) onToken(content);
     }
   }
 }
@@ -418,26 +382,21 @@ let fullResponse = '';
 await chatStreaming(
   [{ role: 'user', content: 'Tell me a story' }],
   'alia-v1',
-  (chunk) => {
-    fullResponse += chunk;
-    console.log(chunk); // Print each chunk as it arrives
-  },
-  (stats) => {
-    console.log('Done!', stats);
-    console.log('Full response:', fullResponse);
+  (token) => {
+    fullResponse += token;
+    process.stdout.write(token);
   }
 );
+console.log('\nFull response:', fullResponse);
 ```
 
-**Example (React with hooks):**
+**Example (React Hook):**
 ```typescript
 import { useState, useCallback } from 'react';
 
-function useAliaChatStream() {
+function useAliaChat() {
   const [response, setResponse] = useState('');
   const [loading, setLoading] = useState(false);
-  const [cost, setCost] = useState(0);
-  const [cached, setCached] = useState(false);
 
   const sendMessage = useCallback(async (messages, model = 'alia-v1') => {
     setResponse('');
@@ -452,7 +411,7 @@ function useAliaChatStream() {
       body: JSON.stringify({ model, messages, stream: true })
     });
 
-    const reader = res.body.getReader();
+    const reader = res.body!.getReader();
     const decoder = new TextDecoder();
     let buffer = '';
 
@@ -465,43 +424,33 @@ function useAliaChatStream() {
       buffer = lines.pop() || '';
 
       for (const line of lines) {
-        if (!line.startsWith('data: ')) continue;
-        const data = JSON.parse(line.slice(6));
+        if (!line.startsWith('data: ') || line === 'data: [DONE]') continue;
 
-        if (data.content) {
-          setResponse(prev => prev + data.content);
-        } else if (data.cost !== undefined) {
-          setCost(data.cost);
-          setCached(data.cached);
-        } else if (data.message === 'Response retrieved from cache') {
-          setCached(true);
-        } else if (data.message === 'Stream complete') {
-          setLoading(false);
+        const chunk = JSON.parse(line.slice(6));
+        const content = chunk.choices?.[0]?.delta?.content;
+        if (content) {
+          setResponse(prev => prev + content);
         }
       }
     }
+
+    setLoading(false);
   }, []);
 
-  return { response, loading, cost, cached, sendMessage };
+  return { response, loading, sendMessage };
 }
 
 // Usage in component
 function Chat() {
-  const { response, loading, cost, cached, sendMessage } = useAliaChatStream();
-
-  const handleSend = () => {
-    sendMessage([
-      { role: 'user', content: 'Hello!' }
-    ], 'alia-v1');
-  };
+  const { response, loading, sendMessage } = useAliaChat();
 
   return (
     <div>
       <div>{response}</div>
       {loading && <div>Thinking...</div>}
-      {cached && <div className="badge">⚡ Instant (cached)</div>}
-      {cost > 0 && <div>Cost: ${cost.toFixed(6)}</div>}
-      <button onClick={handleSend}>Send</button>
+      <button onClick={() => sendMessage([{ role: 'user', content: 'Hello!' }])}>
+        Send
+      </button>
     </div>
   );
 }
@@ -762,6 +711,6 @@ See our [GitHub repository](https://github.com/alia-ai/examples) for complete ex
 
 ---
 
-**Last Updated:** February 13, 2026
+**Last Updated:** February 14, 2026
 **API Version:** v1
 **Status:** Production Ready
