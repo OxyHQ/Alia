@@ -143,6 +143,12 @@ app.use('/v1', cors({
   optionsSuccessStatus: 200
 }));
 
+// Disable nginx/proxy buffering for /v1 SSE streaming responses
+app.use('/v1', (_req, res, next) => {
+  res.setHeader('X-Accel-Buffering', 'no');
+  next();
+});
+
 // Internal routes - restricted to known origins
 const PRODUCTION_ORIGINS = [
   'https://alia.onl',
