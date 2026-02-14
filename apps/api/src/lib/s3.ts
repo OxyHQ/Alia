@@ -1,4 +1,4 @@
-import { S3Client, PutObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3';
+import { S3Client, DeleteObjectCommand } from '@aws-sdk/client-s3';
 import { Upload } from '@aws-sdk/lib-storage';
 import crypto from 'crypto';
 
@@ -19,17 +19,22 @@ const BUCKET_NAME = process.env.AWS_S3_BUCKET || '';
  * Upload a file to S3
  * @param file - File buffer
  * @param filename - Original filename
- * @param folder - Folder path in S3 (e.g., 'avatars')
+ * @param folder - Entity path in S3 (e.g., 'organizations/{id}')
+ * @param descriptor - File purpose label (e.g., 'logo', 'avatar', 'icon')
  * @returns S3 file URL
+ *
+ * Key format: {NODE_ENV}/{folder}/{descriptor}-{uuid}.{ext}
+ * Example:    production/organizations/6831abc/logo-a1b2c3d4.png
  */
 export async function uploadToS3(
   file: Buffer,
   filename: string,
-  folder: string = 'uploads'
+  folder: string = 'uploads',
+  descriptor: string = 'file'
 ): Promise<string> {
-  // Generate unique filename
+  const env = process.env.NODE_ENV || 'development';
   const fileExtension = filename.split('.').pop();
-  const uniqueFilename = `${folder}/${crypto.randomUUID()}.${fileExtension}`;
+  const uniqueFilename = `${env}/${folder}/${descriptor}-${crypto.randomUUID()}.${fileExtension}`;
 
   const upload = new Upload({
     client: s3Client,

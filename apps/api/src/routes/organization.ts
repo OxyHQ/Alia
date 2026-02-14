@@ -3,7 +3,7 @@ import multer from 'multer';
 import { authenticateToken } from '../middleware/auth';
 import { Organization } from '../models/organization';
 import { OrganizationMember } from '../models/organization-member';
-import { uploadToS3 } from '../lib/s3';
+import { uploadToS3, deleteFromS3 } from '../lib/s3';
 import { z } from 'zod';
 
 const upload = multer({
@@ -219,7 +219,13 @@ router.post('/:id/image', upload.single('file'), async (req: Request, res: Respo
       return res.status(400).json({ error: 'Image file is required' });
     }
 
-    const imageUrl = await uploadToS3(file.buffer, file.originalname, 'workspace-images');
+    // Delete previous image from S3 if one exists
+    const existingOrg = await Organization.findById(id);
+    if (existingOrg?.image) {
+      await deleteFromS3(existingOrg.image);
+    }
+
+    const imageUrl = await uploadToS3(file.buffer, file.originalname, `organizations/${id}`, 'logo');
 
     const organization = await Organization.findByIdAndUpdate(
       id,
