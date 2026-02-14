@@ -6,7 +6,8 @@ import { useState } from "react";
 import { useOxy } from "@oxyhq/services";
 import { useRouter } from "expo-router";
 import { generateAPIUrl } from "@/lib/generate-api-url";
-import { ArrowLeft, MessageSquare, Bug, Lightbulb, Sparkles, Star } from "lucide-react-native";
+import { MessageSquare, Bug, Lightbulb, Sparkles, Star } from "lucide-react-native";
+import { SettingsHeader } from "@/components/settings/settings-header";
 import { toast } from "@/components/sonner";
 import { Platform } from "react-native";
 
@@ -93,19 +94,7 @@ export default function FeedbackScreen() {
 
   return (
     <View className="flex-1 bg-background">
-      <View className="border-b border-border p-4">
-        <View className="flex-row items-center gap-3">
-          <Pressable onPress={() => router.back()}>
-            <ArrowLeft size={24} className="text-foreground" />
-          </Pressable>
-          <View className="flex-1">
-            <Text className="text-2xl font-bold">Send Feedback</Text>
-            <Text className="text-sm text-muted-foreground mt-1">
-              Help us improve Alia
-            </Text>
-          </View>
-        </View>
-      </View>
+      <SettingsHeader title="Send Feedback" subtitle="Help us improve Alia" showBack />
 
       <ScrollView className="flex-1 p-4">
         <View className="max-w-2xl mx-auto w-full gap-6">

@@ -4,7 +4,8 @@ import { Button } from "@/components/ui/button";
 import { useState, useEffect } from "react";
 import { useRouter } from "expo-router";
 import { useGatewaySessions, type GatewaySession } from "@/hooks/useGatewaySessions";
-import { ChevronLeft, Send, CheckCircle, XCircle, Plus, Trash2 } from "lucide-react-native";
+import { Send, CheckCircle, XCircle, Plus, Trash2 } from "lucide-react-native";
+import { SettingsHeader } from "@/components/settings/settings-header";
 import { toast } from "@/components/sonner";
 import { ConfirmationDialog } from "@/components/ui/confirmation-dialog";
 import QRCode from "react-native-qrcode-svg";
@@ -77,18 +78,11 @@ export default function TelegramGatewayScreen() {
 
   return (
     <View className="flex-1 bg-background">
-      {/* Header */}
-      <View className="border-b border-border p-4 flex-row items-center gap-3">
-        <Pressable onPress={() => router.back()} className="p-1">
-          <ChevronLeft size={24} className="text-foreground" />
-        </Pressable>
-        <View>
-          <Text className="text-xl font-bold">Telegram Gateway</Text>
-          <Text className="text-sm text-muted-foreground">
-            Link your Telegram accounts for Alia to respond as you
-          </Text>
-        </View>
-      </View>
+      <SettingsHeader
+        title="Telegram Gateway"
+        subtitle="Link your Telegram accounts for Alia to respond as you"
+        showBack
+      />
 
       <ScrollView className="flex-1 p-6">
         <View className="max-w-sm w-full mx-auto gap-6">
