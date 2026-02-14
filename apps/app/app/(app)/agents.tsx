@@ -11,47 +11,50 @@ import {
   MessageCircle,
   type LucideIcon,
 } from 'lucide-react-native';
-
-const FEATURES: {
-  icon: LucideIcon;
-  iconColor: string;
-  iconBg: string;
-  title: string;
-  description: string;
-}[] = [
-  {
-    icon: Fingerprint,
-    iconColor: 'text-blue-500',
-    iconBg: 'bg-blue-500/15',
-    title: 'Unique AI identity',
-    description: 'Give it a name and personality. It remembers everything.',
-  },
-  {
-    icon: Brain,
-    iconColor: 'text-teal-500',
-    iconBg: 'bg-teal-500/15',
-    title: 'Persistent memory & computer',
-    description: 'Equip your assistant with expert knowledge in specific areas.',
-  },
-  {
-    icon: Sparkles,
-    iconColor: 'text-yellow-500',
-    iconBg: 'bg-yellow-500/15',
-    title: 'Custom skills',
-    description: '24/7 cloud assistant that keeps full context and memory.',
-  },
-  {
-    icon: MessageSquare,
-    iconColor: 'text-muted-foreground',
-    iconBg: 'bg-muted',
-    title: 'Works in your messenger',
-    description: 'Available in Telegram. More messengers coming soon.',
-  },
-];
+import { useTranslation } from '@/hooks/useTranslation';
 
 const TELEGRAM_BOT_URL = 'https://t.me/AliaBot'; // TODO: Replace with actual bot URL
 
 export default function AgentsScreen() {
+  const { t } = useTranslation();
+
+  const FEATURES: {
+    icon: LucideIcon;
+    iconColor: string;
+    iconBg: string;
+    titleKey: string;
+    descriptionKey: string;
+  }[] = [
+    {
+      icon: Fingerprint,
+      iconColor: 'text-blue-500',
+      iconBg: 'bg-blue-500/15',
+      titleKey: 'agents.uniqueIdentity',
+      descriptionKey: 'agents.uniqueIdentityDesc',
+    },
+    {
+      icon: Brain,
+      iconColor: 'text-teal-500',
+      iconBg: 'bg-teal-500/15',
+      titleKey: 'agents.persistentMemory',
+      descriptionKey: 'agents.persistentMemoryDesc',
+    },
+    {
+      icon: Sparkles,
+      iconColor: 'text-yellow-500',
+      iconBg: 'bg-yellow-500/15',
+      titleKey: 'agents.customSkills',
+      descriptionKey: 'agents.customSkillsDesc',
+    },
+    {
+      icon: MessageSquare,
+      iconColor: 'text-muted-foreground',
+      iconBg: 'bg-muted',
+      titleKey: 'agents.worksInMessenger',
+      descriptionKey: 'agents.worksInMessengerDesc',
+    },
+  ];
+
   const handleGetStarted = () => {
     Linking.openURL(TELEGRAM_BOT_URL);
   };
@@ -61,7 +64,7 @@ export default function AgentsScreen() {
       <ScrollView className="flex-1" showsVerticalScrollIndicator={false}>
         {/* Header */}
         <View className="px-5 pt-6 pb-4">
-          <Text className="text-2xl font-bold text-foreground">Agents</Text>
+          <Text className="text-2xl font-bold text-foreground">{t('agents.title')}</Text>
         </View>
 
         {/* Hero Illustration */}
@@ -102,7 +105,7 @@ export default function AgentsScreen() {
         {/* Main Heading */}
         <View className="items-center px-5 mb-6">
           <Text className="text-3xl font-bold text-foreground text-center">
-            Claim your own agent
+            {t('agents.claimAgent')}
           </Text>
         </View>
 
@@ -122,10 +125,10 @@ export default function AgentsScreen() {
                     <Icon size={20} className={feature.iconColor} />
                   </View>
                   <Text className="text-sm font-semibold text-foreground mb-1">
-                    {feature.title}
+                    {t(feature.titleKey)}
                   </Text>
                   <Text className="text-xs text-muted-foreground leading-4">
-                    {feature.description}
+                    {t(feature.descriptionKey)}
                   </Text>
                 </View>
               );
@@ -142,7 +145,7 @@ export default function AgentsScreen() {
           >
             <Send size={18} className="text-primary-foreground" />
             <Text className="text-sm font-medium text-primary-foreground">
-              Get started on Telegram
+              {t('agents.getStartedTelegram')}
             </Text>
           </Button>
         </View>
@@ -152,7 +155,7 @@ export default function AgentsScreen() {
           <View className="flex-row items-center gap-3 mb-4 w-full max-w-xs">
             <View className="flex-1 h-px bg-border" />
             <Text className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">
-              Coming soon
+              {t('agents.comingSoon')}
             </Text>
             <View className="flex-1 h-px bg-border" />
           </View>

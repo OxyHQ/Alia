@@ -2,30 +2,7 @@ import { View, Pressable } from "react-native";
 import { Text } from "@/components/ui/text";
 import { useAuth } from "@oxyhq/services";
 import { useMemo } from "react";
-
-const GREETINGS = [
-  "Hello {name}",
-  "Hey {name}",
-  "Hi there, {name}",
-  "Welcome back, {name}",
-  "Good to see you, {name}",
-  "Hey there, {name}",
-  "Greetings, {name}",
-  "Hello again, {name}",
-  "Hi {name}",
-  "Welcome, {name}",
-];
-
-const SUBTITLE_VARIATIONS = [
-  "How can I help you today?",
-  "What can I do for you?",
-  "What would you like to know?",
-  "How may I assist you?",
-  "What brings you here today?",
-  "Ready to help with anything you need",
-  "What can I help you with?",
-  "How can I assist you today?",
-];
+import { useTranslation } from "@/hooks/useTranslation";
 
 type WelcomeMessageProps = {
   onSuggestionPress?: (message: string) => void;
@@ -33,33 +10,36 @@ type WelcomeMessageProps = {
 
 export const WelcomeMessage = ({ onSuggestionPress }: WelcomeMessageProps) => {
   const { user, isAuthenticated } = useAuth();
+  const { t } = useTranslation();
 
   const greeting = useMemo(() => {
-    const randomGreeting = GREETINGS[Math.floor(Math.random() * GREETINGS.length)];
+    const greetings = t('welcome.greetings') as unknown as string[];
+    const randomGreeting = greetings[Math.floor(Math.random() * greetings.length)];
     const userName = user?.name?.first || user?.username || user?.email?.split('@')[0] || "there";
-    return randomGreeting.replace("{name}", userName);
-  }, [user]);
+    return randomGreeting.replace("{{name}}", userName);
+  }, [user, t]);
 
   const subtitle = useMemo(() => {
-    return SUBTITLE_VARIATIONS[Math.floor(Math.random() * SUBTITLE_VARIATIONS.length)];
-  }, []);
+    const subtitles = t('welcome.subtitles') as unknown as string[];
+    return subtitles[Math.floor(Math.random() * subtitles.length)];
+  }, [t]);
 
   const suggestions = [
     {
-      title: "Summarize text",
-      description: "Summarize this article in 3 key points:",
+      title: t('welcome.summarizeTitle'),
+      description: t('welcome.summarizeDescription'),
     },
     {
-      title: "Draft email",
-      description: "Write a formal email requesting a meeting for...",
+      title: t('welcome.draftEmailTitle'),
+      description: t('welcome.draftEmailDescription'),
     },
     {
-      title: "Explore ideas",
-      description: "Give me 5 creative ideas for a marketing campaign about...",
+      title: t('welcome.exploreIdeasTitle'),
+      description: t('welcome.exploreIdeasDescription'),
     },
     {
-      title: "Python code",
-      description: "Write a Python script to analyze a CSV file.",
+      title: t('welcome.pythonCodeTitle'),
+      description: t('welcome.pythonCodeDescription'),
     },
   ];
 
@@ -69,10 +49,10 @@ export const WelcomeMessage = ({ onSuggestionPress }: WelcomeMessageProps) => {
         {/* Title */}
         <View className="items-start space-y-2 mb-8">
           <Text className="text-3xl font-bold tracking-tight text-foreground">
-            {isAuthenticated ? greeting : "Alia"}
+            {isAuthenticated ? greeting : t('welcome.appName')}
           </Text>
           <Text className="text-xl font-medium text-muted-foreground">
-            {isAuthenticated ? subtitle : "How can I help you today?"}
+            {isAuthenticated ? subtitle : t('welcome.defaultSubtitle')}
           </Text>
         </View>
 

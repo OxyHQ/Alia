@@ -4,8 +4,10 @@ import { useRouter, useLocalSearchParams } from 'expo-router';
 import { AuthContainer, AuthLogo, AuthInput, AuthButton, AuthError } from '@/components/auth';
 import apiClient from '@/lib/api/client';
 import { toast } from '@/components/sonner';
+import { useTranslation } from '@/hooks/useTranslation';
 
 export default function ResetPasswordScreen() {
+  const { t } = useTranslation();
   const router = useRouter();
   const { token } = useLocalSearchParams<{ token: string }>();
   const [password, setPassword] = useState('');
@@ -15,7 +17,7 @@ export default function ResetPasswordScreen() {
 
   useEffect(() => {
     if (!token) {
-      setError('Invalid or missing reset token');
+      setError(t('resetPassword.invalidToken'));
     }
   }, [token]);
 
@@ -23,21 +25,21 @@ export default function ResetPasswordScreen() {
     setError('');
 
     if (!password.trim()) {
-      const errorMsg = 'Please enter a new password';
+      const errorMsg = t('resetPassword.enterNewPassword');
       setError(errorMsg);
       toast.error(errorMsg);
       return;
     }
 
     if (password.length < 8) {
-      const errorMsg = 'Password must be at least 8 characters';
+      const errorMsg = t('errors.passwordTooShort');
       setError(errorMsg);
       toast.error(errorMsg);
       return;
     }
 
     if (password !== confirmPassword) {
-      const errorMsg = 'Passwords do not match';
+      const errorMsg = t('errors.passwordsDoNotMatch');
       setError(errorMsg);
       toast.error(errorMsg);
       return;
@@ -51,11 +53,11 @@ export default function ResetPasswordScreen() {
         password,
       });
 
-      toast.success('Your password has been reset successfully. Please sign in with your new password.');
+      toast.success(t('resetPassword.successMessage'));
       router.replace('/login');
     } catch (error: any) {
       console.error('Reset password error:', error);
-      const errorMessage = error.response?.data?.error || 'Failed to reset password. Please try again.';
+      const errorMessage = error.response?.data?.error || t('resetPassword.failedToReset');
       setError(errorMessage);
 
       toast.error(errorMessage);
@@ -71,10 +73,10 @@ export default function ResetPasswordScreen() {
       {/* Header */}
       <View className="space-y-2 mb-6">
         <Text className="text-3xl font-bold text-foreground tracking-tight">
-          Create new password
+          {t('resetPassword.title')}
         </Text>
         <Text className="text-base text-muted-foreground">
-          Enter your new password
+          {t('resetPassword.subtitle')}
         </Text>
       </View>
 
@@ -83,7 +85,7 @@ export default function ResetPasswordScreen() {
         <AuthError message={error} />
 
         <AuthInput
-          placeholder="New Password (min 8 characters)"
+          placeholder={t('resetPassword.newPasswordPlaceholder')}
           value={password}
           onChangeText={(text) => {
             setPassword(text);
@@ -94,7 +96,7 @@ export default function ResetPasswordScreen() {
         />
 
         <AuthInput
-          placeholder="Confirm New Password"
+          placeholder={t('resetPassword.confirmPasswordPlaceholder')}
           value={confirmPassword}
           onChangeText={(text) => {
             setConfirmPassword(text);
@@ -109,10 +111,10 @@ export default function ResetPasswordScreen() {
           onPress={handleResetPassword}
           disabled={loading || !password || !confirmPassword || !token}
           isLoading={loading}
-          loadingText="Resetting password..."
+          loadingText={t('resetPassword.resetting')}
           className="mt-3"
         >
-          Reset Password
+          {t('resetPassword.resetButton')}
         </AuthButton>
       </View>
     </AuthContainer>

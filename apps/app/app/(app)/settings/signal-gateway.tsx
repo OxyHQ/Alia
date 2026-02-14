@@ -9,8 +9,10 @@ import { SettingsHeader } from "@/components/settings/settings-header";
 import { toast } from "@/components/sonner";
 import { ConfirmationDialog } from "@/components/ui/confirmation-dialog";
 import QRCode from "react-native-qrcode-svg";
+import { useTranslation } from "@/hooks/useTranslation";
 
 export default function SignalGatewayScreen() {
+  const { t } = useTranslation();
   const router = useRouter();
   const { sessions, loading, connectNew, disconnect, stopPolling } = useGatewaySessions('signal-gateway');
   const [connecting, setConnecting] = useState(false);
@@ -35,7 +37,7 @@ export default function SignalGatewayScreen() {
       setConnecting(false);
       setQrData(null);
       setActiveSessionId(null);
-      toast.success("Signal connected!");
+      toast.success(t('gateways.signal.connected'));
     }
   }, [pendingSession]);
 
@@ -48,7 +50,7 @@ export default function SignalGatewayScreen() {
         setQrData(data.qr);
       }
     } catch (err) {
-      toast.error("Failed to start Signal linking");
+      toast.error(t('gateways.signal.failedToConnect'));
       setConnecting(false);
     }
   };
@@ -58,9 +60,9 @@ export default function SignalGatewayScreen() {
     try {
       setDisconnecting(true);
       await disconnect(disconnectTarget.sessionId);
-      toast.success("Signal disconnected");
+      toast.success(t('gateways.signal.disconnected'));
     } catch (err) {
-      toast.error("Failed to disconnect Signal");
+      toast.error(t('gateways.signal.failedToDisconnect'));
     } finally {
       setDisconnecting(false);
       setDisconnectTarget(null);
@@ -77,8 +79,8 @@ export default function SignalGatewayScreen() {
   return (
     <View className="flex-1 bg-background">
       <SettingsHeader
-        title="Signal Gateway"
-        subtitle="Link your Signal accounts for Alia to respond as you"
+        title={t('gateways.signal.title')}
+        subtitle={t('gateways.signal.subtitle')}
         showBack
       />
 
@@ -94,7 +96,7 @@ export default function SignalGatewayScreen() {
               {connectedSessions.length > 0 && (
                 <View className="gap-3">
                   <Text className="text-sm font-semibold text-muted-foreground">
-                    Connected Accounts ({connectedSessions.length})
+                    {t('gateways.connectedAccounts', { count: connectedSessions.length })}
                   </Text>
                   {connectedSessions.map((session) => (
                     <View
@@ -106,7 +108,7 @@ export default function SignalGatewayScreen() {
                       </View>
                       <View className="flex-1">
                         <Text className="text-base font-semibold">
-                          {session.displayName || 'Signal Account'}
+                          {session.displayName || t('gateways.signal.accountFallback')}
                         </Text>
                         {session.phoneNumber && (
                           <Text className="text-sm text-muted-foreground">
@@ -128,9 +130,9 @@ export default function SignalGatewayScreen() {
               {/* QR Code Flow */}
               {(qrData || isLinking) ? (
                 <View className="items-center gap-4">
-                  <Text className="text-lg font-semibold text-center">Scan QR Code</Text>
+                  <Text className="text-lg font-semibold text-center">{t('gateways.scanQRCode')}</Text>
                   <Text className="text-sm text-muted-foreground text-center">
-                    Open Signal on your phone, go to Settings &gt; Linked Devices &gt; Link New Device, then scan this code.
+                    {t('gateways.signal.scanInstructions')}
                   </Text>
 
                   {qrData ? (
@@ -145,17 +147,17 @@ export default function SignalGatewayScreen() {
                   ) : (
                     <View className="w-[282px] h-[282px] bg-muted rounded-2xl items-center justify-center">
                       <ActivityIndicator size="large" />
-                      <Text className="text-sm text-muted-foreground mt-2">Generating QR code...</Text>
+                      <Text className="text-sm text-muted-foreground mt-2">{t('gateways.generatingQR')}</Text>
                     </View>
                   )}
 
                   <View className="flex-row items-center gap-2 mt-2">
                     <ActivityIndicator size="small" />
-                    <Text className="text-sm text-muted-foreground">Waiting for scan...</Text>
+                    <Text className="text-sm text-muted-foreground">{t('gateways.waitingForScan')}</Text>
                   </View>
 
                   <Button variant="outline" className="w-full mt-2" onPress={handleCancelQR}>
-                    <Text>Cancel</Text>
+                    <Text>{t('common.cancel')}</Text>
                   </Button>
                 </View>
               ) : (
@@ -166,17 +168,17 @@ export default function SignalGatewayScreen() {
                       <View className="bg-[#3A76F0]/10 p-6 rounded-full">
                         <Shield size={48} color="#3A76F0" />
                       </View>
-                      <Text className="text-xl font-bold text-center">Link Your Signal</Text>
+                      <Text className="text-xl font-bold text-center">{t('gateways.signal.linkYour')}</Text>
                       <Text className="text-sm text-muted-foreground text-center leading-5">
-                        Connect your Signal account to let Alia respond to messages on your behalf. You'll scan a QR code with your phone, just like Signal Desktop.
+                        {t('gateways.signal.linkDescription')}
                       </Text>
 
                       <View className="bg-muted/50 rounded-xl p-4 w-full gap-2 mt-2">
-                        <Text className="text-sm font-medium">How it works:</Text>
-                        <Text className="text-sm text-muted-foreground">1. Tap "Connect" below</Text>
-                        <Text className="text-sm text-muted-foreground">2. A QR code will appear</Text>
-                        <Text className="text-sm text-muted-foreground">3. Open Signal &gt; Settings &gt; Linked Devices</Text>
-                        <Text className="text-sm text-muted-foreground">4. Tap "Link New Device" and scan</Text>
+                        <Text className="text-sm font-medium">{t('gateways.howItWorks')}</Text>
+                        <Text className="text-sm text-muted-foreground">{t('gateways.step1')}</Text>
+                        <Text className="text-sm text-muted-foreground">{t('gateways.step2')}</Text>
+                        <Text className="text-sm text-muted-foreground">{t('gateways.signal.step3')}</Text>
+                        <Text className="text-sm text-muted-foreground">{t('gateways.signal.step4')}</Text>
                       </View>
                     </>
                   )}
@@ -190,10 +192,10 @@ export default function SignalGatewayScreen() {
                       {connectedSessions.length > 0 && <Plus size={18} className="text-primary-foreground" />}
                       <Text className="text-primary-foreground">
                         {connecting
-                          ? "Linking..."
+                          ? t('gateways.signal.linking')
                           : connectedSessions.length > 0
-                            ? "Add Another Signal"
-                            : "Connect Signal"
+                            ? t('gateways.signal.addAnother')
+                            : t('gateways.signal.connect')
                         }
                       </Text>
                     </View>
@@ -208,10 +210,10 @@ export default function SignalGatewayScreen() {
       <ConfirmationDialog
         open={!!disconnectTarget}
         onOpenChange={(open) => !open && setDisconnectTarget(null)}
-        title="Unlink Signal"
-        description={`This will unlink ${disconnectTarget?.displayName || 'this Signal account'} from Alia. You'll need to scan the QR code again to reconnect.`}
-        confirmText="Unlink"
-        cancelText="Cancel"
+        title={t('gateways.signal.disconnectTitle')}
+        description={t('gateways.signal.disconnectDescription', { name: disconnectTarget?.displayName || t('gateways.signal.accountFallback') })}
+        confirmText={t('common.confirm')}
+        cancelText={t('common.cancel')}
         confirmVariant="destructive"
         onConfirm={handleDisconnect}
         loading={disconnecting}

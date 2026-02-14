@@ -11,6 +11,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Text } from '@/components/ui/text';
 import { Separator } from '@/components/ui/separator';
 import { io as socketIO } from 'socket.io-client';
+import { useTranslation } from '@/hooks/useTranslation';
 
 type AppType = string;
 type Status = 'loading' | 'authorize' | 'authorizing' | 'success' | 'error' | 'needLogin';
@@ -18,7 +19,7 @@ type Status = 'loading' | 'authorize' | 'authorizing' | 'success' | 'error' | 'n
 interface AppConfig {
   name: string;
   displayName: string;
-  permissions: string[];
+  permissionKeys: string[];
   isChannel?: boolean;
 }
 
@@ -26,39 +27,23 @@ const APP_CONFIGS: Record<string, AppConfig> = {
   codea: {
     name: 'codea',
     displayName: 'Alia Codea',
-    permissions: [
-      'Send messages to AI models',
-      'Use your credits for API calls',
-      'Access available models',
-    ],
+    permissionKeys: ['sendMessages', 'useCredits', 'accessModels'],
   },
   cowork: {
     name: 'cowork',
     displayName: 'Alia Cowork',
-    permissions: [
-      'Send messages to AI models',
-      'Use your credits for API calls',
-      'Access available models',
-    ],
+    permissionKeys: ['sendMessages', 'useCredits', 'accessModels'],
   },
   telegram: {
     name: 'telegram',
     displayName: 'Telegram',
-    permissions: [
-      'Link your Telegram account',
-      'Send messages via Telegram',
-      'Receive notifications',
-    ],
+    permissionKeys: ['linkAccount', 'sendVia', 'receiveNotifications'],
     isChannel: true,
   },
   discord: {
     name: 'discord',
     displayName: 'Discord',
-    permissions: [
-      'Link your Discord account',
-      'Send messages via Discord',
-      'Receive notifications',
-    ],
+    permissionKeys: ['linkAccount', 'sendVia', 'receiveNotifications'],
     isChannel: true,
   },
 };
@@ -67,10 +52,7 @@ function getAppConfig(app: string): AppConfig {
   return APP_CONFIGS[app] || {
     name: app,
     displayName: app.charAt(0).toUpperCase() + app.slice(1),
-    permissions: [
-      `Link your ${app} account`,
-      `Send messages via ${app}`,
-    ],
+    permissionKeys: ['linkAccount', 'sendVia'],
     isChannel: true,
   };
 }
@@ -80,6 +62,7 @@ export default function AuthorizeScreen() {
   const params = useLocalSearchParams();
   const { isAuthenticated, isLoading: authLoading } = useAuth();
   const { isAuthenticated: isOxyAuth } = useOxy();
+  const { t } = useTranslation();
 
   // Determine app type from params
   const app = (params.app as AppType) || 'codea';
@@ -96,13 +79,13 @@ export default function AuthorizeScreen() {
 
     if (!callback || typeof callback !== 'string') {
       setStatus('error');
-      setMessage('Invalid callback URL. Please try again from the app.');
+      setMessage(t('authorize.invalidCallback'));
       return;
     }
 
     if (!code_challenge || typeof code_challenge !== 'string') {
       setStatus('error');
-      setMessage('Invalid authorization request. Missing PKCE challenge.');
+      setMessage(t('authorize.invalidPKCE'));
       return;
     }
 
@@ -125,7 +108,7 @@ export default function AuthorizeScreen() {
 
       setRedirectUrl(finalUrl);
       setStatus('success');
-      setMessage('Authorization successful! Redirecting back to the app...');
+      setMessage(t('authorize.authSuccess'));
 
       setTimeout(() => {
         try {
@@ -138,7 +121,7 @@ export default function AuthorizeScreen() {
     } catch (error: any) {
       console.error('Authorization error:', error);
       setStatus('error');
-      setMessage(error.response?.data?.error || 'Failed to authorize. Please try again.');
+      setMessage(error.response?.data?.error || t('authorize.failedToAuthorize'));
     }
   };
 
@@ -152,7 +135,7 @@ export default function AuthorizeScreen() {
 
     if (!token || typeof token !== 'string') {
       setStatus('error');
-      setMessage('Invalid authentication token. The link you followed is not valid.');
+      setMessage(t('authorize.invalidToken'));
       return;
     }
 
@@ -161,18 +144,18 @@ export default function AuthorizeScreen() {
       const res = await apiClient.get(`/channels/${channelType}/check-token/${token}`);
       if (!res.data?.valid) {
         setStatus('error');
-        setMessage(res.data?.error || 'This link has expired. Please request a new one.');
+        setMessage(res.data?.error || t('authorize.tokenExpired'));
         return;
       }
     } catch (e: any) {
       setStatus('error');
-      setMessage('Invalid or expired token. Please request a new link.');
+      setMessage(t('authorize.invalidOrExpiredToken'));
       return;
     }
 
     if (!isOxyAuth) {
       setStatus('needLogin');
-      setMessage(`You need to log in first to link your ${appConfig.displayName} account.`);
+      setMessage(t('authorize.needLogin', { app: appConfig.displayName }));
       setTimeout(() => {
         const returnTo = `/authorize?app=${channelType}&token=${token}&channel=${channelType}`;
         router.replace(`/login?returnTo=${encodeURIComponent(returnTo)}`);
@@ -187,14 +170,14 @@ export default function AuthorizeScreen() {
       });
       if (response.data.success) {
         setStatus('success');
-        setMessage(`Your ${appConfig.displayName} account has been linked successfully!`);
+        setMessage(t('authorize.linkSuccess', { app: appConfig.displayName }));
       } else {
         setStatus('error');
-        setMessage('Failed to link your account. Please try again.');
+        setMessage(t('authorize.failedToLink'));
       }
     } catch (error: any) {
       console.error('Channel link error:', error);
-      const errorMessage = error.response?.data?.error || 'Failed to link account';
+      const errorMessage = error.response?.data?.error || t('authorize.failedToLink');
       setStatus('error');
       setMessage(errorMessage);
     }
@@ -209,7 +192,7 @@ export default function AuthorizeScreen() {
         handleChannelAuth();
       } else {
         setStatus('error');
-        setMessage('Missing authentication token.');
+        setMessage(t('authorize.missingToken'));
       }
     } else {
       // OAuth flow for Codea/Cowork
@@ -239,7 +222,7 @@ export default function AuthorizeScreen() {
 
     socket.on('telegram-linked', () => {
       setStatus('success');
-      setMessage('Your Telegram account has been linked successfully!');
+      setMessage(t('authorize.linkSuccess', { app: 'Telegram' }));
     });
 
     return () => {
@@ -268,7 +251,7 @@ export default function AuthorizeScreen() {
         <AuthLogo />
         <View className="items-center py-8">
           <ActivityIndicator size="large" color="#667eea" />
-          <Text className="text-muted-foreground mt-4">Loading...</Text>
+          <Text className="text-muted-foreground mt-4">{t('common.loading')}</Text>
         </View>
       </AuthContainer>
     );
@@ -277,8 +260,8 @@ export default function AuthorizeScreen() {
   return (
     <>
       <Head>
-        <title>Authorize {appConfig.displayName}</title>
-        <meta name="description" content={`Authorize ${appConfig.displayName} to access your account`} />
+        <title>{t('authorize.authorizeApp', { app: appConfig.displayName })}</title>
+        <meta name="description" content={t('authorize.appWantsAccess', { app: appConfig.displayName })} />
         <meta name="robots" content="noindex, nofollow" />
       </Head>
       <AuthContainer>
@@ -287,21 +270,21 @@ export default function AuthorizeScreen() {
         {status === 'authorize' && (
           <Card>
             <CardHeader>
-              <CardTitle className="text-center">Authorize {appConfig.displayName}</CardTitle>
+              <CardTitle className="text-center">{t('authorize.authorizeApp', { app: appConfig.displayName })}</CardTitle>
               <CardDescription className="text-center">
-                {appConfig.displayName} wants to access your account
+                {t('authorize.appWantsAccess', { app: appConfig.displayName })}
               </CardDescription>
             </CardHeader>
             <CardContent>
               <View className="gap-4">
                 <View className="gap-2">
                   <Text className="text-sm text-muted-foreground font-medium">
-                    This will allow {appConfig.displayName} to:
+                    {t('authorize.willAllow', { app: appConfig.displayName })}
                   </Text>
                   <View className="gap-2 pl-1">
-                    {appConfig.permissions.map((permission, index) => (
+                    {appConfig.permissionKeys.map((key, index) => (
                       <Text key={index} className="text-sm">
-                        • {permission}
+                        • {t(`authorize.${key}`, { app: appConfig.displayName })}
                       </Text>
                     ))}
                   </View>
@@ -311,11 +294,11 @@ export default function AuthorizeScreen() {
 
                 <View className="gap-3">
                   <Button onPress={handleOAuthAuthorize} size="lg">
-                    <Text>Authorize</Text>
+                    <Text>{t('common.authorize')}</Text>
                   </Button>
 
                   <Button onPress={handleCancel} variant="outline" size="lg">
-                    <Text>Cancel</Text>
+                    <Text>{t('common.cancel')}</Text>
                   </Button>
                 </View>
               </View>
@@ -329,10 +312,10 @@ export default function AuthorizeScreen() {
               <View className="items-center py-4 gap-3">
                 <ActivityIndicator size="large" color="#667eea" />
                 <Text className="text-xl font-semibold text-foreground">
-                  {appConfig.isChannel ? 'Linking account...' : 'Authorizing...'}
+                  {appConfig.isChannel ? t('authorize.linkingAccount') : t('authorize.authorizing')}
                 </Text>
                 <Text className="text-muted-foreground text-center">
-                  Please wait while we set up your access
+                  {t('authorize.pleaseWait')}
                 </Text>
               </View>
             </CardContent>
@@ -346,13 +329,13 @@ export default function AuthorizeScreen() {
                 <Text className="text-4xl">🔐</Text>
                 <View className="gap-2 items-center">
                   <Text className="text-xl font-semibold text-foreground">
-                    Authentication Required
+                    {t('authorize.authRequired')}
                   </Text>
                   <Text className="text-muted-foreground text-center">
                     {message}
                   </Text>
                   <Text className="text-sm text-muted-foreground text-center">
-                    Redirecting to login...
+                    {t('authorize.redirectingToLogin')}
                   </Text>
                 </View>
               </View>
@@ -367,7 +350,7 @@ export default function AuthorizeScreen() {
                 <Text className="text-4xl">✅</Text>
                 <View className="gap-2 items-center">
                   <Text className="text-xl font-semibold text-foreground">
-                    {appConfig.isChannel ? 'Linked!' : 'Authorized!'}
+                    {appConfig.isChannel ? t('authorize.linked') : t('authorize.authorized')}
                   </Text>
                   <Text className="text-muted-foreground text-center">
                     {message}
@@ -387,7 +370,7 @@ export default function AuthorizeScreen() {
                       }}
                       size="lg"
                     >
-                      <Text>Open App Manually</Text>
+                      <Text>{t('authorize.openAppManually')}</Text>
                     </Button>
                     <Text className="text-xs text-muted-foreground text-center select-all">
                       {redirectUrl}

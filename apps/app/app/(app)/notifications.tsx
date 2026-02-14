@@ -6,8 +6,10 @@ import { useState, useEffect } from "react";
 import { useAuth } from "@oxyhq/services";
 import * as Notifications from "expo-notifications";
 import { useColorScheme } from "@/lib/useColorScheme";
+import { useTranslation } from "@/hooks/useTranslation";
 
 export default function NotificationsScreen() {
+  const { t } = useTranslation();
   const router = useRouter();
   const { isAuthenticated } = useAuth();
   const { isDarkColorScheme } = useColorScheme();
@@ -56,11 +58,11 @@ export default function NotificationsScreen() {
       <View className="px-6 py-6 border-b border-border">
         <Pressable onPress={() => router.back()} className="flex-row items-center mb-4">
           <ArrowLeft size={16} className="text-muted-foreground mr-2" />
-          <Text className="text-sm text-muted-foreground">Back</Text>
+          <Text className="text-sm text-muted-foreground">{t('common.back')}</Text>
         </Pressable>
-        <Text className="text-2xl font-semibold text-foreground">Notifications</Text>
+        <Text className="text-2xl font-semibold text-foreground">{t('notifications.title')}</Text>
         <Text className="text-sm text-muted-foreground mt-1">
-          Manage your notification preferences
+          {t('notifications.subtitle')}
         </Text>
       </View>
 
@@ -70,9 +72,9 @@ export default function NotificationsScreen() {
           <View className="flex-row items-center gap-3 flex-1">
             <StatusIcon size={20} className="text-muted-foreground" />
             <View className="flex-1">
-              <Text className="text-sm font-medium text-foreground">Push Notifications</Text>
+              <Text className="text-sm font-medium text-foreground">{t('notifications.pushNotifications')}</Text>
               <Text className="text-xs text-muted-foreground mt-0.5">
-                Receive alerts about new messages and updates
+                {t('notifications.pushDescription')}
               </Text>
             </View>
           </View>
@@ -91,7 +93,7 @@ export default function NotificationsScreen() {
         {permissionStatus === "denied" && (
           <View className="mt-4 p-3 rounded-lg bg-muted">
             <Text className="text-xs text-muted-foreground">
-              Notifications are blocked. Please enable them in your device settings to receive push notifications.
+              {t('notifications.permissionDenied')}
             </Text>
           </View>
         )}

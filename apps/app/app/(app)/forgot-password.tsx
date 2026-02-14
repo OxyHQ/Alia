@@ -4,8 +4,10 @@ import { useRouter } from 'expo-router';
 import { AuthContainer, AuthLogo, AuthInput, AuthButton, AuthError } from '@/components/auth';
 import apiClient from '@/lib/api/client';
 import { toast } from '@/components/sonner';
+import { useTranslation } from '@/hooks/useTranslation';
 
 export default function ForgotPasswordScreen() {
+  const { t } = useTranslation();
   const router = useRouter();
   const [email, setEmail] = useState('');
   const [loading, setLoading] = useState(false);
@@ -14,7 +16,7 @@ export default function ForgotPasswordScreen() {
 
   const handleResetPassword = async () => {
     if (!email.trim()) {
-      setError('Please enter your email address');
+      setError(t('errors.emailRequired'));
       return;
     }
 
@@ -28,11 +30,11 @@ export default function ForgotPasswordScreen() {
       });
 
       setSent(true);
-      toast.success('Check your email for instructions to reset your password.');
+      toast.success(t('forgotPassword.checkEmailToast'));
       router.back();
     } catch (error: any) {
       console.error('Reset password error:', error);
-      const errorMessage = error.response?.data?.error || 'Failed to send reset email. Please try again.';
+      const errorMessage = error.response?.data?.error || t('forgotPassword.failedToSend');
       setError(errorMessage);
 
       toast.error(errorMessage);
@@ -49,17 +51,17 @@ export default function ForgotPasswordScreen() {
             // Success State
             <View className="items-center">
               <Text className="text-2xl font-bold text-foreground tracking-tight mb-2 text-center">
-                Check your email
+                {t('forgotPassword.checkEmail')}
               </Text>
               <Text className="text-sm text-muted-foreground text-center mb-6 leading-5">
-                We've sent password reset instructions to{'\n'}
+                {t('forgotPassword.sentInstructions')}{'\n'}
                 <Text className="font-medium text-foreground">{email}</Text>
               </Text>
               <AuthButton
                 onPress={() => router.back()}
                 className="w-full"
               >
-                Return to Sign in
+                {t('forgotPassword.returnToSignIn')}
               </AuthButton>
               <Pressable
                 onPress={() => {
@@ -69,7 +71,7 @@ export default function ForgotPasswordScreen() {
                 className="mt-4"
               >
                 <Text className="text-primary text-sm font-medium">
-                  Try another email
+                  {t('forgotPassword.tryAnotherEmail')}
                 </Text>
               </Pressable>
             </View>
@@ -78,10 +80,10 @@ export default function ForgotPasswordScreen() {
         <>
           <View className="space-y-2 mb-6">
             <Text className="text-3xl font-bold text-foreground tracking-tight">
-              Reset password
+              {t('forgotPassword.title')}
             </Text>
             <Text className="text-base text-muted-foreground">
-              Enter your email to reset your password
+              {t('forgotPassword.subtitle')}
             </Text>
           </View>
 
@@ -89,7 +91,7 @@ export default function ForgotPasswordScreen() {
             <AuthError message={error} />
 
             <AuthInput
-              placeholder="Email"
+              placeholder={t('forgotPassword.emailPlaceholder')}
               value={email}
               onChangeText={(text) => {
                 setEmail(text);
@@ -105,10 +107,10 @@ export default function ForgotPasswordScreen() {
               onPress={handleResetPassword}
               disabled={loading || !email}
               isLoading={loading}
-              loadingText="Sending..."
+              loadingText={t('forgotPassword.sending')}
               className="mt-3"
             >
-              Continue
+              {t('common.continue')}
             </AuthButton>
           </View>
         </>
