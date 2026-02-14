@@ -24,7 +24,7 @@ import {
   sendAuthRequest,
 } from './commands';
 
-const apiClient = new APIClient('telegram', process.env.INTEGRATIONS_SECRET || '');
+const apiClient = new APIClient('telegram', process.env.TELEGRAM_BOT_SECRET || '');
 
 export class TelegramBotAdapter implements MessagingAdapter {
   name = 'telegram-bot';
@@ -130,9 +130,9 @@ export class TelegramBotAdapter implements MessagingAdapter {
         await apiClient.updateConversation(telegramId, conversationId);
       }
 
-      const botSecret = process.env.INTEGRATIONS_SECRET;
+      const botSecret = process.env.TELEGRAM_BOT_SECRET;
       if (!botSecret) {
-        console.error('[Telegram Bot] INTEGRATIONS_SECRET not configured');
+        console.error('[Telegram Bot] TELEGRAM_BOT_SECRET not configured');
         await ctx.reply('Bot configuration error. Please contact support.');
         return;
       }

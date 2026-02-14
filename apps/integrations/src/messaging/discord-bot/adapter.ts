@@ -12,7 +12,7 @@ import {
   sendAuthRequest,
 } from './commands';
 
-const apiClient = new APIClient('discord', process.env.INTEGRATIONS_SECRET || '');
+const apiClient = new APIClient('discord', process.env.DISCORD_BOT_SECRET || '');
 
 export class DiscordBotAdapter implements MessagingAdapter {
   name = 'discord-bot';
@@ -206,7 +206,7 @@ export class DiscordBotAdapter implements MessagingAdapter {
       }, 5000);
 
       try {
-        const botSecret = process.env.INTEGRATIONS_SECRET!;
+        const botSecret = process.env.DISCORD_BOT_SECRET!;
         const apiBaseUrl = process.env.API_BASE_URL || 'http://localhost:3001';
 
         let conversationId = channelUser.conversationId;
