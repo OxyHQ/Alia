@@ -8,7 +8,7 @@ import { Context, Markup } from 'telegraf';
 import { v4 as uuidv4 } from 'uuid';
 import { APIClient } from '../../shared/api-client';
 
-const apiClient = new APIClient('telegram', process.env.INTEGRATIONS_SECRET || '');
+const apiClient = new APIClient('telegram', process.env.TELEGRAM_BOT_SECRET || '');
 
 // ---------------------------------------------------------------------------
 // Model cache
