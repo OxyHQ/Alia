@@ -17,10 +17,10 @@ export function getTerminalTools(sessionId: string) {
   return {
     run_command: tool({
       description: 'Execute a shell command in a sandboxed terminal. Returns the command output (stdout + stderr). Use for installing packages, running scripts, data processing, etc.',
-      parameters: z.object({
+      inputSchema: z.object({
         command: z.string().describe('The shell command to execute'),
       }),
-      execute: async ({ command }: { command: string }) => {
+      execute: async ({ command }) => {
         await fs.mkdir(WORK_DIR, { recursive: true }).catch(() => {});
         const output = await runCommand(sessionId, `cd ${WORK_DIR} && ${command}`);
         return { output: output.slice(0, 10000), command };
@@ -29,10 +29,10 @@ export function getTerminalTools(sessionId: string) {
 
     read_file: tool({
       description: 'Read the contents of a file in the workspace.',
-      parameters: z.object({
+      inputSchema: z.object({
         filepath: z.string().describe('Path to the file (relative to workspace or absolute under /tmp)'),
       }),
-      execute: async ({ filepath }: { filepath: string }) => {
+      execute: async ({ filepath }) => {
         const resolved = filepath.startsWith('/') ? filepath : path.join(WORK_DIR, filepath);
         if (!resolved.startsWith('/tmp')) {
           return { error: 'Can only read files under /tmp' };
@@ -48,11 +48,11 @@ export function getTerminalTools(sessionId: string) {
 
     write_file: tool({
       description: 'Write content to a file in the workspace.',
-      parameters: z.object({
+      inputSchema: z.object({
         filepath: z.string().describe('Path to the file (relative to workspace or absolute under /tmp)'),
         content: z.string().describe('Content to write'),
       }),
-      execute: async ({ filepath, content }: { filepath: string; content: string }) => {
+      execute: async ({ filepath, content }) => {
         const resolved = filepath.startsWith('/') ? filepath : path.join(WORK_DIR, filepath);
         if (!resolved.startsWith('/tmp')) {
           return { error: 'Can only write files under /tmp' };
@@ -69,10 +69,10 @@ export function getTerminalTools(sessionId: string) {
 
     list_files: tool({
       description: 'List files and directories in the workspace.',
-      parameters: z.object({
+      inputSchema: z.object({
         dir: z.string().optional().describe('Directory to list (defaults to workspace root)'),
       }),
-      execute: async ({ dir }: { dir?: string }) => {
+      execute: async ({ dir }) => {
         const resolved = dir
           ? dir.startsWith('/') ? dir : path.join(WORK_DIR, dir)
           : WORK_DIR;
@@ -95,8 +95,8 @@ export function getTerminalTools(sessionId: string) {
 
     close_terminal: tool({
       description: 'Close the terminal session.',
-      parameters: z.object({}),
-      execute: async (_args: Record<string, never>) => {
+      inputSchema: z.object({}),
+      execute: async () => {
         destroySession(sessionId);
         return { closed: true };
       },
