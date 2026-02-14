@@ -208,7 +208,7 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
   const userId = (user?._id as string) || (user?.id as string) || 'anonymous';
 
   const [currentWorkspaceId, setCurrentWorkspaceId] = React.useState<string>(
-    () => localStorage.getItem(CURRENT_WORKSPACE_KEY) || 'personal'
+    () => (typeof window !== 'undefined' ? localStorage.getItem(CURRENT_WORKSPACE_KEY) : null) || 'personal'
   );
 
   // Fetch team workspaces (organizations) from API
@@ -268,7 +268,7 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
   // Set current workspace
   const setCurrentWorkspace = React.useCallback((workspace: Workspace) => {
     setCurrentWorkspaceId(workspace.id);
-    localStorage.setItem(CURRENT_WORKSPACE_KEY, workspace.id);
+    if (typeof window !== 'undefined') localStorage.setItem(CURRENT_WORKSPACE_KEY, workspace.id);
   }, []);
 
   // Create workspace
@@ -282,7 +282,7 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
     onSuccess: (newOrg) => {
       queryClient.invalidateQueries({ queryKey: ['organizations'] });
       setCurrentWorkspaceId(newOrg._id);
-      localStorage.setItem(CURRENT_WORKSPACE_KEY, newOrg._id);
+      if (typeof window !== 'undefined') localStorage.setItem(CURRENT_WORKSPACE_KEY, newOrg._id);
     },
   });
 
@@ -318,7 +318,7 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
       queryClient.invalidateQueries({ queryKey: ['organizations'] });
       if (currentWorkspaceId === deletedId) {
         setCurrentWorkspaceId('personal');
-        localStorage.setItem(CURRENT_WORKSPACE_KEY, 'personal');
+        if (typeof window !== 'undefined') localStorage.setItem(CURRENT_WORKSPACE_KEY, 'personal');
       }
     },
   });
