@@ -177,6 +177,11 @@ export function authenticateTokenOrApiKey(
   res: Response,
   next: NextFunction
 ): void {
+  // Already authenticated (e.g., by channel bot pre-middleware)
+  if (req.user) {
+    return next();
+  }
+
   // Check for Telegram bot authentication first
   const telegramBotSecret = req.headers['x-telegram-bot-secret'] as string;
   if (telegramBotSecret) {
