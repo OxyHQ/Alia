@@ -25,12 +25,20 @@ router.get('/', async (req: Request, res: Response) => {
     const organizations = await Organization.find({ _id: { $in: orgIds } })
       .sort({ createdAt: -1 });
 
-    // Add role to each organization
+    // Get member counts per organization
+    const memberCounts = await OrganizationMember.aggregate([
+      { $match: { organizationId: { $in: orgIds } } },
+      { $group: { _id: '$organizationId', count: { $sum: 1 } } },
+    ]);
+    const countMap = new Map(memberCounts.map((c) => [c._id.toString(), c.count]));
+
+    // Add role and memberCount to each organization
     const orgsWithRole = organizations.map((org) => {
       const membership = memberships.find((m) => m.organizationId.toString() === org._id.toString());
       return {
         ...org.toObject(),
         role: membership?.role,
+        memberCount: countMap.get(org._id.toString()) || 0,
       };
     });
 
@@ -63,10 +71,22 @@ router.get('/:id', async (req: Request, res: Response) => {
       return res.status(404).json({ error: 'Organization not found' });
     }
 
+    // Fetch members with populated user data
+    const members = await OrganizationMember.find({ organizationId: id })
+      .populate('oxyUserId', 'email username name image')
+      .sort({ createdAt: -1 });
+
     res.json({
       organization: {
         ...organization.toObject(),
         role: membership.role,
+        members: members.map((m) => ({
+          _id: m._id,
+          oxyUserId: m.oxyUserId,
+          role: m.role,
+          permissions: m.permissions,
+          createdAt: m.createdAt,
+        })),
       },
     });
   } catch (error) {
@@ -215,7 +235,7 @@ router.get('/:id/members', async (req: Request, res: Response) => {
     }
 
     const members = await OrganizationMember.find({ organizationId: id })
-      .populate('userId', 'email name image')
+      .populate('oxyUserId', 'email username name image')
       .sort({ createdAt: -1 });
 
     res.json({ members });

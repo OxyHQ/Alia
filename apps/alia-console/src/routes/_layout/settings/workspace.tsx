@@ -6,7 +6,6 @@ import {
   Delete02Icon,
   Add01Icon,
   UserMultiple02Icon,
-  Mail01Icon,
   Cancel01Icon,
 } from '@hugeicons/core-free-icons';
 import { Button } from '@/components/ui/button';
@@ -15,7 +14,6 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Separator } from '@/components/ui/separator';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import {
   Select,
@@ -44,9 +42,9 @@ import {
 } from '@/components/ui/alert-dialog';
 import {
   useWorkspace,
+  useWorkspaceMembers,
   type WorkspaceRole,
   type WorkspaceMember,
-  type WorkspaceInvite,
 } from '@/hooks/use-workspace';
 import { toast } from 'sonner';
 
@@ -58,14 +56,12 @@ const roleLabels: Record<WorkspaceRole, string> = {
   owner: 'Owner',
   admin: 'Admin',
   member: 'Member',
-  viewer: 'Viewer',
 };
 
 const roleDescriptions: Record<WorkspaceRole, string> = {
   owner: 'Full access, can delete workspace',
   admin: 'Can manage members and settings',
   member: 'Can create apps and API keys',
-  viewer: 'Read-only access',
 };
 
 function WorkspaceSettingsPage() {
@@ -76,11 +72,14 @@ function WorkspaceSettingsPage() {
     inviteMember,
     removeMember,
     updateMemberRole,
-    cancelInvite,
     canEditWorkspace,
     canManageMembers,
     canDeleteWorkspace,
   } = useWorkspace();
+
+  const { data: members, isLoading: membersLoading } = useWorkspaceMembers(
+    currentWorkspace?.id || ''
+  );
 
   const [name, setName] = useState(currentWorkspace?.name || '');
   const [description, setDescription] = useState(currentWorkspace?.description || '');
@@ -109,7 +108,7 @@ function WorkspaceSettingsPage() {
   const canDelete = canDeleteWorkspace(currentWorkspace);
   const isPersonal = currentWorkspace.type === 'personal';
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!name.trim()) {
       toast.error('Workspace name is required');
       return;
@@ -117,7 +116,7 @@ function WorkspaceSettingsPage() {
 
     setIsSaving(true);
     try {
-      updateWorkspace(currentWorkspace.id, {
+      await updateWorkspace(currentWorkspace.id, {
         name: name.trim(),
         description: description.trim() || undefined,
       });
@@ -129,7 +128,7 @@ function WorkspaceSettingsPage() {
     }
   };
 
-  const handleInvite = () => {
+  const handleInvite = async () => {
     if (!inviteEmail.trim()) {
       toast.error('Email is required');
       return;
@@ -137,15 +136,15 @@ function WorkspaceSettingsPage() {
 
     setIsInviting(true);
     try {
-      const invite = inviteMember(currentWorkspace.id, inviteEmail.trim(), inviteRole);
-      if (invite) {
-        toast.success(`Invite sent to ${inviteEmail}`);
-        setShowInviteDialog(false);
-        setInviteEmail('');
-        setInviteRole('member');
+      const result = await inviteMember(currentWorkspace.id, inviteEmail.trim(), inviteRole);
+      if (result?.message) {
+        toast.info(result.message);
       } else {
-        toast.error('Failed to send invite');
+        toast.success(`Invite sent to ${inviteEmail}`);
       }
+      setShowInviteDialog(false);
+      setInviteEmail('');
+      setInviteRole('member');
     } catch {
       toast.error('Failed to send invite');
     } finally {
@@ -153,43 +152,40 @@ function WorkspaceSettingsPage() {
     }
   };
 
-  const handleRemoveMember = (member: WorkspaceMember) => {
-    if (removeMember(currentWorkspace.id, member.id)) {
+  const handleRemoveMember = async (member: WorkspaceMember) => {
+    try {
+      await removeMember(currentWorkspace.id, member.id);
       toast.success(`${member.name || member.email} removed`);
-    } else {
+    } catch {
       toast.error('Failed to remove member');
     }
   };
 
-  const handleRoleChange = (member: WorkspaceMember, role: WorkspaceRole) => {
-    if (updateMemberRole(currentWorkspace.id, member.id, role)) {
+  const handleRoleChange = async (member: WorkspaceMember, role: WorkspaceRole) => {
+    try {
+      await updateMemberRole(currentWorkspace.id, member.id, role);
       toast.success(`Role updated for ${member.name || member.email}`);
-    } else {
+    } catch {
       toast.error('Failed to update role');
     }
   };
 
-  const handleCancelInvite = (invite: WorkspaceInvite) => {
-    if (cancelInvite(currentWorkspace.id, invite.id)) {
-      toast.success('Invite cancelled');
-    } else {
-      toast.error('Failed to cancel invite');
-    }
-  };
-
-  const handleDelete = () => {
+  const handleDelete = async () => {
     if (deleteConfirmation !== currentWorkspace.name) {
       toast.error('Please type the workspace name to confirm');
       return;
     }
 
-    if (deleteWorkspace(currentWorkspace.id)) {
+    try {
+      await deleteWorkspace(currentWorkspace.id);
       toast.success('Workspace deleted');
       setShowDeleteDialog(false);
-    } else {
+    } catch {
       toast.error('Failed to delete workspace');
     }
   };
+
+  const displayMembers = members || currentWorkspace.members || [];
 
   return (
     <ScrollArea className="flex-1 bg-background">
@@ -265,94 +261,71 @@ function WorkspaceSettingsPage() {
           </div>
 
           {/* Members List */}
-          <div className="space-y-2">
-            {currentWorkspace.members?.map((member) => (
-              <div
-                key={member.id}
-                className="flex items-center justify-between py-3 px-4 rounded-lg border"
-              >
-                <div className="flex items-center gap-3">
-                  <Avatar className="size-8">
-                    <AvatarFallback>
-                      {member.name?.[0]?.toUpperCase() || member.email[0].toUpperCase()}
-                    </AvatarFallback>
-                  </Avatar>
-                  <div>
-                    <p className="text-sm font-medium">{member.name || member.email}</p>
-                    <p className="text-xs text-muted-foreground">{member.email}</p>
+          {membersLoading ? (
+            <div className="space-y-2">
+              {[1, 2].map((i) => (
+                <div key={i} className="flex items-center justify-between py-3 px-4 rounded-lg border animate-pulse">
+                  <div className="flex items-center gap-3">
+                    <div className="size-8 rounded-full bg-muted" />
+                    <div className="space-y-1">
+                      <div className="h-4 w-24 bg-muted rounded" />
+                      <div className="h-3 w-32 bg-muted rounded" />
+                    </div>
                   </div>
                 </div>
-                <div className="flex items-center gap-2">
-                  {member.role === 'owner' ? (
-                    <Badge variant="secondary">Owner</Badge>
-                  ) : canManage ? (
-                    <Select
-                      value={member.role}
-                      onValueChange={(value) => handleRoleChange(member, value as WorkspaceRole)}
-                    >
-                      <SelectTrigger className="w-28 h-8">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="admin">Admin</SelectItem>
-                        <SelectItem value="member">Member</SelectItem>
-                        <SelectItem value="viewer">Viewer</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  ) : (
-                    <Badge variant="outline">{roleLabels[member.role]}</Badge>
-                  )}
-                  {canManage && member.role !== 'owner' && (
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-8 w-8 text-destructive"
-                      onClick={() => handleRemoveMember(member)}
-                    >
-                      <HugeiconsIcon icon={Cancel01Icon} size={14} />
-                    </Button>
-                  )}
-                </div>
-              </div>
-            ))}
-          </div>
-
-          {/* Pending Invites */}
-          {currentWorkspace.invites && currentWorkspace.invites.length > 0 && (
-            <>
-              <Separator className="my-4" />
-              <h3 className="text-sm font-medium text-muted-foreground mb-3">Pending Invites</h3>
-              <div className="space-y-2">
-                {currentWorkspace.invites.map((invite) => (
-                  <div
-                    key={invite.id}
-                    className="flex items-center justify-between py-3 px-4 rounded-lg border border-dashed"
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className="flex items-center justify-center size-8 rounded-full bg-muted">
-                        <HugeiconsIcon icon={Mail01Icon} size={14} className="text-muted-foreground" />
-                      </div>
-                      <div>
-                        <p className="text-sm">{invite.email}</p>
-                        <p className="text-xs text-muted-foreground">
-                          Invited as {roleLabels[invite.role]} •{' '}
-                          {new Date(invite.invitedAt).toLocaleDateString()}
-                        </p>
-                      </div>
+              ))}
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {displayMembers.map((member) => (
+                <div
+                  key={member.id}
+                  className="flex items-center justify-between py-3 px-4 rounded-lg border"
+                >
+                  <div className="flex items-center gap-3">
+                    <Avatar className="size-8">
+                      <AvatarFallback>
+                        {member.name?.[0]?.toUpperCase() || member.email[0]?.toUpperCase() || '?'}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div>
+                      <p className="text-sm font-medium">{member.name || member.email}</p>
+                      <p className="text-xs text-muted-foreground">{member.email}</p>
                     </div>
-                    {canManage && (
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {member.role === 'owner' ? (
+                      <Badge variant="secondary">Owner</Badge>
+                    ) : canManage ? (
+                      <Select
+                        value={member.role}
+                        onValueChange={(value) => handleRoleChange(member, value as WorkspaceRole)}
+                      >
+                        <SelectTrigger className="w-28 h-8">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="admin">Admin</SelectItem>
+                          <SelectItem value="member">Member</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    ) : (
+                      <Badge variant="outline">{roleLabels[member.role]}</Badge>
+                    )}
+                    {canManage && member.role !== 'owner' && (
                       <Button
                         variant="ghost"
-                        size="sm"
-                        onClick={() => handleCancelInvite(invite)}
+                        size="icon"
+                        className="h-8 w-8 text-destructive"
+                        onClick={() => handleRemoveMember(member)}
                       >
-                        Cancel
+                        <HugeiconsIcon icon={Cancel01Icon} size={14} />
                       </Button>
                     )}
                   </div>
-                ))}
-              </div>
-            </>
+                </div>
+              ))}
+            </div>
           )}
         </div>
       )}
@@ -433,12 +406,6 @@ function WorkspaceSettingsPage() {
                     <div>
                       <span className="font-medium">Member</span>
                       <p className="text-xs text-muted-foreground">{roleDescriptions.member}</p>
-                    </div>
-                  </SelectItem>
-                  <SelectItem value="viewer">
-                    <div>
-                      <span className="font-medium">Viewer</span>
-                      <p className="text-xs text-muted-foreground">{roleDescriptions.viewer}</p>
                     </div>
                   </SelectItem>
                 </SelectContent>

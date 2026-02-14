@@ -1,7 +1,14 @@
 import * as React from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@oxyhq/auth';
+import apiClient from '@/lib/api/client';
+import { useCredits } from './use-billing';
 
-export type WorkspaceRole = 'owner' | 'admin' | 'member' | 'viewer';
+// ======================
+// Types
+// ======================
+
+export type WorkspaceRole = 'owner' | 'admin' | 'member';
 
 export interface WorkspaceMember {
   id: string;
@@ -10,17 +17,6 @@ export interface WorkspaceMember {
   avatar?: string;
   role: WorkspaceRole;
   joinedAt: string;
-  invitedBy?: string;
-}
-
-export interface WorkspaceInvite {
-  id: string;
-  email: string;
-  role: WorkspaceRole;
-  invitedAt: string;
-  invitedBy: string;
-  expiresAt: string;
-  status: 'pending' | 'accepted' | 'expired';
 }
 
 export interface WorkspaceBilling {
@@ -42,7 +38,7 @@ export interface Workspace {
   updatedAt?: string;
   ownerId?: string;
   members?: WorkspaceMember[];
-  invites?: WorkspaceInvite[];
+  memberCount?: number;
   billing?: WorkspaceBilling;
   settings?: {
     defaultRole: WorkspaceRole;
@@ -51,52 +47,110 @@ export interface Workspace {
   };
 }
 
-interface WorkspaceContextValue {
-  // State
-  workspaces: Workspace[];
-  currentWorkspace: Workspace | null;
-  isLoading: boolean;
-
-  // Workspace CRUD
-  setCurrentWorkspace: (workspace: Workspace) => void;
-  createWorkspace: (data: CreateWorkspaceData) => Workspace;
-  updateWorkspace: (id: string, data: UpdateWorkspaceData) => Workspace | null;
-  deleteWorkspace: (id: string) => boolean;
-
-  // Team Management
-  inviteMember: (workspaceId: string, email: string, role: WorkspaceRole) => WorkspaceInvite | null;
-  removeMember: (workspaceId: string, memberId: string) => boolean;
-  updateMemberRole: (workspaceId: string, memberId: string, role: WorkspaceRole) => boolean;
-  cancelInvite: (workspaceId: string, inviteId: string) => boolean;
-
-  // Permissions
-  canEditWorkspace: (workspace: Workspace) => boolean;
-  canManageMembers: (workspace: Workspace) => boolean;
-  canDeleteWorkspace: (workspace: Workspace) => boolean;
-  getUserRole: (workspace: Workspace) => WorkspaceRole | null;
-}
-
 export interface CreateWorkspaceData {
   name: string;
   description?: string;
-  type?: 'personal' | 'team';
 }
 
 export interface UpdateWorkspaceData {
   name?: string;
   description?: string;
   icon?: string;
-  settings?: Workspace['settings'];
+}
+
+interface WorkspaceContextValue {
+  workspaces: Workspace[];
+  currentWorkspace: Workspace | null;
+  isLoading: boolean;
+
+  setCurrentWorkspace: (workspace: Workspace) => void;
+  createWorkspace: (data: CreateWorkspaceData) => Promise<Workspace>;
+  updateWorkspace: (id: string, data: UpdateWorkspaceData) => Promise<Workspace | null>;
+  deleteWorkspace: (id: string) => Promise<boolean>;
+
+  inviteMember: (workspaceId: string, email: string, role: WorkspaceRole) => Promise<any>;
+  removeMember: (workspaceId: string, memberId: string) => Promise<boolean>;
+  updateMemberRole: (workspaceId: string, memberId: string, role: WorkspaceRole) => Promise<boolean>;
+
+  canEditWorkspace: (workspace: Workspace) => boolean;
+  canManageMembers: (workspace: Workspace) => boolean;
+  canDeleteWorkspace: (workspace: Workspace) => boolean;
+  getUserRole: (workspace: Workspace) => WorkspaceRole | null;
 }
 
 const WorkspaceContext = React.createContext<WorkspaceContextValue | null>(null);
 
-const STORAGE_KEY = 'alia-workspaces';
 const CURRENT_WORKSPACE_KEY = 'alia-current-workspace';
 
-function generateId() {
-  return `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+// ======================
+// API Functions
+// ======================
+
+interface ApiOrganization {
+  _id: string;
+  name: string;
+  slug: string;
+  description?: string;
+  image?: string;
+  ownerId: string;
+  credits: { paid: number };
+  settings: { billingEmail?: string; apiCallLimit?: number };
+  role: WorkspaceRole;
+  memberCount?: number;
+  members?: ApiMember[];
+  createdAt: string;
+  updatedAt: string;
 }
+
+interface ApiMember {
+  _id: string;
+  oxyUserId: string | { _id: string; email?: string; username?: string; name?: string; image?: string };
+  role: WorkspaceRole;
+  permissions: string[];
+  createdAt: string;
+}
+
+async function fetchOrganizations(): Promise<ApiOrganization[]> {
+  const response = await apiClient.get('/organization');
+  return response.data.organizations;
+}
+
+async function createOrganization(data: { name: string; slug: string; description?: string }): Promise<ApiOrganization> {
+  const response = await apiClient.post('/organization', data);
+  return response.data.organization;
+}
+
+async function updateOrganization(id: string, data: Partial<{ name: string; description: string; image: string }>): Promise<ApiOrganization> {
+  const response = await apiClient.patch(`/organization/${id}`, data);
+  return response.data.organization;
+}
+
+async function deleteOrganization(id: string): Promise<void> {
+  await apiClient.delete(`/organization/${id}`);
+}
+
+async function fetchMembers(orgId: string): Promise<ApiMember[]> {
+  const response = await apiClient.get(`/organization/${orgId}/members`);
+  return response.data.members;
+}
+
+async function inviteMemberApi(orgId: string, email: string, role: string): Promise<any> {
+  const response = await apiClient.post(`/organization/${orgId}/members`, { email, role });
+  return response.data;
+}
+
+async function updateMemberRoleApi(orgId: string, memberId: string, role: string): Promise<any> {
+  const response = await apiClient.patch(`/organization/${orgId}/members/${memberId}`, { role });
+  return response.data.member;
+}
+
+async function removeMemberApi(orgId: string, memberId: string): Promise<void> {
+  await apiClient.delete(`/organization/${orgId}/members/${memberId}`);
+}
+
+// ======================
+// Mappers
+// ======================
 
 function generateSlug(name: string) {
   return name
@@ -105,301 +159,227 @@ function generateSlug(name: string) {
     .replace(/^-|-$/g, '');
 }
 
+function mapMemberToWorkspaceMember(member: ApiMember): WorkspaceMember {
+  const user = typeof member.oxyUserId === 'object' ? member.oxyUserId : null;
+  return {
+    id: member._id,
+    email: user?.email || '',
+    name: user?.username || user?.name,
+    avatar: user?.image,
+    role: member.role,
+    joinedAt: member.createdAt,
+  };
+}
+
+function mapOrgToWorkspace(org: ApiOrganization): Workspace {
+  return {
+    id: org._id,
+    name: org.name,
+    slug: org.slug,
+    description: org.description,
+    type: 'team',
+    icon: org.image,
+    createdAt: org.createdAt,
+    updatedAt: org.updatedAt,
+    ownerId: org.ownerId,
+    members: org.members?.map(mapMemberToWorkspaceMember),
+    memberCount: org.memberCount,
+    billing: {
+      plan: 'free',
+      credits: org.credits?.paid || 0,
+      creditsUsed: 0,
+      billingEmail: org.settings?.billingEmail,
+    },
+    settings: {
+      defaultRole: 'member',
+      allowMemberInvites: true,
+      requireApproval: false,
+    },
+  };
+}
+
+// ======================
+// Provider
+// ======================
+
 export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
   const { user, isAuthenticated, isReady } = useAuth();
-  const [workspaces, setWorkspaces] = React.useState<Workspace[]>([]);
-  const [currentWorkspace, setCurrentWorkspaceState] = React.useState<Workspace | null>(null);
-  const [isLoading, setIsLoading] = React.useState(true);
-
+  const queryClient = useQueryClient();
   const userId = (user?._id as string) || (user?.id as string) || 'anonymous';
 
-  // Persist workspaces to localStorage
-  const persistWorkspaces = React.useCallback((updated: Workspace[]) => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
-  }, []);
+  const [currentWorkspaceId, setCurrentWorkspaceId] = React.useState<string>(
+    () => localStorage.getItem(CURRENT_WORKSPACE_KEY) || 'personal'
+  );
 
-  // Initialize workspaces from localStorage
-  React.useEffect(() => {
-    if (!isReady) return;
+  // Fetch team workspaces (organizations) from API
+  const orgsQuery = useQuery({
+    queryKey: ['organizations'],
+    queryFn: fetchOrganizations,
+    enabled: isReady && isAuthenticated,
+    staleTime: 1000 * 60 * 5,
+  });
 
-    const initWorkspaces = () => {
-      const stored = localStorage.getItem(STORAGE_KEY);
-      let storedWorkspaces: Workspace[] = stored ? JSON.parse(stored) : [];
+  // Fetch user credits for personal workspace billing
+  const { data: creditsData } = useCredits();
 
-      if (isAuthenticated && user) {
-        // Create personal workspace if it doesn't exist
-        const personalWorkspace: Workspace = {
-          id: 'personal',
-          name: 'Personal Account',
-          slug: 'personal',
-          type: 'personal',
-          createdAt: new Date().toISOString(),
-          ownerId: userId,
-          members: [
-            {
-              id: userId,
-              email: user.email || '',
-              name: user.username || 'You',
-              role: 'owner',
-              joinedAt: new Date().toISOString(),
-            },
-          ],
-          billing: {
-            plan: 'free',
-            credits: 300,
-            creditsUsed: 0,
-          },
-          settings: {
-            defaultRole: 'member',
-            allowMemberInvites: false,
-            requireApproval: false,
-          },
-        };
+  // Build combined workspace list
+  const workspaces = React.useMemo(() => {
+    if (!isAuthenticated || !user) return [];
 
-        const hasPersonal = storedWorkspaces.some((w) => w.id === 'personal');
-        if (!hasPersonal) {
-          storedWorkspaces = [personalWorkspace, ...storedWorkspaces];
-          persistWorkspaces(storedWorkspaces);
-        } else {
-          // Update personal workspace owner if needed
-          storedWorkspaces = storedWorkspaces.map((w) =>
-            w.id === 'personal' ? { ...w, ownerId: userId } : w
-          );
-        }
-
-        setWorkspaces(storedWorkspaces);
-
-        // Set current workspace
-        const currentId = localStorage.getItem(CURRENT_WORKSPACE_KEY);
-        const current = storedWorkspaces.find((w) => w.id === currentId) || personalWorkspace;
-        setCurrentWorkspaceState(current);
-      } else {
-        setWorkspaces([]);
-        setCurrentWorkspaceState(null);
-      }
-
-      setIsLoading(false);
+    const personal: Workspace = {
+      id: 'personal',
+      name: 'Personal Account',
+      slug: 'personal',
+      type: 'personal',
+      createdAt: new Date().toISOString(),
+      ownerId: userId,
+      members: [
+        {
+          id: userId,
+          email: user.email || '',
+          name: user.username || 'You',
+          role: 'owner',
+          joinedAt: new Date().toISOString(),
+        },
+      ],
+      billing: {
+        plan: 'free',
+        credits: creditsData?.credits ?? 300,
+        creditsUsed: 0,
+      },
+      settings: {
+        defaultRole: 'member',
+        allowMemberInvites: false,
+        requireApproval: false,
+      },
     };
 
-    initWorkspaces();
-  }, [isReady, isAuthenticated, user, userId, persistWorkspaces]);
+    const teamWorkspaces = (orgsQuery.data || []).map(mapOrgToWorkspace);
+    return [personal, ...teamWorkspaces];
+  }, [isAuthenticated, user, userId, orgsQuery.data, creditsData]);
+
+  // Derive current workspace from ID
+  const currentWorkspace = React.useMemo(() => {
+    return workspaces.find((w) => w.id === currentWorkspaceId) || workspaces[0] || null;
+  }, [workspaces, currentWorkspaceId]);
+
+  const isLoading = !isReady || (isAuthenticated && orgsQuery.isLoading);
 
   // Set current workspace
   const setCurrentWorkspace = React.useCallback((workspace: Workspace) => {
-    setCurrentWorkspaceState(workspace);
+    setCurrentWorkspaceId(workspace.id);
     localStorage.setItem(CURRENT_WORKSPACE_KEY, workspace.id);
   }, []);
 
   // Create workspace
-  const createWorkspace = React.useCallback(
-    (data: CreateWorkspaceData): Workspace => {
-      const newWorkspace: Workspace = {
-        id: `workspace-${generateId()}`,
+  const createMutation = useMutation({
+    mutationFn: (data: CreateWorkspaceData) =>
+      createOrganization({
         name: data.name,
         slug: generateSlug(data.name),
         description: data.description,
-        type: data.type || 'team',
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-        ownerId: userId,
-        members: [
-          {
-            id: userId,
-            email: user?.email || '',
-            name: user?.username || 'You',
-            role: 'owner',
-            joinedAt: new Date().toISOString(),
-          },
-        ],
-        invites: [],
-        billing: {
-          plan: 'free',
-          credits: 0,
-          creditsUsed: 0,
-        },
-        settings: {
-          defaultRole: 'member',
-          allowMemberInvites: true,
-          requireApproval: false,
-        },
-      };
-
-      const updatedWorkspaces = [...workspaces, newWorkspace];
-      setWorkspaces(updatedWorkspaces);
-      persistWorkspaces(updatedWorkspaces);
-      setCurrentWorkspace(newWorkspace);
-
-      return newWorkspace;
+      }),
+    onSuccess: (newOrg) => {
+      queryClient.invalidateQueries({ queryKey: ['organizations'] });
+      setCurrentWorkspaceId(newOrg._id);
+      localStorage.setItem(CURRENT_WORKSPACE_KEY, newOrg._id);
     },
-    [workspaces, userId, user, persistWorkspaces, setCurrentWorkspace]
+  });
+
+  const createWorkspaceAsync = React.useCallback(
+    async (data: CreateWorkspaceData): Promise<Workspace> => {
+      const org = await createMutation.mutateAsync(data);
+      return mapOrgToWorkspace(org);
+    },
+    [createMutation]
   );
 
   // Update workspace
-  const updateWorkspace = React.useCallback(
-    (id: string, data: UpdateWorkspaceData): Workspace | null => {
-      const workspace = workspaces.find((w) => w.id === id);
-      if (!workspace) return null;
-
-      const updatedWorkspace: Workspace = {
-        ...workspace,
-        ...data,
-        slug: data.name ? generateSlug(data.name) : workspace.slug,
-        updatedAt: new Date().toISOString(),
-        settings: data.settings ? { ...workspace.settings, ...data.settings } : workspace.settings,
-      };
-
-      const updatedWorkspaces = workspaces.map((w) => (w.id === id ? updatedWorkspace : w));
-      setWorkspaces(updatedWorkspaces);
-      persistWorkspaces(updatedWorkspaces);
-
-      // Update current workspace if it's the one being edited
-      if (currentWorkspace?.id === id) {
-        setCurrentWorkspaceState(updatedWorkspace);
-      }
-
-      return updatedWorkspace;
+  const updateMutation = useMutation({
+    mutationFn: ({ id, data }: { id: string; data: UpdateWorkspaceData }) =>
+      updateOrganization(id, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['organizations'] });
     },
-    [workspaces, currentWorkspace, persistWorkspaces]
+  });
+
+  const updateWorkspaceAsync = React.useCallback(
+    async (id: string, data: UpdateWorkspaceData): Promise<Workspace | null> => {
+      const org = await updateMutation.mutateAsync({ id, data });
+      return mapOrgToWorkspace(org);
+    },
+    [updateMutation]
   );
 
   // Delete workspace
-  const deleteWorkspace = React.useCallback(
-    (id: string): boolean => {
-      if (id === 'personal') return false; // Can't delete personal workspace
-
-      const updatedWorkspaces = workspaces.filter((w) => w.id !== id);
-      setWorkspaces(updatedWorkspaces);
-      persistWorkspaces(updatedWorkspaces);
-
-      // Switch to personal if deleting current workspace
-      if (currentWorkspace?.id === id) {
-        const personal = updatedWorkspaces.find((w) => w.id === 'personal');
-        if (personal) {
-          setCurrentWorkspace(personal);
-        }
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => deleteOrganization(id),
+    onSuccess: (_, deletedId) => {
+      queryClient.invalidateQueries({ queryKey: ['organizations'] });
+      if (currentWorkspaceId === deletedId) {
+        setCurrentWorkspaceId('personal');
+        localStorage.setItem(CURRENT_WORKSPACE_KEY, 'personal');
       }
+    },
+  });
 
+  const deleteWorkspaceAsync = React.useCallback(
+    async (id: string): Promise<boolean> => {
+      if (id === 'personal') return false;
+      await deleteMutation.mutateAsync(id);
       return true;
     },
-    [workspaces, currentWorkspace, persistWorkspaces, setCurrentWorkspace]
+    [deleteMutation]
   );
 
   // Invite member
-  const inviteMember = React.useCallback(
-    (workspaceId: string, email: string, role: WorkspaceRole): WorkspaceInvite | null => {
-      const workspace = workspaces.find((w) => w.id === workspaceId);
-      if (!workspace) return null;
-
-      const invite: WorkspaceInvite = {
-        id: `invite-${generateId()}`,
-        email,
-        role,
-        invitedAt: new Date().toISOString(),
-        invitedBy: userId,
-        expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(), // 7 days
-        status: 'pending',
-      };
-
-      const updatedWorkspace: Workspace = {
-        ...workspace,
-        invites: [...(workspace.invites || []), invite],
-        updatedAt: new Date().toISOString(),
-      };
-
-      const updatedWorkspaces = workspaces.map((w) => (w.id === workspaceId ? updatedWorkspace : w));
-      setWorkspaces(updatedWorkspaces);
-      persistWorkspaces(updatedWorkspaces);
-
-      if (currentWorkspace?.id === workspaceId) {
-        setCurrentWorkspaceState(updatedWorkspace);
-      }
-
-      return invite;
+  const inviteMutation = useMutation({
+    mutationFn: ({ orgId, email, role }: { orgId: string; email: string; role: string }) =>
+      inviteMemberApi(orgId, email, role),
+    onSuccess: (_, { orgId }) => {
+      queryClient.invalidateQueries({ queryKey: ['organization-members', orgId] });
     },
-    [workspaces, userId, currentWorkspace, persistWorkspaces]
+  });
+
+  const inviteMemberAsync = React.useCallback(
+    async (workspaceId: string, email: string, role: WorkspaceRole) => {
+      return inviteMutation.mutateAsync({ orgId: workspaceId, email, role });
+    },
+    [inviteMutation]
   );
 
   // Remove member
-  const removeMember = React.useCallback(
-    (workspaceId: string, memberId: string): boolean => {
-      const workspace = workspaces.find((w) => w.id === workspaceId);
-      if (!workspace || !workspace.members) return false;
+  const removeMemberMutation = useMutation({
+    mutationFn: ({ orgId, memberId }: { orgId: string; memberId: string }) =>
+      removeMemberApi(orgId, memberId),
+    onSuccess: (_, { orgId }) => {
+      queryClient.invalidateQueries({ queryKey: ['organization-members', orgId] });
+    },
+  });
 
-      // Can't remove owner
-      const member = workspace.members.find((m) => m.id === memberId);
-      if (member?.role === 'owner') return false;
-
-      const updatedWorkspace: Workspace = {
-        ...workspace,
-        members: workspace.members.filter((m) => m.id !== memberId),
-        updatedAt: new Date().toISOString(),
-      };
-
-      const updatedWorkspaces = workspaces.map((w) => (w.id === workspaceId ? updatedWorkspace : w));
-      setWorkspaces(updatedWorkspaces);
-      persistWorkspaces(updatedWorkspaces);
-
-      if (currentWorkspace?.id === workspaceId) {
-        setCurrentWorkspaceState(updatedWorkspace);
-      }
-
+  const removeMemberAsync = React.useCallback(
+    async (workspaceId: string, memberId: string): Promise<boolean> => {
+      await removeMemberMutation.mutateAsync({ orgId: workspaceId, memberId });
       return true;
     },
-    [workspaces, currentWorkspace, persistWorkspaces]
+    [removeMemberMutation]
   );
 
   // Update member role
-  const updateMemberRole = React.useCallback(
-    (workspaceId: string, memberId: string, role: WorkspaceRole): boolean => {
-      const workspace = workspaces.find((w) => w.id === workspaceId);
-      if (!workspace || !workspace.members) return false;
+  const updateRoleMutation = useMutation({
+    mutationFn: ({ orgId, memberId, role }: { orgId: string; memberId: string; role: string }) =>
+      updateMemberRoleApi(orgId, memberId, role),
+    onSuccess: (_, { orgId }) => {
+      queryClient.invalidateQueries({ queryKey: ['organization-members', orgId] });
+    },
+  });
 
-      // Can't change owner's role
-      const member = workspace.members.find((m) => m.id === memberId);
-      if (member?.role === 'owner') return false;
-
-      const updatedWorkspace: Workspace = {
-        ...workspace,
-        members: workspace.members.map((m) => (m.id === memberId ? { ...m, role } : m)),
-        updatedAt: new Date().toISOString(),
-      };
-
-      const updatedWorkspaces = workspaces.map((w) => (w.id === workspaceId ? updatedWorkspace : w));
-      setWorkspaces(updatedWorkspaces);
-      persistWorkspaces(updatedWorkspaces);
-
-      if (currentWorkspace?.id === workspaceId) {
-        setCurrentWorkspaceState(updatedWorkspace);
-      }
-
+  const updateMemberRoleAsync = React.useCallback(
+    async (workspaceId: string, memberId: string, role: WorkspaceRole): Promise<boolean> => {
+      await updateRoleMutation.mutateAsync({ orgId: workspaceId, memberId, role });
       return true;
     },
-    [workspaces, currentWorkspace, persistWorkspaces]
-  );
-
-  // Cancel invite
-  const cancelInvite = React.useCallback(
-    (workspaceId: string, inviteId: string): boolean => {
-      const workspace = workspaces.find((w) => w.id === workspaceId);
-      if (!workspace || !workspace.invites) return false;
-
-      const updatedWorkspace: Workspace = {
-        ...workspace,
-        invites: workspace.invites.filter((i) => i.id !== inviteId),
-        updatedAt: new Date().toISOString(),
-      };
-
-      const updatedWorkspaces = workspaces.map((w) => (w.id === workspaceId ? updatedWorkspace : w));
-      setWorkspaces(updatedWorkspaces);
-      persistWorkspaces(updatedWorkspaces);
-
-      if (currentWorkspace?.id === workspaceId) {
-        setCurrentWorkspaceState(updatedWorkspace);
-      }
-
-      return true;
-    },
-    [workspaces, currentWorkspace, persistWorkspaces]
+    [updateRoleMutation]
   );
 
   // Permission helpers
@@ -443,13 +423,12 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
       currentWorkspace,
       isLoading,
       setCurrentWorkspace,
-      createWorkspace,
-      updateWorkspace,
-      deleteWorkspace,
-      inviteMember,
-      removeMember,
-      updateMemberRole,
-      cancelInvite,
+      createWorkspace: createWorkspaceAsync,
+      updateWorkspace: updateWorkspaceAsync,
+      deleteWorkspace: deleteWorkspaceAsync,
+      inviteMember: inviteMemberAsync,
+      removeMember: removeMemberAsync,
+      updateMemberRole: updateMemberRoleAsync,
       canEditWorkspace,
       canManageMembers,
       canDeleteWorkspace,
@@ -460,13 +439,12 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
       currentWorkspace,
       isLoading,
       setCurrentWorkspace,
-      createWorkspace,
-      updateWorkspace,
-      deleteWorkspace,
-      inviteMember,
-      removeMember,
-      updateMemberRole,
-      cancelInvite,
+      createWorkspaceAsync,
+      updateWorkspaceAsync,
+      deleteWorkspaceAsync,
+      inviteMemberAsync,
+      removeMemberAsync,
+      updateMemberRoleAsync,
       canEditWorkspace,
       canManageMembers,
       canDeleteWorkspace,
@@ -483,4 +461,20 @@ export function useWorkspace() {
     throw new Error('useWorkspace must be used within WorkspaceProvider');
   }
   return context;
+}
+
+// ======================
+// Lazy members hook
+// ======================
+
+export function useWorkspaceMembers(workspaceId: string) {
+  const { isAuthenticated, isReady } = useAuth();
+
+  return useQuery({
+    queryKey: ['organization-members', workspaceId],
+    queryFn: () => fetchMembers(workspaceId),
+    enabled: isReady && isAuthenticated && !!workspaceId && workspaceId !== 'personal',
+    staleTime: 1000 * 60 * 2,
+    select: (data) => data.map(mapMemberToWorkspaceMember),
+  });
 }

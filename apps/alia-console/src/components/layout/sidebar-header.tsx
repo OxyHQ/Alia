@@ -46,7 +46,7 @@ export function SidebarHeaderBrand() {
   const [newWorkspaceDescription, setNewWorkspaceDescription] = React.useState('');
   const [isCreating, setIsCreating] = React.useState(false);
 
-  const handleCreateWorkspace = () => {
+  const handleCreateWorkspace = async () => {
     if (!newWorkspaceName.trim()) {
       toast.error('Please enter a workspace name');
       return;
@@ -54,7 +54,7 @@ export function SidebarHeaderBrand() {
 
     setIsCreating(true);
     try {
-      createWorkspace({
+      await createWorkspace({
         name: newWorkspaceName.trim(),
         description: newWorkspaceDescription.trim() || undefined,
       });
