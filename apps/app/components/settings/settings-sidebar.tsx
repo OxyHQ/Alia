@@ -15,6 +15,7 @@ import {
   Plug,
   MessageSquarePlus,
   ArrowLeft,
+  Building2,
   type LucideIcon,
 } from "lucide-react-native";
 
@@ -27,6 +28,7 @@ interface SettingsSection {
 
 const SECTIONS: SettingsSection[] = [
   { id: "account", route: "/(app)/settings", icon: User, labelKey: "settings.sections.account" },
+  { id: "workspace", route: "/(app)/settings/workspace", icon: Building2, labelKey: "settings.sections.workspace" },
   { id: "general", route: "/(app)/settings/general", icon: Settings2, labelKey: "settings.sections.general" },
   { id: "usage", route: "/(app)/settings/usage", icon: CreditCard, labelKey: "settings.sections.usage" },
   { id: "personalization", route: "/(app)/settings/personalization", icon: Palette, labelKey: "settings.sections.personalization" },
@@ -46,6 +48,7 @@ export const SettingsSidebar = React.memo(function SettingsSidebar() {
       return "connectors";
     }
     // Match specific section routes
+    if (pathname.includes("/settings/workspace")) return "workspace";
     if (pathname.includes("/settings/general")) return "general";
     if (pathname.includes("/settings/usage")) return "usage";
     if (pathname.includes("/settings/personalization")) return "personalization";

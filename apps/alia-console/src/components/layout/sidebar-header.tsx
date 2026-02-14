@@ -35,16 +35,20 @@ import {
   SidebarMenuItem,
   useSidebar,
 } from '@/components/ui/sidebar';
-import { useWorkspace, type Workspace } from '@/hooks/use-workspace';
+import { useWorkspaces, useCurrentWorkspaceId, useCreateWorkspace, type Workspace } from '@/hooks/use-workspace';
 import { toast } from 'sonner';
 
 export function SidebarHeaderBrand() {
   const { isMobile } = useSidebar();
-  const { workspaces, currentWorkspace, setCurrentWorkspace, createWorkspace, isLoading } = useWorkspace();
+  const { workspaces, isLoading } = useWorkspaces();
+  const [currentWorkspaceId, setCurrentWorkspaceId] = useCurrentWorkspaceId();
+  const createMutation = useCreateWorkspace();
+
   const [showCreateDialog, setShowCreateDialog] = React.useState(false);
   const [newWorkspaceName, setNewWorkspaceName] = React.useState('');
   const [newWorkspaceDescription, setNewWorkspaceDescription] = React.useState('');
-  const [isCreating, setIsCreating] = React.useState(false);
+
+  const currentWorkspace = workspaces.find((w) => w.id === currentWorkspaceId) || workspaces[0] || null;
 
   const handleCreateWorkspace = async () => {
     if (!newWorkspaceName.trim()) {
@@ -52,25 +56,23 @@ export function SidebarHeaderBrand() {
       return;
     }
 
-    setIsCreating(true);
     try {
-      await createWorkspace({
+      const newOrg = await createMutation.mutateAsync({
         name: newWorkspaceName.trim(),
         description: newWorkspaceDescription.trim() || undefined,
       });
+      setCurrentWorkspaceId(newOrg._id);
       toast.success(`Workspace "${newWorkspaceName.trim()}" created`);
       setShowCreateDialog(false);
       setNewWorkspaceName('');
       setNewWorkspaceDescription('');
     } catch {
       toast.error('Failed to create workspace');
-    } finally {
-      setIsCreating(false);
     }
   };
 
   const handleSelectWorkspace = (workspace: Workspace) => {
-    setCurrentWorkspace(workspace);
+    setCurrentWorkspaceId(workspace.id);
     toast.success(`Switched to ${workspace.name}`);
   };
 
@@ -202,8 +204,8 @@ export function SidebarHeaderBrand() {
             <Button variant="outline" onClick={() => setShowCreateDialog(false)}>
               Cancel
             </Button>
-            <Button onClick={handleCreateWorkspace} disabled={isCreating || !newWorkspaceName.trim()}>
-              {isCreating ? 'Creating...' : 'Create'}
+            <Button onClick={handleCreateWorkspace} disabled={createMutation.isPending || !newWorkspaceName.trim()}>
+              {createMutation.isPending ? 'Creating...' : 'Create'}
             </Button>
           </DialogFooter>
         </DialogContent>
