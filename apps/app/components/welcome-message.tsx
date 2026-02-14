@@ -12,8 +12,8 @@ export const WelcomeMessage = ({ onSuggestionPress }: WelcomeMessageProps) => {
   const { user, isAuthenticated } = useAuth();
   const { t } = useTranslation();
 
-  const greetingIndex = useMemo(() => Math.floor(Math.random() * 10), []);
-  const subtitleIndex = useMemo(() => Math.floor(Math.random() * 8), []);
+  const greetingIndex = useMemo(() => Math.floor(Math.random() * 20), []);
+  const subtitleIndex = useMemo(() => Math.floor(Math.random() * 16), []);
 
   const userName = user?.name?.first || user?.username || user?.email?.split('@')[0] || "there";
   const greeting = t(`welcome.greetings.${greetingIndex}`, { name: userName });
