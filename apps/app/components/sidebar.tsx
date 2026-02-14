@@ -67,7 +67,6 @@ import { FolderEditDialog } from "@/components/folder-edit-dialog";
 import { ConversationItem } from "@/components/sidebar/conversation-item";
 import { FolderSection } from "@/components/sidebar/folder-section";
 import { HistoryList } from "@/components/sidebar/history-list";
-import { WorkspaceSwitcher } from "@/components/workspace-switcher";
 import type { Project } from "@/lib/stores/projects-store";
 import type { Folder as FolderType } from "@/lib/stores/folders-store";
 
@@ -436,10 +435,9 @@ const ChatSidebar = React.memo(function ChatSidebar() {
     </Pressable>
   );
 
-  // Top section with workspace switcher + New Chat button
+  // Top section with New Chat button
   const topSection = (
     <View className="gap-2">
-      <WorkspaceSwitcher />
       <Button
         onPress={handleNewChat}
         variant="outline"
