@@ -9,6 +9,7 @@ import { resolveModel, isAliaModel } from '../lib/chat-core.js';
 import { UserCredits } from '../models/user-credits.js';
 import { getOrCreateUserCredits } from '../lib/user-credits-helpers.js';
 import { reserveCredits, finalizeCredits, type CreditReservation } from '../lib/credits-manager.js';
+import { listChannels } from '../lib/channels/registry.js';
 import * as crypto from 'crypto';
 
 const router = Router();
@@ -26,6 +27,28 @@ router.get('/', (req, res) => {
 
 // Public routes (no auth required)
 router.use('/models', modelsRouter);
+
+// Channel bot auth: trusted bot services (Telegram, Discord) can use resolve-model / report-usage
+// Validates x-channel-bot-secret against registered channels and sets req.user from x-oxy-user-id
+router.use((req: Request, _res: Response, next) => {
+  const botSecret = req.headers['x-channel-bot-secret'] as string;
+  const oxyUserId = req.headers['x-oxy-user-id'] as string;
+  if (!botSecret || !oxyUserId) return next();
+
+  for (const channel of listChannels()) {
+    const expected = channel.config.getBotSecret();
+    if (!expected) continue;
+    const expectedBuf = Buffer.from(expected);
+    const providedBuf = Buffer.from(botSecret);
+    if (expectedBuf.length === providedBuf.length &&
+        crypto.timingSafeEqual(expectedBuf, providedBuf)) {
+      (req as any).user = { id: oxyUserId };
+      req.channelType = channel.id;
+      return next();
+    }
+  }
+  next();
+});
 
 // Apply authentication to all other v1 routes (supports both JWT and API keys)
 router.use(authenticateTokenOrApiKey);
@@ -142,8 +165,8 @@ router.post('/resolve-model', async (req: Request, res: Response) => {
 
     console.log('[V1/ResolveModel] Resolved to:', resolved.provider, resolved.modelId, 'sessionId:', sessionId);
 
-    // Only return provider key to trusted services (telegram bot)
-    const isTrustedService = !!req.headers['x-telegram-bot-secret'];
+    // Only return provider key to trusted bot services
+    const isTrustedService = !!req.headers['x-channel-bot-secret'];
     const response: Record<string, any> = {
       provider: resolved.provider,
       modelId: resolved.modelId,
