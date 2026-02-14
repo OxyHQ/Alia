@@ -4,7 +4,7 @@ import { sessionManager } from './session-manager';
 import { SignalChat, SignalMessage } from './models';
 
 export class SignalAdapter implements MessagingAdapter {
-  name = 'signal';
+  name = 'signal-gateway';
 
   async initialize() {
     await sessionManager.initialize();

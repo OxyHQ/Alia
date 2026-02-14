@@ -457,6 +457,7 @@ async function proxyToIntegrations(
       const response = await fetch(`${INTEGRATIONS_URL}${path}`, {
         ...options,
         headers: { 'X-Gateway-Secret': INTEGRATIONS_SECRET!, ...options?.headers },
+        signal: AbortSignal.timeout(15_000),
       });
 
       let data: any;
