@@ -4,7 +4,6 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { WebOxyProvider } from '@oxyhq/auth';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { Toaster } from '@/components/ui/sonner';
-import { WorkspaceProvider } from '@/hooks/use-workspace';
 
 import appCss from '../styles.css?url';
 import config from '@/lib/config';
@@ -69,12 +68,10 @@ function RootComponent() {
       <body className="min-h-screen bg-background font-sans antialiased">
         <QueryClientProvider client={queryClient}>
           <WebOxyProvider baseURL={config.oxyUrl}>
-            <WorkspaceProvider>
-              <TooltipProvider delayDuration={300}>
-                <Outlet />
-                <Toaster position="bottom-right" richColors closeButton />
-              </TooltipProvider>
-            </WorkspaceProvider>
+            <TooltipProvider delayDuration={300}>
+              <Outlet />
+              <Toaster position="bottom-right" richColors closeButton />
+            </TooltipProvider>
           </WebOxyProvider>
         </QueryClientProvider>
         {import.meta.env.DEV && (

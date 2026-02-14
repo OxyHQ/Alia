@@ -41,11 +41,21 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import {
-  useWorkspace,
+  useWorkspaces,
+  useCurrentWorkspaceId,
   useWorkspaceMembers,
+  useUpdateWorkspace,
+  useDeleteWorkspace,
+  useInviteMember,
+  useRemoveMember,
+  useUpdateMemberRole,
+  canEditWorkspace as checkCanEdit,
+  canManageMembers as checkCanManage,
+  canDeleteWorkspace as checkCanDelete,
   type WorkspaceRole,
   type WorkspaceMember,
 } from '@/hooks/use-workspace';
+import { useAuth } from '@oxyhq/auth';
 import { toast } from 'sonner';
 
 export const Route = createFileRoute('/_layout/settings/workspace')({
@@ -65,17 +75,16 @@ const roleDescriptions: Record<WorkspaceRole, string> = {
 };
 
 function WorkspaceSettingsPage() {
-  const {
-    currentWorkspace,
-    updateWorkspace,
-    deleteWorkspace,
-    inviteMember,
-    removeMember,
-    updateMemberRole,
-    canEditWorkspace,
-    canManageMembers,
-    canDeleteWorkspace,
-  } = useWorkspace();
+  const { user } = useAuth();
+  const { workspaces } = useWorkspaces();
+  const [currentWorkspaceId, setCurrentWorkspaceId] = useCurrentWorkspaceId();
+  const updateMutation = useUpdateWorkspace();
+  const deleteMutation = useDeleteWorkspace();
+  const inviteMutation = useInviteMember();
+  const removeMutation = useRemoveMember();
+  const roleChangeMutation = useUpdateMemberRole();
+
+  const currentWorkspace = workspaces.find((w) => w.id === currentWorkspaceId) || workspaces[0] || null;
 
   const { data: members, isLoading: membersLoading } = useWorkspaceMembers(
     currentWorkspace?.id || ''
@@ -83,13 +92,11 @@ function WorkspaceSettingsPage() {
 
   const [name, setName] = useState(currentWorkspace?.name || '');
   const [description, setDescription] = useState(currentWorkspace?.description || '');
-  const [isSaving, setIsSaving] = useState(false);
 
   // Invite dialog state
   const [showInviteDialog, setShowInviteDialog] = useState(false);
   const [inviteEmail, setInviteEmail] = useState('');
   const [inviteRole, setInviteRole] = useState<WorkspaceRole>('member');
-  const [isInviting, setIsInviting] = useState(false);
 
   // Delete dialog state
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
@@ -103,9 +110,10 @@ function WorkspaceSettingsPage() {
     );
   }
 
-  const canEdit = canEditWorkspace(currentWorkspace);
-  const canManage = canManageMembers(currentWorkspace);
-  const canDelete = canDeleteWorkspace(currentWorkspace);
+  const userId = (user?._id as string) || (user?.id as string) || '';
+  const canEdit = checkCanEdit(userId, currentWorkspace);
+  const canManage = checkCanManage(userId, currentWorkspace);
+  const canDelete = checkCanDelete(userId, currentWorkspace);
   const isPersonal = currentWorkspace.type === 'personal';
 
   const handleSave = async () => {
@@ -114,17 +122,17 @@ function WorkspaceSettingsPage() {
       return;
     }
 
-    setIsSaving(true);
     try {
-      await updateWorkspace(currentWorkspace.id, {
-        name: name.trim(),
-        description: description.trim() || undefined,
+      await updateMutation.mutateAsync({
+        id: currentWorkspace.id,
+        data: {
+          name: name.trim(),
+          description: description.trim() || undefined,
+        },
       });
       toast.success('Workspace updated');
     } catch {
       toast.error('Failed to update workspace');
-    } finally {
-      setIsSaving(false);
     }
   };
 
@@ -134,9 +142,12 @@ function WorkspaceSettingsPage() {
       return;
     }
 
-    setIsInviting(true);
     try {
-      const result = await inviteMember(currentWorkspace.id, inviteEmail.trim(), inviteRole);
+      const result = await inviteMutation.mutateAsync({
+        workspaceId: currentWorkspace.id,
+        email: inviteEmail.trim(),
+        role: inviteRole,
+      });
       if (result?.message) {
         toast.info(result.message);
       } else {
@@ -147,14 +158,15 @@ function WorkspaceSettingsPage() {
       setInviteRole('member');
     } catch {
       toast.error('Failed to send invite');
-    } finally {
-      setIsInviting(false);
     }
   };
 
   const handleRemoveMember = async (member: WorkspaceMember) => {
     try {
-      await removeMember(currentWorkspace.id, member.id);
+      await removeMutation.mutateAsync({
+        workspaceId: currentWorkspace.id,
+        memberId: member.id,
+      });
       toast.success(`${member.name || member.email} removed`);
     } catch {
       toast.error('Failed to remove member');
@@ -163,7 +175,11 @@ function WorkspaceSettingsPage() {
 
   const handleRoleChange = async (member: WorkspaceMember, role: WorkspaceRole) => {
     try {
-      await updateMemberRole(currentWorkspace.id, member.id, role);
+      await roleChangeMutation.mutateAsync({
+        workspaceId: currentWorkspace.id,
+        memberId: member.id,
+        role,
+      });
       toast.success(`Role updated for ${member.name || member.email}`);
     } catch {
       toast.error('Failed to update role');
@@ -177,7 +193,8 @@ function WorkspaceSettingsPage() {
     }
 
     try {
-      await deleteWorkspace(currentWorkspace.id);
+      await deleteMutation.mutateAsync(currentWorkspace.id);
+      setCurrentWorkspaceId('personal');
       toast.success('Workspace deleted');
       setShowDeleteDialog(false);
     } catch {
@@ -240,8 +257,8 @@ function WorkspaceSettingsPage() {
             />
           </div>
           {canEdit && !isPersonal && (
-            <Button onClick={handleSave} disabled={isSaving}>
-              {isSaving ? 'Saving...' : 'Save changes'}
+            <Button onClick={handleSave} disabled={updateMutation.isPending}>
+              {updateMutation.isPending ? 'Saving...' : 'Save changes'}
             </Button>
           )}
         </div>
@@ -416,8 +433,8 @@ function WorkspaceSettingsPage() {
             <Button variant="outline" onClick={() => setShowInviteDialog(false)}>
               Cancel
             </Button>
-            <Button onClick={handleInvite} disabled={isInviting || !inviteEmail.trim()}>
-              {isInviting ? 'Sending...' : 'Send invite'}
+            <Button onClick={handleInvite} disabled={inviteMutation.isPending || !inviteEmail.trim()}>
+              {inviteMutation.isPending ? 'Sending...' : 'Send invite'}
             </Button>
           </DialogFooter>
         </DialogContent>
