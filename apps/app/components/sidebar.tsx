@@ -46,7 +46,8 @@ import {
   type LucideIcon,
 } from "lucide-react-native";
 import { useStore } from "@/lib/globalStore";
-import { useRouter } from "expo-router";
+import { useRouter, usePathname } from "expo-router";
+import { SettingsSidebar } from "@/components/settings/settings-sidebar";
 import { useOxy } from "@oxyhq/services";
 import { useProjectsStore } from "@/lib/stores/projects-store";
 import { useFoldersStore } from "@/lib/stores/folders-store";
@@ -87,7 +88,18 @@ const ICON_MAP: Record<string, LucideIcon> = {
   FolderClosed,
 };
 
-export const Sidebar = React.memo(function Sidebar() {
+export function Sidebar() {
+  const pathname = usePathname();
+  const isSettingsRoute = pathname.startsWith("/settings");
+
+  if (isSettingsRoute) {
+    return <SettingsSidebar />;
+  }
+
+  return <ChatSidebar />;
+}
+
+const ChatSidebar = React.memo(function ChatSidebar() {
   const router = useRouter();
   // Use selectors to avoid worklet serialization issues
   const chatId = useStore((state) => state.chatId);

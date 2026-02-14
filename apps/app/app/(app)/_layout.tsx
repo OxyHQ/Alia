@@ -66,15 +66,64 @@ export default function AppLayout() {
             <Drawer.Screen
               name="settings/memory"
               options={{
-                drawerLabel: 'Memory',
+                drawerItemStyle: { display: 'none' },
                 title: 'Memory',
+              }}
+            />
+            <Drawer.Screen
+              name="settings/general"
+              options={{
+                drawerItemStyle: { display: 'none' },
+                title: 'General',
+              }}
+            />
+            <Drawer.Screen
+              name="settings/usage"
+              options={{
+                drawerItemStyle: { display: 'none' },
+                title: 'Usage',
+              }}
+            />
+            <Drawer.Screen
+              name="settings/personalization"
+              options={{
+                drawerItemStyle: { display: 'none' },
+                title: 'Personalization',
+              }}
+            />
+            <Drawer.Screen
+              name="settings/connectors"
+              options={{
+                drawerItemStyle: { display: 'none' },
+                title: 'Connectors',
               }}
             />
             <Drawer.Screen
               name="settings/feedback"
               options={{
-                drawerLabel: 'Feedback',
+                drawerItemStyle: { display: 'none' },
                 title: 'Feedback',
+              }}
+            />
+            <Drawer.Screen
+              name="settings/whatsapp"
+              options={{
+                drawerItemStyle: { display: 'none' },
+                title: 'WhatsApp',
+              }}
+            />
+            <Drawer.Screen
+              name="settings/telegram-gateway"
+              options={{
+                drawerItemStyle: { display: 'none' },
+                title: 'Telegram Gateway',
+              }}
+            />
+            <Drawer.Screen
+              name="settings/signal-gateway"
+              options={{
+                drawerItemStyle: { display: 'none' },
+                title: 'Signal Gateway',
               }}
             />
             <Drawer.Screen

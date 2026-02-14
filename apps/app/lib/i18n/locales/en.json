@@ -123,7 +123,19 @@
     "saveButton": "Save Preferences",
     "saving": "Saving...",
     "saveSuccess": "Preferences saved successfully",
-    "saveFailed": "Failed to save preferences"
+    "saveFailed": "Failed to save preferences",
+    "sections": {
+      "account": "Account",
+      "general": "General",
+      "usage": "Usage",
+      "personalization": "Personalization",
+      "memory": "Memory",
+      "connectors": "Connectors",
+      "feedback": "Feedback"
+    },
+    "connectors": {
+      "subtitle": "Connect your messaging accounts"
+    }
   },
   "nav": {
     "chat": "Chat",

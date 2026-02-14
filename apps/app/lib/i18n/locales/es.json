@@ -123,7 +123,19 @@
     "saveButton": "Guardar preferencias",
     "saving": "Guardando...",
     "saveSuccess": "Preferencias guardadas exitosamente",
-    "saveFailed": "Error al guardar preferencias"
+    "saveFailed": "Error al guardar preferencias",
+    "sections": {
+      "account": "Cuenta",
+      "general": "General",
+      "usage": "Uso",
+      "personalization": "Personalización",
+      "memory": "Memoria",
+      "connectors": "Conectores",
+      "feedback": "Comentarios"
+    },
+    "connectors": {
+      "subtitle": "Conecta tus cuentas de mensajería"
+    }
   },
   "nav": {
     "chat": "Chat",

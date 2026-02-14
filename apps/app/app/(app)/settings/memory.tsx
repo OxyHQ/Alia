@@ -43,6 +43,7 @@ import { useUserDataStore } from "@/lib/stores/user-data-store";
 import { cn } from "@/lib/utils";
 import { toast } from "@/components/sonner";
 import { useColorScheme } from "@/lib/useColorScheme";
+import { SettingsHeader } from "@/components/settings/settings-header";
 
 interface Memory {
   _id: string;
@@ -503,6 +504,7 @@ export default function MemoryScreen() {
 
   return (
     <View className="flex-1 bg-background">
+      <SettingsHeader title="Memory" />
       <ScrollView className="flex-1">
         {/* Hero Section - Centered */}
         <View className="items-center px-6 py-12">
