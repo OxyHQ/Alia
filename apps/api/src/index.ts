@@ -37,6 +37,7 @@ import providersModule from './internal/providers/index.js';
 import './lib/hooks/index.js';
 import { providersWss } from './internal/providers/ws.js';
 import { oxyClient } from './middleware/auth.js';
+import { resolveWorkspace } from './middleware/workspace.js';
 import { OxyServices } from '@oxyhq/core';
 import { syncZeroEval } from './scripts/sync-zeroeval.js';
 import { runStartupSeed } from './internal/providers/lib/seed-model-configs.js';
@@ -186,7 +187,7 @@ app.use((req, res, next) => {
     },
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin', 'X-Service-Name', 'X-Timestamp', 'X-Signature', 'X-Session-Id', 'X-Device-Info', 'X-Oxy-User-Id'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin', 'X-Service-Name', 'X-Timestamp', 'X-Signature', 'X-Session-Id', 'X-Device-Info', 'X-Oxy-User-Id', 'X-Workspace-Id'],
     optionsSuccessStatus: 200,
   })(req, res, next);
 });
@@ -228,7 +229,7 @@ app.use('/credits', creditsRouter);
 app.use('/alia/chat', chatRouter);
 app.use('/v1', v1Router);
 app.use('/telegram', telegramRouter);
-app.use('/developer', developerRouter);
+app.use('/developer', resolveWorkspace, developerRouter);
 app.use('/billing', billingRouter);
 app.use('/organization', organizationRouter);
 app.use('/feedback', feedbackRouter);

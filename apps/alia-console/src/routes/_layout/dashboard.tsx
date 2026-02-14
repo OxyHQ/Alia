@@ -7,7 +7,6 @@ import {
 } from '@hugeicons/core-free-icons';
 import { useDeveloperStats } from '@/hooks/use-developer';
 import { useCredits } from '@/hooks/use-billing';
-import { useCurrentWorkspaceId } from '@/hooks/use-workspace';
 import { Button } from '@/components/ui/button';
 
 export const Route = createFileRoute('/_layout/dashboard')({
@@ -15,8 +14,7 @@ export const Route = createFileRoute('/_layout/dashboard')({
 });
 
 function DashboardPage() {
-  const [workspaceId] = useCurrentWorkspaceId();
-  const { data: developerStats } = useDeveloperStats(workspaceId);
+  const { data: developerStats } = useDeveloperStats();
   const { data: credits } = useCredits();
 
   const hasCredits = (credits?.credits ?? 0) > 0;
