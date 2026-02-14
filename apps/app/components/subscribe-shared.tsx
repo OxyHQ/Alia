@@ -322,7 +322,7 @@ export function PlanGrid({
 
             {/* Feature rows aligned by position */}
             {Array.from({ length: maxItems }, (_, rowIdx) => (
-              <View key={rowIdx} className="flex-row border-b border-border">
+              <Pressable key={rowIdx} className="flex-row border-b border-border hover:bg-primary/10">
                 {tiers.map((tier, i) => {
                   const group = tier.features.find((g) => g.category === cat);
                   const feature = group?.items[rowIdx];
@@ -344,7 +344,7 @@ export function PlanGrid({
                     </View>
                   );
                 })}
-              </View>
+              </Pressable>
             ))}
           </React.Fragment>
         );
