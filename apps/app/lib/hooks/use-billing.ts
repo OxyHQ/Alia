@@ -87,7 +87,7 @@ export function useCreditPackages() {
   return useQuery({
     queryKey: ['credit-packages'],
     queryFn: fetchPackages,
-    staleTime: 1000 * 60 * 60, // 1 hour
+    staleTime: 1000 * 60 * 5, // 5 minutes
     retry: 2,
     enabled: isAuthenticated,
   });
@@ -109,7 +109,7 @@ export function useSubscriptionPlans(product?: 'alia' | 'codea') {
   return useQuery({
     queryKey: ['subscription-plans', product],
     queryFn: () => fetchPlans(product),
-    staleTime: 1000 * 60 * 60, // 1 hour
+    staleTime: 1000 * 60 * 5, // 5 minutes
     retry: 2,
     enabled: isAuthenticated,
   });
