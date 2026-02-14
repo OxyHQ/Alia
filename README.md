@@ -27,9 +27,7 @@ Four specialized agents are available:
 | `apps/alia-providers-admin` | Vite + React | Provider management panel |
 | `apps/canvas` | Next.js | Web canvas app |
 | `apps/codea-cli` | CLI | Terminal AI coding assistant |
-| `apps/telegram-bot` | Node.js | Telegram bot integration |
-| `apps/discord-bot` | Node.js | Discord bot integration |
-| `apps/whatsapp-gateway` | Node.js | WhatsApp gateway |
+| `apps/integrations` | Express + TypeScript | Unified messaging service (Telegram, Discord, WhatsApp, Signal) |
 
 ## Quick Start
 
@@ -69,7 +67,7 @@ npm run ios
 - [apps/alia-providers-admin](apps/alia-providers-admin/README.md)
 - [apps/canvas](apps/canvas/README.md)
 - [apps/codea-cli](apps/codea-cli/README.md)
-- [apps/telegram-bot](apps/telegram-bot/README.md)
+- [apps/integrations](apps/integrations/README.md)
 
 ---
 

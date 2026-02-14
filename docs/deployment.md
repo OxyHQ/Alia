@@ -80,17 +80,43 @@ LIVEKIT_URL=ws://your-livekit-server:7880      # LiveKit server WebSocket URL
 LIVEKIT_API_KEY=your-api-key                    # LiveKit API key
 LIVEKIT_API_SECRET=your-api-secret              # LiveKit API secret
 
-# Channel Gateway Bot Secrets
-DISCORD_BOT_TOKEN=your-discord-bot-token        # Discord bot token
-DISCORD_BOT_SECRET=<generate-with-openssl>      # Discord bot webhook secret
-DISCORD_PUBLIC_KEY=your-discord-public-key      # Discord application public key
-WHATSAPP_ACCESS_TOKEN=your-whatsapp-token       # Meta Business API token
-WHATSAPP_PHONE_NUMBER_ID=your-phone-id          # WhatsApp phone number ID
-WHATSAPP_WEBHOOK_SECRET=<generate>              # WhatsApp webhook verify token
-SLACK_BOT_TOKEN=xoxb-your-slack-token           # Slack bot token
-SLACK_SIGNING_SECRET=your-signing-secret        # Slack signing secret
-SIGNAL_CLI_URL=http://signal-cli:8080           # Signal CLI REST API URL
-SIGNAL_BOT_NUMBER=+1234567890                   # Signal bot phone number
+# Channel Bot Secrets (must match integrations service)
+DISCORD_BOT_SECRET=<generate-with-openssl>      # Discord bot <-> API auth
+TELEGRAM_BOT_SECRET=<generate-with-openssl>     # Telegram bot <-> API auth
+
+# Integrations Service
+INTEGRATIONS_SECRET=<generate-with-openssl>     # Internal gateway auth
+INTEGRATIONS_SERVICE_URL=http://integrations:3005  # Internal URL (VPC)
+```
+
+#### Integrations Service (`apps/integrations`)
+
+```bash
+# Server
+PORT=3005
+NODE_ENV=production
+MONGODB_URI=<same-cluster-as-api>               # DB: integrations-production
+API_BASE_URL=https://api.your-domain.com        # Main API URL
+INTEGRATIONS_SECRET=<same-as-api>               # Internal gateway auth
+
+# Telegram Bot
+TELEGRAM_BOT_TOKEN=<from-botfather>             # Bot token
+TELEGRAM_BOT_SECRET=<same-as-api>               # Bot <-> API auth
+
+# Discord Bot
+DISCORD_BOT_TOKEN=<from-discord-portal>         # Bot token
+DISCORD_BOT_SECRET=<same-as-api>                # Bot <-> API auth
+
+# Telegram Gateway (optional — personal account bridge)
+# TELEGRAM_API_ID=<from-my.telegram.org>
+# TELEGRAM_API_HASH=<from-my.telegram.org>
+
+# Disable adapters (all enabled by default)
+# WHATSAPP_ENABLED=false
+# SIGNAL_ENABLED=false
+# TELEGRAM_BOT_ENABLED=false
+# DISCORD_BOT_ENABLED=false
+# TELEGRAM_GATEWAY_ENABLED=false
 ```
 
 #### Frontend App (`apps/app`)
@@ -105,14 +131,12 @@ EXPO_PUBLIC_ENV=production
 
 ### Generating Secrets
 
-**TELEGRAM_BOT_SECRET:**
+**Channel bot secrets** (TELEGRAM_BOT_SECRET, DISCORD_BOT_SECRET, INTEGRATIONS_SECRET):
 ```bash
 openssl rand -hex 32
 ```
 
-This creates a secure random string. Use the **same value** in:
-1. Your DigitalOcean environment variables
-2. Your Telegram bot configuration
+Each secret must be the **same value** in both the API and the integrations service.
 
 ## Deployment Process
 
@@ -263,15 +287,15 @@ livekit-cli generate-keys
 
 ## Troubleshooting
 
-### Issue: "Bot configuration error"
+### Issue: "Bot configuration error" or "Authentication required" from bots
 
-**Cause**: Missing `TELEGRAM_BOT_SECRET` environment variable
+**Cause**: Missing or mismatched channel bot secrets between API and integrations service
 
 **Solution**:
 1. Generate secret: `openssl rand -hex 32`
-2. Add to DigitalOcean environment variables
-3. Add same value to Telegram bot configuration
-4. Redeploy
+2. Set `TELEGRAM_BOT_SECRET` (or `DISCORD_BOT_SECRET`) in **both** the API and integrations service
+3. Ensure `INTEGRATIONS_SECRET` is also set in both services
+4. Redeploy both components
 
 ### Issue: Memory not saving
 
