@@ -13,8 +13,7 @@ function getTimeOfDay(): TimeOfDay {
   return "evening";
 }
 
-const GREETINGS_COUNT = 8;
-const SUBTITLES_COUNT = 8;
+const PAIRS_COUNT = 8;
 
 type WelcomeMessageProps = {
   onSuggestionPress?: (message: string) => void;
@@ -25,12 +24,11 @@ export const WelcomeMessage = ({ onSuggestionPress }: WelcomeMessageProps) => {
   const { t } = useTranslation();
 
   const timeOfDay = useMemo(() => getTimeOfDay(), []);
-  const greetingIndex = useMemo(() => Math.floor(Math.random() * GREETINGS_COUNT), []);
-  const subtitleIndex = useMemo(() => Math.floor(Math.random() * SUBTITLES_COUNT), []);
+  const pairIndex = useMemo(() => Math.floor(Math.random() * PAIRS_COUNT), []);
 
   const userName = user?.name?.first || user?.username || user?.email?.split('@')[0] || "there";
-  const greeting = t(`welcome.${timeOfDay}Greetings.${greetingIndex}`, { name: userName });
-  const subtitle = t(`welcome.${timeOfDay}Subtitles.${subtitleIndex}`);
+  const greeting = t(`welcome.${timeOfDay}Greetings.${pairIndex}`, { name: userName });
+  const subtitle = t(`welcome.${timeOfDay}Subtitles.${pairIndex}`);
 
   const suggestions = [
     {
