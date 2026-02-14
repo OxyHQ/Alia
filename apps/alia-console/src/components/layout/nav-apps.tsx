@@ -22,12 +22,10 @@ import {
   useSidebar,
 } from '@/components/ui/sidebar';
 import { useApps } from '@/hooks/use-developer';
-import { useCurrentWorkspaceId } from '@/hooks/use-workspace';
 
 export function NavApps() {
   const { isMobile } = useSidebar();
-  const [workspaceId] = useCurrentWorkspaceId();
-  const { data: apps = [] } = useApps(workspaceId);
+  const { data: apps = [] } = useApps();
 
   if (apps.length === 0) {
     return null;

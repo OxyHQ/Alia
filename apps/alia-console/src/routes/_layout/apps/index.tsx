@@ -43,7 +43,6 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { useApps, useCreateApp, useDeleteApp } from '@/hooks/use-developer';
-import { useCurrentWorkspaceId } from '@/hooks/use-workspace';
 import { toast } from 'sonner';
 
 export const Route = createFileRoute('/_layout/apps/')({
@@ -52,9 +51,8 @@ export const Route = createFileRoute('/_layout/apps/')({
 
 function AppsPage() {
   const navigate = useNavigate();
-  const [workspaceId] = useCurrentWorkspaceId();
-  const { data: apps = [], isLoading } = useApps(workspaceId);
-  const createAppMutation = useCreateApp(workspaceId);
+  const { data: apps = [], isLoading } = useApps();
+  const createAppMutation = useCreateApp();
   const deleteAppMutation = useDeleteApp();
 
   const [showCreateDialog, setShowCreateDialog] = useState(false);

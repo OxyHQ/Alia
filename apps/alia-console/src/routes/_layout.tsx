@@ -5,7 +5,7 @@ import { SidebarProvider, SidebarInset, SidebarTrigger } from '@/components/ui/s
 import { AppSidebar } from '@/components/layout/app-sidebar';
 import { Separator } from '@/components/ui/separator';
 import { CommandMenuTrigger } from '@/components/command-menu';
-import { setTokenGetter } from '@/lib/api/client';
+import { setTokenGetter, setWorkspaceGetter } from '@/lib/api/client';
 
 export const Route = createFileRoute('/_layout')({
   component: LayoutComponent,
@@ -17,6 +17,12 @@ function ApiAuthSetup({ children }: { children: React.ReactNode }) {
   // Set token getter synchronously during render to avoid race condition
   // where child effects (React Query) fire before this parent's useEffect
   setTokenGetter(() => authManager.getAccessToken());
+
+  // Set workspace getter — reads current workspace from localStorage
+  setWorkspaceGetter(() => {
+    if (typeof window === 'undefined') return 'personal';
+    return localStorage.getItem('alia-current-workspace') || 'personal';
+  });
 
   return <>{children}</>;
 }

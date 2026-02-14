@@ -18,7 +18,14 @@ export function setTokenGetter(getter: () => Promise<string | null>) {
   getAccessToken = getter;
 }
 
-// Request interceptor to add authentication
+// Workspace ID getter - set once, sent on every request via X-Workspace-Id header
+let getWorkspaceId: (() => string) | null = null;
+
+export function setWorkspaceGetter(getter: () => string) {
+  getWorkspaceId = getter;
+}
+
+// Request interceptor to add authentication and workspace context
 apiClient.interceptors.request.use(
   async (requestConfig) => {
     if (getAccessToken) {
@@ -26,6 +33,9 @@ apiClient.interceptors.request.use(
       if (token) {
         requestConfig.headers['Authorization'] = `Bearer ${token}`;
       }
+    }
+    if (getWorkspaceId) {
+      requestConfig.headers['X-Workspace-Id'] = getWorkspaceId();
     }
     return requestConfig;
   },

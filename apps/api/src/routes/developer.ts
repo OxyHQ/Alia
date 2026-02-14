@@ -3,23 +3,14 @@ import { authenticateToken } from '../middleware/auth';
 import DeveloperApp from '../models/developer-app';
 import DeveloperApiKey from '../models/developer-api-key';
 import ApiKeyUsage from '../models/api-key-usage';
-import { OrganizationMember } from '../models/organization-member';
 import { getApiKeyUsageStats } from '../middleware/api-key-rate-limit';
 import { z } from 'zod';
 
 const router = Router();
 
-// Build org filter for queries.
-// 'personal' → null (apps without an org), otherwise the org ID string.
-function buildOrgFilter(orgParam: unknown): { organizationId: string | null } {
-  if (orgParam === 'personal') return { organizationId: null as any };
-  return { organizationId: orgParam as string };
-}
-
-// Verify user is a member of the given organization
-async function verifyOrgMembership(userId: string, organizationId: string): Promise<boolean> {
-  const member = await OrganizationMember.findOne({ organizationId, oxyUserId: userId });
-  return !!member;
+// Build Mongoose filter from req.workspace (set by resolveWorkspace middleware)
+function orgFilter(req: Request): { organizationId: string | null } {
+  return { organizationId: req.workspace?.id ?? null };
 }
 
 // All routes require authentication
@@ -29,31 +20,11 @@ router.use(authenticateToken);
 // DEVELOPER APPS ROUTES
 // ============================================
 
-// Get all apps for the authenticated user
-// Requires ?organizationId= query param:
-//   'personal' → apps with no org (personal workspace)
-//   '<orgId>'  → apps belonging to that organization
+// Get all apps for the authenticated user (scoped by X-Workspace-Id header)
 router.get('/apps', async (req: Request, res: Response) => {
   try {
     const userId = req.user!.id;
-    const { organizationId } = req.query;
-
-    if (!organizationId) {
-      return res.status(400).json({ error: 'organizationId query parameter is required' });
-    }
-
-    // Verify membership for team workspaces
-    if (organizationId !== 'personal') {
-      const isMember = await verifyOrgMembership(userId, organizationId as string);
-      if (!isMember) {
-        return res.status(403).json({ error: 'Not a member of this organization' });
-      }
-    }
-
-    const query: Record<string, any> = { oxyUserId: userId, ...buildOrgFilter(organizationId)! };
-
-    const apps = await DeveloperApp.find(query).sort({ createdAt: -1 });
-
+    const apps = await DeveloperApp.find({ oxyUserId: userId, ...orgFilter(req) }).sort({ createdAt: -1 });
     res.json({ apps });
   } catch (error) {
     console.error('Error fetching developer apps:', error);
@@ -80,38 +51,27 @@ router.get('/apps/:id', async (req: Request, res: Response) => {
   }
 });
 
-// Create a new app
+// Create a new app (scoped by X-Workspace-Id header)
 const createAppSchema = z.object({
   name: z.string().min(1).max(100),
   description: z.string().max(500).optional(),
   websiteUrl: z.string().url().optional().or(z.literal('')),
   redirectUrls: z.array(z.string().url()).optional(),
   icon: z.string().optional(),
-  organizationId: z.string().optional(),
 });
 
 router.post('/apps', async (req: Request, res: Response) => {
   try {
     const userId = req.user!.id;
-
     const validatedData = createAppSchema.parse(req.body);
-
-    // Verify membership for team workspaces
-    if (validatedData.organizationId) {
-      const isMember = await verifyOrgMembership(userId, validatedData.organizationId);
-      if (!isMember) {
-        return res.status(403).json({ error: 'Not a member of this organization' });
-      }
-    }
 
     const app = new DeveloperApp({
       oxyUserId: userId,
-      organizationId: validatedData.organizationId || null,
+      organizationId: req.workspace?.id ?? null,
       ...validatedData,
     });
 
     await app.save();
-
     res.status(201).json({ app });
   } catch (error) {
     if (error instanceof z.ZodError) {
@@ -711,31 +671,13 @@ router.get('/apps/:appId/keys/:keyId/usage', async (req: Request, res: Response)
   }
 });
 
-// Get global usage statistics across all apps
-// Requires ?organizationId= to scope to a workspace
+// Get global usage statistics across all apps (scoped by X-Workspace-Id header)
 router.get('/usage', async (req: Request, res: Response) => {
   try {
     const userId = req.user!.id;
-    const { period = '7d', organizationId } = req.query;
+    const { period = '7d' } = req.query;
 
-    if (!organizationId) {
-      return res.status(400).json({ error: 'organizationId query parameter is required' });
-    }
-
-    // Verify membership for team workspaces
-    if (organizationId !== 'personal') {
-      const isMember = await verifyOrgMembership(userId, organizationId as string);
-      if (!isMember) {
-        return res.status(403).json({ error: 'Not a member of this organization' });
-      }
-    }
-
-    // Get app IDs scoped to the workspace
-    const appQuery: Record<string, any> = { oxyUserId: userId, ...buildOrgFilter(organizationId)! };
-    const appIds = await DeveloperApp.find(appQuery).distinct('_id');
-
-    // Build usage match filter scoped to those apps
-    const usageMatch: Record<string, any> = { appId: { $in: appIds } };
+    const appIds = await DeveloperApp.find({ oxyUserId: userId, ...orgFilter(req) }).distinct('_id');
 
     // Calculate date range
     const now = new Date();
@@ -758,7 +700,7 @@ router.get('/usage', async (req: Request, res: Response) => {
         startDate.setDate(now.getDate() - 7);
     }
 
-    const timeFilter = { ...usageMatch, timestamp: { $gte: startDate } };
+    const timeFilter = { appId: { $in: appIds }, timestamp: { $gte: startDate } };
 
     // Get aggregated usage statistics
     const usage = await ApiKeyUsage.aggregate([
@@ -797,9 +739,7 @@ router.get('/usage', async (req: Request, res: Response) => {
           credits: { $sum: '$creditsUsed' },
         },
       },
-      {
-        $sort: { _id: 1 },
-      },
+      { $sort: { _id: 1 } },
     ]);
 
     // Get usage by endpoint
@@ -812,25 +752,19 @@ router.get('/usage', async (req: Request, res: Response) => {
           tokens: { $sum: '$tokensUsed' },
         },
       },
-      {
-        $sort: { requests: -1 },
-      },
-      {
-        $limit: 10,
-      },
+      { $sort: { requests: -1 } },
+      { $limit: 10 },
     ]);
 
-    const summary = usage[0] || {
-      totalRequests: 0,
-      totalTokens: 0,
-      totalCredits: 0,
-      avgResponseTime: 0,
-      successfulRequests: 0,
-      errorRequests: 0,
-    };
-
     res.json({
-      summary,
+      summary: usage[0] || {
+        totalRequests: 0,
+        totalTokens: 0,
+        totalCredits: 0,
+        avgResponseTime: 0,
+        successfulRequests: 0,
+        errorRequests: 0,
+      },
       byDay: usageByDay,
       byEndpoint: usageByEndpoint,
     });
@@ -840,47 +774,23 @@ router.get('/usage', async (req: Request, res: Response) => {
   }
 });
 
-// Get overall developer statistics
-// Requires ?organizationId= to scope to a workspace
+// Get overall developer statistics (scoped by X-Workspace-Id header)
 router.get('/stats', async (req: Request, res: Response) => {
   try {
     const userId = req.user!.id;
-    const { organizationId } = req.query;
+    const appIds = await DeveloperApp.find({ oxyUserId: userId, ...orgFilter(req) }).distinct('_id');
 
-    if (!organizationId) {
-      return res.status(400).json({ error: 'organizationId query parameter is required' });
-    }
+    const [activeApps, totalKeys, activeKeys] = await Promise.all([
+      DeveloperApp.countDocuments({ _id: { $in: appIds }, isActive: true }),
+      DeveloperApiKey.countDocuments({ appId: { $in: appIds }, oxyUserId: userId }),
+      DeveloperApiKey.countDocuments({ appId: { $in: appIds }, oxyUserId: userId, isActive: true }),
+    ]);
 
-    // Verify membership for team workspaces
-    if (organizationId !== 'personal') {
-      const isMember = await verifyOrgMembership(userId, organizationId as string);
-      if (!isMember) {
-        return res.status(403).json({ error: 'Not a member of this organization' });
-      }
-    }
-
-    const appQuery: Record<string, any> = { oxyUserId: userId };
-    const orgFilter = buildOrgFilter(organizationId);
-    if (orgFilter) Object.assign(appQuery, orgFilter);
-
-    const appIds = await DeveloperApp.find(appQuery).distinct('_id');
-
-    const totalApps = appIds.length;
-    const activeApps = await DeveloperApp.countDocuments({ _id: { $in: appIds }, isActive: true });
-    const totalKeys = await DeveloperApiKey.countDocuments({ appId: { $in: appIds }, oxyUserId: userId });
-    const activeKeys = await DeveloperApiKey.countDocuments({ appId: { $in: appIds }, oxyUserId: userId, isActive: true });
-
-    // Get total usage scoped to workspace apps (last 30 days)
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
     const usage = await ApiKeyUsage.aggregate([
-      {
-        $match: {
-          appId: { $in: appIds },
-          timestamp: { $gte: thirtyDaysAgo },
-        },
-      },
+      { $match: { appId: { $in: appIds }, timestamp: { $gte: thirtyDaysAgo } } },
       {
         $group: {
           _id: null,
@@ -892,15 +802,11 @@ router.get('/stats', async (req: Request, res: Response) => {
     ]);
 
     res.json({
-      totalApps,
+      totalApps: appIds.length,
       activeApps,
       totalKeys,
       activeKeys,
-      last30Days: usage[0] || {
-        totalRequests: 0,
-        totalTokens: 0,
-        totalCredits: 0,
-      },
+      last30Days: usage[0] || { totalRequests: 0, totalTokens: 0, totalCredits: 0 },
     });
   } catch (error) {
     console.error('Error fetching developer stats:', error);

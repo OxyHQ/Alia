@@ -29,6 +29,10 @@ declare global {
         appId: string;
         appName: string;
       };
+      workspace?: {
+        id: string | null;
+        role?: 'owner' | 'admin' | 'member';
+      };
     }
   }
 }

@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@oxyhq/auth';
 import apiClient from '@/lib/api/client';
+import { useCurrentWorkspaceId } from './use-workspace';
 
 export interface DeveloperApp {
   _id: string;
@@ -70,32 +71,30 @@ export interface DeveloperStats {
   };
 }
 
+// Internal: workspace ID for query key cache separation
+function useWorkspaceKey() {
+  const [workspaceId] = useCurrentWorkspaceId();
+  return workspaceId;
+}
+
 // ======================
 // Apps
 // ======================
 
-async function fetchApps(workspaceId: string): Promise<DeveloperApp[]> {
-  const response = await apiClient.get('/developer/apps', {
-    params: { organizationId: workspaceId },
-  });
-  return response.data.apps;
-}
-
-export function useApps(workspaceId: string) {
+export function useApps() {
   const { isAuthenticated, isReady } = useAuth();
+  const workspaceId = useWorkspaceKey();
 
   return useQuery({
     queryKey: ['developer-apps', workspaceId],
-    queryFn: () => fetchApps(workspaceId),
+    queryFn: async () => {
+      const response = await apiClient.get('/developer/apps');
+      return response.data.apps as DeveloperApp[];
+    },
     staleTime: 1000 * 60 * 5,
     retry: 2,
-    enabled: isReady && isAuthenticated && !!workspaceId,
+    enabled: isReady && isAuthenticated,
   });
-}
-
-async function fetchApp(id: string): Promise<DeveloperApp> {
-  const response = await apiClient.get(`/developer/apps/${id}`);
-  return response.data.app;
 }
 
 export function useApp(id: string) {
@@ -103,23 +102,24 @@ export function useApp(id: string) {
 
   return useQuery({
     queryKey: ['developer-app', id],
-    queryFn: () => fetchApp(id),
+    queryFn: async () => {
+      const response = await apiClient.get(`/developer/apps/${id}`);
+      return response.data.app as DeveloperApp;
+    },
     enabled: isReady && isAuthenticated && !!id,
     staleTime: 1000 * 60 * 2,
     retry: 1,
   });
 }
 
-export function useCreateApp(workspaceId: string) {
+export function useCreateApp() {
   const queryClient = useQueryClient();
+  const workspaceId = useWorkspaceKey();
 
   return useMutation({
     mutationFn: async (data: Partial<DeveloperApp>) => {
-      const response = await apiClient.post('/developer/apps', {
-        ...data,
-        organizationId: workspaceId === 'personal' ? undefined : workspaceId,
-      });
-      return response.data.app;
+      const response = await apiClient.post('/developer/apps', data);
+      return response.data.app as DeveloperApp;
     },
     onSuccess: (newApp) => {
       queryClient.setQueryData<DeveloperApp[]>(['developer-apps', workspaceId], (old) => {
@@ -134,14 +134,15 @@ export function useCreateApp(workspaceId: string) {
 
 export function useUpdateApp() {
   const queryClient = useQueryClient();
+  const workspaceId = useWorkspaceKey();
 
   return useMutation({
     mutationFn: async ({ id, data }: { id: string; data: Partial<DeveloperApp> }) => {
       const response = await apiClient.patch(`/developer/apps/${id}`, data);
-      return response.data.app;
+      return response.data.app as DeveloperApp;
     },
     onSuccess: (updatedApp) => {
-      queryClient.setQueryData<DeveloperApp[]>(['developer-apps'], (old) => {
+      queryClient.setQueryData<DeveloperApp[]>(['developer-apps', workspaceId], (old) => {
         if (!old) return [updatedApp];
         return old.map((app) => (app._id === updatedApp._id ? updatedApp : app));
       });
@@ -159,7 +160,6 @@ export function useDeleteApp() {
       return id;
     },
     onSuccess: (id) => {
-      // Invalidate all workspace-scoped app lists
       queryClient.invalidateQueries({ queryKey: ['developer-apps'] });
       queryClient.removeQueries({ queryKey: ['developer-app', id] });
       queryClient.invalidateQueries({ queryKey: ['developer-keys', id] });
@@ -172,17 +172,15 @@ export function useDeleteApp() {
 // API Keys
 // ======================
 
-async function fetchApiKeys(appId: string): Promise<DeveloperApiKey[]> {
-  const response = await apiClient.get(`/developer/apps/${appId}/keys`);
-  return response.data.keys;
-}
-
 export function useApiKeys(appId: string) {
   const { isAuthenticated, isReady } = useAuth();
 
   return useQuery({
     queryKey: ['developer-keys', appId],
-    queryFn: () => fetchApiKeys(appId),
+    queryFn: async () => {
+      const response = await apiClient.get(`/developer/apps/${appId}/keys`);
+      return response.data.keys as DeveloperApiKey[];
+    },
     enabled: isReady && isAuthenticated && !!appId,
     staleTime: 1000 * 60 * 2,
     retry: 1,
@@ -260,28 +258,20 @@ export function useDeleteApiKey() {
 // Usage Stats
 // ======================
 
-async function fetchGlobalUsage(workspaceId: string, period: string): Promise<AppUsageStats> {
-  const response = await apiClient.get('/developer/usage', {
-    params: { organizationId: workspaceId, period },
-  });
-  return response.data;
-}
-
-export function useGlobalUsage(workspaceId: string, period: string = '7d') {
+export function useGlobalUsage(period: string = '7d') {
   const { isAuthenticated, isReady } = useAuth();
+  const workspaceId = useWorkspaceKey();
 
   return useQuery({
     queryKey: ['developer-global-usage', workspaceId, period],
-    queryFn: () => fetchGlobalUsage(workspaceId, period),
-    enabled: isReady && isAuthenticated && !!workspaceId,
+    queryFn: async () => {
+      const response = await apiClient.get('/developer/usage', { params: { period } });
+      return response.data as AppUsageStats;
+    },
+    enabled: isReady && isAuthenticated,
     staleTime: 1000 * 60,
     retry: 1,
   });
-}
-
-async function fetchAppUsage(appId: string, period: string): Promise<AppUsageStats> {
-  const response = await apiClient.get(`/developer/apps/${appId}/usage?period=${period}`);
-  return response.data;
 }
 
 export function useAppUsage(appId: string, period: string = '7d') {
@@ -289,18 +279,14 @@ export function useAppUsage(appId: string, period: string = '7d') {
 
   return useQuery({
     queryKey: ['developer-usage', appId, period],
-    queryFn: () => fetchAppUsage(appId, period),
+    queryFn: async () => {
+      const response = await apiClient.get(`/developer/apps/${appId}/usage`, { params: { period } });
+      return response.data as AppUsageStats;
+    },
     enabled: isReady && isAuthenticated && !!appId,
-    staleTime: 1000 * 60, // 1 minute
+    staleTime: 1000 * 60,
     retry: 1,
   });
-}
-
-async function fetchKeyUsage(appId: string, keyId: string, period: string): Promise<AppUsageStats> {
-  const response = await apiClient.get(
-    `/developer/apps/${appId}/keys/${keyId}/usage?period=${period}`
-  );
-  return response.data;
 }
 
 export function useKeyUsage(appId: string, keyId: string, period: string = '7d') {
@@ -308,29 +294,29 @@ export function useKeyUsage(appId: string, keyId: string, period: string = '7d')
 
   return useQuery({
     queryKey: ['developer-key-usage', appId, keyId, period],
-    queryFn: () => fetchKeyUsage(appId, keyId, period),
+    queryFn: async () => {
+      const response = await apiClient.get(`/developer/apps/${appId}/keys/${keyId}/usage`, { params: { period } });
+      return response.data as AppUsageStats;
+    },
     enabled: isReady && isAuthenticated && !!appId && !!keyId,
-    staleTime: 1000 * 60, // 1 minute
+    staleTime: 1000 * 60,
     retry: 1,
   });
 }
 
-async function fetchDeveloperStats(workspaceId: string): Promise<DeveloperStats> {
-  const response = await apiClient.get('/developer/stats', {
-    params: { organizationId: workspaceId },
-  });
-  return response.data;
-}
-
-export function useDeveloperStats(workspaceId: string) {
+export function useDeveloperStats() {
   const { isAuthenticated, isReady } = useAuth();
+  const workspaceId = useWorkspaceKey();
 
   return useQuery({
     queryKey: ['developer-stats', workspaceId],
-    queryFn: () => fetchDeveloperStats(workspaceId),
+    queryFn: async () => {
+      const response = await apiClient.get('/developer/stats');
+      return response.data as DeveloperStats;
+    },
     staleTime: 1000 * 60 * 5,
     retry: 2,
-    enabled: isReady && isAuthenticated && !!workspaceId,
+    enabled: isReady && isAuthenticated,
   });
 }
 
@@ -361,16 +347,14 @@ export interface ModelsStatsResponse {
   timestamp: string;
 }
 
-async function fetchModelsStats(): Promise<ModelsStatsResponse> {
-  const response = await apiClient.get('/models/stats');
-  return response.data;
-}
-
 export function useModelsStats() {
   return useQuery({
     queryKey: ['models-stats'],
-    queryFn: fetchModelsStats,
-    staleTime: 1000 * 60 * 2, // 2 minutes
+    queryFn: async () => {
+      const response = await apiClient.get('/models/stats');
+      return response.data as ModelsStatsResponse;
+    },
+    staleTime: 1000 * 60 * 2,
     retry: 2,
   });
 }

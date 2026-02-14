@@ -2,7 +2,6 @@ import { createFileRoute } from '@tanstack/react-router';
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { useGlobalUsage } from '@/hooks/use-developer';
-import { useCurrentWorkspaceId } from '@/hooks/use-workspace';
 
 export const Route = createFileRoute('/_layout/usage')({
   component: UsagePage,
@@ -16,9 +15,8 @@ const periods = [
 ];
 
 function UsagePage() {
-  const [workspaceId] = useCurrentWorkspaceId();
   const [period, setPeriod] = useState('7d');
-  const { data: usage, isLoading } = useGlobalUsage(workspaceId, period);
+  const { data: usage, isLoading } = useGlobalUsage(period);
 
   const summary = usage?.summary;
   const successRate =
