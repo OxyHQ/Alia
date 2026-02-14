@@ -1,9 +1,7 @@
 import { Client, GatewayIntentBits, Events, Partials } from 'discord.js';
-import { generateText } from 'ai';
 import { v4 as uuidv4 } from 'uuid';
 import type { MessagingAdapter } from '../types';
 import { APIClient } from '../../shared/api-client';
-import { resolveModel, reportUsage } from '../../shared/model-resolver';
 import { chunkText } from '../../shared/utils';
 import {
   initCommands,
@@ -206,51 +204,47 @@ export class DiscordBotAdapter implements MessagingAdapter {
       }, 5000);
 
       try {
-        const botSecret = process.env.DISCORD_BOT_SECRET!;
-        const apiBaseUrl = process.env.API_BASE_URL || 'http://localhost:3001';
-
         let conversationId = channelUser.conversationId;
         if (!conversationId) {
           conversationId = uuidv4();
           await apiClient.updateConversation(discordUserId, conversationId);
         }
 
+        // Load conversation history (user/assistant only)
         let messages_history: Array<{ role: string; content: string }> = [];
         try {
           const conversation = await apiClient.getConversation(channelUser.oxyUserId, conversationId);
           if (conversation?.messages?.length) {
-            messages_history = conversation.messages.slice(-20).map((m: any) => ({
-              role: m.role,
-              content: m.content,
-            }));
+            messages_history = conversation.messages
+              .filter((m: any) => m.role === 'user' || m.role === 'assistant')
+              .slice(-20)
+              .map((m: any) => ({ role: m.role, content: m.content }));
           }
         } catch {}
 
         messages_history.push({ role: 'user', content });
 
-        const resolved = await resolveModel(
-          apiBaseUrl,
-          botSecret,
-          channelUser.oxyUserId,
-          channelUser.preferredModel || 'alia-lite',
-          'discord',
-        );
-
         const thinkingMsg = await message.reply('Thinking...');
 
-        const result = await generateText({
-          model: resolved.model,
-          system: 'You are Alia, a helpful AI assistant on Discord. Be concise and friendly. Use Discord markdown. Respond in the same language the user writes. Keep responses under 1800 characters when possible.',
-          messages: messages_history.map((m) => ({
-            role: m.role as 'user' | 'assistant',
-            content: m.content,
-          })),
-          maxRetries: 3,
-          temperature: 0.7,
-          maxOutputTokens: 2048,
-        });
+        // Platform instructions as first system message
+        const apiMessages = [
+          {
+            role: 'system',
+            content: 'The user is chatting via Discord. Be concise and friendly. Use Discord markdown. Keep responses under 1800 characters when possible.',
+          },
+          ...messages_history,
+        ];
 
-        const fullResponse = result.text;
+        const result = await apiClient.chatCompletion(
+          channelUser.oxyUserId,
+          apiMessages,
+          {
+            model: channelUser.preferredModel || 'alia-lite',
+            conversationId,
+          },
+        );
+
+        const fullResponse = result.content;
 
         if (fullResponse) {
           const chunks = chunkText(fullResponse, 2000);
@@ -264,20 +258,7 @@ export class DiscordBotAdapter implements MessagingAdapter {
           await thinkingMsg.edit("Couldn't generate a response. Please try again.");
         }
 
-        if (fullResponse) {
-          messages_history.push({ role: 'assistant', content: fullResponse });
-          await apiClient
-            .saveConversation(channelUser.oxyUserId, conversationId, messages_history)
-            .catch((err: any) => console.error('[Discord/Chat] Save error:', err));
-        }
-
-        if (result.usage) {
-          await reportUsage(apiBaseUrl, botSecret, channelUser.oxyUserId, resolved.sessionId, {
-            promptTokens: result.usage.inputTokens || 0,
-            completionTokens: result.usage.outputTokens || 0,
-            totalTokens: result.usage.totalTokens || 0,
-          }).catch(() => {});
-        }
+        // Conversation is auto-saved by the API when conversationId is provided
       } finally {
         clearInterval(typingInterval);
       }
