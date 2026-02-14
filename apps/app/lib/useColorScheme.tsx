@@ -1,64 +1,57 @@
-import { useColorScheme as useNativeWindColorScheme } from 'nativewind';
+import {
+  useColorScheme as useNativeWindColorScheme,
+  colorScheme as nwColorScheme,
+} from 'nativewind';
+import { Platform } from 'react-native';
 import { useThemeStore, ThemeMode } from './stores/theme-store';
-import { useEffect } from 'react';
+import { useCallback } from 'react';
 
-// Theme colors in hex format for React Native components that don't support HSL
 const THEME_COLORS = {
   light: {
     background: '#ffffff',
-    foreground: '#0a0a0a',
-    surface: '#fafafa',
-    surfaceForeground: '#000000',
     primary: '#ca52e9',
-    primaryForeground: '#ffffff',
     muted: '#f5f5f5',
     mutedForeground: '#737373',
-    border: '#e5e5e5',
   },
   dark: {
     background: '#0a0d1a',
-    foreground: '#fafafa',
-    surface: '#242938',
-    surfaceForeground: '#ffffff',
-    primary: '#e952ca',
-    primaryForeground: '#ffffff',
+    primary: '#ca52e9',
     muted: '#242938',
     mutedForeground: '#b3b3b3',
-    border: 'rgba(255, 255, 255, 0.1)',
   },
 };
 
+function applyTheme(resolved: 'light' | 'dark') {
+  if (Platform.OS === 'web' && typeof document !== 'undefined') {
+    document.documentElement.classList.toggle('dark', resolved === 'dark');
+  }
+}
+
 export function useColorScheme() {
-  const { colorScheme: nativeWindColorScheme, setColorScheme: setNativeWindColorScheme } = useNativeWindColorScheme();
+  const { colorScheme: nwScheme } = useNativeWindColorScheme();
   const { mode, setMode } = useThemeStore();
 
-  // Sync NativeWind color scheme with our store
-  useEffect(() => {
-    setNativeWindColorScheme(mode);
-  }, [mode, setNativeWindColorScheme]);
+  const resolved: 'light' | 'dark' =
+    mode === 'system' ? (nwScheme ?? 'light') : mode;
 
-  const colorScheme = nativeWindColorScheme ?? 'light';
+  const setColorScheme = useCallback(
+    (newMode: ThemeMode) => {
+      setMode(newMode);
+      nwColorScheme.set(newMode);
+      if (newMode !== 'system') {
+        applyTheme(newMode);
+      }
+    },
+    [setMode],
+  );
 
-  const setColorScheme = (newMode: ThemeMode) => {
-    setMode(newMode);
-    setNativeWindColorScheme(newMode);
-  };
-
-  const toggleColorScheme = () => {
-    const newMode = colorScheme === 'dark' ? 'light' : 'dark';
-    setMode(newMode);
-    setNativeWindColorScheme(newMode);
-  };
-
-  // Get theme colors for the current scheme
-  const colors = THEME_COLORS[colorScheme];
+  const colors = THEME_COLORS[resolved];
 
   return {
-    colorScheme,
-    isDarkColorScheme: colorScheme === 'dark',
+    colorScheme: resolved,
+    isDarkColorScheme: resolved === 'dark',
     setColorScheme,
-    toggleColorScheme,
-    mode, // Current mode setting (light/dark/system)
-    colors, // Theme colors in hex format
+    mode,
+    colors,
   };
 }
