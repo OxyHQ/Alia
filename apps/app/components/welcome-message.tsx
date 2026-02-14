@@ -12,17 +12,12 @@ export const WelcomeMessage = ({ onSuggestionPress }: WelcomeMessageProps) => {
   const { user, isAuthenticated } = useAuth();
   const { t } = useTranslation();
 
-  const greeting = useMemo(() => {
-    const greetings = t('welcome.greetings') as unknown as string[];
-    const randomGreeting = greetings[Math.floor(Math.random() * greetings.length)];
-    const userName = user?.name?.first || user?.username || user?.email?.split('@')[0] || "there";
-    return randomGreeting.replace("{{name}}", userName);
-  }, [user, t]);
+  const greetingIndex = useMemo(() => Math.floor(Math.random() * 10), []);
+  const subtitleIndex = useMemo(() => Math.floor(Math.random() * 8), []);
 
-  const subtitle = useMemo(() => {
-    const subtitles = t('welcome.subtitles') as unknown as string[];
-    return subtitles[Math.floor(Math.random() * subtitles.length)];
-  }, [t]);
+  const userName = user?.name?.first || user?.username || user?.email?.split('@')[0] || "there";
+  const greeting = t(`welcome.greetings.${greetingIndex}`, { name: userName });
+  const subtitle = t(`welcome.subtitles.${subtitleIndex}`);
 
   const suggestions = [
     {
