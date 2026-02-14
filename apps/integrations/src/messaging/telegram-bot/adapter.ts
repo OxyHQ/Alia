@@ -1,17 +1,15 @@
 /**
  * Telegram Bot adapter — runs Telegraf with long-polling.
  *
- * Uses streamText (not generateText) so responses are progressively edited
- * into a single Telegram message as they stream in, matching the original
- * apps/telegram-bot behaviour.
+ * Routes AI calls through the main API's /v1/chat/completions endpoint
+ * so the bot gets the full system prompt, user memory, tools, etc.
+ * Responses stream via SSE and are progressively edited into a Telegram message.
  */
 
 import { Telegraf, Markup } from 'telegraf';
 import { v4 as uuidv4 } from 'uuid';
-import { streamText, type ModelMessage } from 'ai';
 import type { MessagingAdapter } from '../types';
 import { APIClient } from '../../shared/api-client';
-import { resolveModel, reportUsage } from '../../shared/model-resolver';
 import {
   handleStart,
   handleLogout,
@@ -130,16 +128,7 @@ export class TelegramBotAdapter implements MessagingAdapter {
         await apiClient.updateConversation(telegramId, conversationId);
       }
 
-      const botSecret = process.env.TELEGRAM_BOT_SECRET;
-      if (!botSecret) {
-        console.error('[Telegram Bot] TELEGRAM_BOT_SECRET not configured');
-        await ctx.reply('Bot configuration error. Please contact support.');
-        return;
-      }
-
-      const apiBaseUrl = process.env.API_BASE_URL || 'http://localhost:3001';
-
-      // Load conversation history (last 20 messages)
+      // Load conversation history (last 20 messages, user/assistant only)
       let messages: Array<{ role: string; content: string }> = [];
       try {
         const conversation = await apiClient.getConversation(
@@ -147,10 +136,10 @@ export class TelegramBotAdapter implements MessagingAdapter {
           conversationId,
         );
         if (conversation?.messages?.length) {
-          messages = conversation.messages.slice(-20).map((msg: any) => ({
-            role: msg.role,
-            content: msg.content,
-          }));
+          messages = conversation.messages
+            .filter((m: any) => m.role === 'user' || m.role === 'assistant')
+            .slice(-20)
+            .map((msg: any) => ({ role: msg.role, content: msg.content }));
         }
       } catch (error) {
         console.error('[Telegram Bot] Failed to load conversation history:', error);
@@ -159,72 +148,40 @@ export class TelegramBotAdapter implements MessagingAdapter {
       // Append new user message
       messages.push({ role: 'user', content: messageText });
 
-      // Resolve AI model via shared resolver
-      const resolved = await resolveModel(
-        apiBaseUrl,
-        botSecret,
-        channelUser.oxyUserId.toString(),
-        channelUser.preferredModel || 'alia-lite',
-        'telegram',
-      );
+      // Platform instructions passed as first system message —
+      // the API extracts this as clientContext and merges it into the full system prompt
+      const apiMessages = [
+        {
+          role: 'system',
+          content: `The user is chatting via Telegram.
 
-      // Convert to AI SDK message format
-      const modelMessages: ModelMessage[] = messages.map((m) => ({
-        role: m.role as 'user' | 'assistant',
-        content: m.content,
-      }));
-
-      const systemMessage = `You are Alia, a helpful AI assistant accessible via Telegram. You can:
-- Answer questions and help with tasks
-- Search the web when needed
-- Remember important information about the user
-
-Telegram Special Commands:
+Telegram Special Commands (use when appropriate):
 - [REACT:emoji] - React to user's message with an emoji (e.g., [REACT:👍])
 - [TGIMAGE url="..." caption="..."] - Send an image
 - [TGDOC url="..." filename="..." caption="..."] - Send a document
 - [TGLINKS title="..."]{"text":"...","url":"..."}[/TGLINKS] - Send link buttons
 
-Be concise and friendly. Use these Telegram features when appropriate.`;
+Be concise and friendly. Use these Telegram features when appropriate.`,
+        },
+        ...messages,
+      ];
 
-      // ---------- Stream response ----------
+      // ---------- Stream response via API ----------
       let fullResponse = '';
       let lastUpdateTime = Date.now();
       let currentMessage: any = null;
 
-      const result = streamText({
-        model: resolved.model,
-        system: systemMessage,
-        messages: modelMessages,
-        maxRetries: 3,
-        temperature: 0.7,
-        maxOutputTokens: 2048,
-
-        onError: (error) => {
-          console.error('[Telegram Bot] AI SDK error:', error);
+      const stream = apiClient.chatCompletionStream(
+        channelUser.oxyUserId.toString(),
+        apiMessages,
+        {
+          model: channelUser.preferredModel || 'alia-lite',
+          conversationId,
         },
-
-        onFinish: async (event) => {
-          if (event.usage?.totalTokens) {
-            await reportUsage(
-              apiBaseUrl,
-              botSecret,
-              channelUser.oxyUserId.toString(),
-              resolved.sessionId,
-              {
-                promptTokens: event.usage.inputTokens || 0,
-                completionTokens: event.usage.outputTokens || 0,
-                totalTokens: event.usage.totalTokens,
-              },
-            ).catch((err) =>
-              console.error('[Telegram Bot] Failed to report usage:', err),
-            );
-          }
-        },
-      });
+      );
 
       // Process streaming chunks
-      for await (const chunk of result.textStream) {
+      for await (const chunk of stream) {
         fullResponse += chunk;
         const now = Date.now();
 
@@ -284,13 +241,7 @@ Be concise and friendly. Use these Telegram features when appropriate.`;
         }
       }
 
-      // Save conversation
-      if (fullResponse) {
-        messages.push({ role: 'assistant', content: fullResponse });
-        await apiClient
-          .saveConversation(channelUser.oxyUserId.toString(), conversationId, messages)
-          .catch((err) => console.error('[Telegram Bot] Failed to save conversation:', err));
-      }
+      // Conversation is auto-saved by the API when conversationId is provided
     } catch (error: any) {
       console.error('[Telegram Bot] Chat error:', error);
 

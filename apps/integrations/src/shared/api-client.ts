@@ -127,4 +127,127 @@ export class APIClient {
       { headers: this.authHeaders },
     );
   }
+
+  // ---------------------------------------------------------------------------
+  // Chat completions — route AI calls through the main API
+  // ---------------------------------------------------------------------------
+
+  private get baseURL(): string {
+    return process.env.API_BASE_URL || 'http://localhost:3001';
+  }
+
+  /**
+   * Non-streaming chat completion (Discord, gateway adapters).
+   */
+  async chatCompletion(
+    oxyUserId: string,
+    messages: Array<{ role: string; content: string }>,
+    options: { model?: string; conversationId?: string } = {},
+  ): Promise<{ content: string; finishReason: string }> {
+    const response = await fetch(`${this.baseURL}/v1/chat/completions`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Channel-Bot-Secret': this.secret,
+        'X-Oxy-User-Id': oxyUserId,
+      },
+      body: JSON.stringify({
+        messages,
+        model: options.model || 'alia-lite',
+        stream: false,
+        conversationId: options.conversationId,
+        temperature: 0.7,
+        max_tokens: 2048,
+      }),
+      signal: AbortSignal.timeout(90_000),
+    });
+
+    if (!response.ok) {
+      const body = await response.json().catch(() => ({ error: `HTTP ${response.status}` }));
+      const err: any = new Error(body.error?.message || body.error || `HTTP ${response.status}`);
+      err.status = response.status;
+      err.code = body.error?.code;
+      throw err;
+    }
+
+    const data = await response.json();
+    const choice = data.choices?.[0];
+    return {
+      content: choice?.message?.content || '',
+      finishReason: choice?.finish_reason || 'stop',
+    };
+  }
+
+  /**
+   * Streaming chat completion — async generator yielding text deltas (Telegram).
+   * Tools execute server-side; only text content is yielded.
+   */
+  async *chatCompletionStream(
+    oxyUserId: string,
+    messages: Array<{ role: string; content: string }>,
+    options: { model?: string; conversationId?: string } = {},
+  ): AsyncGenerator<string, void, undefined> {
+    const response = await fetch(`${this.baseURL}/v1/chat/completions`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Channel-Bot-Secret': this.secret,
+        'X-Oxy-User-Id': oxyUserId,
+      },
+      body: JSON.stringify({
+        messages,
+        model: options.model || 'alia-lite',
+        stream: true,
+        conversationId: options.conversationId,
+        temperature: 0.7,
+        max_tokens: 2048,
+      }),
+    });
+
+    if (!response.ok) {
+      const body = await response.json().catch(() => ({ error: `HTTP ${response.status}` }));
+      const err: any = new Error(body.error?.message || body.error || `HTTP ${response.status}`);
+      err.status = response.status;
+      err.code = body.error?.code;
+      throw err;
+    }
+
+    if (!response.body) {
+      throw new Error('No response body for streaming request');
+    }
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop()!;
+
+        for (const line of lines) {
+          const trimmed = line.trim();
+          if (!trimmed || trimmed.startsWith(':')) continue;
+          if (!trimmed.startsWith('data: ')) continue;
+
+          const data = trimmed.slice(6);
+          if (data === '[DONE]') return;
+
+          try {
+            const parsed = JSON.parse(data);
+            const content = parsed.choices?.[0]?.delta?.content;
+            if (content) yield content;
+          } catch {
+            // skip malformed chunks
+          }
+        }
+      }
+    } finally {
+      reader.releaseLock();
+    }
+  }
 }

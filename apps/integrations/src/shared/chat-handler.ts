@@ -3,11 +3,12 @@
  *
  * Each adapter extracts the platform-specific message data, then calls
  * handleIncomingMessage() with platform-agnostic params + callbacks.
+ *
+ * AI calls are routed through the main API's /v1/chat/completions endpoint
+ * so that adapters get the full system prompt, user memory, tools, etc.
  */
 
-import { generateText } from 'ai';
 import { v4 as uuidv4 } from 'uuid';
-import { resolveModel, reportUsage } from './model-resolver';
 import { APIClient } from './api-client';
 import { chunkText } from './utils';
 
@@ -34,23 +35,13 @@ export async function handleIncomingMessage(
 ): Promise<void> {
   const {
     platform,
-    sessionId,
     oxyUserId,
-    chatId,
     messageText,
     sendResponse,
     setTyping,
     charLimit = 4000,
     platformContext = '',
   } = params;
-
-  const botSecret = process.env.INTEGRATIONS_SECRET;
-  const apiBaseUrl = process.env.API_BASE_URL || 'http://localhost:3001';
-
-  if (!botSecret) {
-    console.error(`[${platform}/Chat] INTEGRATIONS_SECRET not configured`);
-    return;
-  }
 
   try {
     // Get channel user from API
@@ -75,15 +66,15 @@ export async function handleIncomingMessage(
       await apiClient.updateConversation(oxyUserId, conversationId);
     }
 
-    // Load conversation history (last 20 messages)
+    // Load conversation history (last 20 messages, user/assistant only)
     let messages: Array<{ role: string; content: string }> = [];
     try {
       const conversation = await apiClient.getConversation(channelUser.oxyUserId, conversationId);
       if (conversation?.messages?.length) {
-        messages = conversation.messages.slice(-20).map((m: any) => ({
-          role: m.role,
-          content: m.content,
-        }));
+        messages = conversation.messages
+          .filter((m: any) => m.role === 'user' || m.role === 'assistant')
+          .slice(-20)
+          .map((m: any) => ({ role: m.role, content: m.content }));
       }
     } catch (error) {
       console.error(`[${platform}/Chat] Failed to load history:`, error);
@@ -91,31 +82,27 @@ export async function handleIncomingMessage(
 
     messages.push({ role: 'user', content: messageText });
 
-    // Resolve AI model
-    const resolved = await resolveModel(
-      apiBaseUrl,
-      botSecret,
+    // Platform instructions as first system message —
+    // the API extracts this as clientContext and merges it into the full system prompt
+    const apiMessages = [
+      {
+        role: 'system',
+        content: `The user is chatting via ${platform}. Be concise and friendly.${platformContext ? ' ' + platformContext : ''}`,
+      },
+      ...messages,
+    ];
+
+    // Route through the main API to get system prompt, memory, tools, etc.
+    const result = await apiClient.chatCompletion(
       channelUser.oxyUserId,
-      channelUser.preferredModel || 'alia-lite',
-      platform,
+      apiMessages,
+      {
+        model: channelUser.preferredModel || 'alia-lite',
+        conversationId,
+      },
     );
 
-    // Generate AI response
-    const systemPrompt = `You are Alia, a helpful AI assistant. Be concise and friendly. Respond in the same language the user writes to you.${platformContext ? ' ' + platformContext : ''}`;
-
-    const result = await generateText({
-      model: resolved.model,
-      system: systemPrompt,
-      messages: messages.map((m) => ({
-        role: m.role as 'user' | 'assistant',
-        content: m.content,
-      })),
-      maxRetries: 3,
-      temperature: 0.7,
-      maxOutputTokens: 2048,
-    });
-
-    const fullResponse = result.text;
+    const fullResponse = result.content;
 
     // Send response (chunked)
     if (fullResponse) {
@@ -130,22 +117,7 @@ export async function handleIncomingMessage(
       try { await setTyping(false); } catch {}
     }
 
-    // Save conversation
-    if (fullResponse) {
-      messages.push({ role: 'assistant', content: fullResponse });
-      await apiClient
-        .saveConversation(channelUser.oxyUserId, conversationId, messages)
-        .catch((err) => console.error(`[${platform}/Chat] Save conversation error:`, err));
-    }
-
-    // Report usage
-    if (result.usage) {
-      await reportUsage(apiBaseUrl, botSecret, channelUser.oxyUserId, resolved.sessionId, {
-        promptTokens: result.usage.inputTokens || 0,
-        completionTokens: result.usage.outputTokens || 0,
-        totalTokens: result.usage.totalTokens || 0,
-      }).catch((err) => console.error(`[${platform}/Chat] Report usage error:`, err));
-    }
+    // Conversation is auto-saved by the API when conversationId is provided
   } catch (error: any) {
     console.error(`[${platform}/Chat] Error:`, error);
     await sendResponse('Sorry, an error occurred. Please try again.').catch(() => {});
