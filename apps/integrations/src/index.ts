@@ -59,22 +59,25 @@ async function loadAdapters(): Promise<void> {
   }
 }
 
+const ADAPTER_INIT_TIMEOUT_MS = 30_000;
+
+async function initAdapterWithTimeout(adapter: MessagingAdapter): Promise<void> {
+  await Promise.race([
+    adapter.initialize(),
+    new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error(`Timed out after ${ADAPTER_INIT_TIMEOUT_MS / 1000}s`)), ADAPTER_INIT_TIMEOUT_MS),
+    ),
+  ]);
+}
+
 async function main() {
   // Connect to MongoDB
   const dbName = `${APP_NAME}-${process.env.NODE_ENV || 'development'}`;
   await mongoose.connect(MONGODB_URI!, { dbName });
   console.log(`[Integrations] Connected to MongoDB (${dbName})`);
 
-  // Load and initialize adapters
+  // Load adapter instances (constructors only — no external calls)
   await loadAdapters();
-  for (const adapter of adapters) {
-    try {
-      await adapter.initialize();
-      console.log(`[Integrations] ${adapter.name} adapter initialized`);
-    } catch (err) {
-      console.error(`[Integrations] Failed to initialize ${adapter.name}:`, err);
-    }
-  }
 
   // Express app
   const app = express();
@@ -100,7 +103,7 @@ async function main() {
     next();
   };
 
-  // Mount adapter routes
+  // Mount adapter routes (routers are available before initialize())
   for (const adapter of adapters) {
     if (adapter.getRouter) {
       app.use(`/${adapter.name}`, requireSecret, adapter.getRouter());
@@ -146,9 +149,23 @@ async function main() {
   // Make WSS available for terminal/browser managers
   (global as any).__wss = wss;
 
-  server.listen(PORT, () => {
-    console.log(`[Integrations] Running on port ${PORT}`);
+  // Start HTTP server FIRST so health checks pass during adapter initialization
+  await new Promise<void>((resolve) => {
+    server.listen(PORT, () => {
+      console.log(`[Integrations] Running on port ${PORT}`);
+      resolve();
+    });
   });
+
+  // Initialize adapters AFTER the server is listening (with timeouts)
+  for (const adapter of adapters) {
+    try {
+      await initAdapterWithTimeout(adapter);
+      console.log(`[Integrations] ${adapter.name} adapter initialized`);
+    } catch (err) {
+      console.error(`[Integrations] Failed to initialize ${adapter.name}:`, err);
+    }
+  }
 }
 
 // Graceful shutdown

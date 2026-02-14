@@ -86,15 +86,21 @@ export function createAIModel(provider: string, modelId: string, apiKey: string)
     case 'google':
       return createGoogleGenerativeAI({ apiKey })(modelId);
     case 'openai':
-      return createOpenAI({ apiKey })(modelId);
+      return createOpenAI({ apiKey }).chat(modelId);
     case 'anthropic':
       return createAnthropic({ apiKey })(modelId);
     case 'groq':
-      return createOpenAI({ apiKey, baseURL: 'https://api.groq.com/openai/v1' })(modelId);
+      return createOpenAI({ apiKey, baseURL: 'https://api.groq.com/openai/v1' }).chat(modelId);
     case 'together':
-      return createOpenAI({ apiKey, baseURL: 'https://api.together.ai/v1' })(modelId);
+      return createOpenAI({ apiKey, baseURL: 'https://api.together.ai/v1' }).chat(modelId);
     case 'cerebras':
-      return createOpenAI({ apiKey, baseURL: 'https://api.cerebras.ai/v1' })(modelId);
+      return createOpenAI({ apiKey, baseURL: 'https://api.cerebras.ai/v1' }).chat(modelId);
+    case 'mistral':
+      return createOpenAI({ apiKey, baseURL: 'https://api.mistral.ai/v1' }).chat(modelId);
+    case 'deepseek':
+      return createOpenAI({ apiKey, baseURL: 'https://api.deepseek.com' }).chat(modelId);
+    case 'openrouter':
+      return createOpenAI({ apiKey, baseURL: 'https://openrouter.ai/api/v1' }).chat(modelId);
     default:
       throw new Error(`Provider "${provider}" not supported`);
   }
