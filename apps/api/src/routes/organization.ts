@@ -1,8 +1,19 @@
 import { Router, Request, Response } from 'express';
+import multer from 'multer';
 import { authenticateToken } from '../middleware/auth';
 import { Organization } from '../models/organization';
 import { OrganizationMember } from '../models/organization-member';
+import { uploadToS3 } from '../lib/s3';
 import { z } from 'zod';
+
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 2 * 1024 * 1024 }, // 2MB
+  fileFilter: (_req, file, cb) => {
+    const allowed = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+    cb(null, allowed.includes(file.mimetype));
+  },
+});
 
 const router = Router();
 
@@ -184,6 +195,46 @@ router.patch('/:id', async (req: Request, res: Response) => {
     }
     console.error('Error updating organization:', error);
     res.status(500).json({ error: 'Failed to update organization' });
+  }
+});
+
+// Upload organization image
+router.post('/:id/image', upload.single('file'), async (req: Request, res: Response) => {
+  try {
+    const userId = req.user!.id;
+    const { id } = req.params;
+
+    const membership = await OrganizationMember.findOne({
+      organizationId: id,
+      oxyUserId: userId,
+      role: { $in: ['owner', 'admin'] },
+    });
+
+    if (!membership) {
+      return res.status(403).json({ error: 'Insufficient permissions' });
+    }
+
+    const file = (req as any).file as { buffer: Buffer; originalname: string } | undefined;
+    if (!file) {
+      return res.status(400).json({ error: 'Image file is required' });
+    }
+
+    const imageUrl = await uploadToS3(file.buffer, file.originalname, 'workspace-images');
+
+    const organization = await Organization.findByIdAndUpdate(
+      id,
+      { $set: { image: imageUrl } },
+      { new: true },
+    );
+
+    if (!organization) {
+      return res.status(404).json({ error: 'Organization not found' });
+    }
+
+    res.json({ image: imageUrl });
+  } catch (error) {
+    console.error('Error uploading organization image:', error);
+    res.status(500).json({ error: 'Failed to upload image' });
   }
 });
 

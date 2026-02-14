@@ -1,12 +1,12 @@
 import { createFileRoute, Link } from '@tanstack/react-router';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { HugeiconsIcon } from '@hugeicons/react';
 import {
   ArrowLeft01Icon,
   Delete02Icon,
   Add01Icon,
-  UserMultiple02Icon,
   Cancel01Icon,
+  ImageUpload01Icon,
 } from '@hugeicons/core-free-icons';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -14,7 +14,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import {
   Select,
   SelectContent,
@@ -49,6 +49,7 @@ import {
   useInviteMember,
   useRemoveMember,
   useUpdateMemberRole,
+  useUploadWorkspaceImage,
   canEditWorkspace as checkCanEdit,
   canManageMembers as checkCanManage,
   canDeleteWorkspace as checkCanDelete,
@@ -56,6 +57,8 @@ import {
   type WorkspaceMember,
 } from '@/hooks/use-workspace';
 import { useAuth } from '@oxyhq/auth';
+import { WorkspaceAvatar } from '@/components/workspace-avatar';
+import config from '@/lib/config';
 import { toast } from 'sonner';
 
 export const Route = createFileRoute('/_layout/settings/workspace')({
@@ -83,6 +86,8 @@ function WorkspaceSettingsPage() {
   const inviteMutation = useInviteMember();
   const removeMutation = useRemoveMember();
   const roleChangeMutation = useUpdateMemberRole();
+  const uploadImageMutation = useUploadWorkspaceImage();
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const currentWorkspace = workspaces.find((w) => w.id === currentWorkspaceId) || workspaces[0] || null;
 
@@ -216,9 +221,7 @@ function WorkspaceSettingsPage() {
           Back to dashboard
         </Link>
         <div className="flex items-center gap-3">
-          <div className="flex aspect-square size-10 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-            <HugeiconsIcon icon={UserMultiple02Icon} size={20} />
-          </div>
+          <WorkspaceAvatar workspace={currentWorkspace} user={user} size="lg" />
           <div>
             <h1 className="text-2xl font-semibold text-foreground">Workspace Settings</h1>
             <p className="text-sm text-muted-foreground">{currentWorkspace.name}</p>
@@ -257,9 +260,56 @@ function WorkspaceSettingsPage() {
             />
           </div>
           {canEdit && !isPersonal && (
-            <Button onClick={handleSave} disabled={updateMutation.isPending}>
-              {updateMutation.isPending ? 'Saving...' : 'Save changes'}
-            </Button>
+            <>
+              <div className="space-y-2">
+                <Label>Workspace image</Label>
+                <div className="flex items-center gap-4">
+                  <WorkspaceAvatar
+                    workspace={currentWorkspace}
+                    user={user}
+                    size="lg"
+                    className="size-16 rounded-lg text-lg"
+                  />
+                  <div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => fileInputRef.current?.click()}
+                      disabled={uploadImageMutation.isPending}
+                    >
+                      <HugeiconsIcon icon={ImageUpload01Icon} size={14} className="mr-1.5" />
+                      {uploadImageMutation.isPending ? 'Uploading...' : 'Upload image'}
+                    </Button>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      JPG, PNG, GIF or WebP. Max 2MB.
+                    </p>
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept="image/jpeg,image/png,image/gif,image/webp"
+                      className="hidden"
+                      onChange={async (e) => {
+                        const file = e.target.files?.[0];
+                        if (!file) return;
+                        try {
+                          await uploadImageMutation.mutateAsync({
+                            workspaceId: currentWorkspace.id,
+                            file,
+                          });
+                          toast.success('Workspace image updated');
+                        } catch {
+                          toast.error('Failed to upload image');
+                        }
+                        e.target.value = '';
+                      }}
+                    />
+                  </div>
+                </div>
+              </div>
+              <Button onClick={handleSave} disabled={updateMutation.isPending}>
+                {updateMutation.isPending ? 'Saving...' : 'Save changes'}
+              </Button>
+            </>
           )}
         </div>
       </div>
@@ -301,6 +351,12 @@ function WorkspaceSettingsPage() {
                 >
                   <div className="flex items-center gap-3">
                     <Avatar className="size-8">
+                      {member.avatar && (
+                        <AvatarImage
+                          src={member.avatar.startsWith('http') ? member.avatar : `${config.oxyUrl}/media/${member.avatar}`}
+                          alt={member.name || member.email}
+                        />
+                      )}
                       <AvatarFallback>
                         {member.name?.[0]?.toUpperCase() || member.email[0]?.toUpperCase() || '?'}
                       </AvatarFallback>
