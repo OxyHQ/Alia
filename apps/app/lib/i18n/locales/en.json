@@ -516,8 +516,8 @@
       "What can I do for you this evening?",
       "Winding down or just getting started?",
       "How can I help you tonight?",
-      "What are we working on tonight?",
-      "Let's get something done this evening"
+      "Let's get something done this evening",
+      "What are we working on tonight?"
     ],
     "defaultSubtitle": "How can I help you today?",
     "appName": "Alia",
