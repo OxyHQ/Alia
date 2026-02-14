@@ -49,8 +49,8 @@ RUN apt-get update && \
     rm -rf /var/lib/apt/lists/*
 
 # Install signal-cli
-ARG SIGNAL_CLI_VERSION=0.13.12
-RUN wget -q "https://github.com/AsamK/signal-cli/releases/download/v${SIGNAL_CLI_VERSION}/signal-cli-${SIGNAL_CLI_VERSION}-Linux.tar.gz" -O /tmp/signal-cli.tar.gz && \
+ARG SIGNAL_CLI_VERSION=0.13.24
+RUN wget -q "https://github.com/AsamK/signal-cli/releases/download/v${SIGNAL_CLI_VERSION}/signal-cli-${SIGNAL_CLI_VERSION}.tar.gz" -O /tmp/signal-cli.tar.gz && \
     tar xf /tmp/signal-cli.tar.gz -C /opt/ && \
     ln -s "/opt/signal-cli-${SIGNAL_CLI_VERSION}/bin/signal-cli" /usr/local/bin/signal-cli && \
     rm /tmp/signal-cli.tar.gz
