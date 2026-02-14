@@ -252,7 +252,7 @@ export async function seedPlanFeatures(): Promise<{ upserted: number }> {
     updateOne: {
       filter: { planId: pf.planId, featureId: pf.featureId },
       update: {
-        $set: {
+        $setOnInsert: {
           enabled: pf.enabled,
           limitValue: pf.limitValue,
           displayLabel: pf.displayLabel,
