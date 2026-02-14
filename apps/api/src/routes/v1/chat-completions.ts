@@ -270,7 +270,7 @@ router.post('/', async (req: Request, res: Response) => {
     // This establishes the connection with the proxy before the potentially slow
     // system prompt building + provider call. Non-streaming requests skip this.
     let earlySSE = false;
-    if (body.stream !== false) {
+    if (body.stream === true) {
       res.setHeader('Content-Type', 'text/event-stream');
       res.setHeader('Cache-Control', 'no-cache');
       res.setHeader('Connection', 'keep-alive');
@@ -453,6 +453,16 @@ When you use a tool successfully:
     const MAX_PROVIDER_RETRIES = 3;
     const skipProviders = new Set<string>();
     let sseHeadersSent = earlySSE;
+
+    /** Set SSE headers if not already sent (idempotent). */
+    function ensureSSEHeaders() {
+      if (!sseHeadersSent) {
+        res.setHeader('Content-Type', 'text/event-stream');
+        res.setHeader('Cache-Control', 'no-cache');
+        res.setHeader('Connection', 'keep-alive');
+        sseHeadersSent = true;
+      }
+    }
 
     for (let providerAttempt = 0; providerAttempt < MAX_PROVIDER_RETRIES; providerAttempt++) {
     // Check global timeout before each provider attempt
@@ -721,13 +731,7 @@ When you use a tool successfully:
       }
 
       if (chunk.type === 'text-delta' && chunk.text) {
-        // Set SSE headers on first content (may already be set by earlySSE)
-        if (!sseHeadersSent) {
-          res.setHeader('Content-Type', 'text/event-stream');
-          res.setHeader('Cache-Control', 'no-cache');
-          res.setHeader('Connection', 'keep-alive');
-          sseHeadersSent = true;
-        }
+        ensureSSEHeaders();
         hasStreamedContent = true;
 
         // Extract <thinking> tags for chain-of-thought (Anthropic, DeepSeek, etc.)
@@ -775,13 +779,7 @@ When you use a tool successfully:
           res.write(`data: ${JSON.stringify(openAIChunk)}\n\n`);
         }
       } else if ((chunk as any).type === 'thought-delta' || (chunk as any).type === 'reasoning-delta') {
-        // Set SSE headers on first content
-        if (!sseHeadersSent) {
-          res.setHeader('Content-Type', 'text/event-stream');
-          res.setHeader('Cache-Control', 'no-cache');
-          res.setHeader('Connection', 'keep-alive');
-          sseHeadersSent = true;
-        }
+        ensureSSEHeaders();
         hasStreamedContent = true;
 
         // Handle Gemini thought summaries and other reasoning tokens
@@ -805,13 +803,7 @@ When you use a tool successfully:
           console.log('[V1/Chat] Reasoning chunk (provider):', reasoningText.slice(0, 100));
         }
       } else if (chunk.type === 'tool-call') {
-        // Set SSE headers on first content
-        if (!sseHeadersSent) {
-          res.setHeader('Content-Type', 'text/event-stream');
-          res.setHeader('Cache-Control', 'no-cache');
-          res.setHeader('Connection', 'keep-alive');
-          sseHeadersSent = true;
-        }
+        ensureSSEHeaders();
         hasStreamedContent = true;
 
         // Restore original tool name if it was sanitized
@@ -851,13 +843,7 @@ When you use a tool successfully:
           args: chunk.input,
         });
       } else if (chunk.type === 'tool-result') {
-        // Set SSE headers on first content
-        if (!sseHeadersSent) {
-          res.setHeader('Content-Type', 'text/event-stream');
-          res.setHeader('Cache-Control', 'no-cache');
-          res.setHeader('Connection', 'keep-alive');
-          sseHeadersSent = true;
-        }
+        ensureSSEHeaders();
         hasStreamedContent = true;
 
         const originalToolName = toolNameMapping.get(chunk.toolName) || chunk.toolName;
@@ -898,12 +884,7 @@ When you use a tool successfully:
         }
       } else if (chunk.type === 'tool-error') {
         // Handle tool execution errors
-        if (!sseHeadersSent) {
-          res.setHeader('Content-Type', 'text/event-stream');
-          res.setHeader('Cache-Control', 'no-cache');
-          res.setHeader('Connection', 'keep-alive');
-          sseHeadersSent = true;
-        }
+        ensureSSEHeaders();
         hasStreamedContent = true;
 
         const originalToolName = toolNameMapping.get((chunk as any).toolName) || (chunk as any).toolName;
@@ -954,13 +935,7 @@ When you use a tool successfully:
         const { translateError, sanitizeMessage } = await import('../../lib/error-handler.js');
         const aliaError = translateError(rawError, resolved!.provider, resolved!.modelId);
 
-        // If we haven't sent SSE headers yet, set them now
-        if (!sseHeadersSent) {
-          res.setHeader('Content-Type', 'text/event-stream');
-          res.setHeader('Cache-Control', 'no-cache');
-          res.setHeader('Connection', 'keep-alive');
-          sseHeadersSent = true;
-        }
+        ensureSSEHeaders();
 
         const errorChunk = {
           id: `chatcmpl-${Date.now()}`,
@@ -978,13 +953,7 @@ When you use a tool successfully:
         res.write(`data: ${JSON.stringify(errorChunk)}\n\n`);
       } else if (chunk.type === 'finish') {
         console.log('[V1/Chat] Finish chunk received');
-        // Set SSE headers if not set yet (edge case: empty response)
-        if (!sseHeadersSent) {
-          res.setHeader('Content-Type', 'text/event-stream');
-          res.setHeader('Cache-Control', 'no-cache');
-          res.setHeader('Connection', 'keep-alive');
-          sseHeadersSent = true;
-        }
+        ensureSSEHeaders();
         const finishChunk = {
           id: `chatcmpl-${Date.now()}`,
           object: 'chat.completion.chunk',
