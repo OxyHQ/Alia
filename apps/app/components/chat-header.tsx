@@ -11,6 +11,7 @@ import { Dropdown, MenuItem, Separator } from "@/components/ui/dropdown";
 import { toast } from "@/components/sonner";
 import { ConfirmationDialog } from "@/components/ui/confirmation-dialog";
 import { useState } from "react";
+import { useTranslation } from "@/hooks/useTranslation";
 
 interface ChatHeaderProps {
   title: string;
@@ -31,6 +32,7 @@ export function ChatHeader({
   onSearchPress,
   onClear,
 }: ChatHeaderProps) {
+  const { t } = useTranslation();
   const insets = useSafeAreaInsets();
   const dimensions = useWindowDimensions();
   const navigation = useNavigation<DrawerNavigationProp<any>>();
@@ -50,19 +52,19 @@ export function ChatHeader({
   };
 
   const handleExport = () => {
-    toast.info('Export conversation functionality coming soon!');
+    toast.info(t('chatHeader.exportComingSoon'));
   };
 
   const handleShare = () => {
-    toast.info('Share conversation functionality coming soon!');
+    toast.info(t('chatHeader.shareComingSoon'));
   };
 
   const handleSettings = () => {
-    toast.info('Settings functionality coming soon!');
+    toast.info(t('chatHeader.settingsComingSoon'));
   };
 
   const handleHelp = () => {
-    toast.info('Help functionality coming soon!');
+    toast.info(t('chatHeader.helpComingSoon'));
   };
 
   return (
@@ -123,25 +125,25 @@ export function ChatHeader({
         >
           <MenuItem onPress={handleShare}>
             <Share2 size={14} className="text-muted-foreground" />
-            <Text className="text-sm">Share conversation</Text>
+            <Text className="text-sm">{t('chatHeader.shareConversation')}</Text>
           </MenuItem>
           <MenuItem onPress={handleExport}>
             <Download size={14} className="text-muted-foreground" />
-            <Text className="text-sm">Export</Text>
+            <Text className="text-sm">{t('chatHeader.export')}</Text>
           </MenuItem>
           <Separator />
           <MenuItem onPress={handleSettings}>
             <Settings size={14} className="text-muted-foreground" />
-            <Text className="text-sm">Settings</Text>
+            <Text className="text-sm">{t('chatHeader.settings')}</Text>
           </MenuItem>
           <MenuItem onPress={handleHelp}>
             <HelpCircle size={14} className="text-muted-foreground" />
-            <Text className="text-sm">Help</Text>
+            <Text className="text-sm">{t('chatHeader.help')}</Text>
           </MenuItem>
           <Separator />
           <MenuItem onPress={handleClearConversation} variant="destructive">
             <Trash2 size={14} className="text-destructive" />
-            <Text className="text-sm text-destructive">Clear conversation</Text>
+            <Text className="text-sm text-destructive">{t('chatHeader.clearConversation')}</Text>
           </MenuItem>
         </Dropdown>
       </View>
@@ -151,10 +153,10 @@ export function ChatHeader({
       <ConfirmationDialog
         open={showClearDialog}
         onOpenChange={setShowClearDialog}
-        title="Clear Conversation"
-        description="Are you sure you want to clear this conversation? This action cannot be undone."
-        confirmText="Clear"
-        cancelText="Cancel"
+        title={t('chatHeader.clearConfirmTitle')}
+        description={t('chatHeader.clearConfirmDescription')}
+        confirmText={t('chatHeader.clear')}
+        cancelText={t('common.cancel')}
         confirmVariant="destructive"
         onConfirm={confirmClearConversation}
       />

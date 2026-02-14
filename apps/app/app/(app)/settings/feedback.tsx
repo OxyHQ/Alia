@@ -10,24 +10,26 @@ import { MessageSquare, Bug, Lightbulb, Sparkles, Star } from "lucide-react-nati
 import { SettingsHeader } from "@/components/settings/settings-header";
 import { toast } from "@/components/sonner";
 import { Platform } from "react-native";
+import { useTranslation } from "@/hooks/useTranslation";
 
 type FeedbackType = 'bug' | 'feature' | 'improvement' | 'other';
 
 interface FeedbackTypeOption {
   type: FeedbackType;
-  label: string;
-  description: string;
+  labelKey: string;
+  descriptionKey: string;
   icon: React.ElementType;
 }
 
 const feedbackTypes: FeedbackTypeOption[] = [
-  { type: 'bug', label: 'Bug Report', description: 'Something is broken or not working', icon: Bug },
-  { type: 'feature', label: 'Feature Request', description: 'Suggest a new feature', icon: Lightbulb },
-  { type: 'improvement', label: 'Improvement', description: 'Enhance existing functionality', icon: Sparkles },
-  { type: 'other', label: 'Other', description: 'General feedback or comments', icon: MessageSquare },
+  { type: 'bug', labelKey: 'feedback.bugReport', descriptionKey: 'feedback.bugDescription', icon: Bug },
+  { type: 'feature', labelKey: 'feedback.featureRequest', descriptionKey: 'feedback.featureDescription', icon: Lightbulb },
+  { type: 'improvement', labelKey: 'feedback.improvement', descriptionKey: 'feedback.improvementDescription', icon: Sparkles },
+  { type: 'other', labelKey: 'feedback.other', descriptionKey: 'feedback.otherDescription', icon: MessageSquare },
 ];
 
 export default function FeedbackScreen() {
+  const { t } = useTranslation();
   const router = useRouter();
   const { oxyServices } = useOxy();
   const [selectedType, setSelectedType] = useState<FeedbackType | null>(null);
@@ -37,17 +39,17 @@ export default function FeedbackScreen() {
 
   const handleSubmit = async () => {
     if (!selectedType) {
-      toast.error("Please select a feedback type");
+      toast.error(t('feedback.selectType'));
       return;
     }
 
     if (!message.trim()) {
-      toast.error("Please enter your feedback message");
+      toast.error(t('feedback.enterMessage'));
       return;
     }
 
     if (message.trim().length < 10) {
-      toast.error("Please provide more details (at least 10 characters)");
+      toast.error(t('feedback.moreDetails'));
       return;
     }
 
@@ -75,32 +77,47 @@ export default function FeedbackScreen() {
       });
 
       if (response.ok) {
-        toast.success("Thank you for your feedback!");
+        toast.success(t('feedback.thankYou'));
         setSelectedType(null);
         setMessage("");
         setRating(null);
         router.back();
       } else {
         const error = await response.json();
-        toast.error(error.error || "Failed to submit feedback");
+        toast.error(error.error || t('feedback.submitFailed'));
       }
     } catch (error) {
       console.error("Error submitting feedback:", error);
-      toast.error("Failed to submit feedback");
+      toast.error(t('feedback.submitFailed'));
     } finally {
       setSubmitting(false);
     }
   };
 
+  const ratingLabels: Record<number, string> = {
+    1: t('feedback.veryPoor'),
+    2: t('feedback.poor'),
+    3: t('feedback.average'),
+    4: t('feedback.good'),
+    5: t('feedback.excellent'),
+  };
+
+  const placeholderMap: Record<FeedbackType, string> = {
+    bug: t('feedback.bugPlaceholder'),
+    feature: t('feedback.featurePlaceholder'),
+    improvement: t('feedback.improvementPlaceholder'),
+    other: t('feedback.otherPlaceholder'),
+  };
+
   return (
     <View className="flex-1 bg-background">
-      <SettingsHeader title="Send Feedback" subtitle="Help us improve Alia" showBack />
+      <SettingsHeader title={t('feedback.title')} subtitle={t('feedback.subtitle')} showBack />
 
       <ScrollView className="flex-1 p-4">
         <View className="max-w-2xl mx-auto w-full gap-6">
           {/* Feedback Type Selection */}
           <View className="gap-3">
-            <Text className="text-lg font-semibold">What type of feedback?</Text>
+            <Text className="text-lg font-semibold">{t('feedback.typeQuestion')}</Text>
             <View className="gap-2">
               {feedbackTypes.map((option) => {
                 const Icon = option.icon;
@@ -120,10 +137,10 @@ export default function FeedbackScreen() {
                     </View>
                     <View className="flex-1">
                       <Text className={`font-medium ${isSelected ? 'text-primary' : 'text-foreground'}`}>
-                        {option.label}
+                        {t(option.labelKey)}
                       </Text>
                       <Text className="text-sm text-muted-foreground">
-                        {option.description}
+                        {t(option.descriptionKey)}
                       </Text>
                     </View>
                   </Pressable>
@@ -134,7 +151,7 @@ export default function FeedbackScreen() {
 
           {/* Rating (Optional) */}
           <View className="gap-3">
-            <Text className="text-lg font-semibold">How would you rate your experience? (Optional)</Text>
+            <Text className="text-lg font-semibold">{t('feedback.rateExperience')}</Text>
             <View className="flex-row gap-2">
               {[1, 2, 3, 4, 5].map((star) => (
                 <Pressable
@@ -152,34 +169,22 @@ export default function FeedbackScreen() {
             </View>
             {rating && (
               <Text className="text-sm text-muted-foreground">
-                {rating === 1 && "Very poor"}
-                {rating === 2 && "Poor"}
-                {rating === 3 && "Average"}
-                {rating === 4 && "Good"}
-                {rating === 5 && "Excellent"}
+                {ratingLabels[rating]}
               </Text>
             )}
           </View>
 
           {/* Message */}
           <View className="gap-3">
-            <Text className="text-lg font-semibold">Your feedback</Text>
+            <Text className="text-lg font-semibold">{t('feedback.yourFeedback')}</Text>
             <Textarea
-              placeholder={
-                selectedType === 'bug'
-                  ? "Describe the bug you encountered. What happened? What did you expect to happen?"
-                  : selectedType === 'feature'
-                  ? "Describe the feature you'd like to see. How would it help you?"
-                  : selectedType === 'improvement'
-                  ? "What would you like us to improve? How could we make it better?"
-                  : "Share your thoughts with us..."
-              }
+              placeholder={selectedType ? placeholderMap[selectedType] : t('feedback.otherPlaceholder')}
               value={message}
               onChangeText={setMessage}
               className="min-h-[150px]"
             />
             <Text className="text-xs text-muted-foreground">
-              {message.length}/1000 characters
+              {t('feedback.characterCount', { count: message.length })}
             </Text>
           </View>
 
@@ -196,12 +201,12 @@ export default function FeedbackScreen() {
                 <MessageSquare size={20} className="text-primary-foreground" />
               )}
               <Text className="text-primary-foreground font-semibold">
-                {submitting ? "Submitting..." : "Submit Feedback"}
+                {submitting ? t('feedback.submitting') : t('feedback.submitButton')}
               </Text>
             </Button>
 
             <Text className="text-xs text-center text-muted-foreground">
-              Your feedback helps us improve Alia. Thank you for taking the time to share your thoughts.
+              {t('feedback.footerText')}
             </Text>
           </View>
         </View>

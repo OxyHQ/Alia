@@ -13,7 +13,7 @@ export function AccountSection() {
     ? user.name.last
       ? `${user.name.first} ${user.name.last}`
       : user.name.first
-    : user?.username || "User";
+    : user?.username || t('common.user');
 
   const initial = (user?.name?.first?.[0] || user?.username?.[0] || "U").toUpperCase();
 

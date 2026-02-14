@@ -45,6 +45,7 @@ import {
   Smartphone,
   type LucideIcon,
 } from "lucide-react-native";
+import { useTranslation } from "@/hooks/useTranslation";
 import { useStore } from "@/lib/globalStore";
 import { useRouter, usePathname } from "expo-router";
 import { SettingsSidebar } from "@/components/settings/settings-sidebar";
@@ -101,6 +102,7 @@ export function Sidebar() {
 
 const ChatSidebar = React.memo(function ChatSidebar() {
   const router = useRouter();
+  const { t } = useTranslation();
   // Use selectors to avoid worklet serialization issues
   const chatId = useStore((state) => state.chatId);
   const {
@@ -388,12 +390,12 @@ const ChatSidebar = React.memo(function ChatSidebar() {
 
   // Get display name for user
   const getUserDisplayName = React.useCallback(() => {
-    if (!user) return "User";
+    if (!user) return t('common.user');
     if (user.name?.first) {
       return user.name.last ? `${user.name.first} ${user.name.last}` : user.name.first;
     }
-    return user.username || "User";
-  }, [user]);
+    return user.username || t('common.user');
+  }, [user, t]);
 
   // Get standalone conversations (not in folders)
   const standaloneConversations = React.useMemo(() => {
@@ -446,7 +448,7 @@ const ChatSidebar = React.memo(function ChatSidebar() {
         <View className="flex-row items-center gap-2">
           <Sparkles size={16} className="text-primary" />
           <Text className="text-sm md:text-xs font-medium">
-            New Chat
+            {t('sidebar.newChat')}
           </Text>
         </View>
       </Button>
@@ -462,7 +464,7 @@ const ChatSidebar = React.memo(function ChatSidebar() {
           onPress={handleRoles}
         >
           <BrainCircuit size={16} className="text-muted-foreground" />
-          <Text className="text-sm md:text-xs">Roles</Text>
+          <Text className="text-sm md:text-xs">{t('sidebar.roles')}</Text>
         </Button>
         <Button
           variant="ghost"
@@ -470,7 +472,7 @@ const ChatSidebar = React.memo(function ChatSidebar() {
           onPress={handleAgents}
         >
           <Users size={16} className="text-muted-foreground" />
-          <Text className="text-sm md:text-xs">Agents</Text>
+          <Text className="text-sm md:text-xs">{t('sidebar.agents')}</Text>
         </Button>
         <Button
           variant="ghost"
@@ -478,7 +480,7 @@ const ChatSidebar = React.memo(function ChatSidebar() {
           onPress={handleLibrary}
         >
           <Library size={16} className="text-muted-foreground" />
-          <Text className="text-sm md:text-xs">Library</Text>
+          <Text className="text-sm md:text-xs">{t('sidebar.library')}</Text>
         </Button>
         <Button
           variant="ghost"
@@ -486,7 +488,7 @@ const ChatSidebar = React.memo(function ChatSidebar() {
           onPress={handleAutomations}
         >
           <CloudCog size={16} className="text-muted-foreground" />
-          <Text className="text-sm md:text-xs">Automations</Text>
+          <Text className="text-sm md:text-xs">{t('sidebar.automations')}</Text>
         </Button>
         <Button
           variant="ghost"
@@ -494,7 +496,7 @@ const ChatSidebar = React.memo(function ChatSidebar() {
           onPress={handleSkills}
         >
           <BookOpen size={16} className="text-muted-foreground" />
-          <Text className="text-sm md:text-xs">Skills</Text>
+          <Text className="text-sm md:text-xs">{t('sidebar.skills')}</Text>
         </Button>
     </>
   );
@@ -516,7 +518,7 @@ const ChatSidebar = React.memo(function ChatSidebar() {
                     <ChevronDown size={12} className="text-muted-foreground" />
                   )}
                   <Text className="text-xs font-medium text-muted-foreground">
-                    Projects
+                    {t('sidebar.projects')}
                   </Text>
                 </Pressable>
                 <Pressable
@@ -531,7 +533,7 @@ const ChatSidebar = React.memo(function ChatSidebar() {
                 {projects.length === 0 ? (
                   <View className="items-center justify-center py-4">
                     <Text className="text-xs text-muted-foreground">
-                      No projects yet
+                      {t('sidebar.noProjects')}
                     </Text>
                   </View>
                 ) : (
@@ -578,7 +580,7 @@ const ChatSidebar = React.memo(function ChatSidebar() {
                           <DropdownMenuContent side="bottom" align="end" className="w-48">
                             <DropdownMenuItem onPress={(e) => handleEditProject(project, e)}>
                               <Edit size={16} className="text-muted-foreground" />
-                              <Text className="text-sm">Edit Project</Text>
+                              <Text className="text-sm">{t('sidebar.editProject')}</Text>
                             </DropdownMenuItem>
                             <DropdownMenuSeparator />
                             <DropdownMenuItem
@@ -586,7 +588,7 @@ const ChatSidebar = React.memo(function ChatSidebar() {
                               onPress={(e) => handleDeleteProject(project.id, e)}
                             >
                               <Trash2 size={16} className="text-destructive" />
-                              <Text className="text-sm">Delete Project</Text>
+                              <Text className="text-sm">{t('sidebar.deleteProject')}</Text>
                             </DropdownMenuItem>
                           </DropdownMenuContent>
                         </DropdownMenu>
@@ -649,7 +651,7 @@ const ChatSidebar = React.memo(function ChatSidebar() {
 {conversationsNotInProjects.length === 0 ? (
                   <View className="items-center justify-center py-4">
                     <Text className="text-xs text-muted-foreground">
-                      {isLoading ? 'Loading...' : 'No history yet'}
+                      {isLoading ? t('common.loading') : 'No history yet'}
                     </Text>
                   </View>
                 ) : (
@@ -759,24 +761,24 @@ const ChatSidebar = React.memo(function ChatSidebar() {
                   <DropdownMenuSeparator />
                   <DropdownMenuItem onPress={handleUpgrade}>
                     <Sparkle size={16} className="text-muted-foreground" />
-                    <Text className="text-sm">Upgrade to Pro</Text>
+                    <Text className="text-sm">{t('sidebar.upgradeToPro')}</Text>
                   </DropdownMenuItem>
                   <DropdownMenuItem onPress={handleAccount}>
                     <UserCircle size={16} className="text-muted-foreground" />
-                    <Text className="text-sm">Account</Text>
+                    <Text className="text-sm">{t('sidebar.account')}</Text>
                   </DropdownMenuItem>
                   <DropdownMenuItem onPress={handleBilling}>
                     <CreditCard size={16} className="text-muted-foreground" />
-                    <Text className="text-sm">Billing</Text>
+                    <Text className="text-sm">{t('sidebar.billing')}</Text>
                   </DropdownMenuItem>
                   <DropdownMenuItem onPress={handleNotifications}>
                     <Bell size={16} className="text-muted-foreground" />
-                    <Text className="text-sm">Notifications</Text>
+                    <Text className="text-sm">{t('sidebar.notifications')}</Text>
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem variant="destructive" onPress={handleLogout}>
                     <LogOut size={16} className="text-destructive" />
-                    <Text className="text-sm">Log out</Text>
+                    <Text className="text-sm">{t('sidebar.logOut')}</Text>
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
@@ -830,7 +832,7 @@ const ChatSidebar = React.memo(function ChatSidebar() {
               <View className="flex-row items-center gap-2 md:gap-1.5">
                 <LogIn size={16} className="text-primary-foreground" />
                 <Text className="text-sm md:text-xs font-semibold text-primary-foreground">
-                  Sign in
+                  {t('login.signInButton')}
                 </Text>
               </View>
             </Button>
@@ -842,7 +844,7 @@ const ChatSidebar = React.memo(function ChatSidebar() {
               <View className="flex-row items-center gap-2 md:gap-1.5">
                 <UserPlus size={16} className="text-foreground" />
                 <Text className="text-sm md:text-xs font-medium">
-                  Sign up
+                  {t('login.footerLink')}
                 </Text>
               </View>
             </Button>

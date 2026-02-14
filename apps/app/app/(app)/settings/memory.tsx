@@ -38,6 +38,7 @@ import {
   Wand2,
   Copy,
 } from "lucide-react-native";
+import { useTranslation } from "@/hooks/useTranslation";
 import { useUserData } from "@/hooks/useUserData";
 import { useUserDataStore } from "@/lib/stores/user-data-store";
 import { cn } from "@/lib/utils";
@@ -79,6 +80,7 @@ export default function MemoryScreen() {
   const { memory, loading } = useUserData();
   const setMemory = useUserDataStore((state) => state.setMemory);
   const { colors } = useColorScheme();
+  const { t } = useTranslation();
   const [showDialog, setShowDialog] = useState(false);
   const [editingMemory, setEditingMemory] = useState<Memory | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
@@ -185,7 +187,7 @@ export default function MemoryScreen() {
 
   const handleSaveMemory = async () => {
     if (!isAuthenticated || !formKey.trim() || !formValue.trim()) {
-      toast.error("Key and value are required");
+      toast.error(t("memory.keyValueRequired"));
       return;
     }
 
@@ -208,7 +210,7 @@ export default function MemoryScreen() {
           const updatedMemory = await response.json();
           setMemory(updatedMemory);
           handleCloseDialog();
-          toast.success("Memory updated successfully");
+          toast.success(t("memory.memoryUpdated"));
         }
       } else {
         // Add new memory
@@ -227,12 +229,12 @@ export default function MemoryScreen() {
           const updatedMemory = await response.json();
           setMemory(updatedMemory);
           handleCloseDialog();
-          toast.success("Memory added successfully");
+          toast.success(t("memory.memoryAdded"));
         }
       }
     } catch (error) {
       console.error("Error saving memory:", error);
-      toast.error("Failed to save memory");
+      toast.error(t("memory.failedToSave"));
     } finally {
       setSaving(false);
     }
@@ -257,11 +259,11 @@ export default function MemoryScreen() {
       if (response.ok) {
         const updatedMemory = await response.json();
         setMemory(updatedMemory);
-        toast.success("Memory deleted successfully");
+        toast.success(t("memory.memoryDeleted"));
       }
     } catch (error) {
       console.error("Error deleting memory:", error);
-      toast.error("Failed to delete memory");
+      toast.error(t("memory.failedToDelete"));
     } finally {
       setDeleting(false);
       setMemoryToDelete(null);
@@ -294,7 +296,7 @@ export default function MemoryScreen() {
       } else {
         // Fallback to text search silently
         setSemanticResults(null);
-        toast.error("Semantic search unavailable, using text search");
+        toast.error(t("memory.semanticUnavailable"));
         setSemanticMode(false);
       }
     } catch (error) {
@@ -337,11 +339,11 @@ export default function MemoryScreen() {
         setDuplicates(data.duplicates || []);
         setShowDuplicatesDialog(true);
       } else {
-        toast.error("Failed to check for duplicates");
+        toast.error(t("memory.failedDuplicates"));
       }
     } catch (error) {
       console.error("Duplicates error:", error);
-      toast.error("Failed to check for duplicates");
+      toast.error(t("memory.failedDuplicates"));
     } finally {
       setDuplicatesLoading(false);
     }
@@ -376,7 +378,7 @@ export default function MemoryScreen() {
       }
     } catch (error) {
       console.error('Export stats error:', error);
-      toast.error('Failed to load export statistics');
+      toast.error(t('memory.failedToLoadStats'));
     }
   };
 
@@ -401,15 +403,15 @@ export default function MemoryScreen() {
         window.URL.revokeObjectURL(url);
         document.body.removeChild(a);
 
-        toast.success(`Memories exported as ${format.toUpperCase()}`);
+        toast.success(t('memory.exportedAs', { format: format.toUpperCase() }));
         setShowExportDialog(false);
       } else {
         const error = await response.json();
-        toast.error(error.error || 'Export failed');
+        toast.error(error.error || t('memory.exportFailed'));
       }
     } catch (error) {
       console.error('Export error:', error);
-      toast.error('Failed to export memories');
+      toast.error(t('memory.failedToExport'));
     }
   };
 
@@ -419,7 +421,7 @@ export default function MemoryScreen() {
     if (!file) return;
 
     if (file.size > 5 * 1024 * 1024) {
-      toast.error('File too large (max 5MB)');
+      toast.error(t('memory.fileTooLarge'));
       return;
     }
 
@@ -440,11 +442,11 @@ export default function MemoryScreen() {
         setImportFile(file);
         setImportPreview(result.analysis);
       } else {
-        toast.error('Invalid file format');
+        toast.error(t('memory.invalidFileFormat'));
         console.error('Validation errors:', result.errors);
       }
     } catch (error) {
-      toast.error('Failed to read file');
+      toast.error(t('memory.failedToReadFile'));
       console.error(error);
     }
   };
@@ -475,8 +477,11 @@ export default function MemoryScreen() {
         }
 
         toast.success(
-          `Import successful: ${result.stats.imported} added, ` +
-          `${result.stats.updated} updated, ${result.stats.skipped} skipped`
+          t('memory.importSuccess', {
+            imported: result.stats.imported,
+            updated: result.stats.updated,
+            skipped: result.stats.skipped,
+          })
         );
 
         setShowImportDialog(false);
@@ -484,11 +489,11 @@ export default function MemoryScreen() {
         setImportPreview(null);
       } else {
         const error = await response.json();
-        toast.error(error.error || 'Import failed');
+        toast.error(error.error || t('memory.importFailed'));
       }
     } catch (error) {
       console.error('Import error:', error);
-      toast.error('Failed to import memories');
+      toast.error(t('memory.failedToImport'));
     } finally {
       setImporting(false);
     }
@@ -497,23 +502,23 @@ export default function MemoryScreen() {
   if (loading) {
     return (
       <View className="flex-1 items-center justify-center bg-background">
-        <Text>Loading...</Text>
+        <Text>{t("common.loading")}</Text>
       </View>
     );
   }
 
   return (
     <View className="flex-1 bg-background">
-      <SettingsHeader title="Memory" />
+      <SettingsHeader title={t("memory.title")} />
       <ScrollView className="flex-1">
         {/* Hero Section - Centered */}
         <View className="items-center px-6 py-12">
           <Brain size={48} className="text-primary mb-4" />
           <Text className="text-4xl font-bold text-foreground mb-3 text-center">
-            Memory
+            {t("memory.title")}
           </Text>
           <Text className="text-base text-muted-foreground mb-6 text-center max-w-md">
-            Personal knowledge that Alia remembers across conversations. Share information naturally and it's saved automatically.
+            {t("memory.subtitle")}
           </Text>
 
           {/* Search Bar */}
@@ -522,7 +527,7 @@ export default function MemoryScreen() {
             <Input
               value={searchQuery}
               onChangeText={setSearchQuery}
-              placeholder={semanticMode ? "AI-powered search..." : "Search memories..."}
+              placeholder={semanticMode ? t("memory.aiSearchPlaceholder") : t("memory.searchPlaceholder")}
               className="flex-1 border-0 bg-transparent h-auto p-0 web:focus-visible:ring-0"
               placeholderTextColor={colors.mutedForeground}
             />
@@ -533,7 +538,7 @@ export default function MemoryScreen() {
               onPress={() => {
                 setSemanticMode(!semanticMode);
                 if (!semanticMode) {
-                  toast.info("AI search enabled — finds semantically related memories");
+                  toast.info(t("memory.aiSearchEnabled"));
                 }
               }}
               className={cn(
@@ -558,7 +563,7 @@ export default function MemoryScreen() {
             <View className="flex-row items-center gap-2">
               <Plus size={18} className="text-primary-foreground" />
               <Text className="text-sm font-semibold text-primary-foreground">
-                Add Memory
+                {t("memory.addMemory")}
               </Text>
             </View>
           </Button>
@@ -576,7 +581,7 @@ export default function MemoryScreen() {
               <View className="flex-row items-center gap-2">
                 <Download size={16} className="text-foreground" />
                 <Text className="text-sm font-semibold text-foreground">
-                  Export
+                  {t("memory.export")}
                 </Text>
               </View>
             </Button>
@@ -589,7 +594,7 @@ export default function MemoryScreen() {
               <View className="flex-row items-center gap-2">
                 <Upload size={16} className="text-foreground" />
                 <Text className="text-sm font-semibold text-foreground">
-                  Import
+                  {t("memory.import")}
                 </Text>
               </View>
             </Button>
@@ -603,7 +608,7 @@ export default function MemoryScreen() {
               <View className="flex-row items-center gap-2">
                 <Copy size={16} className="text-foreground" />
                 <Text className="text-sm font-semibold text-foreground">
-                  {duplicatesLoading ? "..." : "Duplicates"}
+                  {duplicatesLoading ? "..." : t("memory.duplicates")}
                 </Text>
               </View>
             </Button>
@@ -635,12 +640,12 @@ export default function MemoryScreen() {
             <View className="items-center justify-center py-20">
               <Brain size={64} className="text-muted-foreground opacity-50" />
               <Text className="text-lg font-medium text-foreground mt-4">
-                {memories.length === 0 ? 'No memories yet' : 'No memories found'}
+                {memories.length === 0 ? t('memory.noMemories') : t('memory.noMemoriesFound')}
               </Text>
               <Text className="text-sm text-muted-foreground text-center mt-2 max-w-md">
                 {searchQuery
-                  ? semanticMode ? 'No semantically related memories found' : 'Try a different search term'
-                  : 'Share personal information with Alia and it will be saved here automatically'
+                  ? semanticMode ? t('memory.noSemanticResults') : t('memory.noMemoriesFound')
+                  : t('memory.shareInfo')
                 }
               </Text>
             </View>
@@ -653,6 +658,7 @@ export default function MemoryScreen() {
                   onEdit={() => handleOpenDialog(memory)}
                   onDelete={() => handleDeleteMemory(memory._id)}
                   getCategoryConfig={getCategoryConfig}
+                  t={t}
                 />
               ))}
             </View>
@@ -665,48 +671,48 @@ export default function MemoryScreen() {
         <DialogContent closeButton={true}>
           <DialogHeader>
             <DialogTitle>
-              {editingMemory ? 'Edit Memory' : 'New Memory'}
+              {editingMemory ? t('memory.editMemory') : t('memory.newMemory')}
             </DialogTitle>
             <DialogDescription>
               {editingMemory
-                ? 'Update the memory details below'
-                : 'Add a new memory for Alia to remember'}
+                ? t('memory.updateDetails')
+                : t('memory.addForAlia')}
             </DialogDescription>
           </DialogHeader>
 
           <View className="gap-4">
             {/* Key Field */}
             <View className="gap-2">
-              <Label nativeID="key">Key *</Label>
+              <Label nativeID="key">{t('memory.keyLabel')}</Label>
               <Input
                 aria-labelledby="key"
                 value={formKey}
                 onChangeText={setFormKey}
-                placeholder="e.g., favorite_food, pet_name"
+                placeholder={t('memory.keyPlaceholder')}
                 editable={!saving}
               />
             </View>
 
             {/* Value Field */}
             <View className="gap-2">
-              <Label nativeID="value">Value *</Label>
+              <Label nativeID="value">{t('memory.valueLabel')}</Label>
               <Textarea
                 aria-labelledby="value"
                 value={formValue}
                 onChangeText={setFormValue}
-                placeholder="e.g., Pizza, Max"
+                placeholder={t('memory.valuePlaceholder')}
                 editable={!saving}
               />
             </View>
 
             {/* Category Field */}
             <View className="gap-2">
-              <Label nativeID="category">Category</Label>
+              <Label nativeID="category">{t('memory.categoryLabel')}</Label>
               <Input
                 aria-labelledby="category"
                 value={formCategory}
                 onChangeText={setFormCategory}
-                placeholder="e.g., preferencia, personal"
+                placeholder={t('memory.categoryPlaceholder')}
                 editable={!saving}
               />
 
@@ -740,14 +746,14 @@ export default function MemoryScreen() {
               onPress={handleCloseDialog}
               disabled={saving}
             >
-              <Text>Cancel</Text>
+              <Text>{t('common.cancel')}</Text>
             </Button>
             <Button
               className="flex-1"
               onPress={handleSaveMemory}
               disabled={saving}
             >
-              <Text>{saving ? 'Saving...' : editingMemory ? 'Update' : 'Add'}</Text>
+              <Text>{saving ? t('memory.saving') : editingMemory ? t('memory.update') : t('memory.add')}</Text>
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -757,25 +763,25 @@ export default function MemoryScreen() {
       <Dialog open={showExportDialog} onOpenChange={setShowExportDialog}>
         <DialogContent closeButton={true}>
           <DialogHeader>
-            <DialogTitle>Export Memory Data</DialogTitle>
+            <DialogTitle>{t('memory.exportTitle')}</DialogTitle>
             <DialogDescription>
-              Download your memories, preferences, and context
+              {t('memory.exportDescription')}
             </DialogDescription>
           </DialogHeader>
 
           {exportStats && (
             <View className="gap-3">
               <View className="bg-muted rounded-lg p-3">
-                <Text className="text-sm text-muted-foreground mb-2">Export Statistics</Text>
-                <Text className="text-sm">Total Memories: {exportStats.totalMemories}</Text>
-                <Text className="text-sm">Categories: {exportStats.totalCategories}</Text>
+                <Text className="text-sm text-muted-foreground mb-2">{t('memory.exportStatistics')}</Text>
+                <Text className="text-sm">{t('memory.totalMemories')}: {exportStats.totalMemories}</Text>
+                <Text className="text-sm">{t('memory.categories')}: {exportStats.totalCategories}</Text>
                 <Text className="text-sm">
-                  Size (JSON): ~{(exportStats.estimatedSizeJSON / 1024).toFixed(1)} KB
+                  {t('memory.sizeJSON')}: ~{(exportStats.estimatedSizeJSON / 1024).toFixed(1)} KB
                 </Text>
               </View>
 
               <View className="gap-2">
-                <Label>Format</Label>
+                <Label>{t('memory.format')}</Label>
                 <ToggleGroup
                   type="single"
                   value={exportFormat}
@@ -784,21 +790,21 @@ export default function MemoryScreen() {
                   <ToggleGroupItem value="json">
                     <View className="flex-row items-center gap-2">
                       <FileJson size={16} className="text-foreground" />
-                      <Text>JSON (Full)</Text>
+                      <Text>{t('memory.jsonFull')}</Text>
                     </View>
                   </ToggleGroupItem>
                   <ToggleGroupItem value="csv">
                     <View className="flex-row items-center gap-2">
                       <FileText size={16} className="text-foreground" />
-                      <Text>CSV</Text>
+                      <Text>{t('memory.csv')}</Text>
                     </View>
                   </ToggleGroupItem>
                 </ToggleGroup>
 
                 <Text className="text-xs text-muted-foreground mt-1">
                   {exportFormat === 'json'
-                    ? 'Includes memories, preferences, and context'
-                    : 'Memories only, compatible with spreadsheets'}
+                    ? t('memory.jsonDescription')
+                    : t('memory.csvDescription')}
                 </Text>
               </View>
             </View>
@@ -810,7 +816,7 @@ export default function MemoryScreen() {
               className="flex-1"
               onPress={() => setShowExportDialog(false)}
             >
-              <Text>Cancel</Text>
+              <Text>{t('common.cancel')}</Text>
             </Button>
             <Button
               className="flex-1"
@@ -818,7 +824,7 @@ export default function MemoryScreen() {
             >
               <View className="flex-row items-center gap-2">
                 <Download size={16} className="text-primary-foreground" />
-                <Text>Download {exportFormat.toUpperCase()}</Text>
+                <Text>{t('memory.download', { format: exportFormat.toUpperCase() })}</Text>
               </View>
             </Button>
           </DialogFooter>
@@ -829,16 +835,16 @@ export default function MemoryScreen() {
       <Dialog open={showImportDialog} onOpenChange={setShowImportDialog}>
         <DialogContent closeButton={true}>
           <DialogHeader>
-            <DialogTitle>Import Memory Data</DialogTitle>
+            <DialogTitle>{t('memory.importTitle')}</DialogTitle>
             <DialogDescription>
-              Upload a JSON export file to restore or merge memories
+              {t('memory.importDescription')}
             </DialogDescription>
           </DialogHeader>
 
           <View className="gap-4">
             {/* File Input */}
             <View className="gap-2">
-              <Label>Select File</Label>
+              <Label>{t('memory.selectFile')}</Label>
               <input
                 type="file"
                 accept=".json"
@@ -850,13 +856,13 @@ export default function MemoryScreen() {
             {/* Preview */}
             {importPreview && (
               <View className="bg-muted rounded-lg p-3 gap-2">
-                <Text className="text-sm font-medium">Preview</Text>
-                <Text className="text-xs">Total to import: {importPreview.totalToImport}</Text>
-                <Text className="text-xs">New memories: {importPreview.newKeys}</Text>
-                <Text className="text-xs">Duplicates: {importPreview.duplicateKeys}</Text>
-                <Text className="text-xs">Final total: {importPreview.estimatedFinalTotal}</Text>
+                <Text className="text-sm font-medium">{t('memory.preview')}</Text>
+                <Text className="text-xs">{t('memory.totalToImport')}: {importPreview.totalToImport}</Text>
+                <Text className="text-xs">{t('memory.newMemoriesCount')}: {importPreview.newKeys}</Text>
+                <Text className="text-xs">{t('memory.duplicatesCount')}: {importPreview.duplicateKeys}</Text>
+                <Text className="text-xs">{t('memory.finalTotal')}: {importPreview.estimatedFinalTotal}</Text>
                 {importPreview.memoryLimit !== -1 && (
-                  <Text className="text-xs">Memory limit: {importPreview.memoryLimit}</Text>
+                  <Text className="text-xs">{t('memory.memoryLimit')}: {importPreview.memoryLimit}</Text>
                 )}
               </View>
             )}
@@ -864,27 +870,27 @@ export default function MemoryScreen() {
             {/* Strategy Selection */}
             {importFile && (
               <View className="gap-2">
-                <Label>Import Strategy</Label>
+                <Label>{t('memory.importStrategy')}</Label>
                 <ToggleGroup
                   type="single"
                   value={importStrategy}
                   onValueChange={(val) => setImportStrategy(val as any)}
                 >
                   <ToggleGroupItem value="merge">
-                    <Text>Merge</Text>
+                    <Text>{t('memory.merge')}</Text>
                   </ToggleGroupItem>
                   <ToggleGroupItem value="skip-duplicates">
-                    <Text>Skip Dupes</Text>
+                    <Text>{t('memory.skipDupes')}</Text>
                   </ToggleGroupItem>
                   <ToggleGroupItem value="replace">
-                    <Text>Replace All</Text>
+                    <Text>{t('memory.replaceAll')}</Text>
                   </ToggleGroupItem>
                 </ToggleGroup>
 
                 <Text className="text-xs text-muted-foreground mt-1">
-                  {importStrategy === 'merge' && 'Update existing, add new memories'}
-                  {importStrategy === 'skip-duplicates' && 'Only add new memories, skip existing'}
-                  {importStrategy === 'replace' && '⚠️ Delete all existing and replace'}
+                  {importStrategy === 'merge' && t('memory.mergeDescription')}
+                  {importStrategy === 'skip-duplicates' && t('memory.skipDescription')}
+                  {importStrategy === 'replace' && t('memory.replaceDescription')}
                 </Text>
               </View>
             )}
@@ -897,14 +903,14 @@ export default function MemoryScreen() {
               onPress={() => setShowImportDialog(false)}
               disabled={importing}
             >
-              <Text>Cancel</Text>
+              <Text>{t('common.cancel')}</Text>
             </Button>
             <Button
               className="flex-1"
               onPress={handleImport}
               disabled={!importFile || importing}
             >
-              <Text>{importing ? 'Importing...' : 'Import'}</Text>
+              <Text>{importing ? t('memory.importing') : t('memory.import')}</Text>
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -914,11 +920,11 @@ export default function MemoryScreen() {
       <Dialog open={showDuplicatesDialog} onOpenChange={setShowDuplicatesDialog}>
         <DialogContent closeButton={true}>
           <DialogHeader>
-            <DialogTitle>Duplicate Memories</DialogTitle>
+            <DialogTitle>{t('memory.duplicateMemories')}</DialogTitle>
             <DialogDescription>
               {duplicates.length === 0
-                ? 'No duplicates found — your memory is clean!'
-                : `Found ${duplicates.length} potential duplicate${duplicates.length === 1 ? '' : 's'}`}
+                ? t('memory.noDuplicates')
+                : t('memory.foundDuplicates', { count: duplicates.length })}
             </DialogDescription>
           </DialogHeader>
 
@@ -929,7 +935,7 @@ export default function MemoryScreen() {
                   <View key={i} className="border border-border rounded-lg p-3 gap-2">
                     <View className="bg-muted rounded-md px-2 py-1 self-start">
                       <Text className="text-[10px] text-muted-foreground font-medium">
-                        {dup.reason === 'identical_value' ? 'Identical value' : 'Similar key'}
+                        {dup.reason === 'identical_value' ? t('memory.identicalValue') : t('memory.similarKey')}
                       </Text>
                     </View>
                     <View className="gap-1">
@@ -959,7 +965,7 @@ export default function MemoryScreen() {
                           setDuplicates(prev => prev.filter((_, idx) => idx !== i));
                         }}
                       >
-                        <Text className="text-xs">Keep first</Text>
+                        <Text className="text-xs">{t('memory.keepFirst')}</Text>
                       </Button>
                       <Button
                         variant="outline"
@@ -970,7 +976,7 @@ export default function MemoryScreen() {
                           setDuplicates(prev => prev.filter((_, idx) => idx !== i));
                         }}
                       >
-                        <Text className="text-xs">Keep second</Text>
+                        <Text className="text-xs">{t('memory.keepSecond')}</Text>
                       </Button>
                     </View>
                   </View>
@@ -981,7 +987,7 @@ export default function MemoryScreen() {
 
           <DialogFooter>
             <Button onPress={() => setShowDuplicatesDialog(false)}>
-              <Text>Done</Text>
+              <Text>{t('common.done')}</Text>
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -991,10 +997,10 @@ export default function MemoryScreen() {
       <ConfirmationDialog
         open={showDeleteDialog}
         onOpenChange={setShowDeleteDialog}
-        title="Delete Memory"
-        description="Are you sure you want to delete this memory? This action cannot be undone."
-        confirmText="Delete"
-        cancelText="Cancel"
+        title={t("memory.deleteMemory")}
+        description={t("memory.deleteConfirmation")}
+        confirmText={t("common.delete")}
+        cancelText={t("common.cancel")}
         confirmVariant="destructive"
         onConfirm={confirmDeleteMemory}
         loading={deleting}
@@ -1008,11 +1014,13 @@ function MemoryCard({
   onEdit,
   onDelete,
   getCategoryConfig,
+  t,
 }: {
   memory: Memory;
   onEdit: () => void;
   onDelete: () => void;
   getCategoryConfig: (category?: string) => { icon: any; color: string; bgColor: string };
+  t: (key: string, params?: Record<string, any>) => string;
 }) {
   const config = getCategoryConfig(memory.category);
   const CategoryIcon = config.icon;
@@ -1046,7 +1054,7 @@ function MemoryCard({
           {/* Date */}
           <View className="px-2 py-1 bg-muted rounded-md self-start mb-3">
             <Text className="text-xs text-muted-foreground">
-              {memory.createdAt !== memory.updatedAt ? 'Updated' : 'Added'}{' '}
+              {memory.createdAt !== memory.updatedAt ? t('memory.updated') : t('memory.added')}{' '}
               {new Date(memory.updatedAt).toLocaleDateString()}
             </Text>
           </View>

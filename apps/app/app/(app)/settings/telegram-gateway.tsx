@@ -9,8 +9,10 @@ import { SettingsHeader } from "@/components/settings/settings-header";
 import { toast } from "@/components/sonner";
 import { ConfirmationDialog } from "@/components/ui/confirmation-dialog";
 import QRCode from "react-native-qrcode-svg";
+import { useTranslation } from "@/hooks/useTranslation";
 
 export default function TelegramGatewayScreen() {
+  const { t } = useTranslation();
   const router = useRouter();
   const { sessions, loading, connectNew, disconnect, stopPolling, refresh } = useGatewaySessions('telegram-gateway');
   const [connecting, setConnecting] = useState(false);
@@ -37,7 +39,7 @@ export default function TelegramGatewayScreen() {
       setConnecting(false);
       setQrData(null);
       setActiveSessionId(null);
-      toast.success("Telegram connected!");
+      toast.success(t('gateways.telegram.connected'));
     }
   }, [pendingSession]);
 
@@ -50,7 +52,7 @@ export default function TelegramGatewayScreen() {
         setQrData(data.qr);
       }
     } catch (err) {
-      toast.error("Failed to start Telegram connection");
+      toast.error(t('gateways.telegram.failedToConnect'));
       setConnecting(false);
     }
   };
@@ -60,9 +62,9 @@ export default function TelegramGatewayScreen() {
     try {
       setDisconnecting(true);
       await disconnect(disconnectTarget.sessionId);
-      toast.success("Telegram disconnected");
+      toast.success(t('gateways.telegram.disconnected'));
     } catch (err) {
-      toast.error("Failed to disconnect Telegram");
+      toast.error(t('gateways.telegram.failedToDisconnect'));
     } finally {
       setDisconnecting(false);
       setDisconnectTarget(null);
@@ -79,8 +81,8 @@ export default function TelegramGatewayScreen() {
   return (
     <View className="flex-1 bg-background">
       <SettingsHeader
-        title="Telegram Gateway"
-        subtitle="Link your Telegram accounts for Alia to respond as you"
+        title={t('gateways.telegram.title')}
+        subtitle={t('gateways.telegram.subtitle')}
         showBack
       />
 
@@ -96,7 +98,7 @@ export default function TelegramGatewayScreen() {
               {connectedSessions.length > 0 && (
                 <View className="gap-3">
                   <Text className="text-sm font-semibold text-muted-foreground">
-                    Connected Accounts ({connectedSessions.length})
+                    {t('gateways.connectedAccounts', { count: connectedSessions.length })}
                   </Text>
                   {connectedSessions.map((session) => (
                     <View
@@ -108,7 +110,7 @@ export default function TelegramGatewayScreen() {
                       </View>
                       <View className="flex-1">
                         <Text className="text-base font-semibold">
-                          {session.displayName || 'Telegram Account'}
+                          {session.displayName || t('gateways.telegram.accountFallback')}
                         </Text>
                         {session.phoneNumber && (
                           <Text className="text-sm text-muted-foreground">
@@ -130,9 +132,9 @@ export default function TelegramGatewayScreen() {
               {/* QR Code Flow */}
               {(qrData || isQrPending) ? (
                 <View className="items-center gap-4">
-                  <Text className="text-lg font-semibold text-center">Scan QR Code</Text>
+                  <Text className="text-lg font-semibold text-center">{t('gateways.scanQRCode')}</Text>
                   <Text className="text-sm text-muted-foreground text-center">
-                    Open Telegram on your phone, go to Settings &gt; Devices &gt; Link Desktop Device, then scan this code.
+                    {t('gateways.telegram.scanInstructions')}
                   </Text>
 
                   {qrData ? (
@@ -147,17 +149,17 @@ export default function TelegramGatewayScreen() {
                   ) : (
                     <View className="w-[282px] h-[282px] bg-muted rounded-2xl items-center justify-center">
                       <ActivityIndicator size="large" />
-                      <Text className="text-sm text-muted-foreground mt-2">Generating QR code...</Text>
+                      <Text className="text-sm text-muted-foreground mt-2">{t('gateways.generatingQR')}</Text>
                     </View>
                   )}
 
                   <View className="flex-row items-center gap-2 mt-2">
                     <ActivityIndicator size="small" />
-                    <Text className="text-sm text-muted-foreground">Waiting for scan...</Text>
+                    <Text className="text-sm text-muted-foreground">{t('gateways.waitingForScan')}</Text>
                   </View>
 
                   <Button variant="outline" className="w-full mt-2" onPress={handleCancelQR}>
-                    <Text>Cancel</Text>
+                    <Text>{t('common.cancel')}</Text>
                   </Button>
                 </View>
               ) : (
@@ -168,17 +170,17 @@ export default function TelegramGatewayScreen() {
                       <View className="bg-[#0088CC]/10 p-6 rounded-full">
                         <Send size={48} color="#0088CC" />
                       </View>
-                      <Text className="text-xl font-bold text-center">Link Your Telegram</Text>
+                      <Text className="text-xl font-bold text-center">{t('gateways.telegram.linkYour')}</Text>
                       <Text className="text-sm text-muted-foreground text-center leading-5">
-                        Connect your Telegram account to let Alia respond to messages on your behalf. You'll scan a QR code with your phone, just like Telegram Desktop.
+                        {t('gateways.telegram.linkDescription')}
                       </Text>
 
                       <View className="bg-muted/50 rounded-xl p-4 w-full gap-2 mt-2">
-                        <Text className="text-sm font-medium">How it works:</Text>
-                        <Text className="text-sm text-muted-foreground">1. Tap "Connect" below</Text>
-                        <Text className="text-sm text-muted-foreground">2. A QR code will appear</Text>
-                        <Text className="text-sm text-muted-foreground">3. Open Telegram &gt; Settings &gt; Devices</Text>
-                        <Text className="text-sm text-muted-foreground">4. Tap "Link Desktop Device" and scan</Text>
+                        <Text className="text-sm font-medium">{t('gateways.howItWorks')}</Text>
+                        <Text className="text-sm text-muted-foreground">{t('gateways.step1')}</Text>
+                        <Text className="text-sm text-muted-foreground">{t('gateways.step2')}</Text>
+                        <Text className="text-sm text-muted-foreground">{t('gateways.telegram.step3')}</Text>
+                        <Text className="text-sm text-muted-foreground">{t('gateways.telegram.step4')}</Text>
                       </View>
                     </>
                   )}
@@ -192,10 +194,10 @@ export default function TelegramGatewayScreen() {
                       {connectedSessions.length > 0 && <Plus size={18} className="text-primary-foreground" />}
                       <Text className="text-primary-foreground">
                         {connecting
-                          ? "Connecting..."
+                          ? t('gateways.telegram.connecting')
                           : connectedSessions.length > 0
-                            ? "Add Another Telegram"
-                            : "Connect Telegram"
+                            ? t('gateways.telegram.addAnother')
+                            : t('gateways.telegram.connect')
                         }
                       </Text>
                     </View>
@@ -210,10 +212,10 @@ export default function TelegramGatewayScreen() {
       <ConfirmationDialog
         open={!!disconnectTarget}
         onOpenChange={(open) => !open && setDisconnectTarget(null)}
-        title="Disconnect Telegram"
-        description={`This will disconnect ${disconnectTarget?.displayName || 'this Telegram account'} from Alia. You'll need to scan the QR code again to reconnect.`}
-        confirmText="Disconnect"
-        cancelText="Cancel"
+        title={t('gateways.telegram.disconnectTitle')}
+        description={t('gateways.telegram.disconnectDescription', { name: disconnectTarget?.displayName || t('gateways.telegram.accountFallback') })}
+        confirmText={t('common.confirm')}
+        cancelText={t('common.cancel')}
         confirmVariant="destructive"
         onConfirm={handleDisconnect}
         loading={disconnecting}

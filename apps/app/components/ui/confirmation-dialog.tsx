@@ -9,6 +9,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { useTranslation } from "@/hooks/useTranslation";
 
 interface ConfirmationDialogProps {
   open: boolean;
@@ -27,12 +28,14 @@ export function ConfirmationDialog({
   onOpenChange,
   title,
   description,
-  confirmText = "Confirm",
-  cancelText = "Cancel",
+  confirmText,
+  cancelText,
   confirmVariant = "default",
   onConfirm,
   loading = false,
 }: ConfirmationDialogProps) {
+  const { t } = useTranslation();
+
   const handleConfirm = async () => {
     await onConfirm();
     onOpenChange(false);
@@ -54,7 +57,7 @@ export function ConfirmationDialog({
             onPress={() => onOpenChange(false)}
             disabled={loading}
           >
-            <Text className="text-sm">{cancelText}</Text>
+            <Text className="text-sm">{cancelText || t('common.cancel')}</Text>
           </Button>
           <Button
             variant={confirmVariant}
@@ -63,7 +66,7 @@ export function ConfirmationDialog({
             onPress={handleConfirm}
             disabled={loading}
           >
-            <Text className="text-sm">{loading ? "Processing..." : confirmText}</Text>
+            <Text className="text-sm">{loading ? t('common.processing') : (confirmText || t('common.confirm'))}</Text>
           </Button>
         </DialogFooter>
       </DialogContent>

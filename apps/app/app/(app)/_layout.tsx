@@ -10,6 +10,7 @@ import { useFavoritesStore } from '@/lib/stores/favorites-store';
 import { useUIStore } from '@/lib/stores/ui-store';
 import { useEffect } from 'react';
 import { useColorScheme } from '@/lib/useColorScheme';
+import i18n from '@/lib/i18n';
 
 export default function AppLayout() {
   const dimensions = useWindowDimensions();
@@ -52,141 +53,141 @@ export default function AppLayout() {
             <Drawer.Screen
               name="c/[id]/index"
               options={{
-                drawerLabel: 'Chat',
-                title: 'Chat',
+                drawerLabel: i18n.t('nav.chat'),
+                title: i18n.t('nav.chat'),
               }}
             />
             <Drawer.Screen
               name="settings/index"
               options={{
-                drawerLabel: 'Settings',
-                title: 'Settings',
+                drawerLabel: i18n.t('nav.settings'),
+                title: i18n.t('nav.settings'),
               }}
             />
             <Drawer.Screen
               name="settings/memory"
               options={{
                 drawerItemStyle: { display: 'none' },
-                title: 'Memory',
+                title: i18n.t('nav.memory'),
               }}
             />
             <Drawer.Screen
               name="settings/general"
               options={{
                 drawerItemStyle: { display: 'none' },
-                title: 'General',
+                title: i18n.t('nav.general'),
               }}
             />
             <Drawer.Screen
               name="settings/usage"
               options={{
                 drawerItemStyle: { display: 'none' },
-                title: 'Usage',
+                title: i18n.t('nav.usage'),
               }}
             />
             <Drawer.Screen
               name="settings/personalization"
               options={{
                 drawerItemStyle: { display: 'none' },
-                title: 'Personalization',
+                title: i18n.t('nav.personalization'),
               }}
             />
             <Drawer.Screen
               name="settings/connectors"
               options={{
                 drawerItemStyle: { display: 'none' },
-                title: 'Connectors',
+                title: i18n.t('nav.connectors'),
               }}
             />
             <Drawer.Screen
               name="settings/feedback"
               options={{
                 drawerItemStyle: { display: 'none' },
-                title: 'Feedback',
+                title: i18n.t('nav.feedback'),
               }}
             />
             <Drawer.Screen
               name="settings/whatsapp"
               options={{
                 drawerItemStyle: { display: 'none' },
-                title: 'WhatsApp',
+                title: i18n.t('nav.whatsapp'),
               }}
             />
             <Drawer.Screen
               name="settings/telegram-gateway"
               options={{
                 drawerItemStyle: { display: 'none' },
-                title: 'Telegram Gateway',
+                title: i18n.t('nav.telegramGateway'),
               }}
             />
             <Drawer.Screen
               name="settings/signal-gateway"
               options={{
                 drawerItemStyle: { display: 'none' },
-                title: 'Signal Gateway',
+                title: i18n.t('nav.signalGateway'),
               }}
             />
             <Drawer.Screen
               name="forgot-password"
               options={{
                 drawerItemStyle: { display: 'none' },
-                title: 'Forgot Password',
+                title: i18n.t('nav.forgotPassword'),
               }}
             />
             <Drawer.Screen
               name="library"
               options={{
                 drawerItemStyle: { display: 'none' },
-                title: 'Library',
+                title: i18n.t('nav.library'),
               }}
             />
             <Drawer.Screen
               name="roles"
               options={{
                 drawerItemStyle: { display: 'none' },
-                title: 'Roles',
+                title: i18n.t('nav.roles'),
               }}
             />
             <Drawer.Screen
               name="automations"
               options={{
                 drawerItemStyle: { display: 'none' },
-                title: 'Automations',
+                title: i18n.t('nav.automations'),
               }}
             />
             <Drawer.Screen
               name="skills"
               options={{
                 drawerItemStyle: { display: 'none' },
-                title: 'Skills',
+                title: i18n.t('nav.skills'),
               }}
             />
             <Drawer.Screen
               name="agents"
               options={{
                 drawerItemStyle: { display: 'none' },
-                title: 'Agents',
+                title: i18n.t('nav.agents'),
               }}
             />
             <Drawer.Screen
               name="skills/[id]"
               options={{
                 drawerItemStyle: { display: 'none' },
-                title: 'Skill Detail',
+                title: i18n.t('nav.skillDetail'),
               }}
             />
             <Drawer.Screen
               name="roles/[id]"
               options={{
                 drawerItemStyle: { display: 'none' },
-                title: 'Role Detail',
+                title: i18n.t('nav.roleDetail'),
               }}
             />
             <Drawer.Screen
               name="invite/[code]"
               options={{
                 drawerItemStyle: { display: 'none' },
-                title: 'Invite',
+                title: i18n.t('nav.invite'),
               }}
             />
           </Drawer>

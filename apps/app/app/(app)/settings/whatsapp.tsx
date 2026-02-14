@@ -9,8 +9,10 @@ import { SettingsHeader } from "@/components/settings/settings-header";
 import { toast } from "@/components/sonner";
 import { ConfirmationDialog } from "@/components/ui/confirmation-dialog";
 import QRCode from "react-native-qrcode-svg";
+import { useTranslation } from "@/hooks/useTranslation";
 
 export default function WhatsAppSetupScreen() {
+  const { t } = useTranslation();
   const router = useRouter();
   const { sessions, loading, connectNew, disconnect, stopPolling } = useGatewaySessions('whatsapp');
   const [connecting, setConnecting] = useState(false);
@@ -35,7 +37,7 @@ export default function WhatsAppSetupScreen() {
       setConnecting(false);
       setQrData(null);
       setActiveSessionId(null);
-      toast.success("WhatsApp connected!");
+      toast.success(t('gateways.whatsapp.connected'));
     }
   }, [pendingSession]);
 
@@ -48,7 +50,7 @@ export default function WhatsAppSetupScreen() {
         setQrData(data.qr);
       }
     } catch (err) {
-      toast.error("Failed to start WhatsApp connection");
+      toast.error(t('gateways.whatsapp.failedToConnect'));
       setConnecting(false);
     }
   };
@@ -58,9 +60,9 @@ export default function WhatsAppSetupScreen() {
     try {
       setDisconnecting(true);
       await disconnect(disconnectTarget.sessionId);
-      toast.success("WhatsApp disconnected");
+      toast.success(t('gateways.whatsapp.disconnected'));
     } catch (err) {
-      toast.error("Failed to disconnect WhatsApp");
+      toast.error(t('gateways.whatsapp.failedToDisconnect'));
     } finally {
       setDisconnecting(false);
       setDisconnectTarget(null);
@@ -77,8 +79,8 @@ export default function WhatsAppSetupScreen() {
   return (
     <View className="flex-1 bg-background">
       <SettingsHeader
-        title="WhatsApp Gateway"
-        subtitle="Link your WhatsApp accounts for Alia to respond as you"
+        title={t('gateways.whatsapp.title')}
+        subtitle={t('gateways.whatsapp.subtitle')}
         showBack
       />
 
@@ -94,7 +96,7 @@ export default function WhatsAppSetupScreen() {
               {connectedSessions.length > 0 && (
                 <View className="gap-3">
                   <Text className="text-sm font-semibold text-muted-foreground">
-                    Connected Accounts ({connectedSessions.length})
+                    {t('gateways.connectedAccounts', { count: connectedSessions.length })}
                   </Text>
                   {connectedSessions.map((session) => (
                     <View
@@ -106,7 +108,7 @@ export default function WhatsAppSetupScreen() {
                       </View>
                       <View className="flex-1">
                         <Text className="text-base font-semibold">
-                          {session.displayName || 'WhatsApp Account'}
+                          {session.displayName || t('gateways.whatsapp.accountFallback')}
                         </Text>
                         {session.phoneNumber && (
                           <Text className="text-sm text-muted-foreground">
@@ -128,9 +130,9 @@ export default function WhatsAppSetupScreen() {
               {/* QR Code Flow */}
               {(qrData || isQrPending) ? (
                 <View className="items-center gap-4">
-                  <Text className="text-lg font-semibold text-center">Scan QR Code</Text>
+                  <Text className="text-lg font-semibold text-center">{t('gateways.scanQRCode')}</Text>
                   <Text className="text-sm text-muted-foreground text-center">
-                    Open WhatsApp on your phone, go to Settings &gt; Linked Devices &gt; Link a Device, then scan this code.
+                    {t('gateways.whatsapp.scanInstructions')}
                   </Text>
 
                   {qrData ? (
@@ -145,17 +147,17 @@ export default function WhatsAppSetupScreen() {
                   ) : (
                     <View className="w-[282px] h-[282px] bg-muted rounded-2xl items-center justify-center">
                       <ActivityIndicator size="large" />
-                      <Text className="text-sm text-muted-foreground mt-2">Generating QR code...</Text>
+                      <Text className="text-sm text-muted-foreground mt-2">{t('gateways.generatingQR')}</Text>
                     </View>
                   )}
 
                   <View className="flex-row items-center gap-2 mt-2">
                     <ActivityIndicator size="small" />
-                    <Text className="text-sm text-muted-foreground">Waiting for scan...</Text>
+                    <Text className="text-sm text-muted-foreground">{t('gateways.waitingForScan')}</Text>
                   </View>
 
                   <Button variant="outline" className="w-full mt-2" onPress={handleCancelQR}>
-                    <Text>Cancel</Text>
+                    <Text>{t('common.cancel')}</Text>
                   </Button>
                 </View>
               ) : (
@@ -166,17 +168,17 @@ export default function WhatsAppSetupScreen() {
                       <View className="bg-[#25D366]/10 p-6 rounded-full">
                         <Smartphone size={48} color="#25D366" />
                       </View>
-                      <Text className="text-xl font-bold text-center">Link Your WhatsApp</Text>
+                      <Text className="text-xl font-bold text-center">{t('gateways.whatsapp.linkYour')}</Text>
                       <Text className="text-sm text-muted-foreground text-center leading-5">
-                        Connect your WhatsApp account to let Alia respond to messages on your behalf. You'll scan a QR code with your phone, just like WhatsApp Web.
+                        {t('gateways.whatsapp.linkDescription')}
                       </Text>
 
                       <View className="bg-muted/50 rounded-xl p-4 w-full gap-2 mt-2">
-                        <Text className="text-sm font-medium">How it works:</Text>
-                        <Text className="text-sm text-muted-foreground">1. Tap "Connect" below</Text>
-                        <Text className="text-sm text-muted-foreground">2. A QR code will appear</Text>
-                        <Text className="text-sm text-muted-foreground">3. Open WhatsApp &gt; Linked Devices &gt; Link a Device</Text>
-                        <Text className="text-sm text-muted-foreground">4. Scan the QR code with your phone</Text>
+                        <Text className="text-sm font-medium">{t('gateways.howItWorks')}</Text>
+                        <Text className="text-sm text-muted-foreground">{t('gateways.step1')}</Text>
+                        <Text className="text-sm text-muted-foreground">{t('gateways.step2')}</Text>
+                        <Text className="text-sm text-muted-foreground">{t('gateways.whatsapp.step3')}</Text>
+                        <Text className="text-sm text-muted-foreground">{t('gateways.whatsapp.step4')}</Text>
                       </View>
                     </>
                   )}
@@ -190,10 +192,10 @@ export default function WhatsAppSetupScreen() {
                       {connectedSessions.length > 0 && <Plus size={18} className="text-primary-foreground" />}
                       <Text className="text-primary-foreground">
                         {connecting
-                          ? "Connecting..."
+                          ? t('gateways.whatsapp.connecting')
                           : connectedSessions.length > 0
-                            ? "Add Another WhatsApp"
-                            : "Connect WhatsApp"
+                            ? t('gateways.whatsapp.addAnother')
+                            : t('gateways.whatsapp.connect')
                         }
                       </Text>
                     </View>
@@ -208,10 +210,10 @@ export default function WhatsAppSetupScreen() {
       <ConfirmationDialog
         open={!!disconnectTarget}
         onOpenChange={(open) => !open && setDisconnectTarget(null)}
-        title="Disconnect WhatsApp"
-        description={`This will disconnect ${disconnectTarget?.displayName || 'this WhatsApp account'} from Alia. You'll need to scan the QR code again to reconnect.`}
-        confirmText="Disconnect"
-        cancelText="Cancel"
+        title={t('gateways.whatsapp.disconnectTitle')}
+        description={t('gateways.whatsapp.disconnectDescription', { name: disconnectTarget?.displayName || t('gateways.whatsapp.accountFallback') })}
+        confirmText={t('common.confirm')}
+        cancelText={t('common.cancel')}
         confirmVariant="destructive"
         onConfirm={handleDisconnect}
         loading={disconnecting}
