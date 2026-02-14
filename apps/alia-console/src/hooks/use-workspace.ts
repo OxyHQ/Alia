@@ -272,6 +272,24 @@ export function useUpdateWorkspace() {
   });
 }
 
+export function useUploadWorkspaceImage() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ workspaceId, file }: { workspaceId: string; file: File }) => {
+      const formData = new FormData();
+      formData.append('file', file);
+      const response = await apiClient.post(`/organization/${workspaceId}/image`, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      return response.data.image as string;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['organizations'] });
+    },
+  });
+}
+
 export function useDeleteWorkspace() {
   const queryClient = useQueryClient();
 

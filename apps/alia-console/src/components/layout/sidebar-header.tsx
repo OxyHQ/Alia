@@ -2,11 +2,9 @@ import * as React from 'react';
 import { Link } from '@tanstack/react-router';
 import { HugeiconsIcon } from '@hugeicons/react';
 import {
-  AiBrain01Icon,
   ArrowDown01Icon,
   Add01Icon,
   Tick02Icon,
-  UserMultiple02Icon,
   Settings01Icon,
 } from '@hugeicons/core-free-icons';
 import {
@@ -36,10 +34,13 @@ import {
   useSidebar,
 } from '@/components/ui/sidebar';
 import { useWorkspaces, useCurrentWorkspaceId, useCreateWorkspace, type Workspace } from '@/hooks/use-workspace';
+import { useAuth } from '@oxyhq/auth';
+import { WorkspaceAvatar } from '@/components/workspace-avatar';
 import { toast } from 'sonner';
 
 export function SidebarHeaderBrand() {
   const { isMobile } = useSidebar();
+  const { user } = useAuth();
   const { workspaces, isLoading } = useWorkspaces();
   const [currentWorkspaceId, setCurrentWorkspaceId] = useCurrentWorkspaceId();
   const createMutation = useCreateWorkspace();
@@ -102,13 +103,7 @@ export function SidebarHeaderBrand() {
                 size="lg"
                 className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
               >
-                <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-                  {currentWorkspace.type === 'personal' ? (
-                    <HugeiconsIcon icon={AiBrain01Icon} size={18} />
-                  ) : (
-                    <HugeiconsIcon icon={UserMultiple02Icon} size={18} />
-                  )}
-                </div>
+                <WorkspaceAvatar workspace={currentWorkspace} user={user} size="md" />
                 <div className="grid flex-1 text-left text-sm leading-tight">
                   <span className="truncate font-semibold">{currentWorkspace.name}</span>
                   <span className="truncate text-xs text-muted-foreground">
@@ -133,13 +128,7 @@ export function SidebarHeaderBrand() {
                   className="gap-2 p-2"
                   onClick={() => handleSelectWorkspace(workspace)}
                 >
-                  <div className="flex size-6 items-center justify-center rounded-md border bg-primary text-primary-foreground">
-                    {workspace.type === 'personal' ? (
-                      <HugeiconsIcon icon={AiBrain01Icon} size={14} />
-                    ) : (
-                      <HugeiconsIcon icon={UserMultiple02Icon} size={14} />
-                    )}
-                  </div>
+                  <WorkspaceAvatar workspace={workspace} user={user} size="sm" />
                   <span className="flex-1">{workspace.name}</span>
                   {currentWorkspace.id === workspace.id && (
                     <HugeiconsIcon icon={Tick02Icon} size={14} className="text-primary" />
