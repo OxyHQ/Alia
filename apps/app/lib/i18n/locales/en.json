@@ -469,7 +469,17 @@
       "Greetings, {{name}}",
       "Hello again, {{name}}",
       "Hi {{name}}",
-      "Welcome, {{name}}"
+      "Welcome, {{name}}",
+      "Nice to see you, {{name}}",
+      "What's up, {{name}}",
+      "Howdy, {{name}}",
+      "Good day, {{name}}",
+      "Hey, hey, {{name}}",
+      "There you are, {{name}}",
+      "Look who's here — {{name}}",
+      "Glad you're back, {{name}}",
+      "Ready when you are, {{name}}",
+      "Let's go, {{name}}"
     ],
     "subtitles": [
       "How can I help you today?",
@@ -479,7 +489,15 @@
       "What brings you here today?",
       "Ready to help with anything you need",
       "What can I help you with?",
-      "How can I assist you today?"
+      "How can I assist you today?",
+      "What's on your mind?",
+      "Let's get something done",
+      "Ask me anything",
+      "I'm all ears",
+      "What are we working on?",
+      "Fire away — I'm ready",
+      "Let's make today productive",
+      "Need a hand with something?"
     ],
     "defaultSubtitle": "How can I help you today?",
     "appName": "Alia",
