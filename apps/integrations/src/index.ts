@@ -30,8 +30,10 @@ async function loadAdapters(): Promise<void> {
 
   // Telegram Gateway
   if (process.env.TELEGRAM_GATEWAY_ENABLED !== 'false') {
-    if (!process.env.TELEGRAM_API_ID || !process.env.TELEGRAM_API_HASH) {
-      console.warn('[Integrations] Telegram Gateway disabled: TELEGRAM_API_ID / TELEGRAM_API_HASH not set');
+    const telegramApiId = Number(process.env.TELEGRAM_API_ID);
+    const telegramApiHash = process.env.TELEGRAM_API_HASH;
+    if (!telegramApiId || isNaN(telegramApiId) || !telegramApiHash) {
+      console.warn('[Integrations] Telegram Gateway disabled: valid TELEGRAM_API_ID / TELEGRAM_API_HASH not set');
     } else {
       const { TelegramGatewayAdapter } = await import('./messaging/telegram-gateway/adapter');
       adapters.push(new TelegramGatewayAdapter());
