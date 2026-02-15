@@ -18,9 +18,11 @@ import type { IUserMemory } from '../models/user-memory.js';
 import { processMessagesForPlatform } from '../lib/message-processor.js';
 import { reserveCredits, finalizeCredits, refundReservation, type CreditReservation, type CreditUsage } from '../lib/credits-manager.js';
 import { estimateMessageTokens } from '../lib/token-counter.js';
-import { recordUsage } from '../middleware/api-key-rate-limit.js';
-import { runAfterChatHooks } from '../lib/hooks/index.js';
+import { recordUsage, getUserTier } from '../middleware/api-key-rate-limit.js';
+import { runBeforeChatHooks, runAfterChatHooks } from '../lib/hooks/index.js';
 import { emitCanvasUpdate } from '../socket.js';
+import type { RecalledMemory } from '../lib/memory/recall.js';
+import { incrementDailyCost, isApproachingDailyCap, getDailyCostCap } from '../lib/sliding-window-limiter.js';
 
 const router = Router();
 
@@ -49,7 +51,14 @@ function autoGenerateTitle(content: string, userMessage?: string): string {
 // getAIModel is now imported from chat-core.ts
 
 // Function to build personalized system prompt
-function buildSystemPrompt(oxyUser?: OxyUser | null, memory?: IUserMemory | null, platform: 'app' | 'telegram' = 'app', skillPrompt?: string | null): string {
+// Uses recalled memories (semantic search) instead of dumping all memories.
+function buildSystemPrompt(
+  oxyUser?: OxyUser | null,
+  memory?: IUserMemory | null,
+  platform: 'app' | 'telegram' = 'app',
+  skillPrompt?: string | null,
+  recalledMemories?: RecalledMemory[]
+): string {
   let prompt = ALIA_SYSTEM_PROMPT;
 
   if (platform === 'telegram') {
@@ -85,7 +94,7 @@ function buildSystemPrompt(oxyUser?: OxyUser | null, memory?: IUserMemory | null
     }
   }
 
-  // Add memory preferences and context
+  // Add memory preferences and context (these are small and always relevant)
   if (memory) {
     if (memory.preferences?.language) {
       userContext.push(`User's preferred language: ${memory.preferences.language}. Use this if the message language is unclear.`);
@@ -108,10 +117,16 @@ function buildSystemPrompt(oxyUser?: OxyUser | null, memory?: IUserMemory | null
     if (memory.preferences?.interests?.length) {
       userContext.push(`The user is interested in: ${memory.preferences.interests.join(', ')}.`);
     }
-    if (memory.memories?.length) {
-      const memoryItems = memory.memories.map(m => `- ${m.key}: ${m.value}`).join('\n');
-      userContext.push(`\nThings to remember about the user:\n${memoryItems}`);
-    }
+  }
+
+  // Inject only recalled (relevant) memories instead of ALL memories
+  if (recalledMemories && recalledMemories.length > 0) {
+    const memoryItems = recalledMemories.map(m => `- ${m.key}: ${m.value}`).join('\n');
+    userContext.push(`\nRelevant things to remember about the user:\n${memoryItems}`);
+  } else if (memory?.memories?.length) {
+    // Fallback: if recall didn't run (e.g. unauthenticated), use all memories
+    const memoryItems = memory.memories.map(m => `- ${m.key}: ${m.value}`).join('\n');
+    userContext.push(`\nThings to remember about the user:\n${memoryItems}`);
   }
 
   if (userContext.length > 0) {
@@ -267,6 +282,7 @@ router.post('/', optionalAuth, async (req, res) => {
     // Get user data from session and credits/memory from local DB
     let userCredits: any = null;
     let memory: IUserMemory | null = null;
+    let userTier: string | undefined;
 
     if (req.user) {
       try {
@@ -287,6 +303,9 @@ router.post('/', optionalAuth, async (req, res) => {
           });
           await memory.save();
         }
+
+        // Get user tier for spending alerts
+        userTier = await getUserTier(req.user.id);
 
         // Refresh credits if needed
         await userCredits.refreshCreditsIfNeeded();
@@ -414,8 +433,30 @@ router.post('/', optionalAuth, async (req, res) => {
       }
     }
 
-    // Build personalized system prompt (with skill injection)
-    let systemPrompt = buildSystemPrompt(oxyUser, memory, platform, skillPrompt);
+    // Run beforeChat hooks (memory recall, etc.)
+    let recalledMemories: RecalledMemory[] | undefined;
+    if (req.user?.id) {
+      try {
+        const hookResult = await runBeforeChatHooks({
+          userId: req.user.id,
+          conversationId,
+          messages: processedMessages,
+          model: resolved.aliasModelId,
+          skillId,
+          platform,
+          metadata: {},
+        });
+        recalledMemories = hookResult.metadata?.recalledMemories as RecalledMemory[] | undefined;
+        if (recalledMemories?.length) {
+          console.log(`[Alia/Chat] Memory recall: ${recalledMemories.length} relevant memories (out of ${memory?.memories?.length || 0} total)`);
+        }
+      } catch (e) {
+        console.error('[Alia/Chat] beforeChat hooks error:', e);
+      }
+    }
+
+    // Build personalized system prompt (with skill injection + recalled memories)
+    let systemPrompt = buildSystemPrompt(oxyUser, memory, platform, skillPrompt, recalledMemories);
 
     // Inject current model identity so Alia knows which tier it's running as
     const aliaModel = getAliaModel(resolved.aliasModelId);
@@ -663,6 +704,9 @@ router.post('/', optionalAuth, async (req, res) => {
 
         console.log('[Alia/Chat] Credits finalized successfully:', { creditsCharged, creditsRemaining });
 
+        // Track daily cost in sliding window limiter
+        incrementDailyCost(req.user.id, creditsCharged);
+
         const creditUpdate = {
           type: 'credit-update',
           credits: creditsRemaining,
@@ -673,6 +717,16 @@ router.post('/', optionalAuth, async (req, res) => {
         };
         console.log('[Alia/Chat] Sending credit update event:', creditUpdate);
         writeSSE(res, `data: ${JSON.stringify(creditUpdate)}\n\n`);
+
+        // Send spending alert if approaching daily cost cap
+        if (isApproachingDailyCap(req.user.id, userTier || 'free')) {
+          const cap = getDailyCostCap(userTier || 'free');
+          writeSSE(res, `data: ${JSON.stringify({
+            type: 'spending-alert',
+            message: 'You are approaching your daily usage limit.',
+            dailyCostCap: cap,
+          })}\n\n`);
+        }
 
         // Record usage so the credits usage chart has data
         recordUsage(req, 200, tokenUsage.totalTokens, undefined, creditsCharged).catch(err =>

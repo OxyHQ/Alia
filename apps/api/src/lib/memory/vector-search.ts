@@ -75,9 +75,30 @@ export async function deleteMemoryEmbedding(
   }
 }
 
+// ── Per-user embedding cache ──────────────────────────────────────────
+// Avoids reloading all embeddings from MongoDB on every search within
+// the same conversation. TTL-based with write-through invalidation.
+
+interface UserEmbeddingCacheEntry {
+  embeddings: Array<{ memoryKey: string; embedding: number[] }>;
+  loadedAt: number;
+}
+
+const userEmbeddingCache = new Map<string, UserEmbeddingCacheEntry>();
+const USER_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
+const MAX_CACHED_USERS = 1000;
+
+/**
+ * Invalidate cached embeddings for a user.
+ * Call this whenever memories are saved, updated, or deleted.
+ */
+export function invalidateUserEmbeddingCache(oxyUserId: string): void {
+  userEmbeddingCache.delete(oxyUserId);
+}
+
 /**
  * Search memories by semantic similarity.
- * Returns memory keys sorted by similarity score.
+ * Uses per-user cache to avoid MongoDB round-trips within the TTL window.
  */
 export async function searchByVector(
   oxyUserId: string,
@@ -85,10 +106,28 @@ export async function searchByVector(
   topK: number = 5
 ): Promise<{ memoryKey: string; score: number }[]> {
   try {
-    const embeddings = await MemoryEmbedding.find({ oxyUserId }).lean();
-    if (embeddings.length === 0) return [];
+    let cached = userEmbeddingCache.get(oxyUserId);
 
-    const scored = embeddings.map(e => ({
+    if (!cached || Date.now() - cached.loadedAt > USER_CACHE_TTL_MS) {
+      const embeddings = await MemoryEmbedding.find({ oxyUserId }).lean();
+      if (embeddings.length === 0) return [];
+
+      cached = {
+        embeddings: embeddings.map(e => ({ memoryKey: e.memoryKey, embedding: e.embedding })),
+        loadedAt: Date.now(),
+      };
+
+      // Evict oldest if at capacity
+      if (userEmbeddingCache.size >= MAX_CACHED_USERS) {
+        const oldestKey = userEmbeddingCache.keys().next().value;
+        if (oldestKey) userEmbeddingCache.delete(oldestKey);
+      }
+      userEmbeddingCache.set(oxyUserId, cached);
+    }
+
+    if (cached.embeddings.length === 0) return [];
+
+    const scored = cached.embeddings.map(e => ({
       memoryKey: e.memoryKey,
       score: cosineSimilarity(queryEmbedding, e.embedding),
     }));

@@ -3,6 +3,7 @@ import ApiKeyUsage from '../models/api-key-usage';
 import DeveloperApiKey, { IRateLimitConfig } from '../models/developer-api-key';
 import { Subscription } from '../models/subscription';
 import mongoose from 'mongoose';
+import { checkLimit } from '../lib/sliding-window-limiter.js';
 
 interface RateLimitStatus {
   limited: boolean;
@@ -51,7 +52,7 @@ export const TIER_RATE_LIMITS: Record<string, IRateLimitConfig> = {
 /**
  * Get user's subscription tier
  */
-async function getUserTier(userId: string): Promise<string> {
+export async function getUserTier(userId: string): Promise<string> {
   const subscription = await Subscription.findOne({
     oxyUserId: userId,
     status: { $in: ['active', 'trialing'] },
@@ -354,16 +355,20 @@ export async function apiKeyRateLimit(
     }
   }
 
-  // Handle session-based user rate limiting
+  // Handle session-based user rate limiting (in-memory sliding window)
   if (req.user?.id && !req.apiKey) {
     try {
       const tier = await getUserTier(req.user.id);
-      const rateLimit = TIER_RATE_LIMITS[tier] || TIER_RATE_LIMITS.free;
+      const result = checkLimit(req.user.id, tier);
 
-      const status = await checkUserRateLimits(req.user.id, rateLimit);
-
-      if (status.limited) {
-        return sendRateLimitResponse(res, status, tier);
+      if (!result.allowed) {
+        return sendRateLimitResponse(res, {
+          limited: true,
+          limitType: result.limitType === 'rpm' ? 'requestsPerMinute' : 'requestsPerDay',
+          current: result.current,
+          limit: result.limit,
+          resetInSeconds: result.resetInSeconds,
+        }, tier);
       }
 
       return next();
