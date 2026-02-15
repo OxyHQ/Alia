@@ -139,6 +139,13 @@ export default function AppLayout() {
               }}
             />
             <Drawer.Screen
+              name="favorites"
+              options={{
+                drawerItemStyle: { display: 'none' },
+                title: 'Favorites',
+              }}
+            />
+            <Drawer.Screen
               name="library"
               options={{
                 drawerItemStyle: { display: 'none' },
