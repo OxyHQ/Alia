@@ -138,6 +138,15 @@
       "connectors": "Connectors",
       "feedback": "Feedback"
     },
+    "accentColor": {
+      "title": "Accent Color",
+      "default": "Default",
+      "blue": "Blue",
+      "green": "Green",
+      "yellow": "Yellow",
+      "pink": "Pink",
+      "orange": "Orange"
+    },
     "connectors": {
       "subtitle": "Connect your messaging accounts"
     }

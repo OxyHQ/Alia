@@ -3,19 +3,24 @@ import { persist, createJSONStorage } from 'zustand/middleware';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { colorScheme as nwColorScheme } from 'nativewind';
 import { Platform } from 'react-native';
+import { type AccentColorName, applyAccentToDocument } from '../accent-presets';
 
 export type ThemeMode = 'light' | 'dark' | 'system';
 
 interface ThemeState {
   mode: ThemeMode;
+  accentColor: AccentColorName;
   setMode: (mode: ThemeMode) => void;
+  setAccentColor: (color: AccentColorName) => void;
 }
 
 export const useThemeStore = create<ThemeState>()(
   persist(
     (set) => ({
       mode: 'system',
+      accentColor: 'default',
       setMode: (mode: ThemeMode) => set({ mode }),
+      setAccentColor: (accentColor: AccentColorName) => set({ accentColor }),
     }),
     {
       name: 'theme-storage',
@@ -23,8 +28,16 @@ export const useThemeStore = create<ThemeState>()(
       onRehydrateStorage: () => (state) => {
         if (!state?.mode) return;
         nwColorScheme.set(state.mode);
-        if (state.mode !== 'system' && Platform.OS === 'web' && typeof document !== 'undefined') {
-          document.documentElement.classList.toggle('dark', state.mode === 'dark');
+        if (Platform.OS === 'web' && typeof document !== 'undefined') {
+          if (state.mode !== 'system') {
+            document.documentElement.classList.toggle('dark', state.mode === 'dark');
+          }
+          if (state.accentColor && state.accentColor !== 'default') {
+            const resolved = state.mode === 'system'
+              ? (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')
+              : state.mode;
+            applyAccentToDocument(state.accentColor, resolved as 'light' | 'dark');
+          }
         }
       },
     }

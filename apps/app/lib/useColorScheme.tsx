@@ -4,18 +4,17 @@ import {
 } from 'nativewind';
 import { Platform } from 'react-native';
 import { useThemeStore, ThemeMode } from './stores/theme-store';
-import { useCallback } from 'react';
+import { useCallback, useMemo } from 'react';
+import { ACCENT_PRESETS } from './accent-presets';
 
-const THEME_COLORS = {
+const BASE_THEME_COLORS = {
   light: {
     background: '#ffffff',
-    primary: '#ca52e9',
     muted: '#f5f5f5',
     mutedForeground: '#737373',
   },
   dark: {
     background: '#0a0d1a',
-    primary: '#ca52e9',
     muted: '#242938',
     mutedForeground: '#b3b3b3',
   },
@@ -29,7 +28,7 @@ function applyTheme(resolved: 'light' | 'dark') {
 
 export function useColorScheme() {
   const { colorScheme: nwScheme } = useNativeWindColorScheme();
-  const { mode, setMode } = useThemeStore();
+  const { mode, setMode, accentColor } = useThemeStore();
 
   const resolved: 'light' | 'dark' =
     mode === 'system' ? (nwScheme ?? 'light') : mode;
@@ -45,7 +44,10 @@ export function useColorScheme() {
     [setMode],
   );
 
-  const colors = THEME_COLORS[resolved];
+  const colors = useMemo(() => ({
+    ...BASE_THEME_COLORS[resolved],
+    primary: ACCENT_PRESETS[accentColor].hex,
+  }), [resolved, accentColor]);
 
   return {
     colorScheme: resolved,
