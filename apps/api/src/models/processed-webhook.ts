@@ -1,4 +1,5 @@
 import mongoose, { Schema, Model, Document } from 'mongoose';
+import { log } from '../lib/logger.js';
 
 export interface IProcessedWebhook extends Document {
   messageId: string;
@@ -38,7 +39,7 @@ export async function markWebhookProcessed(messageId: string, channel: string): 
       return false;
     }
     // Unexpected error — fail open (process the message to avoid dropping it)
-    console.error('[WebhookIdempotency] Error checking message:', error);
+    log.webhook.error({ err: error }, 'Error checking message');
     return true;
   }
 }

@@ -11,6 +11,7 @@ import { TIER_MODEL_MAPPINGS } from '../internal/providers/lib/alia-models.js';
 import { getProviderHealth } from '../internal/providers/lib/provider-health.js';
 import { connectDB } from '../lib/db.js';
 import mongoose from 'mongoose';
+import { log } from '../lib/logger.js';
 
 const router = Router();
 
@@ -69,7 +70,7 @@ router.get('/stats', async (req: Request, res: Response) => {
             totalRequests += health.totalRequests;
           }
         } catch (error) {
-          console.error(`[ModelsStats] Error getting health for ${mapping.provider}:`, error);
+          log.models.error({ err: error, provider: mapping.provider }, 'Error getting health for provider');
         }
       }
 
@@ -110,7 +111,7 @@ router.get('/stats', async (req: Request, res: Response) => {
       timestamp: new Date().toISOString()
     });
   } catch (error) {
-    console.error('[ModelsStats] Error fetching model stats:', error);
+    log.models.error({ err: error }, 'Error fetching model stats');
     res.status(500).json({
       error: {
         code: 'INTERNAL_ERROR',
@@ -172,7 +173,7 @@ router.get('/stats/:modelId', async (req: Request, res: Response) => {
           lastFailure = health.lastFailure;
         }
       } catch (error) {
-        console.error(`[ModelsStats] Error getting health for ${mapping.provider}:`, error);
+        log.models.error({ err: error, provider: mapping.provider }, 'Error getting health for provider');
       }
     }
 
@@ -206,7 +207,7 @@ router.get('/stats/:modelId', async (req: Request, res: Response) => {
       timestamp: new Date().toISOString()
     });
   } catch (error) {
-    console.error('[ModelsStats] Error fetching model stats:', error);
+    log.models.error({ err: error }, 'Error fetching model stats');
     res.status(500).json({
       error: {
         code: 'INTERNAL_ERROR',

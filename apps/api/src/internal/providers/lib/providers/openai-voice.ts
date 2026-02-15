@@ -12,6 +12,7 @@
 import WebSocket from 'ws';
 import type { VoiceProvider, VoiceSessionConfig } from '../types-voice.js';
 import type { KeyConfig } from '../types.js';
+import { log } from '../../../../lib/logger.js';
 
 export const openaiVoiceProvider: VoiceProvider = {
   name: 'OpenAI Voice',
@@ -37,7 +38,7 @@ export const openaiVoiceProvider: VoiceProvider = {
       const model = config.model || 'gpt-4o-realtime-preview';
       const url = `wss://api.openai.com/v1/realtime?model=${model}`;
 
-      console.log(`[OpenAIVoice] Connecting to ${url}`);
+      log.providers.info({ url }, 'Connecting to OpenAI Realtime');
 
       const ws = new WebSocket(url, {
         headers: {
@@ -55,7 +56,7 @@ export const openaiVoiceProvider: VoiceProvider = {
 
         ws.on('open', () => {
           clearTimeout(timeout);
-          console.log(`[OpenAIVoice] Connected successfully`);
+          log.providers.info('Connected successfully');
 
           const sessionConfig: any = {
             type: 'session.update',
@@ -87,14 +88,14 @@ export const openaiVoiceProvider: VoiceProvider = {
           }
 
           ws.send(JSON.stringify(sessionConfig));
-          console.log(`[OpenAIVoice] Sent session configuration`);
+          log.providers.info('Sent session configuration');
 
           resolve(ws);
         });
 
         ws.on('error', (error) => {
           clearTimeout(timeout);
-          console.error(`[OpenAIVoice] Connection error:`, error);
+          log.providers.error({ err: error }, 'Connection error');
           reject(error);
         });
       });

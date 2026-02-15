@@ -7,6 +7,7 @@ import express, { Request, Response } from 'express';
 import { Transaction } from '../../../models/transaction.js';
 import { Subscription } from '../../../models/subscription.js';
 import { UserCredits } from '../../../models/user-credits.js';
+import { log } from '../../../lib/logger.js';
 
 const router = express.Router();
 
@@ -37,7 +38,7 @@ router.get('/transactions', async (req: Request, res: Response) => {
       data: transactions,
     });
   } catch (error: any) {
-    console.error('Error listing transactions:', error);
+    log.providers.error({ err: error }, 'Error listing transactions');
     res.status(500).json({
       success: false,
       error: 'An internal error occurred',
@@ -73,7 +74,7 @@ router.get('/subscriptions', async (req: Request, res: Response) => {
       data: subscriptions,
     });
   } catch (error: any) {
-    console.error('Error listing subscriptions:', error);
+    log.providers.error({ err: error }, 'Error listing subscriptions');
     res.status(500).json({
       success: false,
       error: 'An internal error occurred',
@@ -105,7 +106,7 @@ router.get('/user/:userId', async (req: Request, res: Response) => {
       },
     });
   } catch (error: any) {
-    console.error('Error getting user billing summary:', error);
+    log.providers.error({ err: error }, 'Error getting user billing summary');
     res.status(500).json({
       success: false,
       error: 'An internal error occurred',

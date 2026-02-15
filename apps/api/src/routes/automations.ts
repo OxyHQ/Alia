@@ -4,6 +4,7 @@ import { Automation } from '../models/automation.js';
 import { authenticateToken } from '../middleware/auth.js';
 import { resolveModel, getAIModel, getDefaultAliaModel } from '../lib/chat-core.js';
 import { reloadAutomation } from '../lib/automation-scheduler.js';
+import { log } from '../lib/logger.js';
 import type { Request, Response } from 'express';
 
 const router = Router();
@@ -23,7 +24,7 @@ router.get('/', async (req: Request, res: Response) => {
 
     res.json({ automations });
   } catch (error) {
-    console.error('[Automations] Error listing automations:', error);
+    log.automations.error({ err: error }, 'Error listing automations');
     res.status(500).json({ error: 'Failed to list automations' });
   }
 });
@@ -71,12 +72,12 @@ router.post('/', async (req: Request, res: Response) => {
 
     // Reload scheduler for this automation
     reloadAutomation(automation._id.toString()).catch((err) =>
-      console.error('[Automations] Failed to reload scheduler:', err)
+      log.automations.error({ err }, 'Failed to reload scheduler')
     );
 
     res.status(201).json({ automation });
   } catch (error) {
-    console.error('[Automations] Error creating automation:', error);
+    log.automations.error({ err: error }, 'Error creating automation');
     res.status(500).json({ error: 'Failed to create automation' });
   }
 });
@@ -110,12 +111,12 @@ router.patch('/:id', async (req: Request, res: Response) => {
 
     // Reload scheduler for this automation
     reloadAutomation(automation._id.toString()).catch((err) =>
-      console.error('[Automations] Failed to reload scheduler:', err)
+      log.automations.error({ err }, 'Failed to reload scheduler')
     );
 
     res.json({ automation });
   } catch (error) {
-    console.error('[Automations] Error updating automation:', error);
+    log.automations.error({ err: error }, 'Error updating automation');
     res.status(500).json({ error: 'Failed to update automation' });
   }
 });
@@ -138,12 +139,12 @@ router.delete('/:id', async (req: Request, res: Response) => {
 
     // Remove from scheduler
     reloadAutomation(String(req.params.id)).catch((err) =>
-      console.error('[Automations] Failed to reload scheduler:', err)
+      log.automations.error({ err }, 'Failed to reload scheduler')
     );
 
     res.json({ success: true });
   } catch (error) {
-    console.error('[Automations] Error deleting automation:', error);
+    log.automations.error({ err: error }, 'Error deleting automation');
     res.status(500).json({ error: 'Failed to delete automation' });
   }
 });
@@ -212,7 +213,7 @@ router.post('/:id/run', async (req: Request, res: Response) => {
         automation,
       });
     } catch (aiError: any) {
-      console.error('[Automations] AI execution error:', aiError);
+      log.automations.error({ err: aiError }, 'AI execution error');
 
       automation.lastRunStatus = 'failed';
       automation.lastRunResult = aiError.message || 'AI execution failed';
@@ -224,7 +225,7 @@ router.post('/:id/run', async (req: Request, res: Response) => {
       });
     }
   } catch (error) {
-    console.error('[Automations] Error running automation:', error);
+    log.automations.error({ err: error }, 'Error running automation');
     res.status(500).json({ error: 'Failed to run automation' });
   }
 });

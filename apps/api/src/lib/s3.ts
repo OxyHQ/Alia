@@ -1,6 +1,7 @@
 import { S3Client, DeleteObjectCommand } from '@aws-sdk/client-s3';
 import { Upload } from '@aws-sdk/lib-storage';
 import crypto from 'crypto';
+import { log } from './logger.js';
 
 // Initialize S3 client
 const s3Client = new S3Client({
@@ -77,7 +78,7 @@ export async function deleteFromS3(fileUrl: string): Promise<void> {
 
     await s3Client.send(command);
   } catch (error) {
-    console.error('Error deleting from S3:', error);
+    log.general.error({ err: error }, 'Error deleting from S3');
     // Don't throw, just log - file might already be deleted
   }
 }

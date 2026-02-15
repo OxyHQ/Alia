@@ -1,5 +1,6 @@
 import { registerHook } from '../hook-runner.js';
 import mongoose, { Schema, Model, Document } from 'mongoose';
+import { log } from '../../logger.js';
 
 interface IChatAnalyticsFields {
   oxyUserId: mongoose.Types.ObjectId;
@@ -56,7 +57,7 @@ registerHook({
         skillId: ctx.skillId,
       });
     } catch (error) {
-      console.error('[Analytics Hook] Error saving analytics:', error);
+      log.chat.error({ err: error }, 'Error saving analytics');
     }
   },
 });

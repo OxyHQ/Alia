@@ -6,6 +6,7 @@
 import express, { Request, Response } from 'express';
 import { ModelConfig } from '../models/model-config';
 import { broadcastModelsUpdate } from '../lib/broadcast-helpers';
+import { log } from '../../../lib/logger.js';
 
 const router = express.Router();
 
@@ -35,7 +36,7 @@ router.get('/', async (req: Request, res: Response) => {
       data: models,
     });
   } catch (error: any) {
-    console.error('Error listing models:', error);
+    log.models.error({ err: error }, 'Error listing models');
     res.status(500).json({
       success: false,
       error: error.message,
@@ -65,7 +66,7 @@ router.get('/by-tier/:tier', async (req: Request, res: Response) => {
       data: models,
     });
   } catch (error: any) {
-    console.error('Error getting models by tier:', error);
+    log.models.error({ err: error }, 'Error getting models by tier');
     res.status(500).json({
       success: false,
       error: error.message,
@@ -97,7 +98,7 @@ router.get('/:provider/:modelId', async (req: Request, res: Response) => {
       data: model,
     });
   } catch (error: any) {
-    console.error('Error getting model:', error);
+    log.models.error({ err: error }, 'Error getting model');
     res.status(500).json({
       success: false,
       error: error.message,
@@ -138,7 +139,7 @@ router.post('/', async (req: Request, res: Response) => {
 
     broadcastModelsUpdate(modelData.provider);
   } catch (error: any) {
-    console.error('Error creating model:', error);
+    log.models.error({ err: error }, 'Error creating model');
     res.status(500).json({
       success: false,
       error: error.message,
@@ -181,7 +182,7 @@ router.patch('/:provider/:modelId', async (req: Request, res: Response) => {
 
     broadcastModelsUpdate(provider as string);
   } catch (error: any) {
-    console.error('Error updating model:', error);
+    log.models.error({ err: error }, 'Error updating model');
     res.status(500).json({
       success: false,
       error: error.message,
@@ -215,7 +216,7 @@ router.delete('/:provider/:modelId', async (req: Request, res: Response) => {
 
     broadcastModelsUpdate(provider as string);
   } catch (error: any) {
-    console.error('Error deleting model:', error);
+    log.models.error({ err: error }, 'Error deleting model');
     res.status(500).json({
       success: false,
       error: error.message,

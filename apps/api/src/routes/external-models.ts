@@ -1,5 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { ExternalModel } from '../models/external-model.js';
+import { log } from '../lib/logger.js';
 
 const router = Router();
 
@@ -38,7 +39,7 @@ router.get('/', async (req: Request, res: Response) => {
       timestamp: new Date().toISOString(),
     });
   } catch (error) {
-    console.error('[ExternalModels] Error:', error);
+    log.models.error({ err: error }, 'Error');
     res.status(500).json({ error: 'Failed to fetch external models' });
   }
 });
@@ -63,7 +64,7 @@ router.get('/organizations', async (_req: Request, res: Response) => {
 
     res.json({ organizations: orgs });
   } catch (error) {
-    console.error('[ExternalModels] Error:', error);
+    log.models.error({ err: error }, 'Error');
     res.status(500).json({ error: 'Failed to fetch organizations' });
   }
 });
@@ -80,7 +81,7 @@ router.get('/:modelId', async (req: Request, res: Response) => {
     }
     res.json({ model });
   } catch (error) {
-    console.error('[ExternalModels] Error:', error);
+    log.models.error({ err: error }, 'Error');
     res.status(500).json({ error: 'Failed to fetch model' });
   }
 });

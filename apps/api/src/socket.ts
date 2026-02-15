@@ -1,5 +1,6 @@
 import { Server } from 'socket.io';
 import http from 'http';
+import { log } from './lib/logger.js';
 
 const ALLOWED_ORIGINS = [
   process.env.WEB_URL || 'http://localhost:3000',

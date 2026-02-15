@@ -243,6 +243,7 @@ export const ALIA_MODELS: Record<string, AliaModel> = {
 import { GENERATED_TIER_MAPPINGS } from './generate-model-mappings';
 import { isProviderAvailable } from './provider-health';
 import { AliaModel as AliaModelDB } from '../models/alia-model';
+import { log } from '../../../lib/logger.js';
 export const TIER_MODEL_MAPPINGS = GENERATED_TIER_MAPPINGS;
 
 /**
@@ -311,7 +312,7 @@ export async function getAvailableModels(): Promise<AliaModelWithAvailability[]>
       legacyMap.set(doc.aliasModelId, doc.isLegacy ?? false);
     }
   } catch (err) {
-    console.warn('[getAvailableModels] Failed to fetch legacy flags:', err);
+    log.providers.warn({ data: err }, 'Failed to fetch legacy flags');
   }
 
   for (const model of models) {

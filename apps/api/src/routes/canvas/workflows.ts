@@ -4,6 +4,7 @@ import { Workflow } from '../../models/workflow.js';
 import { WorkflowExecution } from '../../models/workflow-execution.js';
 import { authenticateToken } from '../../middleware/auth.js';
 import type { Request, Response } from 'express';
+import { log } from '../../lib/logger.js';
 
 const router = Router();
 
@@ -30,7 +31,7 @@ router.get('/', async (req: Request, res: Response) => {
 
     res.json({ workflows: formattedWorkflows });
   } catch (error) {
-    console.error('Error fetching workflows:', error);
+    log.canvas.error({ err: error }, 'Error fetching workflows');
     res.status(500).json({ error: 'Failed to fetch workflows' });
   }
 });
@@ -59,7 +60,7 @@ router.get('/:id', async (req: Request, res: Response) => {
       }
     });
   } catch (error) {
-    console.error('Error fetching workflow:', error);
+    log.canvas.error({ err: error }, 'Error fetching workflow');
     res.status(500).json({ error: 'Failed to fetch workflow' });
   }
 });
@@ -98,7 +99,7 @@ router.post('/', async (req: Request, res: Response) => {
       }
     });
   } catch (error) {
-    console.error('Error creating workflow:', error);
+    log.canvas.error({ err: error }, 'Error creating workflow');
     res.status(500).json({ error: 'Failed to create workflow' });
   }
 });
@@ -139,7 +140,7 @@ router.put('/:id', async (req: Request, res: Response) => {
       }
     });
   } catch (error) {
-    console.error('Error updating workflow:', error);
+    log.canvas.error({ err: error }, 'Error updating workflow');
     res.status(500).json({ error: 'Failed to update workflow' });
   }
 });
@@ -161,7 +162,7 @@ router.delete('/:id', async (req: Request, res: Response) => {
 
     res.json({ message: 'Workflow deleted successfully' });
   } catch (error) {
-    console.error('Error deleting workflow:', error);
+    log.canvas.error({ err: error }, 'Error deleting workflow');
     res.status(500).json({ error: 'Failed to delete workflow' });
   }
 });
@@ -188,7 +189,7 @@ router.get('/:id/executions', async (req: Request, res: Response) => {
 
     res.json({ executions: formattedExecutions });
   } catch (error) {
-    console.error('Error fetching execution history:', error);
+    log.canvas.error({ err: error }, 'Error fetching execution history');
     res.status(500).json({ error: 'Failed to fetch execution history' });
   }
 });

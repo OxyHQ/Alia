@@ -13,6 +13,7 @@ import { CreditPackage } from '../models/credit-package';
 import { Feature } from '../models/feature';
 import { PlanFeature } from '../models/plan-feature';
 import { getAllProviderHealth, getProviderHealth } from './provider-health';
+import { log } from '../../../lib/logger.js';
 
 export async function broadcastKeysUpdate(provider: string): Promise<void> {
   try {
@@ -24,7 +25,7 @@ export async function broadcastKeysUpdate(provider: string): Promise<void> {
     const providerKeys = allKeys.filter(k => k.provider === provider);
     broadcast(`keys:${provider}`, { success: true, count: providerKeys.length, data: providerKeys });
   } catch (error) {
-    console.error('[Broadcast] Error broadcasting keys update:', error);
+    log.providers.error({ err: error }, 'Error broadcasting keys update');
   }
 }
 
@@ -36,7 +37,7 @@ export async function broadcastModelsUpdate(provider: string): Promise<void> {
     const providerModels = allModels.filter(m => m.provider === provider);
     broadcast(`models:${provider}`, { success: true, count: providerModels.length, data: providerModels });
   } catch (error) {
-    console.error('[Broadcast] Error broadcasting models update:', error);
+    log.providers.error({ err: error }, 'Error broadcasting models update');
   }
 }
 
@@ -45,7 +46,7 @@ export async function broadcastAliaModelsUpdate(): Promise<void> {
     const models = await AliaModel.find({}).sort({ tier: 1, aliasModelId: 1 });
     broadcast('alia-models:all', { success: true, count: models.length, data: models });
   } catch (error) {
-    console.error('[Broadcast] Error broadcasting alia-models update:', error);
+    log.providers.error({ err: error }, 'Error broadcasting alia-models update');
   }
 }
 
@@ -54,7 +55,7 @@ export async function broadcastPlansUpdate(): Promise<void> {
     const plans = await Plan.find({}).sort({ product: 1, sortOrder: 1 }).lean();
     broadcast('plans:all', { success: true, count: plans.length, data: plans });
   } catch (error) {
-    console.error('[Broadcast] Error broadcasting plans update:', error);
+    log.providers.error({ err: error }, 'Error broadcasting plans update');
   }
 }
 
@@ -63,7 +64,7 @@ export async function broadcastCreditPackagesUpdate(): Promise<void> {
     const packages = await CreditPackage.find({}).sort({ sortOrder: 1 }).lean();
     broadcast('credit-packages:all', { success: true, count: packages.length, data: packages });
   } catch (error) {
-    console.error('[Broadcast] Error broadcasting credit-packages update:', error);
+    log.providers.error({ err: error }, 'Error broadcasting credit-packages update');
   }
 }
 
@@ -72,7 +73,7 @@ export async function broadcastFeaturesUpdate(): Promise<void> {
     const features = await Feature.find({}).sort({ category: 1, sortOrder: 1 }).lean();
     broadcast('features:all', { success: true, count: features.length, data: features });
   } catch (error) {
-    console.error('[Broadcast] Error broadcasting features update:', error);
+    log.providers.error({ err: error }, 'Error broadcasting features update');
   }
 }
 
@@ -81,7 +82,7 @@ export async function broadcastPlanFeaturesUpdate(): Promise<void> {
     const mappings = await PlanFeature.find({}).lean();
     broadcast('plan-features:all', { success: true, count: mappings.length, data: mappings });
   } catch (error) {
-    console.error('[Broadcast] Error broadcasting plan-features update:', error);
+    log.providers.error({ err: error }, 'Error broadcasting plan-features update');
   }
 }
 
@@ -94,6 +95,6 @@ export async function broadcastHealthUpdate(provider: string, modelId: string): 
     broadcast(`health:${provider}`, { success: true, data: specificHealth });
     broadcast(`health:${provider}:${modelId}`, { success: true, data: specificHealth });
   } catch (error) {
-    console.error('[Broadcast] Error broadcasting health update:', error);
+    log.providers.error({ err: error }, 'Error broadcasting health update');
   }
 }

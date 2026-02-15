@@ -1,4 +1,5 @@
 import { ExternalModel } from '../models/external-model.js';
+import { log } from '../lib/logger.js';
 
 const ZEROEVAL_URL = 'https://api.zeroeval.com/leaderboard/models/full?justCanonicals=true';
 
@@ -92,16 +93,16 @@ function mapToDocument(m: ZeroEvalModel) {
 
 export async function syncZeroEval(): Promise<void> {
   try {
-    console.log('[ZeroEval] Fetching models from ZeroEval API...');
+    log.general.info('Fetching models from ZeroEval API');
 
     const response = await fetch(ZEROEVAL_URL);
     if (!response.ok) {
-      console.error(`[ZeroEval] API returned ${response.status}: ${response.statusText}`);
+      log.general.error({ status: response.status, statusText: response.statusText }, 'ZeroEval API error');
       return;
     }
 
     const models = (await response.json()) as ZeroEvalModel[];
-    console.log(`[ZeroEval] Received ${models.length} models, upserting...`);
+    log.general.info({ count: models.length }, 'ZeroEval models received, upserting');
 
     const bulkOps = models.map((m) => ({
       updateOne: {
@@ -112,10 +113,8 @@ export async function syncZeroEval(): Promise<void> {
     }));
 
     const result = await ExternalModel.bulkWrite(bulkOps, { ordered: false });
-    console.log(
-      `[ZeroEval] Sync complete: ${result.upsertedCount} inserted, ${result.modifiedCount} updated, ${models.length} total`
-    );
+    log.general.info({ inserted: result.upsertedCount, updated: result.modifiedCount, total: models.length }, 'ZeroEval sync complete');
   } catch (error) {
-    console.error('[ZeroEval] Sync failed:', error);
+    log.general.error({ err: error }, 'ZeroEval sync failed');
   }
 }

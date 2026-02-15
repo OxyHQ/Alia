@@ -5,6 +5,7 @@ import DeveloperApiKey from '../models/developer-api-key';
 import ApiKeyUsage from '../models/api-key-usage';
 import { getApiKeyUsageStats } from '../middleware/api-key-rate-limit';
 import { z } from 'zod';
+import { log } from '../lib/logger.js';
 
 const router = Router();
 
@@ -27,7 +28,7 @@ router.get('/apps', async (req: Request, res: Response) => {
     const apps = await DeveloperApp.find({ oxyUserId: userId, ...orgFilter(req) }).sort({ createdAt: -1 });
     res.json({ apps });
   } catch (error) {
-    console.error('Error fetching developer apps:', error);
+    log.developer.error({ err: error }, 'Error fetching developer apps');
     res.status(500).json({ error: 'Failed to fetch apps' });
   }
 });
@@ -46,7 +47,7 @@ router.get('/apps/:id', async (req: Request, res: Response) => {
 
     res.json({ app });
   } catch (error) {
-    console.error('Error fetching developer app:', error);
+    log.developer.error({ err: error }, 'Error fetching developer app');
     res.status(500).json({ error: 'Failed to fetch app' });
   }
 });
@@ -77,7 +78,7 @@ router.post('/apps', async (req: Request, res: Response) => {
     if (error instanceof z.ZodError) {
       return res.status(400).json({ error: 'Invalid input', details: error.errors });
     }
-    console.error('Error creating developer app:', error);
+    log.developer.error({ err: error }, 'Error creating developer app');
     res.status(500).json({ error: 'Failed to create app' });
   }
 });
@@ -114,7 +115,7 @@ router.patch('/apps/:id', async (req: Request, res: Response) => {
     if (error instanceof z.ZodError) {
       return res.status(400).json({ error: 'Invalid input', details: error.errors });
     }
-    console.error('Error updating developer app:', error);
+    log.developer.error({ err: error }, 'Error updating developer app');
     res.status(500).json({ error: 'Failed to update app' });
   }
 });
@@ -139,7 +140,7 @@ router.delete('/apps/:id', async (req: Request, res: Response) => {
 
     res.json({ message: 'App deleted successfully' });
   } catch (error) {
-    console.error('Error deleting developer app:', error);
+    log.developer.error({ err: error }, 'Error deleting developer app');
     res.status(500).json({ error: 'Failed to delete app' });
   }
 });
@@ -166,7 +167,7 @@ router.get('/apps/:appId/keys', async (req: Request, res: Response) => {
 
     res.json({ keys });
   } catch (error) {
-    console.error('Error fetching API keys:', error);
+    log.developer.error({ err: error }, 'Error fetching API keys');
     res.status(500).json({ error: 'Failed to fetch API keys' });
   }
 });
@@ -232,7 +233,7 @@ router.post('/apps/:appId/keys', async (req: Request, res: Response) => {
     if (error instanceof z.ZodError) {
       return res.status(400).json({ error: 'Invalid input', details: error.errors });
     }
-    console.error('Error creating API key:', error);
+    log.developer.error({ err: error }, 'Error creating API key');
     res.status(500).json({ error: 'Failed to create API key' });
   }
 });
@@ -290,7 +291,7 @@ router.patch('/apps/:appId/keys/:keyId', async (req: Request, res: Response) => 
     if (error instanceof z.ZodError) {
       return res.status(400).json({ error: 'Invalid input', details: error.errors });
     }
-    console.error('Error updating API key:', error);
+    log.developer.error({ err: error }, 'Error updating API key');
     res.status(500).json({ error: 'Failed to update API key' });
   }
 });
@@ -318,7 +319,7 @@ router.delete('/apps/:appId/keys/:keyId', async (req: Request, res: Response) =>
 
     res.json({ message: 'API key deleted successfully' });
   } catch (error) {
-    console.error('Error deleting API key:', error);
+    log.developer.error({ err: error }, 'Error deleting API key');
     res.status(500).json({ error: 'Failed to delete API key' });
   }
 });
@@ -374,7 +375,7 @@ router.get('/apps/:appId/keys/:keyId/rate-limits', async (req: Request, res: Res
       },
     });
   } catch (error) {
-    console.error('Error fetching rate limit status:', error);
+    log.developer.error({ err: error }, 'Error fetching rate limit status');
     res.status(500).json({ error: 'Failed to fetch rate limit status' });
   }
 });
@@ -426,7 +427,7 @@ router.patch('/apps/:appId/keys/:keyId/rate-limits', async (req: Request, res: R
     if (error instanceof z.ZodError) {
       return res.status(400).json({ error: 'Invalid input', details: error.errors });
     }
-    console.error('Error updating rate limits:', error);
+    log.developer.error({ err: error }, 'Error updating rate limits');
     res.status(500).json({ error: 'Failed to update rate limits' });
   }
 });
@@ -557,7 +558,7 @@ router.get('/apps/:appId/usage', async (req: Request, res: Response) => {
       byEndpoint: usageByEndpoint,
     });
   } catch (error) {
-    console.error('Error fetching usage statistics:', error);
+    log.developer.error({ err: error }, 'Error fetching usage statistics');
     res.status(500).json({ error: 'Failed to fetch usage statistics' });
   }
 });
@@ -666,7 +667,7 @@ router.get('/apps/:appId/keys/:keyId/usage', async (req: Request, res: Response)
       byDay: usageByDay,
     });
   } catch (error) {
-    console.error('Error fetching API key usage statistics:', error);
+    log.developer.error({ err: error }, 'Error fetching API key usage statistics');
     res.status(500).json({ error: 'Failed to fetch usage statistics' });
   }
 });
@@ -769,7 +770,7 @@ router.get('/usage', async (req: Request, res: Response) => {
       byEndpoint: usageByEndpoint,
     });
   } catch (error) {
-    console.error('Error fetching global usage statistics:', error);
+    log.developer.error({ err: error }, 'Error fetching global usage statistics');
     res.status(500).json({ error: 'Failed to fetch usage statistics' });
   }
 });
@@ -809,7 +810,7 @@ router.get('/stats', async (req: Request, res: Response) => {
       last30Days: usage[0] || { totalRequests: 0, totalTokens: 0, totalCredits: 0 },
     });
   } catch (error) {
-    console.error('Error fetching developer stats:', error);
+    log.developer.error({ err: error }, 'Error fetching developer stats');
     res.status(500).json({ error: 'Failed to fetch developer stats' });
   }
 });

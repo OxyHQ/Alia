@@ -7,6 +7,7 @@ import { resolveModel, getAIModel, getDefaultAliaModel } from '../../lib/chat-co
 import { UserMemory } from '../../models/user-memory.js';
 import { getIO } from '../../socket.js';
 import type { Request, Response } from 'express';
+import { log } from '../../lib/logger.js';
 
 // Response types for external API calls
 interface OpenAIImageResponse {
@@ -98,7 +99,7 @@ router.post('/', async (req: Request, res: Response) => {
       throw error;
     }
   } catch (error) {
-    console.error('Error executing workflow:', error);
+    log.canvas.error({ err: error }, 'Error executing workflow');
     res.status(500).json({
       error: error instanceof Error ? error.message : 'Failed to execute workflow'
     });

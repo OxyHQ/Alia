@@ -73,14 +73,25 @@ export function createLogger(subsystem: string) {
 
 /**
  * Sanitize a string by removing potential API keys and tokens.
+ * Inspired by ZeroClaw's scrub_secret_patterns for comprehensive coverage.
  * Use as a safety net before logging user-facing messages.
  */
 export function sanitizeForLog(value: string): string {
-  // Redact common API key patterns
   return value
+    // OpenAI keys
     .replace(/sk-[a-zA-Z0-9_-]{20,}/g, 'sk-[REDACTED]')
+    // Anthropic keys
+    .replace(/sk-ant-[a-zA-Z0-9_-]+/g, 'sk-ant-[REDACTED]')
+    // Alia internal keys
     .replace(/alia_sk_[a-zA-Z0-9_-]+/g, 'alia_sk_[REDACTED]')
+    // Slack tokens
+    .replace(/xoxb-[a-zA-Z0-9_-]+/g, 'xoxb-[REDACTED]')
+    .replace(/xoxp-[a-zA-Z0-9_-]+/g, 'xoxp-[REDACTED]')
+    // Google AI keys (AIza prefix)
+    .replace(/AIza[a-zA-Z0-9_-]{35,}/g, 'AIza[REDACTED]')
+    // Bearer tokens
     .replace(/Bearer\s+[a-zA-Z0-9._-]+/gi, 'Bearer [REDACTED]')
+    // Generic key- prefix
     .replace(/key-[a-zA-Z0-9]{20,}/g, 'key-[REDACTED]');
 }
 
@@ -94,6 +105,20 @@ export const log = {
   health: createLogger('health'),
   fallback: createLogger('fallback'),
   keys: createLogger('keys'),
+  automations: createLogger('automations'),
+  organization: createLogger('organization'),
+  skills: createLogger('skills'),
+  codea: createLogger('codea'),
+  memory: createLogger('memory'),
+  developer: createLogger('developer'),
+  webhook: createLogger('webhook'),
+  telegram: createLogger('telegram'),
+  channels: createLogger('channels'),
+  seed: createLogger('seed'),
+  tools: createLogger('tools'),
+  v1: createLogger('v1'),
+  models: createLogger('models'),
+  canvas: createLogger('canvas'),
   general: rootLogger,
 };
 

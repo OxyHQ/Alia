@@ -19,6 +19,7 @@ import mongoose from 'mongoose';
 import { getBestKeyForModel, recordKeyUsage } from '../lib/key-manager';
 import { sanitizeError } from '../../../lib/error-handler.js';
 import { broadcastHealthUpdate } from '../lib/broadcast-helpers';
+import { log } from '../../../lib/logger.js';
 
 const router = express.Router();
 
@@ -72,7 +73,7 @@ router.post('/resolve', async (req: Request, res: Response) => {
       },
     });
   } catch (error: any) {
-    console.error('Error resolving model:', error);
+    log.providers.error({ err: error }, 'Error resolving model');
     res.status(500).json({
       success: false,
       error: sanitizeError(error.message),
@@ -170,7 +171,7 @@ router.post('/:provider/proxy', async (req: Request, res: Response) => {
       res.end();
     } catch (streamError: any) {
       success = false;
-      console.error('Stream error:', streamError);
+      log.providers.error({ err: streamError }, 'Stream error');
 
       // Record failure
       await recordFailure(provider, modelId, streamError.message);
@@ -197,7 +198,7 @@ router.post('/:provider/proxy', async (req: Request, res: Response) => {
     }
 
   } catch (error: any) {
-    console.error('Error proxying request:', error);
+    log.providers.error({ err: error }, 'Error proxying request');
 
     if (!res.headersSent) {
       res.status(500).json({
@@ -234,7 +235,7 @@ router.get('/health', async (req: Request, res: Response) => {
       });
     }
   } catch (error: any) {
-    console.error('Error getting health:', error);
+    log.providers.error({ err: error }, 'Error getting health');
     res.status(500).json({
       success: false,
       error: error.message,
@@ -279,7 +280,7 @@ router.post('/health/record', async (req: Request, res: Response) => {
 
     broadcastHealthUpdate(provider, modelId);
   } catch (error: any) {
-    console.error('Error recording health:', error);
+    log.providers.error({ err: error }, 'Error recording health');
     res.status(500).json({
       success: false,
       error: error.message,
@@ -316,7 +317,7 @@ router.get('/available', async (req: Request, res: Response) => {
       },
     });
   } catch (error: any) {
-    console.error('Error checking availability:', error);
+    log.providers.error({ err: error }, 'Error checking availability');
     res.status(500).json({
       success: false,
       error: error.message,
@@ -367,7 +368,7 @@ router.post('/health/reset-all', async (req: Request, res: Response) => {
       },
     });
   } catch (error: any) {
-    console.error('Error resetting all health:', error);
+    log.providers.error({ err: error }, 'Error resetting all health');
     res.status(500).json({
       success: false,
       error: error.message,
@@ -400,7 +401,7 @@ router.post('/health/reset', async (req: Request, res: Response) => {
       data: health,
     });
   } catch (error: any) {
-    console.error('Error resetting health:', error);
+    log.providers.error({ err: error }, 'Error resetting health');
     res.status(500).json({
       success: false,
       error: error.message,

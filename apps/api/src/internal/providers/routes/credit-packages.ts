@@ -6,6 +6,7 @@
 import express, { Request, Response } from 'express';
 import { CreditPackage } from '../models/credit-package.js';
 import { broadcastCreditPackagesUpdate } from '../lib/broadcast-helpers.js';
+import { log } from '../../../lib/logger.js';
 
 const router = express.Router();
 
@@ -28,7 +29,7 @@ router.get('/', async (req: Request, res: Response) => {
       data: packages,
     });
   } catch (error: any) {
-    console.error('Error listing credit packages:', error);
+    log.providers.error({ err: error }, 'Error listing credit packages');
     res.status(500).json({
       success: false,
       error: 'An internal error occurred',
@@ -59,7 +60,7 @@ router.get('/:packageId', async (req: Request, res: Response) => {
       data: pkg,
     });
   } catch (error: any) {
-    console.error('Error getting credit package:', error);
+    log.providers.error({ err: error }, 'Error getting credit package');
     res.status(500).json({
       success: false,
       error: 'An internal error occurred',
@@ -125,7 +126,7 @@ router.post('/', async (req: Request, res: Response) => {
 
     broadcastCreditPackagesUpdate();
   } catch (error: any) {
-    console.error('Error creating credit package:', error);
+    log.providers.error({ err: error }, 'Error creating credit package');
     res.status(500).json({
       success: false,
       error: 'An internal error occurred',
@@ -183,7 +184,7 @@ router.patch('/:packageId', async (req: Request, res: Response) => {
 
     broadcastCreditPackagesUpdate();
   } catch (error: any) {
-    console.error('Error updating credit package:', error);
+    log.providers.error({ err: error }, 'Error updating credit package');
     res.status(500).json({
       success: false,
       error: 'An internal error occurred',
@@ -217,7 +218,7 @@ router.delete('/:packageId', async (req: Request, res: Response) => {
 
     broadcastCreditPackagesUpdate();
   } catch (error: any) {
-    console.error('Error deleting credit package:', error);
+    log.providers.error({ err: error }, 'Error deleting credit package');
     res.status(500).json({
       success: false,
       error: 'An internal error occurred',

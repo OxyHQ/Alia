@@ -2,6 +2,7 @@ import { tool } from 'ai';
 import { z } from 'zod';
 import mongoose from 'mongoose';
 import { ChannelUser } from '../../models/channel-user.js';
+import { log } from '../logger.js';
 
 /**
  * Create sendTelegramMessage tool for a specific user
@@ -51,20 +52,20 @@ export function createSendTelegramTool(userId: string) {
         const result = await response.json() as { ok?: boolean; description?: string };
 
         if (!response.ok) {
-          console.error('[SendTelegram] Failed to send message:', result);
+          log.tools.error({ err: result }, 'Failed to send message');
           return {
             success: false,
             message: `Failed to send Telegram: ${result.description || 'Unknown error'}`
           };
         }
 
-        console.log('[SendTelegram] Message sent successfully to:', channelUser.channelUserId);
+        log.tools.info({ channelUserId: channelUser.channelUserId }, 'Telegram message sent successfully');
         return {
           success: true,
           message: 'Telegram message sent successfully'
         };
       } catch (error: any) {
-        console.error('[SendTelegram] Error:', error);
+        log.tools.error({ err: error }, 'Error');
         return {
           success: false,
           message: `Error sending Telegram: ${error.message}`

@@ -25,11 +25,12 @@ import DeveloperApiKey from '../../models/developer-api-key.js';
 import { buildSystemPrompt } from '../../lib/prompt-loader.js';
 import { buildUserContext } from '../../lib/user-context.js';
 import { getUserEntitlements } from '../../lib/plan-access.js';
+import { log } from '../../lib/logger.js';
 
 // ============== WEBSOCKET ENDPOINT SETUP ==============
 
 export function setupRealtimeEndpoint(wss: WebSocketServer): void {
-  console.log('[Realtime] Setting up WebSocket endpoint at /v1/realtime');
+  log.v1.info('Setting up WebSocket endpoint at /v1/realtime');
 
   wss.on('connection', async (ws: WebSocket, request: IncomingMessage) => {
     let userId: string | null = null;
@@ -44,7 +45,7 @@ export function setupRealtimeEndpoint(wss: WebSocketServer): void {
       const instructions = url.searchParams.get('instructions');
       const voice = url.searchParams.get('voice');
 
-      console.log(`[Realtime] New connection request for model: ${model}`);
+      log.v1.info({ model }, 'New realtime connection request');
 
       // Authentication
       if (token) {
@@ -58,9 +59,9 @@ export function setupRealtimeEndpoint(wss: WebSocketServer): void {
           const payload = JSON.parse(Buffer.from(token.split('.')[1], 'base64url').toString());
           userId = payload.userId || payload.sub || payload._id;
           if (!userId) throw new Error('No user ID in token');
-          console.log(`[Realtime] Authenticated user via JWT: ${userId}`);
+          log.v1.info({ userId }, 'Authenticated user via JWT');
         } catch (error) {
-          console.error('[Realtime] JWT verification failed:', error);
+          log.v1.error({ err: error }, 'JWT verification failed');
           ws.close(4001, 'Invalid or expired token');
           return;
         }
@@ -75,20 +76,20 @@ export function setupRealtimeEndpoint(wss: WebSocketServer): void {
           });
 
           if (!devKey) {
-            console.error('[Realtime] Invalid API key');
+            log.v1.error('Invalid API key');
             ws.close(4001, 'Invalid API key');
             return;
           }
 
           userId = devKey.oxyUserId;
-          console.log(`[Realtime] Authenticated user via API key: ${userId}`);
+          log.v1.info({ userId }, 'Authenticated user via API key');
         } catch (error) {
-          console.error('[Realtime] API key validation failed:', error);
+          log.v1.error({ err: error }, 'API key validation failed');
           ws.close(4000, 'Authentication error');
           return;
         }
       } else {
-        console.error('[Realtime] No authentication provided');
+        log.v1.error('No authentication provided');
         ws.close(4001, 'Authentication required: provide token or api_key');
         return;
       }
@@ -96,7 +97,7 @@ export function setupRealtimeEndpoint(wss: WebSocketServer): void {
       // Check concurrent session limit
       const userSessions = voiceSessionManager.getUserSessionsCount(userId);
       if (userSessions >= 5) {
-        console.error(`[Realtime] User ${userId} exceeded max concurrent sessions`);
+        log.v1.error('User ${userId} exceeded max concurrent sessions');
         ws.close(4003, 'Maximum concurrent sessions reached (5)');
         return;
       }
@@ -124,7 +125,7 @@ export function setupRealtimeEndpoint(wss: WebSocketServer): void {
         const basePrompt = await buildSystemPrompt(model);
         voiceInstructions += basePrompt;
       } catch (e) {
-        console.error('[Realtime] Error loading system prompt:', e);
+        log.v1.error({ err: e }, 'Error loading system prompt');
       }
 
       // Add user context (name, memory, preferences, language) via shared utility
@@ -139,7 +140,7 @@ export function setupRealtimeEndpoint(wss: WebSocketServer): void {
         voiceInstructions = instructions;
       }
 
-      console.log(`[Realtime] Built voice instructions (${voiceInstructions.length} chars)`);
+      log.v1.info({ chars: voiceInstructions.length }, 'Built voice instructions');
 
       // Voice-appropriate tools (server-side execution in voice-session-manager)
       const voiceTools: OpenAITool[] = [
@@ -225,7 +226,7 @@ export function setupRealtimeEndpoint(wss: WebSocketServer): void {
         });
 
         sessionId = session.sessionId;
-        console.log(`[Realtime] Session created: ${sessionId}`);
+        log.v1.info({ sessionId }, 'Voice session created');
 
         // Send session.created event to client
         ws.send(
@@ -243,7 +244,7 @@ export function setupRealtimeEndpoint(wss: WebSocketServer): void {
         );
 
       } catch (error: any) {
-        console.error('[Realtime] Error creating session:', error);
+        log.v1.error({ err: error }, 'Error creating session');
 
         // Send error event
         ws.send(
@@ -274,14 +275,14 @@ export function setupRealtimeEndpoint(wss: WebSocketServer): void {
       });
 
       ws.on('close', async (code, reason) => {
-        console.log(`[Realtime] Client disconnected: ${code} ${reason}`);
+        log.v1.info({ code, reason: reason?.toString() }, 'Client disconnected');
         if (sessionId) {
           await voiceSessionManager.closeSession(sessionId, 'client_disconnected');
         }
       });
 
       ws.on('error', async (error) => {
-        console.error('[Realtime] WebSocket error:', error);
+        log.v1.error({ err: error }, 'WebSocket error');
         if (sessionId) {
           await voiceSessionManager.closeSession(sessionId, 'websocket_error');
         }
@@ -306,10 +307,10 @@ export function setupRealtimeEndpoint(wss: WebSocketServer): void {
       });
 
     } catch (error) {
-      console.error('[Realtime] Unexpected error:', error);
+      log.v1.error({ err: error }, 'Unexpected error');
       ws.close(4000, 'Internal error');
     }
   });
 
-  console.log('[Realtime] WebSocket endpoint ready');
+  log.v1.info('WebSocket endpoint ready');
 }

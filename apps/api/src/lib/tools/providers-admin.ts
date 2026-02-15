@@ -5,6 +5,7 @@ import { ProviderKey } from '../../internal/providers/models/provider-key.js';
 import { ModelConfig } from '../../internal/providers/models/model-config.js';
 import { AliaModel } from '../../internal/providers/models/alia-model.js';
 import { ApiUsage } from '../../internal/providers/models/api-usage.js';
+import { log } from '../logger.js';
 
 /**
  * Get the Mongoose model for a given entity name.
@@ -197,7 +198,7 @@ export function createProvidersAdminTool() {
             return { success: false, message: `Unknown action: ${action}` };
         }
       } catch (error: any) {
-        console.error('[ProvidersAdmin] Error:', error);
+        log.tools.error({ err: error }, 'Error');
         return { success: false, message: error.message };
       }
     },

@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { authenticateToken } from '../../middleware/auth.js';
 import { CanvasSession } from '../../models/canvas-session.js';
 import type { Request, Response } from 'express';
+import { log } from '../../lib/logger.js';
 
 const router = Router();
 
@@ -22,7 +23,7 @@ router.get('/:conversationId', async (req: Request, res: Response) => {
 
     res.json({ components: session.components });
   } catch (error) {
-    console.error('Error fetching canvas session:', error);
+    log.canvas.error({ err: error }, 'Error fetching canvas session');
     res.status(500).json({ error: 'Failed to fetch canvas session' });
   }
 });
@@ -37,7 +38,7 @@ router.delete('/:conversationId', async (req: Request, res: Response) => {
 
     res.json({ success: true });
   } catch (error) {
-    console.error('Error clearing canvas session:', error);
+    log.canvas.error({ err: error }, 'Error clearing canvas session');
     res.status(500).json({ error: 'Failed to clear canvas session' });
   }
 });

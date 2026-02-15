@@ -13,6 +13,7 @@
 import WebSocket from 'ws';
 import type { VoiceProvider, VoiceSessionConfig } from '../types-voice.js';
 import type { KeyConfig } from '../types.js';
+import { log } from '../../../../lib/logger.js';
 
 export const grokVoiceProvider: VoiceProvider = {
   name: 'Grok Voice',
@@ -41,7 +42,7 @@ export const grokVoiceProvider: VoiceProvider = {
       const model = config.model || 'grok-realtime';
       const url = `wss://api.x.ai/v1/realtime?model=${model}`;
 
-      console.log(`[GrokVoice] Connecting to ${url}`);
+      log.providers.info({ url }, 'Connecting to Grok Realtime');
 
       const ws = new WebSocket(url, {
         headers: {
@@ -59,7 +60,7 @@ export const grokVoiceProvider: VoiceProvider = {
 
         ws.on('open', () => {
           clearTimeout(timeout);
-          console.log(`[GrokVoice] Connected successfully`);
+          log.providers.info('Connected successfully');
 
           // Send session configuration
           const sessionConfig = {
@@ -95,14 +96,14 @@ export const grokVoiceProvider: VoiceProvider = {
           }
 
           ws.send(JSON.stringify(sessionConfig));
-          console.log(`[GrokVoice] Sent session configuration`);
+          log.providers.info('Sent session configuration');
 
           resolve(ws);
         });
 
         ws.on('error', (error) => {
           clearTimeout(timeout);
-          console.error(`[GrokVoice] Connection error:`, error);
+          log.providers.error({ err: error }, 'Connection error');
           reject(error);
         });
       });

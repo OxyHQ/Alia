@@ -29,13 +29,11 @@ export const useThemeStore = create<ThemeState>()(
         if (!state?.mode) return;
         nwColorScheme.set(state.mode);
         if (Platform.OS === 'web' && typeof document !== 'undefined') {
-          if (state.mode !== 'system') {
-            document.documentElement.classList.toggle('dark', state.mode === 'dark');
-          }
+          const resolved = state.mode === 'system'
+            ? (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')
+            : state.mode;
+          document.documentElement.classList.toggle('dark', resolved === 'dark');
           if (state.accentColor && state.accentColor !== 'default') {
-            const resolved = state.mode === 'system'
-              ? (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')
-              : state.mode;
             applyAccentToDocument(state.accentColor, resolved as 'light' | 'dark');
           }
         }

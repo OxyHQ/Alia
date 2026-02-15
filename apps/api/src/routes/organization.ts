@@ -5,6 +5,7 @@ import { Organization } from '../models/organization';
 import { OrganizationMember } from '../models/organization-member';
 import { uploadToS3, deleteFromS3 } from '../lib/s3';
 import { z } from 'zod';
+import { log } from '../lib/logger.js';
 
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -55,7 +56,7 @@ router.get('/', async (req: Request, res: Response) => {
 
     res.json({ organizations: orgsWithRole });
   } catch (error) {
-    console.error('Error fetching organizations:', error);
+    log.organization.error({ err: error }, 'Error fetching organizations');
     res.status(500).json({ error: 'Failed to fetch organizations' });
   }
 });
@@ -101,7 +102,7 @@ router.get('/:id', async (req: Request, res: Response) => {
       },
     });
   } catch (error) {
-    console.error('Error fetching organization:', error);
+    log.organization.error({ err: error }, 'Error fetching organization');
     res.status(500).json({ error: 'Failed to fetch organization' });
   }
 });
@@ -144,7 +145,7 @@ router.post('/', async (req: Request, res: Response) => {
     if (error instanceof z.ZodError) {
       return res.status(400).json({ error: 'Invalid input', details: error.errors });
     }
-    console.error('Error creating organization:', error);
+    log.organization.error({ err: error }, 'Error creating organization');
     res.status(500).json({ error: 'Failed to create organization' });
   }
 });
@@ -193,7 +194,7 @@ router.patch('/:id', async (req: Request, res: Response) => {
     if (error instanceof z.ZodError) {
       return res.status(400).json({ error: 'Invalid input', details: error.errors });
     }
-    console.error('Error updating organization:', error);
+    log.organization.error({ err: error }, 'Error updating organization');
     res.status(500).json({ error: 'Failed to update organization' });
   }
 });
@@ -239,7 +240,7 @@ router.post('/:id/image', upload.single('file'), async (req: Request, res: Respo
 
     res.json({ image: imageUrl });
   } catch (error) {
-    console.error('Error uploading organization image:', error);
+    log.organization.error({ err: error }, 'Error uploading organization image');
     res.status(500).json({ error: 'Failed to upload image' });
   }
 });
@@ -266,7 +267,7 @@ router.delete('/:id', async (req: Request, res: Response) => {
 
     res.json({ message: 'Organization deleted successfully' });
   } catch (error) {
-    console.error('Error deleting organization:', error);
+    log.organization.error({ err: error }, 'Error deleting organization');
     res.status(500).json({ error: 'Failed to delete organization' });
   }
 });
@@ -297,7 +298,7 @@ router.get('/:id/members', async (req: Request, res: Response) => {
 
     res.json({ members });
   } catch (error) {
-    console.error('Error fetching members:', error);
+    log.organization.error({ err: error }, 'Error fetching members');
     res.status(500).json({ error: 'Failed to fetch members' });
   }
 });
@@ -337,7 +338,7 @@ router.post('/:id/members', async (req: Request, res: Response) => {
     if (error instanceof z.ZodError) {
       return res.status(400).json({ error: 'Invalid input', details: error.errors });
     }
-    console.error('Error inviting member:', error);
+    log.organization.error({ err: error }, 'Error inviting member');
     res.status(500).json({ error: 'Failed to invite member' });
   }
 });
@@ -380,7 +381,7 @@ router.patch('/:id/members/:memberId', async (req: Request, res: Response) => {
     if (error instanceof z.ZodError) {
       return res.status(400).json({ error: 'Invalid input', details: error.errors });
     }
-    console.error('Error updating member:', error);
+    log.organization.error({ err: error }, 'Error updating member');
     res.status(500).json({ error: 'Failed to update member' });
   }
 });
@@ -417,7 +418,7 @@ router.delete('/:id/members/:memberId', async (req: Request, res: Response) => {
 
     res.json({ message: 'Member removed successfully' });
   } catch (error) {
-    console.error('Error removing member:', error);
+    log.organization.error({ err: error }, 'Error removing member');
     res.status(500).json({ error: 'Failed to remove member' });
   }
 });

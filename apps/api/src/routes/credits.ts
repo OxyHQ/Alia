@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { authenticateToken } from '../middleware/auth.js';
 import { getOrCreateUserCredits } from '../lib/user-credits-helpers.js';
 import ApiKeyUsage from '../models/api-key-usage.js';
+import { log } from '../lib/logger.js';
 
 const router = Router();
 
@@ -19,7 +20,7 @@ router.get('/', authenticateToken, async (req, res) => {
       lastRefresh: userCredits.credits.lastRefresh,
     });
   } catch (error: any) {
-    console.error('[Credits] Error:', error);
+    log.credits.error({ err: error }, 'Error');
     res.status(500).json({ error: error.message });
   }
 });
@@ -76,7 +77,7 @@ router.get('/usage', authenticateToken, async (req, res) => {
 
     res.json(result);
   } catch (error: any) {
-    console.error('[Credits] Usage error:', error);
+    log.credits.error({ err: error }, 'Usage error');
     res.status(500).json({ error: error.message });
   }
 });

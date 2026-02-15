@@ -6,6 +6,7 @@
 import express, { Request, Response } from 'express';
 import { Feature } from '../models/feature.js';
 import { broadcastFeaturesUpdate } from '../lib/broadcast-helpers.js';
+import { log } from '../../../lib/logger.js';
 
 const router = express.Router();
 
@@ -22,7 +23,7 @@ router.get('/', async (req: Request, res: Response) => {
     const features = await Feature.find(query).sort({ category: 1, sortOrder: 1 }).lean();
     res.json({ success: true, count: features.length, data: features });
   } catch (error: any) {
-    console.error('Error listing features:', error);
+    log.providers.error({ err: error }, 'Error listing features');
     res.status(500).json({ success: false, error: 'An internal error occurred', code: 'INTERNAL_ERROR' });
   }
 });
@@ -38,7 +39,7 @@ router.get('/:featureId', async (req: Request, res: Response) => {
     }
     res.json({ success: true, data: feature });
   } catch (error: any) {
-    console.error('Error getting feature:', error);
+    log.providers.error({ err: error }, 'Error getting feature');
     res.status(500).json({ success: false, error: 'An internal error occurred', code: 'INTERNAL_ERROR' });
   }
 });
@@ -73,7 +74,7 @@ router.post('/', async (req: Request, res: Response) => {
     res.status(201).json({ success: true, data: feature });
     broadcastFeaturesUpdate();
   } catch (error: any) {
-    console.error('Error creating feature:', error);
+    log.providers.error({ err: error }, 'Error creating feature');
     res.status(500).json({ success: false, error: 'An internal error occurred', code: 'INTERNAL_ERROR' });
   }
 });
@@ -103,7 +104,7 @@ router.patch('/:featureId', async (req: Request, res: Response) => {
     res.json({ success: true, data: feature });
     broadcastFeaturesUpdate();
   } catch (error: any) {
-    console.error('Error updating feature:', error);
+    log.providers.error({ err: error }, 'Error updating feature');
     res.status(500).json({ success: false, error: 'An internal error occurred', code: 'INTERNAL_ERROR' });
   }
 });
@@ -120,7 +121,7 @@ router.delete('/:featureId', async (req: Request, res: Response) => {
     res.json({ success: true, message: 'Feature deleted successfully' });
     broadcastFeaturesUpdate();
   } catch (error: any) {
-    console.error('Error deleting feature:', error);
+    log.providers.error({ err: error }, 'Error deleting feature');
     res.status(500).json({ success: false, error: 'An internal error occurred', code: 'INTERNAL_ERROR' });
   }
 });

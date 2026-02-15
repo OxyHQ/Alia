@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { authenticateToken } from '../middleware/auth.js';
 import { Referral, getOrCreateReferral } from '../models/referral.js';
 import { getOrCreateUserCredits } from '../lib/user-credits-helpers.js';
+import { log } from '../lib/logger.js';
 
 const router = Router();
 
@@ -20,7 +21,7 @@ router.get('/', authenticateToken, async (req, res) => {
       totalReferrals: referral.totalReferrals,
     });
   } catch (error: any) {
-    console.error('[Referrals] Error:', error);
+    log.general.error({ err: error }, 'Error');
     res.status(500).json({ error: error.message });
   }
 });
@@ -83,7 +84,7 @@ router.post('/redeem', authenticateToken, async (req, res) => {
 
     res.json({ success: true, creditsAwarded: REFERRAL_CREDIT_REWARD });
   } catch (error: any) {
-    console.error('[Referrals] Redeem error:', error);
+    log.general.error({ err: error }, 'Redeem error');
     res.status(500).json({ error: error.message });
   }
 });
@@ -109,7 +110,7 @@ router.post('/send-invite', authenticateToken, async (req, res) => {
       mailtoUrl: `mailto:${email}?subject=${subject}&body=${body}`,
     });
   } catch (error: any) {
-    console.error('[Referrals] Send invite error:', error);
+    log.general.error({ err: error }, 'Send invite error');
     res.status(500).json({ error: error.message });
   }
 });
@@ -124,7 +125,7 @@ router.get('/history', authenticateToken, async (req, res) => {
       total: referral.totalReferrals,
     });
   } catch (error: any) {
-    console.error('[Referrals] History error:', error);
+    log.general.error({ err: error }, 'History error');
     res.status(500).json({ error: error.message });
   }
 });

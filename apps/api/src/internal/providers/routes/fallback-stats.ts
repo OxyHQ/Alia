@@ -7,6 +7,7 @@
 
 import express, { Request, Response } from 'express';
 import { FallbackEvent } from '../models/fallback-event';
+import { log } from '../../../lib/logger.js';
 
 const router = express.Router();
 
@@ -188,7 +189,7 @@ router.get('/', async (req: Request, res: Response) => {
       },
     });
   } catch (error: any) {
-    console.error('[FallbackStats] Error getting fallback stats:', error);
+    log.providers.error({ err: error }, 'Error getting fallback stats');
     res.status(500).json({
       success: false,
       error: 'An internal error occurred',

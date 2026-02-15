@@ -8,6 +8,7 @@
 
 import { Plan } from '../models/plan.js';
 import { connectDB } from './db.js';
+import { log } from '../../../lib/logger.js';
 
 interface PlanSeed {
   planId: string;
@@ -189,7 +190,7 @@ export async function seedPlans(): Promise<{ seeded: number; skipped: number }> 
 
       if (result.upsertedCount > 0) {
         seeded++;
-        console.log(`[Seed] Created Plan: ${planData.planId} (${planData.product})`);
+        log.seed.info({ planId: planData.planId, name: planData.name }, 'Created Plan');
       } else {
         skipped++;
       }
@@ -197,11 +198,11 @@ export async function seedPlans(): Promise<{ seeded: number; skipped: number }> 
       if (error.code === 11000) {
         skipped++;
       } else {
-        console.error(`[Seed] Error seeding plan ${planData.planId}:`, error.message);
+        log.seed.error({ err: error, planId: planData.planId }, 'Error seeding plan');
       }
     }
   }
 
-  console.log(`[Seed] Plan seeding complete: ${seeded} created, ${skipped} skipped/existing`);
+  log.seed.info({ seeded, skipped }, 'Plan seeding complete');
   return { seeded, skipped };
 }

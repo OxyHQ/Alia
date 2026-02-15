@@ -2,6 +2,7 @@ import { tool } from "ai";
 import { z } from "zod";
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { generateText } from "ai";
+import { log } from '../logger.js';
 
 export interface WebSearchResult {
   title: string;
@@ -28,7 +29,7 @@ export const createGoogleSearchTool = (apiKey: string) => tool({
   }),
   execute: async ({ query }: { query: string }): Promise<WebSearchResponse> => {
     try {
-      console.log("[Google Search Tool] Searching for:", query);
+      log.tools.info({ query }, 'Google Search executing');
       
       const google = createGoogleGenerativeAI({ apiKey });
       
@@ -41,12 +42,12 @@ export const createGoogleSearchTool = (apiKey: string) => tool({
         prompt: `Busca información reciente y relevante sobre: ${query}. Debes usar la herramienta google_search para realizar la búsqueda.`,
       });
 
-      console.log("[Google Search Tool] Result sources:", result.sources?.length || 0);
+      log.tools.info({ sources: result.sources?.length || 0 }, 'Google Search result sources');
       
       const rawSources = result.sources as unknown as Array<{ title?: string; url: string; snippet?: string }> | undefined;
       
       if (!rawSources || rawSources.length === 0) {
-        console.log("[Google Search Tool] No sources found");
+        log.tools.info('Google Search returned no sources');
         return { count: 0, results: [] };
       }
 
@@ -56,10 +57,10 @@ export const createGoogleSearchTool = (apiKey: string) => tool({
         snippet: s.snippet || ""
       }));
 
-      console.log("[Google Search Tool] Found", results.length, "results");
+      log.tools.info({ count: results.length }, 'Google Search found results');
       return { results, count: results.length };
     } catch (error) {
-      console.error("[Google Search Tool] Error:", error);
+      log.tools.error({ err: error }, 'Google Search error');
       const errorMessage = error instanceof Error ? error.message : "Fallo en búsqueda web";
       return { 
         error: errorMessage,

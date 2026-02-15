@@ -662,29 +662,7 @@ const ChatSidebar = React.memo(function ChatSidebar() {
                   </View>
                 ) : (
                   <>
-                    {/* Pinned conversations at top */}
-                    {pinnedConversations.length > 0 && pinnedConversations.map((conv) => (
-                      <ConversationItem
-                        key={conv.id}
-                        conversation={conv}
-                        isActive={chatId?.id === conv.id}
-                        isFavorite={favoriteConversationIds.includes(conv.id)}
-                        isPinned={true}
-                        currentProject={getConversationProject(conv.id)}
-                        currentFolder={getConversationFolder(conv.id)}
-                        projects={projects}
-                        folders={folders}
-                        onSelect={handleSelectConversation}
-                        onToggleFavorite={handleToggleFavorite}
-                        onTogglePin={handleTogglePin}
-                        onMoveToProject={handleMoveConversationToProject}
-                        onMoveToFolder={handleMoveConversationToFolder}
-                        onDelete={handleDeleteConversation}
-                        compact
-                      />
-                    ))}
-
-                    {/* Render folders (favorites at top) */}
+                    {/* Render folders (always on top, favorites first) */}
                     {folders
                       .filter((folder) => {
                         const folderConvs = conversationsNotInProjects.filter((conv) =>
@@ -722,6 +700,28 @@ const ChatSidebar = React.memo(function ChatSidebar() {
                           />
                         );
                       })}
+
+                    {/* Pinned conversations */}
+                    {pinnedConversations.length > 0 && pinnedConversations.map((conv) => (
+                      <ConversationItem
+                        key={conv.id}
+                        conversation={conv}
+                        isActive={chatId?.id === conv.id}
+                        isFavorite={favoriteConversationIds.includes(conv.id)}
+                        isPinned={true}
+                        currentProject={getConversationProject(conv.id)}
+                        currentFolder={getConversationFolder(conv.id)}
+                        projects={projects}
+                        folders={folders}
+                        onSelect={handleSelectConversation}
+                        onToggleFavorite={handleToggleFavorite}
+                        onTogglePin={handleTogglePin}
+                        onMoveToProject={handleMoveConversationToProject}
+                        onMoveToFolder={handleMoveConversationToFolder}
+                        onDelete={handleDeleteConversation}
+                        compact
+                      />
+                    ))}
 
                     {/* Standalone conversations with date grouping */}
                     <HistoryList

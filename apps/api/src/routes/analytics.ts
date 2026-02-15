@@ -3,6 +3,7 @@ import mongoose from 'mongoose';
 import { authenticateToken } from '../middleware/auth.js';
 import { ChatAnalytics } from '../lib/hooks/built-in/analytics-hook.js';
 import { getAliaModel } from '../internal/providers/lib/alia-models.js';
+import { log } from '../lib/logger.js';
 
 const router = Router();
 router.use(authenticateToken);
@@ -29,7 +30,7 @@ router.get('/usage', async (req: Request, res: Response) => {
 
     res.json({ usage, period: days });
   } catch (error: any) {
-    console.error('[Analytics] Error:', error);
+    log.general.error({ err: error }, 'Error');
     res.status(500).json({ error: 'Failed to fetch usage analytics' });
   }
 });
@@ -65,7 +66,7 @@ router.get('/models', async (req: Request, res: Response) => {
 
     res.json({ models, period: days });
   } catch (error: any) {
-    console.error('[Analytics] Error:', error);
+    log.general.error({ err: error }, 'Error');
     res.status(500).json({ error: 'Failed to fetch model analytics' });
   }
 });
@@ -91,7 +92,7 @@ router.get('/credits', async (req: Request, res: Response) => {
 
     res.json({ credits, period: days });
   } catch (error: any) {
-    console.error('[Analytics] Error:', error);
+    log.general.error({ err: error }, 'Error');
     res.status(500).json({ error: 'Failed to fetch credit analytics' });
   }
 });

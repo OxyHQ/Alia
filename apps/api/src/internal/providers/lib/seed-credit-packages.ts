@@ -5,6 +5,7 @@
 
 import { CreditPackage } from '../models/credit-package.js';
 import { connectDB } from './db.js';
+import { log } from '../../../lib/logger.js';
 
 interface CreditPackageSeed {
   packageId: string;
@@ -47,7 +48,7 @@ export async function seedCreditPackages(): Promise<{ seeded: number; skipped: n
 
       if (result.upsertedCount > 0) {
         seeded++;
-        console.log(`[Seed] Created CreditPackage: ${pkgData.packageId}`);
+        log.seed.info({ packageId: pkgData.packageId }, 'Created CreditPackage');
       } else {
         skipped++;
       }
@@ -55,11 +56,11 @@ export async function seedCreditPackages(): Promise<{ seeded: number; skipped: n
       if (error.code === 11000) {
         skipped++;
       } else {
-        console.error(`[Seed] Error seeding credit package ${pkgData.packageId}:`, error.message);
+        log.seed.error({ err: error, packageId: pkgData.packageId }, 'Error seeding credit package');
       }
     }
   }
 
-  console.log(`[Seed] CreditPackage seeding complete: ${seeded} created, ${skipped} skipped/existing`);
+  log.seed.info({ seeded, skipped }, 'CreditPackage seeding complete');
   return { seeded, skipped };
 }

@@ -4,7 +4,7 @@ import {
 } from 'nativewind';
 import { Platform } from 'react-native';
 import { useThemeStore, ThemeMode } from './stores/theme-store';
-import { useCallback, useMemo } from 'react';
+import { useCallback, useEffect, useMemo } from 'react';
 import { ACCENT_PRESETS } from './accent-presets';
 
 const BASE_THEME_COLORS = {
@@ -33,13 +33,15 @@ export function useColorScheme() {
   const resolved: 'light' | 'dark' =
     mode === 'system' ? (nwScheme ?? 'light') : mode;
 
+  // Keep the dark class in sync on web for all modes (including system)
+  useEffect(() => {
+    applyTheme(resolved);
+  }, [resolved]);
+
   const setColorScheme = useCallback(
     (newMode: ThemeMode) => {
       setMode(newMode);
       nwColorScheme.set(newMode);
-      if (newMode !== 'system') {
-        applyTheme(newMode);
-      }
     },
     [setMode],
   );

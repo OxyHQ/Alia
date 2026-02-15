@@ -23,6 +23,7 @@ import {
   refundReservation,
 } from '../../../lib/credits-manager.js';
 import { providers } from './providers/index.js';
+import { log } from '../../../lib/logger.js';
 
 // ============== TOOL EXECUTORS ==============
 
@@ -57,7 +58,7 @@ function buildVoiceToolExecutors(userId: string): Map<string, (args: any) => Pro
   executors.set('updateUserPreferences', async (args: { language?: string; tone?: string; responseLength?: string }) => {
     const { updateUserPreferencesTool } = await import('../../../lib/tools/user-memory.js');
     const toolInstance = updateUserPreferencesTool(userId);
-    return await toolInstance.execute(args, {} as any);
+    return await toolInstance.execute(args as any, {} as any);
   });
 
   executors.set('updateUserContext', async (args: { occupation?: string; location?: string; timezone?: string }) => {
@@ -107,7 +108,7 @@ export class VoiceSessionManager {
       }
 
       const sessionId = randomUUID();
-      console.log(`[VoiceSessionManager] Creating session ${sessionId} for user ${userId}, model: ${model}`);
+      log.providers.info({ sessionId, userId, model }, 'Creating voice session');
 
       // Resolve Alia model to provider model
       const resolved = await resolveAliaModel(model, 1000);
@@ -117,7 +118,7 @@ export class VoiceSessionManager {
 
       const { provider, modelId, keyConfig, aliaModel } = resolved;
 
-      console.log(`[VoiceSessionManager] Resolved ${model} → ${provider}/${modelId}`);
+      log.providers.info({ model, provider, modelId }, 'Resolved voice model');
 
       // Get voice provider
       const providerImpl = providers[provider] as VoiceProvider;
@@ -137,7 +138,7 @@ export class VoiceSessionManager {
         throw new Error('Insufficient credits');
       }
 
-      console.log(`[VoiceSessionManager] Reserved credits for session ${sessionId}`);
+      log.providers.info({ sessionId }, 'Reserved credits for voice session');
 
       // Create session object
       const session: VoiceSession = {
@@ -177,7 +178,7 @@ export class VoiceSessionManager {
         session.providerSocket = providerSocket;
         session.state = 'active';
 
-        console.log(`[VoiceSessionManager] Connected to provider for session ${sessionId}`);
+        log.providers.info({ sessionId, provider }, 'Connected to provider for voice session');
 
         // Setup provider event handlers
         this.setupProviderHandlers(session, providerImpl);
@@ -189,7 +190,7 @@ export class VoiceSessionManager {
         await this.saveUsageRecord(session, false);
 
       } catch (error) {
-        console.error(`[VoiceSessionManager] Failed to connect to provider:`, error);
+        log.providers.error({ err: error }, 'Failed to connect to provider');
         await this.closeSession(sessionId, 'provider_connection_failed');
         throw error;
       }
@@ -197,7 +198,7 @@ export class VoiceSessionManager {
       return session;
 
     } catch (error) {
-      console.error(`[VoiceSessionManager] Error creating session:`, error);
+      log.providers.error({ err: error }, 'Error creating session');
       throw error;
     }
   }
@@ -224,7 +225,7 @@ export class VoiceSessionManager {
 
     session.state = 'disconnecting';
 
-    console.log(`[VoiceSessionManager] Closing session ${sessionId}, reason: ${reason || 'normal'}`);
+    log.providers.info({ sessionId, reason }, 'Closing voice session');
 
     try {
       // Stop billing timer
@@ -247,9 +248,9 @@ export class VoiceSessionManager {
             session.aliaModelId,
             session.costPerMinute
           );
-          console.log(`[VoiceSessionManager] Finalized credits for session ${sessionId}: ${actualMinutes.toFixed(2)} minutes`);
+          log.providers.info({ sessionId, actualMinutes }, 'Finalized credits for voice session');
         } catch (error) {
-          console.error(`[VoiceSessionManager] Error finalizing credits:`, error);
+          log.providers.error({ err: error }, 'Error finalizing credits');
         }
       }
 
@@ -267,7 +268,7 @@ export class VoiceSessionManager {
       }
 
     } catch (error) {
-      console.error(`[VoiceSessionManager] Error during session cleanup:`, error);
+      log.providers.error({ err: error }, 'Error during session cleanup');
     } finally {
       // Mark as closed and remove from tracking
       session.state = 'closed';
@@ -277,7 +278,7 @@ export class VoiceSessionManager {
       const userSessions = this.userSessionCounts.get(session.userId) || 1;
       this.userSessionCounts.set(session.userId, Math.max(0, userSessions - 1));
 
-      console.log(`[VoiceSessionManager] Session ${sessionId} closed successfully`);
+      log.providers.info({ sessionId }, 'Voice session closed successfully');
     }
   }
 
@@ -301,7 +302,7 @@ export class VoiceSessionManager {
       try {
         event = JSON.parse(data);
       } catch {
-        console.warn(`[VoiceSessionManager] Invalid JSON from client:`, data.substring(0, 100));
+        log.providers.warn({ data: data.substring(0, 100) }, 'Invalid JSON from client');
         return;
       }
 
@@ -319,7 +320,7 @@ export class VoiceSessionManager {
       }
 
     } catch (error) {
-      console.error(`[VoiceSessionManager] Error handling client message:`, error);
+      log.providers.error({ err: error }, 'Error handling client message');
     }
   }
 
@@ -342,7 +343,7 @@ export class VoiceSessionManager {
         try {
           event = JSON.parse(message);
         } catch {
-          console.warn(`[VoiceSessionManager] Invalid JSON from provider`);
+          log.providers.warn('Invalid JSON from provider');
           return;
         }
 
@@ -366,9 +367,9 @@ export class VoiceSessionManager {
               if (executor) {
                 try {
                   const args = JSON.parse(fc.arguments || '{}');
-                  console.log(`[VoiceSessionManager] Executing tool: ${fc.name}`, args);
+                  log.providers.info({ toolName: fc.name, args }, 'Executing voice tool');
                   const result = await executor(args);
-                  console.log(`[VoiceSessionManager] Tool result: ${fc.name}`, result);
+                  log.providers.info({ toolName: fc.name, result }, 'Voice tool result');
 
                   // Send function result back to provider
                   session.providerSocket!.send(JSON.stringify({
@@ -380,7 +381,7 @@ export class VoiceSessionManager {
                     },
                   }));
                 } catch (error: any) {
-                  console.error(`[VoiceSessionManager] Tool execution error (${fc.name}):`, error);
+                  log.providers.error({ err: error, toolName: fc.name }, 'Voice tool execution error');
 
                   session.providerSocket!.send(JSON.stringify({
                     type: 'conversation.item.create',
@@ -392,7 +393,7 @@ export class VoiceSessionManager {
                   }));
                 }
               } else {
-                console.warn(`[VoiceSessionManager] No executor for tool: ${fc.name}`);
+                log.providers.warn({ toolName: fc.name }, 'No executor for voice tool');
 
                 session.providerSocket!.send(JSON.stringify({
                   type: 'conversation.item.create',
@@ -416,19 +417,19 @@ export class VoiceSessionManager {
         session.lastActivityTime = new Date();
 
       } catch (error) {
-        console.error(`[VoiceSessionManager] Error handling provider message:`, error);
+        log.providers.error({ err: error }, 'Error handling provider message');
       }
     });
 
     // Provider error
     session.providerSocket.on('error', (error) => {
-      console.error(`[VoiceSessionManager] Provider socket error:`, error);
+      log.providers.error({ err: error }, 'Provider socket error');
       this.closeSession(session.sessionId, 'provider_error');
     });
 
     // Provider close
     session.providerSocket.on('close', (code, reason) => {
-      console.log(`[VoiceSessionManager] Provider socket closed: ${code} ${reason}`);
+      log.providers.info({ sessionId: session.sessionId, code, reason: reason?.toString() }, 'Provider socket closed');
       this.closeSession(session.sessionId, 'provider_closed');
     });
   }
@@ -445,12 +446,12 @@ export class VoiceSessionManager {
     // Create billing interval (every minute)
     session.billingTimer = setInterval(() => {
       session.minutesElapsed++;
-      console.log(`[VoiceSessionManager] Session ${session.sessionId} - ${session.minutesElapsed} minutes elapsed`);
+      log.providers.info({ sessionId: session.sessionId, minutesElapsed: session.minutesElapsed }, 'Voice session billing tick');
 
       // Check max duration
       const maxDuration = session.config.maxDuration || 30;
       if (session.minutesElapsed >= maxDuration) {
-        console.log(`[VoiceSessionManager] Session ${session.sessionId} reached max duration`);
+        log.providers.info({ sessionId: session.sessionId, maxDuration }, 'Voice session reached max duration');
         this.closeSession(session.sessionId, 'max_duration_exceeded');
       }
     }, BILLING_INTERVAL_MS);
@@ -467,7 +468,7 @@ export class VoiceSessionManager {
         const inactiveMs = now.getTime() - session.lastActivityTime.getTime();
 
         if (inactiveMs > INACTIVITY_TIMEOUT_MS) {
-          console.log(`[VoiceSessionManager] Session ${sessionId} inactive for ${inactiveMs}ms, closing`);
+          log.providers.info({ sessionId, inactiveMs }, 'Voice session inactive, closing');
           this.closeSession(sessionId, 'inactivity_timeout');
         }
       }
@@ -520,7 +521,7 @@ export class VoiceSessionManager {
       }
 
     } catch (error) {
-      console.error(`[VoiceSessionManager] Error saving usage record:`, error);
+      log.providers.error({ err: error }, 'Error saving usage record');
     }
   }
 
@@ -528,7 +529,7 @@ export class VoiceSessionManager {
    * Graceful shutdown
    */
   private async shutdown(): Promise<void> {
-    console.log('[VoiceSessionManager] Shutting down gracefully...');
+    log.providers.info('Shutting down gracefully...');
 
     // Stop inactivity monitor
     if (this.inactivityMonitor) {
@@ -543,7 +544,7 @@ export class VoiceSessionManager {
 
     await Promise.all(closePromises);
 
-    console.log('[VoiceSessionManager] Shutdown complete');
+    log.providers.info('Shutdown complete');
   }
 
   /**

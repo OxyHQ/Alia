@@ -8,6 +8,7 @@ import { PlanFeature } from '../models/plan-feature.js';
 import { Feature } from '../models/feature.js';
 import { Plan } from '../models/plan.js';
 import { broadcastPlanFeaturesUpdate } from '../lib/broadcast-helpers.js';
+import { log } from '../../../lib/logger.js';
 
 const router = express.Router();
 
@@ -24,7 +25,7 @@ router.get('/', async (req: Request, res: Response) => {
     const mappings = await PlanFeature.find(query).sort({ planId: 1, featureId: 1 }).lean();
     res.json({ success: true, count: mappings.length, data: mappings });
   } catch (error: any) {
-    console.error('Error listing plan-features:', error);
+    log.providers.error({ err: error }, 'Error listing plan-features');
     res.status(500).json({ success: false, error: 'An internal error occurred', code: 'INTERNAL_ERROR' });
   }
 });
@@ -56,7 +57,7 @@ router.get('/matrix', async (_req: Request, res: Response) => {
       },
     });
   } catch (error: any) {
-    console.error('Error building plan-features matrix:', error);
+    log.providers.error({ err: error }, 'Error building plan-features matrix');
     res.status(500).json({ success: false, error: 'An internal error occurred', code: 'INTERNAL_ERROR' });
   }
 });
@@ -86,7 +87,7 @@ router.put('/:planId/:featureId', async (req: Request, res: Response) => {
     res.json({ success: true, data: mapping });
     broadcastPlanFeaturesUpdate();
   } catch (error: any) {
-    console.error('Error upserting plan-feature:', error);
+    log.providers.error({ err: error }, 'Error upserting plan-feature');
     res.status(500).json({ success: false, error: 'An internal error occurred', code: 'INTERNAL_ERROR' });
   }
 });
@@ -128,7 +129,7 @@ router.post('/bulk', async (req: Request, res: Response) => {
     });
     broadcastPlanFeaturesUpdate();
   } catch (error: any) {
-    console.error('Error bulk upserting plan-features:', error);
+    log.providers.error({ err: error }, 'Error bulk upserting plan-features');
     res.status(500).json({ success: false, error: 'An internal error occurred', code: 'INTERNAL_ERROR' });
   }
 });
@@ -147,7 +148,7 @@ router.delete('/:planId/:featureId', async (req: Request, res: Response) => {
     res.json({ success: true, message: 'Mapping deleted' });
     broadcastPlanFeaturesUpdate();
   } catch (error: any) {
-    console.error('Error deleting plan-feature:', error);
+    log.providers.error({ err: error }, 'Error deleting plan-feature');
     res.status(500).json({ success: false, error: 'An internal error occurred', code: 'INTERNAL_ERROR' });
   }
 });

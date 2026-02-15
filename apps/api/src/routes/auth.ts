@@ -4,6 +4,7 @@ import { authenticateToken } from '../middleware/auth.js';
 import DeveloperApp from '../models/developer-app.js';
 import DeveloperApiKey from '../models/developer-api-key.js';
 import crypto from 'crypto';
+import { log } from '../lib/logger.js';
 
 const router = Router();
 
@@ -54,7 +55,7 @@ router.get('/me', authenticateToken, async (req, res) => {
       },
     });
   } catch (error) {
-    console.error('Get user error:', error);
+    log.auth.error({ err: error }, 'Get user error');
     res.status(500).json({ error: 'Failed to get user' });
   }
 });
@@ -126,7 +127,7 @@ router.post('/authorize/codea', authenticateToken, async (req, res) => {
       appId: app._id,
     });
   } catch (error) {
-    console.error('Authorize Codea error:', error);
+    log.auth.error({ err: error }, 'Authorize Codea error');
     res.status(500).json({ error: 'Failed to authorize' });
   }
 });
@@ -190,7 +191,7 @@ router.post('/authorize/cowork', authenticateToken, async (req, res) => {
       appId: app._id,
     });
   } catch (error) {
-    console.error('Authorize Cowork error:', error);
+    log.auth.error({ err: error }, 'Authorize Cowork error');
     res.status(500).json({ error: 'Failed to authorize' });
   }
 });
@@ -293,7 +294,7 @@ router.post('/token', async (req, res) => {
       token_type: 'Bearer',
     });
   } catch (error) {
-    console.error('Token exchange error:', error);
+    log.auth.error({ err: error }, 'Token exchange error');
     res.status(500).json({ error: 'Failed to exchange token' });
   }
 });

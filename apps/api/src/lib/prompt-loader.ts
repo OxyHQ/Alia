@@ -6,6 +6,7 @@
 import { readFile } from 'fs/promises';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
+import { log } from './logger.js';
 
 // Get directory path in ES modules
 const __filename = fileURLToPath(import.meta.url);
@@ -41,7 +42,7 @@ export async function loadPrompt(promptName: string): Promise<string> {
       return content;
     }
   } catch (error) {
-    console.error(`[PromptLoader] Error loading prompt ${promptName}:`, error);
+    log.general.error({ err: error, promptName }, 'Error loading prompt');
     return '';
   }
 }
@@ -63,7 +64,7 @@ export async function buildSystemPrompt(
     const basePrompt = await loadPrompt('base');
 
     if (!modelPrompt) {
-      console.warn(`[PromptLoader] No specific prompt found for ${modelId}, using base only`);
+      log.general.warn({ modelId }, 'No specific prompt found, using base only');
       return basePrompt + (clientContext ? `\n\n---\n\n${clientContext}` : '');
     }
 
@@ -79,7 +80,7 @@ export async function buildSystemPrompt(
 
     return finalPrompt;
   } catch (error) {
-    console.error(`[PromptLoader] Error building prompt for ${modelId}:`, error);
+    log.general.error({ err: error, modelId }, 'Error building prompt');
     return 'You are Alia, a helpful AI assistant.'; // Fallback
   }
 }

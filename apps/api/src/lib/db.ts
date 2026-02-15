@@ -1,4 +1,5 @@
 import mongoose from 'mongoose';
+import { log } from './logger.js';
 
 const APP_NAME = "alia";
 
@@ -39,15 +40,15 @@ export async function connectDB() {
     socketTimeoutMS: 45000,
   };
 
-  console.log('🔄 Conectando a MongoDB...');
+  log.general.info('Connecting to MongoDB...');
 
   connectionPromise = mongoose.connect(MONGODB_URI, opts)
     .then((mongooseInstance) => {
-      console.log('✅ MongoDB conectado exitosamente');
+      log.general.info('MongoDB connected successfully');
       return mongooseInstance;
     })
     .catch((err) => {
-      console.error('❌ Error conectando a MongoDB:', err);
+      log.general.error({ err }, 'Error connecting to MongoDB');
       connectionPromise = null; // Reset to allow retry
       throw err;
     });
