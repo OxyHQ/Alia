@@ -45,6 +45,7 @@ import { useOxy } from "@oxyhq/services";
 import { useProjectsStore } from "@/lib/stores/projects-store";
 import { useFoldersStore } from "@/lib/stores/folders-store";
 import { useFavoritesStore } from "@/lib/stores/favorites-store";
+import { usePinnedStore } from "@/lib/stores/pinned-store";
 import { useConversations, useDeleteConversation } from "@/lib/hooks/use-conversations";
 import * as DropdownMenu from "@/components/ui/dropdown-menu";
 import { ProjectEditDialog } from "@/components/project-edit-dialog";
@@ -125,6 +126,9 @@ const ChatSidebar = React.memo(function ChatSidebar() {
 
   const favoriteConversationIds = useFavoritesStore((state) => state.favoriteConversationIds);
   const toggleFavorite = useFavoritesStore((state) => state.toggleFavorite);
+
+  const pinnedConversationIds = usePinnedStore((state) => state.pinnedConversationIds);
+  const togglePin = usePinnedStore((state) => state.togglePin);
 
   const [editDialogOpen, setEditDialogOpen] = React.useState(false);
   const [editingProject, setEditingProject] = React.useState<Project | null>(null);
@@ -375,6 +379,14 @@ const ChatSidebar = React.memo(function ChatSidebar() {
     [toggleFavorite]
   );
 
+  const handleTogglePin = React.useCallback(
+    async (conversationId: string, e: any) => {
+      e?.stopPropagation?.();
+      await togglePin(conversationId);
+    },
+    [togglePin]
+  );
+
   // Get display name for user
   const getUserDisplayName = React.useCallback(() => {
     if (!user) return t('common.user');
@@ -384,14 +396,23 @@ const ChatSidebar = React.memo(function ChatSidebar() {
     return user.username || t('common.user');
   }, [user, t]);
 
-  // Get standalone conversations (not in folders)
+  // Get pinned conversations (from all conversations not in projects)
+  const pinnedConversations = React.useMemo(() => {
+    return conversationsNotInProjects.filter((conv) =>
+      pinnedConversationIds.includes(conv.id)
+    );
+  }, [conversationsNotInProjects, pinnedConversationIds]);
+
+  // Get standalone conversations (not in folders and not pinned)
   const standaloneConversations = React.useMemo(() => {
     const conversationsInFolders = new Set<string>();
     folders.forEach((folder) => {
       folder.conversationIds.forEach((id) => conversationsInFolders.add(id));
     });
-    return conversationsNotInProjects.filter((conv) => !conversationsInFolders.has(conv.id));
-  }, [conversationsNotInProjects, folders]);
+    return conversationsNotInProjects.filter((conv) =>
+      !conversationsInFolders.has(conv.id) && !pinnedConversationIds.includes(conv.id)
+    );
+  }, [conversationsNotInProjects, folders, pinnedConversationIds]);
 
   // Handle scroll for infinite loading
   const handleScroll = React.useCallback((event: NativeSyntheticEvent<NativeScrollEvent>) => {
@@ -574,12 +595,14 @@ const ChatSidebar = React.memo(function ChatSidebar() {
                             conversation={conv}
                             isActive={chatId?.id === conv.id}
                             isFavorite={favoriteConversationIds.includes(conv.id)}
+                            isPinned={pinnedConversationIds.includes(conv.id)}
                             currentProject={getConversationProject(conv.id)}
                             currentFolder={getConversationFolder(conv.id)}
                             projects={projects}
                             folders={folders}
                             onSelect={handleSelectConversation}
                             onToggleFavorite={handleToggleFavorite}
+                            onTogglePin={handleTogglePin}
                             onMoveToProject={handleMoveConversationToProject}
                             onMoveToFolder={handleMoveConversationToFolder}
                             onDelete={handleDeleteConversation}
@@ -627,6 +650,28 @@ const ChatSidebar = React.memo(function ChatSidebar() {
                   </View>
                 ) : (
                   <>
+                    {/* Pinned conversations at top */}
+                    {pinnedConversations.length > 0 && pinnedConversations.map((conv) => (
+                      <ConversationItem
+                        key={conv.id}
+                        conversation={conv}
+                        isActive={chatId?.id === conv.id}
+                        isFavorite={favoriteConversationIds.includes(conv.id)}
+                        isPinned={true}
+                        currentProject={getConversationProject(conv.id)}
+                        currentFolder={getConversationFolder(conv.id)}
+                        projects={projects}
+                        folders={folders}
+                        onSelect={handleSelectConversation}
+                        onToggleFavorite={handleToggleFavorite}
+                        onTogglePin={handleTogglePin}
+                        onMoveToProject={handleMoveConversationToProject}
+                        onMoveToFolder={handleMoveConversationToFolder}
+                        onDelete={handleDeleteConversation}
+                        compact
+                      />
+                    ))}
+
                     {/* Render folders (favorites at top) */}
                     {folders
                       .filter((folder) => {
@@ -647,6 +692,7 @@ const ChatSidebar = React.memo(function ChatSidebar() {
                             conversations={folderConversations}
                             currentChatId={chatId?.id}
                             favoriteIds={favoriteConversationIds}
+                            pinnedIds={pinnedConversationIds}
                             projects={projects}
                             folders={folders}
                             onToggle={toggleFolder}
@@ -655,6 +701,7 @@ const ChatSidebar = React.memo(function ChatSidebar() {
                             onToggleFavorite={handleToggleFavoriteFolder}
                             onSelectConversation={handleSelectConversation}
                             onToggleFavoriteConversation={handleToggleFavorite}
+                            onTogglePinConversation={handleTogglePin}
                             onMoveToProject={handleMoveConversationToProject}
                             onMoveToFolder={handleMoveConversationToFolder}
                             onDeleteConversation={handleDeleteConversation}
@@ -669,11 +716,13 @@ const ChatSidebar = React.memo(function ChatSidebar() {
                       data={standaloneConversations}
                       currentChatId={chatId?.id}
                       favoriteIds={favoriteConversationIds}
+                      pinnedIds={pinnedConversationIds}
                       projects={projects}
                       folders={folders}
                       isFetchingNextPage={isFetchingNextPage}
                       onSelect={handleSelectConversation}
                       onToggleFavorite={handleToggleFavorite}
+                      onTogglePin={handleTogglePin}
                       onMoveToProject={handleMoveConversationToProject}
                       onMoveToFolder={handleMoveConversationToFolder}
                       onDelete={handleDeleteConversation}

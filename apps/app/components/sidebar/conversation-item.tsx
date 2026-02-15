@@ -11,12 +11,14 @@ interface ConversationItemProps {
   conversation: Conversation;
   isActive: boolean;
   isFavorite: boolean;
+  isPinned: boolean;
   currentProject?: Project;
   currentFolder?: Folder;
   projects: Project[];
   folders: Folder[];
   onSelect: (id: string) => void;
   onToggleFavorite: (id: string, e: any) => void;
+  onTogglePin: (id: string, e: any) => void;
   onMoveToProject: (convId: string, projectId: string | null, e: any) => void;
   onMoveToFolder: (convId: string, folderId: string | null, e: any) => void;
   onDelete: (id: string, e: any) => void;
@@ -28,12 +30,14 @@ export const ConversationItem = React.memo<ConversationItemProps>(({
   conversation,
   isActive,
   isFavorite,
+  isPinned,
   currentProject,
   currentFolder,
   projects,
   folders,
   onSelect,
   onToggleFavorite,
+  onTogglePin,
   onMoveToProject,
   onMoveToFolder,
   onDelete,
@@ -72,9 +76,11 @@ export const ConversationItem = React.memo<ConversationItemProps>(({
         currentProject={currentProject}
         currentFolder={currentFolder}
         isFavorite={isFavorite}
+        isPinned={isPinned}
         projects={projects}
         folders={folders}
         onToggleFavorite={onToggleFavorite}
+        onTogglePin={onTogglePin}
         onMoveToProject={onMoveToProject}
         onMoveToFolder={onMoveToFolder}
         onDelete={onDelete}

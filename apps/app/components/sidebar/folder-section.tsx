@@ -23,6 +23,7 @@ interface FolderSectionProps {
   conversations: Conversation[];
   currentChatId?: string;
   favoriteIds: string[];
+  pinnedIds: string[];
   projects: Project[];
   folders: Folder[];
   onToggle: (id: string) => void;
@@ -31,6 +32,7 @@ interface FolderSectionProps {
   onToggleFavorite: (folder: Folder, e: any) => void;
   onSelectConversation: (id: string) => void;
   onToggleFavoriteConversation: (id: string, e: any) => void;
+  onTogglePinConversation: (id: string, e: any) => void;
   onMoveToProject: (convId: string, projectId: string | null, e: any) => void;
   onMoveToFolder: (convId: string, folderId: string | null, e: any) => void;
   onDeleteConversation: (id: string, e: any) => void;
@@ -43,6 +45,7 @@ export const FolderSection = React.memo<FolderSectionProps>(({
   conversations,
   currentChatId,
   favoriteIds,
+  pinnedIds,
   projects,
   folders,
   onToggle,
@@ -51,6 +54,7 @@ export const FolderSection = React.memo<FolderSectionProps>(({
   onToggleFavorite,
   onSelectConversation,
   onToggleFavoriteConversation,
+  onTogglePinConversation,
   onMoveToProject,
   onMoveToFolder,
   onDeleteConversation,
@@ -122,12 +126,14 @@ export const FolderSection = React.memo<FolderSectionProps>(({
             conversation={conv}
             isActive={currentChatId === conv.id}
             isFavorite={favoriteIds.includes(conv.id)}
+            isPinned={pinnedIds.includes(conv.id)}
             currentProject={getConversationProject(conv.id)}
             currentFolder={getConversationFolder(conv.id)}
             projects={projects}
             folders={folders}
             onSelect={onSelectConversation}
             onToggleFavorite={onToggleFavoriteConversation}
+            onTogglePin={onTogglePinConversation}
             onMoveToProject={onMoveToProject}
             onMoveToFolder={onMoveToFolder}
             onDelete={onDeleteConversation}
