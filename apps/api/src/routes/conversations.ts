@@ -19,7 +19,7 @@ router.post('/new', authenticateToken, async (req: Request, res: Response) => {
     const conversation = await Conversation.create({
       oxyUserId: req.user.id,
       conversationId,
-      title: 'Nueva conversación',
+      title: 'New chat',
       messages: [],
       source,
       createdAt: new Date(),
@@ -151,7 +151,7 @@ router.post('/', authenticateToken, async (req: Request, res: Response) => {
 
     // Build update object
     const updateData: Record<string, any> = {
-      title: title || validMessages.find((m: any) => m.role === 'user')?.content?.slice(0, 50) || 'Nueva conversación',
+      title: title || validMessages.find((m: any) => m.role === 'user')?.content?.slice(0, 50) || 'New chat',
       lastMessage,
       messages: validMessages,
       updatedAt: new Date()

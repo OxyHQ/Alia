@@ -74,7 +74,7 @@ const ConversationSchema = new Schema<IConversation>({
     required: true,
     index: true
   },
-  title: { type: String, required: true, default: 'Nueva Conversación' },
+  title: { type: String, required: true, default: 'New chat' },
   isManualTitle: { type: Boolean, default: false },
   lastMessage: String,
   messages: [MessageSchema],

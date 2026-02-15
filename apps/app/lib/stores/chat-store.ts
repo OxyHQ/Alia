@@ -66,7 +66,7 @@ export const useChatStore = create<ChatState>()(
       selectedModel: 'alia-v1',
       baseModel: 'alia-v1',
 
-      createConversation: (title = 'Nueva conversación', folderId) => {
+      createConversation: (title = 'New chat', folderId) => {
         const id = `conv_${Date.now()}`;
         const newConversation: Conversation = {
           id,

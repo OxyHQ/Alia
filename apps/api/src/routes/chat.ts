@@ -43,7 +43,7 @@ function autoGenerateTitle(content: string, userMessage?: string): string {
   };
 
   // Try assistant response first, then user message, then default
-  return extractWords(content) || extractWords(userMessage || '') || 'Nueva conversación';
+  return extractWords(content) || extractWords(userMessage || '') || 'New chat';
 }
 
 // getAIModel is now imported from chat-core.ts

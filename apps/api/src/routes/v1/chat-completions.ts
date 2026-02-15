@@ -22,6 +22,27 @@ import { buildSystemPrompt } from '../../lib/prompt-loader.js';
 
 const router = Router();
 
+/** Extract or generate a conversation title from the AI response, with fallbacks. */
+function extractConversationTitle(response: string, messages: any[]): string {
+  const titleMatch = response.match(/\[TITLE\](.*?)\[\/TITLE\]/);
+  if (titleMatch) return titleMatch[1].trim();
+
+  // Fallback: first ~6 words of cleaned response
+  const cleaned = response.replace(/\[.*?\]|[#*_`]/g, '').trim();
+  if (cleaned.length >= 10) return cleaned.split(/\s+/).slice(0, 6).join(' ');
+
+  // Final fallback: first user message or default
+  const firstUserMsg = messages.find((m: any) => m.role === 'user')?.content;
+  if (typeof firstUserMsg === 'string' && firstUserMsg.length > 0) return firstUserMsg.slice(0, 50);
+
+  return 'New chat';
+}
+
+/** Remove [TITLE]...[/TITLE] tags from content. */
+function stripTitleTags(content: string): string {
+  return content.replace(/\[TITLE\].*?\[\/TITLE\]/g, '').trim();
+}
+
 /**
  * Check if an error is retryable (rate limit, overloaded, etc.)
  * Used to decide whether to try the next provider in the tier.
@@ -634,10 +655,13 @@ When you use a tool successfully:
             }
           ].filter(msg => msg != null && msg.role && msg.content !== undefined);
 
-          let title: string | undefined;
-          const titleMatch = assistantResponse.match(/\[TITLE\](.*?)\[\/TITLE\]/);
-          if (titleMatch) {
-            title = titleMatch[1].trim();
+          const title = extractConversationTitle(assistantResponse, messages);
+          const cleanedResponse = stripTitleTags(assistantResponse);
+
+          // Update assistant content to remove title tags
+          const assistantIdx = allMessages.findIndex(m => m.role === 'assistant' && m.content === assistantResponse);
+          if (assistantIdx >= 0) {
+            allMessages[assistantIdx] = { ...allMessages[assistantIdx], content: cleanedResponse };
           }
 
           await Conversation.findOneAndUpdate(
@@ -646,12 +670,12 @@ When you use a tool successfully:
               conversationId: conversationId,
               oxyUserId: req.user.id,
               messages: allMessages,
-              ...(title && { title }),
+              title,
               updatedAt: new Date(),
             },
             { upsert: true, new: true }
           );
-          console.log(`[V1/Chat] Conversation ${conversationId} saved`);
+          console.log(`[V1/Chat] Conversation ${conversationId} saved with title: "${title}"`);
         } catch (error) {
           console.error('[V1/Chat] Error saving conversation:', error);
         }
@@ -1024,12 +1048,13 @@ When you use a tool successfully:
           }
         ].filter(msg => msg != null && msg.role && msg.content !== undefined);
 
-        // Extract title from assistant response if present
-        let title: string | undefined;
-        const titleMatch = assistantResponse.match(/\[TITLE\](.*?)\[\/TITLE\]/);
-        if (titleMatch) {
-          title = titleMatch[1].trim();
-          console.log(`[V1/Chat] Extracted conversation title: "${title}"`);
+        const title = extractConversationTitle(assistantResponse, messages);
+        const cleanedResponse = stripTitleTags(assistantResponse);
+
+        // Update assistant content to remove title tags
+        const assistantIdx = allMessages.findIndex(m => m.role === 'assistant' && m.content === assistantResponse);
+        if (assistantIdx >= 0) {
+          allMessages[assistantIdx] = { ...allMessages[assistantIdx], content: cleanedResponse };
         }
 
         // Save or update conversation
@@ -1039,13 +1064,13 @@ When you use a tool successfully:
             conversationId: conversationId,
             oxyUserId: req.user.id,
             messages: allMessages,
-            ...(title && { title }),
+            title,
             updatedAt: new Date(),
           },
           { upsert: true, new: true }
         );
 
-        console.log(`[V1/Chat] Conversation ${conversationId} saved successfully${title ? ` with title: "${title}"` : ''}`);
+        console.log(`[V1/Chat] Conversation ${conversationId} saved with title: "${title}"`);
       } catch (error) {
         console.error('[V1/Chat] Error saving conversation:', error);
         console.error('[V1/Chat] ConversationId:', conversationId);
