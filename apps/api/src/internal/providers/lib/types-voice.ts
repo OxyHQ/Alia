@@ -49,6 +49,9 @@ export interface VoiceSession {
   audioFormat: string;
   sampleRate: number;
   config: VoiceSessionConfig;
+
+  // Server-side tool executors for function calling
+  toolExecutors?: Map<string, (args: any) => Promise<any>>;
 }
 
 // ============== VOICE SESSION CONFIG ==============

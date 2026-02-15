@@ -24,6 +24,51 @@ import {
 } from '../../../lib/credits-manager.js';
 import { providers } from './providers/index.js';
 
+// ============== TOOL EXECUTORS ==============
+
+/**
+ * Build tool executors for a voice session.
+ * These run server-side when the provider triggers a function call.
+ */
+function buildVoiceToolExecutors(userId: string): Map<string, (args: any) => Promise<any>> {
+  const executors = new Map<string, (args: any) => Promise<any>>();
+
+  executors.set('getCurrentDate', async () => {
+    const now = new Date();
+    return {
+      date: now.toLocaleDateString('es-ES', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }),
+      time: now.toLocaleTimeString('es-ES'),
+      timestamp: now.toISOString(),
+    };
+  });
+
+  executors.set('sendTelegramMessage', async (args: { message: string }) => {
+    const { createSendTelegramTool } = await import('../../../lib/tools/telegram.js');
+    const toolInstance = createSendTelegramTool(userId);
+    return await toolInstance.execute(args, {} as any);
+  });
+
+  executors.set('saveUserMemory', async (args: { key: string; value: string; category?: string }) => {
+    const { saveUserMemoryTool } = await import('../../../lib/tools/user-memory.js');
+    const toolInstance = saveUserMemoryTool(userId);
+    return await toolInstance.execute(args, {} as any);
+  });
+
+  executors.set('updateUserPreferences', async (args: { language?: string; tone?: string; responseLength?: string }) => {
+    const { updateUserPreferencesTool } = await import('../../../lib/tools/user-memory.js');
+    const toolInstance = updateUserPreferencesTool(userId);
+    return await toolInstance.execute(args, {} as any);
+  });
+
+  executors.set('updateUserContext', async (args: { occupation?: string; location?: string; timezone?: string }) => {
+    const { updateUserContextTool } = await import('../../../lib/tools/user-memory.js');
+    const toolInstance = updateUserContextTool(userId);
+    return await toolInstance.execute(args, {} as any);
+  });
+
+  return executors;
+}
+
 // ============== CONSTANTS ==============
 
 const INACTIVITY_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
@@ -114,6 +159,9 @@ export class VoiceSessionManager {
         sampleRate: config.sampleRate || 24000,
         config,
       };
+
+      // Attach tool executors for server-side function calling
+      session.toolExecutors = buildVoiceToolExecutors(userId);
 
       // Store session
       this.sessions.set(sessionId, session);
@@ -282,7 +330,7 @@ export class VoiceSessionManager {
     if (!session.providerSocket) return;
 
     // Message from provider
-    session.providerSocket.on('message', (data: Buffer) => {
+    session.providerSocket.on('message', async (data: Buffer) => {
       if (session.clientSocket.readyState !== WebSocket.OPEN) {
         return;
       }
@@ -305,6 +353,64 @@ export class VoiceSessionManager {
 
         // Forward to client
         session.clientSocket.send(JSON.stringify(translatedEvent));
+
+        // Handle function calls from provider (server-side tool execution)
+        if (event.type === 'response.done' && event.response?.output) {
+          const functionCalls = event.response.output.filter(
+            (item: any) => item.type === 'function_call'
+          );
+
+          if (functionCalls.length > 0 && session.providerSocket?.readyState === WebSocket.OPEN) {
+            for (const fc of functionCalls) {
+              const executor = session.toolExecutors?.get(fc.name);
+              if (executor) {
+                try {
+                  const args = JSON.parse(fc.arguments || '{}');
+                  console.log(`[VoiceSessionManager] Executing tool: ${fc.name}`, args);
+                  const result = await executor(args);
+                  console.log(`[VoiceSessionManager] Tool result: ${fc.name}`, result);
+
+                  // Send function result back to provider
+                  session.providerSocket!.send(JSON.stringify({
+                    type: 'conversation.item.create',
+                    item: {
+                      type: 'function_call_output',
+                      call_id: fc.call_id,
+                      output: JSON.stringify(result),
+                    },
+                  }));
+                } catch (error: any) {
+                  console.error(`[VoiceSessionManager] Tool execution error (${fc.name}):`, error);
+
+                  session.providerSocket!.send(JSON.stringify({
+                    type: 'conversation.item.create',
+                    item: {
+                      type: 'function_call_output',
+                      call_id: fc.call_id,
+                      output: JSON.stringify({ error: error.message || 'Tool execution failed' }),
+                    },
+                  }));
+                }
+              } else {
+                console.warn(`[VoiceSessionManager] No executor for tool: ${fc.name}`);
+
+                session.providerSocket!.send(JSON.stringify({
+                  type: 'conversation.item.create',
+                  item: {
+                    type: 'function_call_output',
+                    call_id: fc.call_id,
+                    output: JSON.stringify({ error: `Unknown tool: ${fc.name}` }),
+                  },
+                }));
+              }
+            }
+
+            // Trigger new response after all tool results are sent
+            session.providerSocket!.send(JSON.stringify({
+              type: 'response.create',
+            }));
+          }
+        }
 
         // Update activity
         session.lastActivityTime = new Date();

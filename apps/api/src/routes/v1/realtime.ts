@@ -12,7 +12,7 @@
  * - Model-specific system prompt (from prompt-loader)
  * - User name, memory, preferences, and context (from Oxy + UserMemory)
  * - Language mirroring instructions
- * - Voice-appropriate tools (getCurrentDate)
+ * - Voice-appropriate tools (getCurrentDate, sendTelegramMessage, memory tools)
  */
 
 import type { WebSocketServer } from 'ws';
@@ -125,7 +125,7 @@ export function setupRealtimeEndpoint(wss: WebSocketServer): void {
 
       console.log(`[Realtime] Built voice instructions (${voiceInstructions.length} chars)`);
 
-      // Voice-appropriate tools
+      // Voice-appropriate tools (server-side execution in voice-session-manager)
       const voiceTools: OpenAITool[] = [
         {
           type: 'function',
@@ -133,6 +133,68 @@ export function setupRealtimeEndpoint(wss: WebSocketServer): void {
             name: 'getCurrentDate',
             description: 'Get the current date, time, and day of the week',
             parameters: { type: 'object', properties: {}, required: [] },
+          },
+        },
+        {
+          type: 'function',
+          function: {
+            name: 'sendTelegramMessage',
+            description: "Send a message to user's Telegram. Use ONLY when user explicitly requests (e.g., 'send me X on Telegram', 'remind me via Telegram').",
+            parameters: {
+              type: 'object',
+              properties: {
+                message: { type: 'string', description: 'Complete message to send to user on Telegram' },
+              },
+              required: ['message'],
+            },
+          },
+        },
+        {
+          type: 'function',
+          function: {
+            name: 'saveUserMemory',
+            description: 'Save important user information for future conversations. Use when user shares preferences, personal info, goals, or anything they want remembered.',
+            parameters: {
+              type: 'object',
+              properties: {
+                key: { type: 'string', description: 'Short descriptive key (e.g., "favorite_fruit", "occupation", "pet")' },
+                value: { type: 'string', description: 'Memory value (e.g., "strawberries", "software engineer", "dog named Max")' },
+                category: { type: 'string', description: 'Optional category: preference, personal, goal, experience' },
+              },
+              required: ['key', 'value'],
+            },
+          },
+        },
+        {
+          type: 'function',
+          function: {
+            name: 'updateUserPreferences',
+            description: 'Update user communication preferences: language, tone, response length, interests.',
+            parameters: {
+              type: 'object',
+              properties: {
+                language: { type: 'string', description: 'Preferred language (e.g., "Spanish", "English")' },
+                tone: { type: 'string', description: 'Preferred tone (formal, casual, technical, friendly)' },
+                responseLength: { type: 'string', enum: ['short', 'medium', 'long'], description: 'Preferred response length' },
+              },
+              required: [],
+            },
+          },
+        },
+        {
+          type: 'function',
+          function: {
+            name: 'updateUserContext',
+            description: 'Update user context: occupation, location, timezone.',
+            parameters: {
+              type: 'object',
+              properties: {
+                occupation: { type: 'string', description: 'User occupation/profession' },
+                location: { type: 'string', description: 'User location (city, country)' },
+                timezone: { type: 'string', description: 'User timezone' },
+              },
+              required: [],
+            },
           },
         },
       ];
