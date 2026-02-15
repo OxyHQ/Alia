@@ -6,6 +6,7 @@ import { useChatConversation } from "@/hooks/useChatConversation";
 import { ChatPageContent } from "@/components/chat-page-content";
 import { UsageLimitDialog } from "@/components/usage-limit-dialog";
 import { UsageLimitError } from "@/lib/errors/usage-limit-error";
+import { isThinkingModel } from "@/components/model-selector";
 
 const ChatConversationPage = () => {
   const { id, roleId } = useLocalSearchParams<{ id: string; roleId?: string }>();
@@ -14,7 +15,7 @@ const ChatConversationPage = () => {
 
   const [selectedModel, setSelectedModel] = useState("alia-v1");
   const [activeRoleId, setActiveRoleId] = useState<string | undefined>(roleId);
-  const [thinkingMode, setThinkingMode] = useState(false);
+  const thinkingMode = isThinkingModel(selectedModel);
   const activeRole = activeRoleId ? roles.find(r => r.id === activeRoleId) : undefined;
 
   const {
@@ -50,7 +51,6 @@ const ChatConversationPage = () => {
         activeRole={activeRole}
         onRemoveRole={() => setActiveRoleId(undefined)}
         thinkingMode={thinkingMode}
-        onThinkingModeChange={setThinkingMode}
         disabled={!!usageLimitError}
       />
       <UsageLimitDialog error={usageLimitError} onDismiss={clearError} />

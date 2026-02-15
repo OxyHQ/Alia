@@ -64,7 +64,7 @@ async function getStats(entity: string, filter: Record<string, any> | undefined,
 
   if (entity === 'aliaModels') {
     const models = await AliaModel.find(filter || {})
-      .select('aliasModelId displayName tier isActive totalRequests totalTokens averageLatencyMs providerMappings')
+      .select('aliasModelId displayName tier isActive isLegacy totalRequests totalTokens averageLatencyMs providerMappings')
       .lean();
     return { success: true, data: models };
   }

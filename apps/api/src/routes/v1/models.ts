@@ -17,7 +17,7 @@ function getRequiredPlan(creditMultiplier: number): string | null {
   return 'Pro';
 }
 
-function serializeModel(model: ReturnType<typeof getAliaModel> & {}, isDefault = false, isAvailable = true) {
+function serializeModel(model: AliaModelWithAvailability, isDefault = false) {
   return {
     id: model.id,
     object: 'model',
@@ -28,7 +28,8 @@ function serializeModel(model: ReturnType<typeof getAliaModel> & {}, isDefault =
     category: model.category,
     emoji: model.emoji,
     is_default: isDefault,
-    is_available: isAvailable,
+    is_available: model.isAvailable,
+    is_legacy: model.isLegacy,
     required_plan: getRequiredPlan(model.creditMultiplier),
     capabilities: {
       tools: model.supportsTools,
@@ -47,22 +48,27 @@ function serializeModel(model: ReturnType<typeof getAliaModel> & {}, isDefault =
  *
  * Query params:
  * - category: Filter by category ('general' | 'coding' | 'vision' | 'audio' | 'multimodal' | 'voice')
+ * - chat: If 'true', return only models marked as chatVisible (for the app's model selector)
  */
 router.get('/', async (req, res) => {
   try {
     const category = req.query.category as ModelCategory | undefined;
+    const chat = req.query.chat === 'true';
 
     // Get all models with availability status
     const allModelsWithAvailability = await getAvailableModels();
 
-    const aliaModels = category
-      ? allModelsWithAvailability.filter(m => m.category === category)
-      : allModelsWithAvailability;
+    let aliaModels = allModelsWithAvailability;
+    if (chat) {
+      aliaModels = aliaModels.filter(m => m.chatVisible);
+    } else if (category) {
+      aliaModels = aliaModels.filter(m => m.category === category);
+    }
 
     const defaultModel = category ? getDefaultModelForCategory(category) : null;
 
     const data = aliaModels.map(model =>
-      serializeModel(model, model.id === defaultModel?.id, model.isAvailable)
+      serializeModel(model, model.id === defaultModel?.id)
     );
 
     // Sort: default first, then by credit multiplier
@@ -97,7 +103,7 @@ router.get('/:modelId', async (req, res) => {
       return;
     }
 
-    res.json(serializeModel(model));
+    res.json(serializeModel({ ...model, isAvailable: true, isLegacy: false }));
   } catch (e: any) {
     console.error('[V1/Models] Error:', e);
     res.status(500).json({ error: e.message });
