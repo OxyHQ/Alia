@@ -565,14 +565,14 @@ router.post('/', optionalAuth, async (req, res) => {
           // Flush any pending text first
           flushTextBuffer();
 
-          // Extract title if present in response
+          // Extract title if present in response (supports both [TITLE] and <TITLE> variants)
           if (chunk.type === 'finish' && assistantResponse) {
-            const titleMatch = assistantResponse.match(/\[TITLE\](.*?)\[\/TITLE\]/);
+            const titleMatch = assistantResponse.match(/\[TITLE\](.*?)\[\/TITLE\]|<TITLE>(.*?)<\/TITLE>/);
             if (titleMatch) {
-              conversationTitle = titleMatch[1].trim();
+              conversationTitle = (titleMatch[1] || titleMatch[2]).trim();
               console.log(`[Alia/Chat] Extracted title: "${conversationTitle}"`);
               // Remove title tags from response
-              assistantResponse = assistantResponse.replace(/\[TITLE\].*?\[\/TITLE\]/g, '').trim();
+              assistantResponse = assistantResponse.replace(/\[TITLE\].*?\[\/TITLE\]|<TITLE>.*?<\/TITLE>/g, '').trim();
             } else {
               // Auto-generate title as fallback
               const firstUserMessage = messages.filter(m => m && m.role).find((m: any) => m.role === 'user')?.content;

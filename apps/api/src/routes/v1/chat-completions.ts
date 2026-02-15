@@ -22,13 +22,17 @@ import { buildSystemPrompt } from '../../lib/prompt-loader.js';
 
 const router = Router();
 
+// Matches both [TITLE]...[/TITLE] and <TITLE>...</TITLE>
+const TITLE_EXTRACT_RE = /\[TITLE\](.*?)\[\/TITLE\]|<TITLE>(.*?)<\/TITLE>/;
+const TITLE_STRIP_RE = /\[TITLE\].*?\[\/TITLE\]|<TITLE>.*?<\/TITLE>/g;
+
 /** Extract or generate a conversation title from the AI response, with fallbacks. */
 function extractConversationTitle(response: string, messages: any[]): string {
-  const titleMatch = response.match(/\[TITLE\](.*?)\[\/TITLE\]/);
-  if (titleMatch) return titleMatch[1].trim();
+  const m = response.match(TITLE_EXTRACT_RE);
+  if (m) return (m[1] || m[2]).trim();
 
   // Fallback: first ~6 words of cleaned response
-  const cleaned = response.replace(/\[.*?\]|[#*_`]/g, '').trim();
+  const cleaned = response.replace(/\[.*?\]|<.*?>|[#*_`]/g, '').trim();
   if (cleaned.length >= 10) return cleaned.split(/\s+/).slice(0, 6).join(' ');
 
   // Final fallback: first user message or default
@@ -38,9 +42,9 @@ function extractConversationTitle(response: string, messages: any[]): string {
   return 'New chat';
 }
 
-/** Remove [TITLE]...[/TITLE] tags from content. */
+/** Remove [TITLE]...[/TITLE] and <TITLE>...</TITLE> tags from content. */
 function stripTitleTags(content: string): string {
-  return content.replace(/\[TITLE\].*?\[\/TITLE\]/g, '').trim();
+  return content.replace(TITLE_STRIP_RE, '').trim();
 }
 
 /**
@@ -473,6 +477,11 @@ When you use a tool successfully:
     if (skill && (skill as any).systemPrompt && isDirectUserSession) {
       systemMessage = `# ACTIVE SKILL: ${(skill as any).title}\n\n${(skill as any).systemPrompt}\n\n---\n\n${systemMessage}`;
       console.log(`[V1/Chat] Skill activated: ${(skill as any).title}`);
+    }
+
+    // Title generation instruction (only for direct user sessions in the app, not API keys or voice)
+    if (isDirectUserSession) {
+      systemMessage += '\n\n**MANDATORY**: End EVERY response with [TITLE]Short Title[/TITLE] (max 6 words, same language as conversation). NO EXCEPTIONS.';
     }
 
     // REPEAT language instruction at the end (most memorable position)

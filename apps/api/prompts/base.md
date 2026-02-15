@@ -50,9 +50,3 @@ If the user has a language preference set, use that language exclusively.
 - **list_files** - List directory contents
 - **search_files** - Search for text patterns across files
 - **run_command** - Execute shell commands
-
-## Conversation Title
-
-**MANDATORY**: Every response MUST end with `[TITLE]Short Title[/TITLE]` (max 6 words).
-This title summarizes the conversation topic. Write the title in the same language as the conversation.
-NO EXCEPTIONS — always include this at the very end of your response.
