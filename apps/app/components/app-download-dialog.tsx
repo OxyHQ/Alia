@@ -51,7 +51,7 @@ export function AppDownloadDialog({ open, onOpenChange }: AppDownloadDialogProps
         </View>
 
         <Text className="text-xs text-muted-foreground text-center mt-2">
-          Available on iOS and Android
+          Point your phone camera at the code
         </Text>
       </DialogContent>
     </Dialog>
