@@ -3,9 +3,9 @@ import * as Linking from "expo-linking";
 import { Text } from "@/components/ui/text";
 import { Button } from "@/components/ui/button";
 import { useRouter, useLocalSearchParams } from "expo-router";
-import { ArrowLeft, CreditCard, ExternalLink, X, Sparkle } from "lucide-react-native";
+import { ArrowLeft, CreditCard, ExternalLink, X, Sparkle, Crown, Calendar, ShoppingCart } from "lucide-react-native";
 import { useCredits } from "@/lib/hooks/use-credits";
-import { useSubscription, useSubscriptionPolling, useCancelSubscription, useCreatePortalSession, useTransactions } from "@/lib/hooks/use-billing";
+import { useSubscription, useSubscriptionPolling, useCancelSubscription, useCreatePortalSession, useTransactions, useCreditPackages, useCreateCheckout } from "@/lib/hooks/use-billing";
 import { useEffect, useState, useRef } from "react";
 import { useAuth } from "@oxyhq/services";
 import { toast } from "@/components/sonner";
@@ -18,8 +18,10 @@ export default function BillingScreen() {
   const { data: creditsInfo, isLoading, refetch } = useCredits();
   const { data: subscription, refetch: refetchSubscription } = useSubscription();
   const { data: transactionsData, refetch: refetchTransactions } = useTransactions(10, 0);
+  const { data: packages = [] } = useCreditPackages();
   const cancelSubscriptionMutation = useCancelSubscription();
   const createPortalMutation = useCreatePortalSession();
+  const createCheckoutMutation = useCreateCheckout();
   const [isMounted, setIsMounted] = useState(false);
   const { t } = useTranslation();
 
@@ -92,11 +94,27 @@ export default function BillingScreen() {
   };
 
   const isSubscribed = subscription && subscription.status === 'active';
+  const freeCredits = creditsInfo ? creditsInfo.credits - creditsInfo.paidCredits : 0;
+
+  const handlePurchaseCredits = async (packageId: string) => {
+    try {
+      const { url } = await createCheckoutMutation.mutateAsync({
+        packageId,
+        successUrl: Linking.createURL("/billing?success=true"),
+        cancelUrl: Linking.createURL("/billing"),
+      });
+      if (url) {
+        await Linking.openURL(url);
+      }
+    } catch (error: any) {
+      toast.error(error.message || t('billing.failedCheckout'));
+    }
+  };
 
   return (
     <ScrollView className="flex-1 bg-background">
       {/* Header */}
-      <View className="px-6 pt-6 pb-4">
+      <View className="px-4 pt-6 pb-3">
         <Pressable onPress={() => router.back()} className="flex-row items-center mb-4">
           <ArrowLeft size={16} className="text-muted-foreground mr-2" />
           <Text className="text-sm text-muted-foreground">{t('common.back')}</Text>
@@ -113,44 +131,62 @@ export default function BillingScreen() {
         </View>
       ) : creditsInfo ? (
         <View className="px-4 gap-3 pb-6">
-          {/* Credit Balance Card */}
-          <View className="rounded-xl bg-muted/50 p-5 flex-row items-center justify-between">
-            <View className="flex-row items-center gap-3">
-              <View className="w-10 h-10 rounded-full bg-primary/10 items-center justify-center">
-                <Sparkle size={18} className="text-primary" />
-              </View>
-              <View>
-                <Text className="text-2xl font-bold text-foreground">
-                  {creditsInfo.credits.toLocaleString()}
-                </Text>
-                <Text className="text-xs text-muted-foreground">{t('billing.currentBalance')}</Text>
+          {/* Credits breakdown */}
+          <View className="border border-border rounded-xl p-3 gap-3">
+            <View className="flex-row items-center gap-2">
+              <Sparkle size={16} className="text-foreground" />
+              <Text className="text-sm font-semibold text-foreground">{t('credits.credits')}</Text>
+              {!isSubscribed && (
+                <Button
+                  onPress={() => router.push("/(biglayout)/subscribe")}
+                  size="sm"
+                  className="rounded-full ml-auto h-7 px-3"
+                >
+                  <Text className="text-primary-foreground font-medium text-xs">
+                    {t('credits.upgrade')}
+                  </Text>
+                </Button>
+              )}
+            </View>
+            <View className="flex-row items-baseline justify-between">
+              <Text className="text-sm text-muted-foreground">{t('credits.freeCredits')}</Text>
+              <View className="flex-row items-baseline gap-1">
+                <Text className="text-xl font-bold text-foreground">{freeCredits.toLocaleString()}</Text>
+                <Text className="text-xs text-muted-foreground">/ {creditsInfo.freeLimit.toLocaleString()}</Text>
               </View>
             </View>
-            {!isSubscribed && (
-              <Button
-                onPress={() => router.push("/(biglayout)/subscribe")}
-                size="sm"
-                className="rounded-full"
-              >
-                <Text className="text-primary-foreground font-medium text-sm">
-                  {t('credits.upgrade')}
-                </Text>
-              </Button>
+            {creditsInfo.paidCredits > 0 && (
+              <View className="flex-row items-baseline justify-between">
+                <Text className="text-sm text-muted-foreground">{t('credits.paidCredits')}</Text>
+                <Text className="text-base font-semibold text-foreground">{creditsInfo.paidCredits.toLocaleString()}</Text>
+              </View>
+            )}
+            {creditsInfo.dailyRefresh > 0 && (
+              <View className="flex-row items-center justify-between pt-1 border-t border-border">
+                <View className="flex-row items-center gap-1.5">
+                  <Calendar size={13} className="text-muted-foreground" />
+                  <Text className="text-xs text-muted-foreground">{t('credits.dailyRefresh')}</Text>
+                </View>
+                <Text className="text-sm font-semibold text-foreground">+{creditsInfo.dailyRefresh}</Text>
+              </View>
             )}
           </View>
 
-          {/* Active Subscription Card */}
+          {/* Active Subscription */}
           {isSubscribed && (
-            <View className="rounded-xl bg-muted/50 p-5 gap-4">
-              <Text className="text-sm font-semibold text-foreground">{t('billing.activeSubscription')}</Text>
-              <View className="p-4 rounded-lg bg-primary/10 border border-primary/20 gap-2">
-                <View className="flex-row items-center justify-between">
-                  <Text className="text-base font-semibold text-foreground">{subscription.plan.name}</Text>
-                  <Text className="text-sm font-semibold text-primary">
-                    ${(subscription.plan.price / 100).toFixed(2)}{t('credits.perMonth')}
-                  </Text>
-                </View>
-                <Text className="text-sm text-muted-foreground">
+            <View className="border border-border rounded-xl p-3 gap-3">
+              <View className="flex-row items-center gap-2">
+                <Crown size={16} className="text-foreground" />
+                <Text className="text-sm font-semibold text-foreground">{t('billing.activeSubscription')}</Text>
+              </View>
+              <View className="flex-row items-baseline justify-between">
+                <Text className="text-sm text-muted-foreground">{subscription.plan.name}</Text>
+                <Text className="text-base font-semibold text-primary">
+                  ${(subscription.plan.price / 100).toFixed(2)}{t('credits.perMonth')}
+                </Text>
+              </View>
+              <View className="flex-row items-baseline justify-between">
+                <Text className="text-xs text-muted-foreground">
                   {t('billing.creditsPerMonth', { count: subscription.plan.creditsPerMonth.toLocaleString() })}
                 </Text>
                 <Text className="text-xs text-muted-foreground">
@@ -159,14 +195,14 @@ export default function BillingScreen() {
                     : t('billing.renewsOn', { date: new Date(subscription.currentPeriodEnd).toLocaleDateString() })}
                 </Text>
               </View>
-              <View className="flex-row gap-2">
+              <View className="flex-row gap-2 pt-1 border-t border-border">
                 <Button
                   variant="outline"
                   onPress={() => router.push("/(biglayout)/subscribe")}
                   size="sm"
-                  className="rounded-full"
+                  className="rounded-full h-7 px-3"
                 >
-                  <Text className="text-foreground font-medium text-sm">
+                  <Text className="text-foreground font-medium text-xs">
                     {t('billing.changePlan')}
                   </Text>
                 </Button>
@@ -176,10 +212,9 @@ export default function BillingScreen() {
                     onPress={handleCancelSubscription}
                     disabled={cancelSubscriptionMutation.isPending}
                     size="sm"
-                    className="rounded-full"
+                    className="rounded-full h-7 px-3"
                   >
-                    <X size={14} className="text-foreground mr-1.5" />
-                    <Text className="text-foreground font-medium text-sm">
+                    <Text className="text-foreground font-medium text-xs">
                       {cancelSubscriptionMutation.isPending ? t('billing.canceling') : t('billing.cancelSubscription')}
                     </Text>
                   </Button>
@@ -188,53 +223,81 @@ export default function BillingScreen() {
             </View>
           )}
 
-          {/* Payment Methods Card */}
-          <View className="rounded-xl bg-muted/50 p-5 gap-4">
-            <Text className="text-sm font-semibold text-foreground">{t('billing.paymentMethods')}</Text>
-            <Button
-              variant="outline"
-              onPress={handleManagePayment}
-              disabled={createPortalMutation.isPending}
-              size="sm"
-              className="self-start rounded-full"
-            >
-              <CreditCard size={14} className="text-foreground mr-1.5" />
-              <Text className="text-foreground font-medium text-sm">
-                {createPortalMutation.isPending ? t('common.loading') : t('billing.managePaymentMethods')}
-              </Text>
-              <ExternalLink size={12} className="text-muted-foreground ml-1.5" />
-            </Button>
+          {/* Buy Credits */}
+          {packages.length > 0 && (
+            <View className="border border-border rounded-xl p-3 gap-2">
+              <View className="flex-row items-center gap-2 mb-1">
+                <ShoppingCart size={14} className="text-muted-foreground" />
+                <Text className="text-xs font-medium text-muted-foreground">{t('credits.buyCredits')}</Text>
+              </View>
+              {packages.map((pkg) => (
+                <Pressable
+                  key={pkg.id}
+                  onPress={() => handlePurchaseCredits(pkg.id)}
+                  disabled={createCheckoutMutation.isPending}
+                  className="flex-row items-center justify-between py-2 px-3 rounded-lg border border-border bg-background active:bg-muted"
+                >
+                  <View>
+                    <Text className="text-sm font-medium text-foreground">{pkg.name}</Text>
+                    <Text className="text-[10px] text-muted-foreground">
+                      {t('credits.perThousand', { price: `$${((pkg.price / pkg.credits) * 1000 / 100).toFixed(2)}` })}
+                    </Text>
+                  </View>
+                  <Text className="text-sm font-semibold text-foreground">
+                    ${(pkg.price / 100).toFixed(2)}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
+          )}
+
+          {/* Payment Methods */}
+          <View className="border border-border rounded-xl p-3">
+            <View className="flex-row items-center justify-between">
+              <Text className="text-sm font-semibold text-foreground">{t('billing.paymentMethods')}</Text>
+              <Button
+                variant="outline"
+                onPress={handleManagePayment}
+                disabled={createPortalMutation.isPending}
+                size="sm"
+                className="rounded-full h-7 px-3"
+              >
+                <CreditCard size={12} className="text-foreground mr-1" />
+                <Text className="text-foreground font-medium text-xs">
+                  {createPortalMutation.isPending ? t('common.loading') : t('billing.managePaymentMethods')}
+                </Text>
+                <ExternalLink size={10} className="text-muted-foreground ml-1" />
+              </Button>
+            </View>
           </View>
 
-          {/* Recent Transactions Card */}
+          {/* Recent Transactions */}
           {transactionsData && transactionsData.transactions.length > 0 && (
-            <View className="rounded-xl bg-muted/50 p-5 gap-3">
+            <View className="border border-border rounded-xl p-3 gap-2">
               <Text className="text-sm font-semibold text-foreground">{t('billing.recentTransactions')}</Text>
-              <View className="rounded-lg overflow-hidden">
-                {transactionsData.transactions.map((transaction, index) => (
-                  <View
-                    key={transaction._id}
-                    className={`py-3 px-1 ${index < transactionsData.transactions.length - 1 ? 'border-b border-border' : ''}`}
-                  >
-                    <View className="flex-row items-center justify-between mb-1">
-                      <Text className="text-sm font-medium text-foreground">
-                        {transaction.description || transaction.type}
-                      </Text>
-                      <Text className="text-sm font-medium text-emerald-600 dark:text-emerald-400">
-                        +{transaction.credits.toLocaleString()} {t('billing.credits')}
-                      </Text>
-                    </View>
-                    <View className="flex-row items-center justify-between">
-                      <Text className="text-xs text-muted-foreground">
-                        {new Date(transaction.createdAt).toLocaleDateString()}
-                      </Text>
-                      <Text className="text-xs text-muted-foreground">
-                        ${(transaction.amount / 100).toFixed(2)}
-                      </Text>
-                    </View>
+              {transactionsData.transactions.map((transaction, index) => (
+                <View
+                  key={transaction._id}
+                  className={`py-2 ${index < transactionsData.transactions.length - 1 ? 'border-b border-border' : ''}`}
+                >
+                  <View className="flex-row items-center justify-between">
+                    <Text className="text-sm text-foreground">
+                      {transaction.description || transaction.type}
+                    </Text>
+                    <Text className="text-sm font-medium text-emerald-600 dark:text-emerald-400">
+                      +{transaction.credits.toLocaleString()}
+                    </Text>
                   </View>
-                ))}
-              </View>
+                  <View className="flex-row items-center justify-between mt-0.5">
+                    <Text className="text-[11px] text-muted-foreground">
+                      {new Date(transaction.createdAt).toLocaleDateString()}
+                    </Text>
+                    <Text className="text-[11px] text-muted-foreground">
+                      ${(transaction.amount / 100).toFixed(2)}
+                    </Text>
+                  </View>
+                </View>
+              ))}
             </View>
           )}
         </View>
