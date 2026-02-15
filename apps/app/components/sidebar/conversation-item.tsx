@@ -1,7 +1,6 @@
 import React from "react";
 import { View, Pressable } from "react-native";
 import { Text } from "@/components/ui/text";
-import { MessageSquare, Star as StarIcon } from "lucide-react-native";
 import { cn } from "@/lib/utils";
 import type { Conversation } from "@/lib/hooks/use-conversations";
 import type { Project } from "@/lib/stores/projects-store";
@@ -57,13 +56,6 @@ export const ConversationItem = React.memo<ConversationItemProps>(({
           !isActive && "active:bg-muted/50 rounded-full"
         )}
       >
-        <MessageSquare
-          size={compact ? 13 : 16}
-          className={cn(
-            "text-muted-foreground",
-            isActive && "text-primary"
-          )}
-        />
         <Text
           className={cn(
             "flex-1 text-foreground",
@@ -74,9 +66,6 @@ export const ConversationItem = React.memo<ConversationItemProps>(({
         >
           {conversation.title || "New conversation"}
         </Text>
-        {isFavorite && (
-          <StarIcon size={10} className="text-amber-500" fill="#f59e0b" />
-        )}
       </Pressable>
       <ConversationMenu
         conversation={conversation}

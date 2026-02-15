@@ -6,14 +6,15 @@
 
 import { Conversation, type ConversationSource } from '../models/conversation.js';
 
-// Matches both [TITLE]...[/TITLE] and <TITLE>...</TITLE>
-const TITLE_EXTRACT_RE = /\[TITLE\](.*?)\[\/TITLE\]|<TITLE>(.*?)<\/TITLE>/;
-const TITLE_STRIP_RE = /\[TITLE\].*?\[\/TITLE\]|<TITLE>.*?<\/TITLE>/g;
+// Known translations of "TITLE" that LLMs may produce
+const TAG = String.raw`ALIA_TITLE|TITLE|TÍTULO|TITRE|TITOLO|TITEL|ЗАГОЛОВОК`;
+const TITLE_EXTRACT_RE = new RegExp(String.raw`\[(${TAG})\](.*?)\[\/\1\]|<(${TAG})>(.*?)<\/\3>`, 'i');
+const TITLE_STRIP_RE = new RegExp(String.raw`\[(${TAG})\].*?\[\/\1\]|<(${TAG})>.*?<\/\2>`, 'gi');
 
 /** Extract or generate a conversation title from the AI response, with fallbacks. */
 export function extractConversationTitle(response: string, messages: any[]): string {
   const m = response.match(TITLE_EXTRACT_RE);
-  if (m) return (m[1] || m[2]).trim();
+  if (m) return (m[2] || m[4]).trim();
 
   // Fallback: first ~6 words of cleaned response
   const cleaned = response.replace(/\[.*?\]|<.*?>|[#*_`]/g, '').trim();
