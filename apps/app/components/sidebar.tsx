@@ -5,7 +5,6 @@ import { Text } from "@/components/ui/text";
 import { Button } from "@/components/ui/button";
 import { BaseSidebar } from "@/components/base-sidebar";
 import {
-  Sparkles,
   Users,
   Settings2,
   LogIn,
@@ -429,15 +428,11 @@ const ChatSidebar = React.memo(function ChatSidebar() {
     <View className="gap-2">
       <Button
         onPress={handleNewChat}
-        variant="outline"
         className="h-11 md:h-9 rounded-full w-full"
       >
-        <View className="flex-row items-center gap-2">
-          <Sparkles size={16} className="text-primary" />
-          <Text className="text-sm md:text-xs font-medium">
-            {t('sidebar.newChat')}
-          </Text>
-        </View>
+        <Text className="text-sm md:text-xs font-medium text-primary-foreground">
+          {t('sidebar.newChat')}
+        </Text>
       </Button>
     </View>
   );
