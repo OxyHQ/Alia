@@ -33,7 +33,6 @@ import {
   BookMarked,
   FolderClosed,
   Gift,
-  Palette,
   Smartphone,
   type LucideIcon,
 } from "lucide-react-native";
@@ -774,15 +773,33 @@ const ChatSidebar = React.memo(function ChatSidebar() {
 
             {/* Icon Button Bar */}
             <View className="flex-row items-center">
-              {/* Settings - opens user account dropdown */}
+              {/* User avatar - opens account dropdown */}
               <DropdownMenu.Root>
                 <DropdownMenu.Trigger>
                   <Pressable className="h-9 w-9 md:h-8 md:w-8 items-center justify-center rounded-lg hover:bg-muted active:bg-muted">
-                    <Settings2 size={18} className="text-muted-foreground" />
+                    <View className="h-6 w-6 rounded-full bg-muted items-center justify-center">
+                      <Text className="text-[10px] font-bold text-foreground">
+                        {(user?.name?.first?.[0] || user?.username?.[0] || "U").toUpperCase()}
+                      </Text>
+                    </View>
                   </Pressable>
                 </DropdownMenu.Trigger>
                 <DropdownMenu.Content>
-                  <DropdownMenu.Label>{getUserDisplayName()}</DropdownMenu.Label>
+                  {Platform.OS === 'web' ? (
+                    <View className="flex-row items-center gap-2.5 px-1.5 py-1.5">
+                      <View className="h-9 w-9 rounded-full bg-muted items-center justify-center">
+                        <Text className="text-xs font-bold text-foreground">
+                          {(user?.name?.first?.[0] || user?.username?.[0] || "U").toUpperCase()}
+                        </Text>
+                      </View>
+                      <View>
+                        <Text className="text-sm font-semibold text-foreground">{getUserDisplayName()}</Text>
+                        {user?.username && <Text className="text-xs text-muted-foreground">{user.username}@oxy.so</Text>}
+                      </View>
+                    </View>
+                  ) : (
+                    <DropdownMenu.Label>{getUserDisplayName()}</DropdownMenu.Label>
+                  )}
                   <DropdownMenu.Separator />
                   <DropdownMenu.Item key="upgrade" onSelect={handleUpgrade}>
                     <DropdownMenu.ItemIcon ios={{ name: "sparkle" }} />
@@ -808,12 +825,12 @@ const ChatSidebar = React.memo(function ChatSidebar() {
                 </DropdownMenu.Content>
               </DropdownMenu.Root>
 
-              {/* Personalization */}
+              {/* Settings */}
               <Pressable
                 onPress={handleSettings}
                 className="h-9 w-9 md:h-8 md:w-8 items-center justify-center rounded-lg hover:bg-muted active:bg-muted"
               >
-                <Palette size={18} className="text-muted-foreground" />
+                <Settings2 size={18} className="text-muted-foreground" />
               </Pressable>
 
               {/* App Download - web only */}
