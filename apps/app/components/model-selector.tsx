@@ -1,9 +1,13 @@
-import { ChevronDown } from "lucide-react-native";
+import { ChevronDown, Lock } from "lucide-react-native";
 import * as DropdownMenu from "@/components/ui/dropdown-menu";
 import { Pressable, View, Platform } from "react-native";
 import { Text } from "@/components/ui/text";
 import { useState, useEffect, useMemo } from "react";
+import { useRouter } from "expo-router";
 import config from "@/lib/config";
+import { useEntitlements } from "@/lib/hooks/use-billing";
+import { toast } from "@/components/sonner";
+import { useTranslation } from "@/hooks/useTranslation";
 
 interface Model {
   id: string;
@@ -40,10 +44,12 @@ interface ModelSelectorProps {
 function ModelCheckboxItem({
   model,
   selected,
+  isLocked,
   onSelect,
 }: {
   model: Model;
   selected: boolean;
+  isLocked: boolean;
   onSelect: () => void;
 }) {
   return (
@@ -53,11 +59,12 @@ function ModelCheckboxItem({
       onValueChange={onSelect}
     >
       {Platform.OS === 'web' ? (
-        <View className="flex-col gap-0.5 flex-1">
+        <View className={`flex-col gap-0.5 flex-1 ${isLocked ? 'opacity-50' : ''}`}>
           <View className="flex-row items-center gap-1.5">
             <Text className="text-sm font-medium text-foreground">
               {model.name}
             </Text>
+            {isLocked && <Lock size={11} className="text-muted-foreground" />}
             {model.requiredPlan && (
               <View className="bg-primary/10 px-1.5 py-0.5 rounded-full">
                 <Text className="text-[10px] font-semibold text-primary">
@@ -74,7 +81,7 @@ function ModelCheckboxItem({
         <>
           <DropdownMenu.ItemIndicator />
           <DropdownMenu.ItemTitle>
-            {model.name}{model.requiredPlan ? ` (${model.requiredPlan})` : ''}
+            {isLocked ? '🔒 ' : ''}{model.name}{model.requiredPlan ? ` (${model.requiredPlan})` : ''}
           </DropdownMenu.ItemTitle>
           <DropdownMenu.ItemSubtitle>{model.description}</DropdownMenu.ItemSubtitle>
         </>
@@ -90,6 +97,13 @@ export function ModelSelector({
   const [value, setValue] = useState(selectedModel);
   const [models, setModels] = useState<Model[]>(cachedModels || []);
   const [loading, setLoading] = useState(!cachedModels);
+  const { data: entitlements } = useEntitlements();
+  const router = useRouter();
+  const { t } = useTranslation();
+  const allowedIds = useMemo(
+    () => new Set(entitlements?.allowedModelIds || ['alia-lite', 'alia-v1', 'alia-v1-audio']),
+    [entitlements],
+  );
 
   useEffect(() => {
     setValue(selectedModel);
@@ -124,6 +138,12 @@ export function ModelSelector({
   }, []);
 
   const handleValueChange = (modelId: string) => {
+    if (!allowedIds.has(modelId)) {
+      const model = models.find(m => m.id === modelId);
+      toast.info(t('subscribe.modelRequiresPlan', { plan: model?.requiredPlan || 'Go' }));
+      router.push('/(biglayout)/subscribe');
+      return;
+    }
     setValue(modelId);
     onModelChange?.(modelId);
   };
@@ -158,6 +178,7 @@ export function ModelSelector({
                 key={model.id}
                 model={model}
                 selected={value === model.id}
+                isLocked={!allowedIds.has(model.id)}
                 onSelect={() => handleValueChange(model.id)}
               />
             ))}
@@ -174,6 +195,7 @@ export function ModelSelector({
                         key={model.id}
                         model={model}
                         selected={value === model.id}
+                        isLocked={!allowedIds.has(model.id)}
                         onSelect={() => handleValueChange(model.id)}
                       />
                     ))}

@@ -298,3 +298,37 @@ export function useCreatePortalSession() {
     },
   });
 }
+
+// ======================
+// Entitlements
+// ======================
+
+export interface Entitlements {
+  allowedModelIds: string[];
+  features: Record<string, boolean | number>;
+  planId: string | null;
+}
+
+const FREE_ENTITLEMENTS: Entitlements = {
+  allowedModelIds: ['alia-lite', 'alia-v1', 'alia-v1-audio'],
+  features: {},
+  planId: 'free',
+};
+
+async function fetchEntitlements(): Promise<Entitlements> {
+  const response = await apiClient.get('/billing/entitlements');
+  return response.data;
+}
+
+export function useEntitlements() {
+  const { isAuthenticated } = useOxy();
+
+  return useQuery({
+    queryKey: ['entitlements'],
+    queryFn: fetchEntitlements,
+    staleTime: 1000 * 60 * 5, // 5 minutes
+    retry: 2,
+    enabled: isAuthenticated,
+    placeholderData: FREE_ENTITLEMENTS,
+  });
+}

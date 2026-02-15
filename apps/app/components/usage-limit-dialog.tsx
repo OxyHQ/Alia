@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { View } from 'react-native';
 import { useRouter } from 'expo-router';
-import { Zap, Clock, CreditCard } from 'lucide-react-native';
+import { Zap, Clock, CreditCard, Lock } from 'lucide-react-native';
 import {
   Dialog,
   DialogContent,
@@ -50,8 +50,8 @@ export function UsageLimitDialog({ error, onDismiss }: UsageLimitDialogProps) {
   if (!error) return null;
 
   const isCredits = error.isCreditsError;
+  const isModelAccess = error.isModelAccessError;
   const showUpgrade = error.shouldShowUpgrade;
-  const isPaidTierRateLimit = error.isRateLimitError && !showUpgrade;
 
   const handleUpgrade = () => {
     onDismiss();
@@ -65,7 +65,9 @@ export function UsageLimitDialog({ error, onDismiss }: UsageLimitDialogProps) {
 
   // Title
   let title: string;
-  if (isCredits) {
+  if (isModelAccess) {
+    title = 'Model locked';
+  } else if (isCredits) {
     title = 'Out of credits';
   } else if (showUpgrade) {
     title = 'Limit reached';
@@ -75,7 +77,9 @@ export function UsageLimitDialog({ error, onDismiss }: UsageLimitDialogProps) {
 
   // Description
   let description: string;
-  if (isCredits) {
+  if (isModelAccess) {
+    description = 'Upgrade your plan to use this model.';
+  } else if (isCredits) {
     description = 'Add more credits or upgrade your plan to continue chatting with Alia.';
   } else if (showUpgrade) {
     description = "You've reached the limit for your plan. Upgrade for more.";
@@ -90,7 +94,11 @@ export function UsageLimitDialog({ error, onDismiss }: UsageLimitDialogProps) {
       <DialogContent closeButton={true}>
         <DialogHeader>
           <View className="items-center mb-3">
-            {isCredits ? (
+            {isModelAccess ? (
+              <View className="w-12 h-12 rounded-full bg-purple-100 dark:bg-purple-900/30 items-center justify-center">
+                <Lock size={24} className="text-purple-500" />
+              </View>
+            ) : isCredits ? (
               <View className="w-12 h-12 rounded-full bg-orange-100 dark:bg-orange-900/30 items-center justify-center">
                 <CreditCard size={24} className="text-orange-500" />
               </View>
@@ -109,7 +117,16 @@ export function UsageLimitDialog({ error, onDismiss }: UsageLimitDialogProps) {
         </DialogHeader>
 
         <DialogFooter className="justify-center">
-          {isCredits ? (
+          {isModelAccess ? (
+            <>
+              <Button onPress={handleUpgrade} className="flex-1">
+                <Text className="text-primary-foreground text-sm font-medium">Upgrade Plan</Text>
+              </Button>
+              <Button variant="outline" onPress={onDismiss} className="flex-1">
+                <Text className="text-sm font-medium">Got it</Text>
+              </Button>
+            </>
+          ) : isCredits ? (
             <>
               <Button onPress={handleUpgrade} className="flex-1">
                 <Text className="text-primary-foreground text-sm font-medium">Upgrade Plan</Text>

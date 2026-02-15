@@ -29,6 +29,10 @@ import { usePromptCompletions } from "@/hooks/usePromptCompletions";
 import type { PromptCompletion } from "@/lib/prompt-completions";
 import { getThinkingModelId, isThinkingModel } from "@/components/model-selector";
 import { useChatStore } from "@/lib/stores/chat-store";
+import { useEntitlements } from "@/lib/hooks/use-billing";
+import { useCredits } from "@/lib/hooks/use-credits";
+import { useRouter } from "expo-router";
+import { useTranslation } from "@/hooks/useTranslation";
 
 type Mode = 'search' | 'agent' | 'ghost' | 'deepResearch' | 'shoppingResearch' | 'study';
 
@@ -39,12 +43,13 @@ const MODE_CONFIG: Record<Mode, {
   onToast: string;
   offToast: string;
   exclusive?: Mode[];
+  featureId?: string;
 }> = {
   search:           { label: 'Search',        icon: Globe,       color: '#3b82f6', onToast: 'Web search will be used',               offToast: 'Search mode disabled' },
   ghost:            { label: 'Ghost',         icon: Ghost,       color: '#00b2ff', onToast: 'Conversations will not be saved',       offToast: 'Conversations will be saved normally' },
-  agent:            { label: 'Agent',         icon: Bot,         color: '#f97316', onToast: 'I can now perform actions autonomously', offToast: 'Agent mode disabled' },
-  deepResearch:     { label: 'Deep research', icon: Search,      color: '#10b981', onToast: 'Deep research mode activated',          offToast: 'Deep research disabled', exclusive: ['shoppingResearch'] },
-  shoppingResearch: { label: 'Shopping',      icon: ShoppingBag, color: '#ec4899', onToast: 'Shopping research activated',           offToast: 'Shopping research disabled', exclusive: ['deepResearch'] },
+  agent:            { label: 'Agent',         icon: Bot,         color: '#f97316', onToast: 'I can now perform actions autonomously', offToast: 'Agent mode disabled', featureId: 'agent-mode' },
+  deepResearch:     { label: 'Deep research', icon: Search,      color: '#10b981', onToast: 'Deep research mode activated',          offToast: 'Deep research disabled', exclusive: ['shoppingResearch'], featureId: 'deep-research' },
+  shoppingResearch: { label: 'Shopping',      icon: ShoppingBag, color: '#ec4899', onToast: 'Shopping research activated',           offToast: 'Shopping research disabled', exclusive: ['deepResearch'], featureId: 'shopping-research' },
   study:            { label: 'Study',         icon: BookOpen,    color: '#6366f1', onToast: 'Study mode activated',                  offToast: 'Study mode disabled' },
 };
 
@@ -137,6 +142,10 @@ export const ChatPageContent = ({
 }: ChatPageContentProps) => {
   const attachments = useStore((state) => state.attachments);
   const { isAuthenticated } = useAuth();
+  const { data: entitlements } = useEntitlements();
+  const { data: creditsInfo } = useCredits();
+  const router = useRouter();
+  const { t } = useTranslation();
   const { width: screenWidth } = useWindowDimensions();
   const isNarrowScreen = screenWidth < 640;
   const [activeModes, setActiveModes] = useState<Set<Mode>>(new Set());
@@ -163,9 +172,14 @@ export const ChatPageContent = ({
   const completions = usePromptCompletions(inputValue, isMainScreen);
 
   const toggleMode = useCallback((mode: Mode) => {
+    const config = MODE_CONFIG[mode];
+    if (config.featureId && !entitlements?.features[config.featureId]) {
+      toast.info(t('subscribe.featureRequiresPlan', { feature: config.label }));
+      router.push('/(biglayout)/subscribe');
+      return;
+    }
     setActiveModes(prev => {
       const next = new Set(prev);
-      const config = MODE_CONFIG[mode];
       if (next.has(mode)) {
         next.delete(mode);
         toast.info(config.offToast);
@@ -176,7 +190,7 @@ export const ChatPageContent = ({
       }
       return next;
     });
-  }, []);
+  }, [entitlements, t, router]);
 
   const handleAutocompleteSelect = useCallback((completion: PromptCompletion) => {
     setInputValue(completion.text);
@@ -592,6 +606,15 @@ export const ChatPageContent = ({
                         onVoicePress={() => {
                           if (!isAuthenticated) {
                             toast.error('Please sign in to use voice mode.');
+                            return;
+                          }
+                          if (!entitlements?.features['voice-mode']) {
+                            toast.info(t('subscribe.featureRequiresPlan', { feature: 'Voice mode' }));
+                            router.push('/(biglayout)/subscribe');
+                            return;
+                          }
+                          if (creditsInfo && creditsInfo.credits <= 0) {
+                            toast.error(t('usageLimit.outOfCreditsTitle'));
                             return;
                           }
                           setShowVoice(true);

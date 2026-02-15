@@ -3,9 +3,10 @@ import { randomUUID } from 'crypto';
 import { createVoiceToken, isLiveKitConfigured, getLiveKitUrl } from '../../lib/livekit-token.js';
 import { resolveModel } from '../../lib/chat-core.js';
 import { getBestKeyForModel } from '../../internal/providers/lib/key-manager.js';
-import { reserveCredits, finalizeCredits } from '../../lib/credits-manager.js';
+import { reserveCredits, finalizeCredits, refundReservation } from '../../lib/credits-manager.js';
 import { getOrCreateUserCredits } from '../../lib/user-credits-helpers.js';
 import { log } from '../../lib/logger.js';
+import { getUserEntitlements } from '../../lib/plan-access.js';
 import type { Request, Response } from 'express';
 
 const router = Router();
@@ -23,6 +24,19 @@ router.post('/token', async (req: Request, res: Response) => {
 
     if (!isLiveKitConfigured()) {
       return res.status(503).json({ error: 'Voice mode is not available. LiveKit is not configured.' });
+    }
+
+    // Enforce voice-mode feature access
+    const entitlements = await getUserEntitlements(userId);
+    if (!entitlements.features['voice-mode']) {
+      return res.status(403).json({
+        error: {
+          code: 'FEATURE_NOT_IN_PLAN',
+          message: 'Upgrade your plan to use voice mode.',
+          retryable: false,
+          suggestedAction: 'upgrade',
+        },
+      });
     }
 
     const { conversationId } = req.body;
