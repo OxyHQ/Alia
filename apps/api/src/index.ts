@@ -44,9 +44,6 @@ import { runStartupSeed } from './internal/providers/lib/seed-model-configs.js';
 import { seedSkills } from './lib/seed-skills.js';
 import { startScheduler } from './lib/automation-scheduler.js';
 import { initChannels } from './lib/channels/index.js';
-// LiveKit agent disabled — voice now uses WebSocket Realtime API (/v1/realtime)
-// import { startLiveKitAgent } from './lib/livekit-agent.js';
-
 // WebSocket and Socket.io
 import { WebSocketServer } from 'ws';
 import { setupRealtimeEndpoint } from './routes/v1/realtime.js';
