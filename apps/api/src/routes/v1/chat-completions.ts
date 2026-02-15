@@ -54,10 +54,23 @@ function convertToAISDKMessages(messages: any[], toolNameMapping: Map<string, st
         content: msg.content || ''
       });
     } else if (msg.role === 'user') {
-      result.push({
-        role: 'user',
-        content: msg.content
-      });
+      if (Array.isArray(msg.content)) {
+        // Multi-part content (text + images): convert OpenAI image_url format to AI SDK image format
+        result.push({
+          role: 'user',
+          content: msg.content.map((part: any) => {
+            if (part.type === 'image_url' && part.image_url?.url) {
+              return { type: 'image', image: part.image_url.url };
+            }
+            return part;
+          }),
+        });
+      } else {
+        result.push({
+          role: 'user',
+          content: msg.content
+        });
+      }
     } else if (msg.role === 'assistant') {
       if (msg.tool_calls && Array.isArray(msg.tool_calls) && msg.tool_calls.length > 0) {
         // Track tool calls for matching with results

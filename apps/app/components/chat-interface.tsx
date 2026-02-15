@@ -14,6 +14,7 @@ import Animated, { FadeInUp } from "react-native-reanimated";
 import * as Clipboard from "expo-clipboard";
 import { Reasoning, ReasoningTrigger, ReasoningContent } from "@/components/ui/reasoning";
 import { getToolIcon, getToolLabel } from "@/lib/tool-registry";
+import { getTextFromContent, getImagesFromContent } from "@/lib/attachment-utils";
 
 type ToolInvocation = {
   toolName: string;
@@ -32,7 +33,7 @@ type MessagePart = {
 type Message = {
   id: string;
   role: "user" | "assistant" | "system" | "function" | "data" | "tool";
-  content?: string;
+  content?: string | Array<{ type: string; [key: string]: any }>;
   thinking?: string; // Extended thinking content
   parts?: MessagePart[];
   toolInvocations?: ToolInvocation[];
@@ -54,7 +55,7 @@ function getMessageText(message: Message): string {
 
   // Extract raw text from message
   if (message.content) {
-    rawText = message.content;
+    rawText = getTextFromContent(message.content);
   } else if (message.parts && Array.isArray(message.parts)) {
     rawText = message.parts
       .filter((part) => part.type === "text")
@@ -65,6 +66,14 @@ function getMessageText(message: Message): string {
   // Process message for app platform (removes Telegram tags, keeps app components)
   const processed = processMessage(rawText, 'app');
   return processed.text;
+}
+
+// Extract image URLs from multi-part message content
+function getMessageImages(message: Message): string[] {
+  if (message.content) {
+    return getImagesFromContent(message.content);
+  }
+  return [];
 }
 
 export const ChatInterface = React.memo(function ChatInterface({ messages, scrollViewRef, isLoading, onSuggestionPress, onEditMessage, onCopyMessage, bottomPadding = 160 }: ChatInterfaceProps) {
@@ -127,6 +136,7 @@ export const ChatInterface = React.memo(function ChatInterface({ messages, scrol
           <View className="gap-2">
             {messages.filter(m => m != null && m.role).map((m, index) => {
               const messageText = getMessageText(m);
+              const messageImages = getMessageImages(m);
 
               return (
                 <Animated.View
@@ -196,7 +206,7 @@ export const ChatInterface = React.memo(function ChatInterface({ messages, scrol
                   )}
 
                   {/* Message Content */}
-                  {messageText.length > 0 && (
+                  {(messageText.length > 0 || messageImages.length > 0) && (
                     <View key="message-content" className="w-full">
                       {m.role === "assistant" ? (
                         // Assistant message: logo on top, text below
@@ -259,6 +269,20 @@ export const ChatInterface = React.memo(function ChatInterface({ messages, scrol
                             </View>
                           ) : (
                             <View className="max-w-[85%] sm:max-w-[75%] rounded-[24px] px-5 py-2.5 bg-muted">
+                              {/* Inline images from multi-part content */}
+                              {messageImages.length > 0 && (
+                                <View className="flex-row flex-wrap gap-2 mb-2">
+                                  {messageImages.map((imgUrl, imgIdx) => (
+                                    <View key={`img-${imgIdx}`} className="rounded-xl overflow-hidden" style={{ width: 120, height: 120 }}>
+                                      <Image
+                                        source={{ uri: imgUrl }}
+                                        className="w-full h-full"
+                                        contentFit="cover"
+                                      />
+                                    </View>
+                                  ))}
+                                </View>
+                              )}
                               <Text className="text-base text-foreground leading-7">
                                 {messageText}
                               </Text>
