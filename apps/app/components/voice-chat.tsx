@@ -6,6 +6,7 @@ import { Mic, MicOff, X, PhoneOff } from 'lucide-react-native';
 import { useRealtimeVoice, type AgentState } from '@/lib/hooks/use-realtime-voice';
 import { useAudioLevels } from './voice-chat/use-audio-levels';
 import { AudioWaveVisualizer } from './voice-chat/audio-wave-visualizer';
+import { toast } from '@/components/sonner';
 
 interface VoiceChatProps {
   visible: boolean;
@@ -52,6 +53,17 @@ export function VoiceChat({ visible, onClose }: VoiceChatProps) {
     else if (!visible && prevVisibleRef.current) disconnect();
     prevVisibleRef.current = visible;
   }, [visible, connect, disconnect]);
+
+  // Auto-close on fatal errors (insufficient credits, auth failures)
+  useEffect(() => {
+    if (!error || !visible) return;
+    const lower = error.toLowerCase();
+    if (lower.includes('insufficient') || lower.includes('credit') || lower.includes('unauthorized') || lower.includes('not authenticated')) {
+      toast.error(error);
+      disconnect();
+      onClose();
+    }
+  }, [error, visible, disconnect, onClose]);
 
   useEffect(() => {
     if (messages.length > 0) {
