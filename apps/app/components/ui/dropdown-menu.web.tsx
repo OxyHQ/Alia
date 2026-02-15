@@ -26,7 +26,53 @@ const SF_SYMBOL_MAP: Record<string, React.ComponentType<any>> = {
 };
 
 
-const DropdownMenu = DropdownMenuPrimitive.Root;
+// Singleton registry: only one dropdown menu open at a time.
+const openMenus = new Set<() => void>();
+
+function DropdownMenu({
+  open: controlledOpen,
+  onOpenChange,
+  defaultOpen,
+  ...props
+}: React.ComponentPropsWithoutRef<typeof DropdownMenuPrimitive.Root>) {
+  const [internalOpen, setInternalOpen] = React.useState(defaultOpen ?? false);
+  const open = controlledOpen ?? internalOpen;
+
+  const onOpenChangeRef = React.useRef(onOpenChange);
+  onOpenChangeRef.current = onOpenChange;
+
+  const closeRef = React.useRef<() => void>();
+  if (!closeRef.current) {
+    closeRef.current = () => {
+      setInternalOpen(false);
+      onOpenChangeRef.current?.(false);
+    };
+  }
+
+  React.useEffect(() => {
+    const cb = closeRef.current!;
+    openMenus.add(cb);
+    return () => { openMenus.delete(cb); };
+  }, []);
+
+  const handleOpenChange = (next: boolean) => {
+    if (next) {
+      openMenus.forEach((cb) => {
+        if (cb !== closeRef.current) cb();
+      });
+    }
+    setInternalOpen(next);
+    onOpenChange?.(next);
+  };
+
+  return (
+    <DropdownMenuPrimitive.Root
+      open={open}
+      onOpenChange={handleOpenChange}
+      {...props}
+    />
+  );
+}
 
 const DropdownMenuTrigger = DropdownMenuPrimitive.Trigger;
 
