@@ -504,7 +504,7 @@ export const ChatPageContent = ({
                                 <DropdownMenu.ItemIcon ios={{ name: "ellipsis" }} />
                                 <DropdownMenu.ItemTitle>More</DropdownMenu.ItemTitle>
                               </DropdownMenu.SubTrigger>
-                              <DropdownMenu.SubContent sideOffset={4} collisionPadding={16}>
+                              <DropdownMenu.SubContent>
                                 <DropdownMenu.Item key="sources" onSelect={handleAddSources}>
                                   <DropdownMenu.ItemIcon ios={{ name: "link" }} />
                                   <DropdownMenu.ItemTitle>Add sources</DropdownMenu.ItemTitle>

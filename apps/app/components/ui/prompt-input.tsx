@@ -6,9 +6,9 @@ import React, {
   useRef,
   useState,
 } from "react";
-import { View, Pressable, type TextInput as RNTextInput, KeyboardAvoidingView, Platform, Modal } from "react-native";
+import { View, Pressable, type TextInput as RNTextInput, KeyboardAvoidingView, Platform } from "react-native";
 import { ChatTextInput } from "./chat-text-input";
-import { Maximize2 } from "lucide-react-native";
+import { Maximize2, Minimize2 } from "lucide-react-native";
 
 type PromptInputContextType = {
   isLoading: boolean;
@@ -143,21 +143,18 @@ function PromptInput({
         </Pressable>
       </KeyboardAvoidingView>
 
-      {/* Fullscreen Editor Modal */}
-      <Modal
-        visible={showFullscreen}
-        animationType="slide"
-        presentationStyle="fullScreen"
-        onRequestClose={() => setShowFullscreen(false)}
-        statusBarTranslucent
-      >
-        <View className="flex-1 bg-background">
+      {/* Fullscreen Editor - absolute overlay instead of Modal to avoid focus trap issues */}
+      {showFullscreen && (
+        <View
+          style={{ position: "fixed" as any, top: 0, left: 0, right: 0, bottom: 0, zIndex: 9998 }}
+          className="bg-background"
+        >
           {/* Top right - Minimize icon */}
           <Pressable
             onPress={() => setShowFullscreen(false)}
             className="absolute top-4 right-4 z-50 p-2 active:opacity-70 bg-background/80 rounded-full"
           >
-            <Maximize2 size={20} className="text-foreground" />
+            <Minimize2 size={20} className="text-foreground" />
           </Pressable>
 
           {/* Fullscreen prompt input - textarea fills entire screen */}
@@ -165,7 +162,7 @@ function PromptInput({
             {children}
           </View>
         </View>
-      </Modal>
+      )}
     </PromptInputContext.Provider>
   );
 }
