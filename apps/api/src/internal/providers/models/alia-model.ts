@@ -43,6 +43,7 @@ export interface IAliaModel extends Document {
   // Status
   isActive: boolean;
   isDeprecated: boolean;
+  isLegacy: boolean;
   deprecationDate?: Date;
   replacementModelId?: string;
 
@@ -166,6 +167,10 @@ const AliaModelSchema = new Schema<IAliaModel>(
       type: Boolean,
       default: false,
       index: true,
+    },
+    isLegacy: {
+      type: Boolean,
+      default: false,
     },
     deprecationDate: {
       type: Date,

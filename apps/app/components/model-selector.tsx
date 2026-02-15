@@ -10,17 +10,32 @@ interface Model {
   name: string;
   description: string;
   requiredPlan: string | null;
+  isLegacy: boolean;
 }
 
 // Cache models in memory (they don't change frequently)
 let cachedModels: Model[] | null = null;
 
+/** Returns the latest thinking model ID from cached models, or a fallback. */
+export function getThinkingModelId(): string {
+  if (cachedModels) {
+    const thinkingModels = cachedModels.filter(m => m.id.includes('thinking'));
+    if (thinkingModels.length > 0) {
+      return thinkingModels[thinkingModels.length - 1].id;
+    }
+  }
+  return 'alia-v1-thinking';
+}
+
+/** Check if a model ID is a thinking model. */
+export function isThinkingModel(modelId: string): boolean {
+  return modelId.includes('thinking');
+}
+
 interface ModelSelectorProps {
   selectedModel?: string;
   onModelChange?: (modelId: string) => void;
 }
-
-const MAX_TOP_LEVEL_MODELS = 5;
 
 function ModelCheckboxItem({
   model,
@@ -82,7 +97,7 @@ export function ModelSelector({
 
   useEffect(() => {
     if (!cachedModels) {
-      fetch(`${config.apiUrl}/v1/models`)
+      fetch(`${config.apiUrl}/v1/models?chat=true`)
         .then((res) => res.json())
         .then((data) => {
           const fetchedModels = data.data
@@ -91,6 +106,7 @@ export function ModelSelector({
               name: m.name,
               description: m.description,
               requiredPlan: m.required_plan ?? null,
+              isLegacy: m.is_legacy ?? false,
             })) || [];
           cachedModels = fetchedModels;
           setModels(fetchedModels);
@@ -99,7 +115,7 @@ export function ModelSelector({
         .catch((error) => {
           console.error('[ModelSelector] Error fetching models:', error);
           cachedModels = [
-            { id: "alia-v1", name: "Alia V1", description: "Balanced performance", requiredPlan: null },
+            { id: "alia-v1", name: "Alia V1", description: "Balanced performance", requiredPlan: null, isLegacy: false },
           ];
           setModels(cachedModels);
           setLoading(false);
@@ -114,15 +130,10 @@ export function ModelSelector({
 
   const currentModel = models.find((m) => m.id === value);
 
-  const { primaryModels, moreModels } = useMemo(() => {
-    if (models.length <= MAX_TOP_LEVEL_MODELS) {
-      return { primaryModels: models, moreModels: [] };
-    }
-    return {
-      primaryModels: models.slice(0, MAX_TOP_LEVEL_MODELS),
-      moreModels: models.slice(MAX_TOP_LEVEL_MODELS),
-    };
-  }, [models]);
+  const { regularModels, legacyModels } = useMemo(() => ({
+    regularModels: models.filter(m => !m.isLegacy),
+    legacyModels: models.filter(m => m.isLegacy),
+  }), [models]);
 
   return (
     <DropdownMenu.Root>
@@ -142,7 +153,7 @@ export function ModelSelector({
           </DropdownMenu.Item>
         ) : (
           <>
-            {primaryModels.map((model) => (
+            {regularModels.map((model) => (
               <ModelCheckboxItem
                 key={model.id}
                 model={model}
@@ -150,16 +161,15 @@ export function ModelSelector({
                 onSelect={() => handleValueChange(model.id)}
               />
             ))}
-            {moreModels.length > 0 && (
+            {legacyModels.length > 0 && (
               <>
                 <DropdownMenu.Separator />
                 <DropdownMenu.Sub>
                   <DropdownMenu.SubTrigger>
-                    <DropdownMenu.ItemIcon ios={{ name: "sparkle" }} />
-                    <DropdownMenu.ItemTitle>More models</DropdownMenu.ItemTitle>
+                    <DropdownMenu.ItemTitle>Legacy models</DropdownMenu.ItemTitle>
                   </DropdownMenu.SubTrigger>
                   <DropdownMenu.SubContent className="w-64">
-                    {moreModels.map((model) => (
+                    {legacyModels.map((model) => (
                       <ModelCheckboxItem
                         key={model.id}
                         model={model}

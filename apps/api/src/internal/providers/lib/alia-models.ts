@@ -39,6 +39,7 @@ export interface AliaModel {
   supportsVision: boolean;
   category: ModelCategory;
   emoji?: string;
+  chatVisible?: boolean;
 }
 
 export interface ModelMapping {
@@ -69,6 +70,7 @@ export const ALIA_MODELS: Record<string, AliaModel> = {
     supportsVision: false,
     category: 'general',
     emoji: '⚡',
+    chatVisible: true,
   },
   'alia-v1': {
     id: 'alia-v1',
@@ -81,6 +83,7 @@ export const ALIA_MODELS: Record<string, AliaModel> = {
     supportsVision: true,
     category: 'general',
     emoji: '🎯',
+    chatVisible: true,
   },
   'alia-v1-codea': {
     id: 'alia-v1-codea',
@@ -165,10 +168,11 @@ export const ALIA_MODELS: Record<string, AliaModel> = {
     supportsVision: true,
     category: 'coding',
     emoji: '⭐',
+    chatVisible: true,
   },
   'alia-v1-thinking': {
     id: 'alia-v1-thinking',
-    name: 'Codea Thinking',
+    name: 'Alia V1 Thinking',
     tier: 'v1-pro-max',
     description: 'Extended thinking for complex problems',
     creditMultiplier: 5,
@@ -177,6 +181,7 @@ export const ALIA_MODELS: Record<string, AliaModel> = {
     supportsVision: true,
     category: 'coding',
     emoji: '🧠',
+    chatVisible: true,
   },
   'alia-v1-pro-max': {
     id: 'alia-v1-pro-max',
@@ -189,6 +194,7 @@ export const ALIA_MODELS: Record<string, AliaModel> = {
     supportsVision: true,
     category: 'general',
     emoji: '🚀',
+    chatVisible: true,
   },
   'alia-v1-voice': {
     id: 'alia-v1-voice',
@@ -236,6 +242,7 @@ export const ALIA_MODELS: Record<string, AliaModel> = {
 // Import the generated mappings with full capabilities and pricing data
 import { GENERATED_TIER_MAPPINGS } from './generate-model-mappings';
 import { isProviderAvailable } from './provider-health';
+import { AliaModel as AliaModelDB } from '../models/alia-model';
 export const TIER_MODEL_MAPPINGS = GENERATED_TIER_MAPPINGS;
 
 /**
@@ -284,15 +291,28 @@ export function getDefaultModelForCategory(category: ModelCategory): AliaModel |
 
 export interface AliaModelWithAvailability extends AliaModel {
   isAvailable: boolean;
+  isLegacy: boolean;
 }
 
 /**
  * Get all Alia models with their current availability status.
  * A model is "available" if at least one provider in its tier has a healthy circuit breaker.
+ * Legacy status is fetched from MongoDB (managed via admin tool).
  */
 export async function getAvailableModels(): Promise<AliaModelWithAvailability[]> {
   const models = getAllAliaModels();
   const results: AliaModelWithAvailability[] = [];
+
+  // Fetch legacy flags from MongoDB
+  let legacyMap = new Map<string, boolean>();
+  try {
+    const dbModels = await AliaModelDB.find({}).select('aliasModelId isLegacy').lean();
+    for (const doc of dbModels) {
+      legacyMap.set(doc.aliasModelId, doc.isLegacy ?? false);
+    }
+  } catch (err) {
+    console.warn('[getAvailableModels] Failed to fetch legacy flags:', err);
+  }
 
   for (const model of models) {
     const mappings = TIER_MODEL_MAPPINGS[model.tier] || [];
@@ -305,7 +325,11 @@ export async function getAvailableModels(): Promise<AliaModelWithAvailability[]>
         break; // No need to check more - at least one is available
       }
     }
-    results.push({ ...model, isAvailable });
+    results.push({
+      ...model,
+      isAvailable,
+      isLegacy: legacyMap.get(model.id) ?? false,
+    });
   }
 
   return results;
