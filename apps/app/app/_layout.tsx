@@ -2,13 +2,16 @@ import FontAwesome from '@expo/vector-icons/FontAwesome';
 import { useFonts } from 'expo-font';
 import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
-import { useEffect } from 'react';
+import { useEffect, useMemo } from 'react';
 import { OxyProvider, useOxy } from '@oxyhq/services';
 import * as Linking from 'expo-linking';
-import { Platform } from 'react-native';
+import { Platform, View } from 'react-native';
+import { vars } from 'nativewind';
 
 import { KeyboardProvider } from 'react-native-keyboard-controller';
 import { useColorScheme } from '@/lib/useColorScheme';
+import { useThemeStore } from '@/lib/stores/theme-store';
+import { ACCENT_PRESETS, getAccentCSSVariables, applyAccentToDocument } from '@/lib/accent-presets';
 import { setTokenGetter } from '@/lib/api/client';
 import 'react-native-reanimated';
 import '../global.css';
@@ -35,23 +38,37 @@ function AuthSetup({ children }: { children: React.ReactNode }) {
 }
 
 function AppContent() {
-  const { colors } = useColorScheme();
+  const { colors, colorScheme } = useColorScheme();
+  const accentColor = useThemeStore((s) => s.accentColor);
+
+  // Web: apply accent CSS variables to document
+  useEffect(() => {
+    applyAccentToDocument(accentColor, colorScheme);
+  }, [accentColor, colorScheme]);
+
+  // Native: cascade accent CSS variables via NativeWind vars()
+  const accentVars = useMemo(() => {
+    if (accentColor === 'default') return undefined;
+    const preset = ACCENT_PRESETS[accentColor];
+    return vars(getAccentCSSVariables(preset, colorScheme));
+  }, [accentColor, colorScheme]);
 
   return (
     <AuthSetup>
-      <KeyboardProvider>
-        <Stack
-          screenOptions={{
-            contentStyle: {
-              backgroundColor: colors.background,
-            },
-          }}
-        >
-          <Stack.Screen name="(app)" options={{ headerShown: false }} />
-          <Stack.Screen name="(biglayout)" options={{ headerShown: false }} />
-        </Stack>
-      </KeyboardProvider>
-
+      <View style={[{ flex: 1 }, accentVars]}>
+        <KeyboardProvider>
+          <Stack
+            screenOptions={{
+              contentStyle: {
+                backgroundColor: colors.background,
+              },
+            }}
+          >
+            <Stack.Screen name="(app)" options={{ headerShown: false }} />
+            <Stack.Screen name="(biglayout)" options={{ headerShown: false }} />
+          </Stack>
+        </KeyboardProvider>
+      </View>
     </AuthSetup>
   );
 }
