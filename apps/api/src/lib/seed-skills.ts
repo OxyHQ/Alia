@@ -1,4 +1,5 @@
 import { Skill } from '../models/skill.js';
+import { log } from './logger.js';
 
 const BUILT_IN_SKILLS = [
   {
@@ -504,8 +505,8 @@ export async function seedSkills(): Promise<void> {
         { upsert: true }
       );
     }
-    console.log(`[Skills] Seeded ${BUILT_IN_SKILLS.length} built-in skills`);
+    log.seed.info({ count: BUILT_IN_SKILLS.length }, 'Seeded built-in skills');
   } catch (error) {
-    console.error('[Skills] Error seeding skills:', error);
+    log.seed.error({ err: error }, 'Error seeding skills');
   }
 }

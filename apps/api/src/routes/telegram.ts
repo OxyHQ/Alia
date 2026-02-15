@@ -6,6 +6,7 @@ import { ChannelUser } from '../models/channel-user.js';
 import { emitTelegramLinked } from '../socket.js';
 import { OxyServices } from '@oxyhq/core';
 import { isAliaModel, getAllAliaModels } from '../lib/chat-core.js';
+import { log } from '../lib/logger.js';
 
 // Initialize Oxy client for user lookups
 const OXY_API_URL = process.env.OXY_API_URL || 'https://api.oxy.so';
@@ -42,7 +43,7 @@ router.get('/users/token/:token', async (req, res) => {
       isAuthenticated: channelUser.isAuthenticated,
     });
   } catch (error) {
-    console.error('Token info (users/token) error:', error);
+    log.telegram.error({ err: error }, 'Token info (users/token) error');
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -72,7 +73,7 @@ router.get('/link-status', authenticateToken, async (req, res) => {
       linkedAt: channelUser.linkedAt,
     });
   } catch (error) {
-    console.error('Telegram link status error:', error);
+    log.telegram.error({ err: error }, 'Telegram link status error');
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -123,12 +124,12 @@ router.post('/unlink', authenticateToken, async (req, res) => {
         });
       }
     } catch (notifyError) {
-      console.error('[Telegram] Failed to send unlink notification:', notifyError);
+      log.telegram.error({ err: notifyError }, 'Failed to send unlink notification');
     }
 
     res.json({ success: true, message: 'Telegram account unlinked successfully' });
   } catch (error) {
-    console.error('Telegram unlink error:', error);
+    log.telegram.error({ err: error }, 'Telegram unlink error');
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -182,7 +183,7 @@ router.post('/users', authenticateTelegramBot, async (req, res) => {
       preferredModel: channelUser.preferredModel,
     });
   } catch (error) {
-    console.error('Create/update telegram user error:', error);
+    log.telegram.error({ err: error }, 'Create/update telegram user error');
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -212,7 +213,7 @@ router.get('/users/:telegramId', authenticateTelegramBot, async (req, res) => {
       preferredModel: channelUser.preferredModel,
     });
   } catch (error) {
-    console.error('Get telegram user error:', error);
+    log.telegram.error({ err: error }, 'Get telegram user error');
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -242,7 +243,7 @@ router.post('/auth-request', authenticateTelegramBot, async (req, res) => {
       mode: 'signin',
     });
   } catch (error) {
-    console.error('Auth request error:', error);
+    log.telegram.error({ err: error }, 'Auth request error');
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -272,7 +273,7 @@ router.post('/link-request', authenticateTelegramBot, async (req, res) => {
       mode: 'link',
     });
   } catch (error) {
-    console.error('Link request error:', error);
+    log.telegram.error({ err: error }, 'Link request error');
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -294,7 +295,7 @@ router.post('/users/:telegramId/conversation', authenticateTelegramBot, async (r
 
     res.json({ success: true, conversationId });
   } catch (error) {
-    console.error('Update conversation error:', error);
+    log.telegram.error({ err: error }, 'Update conversation error');
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -324,7 +325,7 @@ router.post('/users/:telegramId/model', authenticateTelegramBot, async (req, res
 
     res.json({ success: true, model });
   } catch (error) {
-    console.error('Update model error:', error);
+    log.telegram.error({ err: error }, 'Update model error');
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -348,7 +349,7 @@ router.post('/users/:telegramId/logout', authenticateTelegramBot, async (req, re
 
     res.json({ success: true, message: 'Logged out successfully' });
   } catch (error) {
-    console.error('Logout error:', error);
+    log.telegram.error({ err: error }, 'Logout error');
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -455,7 +456,7 @@ router.get('/verify', async (req, res) => {
 
     res.redirect(redirectUrl);
   } catch (error) {
-    console.error('Telegram verify error:', error);
+    log.telegram.error({ err: error }, 'Telegram verify error');
     res.status(500).send('Internal server error');
   }
 });
@@ -488,7 +489,7 @@ router.get('/check-token/:token', async (req, res) => {
       expiresAt: channelUser.authTokenExpiry,
     });
   } catch (error) {
-    console.error('Token check error:', error);
+    log.telegram.error({ err: error }, 'Token check error');
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -523,7 +524,7 @@ router.post('/link', authenticateToken, async (req, res) => {
     try {
       user = await oxyClient.getUserById(oxyUserId);
     } catch (error) {
-      console.error('[Telegram Link] Failed to fetch user:', error);
+      log.telegram.error({ err: error }, 'Failed to fetch user');
       return res.status(500).json({ error: 'Failed to fetch user information' });
     }
 
@@ -549,9 +550,9 @@ router.post('/link', authenticateToken, async (req, res) => {
     try {
       const botToken = process.env.TELEGRAM_BOT_TOKEN;
       if (!botToken) {
-        console.warn('[Telegram] Bot token not configured, skipping notification');
+        log.telegram.warn('Bot token not configured, skipping notification');
       } else if (!channelUser.chatId) {
-        console.warn('[Telegram] No chat ID for user:', channelUser.channelUserId);
+        log.telegram.warn({ channelUserId: channelUser.channelUserId }, 'No chat ID for user');
       } else {
         // Use the user's name for the message
         const userName = user.name?.full || user.name?.first || channelUser.displayName || channelUser.username || '';
@@ -560,11 +561,7 @@ router.post('/link', authenticateToken, async (req, res) => {
           `¡Bienvenido ${userName}! Tu cuenta de Telegram ahora está vinculada a Alia.\n\n` +
           `Puedes empezar a chatear conmigo ahora mismo. ¡Solo envíame cualquier mensaje! 💬`;
 
-        console.log('[Telegram] Sending authentication success message to:', {
-          telegramId: channelUser.channelUserId,
-          chatId: channelUser.chatId,
-          userName
-        });
+        log.telegram.info({ telegramId: channelUser.channelUserId, chatId: channelUser.chatId, userName }, 'Sending authentication success message');
 
         const response = await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
           method: 'POST',
@@ -578,18 +575,18 @@ router.post('/link', authenticateToken, async (req, res) => {
 
         const result = await response.json();
         if (!response.ok) {
-          console.error('[Telegram] Failed to send message:', result);
+          log.telegram.error({ err: result }, 'Failed to send message');
         } else {
-          console.log('[Telegram] Successfully sent authentication message to user:', channelUser.channelUserId);
+          log.telegram.info({ channelUserId: channelUser.channelUserId }, 'Successfully sent authentication message');
         }
       }
     } catch (notifyError) {
-      console.error('[Telegram] Failed to send notification:', notifyError);
+      log.telegram.error({ err: notifyError }, 'Failed to send notification');
     }
 
     return res.json({ success: true });
   } catch (error) {
-    console.error('[Telegram Link] Error:', error);
+    log.telegram.error({ err: error }, 'Error');
     return res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -601,7 +598,7 @@ router.post('/signin-complete', authenticateTelegramBot, async (req, res) => {
     const { authCode, telegramId, chatId, username, firstName, lastName } = req.body;
 
     if (!authCode || !telegramId || !chatId) {
-      console.error('[signin-complete] Missing required fields', req.body);
+      log.telegram.error({ body: req.body }, 'Missing required fields in signin-complete');
       return res.status(400).json({ error: 'Missing required fields' });
     }
 
@@ -616,7 +613,7 @@ router.post('/signin-complete', authenticateTelegramBot, async (req, res) => {
     });
 
     if (!pendingAuth) {
-      console.error('[signin-complete] Pending auth not found or expired', { authCode });
+      log.telegram.error({ authCode }, 'Pending auth not found or expired');
       return res.status(404).json({ error: 'Auth code not found or expired' });
     }
 
@@ -642,7 +639,7 @@ router.post('/signin-complete', authenticateTelegramBot, async (req, res) => {
       // Fetch user data from Oxy
       try {
         const user = await oxyClient.getUserById(channelUser.oxyUserId.toString());
-        console.log('[signin-complete] Telegram user signed in with existing link', { telegramId, oxyUserId: channelUser.oxyUserId });
+        log.telegram.info({ telegramId, oxyUserId: channelUser.oxyUserId }, 'Telegram user signed in with existing link');
 
         return res.json({
           success: true,
@@ -655,7 +652,7 @@ router.post('/signin-complete', authenticateTelegramBot, async (req, res) => {
           },
         });
       } catch (error) {
-        console.error('[signin-complete] Failed to fetch Oxy user', { telegramId, oxyUserId: channelUser.oxyUserId, error });
+        log.telegram.error({ err: error, telegramId, oxyUserId: channelUser.oxyUserId }, 'Failed to fetch Oxy user');
         return res.status(404).json({ error: 'Linked Oxy user not found' });
       }
     } else {
@@ -677,7 +674,7 @@ router.post('/signin-complete', authenticateTelegramBot, async (req, res) => {
       // Clean up any duplicates
       await ChannelUser.deleteMany({ channelType: CHANNEL_TYPE, channelUserId: telegramId, _id: { $ne: channelUser._id } });
 
-      console.log('[signin-complete] Telegram user not linked to Oxy account', { telegramId });
+      log.telegram.info({ telegramId }, 'Telegram user not linked to Oxy account');
       return res.status(403).json({
         error: 'Telegram not linked to any account',
         message: 'Please sign in via Oxy and link your Telegram account first',
@@ -685,7 +682,7 @@ router.post('/signin-complete', authenticateTelegramBot, async (req, res) => {
       });
     }
   } catch (error) {
-    console.error('Telegram signin-complete error:', error);
+    log.telegram.error({ err: error }, 'Telegram signin-complete error');
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -732,7 +729,7 @@ router.get('/token-info/:token', async (req, res) => {
             });
           }
         } catch (notifyError) {
-          console.error('[Telegram] Failed to send login notification:', notifyError);
+          log.telegram.error({ err: notifyError }, 'Failed to send login notification');
         }
 
         // Compose full name from Oxy user
@@ -753,14 +750,14 @@ router.get('/token-info/:token', async (req, res) => {
           name: fullName,
         });
       } catch (error) {
-        console.error('[token-info] Failed to fetch Oxy user:', error);
+        log.telegram.error({ err: error }, 'Failed to fetch Oxy user');
         return res.status(404).json({ error: 'Linked Oxy user not found' });
       }
     }
     // No vinculado aún
     return res.status(404).json({ error: 'Telegram not linked to any account' });
   } catch (error) {
-    console.error('Token info error:', error);
+    log.telegram.error({ err: error }, 'Token info error');
     res.status(500).json({ error: 'Internal server error' });
   }
 });

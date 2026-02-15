@@ -6,6 +6,7 @@
 import express, { Request, Response } from 'express';
 import ApiKeyUsage from '../../../models/api-key-usage';
 import { getGlobalCostStats } from '../../../lib/cost-tracker';
+import { log } from '../../../lib/logger.js';
 
 const router = express.Router();
 
@@ -103,7 +104,7 @@ router.get('/', async (req: Request, res: Response) => {
       },
     });
   } catch (error: any) {
-    console.error('Error getting usage stats:', error);
+    log.providers.error({ err: error }, 'Error getting usage stats');
     res.status(500).json({
       success: false,
       error: 'An internal error occurred',
@@ -128,7 +129,7 @@ router.get('/costs', async (req: Request, res: Response) => {
       data: stats,
     });
   } catch (error: any) {
-    console.error('Error getting cost stats:', error);
+    log.providers.error({ err: error }, 'Error getting cost stats');
     res.status(500).json({
       success: false,
       error: 'An internal error occurred',

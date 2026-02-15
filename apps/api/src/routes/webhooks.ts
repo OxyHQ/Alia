@@ -9,6 +9,7 @@ import { Conversation } from '../models/conversation.js';
 import { getOrCreateUserCredits } from '../lib/user-credits-helpers.js';
 import { reserveCredits, finalizeCredits, type CreditReservation, type CreditUsage } from '../lib/credits-manager.js';
 import type { ChannelId, ChannelInboundMessage } from '../lib/channels/types.js';
+import { log } from '../lib/logger.js';
 
 const CHANNEL_SYSTEM_PROMPT = `You are Alia, a helpful AI assistant. Be concise and friendly. Respond in the same language the user writes to you.`;
 
@@ -102,7 +103,7 @@ async function processChannelMessage(
         }));
       }
     } catch (error) {
-      console.error(`[Webhook] Failed to load history for ${channelType}:`, error);
+      log.webhook.error({ err: error, channelType }, 'Failed to load conversation history');
     }
 
     // Add the new user message
@@ -138,15 +139,15 @@ async function processChannelMessage(
 
     // Finalize credits based on actual token usage
     const tokenUsage: CreditUsage = {
-      promptTokens: result.usage?.promptTokens || 0,
-      completionTokens: result.usage?.completionTokens || 0,
-      totalTokens: result.usage?.totalTokens || 0,
+      promptTokens: result.usage?.inputTokens || 0,
+      completionTokens: result.usage?.outputTokens || 0,
+      totalTokens: (result.usage?.inputTokens || 0) + (result.usage?.outputTokens || 0),
     };
 
     try {
       await finalizeCredits(creditReservation, tokenUsage, aliasModelId);
     } catch (error) {
-      console.error(`[Webhook] Error finalizing credits for ${channelType}:`, error);
+      log.webhook.error({ err: error, channelType }, 'Error finalizing credits');
     }
 
     // Send response back via outbound adapter
@@ -189,7 +190,7 @@ async function processChannelMessage(
       );
     }
   } catch (error) {
-    console.error(`[Webhook] Chat processing error for ${channelType}:`, error);
+    log.webhook.error({ err: error, channelType }, 'Chat processing error');
     try {
       await sendChannelMessage(channelType, message.chatId, 'Sorry, an error occurred. Please try again.', {
         replyToId: message.replyToId,
@@ -210,10 +211,10 @@ router.get('/whatsapp', (req, res) => {
   const verifyToken = process.env.WHATSAPP_VERIFY_TOKEN;
 
   if (mode === 'subscribe' && token === verifyToken) {
-    console.log('[Webhook] WhatsApp verification successful');
+    log.webhook.info('WhatsApp verification successful');
     res.status(200).send(challenge);
   } else {
-    console.warn('[Webhook] WhatsApp verification failed');
+    log.webhook.warn('WhatsApp verification failed');
     res.sendStatus(403);
   }
 });
@@ -224,12 +225,12 @@ router.post('/:type', async (req, res) => {
 
   const channel = getChannel(channelType);
   if (!channel) {
-    console.warn(`[Webhook] Unknown channel type: ${channelType}`);
+    log.webhook.warn({ channelType }, 'Unknown channel type');
     return res.sendStatus(404);
   }
 
   if (!channel.webhook) {
-    console.warn(`[Webhook] Channel ${channelType} has no webhook adapter`);
+    log.webhook.warn({ channelType }, 'Channel has no webhook adapter');
     return res.sendStatus(404);
   }
 
@@ -240,7 +241,7 @@ router.post('/:type', async (req, res) => {
 
   // Verify webhook signature
   if (!channel.webhook.verifySignature(req)) {
-    console.warn(`[Webhook] Signature verification failed for ${channelType}`);
+    log.webhook.warn({ channelType }, 'Signature verification failed');
     return res.sendStatus(401);
   }
 
@@ -257,16 +258,17 @@ router.post('/:type', async (req, res) => {
 
   // Deduplicate: skip if this message was already processed recently
   if (isDuplicate(channelType, message)) {
-    console.log(`[Webhook] Duplicate ${channelType} message skipped for ${message.channelUserId}`);
+    log.webhook.info({ channelType, channelUserId: message.channelUserId }, 'Duplicate message skipped');
     return res.sendStatus(200);
   }
 
-  console.log(`[Webhook] Inbound ${channelType} message:`, {
+  log.webhook.info({
+    channelType,
     from: message.channelUserId,
     chatId: message.chatId,
     text: message.text.slice(0, 100),
     username: message.username,
-  });
+  }, 'Inbound message');
 
   try {
     // Find or create channel user
@@ -285,7 +287,7 @@ router.post('/:type', async (req, res) => {
         metadata: {},
       });
       await channelUser.save();
-      console.log(`[Webhook] Created new ${channelType} user: ${message.channelUserId}`);
+      log.webhook.info({ channelType, channelUserId: message.channelUserId }, 'Created new channel user');
     } else {
       let updated = false;
       if (message.chatId && channelUser.chatId !== message.chatId) {
@@ -308,10 +310,10 @@ router.post('/:type', async (req, res) => {
 
     // Process message asynchronously
     processChannelMessage(channelType, channelUser, message).catch(error => {
-      console.error(`[Webhook] Async processing error for ${channelType}:`, error);
+      log.webhook.error({ err: error, channelType }, 'Async processing error');
     });
   } catch (error) {
-    console.error(`[Webhook] Error processing ${channelType} message:`, error);
+    log.webhook.error({ err: error, channelType }, 'Error processing webhook message');
     res.sendStatus(200);
   }
 });

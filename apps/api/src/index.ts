@@ -43,6 +43,7 @@ import { syncZeroEval } from './scripts/sync-zeroeval.js';
 import { runStartupSeed } from './internal/providers/lib/seed-model-configs.js';
 import { seedSkills } from './lib/seed-skills.js';
 import { startScheduler } from './lib/automation-scheduler.js';
+import { warmupProviders } from './lib/provider-warmup.js';
 import { initChannels } from './lib/channels/index.js';
 // WebSocket and Socket.io
 import { WebSocketServer } from 'ws';
@@ -298,6 +299,8 @@ connectDB()
       syncZeroEval().catch((err) => console.error('[ZeroEval] Background sync error:', err));
       // Start automation scheduler (non-blocking)
       startScheduler().catch((err) => console.error('[Scheduler] Startup error:', err));
+      // Pre-warm TLS connections to AI providers (non-blocking)
+      warmupProviders().catch((err) => console.error('[Warmup] Provider warmup error:', err));
       // LiveKit agent disabled — voice uses WebSocket Realtime API (/v1/realtime)
     });
 

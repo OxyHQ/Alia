@@ -1,5 +1,6 @@
 import mongoose, { Document, Schema } from 'mongoose';
 import crypto from 'crypto';
+import { log } from '../../../lib/logger.js';
 
 export interface IRateLimit {
   rpm?: number;  // Requests per minute
@@ -272,9 +273,7 @@ ProviderKeySchema.methods.recordFailure = async function (
   // Move to last priority (end of queue)
   this.currentPriority = maxPriority + 1;
 
-  console.warn(
-    `⬇️  Key ${this.keyPrefix} (${this.provider}) moved to last priority (${this.currentPriority}) after failure: ${reason.substring(0, 50)}`
-  );
+  log.keys.warn({ keyPrefix: this.keyPrefix, provider: this.provider, priority: this.currentPriority, reason: reason.substring(0, 50) }, 'Key moved to last priority after failure');
 
   // Check if we should archive (too many total failures)
   if (this.totalFailures >= this.maxTotalFailures) {
@@ -282,9 +281,7 @@ ProviderKeySchema.methods.recordFailure = async function (
     this.isActive = false;
     this.archivedAt = new Date();
     this.archivedReason = `Archived after ${this.totalFailures} total failures`;
-    console.error(
-      `🗄️  Key ${this.keyPrefix} (${this.provider}) ARCHIVED after ${this.totalFailures} total failures`
-    );
+    log.keys.error({ keyPrefix: this.keyPrefix, provider: this.provider, totalFailures: this.totalFailures }, 'Key archived after too many failures');
   }
 
   await this.save();
@@ -303,15 +300,13 @@ ProviderKeySchema.methods.recordSuccess = async function (): Promise<void> {
   // Restore to original priority
   if (wasDeprioritized) {
     this.currentPriority = this.originalPriority;
-    console.log(
-      `⬆️  Key ${this.keyPrefix} (${this.provider}) restored to priority ${this.currentPriority} after success`
-    );
+    log.keys.info({ keyPrefix: this.keyPrefix, provider: this.provider, priority: this.currentPriority }, 'Key restored to original priority after success');
   }
 
   // Reactivate if it was inactive (but not if archived)
   if (!this.isArchived && !this.isActive) {
     this.isActive = true;
-    console.log(`🔓 Key ${this.keyPrefix} (${this.provider}) reactivated`);
+    log.keys.info({ keyPrefix: this.keyPrefix, provider: this.provider }, 'Key reactivated');
   }
 
   await this.save();

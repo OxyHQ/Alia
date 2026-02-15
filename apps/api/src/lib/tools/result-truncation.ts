@@ -2,8 +2,10 @@
  * Tool Result Truncation
  * Caps tool output to a percentage of the model's context window.
  * Truncates at paragraph/newline boundaries to keep content coherent.
+ * Inspired by ZeroClaw's truncate_with_ellipsis pattern.
  */
 
+import type { ToolSet } from 'ai';
 import { log } from '../logger.js';
 
 const DEFAULT_MAX_CHARS = 6000; // ~1500 tokens at 4 chars/token
@@ -40,4 +42,58 @@ export function getToolResultBudget(contextTokens: number): number {
   const budget = Math.floor(contextTokens * 0.3 * 4);
   // Clamp between 2000 and 20000 chars
   return Math.max(2000, Math.min(20000, budget));
+}
+
+/**
+ * Recursively truncate string values in an object.
+ * Only truncates fields likely to contain large content.
+ */
+function truncateObjectStrings(obj: any, maxChars: number): any {
+  if (typeof obj === 'string') return truncateToolResult(obj, maxChars);
+  if (Array.isArray(obj)) return obj.map(item => truncateObjectStrings(item, maxChars));
+  if (obj && typeof obj === 'object') {
+    const result: any = {};
+    for (const [key, value] of Object.entries(obj)) {
+      // Truncate known content-heavy fields
+      if (typeof value === 'string' && (key === 'content' || key === 'text' || key === 'output' || key === 'result')) {
+        result[key] = truncateToolResult(value, maxChars);
+      } else {
+        result[key] = value;
+      }
+    }
+    return result;
+  }
+  return obj;
+}
+
+/**
+ * Wrap all tools in a ToolSet with automatic result truncation.
+ * Intercepts each tool's execute function to truncate string-heavy results.
+ */
+export function wrapToolsWithTruncation(tools: ToolSet, maxChars: number = DEFAULT_MAX_CHARS): ToolSet {
+  const wrapped: ToolSet = {};
+
+  for (const [name, tool] of Object.entries(tools)) {
+    if (!tool.execute) {
+      wrapped[name] = tool;
+      continue;
+    }
+
+    const originalExecute = tool.execute;
+    wrapped[name] = {
+      ...tool,
+      execute: async (...args: any[]) => {
+        const result = await (originalExecute as Function)(...args);
+        if (typeof result === 'string') {
+          return truncateToolResult(result, maxChars);
+        }
+        if (result && typeof result === 'object') {
+          return truncateObjectStrings(result, maxChars);
+        }
+        return result;
+      },
+    };
+  }
+
+  return wrapped;
 }

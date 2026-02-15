@@ -11,6 +11,7 @@ import { AliaModel } from '../models/alia-model.js';
 import { TIER_MODEL_MAPPINGS, ALIA_MODELS, type ModelCapabilities } from './alia-models.js';
 import { connectDB } from './db.js';
 import mongoose from 'mongoose';
+import { log } from '../../../lib/logger.js';
 
 // Human-readable display names for common models
 const MODEL_DISPLAY_NAMES: Record<string, string> = {
@@ -60,7 +61,7 @@ export async function seedModelConfigs(): Promise<{ seeded: number; skipped: num
         'deepseek', 'together', 'cerebras', 'cloudflare', 'openrouter', 'xai',
       ];
       if (!validProviders.includes(mapping.provider)) {
-        console.log(`[Seed] Skipping ${uniqueKey} - provider not in schema enum`);
+        log.seed.info({ provider: mapping.provider, modelId: mapping.modelId }, 'Skipping - provider not in schema enum');
         skipped++;
         continue;
       }
@@ -111,7 +112,7 @@ export async function seedModelConfigs(): Promise<{ seeded: number; skipped: num
         if (result.upsertedCount > 0) {
           seeded++;
           if (!seen.has(uniqueKey)) {
-            console.log(`[Seed] Created ModelConfig: ${mapping.provider}/${mapping.modelId} (tier: ${tier})`);
+            log.seed.info({ provider: mapping.provider, modelId: mapping.modelId, tier }, 'Created ModelConfig');
           }
         } else {
           if (!seen.has(uniqueKey)) {
@@ -125,13 +126,13 @@ export async function seedModelConfigs(): Promise<{ seeded: number; skipped: num
         if (error.code === 11000) {
           skipped++;
         } else {
-          console.error(`[Seed] Error seeding ${uniqueKey}:`, error.message);
+          log.seed.error({ err: error, uniqueKey }, 'Error seeding ModelConfig');
         }
       }
     }
   }
 
-  console.log(`[Seed] ModelConfig seeding complete: ${seeded} created, ${skipped} skipped/existing`);
+  log.seed.info({ seeded, skipped }, 'ModelConfig seeding complete');
   return { seeded, skipped };
 }
 
@@ -214,7 +215,7 @@ export async function seedAliaModels(): Promise<{ seeded: number; skipped: numbe
 
       if (result.upsertedCount > 0) {
         seeded++;
-        console.log(`[Seed] Created AliaModel: ${modelId} (tier: ${aliaModel.tier}, ${providerMappings.length} providers)`);
+        log.seed.info({ modelId, tier: aliaModel.tier, providers: providerMappings.length }, 'Created AliaModel');
       } else {
         skipped++;
       }
@@ -222,12 +223,12 @@ export async function seedAliaModels(): Promise<{ seeded: number; skipped: numbe
       if (error.code === 11000) {
         skipped++;
       } else {
-        console.error(`[Seed] Error seeding AliaModel ${modelId}:`, error.message);
+        log.seed.error({ err: error, modelId }, 'Error seeding AliaModel');
       }
     }
   }
 
-  console.log(`[Seed] AliaModel seeding complete: ${seeded} created, ${skipped} skipped/existing`);
+  log.seed.info({ seeded, skipped }, 'AliaModel seeding complete');
   return { seeded, skipped };
 }
 
@@ -239,7 +240,7 @@ export async function resetAllCircuitBreakers(): Promise<number> {
 
   const ProviderHealth = mongoose.models.ProviderHealth;
   if (!ProviderHealth) {
-    console.log('[Seed] ProviderHealth model not loaded yet, skipping circuit breaker reset');
+    log.seed.info('ProviderHealth model not loaded yet, skipping circuit breaker reset');
     return 0;
   }
 
@@ -259,7 +260,7 @@ export async function resetAllCircuitBreakers(): Promise<number> {
   );
 
   if (result.modifiedCount > 0) {
-    console.log(`[Seed] Reset ${result.modifiedCount} open circuit breakers to closed`);
+    log.seed.info({ count: result.modifiedCount }, 'Reset open circuit breakers to closed');
   }
 
   return result.modifiedCount;
@@ -270,7 +271,7 @@ export async function resetAllCircuitBreakers(): Promise<number> {
  */
 export async function runStartupSeed(): Promise<void> {
   try {
-    console.log('[Seed] Running startup seed operations...');
+    log.seed.info('Running startup seed operations...');
     await seedModelConfigs();
     await seedAliaModels();
     const { seedPlans } = await import('./seed-plans.js');
@@ -281,8 +282,8 @@ export async function runStartupSeed(): Promise<void> {
     await seedFeatures();
     await seedPlanFeatures();
     await resetAllCircuitBreakers();
-    console.log('[Seed] Startup seed complete');
+    log.seed.info('Startup seed complete');
   } catch (error) {
-    console.error('[Seed] Error during startup seed:', error);
+    log.seed.error({ err: error }, 'Error during startup seed');
   }
 }

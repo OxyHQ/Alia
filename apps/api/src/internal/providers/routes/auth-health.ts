@@ -5,6 +5,7 @@
 
 import express, { Request, Response } from 'express';
 import { getAuthHealthStats } from '../../../lib/auth-health.js';
+import { log } from '../../../lib/logger.js';
 
 const router = express.Router();
 
@@ -34,7 +35,7 @@ router.get('/', async (req: Request, res: Response) => {
       },
     });
   } catch (error: any) {
-    console.error('Error getting auth health stats:', error);
+    log.providers.error({ err: error }, 'Error getting auth health stats');
     res.status(500).json({
       success: false,
       error: 'An internal error occurred',

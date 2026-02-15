@@ -8,6 +8,7 @@
 import crypto from 'crypto';
 import { connectDB } from './db.js';
 import mongoose from 'mongoose';
+import { log } from './logger.js';
 
 // ============== TYPES ==============
 
@@ -166,7 +167,7 @@ export async function getCachedResponse(
   // Check hot cache first (in-memory, instant)
   const hotEntry = hotCache.get(key);
   if (hotEntry && hotEntry.expiresAt > Date.now()) {
-    console.log(`[Cache] 🔥 HOT CACHE HIT for model ${model}`);
+    log.general.info({ model }, 'Hot cache hit');
     await incrementCacheHit(hotEntry.costSaved, hotEntry.tokensUsed);
     return {
       response: hotEntry.response,
@@ -185,7 +186,7 @@ export async function getCachedResponse(
     });
 
     if (entry) {
-      console.log(`[Cache] ✅ CACHE HIT for model ${model} (saved ${entry.tokensUsed} tokens, $${entry.costSaved.toFixed(4)})`);
+      log.general.info({ model, tokensSaved: entry.tokensUsed, costSaved: entry.costSaved }, 'Cache hit');
 
       // Update hit count and stats
       entry.hitCount++;
@@ -211,11 +212,11 @@ export async function getCachedResponse(
     }
 
     // Cache miss
-    console.log(`[Cache] ❌ CACHE MISS for model ${model}`);
+    log.general.info({ model }, 'Cache miss');
     await incrementCacheMiss();
     return null;
   } catch (error) {
-    console.error('[Cache] Error getting cached response:', error);
+    log.general.error({ err: error }, 'Error getting cached response');
     return null;
   }
 }
@@ -282,7 +283,7 @@ export async function setCachedResponse(
       });
     }
 
-    console.log(`[Cache] 💾 Cached response for model ${model} (expires in ${ttl}s, saves ${tokensUsed} tokens)`);
+    log.general.info({ model, ttl, tokensUsed }, 'Cached response stored');
 
     // Check if we need cache cleanup
     const cacheSize = await CacheEntryModel.countDocuments();
@@ -290,7 +291,7 @@ export async function setCachedResponse(
       await cleanupOldEntries();
     }
   } catch (error) {
-    console.error('[Cache] Error storing cached response:', error);
+    log.general.error({ err: error }, 'Error storing cached response');
   }
 }
 
@@ -314,10 +315,10 @@ export async function invalidateCache(model?: string): Promise<number> {
       hotCache.clear();
     }
 
-    console.log(`[Cache] 🗑️ Invalidated ${result.deletedCount} cache entries${model ? ` for model ${model}` : ''}`);
+    log.general.info({ deletedCount: result.deletedCount, model }, 'Invalidated cache entries');
     return result.deletedCount;
   } catch (error) {
-    console.error('[Cache] Error invalidating cache:', error);
+    log.general.error({ err: error }, 'Error invalidating cache');
     return 0;
   }
 }
@@ -355,7 +356,7 @@ export async function getCacheStats(): Promise<CacheStats> {
       cacheSize
     };
   } catch (error) {
-    console.error('[Cache] Error getting cache stats:', error);
+    log.general.error({ err: error }, 'Error getting cache stats');
     return {
       totalHits: 0,
       totalMisses: 0,
@@ -380,9 +381,9 @@ export async function resetCacheStats(): Promise<void> {
       totalTokensSaved: 0,
       lastReset: new Date()
     }, { upsert: true });
-    console.log('[Cache] 📊 Cache stats reset');
+    log.general.info('Cache stats reset');
   } catch (error) {
-    console.error('[Cache] Error resetting cache stats:', error);
+    log.general.error({ err: error }, 'Error resetting cache stats');
   }
 }
 
@@ -404,7 +405,7 @@ async function incrementCacheHit(costSaved: number, tokensSaved: number): Promis
       { upsert: true }
     );
   } catch (error) {
-    console.error('[Cache] Error incrementing cache hit:', error);
+    log.general.error({ err: error }, 'Error incrementing cache hit');
   }
 }
 
@@ -420,7 +421,7 @@ async function incrementCacheMiss(): Promise<void> {
       { upsert: true }
     );
   } catch (error) {
-    console.error('[Cache] Error incrementing cache miss:', error);
+    log.general.error({ err: error }, 'Error incrementing cache miss');
   }
 }
 
@@ -442,9 +443,9 @@ async function cleanupOldEntries(): Promise<void> {
     // Clear from hot cache
     keysToDelete.forEach(key => hotCache.delete(key));
 
-    console.log(`[Cache] 🧹 Cleaned up ${entriesToDelete} old cache entries`);
+    log.general.info({ cleaned: entriesToDelete }, 'Cleaned up old cache entries');
   } catch (error) {
-    console.error('[Cache] Error cleaning up old entries:', error);
+    log.general.error({ err: error }, 'Error cleaning up old cache entries');
   }
 }
 
@@ -452,12 +453,12 @@ async function cleanupOldEntries(): Promise<void> {
 
 export function setCacheEnabled(enabled: boolean): void {
   CACHE_CONFIG.enabled = enabled;
-  console.log(`[Cache] Cache ${enabled ? 'enabled' : 'disabled'}`);
+  log.general.info({ enabled }, 'Cache state changed');
 }
 
 export function setCacheTTL(ttlSeconds: number): void {
   CACHE_CONFIG.defaultTTL = ttlSeconds;
-  console.log(`[Cache] Default TTL set to ${ttlSeconds}s`);
+  log.general.info({ ttlSeconds }, 'Cache default TTL set');
 }
 
 export function isCacheEnabled(): boolean {

@@ -4,6 +4,7 @@ import DeveloperApiKey, { IRateLimitConfig } from '../models/developer-api-key';
 import { Subscription } from '../models/subscription';
 import mongoose from 'mongoose';
 import { checkLimit } from '../lib/sliding-window-limiter.js';
+import { log } from '../lib/logger.js';
 
 interface RateLimitStatus {
   limited: boolean;
@@ -350,7 +351,7 @@ export async function apiKeyRateLimit(
 
       return next();
     } catch (error) {
-      console.error('API key rate limit check error:', error);
+      log.rateLimit.error({ err: error }, 'API key rate limit check error');
       return next();
     }
   }
@@ -373,7 +374,7 @@ export async function apiKeyRateLimit(
 
       return next();
     } catch (error) {
-      console.error('User rate limit check error:', error);
+      log.rateLimit.error({ err: error }, 'User rate limit check error');
       return next();
     }
   }
@@ -542,6 +543,6 @@ export async function recordUsage(
 
     await ApiKeyUsage.create(usageRecord);
   } catch (error) {
-    console.error('Failed to record usage:', error);
+    log.rateLimit.error({ err: error }, 'Failed to record usage');
   }
 }

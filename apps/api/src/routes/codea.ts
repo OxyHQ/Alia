@@ -7,6 +7,7 @@ import { getOrCreateUserCredits } from '../lib/user-credits-helpers.js';
 import DeveloperApiKey from '../models/developer-api-key.js';
 import { resolveModel } from '../lib/chat-core.js';
 import { reserveCredits, finalizeCredits, type CreditReservation } from '../lib/credits-manager.js';
+import { log } from '../lib/logger.js';
 import * as crypto from 'crypto';
 
 const router = Router();
@@ -165,7 +166,7 @@ router.get('/user', authenticateApiKey, apiKeyRateLimit, async (req: Request, re
 
     res.json(entitlementData);
   } catch (error) {
-    console.error('[Codea] Error fetching user entitlements:', error);
+    log.codea.error({ err: error }, 'Error fetching user entitlements');
     res.status(500).json({ error: 'Failed to fetch entitlements' });
   }
 });
@@ -216,7 +217,7 @@ router.get('/token', authenticateApiKey, apiKeyRateLimit, async (req: Request, r
       },
     });
   } catch (error) {
-    console.error('[Codea] Error fetching token info:', error);
+    log.codea.error({ err: error }, 'Error fetching token info');
     res.status(500).json({ error: 'Failed to fetch token info' });
   }
 });
@@ -240,7 +241,7 @@ router.get('/mcp_registry', authenticateApiKey, apiKeyRateLimit, async (_req: Re
       },
     });
   } catch (error) {
-    console.error('[Codea] Error fetching MCP registry:', error);
+    log.codea.error({ err: error }, 'Error fetching MCP registry');
     res.status(500).json({ error: 'Failed to fetch MCP registry' });
   }
 });
@@ -297,7 +298,7 @@ router.get('/me', authenticateApiKey, apiKeyRateLimit, async (req: Request, res:
       }
     });
   } catch (error) {
-    console.error('[Codea] Error fetching user info:', error);
+    log.codea.error({ err: error }, 'Error fetching user info');
     res.status(500).json({ error: 'Failed to fetch user info' });
   }
 });
@@ -320,7 +321,7 @@ router.post('/resolve-model', authenticateApiKey, apiKeyRateLimit, async (req: R
       return res.status(400).json({ error: 'Model is required' });
     }
 
-    console.log('[Codea] Resolving model:', model, 'for user:', userId);
+    log.codea.info({ model, userId }, 'Resolving model');
 
     // Reserve credits
     await getOrCreateUserCredits(userId);
@@ -355,7 +356,7 @@ router.post('/resolve-model', authenticateApiKey, apiKeyRateLimit, async (req: R
       aliaModelId: resolved.aliasModelId
     });
 
-    console.log('[Codea] Resolved to:', resolved.provider, resolved.modelId, 'sessionId:', sessionId);
+    log.codea.info({ provider: resolved.provider, modelId: resolved.modelId, sessionId }, 'Resolved model');
 
     // Only return provider key to trusted services (telegram bot)
     const isTrustedService = !!req.headers['x-telegram-bot-secret'];
@@ -370,7 +371,7 @@ router.post('/resolve-model', authenticateApiKey, apiKeyRateLimit, async (req: R
 
     res.json(response);
   } catch (error: any) {
-    console.error('[Codea] Error resolving model:', error);
+    log.codea.error({ err: error }, 'Error resolving model');
     res.status(500).json({ error: error.message || 'Failed to resolve model' });
   }
 });
@@ -390,11 +391,11 @@ router.post('/report-usage', authenticateApiKey, apiKeyRateLimit, async (req: Re
 
     const session = activeSessions.get(sessionId);
     if (!session) {
-      console.warn('[Codea] Session not found for usage reporting:', sessionId);
+      log.codea.warn({ sessionId }, 'Session not found for usage reporting');
       return res.status(404).json({ error: 'Session not found' });
     }
 
-    console.log('[Codea] Reporting usage for session:', sessionId, 'tokens:', usage.totalTokens);
+    log.codea.info({ sessionId, totalTokens: usage.totalTokens }, 'Reporting usage for session');
 
     // Finalize credits
     const { creditsCharged, creditsRemaining } = await finalizeCredits(
@@ -406,7 +407,7 @@ router.post('/report-usage', authenticateApiKey, apiKeyRateLimit, async (req: Re
     // Clean up session
     activeSessions.delete(sessionId);
 
-    console.log('[Codea] Charged', creditsCharged, 'credits, remaining:', creditsRemaining);
+    log.codea.info({ creditsCharged, creditsRemaining }, 'Credits charged');
 
     res.json({
       success: true,
@@ -414,7 +415,7 @@ router.post('/report-usage', authenticateApiKey, apiKeyRateLimit, async (req: Re
       creditsRemaining
     });
   } catch (error: any) {
-    console.error('[Codea] Error reporting usage:', error);
+    log.codea.error({ err: error }, 'Error reporting usage');
     res.status(500).json({ error: error.message || 'Failed to report usage' });
   }
 });

@@ -3,6 +3,7 @@ import { randomUUID } from 'crypto';
 import { Conversation } from '../models/conversation.js';
 import { authenticateToken } from '../middleware/auth.js';
 import type { Request, Response } from 'express';
+import { log } from '../lib/logger.js';
 
 const router = Router();
 
@@ -34,7 +35,7 @@ router.post('/new', authenticateToken, async (req: Request, res: Response) => {
       updatedAt: conversation.updatedAt
     });
   } catch (error) {
-    console.error('Error creating conversation:', error);
+    log.chat.error({ err: error }, 'Error creating conversation');
     res.status(500).json({ error: 'Failed to create conversation' });
   }
 });
@@ -85,7 +86,7 @@ router.get('/', authenticateToken, async (req: Request, res: Response) => {
       hasMore
     });
   } catch (error) {
-    console.error('Error fetching conversations:', error);
+    log.chat.error({ err: error }, 'Error fetching conversations');
     res.status(500).json({ error: 'Failed to fetch conversations' });
   }
 });
@@ -121,7 +122,7 @@ router.get('/:id', authenticateToken, async (req: Request, res: Response) => {
       updatedAt: conversation.updatedAt
     });
   } catch (error) {
-    console.error('Error fetching conversation:', error);
+    log.chat.error({ err: error }, 'Error fetching conversation');
     res.status(500).json({ error: 'Failed to fetch conversation' });
   }
 });
@@ -189,7 +190,7 @@ router.post('/', authenticateToken, async (req: Request, res: Response) => {
       updatedAt: conversation.updatedAt
     });
   } catch (error) {
-    console.error('Error saving conversation:', error);
+    log.chat.error({ err: error }, 'Error saving conversation');
     res.status(500).json({ error: 'Failed to save conversation' });
   }
 });
@@ -212,7 +213,7 @@ router.delete('/:id', authenticateToken, async (req: Request, res: Response) => 
 
     res.json({ success: true });
   } catch (error) {
-    console.error('Error deleting conversation:', error);
+    log.chat.error({ err: error }, 'Error deleting conversation');
     res.status(500).json({ error: 'Failed to delete conversation' });
   }
 });

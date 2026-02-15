@@ -1,4 +1,5 @@
 import { Router, Request, Response, NextFunction } from 'express';
+import { log } from '../../lib/logger.js';
 
 const router = Router();
 
@@ -10,7 +11,7 @@ const router = Router();
  * Simply converts the request format and forwards to /v1/chat/completions
  */
 router.post('/', (req: Request, res: Response, next: NextFunction) => {
-  console.log('[V1/Responses] Request received, converting to chat completions format');
+  log.v1.info('Request received, converting to chat completions format');
 
   const body = req.body;
 
@@ -69,11 +70,7 @@ router.post('/', (req: Request, res: Response, next: NextFunction) => {
     thinkingMode: body.thinkingMode,
   };
 
-  console.log('[V1/Responses] Converted:', {
-    messageCount: messages.length,
-    model: req.body.model,
-    stream: req.body.stream
-  });
+  log.v1.info({ messageCount: messages.length, model: req.body.model, stream: req.body.stream }, 'Responses API converted to chat completions format');
 
   // Rewrite URL and forward to chat completions handler
   req.url = '/';
@@ -83,7 +80,7 @@ router.post('/', (req: Request, res: Response, next: NextFunction) => {
   import('./chat-completions.js').then(module => {
     module.default(req, res, next);
   }).catch(err => {
-    console.error('[V1/Responses] Error loading chat-completions:', err);
+    log.v1.error({ err: err }, 'Error loading chat-completions');
     res.status(500).json({
       error: {
         message: 'Internal server error',

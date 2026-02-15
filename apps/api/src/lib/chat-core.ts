@@ -8,6 +8,7 @@
 import { createGoogleGenerativeAI } from '@ai-sdk/google';
 import { createOpenAI } from '@ai-sdk/openai';
 import { createAnthropic } from '@ai-sdk/anthropic';
+import { log } from './logger.js';
 
 import { resolveAliaModel as internalResolveAliaModel, resolveAliaModelWithAttempts, getDefaultAliaModel } from '../internal/providers/lib/model-resolver';
 import type { FallbackResult, FallbackAttempt } from '../internal/providers/lib/model-resolver';
@@ -157,6 +158,6 @@ export async function reportModelUsage(
     }
   } catch (err: any) {
     // Health reporting should never break the request flow
-    console.error('[ChatCore] Error reporting model usage:', err.message);
+    log.chat.error({ err }, 'Error reporting model usage');
   }
 }

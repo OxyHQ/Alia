@@ -1,4 +1,5 @@
 import type { ChatHook, ChatHookContext, AfterChatContext, ChatHookResult } from './types.js';
+import { log } from '../logger.js';
 
 const hooks: ChatHook[] = [];
 
@@ -16,7 +17,7 @@ function sortedHooks(): ChatHook[] {
 
 export function registerHook(hook: ChatHook): void {
   hooks.push(hook);
-  console.log(`[Hooks] Registered hook: ${hook.name} (priority: ${hook.priority ?? DEFAULT_PRIORITY})`);
+  log.chat.info({ hookName: hook.name, priority: hook.priority }, 'Registered hook');
 }
 
 export async function runBeforeChatHooks(ctx: ChatHookContext): Promise<ChatHookResult> {
@@ -30,7 +31,7 @@ export async function runBeforeChatHooks(ctx: ChatHookContext): Promise<ChatHook
           if (hookResult.metadata) result.metadata = { ...result.metadata, ...hookResult.metadata };
         }
       } catch (error) {
-        console.error(`[Hooks] Error in beforeChat hook "${hook.name}":`, error);
+        log.chat.error({ err: error }, 'Error in beforeChat hook "${hook.name}"');
       }
     }
   }
@@ -43,7 +44,7 @@ export async function runAfterChatHooks(ctx: AfterChatContext): Promise<void> {
       try {
         await hook.afterChat(ctx);
       } catch (error) {
-        console.error(`[Hooks] Error in afterChat hook "${hook.name}":`, error);
+        log.chat.error({ err: error }, 'Error in afterChat hook "${hook.name}"');
       }
     }
   }

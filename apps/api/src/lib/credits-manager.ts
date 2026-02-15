@@ -1,5 +1,6 @@
 import { UserCredits } from '../models/user-credits.js';
 import { getAliaModel } from './chat-core.js';
+import { log } from './logger.js';
 
 /**
  * Credits Manager
@@ -66,7 +67,7 @@ export function calculateCreditsFromTokens(
   const systemTokens = systemPromptTokens || 0;
   const billableTokens = Math.max(0, totalTokens - systemTokens);
 
-  console.log(`[CreditsManager] Token breakdown: total=${totalTokens}, system=${systemTokens}, billable=${billableTokens}`);
+  log.credits.info({ totalTokens, systemTokens, billableTokens }, 'Token breakdown');
 
   const multiplier = getCreditMultiplier(aliasModelId);
   const calculatedCredits = Math.ceil((billableTokens / CREDITS_CONFIG.TOKENS_PER_CREDIT) * multiplier);
@@ -115,12 +116,12 @@ export async function reserveCredits(
     );
 
     if (!reserveResult) {
-      console.log('[CreditsManager] Insufficient credits for user:', userId);
+      log.credits.info({ userId }, 'Insufficient credits for user');
       return null;
     }
 
-    console.log(`[CreditsManager] Reserved ${amount} credits for user ${userId}`);
-    console.log(`[CreditsManager] Remaining: ${reserveResult.credits.free} free, ${reserveResult.credits.paid} paid`);
+    log.credits.info({ amount, userId }, 'Reserved credits for user');
+    log.credits.info({ free: reserveResult.credits.free, paid: reserveResult.credits.paid }, 'Remaining credits');
 
     return {
       userId,
@@ -129,7 +130,7 @@ export async function reserveCredits(
       initialPaidCredits: reserveResult.credits.paid,
     };
   } catch (error) {
-    console.error('[CreditsManager] Error reserving credits:', error);
+    log.credits.error({ err: error }, 'Error reserving credits');
     throw error;
   }
 }
@@ -152,10 +153,9 @@ export async function finalizeCredits(
     );
     const creditAdjustment = reservation.creditsReserved - actualCreditsNeeded;
 
-    console.log(`[CreditsManager] Finalizing credits for user ${reservation.userId}`);
-    console.log(`[CreditsManager] Reserved: ${reservation.creditsReserved}, Actual needed: ${actualCreditsNeeded}`);
-    console.log(`[CreditsManager] Tokens used: ${usage.totalTokens} (prompt: ${usage.promptTokens}, completion: ${usage.completionTokens}, system: ${usage.systemPromptTokens || 0})`);
-    console.log(`[CreditsManager] Adjustment: ${creditAdjustment}`);
+    log.credits.info({ userId: reservation.userId, reserved: reservation.creditsReserved, actualNeeded: actualCreditsNeeded }, 'Finalizing credits');
+    log.credits.info({ totalTokens: usage.totalTokens, promptTokens: usage.promptTokens, completionTokens: usage.completionTokens, systemTokens: usage.systemPromptTokens || 0 }, 'Tokens used');
+    log.credits.info({ creditAdjustment }, 'Credit adjustment');
 
     let updatedCredits = await UserCredits.findById(reservation.userId);
 
@@ -172,7 +172,7 @@ export async function finalizeCredits(
           { $inc: { 'credits.free': creditAdjustment } },
           { new: true, runValidators: false }
         );
-        console.log(`[CreditsManager] Refunded ${creditAdjustment} credits`);
+        log.credits.info({ refunded: creditAdjustment }, 'Refunded credits');
       } else {
         // Charge more: actual usage exceeded reservation
         const additionalCredits = Math.abs(creditAdjustment);
@@ -215,9 +215,9 @@ export async function finalizeCredits(
             { $set: { 'credits.free': 0, 'credits.paid': 0 } },
             { new: true }
           );
-          console.log(`[CreditsManager] WARNING: Insufficient credits for additional charge. Set to 0.`);
+          log.credits.warn('Insufficient credits for additional charge, set to 0');
         } else {
-          console.log(`[CreditsManager] Charged additional ${additionalCredits} credits`);
+          log.credits.info({ additionalCredits }, 'Charged additional credits');
         }
       }
     }
@@ -227,14 +227,14 @@ export async function finalizeCredits(
     }
 
     const totalRemaining = updatedCredits.credits.free + updatedCredits.credits.paid;
-    console.log(`[CreditsManager] Final credits: ${updatedCredits.credits.free} free, ${updatedCredits.credits.paid} paid (total: ${totalRemaining})`);
+    log.credits.info({ free: updatedCredits.credits.free, paid: updatedCredits.credits.paid, total: totalRemaining }, 'Final credits');
 
     return {
       creditsCharged: actualCreditsNeeded,
       creditsRemaining: totalRemaining,
     };
   } catch (error) {
-    console.error('[CreditsManager] Error finalizing credits:', error);
+    log.credits.error({ err: error }, 'Error finalizing credits');
     throw error;
   }
 }
@@ -250,7 +250,7 @@ export async function safeRefund(
   if (!reservation) return;
   await refundReservation(reservation);
   if (reason) {
-    console.log(`[CreditsManager] Refunded credits (${reason})`);
+    log.credits.info({ reason }, 'Refunded credits');
   }
 }
 
@@ -264,9 +264,9 @@ export async function refundReservation(reservation: CreditReservation): Promise
       { $inc: { 'credits.free': reservation.creditsReserved } },
       { runValidators: false }
     );
-    console.log(`[CreditsManager] Refunded ${reservation.creditsReserved} credits to user ${reservation.userId}`);
+    log.credits.info({ refunded: reservation.creditsReserved, userId: reservation.userId }, 'Refunded credits to user');
   } catch (error) {
-    console.error('[CreditsManager] Error refunding credits:', error);
+    log.credits.error({ err: error }, 'Error refunding credits');
   }
 }
 
@@ -286,7 +286,7 @@ export async function getUserCredits(userId: string): Promise<{ free: number; pa
       total: userCredits.credits.free + userCredits.credits.paid,
     };
   } catch (error) {
-    console.error('[CreditsManager] Error getting user credits:', error);
+    log.credits.error({ err: error }, 'Error getting user credits');
     return null;
   }
 }
@@ -318,7 +318,7 @@ export function calculateCreditsFromMinutes(
   const baseCredits = Math.ceil(minutes * costPerMinute * 1000);
   const calculatedCredits = Math.ceil(baseCredits * multiplier);
 
-  console.log(`[CreditsManager] Voice credits: ${minutes.toFixed(2)} min × $${costPerMinute}/min × ${multiplier}x = ${calculatedCredits} credits`);
+  log.credits.info({ minutes: minutes.toFixed(2), costPerMinute, multiplier, calculatedCredits }, 'Voice credits calculated');
 
   return Math.max(calculatedCredits, CREDITS_CONFIG.MIN_CREDITS_PER_REQUEST);
 }
@@ -345,7 +345,7 @@ export async function reserveVoiceCredits(
     costPerMinute
   );
 
-  console.log(`[CreditsManager] Reserving ${estimatedCredits} credits for estimated ${estimatedMinutes} min voice call`);
+  log.credits.info({ estimatedCredits, estimatedMinutes }, 'Reserving credits for voice call');
 
   return reserveCredits(userId, estimatedCredits);
 }
@@ -374,10 +374,9 @@ export async function finalizeVoiceCredits(
     );
     const creditAdjustment = reservation.creditsReserved - actualCreditsNeeded;
 
-    console.log(`[CreditsManager] Finalizing voice credits for user ${reservation.userId}`);
-    console.log(`[CreditsManager] Reserved: ${reservation.creditsReserved}, Actual needed: ${actualCreditsNeeded}`);
-    console.log(`[CreditsManager] Duration: ${actualMinutes.toFixed(2)} minutes at $${costPerMinute}/min`);
-    console.log(`[CreditsManager] Adjustment: ${creditAdjustment}`);
+    log.credits.info({ userId: reservation.userId, reserved: reservation.creditsReserved, actualNeeded: actualCreditsNeeded }, 'Finalizing voice credits');
+    log.credits.info({ duration: actualMinutes.toFixed(2), costPerMinute }, 'Voice call duration');
+    log.credits.info({ creditAdjustment }, 'Voice credit adjustment');
 
     let updatedCredits = await UserCredits.findById(reservation.userId);
 
@@ -394,7 +393,7 @@ export async function finalizeVoiceCredits(
           { $inc: { 'credits.free': creditAdjustment } },
           { new: true, runValidators: false }
         );
-        console.log(`[CreditsManager] Refunded ${creditAdjustment} credits`);
+        log.credits.info({ refunded: creditAdjustment }, 'Refunded credits');
       } else {
         // Charge more: actual usage exceeded reservation
         const additionalCredits = Math.abs(creditAdjustment);
@@ -437,9 +436,9 @@ export async function finalizeVoiceCredits(
             { $set: { 'credits.free': 0, 'credits.paid': 0 } },
             { new: true }
           );
-          console.log(`[CreditsManager] WARNING: Insufficient credits for additional charge. Set to 0.`);
+          log.credits.warn('Insufficient credits for additional charge, set to 0');
         } else {
-          console.log(`[CreditsManager] Charged additional ${additionalCredits} credits`);
+          log.credits.info({ additionalCredits }, 'Charged additional credits');
         }
       }
     }
@@ -449,14 +448,14 @@ export async function finalizeVoiceCredits(
     }
 
     const totalRemaining = updatedCredits.credits.free + updatedCredits.credits.paid;
-    console.log(`[CreditsManager] Final voice credits: ${updatedCredits.credits.free} free, ${updatedCredits.credits.paid} paid (total: ${totalRemaining})`);
+    log.credits.info({ free: updatedCredits.credits.free, paid: updatedCredits.credits.paid, total: totalRemaining }, 'Final voice credits');
 
     return {
       creditsCharged: actualCreditsNeeded,
       creditsRemaining: totalRemaining,
     };
   } catch (error) {
-    console.error('[CreditsManager] Error finalizing voice credits:', error);
+    log.credits.error({ err: error }, 'Error finalizing voice credits');
     throw error;
   }
 }

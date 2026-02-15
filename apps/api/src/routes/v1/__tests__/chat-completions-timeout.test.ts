@@ -28,7 +28,7 @@ vi.mock('ai', () => ({
 
 vi.mock('../../../lib/chat-core.js', () => ({
   resolveModel: (...args: any[]) => mockResolveModel(...args),
-  getAIModel: (...args: any[]) => mockGetAIModel(...args),
+  getAIModel: vi.fn(mockGetAIModel),
   getDefaultAliaModel: () => mockGetDefaultAliaModel(),
   reportModelUsage: (...args: any[]) => mockReportModelUsage(...args),
   isAliaModel: vi.fn(() => true),

@@ -5,6 +5,7 @@
  */
 
 import mongoose, { Schema, Model, Document } from 'mongoose';
+import { log } from '../logger.js';
 
 export interface IMemoryEmbedding extends Document {
   oxyUserId: mongoose.Types.ObjectId;
@@ -57,7 +58,7 @@ export async function upsertMemoryEmbedding(
       { upsert: true }
     );
   } catch (error) {
-    console.error('[VectorSearch] Error upserting embedding:', error);
+    log.memory.error({ err: error }, 'Error upserting embedding');
   }
 }
 
@@ -71,7 +72,7 @@ export async function deleteMemoryEmbedding(
   try {
     await MemoryEmbedding.deleteOne({ oxyUserId, memoryKey });
   } catch (error) {
-    console.error('[VectorSearch] Error deleting embedding:', error);
+    log.memory.error({ err: error }, 'Error deleting embedding');
   }
 }
 
@@ -135,7 +136,7 @@ export async function searchByVector(
     scored.sort((a, b) => b.score - a.score);
     return scored.slice(0, topK);
   } catch (error) {
-    console.error('[VectorSearch] Error searching:', error);
+    log.memory.error({ err: error }, 'Error searching');
     return [];
   }
 }

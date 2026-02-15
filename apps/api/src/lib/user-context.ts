@@ -7,6 +7,7 @@
 
 import { oxyClient } from '../middleware/auth.js';
 import { UserMemory } from '../models/user-memory.js';
+import { log } from './logger.js';
 
 export interface UserContext {
   userName: string | null;
@@ -59,7 +60,7 @@ export async function buildUserContext(userId: string): Promise<UserContext> {
       language = userMemory.preferences?.language || null;
     }
   } catch (e) {
-    console.error('[UserContext] Error loading user memory:', e);
+    log.memory.error({ err: e }, 'Error loading user memory');
   }
 
   return { userName, language, contextString };

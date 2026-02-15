@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { Skill } from '../models/skill.js';
 import { authenticateToken } from '../middleware/auth.js';
+import { log } from '../lib/logger.js';
 
 const router = Router();
 
@@ -16,7 +17,7 @@ router.get('/', async (_req: Request, res: Response) => {
       .lean();
     res.json({ skills });
   } catch (error: any) {
-    console.error('[Skills] Error listing skills:', error);
+    log.skills.error({ err: error }, 'Error listing skills');
     res.status(500).json({ error: 'Failed to list skills' });
   }
 });
@@ -35,7 +36,7 @@ router.get('/:skillId', async (req: Request, res: Response) => {
     }
     res.json({ skill });
   } catch (error: any) {
-    console.error('[Skills] Error getting skill:', error);
+    log.skills.error({ err: error }, 'Error getting skill');
     res.status(500).json({ error: 'Failed to get skill' });
   }
 });
@@ -54,7 +55,7 @@ router.get('/:skillId/prompt', authenticateToken, async (req: Request, res: Resp
     }
     res.json({ skillId: skill.skillId, title: skill.title, systemPrompt: skill.systemPrompt });
   } catch (error: any) {
-    console.error('[Skills] Error getting skill prompt:', error);
+    log.skills.error({ err: error }, 'Error getting skill prompt');
     res.status(500).json({ error: 'Failed to get skill prompt' });
   }
 });

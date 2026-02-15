@@ -9,6 +9,7 @@ import { ProviderKey } from '../models/provider-key';
 import { invalidateKeyCache } from '../lib/key-manager';
 import { clearHealthCache } from '../lib/provider-health';
 import { broadcastKeysUpdate } from '../lib/broadcast-helpers';
+import { log } from '../../../lib/logger.js';
 
 const router = express.Router();
 
@@ -54,7 +55,7 @@ router.post('/reload', async (req: Request, res: Response) => {
       .digest('hex')
       .substring(0, 12);
 
-    console.log(`[ConfigReload] Caches invalidated. Config hash: ${configHash}, Keys: ${keyCount}`);
+    log.keys.info({ configHash, keyCount }, 'Caches invalidated');
 
     res.json({
       success: true,
@@ -64,7 +65,7 @@ router.post('/reload', async (req: Request, res: Response) => {
       reloadedAt: new Date().toISOString(),
     });
   } catch (error: any) {
-    console.error('[ConfigReload] Error:', error);
+    log.keys.error({ err: error }, 'Error');
     res.status(500).json({ success: false, error: 'Failed to reload configuration' });
   }
 });
@@ -96,7 +97,7 @@ router.get('/', async (req: Request, res: Response) => {
       data: keys,
     });
   } catch (error: any) {
-    console.error('Error listing keys:', error);
+    log.keys.error({ err: error }, 'Error listing keys');
     res.status(500).json({
       success: false,
       error: 'An internal error occurred',
@@ -151,7 +152,7 @@ router.get('/diagnostics', async (req: Request, res: Response) => {
       },
     });
   } catch (error: any) {
-    console.error('Error running key diagnostics:', error);
+    log.keys.error({ err: error }, 'Error running key diagnostics');
     res.status(500).json({
       success: false,
       error: 'An internal error occurred',
@@ -183,7 +184,7 @@ router.get('/:keyId', async (req: Request, res: Response) => {
       data: key,
     });
   } catch (error: any) {
-    console.error('Error getting key:', error);
+    log.keys.error({ err: error }, 'Error getting key');
     res.status(500).json({
       success: false,
       error: 'An internal error occurred',
@@ -290,7 +291,7 @@ router.post('/', async (req: Request, res: Response) => {
 
     broadcastKeysUpdate(provider);
   } catch (error: any) {
-    console.error('Error adding key:', error);
+    log.keys.error({ err: error }, 'Error adding key');
     res.status(500).json({
       success: false,
       error: 'An internal error occurred',
@@ -348,7 +349,7 @@ router.patch('/:keyId', async (req: Request, res: Response) => {
 
     broadcastKeysUpdate(key.provider);
   } catch (error: any) {
-    console.error('Error updating key:', error);
+    log.keys.error({ err: error }, 'Error updating key');
     res.status(500).json({
       success: false,
       error: 'An internal error occurred',
@@ -385,7 +386,7 @@ router.delete('/:keyId', async (req: Request, res: Response) => {
 
     broadcastKeysUpdate(key.provider);
   } catch (error: any) {
-    console.error('Error deleting key:', error);
+    log.keys.error({ err: error }, 'Error deleting key');
     res.status(500).json({
       success: false,
       error: 'An internal error occurred',
@@ -456,7 +457,7 @@ router.post('/:keyId/rotate', async (req: Request, res: Response) => {
 
     broadcastKeysUpdate(key.provider);
   } catch (error: any) {
-    console.error('Error rotating key:', error);
+    log.keys.error({ err: error }, 'Error rotating key');
     res.status(500).json({
       success: false,
       error: 'An internal error occurred',
@@ -498,7 +499,7 @@ router.post('/:keyId/deactivate', async (req: Request, res: Response) => {
 
     broadcastKeysUpdate(key.provider);
   } catch (error: any) {
-    console.error('Error deactivating key:', error);
+    log.keys.error({ err: error }, 'Error deactivating key');
     res.status(500).json({
       success: false,
       error: 'An internal error occurred',
@@ -540,7 +541,7 @@ router.post('/:keyId/activate', async (req: Request, res: Response) => {
 
     broadcastKeysUpdate(key.provider);
   } catch (error: any) {
-    console.error('Error activating key:', error);
+    log.keys.error({ err: error }, 'Error activating key');
     res.status(500).json({
       success: false,
       error: 'An internal error occurred',

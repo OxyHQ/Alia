@@ -3,6 +3,7 @@ import { z } from "zod";
 import { getMemoryLimit } from "../../models/user-memory.js";
 import { Subscription } from "../../models/subscription.js";
 import { getOrCreateUserMemory } from "../memory/user-memory-service.js";
+import { log } from '../logger.js';
 
 /**
  * Tool to save user memories
@@ -78,7 +79,7 @@ export const saveUserMemoryTool = (oxyUserId: string) => tool({
         totalMemories: memory.memories.length
       };
     } catch (error: any) {
-      console.error('[saveUserMemoryTool] Error:', error);
+      log.tools.error({ err: error }, 'Error');
       return {
         success: false,
         message: `Error al guardar el recuerdo: ${error.message}`
@@ -119,7 +120,7 @@ export const updateUserPreferencesTool = (oxyUserId: string) => tool({
         preferences: memory.preferences
       };
     } catch (error: any) {
-      console.error('[updateUserPreferencesTool] Error:', error);
+      log.tools.error({ err: error }, 'Error');
       return {
         success: false,
         message: `Error al actualizar preferencias: ${error.message}`
@@ -160,7 +161,7 @@ export const updateUserContextTool = (oxyUserId: string) => tool({
         context: memory.context
       };
     } catch (error: any) {
-      console.error('[updateUserContextTool] Error:', error);
+      log.tools.error({ err: error }, 'Error');
       return {
         success: false,
         message: `Error al actualizar contexto: ${error.message}`

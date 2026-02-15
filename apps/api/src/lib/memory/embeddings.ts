@@ -4,6 +4,8 @@
  * Graceful degradation: if embedding fails, returns null (never throws).
  */
 
+import { log } from '../logger.js';
+
 const EMBEDDING_MODEL = 'text-embedding-3-small';
 const EMBEDDING_DIMENSIONS = 1536;
 
@@ -33,14 +35,14 @@ export async function generateEmbedding(text: string): Promise<number[] | null> 
     });
 
     if (!response.ok) {
-      console.error(`[Embeddings] OpenAI API error: ${response.status}`);
+      log.memory.error({ status: response.status }, 'OpenAI API error');
       return null;
     }
 
     const data = await response.json() as any;
     return data.data?.[0]?.embedding || null;
   } catch (error) {
-    console.error('[Embeddings] Error generating embedding:', error);
+    log.memory.error({ err: error }, 'Error generating embedding');
     return null;
   }
 }

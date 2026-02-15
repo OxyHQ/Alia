@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { Feedback } from '../models/feedback.js';
 import { authenticateToken } from '../middleware/auth.js';
+import { log } from '../lib/logger.js';
 
 const router = Router();
 
@@ -53,7 +54,7 @@ router.post('/', async (req, res) => {
       }
     });
   } catch (error) {
-    console.error('Error submitting feedback:', error);
+    log.general.error({ err: error }, 'Error submitting feedback');
     res.status(500).json({ error: 'Failed to submit feedback' });
   }
 });
@@ -70,7 +71,7 @@ router.get('/', async (req, res) => {
 
     res.json(feedback);
   } catch (error) {
-    console.error('Error fetching feedback:', error);
+    log.general.error({ err: error }, 'Error fetching feedback');
     res.status(500).json({ error: 'Failed to fetch feedback' });
   }
 });
@@ -93,7 +94,7 @@ router.get('/:id', async (req, res) => {
 
     res.json(feedback);
   } catch (error) {
-    console.error('Error fetching feedback:', error);
+    log.general.error({ err: error }, 'Error fetching feedback');
     res.status(500).json({ error: 'Failed to fetch feedback' });
   }
 });

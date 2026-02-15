@@ -7,6 +7,7 @@ import express, { Request, Response } from 'express';
 import { Plan } from '../models/plan.js';
 import { AliaModel } from '../models/alia-model.js';
 import { broadcastPlansUpdate } from '../lib/broadcast-helpers.js';
+import { log } from '../../../lib/logger.js';
 
 const router = express.Router();
 
@@ -30,7 +31,7 @@ router.get('/', async (req: Request, res: Response) => {
       data: plans,
     });
   } catch (error: any) {
-    console.error('Error listing plans:', error);
+    log.providers.error({ err: error }, 'Error listing plans');
     res.status(500).json({
       success: false,
       error: 'An internal error occurred',
@@ -61,7 +62,7 @@ router.get('/:planId', async (req: Request, res: Response) => {
       data: plan,
     });
   } catch (error: any) {
-    console.error('Error getting plan:', error);
+    log.providers.error({ err: error }, 'Error getting plan');
     res.status(500).json({
       success: false,
       error: 'An internal error occurred',
@@ -144,7 +145,7 @@ router.post('/', async (req: Request, res: Response) => {
 
     broadcastPlansUpdate();
   } catch (error: any) {
-    console.error('Error creating plan:', error);
+    log.providers.error({ err: error }, 'Error creating plan');
     res.status(500).json({
       success: false,
       error: 'An internal error occurred',
@@ -217,7 +218,7 @@ router.patch('/:planId', async (req: Request, res: Response) => {
 
     broadcastPlansUpdate();
   } catch (error: any) {
-    console.error('Error updating plan:', error);
+    log.providers.error({ err: error }, 'Error updating plan');
     res.status(500).json({
       success: false,
       error: 'An internal error occurred',
@@ -251,7 +252,7 @@ router.delete('/:planId', async (req: Request, res: Response) => {
 
     broadcastPlansUpdate();
   } catch (error: any) {
-    console.error('Error deleting plan:', error);
+    log.providers.error({ err: error }, 'Error deleting plan');
     res.status(500).json({
       success: false,
       error: 'An internal error occurred',

@@ -7,6 +7,7 @@
 
 import type { Response } from 'express';
 import { type AliaError, toSSEError } from './errors';
+import { log } from './logger.js';
 
 // ============== SSE EVENT TYPES ==============
 
@@ -355,7 +356,7 @@ export async function streamProviderResponseAsSSE(
             }
           } catch {
             // Invalid JSON - skip
-            console.warn('[SSEStream] Failed to parse chunk:', data);
+            log.chat.warn({ data }, 'Failed to parse SSE chunk');
           }
         }
       }
@@ -367,7 +368,7 @@ export async function streamProviderResponseAsSSE(
       success: true
     };
   } catch (error) {
-    console.error('[SSEStream] Error streaming:', error);
+    log.chat.error({ err: error }, 'Error streaming SSE');
     return {
       inputTokens,
       outputTokens,

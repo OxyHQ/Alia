@@ -6,6 +6,7 @@ import { authenticateChannelBot } from '../middleware/channel-auth.js';
 import { getChannel, listChannels, getConfiguredChannels } from '../lib/channels/registry.js';
 import { ChannelUser } from '../models/channel-user.js';
 import type { ChannelId } from '../lib/channels/types.js';
+import { log } from '../lib/logger.js';
 
 const router = express.Router();
 
@@ -88,7 +89,7 @@ router.post('/:type/users', channelAuth, async (req, res) => {
       preferredModel: channelUser.preferredModel,
     });
   } catch (error) {
-    console.error(`[Channels] Create/update user error:`, error);
+    log.channels.error({ err: error }, 'Create/update user error');
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -119,7 +120,7 @@ router.get('/:type/users/:channelUserId', channelAuth, async (req, res) => {
       preferredModel: channelUser.preferredModel,
     });
   } catch (error) {
-    console.error(`[Channels] Get user error:`, error);
+    log.channels.error({ err: error }, 'Get user error');
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -154,7 +155,7 @@ router.post('/:type/auth-request', channelAuth, async (req, res) => {
       expiresAt: channelUser.authTokenExpiry,
     });
   } catch (error) {
-    console.error(`[Channels] Auth request error:`, error);
+    log.channels.error({ err: error }, 'Auth request error');
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -183,7 +184,7 @@ router.get('/:type/verify', async (req, res) => {
     const redirectUrl = `${appUrl}/channel-auth?token=${token}&channel=${channelType}`;
     res.redirect(redirectUrl);
   } catch (error) {
-    console.error(`[Channels] Verify error:`, error);
+    log.channels.error({ err: error }, 'Verify error');
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -206,7 +207,7 @@ router.get('/:type/check-token/:token', async (req, res) => {
 
     res.json({ valid: true, expiresAt: channelUser.authTokenExpiry });
   } catch (error) {
-    console.error(`[Channels] Check token error:`, error);
+    log.channels.error({ err: error }, 'Check token error');
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -249,7 +250,7 @@ router.post('/:type/link', authenticateToken, async (req, res) => {
 
     res.json({ success: true });
   } catch (error) {
-    console.error(`[Channels] Link error:`, error);
+    log.channels.error({ err: error }, 'Link error');
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -282,7 +283,7 @@ router.get('/:type/link-status', authenticateToken, async (req, res) => {
       linkedAt: channelUser.linkedAt,
     });
   } catch (error) {
-    console.error(`[Channels] Link status error:`, error);
+    log.channels.error({ err: error }, 'Link status error');
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -316,7 +317,7 @@ router.post('/:type/unlink', authenticateToken, async (req, res) => {
 
     res.json({ success: true, message: 'Channel account unlinked successfully' });
   } catch (error) {
-    console.error(`[Channels] Unlink error:`, error);
+    log.channels.error({ err: error }, 'Unlink error');
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -340,7 +341,7 @@ router.post('/:type/users/:channelUserId/conversation', channelAuth, async (req,
 
     res.json({ success: true, conversationId });
   } catch (error) {
-    console.error(`[Channels] Update conversation error:`, error);
+    log.channels.error({ err: error }, 'Update conversation error');
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -368,7 +369,7 @@ router.post('/:type/users/:channelUserId/model', channelAuth, async (req, res) =
 
     res.json({ success: true, model });
   } catch (error) {
-    console.error(`[Channels] Update model error:`, error);
+    log.channels.error({ err: error }, 'Update model error');
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -393,7 +394,7 @@ router.post('/:type/users/:channelUserId/logout', channelAuth, async (req, res) 
 
     res.json({ success: true, message: 'Logged out successfully' });
   } catch (error) {
-    console.error(`[Channels] Logout error:`, error);
+    log.channels.error({ err: error }, 'Logout error');
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -421,7 +422,7 @@ router.get('/:type/users/token/:token', async (req, res) => {
       displayName: channelUser.displayName || channelUser.username || '',
     });
   } catch (error) {
-    console.error(`[Channels] Token info error:`, error);
+    log.channels.error({ err: error }, 'Token info error');
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -480,7 +481,7 @@ async function proxyToIntegrations(
       res.status(response.status).json(data);
       return;
     } catch (error) {
-      console.error(`[Channels] ${label} attempt ${attempt + 1}/${MAX_ATTEMPTS} error:`, error);
+      log.channels.error({ err: error, label, attempt: attempt + 1, maxAttempts: MAX_ATTEMPTS }, 'Integrations proxy error');
       if (attempt < MAX_ATTEMPTS - 1) {
         await new Promise(r => setTimeout(r, BACKOFF_MS[attempt]));
         continue;
@@ -544,7 +545,7 @@ function mountGatewayRoutes(
     const limit = (req.query.limit as string) || '20';
     await proxyToIntegrations(
       res,
-      `/${platform}/sessions/${sessionId}/chats/${encodeURIComponent(chatId)}/messages?limit=${limit}`,
+      `/${platform}/sessions/${sessionId}/chats/${encodeURIComponent(chatId as string)}/messages?limit=${limit}`,
       undefined,
       `${platform} messages`,
     );

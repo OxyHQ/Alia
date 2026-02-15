@@ -9,6 +9,7 @@ import cron, { type ScheduledTask } from 'node-cron';
 import { generateText } from 'ai';
 import { Automation, type IAutomation } from '../models/automation.js';
 import { resolveModel, getAIModel, getDefaultAliaModel } from './chat-core.js';
+import { log } from './logger.js';
 
 // Map of automation ID to scheduled task
 const scheduledTasks = new Map<string, ScheduledTask>();
@@ -48,7 +49,7 @@ function scheduleToCron(schedule: IAutomation['schedule']): string | null {
     const [hours, minutes] = time.split(':').map(Number);
 
     if (isNaN(hours) || isNaN(minutes)) {
-      console.error(`[Scheduler] Invalid time format: ${time}`);
+      log.automations.error({ time }, 'Invalid time format');
       return null;
     }
 
@@ -80,7 +81,7 @@ function scheduleToCron(schedule: IAutomation['schedule']): string | null {
  */
 async function executeAutomation(automation: IAutomation): Promise<void> {
   const automationId = automation._id.toString();
-  console.log(`[Scheduler] Running automation "${automation.name}" (${automationId})`);
+  log.automations.info({ name: automation.name, automationId }, 'Running automation');
 
   try {
     // Atomically mark as running, skip if already running (prevents concurrent execution)
@@ -90,7 +91,7 @@ async function executeAutomation(automation: IAutomation): Promise<void> {
       { new: true }
     );
     if (!updated) {
-      console.log(`[Scheduler] Automation "${automation.name}" is already running, skipping`);
+      log.automations.info({ name: automation.name }, 'Automation already running, skipping');
       return;
     }
 
@@ -100,7 +101,7 @@ async function executeAutomation(automation: IAutomation): Promise<void> {
       automation.lastRunStatus = 'failed';
       automation.lastRunResult = 'No AI models available';
       await automation.save();
-      console.error(`[Scheduler] No AI models available for automation ${automationId}`);
+      log.automations.error({ automationId }, 'No AI models available for automation');
       return;
     }
 
@@ -132,9 +133,9 @@ async function executeAutomation(automation: IAutomation): Promise<void> {
     automation.lastRunStatus = 'success';
     await automation.save();
 
-    console.log(`[Scheduler] Automation "${automation.name}" completed successfully`);
+    log.automations.info({ name: automation.name }, 'Automation completed successfully');
   } catch (error: any) {
-    console.error(`[Scheduler] Automation "${automation.name}" failed:`, error.message);
+    log.automations.error({ err: error, name: automation.name }, 'Automation failed');
 
     automation.lastRunStatus = 'failed';
     automation.lastRunResult = error.message || 'Execution failed';
@@ -161,12 +162,12 @@ function scheduleAutomation(automation: IAutomation): void {
 
   const cronExpression = scheduleToCron(automation.schedule);
   if (!cronExpression) {
-    console.error(`[Scheduler] Invalid schedule for automation "${automation.name}" (${automationId})`);
+    log.automations.error({ name: automation.name, automationId }, 'Invalid schedule for automation');
     return;
   }
 
   if (!cron.validate(cronExpression)) {
-    console.error(`[Scheduler] Invalid cron expression "${cronExpression}" for automation "${automation.name}"`);
+    log.automations.error({ cronExpression, name: automation.name }, 'Invalid cron expression for automation');
     return;
   }
 
@@ -180,7 +181,7 @@ function scheduleAutomation(automation: IAutomation): void {
   });
 
   scheduledTasks.set(automationId, task);
-  console.log(`[Scheduler] Scheduled "${automation.name}" with cron: ${cronExpression}`);
+  log.automations.info({ name: automation.name, cronExpression }, 'Scheduled automation');
 }
 
 /**
@@ -189,19 +190,19 @@ function scheduleAutomation(automation: IAutomation): void {
  * Should be called once after server starts.
  */
 export async function startScheduler(): Promise<void> {
-  console.log('[Scheduler] Starting automation scheduler...');
+  log.automations.info('Starting automation scheduler...');
 
   try {
     const automations = await Automation.find({ enabled: true });
-    console.log(`[Scheduler] Found ${automations.length} enabled automations`);
+    log.automations.info({ count: automations.length }, 'Found enabled automations');
 
     for (const automation of automations) {
       scheduleAutomation(automation);
     }
 
-    console.log('[Scheduler] Automation scheduler started');
+    log.automations.info('Automation scheduler started');
   } catch (error) {
-    console.error('[Scheduler] Failed to start scheduler:', error);
+    log.automations.error({ err: error }, 'Failed to start scheduler');
   }
 }
 

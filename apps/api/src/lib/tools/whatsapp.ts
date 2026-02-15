@@ -1,5 +1,6 @@
 import { tool } from 'ai';
 import { z } from 'zod';
+import { log } from '../logger.js';
 
 const WHATSAPP_GATEWAY_URL = process.env.WHATSAPP_GATEWAY_URL;
 const WHATSAPP_GATEWAY_SECRET = process.env.WHATSAPP_GATEWAY_SECRET;
@@ -55,7 +56,7 @@ export function createGetWhatsAppChatsTool(userId: string) {
           })),
         };
       } catch (error: any) {
-        console.error('[WhatsAppTools] getChats error:', error);
+        log.tools.error({ err: error }, 'getChats error');
         return { success: false, message: error.message };
       }
     },
@@ -90,7 +91,7 @@ export function createGetWhatsAppMessagesTool(userId: string) {
           })),
         };
       } catch (error: any) {
-        console.error('[WhatsAppTools] getMessages error:', error);
+        log.tools.error({ err: error }, 'getMessages error');
         return { success: false, message: error.message };
       }
     },
@@ -120,7 +121,7 @@ export function createSendWhatsAppMessageTool(userId: string) {
           messageId: data.messageId,
         };
       } catch (error: any) {
-        console.error('[WhatsAppTools] sendMessage error:', error);
+        log.tools.error({ err: error }, 'sendMessage error');
         return { success: false, message: error.message };
       }
     },

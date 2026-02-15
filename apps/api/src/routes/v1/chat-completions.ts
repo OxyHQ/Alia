@@ -1,7 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { streamText, generateText, stepCountIs, type ToolSet } from 'ai';
 import { resolveModel, getAIModel, getDefaultAliaModel, reportModelUsage } from '../../lib/chat-core.js';
-import { getAliaModel } from '../../internal/providers/lib/alia-models.js';
+import { getAliaModel, getModelMappingsForTier } from '../../internal/providers/lib/alia-models.js';
 import { UserMemory } from '../../models/user-memory.js';
 import { getOrCreateUserCredits } from '../../lib/user-credits-helpers.js';
 import { saveConversation } from '../../lib/conversation-saver.js';
@@ -18,6 +18,9 @@ import { Skill } from '../../models/skill.js';
 import { estimateMessageTokens } from '../../lib/token-counter.js';
 import { runAfterChatHooks } from '../../lib/hooks/index.js';
 import { buildSystemPrompt } from '../../lib/prompt-loader.js';
+import { wrapToolsWithTruncation, getToolResultBudget } from '../../lib/tools/result-truncation.js';
+import { log } from '../../lib/logger.js';
+import { recordEvent } from '../../lib/observability/index.js';
 // recordFailure is now handled via reportModelUsage from chat-core
 
 const router = Router();
@@ -163,13 +166,13 @@ router.post('/', async (req: Request, res: Response) => {
   const globalTimer = setTimeout(() => {
     globalTimedOut = true;
     if (!res.headersSent) {
-      console.error('[V1/Chat] Global request timeout after 80s');
+      log.v1.error('Global request timeout after 80s');
       res.status(503).json({ error: 'Request timeout', message: 'The request took too long. Please try again.' });
     }
   }, GLOBAL_TIMEOUT_MS);
 
   try {
-    console.log('📬 [V1/Chat] Request received');
+    log.v1.info('Request received');
     const body = req.body;
 
     // Validate request body
@@ -196,7 +199,7 @@ router.post('/', async (req: Request, res: Response) => {
     const conversationId = body.conversationId as string | undefined;
     const thinkingMode = body.thinkingMode as boolean | undefined;
 
-    console.log(`✅ [V1/Chat] Processing ${messages.length} messages${conversationId ? ` (conversation: ${conversationId})` : ''}${thinkingMode ? ' (thinking mode enabled)' : ''}`);
+    log.v1.info({ messageCount: messages.length, conversationId, thinkingMode }, 'Processing messages');
 
     // Determine if this is a direct user session (not API key)
     // API key requests should be neutral and not include creator's personal info
@@ -220,13 +223,13 @@ router.post('/', async (req: Request, res: Response) => {
         const reservation = await reserveCredits(req.user!.id);
         return { reservation, error: false as const };
       })().catch((error) => {
-        console.error('[V1/Chat] Error reserving credits:', error);
+        log.v1.error({ err: error }, 'Error reserving credits');
         return { reservation: null, error: true as const };
       }) : Promise.resolve({ reservation: null, error: false as const }),
 
       // Model resolution (includes key loading, rate limit checks, circuit breaker)
       resolveModel(requestedModel).catch((err) => {
-        console.error('[V1/Chat] Error resolving model:', err);
+        log.v1.error({ err }, 'Error resolving model');
         return null;
       }),
 
@@ -249,7 +252,7 @@ router.post('/', async (req: Request, res: Response) => {
         : Promise.resolve(null),
     ]);
 
-    console.log(`[V1/Chat] Pre-stream setup: ${Date.now() - preStreamStart}ms`);
+    log.v1.info({ durationMs: Date.now() - preStreamStart }, 'Pre-stream setup complete');
 
     // Validate credit reservation
     // Only return 402 if reserveCredits explicitly returned null (insufficient credits),
@@ -278,7 +281,7 @@ router.post('/', async (req: Request, res: Response) => {
     }
 
     aliasModelId = resolved.aliasModelId;
-    console.log(`[V1/Chat] Using provider: ${resolved.provider}/${resolved.modelId}`);
+    log.v1.info({ provider: resolved.provider, modelId: resolved.modelId }, 'Using provider');
 
     // Enforce plan-based model access (skip for API-key requests)
     if (req.user && !req.apiKey) {
@@ -355,7 +358,7 @@ router.post('/', async (req: Request, res: Response) => {
 
     // Log tool schemas for debugging
     if (Array.isArray(body.tools) && body.tools.length > 0) {
-      console.log(`[V1/Chat] Received ${body.tools.length} tools from client`);
+      log.v1.info({ toolCount: body.tools.length }, 'Received tools from client');
     }
 
     // Build system message with user context
@@ -413,7 +416,7 @@ When you use a tool successfully:
       systemMessage += '\n\n**IMPORTANT**: You have WhatsApp tools available: `getWhatsAppChats` to see the user\'s WhatsApp conversations, `getWhatsAppMessages` to read messages from a specific chat (requires JID from getWhatsAppChats), and `sendWhatsAppMessage` to send messages. When the user asks about their WhatsApp, use getWhatsAppChats first, then getWhatsAppMessages to read specific conversations.';
     } else if (req.apiKey) {
       // API key request - add neutral context
-      console.log('[V1/Chat] API key request - using neutral context (no personal info)');
+      log.v1.info('API key request - using neutral context');
     }
 
     // Only inject user memory for DIRECT user sessions
@@ -445,7 +448,7 @@ When you use a tool successfully:
     // Inject skill system prompt if skillId provided (already loaded in parallel)
     if (skill && (skill as any).systemPrompt && isDirectUserSession) {
       systemMessage = `# ACTIVE SKILL: ${(skill as any).title}\n\n${(skill as any).systemPrompt}\n\n---\n\n${systemMessage}`;
-      console.log(`[V1/Chat] Skill activated: ${(skill as any).title}`);
+      log.v1.info({ skillTitle: (skill as any).title }, 'Skill activated');
     }
 
     // Title generation instruction (only for direct user sessions in the app, not API keys or voice)
@@ -480,6 +483,25 @@ When you use a tool successfully:
       systemPromptTokens,
     };
 
+    // Wrap tools with truncation to cap large results (saves tokens)
+    const aliaModelInfo = getAliaModel(aliasModelId);
+    const tierMappings = aliaModelInfo ? getModelMappingsForTier(aliaModelInfo.tier) : [];
+    const modelContextTokens = tierMappings[0]?.capabilities?.maxContextTokens || 128000;
+    const truncatedTools = wrapToolsWithTruncation(allTools, getToolResultBudget(modelContextTokens));
+
+    // Record agent.start for observability
+    recordEvent({
+      type: 'agent.start',
+      timestamp: requestStartTime,
+      modelId: aliasModelId,
+      provider: resolved?.provider,
+    });
+
+    // Tool tracking for observability
+    const toolTimers = new Map<string, number>();
+    let toolCallCount = 0;
+    const MAX_TOOL_CALLS = 15;
+
     // Provider fallback retry loop
     // When a provider returns 429/rate-limit, try the next provider in the tier
     const MAX_PROVIDER_RETRIES = 3;
@@ -504,11 +526,11 @@ When you use a tool successfully:
     if (providerAttempt > 0) {
       resolved = await resolveModel(requestedModel, skipProviders);
       if (!resolved) {
-        console.warn(`[V1/Chat] No more providers available after ${providerAttempt} retries`);
+        log.v1.warn({ retries: providerAttempt }, 'No more providers available after retries');
         break;
       }
       aliasModelId = resolved.aliasModelId;
-      console.log(`[V1/Chat] Retry ${providerAttempt}: Using provider ${resolved.provider}/${resolved.modelId}`);
+      log.v1.info({ attempt: providerAttempt, provider: resolved.provider, modelId: resolved.modelId }, 'Retrying with provider');
     }
 
     const model = getAIModel(resolved!.keyConfig);
@@ -518,7 +540,7 @@ When you use a tool successfully:
       model,
       messages: convertedMessages,
       temperature: body.temperature ?? 0.7,
-      tools: allTools,
+      tools: truncatedTools,
       maxRetries: 0, // Fail fast to application-level provider fallback
       // AI SDK v6: stopWhen replaces maxSteps. Without this, the SDK defaults to
       // stepCountIs(1) which stops after tool calls without generating a text response.
@@ -532,7 +554,7 @@ When you use a tool successfully:
             totalTokens: result.usage.totalTokens || 0,
             systemPromptTokens, // Keep our estimated system prompt tokens
           };
-          console.log('[V1/Chat] Token usage captured:', tokenUsage);
+          log.v1.info({ usage: tokenUsage }, 'Token usage captured');
         }
       },
     };
@@ -544,7 +566,7 @@ When you use a tool successfully:
     // Enable thinking mode for Anthropic if requested
     if (thinkingMode && resolved!.provider === 'anthropic') {
       baseConfig.experimental_thinking = true;
-      console.log('[V1/Chat] Enabled Anthropic thinking mode');
+      log.v1.info('Enabled Anthropic thinking mode');
     }
 
     // Configure provider-specific features for reasoning
@@ -553,7 +575,7 @@ When you use a tool successfully:
     if (resolved!.provider === 'google') {
       // Enable thought summaries for Gemini
       providerMetadata.google = { includeThoughts: true };
-      console.log('[V1/Chat] Enabled Gemini thought summaries');
+      log.v1.info('Enabled Gemini thought summaries');
     }
 
     if (Object.keys(providerMetadata).length > 0) {
@@ -561,13 +583,13 @@ When you use a tool successfully:
     }
 
     if (process.env.NODE_ENV !== 'production') {
-      console.log('[V1/Chat] AI SDK config:', JSON.stringify({
+      log.v1.debug({
         modelProvider: resolved!.provider,
         model: resolved!.keyConfig.modelId,
         messageCount: baseConfig.messages.length,
         toolCount: baseConfig.tools ? Object.keys(baseConfig.tools).length : 0,
         stream: body.stream
-      }));
+      }, 'AI SDK config');
     }
 
     let hasStreamedContent = false;
@@ -577,7 +599,7 @@ When you use a tool successfully:
     const providerAbort = new AbortController();
     let firstByteTimer: NodeJS.Timeout | null = setTimeout(() => {
       if (!hasStreamedContent) {
-        console.warn(`[V1/Chat] Provider ${resolved!.provider}/${resolved!.modelId} first-byte timeout (${FIRST_BYTE_TIMEOUT_MS}ms)`);
+        log.v1.warn({ provider: resolved!.provider, modelId: resolved!.modelId, timeoutMs: FIRST_BYTE_TIMEOUT_MS }, 'Provider first-byte timeout');
         providerAbort.abort(new Error('Provider first-byte timeout'));
       }
     }, FIRST_BYTE_TIMEOUT_MS);
@@ -587,7 +609,7 @@ When you use a tool successfully:
 
     // Handle non-streaming requests
     if (body.stream !== true) {
-      console.log('[V1/Chat] Non-streaming request, using generateText');
+      log.v1.info('Non-streaming request, using generateText');
 
       const result = await generateText(baseConfig);
       if (firstByteTimer) { clearTimeout(firstByteTimer); firstByteTimer = null; }
@@ -600,7 +622,7 @@ When you use a tool successfully:
           totalTokens: result.usage.totalTokens || 0,
           systemPromptTokens,
         };
-        console.log('[V1/Chat] Token usage:', tokenUsage);
+        log.v1.info({ usage: tokenUsage }, 'Token usage');
       }
 
       const assistantResponse = result.text || '';
@@ -627,9 +649,9 @@ When you use a tool successfully:
             assistantResponse,
             toolInvocations: nonStreamToolInvocations,
           });
-          console.log(`[V1/Chat] Conversation ${conversationId} saved`);
+          log.v1.info({ conversationId }, 'Conversation saved');
         } catch (error) {
-          console.error('[V1/Chat] Error saving conversation:', error);
+          log.v1.error({ err: error }, 'Error saving conversation');
         }
       }
 
@@ -644,10 +666,10 @@ When you use a tool successfully:
 
           // Record usage with credits info (API key basic usage is also logged in auth middleware)
           recordUsage(req, 200, tokenUsage.totalTokens, undefined, creditsCharged).catch(err =>
-            console.error('[V1/Chat] Error recording session usage:', err)
+            log.v1.error({ err }, 'Error recording session usage')
           );
         } catch (error) {
-          console.error('[V1/Chat] Error finalizing credits:', error);
+          log.v1.error({ err: error }, 'Error finalizing credits');
         }
       }
 
@@ -664,7 +686,7 @@ When you use a tool successfully:
         tokenUsage,
         modelUsed: resolved?.keyConfig?.modelId || aliasModelId,
         latencyMs: Date.now() - requestStartTime,
-      }).catch(err => console.error('[V1/Chat] Error in afterChat hooks:', err));
+      }).catch(err => log.v1.error({ err }, 'Error in afterChat hooks'));
 
       // Build tool_calls array if there were any tool calls
       const toolCalls = result.toolCalls?.map((tc: any, index: number) => {
@@ -726,7 +748,7 @@ When you use a tool successfully:
     const result = streamText(baseConfig);
 
     // Stream OpenAI-compatible chunks
-    console.log('[V1/Chat] Starting to process AI SDK stream...');
+    log.v1.info('Starting to process AI SDK stream');
     let chunkCount = 0;
     let assistantResponse = ''; // Track assistant's response for conversation save
     const toolInvocations: Array<{ toolCallId: string; toolName: string; state: 'call' | 'result'; args?: any; result?: any }> = [];
@@ -736,7 +758,7 @@ When you use a tool successfully:
       if (firstByteTimer) { clearTimeout(firstByteTimer); firstByteTimer = null; }
       // Log chunk type (skip high-frequency text-delta to reduce noise)
       if (chunk.type !== 'text-delta') {
-        console.log(`[V1/Chat] Chunk ${chunkCount} type:`, chunk.type);
+        log.v1.debug({ chunkCount, chunkType: chunk.type }, 'Stream chunk');
       }
 
       if (chunk.type === 'text-delta' && chunk.text) {
@@ -765,7 +787,7 @@ When you use a tool successfully:
                 }]
               };
               res.write(`data: ${JSON.stringify(reasoningChunk)}\n\n`);
-              console.log('[V1/Chat] Reasoning chunk (thinking tag):', content.slice(0, 100));
+              log.v1.debug({ reasoning: content.slice(0, 100) }, 'Reasoning chunk (thinking tag)');
             }
           });
         }
@@ -809,7 +831,7 @@ When you use a tool successfully:
             }]
           };
           res.write(`data: ${JSON.stringify(reasoningChunk)}\n\n`);
-          console.log('[V1/Chat] Reasoning chunk (provider):', reasoningText.slice(0, 100));
+          log.v1.debug({ reasoning: reasoningText.slice(0, 100) }, 'Reasoning chunk (provider)');
         }
       } else if (chunk.type === 'tool-call') {
         ensureSSEHeaders();
@@ -819,7 +841,7 @@ When you use a tool successfully:
         const originalToolName = toolNameMapping.get(chunk.toolName) || chunk.toolName;
 
         // Log the tool call arguments being sent to the client
-        console.log(`[V1/Chat] Streaming tool call: ${originalToolName}, args:`, JSON.stringify(chunk.input));
+        log.v1.info({ toolName: originalToolName, args: chunk.input }, 'Streaming tool call');
 
         const toolCallChunk = {
           id: `chatcmpl-${Date.now()}`,
@@ -851,12 +873,30 @@ When you use a tool successfully:
           state: 'call',
           args: chunk.input,
         });
+
+        // Track tool call timing (start)
+        toolTimers.set(chunk.toolCallId, Date.now());
+        toolCallCount++;
+
+        // Tool iteration guard
+        if (toolCallCount > MAX_TOOL_CALLS) {
+          log.v1.warn({ toolCallCount, MAX_TOOL_CALLS }, 'Tool call limit exceeded, breaking stream');
+          recordEvent({ type: 'error', timestamp: Date.now(), code: 'TOOL_LIMIT_EXCEEDED', message: `Exceeded ${MAX_TOOL_CALLS} tool calls` });
+          break;
+        }
       } else if (chunk.type === 'tool-result') {
         ensureSSEHeaders();
         hasStreamedContent = true;
 
         const originalToolName = toolNameMapping.get(chunk.toolName) || chunk.toolName;
-        console.log('[V1/Chat] Tool result:', originalToolName, chunk.output);
+        log.v1.info({ toolName: originalToolName, output: chunk.output }, 'Tool result');
+
+        // Record tool.call observability event
+        const toolStart = toolTimers.get(chunk.toolCallId);
+        if (toolStart) {
+          recordEvent({ type: 'tool.call', timestamp: Date.now(), toolName: originalToolName, durationMs: Date.now() - toolStart, success: true });
+          toolTimers.delete(chunk.toolCallId);
+        }
 
         // Stream tool result to the client
         const toolResultChunk = {
@@ -897,7 +937,7 @@ When you use a tool successfully:
         hasStreamedContent = true;
 
         const originalToolName = toolNameMapping.get((chunk as any).toolName) || (chunk as any).toolName;
-        console.error('[V1/Chat] Tool error:', originalToolName, (chunk as any).error);
+        log.v1.error({ err: (chunk as any).error, toolName: originalToolName }, 'Tool error');
 
         // Send tool error as text content so the user sees what happened
         const errorMessage = (chunk as any).error?.message || 'Tool execution failed';
@@ -915,9 +955,9 @@ When you use a tool successfully:
         res.write(`data: ${JSON.stringify(errorChunk)}\n\n`);
         assistantResponse += `\n\n⚠️ Tool error (${originalToolName}): ${errorMessage}`;
       } else if (chunk.type === 'start') {
-        console.log('[V1/Chat] Stream started');
+        log.v1.debug('Stream started');
       } else if (chunk.type === 'start-step') {
-        console.log('[V1/Chat] Step started');
+        log.v1.debug('Step started');
       } else if (chunk.type === 'text-start' || chunk.type === 'text-end') {
         // Text generation lifecycle events - no action needed
       } else if (chunk.type === 'tool-input-start' || chunk.type === 'tool-input-end' || chunk.type === 'tool-input-delta') {
@@ -925,9 +965,9 @@ When you use a tool successfully:
       } else if (chunk.type === 'source' || chunk.type === 'file' || chunk.type === 'raw') {
         // Source/file/raw events - no action needed
       } else if (chunk.type === 'finish-step') {
-        console.log('[V1/Chat] Step finished');
+        log.v1.debug('Step finished');
       } else if (chunk.type === 'error') {
-        console.error('[V1/Chat] Error chunk received:', (chunk as any).error);
+        log.v1.error({ err: (chunk as any).error }, 'Error chunk received');
 
         // Record failure for circuit breaker - next request will use different provider
         await reportModelUsage(resolved!.keyConfig?.keyId, resolved!.provider, resolved!.modelId, false, 0, (chunk as any).error?.code || 'STREAM_ERROR');
@@ -936,7 +976,7 @@ When you use a tool successfully:
 
         // If no content streamed yet, throw to trigger provider fallback
         if (!hasStreamedContent) {
-          console.log(`[V1/Chat] Stream error from ${resolved!.provider}/${resolved!.modelId} (no content sent), trying next provider...`);
+          log.v1.info({ provider: resolved!.provider, modelId: resolved!.modelId }, 'Stream error (no content sent), trying next provider');
           throw rawError;
         }
 
@@ -961,7 +1001,7 @@ When you use a tool successfully:
         };
         res.write(`data: ${JSON.stringify(errorChunk)}\n\n`);
       } else if (chunk.type === 'finish') {
-        console.log('[V1/Chat] Finish chunk received');
+        log.v1.debug('Finish chunk received');
         ensureSSEHeaders();
         const finishChunk = {
           id: `chatcmpl-${Date.now()}`,
@@ -976,11 +1016,11 @@ When you use a tool successfully:
         };
         res.write(`data: ${JSON.stringify(finishChunk)}\n\n`);
       } else {
-        console.warn('[V1/Chat] Unhandled chunk type:', chunk.type, 'Chunk:', JSON.stringify(chunk, null, 2));
+        log.v1.warn({ chunkType: chunk.type, chunk }, 'Unhandled chunk type');
       }
     }
 
-    console.log('[V1/Chat] Stream processing complete, total chunks:', chunkCount);
+    log.v1.info({ totalChunks: chunkCount }, 'Stream processing complete');
 
     // Auto-save conversation if conversationId provided and user is authenticated
     // Save when there's text content OR tool invocations (tools without text are valid responses)
@@ -993,9 +1033,9 @@ When you use a tool successfully:
           assistantResponse,
           toolInvocations,
         });
-        console.log(`[V1/Chat] Conversation ${conversationId} saved`);
+        log.v1.info({ conversationId }, 'Conversation saved');
       } catch (error) {
-        console.error('[V1/Chat] Error saving conversation:', error);
+        log.v1.error({ err: error }, 'Error saving conversation');
       }
     }
 
@@ -1010,7 +1050,7 @@ When you use a tool successfully:
 
         // Record usage with credits info
         recordUsage(req, 200, tokenUsage.totalTokens, undefined, creditsCharged).catch(err =>
-          console.error('[V1/Chat] Error recording session usage:', err)
+          log.v1.error({ err }, 'Error recording session usage')
         );
 
         // Detect spending anomalies for proactive warnings
@@ -1048,7 +1088,7 @@ When you use a tool successfully:
         };
         res.write(`data: ${JSON.stringify(usageChunk)}\n\n`);
       } catch (error) {
-        console.error('[V1/Chat] Error finalizing credits:', error);
+        log.v1.error({ err: error }, 'Error finalizing credits');
       }
     }
 
@@ -1065,7 +1105,17 @@ When you use a tool successfully:
       tokenUsage,
       modelUsed: resolved?.keyConfig?.modelId || aliasModelId,
       latencyMs: Date.now() - requestStartTime,
-    }).catch(err => console.error('[V1/Chat] Error in afterChat hooks:', err));
+    }).catch(err => log.v1.error({ err }, 'Error in afterChat hooks'));
+
+    // Record agent.end for observability (success path)
+    recordEvent({
+      type: 'agent.end',
+      timestamp: Date.now(),
+      durationMs: Date.now() - requestStartTime,
+      inputTokens: tokenUsage.promptTokens,
+      outputTokens: tokenUsage.completionTokens,
+      toolCallCount,
+    });
 
     res.write('data: [DONE]\n\n');
     res.end();
@@ -1076,12 +1126,12 @@ When you use a tool successfully:
       // Clean up first-byte timer on provider failure
       if (firstByteTimer) { clearTimeout(firstByteTimer); firstByteTimer = null; }
       // Provider attempt failed
-      console.error(`[V1/Chat] Provider ${resolved!.provider}/${resolved!.modelId} failed:`, providerError);
+      log.v1.error({ err: providerError, provider: resolved!.provider, modelId: resolved!.modelId }, 'Provider failed');
       await reportModelUsage(resolved!.keyConfig?.keyId, resolved!.provider, resolved!.modelId, false, 0, (providerError as any)?.code || 'REQUEST_ERROR');
 
       // If we haven't streamed content yet, try next provider (any error is retryable pre-content)
       if (!hasStreamedContent && providerAttempt < MAX_PROVIDER_RETRIES - 1) {
-        console.log(`[V1/Chat] Provider ${resolved!.provider} failed, trying next provider...`);
+        log.v1.info({ provider: resolved!.provider }, 'Provider failed, trying next provider');
         skipProviders.add(resolved!.provider);
         continue; // Try next provider
       }
@@ -1112,9 +1162,15 @@ When you use a tool successfully:
 
   } catch (e: unknown) {
     clearTimeout(globalTimer);
-    console.error('❌ [V1/Chat] Error:', e);
-    const stack = e instanceof Error ? e.stack : undefined;
-    console.error('❌ [V1/Chat] Stack:', stack);
+    log.v1.error({ err: e }, 'Request error');
+
+    // Record agent.end for observability (error path)
+    recordEvent({
+      type: 'agent.end',
+      timestamp: Date.now(),
+      durationMs: Date.now() - requestStartTime,
+      error: (e as Error)?.message,
+    });
 
     // CRITICAL: Translate error to remove provider information!
     const { translateError, formatErrorResponse, sanitizeMessage } = await import('../../lib/error-handler.js');

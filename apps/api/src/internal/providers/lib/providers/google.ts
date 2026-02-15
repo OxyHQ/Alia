@@ -1,4 +1,5 @@
 import type { KeyConfig, OpenAIMessage, OpenAITool, Provider, ProviderConfig } from '../types';
+import { log } from '../../../../lib/logger.js';
 
 // ============== GEMINI (Google) ==============
 export const googleProvider: Provider = {
@@ -51,7 +52,7 @@ export const googleProvider: Provider = {
     // Convertir tools - filter out invalid tools
     const validTools = tools?.filter(t => t && t.function && t.function.name) || [];
     if (tools && tools.length > 0) {
-      console.log(`[Google] Received ${tools.length} tools, ${validTools.length} valid after filtering`);
+      log.providers.info({ received: tools.length, valid: validTools.length }, 'Filtered tools for Google provider');
     }
     const geminiTools = validTools.length > 0 ? [{
       functionDeclarations: validTools.map(t => ({

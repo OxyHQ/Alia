@@ -8,6 +8,7 @@
 import { connectDB } from './db.js';
 import mongoose from 'mongoose';
 import { getModelPricing } from './model-capabilities-data.js';
+import { log } from './logger.js';
 
 // ============== TYPES ==============
 
@@ -135,9 +136,9 @@ export async function recordCost(
       timestamp: new Date()
     });
 
-    console.log(`[CostTracker] 💰 Recorded $${costUSD.toFixed(6)} for ${aliasModelId} (${totalTokens} tokens)${savedFromCache ? ' [CACHED]' : ''}`);
+    log.credits.info({ costUSD, aliasModelId, totalTokens, savedFromCache }, 'Recorded cost');
   } catch (error) {
-    console.error('[CostTracker] Error recording cost:', error);
+    log.credits.error({ err: error }, 'Error recording cost');
   }
 }
 
@@ -218,7 +219,7 @@ export async function getUserCostSummary(
       freeTierSavings
     };
   } catch (error) {
-    console.error('[CostTracker] Error getting user cost summary:', error);
+    log.credits.error({ err: error }, 'Error getting user cost summary');
     return {
       userId,
       totalSpent: 0,
@@ -305,7 +306,7 @@ export async function getGlobalCostStats(
       freeTierSavingsTotal
     };
   } catch (error) {
-    console.error('[CostTracker] Error getting global cost stats:', error);
+    log.credits.error({ err: error }, 'Error getting global cost stats');
     return {
       totalRevenue: 0,
       totalTokens: 0,
@@ -361,7 +362,7 @@ export async function getTopUsersByCost(
       totalRequests: r.totalRequests
     }));
   } catch (error) {
-    console.error('[CostTracker] Error getting top users:', error);
+    log.credits.error({ err: error }, 'Error getting top users');
     return [];
   }
 }
@@ -413,7 +414,7 @@ export async function getModelEfficiency(): Promise<Array<{
       totalCost: r.totalCost
     }));
   } catch (error) {
-    console.error('[CostTracker] Error getting model efficiency:', error);
+    log.credits.error({ err: error }, 'Error getting model efficiency');
     return [];
   }
 }

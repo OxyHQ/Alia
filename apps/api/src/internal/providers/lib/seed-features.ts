@@ -10,6 +10,7 @@
 import { Feature } from '../models/feature.js';
 import { PlanFeature } from '../models/plan-feature.js';
 import { connectDB } from './db.js';
+import { log } from '../../../lib/logger.js';
 
 // ─── Feature seed data ──────────────────────────────────────
 
@@ -260,12 +261,12 @@ export async function seedFeatures(): Promise<{ seeded: number; skipped: number 
       if (error.code === 11000) {
         skipped++;
       } else {
-        console.error(`[Seed] Error seeding feature ${f.featureId}:`, error.message);
+        log.seed.error({ err: error, featureId: f.featureId }, 'Error seeding feature');
       }
     }
   }
 
-  console.log(`[Seed] Feature seeding: ${seeded} created, ${skipped} existing`);
+  log.seed.info({ seeded, skipped }, 'Feature seeding complete');
   return { seeded, skipped };
 }
 
@@ -289,6 +290,6 @@ export async function seedPlanFeatures(): Promise<{ upserted: number }> {
 
   const result = await PlanFeature.bulkWrite(ops);
   const upserted = result.upsertedCount;
-  console.log(`[Seed] PlanFeature seeding: ${upserted} new, ${ops.length - upserted} updated`);
+  log.seed.info({ upserted }, 'PlanFeature seeding complete');
   return { upserted };
 }

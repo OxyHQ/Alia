@@ -6,7 +6,7 @@
  * Provider details are only logged internally for debugging.
  */
 
-import { log } from './logger.js';
+import { log, sanitizeForLog } from './logger.js';
 
 // ============== USER-FACING ERROR TYPES ==============
 
@@ -176,23 +176,24 @@ function createAliaError(
   // CRITICAL: User message NEVER includes provider names!
   const userMessage = USER_ERROR_MESSAGES[code];
 
-  // Internal message includes provider details for debugging
+  // Scrub API keys from internal error messages before logging (ZeroClaw pattern)
+  const scrubbedMessage = sanitizeForLog(internalMessage);
   const fullInternalMessage = provider
-    ? `[${provider}/${modelId}] ${internalMessage}`
-    : internalMessage;
+    ? `[${provider}/${modelId}] ${scrubbedMessage}`
+    : scrubbedMessage;
 
   // Log internally (server logs only)
   if (provider) {
-    log.providers.error({ code, provider, modelId, internalMessage }, 'Provider error translated');
+    log.providers.error({ code, provider, modelId, internalMessage: scrubbedMessage }, 'Provider error translated');
   } else {
-    log.general.error({ code, internalMessage }, 'Error translated');
+    log.general.error({ code, internalMessage: scrubbedMessage }, 'Error translated');
   }
 
   return {
     code,
     message: userMessage, // Same as userMessage for backwards compat
     userMessage,          // SAFE for users - NO provider names
-    internalMessage: fullInternalMessage, // For server logs only
+    internalMessage: fullInternalMessage, // Scrubbed for logs
     retryable,
     retryAfterSeconds,
     suggestedAction: SUGGESTED_ACTIONS[code]

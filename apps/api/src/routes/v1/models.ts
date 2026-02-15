@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { log } from '../../lib/logger.js';
 import {
   getAllAliaModels,
   getAliaModel,
@@ -85,7 +86,7 @@ router.get('/', async (req, res) => {
       ...(defaultModel && { default_model: defaultModel.id }),
     });
   } catch (e: any) {
-    console.error('[V1/Models] Error:', e);
+    log.v1.error({ err: e }, 'Error');
     res.status(500).json({ error: e.message });
   }
 });
@@ -105,7 +106,7 @@ router.get('/:modelId', async (req, res) => {
 
     res.json(serializeModel({ ...model, isAvailable: true, isLegacy: false }));
   } catch (e: any) {
-    console.error('[V1/Models] Error:', e);
+    log.v1.error({ err: e }, 'Error');
     res.status(500).json({ error: e.message });
   }
 });

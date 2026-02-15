@@ -7,6 +7,7 @@ import express, { Request, Response } from 'express';
 import { AliaModel } from '../models/alia-model';
 import { ModelConfig } from '../models/model-config';
 import { broadcastAliaModelsUpdate } from '../lib/broadcast-helpers';
+import { log } from '../../../lib/logger.js';
 
 const router = express.Router();
 
@@ -37,7 +38,7 @@ router.get('/', async (req: Request, res: Response) => {
       data: models,
     });
   } catch (error: any) {
-    console.error('Error listing alia models:', error);
+    log.providers.error({ err: error }, 'Error listing alia models');
     res.status(500).json({
       success: false,
       error: 'An internal error occurred',
@@ -69,7 +70,7 @@ router.get('/:aliasModelId', async (req: Request, res: Response) => {
       data: model,
     });
   } catch (error: any) {
-    console.error('Error getting alia model:', error);
+    log.providers.error({ err: error }, 'Error getting alia model');
     res.status(500).json({
       success: false,
       error: 'An internal error occurred',
@@ -154,7 +155,7 @@ router.post('/', async (req: Request, res: Response) => {
 
     broadcastAliaModelsUpdate();
   } catch (error: any) {
-    console.error('Error creating alia model:', error);
+    log.providers.error({ err: error }, 'Error creating alia model');
     res.status(500).json({
       success: false,
       error: 'An internal error occurred',
@@ -230,7 +231,7 @@ router.patch('/:aliasModelId', async (req: Request, res: Response) => {
 
     broadcastAliaModelsUpdate();
   } catch (error: any) {
-    console.error('Error updating alia model:', error);
+    log.providers.error({ err: error }, 'Error updating alia model');
     res.status(500).json({
       success: false,
       error: 'An internal error occurred',
@@ -264,7 +265,7 @@ router.delete('/:aliasModelId', async (req: Request, res: Response) => {
 
     broadcastAliaModelsUpdate();
   } catch (error: any) {
-    console.error('Error deleting alia model:', error);
+    log.providers.error({ err: error }, 'Error deleting alia model');
     res.status(500).json({
       success: false,
       error: 'An internal error occurred',

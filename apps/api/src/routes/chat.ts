@@ -27,6 +27,8 @@ import { compactHistory } from '../lib/history-compaction.js';
 import { log } from '../lib/logger.js';
 import { writeSSE, TextBatcher, setupSSEHeaders } from '../lib/streaming-helpers.js';
 import { loadPrompt } from '../lib/prompt-loader.js';
+import { wrapToolsWithTruncation, getToolResultBudget } from '../lib/tools/result-truncation.js';
+import { recordEvent } from '../lib/observability/index.js';
 
 const router = Router();
 
@@ -257,6 +259,17 @@ router.post('/', optionalAuth, async (req, res) => {
 
     const model = getAIModel(resolved.keyConfig);
 
+    // Record agent start event for observability
+    recordEvent({
+      type: 'agent.start',
+      timestamp: Date.now(),
+      provider: resolved.provider,
+      modelId: resolved.aliasModelId,
+      userId: req.user?.id,
+      conversationId,
+      platform,
+    });
+
     const googleApiKey = resolved.keyConfig.provider === 'google' ? resolved.keyConfig.key : null;
     const tools: ToolSet = {
       getCurrentDate: getCurrentDateTool,
@@ -360,6 +373,10 @@ router.post('/', optionalAuth, async (req, res) => {
     const historyBudget = Math.floor(modelContextTokens * 0.6); // 60% of context for history
     const compactedMessages = compactHistory(processedMessages as any, historyBudget);
 
+    // Wrap tools with truncation to cap large tool results (saves tokens)
+    const toolResultBudget = getToolResultBudget(modelContextTokens);
+    const truncatedTools = wrapToolsWithTruncation(tools, toolResultBudget);
+
     // Set headers for SSE streaming
     setupSSEHeaders(res);
 
@@ -375,7 +392,7 @@ router.post('/', optionalAuth, async (req, res) => {
     const streamConfig: any = {
       model,
       messages: compactedMessages as any, // Compacted messages (saves tokens)
-      tools,
+      tools: truncatedTools,
       stopWhen: stepCountIs(5),
       system: systemPrompt,
       temperature: 0.6,
@@ -409,6 +426,11 @@ router.post('/', optionalAuth, async (req, res) => {
     let hasReceivedContent = false;
     let streamTimeout: NodeJS.Timeout | null = null;
     const batcher = new TextBatcher(res);
+
+    // Tool invocation tracking (ZeroClaw pattern)
+    const toolTimers = new Map<string, number>(); // toolCallId → startTime
+    let toolCallCount = 0;
+    const MAX_TOOL_CALLS = 15;
 
     // Set a timeout for stream inactivity (30 seconds without any content)
     const resetStreamTimeout = () => {
@@ -462,6 +484,38 @@ router.post('/', optionalAuth, async (req, res) => {
           // Flush any pending text first
           batcher.flush();
 
+          // Track tool call timing (start)
+          if (chunk.type === 'tool-call') {
+            toolTimers.set((chunk as any).toolCallId, Date.now());
+            toolCallCount++;
+
+            // Tool iteration guard (ZeroClaw limits to 10, we allow 15)
+            if (toolCallCount > MAX_TOOL_CALLS) {
+              log.chat.warn({ toolCallCount, max: MAX_TOOL_CALLS }, 'Tool call limit exceeded');
+              writeSSE(res, `data: ${JSON.stringify({
+                type: 'error',
+                error: 'Too many tool calls in a single request. Please simplify your request.'
+              })}\n\n`);
+              break;
+            }
+          }
+
+          // Track tool call timing (end) + record observability event
+          if (chunk.type === 'tool-result') {
+            const startTime = toolTimers.get((chunk as any).toolCallId);
+            const durationMs = startTime ? Date.now() - startTime : 0;
+            toolTimers.delete((chunk as any).toolCallId);
+
+            recordEvent({
+              type: 'tool.call',
+              timestamp: Date.now(),
+              toolName: (chunk as any).toolName || 'unknown',
+              durationMs,
+              success: !(chunk as any).isError,
+              resultSizeChars: JSON.stringify((chunk as any).result || '').length,
+            });
+          }
+
           // Log extracted title (saveConversation handles full extraction + tag stripping)
           if (chunk.type === 'finish' && assistantResponse) {
             log.chat.info({ title: extractConversationTitle(assistantResponse, messages) }, 'Extracted title');
@@ -505,8 +559,27 @@ router.post('/', optionalAuth, async (req, res) => {
         log.chat.info('Sending empty stream error to client');
         writeSSE(res, `data: ${JSON.stringify(errorEvent)}\n\n`);
       }
+
+      // Record agent.end for observability (success path)
+      recordEvent({
+        type: 'agent.end',
+        timestamp: Date.now(),
+        durationMs: Date.now() - requestStartTime,
+        inputTokens: tokenUsage.promptTokens,
+        outputTokens: tokenUsage.completionTokens,
+        toolCallCount,
+      });
     } catch (streamError: any) {
       log.chat.error({ err: streamError }, 'Error during streaming');
+
+      // Record agent.end for observability (error path)
+      recordEvent({
+        type: 'agent.end',
+        timestamp: Date.now(),
+        durationMs: Date.now() - requestStartTime,
+        toolCallCount,
+        error: streamError.message,
+      });
 
       // Clean up timers and flush pending text
       if (streamTimeout) clearTimeout(streamTimeout);
