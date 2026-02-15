@@ -450,7 +450,7 @@ When you use a tool successfully:
 
     // Title generation instruction (only for direct user sessions in the app, not API keys or voice)
     if (isDirectUserSession) {
-      systemMessage += '\n\n**MANDATORY**: End EVERY response with [TITLE]Short Title[/TITLE] (max 6 words, same language as conversation). NO EXCEPTIONS.';
+      systemMessage += '\n\n**MANDATORY**: End EVERY response with [ALIA_TITLE]Short Title[/ALIA_TITLE] (max 6 words, title in the conversation language). NO EXCEPTIONS.';
     }
 
     // REPEAT language instruction at the end (most memorable position)

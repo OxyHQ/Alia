@@ -156,10 +156,10 @@ export class TelegramBotAdapter implements MessagingAdapter {
           content: `The user is chatting via Telegram.
 
 Telegram Special Commands (use when appropriate):
-- [REACT:emoji] - React to user's message with an emoji (e.g., [REACT:👍])
-- [TGIMAGE url="..." caption="..."] - Send an image
-- [TGDOC url="..." filename="..." caption="..."] - Send a document
-- [TGLINKS title="..."]{"text":"...","url":"..."}[/TGLINKS] - Send link buttons
+- [ALIA_REACT:emoji] - React to user's message with an emoji (e.g., [ALIA_REACT:👍])
+- [ALIA_TGIMAGE url="..." caption="..."] - Send an image
+- [ALIA_TGDOC url="..." filename="..." caption="..."] - Send a document
+- [ALIA_TGLINKS title="..."]{"text":"...","url":"..."}[/ALIA_TGLINKS] - Send link buttons
 
 Be concise and friendly. Use these Telegram features when appropriate.`,
         },
@@ -210,7 +210,7 @@ Be concise and friendly. Use these Telegram features when appropriate.`,
       // ---------- Post-processing ----------
 
       // Reactions
-      const reactionMatch = fullResponse.match(/\[REACT:([^\]]+)\]/);
+      const reactionMatch = fullResponse.match(/\[(?:ALIA_)?REACT:([^\]]+)\]/);
       if (reactionMatch && 'message' in ctx && ctx.message) {
         try {
           await ctx.react(reactionMatch[1].trim() as any);
@@ -223,11 +223,11 @@ Be concise and friendly. Use these Telegram features when appropriate.`,
       await this.processTelegramComponents(ctx, fullResponse);
 
       // Clean special tags from response text
-      fullResponse = fullResponse.replace(/\[REACT:[^\]]+\]\s*/g, '');
-      fullResponse = fullResponse.replace(/\[TITLE\][^\]]*\[\/TITLE\]\s*/g, '');
-      fullResponse = fullResponse.replace(/\[TGIMAGE[^\]]*\]\s*/g, '');
-      fullResponse = fullResponse.replace(/\[TGLINKS[^\]]*\][\s\S]*?\[\/TGLINKS\]\s*/g, '');
-      fullResponse = fullResponse.replace(/\[TGDOC[^\]]*\]\s*/g, '');
+      fullResponse = fullResponse.replace(/\[(?:ALIA_)?REACT:[^\]]+\]\s*/g, '');
+      fullResponse = fullResponse.replace(/\[(?:ALIA_)?TITLE\][^\]]*\[\/(?:ALIA_)?TITLE\]\s*/g, '');
+      fullResponse = fullResponse.replace(/\[(?:ALIA_)?TGIMAGE[^\]]*\]\s*/g, '');
+      fullResponse = fullResponse.replace(/\[(?:ALIA_)?TGLINKS[^\]]*\][\s\S]*?\[\/(?:ALIA_)?TGLINKS\]\s*/g, '');
+      fullResponse = fullResponse.replace(/\[(?:ALIA_)?TGDOC[^\]]*\]\s*/g, '');
       fullResponse = fullResponse.trim();
 
       // Final message update
@@ -276,8 +276,8 @@ Be concise and friendly. Use these Telegram features when appropriate.`,
   // Telegram-specific components (images, docs, link buttons)
   // -----------------------------------------------------------------------
   private async processTelegramComponents(ctx: any, response: string) {
-    // Images [TGIMAGE url="..." caption="..."]
-    const imageMatches = response.matchAll(/\[TGIMAGE\s+url="([^"]+)"(?:\s+caption="([^"]*)")?\]/g);
+    // Images [ALIA_TGIMAGE url="..." caption="..."]
+    const imageMatches = response.matchAll(/\[(?:ALIA_)?TGIMAGE\s+url="([^"]+)"(?:\s+caption="([^"]*)")?\]/g);
     for (const match of imageMatches) {
       const [, url, caption] = match;
       try {
@@ -287,8 +287,8 @@ Be concise and friendly. Use these Telegram features when appropriate.`,
       }
     }
 
-    // Documents [TGDOC url="..." filename="..." caption="..."]
-    const docMatches = response.matchAll(/\[TGDOC\s+url="([^"]+)"(?:\s+filename="([^"]*)")?(?:\s+caption="([^"]*)")?\]/g);
+    // Documents [ALIA_TGDOC url="..." filename="..." caption="..."]
+    const docMatches = response.matchAll(/\[(?:ALIA_)?TGDOC\s+url="([^"]+)"(?:\s+filename="([^"]*)")?(?:\s+caption="([^"]*)")?\]/g);
     for (const match of docMatches) {
       const [, url, filename, caption] = match;
       try {
@@ -301,8 +301,8 @@ Be concise and friendly. Use these Telegram features when appropriate.`,
       }
     }
 
-    // Link buttons [TGLINKS title="..."]...[/TGLINKS]
-    const linksMatch = response.match(/\[TGLINKS(?:\s+title="([^"]*)")?\]([\s\S]*?)\[\/TGLINKS\]/);
+    // Link buttons [ALIA_TGLINKS title="..."]...[/ALIA_TGLINKS]
+    const linksMatch = response.match(/\[(?:ALIA_)?TGLINKS(?:\s+title="([^"]*)")?\]([\s\S]*?)\[\/(?:ALIA_)?TGLINKS\]/);
     if (linksMatch) {
       const [, title, linksContent] = linksMatch;
       try {

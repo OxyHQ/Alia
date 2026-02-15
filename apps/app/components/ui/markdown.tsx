@@ -104,12 +104,12 @@ function parseSpecialBlocks(content: string): Array<{ type: 'text' | 'block'; co
 
   // Patterns for special blocks
   const patterns = [
-    { name: 'COMPACTLIST', regex: /\[COMPACTLIST title="([^"]+)"\]([\s\S]*?)\[\/COMPACTLIST\]/g },
-    { name: 'BANNER', regex: /\[BANNER type="([^"]+)" title="([^"]+)"\]([\s\S]*?)\[\/BANNER\]/g },
-    { name: 'COMPARISON', regex: /\[COMPARISON title="([^"]+)"\]([\s\S]*?)\[\/COMPARISON\]/g },
-    { name: 'TIMELINE', regex: /\[TIMELINE title="([^"]+)"\]([\s\S]*?)\[\/TIMELINE\]/g },
-    { name: 'IMAGE', regex: /\[IMAGE url="([^"]+)"(?:\s+title="([^"]*)")?\s*(?:caption="([^"]*)")?\s*\/\]/g },
-    { name: 'CREDIBILITY', regex: /\[CREDIBILITY level="(\d+)" source="([^"]+)"\s*\/\]/g },
+    { name: 'COMPACTLIST', regex: /\[(?:ALIA_)?COMPACTLIST title="([^"]+)"\]([\s\S]*?)\[\/(?:ALIA_)?COMPACTLIST\]/g },
+    { name: 'BANNER', regex: /\[(?:ALIA_)?BANNER type="([^"]+)" title="([^"]+)"\]([\s\S]*?)\[\/(?:ALIA_)?BANNER\]/g },
+    { name: 'COMPARISON', regex: /\[(?:ALIA_)?COMPARISON title="([^"]+)"\]([\s\S]*?)\[\/(?:ALIA_)?COMPARISON\]/g },
+    { name: 'TIMELINE', regex: /\[(?:ALIA_)?TIMELINE title="([^"]+)"\]([\s\S]*?)\[\/(?:ALIA_)?TIMELINE\]/g },
+    { name: 'IMAGE', regex: /\[(?:ALIA_)?IMAGE url="([^"]+)"(?:\s+title="([^"]*)")?\s*(?:caption="([^"]*)")?\s*\/\]/g },
+    { name: 'CREDIBILITY', regex: /\[(?:ALIA_)?CREDIBILITY level="(\d+)" source="([^"]+)"\s*\/\]/g },
   ];
 
   let lastIndex = 0;

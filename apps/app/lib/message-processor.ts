@@ -24,10 +24,10 @@ export interface ProcessedMessage {
 function processForApp(content: string): ProcessedMessage {
   // Remove Telegram-specific tags
   const cleanedText = content
-    .replace(/\[REACT:[^\]]+\]\s*/g, '')
-    .replace(/\[TGIMAGE[^\]]*\]\s*/g, '')
-    .replace(/\[TGLINKS[^\]]*\][\s\S]*?\[\/TGLINKS\]\s*/g, '')
-    .replace(/\[TGDOC[^\]]*\]\s*/g, '')
+    .replace(/\[(?:ALIA_)?REACT:[^\]]+\]\s*/g, '')
+    .replace(/\[(?:ALIA_)?TGIMAGE[^\]]*\]\s*/g, '')
+    .replace(/\[(?:ALIA_)?TGLINKS[^\]]*\][\s\S]*?\[\/(?:ALIA_)?TGLINKS\]\s*/g, '')
+    .replace(/\[(?:ALIA_)?TGDOC[^\]]*\]\s*/g, '')
     .trim();
 
   // App-specific components like [COMPACTLIST], [BANNER], etc. are kept
@@ -46,12 +46,12 @@ function processForApp(content: string): ProcessedMessage {
 function processForTelegram(content: string): ProcessedMessage {
   // Remove app-specific visual components (not supported in Telegram)
   const cleanedText = content
-    .replace(/\[COMPACTLIST[^\]]*\][\s\S]*?\[\/COMPACTLIST\]\s*/g, '')
-    .replace(/\[BANNER[^\]]*\][\s\S]*?\[\/BANNER\]\s*/g, '')
-    .replace(/\[COMPARISON[^\]]*\][\s\S]*?\[\/COMPARISON\]\s*/g, '')
-    .replace(/\[TIMELINE[^\]]*\][\s\S]*?\[\/TIMELINE\]\s*/g, '')
-    .replace(/\[IMAGE[^\]]*\]/g, '')
-    .replace(/\[CREDIBILITY[^\]]*\]/g, '')
+    .replace(/\[(?:ALIA_)?COMPACTLIST[^\]]*\][\s\S]*?\[\/(?:ALIA_)?COMPACTLIST\]\s*/g, '')
+    .replace(/\[(?:ALIA_)?BANNER[^\]]*\][\s\S]*?\[\/(?:ALIA_)?BANNER\]\s*/g, '')
+    .replace(/\[(?:ALIA_)?COMPARISON[^\]]*\][\s\S]*?\[\/(?:ALIA_)?COMPARISON\]\s*/g, '')
+    .replace(/\[(?:ALIA_)?TIMELINE[^\]]*\][\s\S]*?\[\/(?:ALIA_)?TIMELINE\]\s*/g, '')
+    .replace(/\[(?:ALIA_)?IMAGE[^\]]*\]/g, '')
+    .replace(/\[(?:ALIA_)?CREDIBILITY[^\]]*\]/g, '')
     .replace(TITLE_STRIP_RE, '')
     .trim();
 
@@ -75,16 +75,16 @@ export function processMessage(content: string, platform: Platform): ProcessedMe
       // Fallback: remove all special tags
       return {
         text: content
-          .replace(/\[REACT:[^\]]+\]\s*/g, '')
-          .replace(/\[TGIMAGE[^\]]*\]\s*/g, '')
-          .replace(/\[TGLINKS[^\]]*\][\s\S]*?\[\/TGLINKS\]\s*/g, '')
-          .replace(/\[TGDOC[^\]]*\]\s*/g, '')
-          .replace(/\[COMPACTLIST[^\]]*\][\s\S]*?\[\/COMPACTLIST\]\s*/g, '')
-          .replace(/\[BANNER[^\]]*\][\s\S]*?\[\/BANNER\]\s*/g, '')
-          .replace(/\[COMPARISON[^\]]*\][\s\S]*?\[\/COMPARISON\]\s*/g, '')
-          .replace(/\[TIMELINE[^\]]*\][\s\S]*?\[\/TIMELINE\]\s*/g, '')
-          .replace(/\[IMAGE[^\]]*\]/g, '')
-          .replace(/\[CREDIBILITY[^\]]*\]/g, '')
+          .replace(/\[(?:ALIA_)?REACT:[^\]]+\]\s*/g, '')
+          .replace(/\[(?:ALIA_)?TGIMAGE[^\]]*\]\s*/g, '')
+          .replace(/\[(?:ALIA_)?TGLINKS[^\]]*\][\s\S]*?\[\/(?:ALIA_)?TGLINKS\]\s*/g, '')
+          .replace(/\[(?:ALIA_)?TGDOC[^\]]*\]\s*/g, '')
+          .replace(/\[(?:ALIA_)?COMPACTLIST[^\]]*\][\s\S]*?\[\/(?:ALIA_)?COMPACTLIST\]\s*/g, '')
+          .replace(/\[(?:ALIA_)?BANNER[^\]]*\][\s\S]*?\[\/(?:ALIA_)?BANNER\]\s*/g, '')
+          .replace(/\[(?:ALIA_)?COMPARISON[^\]]*\][\s\S]*?\[\/(?:ALIA_)?COMPARISON\]\s*/g, '')
+          .replace(/\[(?:ALIA_)?TIMELINE[^\]]*\][\s\S]*?\[\/(?:ALIA_)?TIMELINE\]\s*/g, '')
+          .replace(/\[(?:ALIA_)?IMAGE[^\]]*\]/g, '')
+          .replace(/\[(?:ALIA_)?CREDIBILITY[^\]]*\]/g, '')
           .replace(TITLE_STRIP_RE, '')
           .trim(),
       };
