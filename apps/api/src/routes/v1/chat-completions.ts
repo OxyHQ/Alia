@@ -4,7 +4,7 @@ import { resolveModel, getAIModel, getDefaultAliaModel, reportModelUsage } from 
 import { getAliaModel } from '../../internal/providers/lib/alia-models.js';
 import { UserMemory } from '../../models/user-memory.js';
 import { getOrCreateUserCredits } from '../../lib/user-credits-helpers.js';
-import { Conversation } from '../../models/conversation.js';
+import { saveConversation } from '../../lib/conversation-saver.js';
 import { reserveCredits, finalizeCredits, refundReservation, type CreditReservation, type CreditUsage } from '../../lib/credits-manager.js';
 import { recordUsage } from '../../middleware/api-key-rate-limit.js';
 import { detectCreditAnomaly } from '../../lib/credit-anomaly.js';
@@ -21,31 +21,6 @@ import { buildSystemPrompt } from '../../lib/prompt-loader.js';
 // recordFailure is now handled via reportModelUsage from chat-core
 
 const router = Router();
-
-// Matches both [TITLE]...[/TITLE] and <TITLE>...</TITLE>
-const TITLE_EXTRACT_RE = /\[TITLE\](.*?)\[\/TITLE\]|<TITLE>(.*?)<\/TITLE>/;
-const TITLE_STRIP_RE = /\[TITLE\].*?\[\/TITLE\]|<TITLE>.*?<\/TITLE>/g;
-
-/** Extract or generate a conversation title from the AI response, with fallbacks. */
-function extractConversationTitle(response: string, messages: any[]): string {
-  const m = response.match(TITLE_EXTRACT_RE);
-  if (m) return (m[1] || m[2]).trim();
-
-  // Fallback: first ~6 words of cleaned response
-  const cleaned = response.replace(/\[.*?\]|<.*?>|[#*_`]/g, '').trim();
-  if (cleaned.length >= 10) return cleaned.split(/\s+/).slice(0, 6).join(' ');
-
-  // Final fallback: first user message or default
-  const firstUserMsg = messages.find((m: any) => m.role === 'user')?.content;
-  if (typeof firstUserMsg === 'string' && firstUserMsg.length > 0) return firstUserMsg.slice(0, 50);
-
-  return 'New chat';
-}
-
-/** Remove [TITLE]...[/TITLE] and <TITLE>...</TITLE> tags from content. */
-function stripTitleTags(content: string): string {
-  return content.replace(TITLE_STRIP_RE, '').trim();
-}
 
 /**
  * Check if an error is retryable (rate limit, overloaded, etc.)
@@ -645,40 +620,14 @@ When you use a tool successfully:
       // Auto-save conversation if conversationId provided and user is authenticated
       if (conversationId && typeof conversationId === 'string' && conversationId.trim() && req.user && assistantResponse) {
         try {
-          const allMessages = [
-            ...messages.filter((m: any) => m && m.role).map((m: any) => ({
-              role: m.role,
-              content: m.content,
-              toolInvocations: m.toolInvocations
-            })),
-            {
-              role: 'assistant',
-              content: assistantResponse,
-              ...(nonStreamToolInvocations.length > 0 && { toolInvocations: nonStreamToolInvocations }),
-            }
-          ].filter(msg => msg != null && msg.role && msg.content !== undefined);
-
-          const title = extractConversationTitle(assistantResponse, messages);
-          const cleanedResponse = stripTitleTags(assistantResponse);
-
-          // Update assistant content to remove title tags
-          const assistantIdx = allMessages.findIndex(m => m.role === 'assistant' && m.content === assistantResponse);
-          if (assistantIdx >= 0) {
-            allMessages[assistantIdx] = { ...allMessages[assistantIdx], content: cleanedResponse };
-          }
-
-          await Conversation.findOneAndUpdate(
-            { oxyUserId: req.user.id, conversationId: conversationId },
-            {
-              conversationId: conversationId,
-              oxyUserId: req.user.id,
-              messages: allMessages,
-              title,
-              updatedAt: new Date(),
-            },
-            { upsert: true, new: true }
-          );
-          console.log(`[V1/Chat] Conversation ${conversationId} saved with title: "${title}"`);
+          await saveConversation({
+            userId: req.user.id,
+            conversationId,
+            messages,
+            assistantResponse,
+            toolInvocations: nonStreamToolInvocations,
+          });
+          console.log(`[V1/Chat] Conversation ${conversationId} saved`);
         } catch (error) {
           console.error('[V1/Chat] Error saving conversation:', error);
         }
@@ -1037,46 +986,16 @@ When you use a tool successfully:
     // Save when there's text content OR tool invocations (tools without text are valid responses)
     if (conversationId && typeof conversationId === 'string' && conversationId.trim() && req.user && (assistantResponse || toolInvocations.length > 0)) {
       try {
-        // Build complete messages array (user messages + assistant response)
-        const allMessages = [
-          ...messages.filter(m => m && m.role).map((m: any) => ({
-            role: m.role,
-            content: m.content,
-            toolInvocations: m.toolInvocations
-          })),
-          {
-            role: 'assistant',
-            content: assistantResponse,
-            ...(toolInvocations.length > 0 && { toolInvocations }),
-          }
-        ].filter(msg => msg != null && msg.role && msg.content !== undefined);
-
-        const title = extractConversationTitle(assistantResponse, messages);
-        const cleanedResponse = stripTitleTags(assistantResponse);
-
-        // Update assistant content to remove title tags
-        const assistantIdx = allMessages.findIndex(m => m.role === 'assistant' && m.content === assistantResponse);
-        if (assistantIdx >= 0) {
-          allMessages[assistantIdx] = { ...allMessages[assistantIdx], content: cleanedResponse };
-        }
-
-        // Save or update conversation
-        await Conversation.findOneAndUpdate(
-          { oxyUserId: req.user.id, conversationId: conversationId },
-          {
-            conversationId: conversationId,
-            oxyUserId: req.user.id,
-            messages: allMessages,
-            title,
-            updatedAt: new Date(),
-          },
-          { upsert: true, new: true }
-        );
-
-        console.log(`[V1/Chat] Conversation ${conversationId} saved with title: "${title}"`);
+        await saveConversation({
+          userId: req.user.id,
+          conversationId,
+          messages,
+          assistantResponse,
+          toolInvocations,
+        });
+        console.log(`[V1/Chat] Conversation ${conversationId} saved`);
       } catch (error) {
         console.error('[V1/Chat] Error saving conversation:', error);
-        console.error('[V1/Chat] ConversationId:', conversationId);
       }
     }
 
