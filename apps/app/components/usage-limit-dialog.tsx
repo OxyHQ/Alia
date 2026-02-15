@@ -13,6 +13,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Text } from '@/components/ui/text';
 import { UsageLimitError } from '@/lib/errors/usage-limit-error';
+import { useTranslation } from '@/hooks/useTranslation';
 
 interface UsageLimitDialogProps {
   error: UsageLimitError | null;
@@ -27,6 +28,7 @@ function formatCountdown(seconds: number): string {
 
 export function UsageLimitDialog({ error, onDismiss }: UsageLimitDialogProps) {
   const router = useRouter();
+  const { t } = useTranslation();
   const [countdown, setCountdown] = useState(0);
 
   useEffect(() => {
@@ -66,27 +68,27 @@ export function UsageLimitDialog({ error, onDismiss }: UsageLimitDialogProps) {
   // Title
   let title: string;
   if (isModelAccess) {
-    title = 'Model locked';
+    title = t('usageLimit.modelLockedTitle');
   } else if (isCredits) {
-    title = 'Out of credits';
+    title = t('usageLimit.outOfCreditsTitle');
   } else if (showUpgrade) {
-    title = 'Limit reached';
+    title = t('usageLimit.limitReachedTitle');
   } else {
-    title = 'Slow down';
+    title = t('usageLimit.slowDownTitle');
   }
 
   // Description
   let description: string;
   if (isModelAccess) {
-    description = 'Upgrade your plan to use this model.';
+    description = t('usageLimit.modelLockedDesc');
   } else if (isCredits) {
-    description = 'Add more credits or upgrade your plan to continue chatting with Alia.';
+    description = t('usageLimit.outOfCreditsDescription');
   } else if (showUpgrade) {
-    description = "You've reached the limit for your plan. Upgrade for more.";
+    description = t('usageLimit.limitReachedDescription');
   } else {
     description = countdown > 0
-      ? `You've hit your rate limit. Try again in ${formatCountdown(countdown)}.`
-      : "You've hit your rate limit. Please try again shortly.";
+      ? t('usageLimit.slowDownDescription', { time: formatCountdown(countdown) })
+      : t('usageLimit.slowDownGeneric');
   }
 
   return (
@@ -120,42 +122,42 @@ export function UsageLimitDialog({ error, onDismiss }: UsageLimitDialogProps) {
           {isModelAccess ? (
             <>
               <Button onPress={handleUpgrade} className="flex-1">
-                <Text className="text-primary-foreground text-sm font-medium">Upgrade Plan</Text>
+                <Text className="text-primary-foreground text-sm font-medium">{t('usageLimit.upgradePlan')}</Text>
               </Button>
               <Button variant="outline" onPress={onDismiss} className="flex-1">
-                <Text className="text-sm font-medium">Got it</Text>
+                <Text className="text-sm font-medium">{t('usageLimit.gotIt')}</Text>
               </Button>
             </>
           ) : isCredits ? (
             <>
               <Button onPress={handleUpgrade} className="flex-1">
-                <Text className="text-primary-foreground text-sm font-medium">Upgrade Plan</Text>
+                <Text className="text-primary-foreground text-sm font-medium">{t('usageLimit.upgradePlan')}</Text>
               </Button>
               <Button variant="outline" onPress={handleBuyCredits} className="flex-1">
-                <Text className="text-sm font-medium">Buy Credits</Text>
+                <Text className="text-sm font-medium">{t('usageLimit.buyCredits')}</Text>
               </Button>
             </>
           ) : showUpgrade ? (
             <>
               <Button onPress={handleUpgrade} className="flex-1">
-                <Text className="text-primary-foreground text-sm font-medium">Upgrade Plan</Text>
+                <Text className="text-primary-foreground text-sm font-medium">{t('usageLimit.upgradePlan')}</Text>
               </Button>
               {countdown > 0 ? (
                 <Button variant="outline" disabled className="flex-1">
                   <Text className="text-sm font-medium text-muted-foreground">
-                    Try again in {formatCountdown(countdown)}
+                    {t('usageLimit.tryAgainIn', { time: formatCountdown(countdown) })}
                   </Text>
                 </Button>
               ) : (
                 <Button variant="outline" onPress={onDismiss} className="flex-1">
-                  <Text className="text-sm font-medium">Try Again</Text>
+                  <Text className="text-sm font-medium">{t('usageLimit.tryAgain')}</Text>
                 </Button>
               )}
             </>
           ) : (
             <Button variant="outline" onPress={onDismiss} className="flex-1">
               <Text className="text-sm font-medium">
-                {countdown > 0 ? `Try again in ${formatCountdown(countdown)}` : 'Got it'}
+                {countdown > 0 ? t('usageLimit.tryAgainIn', { time: formatCountdown(countdown) }) : t('usageLimit.gotIt')}
               </Text>
             </Button>
           )}

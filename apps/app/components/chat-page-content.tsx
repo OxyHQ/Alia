@@ -45,12 +45,12 @@ const MODE_CONFIG: Record<Mode, {
   exclusive?: Mode[];
   featureId?: string;
 }> = {
-  search:           { label: 'Search',        icon: Globe,       color: '#3b82f6', onToast: 'Web search will be used',               offToast: 'Search mode disabled' },
-  ghost:            { label: 'Ghost',         icon: Ghost,       color: '#00b2ff', onToast: 'Conversations will not be saved',       offToast: 'Conversations will be saved normally' },
-  agent:            { label: 'Agent',         icon: Bot,         color: '#f97316', onToast: 'I can now perform actions autonomously', offToast: 'Agent mode disabled', featureId: 'agent-mode' },
-  deepResearch:     { label: 'Deep research', icon: Search,      color: '#10b981', onToast: 'Deep research mode activated',          offToast: 'Deep research disabled', exclusive: ['shoppingResearch'], featureId: 'deep-research' },
-  shoppingResearch: { label: 'Shopping',      icon: ShoppingBag, color: '#ec4899', onToast: 'Shopping research activated',           offToast: 'Shopping research disabled', exclusive: ['deepResearch'], featureId: 'shopping-research' },
-  study:            { label: 'Study',         icon: BookOpen,    color: '#6366f1', onToast: 'Study mode activated',                  offToast: 'Study mode disabled' },
+  search:           { label: 'modes.searchLabel',       icon: Globe,       color: '#3b82f6', onToast: 'modes.searchOn',           offToast: 'modes.searchOff' },
+  ghost:            { label: 'modes.ghostLabel',        icon: Ghost,       color: '#00b2ff', onToast: 'modes.ghostOn',            offToast: 'modes.ghostOff' },
+  agent:            { label: 'modes.agentLabel',        icon: Bot,         color: '#f97316', onToast: 'modes.agentOn',            offToast: 'modes.agentOff', featureId: 'agent-mode' },
+  deepResearch:     { label: 'modes.deepResearchLabel', icon: Search,      color: '#10b981', onToast: 'modes.deepResearchOn',     offToast: 'modes.deepResearchOff', exclusive: ['shoppingResearch'], featureId: 'deep-research' },
+  shoppingResearch: { label: 'modes.shoppingLabel',     icon: ShoppingBag, color: '#ec4899', onToast: 'modes.shoppingResearchOn', offToast: 'modes.shoppingResearchOff', exclusive: ['deepResearch'], featureId: 'shopping-research' },
+  study:            { label: 'modes.studyLabel',        icon: BookOpen,    color: '#6366f1', onToast: 'modes.studyOn',            offToast: 'modes.studyOff' },
 };
 
 const MODE_ORDER: Mode[] = ['ghost', 'agent', 'deepResearch', 'shoppingResearch', 'study'];
@@ -167,6 +167,11 @@ export const ChatPageContent = ({
   const { pickDocument } = useDocumentPicker();
   const stt = useSpeechToText();
   const { colors } = useColorScheme();
+
+  useEffect(() => {
+    if (stt.error) toast.error(stt.error);
+  }, [stt.error]);
+
   const [bottomBarHeight, setBottomBarHeight] = useState(160);
   const isMainScreen = messages.length === 0;
   const completions = usePromptCompletions(inputValue, isMainScreen);
@@ -174,7 +179,7 @@ export const ChatPageContent = ({
   const toggleMode = useCallback((mode: Mode) => {
     const config = MODE_CONFIG[mode];
     if (config.featureId && !entitlements?.features[config.featureId]) {
-      toast.info(t('subscribe.featureRequiresPlan', { feature: config.label }));
+      toast.info(t('subscribe.featureRequiresPlan', { feature: t(config.label) }));
       router.push('/(biglayout)/subscribe');
       return;
     }
@@ -182,11 +187,11 @@ export const ChatPageContent = ({
       const next = new Set(prev);
       if (next.has(mode)) {
         next.delete(mode);
-        toast.info(config.offToast);
+        toast.info(t(config.offToast));
       } else {
         next.add(mode);
         config.exclusive?.forEach(m => next.delete(m as Mode));
-        toast.info(config.onToast);
+        toast.info(t(config.onToast));
       }
       return next;
     });
@@ -210,7 +215,7 @@ export const ChatPageContent = ({
 
   const handleAddPhotos = async () => {
     if (!isAuthenticated) {
-      toast.error('Please sign in to upload images.');
+      toast.error(t('subscribe.signInRequired'));
       return;
     }
 
@@ -235,7 +240,7 @@ export const ChatPageContent = ({
 
   const handleAddDocument = async () => {
     if (!isAuthenticated) {
-      toast.error('Please sign in to upload documents.');
+      toast.error(t('subscribe.signInRequired'));
       return;
     }
 
@@ -255,7 +260,7 @@ export const ChatPageContent = ({
       }
     } catch (err) {
       console.error('Error picking documents:', err);
-      toast.error('Failed to pick documents. Please try again.');
+      toast.error(t('chat.failedPickDocuments'));
     }
   };
 
@@ -265,7 +270,7 @@ export const ChatPageContent = ({
 
   const handleImagePaste = async (files: File[]) => {
     if (!isAuthenticated) {
-      toast.error('Please sign in to paste images.');
+      toast.error(t('subscribe.signInRequired'));
       return;
     }
 
@@ -300,22 +305,22 @@ export const ChatPageContent = ({
       }
     } catch (err) {
       console.error('Error handling pasted images:', err);
-      toast.error('Failed to process pasted images. Please try again.');
+      toast.error(t('chat.failedPasteImages'));
     }
   };
 
   const handleThinkingMode = () => {
     if (thinkingMode) {
       onModelChange(baseModel);
-      toast.info('Thinking mode disabled');
+      toast.info(t('modes.thinkingOff'));
     } else {
       onModelChange(getThinkingModelId());
-      toast.info('AI will show its reasoning process');
+      toast.info(t('modes.thinkingOn'));
     }
   };
 
   const handleAddSources = () => {
-    toast.info('You can add URLs, documents, or other sources for me to reference.');
+    toast.info(t('chat.addSourcesHint'));
   };
 
   const handleCanvas = () => {
@@ -406,7 +411,7 @@ export const ChatPageContent = ({
               <View className="flex-row items-center gap-2 rounded-lg bg-destructive/10 px-3 py-2">
                 <AlertTriangle size={14} className="text-destructive" />
                 <Text className="text-xs text-destructive flex-1">
-                  Usage limit reached. Upgrade or wait to continue.
+                  {t('usageLimit.limitReachedBanner')}
                 </Text>
               </View>
             </View>
@@ -458,7 +463,7 @@ export const ChatPageContent = ({
                   <PromptInputTextarea
                     value={inputValue}
                     onChangeText={setInputValue}
-                    placeholder={disabled ? "Usage limit reached" : "Message Alia..."}
+                    placeholder={disabled ? t('usageLimit.inputDisabledPlaceholder') : "Message Alia..."}
                     editable={!disabled}
                     className="min-h-[44px] text-base md:text-base py-3"
                   />
@@ -475,7 +480,7 @@ export const ChatPageContent = ({
                       {thinkingMode && (
                         <ModeChip
                           icon={Brain}
-                          label="Thinking"
+                          label={t('modes.thinkingLabel')}
                           color="#a855f7"
                           onDismiss={handleThinkingMode}
                         />
@@ -486,7 +491,7 @@ export const ChatPageContent = ({
                           <ModeChip
                             key={mode}
                             icon={MODE_CONFIG[mode].icon}
-                            label={MODE_CONFIG[mode].label}
+                            label={t(MODE_CONFIG[mode].label)}
                             color={MODE_CONFIG[mode].color}
                             onDismiss={() => toggleMode(mode)}
                           />
@@ -605,11 +610,11 @@ export const ChatPageContent = ({
                         attachments={attachments}
                         onVoicePress={() => {
                           if (!isAuthenticated) {
-                            toast.error('Please sign in to use voice mode.');
+                            toast.error(t('subscribe.signInRequired'));
                             return;
                           }
                           if (!entitlements?.features['voice-mode']) {
-                            toast.info(t('subscribe.featureRequiresPlan', { feature: 'Voice mode' }));
+                            toast.info(t('subscribe.featureRequiresPlan', { feature: t('modes.voiceMode') }));
                             router.push('/(biglayout)/subscribe');
                             return;
                           }
