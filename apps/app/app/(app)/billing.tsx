@@ -5,8 +5,8 @@ import { Button } from "@/components/ui/button";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { ArrowLeft, CreditCard, ExternalLink, X, Sparkle } from "lucide-react-native";
 import { useCredits } from "@/lib/hooks/use-credits";
-import { useSubscription, useCancelSubscription, useCreatePortalSession, useTransactions } from "@/lib/hooks/use-billing";
-import { useEffect, useState } from "react";
+import { useSubscription, useSubscriptionPolling, useCancelSubscription, useCreatePortalSession, useTransactions } from "@/lib/hooks/use-billing";
+import { useEffect, useState, useRef } from "react";
 import { useAuth } from "@oxyhq/services";
 import { toast } from "@/components/sonner";
 import { useTranslation } from "@/hooks/useTranslation";
@@ -23,6 +23,13 @@ export default function BillingScreen() {
   const [isMounted, setIsMounted] = useState(false);
   const { t } = useTranslation();
 
+  const isPaymentSuccess = isMounted && success === 'true';
+  const toastShown = useRef(false);
+
+  const { data: polledSubscription } = useSubscriptionPolling(undefined, {
+    enabled: isPaymentSuccess,
+  });
+
   useEffect(() => {
     setIsMounted(true);
   }, []);
@@ -33,17 +40,36 @@ export default function BillingScreen() {
     }
   }, [isMounted, isAuthenticated]);
 
+  // Show success toast once subscription is confirmed via polling
   useEffect(() => {
-    if (isMounted && success === 'true') {
+    if (!isPaymentSuccess || toastShown.current) return;
+
+    if (polledSubscription && (polledSubscription.status === 'active' || polledSubscription.status === 'trialing')) {
+      toastShown.current = true;
       refetch();
       refetchSubscription();
       refetchTransactions();
       toast.success(t('billing.paymentSuccess'));
-      setTimeout(() => {
-        router.replace("/billing");
-      }, 100);
+      setTimeout(() => router.replace("/billing"), 100);
     }
-  }, [isMounted, success]);
+  }, [isPaymentSuccess, polledSubscription]);
+
+  // Timeout fallback
+  useEffect(() => {
+    if (!isPaymentSuccess || toastShown.current) return;
+
+    const timeout = setTimeout(() => {
+      if (!toastShown.current) {
+        toastShown.current = true;
+        refetch();
+        refetchSubscription();
+        refetchTransactions();
+        toast.success(t('billing.paymentSuccess'));
+        setTimeout(() => router.replace("/billing"), 100);
+      }
+    }, 32000);
+    return () => clearTimeout(timeout);
+  }, [isPaymentSuccess]);
 
   const handleCancelSubscription = async () => {
     try {

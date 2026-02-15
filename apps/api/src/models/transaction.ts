@@ -1,7 +1,7 @@
 import mongoose, { Schema, Model, Document } from 'mongoose';
 
 export interface ITransaction extends Document {
-  oxyUserId: mongoose.Types.ObjectId;
+  oxyUserId: string;
   stripeCustomerId?: string;
   stripePaymentIntentId?: string;
   type: 'credit_purchase' | 'subscription_payment' | 'refund';
@@ -17,8 +17,7 @@ export interface ITransaction extends Document {
 
 const TransactionSchema = new Schema<ITransaction>({
   oxyUserId: {
-    type: Schema.Types.ObjectId,
-    ref: 'User',
+    type: String,
     required: true,
   },
   stripeCustomerId: {

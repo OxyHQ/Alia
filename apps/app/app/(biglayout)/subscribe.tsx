@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import { View, ScrollView, useWindowDimensions, ActivityIndicator } from 'react-native';
 import * as Linking from 'expo-linking';
 import { useRouter, useLocalSearchParams } from 'expo-router';
@@ -6,6 +6,7 @@ import { Text } from '@/components/ui/text';
 import {
   useSubscriptionPlans,
   useSubscription,
+  useSubscriptionPolling,
   useCreateSubscriptionCheckout,
   type SubscriptionPlan,
 } from '@/lib/hooks/use-billing';
@@ -63,19 +64,43 @@ export default function SubscribeScreen() {
 
   const tiers = useMemo(() => buildTiers(apiPlans, t), [apiPlans, t]);
 
+  const isPaymentSuccess = isMounted && success === 'true';
+  const toastShown = useRef(false);
+
+  const { data: polledSubscription } = useSubscriptionPolling('alia', {
+    enabled: isPaymentSuccess,
+  });
+
   useEffect(() => {
     setIsMounted(true);
   }, []);
 
+  // Show success toast and redirect once subscription is confirmed via polling
   useEffect(() => {
-    if (isMounted && success === 'true') {
+    if (!isPaymentSuccess || toastShown.current) return;
+
+    if (polledSubscription && (polledSubscription.status === 'active' || polledSubscription.status === 'trialing')) {
+      toastShown.current = true;
       refetchSubscription();
       toast.success(t('subscribe.paymentSuccess'));
-      setTimeout(() => {
-        router.replace('/(biglayout)/subscribe');
-      }, 100);
+      setTimeout(() => router.replace('/(biglayout)/subscribe'), 100);
     }
-  }, [isMounted, success]);
+  }, [isPaymentSuccess, polledSubscription]);
+
+  // Timeout fallback: if polling doesn't find subscription within 30s, still show success
+  useEffect(() => {
+    if (!isPaymentSuccess || toastShown.current) return;
+
+    const timeout = setTimeout(() => {
+      if (!toastShown.current) {
+        toastShown.current = true;
+        refetchSubscription();
+        toast.success(t('subscribe.paymentSuccess'));
+        setTimeout(() => router.replace('/(biglayout)/subscribe'), 100);
+      }
+    }, 32000);
+    return () => clearTimeout(timeout);
+  }, [isPaymentSuccess]);
 
   const handleSubscribe = async (planId: string) => {
     if (!isAuthenticated) {
