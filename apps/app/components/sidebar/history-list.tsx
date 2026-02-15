@@ -1,7 +1,6 @@
 import React from "react";
 import { View, ActivityIndicator, Pressable } from "react-native";
 import { Text } from "@/components/ui/text";
-import { MessageSquare, Star as StarIcon } from "lucide-react-native";
 import { cn } from "@/lib/utils";
 import type { Conversation } from "@/lib/hooks/use-conversations";
 import type { Project } from "@/lib/stores/projects-store";
@@ -66,13 +65,6 @@ export const HistoryList = React.memo<HistoryListProps>(({
                 !isActive && "active:bg-muted/50 rounded-full"
               )}
             >
-              <MessageSquare
-                size={13}
-                className={cn(
-                  "text-muted-foreground",
-                  isActive && "text-primary"
-                )}
-              />
               <Text
                 className={cn(
                   "flex-1 text-xs text-foreground",
@@ -82,9 +74,6 @@ export const HistoryList = React.memo<HistoryListProps>(({
               >
                 {conv.title || "New conversation"}
               </Text>
-              {isConvFavorite && (
-                <StarIcon size={10} className="text-amber-500" fill="#f59e0b" />
-              )}
             </Pressable>
             <ConversationMenu
               conversation={conv}

@@ -6,7 +6,6 @@ import {
   ChevronDown,
   ChevronRight,
   MoreHorizontal,
-  Star as StarIcon,
   Folder as FolderIcon,
 } from "lucide-react-native";
 import type { Conversation } from "@/lib/hooks/use-conversations";
@@ -79,9 +78,6 @@ export const FolderSection = React.memo<FolderSectionProps>(({
           >
             {folder.name}
           </Text>
-          {folder.isFavorite && (
-            <StarIcon size={10} className="text-amber-500" fill="#f59e0b" />
-          )}
           <Text className="text-xs text-muted-foreground mr-1">
             {conversations.length}
           </Text>

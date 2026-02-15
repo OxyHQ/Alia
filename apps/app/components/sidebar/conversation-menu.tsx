@@ -1,7 +1,7 @@
 import React from "react";
-import { Pressable } from "react-native";
+import { Pressable, View } from "react-native";
 import * as DropdownMenu from "@/components/ui/dropdown-menu";
-import { MoreHorizontal } from "lucide-react-native";
+import { MoreHorizontal, Star } from "lucide-react-native";
 import type { Conversation } from "@/lib/hooks/use-conversations";
 import type { Project } from "@/lib/stores/projects-store";
 import type { Folder } from "@/lib/stores/folders-store";
@@ -34,9 +34,16 @@ export const ConversationMenu = React.memo<ConversationMenuProps>(({
   return (
     <DropdownMenu.Root>
       <DropdownMenu.Trigger>
-        <Pressable className="h-8 w-8 items-center justify-center rounded-full mr-1 active:bg-muted/70 opacity-0 group-hover:opacity-100">
-          <MoreHorizontal size={14} className="text-muted-foreground" />
-        </Pressable>
+        <View className="relative h-8 w-8 items-center justify-center mr-1">
+          {isFavorite && (
+            <View className="absolute inset-0 items-center justify-center group-hover:opacity-0">
+              <Star size={14} className="text-amber-500" fill="#f59e0b" />
+            </View>
+          )}
+          <Pressable className="h-8 w-8 items-center justify-center rounded-full active:bg-muted/70 opacity-0 group-hover:opacity-100">
+            <MoreHorizontal size={14} className="text-muted-foreground" />
+          </Pressable>
+        </View>
       </DropdownMenu.Trigger>
       <DropdownMenu.Content>
         <DropdownMenu.Item key="favorite" onSelect={() => onToggleFavorite(conversation.id, {})}>
