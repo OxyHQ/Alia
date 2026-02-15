@@ -65,8 +65,8 @@ export function AttachmentPreview({ attachments, onRemove }: AttachmentPreviewPr
     <ScrollView
       horizontal
       showsHorizontalScrollIndicator={false}
-      className="mb-2 pt-2"
-      contentContainerClassName="gap-2.5 px-0.5"
+      className="mb-2 pt-2 flex-none"
+      contentContainerClassName="gap-2.5 px-3"
     >
       {attachments.map((attachment) => (
         <View key={attachment.id} className="relative">
