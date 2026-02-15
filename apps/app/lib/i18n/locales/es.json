@@ -368,7 +368,9 @@
     "helpCenter": "Ir al centro de ayuda",
     "editBilling": "Editar facturación",
     "paymentSuccess": "¡Pago exitoso!",
-    "failedCheckout": "Error al crear la sesión de pago"
+    "failedCheckout": "Error al crear la sesión de pago",
+    "modelRequiresPlan": "Este modelo requiere el plan {{plan}}",
+    "featureRequiresPlan": "{{feature}} requiere un plan de pago"
   },
   "usageLimit": {
     "outOfCreditsTitle": "Sin créditos",
@@ -387,7 +389,9 @@
     "limitReachedBanner": "Límite de uso alcanzado. Mejora o espera para continuar.",
     "warningMessage": "Estás gastando más de lo habitual hoy. A este ritmo, los créditos duran ~{{days}} días.",
     "criticalMessage": "Uso elevado — los créditos podrían agotarse en ~{{days}} día(s).",
-    "switchModel": "Cambiar"
+    "switchModel": "Cambiar",
+    "modelLockedTitle": "Modelo bloqueado",
+    "modelLockedDesc": "Mejora tu plan para usar este modelo."
   },
   "forgotPassword": {
     "title": "Restablecer contraseña",

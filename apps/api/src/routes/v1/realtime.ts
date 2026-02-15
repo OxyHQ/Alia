@@ -24,6 +24,7 @@ import { OxyServices } from '@oxyhq/core';
 import DeveloperApiKey from '../../models/developer-api-key.js';
 import { buildSystemPrompt } from '../../lib/prompt-loader.js';
 import { buildUserContext } from '../../lib/user-context.js';
+import { getUserEntitlements } from '../../lib/plan-access.js';
 
 // ============== WEBSOCKET ENDPOINT SETUP ==============
 
@@ -98,6 +99,21 @@ export function setupRealtimeEndpoint(wss: WebSocketServer): void {
         console.error(`[Realtime] User ${userId} exceeded max concurrent sessions`);
         ws.close(4003, 'Maximum concurrent sessions reached (5)');
         return;
+      }
+
+      // Enforce plan-based model + voice-mode access (skip for API key auth)
+      if (!apiKey) {
+        const entitlements = await getUserEntitlements(userId);
+        if (!entitlements.features['voice-mode']) {
+          ws.send(JSON.stringify({ type: 'error', error: { code: 'feature_not_in_plan', message: 'Upgrade your plan to use voice mode.' } }));
+          ws.close(4003, 'Voice mode requires a paid plan');
+          return;
+        }
+        if (!entitlements.allowedModelIds.includes(model)) {
+          ws.send(JSON.stringify({ type: 'error', error: { code: 'model_not_in_plan', message: 'Upgrade your plan to use this model.' } }));
+          ws.close(4003, 'Model not available on your plan');
+          return;
+        }
       }
 
       // Build rich voice instructions (mirrors chat-completions.ts context building)

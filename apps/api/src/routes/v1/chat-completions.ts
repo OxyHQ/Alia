@@ -5,9 +5,10 @@ import { getAliaModel } from '../../internal/providers/lib/alia-models.js';
 import { UserMemory } from '../../models/user-memory.js';
 import { getOrCreateUserCredits } from '../../lib/user-credits-helpers.js';
 import { Conversation } from '../../models/conversation.js';
-import { reserveCredits, finalizeCredits, type CreditReservation, type CreditUsage } from '../../lib/credits-manager.js';
+import { reserveCredits, finalizeCredits, refundReservation, type CreditReservation, type CreditUsage } from '../../lib/credits-manager.js';
 import { recordUsage } from '../../middleware/api-key-rate-limit.js';
 import { detectCreditAnomaly } from '../../lib/credit-anomaly.js';
+import { getUserEntitlements } from '../../lib/plan-access.js';
 import { convertOpenAIToolsToToolSet } from '../../lib/tool-converter.js';
 import { getCurrentDateTool, getTimelineTool, saveUserMemoryTool, updateUserPreferencesTool, updateUserContextTool, createSendTelegramTool, createGetWhatsAppChatsTool, createGetWhatsAppMessagesTool, createSendWhatsAppMessageTool, createProvidersAdminTool, webScraperTool, generateFileTool } from '../../lib/tools/index.js';
 import { oxyClient } from '../../middleware/auth.js';
@@ -278,6 +279,25 @@ router.post('/', async (req: Request, res: Response) => {
 
     aliasModelId = resolved.aliasModelId;
     console.log(`[V1/Chat] Using provider: ${resolved.provider}/${resolved.modelId}`);
+
+    // Enforce plan-based model access (skip for API-key requests)
+    if (req.user && !req.apiKey) {
+      const entitlements = await getUserEntitlements(req.user.id);
+      if (!entitlements.allowedModelIds.includes(aliasModelId)) {
+        if (creditReservation) await refundReservation(creditReservation);
+        clearTimeout(globalTimer);
+        res.status(403).json({
+          error: {
+            code: 'MODEL_NOT_IN_PLAN',
+            message: 'Upgrade your plan to use this model.',
+            retryable: false,
+            suggestedAction: 'upgrade',
+            details: { model: aliasModelId },
+          },
+        });
+        return;
+      }
+    }
 
     // For streaming requests, send SSE headers immediately to prevent DO proxy timeout.
     // This establishes the connection with the proxy before the potentially slow

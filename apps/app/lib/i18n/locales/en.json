@@ -368,7 +368,9 @@
     "helpCenter": "Go to Help center",
     "editBilling": "Edit billing",
     "paymentSuccess": "Payment successful!",
-    "failedCheckout": "Failed to create checkout session"
+    "failedCheckout": "Failed to create checkout session",
+    "modelRequiresPlan": "This model requires the {{plan}} plan",
+    "featureRequiresPlan": "{{feature}} requires a paid plan"
   },
   "usageLimit": {
     "outOfCreditsTitle": "Out of credits",
@@ -387,7 +389,9 @@
     "limitReachedBanner": "Usage limit reached. Upgrade or wait to continue.",
     "warningMessage": "Spending more than usual today. At this rate, credits last ~{{days}} days.",
     "criticalMessage": "High usage — credits may run out in ~{{days}} day(s).",
-    "switchModel": "Switch"
+    "switchModel": "Switch",
+    "modelLockedTitle": "Model locked",
+    "modelLockedDesc": "Upgrade your plan to use this model."
   },
   "forgotPassword": {
     "title": "Reset password",

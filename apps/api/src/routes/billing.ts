@@ -11,6 +11,7 @@ import { Feature } from '../internal/providers/models/feature.js';
 import { PlanFeature } from '../internal/providers/models/plan-feature.js';
 import { ALIA_MODELS } from '../internal/providers/lib/alia-models.js';
 import { getOrCreateUserCredits } from '../lib/user-credits-helpers.js';
+import { getUserEntitlements, invalidateEntitlementsCache } from '../lib/plan-access.js';
 import { z } from 'zod';
 
 const router = Router();
@@ -462,6 +463,17 @@ router.post('/portal', authenticateToken, async (req: Request, res: Response) =>
   }
 });
 
+// Entitlements: returns allowed models + feature flags for the current user
+router.get('/entitlements', authenticateToken, async (req: Request, res: Response) => {
+  try {
+    const entitlements = await getUserEntitlements(req.user!.id);
+    res.json(entitlements);
+  } catch (error: any) {
+    console.error('[Billing] Error fetching entitlements:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 router.post('/webhook', async (req: Request, res: Response) => {
   const sig = req.headers['stripe-signature'] as string;
   if (!sig) return res.status(400).send('Missing stripe-signature');
@@ -620,13 +632,16 @@ async function handleSubscriptionUpdate(stripeSubscription: Stripe.Subscription)
       throw err;
     }
   }
+
+  invalidateEntitlementsCache(userCredits._id);
 }
 
 async function handleSubscriptionDeleted(stripeSubscription: Stripe.Subscription) {
-  await Subscription.findOneAndUpdate(
+  const sub = await Subscription.findOneAndUpdate(
     { stripeSubscriptionId: stripeSubscription.id },
     { status: 'canceled' }
   );
+  if (sub?.oxyUserId) invalidateEntitlementsCache(sub.oxyUserId);
 }
 
 function getSubscriptionIdFromInvoice(invoice: Stripe.Invoice): string | null {

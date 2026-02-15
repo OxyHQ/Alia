@@ -1,7 +1,10 @@
 import { View, Pressable } from 'react-native';
 import { useQueryClient } from '@tanstack/react-query';
-import { X, Zap } from 'lucide-react-native';
+import { X, Zap, AlertTriangle } from 'lucide-react-native';
 import { Text } from '@/components/ui/text';
+import { useRouter } from 'expo-router';
+import { useCredits } from '@/lib/hooks/use-credits';
+import { useState } from 'react';
 
 interface UsageWarningData {
   level: string;
@@ -31,8 +34,33 @@ const CHEAPER_ALTERNATIVES: Record<string, { model: string; name: string; multip
 
 export function CreditWarningBanner({ selectedModel, onSwitchModel }: CreditWarningBannerProps) {
   const queryClient = useQueryClient();
+  const router = useRouter();
+  const { data: creditsInfo } = useCredits();
+  const [lowCreditsDismissed, setLowCreditsDismissed] = useState(false);
 
   const usageWarning = queryClient.getQueryData<UsageWarningData>(['usage-warning']);
+
+  // Low credits banner (< 50 credits remaining, non-zero)
+  const isLowCredits = !lowCreditsDismissed && creditsInfo && creditsInfo.credits < 50 && creditsInfo.credits > 0;
+  if (!usageWarning && isLowCredits) {
+    return (
+      <View className="mx-auto w-full max-w-3xl px-4 pb-1">
+        <View className="flex-row items-center gap-2 rounded-lg px-3 py-2 bg-yellow-500/10">
+          <AlertTriangle size={14} className="text-yellow-600" />
+          <Text className="text-xs flex-1 text-yellow-700 dark:text-yellow-400">
+            {creditsInfo.credits} credits remaining.
+          </Text>
+          <Pressable onPress={() => router.push('/(app)/billing')} className="active:opacity-70">
+            <Text className="text-xs font-medium text-primary">Buy more</Text>
+          </Pressable>
+          <Pressable onPress={() => setLowCreditsDismissed(true)} className="active:opacity-70">
+            <X size={12} className="text-muted-foreground" />
+          </Pressable>
+        </View>
+      </View>
+    );
+  }
+
   if (!usageWarning) return null;
 
   const alt = CHEAPER_ALTERNATIVES[selectedModel];

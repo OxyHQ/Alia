@@ -144,25 +144,30 @@ Use this role to guide your responses, maintaining the specified tone, style, an
           }
         } catch {}
 
-        // Detect usage limit errors (429 rate limit or 402 insufficient credits)
-        if (response.status === 429 || response.status === 402) {
+        // Detect usage limit errors (429 rate limit, 402 insufficient credits, 403 model access)
+        if (response.status === 429 || response.status === 402 || response.status === 403) {
           const errObj = errorData?.error && typeof errorData.error === 'object' ? errorData.error : null;
+          const isModelAccess = response.status === 403 && errObj?.code === 'MODEL_NOT_IN_PLAN';
           const isCredits = response.status === 402 || errObj?.code === 'INSUFFICIENT_CREDITS';
 
-          throw new UsageLimitError({
-            type: isCredits ? 'credits' : 'rate_limit',
-            code: errObj?.code || (isCredits ? 'INSUFFICIENT_CREDITS' : 'RATE_LIMIT_EXCEEDED'),
-            message: errObj?.message || (isCredits
-              ? "You've run out of credits."
-              : "You've sent too many messages."),
-            retryable: errObj?.retryable ?? !isCredits,
-            retryAfterSeconds: errObj?.retryAfter,
-            suggestedAction: errObj?.suggestedAction || (isCredits ? 'upgrade' : 'wait'),
-            limitType: errObj?.details?.limitType,
-            current: errObj?.details?.current,
-            limit: errObj?.details?.limit,
-            tier: errObj?.details?.tier,
-          });
+          if (isModelAccess || isCredits || response.status === 429) {
+            throw new UsageLimitError({
+              type: isModelAccess ? 'model_access' : isCredits ? 'credits' : 'rate_limit',
+              code: errObj?.code || (isModelAccess ? 'MODEL_NOT_IN_PLAN' : isCredits ? 'INSUFFICIENT_CREDITS' : 'RATE_LIMIT_EXCEEDED'),
+              message: errObj?.message || (isModelAccess
+                ? 'Upgrade your plan to use this model.'
+                : isCredits
+                  ? "You've run out of credits."
+                  : "You've sent too many messages."),
+              retryable: errObj?.retryable ?? (!isCredits && !isModelAccess),
+              retryAfterSeconds: errObj?.retryAfter,
+              suggestedAction: errObj?.suggestedAction || (isCredits || isModelAccess ? 'upgrade' : 'wait'),
+              limitType: errObj?.details?.limitType,
+              current: errObj?.details?.current,
+              limit: errObj?.details?.limit,
+              tier: errObj?.details?.tier,
+            });
+          }
         }
 
         // Generic error fallback

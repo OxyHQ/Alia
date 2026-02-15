@@ -1,4 +1,4 @@
-export type UsageLimitType = 'credits' | 'rate_limit';
+export type UsageLimitType = 'credits' | 'rate_limit' | 'model_access';
 
 export interface UsageLimitDetails {
   type: UsageLimitType;
@@ -30,7 +30,11 @@ export class UsageLimitError extends Error {
     return this.details.type === 'rate_limit';
   }
 
+  get isModelAccessError(): boolean {
+    return this.details.type === 'model_access';
+  }
+
   get shouldShowUpgrade(): boolean {
-    return this.details.suggestedAction === 'upgrade' || this.details.type === 'credits';
+    return this.details.suggestedAction === 'upgrade' || this.details.type === 'credits' || this.details.type === 'model_access';
   }
 }
