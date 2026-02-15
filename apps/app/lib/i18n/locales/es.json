@@ -219,7 +219,9 @@
     "failedPortal": "Error al abrir el portal del cliente",
     "lessThanOneHour": "Menos de 1 hora",
     "aboutOneHour": "Aproximadamente 1 hora",
-    "aboutHours": "Aproximadamente {{count}} horas"
+    "aboutHours": "Aproximadamente {{count}} horas",
+    "customAmountPlaceholder": "Cantidad personalizada",
+    "buy": "Comprar"
   },
   "library": {
     "title": "Biblioteca",

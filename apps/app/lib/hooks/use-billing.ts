@@ -216,6 +216,47 @@ export function useCreateCheckout() {
   });
 }
 
+export function useCreateCustomCheckout() {
+  return useMutation({
+    mutationFn: async ({
+      credits,
+      successUrl,
+      cancelUrl,
+    }: {
+      credits: number;
+      successUrl: string;
+      cancelUrl: string;
+    }) => {
+      const response = await apiClient.post('/billing/checkout/custom-credits', {
+        credits,
+        successUrl,
+        cancelUrl,
+      });
+      return response.data;
+    },
+  });
+}
+
+export interface CreditPriceInfo {
+  pricePerCreditCents: number;
+  minCredits: number;
+  maxCredits: number;
+}
+
+export function useCreditPrice() {
+  const { isAuthenticated } = useOxy();
+
+  return useQuery({
+    queryKey: ['credit-price'],
+    queryFn: async (): Promise<CreditPriceInfo> => {
+      const response = await apiClient.get('/billing/credit-price');
+      return response.data;
+    },
+    staleTime: 1000 * 60 * 10,
+    enabled: isAuthenticated,
+  });
+}
+
 export function useCreateSubscriptionCheckout() {
   return useMutation({
     mutationFn: async ({

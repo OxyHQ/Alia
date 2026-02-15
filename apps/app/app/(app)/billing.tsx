@@ -1,11 +1,11 @@
-import { View, ScrollView, Pressable } from "react-native";
+import { View, ScrollView, Pressable, TextInput } from "react-native";
 import * as Linking from "expo-linking";
 import { Text } from "@/components/ui/text";
 import { Button } from "@/components/ui/button";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { ArrowLeft, CreditCard, ExternalLink, X, Sparkle, Crown, Calendar, ShoppingCart } from "lucide-react-native";
 import { useCredits } from "@/lib/hooks/use-credits";
-import { useSubscription, useSubscriptionPolling, useCancelSubscription, useCreatePortalSession, useTransactions, useCreditPackages, useCreateCheckout } from "@/lib/hooks/use-billing";
+import { useSubscription, useSubscriptionPolling, useCancelSubscription, useCreatePortalSession, useTransactions, useCreditPackages, useCreateCheckout, useCreateCustomCheckout, useCreditPrice } from "@/lib/hooks/use-billing";
 import { useEffect, useState, useRef } from "react";
 import { useAuth } from "@oxyhq/services";
 import { toast } from "@/components/sonner";
@@ -19,10 +19,13 @@ export default function BillingScreen() {
   const { data: subscription, refetch: refetchSubscription } = useSubscription();
   const { data: transactionsData, refetch: refetchTransactions } = useTransactions(10, 0);
   const { data: packages = [] } = useCreditPackages();
+  const { data: creditPrice } = useCreditPrice();
   const cancelSubscriptionMutation = useCancelSubscription();
   const createPortalMutation = useCreatePortalSession();
   const createCheckoutMutation = useCreateCheckout();
+  const createCustomCheckoutMutation = useCreateCustomCheckout();
   const [isMounted, setIsMounted] = useState(false);
+  const [customCredits, setCustomCredits] = useState('');
   const { t } = useTranslation();
 
   const isPaymentSuccess = isMounted && success === 'true';
@@ -105,6 +108,33 @@ export default function BillingScreen() {
       });
       if (url) {
         await Linking.openURL(url);
+      }
+    } catch (error: any) {
+      toast.error(error.message || t('billing.failedCheckout'));
+    }
+  };
+
+  const parsedCustomCredits = parseInt(customCredits) || 0;
+  const customPriceCents = creditPrice
+    ? Math.round(parsedCustomCredits * creditPrice.pricePerCreditCents)
+    : 0;
+  const canBuyCustom =
+    creditPrice &&
+    parsedCustomCredits >= creditPrice.minCredits &&
+    parsedCustomCredits <= creditPrice.maxCredits &&
+    customPriceCents >= 50;
+
+  const handleCustomPurchase = async () => {
+    if (!canBuyCustom) return;
+    try {
+      const { url } = await createCustomCheckoutMutation.mutateAsync({
+        credits: parsedCustomCredits,
+        successUrl: Linking.createURL("/billing?success=true"),
+        cancelUrl: Linking.createURL("/billing"),
+      });
+      if (url) {
+        await Linking.openURL(url);
+        setCustomCredits('');
       }
     } catch (error: any) {
       toast.error(error.message || t('billing.failedCheckout'));
@@ -248,6 +278,30 @@ export default function BillingScreen() {
                   </Text>
                 </Pressable>
               ))}
+
+              {/* Custom amount */}
+              <View className="flex-row items-center gap-2 pt-2 border-t border-border">
+                <TextInput
+                  value={customCredits}
+                  onChangeText={(text) => setCustomCredits(text.replace(/[^0-9]/g, ''))}
+                  placeholder={t('billing.customAmountPlaceholder')}
+                  keyboardType="number-pad"
+                  className="flex-1 py-1.5 px-3 rounded-lg border border-border bg-background text-sm text-foreground"
+                  placeholderTextColor="#999"
+                />
+                <Button
+                  variant="outline"
+                  onPress={handleCustomPurchase}
+                  disabled={!canBuyCustom || createCustomCheckoutMutation.isPending}
+                  size="sm"
+                  className="rounded-full h-8 px-3"
+                  isLoading={createCustomCheckoutMutation.isPending}
+                >
+                  <Text className="text-foreground font-medium text-xs">
+                    {customPriceCents > 0 ? `$${(customPriceCents / 100).toFixed(2)}` : t('billing.buy')}
+                  </Text>
+                </Button>
+              </View>
             </View>
           )}
 
