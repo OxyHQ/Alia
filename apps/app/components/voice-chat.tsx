@@ -3,6 +3,7 @@ import { View, Pressable, Modal, ActivityIndicator, ScrollView } from 'react-nat
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Text } from '@/components/ui/text';
 import { Mic, MicOff, X, PhoneOff } from 'lucide-react-native';
+import { useQueryClient } from '@tanstack/react-query';
 import { useRealtimeVoice, type AgentState } from '@/lib/hooks/use-realtime-voice';
 import { useAudioLevels } from './voice-chat/use-audio-levels';
 import { AudioWaveVisualizer } from './voice-chat/audio-wave-visualizer';
@@ -25,6 +26,7 @@ const CLOSE_BTN_MARGIN = 16;
 
 export function VoiceChat({ visible, onClose }: VoiceChatProps) {
   const insets = useSafeAreaInsets();
+  const queryClient = useQueryClient();
   const {
     voiceState,
     agentState,
@@ -75,6 +77,7 @@ export function VoiceChat({ visible, onClose }: VoiceChatProps) {
 
   const handleClose = () => {
     disconnect();
+    queryClient.invalidateQueries({ queryKey: ['credits'] });
     onClose();
   };
 
