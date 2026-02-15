@@ -589,7 +589,13 @@ export const ChatPageContent = ({
                         stop={onStop}
                         inputValue={inputValue}
                         attachments={attachments}
-                        onVoicePress={() => setShowVoice(true)}
+                        onVoicePress={() => {
+                          if (!isAuthenticated) {
+                            toast.error('Please sign in to use voice mode.');
+                            return;
+                          }
+                          setShowVoice(true);
+                        }}
                       />
                     </View>
                   </PromptInputActions>
