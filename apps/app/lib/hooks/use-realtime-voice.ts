@@ -15,6 +15,7 @@ import { useOxy } from '@oxyhq/services';
 import config from '../config';
 import { RealtimeClient, type RealtimeState } from '../realtime/realtime-client';
 import { AudioPipeline } from '../realtime/audio-pipeline';
+import { stripTitleTags, stripTitleTagsPartial } from '../utils/title-tags';
 
 export type AgentState = 'idle' | 'listening' | 'thinking' | 'speaking';
 
@@ -85,9 +86,7 @@ export function useRealtimeVoice() {
           onTranscriptDelta: (delta) => {
             currentAiTextRef.current += delta;
             // Strip title tags (complete or partial) from displayed transcript
-            const text = currentAiTextRef.current
-              .replace(/\[TITLE\].*?(\[\/TITLE\])?$|<TITLE>.*?(<\/TITLE>)?$/s, '')
-              .trim();
+            const text = stripTitleTagsPartial(currentAiTextRef.current);
             setMessages((prev) => {
               const last = prev[prev.length - 1];
               if (last && last.role === 'assistant' && last.isStreaming) {
@@ -100,9 +99,7 @@ export function useRealtimeVoice() {
           onTranscriptDone: (transcript) => {
             currentAiTextRef.current = '';
             // Strip any title tags from final transcript
-            const clean = transcript
-              .replace(/\[TITLE\].*?\[\/TITLE\]|<TITLE>.*?<\/TITLE>/g, '')
-              .trim();
+            const clean = stripTitleTags(transcript);
             setMessages((prev) => {
               const last = prev[prev.length - 1];
               if (last && last.role === 'assistant' && last.isStreaming) {

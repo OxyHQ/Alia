@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useOxy } from '@oxyhq/services';
 import apiClient from '../api/client';
+import { queryKeys } from './query-keys';
 
 export interface Organization {
   _id: string;
@@ -48,7 +49,7 @@ export function useOrganizations() {
   const { isAuthenticated } = useOxy();
 
   return useQuery({
-    queryKey: ['organizations'],
+    queryKey: queryKeys.organizations.all,
     queryFn: fetchOrganizations,
     staleTime: 1000 * 60 * 5, // 5 minutes
     retry: 2,
@@ -63,7 +64,7 @@ async function fetchOrganization(id: string): Promise<Organization> {
 
 export function useOrganization(id: string) {
   return useQuery({
-    queryKey: ['organization', id],
+    queryKey: queryKeys.organizations.detail(id),
     queryFn: () => fetchOrganization(id),
     enabled: !!id,
     staleTime: 1000 * 60 * 2, // 2 minutes
@@ -81,13 +82,13 @@ export function useCreateOrganization() {
     },
     onSuccess: (newOrg) => {
       // Add to organizations list cache
-      queryClient.setQueryData<Organization[]>(['organizations'], (old) => {
+      queryClient.setQueryData<Organization[]>(queryKeys.organizations.all, (old) => {
         if (!old) return [newOrg];
         return [newOrg, ...old];
       });
 
       // Set individual organization cache
-      queryClient.setQueryData(['organization', newOrg._id], newOrg);
+      queryClient.setQueryData(queryKeys.organizations.detail(newOrg._id), newOrg);
     },
   });
 }
@@ -102,13 +103,13 @@ export function useUpdateOrganization() {
     },
     onSuccess: (updatedOrg) => {
       // Update organizations list cache
-      queryClient.setQueryData<Organization[]>(['organizations'], (old) => {
+      queryClient.setQueryData<Organization[]>(queryKeys.organizations.all, (old) => {
         if (!old) return [updatedOrg];
         return old.map((org) => (org._id === updatedOrg._id ? updatedOrg : org));
       });
 
       // Update individual organization cache
-      queryClient.setQueryData(['organization', updatedOrg._id], updatedOrg);
+      queryClient.setQueryData(queryKeys.organizations.detail(updatedOrg._id), updatedOrg);
     },
   });
 }
@@ -123,13 +124,13 @@ export function useDeleteOrganization() {
     },
     onSuccess: (id) => {
       // Remove from organizations list cache
-      queryClient.setQueryData<Organization[]>(['organizations'], (old) => {
+      queryClient.setQueryData<Organization[]>(queryKeys.organizations.all, (old) => {
         if (!old) return [];
         return old.filter((org) => org._id !== id);
       });
 
       // Remove individual organization cache
-      queryClient.removeQueries({ queryKey: ['organization', id] });
+      queryClient.removeQueries({ queryKey: queryKeys.organizations.detail(id) });
     },
   });
 }
@@ -145,7 +146,7 @@ async function fetchMembers(orgId: string): Promise<OrganizationMember[]> {
 
 export function useOrganizationMembers(orgId: string) {
   return useQuery({
-    queryKey: ['organization-members', orgId],
+    queryKey: queryKeys.organizations.members(orgId),
     queryFn: () => fetchMembers(orgId),
     enabled: !!orgId,
     staleTime: 1000 * 60 * 2, // 2 minutes

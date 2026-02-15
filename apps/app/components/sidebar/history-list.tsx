@@ -3,13 +3,13 @@ import { View, ActivityIndicator, Pressable } from "react-native";
 import { Text } from "@/components/ui/text";
 import { MessageSquare, Star as StarIcon } from "lucide-react-native";
 import { cn } from "@/lib/utils";
-import type { ConversationListItem } from "@/lib/utils/conversation-grouping";
+import type { Conversation } from "@/lib/hooks/use-conversations";
 import type { Project } from "@/lib/stores/projects-store";
 import type { Folder } from "@/lib/stores/folders-store";
 import { ConversationMenu } from "./conversation-menu";
 
 interface HistoryListProps {
-  data: ConversationListItem[];
+  data: Conversation[];
   currentChatId?: string;
   favoriteIds: string[];
   projects: Project[];
@@ -45,18 +45,7 @@ export const HistoryList = React.memo<HistoryListProps>(({
 
   return (
     <>
-      {data.map((item, index) => {
-        if (item.type === 'header') {
-          return (
-            <View key={`header-${item.group}`} className="px-2 py-1 mt-1">
-              <Text className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">
-                {item.group}
-              </Text>
-            </View>
-          );
-        }
-
-        const conv = item.conversation!;
+      {data.map((conv) => {
         const convProject = getConversationProject(conv.id);
         const convFolder = getConversationFolder(conv.id);
         const isConvFavorite = favoriteIds.includes(conv.id);

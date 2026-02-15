@@ -6,6 +6,8 @@
  * so we process messages differently for each.
  */
 
+import { TITLE_STRIP_RE } from './utils/title-tags';
+
 export type Platform = 'app' | 'telegram';
 
 export interface ProcessedMessage {
@@ -50,7 +52,7 @@ function processForTelegram(content: string): ProcessedMessage {
     .replace(/\[TIMELINE[^\]]*\][\s\S]*?\[\/TIMELINE\]\s*/g, '')
     .replace(/\[IMAGE[^\]]*\]/g, '')
     .replace(/\[CREDIBILITY[^\]]*\]/g, '')
-    .replace(/\[TITLE\][^\]]*\[\/TITLE\]\s*/g, '')
+    .replace(TITLE_STRIP_RE, '')
     .trim();
 
   // Telegram tags like [REACT], [TGIMAGE], etc. are kept
@@ -83,7 +85,7 @@ export function processMessage(content: string, platform: Platform): ProcessedMe
           .replace(/\[TIMELINE[^\]]*\][\s\S]*?\[\/TIMELINE\]\s*/g, '')
           .replace(/\[IMAGE[^\]]*\]/g, '')
           .replace(/\[CREDIBILITY[^\]]*\]/g, '')
-          .replace(/\[TITLE\][^\]]*\[\/TITLE\]\s*/g, '')
+          .replace(TITLE_STRIP_RE, '')
           .trim(),
       };
   }

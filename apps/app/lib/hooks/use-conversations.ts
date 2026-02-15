@@ -3,6 +3,7 @@ import { useOxy } from '@oxyhq/services';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { toast } from '@/components/sonner';
 import apiClient from '../api/client';
+import { queryKeys } from './query-keys';
 
 export interface Message {
   id?: string;
@@ -89,7 +90,7 @@ export function useConversations() {
   const { isAuthenticated } = useOxy();
 
   return useInfiniteQuery({
-    queryKey: ['conversations'],
+    queryKey: queryKeys.conversations.all,
     queryFn: fetchConversationsPage,
     initialPageParam: undefined,
     getNextPageParam: (lastPage) => lastPage.hasMore ? lastPage.nextCursor : undefined,
@@ -134,7 +135,7 @@ export function useConversation(id: string) {
   const { isAuthenticated } = useOxy();
 
   return useQuery({
-    queryKey: ['conversation', id],
+    queryKey: queryKeys.conversations.detail(id),
     queryFn: () => fetchConversation(id),
     enabled: isAuthenticated && !!id,
     staleTime: 1000 * 60 * 2, // 2 minutes
@@ -207,7 +208,7 @@ export function useSaveConversation() {
     },
     onSuccess: (data) => {
       // Update infinite query cache
-      queryClient.setQueryData(['conversations'], (oldData: any) => {
+      queryClient.setQueryData(queryKeys.conversations.all, (oldData: any) => {
         if (!oldData?.pages) {
           return {
             pages: [{
@@ -255,7 +256,7 @@ export function useSaveConversation() {
       });
 
       // Update individual conversation cache with full data including messages
-      queryClient.setQueryData(['conversation', data.id], data);
+      queryClient.setQueryData(queryKeys.conversations.detail(data.id), data);
     },
     onError: (error: any) => {
       toast.error(error.message || 'Failed to save conversation');
@@ -286,7 +287,7 @@ export function useDeleteConversation() {
     },
     onSuccess: (id) => {
       // Remove from infinite query cache
-      queryClient.setQueryData(['conversations'], (oldData: any) => {
+      queryClient.setQueryData(queryKeys.conversations.all, (oldData: any) => {
         if (!oldData?.pages) return oldData;
 
         return {
@@ -299,7 +300,7 @@ export function useDeleteConversation() {
       });
 
       // Invalidate individual conversation cache
-      queryClient.removeQueries({ queryKey: ['conversation', id] });
+      queryClient.removeQueries({ queryKey: queryKeys.conversations.detail(id) });
     },
     onError: (error: any) => {
       toast.error(error.message || 'Failed to delete conversation');
@@ -350,7 +351,7 @@ export function useCreateConversation() {
     },
     onSuccess: (data) => {
       // Add to first page of infinite query cache
-      queryClient.setQueryData(['conversations'], (oldData: any) => {
+      queryClient.setQueryData(queryKeys.conversations.all, (oldData: any) => {
         if (!oldData?.pages) {
           return {
             pages: [{
@@ -381,7 +382,7 @@ export function useCreateConversation() {
       });
 
       // Set individual conversation cache
-      queryClient.setQueryData(['conversation', data.id], data);
+      queryClient.setQueryData(queryKeys.conversations.detail(data.id), data);
     },
     onError: (error: any) => {
       toast.error(error.message || 'Failed to create conversation');

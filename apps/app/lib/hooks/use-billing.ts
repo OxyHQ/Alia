@@ -1,6 +1,8 @@
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { useOxy } from '@oxyhq/services';
 import apiClient from '../api/client';
+import { queryKeys } from './query-keys';
+import { useAuthQuery } from './create-query';
 
 export interface CreditPackage {
   id: string;
@@ -85,7 +87,7 @@ export function useCreditPackages() {
   const { isAuthenticated } = useOxy();
 
   return useQuery({
-    queryKey: ['credit-packages'],
+    queryKey: queryKeys.billing.packages,
     queryFn: fetchPackages,
     staleTime: 1000 * 60 * 5, // 5 minutes
     retry: 2,
@@ -107,7 +109,7 @@ export function useSubscriptionPlans(product?: 'alia' | 'codea') {
   const { isAuthenticated } = useOxy();
 
   return useQuery({
-    queryKey: ['subscription-plans', product],
+    queryKey: queryKeys.billing.plans(product),
     queryFn: () => fetchPlans(product),
     staleTime: 1000 * 60 * 5, // 5 minutes
     retry: 2,
@@ -129,7 +131,7 @@ export function useSubscription(product?: 'alia' | 'codea') {
   const { isAuthenticated } = useOxy();
 
   return useQuery({
-    queryKey: ['subscription', product],
+    queryKey: queryKeys.billing.subscription(product),
     queryFn: () => fetchSubscription(product),
     staleTime: 1000 * 60 * 2, // 2 minutes
     retry: 2,
@@ -152,7 +154,7 @@ export function useSubscriptionPolling(
   const { enabled = false, intervalMs = 2000, maxAttempts = 15 } = options || {};
 
   return useQuery({
-    queryKey: ['subscription-poll', product],
+    queryKey: queryKeys.billing.subscriptionPoll(product),
     queryFn: () => fetchSubscription(product),
     enabled,
     refetchInterval: (query) => {
@@ -174,21 +176,13 @@ export function useSubscriptionPolling(
 // Transactions
 // ======================
 
-async function fetchTransactions(limit: number = 20, offset: number = 0): Promise<{ transactions: Transaction[]; total: number }> {
-  const response = await apiClient.get(`/billing/transactions?limit=${limit}&offset=${offset}`);
-  return response.data;
-}
-
 export function useTransactions(limit: number = 20, offset: number = 0) {
-  const { isAuthenticated } = useOxy();
-
-  return useQuery({
-    queryKey: ['transactions', limit, offset],
-    queryFn: () => fetchTransactions(limit, offset),
-    staleTime: 1000 * 60, // 1 minute
-    retry: 1,
-    enabled: isAuthenticated,
-  });
+  return useAuthQuery<{ transactions: Transaction[]; total: number }>(
+    queryKeys.billing.transactions(limit, offset),
+    '/billing/transactions',
+    { limit, offset },
+    { staleTime: 60_000, retry: 1 },
+  );
 }
 
 // ======================
@@ -244,17 +238,7 @@ export interface CreditPriceInfo {
 }
 
 export function useCreditPrice() {
-  const { isAuthenticated } = useOxy();
-
-  return useQuery({
-    queryKey: ['credit-price'],
-    queryFn: async (): Promise<CreditPriceInfo> => {
-      const response = await apiClient.get('/billing/credit-price');
-      return response.data;
-    },
-    staleTime: 1000 * 60 * 10,
-    enabled: isAuthenticated,
-  });
+  return useAuthQuery<CreditPriceInfo>(queryKeys.credits.price, '/billing/credit-price', undefined, { staleTime: 600_000 });
 }
 
 export function useCreateSubscriptionCheckout() {
@@ -315,20 +299,8 @@ const FREE_ENTITLEMENTS: Entitlements = {
   planId: 'free',
 };
 
-async function fetchEntitlements(): Promise<Entitlements> {
-  const response = await apiClient.get('/billing/entitlements');
-  return response.data;
-}
-
 export function useEntitlements() {
-  const { isAuthenticated } = useOxy();
-
-  return useQuery({
-    queryKey: ['entitlements'],
-    queryFn: fetchEntitlements,
-    staleTime: 1000 * 60 * 5, // 5 minutes
-    retry: 2,
-    enabled: isAuthenticated,
+  return useAuthQuery<Entitlements>(queryKeys.billing.entitlements, '/billing/entitlements', undefined, {
     placeholderData: FREE_ENTITLEMENTS,
   });
 }
