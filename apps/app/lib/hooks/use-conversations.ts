@@ -157,7 +157,7 @@ export function useSaveConversation() {
       messages: Message[];
       title?: string;
     }) => {
-      const conversationTitle = title || messages.find((m) => m.role === "user")?.content?.slice(0, 50) || "Nueva conversación";
+      const conversationTitle = title || messages.find((m) => m.role === "user")?.content?.slice(0, 50) || "New chat";
       const lastMessage = messages[messages.length - 1]?.content?.slice(0, 100);
 
       try {
@@ -332,7 +332,7 @@ export function useCreateConversation() {
           const id = generateUUID();
           const conversation: Conversation = {
             id,
-            title: "Nueva conversación",
+            title: "New chat",
             lastMessage: undefined,
             createdAt: new Date(),
             updatedAt: new Date(),
