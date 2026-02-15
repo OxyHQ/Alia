@@ -12,6 +12,7 @@
 import { tool, generateText } from 'ai';
 import { z } from 'zod';
 import { resolveModel, getAIModel } from '../chat-core.js';
+import { log } from '../logger.js';
 
 const MAX_CONCURRENT_SUBTASKS = 3;
 const SUBTASK_TIMEOUT_MS = 30000;
@@ -108,7 +109,7 @@ export const delegateSubtaskTool = tool({
     // Enforce limit
     const tasks = subtasks.slice(0, MAX_CONCURRENT_SUBTASKS);
 
-    console.log(`[Delegate] Running ${tasks.length} subtask(s) in parallel`);
+    log.general.info({ count: tasks.length }, 'Delegate: running subtasks in parallel');
     const start = Date.now();
 
     // Run all subtasks in parallel with Promise.allSettled
@@ -135,7 +136,7 @@ export const delegateSubtaskTool = tool({
     const totalTokens = results.reduce((sum, r) => sum + r.tokensUsed, 0);
     const successCount = results.filter(r => r.result !== null).length;
 
-    console.log(`[Delegate] Completed: ${successCount}/${results.length} succeeded, ${totalTokens} total tokens, ${Date.now() - start}ms`);
+    log.general.info({ succeeded: successCount, total: results.length, totalTokens, latencyMs: Date.now() - start }, 'Delegate: completed');
 
     return {
       results: results.map(r => ({

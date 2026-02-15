@@ -97,7 +97,6 @@ vi.mock('../../../lib/tool-converter.js', () => ({
 
 vi.mock('../../../lib/tools/index.js', () => ({
   getCurrentDateTool: { execute: vi.fn() },
-  getTimelineTool: { execute: vi.fn() },
   saveUserMemoryTool: vi.fn(() => ({ execute: vi.fn() })),
   updateUserPreferencesTool: vi.fn(() => ({ execute: vi.fn() })),
   updateUserContextTool: vi.fn(() => ({ execute: vi.fn() })),

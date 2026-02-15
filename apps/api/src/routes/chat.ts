@@ -4,9 +4,9 @@
 import { Router } from 'express';
 import { streamText, stepCountIs, type ToolSet } from 'ai';
 import { resolveModel, getAIModel, getDefaultAliaModel, reportModelUsage } from '../lib/chat-core.js';
-import { getAliaModel } from '../internal/providers/lib/alia-models.js';
+import { getAliaModel, getModelMappingsForTier } from '../internal/providers/lib/alia-models.js';
 import type { KeyConfig } from '../internal/providers/lib/types.js';
-import { getCurrentDateTool, createGoogleSearchTool, getTimelineTool, searchKnowledgeBaseTool, saveUserMemoryTool, updateUserPreferencesTool, updateUserContextTool, createGetDeviceInfoTool, createSendTelegramTool, createProvidersAdminTool, webScraperTool, generateFileTool, canvasTool, type DeviceInfo } from '../lib/tools/index.js';
+import { getCurrentDateTool, createGoogleSearchTool, saveUserMemoryTool, updateUserPreferencesTool, updateUserContextTool, createGetDeviceInfoTool, createSendTelegramTool, createProvidersAdminTool, webScraperTool, generateFileTool, canvasTool, type DeviceInfo } from '../lib/tools/index.js';
 import { optionalAuth, oxyClient } from '../middleware/auth.js';
 import type { User as OxyUser } from '@oxyhq/core';
 import { UserMemory } from '../models/user-memory.js';
@@ -16,13 +16,16 @@ import { CanvasSession } from '../models/canvas-session.js';
 import { Skill } from '../models/skill.js';
 import type { IUserMemory } from '../models/user-memory.js';
 import { processMessagesForPlatform } from '../lib/message-processor.js';
-import { reserveCredits, finalizeCredits, refundReservation, type CreditReservation, type CreditUsage } from '../lib/credits-manager.js';
+import { reserveCredits, finalizeCredits, refundReservation, safeRefund, type CreditReservation, type CreditUsage } from '../lib/credits-manager.js';
+import { getOrCreateUserMemory } from '../lib/memory/user-memory-service.js';
 import { estimateMessageTokens } from '../lib/token-counter.js';
 import { recordUsage, getUserTier } from '../middleware/api-key-rate-limit.js';
 import { runBeforeChatHooks, runAfterChatHooks } from '../lib/hooks/index.js';
 import { emitCanvasUpdate } from '../socket.js';
 import type { RecalledMemory } from '../lib/memory/recall.js';
 import { incrementDailyCost, isApproachingDailyCap, getDailyCostCap } from '../lib/sliding-window-limiter.js';
+import { checkContextFit } from '../lib/context-window-guard.js';
+import { compactHistory } from '../lib/history-compaction.js';
 import { log } from '../lib/logger.js';
 
 const router = Router();
@@ -166,7 +169,6 @@ If the user has a language preference set, use that language exclusively.
 - \`getCurrentDate\`: Get date/time
 - \`googleSearch\`: Search the web
 - \`webScraper\`: **MUST USE** to read link contents
-- \`getTimeline\`, \`searchKnowledgeBase\`: Access data
 
 **Memory Tools** (authenticated users):
 - \`saveUserMemory\`: **AUTO-SAVE** when user shares preferences/personal info (e.g., "I like X" → save it)
@@ -203,7 +205,7 @@ If the user has a language preference set, use that language exclusively.
 - \`[CREDIBILITY level="1-5" source="..." /]\`
 
 **Tools**:
-- \`getCurrentDate\`, \`googleSearch\`, \`webScraper\` (**MUST USE** for links), \`getTimeline\`, \`searchKnowledgeBase\`
+- \`getCurrentDate\`, \`googleSearch\`, \`webScraper\` (**MUST USE** for links)
 
 **Memory Tools** (authenticated users):
 - \`saveUserMemory\`: **AUTO-SAVE** when user shares preferences/info (e.g., "I like X" → save it without asking)
@@ -292,18 +294,7 @@ router.post('/', optionalAuth, async (req, res) => {
         // Get or create local credits record
         userCredits = await getOrCreateUserCredits(req.user.id);
 
-        memory = await UserMemory.findOne({ oxyUserId: req.user.id });
-
-        // Create empty memory profile if it doesn't exist
-        if (!memory) {
-          memory = new UserMemory({
-            oxyUserId: req.user.id,
-            memories: [],
-            preferences: {},
-            context: {}
-          });
-          await memory.save();
-        }
+        memory = await getOrCreateUserMemory(req.user.id);
 
         // Get user tier for spending alerts
         userTier = await getUserTier(req.user.id);
@@ -346,14 +337,7 @@ router.post('/', optionalAuth, async (req, res) => {
       log.chat.error({ err: keyError }, 'Error loading keys');
       clearTimeout(requestTimeout);
 
-      // Refund credits if we reserved them
-      if (creditReservation && req.user) {
-        try {
-          await refundReservation(creditReservation);
-        } catch (refundError) {
-          log.chat.error({ err: refundError }, 'Error refunding credits');
-        }
-      }
+      await safeRefund(creditReservation, 'key resolution error');
 
       res.status(503).json({
         error: 'Service temporarily unavailable',
@@ -366,14 +350,7 @@ router.post('/', optionalAuth, async (req, res) => {
       log.chat.info('No available models');
       clearTimeout(requestTimeout);
 
-      // Refund credits if we reserved them
-      if (creditReservation && req.user) {
-        try {
-          await refundReservation(creditReservation);
-        } catch (refundError) {
-          log.chat.error({ err: refundError }, 'Error refunding credits');
-        }
-      }
+      await safeRefund(creditReservation, 'no available models');
 
       res.status(503).json({
         error: 'No AI models available',
@@ -387,8 +364,6 @@ router.post('/', optionalAuth, async (req, res) => {
     const googleApiKey = resolved.keyConfig.provider === 'google' ? resolved.keyConfig.key : null;
     const tools: ToolSet = {
       getCurrentDate: getCurrentDateTool,
-      getTimeline: getTimelineTool,
-      searchKnowledgeBase: searchKnowledgeBaseTool,
       webScraper: webScraperTool,
       generateFile: generateFileTool,
       canvas: canvasTool,
@@ -468,6 +443,27 @@ router.post('/', optionalAuth, async (req, res) => {
     const systemPromptTokens = estimateMessageTokens('system', systemPrompt);
     log.chat.info({ systemPromptTokens }, 'Estimated system prompt tokens');
 
+    // Get model context window from tier mappings
+    const tierMappings = aliaModel ? getModelMappingsForTier(aliaModel.tier) : [];
+    const modelContextTokens = tierMappings[0]?.capabilities?.maxContextTokens || 128000;
+
+    // Context window guard — block if messages would exceed 90% of context
+    const contextCheck = checkContextFit(processedMessages as any, systemPrompt, modelContextTokens);
+    if (!contextCheck.fits) {
+      clearTimeout(requestTimeout);
+      if (creditReservation) await refundReservation(creditReservation);
+      res.status(400).json({
+        error: 'Your conversation is too long for this model. Please start a new chat or use a shorter message.',
+        code: 'CONTEXT_LENGTH_EXCEEDED',
+        details: { estimatedTokens: contextCheck.estimatedTokens, limit: contextCheck.contextLimit, usage: contextCheck.usage },
+      });
+      return;
+    }
+
+    // History compaction — trim older messages if approaching context limit
+    const historyBudget = Math.floor(modelContextTokens * 0.6); // 60% of context for history
+    const compactedMessages = compactHistory(processedMessages as any, historyBudget);
+
     // Set headers for SSE streaming
     res.setHeader('Content-Type', 'text/event-stream');
     res.setHeader('Cache-Control', 'no-cache, no-transform');
@@ -486,7 +482,7 @@ router.post('/', optionalAuth, async (req, res) => {
     // Configure streamText with thinking mode support
     const streamConfig: any = {
       model,
-      messages: processedMessages as any, // Use processed messages (saves tokens)
+      messages: compactedMessages as any, // Compacted messages (saves tokens)
       tools,
       stopWhen: stepCountIs(5),
       system: systemPrompt,
@@ -850,8 +846,6 @@ router.get('/', async (req, res) => {
     tools: {
       getCurrentDate: true,
       googleSearch: true,
-      getTimeline: true,
-      searchKnowledgeBase: true,
       webScraper: true
     }
   });
