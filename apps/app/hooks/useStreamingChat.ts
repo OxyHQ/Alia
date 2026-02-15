@@ -16,16 +16,25 @@ export interface ToolInvocation {
   result?: any;
 }
 
-// Extract title from [TITLE]...[/TITLE] tags
+// Matches both [TITLE]...[/TITLE] and <TITLE>...</TITLE>
+const TITLE_STRIP_RE = /\[TITLE\].*?\[\/TITLE\]|<TITLE>.*?<\/TITLE>/g;
+// Also strip incomplete/partial title tags at end of stream (during streaming)
+const TITLE_PARTIAL_RE = /\[TITLE\].*?(\[\/TITLE\])?$|<TITLE>.*?(<\/TITLE>)?$/s;
+
 function extractTitle(content: string): { content: string; title: string | null } {
-  const titleMatch = content.match(/\[TITLE\](.*?)\[\/TITLE\]/);
+  const titleMatch = content.match(/\[TITLE\](.*?)\[\/TITLE\]|<TITLE>(.*?)<\/TITLE>/);
   if (titleMatch) {
     return {
-      content: content.replace(/\[TITLE\].*?\[\/TITLE\]/g, '').trim(),
-      title: titleMatch[1].trim()
+      content: content.replace(TITLE_STRIP_RE, '').trim(),
+      title: (titleMatch[1] || titleMatch[2]).trim()
     };
   }
   return { content, title: null };
+}
+
+/** Strip complete and partial title tags from content shown during streaming. */
+function stripTitleTags(content: string): string {
+  return content.replace(TITLE_STRIP_RE, '').replace(TITLE_PARTIAL_RE, '').trim();
 }
 
 export function useStreamingChat(apiUrl: string, activeRole?: any, conversationId?: string, thinkingMode?: boolean, selectedModel?: string, skillId?: string | null) {
@@ -292,13 +301,15 @@ Use this role to guide your responses, maintaining the specified tone, style, an
                 }
 
                 // Always update immediately for smooth streaming
+                // Strip title tags so they never appear in the UI
                 setMessages((prev) => {
                   const updated = [...prev];
                   const lastMessage = updated[updated.length - 1];
                   if (lastMessage?.role === 'assistant') {
+                    const raw = lastMessage.content + delta.content;
                     updated[updated.length - 1] = {
                       ...lastMessage,
-                      content: lastMessage.content + delta.content,
+                      content: stripTitleTags(raw),
                     };
                   }
                   return updated;

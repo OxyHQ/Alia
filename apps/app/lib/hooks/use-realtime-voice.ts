@@ -84,7 +84,10 @@ export function useRealtimeVoice() {
           },
           onTranscriptDelta: (delta) => {
             currentAiTextRef.current += delta;
-            const text = currentAiTextRef.current;
+            // Strip title tags (complete or partial) from displayed transcript
+            const text = currentAiTextRef.current
+              .replace(/\[TITLE\].*?(\[\/TITLE\])?$|<TITLE>.*?(<\/TITLE>)?$/s, '')
+              .trim();
             setMessages((prev) => {
               const last = prev[prev.length - 1];
               if (last && last.role === 'assistant' && last.isStreaming) {
@@ -96,10 +99,14 @@ export function useRealtimeVoice() {
           },
           onTranscriptDone: (transcript) => {
             currentAiTextRef.current = '';
+            // Strip any title tags from final transcript
+            const clean = transcript
+              .replace(/\[TITLE\].*?\[\/TITLE\]|<TITLE>.*?<\/TITLE>/g, '')
+              .trim();
             setMessages((prev) => {
               const last = prev[prev.length - 1];
               if (last && last.role === 'assistant' && last.isStreaming) {
-                return [...prev.slice(0, -1), { ...last, content: transcript, isStreaming: false }];
+                return [...prev.slice(0, -1), { ...last, content: clean, isStreaming: false }];
               }
               return prev;
             });
