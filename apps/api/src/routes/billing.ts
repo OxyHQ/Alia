@@ -142,6 +142,79 @@ router.post('/checkout/credits', authenticateToken, async (req: Request, res: Re
   }
 });
 
+// Custom credit amount purchase
+const CREDIT_PRICE_PER_1K_CENTS = 1000; // $10.00 per 1,000 credits
+const MIN_CUSTOM_CREDITS = 100;
+const MAX_CUSTOM_CREDITS = 1_000_000;
+
+const customCreditsSchema = z.object({
+  credits: z.number().int().min(MIN_CUSTOM_CREDITS).max(MAX_CUSTOM_CREDITS),
+  successUrl: z.string().url(),
+  cancelUrl: z.string().url(),
+});
+
+router.post('/checkout/custom-credits', authenticateToken, async (req: Request, res: Response) => {
+  try {
+    const { credits, successUrl, cancelUrl } = customCreditsSchema.parse(req.body);
+    const userId = req.user!.id;
+
+    // Use best per-credit rate from active packages, fall back to constant
+    const packages = await CreditPackage.find({ isActive: true }).lean();
+    let pricePerCredit = CREDIT_PRICE_PER_1K_CENTS / 1000;
+    if (packages.length > 0) {
+      pricePerCredit = Math.min(...packages.map(p => p.price / p.credits));
+    }
+
+    const totalCents = Math.round(credits * pricePerCredit);
+    if (totalCents < 50) {
+      return res.status(400).json({ error: 'Minimum purchase amount is $0.50' });
+    }
+
+    const userCredits = await getOrCreateUserCredits(userId);
+    const customerId = await getOrCreateStripeCustomer(userId, userCredits);
+
+    const session = await getStripe().checkout.sessions.create({
+      customer: customerId,
+      payment_method_types: ['card'],
+      line_items: [{
+        price_data: {
+          currency: 'usd',
+          product_data: { name: `${credits.toLocaleString()} AI Credits`, description: 'Custom credit purchase' },
+          unit_amount: totalCents,
+        },
+        quantity: 1,
+      }],
+      mode: 'payment',
+      allow_promotion_codes: true,
+      success_url: successUrl,
+      cancel_url: cancelUrl,
+      metadata: { userId, type: 'credit_purchase', packageId: 'custom', credits: credits.toString() },
+    });
+
+    res.json({ sessionId: session.id, url: session.url });
+  } catch (error: any) {
+    if (error instanceof z.ZodError) {
+      return res.status(400).json({ error: 'Invalid input', details: error.errors });
+    }
+    console.error('[Billing] Error creating custom credits checkout:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Expose the per-credit rate so the frontend can show live pricing
+router.get('/credit-price', async (_req: Request, res: Response) => {
+  try {
+    const packages = await CreditPackage.find({ isActive: true }).lean();
+    let pricePerCredit = CREDIT_PRICE_PER_1K_CENTS / 1000;
+    if (packages.length > 0) {
+      pricePerCredit = Math.min(...packages.map(p => p.price / p.credits));
+    }
+    res.json({ pricePerCreditCents: pricePerCredit, minCredits: MIN_CUSTOM_CREDITS, maxCredits: MAX_CUSTOM_CREDITS });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 router.get('/plans', async (req: Request, res: Response) => {
   try {
     const product = req.query.product as string | undefined;

@@ -219,7 +219,9 @@
     "failedPortal": "Failed to open customer portal",
     "lessThanOneHour": "Less than 1 hour",
     "aboutOneHour": "About 1 hour",
-    "aboutHours": "About {{count}} hours"
+    "aboutHours": "About {{count}} hours",
+    "customAmountPlaceholder": "Custom amount",
+    "buy": "Buy"
   },
   "library": {
     "title": "Library",
