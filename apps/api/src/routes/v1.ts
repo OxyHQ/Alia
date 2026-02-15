@@ -11,6 +11,7 @@ import { getOrCreateUserCredits } from '../lib/user-credits-helpers.js';
 import { reserveCredits, finalizeCredits, type CreditReservation } from '../lib/credits-manager.js';
 import { listChannels } from '../lib/channels/registry.js';
 import * as crypto from 'crypto';
+import { log } from '../lib/logger.js';
 
 const router = Router();
 
@@ -96,7 +97,7 @@ router.get('/me', async (req: Request, res: Response) => {
       },
     });
   } catch (error: any) {
-    console.error('[V1/Me] Error:', error);
+    log.general.error({ err: error }, 'Failed to fetch user info');
     res.status(500).json({ error: error.message || 'Failed to fetch user info' });
   }
 });
@@ -121,7 +122,7 @@ router.post('/resolve-model', async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'Model is required' });
     }
 
-    console.log('[V1/ResolveModel] Resolving model:', model, 'for user:', userId);
+    log.general.info({ model, userId }, 'Resolving model for user');
 
     // Validate that the requested model exists
     if (!isAliaModel(model)) {
@@ -163,7 +164,7 @@ router.post('/resolve-model', async (req: Request, res: Response) => {
       aliaModelId: resolved.aliasModelId
     });
 
-    console.log('[V1/ResolveModel] Resolved to:', resolved.provider, resolved.modelId, 'sessionId:', sessionId);
+    log.general.info({ provider: resolved.provider, modelId: resolved.modelId, sessionId }, 'Model resolved');
 
     // Only return provider key to trusted bot services
     const isTrustedService = !!req.headers['x-channel-bot-secret'];
@@ -179,7 +180,7 @@ router.post('/resolve-model', async (req: Request, res: Response) => {
 
     res.json(response);
   } catch (error: any) {
-    console.error('[V1/ResolveModel] Error:', error);
+    log.general.error({ err: error }, 'Failed to resolve model');
     res.status(500).json({ error: error.message || 'Failed to resolve model' });
   }
 });
@@ -202,11 +203,11 @@ router.post('/report-usage', async (req: Request, res: Response) => {
 
     const session = activeSessions.get(sessionId);
     if (!session) {
-      console.warn('[V1/ReportUsage] Session not found:', sessionId);
+      log.general.warn({ sessionId }, 'Session not found for usage report');
       return res.status(404).json({ error: 'Session not found' });
     }
 
-    console.log('[V1/ReportUsage] Reporting usage for session:', sessionId, 'tokens:', usage.totalTokens);
+    log.general.info({ sessionId, totalTokens: usage.totalTokens }, 'Reporting usage for session');
 
     // Finalize credits
     const { creditsCharged, creditsRemaining } = await finalizeCredits(
@@ -218,7 +219,7 @@ router.post('/report-usage', async (req: Request, res: Response) => {
     // Clean up session
     activeSessions.delete(sessionId);
 
-    console.log('[V1/ReportUsage] Charged', creditsCharged, 'credits, remaining:', creditsRemaining);
+    log.general.info({ creditsCharged, creditsRemaining }, 'Usage reported and credits finalized');
 
     res.json({
       success: true,
@@ -226,7 +227,7 @@ router.post('/report-usage', async (req: Request, res: Response) => {
       creditsRemaining
     });
   } catch (error: any) {
-    console.error('[V1/ReportUsage] Error:', error);
+    log.general.error({ err: error }, 'Failed to report usage');
     res.status(500).json({ error: error.message || 'Failed to report usage' });
   }
 });

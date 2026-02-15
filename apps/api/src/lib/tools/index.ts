@@ -6,7 +6,6 @@ import { registerTool } from './registry.js';
 import { getCurrentDateTool } from './date.js';
 import { createGoogleSearchTool } from './google-search.js';
 import { getTimelineTool, searchKnowledgeBaseTool } from './alias-tools.js';
-import { scrapeURLTool } from './web-reader.js';
 import { saveUserMemoryTool, updateUserPreferencesTool, updateUserContextTool } from './user-memory.js';
 import { createGetDeviceInfoTool } from './device-info.js';
 import { createSendTelegramTool } from './telegram.js';
@@ -42,14 +41,6 @@ registerTool({
   name: 'searchKnowledgeBase',
   description: 'Search internal knowledge base',
   tool: searchKnowledgeBaseTool,
-  enabledByDefault: true,
-  category: 'search',
-});
-
-registerTool({
-  name: 'scrapeURL',
-  description: 'Read and extract content from a URL',
-  tool: scrapeURLTool,
   enabledByDefault: true,
   category: 'search',
 });
@@ -175,7 +166,6 @@ registerTool({
 export { getCurrentDateTool } from './date.js';
 export { createGoogleSearchTool, type WebSearchResult, type WebSearchResponse } from './google-search.js';
 export { getTimelineTool, searchKnowledgeBaseTool } from './alias-tools.js';
-export { scrapeURLTool } from './web-reader.js';
 export { saveUserMemoryTool, updateUserPreferencesTool, updateUserContextTool } from './user-memory.js';
 export { createGetDeviceInfoTool, type DeviceInfo } from './device-info.js';
 export { createSendTelegramTool } from './telegram.js';

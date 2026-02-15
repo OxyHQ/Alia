@@ -17,7 +17,7 @@ import {
 } from '../lib/provider-health';
 import mongoose from 'mongoose';
 import { getBestKeyForModel, recordKeyUsage } from '../lib/key-manager';
-import { sanitizeError } from '../lib/error-handler';
+import { sanitizeError } from '../../../lib/error-handler.js';
 import { broadcastHealthUpdate } from '../lib/broadcast-helpers';
 
 const router = express.Router();

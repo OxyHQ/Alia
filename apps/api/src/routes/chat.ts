@@ -6,7 +6,7 @@ import { streamText, stepCountIs, type ToolSet } from 'ai';
 import { resolveModel, getAIModel, getDefaultAliaModel, reportModelUsage } from '../lib/chat-core.js';
 import { getAliaModel } from '../internal/providers/lib/alia-models.js';
 import type { KeyConfig } from '../internal/providers/lib/types.js';
-import { getCurrentDateTool, createGoogleSearchTool, getTimelineTool, searchKnowledgeBaseTool, scrapeURLTool, saveUserMemoryTool, updateUserPreferencesTool, updateUserContextTool, createGetDeviceInfoTool, createSendTelegramTool, createProvidersAdminTool, webScraperTool, generateFileTool, canvasTool, type DeviceInfo } from '../lib/tools/index.js';
+import { getCurrentDateTool, createGoogleSearchTool, getTimelineTool, searchKnowledgeBaseTool, saveUserMemoryTool, updateUserPreferencesTool, updateUserContextTool, createGetDeviceInfoTool, createSendTelegramTool, createProvidersAdminTool, webScraperTool, generateFileTool, canvasTool, type DeviceInfo } from '../lib/tools/index.js';
 import { optionalAuth, oxyClient } from '../middleware/auth.js';
 import type { User as OxyUser } from '@oxyhq/core';
 import { UserMemory } from '../models/user-memory.js';
@@ -23,6 +23,7 @@ import { runBeforeChatHooks, runAfterChatHooks } from '../lib/hooks/index.js';
 import { emitCanvasUpdate } from '../socket.js';
 import type { RecalledMemory } from '../lib/memory/recall.js';
 import { incrementDailyCost, isApproachingDailyCap, getDailyCostCap } from '../lib/sliding-window-limiter.js';
+import { log } from '../lib/logger.js';
 
 const router = Router();
 
@@ -130,7 +131,7 @@ function buildSystemPrompt(
   }
 
   if (userContext.length > 0) {
-    console.log('[Alia/Chat] Personalization applied:', userContext);
+    log.chat.info({ userContext }, 'Personalization applied');
     prompt = `# USER CONTEXT\n\n${userContext.join('\n')}\n\n---\n\n${prompt}`;
   }
 
@@ -164,7 +165,7 @@ If the user has a language preference set, use that language exclusively.
 **Tools**:
 - \`getCurrentDate\`: Get date/time
 - \`googleSearch\`: Search the web
-- \`scrapeURL\`: **MUST USE** to read link contents
+- \`webScraper\`: **MUST USE** to read link contents
 - \`getTimeline\`, \`searchKnowledgeBase\`: Access data
 
 **Memory Tools** (authenticated users):
@@ -202,7 +203,7 @@ If the user has a language preference set, use that language exclusively.
 - \`[CREDIBILITY level="1-5" source="..." /]\`
 
 **Tools**:
-- \`getCurrentDate\`, \`googleSearch\`, \`scrapeURL\` (**MUST USE** for links), \`getTimeline\`, \`searchKnowledgeBase\`
+- \`getCurrentDate\`, \`googleSearch\`, \`webScraper\` (**MUST USE** for links), \`getTimeline\`, \`searchKnowledgeBase\`
 
 **Memory Tools** (authenticated users):
 - \`saveUserMemory\`: **AUTO-SAVE** when user shares preferences/info (e.g., "I like X" → save it without asking)
@@ -221,7 +222,7 @@ router.post('/', optionalAuth, async (req, res) => {
   // Set a timeout for the entire request (90 seconds)
   const requestTimeout = setTimeout(() => {
     if (!res.headersSent) {
-      console.error('[Alia/Chat] Request timeout after 90s');
+      log.chat.error('Request timeout after 90s');
       res.status(504).json({ error: 'Request timeout - server took too long to respond' });
     }
   }, 90000);
@@ -246,12 +247,12 @@ router.post('/', optionalAuth, async (req, res) => {
     }
 
     if (thinkingMode) {
-      console.log('[Alia/Chat] Thinking mode enabled for this request');
+      log.chat.info('Thinking mode enabled for this request');
     }
 
-    console.log('[Alia/Chat] Request received, loading keys...');
+    log.chat.info('Request received, loading keys...');
     if (requestedModel) {
-      console.log('[Alia/Chat] User requested model:', requestedModel);
+      log.chat.info({ requestedModel }, 'User requested model');
     }
 
     // Extract device info from headers if available
@@ -261,7 +262,7 @@ router.post('/', optionalAuth, async (req, res) => {
       try {
         deviceInfo = JSON.parse(deviceInfoHeader);
       } catch (e) {
-        console.error('Failed to parse device info header:', e);
+        log.chat.error({ err: e }, 'Failed to parse device info header');
       }
     }
 
@@ -286,7 +287,7 @@ router.post('/', optionalAuth, async (req, res) => {
 
     if (req.user) {
       try {
-        console.log('[Alia/Chat] Loading user data...');
+        log.chat.info('Loading user data...');
 
         // Get or create local credits record
         userCredits = await getOrCreateUserCredits(req.user.id);
@@ -314,7 +315,7 @@ router.post('/', optionalAuth, async (req, res) => {
         creditReservation = await reserveCredits(req.user.id);
 
         if (!creditReservation) {
-          console.log('[Alia/Chat] Insufficient credits');
+          log.chat.info('Insufficient credits');
           clearTimeout(requestTimeout);
           res.status(402).json({
             error: {
@@ -328,9 +329,9 @@ router.post('/', optionalAuth, async (req, res) => {
           return;
         }
 
-        console.log('[Alia/Chat] User data loaded successfully');
+        log.chat.info('User data loaded successfully');
       } catch (error) {
-        console.error('[Alia/Chat] Error fetching user data:', error);
+        log.chat.error({ err: error }, 'Error fetching user data');
       }
     }
 
@@ -338,11 +339,11 @@ router.post('/', optionalAuth, async (req, res) => {
 
     try {
       const aliasModelId = requestedModel || getDefaultAliaModel();
-      console.log(`[Alia/Chat] Resolving model: ${aliasModelId}`);
+      log.chat.info({ aliasModelId }, 'Resolving model');
       resolved = await resolveModel(aliasModelId);
-      console.log('[Alia/Chat] Resolved model:', resolved ? `${resolved.aliasModelId} -> ${resolved.provider}/${resolved.modelId}` : 'none');
+      log.chat.info({ resolved: resolved ? `${resolved.aliasModelId} -> ${resolved.provider}/${resolved.modelId}` : 'none' }, 'Resolved model');
     } catch (keyError: any) {
-      console.error('[Alia/Chat] Error loading keys:', keyError.message);
+      log.chat.error({ err: keyError }, 'Error loading keys');
       clearTimeout(requestTimeout);
 
       // Refund credits if we reserved them
@@ -350,7 +351,7 @@ router.post('/', optionalAuth, async (req, res) => {
         try {
           await refundReservation(creditReservation);
         } catch (refundError) {
-          console.error('[Alia/Chat] Error refunding credits:', refundError);
+          log.chat.error({ err: refundError }, 'Error refunding credits');
         }
       }
 
@@ -362,7 +363,7 @@ router.post('/', optionalAuth, async (req, res) => {
     }
 
     if (!resolved) {
-      console.log('[Alia/Chat] No available models');
+      log.chat.info('No available models');
       clearTimeout(requestTimeout);
 
       // Refund credits if we reserved them
@@ -370,7 +371,7 @@ router.post('/', optionalAuth, async (req, res) => {
         try {
           await refundReservation(creditReservation);
         } catch (refundError) {
-          console.error('[Alia/Chat] Error refunding credits:', refundError);
+          log.chat.error({ err: refundError }, 'Error refunding credits');
         }
       }
 
@@ -388,7 +389,6 @@ router.post('/', optionalAuth, async (req, res) => {
       getCurrentDate: getCurrentDateTool,
       getTimeline: getTimelineTool,
       searchKnowledgeBase: searchKnowledgeBaseTool,
-      scrapeURL: scrapeURLTool,
       webScraper: webScraperTool,
       generateFile: generateFileTool,
       canvas: canvasTool,
@@ -410,7 +410,7 @@ router.post('/', optionalAuth, async (req, res) => {
       try {
         oxyUser = await oxyClient.getUserById(req.user.id) as OxyUser;
       } catch (e) {
-        console.log('[Alia/Chat] Could not fetch Oxy user profile:', e);
+        log.chat.error({ err: e }, 'Could not fetch Oxy user profile');
       }
     }
 
@@ -426,10 +426,10 @@ router.post('/', optionalAuth, async (req, res) => {
         const skill = await Skill.findOne({ skillId }).select('systemPrompt title').lean();
         if (skill?.systemPrompt) {
           skillPrompt = `# ACTIVE SKILL: ${skill.title}\n\n${skill.systemPrompt}`;
-          console.log(`[Alia/Chat] Skill activated: ${skill.title}`);
+          log.chat.info({ skillTitle: skill.title }, 'Skill activated');
         }
       } catch (e) {
-        console.error('[Alia/Chat] Error loading skill:', e);
+        log.chat.error({ err: e }, 'Error loading skill');
       }
     }
 
@@ -448,10 +448,10 @@ router.post('/', optionalAuth, async (req, res) => {
         });
         recalledMemories = hookResult.metadata?.recalledMemories as RecalledMemory[] | undefined;
         if (recalledMemories?.length) {
-          console.log(`[Alia/Chat] Memory recall: ${recalledMemories.length} relevant memories (out of ${memory?.memories?.length || 0} total)`);
+          log.chat.info({ recalled: recalledMemories.length, total: memory?.memories?.length || 0 }, 'Memory recall');
         }
       } catch (e) {
-        console.error('[Alia/Chat] beforeChat hooks error:', e);
+        log.chat.error({ err: e }, 'beforeChat hooks error');
       }
     }
 
@@ -466,7 +466,7 @@ router.post('/', optionalAuth, async (req, res) => {
 
     // Estimate system prompt tokens (so we don't charge users for our system prompts)
     const systemPromptTokens = estimateMessageTokens('system', systemPrompt);
-    console.log(`[Alia/Chat] Estimated system prompt tokens: ${systemPromptTokens}`);
+    log.chat.info({ systemPromptTokens }, 'Estimated system prompt tokens');
 
     // Set headers for SSE streaming
     res.setHeader('Content-Type', 'text/event-stream');
@@ -501,16 +501,16 @@ router.post('/', optionalAuth, async (req, res) => {
             totalTokens: result.usage.totalTokens || 0,
             systemPromptTokens, // Keep our estimated system prompt tokens
           };
-          console.log('[Alia/Chat] Token usage captured:', tokenUsage);
+          log.chat.info({ tokenUsage }, 'Token usage captured');
         } else {
-          console.warn('[Alia/Chat] No usage data available from AI SDK');
+          log.chat.warn('No usage data available from AI SDK');
         }
       },
     };
 
     // Enable extended thinking for Anthropic models when thinking mode is requested
     if (thinkingMode && resolved.provider === 'anthropic') {
-      console.log('[Alia/Chat] Configuring Anthropic extended thinking mode');
+      log.chat.info('Configuring Anthropic extended thinking mode');
       streamConfig.experimental_thinking = true;
     }
 
@@ -548,7 +548,7 @@ router.post('/', optionalAuth, async (req, res) => {
       if (streamTimeout) clearTimeout(streamTimeout);
       streamTimeout = setTimeout(() => {
         if (!hasReceivedContent && !res.writableEnded) {
-          console.error('[Alia/Chat] Stream timeout - no content received in 30s');
+          log.chat.error('Stream timeout - no content received in 30s');
           flushTextBuffer(); // Flush any pending text
           const errorEvent = {
             type: 'error',
@@ -611,14 +611,14 @@ router.post('/', optionalAuth, async (req, res) => {
             const titleMatch = assistantResponse.match(/\[TITLE\](.*?)\[\/TITLE\]|<TITLE>(.*?)<\/TITLE>/);
             if (titleMatch) {
               conversationTitle = (titleMatch[1] || titleMatch[2]).trim();
-              console.log(`[Alia/Chat] Extracted title: "${conversationTitle}"`);
+              log.chat.info({ conversationTitle }, 'Extracted title');
               // Remove title tags from response
               assistantResponse = assistantResponse.replace(/\[TITLE\].*?\[\/TITLE\]|<TITLE>.*?<\/TITLE>/g, '').trim();
             } else {
               // Auto-generate title as fallback
               const firstUserMessage = messages.filter(m => m && m.role).find((m: any) => m.role === 'user')?.content;
               conversationTitle = autoGenerateTitle(assistantResponse, firstUserMessage);
-              console.log(`[Alia/Chat] No title found in response - auto-generated: "${conversationTitle}"`);
+              log.chat.info({ conversationTitle }, 'No title found in response - auto-generated');
             }
           }
 
@@ -630,7 +630,7 @@ router.post('/', optionalAuth, async (req, res) => {
                 { oxyUserId: req.user.id, conversationId },
                 { $push: { components: { ...component, createdAt: new Date() } } },
                 { upsert: true, new: true }
-              ).catch(err => console.error('[Alia/Chat] Canvas save error:', err));
+              ).catch(err => log.chat.error({ err }, 'Canvas save error'));
               emitCanvasUpdate(conversationId, component);
             }
             // Send as canvas-component event to SSE
@@ -653,17 +653,16 @@ router.post('/', optionalAuth, async (req, res) => {
 
       // Check if we got any response
       if (!hasReceivedContent) {
-        console.error('[Alia/Chat] Stream completed but no content was received');
+        log.chat.error('Stream completed but no content was received');
         const errorEvent = {
           type: 'error',
           error: 'No response received from AI model. Please try again.'
         };
-        console.log('[Alia/Chat] Sending empty stream error to client');
+        log.chat.info('Sending empty stream error to client');
         writeSSE(res, `data: ${JSON.stringify(errorEvent)}\n\n`);
       }
     } catch (streamError: any) {
-      console.error('[Alia/Chat] Error during streaming:', streamError);
-      console.error('[Alia/Chat] Stream error stack:', streamError.stack);
+      log.chat.error({ err: streamError }, 'Error during streaming');
 
       // Clean up timers
       if (streamTimeout) clearTimeout(streamTimeout);
@@ -675,7 +674,7 @@ router.post('/', optionalAuth, async (req, res) => {
           type: 'error',
           error: streamError.message || 'An error occurred while streaming the response'
         };
-        console.log('[Alia/Chat] Sending stream error to client:', errorEvent.error);
+        log.chat.info({ error: errorEvent.error }, 'Sending stream error to client');
         writeSSE(res, `data: ${JSON.stringify(errorEvent)}\n\n`);
       }
 
@@ -683,9 +682,9 @@ router.post('/', optionalAuth, async (req, res) => {
       if (creditReservation && req.user) {
         try {
           await refundReservation(creditReservation);
-          console.log('[Alia/Chat] Credits refunded due to streaming error');
+          log.chat.info('Credits refunded due to streaming error');
         } catch (refundError) {
-          console.error('[Alia/Chat] Error refunding credits:', refundError);
+          log.chat.error({ err: refundError }, 'Error refunding credits');
         }
       }
 
@@ -695,14 +694,14 @@ router.post('/', optionalAuth, async (req, res) => {
     // Finalize credits based on actual token usage and model tier
     if (creditReservation && req.user) {
       try {
-        console.log('[Alia/Chat] About to finalize credits with token usage:', tokenUsage);
+        log.chat.info({ tokenUsage }, 'About to finalize credits with token usage');
         const { creditsCharged, creditsRemaining } = await finalizeCredits(
           creditReservation,
           tokenUsage,
           resolved?.aliasModelId
         );
 
-        console.log('[Alia/Chat] Credits finalized successfully:', { creditsCharged, creditsRemaining });
+        log.chat.info({ creditsCharged, creditsRemaining }, 'Credits finalized successfully');
 
         // Track daily cost in sliding window limiter
         incrementDailyCost(req.user.id, creditsCharged);
@@ -715,7 +714,7 @@ router.post('/', optionalAuth, async (req, res) => {
           promptTokens: tokenUsage.promptTokens,
           completionTokens: tokenUsage.completionTokens,
         };
-        console.log('[Alia/Chat] Sending credit update event:', creditUpdate);
+        log.chat.info({ creditUpdate }, 'Sending credit update event');
         writeSSE(res, `data: ${JSON.stringify(creditUpdate)}\n\n`);
 
         // Send spending alert if approaching daily cost cap
@@ -730,16 +729,13 @@ router.post('/', optionalAuth, async (req, res) => {
 
         // Record usage so the credits usage chart has data
         recordUsage(req, 200, tokenUsage.totalTokens, undefined, creditsCharged).catch(err =>
-          console.error('[Alia/Chat] Error recording usage:', err)
+          log.chat.error({ err }, 'Error recording usage')
         );
       } catch (error) {
-        console.error('[Alia/Chat] Error finalizing credits:', error);
+        log.chat.error({ err: error }, 'Error finalizing credits');
       }
     } else {
-      console.log('[Alia/Chat] Skipping credit finalization:', {
-        hasCreditReservation: !!creditReservation,
-        hasUser: !!req.user
-      });
+      log.chat.info({ hasCreditReservation: !!creditReservation, hasUser: !!req.user }, 'Skipping credit finalization');
     }
 
     // Fire afterChat hooks (non-blocking)
@@ -755,7 +751,7 @@ router.post('/', optionalAuth, async (req, res) => {
       tokenUsage,
       modelUsed: resolved?.keyConfig?.modelId || 'unknown',
       latencyMs: Date.now() - requestStartTime,
-    }).catch(err => console.error('[Alia/Chat] Error in afterChat hooks:', err));
+    }).catch(err => log.chat.error({ err }, 'Error in afterChat hooks'));
 
     // Auto-save conversation if conversationId provided and user is authenticated
     if (conversationId && typeof conversationId === 'string' && conversationId.trim() && req.user && assistantResponse) {
@@ -778,7 +774,7 @@ router.post('/', optionalAuth, async (req, res) => {
         const title = conversationTitle || autoGenerateTitle(assistantResponse, firstUserMessage);
         const lastMessage = assistantResponse.slice(0, 100);
 
-        console.log(`[Alia/Chat] Saving conversation ${conversationId} with title: "${title}"`);
+        log.chat.info({ conversationId, title }, 'Saving conversation');
 
         // Save or update conversation
         await Conversation.findOneAndUpdate(
@@ -800,14 +796,13 @@ router.post('/', optionalAuth, async (req, res) => {
           { upsert: true, new: true }
         );
 
-        console.log(`[Alia/Chat] Conversation ${conversationId} saved successfully`);
+        log.chat.info({ conversationId }, 'Conversation saved successfully');
       } catch (error) {
-        console.error('[Alia/Chat] Error saving conversation:', error);
-        console.error('[Alia/Chat] ConversationId:', conversationId);
+        log.chat.error({ err: error, conversationId }, 'Error saving conversation');
         // Don't fail the request if saving fails
       }
     } else if (!conversationId && req.user) {
-      console.warn('[Alia/Chat] ConversationId not provided - conversation will not be saved');
+      log.chat.warn('ConversationId not provided - conversation will not be saved');
     }
 
     // Send completion marker
@@ -816,16 +811,16 @@ router.post('/', optionalAuth, async (req, res) => {
     clearTimeout(requestTimeout);
 
   } catch (e: any) {
-    console.error('[Alia/Chat] Error:', e);
+    log.chat.error({ err: e }, 'Request failed');
     clearTimeout(requestTimeout);
 
     // Refund credits if request failed
     if (creditReservation && req.user) {
       try {
         await refundReservation(creditReservation);
-        console.log('[Alia/Chat] Credits refunded due to error');
+        log.chat.info('Credits refunded due to error');
       } catch (refundError) {
-        console.error('[Alia/Chat] Error refunding credits:', refundError);
+        log.chat.error({ err: refundError }, 'Error refunding credits');
       }
     }
 
@@ -857,7 +852,7 @@ router.get('/', async (req, res) => {
       googleSearch: true,
       getTimeline: true,
       searchKnowledgeBase: true,
-      scrapeURL: true
+      webScraper: true
     }
   });
 });
