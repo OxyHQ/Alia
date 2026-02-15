@@ -30,6 +30,7 @@ interface ChatState {
   folders: Folder[];
   currentConversationId: string | null;
   selectedModel: string;
+  baseModel: string; // Last non-thinking model (survives refresh)
 
   // Conversation actions
   createConversation: (title?: string, folderId?: string) => string;
@@ -50,6 +51,7 @@ interface ChatState {
 
   // Model selection
   setSelectedModel: (model: string) => void;
+  setBaseModel: (model: string) => void;
 
   // Clear all data
   clearAll: () => void;
@@ -62,6 +64,7 @@ export const useChatStore = create<ChatState>()(
       folders: [],
       currentConversationId: null,
       selectedModel: 'alia-v1',
+      baseModel: 'alia-v1',
 
       createConversation: (title = 'Nueva conversación', folderId) => {
         const id = `conv_${Date.now()}`;
@@ -185,12 +188,16 @@ export const useChatStore = create<ChatState>()(
       setSelectedModel: (model) =>
         set({ selectedModel: model }),
 
+      setBaseModel: (model) =>
+        set({ baseModel: model }),
+
       clearAll: () =>
         set({
           conversations: [],
           folders: [],
           currentConversationId: null,
           selectedModel: 'alia-v1',
+          baseModel: 'alia-v1',
         }),
     }),
     {
