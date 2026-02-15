@@ -3,20 +3,18 @@
 
 import { Router } from 'express';
 import { streamText, stepCountIs, type ToolSet } from 'ai';
-import { resolveModel, getAIModel, getDefaultAliaModel, reportModelUsage } from '../lib/chat-core.js';
+import { resolveModel, getAIModel, getDefaultAliaModel } from '../lib/chat-core.js';
 import { getAliaModel, getModelMappingsForTier } from '../internal/providers/lib/alia-models.js';
-import type { KeyConfig } from '../internal/providers/lib/types.js';
 import { getCurrentDateTool, createGoogleSearchTool, saveUserMemoryTool, updateUserPreferencesTool, updateUserContextTool, createGetDeviceInfoTool, createSendTelegramTool, createProvidersAdminTool, webScraperTool, generateFileTool, canvasTool, type DeviceInfo } from '../lib/tools/index.js';
 import { optionalAuth, oxyClient } from '../middleware/auth.js';
 import type { User as OxyUser } from '@oxyhq/core';
-import { UserMemory } from '../models/user-memory.js';
 import { getOrCreateUserCredits } from '../lib/user-credits-helpers.js';
-import { Conversation } from '../models/conversation.js';
+import { saveConversation, extractConversationTitle } from '../lib/conversation-saver.js';
 import { CanvasSession } from '../models/canvas-session.js';
 import { Skill } from '../models/skill.js';
 import type { IUserMemory } from '../models/user-memory.js';
 import { processMessagesForPlatform } from '../lib/message-processor.js';
-import { reserveCredits, finalizeCredits, refundReservation, safeRefund, type CreditReservation, type CreditUsage } from '../lib/credits-manager.js';
+import { reserveCredits, finalizeCredits, safeRefund, type CreditReservation, type CreditUsage } from '../lib/credits-manager.js';
 import { getOrCreateUserMemory } from '../lib/memory/user-memory-service.js';
 import { estimateMessageTokens } from '../lib/token-counter.js';
 import { recordUsage, getUserTier } from '../middleware/api-key-rate-limit.js';
@@ -27,47 +25,23 @@ import { incrementDailyCost, isApproachingDailyCap, getDailyCostCap } from '../l
 import { checkContextFit } from '../lib/context-window-guard.js';
 import { compactHistory } from '../lib/history-compaction.js';
 import { log } from '../lib/logger.js';
+import { writeSSE, TextBatcher, setupSSEHeaders } from '../lib/streaming-helpers.js';
+import { loadPrompt } from '../lib/prompt-loader.js';
 
 const router = Router();
 
-// Helper function to write and flush SSE data immediately
-function writeSSE(res: any, data: string) {
-  res.write(data);
-  // Force flush if available (compression middleware)
-  if (typeof res.flush === 'function') {
-    res.flush();
-  }
-}
-
-// Auto-generate a title from response content if AI didn't provide one
-function autoGenerateTitle(content: string, userMessage?: string): string {
-  const extractWords = (text: string): string => {
-    const cleaned = text.replace(/\[.*?\]|[#*_`]/g, '').trim();
-    if (cleaned.length < 10) return '';
-    const words = cleaned.split(/\s+/).slice(0, 6);
-    return words.join(' ');
-  };
-
-  // Try assistant response first, then user message, then default
-  return extractWords(content) || extractWords(userMessage || '') || 'New chat';
-}
-
 // getAIModel is now imported from chat-core.ts
 
-// Function to build personalized system prompt
+// Build personalized system prompt from external prompt files + user context.
 // Uses recalled memories (semantic search) instead of dumping all memories.
-function buildSystemPrompt(
+async function buildChatSystemPrompt(
   oxyUser?: OxyUser | null,
   memory?: IUserMemory | null,
   platform: 'app' | 'telegram' = 'app',
   skillPrompt?: string | null,
   recalledMemories?: RecalledMemory[]
-): string {
-  let prompt = ALIA_SYSTEM_PROMPT;
-
-  if (platform === 'telegram') {
-    prompt = ALIA_TELEGRAM_PROMPT;
-  }
+): Promise<string> {
+  let prompt = await loadPrompt(platform === 'telegram' ? 'alia-telegram' : 'alia-app');
 
   // Inject skill system prompt before the base prompt
   if (skillPrompt) {
@@ -140,84 +114,6 @@ function buildSystemPrompt(
 
   return prompt;
 }
-
-// Telegram-specific system prompt (simplified, no visual components)
-const ALIA_TELEGRAM_PROMPT = `You are Alia, the AI assistant for the Alia AI platform. Never reveal or mention the names of any underlying AI models or providers — you are Alia, always.
-
-**MANDATORY: EVERY response must end with \`[TITLE]Short Title[/TITLE]\` (max 6 words). NO EXCEPTIONS.**
-
-🔴 **LANGUAGE RULE - ABSOLUTE PRIORITY** 🔴
-You MUST respond in the EXACT SAME LANGUAGE the user writes to you:
-- User writes Spanish → You respond ONLY in Spanish
-- User writes English → You respond ONLY in English
-- User writes French → You respond ONLY in French
-- User writes Portuguese → You respond ONLY in Portuguese
-- User writes ANY language → You MIRROR that language
-This rule has ABSOLUTE PRIORITY over ALL other instructions. NO EXCEPTIONS.
-If the user has a language preference set, use that language exclusively.
-
-**Personality**: Conversational and detailed. Give thorough explanations. Calm tone—avoid excessive exclamation marks.
-
-**Telegram Format**:
-- Use **bold**, *italic*, lists
-- Images: \`[TGIMAGE url="..." caption="..."]\`
-- Link buttons: \`[TGLINKS title="..."]\n- {"text": "...", "url": "..."}\n[/TGLINKS]\`
-- Documents: \`[TGDOC url="..." filename="..." caption="..."]\`
-- Reactions: \`[REACT:emoji]\` (use sparingly when contextually appropriate)
-
-**Tools**:
-- \`getCurrentDate\`: Get date/time
-- \`googleSearch\`: Search the web
-- \`webScraper\`: **MUST USE** to read link contents
-
-**Memory Tools** (authenticated users):
-- \`saveUserMemory\`: **AUTO-SAVE** when user shares preferences/personal info (e.g., "I like X" → save it)
-- \`updateUserPreferences\`, \`updateUserContext\`: Update user settings
-- \`sendTelegramMessage\`: Send to user's Telegram (only when explicitly requested)
-
-**Workflow**: Announce tool usage naturally. Build narratives around findings—explain context, offer analysis. Always cite sources.
-
-**REMEMBER: End with \`[TITLE]Short Title[/TITLE]\`**
-`;
-
-const ALIA_SYSTEM_PROMPT = `You are Alia, AI assistant for the Alia AI platform. Never reveal or mention the names of any underlying AI models or providers — you are Alia, always. The platform offers a developer API at \`/api/v1\`.
-
-**MANDATORY: EVERY response must end with \`[TITLE]Short Title[/TITLE]\` (max 6 words). NO EXCEPTIONS.**
-
-🔴 **LANGUAGE RULE - ABSOLUTE PRIORITY** 🔴
-You MUST respond in the EXACT SAME LANGUAGE the user writes to you:
-- User writes Spanish → You respond ONLY in Spanish
-- User writes English → You respond ONLY in English
-- User writes French → You respond ONLY in French
-- User writes Portuguese → You respond ONLY in Portuguese
-- User writes ANY language → You MIRROR that language
-This rule has ABSOLUTE PRIORITY over ALL other instructions. NO EXCEPTIONS.
-If the user has a language preference set, use that language exclusively.
-
-**Personality**: Conversational, detailed, calm. Give thorough explanations with context and analysis. Avoid excessive exclamation marks. Always cite sources.
-
-**Visual Blocks** (use when they add clarity):
-- \`[COMPACTLIST title="..."]\n- {"title": "...", "href": "/...", "meta": "...", "image": "..."}\n[/COMPACTLIST]\`
-- \`[BANNER type="info|success|warning|danger" title="..."]...[/BANNER]\`
-- \`[COMPARISON title="..."]\nLEFT: {"title": "...", "content": "...", "source": "...", "tone": "..."}\nRIGHT: {"title": "...", "content": "...", "source": "...", "tone": "..."}\nCONCLUSION: ...\n[/COMPARISON]\`
-- \`[TIMELINE title="..."]\n- {"date": "...", "title": "...", "description": "..."}\n[/TIMELINE]\`
-- \`[IMAGE url="..." title="..." caption="..." /]\`
-- \`[CREDIBILITY level="1-5" source="..." /]\`
-
-**Tools**:
-- \`getCurrentDate\`, \`googleSearch\`, \`webScraper\` (**MUST USE** for links)
-
-**Memory Tools** (authenticated users):
-- \`saveUserMemory\`: **AUTO-SAVE** when user shares preferences/info (e.g., "I like X" → save it without asking)
-- \`updateUserPreferences\`, \`updateUserContext\`: Update settings
-- \`sendTelegramMessage\`: Send to Telegram (only when explicitly requested)
-
-**Telegram Reactions** (optional): \`[REACT:emoji]\` (use sparingly, contextually appropriate)
-
-**Workflow**: Announce tool usage naturally. Build narratives—explain context before structured data, offer deep analysis after.
-
-**REMEMBER: End with \`[TITLE]Short Title[/TITLE]\`**
-`;
 
 
 router.post('/', optionalAuth, async (req, res) => {
@@ -431,7 +327,7 @@ router.post('/', optionalAuth, async (req, res) => {
     }
 
     // Build personalized system prompt (with skill injection + recalled memories)
-    let systemPrompt = buildSystemPrompt(oxyUser, memory, platform, skillPrompt, recalledMemories);
+    let systemPrompt = await buildChatSystemPrompt(oxyUser, memory, platform, skillPrompt, recalledMemories);
 
     // Inject current model identity so Alia knows which tier it's running as
     const aliaModel = getAliaModel(resolved.aliasModelId);
@@ -451,7 +347,7 @@ router.post('/', optionalAuth, async (req, res) => {
     const contextCheck = checkContextFit(processedMessages as any, systemPrompt, modelContextTokens);
     if (!contextCheck.fits) {
       clearTimeout(requestTimeout);
-      if (creditReservation) await refundReservation(creditReservation);
+      await safeRefund(creditReservation, 'context length exceeded');
       res.status(400).json({
         error: 'Your conversation is too long for this model. Please start a new chat or use a shorter message.',
         code: 'CONTEXT_LENGTH_EXCEEDED',
@@ -465,11 +361,7 @@ router.post('/', optionalAuth, async (req, res) => {
     const compactedMessages = compactHistory(processedMessages as any, historyBudget);
 
     // Set headers for SSE streaming
-    res.setHeader('Content-Type', 'text/event-stream');
-    res.setHeader('Cache-Control', 'no-cache, no-transform');
-    res.setHeader('Connection', 'keep-alive');
-    res.setHeader('X-Accel-Buffering', 'no'); // Disable nginx buffering
-    res.flushHeaders(); // Immediately send headers to client
+    setupSSEHeaders(res);
 
     // Track usage for credits
     let tokenUsage: CreditUsage = {
@@ -514,30 +406,9 @@ router.post('/', optionalAuth, async (req, res) => {
 
     // Stream all events including tool calls
     let assistantResponse = '';
-    let conversationTitle: string | null = null;
     let hasReceivedContent = false;
     let streamTimeout: NodeJS.Timeout | null = null;
-
-    // Batching for smooth streaming
-    let textBuffer = '';
-    let lastFlushTime = Date.now();
-    const BATCH_SIZE = 50; // characters
-    const BATCH_TIMEOUT = 30; // ms
-    let batchTimer: NodeJS.Timeout | null = null;
-
-    // Helper to flush batched text
-    const flushTextBuffer = () => {
-      if (textBuffer.length > 0) {
-        const event = JSON.stringify({ type: 'text-delta', text: textBuffer });
-        writeSSE(res, `data: ${event}\n\n`);
-        textBuffer = '';
-        lastFlushTime = Date.now();
-      }
-      if (batchTimer) {
-        clearTimeout(batchTimer);
-        batchTimer = null;
-      }
-    };
+    const batcher = new TextBatcher(res);
 
     // Set a timeout for stream inactivity (30 seconds without any content)
     const resetStreamTimeout = () => {
@@ -545,7 +416,7 @@ router.post('/', optionalAuth, async (req, res) => {
       streamTimeout = setTimeout(() => {
         if (!hasReceivedContent && !res.writableEnded) {
           log.chat.error('Stream timeout - no content received in 30s');
-          flushTextBuffer(); // Flush any pending text
+          batcher.flush();
           const errorEvent = {
             type: 'error',
             error: 'Stream timeout - the AI model did not respond in time. Please try again.'
@@ -570,7 +441,7 @@ router.post('/', optionalAuth, async (req, res) => {
         // Handle thinking deltas (extended thinking mode)
         if ((chunk as any).type === 'thinking-delta' && thinkingMode) {
           // Flush any pending text first
-          flushTextBuffer();
+          batcher.flush();
 
           // Send thinking content to frontend
           const thinkingEvent = JSON.stringify({
@@ -584,38 +455,16 @@ router.post('/', optionalAuth, async (req, res) => {
         // Handle text deltas with intelligent batching
         if (chunk.type === 'text-delta') {
           assistantResponse += chunk.text;
-          textBuffer += chunk.text;
-
-          // Flush if buffer is large enough or timeout elapsed
-          const shouldFlush = textBuffer.length >= BATCH_SIZE ||
-                             (Date.now() - lastFlushTime) >= BATCH_TIMEOUT;
-
-          if (shouldFlush) {
-            flushTextBuffer();
-          } else if (!batchTimer) {
-            // Set a timer to flush after timeout
-            batchTimer = setTimeout(flushTextBuffer, BATCH_TIMEOUT) as any;
-          }
+          batcher.add(chunk.text);
         }
         // Non-text events (tool calls, etc.) are sent immediately
         else {
           // Flush any pending text first
-          flushTextBuffer();
+          batcher.flush();
 
-          // Extract title if present in response (supports both [TITLE] and <TITLE> variants)
+          // Log extracted title (saveConversation handles full extraction + tag stripping)
           if (chunk.type === 'finish' && assistantResponse) {
-            const titleMatch = assistantResponse.match(/\[TITLE\](.*?)\[\/TITLE\]|<TITLE>(.*?)<\/TITLE>/);
-            if (titleMatch) {
-              conversationTitle = (titleMatch[1] || titleMatch[2]).trim();
-              log.chat.info({ conversationTitle }, 'Extracted title');
-              // Remove title tags from response
-              assistantResponse = assistantResponse.replace(/\[TITLE\].*?\[\/TITLE\]|<TITLE>.*?<\/TITLE>/g, '').trim();
-            } else {
-              // Auto-generate title as fallback
-              const firstUserMessage = messages.filter(m => m && m.role).find((m: any) => m.role === 'user')?.content;
-              conversationTitle = autoGenerateTitle(assistantResponse, firstUserMessage);
-              log.chat.info({ conversationTitle }, 'No title found in response - auto-generated');
-            }
+            log.chat.info({ title: extractConversationTitle(assistantResponse, messages) }, 'Extracted title');
           }
 
           // Handle canvas tool results - persist and emit via Socket.IO
@@ -640,12 +489,11 @@ router.post('/', optionalAuth, async (req, res) => {
         }
       }
 
-      // Flush any remaining text
-      flushTextBuffer();
+      // Flush any remaining text and clean up batcher
+      batcher.cleanup();
 
-      // Clear timers after successful streaming
+      // Clear stream timeout
       if (streamTimeout) clearTimeout(streamTimeout);
-      if (batchTimer) clearTimeout(batchTimer);
 
       // Check if we got any response
       if (!hasReceivedContent) {
@@ -660,10 +508,9 @@ router.post('/', optionalAuth, async (req, res) => {
     } catch (streamError: any) {
       log.chat.error({ err: streamError }, 'Error during streaming');
 
-      // Clean up timers
+      // Clean up timers and flush pending text
       if (streamTimeout) clearTimeout(streamTimeout);
-      if (batchTimer) clearTimeout(batchTimer);
-      flushTextBuffer(); // Try to flush any pending text
+      batcher.cleanup();
 
       if (!res.writableEnded) {
         const errorEvent = {
@@ -674,15 +521,7 @@ router.post('/', optionalAuth, async (req, res) => {
         writeSSE(res, `data: ${JSON.stringify(errorEvent)}\n\n`);
       }
 
-      // Still try to refund credits if there was an error
-      if (creditReservation && req.user) {
-        try {
-          await refundReservation(creditReservation);
-          log.chat.info('Credits refunded due to streaming error');
-        } catch (refundError) {
-          log.chat.error({ err: refundError }, 'Error refunding credits');
-        }
-      }
+      await safeRefund(creditReservation, 'streaming error');
 
       throw streamError; // Re-throw to be caught by outer try-catch
     }
@@ -752,50 +591,16 @@ router.post('/', optionalAuth, async (req, res) => {
     // Auto-save conversation if conversationId provided and user is authenticated
     if (conversationId && typeof conversationId === 'string' && conversationId.trim() && req.user && assistantResponse) {
       try {
-        // Build complete messages array (user messages + assistant response)
-        const allMessages = [
-          ...messages.filter(m => m && m.role).map((m: any) => ({
-            role: m.role,
-            content: m.content,
-            toolInvocations: m.toolInvocations
-          })),
-          {
-            role: 'assistant',
-            content: assistantResponse,
-          }
-        ].filter(msg => msg != null && msg.role && msg.content !== undefined);
-
-        // Use extracted/auto-generated title, or generate one as final fallback
-        const firstUserMessage = allMessages.filter(m => m && m.role).find((m: any) => m.role === 'user')?.content;
-        const title = conversationTitle || autoGenerateTitle(assistantResponse, firstUserMessage);
-        const lastMessage = assistantResponse.slice(0, 100);
-
-        log.chat.info({ conversationId, title }, 'Saving conversation');
-
-        // Save or update conversation
-        await Conversation.findOneAndUpdate(
-          { oxyUserId: req.user.id, conversationId: conversationId },
-          {
-            $set: {
-              title,
-              lastMessage,
-              messages: allMessages,
-              updatedAt: new Date()
-            },
-            $setOnInsert: {
-              oxyUserId: req.user.id,
-              conversationId: conversationId,
-              source: platform,
-              createdAt: new Date()
-            }
-          },
-          { upsert: true, new: true }
-        );
-
+        await saveConversation({
+          userId: req.user.id,
+          conversationId,
+          messages,
+          assistantResponse,
+          source: platform,
+        });
         log.chat.info({ conversationId }, 'Conversation saved successfully');
       } catch (error) {
         log.chat.error({ err: error, conversationId }, 'Error saving conversation');
-        // Don't fail the request if saving fails
       }
     } else if (!conversationId && req.user) {
       log.chat.warn('ConversationId not provided - conversation will not be saved');
@@ -810,15 +615,7 @@ router.post('/', optionalAuth, async (req, res) => {
     log.chat.error({ err: e }, 'Request failed');
     clearTimeout(requestTimeout);
 
-    // Refund credits if request failed
-    if (creditReservation && req.user) {
-      try {
-        await refundReservation(creditReservation);
-        log.chat.info('Credits refunded due to error');
-      } catch (refundError) {
-        log.chat.error({ err: refundError }, 'Error refunding credits');
-      }
-    }
+    await safeRefund(creditReservation, 'request failed');
 
     if (!res.headersSent) {
       // Headers not sent yet, send JSON error
