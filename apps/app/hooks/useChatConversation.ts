@@ -1,5 +1,7 @@
 import { useEffect, useCallback, useRef } from "react";
 import { useRouter } from "expo-router";
+import { useQueryClient } from "@tanstack/react-query";
+import { queryKeys } from "@/lib/hooks/query-keys";
 import { useStore, type Attachment } from "@/lib/globalStore";
 import { useStreamingChat } from "@/hooks/useStreamingChat";
 import { useConversation, useCreateConversation } from "@/lib/hooks/use-conversations";
@@ -18,9 +20,11 @@ interface UseChatConversationOptions {
 
 export function useChatConversation({ conversationId, activeRole, thinkingMode, selectedModel, skillId }: UseChatConversationOptions = {}) {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const scrollViewRef = useRef<GHScrollView>(null);
   const hasSentPendingMessage = useRef(false);
   const lastConversationId = useRef<string | null>(null);
+  const wasLoadingRef = useRef(false);
 
   const pendingInitialMessage = useStore((state) => state.pendingInitialMessage);
   const { data: conversation, isLoading: conversationLoading } = useConversation(conversationId || "");
@@ -35,6 +39,15 @@ export function useChatConversation({ conversationId, activeRole, thinkingMode, 
     setMessages,
     stop,
   } = useStreamingChat(generateAPIUrl('/v1/chat/completions'), activeRole, conversationId, thinkingMode, selectedModel, skillId);
+
+  // Refresh sidebar when streaming finishes (backend auto-saves with AI-generated title)
+  useEffect(() => {
+    if (wasLoadingRef.current && !isLoading && conversationId) {
+      queryClient.invalidateQueries({ queryKey: queryKeys.conversations.all });
+      queryClient.invalidateQueries({ queryKey: queryKeys.conversations.detail(conversationId) });
+    }
+    wasLoadingRef.current = isLoading;
+  }, [isLoading, conversationId, queryClient]);
 
   // Sync chatId and load messages when conversation changes
   useEffect(() => {

@@ -1,6 +1,7 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useOxy } from '@oxyhq/services';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import apiClient from '../api/client';
+import { queryKeys } from './query-keys';
+import { useAuthQuery } from './create-query';
 
 export interface ReferralInfo {
   inviteCode: string;
@@ -21,38 +22,12 @@ export interface ReferralHistory {
   total: number;
 }
 
-async function fetchReferralInfo(): Promise<ReferralInfo> {
-  const response = await apiClient.get('/referrals');
-  return response.data;
-}
-
-async function fetchReferralHistory(): Promise<ReferralHistory> {
-  const response = await apiClient.get('/referrals/history');
-  return response.data;
-}
-
 export function useReferralInfo() {
-  const { isAuthenticated } = useOxy();
-
-  return useQuery({
-    queryKey: ['referral-info'],
-    queryFn: fetchReferralInfo,
-    staleTime: 1000 * 60 * 5, // 5 minutes
-    retry: 2,
-    enabled: isAuthenticated,
-  });
+  return useAuthQuery<ReferralInfo>(queryKeys.referrals.info, '/referrals');
 }
 
 export function useReferralHistory() {
-  const { isAuthenticated } = useOxy();
-
-  return useQuery({
-    queryKey: ['referral-history'],
-    queryFn: fetchReferralHistory,
-    staleTime: 1000 * 60, // 1 minute
-    retry: 2,
-    enabled: isAuthenticated,
-  });
+  return useAuthQuery<ReferralHistory>(queryKeys.referrals.history, '/referrals/history', undefined, { staleTime: 60_000 });
 }
 
 export function useSendInviteEmail() {
@@ -73,8 +48,8 @@ export function useRedeemInviteCode() {
       return response.data as { success: boolean; creditsAwarded: number };
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['referral-info'] });
-      queryClient.invalidateQueries({ queryKey: ['credits'] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.referrals.info });
+      queryClient.invalidateQueries({ queryKey: queryKeys.credits.info });
     },
   });
 }

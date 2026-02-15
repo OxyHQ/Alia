@@ -28,7 +28,7 @@ import { PromptAutocomplete } from "@/components/prompt-autocomplete";
 import { usePromptCompletions } from "@/hooks/usePromptCompletions";
 import type { PromptCompletion } from "@/lib/prompt-completions";
 import { getThinkingModelId, isThinkingModel } from "@/components/model-selector";
-import { useChatStore } from "@/lib/stores/chat-store";
+import { useModelStore } from "@/lib/stores/model-store";
 import { useEntitlements } from "@/lib/hooks/use-billing";
 import { useCredits } from "@/lib/hooks/use-credits";
 import { useRouter } from "expo-router";
@@ -150,8 +150,8 @@ export const ChatPageContent = ({
   const isNarrowScreen = screenWidth < 640;
   const [activeModes, setActiveModes] = useState<Set<Mode>>(new Set());
   const thinkingMode = isThinkingModel(selectedModel);
-  const baseModel = useChatStore((s) => s.baseModel);
-  const setBaseModel = useChatStore((s) => s.setBaseModel);
+  const baseModel = useModelStore((s) => s.baseModel);
+  const setBaseModel = useModelStore((s) => s.setBaseModel);
 
   useEffect(() => {
     if (!isThinkingModel(selectedModel)) {

@@ -7,6 +7,7 @@ import type { Message } from '@/lib/hooks/use-conversations';
 import type { CreditsInfo } from '@/lib/hooks/use-credits';
 import { collectDeviceInfo } from '@/lib/device-info';
 import { UsageLimitError } from '@/lib/errors/usage-limit-error';
+import { queryKeys } from '@/lib/hooks/query-keys';
 
 export interface ToolInvocation {
   toolCallId: string;
@@ -16,26 +17,7 @@ export interface ToolInvocation {
   result?: any;
 }
 
-// Matches both [TITLE]...[/TITLE] and <TITLE>...</TITLE>
-const TITLE_STRIP_RE = /\[TITLE\].*?\[\/TITLE\]|<TITLE>.*?<\/TITLE>/g;
-// Also strip incomplete/partial title tags at end of stream (during streaming)
-const TITLE_PARTIAL_RE = /\[TITLE\].*?(\[\/TITLE\])?$|<TITLE>.*?(<\/TITLE>)?$/s;
-
-function extractTitle(content: string): { content: string; title: string | null } {
-  const titleMatch = content.match(/\[TITLE\](.*?)\[\/TITLE\]|<TITLE>(.*?)<\/TITLE>/);
-  if (titleMatch) {
-    return {
-      content: content.replace(TITLE_STRIP_RE, '').trim(),
-      title: (titleMatch[1] || titleMatch[2]).trim()
-    };
-  }
-  return { content, title: null };
-}
-
-/** Strip complete and partial title tags from content shown during streaming. */
-function stripTitleTags(content: string): string {
-  return content.replace(TITLE_STRIP_RE, '').replace(TITLE_PARTIAL_RE, '').trim();
-}
+import { extractTitle, stripTitleTagsPartial as stripTitleTags } from '@/lib/utils/title-tags';
 
 export function useStreamingChat(apiUrl: string, activeRole?: any, conversationId?: string, thinkingMode?: boolean, selectedModel?: string, skillId?: string | null) {
   const [messages, setMessages] = useState<Message[]>([]);
@@ -318,16 +300,16 @@ Use this role to guide your responses, maintaining the specified tone, style, an
 
               // Handle usage/credits info (comes at the end of stream)
               if (parsed.usage && parsed.usage.credits_remaining !== undefined) {
-                queryClient.setQueryData<CreditsInfo>(['credits'], (old) => {
+                queryClient.setQueryData<CreditsInfo>(queryKeys.credits.info, (old) => {
                   if (!old) return old;
                   return { ...old, credits: parsed.usage.credits_remaining };
                 });
-                queryClient.invalidateQueries({ queryKey: ['credits-usage'] });
+                queryClient.invalidateQueries({ queryKey: queryKeys.credits.usage() });
 
                 // Proactive warning when spending anomaly detected
                 if (parsed.usage.credit_warning) {
                   const w = parsed.usage.credit_warning;
-                  queryClient.setQueryData(['usage-warning'], {
+                  queryClient.setQueryData(queryKeys.credits.usageWarning, {
                     level: w.level,
                     daysRemaining: w.daysRemaining,
                     todaySpend: w.todaySpend,

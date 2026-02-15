@@ -1,5 +1,7 @@
-import React from "react";
-import { View, ScrollView } from "react-native";
+import React, { useState, useCallback } from "react";
+import { View, ScrollView, NativeSyntheticEvent, NativeScrollEvent } from "react-native";
+import { LinearGradient } from "expo-linear-gradient";
+import { useColorScheme } from "@/lib/useColorScheme";
 
 interface BaseSidebarProps {
   /** Header content (logo, branding, etc.) */
@@ -19,6 +21,8 @@ interface BaseSidebarProps {
   /** Show vertical scroll indicator */
   showScrollIndicator?: boolean;
 }
+
+const GRADIENT_HEIGHT = 24;
 
 /**
  * BaseSidebar - Reusable sidebar layout component
@@ -40,6 +44,17 @@ export const BaseSidebar = React.memo(function BaseSidebar({
   onScroll,
   showScrollIndicator = false,
 }: BaseSidebarProps) {
+  const { colors } = useColorScheme();
+  const [showTopGradient, setShowTopGradient] = useState(false);
+  const [showBottomGradient, setShowBottomGradient] = useState(true);
+
+  const handleScroll = useCallback((event: NativeSyntheticEvent<NativeScrollEvent>) => {
+    const { contentOffset, contentSize, layoutMeasurement } = event.nativeEvent;
+    setShowTopGradient(contentOffset.y > 2);
+    setShowBottomGradient(contentOffset.y + layoutMeasurement.height < contentSize.height - 2);
+    onScroll?.(event);
+  }, [onScroll]);
+
   return (
     <View className={`flex-1 ${backgroundColor} border-r border-border`}>
       {/* Header */}
@@ -47,29 +62,45 @@ export const BaseSidebar = React.memo(function BaseSidebar({
         {header}
       </View>
 
-      {/* Optional Top Section */}
-      {topSection && (
-        <View className="p-3 md:p-2">
-          {topSection}
-        </View>
-      )}
+      {/* Scrollable area with gradient overlays */}
+      <View className="flex-1">
+        {/* Top gradient */}
+        {showTopGradient && (
+          <LinearGradient
+            colors={[colors.background, "transparent"]}
+            pointerEvents="none"
+            style={{ position: "absolute", top: 0, left: 0, right: 0, height: GRADIENT_HEIGHT, zIndex: 10 }}
+          />
+        )}
 
-      {/* Navigation Links */}
-      <View className="px-3 md:px-2 pb-3 md:pb-2 pt-3 md:pt-2 gap-1">
-        {navigation}
-      </View>
-
-      {/* Scrollable Content */}
-      {scrollableContent && (
         <ScrollView
           className="flex-1 px-3 md:px-2"
-          onScroll={onScroll}
-          scrollEventThrottle={400}
+          onScroll={handleScroll}
+          scrollEventThrottle={16}
           showsVerticalScrollIndicator={showScrollIndicator}
         >
+          {topSection && (
+            <View className="pb-3 md:pb-2 pt-3 md:pt-2">
+              {topSection}
+            </View>
+          )}
+          {navigation && (
+            <View className="pb-3 md:pb-2 gap-1">
+              {navigation}
+            </View>
+          )}
           {scrollableContent}
         </ScrollView>
-      )}
+
+        {/* Bottom gradient */}
+        {showBottomGradient && (
+          <LinearGradient
+            colors={["transparent", colors.background]}
+            pointerEvents="none"
+            style={{ position: "absolute", bottom: 0, left: 0, right: 0, height: GRADIENT_HEIGHT, zIndex: 10 }}
+          />
+        )}
+      </View>
 
       {/* Footer */}
       <View className="border-t border-border/50 p-3 md:p-2">

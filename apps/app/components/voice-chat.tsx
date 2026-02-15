@@ -4,6 +4,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Text } from '@/components/ui/text';
 import { Mic, MicOff, X, PhoneOff } from 'lucide-react-native';
 import { useQueryClient } from '@tanstack/react-query';
+import { queryKeys } from '@/lib/hooks/query-keys';
 import { useRealtimeVoice, type AgentState } from '@/lib/hooks/use-realtime-voice';
 import { useAudioLevels } from './voice-chat/use-audio-levels';
 import { AudioWaveVisualizer } from './voice-chat/audio-wave-visualizer';
@@ -77,7 +78,7 @@ export function VoiceChat({ visible, onClose }: VoiceChatProps) {
 
   const handleClose = () => {
     disconnect();
-    queryClient.invalidateQueries({ queryKey: ['credits'] });
+    queryClient.invalidateQueries({ queryKey: queryKeys.credits.info });
     onClose();
   };
 

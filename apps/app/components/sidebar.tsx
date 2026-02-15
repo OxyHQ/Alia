@@ -46,7 +46,6 @@ import { useProjectsStore } from "@/lib/stores/projects-store";
 import { useFoldersStore } from "@/lib/stores/folders-store";
 import { useFavoritesStore } from "@/lib/stores/favorites-store";
 import { useConversations, useDeleteConversation } from "@/lib/hooks/use-conversations";
-import { groupConversationsByDate, flattenGroupedConversations } from "@/lib/utils/conversation-grouping";
 import * as DropdownMenu from "@/components/ui/dropdown-menu";
 import { ProjectEditDialog } from "@/components/project-edit-dialog";
 import { InviteDialog } from "@/components/invite-dialog";
@@ -159,7 +158,7 @@ const ChatSidebar = React.memo(function ChatSidebar() {
   }, [router]);
 
   const handleDeleteConversation = React.useCallback((id: string, e: any) => {
-    e.stopPropagation();
+    e?.stopPropagation?.();
     deleteConversationMutation.mutate(id);
   }, [deleteConversationMutation]);
 
@@ -238,13 +237,13 @@ const ChatSidebar = React.memo(function ChatSidebar() {
   }, []);
 
   const handleEditProject = React.useCallback((project: Project, e: any) => {
-    e.stopPropagation();
+    e?.stopPropagation?.();
     setEditingProject(project);
     setEditDialogOpen(true);
   }, []);
 
   const handleDeleteProject = React.useCallback(async (id: string, e: any) => {
-    e.stopPropagation();
+    e?.stopPropagation?.();
     await deleteProject(id);
   }, [deleteProject]);
 
@@ -276,7 +275,7 @@ const ChatSidebar = React.memo(function ChatSidebar() {
 
   const handleMoveConversationToProject = React.useCallback(
     async (conversationId: string, projectId: string | null, e: any) => {
-      e.stopPropagation();
+      e?.stopPropagation?.();
 
       // Remove from all projects first
       for (const project of projects) {
@@ -308,18 +307,18 @@ const ChatSidebar = React.memo(function ChatSidebar() {
   }, []);
 
   const handleEditFolder = React.useCallback((folder: FolderType, e: any) => {
-    e.stopPropagation();
+    e?.stopPropagation?.();
     setEditingFolder(folder);
     setFolderEditDialogOpen(true);
   }, []);
 
   const handleDeleteFolder = React.useCallback(async (id: string, e: any) => {
-    e.stopPropagation();
+    e?.stopPropagation?.();
     await deleteFolder(id);
   }, [deleteFolder]);
 
   const handleToggleFavoriteFolder = React.useCallback(async (folder: FolderType, e: any) => {
-    e.stopPropagation();
+    e?.stopPropagation?.();
     await updateFolder(folder.id, { isFavorite: !folder.isFavorite });
   }, [updateFolder]);
 
@@ -343,7 +342,7 @@ const ChatSidebar = React.memo(function ChatSidebar() {
 
   const handleMoveConversationToFolder = React.useCallback(
     async (conversationId: string, folderId: string | null, e: any) => {
-      e.stopPropagation();
+      e?.stopPropagation?.();
 
       // Remove from all folders first
       for (const folder of folders) {
@@ -370,7 +369,7 @@ const ChatSidebar = React.memo(function ChatSidebar() {
 
   const handleToggleFavorite = React.useCallback(
     async (conversationId: string, e: any) => {
-      e.stopPropagation();
+      e?.stopPropagation?.();
       await toggleFavorite(conversationId);
     },
     [toggleFavorite]
@@ -393,15 +392,6 @@ const ChatSidebar = React.memo(function ChatSidebar() {
     });
     return conversationsNotInProjects.filter((conv) => !conversationsInFolders.has(conv.id));
   }, [conversationsNotInProjects, folders]);
-
-  // Group standalone conversations by date
-  const groupedStandaloneConversations = React.useMemo(() => {
-    return groupConversationsByDate(standaloneConversations);
-  }, [standaloneConversations]);
-
-  const flattenedStandaloneConversations = React.useMemo(() => {
-    return flattenGroupedConversations(groupedStandaloneConversations);
-  }, [groupedStandaloneConversations]);
 
   // Handle scroll for infinite loading
   const handleScroll = React.useCallback((event: NativeSyntheticEvent<NativeScrollEvent>) => {
@@ -676,7 +666,7 @@ const ChatSidebar = React.memo(function ChatSidebar() {
 
                     {/* Standalone conversations with date grouping */}
                     <HistoryList
-                      data={flattenedStandaloneConversations}
+                      data={standaloneConversations}
                       currentChatId={chatId?.id}
                       favoriteIds={favoriteConversationIds}
                       projects={projects}

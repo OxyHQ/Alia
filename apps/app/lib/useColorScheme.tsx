@@ -10,13 +10,13 @@ import { ACCENT_PRESETS } from './accent-presets';
 const BASE_THEME_COLORS = {
   light: {
     background: '#ffffff',
-    muted: '#f5f5f5',
-    mutedForeground: '#737373',
+    muted: '#f4f4f4',
+    mutedForeground: '#727272',
   },
   dark: {
-    background: '#0a0d1a',
-    muted: '#242938',
-    mutedForeground: '#b3b3b3',
+    background: '#030510',
+    muted: '#2b3749',
+    mutedForeground: '#b2b2b2',
   },
 };
 

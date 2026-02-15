@@ -4,6 +4,7 @@ import { X, Zap, AlertTriangle } from 'lucide-react-native';
 import { Text } from '@/components/ui/text';
 import { useRouter } from 'expo-router';
 import { useCredits } from '@/lib/hooks/use-credits';
+import { queryKeys } from '@/lib/hooks/query-keys';
 import { useState } from 'react';
 import { useTranslation } from '@/hooks/useTranslation';
 
@@ -40,7 +41,7 @@ export function CreditWarningBanner({ selectedModel, onSwitchModel }: CreditWarn
   const { data: creditsInfo } = useCredits();
   const [lowCreditsDismissed, setLowCreditsDismissed] = useState(false);
 
-  const usageWarning = queryClient.getQueryData<UsageWarningData>(['usage-warning']);
+  const usageWarning = queryClient.getQueryData<UsageWarningData>(queryKeys.credits.usageWarning);
 
   // Low credits banner (< 50 credits remaining, non-zero)
   const isLowCredits = !lowCreditsDismissed && creditsInfo && creditsInfo.credits < 50 && creditsInfo.credits > 0;
@@ -77,7 +78,7 @@ export function CreditWarningBanner({ selectedModel, onSwitchModel }: CreditWarn
   const savingsRatio = Math.round(currentMultiplier / alt.multiplier);
 
   const handleDismiss = () => {
-    queryClient.setQueryData(['usage-warning'], null);
+    queryClient.setQueryData(queryKeys.credits.usageWarning, null);
   };
 
   let statusText: string;

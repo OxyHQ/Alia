@@ -1,6 +1,8 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useOxy } from '@oxyhq/services';
 import apiClient from '../api/client';
+import { queryKeys } from './query-keys';
+import { useAuthQuery } from './create-query';
 
 export interface DeveloperApp {
   _id: string;
@@ -83,7 +85,7 @@ export function useApps() {
   const { isAuthenticated } = useOxy();
 
   return useQuery({
-    queryKey: ['developer-apps'],
+    queryKey: queryKeys.developer.apps,
     queryFn: fetchApps,
     staleTime: 1000 * 60 * 5, // 5 minutes
     retry: 2,
@@ -98,7 +100,7 @@ async function fetchApp(id: string): Promise<DeveloperApp> {
 
 export function useApp(id: string) {
   return useQuery({
-    queryKey: ['developer-app', id],
+    queryKey: queryKeys.developer.app(id),
     queryFn: () => fetchApp(id),
     enabled: !!id,
     staleTime: 1000 * 60 * 2, // 2 minutes
@@ -116,16 +118,16 @@ export function useCreateApp() {
     },
     onSuccess: (newApp) => {
       // Add to apps list cache
-      queryClient.setQueryData<DeveloperApp[]>(['developer-apps'], (old) => {
+      queryClient.setQueryData<DeveloperApp[]>(queryKeys.developer.apps, (old) => {
         if (!old) return [newApp];
         return [newApp, ...old];
       });
 
       // Set individual app cache
-      queryClient.setQueryData(['developer-app', newApp._id], newApp);
+      queryClient.setQueryData(queryKeys.developer.app(newApp._id), newApp);
 
       // Invalidate stats
-      queryClient.invalidateQueries({ queryKey: ['developer-stats'] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.developer.stats });
     },
   });
 }
@@ -140,13 +142,13 @@ export function useUpdateApp() {
     },
     onSuccess: (updatedApp) => {
       // Update apps list cache
-      queryClient.setQueryData<DeveloperApp[]>(['developer-apps'], (old) => {
+      queryClient.setQueryData<DeveloperApp[]>(queryKeys.developer.apps, (old) => {
         if (!old) return [updatedApp];
         return old.map((app) => (app._id === updatedApp._id ? updatedApp : app));
       });
 
       // Update individual app cache
-      queryClient.setQueryData(['developer-app', updatedApp._id], updatedApp);
+      queryClient.setQueryData(queryKeys.developer.app(updatedApp._id), updatedApp);
     },
   });
 }
@@ -161,17 +163,17 @@ export function useDeleteApp() {
     },
     onSuccess: (id) => {
       // Remove from apps list cache
-      queryClient.setQueryData<DeveloperApp[]>(['developer-apps'], (old) => {
+      queryClient.setQueryData<DeveloperApp[]>(queryKeys.developer.apps, (old) => {
         if (!old) return [];
         return old.filter((app) => app._id !== id);
       });
 
       // Remove individual app cache
-      queryClient.removeQueries({ queryKey: ['developer-app', id] });
+      queryClient.removeQueries({ queryKey: queryKeys.developer.app(id) });
 
       // Invalidate related queries
-      queryClient.invalidateQueries({ queryKey: ['developer-keys', id] });
-      queryClient.invalidateQueries({ queryKey: ['developer-stats'] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.developer.keys(id) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.developer.stats });
     },
   });
 }
@@ -187,7 +189,7 @@ async function fetchApiKeys(appId: string): Promise<DeveloperApiKey[]> {
 
 export function useApiKeys(appId: string) {
   return useQuery({
-    queryKey: ['developer-keys', appId],
+    queryKey: queryKeys.developer.keys(appId),
     queryFn: () => fetchApiKeys(appId),
     enabled: !!appId,
     staleTime: 1000 * 60 * 2, // 2 minutes
@@ -211,13 +213,13 @@ export function useCreateApiKey() {
     },
     onSuccess: ({ appId, apiKey }) => {
       // Add to keys list cache
-      queryClient.setQueryData<DeveloperApiKey[]>(['developer-keys', appId], (old) => {
+      queryClient.setQueryData<DeveloperApiKey[]>(queryKeys.developer.keys(appId), (old) => {
         if (!old) return [apiKey];
         return [apiKey, ...old];
       });
 
       // Invalidate stats
-      queryClient.invalidateQueries({ queryKey: ['developer-stats'] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.developer.stats });
     },
   });
 }
@@ -240,7 +242,7 @@ export function useUpdateApiKey() {
     },
     onSuccess: ({ appId, apiKey }) => {
       // Update keys list cache
-      queryClient.setQueryData<DeveloperApiKey[]>(['developer-keys', appId], (old) => {
+      queryClient.setQueryData<DeveloperApiKey[]>(queryKeys.developer.keys(appId), (old) => {
         if (!old) return [apiKey];
         return old.map((key) => (key._id === apiKey._id ? apiKey : key));
       });
@@ -258,13 +260,13 @@ export function useDeleteApiKey() {
     },
     onSuccess: ({ appId, keyId }) => {
       // Remove from keys list cache
-      queryClient.setQueryData<DeveloperApiKey[]>(['developer-keys', appId], (old) => {
+      queryClient.setQueryData<DeveloperApiKey[]>(queryKeys.developer.keys(appId), (old) => {
         if (!old) return [];
         return old.filter((key) => key._id !== keyId);
       });
 
       // Invalidate stats
-      queryClient.invalidateQueries({ queryKey: ['developer-stats'] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.developer.stats });
     },
   });
 }
@@ -280,7 +282,7 @@ async function fetchAppUsage(appId: string, period: string): Promise<AppUsageSta
 
 export function useAppUsage(appId: string, period: string = '7d') {
   return useQuery({
-    queryKey: ['developer-usage', appId, period],
+    queryKey: queryKeys.developer.usage(appId, period),
     queryFn: () => fetchAppUsage(appId, period),
     enabled: !!appId,
     staleTime: 1000 * 60, // 1 minute
@@ -301,7 +303,7 @@ async function fetchKeyUsage(
 
 export function useKeyUsage(appId: string, keyId: string, period: string = '7d') {
   return useQuery({
-    queryKey: ['developer-key-usage', appId, keyId, period],
+    queryKey: queryKeys.developer.keyUsage(appId, keyId, period),
     queryFn: () => fetchKeyUsage(appId, keyId, period),
     enabled: !!appId && !!keyId,
     staleTime: 1000 * 60, // 1 minute
@@ -309,21 +311,8 @@ export function useKeyUsage(appId: string, keyId: string, period: string = '7d')
   });
 }
 
-async function fetchDeveloperStats(): Promise<DeveloperStats> {
-  const response = await apiClient.get('/developer/stats');
-  return response.data;
-}
-
 export function useDeveloperStats() {
-  const { isAuthenticated } = useOxy();
-
-  return useQuery({
-    queryKey: ['developer-stats'],
-    queryFn: fetchDeveloperStats,
-    staleTime: 1000 * 60 * 5, // 5 minutes
-    retry: 2,
-    enabled: isAuthenticated,
-  });
+  return useAuthQuery<DeveloperStats>(queryKeys.developer.stats, '/developer/stats');
 }
 
 // ======================
@@ -360,7 +349,7 @@ async function fetchModelsStats(): Promise<ModelsStatsResponse> {
 
 export function useModelsStats() {
   return useQuery({
-    queryKey: ['models-stats'],
+    queryKey: queryKeys.developer.modelsStats,
     queryFn: fetchModelsStats,
     staleTime: 1000 * 60 * 2, // 2 minutes
     retry: 2,

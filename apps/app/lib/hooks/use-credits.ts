@@ -1,6 +1,8 @@
 import { useQuery } from '@tanstack/react-query';
 import { useOxy } from '@oxyhq/services';
 import apiClient from '../api/client';
+import { queryKeys } from './query-keys';
+import { useAuthQuery } from './create-query';
 
 // --- Shared period type ---
 
@@ -27,17 +29,7 @@ export interface CreditsInfo {
 }
 
 export function useCredits() {
-  const { isAuthenticated } = useOxy();
-  return useQuery({
-    queryKey: ['credits'],
-    queryFn: async () => {
-      const res = await apiClient.get('/credits');
-      return res.data as CreditsInfo;
-    },
-    staleTime: 60_000,
-    retry: 2,
-    enabled: isAuthenticated,
-  });
+  return useAuthQuery<CreditsInfo>(queryKeys.credits.info, '/credits', undefined, { staleTime: 60_000 });
 }
 
 // --- Credit usage chart ---
@@ -48,17 +40,7 @@ export interface DailyUsage {
 }
 
 export function useCreditsUsage(period: UsagePeriod = '24h') {
-  const { isAuthenticated } = useOxy();
-  return useQuery({
-    queryKey: ['credits-usage', period],
-    queryFn: async () => {
-      const res = await apiClient.get('/credits/usage', { params: { period } });
-      return res.data as DailyUsage[];
-    },
-    staleTime: 30_000,
-    retry: 2,
-    enabled: isAuthenticated,
-  });
+  return useAuthQuery<DailyUsage[]>(queryKeys.credits.usage(period), '/credits/usage', { period }, { staleTime: 30_000 });
 }
 
 // --- Analytics ---
@@ -86,7 +68,7 @@ export function useAnalytics(period: UsagePeriod = '24h') {
   const days = PERIOD_DAYS[period];
   const { isAuthenticated } = useOxy();
   return useQuery({
-    queryKey: ['analytics', period],
+    queryKey: queryKeys.credits.analytics(period),
     queryFn: async () => {
       const [u, m] = await Promise.all([
         apiClient.get('/analytics/usage', { params: { days } }),
