@@ -1,13 +1,18 @@
 import { Router } from 'express';
 import { randomUUID } from 'crypto';
 import { createVoiceToken, isLiveKitConfigured, getLiveKitUrl } from '../../lib/livekit-token.js';
-import { resolveModel } from '../../lib/chat-core.js';
-import { getBestKeyForModel } from '../../internal/providers/lib/key-manager.js';
+import { getBestKeyForModel, recordKeySuccess, recordKeyFailure } from '../../internal/providers/lib/key-manager.js';
+import { getModelMappingsForTier } from '../../internal/providers/lib/alia-models.js';
 import { reserveCredits, finalizeCredits, refundReservation } from '../../lib/credits-manager.js';
 import { getOrCreateUserCredits } from '../../lib/user-credits-helpers.js';
 import { log } from '../../lib/logger.js';
 import { getUserEntitlements } from '../../lib/plan-access.js';
 import type { Request, Response } from 'express';
+
+const WHISPER_URLS: Record<string, string> = {
+  openai: 'https://api.openai.com/v1/audio/transcriptions',
+  groq: 'https://api.groq.com/openai/v1/audio/transcriptions',
+};
 
 const router = Router();
 
@@ -88,58 +93,43 @@ router.post('/transcribe', async (req: Request, res: Response) => {
       });
     }
 
-    // Resolve a Whisper-compatible provider key and API endpoint
-    // Priority: OpenAI key from model config > OpenAI from providers > Groq from providers > env var
+    // Resolve a Whisper-compatible provider key using the v1-audio tier
     let apiKey: string | null = null;
-    let whisperUrl = 'https://api.openai.com/v1/audio/transcriptions';
-    let whisperModel = 'whisper-1';
+    let whisperUrl = '';
+    let whisperModel = '';
+    let resolvedKeyId: string | null = null;
 
-    // 1. Try alia-v1 model config (if it resolves to OpenAI)
-    try {
-      const resolved = await resolveModel('alia-v1');
-      if (resolved?.keyConfig.provider === 'openai') {
-        apiKey = resolved.keyConfig.key;
+    const audioMappings = getModelMappingsForTier('v1-audio');
+
+    for (const mapping of audioMappings) {
+      const url = WHISPER_URLS[mapping.provider];
+      if (!url) continue;
+
+      try {
+        const keyConfig = await getBestKeyForModel(mapping.provider, mapping.modelId);
+        if (keyConfig?.key) {
+          apiKey = keyConfig.key;
+          whisperUrl = url;
+          whisperModel = mapping.modelId;
+          resolvedKeyId = keyConfig.keyId || null;
+          break;
+        }
+      } catch (err) {
+        log.general.warn({ err, provider: mapping.provider, model: mapping.modelId }, 'Transcription key lookup failed');
       }
-    } catch {}
-
-    // 2. Try OpenAI key directly from providers
-    if (!apiKey) {
-      try {
-        const openaiKey = await getBestKeyForModel('openai', 'whisper-1');
-        if (openaiKey?.key) {
-          apiKey = openaiKey.key;
-        }
-      } catch {}
-    }
-
-    // 3. Try Groq (has Whisper API at /openai/v1/audio/transcriptions)
-    if (!apiKey) {
-      try {
-        const groqKey = await getBestKeyForModel('groq', 'whisper-large-v3-turbo');
-        if (groqKey?.key) {
-          apiKey = groqKey.key;
-          whisperUrl = 'https://api.groq.com/openai/v1/audio/transcriptions';
-          whisperModel = 'whisper-large-v3-turbo';
-        }
-      } catch {}
-    }
-
-    // 4. Fallback to env var (OpenAI)
-    if (!apiKey) {
-      apiKey = process.env.OPENAI_API_KEY || null;
     }
 
     if (!apiKey) {
+      log.general.error('All transcription providers exhausted, no key available');
       await finalizeCredits(reservation, { promptTokens: 0, completionTokens: 0, totalTokens: 0 });
       return res.status(503).json({ error: 'No transcription provider available' });
     }
 
-    // Convert base64 to buffer
+    // Convert base64 to buffer and call Whisper API with 30s timeout
     const audioBuffer = Buffer.from(audio, 'base64');
     const mimeType = format || 'audio/m4a';
     const ext = mimeType.split('/')[1] || 'm4a';
 
-    // Call Whisper API (OpenAI or Groq) with 30s timeout
     const formData = new FormData();
     const blob = new Blob([audioBuffer], { type: mimeType });
     formData.append('file', blob, `audio.${ext}`);
@@ -161,6 +151,7 @@ router.post('/transcribe', async (req: Request, res: Response) => {
       clearTimeout(fetchTimeout);
       if (fetchError.name === 'AbortError') {
         log.general.error({ whisperModel, whisperUrl }, 'Whisper API timeout (30s)');
+        if (resolvedKeyId) recordKeyFailure(resolvedKeyId, 'Whisper API timeout').catch(() => {});
         await finalizeCredits(reservation, { promptTokens: 0, completionTokens: 0, totalTokens: 0 });
         return res.status(504).json({ error: 'Transcription timed out' });
       }
@@ -170,11 +161,14 @@ router.post('/transcribe', async (req: Request, res: Response) => {
     if (!response.ok) {
       const errorBody = await response.text();
       log.general.error({ whisperModel, statusCode: response.status, errorBody }, 'Whisper API error');
+      if (resolvedKeyId) recordKeyFailure(resolvedKeyId, `Whisper API ${response.status}`).catch(() => {});
       await finalizeCredits(reservation, { promptTokens: 0, completionTokens: 0, totalTokens: 0 });
       return res.status(502).json({ error: 'Transcription failed' });
     }
 
     const result = await response.json() as { text: string };
+
+    if (resolvedKeyId) recordKeySuccess(resolvedKeyId).catch(() => {});
 
     // Charge minimal credits for transcription (~100 tokens equivalent)
     await finalizeCredits(reservation, {
