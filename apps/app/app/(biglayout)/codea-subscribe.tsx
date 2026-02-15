@@ -127,96 +127,97 @@ export default function CodeaSubscribeScreen() {
   };
 
   return (
-    <ScrollView className="flex-1 bg-background">
-      {/* ── Dark editor-style hero ──────────────────────────────── */}
-      <View className="bg-zinc-900 dark:bg-zinc-950">
-        <View className="w-full max-w-[800px] mx-auto px-6 pt-6 pb-8">
-          <BackButton t={t} />
+    <View className="dark flex-1">
+      <ScrollView className="flex-1" style={{ backgroundColor: '#0a0e1a' }}>
+        {/* ── Dark editor-style hero ────────────────────────────── */}
+        <View style={{ backgroundColor: '#111827' }}>
+          <View className="w-full max-w-[800px] mx-auto px-6 pt-6 pb-8">
+            <BackButton t={t} />
 
-          <View className="items-center gap-5 mt-2">
-            {/* Decorative code snippet */}
-            <View className="bg-zinc-800 rounded-lg px-4 py-3 w-full max-w-[340px]">
-              {/* Title bar dots */}
-              <View className="flex-row gap-1.5 mb-3">
-                <View className="w-2.5 h-2.5 rounded-full bg-red-500/70" />
-                <View className="w-2.5 h-2.5 rounded-full bg-yellow-500/70" />
-                <View className="w-2.5 h-2.5 rounded-full bg-green-500/70" />
+            <View className="items-center gap-5 mt-2">
+              {/* Decorative code snippet */}
+              <View style={{ backgroundColor: '#1e2433' }} className="rounded-lg px-4 py-3 w-full max-w-[340px]">
+                {/* Title bar dots */}
+                <View className="flex-row gap-1.5 mb-3">
+                  <View className="w-2.5 h-2.5 rounded-full bg-red-500/70" />
+                  <View className="w-2.5 h-2.5 rounded-full bg-yellow-500/70" />
+                  <View className="w-2.5 h-2.5 rounded-full bg-green-500/70" />
+                </View>
+                <Text style={{ fontFamily: MONO_FONT, fontSize: 12, lineHeight: 20, color: '#6b7280' }}>
+                  {'// codea.config.ts'}
+                </Text>
+                <Text style={{ fontFamily: MONO_FONT, fontSize: 12, lineHeight: 20 }}>
+                  <Text style={{ color: '#c084fc' }}>export const</Text>
+                  <Text style={{ color: '#e4e4e7' }}> plan = </Text>
+                  <Text style={{ color: '#fbbf24' }}>{'{'}</Text>
+                </Text>
+                <Text style={{ fontFamily: MONO_FONT, fontSize: 12, lineHeight: 20 }}>
+                  <Text style={{ color: '#e4e4e7' }}>{'  model: '}</Text>
+                  <Text style={{ color: '#34d399' }}>{'"unlimited"'}</Text>
+                  <Text style={{ color: '#e4e4e7' }}>,</Text>
+                </Text>
+                <Text style={{ fontFamily: MONO_FONT, fontSize: 12, lineHeight: 20 }}>
+                  <Text style={{ color: '#e4e4e7' }}>{'  autocomplete: '}</Text>
+                  <Text style={{ color: '#60a5fa' }}>true</Text>
+                  <Text style={{ color: '#e4e4e7' }}>,</Text>
+                </Text>
+                <Text style={{ fontFamily: MONO_FONT, fontSize: 12, lineHeight: 20 }}>
+                  <Text style={{ color: '#fbbf24' }}>{'}'}</Text>
+                </Text>
               </View>
-              <Text style={{ fontFamily: MONO_FONT, fontSize: 12, lineHeight: 20, color: '#6b7280' }}>
-                {'// codea.config.ts'}
+
+              {/* Title + subtitle */}
+              <Text className="text-2xl font-bold text-center" style={{ color: '#f4f4f5' }}>
+                {t('subscribe.codeaTitle')}
               </Text>
-              <Text style={{ fontFamily: MONO_FONT, fontSize: 12, lineHeight: 20 }}>
-                <Text style={{ color: '#c084fc' }}>export const</Text>
-                <Text style={{ color: '#e4e4e7' }}> plan = </Text>
-                <Text style={{ color: '#fbbf24' }}>{'{'}</Text>
+              <Text className="text-sm text-center max-w-[320px]" style={{ color: '#9ca3af' }}>
+                {t('subscribe.codeaSubtitle')}
               </Text>
-              <Text style={{ fontFamily: MONO_FONT, fontSize: 12, lineHeight: 20 }}>
-                <Text style={{ color: '#e4e4e7' }}>{'  model: '}</Text>
-                <Text style={{ color: '#34d399' }}>{'"unlimited"'}</Text>
-                <Text style={{ color: '#e4e4e7' }}>,</Text>
-              </Text>
-              <Text style={{ fontFamily: MONO_FONT, fontSize: 12, lineHeight: 20 }}>
-                <Text style={{ color: '#e4e4e7' }}>{'  autocomplete: '}</Text>
-                <Text style={{ color: '#60a5fa' }}>true</Text>
-                <Text style={{ color: '#e4e4e7' }}>,</Text>
-              </Text>
-              <Text style={{ fontFamily: MONO_FONT, fontSize: 12, lineHeight: 20 }}>
-                <Text style={{ color: '#fbbf24' }}>{'}'}</Text>
-              </Text>
+
+              <BillingToggle
+                value={billingPeriod}
+                onChange={setBillingPeriod}
+                t={t}
+              />
             </View>
+          </View>
+        </View>
 
-            {/* Title + subtitle */}
-            <Text className="text-2xl font-bold text-white text-center">
-              {t('subscribe.codeaTitle')}
-            </Text>
-            <Text className="text-sm text-zinc-400 text-center max-w-[320px]">
-              {t('subscribe.codeaSubtitle')}
-            </Text>
-
-            {/* Billing toggle on dark bg */}
-            <BillingToggle
-              value={billingPeriod}
-              onChange={setBillingPeriod}
+        {/* ── Plans + footer ──────────────────────────────────── */}
+        <View className="w-full max-w-[800px] mx-auto">
+          {plansLoading && tiers.length === 0 ? (
+            <View className="items-center justify-center py-16">
+              <ActivityIndicator size="large" color="#a78bfa" />
+            </View>
+          ) : plansError ? (
+            <View className="items-center justify-center py-16 gap-2">
+              <Text className="text-sm" style={{ color: '#9ca3af' }}>{t('subscribe.loadError')}</Text>
+            </View>
+          ) : (
+            <PlanGrid
+              tiers={tiers}
+              billingPeriod={billingPeriod}
+              currentPlanId={subscription?.plan?.planId}
+              hasActiveSubscription={
+                !!subscription && subscription.status === 'active'
+              }
+              onSubscribe={handleSubscribe}
+              loadingPlanId={loadingPlanId}
+              isWideLayout={isWideLayout}
               t={t}
             />
+          )}
+
+          {/* Shared credits note */}
+          <View className="mx-4 mt-6 p-4 rounded-xl items-center" style={{ backgroundColor: 'rgba(255,255,255,0.05)' }}>
+            <Text className="text-xs text-center" style={{ color: '#9ca3af' }}>
+              {t('subscribe.sharedCredits')}
+            </Text>
           </View>
+
+          <PageFooter t={t} />
         </View>
-      </View>
-
-      {/* ── Plans + footer ──────────────────────────────────────── */}
-      <View className="w-full max-w-[800px] mx-auto">
-        {plansLoading && tiers.length === 0 ? (
-          <View className="items-center justify-center py-16">
-            <ActivityIndicator size="large" />
-          </View>
-        ) : plansError ? (
-          <View className="items-center justify-center py-16 gap-2">
-            <Text className="text-sm text-muted-foreground">{t('subscribe.loadError')}</Text>
-          </View>
-        ) : (
-          <PlanGrid
-            tiers={tiers}
-            billingPeriod={billingPeriod}
-            currentPlanId={subscription?.plan?.planId}
-            hasActiveSubscription={
-              !!subscription && subscription.status === 'active'
-            }
-            onSubscribe={handleSubscribe}
-            loadingPlanId={loadingPlanId}
-            isWideLayout={isWideLayout}
-            t={t}
-          />
-        )}
-
-        {/* Shared credits note */}
-        <View className="mx-4 mt-6 p-4 rounded-xl bg-muted/50 items-center">
-          <Text className="text-xs text-muted-foreground text-center">
-            {t('subscribe.sharedCredits')}
-          </Text>
-        </View>
-
-        <PageFooter t={t} />
-      </View>
-    </ScrollView>
+      </ScrollView>
+    </View>
   );
 }
