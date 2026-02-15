@@ -1,13 +1,13 @@
-import { View, useWindowDimensions } from "react-native";
+import { View, useWindowDimensions, Platform } from "react-native";
 import { Text } from "@/components/ui/text";
-import { Search, MoreHorizontal, Menu, Ghost, Trash2, Download, Share2, Settings, HelpCircle } from "lucide-react-native";
+import { Search, MoreHorizontal, Menu, Ghost } from "lucide-react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Button } from "@/components/ui/button";
 import { ModelSelector } from "@/components/model-selector";
 import { CreditsMenu } from "@/components/credits-menu";
-import { useNavigation } from "expo-router";
+import { useNavigation, useRouter } from "expo-router";
 import { DrawerNavigationProp } from "@react-navigation/drawer";
-import { Dropdown, MenuItem, Separator } from "@/components/ui/dropdown";
+import * as DropdownMenu from "@/components/ui/dropdown-menu";
 import { toast } from "@/components/sonner";
 import { ConfirmationDialog } from "@/components/ui/confirmation-dialog";
 import { useState } from "react";
@@ -21,6 +21,7 @@ interface ChatHeaderProps {
   ghostModeActive?: boolean;
   onSearchPress?: () => void;
   onClear?: () => void;
+  isConversation?: boolean;
 }
 
 export function ChatHeader({
@@ -31,11 +32,13 @@ export function ChatHeader({
   ghostModeActive = false,
   onSearchPress,
   onClear,
+  isConversation = false,
 }: ChatHeaderProps) {
   const { t } = useTranslation();
   const insets = useSafeAreaInsets();
   const dimensions = useWindowDimensions();
   const navigation = useNavigation<DrawerNavigationProp<any>>();
+  const router = useRouter();
   const isLargeScreen = dimensions.width >= 768;
   const [showClearDialog, setShowClearDialog] = useState(false);
 
@@ -60,7 +63,7 @@ export function ChatHeader({
   };
 
   const handleSettings = () => {
-    toast.info(t('chatHeader.settingsComingSoon'));
+    router.push("/(app)/settings");
   };
 
   const handleHelp = () => {
@@ -105,14 +108,20 @@ export function ChatHeader({
         <Button
           variant="ghost"
           size="icon"
-          onPress={onSearchPress}
+          onPress={() => {
+            if (Platform.OS === 'web') {
+              document.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', metaKey: true }));
+            } else {
+              onSearchPress?.();
+            }
+          }}
           className="h-9 w-9 rounded-full"
         >
           <Search size={20} className="text-muted-foreground" />
         </Button>
 
-        <Dropdown
-          trigger={
+        <DropdownMenu.Root>
+          <DropdownMenu.Trigger>
             <Button
               variant="ghost"
               size="icon"
@@ -120,32 +129,40 @@ export function ChatHeader({
             >
               <MoreHorizontal size={20} className="text-muted-foreground" />
             </Button>
-          }
-          align="end"
-        >
-          <MenuItem onPress={handleShare}>
-            <Share2 size={14} className="text-muted-foreground" />
-            <Text className="text-sm">{t('chatHeader.shareConversation')}</Text>
-          </MenuItem>
-          <MenuItem onPress={handleExport}>
-            <Download size={14} className="text-muted-foreground" />
-            <Text className="text-sm">{t('chatHeader.export')}</Text>
-          </MenuItem>
-          <Separator />
-          <MenuItem onPress={handleSettings}>
-            <Settings size={14} className="text-muted-foreground" />
-            <Text className="text-sm">{t('chatHeader.settings')}</Text>
-          </MenuItem>
-          <MenuItem onPress={handleHelp}>
-            <HelpCircle size={14} className="text-muted-foreground" />
-            <Text className="text-sm">{t('chatHeader.help')}</Text>
-          </MenuItem>
-          <Separator />
-          <MenuItem onPress={handleClearConversation} variant="destructive">
-            <Trash2 size={14} className="text-destructive" />
-            <Text className="text-sm text-destructive">{t('chatHeader.clearConversation')}</Text>
-          </MenuItem>
-        </Dropdown>
+          </DropdownMenu.Trigger>
+          <DropdownMenu.Content align="end">
+            {isConversation && (
+              <>
+                <DropdownMenu.Item key="share" onSelect={handleShare}>
+                  <DropdownMenu.ItemIcon ios={{ name: "square.and.arrow.up" }} />
+                  <DropdownMenu.ItemTitle>{t('chatHeader.shareConversation')}</DropdownMenu.ItemTitle>
+                </DropdownMenu.Item>
+                <DropdownMenu.Item key="export" onSelect={handleExport}>
+                  <DropdownMenu.ItemIcon ios={{ name: "arrow.down.doc" }} />
+                  <DropdownMenu.ItemTitle>{t('chatHeader.export')}</DropdownMenu.ItemTitle>
+                </DropdownMenu.Item>
+                <DropdownMenu.Separator />
+              </>
+            )}
+            <DropdownMenu.Item key="settings" onSelect={handleSettings}>
+              <DropdownMenu.ItemIcon ios={{ name: "gearshape" }} />
+              <DropdownMenu.ItemTitle>{t('chatHeader.settings')}</DropdownMenu.ItemTitle>
+            </DropdownMenu.Item>
+            <DropdownMenu.Item key="help" onSelect={handleHelp}>
+              <DropdownMenu.ItemIcon ios={{ name: "questionmark.circle" }} />
+              <DropdownMenu.ItemTitle>{t('chatHeader.help')}</DropdownMenu.ItemTitle>
+            </DropdownMenu.Item>
+            {isConversation && (
+              <>
+                <DropdownMenu.Separator />
+                <DropdownMenu.Item key="clear" destructive onSelect={handleClearConversation}>
+                  <DropdownMenu.ItemIcon ios={{ name: "trash" }} />
+                  <DropdownMenu.ItemTitle>{t('chatHeader.clearConversation')}</DropdownMenu.ItemTitle>
+                </DropdownMenu.Item>
+              </>
+            )}
+          </DropdownMenu.Content>
+        </DropdownMenu.Root>
       </View>
     </View>
 

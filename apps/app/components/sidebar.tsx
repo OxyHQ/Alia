@@ -6,14 +6,8 @@ import { Button } from "@/components/ui/button";
 import { BaseSidebar } from "@/components/base-sidebar";
 import {
   Sparkles,
-  Trash2,
   Users,
   Settings2,
-  Sparkle,
-  UserCircle,
-  CreditCard,
-  Bell,
-  LogOut,
   LogIn,
   UserPlus,
   Library,
@@ -24,7 +18,6 @@ import {
   BookOpen,
   CloudCog,
   MoreHorizontal,
-  Edit,
   Briefcase,
   Folder,
   Package,
@@ -55,13 +48,7 @@ import { useFoldersStore } from "@/lib/stores/folders-store";
 import { useFavoritesStore } from "@/lib/stores/favorites-store";
 import { useConversations, useDeleteConversation } from "@/lib/hooks/use-conversations";
 import { groupConversationsByDate, flattenGroupedConversations } from "@/lib/utils/conversation-grouping";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+import * as DropdownMenu from "@/components/ui/dropdown-menu";
 import { ProjectEditDialog } from "@/components/project-edit-dialog";
 import { InviteDialog } from "@/components/invite-dialog";
 import { FolderEditDialog } from "@/components/folder-edit-dialog";
@@ -571,27 +558,24 @@ const ChatSidebar = React.memo(function ChatSidebar() {
                             <ChevronRight size={14} className="text-muted-foreground" />
                           )}
                         </Pressable>
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
+                        <DropdownMenu.Root>
+                          <DropdownMenu.Trigger>
                             <Pressable className="h-8 w-8 items-center justify-center rounded-full mr-1 active:bg-muted/70">
                               <MoreHorizontal size={14} className="text-muted-foreground" />
                             </Pressable>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent side="bottom" align="end" className="w-48">
-                            <DropdownMenuItem onPress={(e) => handleEditProject(project, e)}>
-                              <Edit size={16} className="text-muted-foreground" />
-                              <Text className="text-sm">{t('sidebar.editProject')}</Text>
-                            </DropdownMenuItem>
-                            <DropdownMenuSeparator />
-                            <DropdownMenuItem
-                              variant="destructive"
-                              onPress={(e) => handleDeleteProject(project.id, e)}
-                            >
-                              <Trash2 size={16} className="text-destructive" />
-                              <Text className="text-sm">{t('sidebar.deleteProject')}</Text>
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
+                          </DropdownMenu.Trigger>
+                          <DropdownMenu.Content>
+                            <DropdownMenu.Item key="edit" onSelect={() => handleEditProject(project, {})}>
+                              <DropdownMenu.ItemIcon ios={{ name: "pencil" }} />
+                              <DropdownMenu.ItemTitle>{t('sidebar.editProject')}</DropdownMenu.ItemTitle>
+                            </DropdownMenu.Item>
+                            <DropdownMenu.Separator />
+                            <DropdownMenu.Item key="delete" destructive onSelect={() => handleDeleteProject(project.id, {})}>
+                              <DropdownMenu.ItemIcon ios={{ name: "trash" }} />
+                              <DropdownMenu.ItemTitle>{t('sidebar.deleteProject')}</DropdownMenu.ItemTitle>
+                            </DropdownMenu.Item>
+                          </DropdownMenu.Content>
+                        </DropdownMenu.Root>
                       </View>
 
                       {/* Project Conversations */}
@@ -743,50 +727,43 @@ const ChatSidebar = React.memo(function ChatSidebar() {
             {/* Icon Button Bar */}
             <View className="flex-row items-center">
               {/* Settings - opens user account dropdown */}
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Pressable className="h-9 w-9 md:h-8 md:w-8 items-center justify-center rounded-lg active:bg-muted">
+              <DropdownMenu.Root>
+                <DropdownMenu.Trigger>
+                  <Pressable className="h-9 w-9 md:h-8 md:w-8 items-center justify-center rounded-lg hover:bg-muted active:bg-muted">
                     <Settings2 size={18} className="text-muted-foreground" />
                   </Pressable>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent
-                  side="top"
-                  align="start"
-                  className="w-64"
-                >
-                  <View className="flex flex-col space-y-1 p-2">
-                    <Text className="text-sm font-medium text-foreground">{getUserDisplayName()}</Text>
-                    <Text className="text-xs text-muted-foreground">{user?.email || ""}</Text>
-                  </View>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem onPress={handleUpgrade}>
-                    <Sparkle size={16} className="text-muted-foreground" />
-                    <Text className="text-sm">{t('sidebar.upgradeToPro')}</Text>
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onPress={handleAccount}>
-                    <UserCircle size={16} className="text-muted-foreground" />
-                    <Text className="text-sm">{t('sidebar.account')}</Text>
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onPress={handleBilling}>
-                    <CreditCard size={16} className="text-muted-foreground" />
-                    <Text className="text-sm">{t('sidebar.billing')}</Text>
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onPress={handleNotifications}>
-                    <Bell size={16} className="text-muted-foreground" />
-                    <Text className="text-sm">{t('sidebar.notifications')}</Text>
-                  </DropdownMenuItem>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem variant="destructive" onPress={handleLogout}>
-                    <LogOut size={16} className="text-destructive" />
-                    <Text className="text-sm">{t('sidebar.logOut')}</Text>
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
+                </DropdownMenu.Trigger>
+                <DropdownMenu.Content>
+                  <DropdownMenu.Label>{getUserDisplayName()}</DropdownMenu.Label>
+                  <DropdownMenu.Separator />
+                  <DropdownMenu.Item key="upgrade" onSelect={handleUpgrade}>
+                    <DropdownMenu.ItemIcon ios={{ name: "sparkle" }} />
+                    <DropdownMenu.ItemTitle>{t('sidebar.upgradeToPro')}</DropdownMenu.ItemTitle>
+                  </DropdownMenu.Item>
+                  <DropdownMenu.Item key="account" onSelect={handleAccount}>
+                    <DropdownMenu.ItemIcon ios={{ name: "person.circle" }} />
+                    <DropdownMenu.ItemTitle>{t('sidebar.account')}</DropdownMenu.ItemTitle>
+                  </DropdownMenu.Item>
+                  <DropdownMenu.Item key="billing" onSelect={handleBilling}>
+                    <DropdownMenu.ItemIcon ios={{ name: "creditcard" }} />
+                    <DropdownMenu.ItemTitle>{t('sidebar.billing')}</DropdownMenu.ItemTitle>
+                  </DropdownMenu.Item>
+                  <DropdownMenu.Item key="notifications" onSelect={handleNotifications}>
+                    <DropdownMenu.ItemIcon ios={{ name: "bell" }} />
+                    <DropdownMenu.ItemTitle>{t('sidebar.notifications')}</DropdownMenu.ItemTitle>
+                  </DropdownMenu.Item>
+                  <DropdownMenu.Separator />
+                  <DropdownMenu.Item key="logout" destructive onSelect={handleLogout}>
+                    <DropdownMenu.ItemIcon ios={{ name: "rectangle.portrait.and.arrow.right" }} />
+                    <DropdownMenu.ItemTitle>{t('sidebar.logOut')}</DropdownMenu.ItemTitle>
+                  </DropdownMenu.Item>
+                </DropdownMenu.Content>
+              </DropdownMenu.Root>
 
               {/* Personalization */}
               <Pressable
                 onPress={handleSettings}
-                className="h-9 w-9 md:h-8 md:w-8 items-center justify-center rounded-lg active:bg-muted"
+                className="h-9 w-9 md:h-8 md:w-8 items-center justify-center rounded-lg hover:bg-muted active:bg-muted"
               >
                 <Palette size={18} className="text-muted-foreground" />
               </Pressable>
@@ -795,7 +772,7 @@ const ChatSidebar = React.memo(function ChatSidebar() {
               {Platform.OS === "web" && (
                 <Pressable
                   onPress={handleAppDownload}
-                  className="h-9 w-9 md:h-8 md:w-8 items-center justify-center rounded-lg active:bg-muted"
+                  className="h-9 w-9 md:h-8 md:w-8 items-center justify-center rounded-lg hover:bg-muted active:bg-muted"
                 >
                   <Smartphone size={18} className="text-muted-foreground" />
                 </Pressable>
@@ -805,7 +782,7 @@ const ChatSidebar = React.memo(function ChatSidebar() {
               {Platform.OS === "web" && (
                 <Pressable
                   onPress={handleConsole}
-                  className="h-9 w-9 md:h-8 md:w-8 items-center justify-center rounded-lg active:bg-muted"
+                  className="h-9 w-9 md:h-8 md:w-8 items-center justify-center rounded-lg hover:bg-muted active:bg-muted"
                 >
                   <Code size={18} className="text-muted-foreground" />
                 </Pressable>
@@ -817,7 +794,7 @@ const ChatSidebar = React.memo(function ChatSidebar() {
               {/* Docs */}
               <Pressable
                 onPress={handleDocs}
-                className="h-9 w-9 md:h-8 md:w-8 items-center justify-center rounded-lg active:bg-muted"
+                className="h-9 w-9 md:h-8 md:w-8 items-center justify-center rounded-lg hover:bg-muted active:bg-muted"
               >
                 <BookOpen size={18} className="text-muted-foreground" />
               </Pressable>

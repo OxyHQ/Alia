@@ -6,7 +6,7 @@ import { useEffect } from 'react';
 import { OxyProvider, useOxy } from '@oxyhq/services';
 import * as Linking from 'expo-linking';
 import { Platform } from 'react-native';
-import { PortalHost } from '@rn-primitives/portal';
+
 import { KeyboardProvider } from 'react-native-keyboard-controller';
 import { useColorScheme } from '@/lib/useColorScheme';
 import { setTokenGetter } from '@/lib/api/client';
@@ -51,7 +51,7 @@ function AppContent() {
           <Stack.Screen name="(biglayout)" options={{ headerShown: false }} />
         </Stack>
       </KeyboardProvider>
-      <PortalHost />
+
     </AuthSetup>
   );
 }

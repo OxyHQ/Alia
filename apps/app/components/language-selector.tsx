@@ -1,13 +1,8 @@
 import { View, Pressable } from 'react-native';
 import { Text } from '@/components/ui/text';
 import { useTranslation } from '@/hooks/useTranslation';
-import { ChevronDown, Check, Globe2 } from 'lucide-react-native';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
+import { ChevronDown, Globe2 } from 'lucide-react-native';
+import * as DropdownMenu from '@/components/ui/dropdown-menu';
 
 const SUPPORTED_LOCALES = [
   { code: 'en-US', label: 'English', nativeLabel: 'English' },
@@ -33,29 +28,29 @@ export function LanguageSelector() {
       <Text className="text-sm text-muted-foreground">
         {t('settings.appLanguage.description')}
       </Text>
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
+      <DropdownMenu.Root>
+        <DropdownMenu.Trigger>
           <Pressable className="border border-border rounded-lg px-4 py-3 bg-background flex-row items-center justify-between">
             <Text className="text-foreground">{getCurrentLocaleLabel()}</Text>
             <ChevronDown size={20} className="text-muted-foreground" />
           </Pressable>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent className="w-64">
+        </DropdownMenu.Trigger>
+        <DropdownMenu.Content>
           {SUPPORTED_LOCALES.map((lang) => (
-            <DropdownMenuItem key={lang.code} onPress={() => changeLocale(lang.code)}>
-              <View className="flex-row items-center justify-between flex-1">
-                <View>
-                  <Text>{lang.nativeLabel}</Text>
-                  {lang.label !== lang.nativeLabel && (
-                    <Text className="text-xs text-muted-foreground">{lang.label}</Text>
-                  )}
-                </View>
-                {locale === lang.code && <Check size={16} className="text-primary" />}
-              </View>
-            </DropdownMenuItem>
+            <DropdownMenu.CheckboxItem
+              key={lang.code}
+              value={locale === lang.code ? 'on' : 'off'}
+              onValueChange={() => changeLocale(lang.code)}
+            >
+              <DropdownMenu.ItemIndicator />
+              <DropdownMenu.ItemTitle>{lang.nativeLabel}</DropdownMenu.ItemTitle>
+              {lang.label !== lang.nativeLabel && (
+                <DropdownMenu.ItemSubtitle>{lang.label}</DropdownMenu.ItemSubtitle>
+              )}
+            </DropdownMenu.CheckboxItem>
           ))}
-        </DropdownMenuContent>
-      </DropdownMenu>
+        </DropdownMenu.Content>
+      </DropdownMenu.Root>
     </View>
   );
 }

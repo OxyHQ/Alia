@@ -78,7 +78,7 @@ export function useChatConversation({ conversationId, activeRole, thinkingMode, 
       role: 'user',
       content,
     });
-    useStore.getState().clearImageUris();
+    useStore.getState().clearAttachments();
   }, [isLoading, append]);
 
   const createNewConversation = useCallback(async (initialMessage: string) => {

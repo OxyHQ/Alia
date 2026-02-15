@@ -1,14 +1,15 @@
 import { useState, useCallback } from "react";
-import { View, Pressable } from "react-native";
+import { View, Pressable, useWindowDimensions, useColorScheme } from "react-native";
+import { LinearGradient } from "expo-linear-gradient";
 import type { ScrollView as GHScrollView } from "react-native-gesture-handler";
 import { useStore } from "@/lib/globalStore";
 import { ActivityIndicator } from "react-native";
-import { Plus, Globe, ArrowUp, ImageIcon, MoreHorizontal, X, FileText, Ghost, Check, Search, ShoppingBag, BookOpen, ExternalLink, PenTool, Sparkles, Square, Brain, Mic, MicOff } from "lucide-react-native";
+import { Plus, Globe, ArrowUp, MoreHorizontal, X, Ghost, Sparkles, Square, Brain, Mic, MicOff } from "lucide-react-native";
 import Entypo from '@expo/vector-icons/Entypo';
 import { useImagePicker } from "@/hooks/useImagePicker";
-import * as DocumentPicker from 'expo-document-picker';
+import { useDocumentPicker } from "@/hooks/useDocumentPicker";
 import { AttachmentPreview } from "@/components/attachment-preview";
-import { Dropdown, MenuItem, SubMenu } from "@/components/ui/dropdown";
+import * as DropdownMenu from "@/components/ui/dropdown-menu";
 import { Text } from "@/components/ui/text";
 import { Button } from "@/components/ui/button";
 import { PromptInput, PromptInputTextarea, PromptInputActions, usePromptInput } from "@/components/ui/prompt-input";
@@ -22,6 +23,9 @@ import { CanvasPanel } from "@/components/canvas-panel";
 import { useSpeechToText } from "@/lib/hooks/use-speech-to-text";
 import { AlertTriangle } from "lucide-react-native";
 import { CreditWarningBanner } from "@/components/credit-warning-banner";
+import { PromptAutocomplete } from "@/components/prompt-autocomplete";
+import { usePromptCompletions } from "@/hooks/usePromptCompletions";
+import type { PromptCompletion } from "@/lib/prompt-completions";
 
 interface ChatPageContentProps {
   messages: Message[];
@@ -97,8 +101,10 @@ export const ChatPageContent = ({
   onThinkingModeChange,
   disabled = false,
 }: ChatPageContentProps) => {
-  const selectedImageUris = useStore((state) => state.selectedImageUris);
+  const attachments = useStore((state) => state.attachments);
   const { isAuthenticated } = useAuth();
+  const { width: screenWidth } = useWindowDimensions();
+  const isNarrowScreen = screenWidth < 640;
   const [searchMode, setSearchMode] = useState(false);
   const [agentMode, setAgentMode] = useState(false);
   const [ghostMode, setGhostMode] = useState(false);
@@ -106,15 +112,23 @@ export const ChatPageContent = ({
   const [showVoice, setShowVoice] = useState(false);
   const [showCanvas, setShowCanvas] = useState(false);
   const [canvasComponents, setCanvasComponents] = useState<any[]>([]);
-  const [loadingImageUris, setLoadingImageUris] = useState<Set<string>>(new Set());
   const { pickImage } = useImagePicker();
+  const { pickDocument } = useDocumentPicker();
   const stt = useSpeechToText();
+  const colorScheme = useColorScheme();
+  const gradientBg = colorScheme === "dark" ? "hsl(230, 62%, 4%)" : "hsl(0, 0%, 100%)";
+  const isMainScreen = messages.length === 0;
+  const completions = usePromptCompletions(inputValue, isMainScreen);
+
+  const handleAutocompleteSelect = useCallback((completion: PromptCompletion) => {
+    setInputValue(completion.text);
+  }, []);
 
   const handleSubmit = () => {
     if (!inputValue.trim() || isLoading || disabled) return;
     onSubmit(inputValue);
     setInputValue("");
-    useStore.getState().clearImageUris();
+    useStore.getState().clearAttachments();
   };
 
   const handleSuggestionPress = useCallback((message: string) => {
@@ -129,9 +143,18 @@ export const ChatPageContent = ({
     }
 
     try {
-      const imageUris = await pickImage();
-      if (imageUris && imageUris.length > 0) {
-        imageUris.forEach((uri) => useStore.getState().addImageUri(uri));
+      const assets = await pickImage();
+      if (assets && assets.length > 0) {
+        assets.forEach((asset) => {
+          useStore.getState().addAttachment({
+            id: `img-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+            uri: asset.uri,
+            type: 'image',
+            name: asset.name,
+            size: asset.size,
+            mimeType: asset.mimeType,
+          });
+        });
       }
     } catch (err) {
       console.error('Error picking images:', err);
@@ -145,15 +168,17 @@ export const ChatPageContent = ({
     }
 
     try {
-      const result = await DocumentPicker.getDocumentAsync({
-        type: '*/*',
-        multiple: true,
-        copyToCacheDirectory: true,
-      });
-
-      if (!result.canceled && result.assets.length > 0) {
-        result.assets.forEach((asset) => {
-          useStore.getState().addImageUri(asset.uri);
+      const docs = await pickDocument();
+      if (docs && docs.length > 0) {
+        docs.forEach((doc) => {
+          useStore.getState().addAttachment({
+            id: `doc-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+            uri: doc.uri,
+            type: 'document',
+            name: doc.name,
+            size: doc.size,
+            mimeType: doc.mimeType,
+          });
         });
       }
     } catch (err) {
@@ -162,8 +187,8 @@ export const ChatPageContent = ({
     }
   };
 
-  const handleRemoveAttachment = (uri: string) => {
-    useStore.getState().removeImageUri(uri);
+  const handleRemoveAttachment = (id: string) => {
+    useStore.getState().removeAttachment(id);
   };
 
   const handleImagePaste = async (files: File[]) => {
@@ -174,31 +199,30 @@ export const ChatPageContent = ({
 
     try {
       for (const file of files) {
-        const tempId = `loading-${Date.now()}-${Math.random()}`;
-        setLoadingImageUris(prev => new Set(prev).add(tempId));
-        useStore.getState().addImageUri(tempId);
+        const attachmentId = `paste-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+
+        useStore.getState().addAttachment({
+          id: attachmentId,
+          uri: '',
+          type: 'image',
+          name: file.name || 'Pasted image',
+          size: file.size || 0,
+          mimeType: file.type || 'image/png',
+          isLoading: true,
+        });
 
         const reader = new FileReader();
         reader.onload = (e) => {
           const dataUrl = e.target?.result as string;
           if (dataUrl) {
-            useStore.getState().removeImageUri(tempId);
-            useStore.getState().addImageUri(dataUrl);
-            setLoadingImageUris(prev => {
-              const newSet = new Set(prev);
-              newSet.delete(tempId);
-              return newSet;
+            useStore.getState().updateAttachment(attachmentId, {
+              uri: dataUrl,
+              isLoading: false,
             });
           }
         };
-        reader.onerror = (e) => {
-          console.error('FileReader error:', e);
-          setLoadingImageUris(prev => {
-            const newSet = new Set(prev);
-            newSet.delete(tempId);
-            return newSet;
-          });
-          useStore.getState().removeImageUri(tempId);
+        reader.onerror = () => {
+          useStore.getState().removeAttachment(attachmentId);
         };
         reader.readAsDataURL(file);
       }
@@ -207,21 +231,6 @@ export const ChatPageContent = ({
       toast.error('Failed to process pasted images. Please try again.');
     }
   };
-
-  const attachments = selectedImageUris.map((uri) => {
-    const isLoading = loadingImageUris.has(uri);
-    const isDataUrlImage = uri.startsWith('data:image/');
-    const isFileImage = /\.(jpg|jpeg|png|gif|webp|bmp)$/i.test(uri);
-    const isImage = isDataUrlImage || isFileImage || isLoading;
-    const fileName = uri.split('/').pop() || 'Unknown file';
-
-    return {
-      uri,
-      type: (isImage ? 'image' : 'document') as const,
-      name: !isImage ? fileName : undefined,
-      isLoading,
-    };
-  });
 
   const handleSearchToggle = () => {
     const newValue = !searchMode;
@@ -293,18 +302,24 @@ export const ChatPageContent = ({
         onGhostModePress={handleGhostMode}
         ghostModeActive={ghostMode}
         onClear={onClear}
+        isConversation={messages.length > 0}
       />
 
-      <View className="flex-1">
-        <View className="flex-1 flex-col justify-between">
-          <ChatInterface
-            messages={messages}
-            scrollViewRef={scrollViewRef}
-            isLoading={isLoading}
-            onSuggestionPress={handleSuggestionPress}
-            onEditMessage={onEditMessage}
-          />
+      <View className="flex-1 relative">
+        <ChatInterface
+          messages={messages}
+          scrollViewRef={scrollViewRef}
+          isLoading={isLoading}
+          onSuggestionPress={handleSuggestionPress}
+          onEditMessage={onEditMessage}
+        />
 
+        <LinearGradient
+          colors={["transparent", gradientBg]}
+          locations={[0, 0.4]}
+          className="absolute bottom-0 left-0 right-0"
+          style={{ paddingTop: 24 }}
+        >
           <CreditWarningBanner selectedModel={selectedModel} onSwitchModel={onModelChange} />
 
           {/* Disabled banner when limit hit */}
@@ -319,11 +334,10 @@ export const ChatPageContent = ({
             </View>
           )}
 
-          <View className="p-4 bg-background border-t border-border">
+          <View className="p-4">
             <View className="mx-auto w-full max-w-3xl flex-row items-end gap-2">
-              <Dropdown
-                align="start"
-                trigger={
+              <DropdownMenu.Root>
+                <DropdownMenu.Trigger>
                   <Button
                     variant="outline"
                     size="icon"
@@ -331,18 +345,25 @@ export const ChatPageContent = ({
                   >
                     <Plus size={20} className="text-muted-foreground" />
                   </Button>
-                }
-              >
-                <MenuItem onPress={handleAddPhotos}>
-                  <ImageIcon size={14} className="text-muted-foreground" />
-                  <Text className="text-sm">Add photos</Text>
-                </MenuItem>
-                <MenuItem onPress={handleAddDocument}>
-                  <FileText size={14} className="text-muted-foreground" />
-                  <Text className="text-sm">Add document</Text>
-                </MenuItem>
-              </Dropdown>
+                </DropdownMenu.Trigger>
+                <DropdownMenu.Content side="top" align="start">
+                  <DropdownMenu.Item key="photos" onSelect={handleAddPhotos}>
+                    <DropdownMenu.ItemIcon ios={{ name: "photo" }} />
+                    <DropdownMenu.ItemTitle>Add photos</DropdownMenu.ItemTitle>
+                  </DropdownMenu.Item>
+                  <DropdownMenu.Item key="document" onSelect={handleAddDocument}>
+                    <DropdownMenu.ItemIcon ios={{ name: "doc" }} />
+                    <DropdownMenu.ItemTitle>Add document</DropdownMenu.ItemTitle>
+                  </DropdownMenu.Item>
+                </DropdownMenu.Content>
+              </DropdownMenu.Root>
               <View className="flex-1">
+                {isMainScreen && (
+                  <PromptAutocomplete
+                    completions={completions}
+                    onSelect={handleAutocompleteSelect}
+                  />
+                )}
                 <PromptInput
                   value={inputValue}
                   onValueChange={setInputValue}
@@ -405,9 +426,8 @@ export const ChatPageContent = ({
                         </View>
                       )}
 
-                      <Dropdown
-                        align="start"
-                        trigger={
+                      <DropdownMenu.Root>
+                        <DropdownMenu.Trigger>
                           <Button
                             variant="outline"
                             size="icon"
@@ -415,57 +435,88 @@ export const ChatPageContent = ({
                           >
                             <MoreHorizontal size={16} className="text-muted-foreground" />
                           </Button>
-                        }
-                      >
-                        <MenuItem onPress={handleDeepResearch}>
-                          <Search size={14} className="text-muted-foreground" />
-                          <Text className="text-sm">Deep research</Text>
-                        </MenuItem>
-                        <MenuItem onPress={handleShoppingResearch}>
-                          <ShoppingBag size={14} className="text-muted-foreground" />
-                          <Text className="text-sm">Shopping research</Text>
-                        </MenuItem>
-                        <MenuItem onPress={handleThinkingMode}>
-                          <Brain size={14} className="text-muted-foreground" />
-                          <Text className="text-sm">Thinking mode</Text>
-                          {thinkingMode && <Check size={14} className="text-primary ml-auto" />}
-                        </MenuItem>
-                        <MenuItem onPress={handleGhostMode}>
-                          <Ghost size={14} className="text-muted-foreground" />
-                          <Text className="text-sm">Ghost mode</Text>
-                          {ghostMode && <Check size={14} className="text-primary ml-auto" />}
-                        </MenuItem>
-                        <MenuItem onPress={handleAgentMode}>
-                          <Sparkles size={14} className="text-muted-foreground" />
-                          <Text className="text-sm">Agent mode</Text>
-                          {agentMode && <Check size={14} className="text-primary ml-auto" />}
-                        </MenuItem>
-                        <SubMenu
-                          trigger={
+                        </DropdownMenu.Trigger>
+                        <DropdownMenu.Content side="top" align="start" collisionPadding={8}>
+                          <DropdownMenu.Item key="deep-research" onSelect={handleDeepResearch}>
+                            <DropdownMenu.ItemIcon ios={{ name: "magnifyingglass" }} />
+                            <DropdownMenu.ItemTitle>Deep research</DropdownMenu.ItemTitle>
+                          </DropdownMenu.Item>
+                          <DropdownMenu.Item key="shopping" onSelect={handleShoppingResearch}>
+                            <DropdownMenu.ItemIcon ios={{ name: "bag" }} />
+                            <DropdownMenu.ItemTitle>Shopping research</DropdownMenu.ItemTitle>
+                          </DropdownMenu.Item>
+                          <DropdownMenu.CheckboxItem
+                            key="thinking"
+                            value={thinkingMode ? 'on' : 'off'}
+                            onValueChange={handleThinkingMode}
+                          >
+                            <DropdownMenu.ItemIndicator />
+                            <DropdownMenu.ItemTitle>Thinking mode</DropdownMenu.ItemTitle>
+                          </DropdownMenu.CheckboxItem>
+                          <DropdownMenu.CheckboxItem
+                            key="ghost"
+                            value={ghostMode ? 'on' : 'off'}
+                            onValueChange={handleGhostMode}
+                          >
+                            <DropdownMenu.ItemIndicator />
+                            <DropdownMenu.ItemTitle>Ghost mode</DropdownMenu.ItemTitle>
+                          </DropdownMenu.CheckboxItem>
+                          <DropdownMenu.CheckboxItem
+                            key="agent"
+                            value={agentMode ? 'on' : 'off'}
+                            onValueChange={handleAgentMode}
+                          >
+                            <DropdownMenu.ItemIndicator />
+                            <DropdownMenu.ItemTitle>Agent mode</DropdownMenu.ItemTitle>
+                          </DropdownMenu.CheckboxItem>
+                          {isNarrowScreen ? (
                             <>
-                              <MoreHorizontal size={14} className="text-muted-foreground" />
-                              <Text className="text-sm">More</Text>
+                              <DropdownMenu.Separator />
+                              <DropdownMenu.Item key="sources" onSelect={handleAddSources}>
+                                <DropdownMenu.ItemIcon ios={{ name: "link" }} />
+                                <DropdownMenu.ItemTitle>Add sources</DropdownMenu.ItemTitle>
+                              </DropdownMenu.Item>
+                              <DropdownMenu.Item key="study" onSelect={handleStudyAndLearn}>
+                                <DropdownMenu.ItemIcon ios={{ name: "book" }} />
+                                <DropdownMenu.ItemTitle>Study and learn</DropdownMenu.ItemTitle>
+                              </DropdownMenu.Item>
+                              <DropdownMenu.Item key="search" onSelect={handleWebSearch}>
+                                <DropdownMenu.ItemIcon ios={{ name: "globe" }} />
+                                <DropdownMenu.ItemTitle>Web search</DropdownMenu.ItemTitle>
+                              </DropdownMenu.Item>
+                              <DropdownMenu.Item key="canvas" onSelect={handleCanvas}>
+                                <DropdownMenu.ItemIcon ios={{ name: "pencil.tip" }} />
+                                <DropdownMenu.ItemTitle>Canvas</DropdownMenu.ItemTitle>
+                              </DropdownMenu.Item>
                             </>
-                          }
-                        >
-                          <MenuItem onPress={handleAddSources}>
-                            <ExternalLink size={14} className="text-muted-foreground" />
-                            <Text className="text-sm">Add sources</Text>
-                          </MenuItem>
-                          <MenuItem onPress={handleStudyAndLearn}>
-                            <BookOpen size={14} className="text-muted-foreground" />
-                            <Text className="text-sm">Study and learn</Text>
-                          </MenuItem>
-                          <MenuItem onPress={handleWebSearch}>
-                            <Globe size={14} className="text-muted-foreground" />
-                            <Text className="text-sm">Web search</Text>
-                          </MenuItem>
-                          <MenuItem onPress={handleCanvas}>
-                            <PenTool size={14} className="text-muted-foreground" />
-                            <Text className="text-sm">Canvas</Text>
-                          </MenuItem>
-                        </SubMenu>
-                      </Dropdown>
+                          ) : (
+                            <DropdownMenu.Sub>
+                              <DropdownMenu.SubTrigger key="more">
+                                <DropdownMenu.ItemIcon ios={{ name: "ellipsis" }} />
+                                <DropdownMenu.ItemTitle>More</DropdownMenu.ItemTitle>
+                              </DropdownMenu.SubTrigger>
+                              <DropdownMenu.SubContent sideOffset={4} collisionPadding={16}>
+                                <DropdownMenu.Item key="sources" onSelect={handleAddSources}>
+                                  <DropdownMenu.ItemIcon ios={{ name: "link" }} />
+                                  <DropdownMenu.ItemTitle>Add sources</DropdownMenu.ItemTitle>
+                                </DropdownMenu.Item>
+                                <DropdownMenu.Item key="study" onSelect={handleStudyAndLearn}>
+                                  <DropdownMenu.ItemIcon ios={{ name: "book" }} />
+                                  <DropdownMenu.ItemTitle>Study and learn</DropdownMenu.ItemTitle>
+                                </DropdownMenu.Item>
+                                <DropdownMenu.Item key="search" onSelect={handleWebSearch}>
+                                  <DropdownMenu.ItemIcon ios={{ name: "globe" }} />
+                                  <DropdownMenu.ItemTitle>Web search</DropdownMenu.ItemTitle>
+                                </DropdownMenu.Item>
+                                <DropdownMenu.Item key="canvas" onSelect={handleCanvas}>
+                                  <DropdownMenu.ItemIcon ios={{ name: "pencil.tip" }} />
+                                  <DropdownMenu.ItemTitle>Canvas</DropdownMenu.ItemTitle>
+                                </DropdownMenu.Item>
+                              </DropdownMenu.SubContent>
+                            </DropdownMenu.Sub>
+                          )}
+                        </DropdownMenu.Content>
+                      </DropdownMenu.Root>
                     </View>
 
                     <View className="flex-row items-center gap-1.5">
@@ -495,7 +546,7 @@ export const ChatPageContent = ({
               </View>
             </View>
           </View>
-        </View>
+        </LinearGradient>
       </View>
 
       <VoiceChat visible={showVoice} onClose={() => setShowVoice(false)} />

@@ -10,6 +10,7 @@ import { useFavoritesStore } from '@/lib/stores/favorites-store';
 import { useUIStore } from '@/lib/stores/ui-store';
 import { useEffect } from 'react';
 import { useColorScheme } from '@/lib/useColorScheme';
+import { CommandPalette } from '@/components/command-palette';
 import i18n from '@/lib/i18n';
 
 export default function AppLayout() {
@@ -197,6 +198,7 @@ export default function AppLayout() {
       </View>
       {/* Mobile modal for right panel */}
       {!isLargeScreen && <RightPanel />}
+      <CommandPalette />
     </GestureHandlerRootView>
   );
 }
