@@ -404,6 +404,12 @@ router.post('/webhook', async (req: Request, res: Response) => {
       case 'customer.subscription.deleted':
         await handleSubscriptionDeleted(event.data.object as Stripe.Subscription);
         break;
+      case 'invoice.payment_succeeded':
+        await handleInvoicePaymentSucceeded(event.data.object as Stripe.Invoice);
+        break;
+      case 'invoice.payment_failed':
+        await handleInvoicePaymentFailed(event.data.object as Stripe.Invoice);
+        break;
     }
     res.json({ received: true });
   } catch (error: any) {
@@ -414,52 +420,71 @@ router.post('/webhook', async (req: Request, res: Response) => {
 
 async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
   const metadata = session.metadata;
-  if (!metadata?.userId || metadata.type !== 'credit_purchase') return;
 
-  const credits = parseInt(metadata.credits || '0');
-  if (credits <= 0) return;
+  // Handle credit purchases
+  if (metadata?.type === 'credit_purchase') {
+    if (!metadata.userId) return;
+    const credits = parseInt(metadata.credits || '0');
+    if (credits <= 0) return;
 
-  const userCredits = await getOrCreateUserCredits(metadata.userId);
-  await userCredits.addCredits(credits, 'paid');
-  console.log(`[Billing] Added ${credits} credits to user ${metadata.userId}`);
+    const userCredits = await getOrCreateUserCredits(metadata.userId);
+    await userCredits.addCredits(credits, 'paid');
+    console.log(`[Billing] Added ${credits} credits to user ${metadata.userId}`);
 
-  try {
-    await Transaction.create({
-      oxyUserId: metadata.userId,
-      stripeCustomerId: session.customer as string,
-      stripePaymentIntentId: session.payment_intent as string,
-      type: 'credit_purchase',
-      amount: session.amount_total || 0,
-      currency: session.currency || 'usd',
-      credits,
-      status: 'completed',
-      description: `Purchased ${credits.toLocaleString()} credits`,
-    });
-  } catch (err: any) {
-    // Duplicate stripePaymentIntentId means this event was already processed
-    if (err.code === 11000) {
-      console.warn(`[Billing] Duplicate checkout event for payment_intent ${session.payment_intent}, skipping`);
-      return;
+    try {
+      await Transaction.create({
+        oxyUserId: metadata.userId,
+        stripeCustomerId: session.customer as string,
+        stripePaymentIntentId: session.payment_intent as string,
+        type: 'credit_purchase',
+        amount: session.amount_total || 0,
+        currency: session.currency || 'usd',
+        credits,
+        status: 'completed',
+        description: `Purchased ${credits.toLocaleString()} credits`,
+      });
+    } catch (err: any) {
+      if (err.code === 11000) {
+        console.warn(`[Billing] Duplicate checkout event for payment_intent ${session.payment_intent}, skipping`);
+        return;
+      }
+      throw err;
     }
-    throw err;
+    return;
+  }
+
+  // Handle subscription checkouts as fallback (in case customer.subscription.created is delayed)
+  if (session.mode === 'subscription' && session.subscription) {
+    console.log(`[Billing] checkout.session.completed for subscription ${session.subscription}, fetching and syncing`);
+    const stripeSubscription = await getStripe().subscriptions.retrieve(session.subscription as string);
+    await handleSubscriptionUpdate(stripeSubscription);
   }
 }
 
 async function handleSubscriptionUpdate(stripeSubscription: Stripe.Subscription) {
   const customerId = stripeSubscription.customer as string;
-  const userCredits = await UserCredits.findOne({ stripeCustomerId: customerId });
+  const metadata = stripeSubscription.metadata;
+
+  // Find UserCredits by Stripe customer ID, fall back to userId from metadata
+  let userCredits = await UserCredits.findOne({ stripeCustomerId: customerId });
   if (!userCredits) {
-    console.warn(`[Billing] No UserCredits found for stripeCustomerId ${customerId}, skipping subscription update`);
-    return;
+    if (metadata?.userId) {
+      console.warn(`[Billing] No UserCredits for stripeCustomerId ${customerId}, falling back to userId ${metadata.userId}`);
+      userCredits = await getOrCreateUserCredits(metadata.userId);
+      if (!userCredits.stripeCustomerId) {
+        userCredits.stripeCustomerId = customerId;
+        await userCredits.save();
+      }
+    } else {
+      throw new Error(`No UserCredits found for stripeCustomerId ${customerId} and no userId in metadata`);
+    }
   }
 
   // Match plan by metadata (set via subscription_data.metadata in checkout)
-  const metadata = stripeSubscription.metadata;
   const resolvedPlanId = LEGACY_PLAN_MAP[metadata?.planId || ''] || metadata?.planId;
   const plan = await Plan.findOne({ planId: resolvedPlanId }).lean();
   if (!plan) {
-    console.error(`[Billing] Plan not found for subscription ${stripeSubscription.id}, planId: ${resolvedPlanId}`);
-    return;
+    throw new Error(`Plan not found for subscription ${stripeSubscription.id}, planId: ${resolvedPlanId}`);
   }
 
   const isAnnual = metadata?.billingPeriod === 'annual';
@@ -484,18 +509,11 @@ async function handleSubscriptionUpdate(stripeSubscription: Stripe.Subscription)
     { upsert: true, new: true }
   );
 
-  // Add subscription credits with dedup protection
+  // Add subscription credits with dedup protection (no time window — dedup key prevents duplicates)
   if (stripeSubscription.status === 'active') {
-    const now = Date.now() / 1000;
-    if (Math.abs(now - sub.current_period_start) < 300) {
-      const dedupKey = `${stripeSubscription.id}_${sub.current_period_start}`;
-      const existing = await Transaction.findOne({ 'metadata.dedup': dedupKey }).lean();
-      if (existing) {
-        console.warn(`[Billing] Duplicate subscription credit event for ${dedupKey}, skipping`);
-        return;
-      }
-
-      await userCredits.addCredits(plan.creditsPerMonth, 'paid');
+    const dedupKey = `${stripeSubscription.id}_${sub.current_period_start}`;
+    try {
+      // Create transaction first as dedup lock, then add credits
       await Transaction.create({
         oxyUserId: userCredits._id,
         stripeCustomerId: customerId,
@@ -507,6 +525,14 @@ async function handleSubscriptionUpdate(stripeSubscription: Stripe.Subscription)
         description: `${plan.name} subscription credits (${isAnnual ? 'annual' : 'monthly'})`,
         metadata: { dedup: dedupKey },
       });
+      await userCredits.addCredits(plan.creditsPerMonth, 'paid');
+      console.log(`[Billing] Added ${plan.creditsPerMonth} credits for subscription ${stripeSubscription.id}, period ${sub.current_period_start}`);
+    } catch (err: any) {
+      if (err.code === 11000) {
+        console.warn(`[Billing] Duplicate subscription credit event for ${dedupKey}, skipping`);
+        return;
+      }
+      throw err;
     }
   }
 }
@@ -515,6 +541,34 @@ async function handleSubscriptionDeleted(stripeSubscription: Stripe.Subscription
   await Subscription.findOneAndUpdate(
     { stripeSubscriptionId: stripeSubscription.id },
     { status: 'canceled' }
+  );
+}
+
+function getSubscriptionIdFromInvoice(invoice: Stripe.Invoice): string | null {
+  const subDetails = invoice.parent?.subscription_details;
+  if (!subDetails?.subscription) return null;
+  return typeof subDetails.subscription === 'string'
+    ? subDetails.subscription
+    : subDetails.subscription.id;
+}
+
+async function handleInvoicePaymentSucceeded(invoice: Stripe.Invoice) {
+  const subscriptionId = getSubscriptionIdFromInvoice(invoice);
+  if (!subscriptionId) return;
+
+  console.log(`[Billing] Invoice payment succeeded for subscription ${subscriptionId}`);
+  const stripeSubscription = await getStripe().subscriptions.retrieve(subscriptionId);
+  await handleSubscriptionUpdate(stripeSubscription);
+}
+
+async function handleInvoicePaymentFailed(invoice: Stripe.Invoice) {
+  const subscriptionId = getSubscriptionIdFromInvoice(invoice);
+  if (!subscriptionId) return;
+
+  console.error(`[Billing] Invoice payment FAILED for subscription ${subscriptionId}, invoice ${invoice.id}`);
+  await Subscription.findOneAndUpdate(
+    { stripeSubscriptionId: subscriptionId },
+    { status: 'past_due' }
   );
 }
 

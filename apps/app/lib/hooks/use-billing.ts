@@ -138,6 +138,39 @@ export function useSubscription(product?: 'alia' | 'codea') {
 }
 
 // ======================
+// Subscription Polling (after checkout redirect)
+// ======================
+
+/**
+ * Polls for subscription until it exists and is active, or timeout.
+ * Used after checkout redirect to wait for webhook processing.
+ */
+export function useSubscriptionPolling(
+  product?: 'alia' | 'codea',
+  options?: { enabled?: boolean; intervalMs?: number; maxAttempts?: number }
+) {
+  const { enabled = false, intervalMs = 2000, maxAttempts = 15 } = options || {};
+
+  return useQuery({
+    queryKey: ['subscription-poll', product],
+    queryFn: () => fetchSubscription(product),
+    enabled,
+    refetchInterval: (query) => {
+      const data = query.state.data;
+      if (data && (data.status === 'active' || data.status === 'trialing')) {
+        return false;
+      }
+      if (query.state.dataUpdateCount >= maxAttempts) {
+        return false;
+      }
+      return intervalMs;
+    },
+    staleTime: 0,
+    retry: 1,
+  });
+}
+
+// ======================
 // Transactions
 // ======================
 
