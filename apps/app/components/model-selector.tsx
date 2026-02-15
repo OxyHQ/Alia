@@ -166,10 +166,10 @@ export function ModelSelector({
         </Pressable>
       </DropdownMenu.Trigger>
       <DropdownMenu.Content align="start" className="w-64">
-        <DropdownMenu.Label className="text-xs text-muted-foreground font-normal px-2.5">Select Model</DropdownMenu.Label>
+        <DropdownMenu.Label className="text-xs text-muted-foreground font-normal px-2.5">{t('models.selectModel')}</DropdownMenu.Label>
         {loading ? (
           <DropdownMenu.Item key="loading" disabled>
-            <DropdownMenu.ItemTitle>Loading models...</DropdownMenu.ItemTitle>
+            <DropdownMenu.ItemTitle>{t('models.loadingModels')}</DropdownMenu.ItemTitle>
           </DropdownMenu.Item>
         ) : (
           <>
@@ -187,7 +187,7 @@ export function ModelSelector({
                 <DropdownMenu.Separator />
                 <DropdownMenu.Sub>
                   <DropdownMenu.SubTrigger>
-                    <DropdownMenu.ItemTitle>Legacy models</DropdownMenu.ItemTitle>
+                    <DropdownMenu.ItemTitle>{t('models.legacyModels')}</DropdownMenu.ItemTitle>
                   </DropdownMenu.SubTrigger>
                   <DropdownMenu.SubContent className="w-64">
                     {legacyModels.map((model) => (

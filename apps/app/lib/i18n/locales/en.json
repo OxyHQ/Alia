@@ -246,7 +246,10 @@
   "chat": {
     "newChat": "New Chat",
     "messagePlaceholder": "Type a message...",
-    "sendButton": "Send"
+    "sendButton": "Send",
+    "failedPickDocuments": "Failed to pick documents. Please try again.",
+    "failedPasteImages": "Failed to process pasted images. Please try again.",
+    "addSourcesHint": "You can add URLs, documents, or other sources for me to reference."
   },
   "credits": {
     "title": "Credits",
@@ -370,7 +373,8 @@
     "paymentSuccess": "Payment successful!",
     "failedCheckout": "Failed to create checkout session",
     "modelRequiresPlan": "This model requires the {{plan}} plan",
-    "featureRequiresPlan": "{{feature}} requires a paid plan"
+    "featureRequiresPlan": "{{feature}} requires a paid plan",
+    "signInRequired": "Please sign in to use this feature."
   },
   "usageLimit": {
     "outOfCreditsTitle": "Out of credits",
@@ -391,7 +395,12 @@
     "criticalMessage": "High usage — credits may run out in ~{{days}} day(s).",
     "switchModel": "Switch",
     "modelLockedTitle": "Model locked",
-    "modelLockedDesc": "Upgrade your plan to use this model."
+    "modelLockedDesc": "Upgrade your plan to use this model.",
+    "creditsRemaining": "{{count}} credits remaining.",
+    "buyMore": "Buy more",
+    "switchToModel": "Switch to {{model}} for ~{{ratio}}x fewer credits.",
+    "switchToModelAlt": "Switch to {{model}} for fewer credits.",
+    "spendingHighToday": "Spending more than usual today."
   },
   "forgotPassword": {
     "title": "Reset password",
@@ -677,6 +686,35 @@
     "saving": "Saving...",
     "update": "Update",
     "add": "Add"
+  },
+  "models": {
+    "selectModel": "Select Model",
+    "loadingModels": "Loading models...",
+    "legacyModels": "Legacy models"
+  },
+  "modes": {
+    "searchOn": "Web search will be used",
+    "searchOff": "Search mode disabled",
+    "ghostOn": "Conversations will not be saved",
+    "ghostOff": "Conversations will be saved normally",
+    "agentOn": "I can now perform actions autonomously",
+    "agentOff": "Agent mode disabled",
+    "deepResearchOn": "Deep research mode activated",
+    "deepResearchOff": "Deep research disabled",
+    "shoppingResearchOn": "Shopping research activated",
+    "shoppingResearchOff": "Shopping research disabled",
+    "studyOn": "Study mode activated",
+    "studyOff": "Study mode disabled",
+    "thinkingOff": "Thinking mode disabled",
+    "thinkingOn": "AI will show its reasoning process",
+    "searchLabel": "Search",
+    "ghostLabel": "Ghost",
+    "agentLabel": "Agent",
+    "deepResearchLabel": "Deep research",
+    "shoppingLabel": "Shopping",
+    "studyLabel": "Study",
+    "thinkingLabel": "Thinking",
+    "voiceMode": "Voice mode"
   },
   "gateways": {
     "connectedAccounts": "Connected Accounts ({{count}})",

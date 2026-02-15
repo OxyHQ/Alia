@@ -5,6 +5,7 @@ import { Text } from '@/components/ui/text';
 import { useRouter } from 'expo-router';
 import { useCredits } from '@/lib/hooks/use-credits';
 import { useState } from 'react';
+import { useTranslation } from '@/hooks/useTranslation';
 
 interface UsageWarningData {
   level: string;
@@ -35,6 +36,7 @@ const CHEAPER_ALTERNATIVES: Record<string, { model: string; name: string; multip
 export function CreditWarningBanner({ selectedModel, onSwitchModel }: CreditWarningBannerProps) {
   const queryClient = useQueryClient();
   const router = useRouter();
+  const { t } = useTranslation();
   const { data: creditsInfo } = useCredits();
   const [lowCreditsDismissed, setLowCreditsDismissed] = useState(false);
 
@@ -48,10 +50,10 @@ export function CreditWarningBanner({ selectedModel, onSwitchModel }: CreditWarn
         <View className="flex-row items-center gap-2 rounded-lg px-3 py-2 bg-yellow-500/10">
           <AlertTriangle size={14} className="text-yellow-600" />
           <Text className="text-xs flex-1 text-yellow-700 dark:text-yellow-400">
-            {creditsInfo.credits} credits remaining.
+            {t('usageLimit.creditsRemaining', { count: creditsInfo.credits })}
           </Text>
           <Pressable onPress={() => router.push('/(app)/billing')} className="active:opacity-70">
-            <Text className="text-xs font-medium text-primary">Buy more</Text>
+            <Text className="text-xs font-medium text-primary">{t('usageLimit.buyMore')}</Text>
           </Pressable>
           <Pressable onPress={() => setLowCreditsDismissed(true)} className="active:opacity-70">
             <X size={12} className="text-muted-foreground" />
@@ -80,16 +82,16 @@ export function CreditWarningBanner({ selectedModel, onSwitchModel }: CreditWarn
 
   let statusText: string;
   if (isCritical && showDays) {
-    statusText = `High usage — credits may run out in ~${days} day${days !== 1 ? 's' : ''}.`;
+    statusText = t('usageLimit.criticalMessage', { days });
   } else if (showDays) {
-    statusText = `Spending more than usual. At this rate, credits last ~${days} days.`;
+    statusText = t('usageLimit.warningMessage', { days });
   } else {
-    statusText = 'Spending more than usual today.';
+    statusText = t('usageLimit.spendingHighToday');
   }
 
   const suggestionText = savingsRatio > 1
-    ? `Switch to ${alt.name} for ~${savingsRatio}x fewer credits.`
-    : `Switch to ${alt.name} for fewer credits.`;
+    ? t('usageLimit.switchToModel', { model: alt.name, ratio: savingsRatio })
+    : t('usageLimit.switchToModelAlt', { model: alt.name });
 
   return (
     <View className="mx-auto w-full max-w-3xl px-4 pb-1">
@@ -99,7 +101,7 @@ export function CreditWarningBanner({ selectedModel, onSwitchModel }: CreditWarn
           {statusText} {suggestionText}
         </Text>
         <Pressable onPress={() => onSwitchModel(alt.model)} className="active:opacity-70">
-          <Text className="text-xs font-medium text-primary">Switch</Text>
+          <Text className="text-xs font-medium text-primary">{t('usageLimit.switchModel')}</Text>
         </Pressable>
         <Pressable onPress={handleDismiss} className="active:opacity-70">
           <X size={12} className="text-muted-foreground" />

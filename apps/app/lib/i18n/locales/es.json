@@ -246,7 +246,10 @@
   "chat": {
     "newChat": "Nueva conversación",
     "messagePlaceholder": "Escribe un mensaje...",
-    "sendButton": "Enviar"
+    "sendButton": "Enviar",
+    "failedPickDocuments": "Error al seleccionar documentos. Inténtalo de nuevo.",
+    "failedPasteImages": "Error al procesar las imágenes pegadas. Inténtalo de nuevo.",
+    "addSourcesHint": "Puedes agregar URLs, documentos u otras fuentes como referencia."
   },
   "credits": {
     "title": "Créditos",
@@ -370,7 +373,8 @@
     "paymentSuccess": "¡Pago exitoso!",
     "failedCheckout": "Error al crear la sesión de pago",
     "modelRequiresPlan": "Este modelo requiere el plan {{plan}}",
-    "featureRequiresPlan": "{{feature}} requiere un plan de pago"
+    "featureRequiresPlan": "{{feature}} requiere un plan de pago",
+    "signInRequired": "Inicia sesión para usar esta función."
   },
   "usageLimit": {
     "outOfCreditsTitle": "Sin créditos",
@@ -391,7 +395,12 @@
     "criticalMessage": "Uso elevado — los créditos podrían agotarse en ~{{days}} día(s).",
     "switchModel": "Cambiar",
     "modelLockedTitle": "Modelo bloqueado",
-    "modelLockedDesc": "Mejora tu plan para usar este modelo."
+    "modelLockedDesc": "Mejora tu plan para usar este modelo.",
+    "creditsRemaining": "{{count}} créditos restantes.",
+    "buyMore": "Comprar más",
+    "switchToModel": "Cambia a {{model}} para ~{{ratio}}x menos créditos.",
+    "switchToModelAlt": "Cambia a {{model}} para menos créditos.",
+    "spendingHighToday": "Estás gastando más de lo habitual hoy."
   },
   "forgotPassword": {
     "title": "Restablecer contraseña",
@@ -677,6 +686,35 @@
     "saving": "Guardando...",
     "update": "Actualizar",
     "add": "Agregar"
+  },
+  "models": {
+    "selectModel": "Seleccionar modelo",
+    "loadingModels": "Cargando modelos...",
+    "legacyModels": "Modelos anteriores"
+  },
+  "modes": {
+    "searchOn": "Se usará búsqueda web",
+    "searchOff": "Modo búsqueda desactivado",
+    "ghostOn": "Las conversaciones no se guardarán",
+    "ghostOff": "Las conversaciones se guardarán normalmente",
+    "agentOn": "Ahora puedo actuar de forma autónoma",
+    "agentOff": "Modo agente desactivado",
+    "deepResearchOn": "Investigación profunda activada",
+    "deepResearchOff": "Investigación profunda desactivada",
+    "shoppingResearchOn": "Investigación de compras activada",
+    "shoppingResearchOff": "Investigación de compras desactivada",
+    "studyOn": "Modo estudio activado",
+    "studyOff": "Modo estudio desactivado",
+    "thinkingOff": "Modo razonamiento desactivado",
+    "thinkingOn": "La IA mostrará su proceso de razonamiento",
+    "searchLabel": "Búsqueda",
+    "ghostLabel": "Fantasma",
+    "agentLabel": "Agente",
+    "deepResearchLabel": "Investigación profunda",
+    "shoppingLabel": "Compras",
+    "studyLabel": "Estudio",
+    "thinkingLabel": "Pensamiento",
+    "voiceMode": "Modo de voz"
   },
   "gateways": {
     "connectedAccounts": "Cuentas conectadas ({{count}})",
