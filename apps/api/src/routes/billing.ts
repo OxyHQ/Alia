@@ -258,6 +258,18 @@ router.post('/checkout/subscription', authenticateToken, async (req: Request, re
       return res.status(400).json({ error: 'Invalid plan ID' });
     }
 
+    const existingSubscription = await Subscription.findOne({
+      oxyUserId: userId,
+      'plan.product': plan.product,
+      status: { $in: ['active', 'trialing'] },
+    }).lean();
+
+    if (existingSubscription) {
+      return res.status(409).json({
+        error: 'You already have an active subscription for this product. Please cancel it first or manage it from the billing page.',
+      });
+    }
+
     const userCredits = await getOrCreateUserCredits(userId);
     const customerId = await getOrCreateStripeCustomer(userId, userCredits);
 
