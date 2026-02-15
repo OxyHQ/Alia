@@ -96,7 +96,7 @@ export default function BillingScreen() {
   return (
     <ScrollView className="flex-1 bg-background">
       {/* Header */}
-      <View className="px-6 py-6 border-b border-border">
+      <View className="px-6 pt-6 pb-4">
         <Pressable onPress={() => router.back()} className="flex-row items-center mb-4">
           <ArrowLeft size={16} className="text-muted-foreground mr-2" />
           <Text className="text-sm text-muted-foreground">{t('common.back')}</Text>
@@ -108,18 +108,23 @@ export default function BillingScreen() {
       </View>
 
       {isLoading ? (
-        <View className="px-6 py-6">
+        <View className="px-4 py-6">
           <Text className="text-sm text-muted-foreground">{t('common.loading')}</Text>
         </View>
       ) : creditsInfo ? (
-        <>
-          {/* Compact Balance Summary */}
-          <View className="px-6 py-4 border-b border-border flex-row items-center justify-between">
-            <View className="flex-row items-baseline gap-2">
-              <Text className="text-2xl font-semibold text-foreground">
-                {creditsInfo.credits.toLocaleString()}
-              </Text>
-              <Text className="text-sm text-muted-foreground">{t('billing.credits')}</Text>
+        <View className="px-4 gap-3 pb-6">
+          {/* Credit Balance Card */}
+          <View className="rounded-xl bg-muted/50 p-5 flex-row items-center justify-between">
+            <View className="flex-row items-center gap-3">
+              <View className="w-10 h-10 rounded-full bg-primary/10 items-center justify-center">
+                <Sparkle size={18} className="text-primary" />
+              </View>
+              <View>
+                <Text className="text-2xl font-bold text-foreground">
+                  {creditsInfo.credits.toLocaleString()}
+                </Text>
+                <Text className="text-xs text-muted-foreground">{t('billing.currentBalance')}</Text>
+              </View>
             </View>
             {!isSubscribed && (
               <Button
@@ -127,7 +132,6 @@ export default function BillingScreen() {
                 size="sm"
                 className="rounded-full"
               >
-                <Sparkle size={14} className="text-primary-foreground mr-1.5" />
                 <Text className="text-primary-foreground font-medium text-sm">
                   {t('credits.upgrade')}
                 </Text>
@@ -135,21 +139,21 @@ export default function BillingScreen() {
             )}
           </View>
 
-          {/* Active Subscription */}
+          {/* Active Subscription Card */}
           {isSubscribed && (
-            <View className="px-6 py-6 border-b border-border">
-              <Text className="text-sm font-semibold text-foreground mb-4">{t('billing.activeSubscription')}</Text>
-              <View className="p-4 rounded-md bg-blue-50 border border-blue-200 mb-4">
-                <View className="flex-row items-center justify-between mb-2">
-                  <Text className="text-base font-semibold text-blue-900">{subscription.plan.name}</Text>
-                  <Text className="text-sm font-semibold text-blue-900">
+            <View className="rounded-xl bg-muted/50 p-5 gap-4">
+              <Text className="text-sm font-semibold text-foreground">{t('billing.activeSubscription')}</Text>
+              <View className="p-4 rounded-lg bg-primary/10 border border-primary/20 gap-2">
+                <View className="flex-row items-center justify-between">
+                  <Text className="text-base font-semibold text-foreground">{subscription.plan.name}</Text>
+                  <Text className="text-sm font-semibold text-primary">
                     ${(subscription.plan.price / 100).toFixed(2)}{t('credits.perMonth')}
                   </Text>
                 </View>
-                <Text className="text-sm text-blue-800 mb-2">
+                <Text className="text-sm text-muted-foreground">
                   {t('billing.creditsPerMonth', { count: subscription.plan.creditsPerMonth.toLocaleString() })}
                 </Text>
-                <Text className="text-xs text-blue-700">
+                <Text className="text-xs text-muted-foreground">
                   {subscription.cancelAtPeriodEnd
                     ? t('billing.cancelsOn', { date: new Date(subscription.currentPeriodEnd).toLocaleDateString() })
                     : t('billing.renewsOn', { date: new Date(subscription.currentPeriodEnd).toLocaleDateString() })}
@@ -160,6 +164,7 @@ export default function BillingScreen() {
                   variant="outline"
                   onPress={() => router.push("/(biglayout)/subscribe")}
                   size="sm"
+                  className="rounded-full"
                 >
                   <Text className="text-foreground font-medium text-sm">
                     {t('billing.changePlan')}
@@ -171,6 +176,7 @@ export default function BillingScreen() {
                     onPress={handleCancelSubscription}
                     disabled={cancelSubscriptionMutation.isPending}
                     size="sm"
+                    className="rounded-full"
                   >
                     <X size={14} className="text-foreground mr-1.5" />
                     <Text className="text-foreground font-medium text-sm">
@@ -182,15 +188,15 @@ export default function BillingScreen() {
             </View>
           )}
 
-          {/* Payment Methods */}
-          <View className="px-6 py-6 border-b border-border">
-            <Text className="text-sm font-semibold text-foreground mb-4">{t('billing.paymentMethods')}</Text>
+          {/* Payment Methods Card */}
+          <View className="rounded-xl bg-muted/50 p-5 gap-4">
+            <Text className="text-sm font-semibold text-foreground">{t('billing.paymentMethods')}</Text>
             <Button
               variant="outline"
               onPress={handleManagePayment}
               disabled={createPortalMutation.isPending}
               size="sm"
-              className="self-start"
+              className="self-start rounded-full"
             >
               <CreditCard size={14} className="text-foreground mr-1.5" />
               <Text className="text-foreground font-medium text-sm">
@@ -200,21 +206,21 @@ export default function BillingScreen() {
             </Button>
           </View>
 
-          {/* Recent Transactions */}
+          {/* Recent Transactions Card */}
           {transactionsData && transactionsData.transactions.length > 0 && (
-            <View className="px-6 py-6">
-              <Text className="text-sm font-semibold text-foreground mb-4">{t('billing.recentTransactions')}</Text>
-              <View>
+            <View className="rounded-xl bg-muted/50 p-5 gap-3">
+              <Text className="text-sm font-semibold text-foreground">{t('billing.recentTransactions')}</Text>
+              <View className="rounded-lg overflow-hidden">
                 {transactionsData.transactions.map((transaction, index) => (
                   <View
                     key={transaction._id}
-                    className={`py-3 ${index < transactionsData.transactions.length - 1 ? 'border-b border-border' : ''}`}
+                    className={`py-3 px-1 ${index < transactionsData.transactions.length - 1 ? 'border-b border-border' : ''}`}
                   >
                     <View className="flex-row items-center justify-between mb-1">
                       <Text className="text-sm font-medium text-foreground">
                         {transaction.description || transaction.type}
                       </Text>
-                      <Text className="text-sm text-foreground">
+                      <Text className="text-sm font-medium text-emerald-600 dark:text-emerald-400">
                         +{transaction.credits.toLocaleString()} {t('billing.credits')}
                       </Text>
                     </View>
@@ -231,9 +237,9 @@ export default function BillingScreen() {
               </View>
             </View>
           )}
-        </>
+        </View>
       ) : (
-        <View className="px-6 py-6">
+        <View className="px-4 py-6">
           <Text className="text-sm text-muted-foreground">{t('billing.failedToLoad')}</Text>
         </View>
       )}
