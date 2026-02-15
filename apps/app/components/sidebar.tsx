@@ -187,6 +187,10 @@ const ChatSidebar = React.memo(function ChatSidebar() {
     router.push("/register");
   }, [router]);
 
+  const handleFavorites = React.useCallback(() => {
+    router.push("/(app)/favorites");
+  }, [router]);
+
   const handleLibrary = React.useCallback(() => {
     router.push("/(app)/library");
   }, [router]);
@@ -468,6 +472,14 @@ const ChatSidebar = React.memo(function ChatSidebar() {
         >
           <Users size={16} className="text-muted-foreground" />
           <Text className="text-sm md:text-xs">{t('sidebar.agents')}</Text>
+        </Button>
+        <Button
+          variant="ghost"
+          className="h-10 md:h-8 flex-row items-center justify-start gap-2 rounded-full px-3 md:px-2 w-full"
+          onPress={handleFavorites}
+        >
+          <StarIcon size={16} className="text-muted-foreground" />
+          <Text className="text-sm md:text-xs">Favorites</Text>
         </Button>
         <Button
           variant="ghost"
