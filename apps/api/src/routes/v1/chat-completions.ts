@@ -10,7 +10,7 @@ import { recordUsage } from '../../middleware/api-key-rate-limit.js';
 import { detectCreditAnomaly } from '../../lib/credit-anomaly.js';
 import { getUserEntitlements } from '../../lib/plan-access.js';
 import { convertOpenAIToolsToToolSet } from '../../lib/tool-converter.js';
-import { getCurrentDateTool, getTimelineTool, saveUserMemoryTool, updateUserPreferencesTool, updateUserContextTool, createSendTelegramTool, createGetWhatsAppChatsTool, createGetWhatsAppMessagesTool, createSendWhatsAppMessageTool, createProvidersAdminTool, webScraperTool, generateFileTool } from '../../lib/tools/index.js';
+import { getCurrentDateTool, saveUserMemoryTool, updateUserPreferencesTool, updateUserContextTool, createSendTelegramTool, createGetWhatsAppChatsTool, createGetWhatsAppMessagesTool, createSendWhatsAppMessageTool, createProvidersAdminTool, webScraperTool, generateFileTool } from '../../lib/tools/index.js';
 import { oxyClient } from '../../middleware/auth.js';
 import type { KeyConfig } from '../../internal/providers/lib/types.js';
 import type { IUserMemory } from '../../models/user-memory.js';
@@ -360,8 +360,6 @@ router.post('/', async (req: Request, res: Response) => {
     // IMPORTANT: Memory tools are ONLY available for direct user sessions.
     // API key requests should NOT be able to modify the API creator's memory.
     //
-    // Only exclude tools that might conflict with editor tools:
-    // - getTimeline: Might conflict with client-side timeline tools
     const aliaTools: ToolSet = {
       getCurrentDate: getCurrentDateTool,
       webScraper: webScraperTool,
@@ -376,10 +374,6 @@ router.post('/', async (req: Request, res: Response) => {
         updateUserPreferences: updateUserPreferencesTool(req.user!.id),
         updateUserContext: updateUserContextTool(req.user!.id),
       } : {}),
-      // Include these only if no editor tools (to avoid conflicts)
-      ...(hasEditorTools ? {} : {
-        getTimeline: getTimelineTool,
-      }),
     };
 
     const allTools = { ...aliaTools, ...editorTools };
