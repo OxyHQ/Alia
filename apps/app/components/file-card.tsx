@@ -9,6 +9,7 @@ import {
   Trash2
 } from 'lucide-react-native';
 import { LibraryFile } from '@/lib/stores/library-store';
+import { formatFileSize } from '@/lib/utils';
 
 interface FileCardProps {
   file: LibraryFile;
@@ -31,14 +32,6 @@ export function FileCard({ file, onPress, onDelete }: FileCardProps) {
     } else {
       return <File size={16} className="text-muted-foreground" />;
     }
-  };
-
-  const formatFileSize = (bytes: number): string => {
-    if (bytes === 0) return '0 Bytes';
-    const k = 1024;
-    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
   };
 
   const formatDate = (date: Date): string => {

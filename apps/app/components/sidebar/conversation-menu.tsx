@@ -1,28 +1,10 @@
 import React from "react";
-import { View } from "react-native";
 import { Pressable } from "react-native";
-import { Text } from "@/components/ui/text";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import {
-  MoreHorizontal,
-  Trash2,
-  FolderOpen,
-  Edit,
-  Star as StarIcon,
-} from "lucide-react-native";
+import * as DropdownMenu from "@/components/ui/dropdown-menu";
+import { MoreHorizontal } from "lucide-react-native";
 import type { Conversation } from "@/lib/hooks/use-conversations";
 import type { Project } from "@/lib/stores/projects-store";
 import type { Folder } from "@/lib/stores/folders-store";
-
-const ICON_MAP: Record<string, any> = {
-  FolderOpen,
-};
 
 interface ConversationMenuProps {
   conversation: Conversation;
@@ -50,114 +32,68 @@ export const ConversationMenu = React.memo<ConversationMenuProps>(({
   onDelete,
 }) => {
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
+    <DropdownMenu.Root>
+      <DropdownMenu.Trigger>
         <Pressable className="h-8 w-8 items-center justify-center rounded-full mr-1 active:bg-muted/70 opacity-0 group-hover:opacity-100">
           <MoreHorizontal size={14} className="text-muted-foreground" />
         </Pressable>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent side="bottom" align="end" className="w-56">
-        <DropdownMenuItem onPress={(e) => onToggleFavorite(conversation.id, e)}>
-          <StarIcon
-            size={16}
-            className="text-muted-foreground"
-            fill={isFavorite ? "#f59e0b" : "none"}
-            style={isFavorite ? { color: "#f59e0b" } : {}}
-          />
-          <Text className="text-sm">
+      </DropdownMenu.Trigger>
+      <DropdownMenu.Content>
+        <DropdownMenu.Item key="favorite" onSelect={() => onToggleFavorite(conversation.id, {})}>
+          <DropdownMenu.ItemIcon ios={{ name: isFavorite ? "star.fill" : "star" }} />
+          <DropdownMenu.ItemTitle>
             {isFavorite ? "Unfavorite" : "Favorite"}
-          </Text>
-        </DropdownMenuItem>
-        <DropdownMenuSeparator />
+          </DropdownMenu.ItemTitle>
+        </DropdownMenu.Item>
+        <DropdownMenu.Separator />
 
         {/* Move to Project */}
-        <View className="px-2 py-1.5">
-          <Text className="text-xs font-medium text-muted-foreground">
-            Move to Project
-          </Text>
-        </View>
-        <DropdownMenuItem
-          onPress={(e) => onMoveToProject(conversation.id, null, e)}
+        <DropdownMenu.Label>Move to Project</DropdownMenu.Label>
+        <DropdownMenu.Item
+          key="no-project"
+          onSelect={() => onMoveToProject(conversation.id, null, {})}
         >
-          <FolderOpen size={16} className="text-muted-foreground" />
-          <Text className="text-sm flex-1">No Project</Text>
-          {!currentProject && (
-            <View className="h-2 w-2 rounded-full bg-primary" />
-          )}
-        </DropdownMenuItem>
-        <DropdownMenuSeparator />
-        {projects.map((project) => {
-          const ProjectIcon = ICON_MAP[project.icon || "FolderOpen"] || FolderOpen;
-          return (
-            <DropdownMenuItem
-              key={project.id}
-              onPress={(e) => onMoveToProject(conversation.id, project.id, e)}
-            >
-              <ProjectIcon
-                size={16}
-                className="text-muted-foreground"
-                style={{ color: project.color }}
-              />
-              <Text className="text-sm flex-1" numberOfLines={1}>
-                {project.name}
-              </Text>
-              {currentProject?.id === project.id && (
-                <View className="h-2 w-2 rounded-full bg-primary" />
-              )}
-            </DropdownMenuItem>
-          );
-        })}
+          <DropdownMenu.ItemIcon ios={{ name: !currentProject ? "checkmark" : "folder" }} />
+          <DropdownMenu.ItemTitle>No Project</DropdownMenu.ItemTitle>
+        </DropdownMenu.Item>
+        {projects.map((project) => (
+          <DropdownMenu.Item
+            key={`project-${project.id}`}
+            onSelect={() => onMoveToProject(conversation.id, project.id, {})}
+          >
+            <DropdownMenu.ItemIcon ios={{ name: currentProject?.id === project.id ? "checkmark" : "folder" }} />
+            <DropdownMenu.ItemTitle>{project.name}</DropdownMenu.ItemTitle>
+          </DropdownMenu.Item>
+        ))}
 
-        <DropdownMenuSeparator />
+        <DropdownMenu.Separator />
 
         {/* Move to Folder */}
-        <View className="px-2 py-1.5">
-          <Text className="text-xs font-medium text-muted-foreground">
-            Move to Folder
-          </Text>
-        </View>
-        <DropdownMenuItem
-          onPress={(e) => onMoveToFolder(conversation.id, null, e)}
+        <DropdownMenu.Label>Move to Folder</DropdownMenu.Label>
+        <DropdownMenu.Item
+          key="no-folder"
+          onSelect={() => onMoveToFolder(conversation.id, null, {})}
         >
-          <FolderOpen size={16} className="text-muted-foreground" />
-          <Text className="text-sm flex-1">No Folder</Text>
-          {!currentFolder && (
-            <View className="h-2 w-2 rounded-full bg-primary" />
-          )}
-        </DropdownMenuItem>
-        <DropdownMenuSeparator />
-        {folders.map((folder) => {
-          const FolderIcon = ICON_MAP[folder.icon || "FolderOpen"] || FolderOpen;
-          return (
-            <DropdownMenuItem
-              key={folder.id}
-              onPress={(e) => onMoveToFolder(conversation.id, folder.id, e)}
-            >
-              <FolderIcon
-                size={16}
-                className="text-muted-foreground"
-                style={{ color: folder.color }}
-              />
-              <Text className="text-sm flex-1" numberOfLines={1}>
-                {folder.name}
-              </Text>
-              {currentFolder?.id === folder.id && (
-                <View className="h-2 w-2 rounded-full bg-primary" />
-              )}
-            </DropdownMenuItem>
-          );
-        })}
+          <DropdownMenu.ItemIcon ios={{ name: !currentFolder ? "checkmark" : "folder" }} />
+          <DropdownMenu.ItemTitle>No Folder</DropdownMenu.ItemTitle>
+        </DropdownMenu.Item>
+        {folders.map((folder) => (
+          <DropdownMenu.Item
+            key={`folder-${folder.id}`}
+            onSelect={() => onMoveToFolder(conversation.id, folder.id, {})}
+          >
+            <DropdownMenu.ItemIcon ios={{ name: currentFolder?.id === folder.id ? "checkmark" : "folder" }} />
+            <DropdownMenu.ItemTitle>{folder.name}</DropdownMenu.ItemTitle>
+          </DropdownMenu.Item>
+        ))}
 
-        <DropdownMenuSeparator />
-        <DropdownMenuItem
-          variant="destructive"
-          onPress={(e) => onDelete(conversation.id, e)}
-        >
-          <Trash2 size={16} className="text-destructive" />
-          <Text className="text-sm">Delete Conversation</Text>
-        </DropdownMenuItem>
-      </DropdownMenuContent>
-    </DropdownMenu>
+        <DropdownMenu.Separator />
+        <DropdownMenu.Item key="delete" destructive onSelect={() => onDelete(conversation.id, {})}>
+          <DropdownMenu.ItemIcon ios={{ name: "trash" }} />
+          <DropdownMenu.ItemTitle>Delete Conversation</DropdownMenu.ItemTitle>
+        </DropdownMenu.Item>
+      </DropdownMenu.Content>
+    </DropdownMenu.Root>
   );
 });
 

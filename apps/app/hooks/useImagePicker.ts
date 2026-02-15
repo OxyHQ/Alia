@@ -1,12 +1,19 @@
 import * as ImagePicker from 'expo-image-picker';
 import { toast } from '@/components/sonner';
 
+export type ImagePickerAsset = {
+  uri: string;
+  name: string;
+  size: number;
+  mimeType: string;
+};
+
 type ImagePickerResult = {
-  pickImage: () => Promise<string[] | undefined>;
+  pickImage: () => Promise<ImagePickerAsset[] | undefined>;
 };
 
 export function useImagePicker(): ImagePickerResult {
-  const pickImage = async (): Promise<string[] | undefined> => {
+  const pickImage = async (): Promise<ImagePickerAsset[] | undefined> => {
     try {
       const result = await ImagePicker.launchImageLibraryAsync({
         allowsMultipleSelection: true,
@@ -16,7 +23,12 @@ export function useImagePicker(): ImagePickerResult {
       });
 
       if (!result.canceled && result.assets.length > 0) {
-        return result.assets.map(asset => asset.uri);
+        return result.assets.map(asset => ({
+          uri: asset.uri,
+          name: asset.fileName || `image-${Date.now()}.jpg`,
+          size: asset.fileSize || 0,
+          mimeType: asset.mimeType || 'image/jpeg',
+        }));
       }
     } catch (error) {
       toast.error('Failed to pick image. Please try again.');

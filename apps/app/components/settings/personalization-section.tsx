@@ -12,16 +12,10 @@ import {
   Languages,
   MessageSquare,
   ChevronDown,
-  Check,
 } from "lucide-react-native";
 import { useUserData } from "@/hooks/useUserData";
 import { useUserDataStore } from "@/lib/stores/user-data-store";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+import * as DropdownMenu from "@/components/ui/dropdown-menu";
 import { useTranslation } from "@/hooks/useTranslation";
 import { toast } from "@/components/sonner";
 
@@ -135,28 +129,28 @@ export function PersonalizationSection() {
         <Text className="text-xs text-muted-foreground">
           {t("settings.aliaLanguage.description")}
         </Text>
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
+        <DropdownMenu.Root>
+          <DropdownMenu.Trigger>
             <Pressable className={`${inputClass} flex-row items-center justify-between`}>
               <Text className="text-foreground text-sm">
                 {language || t("settings.aliaLanguage.selectPlaceholder")}
               </Text>
               <ChevronDown size={16} className="text-muted-foreground" />
             </Pressable>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent className="w-56">
+          </DropdownMenu.Trigger>
+          <DropdownMenu.Content>
             {LANGUAGES.map((lang) => (
-              <DropdownMenuItem key={lang.value} onPress={() => setLanguage(lang.value)}>
-                <View className="flex-row items-center justify-between flex-1">
-                  <Text className="text-sm">{lang.label}</Text>
-                  {language === lang.value && (
-                    <Check size={14} className="text-primary" />
-                  )}
-                </View>
-              </DropdownMenuItem>
+              <DropdownMenu.CheckboxItem
+                key={lang.value}
+                value={language === lang.value ? 'on' : 'off'}
+                onValueChange={() => setLanguage(lang.value)}
+              >
+                <DropdownMenu.ItemIndicator />
+                <DropdownMenu.ItemTitle>{lang.label}</DropdownMenu.ItemTitle>
+              </DropdownMenu.CheckboxItem>
             ))}
-          </DropdownMenuContent>
-        </DropdownMenu>
+          </DropdownMenu.Content>
+        </DropdownMenu.Root>
       </View>
 
       {/* Tone */}

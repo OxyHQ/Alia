@@ -117,7 +117,7 @@ export const ChatInterface = React.memo(function ChatInterface({ messages, scrol
       <ScrollView
         ref={scrollViewRef}
         className="flex-1 bg-background px-4 py-4"
-        contentContainerStyle={{ flexGrow: 1 }}
+        contentContainerStyle={{ flexGrow: 1, paddingBottom: 160 }}
         showsVerticalScrollIndicator={false}
       >
         <View className={containerClassName}>

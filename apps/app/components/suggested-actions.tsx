@@ -31,10 +31,10 @@ export function SuggestedActions({
 
   const opacity = useSharedValue(1);
 
-  // Subscribe to selectedImageUris length changes without extracting the array
+  // Subscribe to attachments length changes without extracting the array
   useEffect(() => {
     const unsubscribe = useStore.subscribe((state) => {
-      const hasImagesNow = state.selectedImageUris.length > 0;
+      const hasImagesNow = state.attachments.length > 0;
       if (hasImagesNow !== hasImages) {
         setHasImages(hasImagesNow);
       }

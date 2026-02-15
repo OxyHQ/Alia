@@ -1,19 +1,11 @@
 import React from "react";
 import { View, Pressable } from "react-native";
 import { Text } from "@/components/ui/text";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+import * as DropdownMenu from "@/components/ui/dropdown-menu";
 import {
   ChevronDown,
   ChevronRight,
   MoreHorizontal,
-  Edit,
-  Trash2,
   Star as StarIcon,
   Folder as FolderIcon,
 } from "lucide-react-native";
@@ -99,33 +91,30 @@ export const FolderSection = React.memo<FolderSectionProps>(({
             <ChevronRight size={12} className="text-muted-foreground" />
           )}
         </Pressable>
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
+        <DropdownMenu.Root>
+          <DropdownMenu.Trigger>
             <Pressable className="h-7 w-7 items-center justify-center rounded-full mr-1 active:bg-muted/70">
               <MoreHorizontal size={12} className="text-muted-foreground" />
             </Pressable>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent side="bottom" align="end" className="w-48">
-            <DropdownMenuItem onPress={(e) => onToggleFavorite(folder, e)}>
-              <StarIcon size={16} className="text-muted-foreground" />
-              <Text className="text-sm">
+          </DropdownMenu.Trigger>
+          <DropdownMenu.Content>
+            <DropdownMenu.Item key="favorite" onSelect={() => onToggleFavorite(folder, {})}>
+              <DropdownMenu.ItemIcon ios={{ name: folder.isFavorite ? "star.fill" : "star" }} />
+              <DropdownMenu.ItemTitle>
                 {folder.isFavorite ? "Unfavorite" : "Favorite"}
-              </Text>
-            </DropdownMenuItem>
-            <DropdownMenuItem onPress={(e) => onEdit(folder, e)}>
-              <Edit size={16} className="text-muted-foreground" />
-              <Text className="text-sm">Edit Folder</Text>
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem
-              variant="destructive"
-              onPress={(e) => onDelete(folder.id, e)}
-            >
-              <Trash2 size={16} className="text-destructive" />
-              <Text className="text-sm">Delete Folder</Text>
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+              </DropdownMenu.ItemTitle>
+            </DropdownMenu.Item>
+            <DropdownMenu.Item key="edit" onSelect={() => onEdit(folder, {})}>
+              <DropdownMenu.ItemIcon ios={{ name: "pencil" }} />
+              <DropdownMenu.ItemTitle>Edit Folder</DropdownMenu.ItemTitle>
+            </DropdownMenu.Item>
+            <DropdownMenu.Separator />
+            <DropdownMenu.Item key="delete" destructive onSelect={() => onDelete(folder.id, {})}>
+              <DropdownMenu.ItemIcon ios={{ name: "trash" }} />
+              <DropdownMenu.ItemTitle>Delete Folder</DropdownMenu.ItemTitle>
+            </DropdownMenu.Item>
+          </DropdownMenu.Content>
+        </DropdownMenu.Root>
       </View>
 
       {/* Folder Conversations */}

@@ -1,5 +1,15 @@
 import { create } from "zustand";
 
+export interface Attachment {
+  id: string;
+  uri: string;
+  type: 'image' | 'document';
+  name: string;
+  size: number;
+  mimeType: string;
+  isLoading?: boolean;
+}
+
 type ChatIdState = {
   id: string;
   from: "history" | "newChat" | "sidebar" | "url";
@@ -8,10 +18,11 @@ type ChatIdState = {
 interface StoreState {
   scrollY: number;
   setScrollY: (value: number) => void;
-  selectedImageUris: string[];
-  addImageUri: (uri: string) => void;
-  removeImageUri: (uri: string) => void;
-  clearImageUris: () => void;
+  attachments: Attachment[];
+  addAttachment: (attachment: Attachment) => void;
+  updateAttachment: (id: string, updates: Partial<Attachment>) => void;
+  removeAttachment: (id: string) => void;
+  clearAttachments: () => void;
   setBottomChatHeightHandler: (value: boolean) => void;
   bottomChatHeightHandler: boolean;
   chatId: ChatIdState;
@@ -30,18 +41,22 @@ interface StoreState {
 export const useStore = create<StoreState>((set, get) => ({
   scrollY: 0,
   setScrollY: (value: number) => set({ scrollY: value }),
-  selectedImageUris: [],
-  addImageUri: (uri: string) =>
+  attachments: [],
+  addAttachment: (attachment: Attachment) =>
     set((state) => ({
-      selectedImageUris: [...state.selectedImageUris, uri],
+      attachments: [...state.attachments, attachment],
     })),
-  removeImageUri: (uri: string) =>
+  updateAttachment: (id: string, updates: Partial<Attachment>) =>
     set((state) => ({
-      selectedImageUris: state.selectedImageUris.filter(
-        (imageUri) => imageUri !== uri,
+      attachments: state.attachments.map((a) =>
+        a.id === id ? { ...a, ...updates } : a
       ),
     })),
-  clearImageUris: () => set({ selectedImageUris: [] }),
+  removeAttachment: (id: string) =>
+    set((state) => ({
+      attachments: state.attachments.filter((a) => a.id !== id),
+    })),
+  clearAttachments: () => set({ attachments: [] }),
   bottomChatHeightHandler: false,
   setBottomChatHeightHandler: (value: boolean) =>
     set({ bottomChatHeightHandler: value }),
