@@ -158,7 +158,7 @@ export function ModelSelector({
                     <DropdownMenu.ItemIcon ios={{ name: "sparkle" }} />
                     <DropdownMenu.ItemTitle>More models</DropdownMenu.ItemTitle>
                   </DropdownMenu.SubTrigger>
-                  <DropdownMenu.SubContent>
+                  <DropdownMenu.SubContent className="w-64">
                     {moreModels.map((model) => (
                       <ModelCheckboxItem
                         key={model.id}
