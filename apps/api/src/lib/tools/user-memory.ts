@@ -1,7 +1,8 @@
 import { tool } from "ai";
 import { z } from "zod";
-import { UserMemory, getMemoryLimit } from "../../models/user-memory.js";
+import { getMemoryLimit } from "../../models/user-memory.js";
 import { Subscription } from "../../models/subscription.js";
+import { getOrCreateUserMemory } from "../memory/user-memory-service.js";
 
 /**
  * Tool to save user memories
@@ -18,18 +19,7 @@ export const saveUserMemoryTool = (oxyUserId: string) => tool({
 
   execute: async ({ key, value, category }) => {
     try {
-      // Find the user's memory document
-      let memory = await UserMemory.findOne({ oxyUserId });
-
-      if (!memory) {
-        // Create new memory document if it doesn't exist
-        memory = new UserMemory({
-          oxyUserId,
-          memories: [],
-          preferences: {},
-          context: {}
-        });
-      }
+      const memory = await getOrCreateUserMemory(oxyUserId);
 
       // Check if a memory with this key already exists
       const existingMemoryIndex = memory.memories.findIndex(m => m.key === key);
@@ -113,16 +103,7 @@ export const updateUserPreferencesTool = (oxyUserId: string) => tool({
 
   execute: async ({ language, tone, responseLength, interests }) => {
     try {
-      let memory = await UserMemory.findOne({ oxyUserId });
-
-      if (!memory) {
-        memory = new UserMemory({
-          oxyUserId,
-          memories: [],
-          preferences: {},
-          context: {}
-        });
-      }
+      const memory = await getOrCreateUserMemory(oxyUserId);
 
       // Update preferences
       if (language) memory.preferences.language = language;
@@ -163,16 +144,7 @@ export const updateUserContextTool = (oxyUserId: string) => tool({
 
   execute: async ({ occupation, location, timezone, bio }) => {
     try {
-      let memory = await UserMemory.findOne({ oxyUserId });
-
-      if (!memory) {
-        memory = new UserMemory({
-          oxyUserId,
-          memories: [],
-          preferences: {},
-          context: {}
-        });
-      }
+      const memory = await getOrCreateUserMemory(oxyUserId);
 
       // Update context
       if (occupation) memory.context.occupation = occupation;

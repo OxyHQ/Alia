@@ -8,6 +8,7 @@ import {
   ImportMemorySchema,
   MergeStrategySchema,
 } from '../lib/validators/memory-validators.js';
+import { getOrCreateUserMemory } from '../lib/memory/user-memory-service.js';
 
 const router = Router();
 
@@ -57,18 +58,7 @@ router.get('/stats', async (req, res) => {
  */
 router.get('/', async (req, res) => {
   try {
-    let memory = await UserMemory.findOne({ oxyUserId: req.user!.id });
-
-    // Create empty memory profile if doesn't exist
-    if (!memory) {
-      memory = new UserMemory({
-        oxyUserId: req.user!.id,
-        memories: [],
-        preferences: {},
-        context: {}
-      });
-      await memory.save();
-    }
+    const memory = await getOrCreateUserMemory(req.user!.id);
 
     res.json(memory);
   } catch (error) {
@@ -143,63 +133,46 @@ router.post('/add', async (req, res) => {
       return;
     }
 
-    // Find existing memory
-    let userMemory = await UserMemory.findOne({ oxyUserId: req.user!.id });
+    const userMemory = await getOrCreateUserMemory(req.user!.id);
 
-    // Get user's subscription to check memory limit
-    const subscription = await Subscription.findOne({
-      oxyUserId: req.user!.id,
-      status: { $in: ['active', 'trialing'] }
-    });
+    // Check if memory with this key exists
+    const existingMemoryIndex = userMemory.memories.findIndex(m => m.key === key);
 
-    const memoryLimit = getMemoryLimit(subscription?.plan?.name);
-
-    if (!userMemory) {
-      // Create new memory document
-      userMemory = new UserMemory({
-        oxyUserId: req.user!.id,
-        memories: [{
-          key,
-          value,
-          category,
-          createdAt: new Date(),
-          updatedAt: new Date()
-        }],
-        preferences: {},
-        context: {}
-      });
+    if (existingMemoryIndex !== -1) {
+      // Update existing memory
+      userMemory.memories[existingMemoryIndex].value = value;
+      if (category) userMemory.memories[existingMemoryIndex].category = category;
+      userMemory.memories[existingMemoryIndex].updatedAt = new Date();
     } else {
-      // Check if memory with this key exists
-      const existingMemoryIndex = userMemory.memories.findIndex(m => m.key === key);
+      // Get user's subscription to check memory limit
+      const subscription = await Subscription.findOne({
+        oxyUserId: req.user!.id,
+        status: { $in: ['active', 'trialing'] }
+      });
 
-      if (existingMemoryIndex !== -1) {
-        // Update existing memory
-        userMemory.memories[existingMemoryIndex].value = value;
-        if (category) userMemory.memories[existingMemoryIndex].category = category;
-        userMemory.memories[existingMemoryIndex].updatedAt = new Date();
-      } else {
-        // Check memory limit before adding new (unless unlimited)
-        if (memoryLimit !== -1 && userMemory.memories.length >= memoryLimit) {
-          res.status(400).json({
-            error: 'Memory limit exceeded',
-            limit: memoryLimit,
-            current: userMemory.memories.length,
-            suggestion: subscription?.plan?.name
-              ? 'Upgrade to Business plan for unlimited memories'
-              : 'Upgrade to Pro or Business plan for more memories'
-          });
-          return;
-        }
+      const memoryLimit = getMemoryLimit(subscription?.plan?.name);
 
-        // Add new memory
-        userMemory.memories.push({
-          key,
-          value,
-          category,
-          createdAt: new Date(),
-          updatedAt: new Date()
+      // Check memory limit before adding new (unless unlimited)
+      if (memoryLimit !== -1 && userMemory.memories.length >= memoryLimit) {
+        res.status(400).json({
+          error: 'Memory limit exceeded',
+          limit: memoryLimit,
+          current: userMemory.memories.length,
+          suggestion: subscription?.plan?.name
+            ? 'Upgrade to Business plan for unlimited memories'
+            : 'Upgrade to Pro or Business plan for more memories'
         });
+        return;
       }
+
+      // Add new memory
+      userMemory.memories.push({
+        key,
+        value,
+        category,
+        createdAt: new Date(),
+        updatedAt: new Date()
+      });
     }
 
     await userMemory.save();
@@ -714,15 +687,7 @@ router.post('/import', async (req, res) => {
     }
 
     // Find or create user memory
-    let memory = await UserMemory.findOne({ oxyUserId: req.user!.id });
-    if (!memory) {
-      memory = new UserMemory({
-        oxyUserId: req.user!.id,
-        memories: [],
-        preferences: {},
-        context: {}
-      });
-    }
+    const memory = await getOrCreateUserMemory(req.user!.id);
 
     // Get user's subscription to check memory limit
     const subscription = await Subscription.findOne({

@@ -1,17 +1,12 @@
 import { create } from "zustand";
-import AsyncStorage from "@react-native-async-storage/async-storage";
+import { CollectionPersister, type CollectionItem } from "./create-collection-store";
 
-export interface Folder {
-  id: string;
-  name: string;
-  icon?: string; // Lucide icon name
-  color?: string;
-  conversationIds: string[];
-  isExpanded: boolean;
+export interface Folder extends CollectionItem {
   isFavorite?: boolean;
-  createdAt: Date;
-  updatedAt: Date;
 }
+
+const FOLDER_ICONS = ["Folder", "FolderOpen", "FolderClosed", "Archive", "Inbox", "BookMarked"];
+const persister = new CollectionPersister<Folder>("alia-folders", "folder", FOLDER_ICONS);
 
 interface FoldersStoreState {
   folders: Folder[];
@@ -24,24 +19,12 @@ interface FoldersStoreState {
   removeConversationFromFolder: (folderId: string, conversationId: string) => Promise<void>;
 }
 
-const FOLDERS_STORAGE_KEY = "alia-folders";
-
 export const useFoldersStore = create<FoldersStoreState>((set, get) => ({
   folders: [],
 
   loadFolders: async () => {
     try {
-      const foldersData = await AsyncStorage.getItem(FOLDERS_STORAGE_KEY);
-
-      if (foldersData) {
-        const parsed = JSON.parse(foldersData);
-        const folders = parsed.map((folder: any) => ({
-          ...folder,
-          createdAt: new Date(folder.createdAt),
-          updatedAt: new Date(folder.updatedAt),
-        }));
-        set({ folders });
-      }
+      set({ folders: await persister.load() });
     } catch (error) {
       console.error("Error loading folders:", error);
     }
@@ -49,21 +32,10 @@ export const useFoldersStore = create<FoldersStoreState>((set, get) => ({
 
   createFolder: async (name: string, icon?: string) => {
     try {
-      const state = get();
-      const folder: Folder = {
-        id: `folder-${Date.now()}`,
-        name,
-        icon: icon || getRandomIcon(),
-        color: getRandomColor(),
-        conversationIds: [],
-        isExpanded: true,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      };
-
-      const newFolders = [...state.folders, folder];
-      await AsyncStorage.setItem(FOLDERS_STORAGE_KEY, JSON.stringify(newFolders));
-      set({ folders: newFolders });
+      const folder = persister.newItem(name, icon ? { icon } as Partial<Folder> : undefined);
+      const folders = [...get().folders, folder];
+      await persister.save(folders);
+      set({ folders });
     } catch (error) {
       console.error("Error creating folder:", error);
     }
@@ -71,14 +43,9 @@ export const useFoldersStore = create<FoldersStoreState>((set, get) => ({
 
   updateFolder: async (id: string, updates: Partial<Folder>) => {
     try {
-      const state = get();
-      const newFolders = state.folders.map((folder) =>
-        folder.id === id
-          ? { ...folder, ...updates, updatedAt: new Date() }
-          : folder
-      );
-      await AsyncStorage.setItem(FOLDERS_STORAGE_KEY, JSON.stringify(newFolders));
-      set({ folders: newFolders });
+      const folders = persister.updateIn(get().folders, id, updates);
+      await persister.save(folders);
+      set({ folders });
     } catch (error) {
       console.error("Error updating folder:", error);
     }
@@ -86,10 +53,9 @@ export const useFoldersStore = create<FoldersStoreState>((set, get) => ({
 
   deleteFolder: async (id: string) => {
     try {
-      const state = get();
-      const newFolders = state.folders.filter((folder) => folder.id !== id);
-      await AsyncStorage.setItem(FOLDERS_STORAGE_KEY, JSON.stringify(newFolders));
-      set({ folders: newFolders });
+      const folders = get().folders.filter((f) => f.id !== id);
+      await persister.save(folders);
+      set({ folders });
     } catch (error) {
       console.error("Error deleting folder:", error);
     }
@@ -97,14 +63,11 @@ export const useFoldersStore = create<FoldersStoreState>((set, get) => ({
 
   toggleFolder: async (id: string) => {
     try {
-      const state = get();
-      const newFolders = state.folders.map((folder) =>
-        folder.id === id
-          ? { ...folder, isExpanded: !folder.isExpanded, updatedAt: new Date() }
-          : folder
+      const folders = get().folders.map((f) =>
+        f.id === id ? { ...f, isExpanded: !f.isExpanded } : f
       );
-      await AsyncStorage.setItem(FOLDERS_STORAGE_KEY, JSON.stringify(newFolders));
-      set({ folders: newFolders });
+      await persister.save(folders);
+      set({ folders });
     } catch (error) {
       console.error("Error toggling folder:", error);
     }
@@ -112,19 +75,9 @@ export const useFoldersStore = create<FoldersStoreState>((set, get) => ({
 
   addConversationToFolder: async (folderId: string, conversationId: string) => {
     try {
-      const state = get();
-      const newFolders = state.folders.map((folder) => {
-        if (folder.id === folderId && !folder.conversationIds.includes(conversationId)) {
-          return {
-            ...folder,
-            conversationIds: [...folder.conversationIds, conversationId],
-            updatedAt: new Date(),
-          };
-        }
-        return folder;
-      });
-      await AsyncStorage.setItem(FOLDERS_STORAGE_KEY, JSON.stringify(newFolders));
-      set({ folders: newFolders });
+      const folders = persister.addConversation(get().folders, folderId, conversationId);
+      await persister.save(folders);
+      set({ folders });
     } catch (error) {
       console.error("Error adding conversation to folder:", error);
     }
@@ -132,49 +85,11 @@ export const useFoldersStore = create<FoldersStoreState>((set, get) => ({
 
   removeConversationFromFolder: async (folderId: string, conversationId: string) => {
     try {
-      const state = get();
-      const newFolders = state.folders.map((folder) => {
-        if (folder.id === folderId) {
-          return {
-            ...folder,
-            conversationIds: folder.conversationIds.filter((id) => id !== conversationId),
-            updatedAt: new Date(),
-          };
-        }
-        return folder;
-      });
-      await AsyncStorage.setItem(FOLDERS_STORAGE_KEY, JSON.stringify(newFolders));
-      set({ folders: newFolders });
+      const folders = persister.removeConversation(get().folders, folderId, conversationId);
+      await persister.save(folders);
+      set({ folders });
     } catch (error) {
       console.error("Error removing conversation from folder:", error);
     }
   },
 }));
-
-// Helper function to generate random colors for folders
-function getRandomColor(): string {
-  const colors = [
-    "#3b82f6", // blue
-    "#8b5cf6", // purple
-    "#ec4899", // pink
-    "#f59e0b", // amber
-    "#10b981", // green
-    "#06b6d4", // cyan
-    "#f97316", // orange
-    "#ef4444", // red
-  ];
-  return colors[Math.floor(Math.random() * colors.length)];
-}
-
-// Helper function to generate random icons for folders
-function getRandomIcon(): string {
-  const icons = [
-    "Folder",
-    "FolderOpen",
-    "FolderClosed",
-    "Archive",
-    "Inbox",
-    "BookMarked",
-  ];
-  return icons[Math.floor(Math.random() * icons.length)];
-}

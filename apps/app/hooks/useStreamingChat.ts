@@ -9,13 +9,8 @@ import { collectDeviceInfo } from '@/lib/device-info';
 import { UsageLimitError } from '@/lib/errors/usage-limit-error';
 import { queryKeys } from '@/lib/hooks/query-keys';
 
-export interface ToolInvocation {
-  toolCallId: string;
-  toolName: string;
-  state: 'partial-call' | 'call' | 'result';
-  args?: any;
-  result?: any;
-}
+import type { ToolInvocation } from '@/lib/types/messages';
+export type { ToolInvocation };
 
 import { extractTitle, stripTitleTagsPartial as stripTitleTags } from '@/lib/utils/title-tags';
 

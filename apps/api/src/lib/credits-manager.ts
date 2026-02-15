@@ -240,6 +240,21 @@ export async function finalizeCredits(
 }
 
 /**
+ * Safely refund a credit reservation, swallowing errors.
+ * Use this in error-handling paths where you must not throw.
+ */
+export async function safeRefund(
+  reservation: CreditReservation | null,
+  reason?: string
+): Promise<void> {
+  if (!reservation) return;
+  await refundReservation(reservation);
+  if (reason) {
+    console.log(`[CreditsManager] Refunded credits (${reason})`);
+  }
+}
+
+/**
  * Refund all reserved credits (in case of error before streaming)
  */
 export async function refundReservation(reservation: CreditReservation): Promise<void> {
