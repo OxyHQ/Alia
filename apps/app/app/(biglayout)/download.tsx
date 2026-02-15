@@ -5,14 +5,6 @@ import { useRouter } from 'expo-router';
 import Head from 'expo-router/head';
 import QRCode from 'react-native-qrcode-svg';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
-import Animated, {
-  FadeIn,
-  FadeOut,
-  useSharedValue,
-  useAnimatedStyle,
-  withTiming,
-  Easing,
-} from 'react-native-reanimated';
 import { ArrowLeft } from 'lucide-react-native';
 import { Text } from '@/components/ui/text';
 import { Button } from '@/components/ui/button';
@@ -31,16 +23,6 @@ function isMobileWeb(): boolean {
 export default function DownloadScreen() {
   const router = useRouter();
   const [platform, setPlatform] = useState<StorePlatform>('android');
-  const tabLayouts = useSharedValue<{ x: number; width: number }[]>([]);
-  const indicatorX = useSharedValue(0);
-  const indicatorW = useSharedValue(0);
-
-  const timingConfig = { duration: 250, easing: Easing.out(Easing.cubic) };
-
-  const indicatorStyle = useAnimatedStyle(() => ({
-    transform: [{ translateX: withTiming(indicatorX.value, timingConfig) }],
-    width: withTiming(indicatorW.value, timingConfig),
-  }));
 
   // On mobile web, redirect straight to the store
   useEffect(() => {
@@ -80,60 +62,50 @@ export default function DownloadScreen() {
 
           {/* Platform toggle */}
           <View className="flex-row rounded-full bg-muted p-1">
-            {/* Animated sliding pill */}
-            <Animated.View
-              className="absolute top-1 bottom-1 rounded-full bg-background shadow-sm"
-              style={[{ left: 4 }, indicatorStyle]}
-              pointerEvents="none"
-            />
-            {(['android', 'ios'] as const).map((key, i) => (
-              <Pressable
-                key={key}
-                onPress={() => {
-                  setPlatform(key);
-                  const layout = tabLayouts.value[i];
-                  if (layout) {
-                    indicatorX.value = layout.x;
-                    indicatorW.value = layout.width;
-                  }
-                }}
-                onLayout={(e) => {
-                  const { x, width } = e.nativeEvent.layout;
-                  const prev = [...tabLayouts.value];
-                  prev[i] = { x, width };
-                  tabLayouts.value = prev;
-                  // Set initial indicator position for active tab
-                  if (key === platform) {
-                    indicatorX.value = x;
-                    indicatorW.value = width;
-                  }
-                }}
-                className="flex-row items-center gap-1.5 px-4 py-1.5 rounded-full z-10"
-              >
-                <MaterialCommunityIcons
-                  name={key === 'android' ? 'android' : 'apple'}
-                  size={16}
-                  color={platform === key ? (key === 'android' ? '#3ddc84' : '#999') : '#999'}
-                />
-                <Text className={cn(
-                  'text-xs font-medium',
-                  platform === key ? 'text-foreground' : 'text-muted-foreground'
-                )}>
-                  {key === 'android' ? 'Android' : 'iOS'}
-                </Text>
-              </Pressable>
-            ))}
+            <Pressable
+              onPress={() => setPlatform('android')}
+              className={cn(
+                'flex-row items-center gap-1.5 px-4 py-1.5 rounded-full',
+                platform === 'android' && 'bg-background shadow-sm'
+              )}
+            >
+              <MaterialCommunityIcons
+                name="android"
+                size={16}
+                color={platform === 'android' ? '#3ddc84' : '#999'}
+              />
+              <Text className={cn(
+                'text-xs font-medium',
+                platform === 'android' ? 'text-foreground' : 'text-muted-foreground'
+              )}>
+                Android
+              </Text>
+            </Pressable>
+            <Pressable
+              onPress={() => setPlatform('ios')}
+              className={cn(
+                'flex-row items-center gap-1.5 px-4 py-1.5 rounded-full',
+                platform === 'ios' && 'bg-background shadow-sm'
+              )}
+            >
+              <MaterialCommunityIcons
+                name="apple"
+                size={16}
+                color={platform === 'ios' ? '#999' : '#999'}
+              />
+              <Text className={cn(
+                'text-xs font-medium',
+                platform === 'ios' ? 'text-foreground' : 'text-muted-foreground'
+              )}>
+                iOS
+              </Text>
+            </Pressable>
           </View>
 
           {/* QR / Coming soon — fixed-size container to prevent layout shift */}
           <View className="items-center gap-3" style={{ width: 212, height: 244 }}>
             {platform === 'android' ? (
-              <Animated.View
-                key="android"
-                entering={FadeIn.duration(200)}
-                exiting={FadeOut.duration(150)}
-                className="items-center gap-3"
-              >
+              <>
                 <View className="bg-white p-4 rounded-2xl">
                   <QRCode
                     value={PLAY_STORE_URL}
@@ -149,19 +121,14 @@ export default function DownloadScreen() {
                 >
                   <Text className="text-xs font-medium">Get it on Google Play</Text>
                 </Button>
-              </Animated.View>
+              </>
             ) : (
-              <Animated.View
-                key="ios"
-                entering={FadeIn.duration(200)}
-                exiting={FadeOut.duration(150)}
-                className="flex-1 items-center justify-center rounded-2xl border border-dashed border-border w-full gap-2"
-              >
+              <View className="flex-1 items-center justify-center rounded-2xl border border-dashed border-border w-full gap-2">
                 <Text className="text-sm font-medium text-foreground">Coming soon</Text>
                 <Text className="text-xs text-muted-foreground text-center">
                   The iOS app is on the way.
                 </Text>
-              </Animated.View>
+              </View>
             )}
           </View>
 
