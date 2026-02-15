@@ -101,7 +101,7 @@ export function setupRealtimeEndpoint(wss: WebSocketServer): void {
       }
 
       // Build rich voice instructions (mirrors chat-completions.ts context building)
-      let voiceInstructions = 'You are in a real-time voice conversation. Keep responses concise and conversational — avoid long lists, markdown, or code blocks. Speak naturally.\n\n';
+      let voiceInstructions = 'You are in a real-time voice conversation. Keep responses concise and conversational — avoid long lists, markdown, or code blocks. Speak naturally and expressively — vary your tone, pacing, and energy like a real person would. Use vocal inflections and reactions naturally.\n\n';
 
       // Load model-specific system prompt
       try {
