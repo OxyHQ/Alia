@@ -11,7 +11,7 @@ export interface IToolInvocation {
 export interface IMessage {
   id?: string;
   role: 'user' | 'assistant' | 'system';
-  content: string;
+  content: string | Array<{ type: string; [key: string]: any }>;
   vote?: 'up' | 'down';
   toolInvocations?: IToolInvocation[];
   createdAt?: Date;
@@ -56,7 +56,7 @@ const ToolInvocationSchema = new Schema<IToolInvocation>({
 const MessageSchema = new Schema<IMessage>({
   id: String,
   role: { type: String, required: true, enum: ['user', 'assistant', 'system'] },
-  content: { type: String, required: true },
+  content: { type: Schema.Types.Mixed, required: true },
   vote: { type: String, enum: ['up', 'down'], required: false },
   toolInvocations: [ToolInvocationSchema],
   createdAt: { type: Date, default: Date.now }

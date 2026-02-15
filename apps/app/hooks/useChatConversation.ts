@@ -1,9 +1,10 @@
 import { useEffect, useCallback, useRef } from "react";
 import { useRouter } from "expo-router";
-import { useStore } from "@/lib/globalStore";
+import { useStore, type Attachment } from "@/lib/globalStore";
 import { useStreamingChat } from "@/hooks/useStreamingChat";
 import { useConversation, useCreateConversation } from "@/lib/hooks/use-conversations";
 import { generateAPIUrl } from "@/lib/generate-api-url";
+import { buildMessageContent } from "@/lib/attachment-utils";
 import type { Role } from "@/lib/stores/roles-store";
 import type { ScrollView as GHScrollView } from "react-native-gesture-handler";
 
@@ -70,25 +71,36 @@ export function useChatConversation({ conversationId, activeRole, thinkingMode, 
   }, [conversationId, pendingInitialMessage, isLoading, messages.length, append]);
 
   // Actions
-  const sendMessage = useCallback((content: string) => {
+  const sendMessage = useCallback(async (content: string, attachments?: Attachment[]) => {
     if (!content.trim() || isLoading) return;
 
     useStore.getState().setBottomChatHeightHandler(true);
+
+    const messageContent = attachments?.length
+      ? await buildMessageContent(content, attachments)
+      : content;
+
     append({
       role: 'user',
-      content,
+      content: messageContent,
     });
     useStore.getState().clearAttachments();
   }, [isLoading, append]);
 
-  const createNewConversation = useCallback(async (initialMessage: string) => {
+  const createNewConversation = useCallback(async (initialMessage: string, attachments?: Attachment[]) => {
     if (!initialMessage.trim()) return;
+
+    // If there are attachments, build multi-part content and store it as pending
+    if (attachments?.length) {
+      const messageContent = await buildMessageContent(initialMessage, attachments);
+      useStore.getState().setPendingInitialMessage(messageContent);
+      useStore.getState().clearAttachments();
+    } else {
+      useStore.getState().setPendingInitialMessage(initialMessage);
+    }
 
     // Create conversation on backend and get the ID
     const newConversation = await createConversationMutation.mutateAsync();
-
-    // Store the initial message in the global store
-    useStore.getState().setPendingInitialMessage(initialMessage);
 
     // Navigate to the new conversation
     router.replace(`/(app)/c/${newConversation.id}` as any);

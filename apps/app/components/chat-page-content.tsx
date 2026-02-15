@@ -3,7 +3,7 @@ import { View, Pressable, useWindowDimensions } from "react-native";
 import { useColorScheme } from "@/lib/useColorScheme";
 import { LinearGradient } from "expo-linear-gradient";
 import type { ScrollView as GHScrollView } from "react-native-gesture-handler";
-import { useStore } from "@/lib/globalStore";
+import { useStore, type Attachment } from "@/lib/globalStore";
 import { ActivityIndicator } from "react-native";
 import { Plus, Globe, ArrowUp, MoreHorizontal, X, Ghost, Sparkles, Square, Brain, Mic, MicOff, Bot, Search, ShoppingBag, BookOpen } from "lucide-react-native";
 import Entypo from '@expo/vector-icons/Entypo';
@@ -30,11 +30,31 @@ import type { PromptCompletion } from "@/lib/prompt-completions";
 import { getThinkingModelId, isThinkingModel } from "@/components/model-selector";
 import { useChatStore } from "@/lib/stores/chat-store";
 
+type Mode = 'search' | 'agent' | 'ghost' | 'deepResearch' | 'shoppingResearch' | 'study';
+
+const MODE_CONFIG: Record<Mode, {
+  label: string;
+  icon: React.ComponentType<{ size: number; color: string }>;
+  color: string;
+  onToast: string;
+  offToast: string;
+  exclusive?: Mode[];
+}> = {
+  search:           { label: 'Search',        icon: Globe,       color: '#3b82f6', onToast: 'Web search will be used',               offToast: 'Search mode disabled' },
+  ghost:            { label: 'Ghost',         icon: Ghost,       color: '#00b2ff', onToast: 'Conversations will not be saved',       offToast: 'Conversations will be saved normally' },
+  agent:            { label: 'Agent',         icon: Bot,         color: '#f97316', onToast: 'I can now perform actions autonomously', offToast: 'Agent mode disabled' },
+  deepResearch:     { label: 'Deep research', icon: Search,      color: '#10b981', onToast: 'Deep research mode activated',          offToast: 'Deep research disabled', exclusive: ['shoppingResearch'] },
+  shoppingResearch: { label: 'Shopping',      icon: ShoppingBag, color: '#ec4899', onToast: 'Shopping research activated',           offToast: 'Shopping research disabled', exclusive: ['deepResearch'] },
+  study:            { label: 'Study',         icon: BookOpen,    color: '#6366f1', onToast: 'Study mode activated',                  offToast: 'Study mode disabled' },
+};
+
+const MODE_ORDER: Mode[] = ['ghost', 'agent', 'deepResearch', 'shoppingResearch', 'study'];
+
 interface ChatPageContentProps {
   messages: Message[];
   scrollViewRef: React.RefObject<GHScrollView>;
   isLoading: boolean;
-  onSubmit: (value: string) => void;
+  onSubmit: (value: string, attachments?: Attachment[]) => void;
   onSuggestionPress: (message: string) => void;
   onEditMessage: (messageId: string, newContent: string) => void;
   onStop?: () => void;
@@ -85,6 +105,21 @@ const SubmitButtonWrapper = ({
   );
 };
 
+const ModeChip = ({ icon: Icon, label, color, onDismiss }: {
+  icon: React.ComponentType<{ size: number; color: string }>;
+  label: string;
+  color: string;
+  onDismiss: () => void;
+}) => (
+  <View className="h-8 rounded-full px-3 flex-row items-center gap-1.5" style={{ backgroundColor: `${color}20` }}>
+    <Icon size={14} color={color} />
+    <Text className="text-xs font-medium" style={{ color }}>{label}</Text>
+    <Pressable onPress={onDismiss} className="active:opacity-70">
+      <X size={12} color={color} />
+    </Pressable>
+  </View>
+);
+
 export const ChatPageContent = ({
   messages,
   scrollViewRef,
@@ -104,22 +139,16 @@ export const ChatPageContent = ({
   const { isAuthenticated } = useAuth();
   const { width: screenWidth } = useWindowDimensions();
   const isNarrowScreen = screenWidth < 640;
-  const [searchMode, setSearchMode] = useState(false);
-  const [agentMode, setAgentMode] = useState(false);
-  const [ghostMode, setGhostMode] = useState(false);
-  const [deepResearchMode, setDeepResearchMode] = useState(false);
-  const [shoppingResearchMode, setShoppingResearchMode] = useState(false);
-  const [studyMode, setStudyMode] = useState(false);
+  const [activeModes, setActiveModes] = useState<Set<Mode>>(new Set());
   const thinkingMode = isThinkingModel(selectedModel);
   const baseModel = useChatStore((s) => s.baseModel);
   const setBaseModel = useChatStore((s) => s.setBaseModel);
 
-  // Keep baseModel synced when user manually picks a non-thinking model
   useEffect(() => {
     if (!isThinkingModel(selectedModel)) {
       setBaseModel(selectedModel);
     }
-  }, [selectedModel]);
+  }, [selectedModel, setBaseModel]);
 
   const [inputValue, setInputValue] = useState("");
   const [showVoice, setShowVoice] = useState(false);
@@ -133,13 +162,29 @@ export const ChatPageContent = ({
   const isMainScreen = messages.length === 0;
   const completions = usePromptCompletions(inputValue, isMainScreen);
 
+  const toggleMode = useCallback((mode: Mode) => {
+    setActiveModes(prev => {
+      const next = new Set(prev);
+      const config = MODE_CONFIG[mode];
+      if (next.has(mode)) {
+        next.delete(mode);
+        toast.info(config.offToast);
+      } else {
+        next.add(mode);
+        config.exclusive?.forEach(m => next.delete(m as Mode));
+        toast.info(config.onToast);
+      }
+      return next;
+    });
+  }, []);
+
   const handleAutocompleteSelect = useCallback((completion: PromptCompletion) => {
     setInputValue(completion.text);
   }, []);
 
   const handleSubmit = () => {
     if (!inputValue.trim() || isLoading || disabled) return;
-    onSubmit(inputValue);
+    onSubmit(inputValue, attachments.length > 0 ? attachments : undefined);
     setInputValue("");
     useStore.getState().clearAttachments();
   };
@@ -245,45 +290,11 @@ export const ChatPageContent = ({
     }
   };
 
-  const handleSearchToggle = () => {
-    const newValue = !searchMode;
-    setSearchMode(newValue);
-    toast.info(newValue ? 'Web search will be used' : 'Search mode disabled');
-  };
-
-  const handleDeepResearch = () => {
-    const newValue = !deepResearchMode;
-    setDeepResearchMode(newValue);
-    if (newValue) setShoppingResearchMode(false); // mutually exclusive
-    toast.info(newValue ? 'Deep research mode activated' : 'Deep research disabled');
-  };
-
-  const handleShoppingResearch = () => {
-    const newValue = !shoppingResearchMode;
-    setShoppingResearchMode(newValue);
-    if (newValue) setDeepResearchMode(false); // mutually exclusive
-    toast.info(newValue ? 'Shopping research activated' : 'Shopping research disabled');
-  };
-
-  const handleAgentMode = () => {
-    const newValue = !agentMode;
-    setAgentMode(newValue);
-    toast.info(newValue ? 'I can now perform actions autonomously' : 'Agent mode disabled');
-  };
-
-  const handleGhostMode = () => {
-    const newValue = !ghostMode;
-    setGhostMode(newValue);
-    toast.info(newValue ? 'Conversations will not be saved' : 'Conversations will be saved normally');
-  };
-
   const handleThinkingMode = () => {
     if (thinkingMode) {
-      // Turn off: restore base model (persisted, survives refresh)
       onModelChange(baseModel);
       toast.info('Thinking mode disabled');
     } else {
-      // Turn on: switch to thinking variant (baseModel already tracks the non-thinking model)
       onModelChange(getThinkingModelId());
       toast.info('AI will show its reasoning process');
     }
@@ -291,16 +302,6 @@ export const ChatPageContent = ({
 
   const handleAddSources = () => {
     toast.info('You can add URLs, documents, or other sources for me to reference.');
-  };
-
-  const handleStudyAndLearn = () => {
-    const newValue = !studyMode;
-    setStudyMode(newValue);
-    toast.info(newValue ? 'Study mode activated' : 'Study mode disabled');
-  };
-
-  const handleWebSearch = () => {
-    handleSearchToggle();
   };
 
   const handleCanvas = () => {
@@ -319,6 +320,35 @@ export const ChatPageContent = ({
       stt.startRecording();
     }
   };
+
+  const extraMenuItems = (
+    <>
+      <DropdownMenu.Item key="sources" onSelect={handleAddSources}>
+        <DropdownMenu.ItemIcon ios={{ name: "link" }} />
+        <DropdownMenu.ItemTitle>Add sources</DropdownMenu.ItemTitle>
+      </DropdownMenu.Item>
+      <DropdownMenu.CheckboxItem
+        key="study"
+        value={activeModes.has('study') ? 'on' : 'off'}
+        onValueChange={() => toggleMode('study')}
+      >
+        <DropdownMenu.ItemIcon ios={{ name: "book" }} />
+        <DropdownMenu.ItemTitle>Study and learn</DropdownMenu.ItemTitle>
+      </DropdownMenu.CheckboxItem>
+      <DropdownMenu.CheckboxItem
+        key="search"
+        value={activeModes.has('search') ? 'on' : 'off'}
+        onValueChange={() => toggleMode('search')}
+      >
+        <DropdownMenu.ItemIcon ios={{ name: "globe" }} />
+        <DropdownMenu.ItemTitle>Web search</DropdownMenu.ItemTitle>
+      </DropdownMenu.CheckboxItem>
+      <DropdownMenu.Item key="canvas" onSelect={handleCanvas}>
+        <DropdownMenu.ItemIcon ios={{ name: "pencil.tip" }} />
+        <DropdownMenu.ItemTitle>Canvas</DropdownMenu.ItemTitle>
+      </DropdownMenu.Item>
+    </>
+  );
 
   return (
     <View className="flex-1 bg-background">
@@ -342,8 +372,8 @@ export const ChatPageContent = ({
             title="Alia"
             selectedModel={selectedModel}
             onModelChange={onModelChange}
-            onGhostModePress={handleGhostMode}
-            ghostModeActive={ghostMode}
+            onGhostModePress={() => toggleMode('ghost')}
+            ghostModeActive={activeModes.has('ghost')}
             onClear={onClear}
             isConversation={messages.length > 0}
           />
@@ -357,7 +387,6 @@ export const ChatPageContent = ({
         >
           <CreditWarningBanner selectedModel={selectedModel} onSwitchModel={onModelChange} />
 
-          {/* Disabled banner when limit hit */}
           {disabled && (
             <View className="mx-auto w-full max-w-3xl px-4 pb-1">
               <View className="flex-row items-center gap-2 rounded-lg bg-destructive/10 px-3 py-2">
@@ -422,71 +451,32 @@ export const ChatPageContent = ({
                   <PromptInputActions className="flex-row items-center justify-between gap-2 mt-2 mb-1 px-3">
                     <View className="flex-row items-center gap-1.5">
                       <Button
-                        variant={searchMode ? "default" : "outline"}
+                        variant={activeModes.has('search') ? "default" : "outline"}
                         className="h-8 rounded-full px-3 flex-row items-center gap-2 text-muted-foreground hover:text-foreground font-normal text-xs"
-                        onPress={handleSearchToggle}
+                        onPress={() => toggleMode('search')}
                       >
-                        <Globe size={16} className={searchMode ? "text-primary-foreground" : "text-muted-foreground"} />
+                        <Globe size={16} className={activeModes.has('search') ? "text-primary-foreground" : "text-muted-foreground"} />
                       </Button>
 
                       {thinkingMode && (
-                        <View className="h-8 rounded-full px-3 flex-row items-center gap-1.5" style={{ backgroundColor: '#a855f720' }}>
-                          <Brain size={14} color="#a855f7" />
-                          <Text className="text-xs font-medium" style={{ color: '#a855f7' }}>Thinking</Text>
-                          <Pressable onPress={handleThinkingMode} className="active:opacity-70">
-                            <X size={12} color="#a855f7" />
-                          </Pressable>
-                        </View>
+                        <ModeChip
+                          icon={Brain}
+                          label="Thinking"
+                          color="#a855f7"
+                          onDismiss={handleThinkingMode}
+                        />
                       )}
 
-                      {ghostMode && (
-                        <View className="h-8 rounded-full px-3 flex-row items-center gap-1.5" style={{ backgroundColor: '#00b2ff20' }}>
-                          <Ghost size={14} color="#00b2ff" />
-                          <Text className="text-xs font-medium" style={{ color: '#00b2ff' }}>Ghost</Text>
-                          <Pressable onPress={handleGhostMode} className="active:opacity-70">
-                            <X size={12} color="#00b2ff" />
-                          </Pressable>
-                        </View>
-                      )}
-
-                      {agentMode && (
-                        <View className="h-8 rounded-full px-3 flex-row items-center gap-1.5" style={{ backgroundColor: '#f9731620' }}>
-                          <Bot size={14} color="#f97316" />
-                          <Text className="text-xs font-medium" style={{ color: '#f97316' }}>Agent</Text>
-                          <Pressable onPress={handleAgentMode} className="active:opacity-70">
-                            <X size={12} color="#f97316" />
-                          </Pressable>
-                        </View>
-                      )}
-
-                      {deepResearchMode && (
-                        <View className="h-8 rounded-full px-3 flex-row items-center gap-1.5" style={{ backgroundColor: '#10b98120' }}>
-                          <Search size={14} color="#10b981" />
-                          <Text className="text-xs font-medium" style={{ color: '#10b981' }}>Deep research</Text>
-                          <Pressable onPress={handleDeepResearch} className="active:opacity-70">
-                            <X size={12} color="#10b981" />
-                          </Pressable>
-                        </View>
-                      )}
-
-                      {shoppingResearchMode && (
-                        <View className="h-8 rounded-full px-3 flex-row items-center gap-1.5" style={{ backgroundColor: '#ec489920' }}>
-                          <ShoppingBag size={14} color="#ec4899" />
-                          <Text className="text-xs font-medium" style={{ color: '#ec4899' }}>Shopping</Text>
-                          <Pressable onPress={handleShoppingResearch} className="active:opacity-70">
-                            <X size={12} color="#ec4899" />
-                          </Pressable>
-                        </View>
-                      )}
-
-                      {studyMode && (
-                        <View className="h-8 rounded-full px-3 flex-row items-center gap-1.5" style={{ backgroundColor: '#6366f120' }}>
-                          <BookOpen size={14} color="#6366f1" />
-                          <Text className="text-xs font-medium" style={{ color: '#6366f1' }}>Study</Text>
-                          <Pressable onPress={handleStudyAndLearn} className="active:opacity-70">
-                            <X size={12} color="#6366f1" />
-                          </Pressable>
-                        </View>
+                      {MODE_ORDER.map(mode =>
+                        activeModes.has(mode) && (
+                          <ModeChip
+                            key={mode}
+                            icon={MODE_CONFIG[mode].icon}
+                            label={MODE_CONFIG[mode].label}
+                            color={MODE_CONFIG[mode].color}
+                            onDismiss={() => toggleMode(mode)}
+                          />
+                        )
                       )}
 
                       {activeRole && (
@@ -520,16 +510,16 @@ export const ChatPageContent = ({
                             <DropdownMenu.SubContent>
                               <DropdownMenu.CheckboxItem
                                 key="deep-research"
-                                value={deepResearchMode ? 'on' : 'off'}
-                                onValueChange={handleDeepResearch}
+                                value={activeModes.has('deepResearch') ? 'on' : 'off'}
+                                onValueChange={() => toggleMode('deepResearch')}
                               >
                                 <DropdownMenu.ItemIcon ios={{ name: "magnifyingglass" }} />
                                 <DropdownMenu.ItemTitle>Deep research</DropdownMenu.ItemTitle>
                               </DropdownMenu.CheckboxItem>
                               <DropdownMenu.CheckboxItem
                                 key="shopping"
-                                value={shoppingResearchMode ? 'on' : 'off'}
-                                onValueChange={handleShoppingResearch}
+                                value={activeModes.has('shoppingResearch') ? 'on' : 'off'}
+                                onValueChange={() => toggleMode('shoppingResearch')}
                               >
                                 <DropdownMenu.ItemIcon ios={{ name: "bag" }} />
                                 <DropdownMenu.ItemTitle>Shopping research</DropdownMenu.ItemTitle>
@@ -546,16 +536,16 @@ export const ChatPageContent = ({
                           </DropdownMenu.CheckboxItem>
                           <DropdownMenu.CheckboxItem
                             key="ghost"
-                            value={ghostMode ? 'on' : 'off'}
-                            onValueChange={handleGhostMode}
+                            value={activeModes.has('ghost') ? 'on' : 'off'}
+                            onValueChange={() => toggleMode('ghost')}
                           >
                             <DropdownMenu.ItemIcon ios={{ name: "eye.slash" }} />
                             <DropdownMenu.ItemTitle>Ghost mode</DropdownMenu.ItemTitle>
                           </DropdownMenu.CheckboxItem>
                           <DropdownMenu.CheckboxItem
                             key="agent"
-                            value={agentMode ? 'on' : 'off'}
-                            onValueChange={handleAgentMode}
+                            value={activeModes.has('agent') ? 'on' : 'off'}
+                            onValueChange={() => toggleMode('agent')}
                           >
                             <DropdownMenu.ItemIcon ios={{ name: "cpu" }} />
                             <DropdownMenu.ItemTitle>Agent mode</DropdownMenu.ItemTitle>
@@ -563,30 +553,7 @@ export const ChatPageContent = ({
                           {isNarrowScreen ? (
                             <>
                               <DropdownMenu.Separator />
-                              <DropdownMenu.Item key="sources" onSelect={handleAddSources}>
-                                <DropdownMenu.ItemIcon ios={{ name: "link" }} />
-                                <DropdownMenu.ItemTitle>Add sources</DropdownMenu.ItemTitle>
-                              </DropdownMenu.Item>
-                              <DropdownMenu.CheckboxItem
-                                key="study"
-                                value={studyMode ? 'on' : 'off'}
-                                onValueChange={handleStudyAndLearn}
-                              >
-                                <DropdownMenu.ItemIcon ios={{ name: "book" }} />
-                                <DropdownMenu.ItemTitle>Study and learn</DropdownMenu.ItemTitle>
-                              </DropdownMenu.CheckboxItem>
-                              <DropdownMenu.CheckboxItem
-                                key="search"
-                                value={searchMode ? 'on' : 'off'}
-                                onValueChange={handleWebSearch}
-                              >
-                                <DropdownMenu.ItemIcon ios={{ name: "globe" }} />
-                                <DropdownMenu.ItemTitle>Web search</DropdownMenu.ItemTitle>
-                              </DropdownMenu.CheckboxItem>
-                              <DropdownMenu.Item key="canvas" onSelect={handleCanvas}>
-                                <DropdownMenu.ItemIcon ios={{ name: "pencil.tip" }} />
-                                <DropdownMenu.ItemTitle>Canvas</DropdownMenu.ItemTitle>
-                              </DropdownMenu.Item>
+                              {extraMenuItems}
                             </>
                           ) : (
                             <DropdownMenu.Sub>
@@ -595,30 +562,7 @@ export const ChatPageContent = ({
                                 <DropdownMenu.ItemTitle>More</DropdownMenu.ItemTitle>
                               </DropdownMenu.SubTrigger>
                               <DropdownMenu.SubContent>
-                                <DropdownMenu.Item key="sources" onSelect={handleAddSources}>
-                                  <DropdownMenu.ItemIcon ios={{ name: "link" }} />
-                                  <DropdownMenu.ItemTitle>Add sources</DropdownMenu.ItemTitle>
-                                </DropdownMenu.Item>
-                                <DropdownMenu.CheckboxItem
-                                  key="study"
-                                  value={studyMode ? 'on' : 'off'}
-                                  onValueChange={handleStudyAndLearn}
-                                >
-                                  <DropdownMenu.ItemIcon ios={{ name: "book" }} />
-                                  <DropdownMenu.ItemTitle>Study and learn</DropdownMenu.ItemTitle>
-                                </DropdownMenu.CheckboxItem>
-                                <DropdownMenu.CheckboxItem
-                                  key="search"
-                                  value={searchMode ? 'on' : 'off'}
-                                  onValueChange={handleWebSearch}
-                                >
-                                  <DropdownMenu.ItemIcon ios={{ name: "globe" }} />
-                                  <DropdownMenu.ItemTitle>Web search</DropdownMenu.ItemTitle>
-                                </DropdownMenu.CheckboxItem>
-                                <DropdownMenu.Item key="canvas" onSelect={handleCanvas}>
-                                  <DropdownMenu.ItemIcon ios={{ name: "pencil.tip" }} />
-                                  <DropdownMenu.ItemTitle>Canvas</DropdownMenu.ItemTitle>
-                                </DropdownMenu.Item>
+                                {extraMenuItems}
                               </DropdownMenu.SubContent>
                             </DropdownMenu.Sub>
                           )}

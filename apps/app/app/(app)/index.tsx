@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useLocalSearchParams } from "expo-router";
 import Head from "expo-router/head";
 import { useRolesStore } from "@/lib/stores/roles-store";
@@ -12,11 +12,13 @@ const ChatPage = () => {
   const roles = useRolesStore((state) => state.roles);
   const activeSkillId = useStore((state) => state.activeSkillId);
 
-  // Set active skill from URL param if provided
   const effectiveSkillId = skillIdParam || activeSkillId;
-  if (skillIdParam && skillIdParam !== activeSkillId) {
-    useStore.getState().setActiveSkillId(skillIdParam);
-  }
+
+  useEffect(() => {
+    if (skillIdParam && skillIdParam !== activeSkillId) {
+      useStore.getState().setActiveSkillId(skillIdParam);
+    }
+  }, [skillIdParam, activeSkillId]);
 
   const selectedModel = useChatStore((s) => s.selectedModel);
   const setSelectedModel = useChatStore((s) => s.setSelectedModel);

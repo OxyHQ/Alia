@@ -7,7 +7,7 @@ import apiClient from '../api/client';
 export interface Message {
   id?: string;
   role: 'user' | 'assistant' | 'system';
-  content: string;
+  content: string | Array<{ type: string; [key: string]: any }>;
   thinking?: string; // Extended thinking content (when thinking mode is enabled)
   toolInvocations?: {
     toolCallId: string;
