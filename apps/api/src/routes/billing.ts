@@ -588,6 +588,11 @@ async function handleSubscriptionUpdate(stripeSubscription: Stripe.Subscription)
   const price = isAnnual ? plan.annualPrice : plan.monthlyPrice;
   const sub = stripeSubscription as any;
 
+  // Stripe API 2025+ moved current_period_start/end to subscription items
+  const item = stripeSubscription.items.data[0] as any;
+  const periodStart = item?.current_period_start ?? sub.current_period_start;
+  const periodEnd = item?.current_period_end ?? sub.current_period_end;
+
   await Subscription.findOneAndUpdate(
     { stripeSubscriptionId: stripeSubscription.id },
     {
@@ -596,8 +601,8 @@ async function handleSubscriptionUpdate(stripeSubscription: Stripe.Subscription)
       stripeSubscriptionId: stripeSubscription.id,
       stripePriceId: stripeSubscription.items.data[0].price.id,
       status: stripeSubscription.status,
-      currentPeriodStart: new Date(sub.current_period_start * 1000),
-      currentPeriodEnd: new Date(sub.current_period_end * 1000),
+      currentPeriodStart: periodStart ? new Date(periodStart * 1000) : new Date(),
+      currentPeriodEnd: periodEnd ? new Date(periodEnd * 1000) : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
       cancelAtPeriodEnd: sub.cancel_at_period_end,
       planId: plan.planId,
       billingPeriod: isAnnual ? 'annual' : 'monthly',
@@ -608,7 +613,7 @@ async function handleSubscriptionUpdate(stripeSubscription: Stripe.Subscription)
 
   // Add subscription credits with dedup protection (no time window — dedup key prevents duplicates)
   if (stripeSubscription.status === 'active') {
-    const dedupKey = `${stripeSubscription.id}_${sub.current_period_start}`;
+    const dedupKey = `${stripeSubscription.id}_${periodStart || Date.now()}`;
     try {
       // Create transaction first as dedup lock, then add credits
       await Transaction.create({
@@ -623,7 +628,7 @@ async function handleSubscriptionUpdate(stripeSubscription: Stripe.Subscription)
         metadata: { dedup: dedupKey },
       });
       await userCredits.addCredits(plan.creditsPerMonth, 'paid');
-      console.log(`[Billing] Added ${plan.creditsPerMonth} credits for subscription ${stripeSubscription.id}, period ${sub.current_period_start}`);
+      console.log(`[Billing] Added ${plan.creditsPerMonth} credits for subscription ${stripeSubscription.id}, period ${periodStart}`);
     } catch (err: any) {
       if (err.code === 11000) {
         console.warn(`[Billing] Duplicate subscription credit event for ${dedupKey}, skipping`);
