@@ -13,6 +13,10 @@ import { pcm16ToBase64, base64ToPcm16, REALTIME_SAMPLE_RATE } from './audio-util
 export interface AudioPipelineCallbacks {
   /** Called with base64-encoded PCM16 audio ready to send. */
   onCapturedAudio: (base64Pcm16: string) => void;
+  /** Called with mic capture RMS level (0-1). */
+  onCaptureLevel?: (level: number) => void;
+  /** Called with playback RMS level (0-1). */
+  onPlaybackLevel?: (level: number) => void;
 }
 
 export class AudioPipeline {
@@ -47,6 +51,13 @@ export class AudioPipeline {
     // Connect playback to speakers
     this.playbackNode.connect(ctx.destination);
 
+    // Forward playback levels for visualization
+    this.playbackNode.port.onmessage = (e: MessageEvent) => {
+      if (e.data.type === 'level') {
+        this.callbacks.onPlaybackLevel?.(e.data.level);
+      }
+    };
+
     // Get microphone
     this.mediaStream = await navigator.mediaDevices.getUserMedia({
       audio: {
@@ -62,10 +73,13 @@ export class AudioPipeline {
     this.sourceNode = ctx.createMediaStreamSource(this.mediaStream);
     this.sourceNode.connect(this.captureNode);
 
-    // Forward captured audio chunks
+    // Forward captured audio chunks and levels
     this.captureNode.port.onmessage = (e: MessageEvent) => {
       if (e.data.type === 'audio' && !this._isMuted) {
         this.callbacks.onCapturedAudio(pcm16ToBase64(e.data.data));
+      }
+      if (e.data.type === 'level') {
+        this.callbacks.onCaptureLevel?.(this._isMuted ? 0 : e.data.level);
       }
     };
   }
