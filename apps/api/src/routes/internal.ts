@@ -18,13 +18,14 @@ import {
   updateUserPreferencesTool,
   updateUserContextTool,
   createSendTelegramTool,
-  scrapeURLTool,
+  webScraperTool,
 } from '../lib/tools/index.js';
 import { oxyServiceAuth, oxyClient } from '../middleware/auth.js';
 import type { User as OxyUser } from '@oxyhq/core';
 import { UserMemory } from '../models/user-memory.js';
 import type { IUserMemory } from '../models/user-memory.js';
 import { recordUsage } from '../middleware/api-key-rate-limit.js';
+import { log } from '../lib/logger.js';
 
 const router = Router();
 
@@ -140,14 +141,14 @@ router.post('/trigger', oxyServiceAuth, async (req, res) => {
       return;
     }
 
-    console.log(`[Internal/Trigger] event=${event} app=${appName} user=${userId}`);
+    log.general.info({ event, appName, userId }, 'Trigger received');
 
     // Load user memory
     let memory: IUserMemory | null = null;
     try {
       memory = await UserMemory.findOne({ oxyUserId: userId });
     } catch (error) {
-      console.error('[Internal/Trigger] Error loading user memory:', error);
+      log.general.error({ err: error }, 'Error loading user memory');
     }
 
     // Load Oxy user profile for personalization
@@ -155,7 +156,7 @@ router.post('/trigger', oxyServiceAuth, async (req, res) => {
     try {
       oxyUser = await oxyClient.getUserById(userId) as OxyUser;
     } catch (error) {
-      console.log('[Internal/Trigger] Could not fetch Oxy user profile:', error);
+      log.general.info({ err: error }, 'Could not fetch Oxy user profile');
     }
 
     // Resolve AI model
@@ -174,7 +175,7 @@ router.post('/trigger', oxyServiceAuth, async (req, res) => {
     // Build tools — authenticated user tools + general tools
     const tools: ToolSet = {
       getCurrentDate: getCurrentDateTool,
-      scrapeURL: scrapeURLTool,
+      webScraper: webScraperTool,
       ...(googleApiKey ? { googleSearch: createGoogleSearchTool(googleApiKey) } : {}),
       saveUserMemory: saveUserMemoryTool(userId),
       updateUserPreferences: updateUserPreferencesTool(userId),
@@ -230,7 +231,7 @@ router.post('/trigger', oxyServiceAuth, async (req, res) => {
         0 // no credits charged for internal
       );
     } catch (error) {
-      console.error('[Internal/Trigger] Error recording usage:', error);
+      log.general.error({ err: error }, 'Error recording usage');
     }
 
     // Collect tool call results
@@ -241,7 +242,7 @@ router.post('/trigger', oxyServiceAuth, async (req, res) => {
       }))
     ) || [];
 
-    console.log(`[Internal/Trigger] Done event=${event} app=${appName} user=${userId} tools=${toolCalls.length} time=${responseTime}ms`);
+    log.general.info({ event, appName, userId, toolCalls: toolCalls.length, responseTime }, 'Trigger completed');
 
     res.json({
       event,
@@ -252,7 +253,7 @@ router.post('/trigger', oxyServiceAuth, async (req, res) => {
     });
   } catch (error) {
     const responseTime = Date.now() - startTime;
-    console.error('[Internal/Trigger] Error:', error);
+    log.general.error({ err: error }, 'Trigger processing failed');
 
     res.status(500).json({
       error: 'Trigger processing failed',

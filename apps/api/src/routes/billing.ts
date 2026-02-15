@@ -13,6 +13,7 @@ import { ALIA_MODELS } from '../internal/providers/lib/alia-models.js';
 import { getOrCreateUserCredits } from '../lib/user-credits-helpers.js';
 import { getUserEntitlements, invalidateEntitlementsCache } from '../lib/plan-access.js';
 import { z } from 'zod';
+import { log } from '../lib/logger.js';
 
 const router = Router();
 
@@ -53,7 +54,7 @@ async function getOrCreateStripeCustomer(userId: string, userCredits: any): Prom
     const oxyUser = await oxyClient.getUserById(userId);
     email = oxyUser?.email;
   } catch (e) {
-    console.error('[Billing] Failed to fetch user from Oxy:', e);
+    log.credits.error({ err: e }, 'Failed to fetch user from Oxy');
   }
 
   const customer = await getStripe().customers.create({
@@ -63,7 +64,7 @@ async function getOrCreateStripeCustomer(userId: string, userCredits: any): Prom
 
   userCredits.stripeCustomerId = customer.id;
   await userCredits.save();
-  console.log(`[Billing] Created Stripe customer ${customer.id} for user ${userId}`);
+  log.credits.info({ customerId: customer.id, userId }, 'Created Stripe customer');
 
   return customer.id;
 }
@@ -87,7 +88,7 @@ router.get('/packages', async (_req: Request, res: Response) => {
       })),
     });
   } catch (error: any) {
-    console.error('[Billing] Error fetching packages:', error);
+    log.credits.error({ err: error }, 'Error fetching packages');
     res.status(500).json({ error: error.message });
   }
 });
@@ -138,7 +139,7 @@ router.post('/checkout/credits', authenticateToken, async (req: Request, res: Re
     if (error instanceof z.ZodError) {
       return res.status(400).json({ error: 'Invalid input', details: error.errors });
     }
-    console.error('[Billing] Error creating checkout session:', error);
+    log.credits.error({ err: error }, 'Error creating checkout session');
     res.status(500).json({ error: error.message });
   }
 });
@@ -197,7 +198,7 @@ router.post('/checkout/custom-credits', authenticateToken, async (req: Request, 
     if (error instanceof z.ZodError) {
       return res.status(400).json({ error: 'Invalid input', details: error.errors });
     }
-    console.error('[Billing] Error creating custom credits checkout:', error);
+    log.credits.error({ err: error }, 'Error creating custom credits checkout');
     res.status(500).json({ error: error.message });
   }
 });
@@ -310,7 +311,7 @@ router.get('/plans', async (req: Request, res: Response) => {
     });
     res.json({ plans });
   } catch (error: any) {
-    console.error('[Billing] Error fetching plans:', error);
+    log.credits.error({ err: error }, 'Error fetching plans');
     res.status(500).json({ error: error.message });
   }
 });
@@ -379,7 +380,7 @@ router.post('/checkout/subscription', authenticateToken, async (req: Request, re
     if (error instanceof z.ZodError) {
       return res.status(400).json({ error: 'Invalid input', details: error.errors });
     }
-    console.error('[Billing] Error creating subscription checkout:', error);
+    log.credits.error({ err: error }, 'Error creating subscription checkout');
     res.status(500).json({ error: error.message });
   }
 });
@@ -397,7 +398,7 @@ router.get('/subscription', authenticateToken, async (req: Request, res: Respons
     const subscription = await Subscription.findOne(query).lean();
     res.json({ subscription });
   } catch (error: any) {
-    console.error('[Billing] Error fetching subscription:', error);
+    log.credits.error({ err: error }, 'Error fetching subscription');
     res.status(500).json({ error: error.message });
   }
 });
@@ -422,7 +423,7 @@ router.post('/subscription/cancel', authenticateToken, async (req: Request, res:
 
     res.json({ message: 'Subscription will be canceled at end of billing period', subscription });
   } catch (error: any) {
-    console.error('[Billing] Error canceling subscription:', error);
+    log.credits.error({ err: error }, 'Error canceling subscription');
     res.status(500).json({ error: error.message });
   }
 });
@@ -438,7 +439,7 @@ router.get('/transactions', authenticateToken, async (req: Request, res: Respons
     const total = await Transaction.countDocuments({ oxyUserId: req.user!.id });
     res.json({ transactions, total });
   } catch (error: any) {
-    console.error('[Billing] Error fetching transactions:', error);
+    log.credits.error({ err: error }, 'Error fetching transactions');
     res.status(500).json({ error: error.message });
   }
 });
@@ -458,7 +459,7 @@ router.post('/portal', authenticateToken, async (req: Request, res: Response) =>
 
     res.json({ url: session.url });
   } catch (error: any) {
-    console.error('[Billing] Error creating portal session:', error);
+    log.credits.error({ err: error }, 'Error creating portal session');
     res.status(500).json({ error: error.message });
   }
 });
@@ -469,7 +470,7 @@ router.get('/entitlements', authenticateToken, async (req: Request, res: Respons
     const entitlements = await getUserEntitlements(req.user!.id);
     res.json(entitlements);
   } catch (error: any) {
-    console.error('[Billing] Error fetching entitlements:', error);
+    log.credits.error({ err: error }, 'Error fetching entitlements');
     res.status(500).json({ error: error.message });
   }
 });
@@ -485,7 +486,7 @@ router.post('/webhook', async (req: Request, res: Response) => {
   try {
     event = getStripe().webhooks.constructEvent(req.body, sig, webhookSecret);
   } catch (err: any) {
-    console.error('[Billing] Webhook verification failed:', err.message);
+    log.credits.error({ err }, 'Webhook verification failed');
     return res.status(400).send(`Webhook Error: ${err.message}`);
   }
 
@@ -510,7 +511,7 @@ router.post('/webhook', async (req: Request, res: Response) => {
     }
     res.json({ received: true });
   } catch (error: any) {
-    console.error('[Billing] Error handling webhook:', error);
+    log.credits.error({ err: error }, 'Error handling webhook');
     res.status(500).json({ error: error.message });
   }
 });
@@ -526,7 +527,7 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
 
     const userCredits = await getOrCreateUserCredits(metadata.userId);
     await userCredits.addCredits(credits, 'paid');
-    console.log(`[Billing] Added ${credits} credits to user ${metadata.userId}`);
+    log.credits.info({ credits, userId: metadata.userId }, 'Added credits to user');
 
     try {
       await Transaction.create({
@@ -542,7 +543,7 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
       });
     } catch (err: any) {
       if (err.code === 11000) {
-        console.warn(`[Billing] Duplicate checkout event for payment_intent ${session.payment_intent}, skipping`);
+        log.credits.warn({ paymentIntent: session.payment_intent }, 'Duplicate checkout event, skipping');
         return;
       }
       throw err;
@@ -552,7 +553,7 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
 
   // Handle subscription checkouts as fallback (in case customer.subscription.created is delayed)
   if (session.mode === 'subscription' && session.subscription) {
-    console.log(`[Billing] checkout.session.completed for subscription ${session.subscription}, fetching and syncing`);
+    log.credits.info({ subscriptionId: session.subscription }, 'checkout.session.completed, fetching and syncing');
     const stripeSubscription = await getStripe().subscriptions.retrieve(session.subscription as string);
     await handleSubscriptionUpdate(stripeSubscription);
   }
@@ -566,7 +567,7 @@ async function handleSubscriptionUpdate(stripeSubscription: Stripe.Subscription)
   let userCredits = await UserCredits.findOne({ stripeCustomerId: customerId });
   if (!userCredits) {
     if (metadata?.userId) {
-      console.warn(`[Billing] No UserCredits for stripeCustomerId ${customerId}, falling back to userId ${metadata.userId}`);
+      log.credits.warn({ customerId, userId: metadata.userId }, 'No UserCredits for stripeCustomerId, falling back to userId');
       userCredits = await getOrCreateUserCredits(metadata.userId);
       if (!userCredits.stripeCustomerId) {
         userCredits.stripeCustomerId = customerId;
@@ -628,10 +629,10 @@ async function handleSubscriptionUpdate(stripeSubscription: Stripe.Subscription)
         metadata: { dedup: dedupKey },
       });
       await userCredits.addCredits(plan.creditsPerMonth, 'paid');
-      console.log(`[Billing] Added ${plan.creditsPerMonth} credits for subscription ${stripeSubscription.id}, period ${periodStart}`);
+      log.credits.info({ credits: plan.creditsPerMonth, subscriptionId: stripeSubscription.id, periodStart }, 'Added subscription credits');
     } catch (err: any) {
       if (err.code === 11000) {
-        console.warn(`[Billing] Duplicate subscription credit event for ${dedupKey}, skipping`);
+        log.credits.warn({ dedupKey }, 'Duplicate subscription credit event, skipping');
         return;
       }
       throw err;
@@ -661,7 +662,7 @@ async function handleInvoicePaymentSucceeded(invoice: Stripe.Invoice) {
   const subscriptionId = getSubscriptionIdFromInvoice(invoice);
   if (!subscriptionId) return;
 
-  console.log(`[Billing] Invoice payment succeeded for subscription ${subscriptionId}`);
+  log.credits.info({ subscriptionId }, 'Invoice payment succeeded');
   const stripeSubscription = await getStripe().subscriptions.retrieve(subscriptionId);
   await handleSubscriptionUpdate(stripeSubscription);
 }
@@ -670,7 +671,7 @@ async function handleInvoicePaymentFailed(invoice: Stripe.Invoice) {
   const subscriptionId = getSubscriptionIdFromInvoice(invoice);
   if (!subscriptionId) return;
 
-  console.error(`[Billing] Invoice payment FAILED for subscription ${subscriptionId}, invoice ${invoice.id}`);
+  log.credits.error({ subscriptionId, invoiceId: invoice.id }, 'Invoice payment failed');
   await Subscription.findOneAndUpdate(
     { stripeSubscriptionId: subscriptionId },
     { status: 'past_due' }
