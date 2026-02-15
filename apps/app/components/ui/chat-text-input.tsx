@@ -39,7 +39,6 @@ const ChatTextInput = React.forwardRef<TextInput, ChatTextInputProps>(
     fillContainer = false,
     ...props
   }, ref) => {
-    const [height, setHeight] = React.useState(minHeight);
     const inputRef = React.useRef<TextInput>(null);
     const wrapperRef = React.useRef<View>(null);
 
@@ -94,18 +93,6 @@ const ChatTextInput = React.forwardRef<TextInput, ChatTextInputProps>(
       };
     }, [onImagePaste]);
 
-    // Reset height when minHeight changes (e.g., when switching fullscreen modes)
-    React.useEffect(() => {
-      setHeight(minHeight);
-    }, [minHeight]);
-
-    // Reset height when switching from fullscreen to normal (when auto-height is re-enabled)
-    React.useEffect(() => {
-      if (!disableAutoHeight) {
-        setHeight(minHeight);
-      }
-    }, [disableAutoHeight, minHeight]);
-
     const handleKeyPress = (
       e: NativeSyntheticEvent<TextInputKeyPressEventData>
     ) => {
@@ -125,24 +112,21 @@ const ChatTextInput = React.forwardRef<TextInput, ChatTextInputProps>(
     const handleContentSizeChange = (
       e: RNSyntheticEvent<TextInputContentSizeChangeEventData>
     ) => {
-      // Call original handler if provided
       onContentSizeChange?.(e);
-
-      // Auto-resize based on content
-      const newHeight = e.nativeEvent.contentSize.height;
-      const calculatedHeight = Math.min(Math.max(newHeight, minHeight), maxHeight);
-      setHeight(calculatedHeight);
-      onHeightChange?.(calculatedHeight);
     };
 
     return (
-      <View ref={wrapperRef} style={{ width: '100%', ...(fillContainer && { flex: 1 }) }}>
+      <View
+        ref={wrapperRef}
+        style={{ width: '100%', ...(fillContainer && { flex: 1 }) }}
+        onLayout={(e) => onHeightChange?.(e.nativeEvent.layout.height)}
+      >
         <TextInput
           ref={inputRef}
           className={cn(
             "native:text-md native:leading-[1.25] rounded-xl border border-input bg-background px-3.5 text-base text-foreground file:border-0 file:bg-transparent file:font-medium placeholder:text-muted-foreground web:flex web:w-full web:py-2 lg:text-sm",
             "web:ring-offset-background web:focus-visible:outline-none web:focus-visible:ring-2 web:focus-visible:ring-ring web:focus-visible:ring-offset-2",
-            !fillContainer && "h-9",
+            !fillContainer && !props.multiline && "h-9",
             fillContainer && "h-full",
             noFocus && "web:focus-visible:ring-0 web:focus-visible:ring-offset-0",
             props.editable === false && "opacity-50 web:cursor-not-allowed",
@@ -154,7 +138,12 @@ const ChatTextInput = React.forwardRef<TextInput, ChatTextInputProps>(
           scrollEnabled={fillContainer || props.multiline}
           style={[
             style,
-            !fillContainer && props.multiline && !disableAutoHeight && { height },
+            !fillContainer && props.multiline && !disableAutoHeight && {
+              minHeight,
+              maxHeight,
+              overflow: 'auto',
+              ...(Platform.OS === 'web' ? { fieldSizing: 'content' } : {}),
+            },
             fillContainer && { flex: 1, height: '100%' },
           ]}
           {...props}

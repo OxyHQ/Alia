@@ -123,7 +123,7 @@ function PromptInput({
         >
           <View
             className={cn(
-              "rounded-[24px] border border-border bg-background px-3 py-1 relative",
+              "rounded-[24px] border border-border bg-background relative overflow-hidden",
               disabled && "opacity-60",
               className
             )}
@@ -161,7 +161,7 @@ function PromptInput({
           </Pressable>
 
           {/* Fullscreen prompt input - textarea fills entire screen */}
-          <View className="flex-1">
+          <View className="flex-1 flex-col">
             {children}
           </View>
         </View>

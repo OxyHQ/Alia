@@ -1,5 +1,6 @@
 import { useState, useCallback } from "react";
-import { View, Pressable, useWindowDimensions, useColorScheme } from "react-native";
+import { View, Pressable, useWindowDimensions } from "react-native";
+import { useColorScheme } from "@/lib/useColorScheme";
 import { LinearGradient } from "expo-linear-gradient";
 import type { ScrollView as GHScrollView } from "react-native-gesture-handler";
 import { useStore } from "@/lib/globalStore";
@@ -115,8 +116,8 @@ export const ChatPageContent = ({
   const { pickImage } = useImagePicker();
   const { pickDocument } = useDocumentPicker();
   const stt = useSpeechToText();
-  const colorScheme = useColorScheme();
-  const gradientBg = colorScheme === "dark" ? "hsl(230, 62%, 4%)" : "hsl(0, 0%, 100%)";
+  const { colors } = useColorScheme();
+  const [bottomBarHeight, setBottomBarHeight] = useState(160);
   const isMainScreen = messages.length === 0;
   const completions = usePromptCompletions(inputValue, isMainScreen);
 
@@ -295,16 +296,6 @@ export const ChatPageContent = ({
 
   return (
     <View className="flex-1 bg-background">
-      <ChatHeader
-        title="Alia"
-        selectedModel={selectedModel}
-        onModelChange={onModelChange}
-        onGhostModePress={handleGhostMode}
-        ghostModeActive={ghostMode}
-        onClear={onClear}
-        isConversation={messages.length > 0}
-      />
-
       <View className="flex-1 relative">
         <ChatInterface
           messages={messages}
@@ -312,13 +303,31 @@ export const ChatPageContent = ({
           isLoading={isLoading}
           onSuggestionPress={handleSuggestionPress}
           onEditMessage={onEditMessage}
+          bottomPadding={bottomBarHeight}
         />
 
         <LinearGradient
-          colors={["transparent", gradientBg]}
-          locations={[0, 0.4]}
-          className="absolute bottom-0 left-0 right-0"
-          style={{ paddingTop: 24 }}
+          colors={[colors.background, "transparent"]}
+          locations={[0.1, 1]}
+          pointerEvents="box-none"
+          style={{ position: "absolute", top: 0, left: 0, right: 0, zIndex: 10, paddingBottom: 32 }}
+        >
+          <ChatHeader
+            title="Alia"
+            selectedModel={selectedModel}
+            onModelChange={onModelChange}
+            onGhostModePress={handleGhostMode}
+            ghostModeActive={ghostMode}
+            onClear={onClear}
+            isConversation={messages.length > 0}
+          />
+        </LinearGradient>
+
+        <LinearGradient
+          colors={["transparent", colors.background]}
+          locations={[0, 0.9]}
+          style={{ position: "absolute", bottom: 0, left: 0, right: 0, zIndex: 10, paddingTop: 24 }}
+          onLayout={(e) => setBottomBarHeight(e.nativeEvent.layout.height)}
         >
           <CreditWarningBanner selectedModel={selectedModel} onSwitchModel={onModelChange} />
 
@@ -384,7 +393,7 @@ export const ChatPageContent = ({
                     editable={!disabled}
                     className="min-h-[44px] text-base md:text-base py-3"
                   />
-                  <PromptInputActions className="flex-row items-center justify-between gap-2 mt-2 mb-1">
+                  <PromptInputActions className="flex-row items-center justify-between gap-2 mt-2 mb-1 px-3">
                     <View className="flex-row items-center gap-1.5">
                       <Button
                         variant={searchMode ? "default" : "outline"}

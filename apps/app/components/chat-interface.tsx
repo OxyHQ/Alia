@@ -45,6 +45,7 @@ type ChatInterfaceProps = {
   onSuggestionPress?: (message: string) => void;
   onEditMessage?: (messageId: string, newContent: string) => void;
   onCopyMessage?: (content: string) => void;
+  bottomPadding?: number;
 };
 
 // Helper function to extract and process text content for the app
@@ -66,7 +67,7 @@ function getMessageText(message: Message): string {
   return processed.text;
 }
 
-export const ChatInterface = React.memo(function ChatInterface({ messages, scrollViewRef, isLoading, onSuggestionPress, onEditMessage, onCopyMessage }: ChatInterfaceProps) {
+export const ChatInterface = React.memo(function ChatInterface({ messages, scrollViewRef, isLoading, onSuggestionPress, onEditMessage, onCopyMessage, bottomPadding = 160 }: ChatInterfaceProps) {
     const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
     const [editedContent, setEditedContent] = useState("");
     const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
@@ -106,7 +107,7 @@ export const ChatInterface = React.memo(function ChatInterface({ messages, scrol
         }
       }, 100);
       return () => clearTimeout(timer);
-    }, [messages, isLoading, scrollViewRef]);
+    }, [messages, isLoading, scrollViewRef, bottomPadding]);
 
     const containerClassName = cn(
       "max-w-3xl mx-auto w-full",
@@ -117,7 +118,7 @@ export const ChatInterface = React.memo(function ChatInterface({ messages, scrol
       <ScrollView
         ref={scrollViewRef}
         className="flex-1 bg-background px-4 py-4"
-        contentContainerStyle={{ flexGrow: 1, paddingBottom: 160 }}
+        contentContainerStyle={{ flexGrow: 1, paddingTop: 60, paddingBottom: bottomPadding }}
         showsVerticalScrollIndicator={false}
       >
         <View className={containerClassName}>
