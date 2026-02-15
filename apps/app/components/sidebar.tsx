@@ -50,6 +50,7 @@ import { groupConversationsByDate, flattenGroupedConversations } from "@/lib/uti
 import * as DropdownMenu from "@/components/ui/dropdown-menu";
 import { ProjectEditDialog } from "@/components/project-edit-dialog";
 import { InviteDialog } from "@/components/invite-dialog";
+import { AppDownloadDialog } from "@/components/app-download-dialog";
 import { FolderEditDialog } from "@/components/folder-edit-dialog";
 import { ConversationItem } from "@/components/sidebar/conversation-item";
 import { FolderSection } from "@/components/sidebar/folder-section";
@@ -133,6 +134,7 @@ const ChatSidebar = React.memo(function ChatSidebar() {
   const [projectsCollapsed, setProjectsCollapsed] = React.useState(false);
   const [historyCollapsed, setHistoryCollapsed] = React.useState(false);
   const [inviteDialogOpen, setInviteDialogOpen] = React.useState(false);
+  const [appDownloadDialogOpen, setAppDownloadDialogOpen] = React.useState(false);
 
   // Group and flatten conversations for display
   const conversationsNotInProjects = React.useMemo(() => {
@@ -207,7 +209,7 @@ const ChatSidebar = React.memo(function ChatSidebar() {
   }, []);
 
   const handleAppDownload = React.useCallback(() => {
-    Linking.openURL("https://alia.onl/download");
+    setAppDownloadDialogOpen(true);
   }, []);
 
   const handleDocs = React.useCallback(() => {
@@ -858,6 +860,12 @@ const ChatSidebar = React.memo(function ChatSidebar() {
       <InviteDialog
         open={inviteDialogOpen}
         onOpenChange={setInviteDialogOpen}
+      />
+
+      {/* App Download QR Dialog */}
+      <AppDownloadDialog
+        open={appDownloadDialogOpen}
+        onOpenChange={setAppDownloadDialogOpen}
       />
     </>
   );
