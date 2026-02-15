@@ -7,6 +7,7 @@ import { useProjectsStore } from '@/lib/stores/projects-store';
 import { useRolesStore } from '@/lib/stores/roles-store';
 import { useFoldersStore } from '@/lib/stores/folders-store';
 import { useFavoritesStore } from '@/lib/stores/favorites-store';
+import { usePinnedStore } from '@/lib/stores/pinned-store';
 import { useUIStore } from '@/lib/stores/ui-store';
 import { useEffect } from 'react';
 import { useColorScheme } from '@/lib/useColorScheme';
@@ -21,15 +22,17 @@ export default function AppLayout() {
   const loadRoles = useRolesStore((state) => state.loadRoles);
   const loadFolders = useFoldersStore((state) => state.loadFolders);
   const loadFavorites = useFavoritesStore((state) => state.loadFavorites);
+  const loadPinned = usePinnedStore((state) => state.loadPinned);
   const rightPanel = useUIStore((state) => state.rightPanel);
 
-  // Load projects, roles, folders, and favorites on mount
+  // Load projects, roles, folders, favorites, and pinned on mount
   useEffect(() => {
     loadProjects();
     loadRoles();
     loadFolders();
     loadFavorites();
-  }, [loadProjects, loadRoles, loadFolders, loadFavorites]);
+    loadPinned();
+  }, [loadProjects, loadRoles, loadFolders, loadFavorites, loadPinned]);
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>

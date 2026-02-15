@@ -1,7 +1,7 @@
 import React from "react";
 import { Pressable, View } from "react-native";
 import * as DropdownMenu from "@/components/ui/dropdown-menu";
-import { MoreHorizontal, Star } from "lucide-react-native";
+import { MoreHorizontal, Pin, Star } from "lucide-react-native";
 import type { Conversation } from "@/lib/hooks/use-conversations";
 import type { Project } from "@/lib/stores/projects-store";
 import type { Folder } from "@/lib/stores/folders-store";
@@ -11,9 +11,11 @@ interface ConversationMenuProps {
   currentProject?: Project;
   currentFolder?: Folder;
   isFavorite: boolean;
+  isPinned: boolean;
   projects: Project[];
   folders: Folder[];
   onToggleFavorite: (id: string, e: any) => void;
+  onTogglePin: (id: string, e: any) => void;
   onMoveToProject: (convId: string, projectId: string | null, e: any) => void;
   onMoveToFolder: (convId: string, folderId: string | null, e: any) => void;
   onDelete: (id: string, e: any) => void;
@@ -24,23 +26,31 @@ export const ConversationMenu = React.memo<ConversationMenuProps>(({
   currentProject,
   currentFolder,
   isFavorite,
+  isPinned,
   projects,
   folders,
   onToggleFavorite,
+  onTogglePin,
   onMoveToProject,
   onMoveToFolder,
   onDelete,
 }) => {
+  const [isOpen, setIsOpen] = React.useState(false);
+
   return (
-    <DropdownMenu.Root>
+    <DropdownMenu.Root onOpenChange={setIsOpen}>
       <DropdownMenu.Trigger>
         <View className="relative h-8 w-8 items-center justify-center mr-1">
-          {isFavorite && (
+          {(isPinned || isFavorite) && !isOpen && (
             <View className="absolute inset-0 items-center justify-center group-hover:opacity-0">
-              <Star size={14} className="text-amber-500" fill="#f59e0b" />
+              {isPinned ? (
+                <Pin size={14} className={isFavorite ? "text-amber-500" : "text-muted-foreground"} />
+              ) : (
+                <Star size={14} className="text-amber-500" fill="#f59e0b" />
+              )}
             </View>
           )}
-          <Pressable className="h-8 w-8 items-center justify-center rounded-full active:bg-muted/70 opacity-0 group-hover:opacity-100">
+          <Pressable className={`h-8 w-8 items-center justify-center rounded-full active:bg-muted/70 ${isOpen ? "opacity-100" : "opacity-0 group-hover:opacity-100"}`}>
             <MoreHorizontal size={14} className="text-muted-foreground" />
           </Pressable>
         </View>
@@ -50,6 +60,12 @@ export const ConversationMenu = React.memo<ConversationMenuProps>(({
           <DropdownMenu.ItemIcon ios={{ name: isFavorite ? "star.fill" : "star" }} />
           <DropdownMenu.ItemTitle>
             {isFavorite ? "Unfavorite" : "Favorite"}
+          </DropdownMenu.ItemTitle>
+        </DropdownMenu.Item>
+        <DropdownMenu.Item key="pin" onSelect={() => onTogglePin(conversation.id, {})}>
+          <DropdownMenu.ItemIcon ios={{ name: isPinned ? "pin.slash" : "pin" }} />
+          <DropdownMenu.ItemTitle>
+            {isPinned ? "Unpin" : "Pin"}
           </DropdownMenu.ItemTitle>
         </DropdownMenu.Item>
         <DropdownMenu.Separator />

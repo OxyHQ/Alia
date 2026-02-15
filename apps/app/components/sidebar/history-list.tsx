@@ -11,11 +11,13 @@ interface HistoryListProps {
   data: Conversation[];
   currentChatId?: string;
   favoriteIds: string[];
+  pinnedIds: string[];
   projects: Project[];
   folders: Folder[];
   isFetchingNextPage?: boolean;
   onSelect: (id: string) => void;
   onToggleFavorite: (id: string, e: any) => void;
+  onTogglePin: (id: string, e: any) => void;
   onMoveToProject: (convId: string, projectId: string | null, e: any) => void;
   onMoveToFolder: (convId: string, folderId: string | null, e: any) => void;
   onDelete: (id: string, e: any) => void;
@@ -27,11 +29,13 @@ export const HistoryList = React.memo<HistoryListProps>(({
   data,
   currentChatId,
   favoriteIds,
+  pinnedIds,
   projects,
   folders,
   isFetchingNextPage,
   onSelect,
   onToggleFavorite,
+  onTogglePin,
   onMoveToProject,
   onMoveToFolder,
   onDelete,
@@ -80,9 +84,11 @@ export const HistoryList = React.memo<HistoryListProps>(({
               currentProject={convProject}
               currentFolder={convFolder}
               isFavorite={isConvFavorite}
+              isPinned={pinnedIds.includes(conv.id)}
               projects={projects}
               folders={folders}
               onToggleFavorite={onToggleFavorite}
+              onTogglePin={onTogglePin}
               onMoveToProject={onMoveToProject}
               onMoveToFolder={onMoveToFolder}
               onDelete={onDelete}
