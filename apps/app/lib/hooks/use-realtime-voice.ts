@@ -32,6 +32,8 @@ export function useRealtimeVoice() {
   const [isMuted, setIsMuted] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [messages, setMessages] = useState<VoiceMessage[]>([]);
+  const [captureLevel, setCaptureLevel] = useState(0);
+  const [playbackLevel, setPlaybackLevel] = useState(0);
   const currentAiTextRef = useRef<string>('');
   const msgIdRef = useRef(0);
   const { oxyServices } = useOxy();
@@ -61,6 +63,8 @@ export function useRealtimeVoice() {
         onCapturedAudio: (base64) => {
           clientRef.current?.sendAudio(base64);
         },
+        onCaptureLevel: (level) => setCaptureLevel(level),
+        onPlaybackLevel: (level) => setPlaybackLevel(level),
       });
       pipelineRef.current = pipeline;
       await pipeline.start();
@@ -152,6 +156,8 @@ export function useRealtimeVoice() {
     setError(null);
     setIsMuted(false);
     setMessages([]);
+    setCaptureLevel(0);
+    setPlaybackLevel(0);
     currentAiTextRef.current = '';
   }, [cleanup]);
 
@@ -174,5 +180,7 @@ export function useRealtimeVoice() {
     disconnect,
     toggleMute,
     isConnected: voiceState === 'connected',
+    captureLevel,
+    playbackLevel,
   };
 }

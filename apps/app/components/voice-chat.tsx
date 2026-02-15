@@ -1,8 +1,11 @@
 import { useEffect, useRef } from 'react';
 import { View, Pressable, Modal, ActivityIndicator, ScrollView } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Text } from '@/components/ui/text';
 import { Mic, MicOff, X, PhoneOff } from 'lucide-react-native';
 import { useRealtimeVoice, type AgentState } from '@/lib/hooks/use-realtime-voice';
+import { useAudioLevels } from './voice-chat/use-audio-levels';
+import { AudioWaveVisualizer } from './voice-chat/audio-wave-visualizer';
 
 interface VoiceChatProps {
   visible: boolean;
@@ -17,7 +20,10 @@ const AGENT_COLORS: Record<AgentState, string> = {
   speaking: '#6366f1',
 };
 
+const CLOSE_BTN_MARGIN = 16;
+
 export function VoiceChat({ visible, onClose }: VoiceChatProps) {
+  const insets = useSafeAreaInsets();
   const {
     voiceState,
     agentState,
@@ -27,7 +33,16 @@ export function VoiceChat({ visible, onClose }: VoiceChatProps) {
     connect,
     disconnect,
     toggleMute,
+    captureLevel,
+    playbackLevel,
   } = useRealtimeVoice();
+
+  const { waveAmplitude } = useAudioLevels({
+    captureLevel,
+    playbackLevel,
+    agentState,
+    isConnected: voiceState === 'connected',
+  });
 
   const prevVisibleRef = useRef(visible);
   const scrollViewRef = useRef<ScrollView>(null);
@@ -73,12 +88,18 @@ export function VoiceChat({ visible, onClose }: VoiceChatProps) {
   return (
     <Modal visible={visible} transparent animationType="fade">
       <View className="flex-1 bg-black/90">
-        {/* Top bar */}
-        <View className="pt-14 pr-6 items-end">
-          <Pressable onPress={handleClose} className="p-2">
-            <X size={24} color="white" />
-          </Pressable>
-        </View>
+        {/* Close button — top-right corner, equal margin from safe area and right edge */}
+        <Pressable
+          onPress={handleClose}
+          className="absolute w-10 h-10 rounded-full items-center justify-center z-10"
+          style={{
+            top: insets.top + CLOSE_BTN_MARGIN,
+            right: CLOSE_BTN_MARGIN,
+            backgroundColor: 'rgba(255,255,255,0.12)',
+          }}
+        >
+          <X size={20} color="white" />
+        </Pressable>
 
         {/* Transcript area */}
         <ScrollView
@@ -110,58 +131,81 @@ export function VoiceChat({ visible, onClose }: VoiceChatProps) {
           ))}
         </ScrollView>
 
-        {/* Bottom: status + pulse + controls */}
-        <View className="items-center pb-12">
-          <Text className="text-white text-lg font-medium mb-4">{statusText}</Text>
-
-          {/* Pulse indicator */}
+        {/* Bottom: ambient glow + controls */}
+        <View style={{ position: 'relative', overflow: 'visible' }}>
+          {/* Full-width ambient glow background */}
           <View
-            className="w-24 h-24 rounded-full items-center justify-center mb-6"
-            style={{ backgroundColor: pulseColor + '30' }}
+            style={{
+              position: 'absolute',
+              bottom: 0,
+              left: 0,
+              right: 0,
+              overflow: 'visible',
+            }}
           >
-            <View
-              className="w-18 h-18 rounded-full items-center justify-center"
-              style={{ backgroundColor: pulseColor + '60' }}
-            >
-              <View
-                className="w-12 h-12 rounded-full items-center justify-center"
-                style={{ backgroundColor: pulseColor }}
-              >
-                {voiceState === 'connecting' ? (
-                  <ActivityIndicator size="small" color="white" />
-                ) : (
-                  <Mic size={22} color="white" />
-                )}
-              </View>
-            </View>
+            <AudioWaveVisualizer
+              waveAmplitude={waveAmplitude}
+              agentState={agentState}
+              isConnected={voiceState === 'connected'}
+            />
           </View>
 
-          {/* Controls */}
-          {voiceState === 'connected' && (
-            <View className="flex-row items-center gap-8">
-              <Pressable
-                onPress={toggleMute}
-                className="w-14 h-14 rounded-full items-center justify-center"
-                style={{ backgroundColor: isMuted ? '#ef4444' : '#374151' }}
-              >
-                {isMuted ? <MicOff size={24} color="white" /> : <Mic size={24} color="white" />}
-              </Pressable>
-              <Pressable
-                onPress={handleClose}
-                className="w-14 h-14 rounded-full bg-red-500 items-center justify-center"
-              >
-                <PhoneOff size={24} color="white" />
-              </Pressable>
-            </View>
-          )}
+          {/* Controls overlaid on glow */}
+          <View style={{ alignItems: 'center', paddingBottom: 48, paddingTop: 24, zIndex: 1 }}>
+            {/* Status text */}
+            <Text className="text-white text-lg font-medium mb-6">
+              {statusText}
+            </Text>
 
-          {voiceState === 'error' && (
-            <Pressable onPress={connect} className="mt-4 px-6 py-3 bg-indigo-500 rounded-full">
-              <Text className="text-white font-medium">Retry</Text>
-            </Pressable>
-          )}
+            {/* Controls */}
+            {voiceState === 'connected' && (
+              <View className="flex-row items-center gap-10">
+                <View className="items-center gap-2">
+                  <Pressable
+                    onPress={toggleMute}
+                    className="w-14 h-14 rounded-full items-center justify-center"
+                    style={{ backgroundColor: isMuted ? '#ef4444' : 'rgba(255,255,255,0.15)' }}
+                  >
+                    {isMuted ? (
+                      <MicOff size={24} color="white" />
+                    ) : (
+                      <Mic size={24} color="white" />
+                    )}
+                  </Pressable>
+                  <Text className="text-white/70 text-xs">
+                    {isMuted ? 'Unmute' : 'Mute'}
+                  </Text>
+                </View>
+                <View className="items-center gap-2">
+                  <Pressable
+                    onPress={handleClose}
+                    className="w-14 h-14 rounded-full items-center justify-center"
+                    style={{ backgroundColor: '#ef4444' }}
+                  >
+                    <PhoneOff size={24} color="white" />
+                  </Pressable>
+                  <Text className="text-white/70 text-xs">End</Text>
+                </View>
+              </View>
+            )}
 
-          {error ? <Text className="text-red-400 text-sm mt-4">{error}</Text> : null}
+            {voiceState === 'connecting' && (
+              <ActivityIndicator size="large" color="#38bdf8" />
+            )}
+
+            {voiceState === 'error' && (
+              <Pressable
+                onPress={connect}
+                className="mt-4 px-6 py-3 bg-indigo-500 rounded-full"
+              >
+                <Text className="text-white font-medium">Retry</Text>
+              </Pressable>
+            )}
+
+            {error ? (
+              <Text className="text-red-400 text-sm mt-4">{error}</Text>
+            ) : null}
+          </View>
         </View>
       </View>
     </Modal>
