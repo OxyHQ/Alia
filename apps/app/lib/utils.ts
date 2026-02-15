@@ -3,14 +3,8 @@ import { Platform } from "react-native";
 import { twMerge } from "tailwind-merge";
 import type { Message as DBMessage, Document } from "@/lib/db/schema";
 
-// Local type definitions (previously from 'ai' package)
-export interface ToolInvocation {
-  toolCallId: string;
-  toolName: string;
-  state: "partial-call" | "call" | "result";
-  args?: any;
-  result?: any;
-}
+// Re-export from canonical location for backward compatibility
+export type { ToolInvocation } from "@/lib/types/messages";
 
 export interface Message {
   id: string;

@@ -4,19 +4,14 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { toast } from '@/components/sonner';
 import apiClient from '../api/client';
 import { queryKeys } from './query-keys';
+import type { ToolInvocation } from '../types/messages';
 
 export interface Message {
   id?: string;
   role: 'user' | 'assistant' | 'system';
   content: string | Array<{ type: string; [key: string]: any }>;
   thinking?: string; // Extended thinking content (when thinking mode is enabled)
-  toolInvocations?: {
-    toolCallId: string;
-    toolName: string;
-    state: 'partial-call' | 'call' | 'result';
-    args?: any;
-    result?: any;
-  }[];
+  toolInvocations?: ToolInvocation[];
 }
 
 export interface Conversation {

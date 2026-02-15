@@ -15,14 +15,7 @@ import * as Clipboard from "expo-clipboard";
 import { Reasoning, ReasoningTrigger, ReasoningContent } from "@/components/ui/reasoning";
 import { getToolIcon, getToolLabel } from "@/lib/tool-registry";
 import { getTextFromContent, getImagesFromContent } from "@/lib/attachment-utils";
-
-type ToolInvocation = {
-  toolName: string;
-  toolCallId: string;
-  state: 'partial-call' | 'call' | 'result';
-  args?: any;
-  result?: any;
-};
+import type { ToolInvocation } from "@/lib/types/messages";
 
 type MessagePart = {
   type: string;

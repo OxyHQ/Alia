@@ -1,17 +1,17 @@
 import { create } from "zustand";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { CollectionPersister, type CollectionItem } from "./create-collection-store";
 
-export interface Project {
-  id: string;
-  name: string;
+export interface Project extends CollectionItem {
   description?: string;
-  icon?: string; // Lucide icon name
-  color?: string;
-  conversationIds: string[];
-  isExpanded: boolean;
-  createdAt: Date;
-  updatedAt: Date;
 }
+
+const PROJECT_ICONS = [
+  "FolderOpen", "Briefcase", "Folder", "Package", "Rocket",
+  "Target", "Lightbulb", "Star", "Heart", "Zap",
+];
+const persister = new CollectionPersister<Project>("alia-projects", "project", PROJECT_ICONS);
+const CURRENT_PROJECT_KEY = "alia-current-project";
 
 interface ProjectsStoreState {
   projects: Project[];
@@ -26,33 +26,17 @@ interface ProjectsStoreState {
   removeConversationFromProject: (projectId: string, conversationId: string) => Promise<void>;
 }
 
-const PROJECTS_STORAGE_KEY = "alia-projects";
-const CURRENT_PROJECT_KEY = "alia-current-project";
-
 export const useProjectsStore = create<ProjectsStoreState>((set, get) => ({
   projects: [],
   currentProjectId: null,
 
   loadProjects: async () => {
     try {
-      const [projectsData, currentProjectData] = await Promise.all([
-        AsyncStorage.getItem(PROJECTS_STORAGE_KEY),
+      const [projects, currentProjectData] = await Promise.all([
+        persister.load(),
         AsyncStorage.getItem(CURRENT_PROJECT_KEY),
       ]);
-
-      if (projectsData) {
-        const parsed = JSON.parse(projectsData);
-        const projects = parsed.map((proj: any) => ({
-          ...proj,
-          createdAt: new Date(proj.createdAt),
-          updatedAt: new Date(proj.updatedAt),
-        }));
-        set({ projects });
-      }
-
-      if (currentProjectData) {
-        set({ currentProjectId: currentProjectData });
-      }
+      set({ projects, currentProjectId: currentProjectData || null });
     } catch (error) {
       console.error("Error loading projects:", error);
     }
@@ -60,22 +44,10 @@ export const useProjectsStore = create<ProjectsStoreState>((set, get) => ({
 
   createProject: async (name: string, description?: string, icon?: string) => {
     try {
-      const state = get();
-      const project: Project = {
-        id: `project-${Date.now()}`,
-        name,
-        description,
-        icon: icon || getRandomIcon(),
-        color: getRandomColor(),
-        conversationIds: [],
-        isExpanded: true,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      };
-
-      const newProjects = [...state.projects, project];
-      await AsyncStorage.setItem(PROJECTS_STORAGE_KEY, JSON.stringify(newProjects));
-      set({ projects: newProjects });
+      const project = persister.newItem(name, { description, ...(icon && { icon }) } as Partial<Project>);
+      const projects = [...get().projects, project];
+      await persister.save(projects);
+      set({ projects });
     } catch (error) {
       console.error("Error creating project:", error);
     }
@@ -83,14 +55,9 @@ export const useProjectsStore = create<ProjectsStoreState>((set, get) => ({
 
   updateProject: async (id: string, updates: Partial<Project>) => {
     try {
-      const state = get();
-      const newProjects = state.projects.map((proj) =>
-        proj.id === id
-          ? { ...proj, ...updates, updatedAt: new Date() }
-          : proj
-      );
-      await AsyncStorage.setItem(PROJECTS_STORAGE_KEY, JSON.stringify(newProjects));
-      set({ projects: newProjects });
+      const projects = persister.updateIn(get().projects, id, updates);
+      await persister.save(projects);
+      set({ projects });
     } catch (error) {
       console.error("Error updating project:", error);
     }
@@ -99,15 +66,14 @@ export const useProjectsStore = create<ProjectsStoreState>((set, get) => ({
   deleteProject: async (id: string) => {
     try {
       const state = get();
-      const newProjects = state.projects.filter((proj) => proj.id !== id);
-      await AsyncStorage.setItem(PROJECTS_STORAGE_KEY, JSON.stringify(newProjects));
+      const projects = state.projects.filter((p) => p.id !== id);
+      await persister.save(projects);
 
-      // If we're deleting the current project, clear it
       if (state.currentProjectId === id) {
         await AsyncStorage.removeItem(CURRENT_PROJECT_KEY);
-        set({ projects: newProjects, currentProjectId: null });
+        set({ projects, currentProjectId: null });
       } else {
-        set({ projects: newProjects });
+        set({ projects });
       }
     } catch (error) {
       console.error("Error deleting project:", error);
@@ -129,14 +95,11 @@ export const useProjectsStore = create<ProjectsStoreState>((set, get) => ({
 
   toggleProject: async (id: string) => {
     try {
-      const state = get();
-      const newProjects = state.projects.map((proj) =>
-        proj.id === id
-          ? { ...proj, isExpanded: !proj.isExpanded }
-          : proj
+      const projects = get().projects.map((p) =>
+        p.id === id ? { ...p, isExpanded: !p.isExpanded } : p
       );
-      await AsyncStorage.setItem(PROJECTS_STORAGE_KEY, JSON.stringify(newProjects));
-      set({ projects: newProjects });
+      await persister.save(projects);
+      set({ projects });
     } catch (error) {
       console.error("Error toggling project:", error);
     }
@@ -144,19 +107,9 @@ export const useProjectsStore = create<ProjectsStoreState>((set, get) => ({
 
   addConversationToProject: async (projectId: string, conversationId: string) => {
     try {
-      const state = get();
-      const newProjects = state.projects.map((proj) => {
-        if (proj.id === projectId && !proj.conversationIds.includes(conversationId)) {
-          return {
-            ...proj,
-            conversationIds: [...proj.conversationIds, conversationId],
-            updatedAt: new Date(),
-          };
-        }
-        return proj;
-      });
-      await AsyncStorage.setItem(PROJECTS_STORAGE_KEY, JSON.stringify(newProjects));
-      set({ projects: newProjects });
+      const projects = persister.addConversation(get().projects, projectId, conversationId);
+      await persister.save(projects);
+      set({ projects });
     } catch (error) {
       console.error("Error adding conversation to project:", error);
     }
@@ -164,53 +117,11 @@ export const useProjectsStore = create<ProjectsStoreState>((set, get) => ({
 
   removeConversationFromProject: async (projectId: string, conversationId: string) => {
     try {
-      const state = get();
-      const newProjects = state.projects.map((proj) => {
-        if (proj.id === projectId) {
-          return {
-            ...proj,
-            conversationIds: proj.conversationIds.filter((id) => id !== conversationId),
-            updatedAt: new Date(),
-          };
-        }
-        return proj;
-      });
-      await AsyncStorage.setItem(PROJECTS_STORAGE_KEY, JSON.stringify(newProjects));
-      set({ projects: newProjects });
+      const projects = persister.removeConversation(get().projects, projectId, conversationId);
+      await persister.save(projects);
+      set({ projects });
     } catch (error) {
       console.error("Error removing conversation from project:", error);
     }
   },
 }));
-
-// Helper function to generate random colors for projects
-function getRandomColor(): string {
-  const colors = [
-    "#3b82f6", // blue
-    "#8b5cf6", // purple
-    "#ec4899", // pink
-    "#f59e0b", // amber
-    "#10b981", // green
-    "#06b6d4", // cyan
-    "#f97316", // orange
-    "#ef4444", // red
-  ];
-  return colors[Math.floor(Math.random() * colors.length)];
-}
-
-// Helper function to generate random icons for projects
-function getRandomIcon(): string {
-  const icons = [
-    "FolderOpen",
-    "Briefcase",
-    "Folder",
-    "Package",
-    "Rocket",
-    "Target",
-    "Lightbulb",
-    "Star",
-    "Heart",
-    "Zap",
-  ];
-  return icons[Math.floor(Math.random() * icons.length)];
-}
