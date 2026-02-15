@@ -3,3 +3,4 @@ export type { ChatHook, ChatHookContext, AfterChatContext } from './types.js';
 
 // Register built-in hooks (side-effect imports)
 import './built-in/analytics-hook.js';
+import './built-in/memory-recall-hook.js';

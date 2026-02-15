@@ -77,6 +77,9 @@ export const saveUserMemoryTool = (oxyUserId: string) => tool({
         if (embedding) {
           await upsertMemoryEmbedding(oxyUserId, key, embedding);
         }
+        // Invalidate vector search cache so next recall picks up the new memory
+        const { invalidateUserEmbeddingCache } = await import('../memory/vector-search.js');
+        invalidateUserEmbeddingCache(oxyUserId);
       }).catch(() => {}); // Never block the tool response
 
       return {

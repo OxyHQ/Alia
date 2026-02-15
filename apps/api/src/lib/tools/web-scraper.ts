@@ -1,5 +1,6 @@
 import { tool } from 'ai';
 import { z } from 'zod';
+import { validateUrl } from './sandbox.js';
 
 export const webScraperTool = tool({
   description: 'Read and extract the main content from a web page URL. Use this when users share links or ask you to read a webpage.',
@@ -8,6 +9,11 @@ export const webScraperTool = tool({
   }),
   execute: async ({ url }) => {
     try {
+      const urlCheck = validateUrl(url);
+      if (!urlCheck.valid) {
+        return { error: `URL blocked: ${urlCheck.reason}` };
+      }
+
       const response = await fetch(url, {
         headers: {
           'User-Agent': 'Mozilla/5.0 (compatible; AliaBot/1.0)',
