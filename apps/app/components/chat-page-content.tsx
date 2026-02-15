@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { View, Pressable, useWindowDimensions } from "react-native";
 import { useColorScheme } from "@/lib/useColorScheme";
 import { LinearGradient } from "expo-linear-gradient";
@@ -28,6 +28,7 @@ import { PromptAutocomplete } from "@/components/prompt-autocomplete";
 import { usePromptCompletions } from "@/hooks/usePromptCompletions";
 import type { PromptCompletion } from "@/lib/prompt-completions";
 import { getThinkingModelId, isThinkingModel } from "@/components/model-selector";
+import { useChatStore } from "@/lib/stores/chat-store";
 
 interface ChatPageContentProps {
   messages: Message[];
@@ -42,7 +43,6 @@ interface ChatPageContentProps {
   onModelChange: (model: string) => void;
   activeRole?: { id: string; name: string };
   onRemoveRole?: () => void;
-  thinkingMode?: boolean;
   disabled?: boolean;
 }
 
@@ -98,7 +98,6 @@ export const ChatPageContent = ({
   onModelChange,
   activeRole,
   onRemoveRole,
-  thinkingMode = false,
   disabled = false,
 }: ChatPageContentProps) => {
   const attachments = useStore((state) => state.attachments);
@@ -111,7 +110,17 @@ export const ChatPageContent = ({
   const [deepResearchMode, setDeepResearchMode] = useState(false);
   const [shoppingResearchMode, setShoppingResearchMode] = useState(false);
   const [studyMode, setStudyMode] = useState(false);
-  const previousModelRef = useRef(selectedModel);
+  const thinkingMode = isThinkingModel(selectedModel);
+  const baseModel = useChatStore((s) => s.baseModel);
+  const setBaseModel = useChatStore((s) => s.setBaseModel);
+
+  // Keep baseModel synced when user manually picks a non-thinking model
+  useEffect(() => {
+    if (!isThinkingModel(selectedModel)) {
+      setBaseModel(selectedModel);
+    }
+  }, [selectedModel]);
+
   const [inputValue, setInputValue] = useState("");
   const [showVoice, setShowVoice] = useState(false);
   const [showCanvas, setShowCanvas] = useState(false);
@@ -270,14 +279,11 @@ export const ChatPageContent = ({
 
   const handleThinkingMode = () => {
     if (thinkingMode) {
-      // Turn off: restore previous model
-      onModelChange(previousModelRef.current);
+      // Turn off: restore base model (persisted, survives refresh)
+      onModelChange(baseModel);
       toast.info('Thinking mode disabled');
     } else {
-      // Turn on: save current model and switch to thinking variant
-      if (!isThinkingModel(selectedModel)) {
-        previousModelRef.current = selectedModel;
-      }
+      // Turn on: switch to thinking variant (baseModel already tracks the non-thinking model)
       onModelChange(getThinkingModelId());
       toast.info('AI will show its reasoning process');
     }

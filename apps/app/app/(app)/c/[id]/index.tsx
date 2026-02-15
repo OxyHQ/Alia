@@ -50,7 +50,6 @@ const ChatConversationPage = () => {
         onModelChange={setSelectedModel}
         activeRole={activeRole}
         onRemoveRole={() => setActiveRoleId(undefined)}
-        thinkingMode={thinkingMode}
         disabled={!!usageLimitError}
       />
       <UsageLimitDialog error={usageLimitError} onDismiss={clearError} />
