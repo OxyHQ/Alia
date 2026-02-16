@@ -39,6 +39,7 @@ export class LiveKitAgentBridge implements LiveKitAgentBridgeRef {
   private connected = false;
   private capturedFrameCount = 0;
   private publishedFrameCount = 0;
+  private publishChain: Promise<void> = Promise.resolve();
 
   /** Callback invoked when user audio frames arrive from LiveKit */
   onUserAudioFrame: ((base64Pcm16: string) => void) | null = null;
@@ -170,7 +171,16 @@ export class LiveKitAgentBridge implements LiveKitAgentBridgeRef {
     }
     this.publishedFrameCount++;
 
-    await this.audioSource.captureFrame(frame);
+    // Serialize captureFrame calls — concurrent calls cause InvalidState errors
+    // because WebSocket 'message' events fire without waiting for async handlers
+    this.publishChain = this.publishChain.then(async () => {
+      if (!this.audioSource || !this.connected) return;
+      try {
+        await this.audioSource.captureFrame(frame);
+      } catch {
+        // Transient frame drop — non-fatal, audio continues
+      }
+    }).catch(() => {});
   }
 
   /**
@@ -195,6 +205,7 @@ export class LiveKitAgentBridge implements LiveKitAgentBridgeRef {
    */
   async disconnect(): Promise<void> {
     this.connected = false;
+    this.publishChain = Promise.resolve();
 
     if (this.audioStreamReader) {
       try { this.audioStreamReader.cancel(); } catch {}
