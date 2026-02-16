@@ -82,7 +82,7 @@ export class LiveKitAgentBridge implements LiveKitAgentBridgeRef {
     this.room.on(RoomEvent.TrackSubscribed, (track, publication, participant) => {
       log.providers.info({ kind: track.kind, participant: participant.identity, identity: this.identity }, '[Voice] TrackSubscribed event');
       // Only subscribe to audio from non-agent participants
-      if (track.kind === TrackKind.KIND_AUDIO && participant.identity !== this.identity) {
+      if (track.kind === TrackKind.KIND_AUDIO && !participant.identity.startsWith('alia-')) {
         this.startAudioCapture(track, participant.identity);
       }
     });
@@ -106,7 +106,7 @@ export class LiveKitAgentBridge implements LiveKitAgentBridgeRef {
     // Listen for participant disconnect
     this.room.on(RoomEvent.ParticipantDisconnected, (participant) => {
       // If the user (non-agent) disconnects, notify
-      if (participant.identity !== this.identity) {
+      if (!participant.identity.startsWith('alia-')) {
         log.providers.info({ participant: participant.identity }, 'User disconnected from LiveKit room');
         this.onUserDisconnected?.();
       }
@@ -114,7 +114,7 @@ export class LiveKitAgentBridge implements LiveKitAgentBridgeRef {
 
     // Also check for already-connected participants with audio tracks
     for (const [, participant] of this.room.remoteParticipants) {
-      if (participant.identity === this.identity) continue;
+      if (participant.identity.startsWith('alia-')) continue;
       for (const [, publication] of participant.trackPublications) {
         if (publication.track && publication.track.kind === TrackKind.KIND_AUDIO) {
           this.startAudioCapture(publication.track, participant.identity);
