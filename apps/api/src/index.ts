@@ -6,6 +6,7 @@ import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import { connectDB } from './lib/db.js';
 import { log } from './lib/logger.js';
+import { isAbortError, isFatalError, isTransientNetworkError } from './lib/error-classification.js';
 
 // Routes
 import healthRouter from './routes/health.js';
@@ -299,7 +300,25 @@ app.use((err: any, _req: express.Request, res: express.Response, _next: express.
 });
 
 // Process-level error handlers — prevent crashes from taking down all users
+// Classifies errors to determine logging level (inspired by openclaw)
 process.on('unhandledRejection', (reason) => {
+  // AbortError: intentional cancellation (user stopped request) — suppress
+  if (isAbortError(reason)) return;
+
+  // Fatal: OOM, worker failures — must exit
+  if (isFatalError(reason)) {
+    log.general.error({ err: reason }, '[Process] FATAL unhandled rejection — shutting down');
+    setTimeout(() => process.exit(1), 5000).unref();
+    return;
+  }
+
+  // Transient network: ECONNRESET, ETIMEDOUT, etc. — expected with external providers
+  if (isTransientNetworkError(reason)) {
+    log.general.warn({ err: reason }, '[Process] Transient network error (continuing)');
+    return;
+  }
+
+  // Everything else: log as error but keep running
   log.general.error({ reason: reason instanceof Error ? reason : String(reason) }, '[Process] Unhandled promise rejection');
 });
 
@@ -346,12 +365,17 @@ connectDB()
         // Stop background processes
         const { stopHealthCheckMonitor } = await import('./internal/providers/lib/provider-health.js');
         stopHealthCheckMonitor();
-        console.log('[Shutdown] Health check monitor stopped');
+        log.general.info('Health check monitor stopped');
+
+        // Invalidate provider key cache (prevents stale keys on restart)
+        const { invalidateKeyCache } = await import('./internal/providers/lib/key-manager.js');
+        invalidateKeyCache();
+        log.general.info('Provider key cache invalidated');
 
         // Close MongoDB connection
         const mongoose = await import('mongoose');
         await mongoose.default.connection.close();
-        console.log('[Shutdown] MongoDB connection closed');
+        log.general.info('MongoDB connection closed');
 
         clearTimeout(forceTimeout);
         console.log('[Shutdown] Graceful shutdown complete');
