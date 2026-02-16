@@ -53,21 +53,23 @@ function AppContent() {
     return vars(getAccentCSSVariables(preset, colorScheme));
   }, [accentColor, colorScheme]);
 
+  const stack = (
+    <Stack
+      screenOptions={{
+        contentStyle: {
+          backgroundColor: colors.background,
+        },
+      }}
+    >
+      <Stack.Screen name="(app)" options={{ headerShown: false }} />
+      <Stack.Screen name="(biglayout)" options={{ headerShown: false }} />
+    </Stack>
+  );
+
   return (
     <AuthSetup>
       <View style={[{ flex: 1 }, accentVars]}>
-        <KeyboardProvider>
-          <Stack
-            screenOptions={{
-              contentStyle: {
-                backgroundColor: colors.background,
-              },
-            }}
-          >
-            <Stack.Screen name="(app)" options={{ headerShown: false }} />
-            <Stack.Screen name="(biglayout)" options={{ headerShown: false }} />
-          </Stack>
-        </KeyboardProvider>
+        {Platform.OS === 'web' ? stack : <KeyboardProvider>{stack}</KeyboardProvider>}
       </View>
     </AuthSetup>
   );

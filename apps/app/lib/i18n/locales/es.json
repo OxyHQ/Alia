@@ -803,5 +803,32 @@
       "step4": "4. Escanea el código QR con tu teléfono",
       "scanInstructions": "Abre WhatsApp en tu teléfono, ve a Ajustes > Dispositivos vinculados > Vincular un dispositivo, luego escanea este código."
     }
+  },
+  "thought": {
+    "title": "Pensamiento",
+    "steps": "Pasos",
+    "sources": "Fuentes",
+    "thinking": "Pensando",
+    "thinkingFor": "Pensando por {{seconds}}s...",
+    "thoughtFor": "Pensó por {{seconds}} segundos",
+    "done": "Listo",
+    "noSources": "No se usaron fuentes",
+    "noSteps": "No hay pasos para mostrar",
+    "websites": "Sitios web",
+    "viewDetails": "Ver detalles"
+  },
+  "keyboardShortcuts": {
+    "title": "Atajos de teclado",
+    "navigation": "Navegación",
+    "composer": "Compositor",
+    "conversation": "Conversación",
+    "general": "General",
+    "commandPalette": "Paleta de comandos / Buscar",
+    "settings": "Configuración",
+    "shortcuts": "Atajos de teclado",
+    "sendMessage": "Enviar mensaje",
+    "newLine": "Nueva línea",
+    "newChat": "Nueva conversación",
+    "closeDialog": "Cerrar diálogo"
   }
 }

@@ -34,6 +34,7 @@ import {
   FolderClosed,
   Gift,
   Smartphone,
+  Keyboard,
   type LucideIcon,
 } from "lucide-react-native";
 import { useTranslation } from "@/hooks/useTranslation";
@@ -51,6 +52,7 @@ import { ProjectEditDialog } from "@/components/project-edit-dialog";
 import { InviteDialog } from "@/components/invite-dialog";
 import { AppDownloadDialog } from "@/components/app-download-dialog";
 import { FolderEditDialog } from "@/components/folder-edit-dialog";
+import { useUIStore } from "@/lib/stores/ui-store";
 import { ConversationItem } from "@/components/sidebar/conversation-item";
 import { FolderSection } from "@/components/sidebar/folder-section";
 import { HistoryList } from "@/components/sidebar/history-list";
@@ -105,6 +107,7 @@ const ChatSidebar = React.memo(function ChatSidebar() {
     return data?.pages.flatMap(page => page.conversations) || [];
   }, [data]);
   const { user, isAuthenticated, logout, showBottomSheet } = useOxy();
+  const setShortcutsDialogOpen = useUIStore((s) => s.setShortcutsDialogOpen);
   const projects = useProjectsStore((state) => state.projects);
   const currentProjectId = useProjectsStore((state) => state.currentProjectId);
   const setCurrentProject = useProjectsStore((state) => state.setCurrentProject);
@@ -850,6 +853,16 @@ const ChatSidebar = React.memo(function ChatSidebar() {
                   className="h-9 w-9 md:h-8 md:w-8 items-center justify-center rounded-lg hover:bg-muted active:bg-muted"
                 >
                   <Code size={18} className="text-muted-foreground" />
+                </Pressable>
+              )}
+
+              {/* Keyboard Shortcuts - web only */}
+              {Platform.OS === "web" && (
+                <Pressable
+                  onPress={() => setShortcutsDialogOpen(true)}
+                  className="h-9 w-9 md:h-8 md:w-8 items-center justify-center rounded-lg hover:bg-muted active:bg-muted"
+                >
+                  <Keyboard size={18} className="text-muted-foreground" />
                 </Pressable>
               )}
 

@@ -12,6 +12,7 @@ import { useUIStore } from '@/lib/stores/ui-store';
 import { useEffect } from 'react';
 import { useColorScheme } from '@/lib/useColorScheme';
 import { CommandPalette } from '@/components/command-palette';
+import { KeyboardShortcutsDialog } from '@/components/keyboard-shortcuts-dialog';
 import i18n from '@/lib/i18n';
 
 export default function AppLayout() {
@@ -209,6 +210,7 @@ export default function AppLayout() {
       {/* Mobile modal for right panel */}
       {!isLargeScreen && <RightPanel />}
       <CommandPalette />
+      <KeyboardShortcutsDialog />
     </GestureHandlerRootView>
   );
 }

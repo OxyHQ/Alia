@@ -4,27 +4,127 @@ Main Alia application built with Expo Router and React Native. Runs on web, iOS,
 
 ## Features
 
-- **Expo Router** - File-based routing like Next.js
-- **AI SDK** - Integration with @ai-sdk/react for chat streaming
-- **NativeWind** - Tailwind CSS for React Native
-- **Hugeicons** - Same icons as the admin
-- **Consistent UI** - Components based on shadcn/ui adapted for RN
-- **Multi-platform** - A single codebase for web, iOS, and Android
+- **Multi-platform** — Single codebase for web, iOS, and Android
+- **Expo Router** — File-based routing with nested layouts
+- **NativeWind** — Tailwind CSS for React Native via NativeWind
+- **AI Chat** — Streaming chat with markdown rendering and rich blocks
+- **Voice Mode** — Real-time voice conversations via WebRTC
+- **Memory System** — User memories, preferences, and context
+- **Developer Portal** — API key management and app creation
+- **Billing** — Subscription plans and credit purchases via Stripe
+- **Organizations** — Team workspaces with member management
+- **Automations** — User-configured automated workflows
+- **Canvas** — Visual workflow builder with node-based execution
+- **Skills** — Browseable skill library with prompt templates
+- **Sidebar** — Conversation history, folders, favorites, pinned items
+- **i18n** — Internationalization with reactive language switching
+- **Rich Blocks** — Custom ALIA_ tagged components (COMPACTLIST, BANNER, COMPARISON, TIMELINE, IMAGE, CREDIBILITY)
 
 ## Route Structure
 
 ```
 app/
-├── index.tsx         # Initial redirect
-├── login.tsx         # /login - Login screen
-├── register.tsx      # /register - Registration screen
-└── (chat)/
-    └── index.tsx     # /chat - Main chat screen
+├── _layout.tsx                # Root layout (auth provider, theme, fonts)
+├── +html.tsx                  # Web HTML template
+├── +not-found.tsx             # 404 page
+├── (app)/                     # Main authenticated layout
+│   ├── _layout.tsx            # App shell (sidebar + content)
+│   ├── index.tsx              # Home / new chat
+│   ├── c/[id].tsx             # Chat conversation by ID
+│   ├── login.tsx              # Login screen
+│   ├── register.tsx           # Registration screen
+│   ├── forgot-password.tsx    # Forgot password
+│   ├── reset-password.tsx     # Reset password
+│   ├── agents.tsx             # Agent browser
+│   ├── library.tsx            # Content library
+│   ├── favorites.tsx          # Favorited items
+│   ├── skills.tsx             # Skills directory
+│   ├── skills/[id].tsx        # Skill detail
+│   ├── automations.tsx        # Automations list
+│   ├── roles.tsx              # Roles/personas list
+│   ├── roles/[id].tsx         # Role detail
+│   ├── notifications.tsx      # Notifications
+│   ├── settings/              # Settings pages
+│   │   ├── index.tsx          # General settings
+│   │   ├── personalization.tsx
+│   │   ├── memory.tsx
+│   │   ├── usage.tsx
+│   │   ├── connectors.tsx
+│   │   ├── feedback.tsx
+│   │   ├── telegram-gateway.tsx
+│   │   ├── whatsapp.tsx
+│   │   └── signal-gateway.tsx
+│   ├── authorize/             # OAuth app authorization
+│   ├── invite/[code].tsx      # Invite acceptance
+│   ├── channel-auth.tsx       # Channel authentication
+│   └── telegram-auth.tsx      # Telegram account linking
+└── (biglayout)/               # Full-screen layouts
+    ├── _layout.tsx
+    ├── subscribe.tsx          # Subscription page
+    ├── codea-subscribe.tsx    # Codea subscription
+    └── download.tsx           # App download page
 ```
 
-## Development
+## State Management
 
-### Start the development server:
+### Zustand Stores
+
+| Store | Purpose |
+|-------|---------|
+| `model-store` | Selected AI model |
+| `ui-store` | Sidebar state, panels, modals |
+| `folders-store` | Conversation folders |
+| `favorites-store` | Favorited conversations |
+| `pinned-store` | Pinned conversations |
+| `library-store` | Content library |
+| `projects-store` | Projects/workspaces |
+| `organization-store` | Organization data |
+| `roles-store` | Custom roles/personas |
+| `theme-store` | Theme and accent color |
+| `i18n-store` | Language selection |
+| `user-data-store` | User profile and preferences |
+
+### React Query Hooks
+
+| Hook | Purpose |
+|------|---------|
+| `use-conversations` | Conversation CRUD and list |
+| `use-credits` | Credit balance and usage |
+| `use-billing` | Subscription and plans |
+| `use-developer` | Developer apps and API keys |
+| `use-organization` | Organization management |
+| `use-referrals` | Referral codes |
+| `use-voice-chat` | Voice mode state |
+| `use-realtime-voice` | WebRTC voice streaming |
+| `use-speech-to-text` | Audio transcription |
+
+## AI Integration
+
+The app uses a custom streaming hook that communicates with the API's OpenAI-compatible endpoint:
+
+```tsx
+// Streaming chat via /v1/chat/completions
+const { messages, isStreaming, sendMessage } = useStreamingChat({
+  conversationId,
+  model: selectedModel,
+});
+```
+
+Features:
+- SSE streaming with progressive message rendering
+- Reasoning/thinking display (chain-of-thought)
+- Tool call visualization
+- Rich block rendering (ALIA_COMPACTLIST, ALIA_BANNER, etc.)
+- Image and file attachments
+- Conversation auto-save with title generation
+
+## UI Components
+
+Components in [components/ui/](components/ui/) follow shadcn/ui patterns adapted for React Native:
+
+`Button`, `Input`, `Textarea`, `Card`, `Dialog`, `Sheet`, `DropdownMenu`, `Command`, `Collapsible`, `ToggleGroup`, `Separator`, `Skeleton`, `ScrollArea`, `Avatar`, `Label`, `Kbd`, `Icon`, `Panel`, `PromptInput`, `ChatTextInput`, `Markdown`, `RichBlocks`, `Reasoning`
+
+## Development
 
 ```bash
 # From the monorepo root
@@ -37,104 +137,35 @@ npm start
 ### Run on specific platforms:
 
 ```bash
-# From the root
 npm run web       # Web
 npm run android   # Android
 npm run ios       # iOS
-
-# Or from apps/app
-npm run web
-npm run android
-npm run ios
 ```
 
 ## Configuration
 
 ### API URL
 
-The API URL configuration is located in [lib/config.ts](lib/config.ts):
+The API URL configuration is in [lib/config.ts](lib/config.ts):
 
 - **Development**: `http://localhost:3000`
 - **Staging**: `https://staging-api.alia.onl`
 - **Production**: `https://api.alia.onl`
 
-For local development, make sure the API is running at `http://localhost:3000`.
-
-## UI Components
-
-Components are in [components/ui/](components/ui/) and are designed to be compatible with React Native while maintaining the shadcn/ui API:
-
-- `Button` - Buttons with variants (default, outline, ghost, etc.)
-- `Input` - Styled text fields
-
-## Screens
-
-### Login ([app/login.tsx](app/login.tsx))
-- Authentication form
-- Email and password validation
-- Navigation to registration
-
-### Register ([app/register.tsx](app/register.tsx))
-- Registration form
-- Password confirmation
-- Data validation
-
-### Chat ([app/(chat)/index.tsx](app/(chat)/index.tsx))
-- Integration with `useChat` hook from the AI SDK
-- Real-time response streaming
-- Markdown rendering
-- Auto-scroll to new messages
-- Consistent UI across web and mobile
-
-## AI SDK Integration
-
-The app uses the same system as the admin:
-
-```tsx
-const { messages, input, handleInputChange, handleSubmit, isLoading } = useChat({
-  api: `${config.apiUrl}/api/alia/chat`,
-});
-```
-
 ## Production Build
 
-### Configure EAS:
-
 ```bash
-# Install EAS CLI globally
+# Install EAS CLI
 npm install -g eas-cli
 
-# Login
-eas login
-
-# Configure the project
-eas build:configure
-```
-
-### Create builds:
-
-```bash
-# Android
-npm run build:android
-
-# iOS
-npm run build:ios
-
-# Both platforms
+# Build
+eas build --platform android
+eas build --platform ios
 eas build --platform all
 ```
-
-## Web vs Mobile
-
-This application works on both web and mobile using the same codebase:
-
-- **Web**: Renders with React Native Web (similar to how React Native works on the web)
-- **iOS/Android**: Uses native React Native components
 
 ## Resources
 
 - [Expo Documentation](https://docs.expo.dev/)
 - [Expo Router](https://docs.expo.dev/router/introduction/)
-- [AI SDK for Expo](https://ai-sdk.dev/docs/getting-started/expo)
 - [NativeWind](https://www.nativewind.dev/)
-- [Hugeicons React Native](https://hugeicons.com/)
