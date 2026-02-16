@@ -51,6 +51,7 @@ export interface IProviderKey extends Document {
   lastFailureAt?: Date;
   lastFailureReason?: string;
   cooldownUntil?: Date | null;
+  rateLimitResetMs?: number | null; // Fixed cooldown for rate_limit errors (e.g. 60000 for 1 min)
 
   // Archiving (only after many total failures)
   maxTotalFailures: number;     // Archive after X total failures (default: 100)
@@ -207,6 +208,10 @@ const ProviderKeySchema = new Schema<IProviderKey>(
     },
     cooldownUntil: {
       type: Date,
+      default: null,
+    },
+    rateLimitResetMs: {
+      type: Number,
       default: null,
     },
     maxTotalFailures: {

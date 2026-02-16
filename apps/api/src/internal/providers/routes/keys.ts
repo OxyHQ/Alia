@@ -210,7 +210,7 @@ router.get('/:keyId', async (req: Request, res: Response) => {
  */
 router.post('/', async (req: Request, res: Response) => {
   try {
-    const { name, provider, key, environment, isPaid, tier, priority, rateLimit, creditLimitUSD } = req.body;
+    const { name, provider, key, environment, isPaid, tier, priority, rateLimit, creditLimitUSD, rateLimitResetMs } = req.body;
 
     // Validate required fields
     if (!name || !provider || !key) {
@@ -294,6 +294,7 @@ router.post('/', async (req: Request, res: Response) => {
       originalPriority: priority || 10,
       rateLimit: rateLimit || {},
       creditLimitUSD: creditLimitUSD ?? null,
+      rateLimitResetMs: rateLimitResetMs ?? null,
       isActive: true,
     });
 
@@ -329,7 +330,7 @@ router.patch('/:keyId', async (req: Request, res: Response) => {
     const { keyId } = req.params;
 
     // Allowlist of fields that can be updated via PATCH
-    const ALLOWED_FIELDS = ['name', 'isActive', 'priority', 'rateLimit', 'environment', 'isPaid', 'tier', 'creditLimitUSD'];
+    const ALLOWED_FIELDS = ['name', 'isActive', 'priority', 'rateLimit', 'environment', 'isPaid', 'tier', 'creditLimitUSD', 'rateLimitResetMs'];
     const updates: Record<string, unknown> = {};
     for (const field of ALLOWED_FIELDS) {
       if (req.body[field] !== undefined) {

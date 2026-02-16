@@ -224,10 +224,16 @@ export async function recordKeyFailure(keyId: string, reason: string): Promise<v
     // Record failure and move to end of its group's queue
     await key.recordFailure(reason, maxPriority);
 
-    // Set cooldown with exponential backoff (atomic $set)
-    // 30s base, doubles per consecutive failure, capped at 5min
+    // Set cooldown (atomic $set)
+    // For rate_limit errors: use key's rateLimitResetMs if configured, else exponential backoff
+    // For other errors: exponential backoff (30s base, doubles per failure, capped at 5min)
     const consecutiveFailures = (key.consecutiveFailures || 0) + 1; // +1 because recordFailure already incremented
-    const cooldownMs = Math.min(30000 * Math.pow(2, consecutiveFailures - 1), 300000);
+    let cooldownMs: number;
+    if (reason === 'rate_limit' && key.rateLimitResetMs) {
+      cooldownMs = key.rateLimitResetMs;
+    } else {
+      cooldownMs = Math.min(30000 * Math.pow(2, consecutiveFailures - 1), 300000);
+    }
     const cooldownUntil = new Date(Date.now() + cooldownMs);
 
     await ProviderKey.updateOne(
