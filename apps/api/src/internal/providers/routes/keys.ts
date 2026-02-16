@@ -19,7 +19,7 @@ const router = express.Router();
 const VALID_PROVIDERS = [
   'openai', 'anthropic', 'google', 'mistral', 'cohere', 'together',
   'groq', 'fireworks', 'deepseek', 'openrouter', 'perplexity', 'xai',
-  'cerebras', 'cloudflare',
+  'cerebras', 'cloudflare', 'replicate',
 ];
 
 // Sanitize string input: must be a non-empty string within length limits
@@ -113,7 +113,7 @@ router.get('/', async (req: Request, res: Response) => {
 router.get('/diagnostics', async (req: Request, res: Response) => {
   try {
     const keys = await ProviderKey.find({ isArchived: false }).select(
-      'name provider keyPrefix isActive key isPaid currentPriority totalRequests successCount totalFailures lastFailureReason'
+      'name provider keyPrefix isActive key isPaid currentPriority totalRequests successCount totalFailures lastFailureReason creditLimitUSD spentUSD'
     );
 
     const diagnostics = keys.map((k) => ({
@@ -129,6 +129,9 @@ router.get('/diagnostics', async (req: Request, res: Response) => {
       successCount: k.successCount,
       totalFailures: k.totalFailures,
       lastFailureReason: k.lastFailureReason || null,
+      creditLimitUSD: k.creditLimitUSD ?? null,
+      spentUSD: k.spentUSD || 0,
+      creditExhausted: k.creditLimitUSD != null && k.spentUSD >= k.creditLimitUSD,
     }));
 
     const issues: string[] = [];
@@ -199,7 +202,7 @@ router.get('/:keyId', async (req: Request, res: Response) => {
  */
 router.post('/', async (req: Request, res: Response) => {
   try {
-    const { name, provider, key, environment, isPaid, tier, priority, rateLimit } = req.body;
+    const { name, provider, key, environment, isPaid, tier, priority, rateLimit, creditLimitUSD } = req.body;
 
     // Validate required fields
     if (!name || !provider || !key) {
@@ -245,6 +248,14 @@ router.post('/', async (req: Request, res: Response) => {
       });
     }
 
+    if (creditLimitUSD !== undefined && creditLimitUSD !== null && (typeof creditLimitUSD !== 'number' || creditLimitUSD < 0)) {
+      return res.status(400).json({
+        success: false,
+        error: 'creditLimitUSD must be a non-negative number or null',
+        code: 'INVALID_REQUEST',
+      });
+    }
+
     // Hash the key for deduplication
     const keyHash = crypto.createHash('sha256').update(key).digest('hex');
 
@@ -274,6 +285,7 @@ router.post('/', async (req: Request, res: Response) => {
       currentPriority: priority || 10,
       originalPriority: priority || 10,
       rateLimit: rateLimit || {},
+      creditLimitUSD: creditLimitUSD ?? null,
       isActive: true,
     });
 
@@ -309,7 +321,7 @@ router.patch('/:keyId', async (req: Request, res: Response) => {
     const { keyId } = req.params;
 
     // Allowlist of fields that can be updated via PATCH
-    const ALLOWED_FIELDS = ['name', 'isActive', 'priority', 'rateLimit', 'environment', 'isPaid', 'tier'];
+    const ALLOWED_FIELDS = ['name', 'isActive', 'priority', 'rateLimit', 'environment', 'isPaid', 'tier', 'creditLimitUSD'];
     const updates: Record<string, unknown> = {};
     for (const field of ALLOWED_FIELDS) {
       if (req.body[field] !== undefined) {
@@ -458,6 +470,48 @@ router.post('/:keyId/rotate', async (req: Request, res: Response) => {
     broadcastKeysUpdate(key.provider);
   } catch (error: any) {
     log.keys.error({ err: error }, 'Error rotating key');
+    res.status(500).json({
+      success: false,
+      error: 'An internal error occurred',
+      code: 'INTERNAL_ERROR',
+    });
+  }
+});
+
+/**
+ * POST /v1/keys/:keyId/reset-spend
+ * Reset spentUSD to 0 (e.g., after adding credit to a provider account)
+ */
+router.post('/:keyId/reset-spend', async (req: Request, res: Response) => {
+  try {
+    const { keyId } = req.params;
+
+    const key = await ProviderKey.findByIdAndUpdate(
+      keyId,
+      { $set: { spentUSD: 0 } },
+      { new: true }
+    ).select('-keyHash -key');
+
+    if (!key) {
+      return res.status(404).json({
+        success: false,
+        error: 'Key not found',
+        code: 'KEY_NOT_FOUND',
+      });
+    }
+
+    // Invalidate cache so the key becomes selectable again
+    invalidateKeyCache(key.provider);
+
+    res.json({
+      success: true,
+      data: key,
+      message: 'Key spend reset successfully',
+    });
+
+    broadcastKeysUpdate(key.provider);
+  } catch (error: any) {
+    log.keys.error({ err: error }, 'Error resetting key spend');
     res.status(500).json({
       success: false,
       error: 'An internal error occurred',

@@ -25,7 +25,7 @@ import {
   isAliaModel,
   getAliaModel,
 } from './alia-models';
-import { getBestKeyForModel } from './key-manager';
+import { getBestKeyForModel, markKeyCreditExhausted } from './key-manager';
 import { isProviderAvailable } from './provider-health';
 import { FallbackEvent } from '../models/fallback-event';
 import { log } from '../../../lib/logger.js';
@@ -198,6 +198,11 @@ export async function resolveWithFallback(
           // Skip this provider entirely for the rest of this request
           requestSkipProviders.add(mapping.provider);
           log.fallback.info({ provider: mapping.provider }, 'Billing issue, skipping provider for this request');
+
+          // Mark the key as credit exhausted so it won't be selected again
+          if (result.failedKeyId) {
+            markKeyCreditExhausted(result.failedKeyId).catch(() => {});
+          }
           break;
         }
 

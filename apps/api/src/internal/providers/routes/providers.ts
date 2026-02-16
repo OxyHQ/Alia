@@ -16,9 +16,10 @@ import {
   resetProviderHealth
 } from '../lib/provider-health';
 import mongoose from 'mongoose';
-import { getBestKeyForModel, recordKeyUsage } from '../lib/key-manager';
+import { getBestKeyForModel, recordKeyUsage, recordKeySpend } from '../lib/key-manager';
 import { sanitizeError } from '../../../lib/error-handler.js';
 import { broadcastHealthUpdate } from '../lib/broadcast-helpers';
+import { calculateCost } from '../../../lib/cost-tracker.js';
 import { log } from '../../../lib/logger.js';
 
 const router = express.Router();
@@ -193,8 +194,14 @@ router.post('/:provider/proxy', async (req: Request, res: Response) => {
     }
 
     // Record key usage
-    if (totalTokens > 0) {
+    if (totalTokens > 0 && keyConfig.keyId) {
       await recordKeyUsage(keyConfig.keyId, totalTokens, provider, modelId);
+
+      // Record key spend (fire and forget)
+      const estimatedInputTokens = estimatedTokens;
+      const estimatedOutputTokens = Math.max(0, totalTokens - estimatedInputTokens);
+      const costUSD = calculateCost(provider, modelId, estimatedInputTokens, estimatedOutputTokens);
+      recordKeySpend(keyConfig.keyId, costUSD);
     }
 
   } catch (error: any) {
