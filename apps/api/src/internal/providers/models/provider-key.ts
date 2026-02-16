@@ -284,15 +284,22 @@ ProviderKeySchema.methods.recordFailure = async function (
   reason: string,
   maxPriority: number = 999
 ): Promise<void> {
-  this.consecutiveFailures += 1;
-  this.totalFailures += 1;
+  // Rate limits are transient — the key works fine, we just hit quota.
+  // Don't count toward consecutiveFailures or totalFailures (avoids archival).
+  const isRateLimit = /rate.?limit|429|RESOURCE_EXHAUSTED|quota/i.test(reason);
+
+  if (!isRateLimit) {
+    this.consecutiveFailures += 1;
+    this.totalFailures += 1;
+  }
+
   this.lastFailureAt = new Date();
   this.lastFailureReason = reason.substring(0, 500);
 
-  // Move to last priority (end of queue)
+  // Move to last priority (end of queue) so other keys get tried first
   this.currentPriority = maxPriority + 1;
 
-  log.keys.warn({ keyPrefix: this.keyPrefix, provider: this.provider, priority: this.currentPriority, reason: reason.substring(0, 50) }, 'Key moved to last priority after failure');
+  log.keys.warn({ keyPrefix: this.keyPrefix, provider: this.provider, priority: this.currentPriority, reason: reason.substring(0, 50), isRateLimit }, 'Key moved to last priority after failure');
 
   // Check if we should archive (too many total failures)
   if (this.totalFailures >= this.maxTotalFailures) {

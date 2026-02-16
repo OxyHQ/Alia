@@ -26,19 +26,29 @@ import { recordEvent } from '../../lib/observability/index.js';
 const router = Router();
 
 /**
+ * Classify a provider error into a clean reason string for cooldown/circuit breaker logic.
+ * The AI SDK wraps errors inconsistently — .code might be missing or generic.
+ */
+function classifyProviderError(error: unknown): string {
+  const status = (error as any)?.status || (error as any)?.statusCode;
+  const code = String((error as any)?.code || '');
+  const msg = String((error as any)?.message || '').toLowerCase();
+  const combined = `${code} ${msg}`;
+
+  if (status === 429 || /rate.?limit|quota|RESOURCE_EXHAUSTED/i.test(combined)) return 'rate_limit';
+  if (status === 401 || status === 403 || /unauthorized|invalid.*key/i.test(msg)) return 'auth';
+  if (/timeout|ETIMEDOUT|abort/i.test(combined)) return 'timeout';
+  if (status === 503 || status === 529 || /overload|capacity/i.test(msg)) return 'overloaded';
+  return 'unknown';
+}
+
+/**
  * Check if an error is retryable (rate limit, overloaded, etc.)
  * Used to decide whether to try the next provider in the tier.
  */
 function isRetryableError(error: unknown): boolean {
-  const status = (error as any)?.status || (error as any)?.statusCode;
-  const code = (error as any)?.code;
-  // 429 = rate limit, 503 = service unavailable, 529 = overloaded
-  if ([429, 503, 529].includes(status)) return true;
-  if (code === 'RATE_LIMIT_EXCEEDED' || code === 'RESOURCE_EXHAUSTED') return true;
-  // AI SDK wraps errors - check message
-  const msg = (error as any)?.message || '';
-  if (msg.includes('429') || msg.includes('rate limit') || msg.includes('quota') || msg.includes('RESOURCE_EXHAUSTED')) return true;
-  return false;
+  const reason = classifyProviderError(error);
+  return reason === 'rate_limit' || reason === 'overloaded' || reason === 'timeout';
 }
 
 /**
@@ -1300,7 +1310,8 @@ When you use a tool successfully:
       if (firstByteTimer) { clearTimeout(firstByteTimer); firstByteTimer = null; }
       // Provider attempt failed
       log.v1.error({ err: providerError, provider: resolved!.provider, modelId: resolved!.modelId }, 'Provider failed');
-      await reportModelUsage(resolved!.keyConfig?.keyId, resolved!.provider, resolved!.modelId, false, 0, (providerError as any)?.code || 'REQUEST_ERROR');
+      const errorReason = classifyProviderError(providerError);
+      await reportModelUsage(resolved!.keyConfig?.keyId, resolved!.provider, resolved!.modelId, false, 0, errorReason);
 
       // If we haven't streamed content yet, try next provider (any error is retryable pre-content)
       if (!hasStreamedContent && providerAttempt < MAX_PROVIDER_RETRIES - 1) {
