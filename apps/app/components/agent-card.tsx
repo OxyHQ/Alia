@@ -43,7 +43,7 @@ export const AgentCard = React.memo(function AgentCard({
 
   return (
     <Pressable
-      onPress={() => onPress(agent.id)}
+      onPress={() => onPress(agent._id)}
       className="active:opacity-80"
       style={isFeatured ? { width: 280 } : undefined}
     >
@@ -135,7 +135,7 @@ export const AgentCard = React.memo(function AgentCard({
               className="flex-1 rounded-full h-8"
               onPress={(e) => {
                 e.stopPropagation?.();
-                onFollow?.(agent.id);
+                onFollow?.(agent._id);
               }}
             >
               <View className="flex-row items-center gap-1">
@@ -150,7 +150,7 @@ export const AgentCard = React.memo(function AgentCard({
               className="flex-1 rounded-full h-8"
               onPress={(e) => {
                 e.stopPropagation?.();
-                onHire?.(agent.id);
+                onHire?.(agent._id);
               }}
             >
               <View className="flex-row items-center gap-1">

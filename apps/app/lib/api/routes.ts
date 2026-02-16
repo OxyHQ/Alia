@@ -76,6 +76,18 @@ export const API_ROUTES = {
     credits: '/analytics/credits',
   },
 
+  // Agents routes
+  agents: {
+    list: '/agents',
+    me: '/agents/me',
+    get: (id: string) => `/agents/${id}`,
+    create: '/agents',
+    update: (id: string) => `/agents/${id}`,
+    delete: (id: string) => `/agents/${id}`,
+    follow: (id: string) => `/agents/${id}/follow`,
+    hire: (id: string) => `/agents/${id}/hire`,
+  },
+
   // Health check
   health: '/health',
 

@@ -119,6 +119,7 @@ export const log = {
   v1: createLogger('v1'),
   models: createLogger('models'),
   canvas: createLogger('canvas'),
+  agents: createLogger('agents'),
   general: rootLogger,
 };
 
