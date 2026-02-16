@@ -53,7 +53,7 @@ export function CreditWarningBanner({ selectedModel, onSwitchModel }: CreditWarn
           <Text className="text-xs flex-1 text-yellow-700 dark:text-yellow-400">
             {t('usageLimit.creditsRemaining', { count: creditsInfo.credits })}
           </Text>
-          <Pressable onPress={() => router.push('/(app)/billing')} className="active:opacity-70">
+          <Pressable onPress={() => router.push('/(app)/settings/usage')} className="active:opacity-70">
             <Text className="text-xs font-medium text-primary">{t('usageLimit.buyMore')}</Text>
           </Pressable>
           <Pressable onPress={() => setLowCreditsDismissed(true)} className="active:opacity-70">

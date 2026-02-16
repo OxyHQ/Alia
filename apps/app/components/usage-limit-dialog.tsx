@@ -62,7 +62,7 @@ export function UsageLimitDialog({ error, onDismiss }: UsageLimitDialogProps) {
 
   const handleBuyCredits = () => {
     onDismiss();
-    router.push('/(app)/billing' as any);
+    router.push('/(app)/settings/usage' as any);
   };
 
   // Title

@@ -227,7 +227,7 @@ const ChatSidebar = React.memo(function ChatSidebar() {
   }, [router]);
 
   const handleBilling = React.useCallback(() => {
-    router.push("/(app)/billing");
+    router.push("/(app)/settings/usage");
   }, [router]);
 
   const handleNotifications = React.useCallback(() => {

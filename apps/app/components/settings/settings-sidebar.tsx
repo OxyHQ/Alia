@@ -28,7 +28,7 @@ interface SettingsSection {
 const SECTIONS: SettingsSection[] = [
   { id: "account", route: "/(app)/settings", icon: User, labelKey: "settings.sections.account" },
   { id: "general", route: "/(app)/settings/general", icon: Settings2, labelKey: "settings.sections.general" },
-  { id: "usage", route: "/(app)/settings/usage", icon: CreditCard, labelKey: "settings.sections.usage" },
+  { id: "usage", route: "/(app)/settings/usage", icon: CreditCard, labelKey: "settings.sections.billing" },
   { id: "personalization", route: "/(app)/settings/personalization", icon: Palette, labelKey: "settings.sections.personalization" },
   { id: "memory", route: "/(app)/settings/memory", icon: Brain, labelKey: "settings.sections.memory" },
   { id: "connectors", route: "/(app)/settings/connectors", icon: Plug, labelKey: "settings.sections.connectors" },

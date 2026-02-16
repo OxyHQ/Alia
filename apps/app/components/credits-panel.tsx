@@ -213,8 +213,8 @@ export function CreditsPanel() {
     try {
       const { url } = await createCheckoutMutation.mutateAsync({
         packageId,
-        successUrl: Linking.createURL("/billing?success=true"),
-        cancelUrl: Linking.createURL("/billing"),
+        successUrl: Linking.createURL("/settings/usage?success=true"),
+        cancelUrl: Linking.createURL("/settings/usage"),
       });
       if (url) {
         await Linking.openURL(url);
@@ -248,7 +248,7 @@ export function CreditsPanel() {
               )}
             </View>
           </View>
-          <Button onPress={() => navigate(isSubscribed ? "/(app)/billing" : "/(biglayout)/subscribe")} className="h-8 px-4 rounded-full">
+          <Button onPress={() => navigate(isSubscribed ? "/(app)/settings/usage" : "/(biglayout)/subscribe")} className="h-8 px-4 rounded-full">
             <Text className="text-sm font-medium text-primary-foreground">
               {isSubscribed ? t('credits.manageBilling') : t('credits.upgrade')}
             </Text>
@@ -416,7 +416,7 @@ export function CreditsPanel() {
 
         {/* Footer Links */}
         <View className="px-4 pb-4 gap-2">
-          <Pressable onPress={() => navigate("/(app)/billing")} className="flex-row items-center gap-1 active:opacity-70">
+          <Pressable onPress={() => navigate("/(app)/settings/usage")} className="flex-row items-center gap-1 active:opacity-70">
             <Text className="text-sm font-medium text-primary">{t('credits.manageBilling')}</Text>
             <Text className="text-sm text-primary">&rsaquo;</Text>
           </Pressable>
