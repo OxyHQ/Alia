@@ -29,10 +29,13 @@ export function useAudioLevels({
     if (agentState === 'thinking') {
       target = Math.max(0.15, captureLevel);
     } else if (agentState === 'speaking') {
-      // Playback takes priority, but mic still contributes
-      target = Math.max(amplifiedPlayback, captureLevel * 0.5);
+      // 0.4 baseline ensures visible waves while AI speaks
+      target = Math.max(0.4, amplifiedPlayback, captureLevel * 0.5);
+    } else if (agentState === 'listening') {
+      // Subtle pulse while listening; mic level takes over when available
+      target = Math.max(0.08, captureLevel, amplifiedPlayback * 0.5);
     } else {
-      // Listening or idle — mic drives, playback still contributes if present
+      // Idle — calm, no minimum
       target = Math.max(captureLevel, amplifiedPlayback * 0.5);
     }
 

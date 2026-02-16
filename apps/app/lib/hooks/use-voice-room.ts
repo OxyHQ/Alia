@@ -79,6 +79,12 @@ export function useVoiceRoom() {
 
   const cleanup = useCallback(() => {
     if (roomRef.current) {
+      // Detach all remote audio tracks before disconnecting
+      roomRef.current.remoteParticipants.forEach((p) => {
+        p.trackPublications.forEach((pub) => {
+          pub.track?.detach();
+        });
+      });
       roomRef.current.disconnect();
       roomRef.current = null;
     }
@@ -221,6 +227,17 @@ export function useVoiceRoom() {
       // Create LiveKit room and connect
       const room = new Room();
       roomRef.current = room;
+
+      // Event: remote audio tracks (agent speaking) — must attach to play
+      room.on(RoomEvent.TrackSubscribed, (track, publication, participant) => {
+        if (track.kind === Track.Kind.Audio) {
+          track.attach();
+        }
+      });
+
+      room.on(RoomEvent.TrackUnsubscribed, (track) => {
+        track.detach();
+      });
 
       // Event: data messages from agent
       room.on(RoomEvent.DataReceived, (payload: Uint8Array) => {
