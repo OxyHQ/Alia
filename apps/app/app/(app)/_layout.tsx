@@ -86,7 +86,7 @@ export default function AppLayout() {
               name="settings/usage"
               options={{
                 drawerItemStyle: { display: 'none' },
-                title: i18n.t('nav.usage'),
+                title: i18n.t('nav.billing'),
               }}
             />
             <Drawer.Screen

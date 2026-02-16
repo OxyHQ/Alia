@@ -127,7 +127,7 @@ export function CommandPalette() {
               <KbdGroup><Kbd>⌘</Kbd><Kbd>,</Kbd></KbdGroup>
             </CommandShortcut>
           </CommandItem>
-          <CommandItem onSelect={() => runCommand(() => router.push("/(app)/billing"))}>
+          <CommandItem onSelect={() => runCommand(() => router.push("/(app)/settings/usage"))}>
             <CreditCard size={16} />
             <span>Billing</span>
           </CommandItem>

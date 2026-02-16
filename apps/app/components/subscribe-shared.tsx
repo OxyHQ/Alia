@@ -426,7 +426,7 @@ export function PageFooter({ t }: { t: (key: string) => string }) {
         </Text>
         .
       </Text>
-      <Pressable onPress={() => router.push('/(app)/billing' as any)}>
+      <Pressable onPress={() => router.push('/(app)/settings/usage' as any)}>
         <Text className="text-xs text-muted-foreground">
           {t('subscribe.editBilling')} &rsaquo;
         </Text>
