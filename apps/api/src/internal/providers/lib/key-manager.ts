@@ -225,9 +225,9 @@ export async function recordKeyFailure(keyId: string, reason: string): Promise<v
     await key.recordFailure(reason, maxPriority);
 
     // Set cooldown with exponential backoff (atomic $set)
-    // 30s base, doubles per consecutive failure, capped at 30min
+    // 30s base, doubles per consecutive failure, capped at 5min
     const consecutiveFailures = (key.consecutiveFailures || 0) + 1; // +1 because recordFailure already incremented
-    const cooldownMs = Math.min(30000 * Math.pow(2, consecutiveFailures - 1), 1800000);
+    const cooldownMs = Math.min(30000 * Math.pow(2, consecutiveFailures - 1), 300000);
     const cooldownUntil = new Date(Date.now() + cooldownMs);
 
     await ProviderKey.updateOne(
