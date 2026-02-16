@@ -40,6 +40,8 @@ export class LiveKitAgentBridge implements LiveKitAgentBridgeRef {
   private capturedFrameCount = 0;
   private publishedFrameCount = 0;
   private publishChain: Promise<void> = Promise.resolve();
+  private totalSamplesPublished = 0;
+  private firstFrameTime: number | null = null;
 
   /** Callback invoked when user audio frames arrive from LiveKit */
   onUserAudioFrame: ((base64Pcm16: string) => void) | null = null;
@@ -166,6 +168,11 @@ export class LiveKitAgentBridge implements LiveKitAgentBridgeRef {
     const int16 = new Int16Array(buffer.buffer, buffer.byteOffset, buffer.byteLength / 2);
     const frame = new AudioFrame(int16, SAMPLE_RATE, NUM_CHANNELS, int16.length);
 
+    if (!this.firstFrameTime) {
+      this.firstFrameTime = Date.now();
+    }
+    this.totalSamplesPublished += int16.length;
+
     if (this.publishedFrameCount === 0) {
       log.providers.info({ identity: this.identity, bufferSize: buffer.length }, '[Voice] Publishing first AI audio frame to LiveKit');
     }
@@ -181,6 +188,32 @@ export class LiveKitAgentBridge implements LiveKitAgentBridgeRef {
         // Transient frame drop — non-fatal, audio continues
       }
     }).catch(() => {});
+  }
+
+  /**
+   * Reset playback tracking counters. Call at the start of each new response.
+   */
+  resetPlaybackTracking(): void {
+    this.totalSamplesPublished = 0;
+    this.firstFrameTime = null;
+  }
+
+  /**
+   * Wait for all queued audio to finish playing through the AudioSource.
+   * Waits for the publishChain to drain, then estimates remaining playback
+   * time based on total samples published and elapsed wall-clock time.
+   */
+  async waitForPlaybackDrain(): Promise<void> {
+    await this.publishChain;
+
+    if (this.firstFrameTime && this.totalSamplesPublished > 0) {
+      const expectedDurationMs = (this.totalSamplesPublished / SAMPLE_RATE) * 1000;
+      const elapsedMs = Date.now() - this.firstFrameTime;
+      const remainingMs = expectedDurationMs - elapsedMs;
+      if (remainingMs > 0) {
+        await new Promise(resolve => setTimeout(resolve, remainingMs + 150));
+      }
+    }
   }
 
   /**

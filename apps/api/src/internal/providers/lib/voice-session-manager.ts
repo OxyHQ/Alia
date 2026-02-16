@@ -82,7 +82,7 @@ function buildVoiceToolExecutors(userId: string): Map<string, (args: any) => Pro
 
 const MAX_SESSIONS_PER_USER = 5;
 const BILLING_INTERVAL_MS = 60 * 1000;
-const USER_SILENCE_TIMEOUT_MS = 10 * 1000;          // 10s in normal mode
+const USER_SILENCE_TIMEOUT_MS = 20 * 1000;          // 20s in normal mode
 const COHOST_INACTIVITY_TIMEOUT_MS = 30 * 1000;     // 30s in cohost mode
 const COHOST_CHECKIN_WAIT_MS = 15 * 1000;            // 15s after asking "still there?"
 const MAX_RECENT_TRANSCRIPTS = 5;
@@ -348,6 +348,7 @@ export class VoiceSessionManager {
     if (!providerSocket || !bridge) return;
 
     let currentTranscript = '';
+    let hasEmittedSpeaking = false;
 
     providerSocket.on('message', async (data: Buffer) => {
       try {
@@ -365,6 +366,12 @@ export class VoiceSessionManager {
 
         // Route audio to LiveKit
         if (event.type === 'response.audio.delta' && event.delta) {
+          if (!hasEmittedSpeaking) {
+            hasEmittedSpeaking = true;
+            await bridge.publishData({
+              type: 'agent.state', state: 'speaking', speaker: role,
+            } satisfies AgentDataMessage);
+          }
           await (bridge as LiveKitAgentBridge).publishAudioFrame(event.delta);
         }
 
@@ -400,8 +407,10 @@ export class VoiceSessionManager {
           }
         }
 
-        // Agent state: speaking
+        // Agent state: thinking (speaking state emitted on first audio delta above)
         if (event.type === 'response.created') {
+          hasEmittedSpeaking = false;
+          (bridge as LiveKitAgentBridge).resetPlaybackTracking();
           await bridge.publishData({
             type: 'agent.state', state: 'thinking', speaker: role,
           } satisfies AgentDataMessage);
@@ -764,23 +773,50 @@ export class VoiceSessionManager {
     const nextRole = completedRole === 'primary' ? 'cohost' : 'primary';
     const prefix = completedRole === 'primary' ? '[Alia]' : '[Cohost]';
 
-    session.cohostState.turnChangeTimeout = setTimeout(() => {
+    // Wait for the completing agent's audio to finish playing, then schedule next turn
+    const completedBridge = completedRole === 'primary' ? session.agentBridge : session.cohostBridge;
+    const scheduleNextTurn = async () => {
+      // Wait for the completing agent's audio buffer to drain
+      if (completedBridge) {
+        try {
+          await completedBridge.waitForPlaybackDrain();
+        } catch {
+          // Non-fatal: proceed with turn change even if drain fails
+        }
+      }
+
+      // Verify session and state are still valid after async wait
       if (!session.cohostEnabled || session.state !== 'active') return;
-      // Verify state hasn't changed during the pause (e.g. user interrupted)
       if (!session.cohostState || session.cohostState.turnState !== 'waiting_for_next') {
         log.providers.info(
           { sessionId: session.sessionId, turnState: session.cohostState?.turnState },
-          '[Voice] Turn-change timeout aborted: state changed during pause'
+          '[Voice] Turn-change aborted after drain: state changed'
         );
         return;
       }
-      session.cohostState.turnChangeTimeout = null;
-      session.cohostState.turnState = nextRole === 'primary' ? 'primary_speaking' : 'cohost_speaking';
-      session.agentBridge?.publishData({
-        type: 'cohost.turn_changed', speaker: nextRole,
-      } satisfies AgentDataMessage).catch(() => {});
-      this.injectTranscriptAndTrigger(session, nextRole, `${prefix} ${lastTranscript.text}`);
-    }, session.cohostState.config.turnPauseMs);
+
+      // Now add the intentional pause between speakers
+      session.cohostState.turnChangeTimeout = setTimeout(() => {
+        if (!session.cohostEnabled || session.state !== 'active') return;
+        if (!session.cohostState || session.cohostState.turnState !== 'waiting_for_next') {
+          log.providers.info(
+            { sessionId: session.sessionId, turnState: session.cohostState?.turnState },
+            '[Voice] Turn-change timeout aborted: state changed during pause'
+          );
+          return;
+        }
+        session.cohostState.turnChangeTimeout = null;
+        session.cohostState.turnState = nextRole === 'primary' ? 'primary_speaking' : 'cohost_speaking';
+        session.agentBridge?.publishData({
+          type: 'cohost.turn_changed', speaker: nextRole,
+        } satisfies AgentDataMessage).catch(() => {});
+        this.injectTranscriptAndTrigger(session, nextRole, `${prefix} ${lastTranscript.text}`);
+      }, session.cohostState.config.turnPauseMs);
+    };
+
+    scheduleNextTurn().catch((err) => {
+      log.providers.error({ err, sessionId: session.sessionId }, '[Voice] Error in turn scheduling');
+    });
   }
 
   private injectTranscriptAndTrigger(
