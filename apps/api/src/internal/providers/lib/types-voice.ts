@@ -95,7 +95,7 @@ export const DEFAULT_COHOST_CONFIG: CohostConfig = {
   voice: 'nova',
   autoConverse: true,
   maxTurnsPerRound: 10,
-  turnPauseMs: 500,
+  turnPauseMs: 1000,
 };
 
 export type CohostTurnState =
@@ -110,6 +110,7 @@ export interface CohostState {
   turnsInCurrentRound: number;
   lastTranscript: string | null;
   config: CohostConfig;
+  turnChangeTimeout: NodeJS.Timeout | null;
 }
 
 export interface TranscriptEntry {

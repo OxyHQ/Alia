@@ -279,6 +279,7 @@ export class VoiceSessionManager {
       if (session.userSilenceTimer) { clearTimeout(session.userSilenceTimer); session.userSilenceTimer = null; }
       if (session.cohostBillingTimer) { clearInterval(session.cohostBillingTimer); session.cohostBillingTimer = null; }
       if (session.cohostInactivityTimer) { clearTimeout(session.cohostInactivityTimer); session.cohostInactivityTimer = null; }
+      if (session.cohostState?.turnChangeTimeout) { clearTimeout(session.cohostState.turnChangeTimeout); session.cohostState.turnChangeTimeout = null; }
 
       // Notify client before disconnecting
       try {
@@ -626,6 +627,7 @@ export class VoiceSessionManager {
         turnsInCurrentRound: 0,
         lastTranscript: null,
         config: { ...DEFAULT_COHOST_CONFIG },
+        turnChangeTimeout: null,
       };
       session.cohostEnabled = true;
 
@@ -691,6 +693,7 @@ export class VoiceSessionManager {
     // Clear cohost timers
     if (session.cohostBillingTimer) { clearInterval(session.cohostBillingTimer); session.cohostBillingTimer = null; }
     if (session.cohostInactivityTimer) { clearTimeout(session.cohostInactivityTimer); session.cohostInactivityTimer = null; }
+    if (session.cohostState?.turnChangeTimeout) { clearTimeout(session.cohostState.turnChangeTimeout); session.cohostState.turnChangeTimeout = null; }
 
     // Reset cohost state
     session.cohostEnabled = false;
@@ -713,11 +716,27 @@ export class VoiceSessionManager {
   private handleCohostTurnComplete(session: VoiceSession, completedRole: 'primary' | 'cohost'): void {
     if (!session.cohostState || !session.cohostEnabled) return;
 
+    // Turn validation: only proceed if turnState matches the completing role,
+    // or if user just spoke (primary responded to user → continue round)
+    const currentTurn = session.cohostState.turnState;
+    const expectedState = completedRole === 'primary' ? 'primary_speaking' : 'cohost_speaking';
+    if (currentTurn !== expectedState && currentTurn !== 'user_speaking') {
+      log.providers.info(
+        { sessionId: session.sessionId, completedRole, currentTurn },
+        '[Voice] Ignoring turn completion: turnState does not match completing role'
+      );
+      return;
+    }
+
     session.cohostState.turnsInCurrentRound++;
 
     // Check safety valve
     if (session.cohostState.turnsInCurrentRound >= session.cohostState.config.maxTurnsPerRound) {
       session.cohostState.turnState = 'idle';
+      if (session.cohostState.turnChangeTimeout) {
+        clearTimeout(session.cohostState.turnChangeTimeout);
+        session.cohostState.turnChangeTimeout = null;
+      }
       session.agentBridge?.publishData({
         type: 'cohost.round_complete',
         turns: session.cohostState.turnsInCurrentRound,
@@ -732,13 +751,31 @@ export class VoiceSessionManager {
 
     if (!lastTranscript || !session.cohostState.config.autoConverse) return;
 
+    // Set state to 'waiting_for_next' IMMEDIATELY to prevent re-entry
+    session.cohostState.turnState = 'waiting_for_next';
+
+    // Clear any existing turn-change timeout
+    if (session.cohostState.turnChangeTimeout) {
+      clearTimeout(session.cohostState.turnChangeTimeout);
+      session.cohostState.turnChangeTimeout = null;
+    }
+
     // After a pause, trigger the other AI to respond
     const nextRole = completedRole === 'primary' ? 'cohost' : 'primary';
     const prefix = completedRole === 'primary' ? '[Alia]' : '[Cohost]';
 
-    setTimeout(() => {
+    session.cohostState.turnChangeTimeout = setTimeout(() => {
       if (!session.cohostEnabled || session.state !== 'active') return;
-      session.cohostState!.turnState = nextRole === 'primary' ? 'primary_speaking' : 'cohost_speaking';
+      // Verify state hasn't changed during the pause (e.g. user interrupted)
+      if (!session.cohostState || session.cohostState.turnState !== 'waiting_for_next') {
+        log.providers.info(
+          { sessionId: session.sessionId, turnState: session.cohostState?.turnState },
+          '[Voice] Turn-change timeout aborted: state changed during pause'
+        );
+        return;
+      }
+      session.cohostState.turnChangeTimeout = null;
+      session.cohostState.turnState = nextRole === 'primary' ? 'primary_speaking' : 'cohost_speaking';
       session.agentBridge?.publishData({
         type: 'cohost.turn_changed', speaker: nextRole,
       } satisfies AgentDataMessage).catch(() => {});
@@ -753,6 +790,9 @@ export class VoiceSessionManager {
   ): void {
     const socket = targetRole === 'primary' ? session.providerSocket : session.cohostProviderSocket;
     if (!socket || socket.readyState !== WebSocket.OPEN) return;
+
+    // Cancel any in-progress response before triggering a new one
+    socket.send(JSON.stringify({ type: 'response.cancel' }));
 
     // Inject as user message
     socket.send(JSON.stringify({
@@ -771,12 +811,20 @@ export class VoiceSessionManager {
   private handleUserInterruptDuringCohost(session: VoiceSession): void {
     if (!session.cohostState) return;
 
-    // Cancel whoever is currently speaking
+    // Clear any pending turn-change timeout to prevent stale triggers
+    if (session.cohostState.turnChangeTimeout) {
+      clearTimeout(session.cohostState.turnChangeTimeout);
+      session.cohostState.turnChangeTimeout = null;
+    }
+
+    // Cancel whoever is currently speaking (or about to speak)
     const activeSpeaker = session.cohostState.turnState;
-    if (activeSpeaker === 'cohost_speaking' && session.cohostProviderSocket?.readyState === WebSocket.OPEN) {
+    if ((activeSpeaker === 'cohost_speaking' || activeSpeaker === 'waiting_for_next') &&
+        session.cohostProviderSocket?.readyState === WebSocket.OPEN) {
       session.cohostProviderSocket.send(JSON.stringify({ type: 'response.cancel' }));
     }
-    if (activeSpeaker === 'primary_speaking' && session.providerSocket?.readyState === WebSocket.OPEN) {
+    if ((activeSpeaker === 'primary_speaking' || activeSpeaker === 'waiting_for_next') &&
+        session.providerSocket?.readyState === WebSocket.OPEN) {
       session.providerSocket.send(JSON.stringify({ type: 'response.cancel' }));
     }
 
@@ -789,6 +837,12 @@ export class VoiceSessionManager {
   private continueCohostRound(sessionId: string): void {
     const session = this.sessions.get(sessionId);
     if (!session?.cohostState || !session.cohostEnabled) return;
+
+    // Clear any pending turn-change timeout from previous round
+    if (session.cohostState.turnChangeTimeout) {
+      clearTimeout(session.cohostState.turnChangeTimeout);
+      session.cohostState.turnChangeTimeout = null;
+    }
 
     session.cohostState.turnsInCurrentRound = 0;
     // Re-trigger from primary
