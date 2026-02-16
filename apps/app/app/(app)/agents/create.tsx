@@ -48,7 +48,6 @@ export default function CreateAgentScreen() {
   const [price, setPrice] = useState("");
   const [allowHiring, setAllowHiring] = useState(false);
   const [isPublished, setIsPublished] = useState(true);
-  const [stylePrompt, setStylePrompt] = useState("");
 
   // Submission state
   const [saving, setSaving] = useState(false);
@@ -118,7 +117,6 @@ export default function CreateAgentScreen() {
           {
             name: name.trim(),
             description: description.trim(),
-            ...(stylePrompt.trim() ? { prompt: stylePrompt.trim() } : {}),
           },
           { timeout: 60000 }
         );
@@ -157,7 +155,7 @@ export default function CreateAgentScreen() {
     }
   }, [
     name, handle, tagline, description, category, tags, capabilities,
-    price, allowHiring, isPublished, stylePrompt, createAgent, router,
+    price, allowHiring, isPublished, createAgent, router,
   ]);
 
   return (
@@ -188,17 +186,6 @@ export default function CreateAgentScreen() {
           <Text className="text-[11px] text-muted-foreground mt-2 text-center px-8">
             Avatar will be auto-generated when you create the agent
           </Text>
-        </View>
-
-        {/* Style Prompt */}
-        <View className="gap-1.5 mb-4">
-          <Label>Avatar Style (optional)</Label>
-          <Input
-            value={stylePrompt}
-            onChangeText={setStylePrompt}
-            placeholder='e.g. "cyberpunk neon", "minimalist robot"'
-            placeholderTextColor={colors.mutedForeground}
-          />
         </View>
 
         {/* Name */}
