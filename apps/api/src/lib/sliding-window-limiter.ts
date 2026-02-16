@@ -13,12 +13,14 @@ interface WindowState {
 const windows = new Map<string, WindowState>();
 
 // Cost/day caps per subscription tier (in credits)
+// All signed-in users are limited by requests/minute only.
+// Daily limits are not applied — credits are the sole usage gate.
 const COST_DAY_CAPS: Record<string, number> = {
-  free: 500,
-  pro: 5000,
-  pro_plus: 15000,
-  business: 50000,
-  enterprise: -1, // unlimited
+  free: -1,
+  pro: -1,
+  pro_plus: -1,
+  business: -1,
+  enterprise: -1,
 };
 
 // Requests/minute limits per tier (same as existing TIER_RATE_LIMITS)

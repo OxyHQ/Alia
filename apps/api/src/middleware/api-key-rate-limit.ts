@@ -66,11 +66,15 @@ export async function getUserTier(userId: string): Promise<string> {
   const planName = subscription.plan?.name?.toLowerCase() || '';
 
   if (planName.includes('enterprise')) return 'enterprise';
+  if (planName.includes('ultra')) return 'business';
   if (planName.includes('business')) return 'business';
+  if (planName.includes('max')) return 'pro_plus';
   if (planName.includes('pro+') || planName.includes('pro plus') || planName.includes('proplus')) return 'pro_plus';
   if (planName.includes('pro')) return 'pro';
+  if (planName.includes('go')) return 'pro';
 
-  return 'free';
+  // Any active subscription defaults to 'pro' tier, not 'free'
+  return 'pro';
 }
 
 /**
@@ -365,7 +369,7 @@ export async function apiKeyRateLimit(
       if (!result.allowed) {
         return sendRateLimitResponse(res, {
           limited: true,
-          limitType: result.limitType === 'rpm' ? 'requestsPerMinute' : 'requestsPerDay',
+          limitType: result.limitType === 'rpm' ? 'requestsPerMinute' : 'tokensPerDay',
           current: result.current,
           limit: result.limit,
           resetInSeconds: result.resetInSeconds,
