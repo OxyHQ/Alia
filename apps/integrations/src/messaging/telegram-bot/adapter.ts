@@ -88,8 +88,11 @@ export class TelegramBotAdapter implements MessagingAdapter {
       ctx.reply('An error occurred. Please try again later.').catch(() => {});
     });
 
-    // Launch with long-polling
-    await bot.launch();
+    // Launch with long-polling (fire-and-forget — launch() never resolves
+    // because it runs an infinite getUpdates loop)
+    bot.launch({ dropPendingUpdates: true }).catch((err) => {
+      console.error('[Telegram Bot] Polling error:', err);
+    });
     console.log('[Telegram Bot] Bot started (polling)');
   }
 
