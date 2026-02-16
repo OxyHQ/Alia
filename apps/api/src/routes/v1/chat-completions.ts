@@ -663,6 +663,7 @@ When you use a tool successfully:
     }
 
     let hasStreamedContent = false;
+    let keepAliveTimer: ReturnType<typeof setInterval> | undefined;
 
     // Per-provider first-byte timeout — abort if no response within 20s
     const FIRST_BYTE_TIMEOUT_MS = 20_000;
@@ -821,7 +822,7 @@ When you use a tool successfully:
     // Prevents proxy timeouts during multi-step LLM calls (e.g., after tool execution
     // when the AI SDK makes a second LLM request with the tool result).
     const KEEPALIVE_INTERVAL_MS = 15_000;
-    const keepAliveTimer = setInterval(() => {
+    keepAliveTimer = setInterval(() => {
       if (!res.writableEnded) res.write(': keepalive\n\n');
     }, KEEPALIVE_INTERVAL_MS);
 
@@ -1287,6 +1288,7 @@ When you use a tool successfully:
       toolCallCount,
     });
 
+    if (keepAliveTimer) clearInterval(keepAliveTimer);
     res.write('data: [DONE]\n\n');
     res.end();
     clearTimeout(globalTimer);
@@ -1294,7 +1296,7 @@ When you use a tool successfully:
 
     } catch (providerError: unknown) {
       // Clean up timers on provider failure
-      clearInterval(keepAliveTimer);
+      if (keepAliveTimer) clearInterval(keepAliveTimer);
       if (firstByteTimer) { clearTimeout(firstByteTimer); firstByteTimer = null; }
       // Provider attempt failed
       log.v1.error({ err: providerError, provider: resolved!.provider, modelId: resolved!.modelId }, 'Provider failed');
