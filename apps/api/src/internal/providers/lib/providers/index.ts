@@ -12,6 +12,7 @@ import { mistralProvider } from './mistral';
 import { cloudflareProvider } from './cloudflare';
 import { deepseekProvider } from './deepseek';
 import { replicateProvider } from './replicate';
+import { cohereProvider } from './cohere';
 import { grokVoiceProvider } from './grok-voice';
 import { openaiVoiceProvider } from './openai-voice';
 
@@ -33,6 +34,7 @@ export const providers: Record<string, Provider | VoiceProvider | CombinedProvid
   mistral: mistralProvider,
   cloudflare: cloudflareProvider,
   deepseek: deepseekProvider,
+  cohere: cohereProvider,
   xai: grokVoiceProvider,
 };
 

@@ -116,6 +116,10 @@ class ProvidersAPIClient {
     return this.request(`/v1/keys/${keyId}`);
   }
 
+  async reloadKeys(): Promise<{ success: boolean; keyCount: number; cooldownsReset: number; reloadedAt: string }> {
+    return this.request('/v1/keys/reload', { method: 'POST' });
+  }
+
   async createKey(data: {
     name: string;
     provider: string;
@@ -124,6 +128,7 @@ class ProvidersAPIClient {
     isPaid?: boolean;
     tier?: string;
     priority?: number;
+    rateLimitResetMs?: number;
     rateLimit?: {
       rpm?: number;
       rpd?: number;
@@ -145,6 +150,7 @@ class ProvidersAPIClient {
       isActive: boolean;
       priority: number;
       rateLimit: unknown;
+      rateLimitResetMs: number | null;
     }>
   ) {
     return this.request(`/v1/keys/${keyId}`, {

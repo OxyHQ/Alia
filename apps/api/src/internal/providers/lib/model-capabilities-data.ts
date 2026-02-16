@@ -263,6 +263,14 @@ export const MODEL_CAPABILITIES: Record<string, ModelCapabilities> = {
   'meta/llama-4-scout-instruct': createCapabilities({ maxContextTokens: 128000, maxOutputTokens: 8192 }),
   'mistralai/mixtral-8x7b-instruct': createCapabilities({ maxContextTokens: 32000, maxOutputTokens: 8192 }),
 
+  // ============== COHERE ==============
+  'command-a-03-2025': createCapabilities({ maxContextTokens: 256000, maxOutputTokens: 8192 }),
+  'command-a-reasoning-08-2025': createCapabilities({ maxContextTokens: 256000, maxOutputTokens: 32768 }),
+  'command-a-vision-07-2025': createCapabilities({ vision: true, maxContextTokens: 128000, maxOutputTokens: 8192 }),
+  'command-r-plus-08-2024': createCapabilities({ maxContextTokens: 128000, maxOutputTokens: 4096 }),
+  'command-r-08-2024': createCapabilities({ maxContextTokens: 128000, maxOutputTokens: 4096 }),
+  'command-r7b-12-2024': createCapabilities({ maxContextTokens: 128000, maxOutputTokens: 4096 }),
+
   // ============== CLOUDFLARE ==============
   '@cf/meta/llama-3.2-11b-vision-instruct': createCapabilities({ vision: true, maxContextTokens: 128000, maxOutputTokens: 8192 }),
 };
@@ -505,6 +513,14 @@ export const MODEL_PRICING: Record<string, ModelPricing> = {
   'meta/llama-4-maverick-instruct': { tier: 'paid', costPer1MInput: 0.30, costPer1MOutput: 0.95, averageLatencyMs: 600 },
   'meta/llama-4-scout-instruct': { tier: 'paid', costPer1MInput: 0.20, costPer1MOutput: 0.65, averageLatencyMs: 500 },
   'mistralai/mixtral-8x7b-instruct': { tier: 'paid', costPer1MInput: 0.30, costPer1MOutput: 1.00, averageLatencyMs: 400 },
+
+  // ============== COHERE ==============
+  'command-a-03-2025': { tier: 'paid', costPer1MInput: 2.50, costPer1MOutput: 10.00, averageLatencyMs: 800 },
+  'command-a-reasoning-08-2025': { tier: 'paid', costPer1MInput: 2.50, costPer1MOutput: 10.00, averageLatencyMs: 2000 },
+  'command-a-vision-07-2025': { tier: 'paid', costPer1MInput: 2.50, costPer1MOutput: 10.00, averageLatencyMs: 1000 },
+  'command-r-plus-08-2024': { tier: 'paid', costPer1MInput: 2.50, costPer1MOutput: 10.00, averageLatencyMs: 1200 },
+  'command-r-08-2024': { tier: 'paid', costPer1MInput: 0.15, costPer1MOutput: 0.60, averageLatencyMs: 600 },
+  'command-r7b-12-2024': { tier: 'paid', costPer1MInput: 0.037, costPer1MOutput: 0.15, averageLatencyMs: 300 },
 
   // ============== CLOUDFLARE ==============
   '@cf/meta/llama-3.2-11b-vision-instruct': { tier: 'free', averageLatencyMs: 1000 },

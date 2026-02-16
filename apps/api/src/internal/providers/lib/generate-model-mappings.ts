@@ -39,6 +39,7 @@ export const GENERATED_TIER_MAPPINGS: Record<AliaTier, ModelMapping[]> = {
     createMapping('deepseek', 'deepseek-chat', 3, 72),
     createMapping('openai', 'gpt-4o-mini', 4, 68),
     createMapping('replicate', 'meta/meta-llama-3.3-70b-instruct', 5, 63),
+    createMapping('cohere', 'command-r7b-12-2024', 6, 60),
   ],
   'v1': [
     createMapping('google', 'gemini-2.5-flash', 1, 88),
@@ -47,6 +48,7 @@ export const GENERATED_TIER_MAPPINGS: Record<AliaTier, ModelMapping[]> = {
     createMapping('groq', 'llama-3.3-70b-versatile', 4, 80),
     createMapping('openai', 'gpt-4o-mini', 5, 82),
     createMapping('replicate', 'meta/meta-llama-3.3-70b-instruct', 6, 78),
+    createMapping('cohere', 'command-r-08-2024', 7, 75),
   ],
   'v1-codea': [
     createMapping('deepseek', 'deepseek-chat', 1, 94),
@@ -56,6 +58,7 @@ export const GENERATED_TIER_MAPPINGS: Record<AliaTier, ModelMapping[]> = {
     createMapping('google', 'gemini-2.5-pro', 5, 92),
     createMapping('openai', 'gpt-4o', 6, 91),
     createMapping('replicate', 'meta/meta-llama-3.1-405b-instruct', 7, 88),
+    createMapping('cohere', 'command-a-03-2025', 8, 86),
   ],
   'v1-cowork': [
     createMapping('deepseek', 'deepseek-chat', 1, 93),
@@ -64,6 +67,7 @@ export const GENERATED_TIER_MAPPINGS: Record<AliaTier, ModelMapping[]> = {
     createMapping('openai', 'gpt-4o', 4, 90),
     createMapping('groq', 'llama-3.3-70b-versatile', 5, 87),
     createMapping('replicate', 'meta/meta-llama-3.3-70b-instruct', 6, 85),
+    createMapping('cohere', 'command-a-03-2025', 7, 83),
   ],
   'v1-browser': [
     createMapping('google', 'gemini-3-flash-preview', 1, 97),
@@ -81,6 +85,7 @@ export const GENERATED_TIER_MAPPINGS: Record<AliaTier, ModelMapping[]> = {
     createMapping('anthropic', 'claude-sonnet-4-20250514', 3, 95),
     createMapping('openai', 'gpt-4o', 4, 92),
     createMapping('cloudflare', '@cf/meta/llama-3.2-11b-vision-instruct', 5, 88),
+    createMapping('cohere', 'command-a-vision-07-2025', 6, 87),
   ],
   'v1-audio': [
     createMapping('groq', 'whisper-large-v3-turbo', 1, 95),
@@ -100,12 +105,14 @@ export const GENERATED_TIER_MAPPINGS: Record<AliaTier, ModelMapping[]> = {
     createMapping('google', 'gemini-2.5-pro', 2, 95),
     createMapping('deepseek', 'deepseek-reasoner', 3, 94),
     createMapping('openai', 'o1', 4, 92),
+    createMapping('cohere', 'command-a-reasoning-08-2025', 5, 91),
   ],
   'v1-pro-max': [
     createMapping('anthropic', 'claude-opus-4-20241120', 1, 98),
     createMapping('google', 'gemini-2.5-pro', 2, 96),
     createMapping('openai', 'o1', 3, 95),
     createMapping('deepseek', 'deepseek-reasoner', 4, 94),
+    createMapping('cohere', 'command-a-reasoning-08-2025', 5, 91),
   ],
   'v1-voice': [
     {

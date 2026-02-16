@@ -43,9 +43,11 @@ import {
   XCircle,
   Archive,
   RotateCw,
+  RefreshCcw,
   Edit,
   Trash2,
   AlertTriangle,
+  Loader2,
 } from 'lucide-react';
 import type { ProviderKey } from '@/types';
 
@@ -72,6 +74,7 @@ type KeyFormData = {
   apiKey: string;
   isPaid: boolean;
   priority: number;
+  rateLimitResetMs?: number;
   rateLimit: {
     rpm?: number;
     tpm?: number;
@@ -88,6 +91,7 @@ export function KeysPage() {
   const [selectedKey, setSelectedKey] = useState<ProviderKey | null>(null);
   const [filterProvider, setFilterProvider] = useState<string>('all');
   const [filterStatus, setFilterStatus] = useState<string>('all');
+  const [reloadMessage, setReloadMessage] = useState<string | null>(null);
 
   const [formData, setFormData] = useState<KeyFormData>({
     name: '',
@@ -185,6 +189,17 @@ export function KeysPage() {
     },
   });
 
+  // Reload / Reset cooldowns mutation
+  const reloadMutation = useMutation({
+    mutationFn: () => apiClient.reloadKeys(),
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['keys'] });
+      const msg = `Reloaded: ${data.keyCount} active keys, ${data.cooldownsReset} cooldowns reset`;
+      setReloadMessage(msg);
+      setTimeout(() => setReloadMessage(null), 5000);
+    },
+  });
+
   const resetForm = () => {
     setFormData({
       name: '',
@@ -192,6 +207,7 @@ export function KeysPage() {
       apiKey: '',
       isPaid: false,
       priority: 1,
+      rateLimitResetMs: undefined,
       rateLimit: {
         rpm: 500,
         tpm: 150000,
@@ -207,6 +223,7 @@ export function KeysPage() {
       apiKey: '', // Don't show actual key
       isPaid: key.isPaid,
       priority: key.originalPriority,
+      rateLimitResetMs: key.rateLimitResetMs || undefined,
       rateLimit: key.rateLimit,
     });
     setIsEditDialogOpen(true);
@@ -230,6 +247,7 @@ export function KeysPage() {
         isPaid: formData.isPaid,
         priority: formData.priority,
         rateLimit: formData.rateLimit,
+        rateLimitResetMs: formData.rateLimitResetMs || null,
       };
       // Only include apiKey if it's provided
       if (formData.apiKey) {
@@ -262,13 +280,26 @@ export function KeysPage() {
             Manage provider API keys with automatic rotation and monitoring
           </p>
         </div>
-        <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
-          <DialogTrigger asChild>
-            <Button>
-              <Plus className="mr-2 h-4 w-4" />
-              Add Key
-            </Button>
-          </DialogTrigger>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            onClick={() => reloadMutation.mutate()}
+            disabled={reloadMutation.isPending}
+          >
+            {reloadMutation.isPending ? (
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            ) : (
+              <RefreshCcw className="mr-2 h-4 w-4" />
+            )}
+            Reset Cooldowns
+          </Button>
+          <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
+            <DialogTrigger asChild>
+              <Button>
+                <Plus className="mr-2 h-4 w-4" />
+                Add Key
+              </Button>
+            </DialogTrigger>
           <DialogContent className="max-w-2xl">
             <form onSubmit={handleSubmit}>
               <DialogHeader>
@@ -373,6 +404,22 @@ export function KeysPage() {
                     />
                   </div>
                 </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="rateLimitResetMs">Rate Limit Reset (ms)</Label>
+                  <Input
+                    id="rateLimitResetMs"
+                    type="number"
+                    min="0"
+                    value={formData.rateLimitResetMs || ''}
+                    onChange={(e) =>
+                      setFormData({ ...formData, rateLimitResetMs: parseInt(e.target.value) || undefined })
+                    }
+                    placeholder="e.g. 60000 for 1 min"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Fixed cooldown after rate limit errors. Leave empty for exponential backoff.
+                  </p>
+                </div>
               </div>
               <DialogFooter>
                 <Button type="button" variant="outline" onClick={() => setIsAddDialogOpen(false)}>
@@ -384,8 +431,17 @@ export function KeysPage() {
               </DialogFooter>
             </form>
           </DialogContent>
-        </Dialog>
+          </Dialog>
+        </div>
       </div>
+
+      {/* Reload success message */}
+      {reloadMessage && (
+        <Alert>
+          <CheckCircle2 className="h-4 w-4" />
+          <AlertDescription>{reloadMessage}</AlertDescription>
+        </Alert>
+      )}
 
       {/* Filters */}
       <Card>
@@ -655,6 +711,22 @@ export function KeysPage() {
                     }
                   />
                 </div>
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="edit-rateLimitResetMs">Rate Limit Reset (ms)</Label>
+                <Input
+                  id="edit-rateLimitResetMs"
+                  type="number"
+                  min="0"
+                  value={formData.rateLimitResetMs || ''}
+                  onChange={(e) =>
+                    setFormData({ ...formData, rateLimitResetMs: parseInt(e.target.value) || undefined })
+                  }
+                  placeholder="e.g. 60000 for 1 min"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Fixed cooldown after rate limit errors. Leave empty for exponential backoff.
+                </p>
               </div>
             </div>
             <DialogFooter>
