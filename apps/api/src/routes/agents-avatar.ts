@@ -99,7 +99,7 @@ router.post('/generate', authenticateToken, async (req: Request, res: Response) 
       return res.status(401).json({ error: 'Unauthorized' });
     }
 
-    const { name, description, prompt: stylePrompt } = req.body;
+    const { name, description } = req.body;
 
     if (!name || !description) {
       return res.status(400).json({ error: 'name and description are required' });
@@ -125,19 +125,16 @@ router.post('/generate', authenticateToken, async (req: Request, res: Response) 
           `Only change the outfit/clothing to match the role. Keep the same person, same face, same art style, same pose, same perspective, same image size. ` +
           `You can adjust skin tone if it fits the character better (but keep it consistent across the whole body). ` +
           `Add appropriate hair if needed. No logos. No added hands or extra body parts. ` +
-          (stylePrompt ? `Additional style guidance: ${stylePrompt}. ` : '') +
           `The image should work as a circular social media profile picture. No text, letters, or words in the image.`;
       } else {
         imagePrompt = `Create a professional avatar/profile picture for an AI agent named "${name}". ` +
-          `Agent description: ${description}. ` +
-          (stylePrompt ? `Style: ${stylePrompt}. ` : 'Style: Clean, modern digital art. ') +
+          `Agent description: ${description}. Style: Clean, modern digital art. ` +
           `The image should work as a circular social media profile picture. No text, letters, or words in the image.`;
       }
     } else {
       // No reference image on server: generate from scratch
       imagePrompt = `Create a professional avatar/profile picture for an AI agent named "${name}". ` +
-        `Agent description: ${description}. ` +
-        (stylePrompt ? `Style: ${stylePrompt}. ` : 'Style: Clean, modern digital art. ') +
+        `Agent description: ${description}. Style: Clean, modern digital art. ` +
         `The image should work as a circular social media profile picture. No text, letters, or words in the image.`;
     }
 
