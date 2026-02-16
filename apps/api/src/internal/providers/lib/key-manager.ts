@@ -55,36 +55,63 @@ export async function loadProviderKeys(provider: string): Promise<IProviderKey[]
  * Uses a single $facet aggregation to check all limits in one DB round-trip.
  */
 async function isKeyRateLimited(key: IProviderKey, tokens: number = 0): Promise<boolean> {
+  const rl = key.rateLimit;
   // No limits configured = not rate limited
-  if (!key.rateLimit.rpm && !key.rateLimit.rpd && !key.rateLimit.tpm && !key.rateLimit.tpd) {
+  if (!rl.rps && !rl.rpm && !rl.rph && !rl.rpd && !rl.tps && !rl.tpm && !rl.tph && !rl.tpd) {
     return false;
   }
 
   const now = Date.now();
+  const oneSecondAgo = new Date(now - 1000);
   const oneMinuteAgo = new Date(now - 60000);
+  const oneHourAgo = new Date(now - 3600000);
   const oneDayAgo = new Date(now - 86400000);
+
+  // Build facet stages only for configured limits
+  const facet: Record<string, any[]> = {};
+  if (rl.rps || rl.tps) {
+    facet.secondStats = [
+      { $match: { timestamp: { $gte: oneSecondAgo } } },
+      { $group: { _id: null, count: { $sum: 1 }, tokens: { $sum: '$tokens' } } },
+    ];
+  }
+  if (rl.rpm || rl.tpm) {
+    facet.minuteStats = [
+      { $match: { timestamp: { $gte: oneMinuteAgo } } },
+      { $group: { _id: null, count: { $sum: 1 }, tokens: { $sum: '$tokens' } } },
+    ];
+  }
+  if (rl.rph || rl.tph) {
+    facet.hourStats = [
+      { $match: { timestamp: { $gte: oneHourAgo } } },
+      { $group: { _id: null, count: { $sum: 1 }, tokens: { $sum: '$tokens' } } },
+    ];
+  }
+  if (rl.rpd || rl.tpd) {
+    facet.dayStats = [
+      { $group: { _id: null, count: { $sum: 1 }, tokens: { $sum: '$tokens' } } },
+    ];
+  }
 
   // Single aggregation with $facet to check all limits at once
   const [result] = await ApiUsage.aggregate([
     { $match: { keyId: key._id, timestamp: { $gte: oneDayAgo } } },
-    { $facet: {
-      minuteStats: [
-        { $match: { timestamp: { $gte: oneMinuteAgo } } },
-        { $group: { _id: null, count: { $sum: 1 }, tokens: { $sum: '$tokens' } } }
-      ],
-      dayStats: [
-        { $group: { _id: null, count: { $sum: 1 }, tokens: { $sum: '$tokens' } } }
-      ]
-    }}
+    { $facet: facet },
   ]);
 
+  const second = result?.secondStats?.[0] || { count: 0, tokens: 0 };
   const minute = result?.minuteStats?.[0] || { count: 0, tokens: 0 };
+  const hour = result?.hourStats?.[0] || { count: 0, tokens: 0 };
   const day = result?.dayStats?.[0] || { count: 0, tokens: 0 };
 
-  if (key.rateLimit.rpm && minute.count >= key.rateLimit.rpm) return true;
-  if (key.rateLimit.rpd && day.count >= key.rateLimit.rpd) return true;
-  if (key.rateLimit.tpm && tokens > 0 && minute.tokens + tokens > key.rateLimit.tpm) return true;
-  if (key.rateLimit.tpd && tokens > 0 && day.tokens + tokens > key.rateLimit.tpd) return true;
+  if (rl.rps && second.count >= rl.rps) return true;
+  if (rl.rpm && minute.count >= rl.rpm) return true;
+  if (rl.rph && hour.count >= rl.rph) return true;
+  if (rl.rpd && day.count >= rl.rpd) return true;
+  if (rl.tps && tokens > 0 && second.tokens + tokens > rl.tps) return true;
+  if (rl.tpm && tokens > 0 && minute.tokens + tokens > rl.tpm) return true;
+  if (rl.tph && tokens > 0 && hour.tokens + tokens > rl.tph) return true;
+  if (rl.tpd && tokens > 0 && day.tokens + tokens > rl.tpd) return true;
 
   return false;
 }
@@ -140,9 +167,13 @@ export async function getBestKeyForModel(
       modelId,
       key: key.key,
       isPaid: key.isPaid,
+      rps: key.rateLimit.rps,
       rpm: key.rateLimit.rpm,
+      rph: key.rateLimit.rph,
       rpd: key.rateLimit.rpd,
+      tps: key.rateLimit.tps,
       tpm: key.rateLimit.tpm,
+      tph: key.rateLimit.tph,
       tpd: key.rateLimit.tpd,
     };
   }

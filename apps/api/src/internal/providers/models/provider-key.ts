@@ -3,9 +3,11 @@ import crypto from 'crypto';
 import { log } from '../../../lib/logger.js';
 
 export interface IRateLimit {
+  rps?: number;  // Requests per second
   rpm?: number;  // Requests per minute
   rph?: number;  // Requests per hour
   rpd?: number;  // Requests per day
+  tps?: number;  // Tokens per second
   tpm?: number;  // Tokens per minute
   tph?: number;  // Tokens per hour
   tpd?: number;  // Tokens per day
@@ -131,9 +133,11 @@ const ProviderKeySchema = new Schema<IProviderKey>(
       required: false,
     },
     rateLimit: {
+      rps: { type: Number },
       rpm: { type: Number },
       rph: { type: Number },
       rpd: { type: Number },
+      tps: { type: Number },
       tpm: { type: Number },
       tph: { type: Number },
       tpd: { type: Number },
@@ -149,7 +153,7 @@ const ProviderKeySchema = new Schema<IProviderKey>(
     },
     tier: {
       type: String,
-      enum: ['free', 'paid', 'enterprise'],
+      enum: ['free', 'freemium', 'paid', 'enterprise'],
       default: 'free',
     },
     currentPriority: {

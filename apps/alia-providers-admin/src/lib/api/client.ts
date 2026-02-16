@@ -130,9 +130,13 @@ class ProvidersAPIClient {
     priority?: number;
     rateLimitResetMs?: number;
     rateLimit?: {
+      rps?: number;
       rpm?: number;
+      rph?: number;
       rpd?: number;
+      tps?: number;
       tpm?: number;
+      tph?: number;
       tpd?: number;
     };
   }) {
@@ -148,6 +152,8 @@ class ProvidersAPIClient {
     data: Partial<{
       name: string;
       isActive: boolean;
+      isPaid: boolean;
+      tier: string;
       priority: number;
       rateLimit: unknown;
       rateLimitResetMs: number | null;
