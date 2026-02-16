@@ -5,7 +5,8 @@ import { Server as WebSocketServer } from 'ws';
 import http from 'http';
 import type { MessagingAdapter } from './messaging/types';
 
-const PORT = process.env.PORT || 3005;
+const PORT = Number(process.env.PORT) || 3005;
+const INTERNAL_PORT = 3005; // Must match DO App Platform internal_ports + health_check.port
 const MONGODB_URI = process.env.MONGODB_URI;
 const APP_NAME = 'integrations';
 
@@ -156,6 +157,15 @@ async function main() {
       resolve();
     });
   });
+
+  // If DO App Platform overrides PORT (e.g. to 8080 via http_port), also listen
+  // on the internal port so health checks and internal_ports routing still work.
+  if (PORT !== INTERNAL_PORT) {
+    const healthServer = http.createServer(app);
+    healthServer.listen(INTERNAL_PORT, () => {
+      console.log(`[Integrations] Health/internal on port ${INTERNAL_PORT}`);
+    });
+  }
 
   // Initialize adapters AFTER the server is listening (with timeouts)
   for (const adapter of adapters) {
