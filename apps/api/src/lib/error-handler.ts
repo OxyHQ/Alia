@@ -78,11 +78,13 @@ interface ProviderErrorPattern {
 }
 
 const PROVIDER_ERROR_PATTERNS: ProviderErrorPattern[] = [
-  // Rate limits (all providers)
-  { pattern: /rate.?limit/i, code: AliaErrorCode.RATE_LIMIT_EXCEEDED, retryable: true, retryAfterSeconds: 60 },
-  { pattern: /429/i, code: AliaErrorCode.RATE_LIMIT_EXCEEDED, retryable: true, retryAfterSeconds: 60 },
-  { pattern: /quota.?exceeded/i, code: AliaErrorCode.RATE_LIMIT_EXCEEDED, retryable: true, retryAfterSeconds: 60 },
-  { pattern: /too.?many.?requests/i, code: AliaErrorCode.RATE_LIMIT_EXCEEDED, retryable: true, retryAfterSeconds: 60 },
+  // Provider rate limits — map to SERVICE_UNAVAILABLE (not RATE_LIMIT_EXCEEDED).
+  // Alia's own rate limiter uses sendRateLimitResponse() directly and never goes
+  // through translateError(), so RATE_LIMIT_EXCEEDED is reserved for user-facing limits.
+  { pattern: /rate.?limit/i, code: AliaErrorCode.SERVICE_UNAVAILABLE, retryable: true, retryAfterSeconds: 30 },
+  { pattern: /429/i, code: AliaErrorCode.SERVICE_UNAVAILABLE, retryable: true, retryAfterSeconds: 30 },
+  { pattern: /quota.?exceeded/i, code: AliaErrorCode.SERVICE_UNAVAILABLE, retryable: true, retryAfterSeconds: 30 },
+  { pattern: /too.?many.?requests/i, code: AliaErrorCode.SERVICE_UNAVAILABLE, retryable: true, retryAfterSeconds: 30 },
 
   // Overload (all providers)
   { pattern: /overloaded/i, code: AliaErrorCode.MODEL_OVERLOADED, retryable: true, retryAfterSeconds: 30 },
