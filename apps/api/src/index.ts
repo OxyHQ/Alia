@@ -5,6 +5,7 @@ import dotenv from 'dotenv';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import { connectDB } from './lib/db.js';
+import { log } from './lib/logger.js';
 
 // Routes
 import healthRouter from './routes/health.js';
@@ -71,6 +72,15 @@ const server = http.createServer({
   keepAlive: true,
   keepAliveTimeout: 65000, // Slightly higher than default
 }, app);
+
+// Handle HTTP server errors (e.g. EADDRINUSE)
+server.on('error', (error: NodeJS.ErrnoException) => {
+  log.general.error({ err: error }, '[Server] HTTP server error');
+  if (error.code === 'EADDRINUSE') {
+    log.general.error({ port: PORT }, 'Port already in use');
+    process.exit(1);
+  }
+});
 
 // Optimize server for SSE streaming
 server.on('connection', (socket) => {
@@ -282,8 +292,20 @@ app.get('/', (_req, res) => {
 
 // Error handler
 app.use((err: any, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
-  console.error(err.stack);
-  res.status(500).json({ error: 'Something went wrong!' });
+  log.general.error({ err }, 'Unhandled Express error');
+  if (!res.headersSent) {
+    res.status(500).json({ error: 'Something went wrong!' });
+  }
+});
+
+// Process-level error handlers — prevent crashes from taking down all users
+process.on('unhandledRejection', (reason) => {
+  log.general.error({ reason: reason instanceof Error ? reason : String(reason) }, '[Process] Unhandled promise rejection');
+});
+
+process.on('uncaughtException', (error) => {
+  log.general.error({ err: error }, '[Process] Uncaught exception — shutting down');
+  setTimeout(() => process.exit(1), 5000).unref();
 });
 
 // Connect to MongoDB before starting the server

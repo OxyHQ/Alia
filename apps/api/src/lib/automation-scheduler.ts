@@ -172,12 +172,16 @@ function scheduleAutomation(automation: IAutomation): void {
   }
 
   const task = cron.schedule(cronExpression, async () => {
-    // Re-fetch the automation to get latest state (it may have been disabled)
-    const fresh = await Automation.findById(automationId);
-    if (!fresh || !fresh.enabled) {
-      return;
+    try {
+      // Re-fetch the automation to get latest state (it may have been disabled)
+      const fresh = await Automation.findById(automationId);
+      if (!fresh || !fresh.enabled) {
+        return;
+      }
+      await executeAutomation(fresh);
+    } catch (error) {
+      log.automations.error({ err: error, automationId }, 'Cron task failed');
     }
-    await executeAutomation(fresh);
   });
 
   scheduledTasks.set(automationId, task);
