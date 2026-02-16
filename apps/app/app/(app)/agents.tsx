@@ -40,7 +40,7 @@ export default function AgentsScreen() {
   };
 
   const handleCreateAgent = () => {
-    toast.info(t("agents.createComingSoon"));
+    router.push("/(app)/agents/create");
   };
 
   const categories = useMemo(() => {
