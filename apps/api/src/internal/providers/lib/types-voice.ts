@@ -80,6 +80,8 @@ export interface VoiceSession {
 export interface LiveKitAgentBridgeRef {
   disconnect(): Promise<void>;
   publishData(data: object): Promise<void>;
+  resetPlaybackTracking(): void;
+  waitForPlaybackDrain(): Promise<void>;
 }
 
 // ============== COHOST ==============

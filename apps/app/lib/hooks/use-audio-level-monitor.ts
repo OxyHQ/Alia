@@ -1,8 +1,11 @@
 /**
  * Real-time audio level monitoring using Web Audio API.
  *
- * Extracts RMS levels from LiveKit audio tracks (local mic + remote agent)
+ * Extracts RMS levels from LiveKit audio tracks (local mic + remote agents)
  * and returns them at ~20fps for driving wave animations.
+ *
+ * Supports multiple remote audio tracks (primary + cohost) by taking
+ * the max RMS level across all subscribed remote tracks.
  */
 
 import { useState, useEffect, useRef } from 'react';
@@ -36,10 +39,14 @@ export function useAudioLevelMonitor(room: Room | null, isConnected: boolean) {
     if (typeof AudioContext === 'undefined') return;
 
     const audioCtx = new AudioContext();
+    // Resume AudioContext (may be suspended until user gesture on mobile/WebView)
+    if (audioCtx.state === 'suspended') {
+      audioCtx.resume().catch(() => {});
+    }
+
     let localAnalyser: AnalyserNode | null = null;
-    let remoteAnalyser: AnalyserNode | null = null;
     let localBuffer: Float32Array | null = null;
-    let remoteBuffer: Float32Array | null = null;
+    const remoteAnalysers = new Map<string, { analyser: AnalyserNode; buffer: Float32Array }>();
     let rafId = 0;
     let disposed = false;
 
@@ -57,15 +64,16 @@ export function useAudioLevelMonitor(room: Room | null, isConnected: boolean) {
       }
     }
 
-    // ---------- Remote agent audio ----------
-    const setupRemoteAnalyser = (mediaStreamTrack: MediaStreamTrack) => {
-      if (remoteAnalyser || disposed) return; // already set up
+    // ---------- Remote agent audio (supports multiple tracks) ----------
+    const setupRemoteAnalyser = (mediaStreamTrack: MediaStreamTrack, key: string) => {
+      if (remoteAnalysers.has(key) || disposed) return;
       try {
         const source = audioCtx.createMediaStreamSource(new MediaStream([mediaStreamTrack]));
-        remoteAnalyser = audioCtx.createAnalyser();
-        remoteAnalyser.fftSize = 256;
-        source.connect(remoteAnalyser);
-        remoteBuffer = new Float32Array(remoteAnalyser.fftSize);
+        const analyser = audioCtx.createAnalyser();
+        analyser.fftSize = 256;
+        source.connect(analyser);
+        const buffer = new Float32Array(analyser.fftSize);
+        remoteAnalysers.set(key, { analyser, buffer });
       } catch {
         // Ignore errors
       }
@@ -75,20 +83,25 @@ export function useAudioLevelMonitor(room: Room | null, isConnected: boolean) {
     for (const [, p] of room.remoteParticipants) {
       for (const [, pub] of p.audioTrackPublications) {
         if (pub.track?.mediaStreamTrack) {
-          setupRemoteAnalyser(pub.track.mediaStreamTrack);
-          break;
+          setupRemoteAnalyser(pub.track.mediaStreamTrack, `${p.identity}-${pub.trackSid}`);
         }
       }
-      if (remoteAnalyser) break;
     }
 
     // Listen for new remote audio tracks
-    const onTrackSubscribed = (track: any) => {
-      if (track.kind === Track.Kind.Audio && !remoteAnalyser && track.mediaStreamTrack) {
-        setupRemoteAnalyser(track.mediaStreamTrack);
+    const onTrackSubscribed = (track: any, publication: any, participant: any) => {
+      if (track.kind === Track.Kind.Audio && track.mediaStreamTrack) {
+        setupRemoteAnalyser(track.mediaStreamTrack, `${participant.identity}-${publication.trackSid}`);
       }
     };
     room.on(RoomEvent.TrackSubscribed, onTrackSubscribed);
+
+    // Clean up stale analysers when tracks are unsubscribed
+    const onTrackUnsubscribed = (track: any, publication: any, participant: any) => {
+      const key = `${participant.identity}-${publication.trackSid}`;
+      remoteAnalysers.delete(key);
+    };
+    room.on(RoomEvent.TrackUnsubscribed, onTrackUnsubscribed);
 
     // ---------- Poll loop (~20fps) ----------
     let lastUpdate = 0;
@@ -99,9 +112,13 @@ export function useAudioLevelMonitor(room: Room | null, isConnected: boolean) {
         if (localAnalyser && localBuffer) {
           setCaptureLevel(getRMS(localAnalyser, localBuffer));
         }
-        if (remoteAnalyser && remoteBuffer) {
-          setPlaybackLevel(getRMS(remoteAnalyser, remoteBuffer));
+        // Take max RMS across all remote tracks (primary + cohost)
+        let maxRemoteLevel = 0;
+        for (const [, { analyser, buffer }] of remoteAnalysers) {
+          const level = getRMS(analyser, buffer);
+          if (level > maxRemoteLevel) maxRemoteLevel = level;
         }
+        setPlaybackLevel(maxRemoteLevel);
       }
       rafId = requestAnimationFrame(poll);
     };
@@ -112,6 +129,8 @@ export function useAudioLevelMonitor(room: Room | null, isConnected: boolean) {
       disposed = true;
       cancelAnimationFrame(rafId);
       room.off(RoomEvent.TrackSubscribed, onTrackSubscribed);
+      room.off(RoomEvent.TrackUnsubscribed, onTrackUnsubscribed);
+      remoteAnalysers.clear();
       audioCtx.close().catch(() => {});
     };
     cleanupRef.current = dispose;

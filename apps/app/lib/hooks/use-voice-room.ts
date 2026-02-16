@@ -101,9 +101,8 @@ export function useVoiceRoom() {
 
       switch (msg.type) {
         case 'agent.state': {
-          if (msg.speaker === 'primary' || !cohostActive) {
-            setAgentState(msg.state);
-          }
+          // Always update agentState so both primary and cohost drive wave animation
+          setAgentState(msg.state);
           setCurrentSpeaker(msg.speaker);
           break;
         }
@@ -174,11 +173,20 @@ export function useVoiceRoom() {
           setRoundComplete(true);
           break;
 
-        case 'session.ended':
+        case 'session.ended': {
           cleanup();
           setRoomState('disconnected');
           setAgentState('idle');
+          // Signal UI to show toast and close modal via existing error handler
+          const reason = msg.reason;
+          setError(
+            reason === 'user_silent' ? 'Call ended due to inactivity'
+            : reason === 'user_unresponsive' ? 'Call ended — no response'
+            : reason === 'max_duration_exceeded' ? 'Maximum call duration reached'
+            : 'Voice session ended'
+          );
           break;
+        }
 
         case 'error':
           setError(msg.message);
@@ -187,7 +195,7 @@ export function useVoiceRoom() {
     } catch {
       // Ignore non-JSON data
     }
-  }, [cohostActive, cleanup]);
+  }, [cleanup]);
 
   // ============== CONNECT ==============
 
