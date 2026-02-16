@@ -271,6 +271,9 @@ export const MODEL_CAPABILITIES: Record<string, ModelCapabilities> = {
   'command-r-08-2024': createCapabilities({ maxContextTokens: 128000, maxOutputTokens: 4096 }),
   'command-r7b-12-2024': createCapabilities({ maxContextTokens: 128000, maxOutputTokens: 4096 }),
 
+  // ============== CEREBRAS ==============
+  'llama-3.3-70b': createCapabilities({ maxContextTokens: 128000, maxOutputTokens: 8192 }),
+
   // ============== CLOUDFLARE ==============
   '@cf/meta/llama-3.2-11b-vision-instruct': createCapabilities({ vision: true, maxContextTokens: 128000, maxOutputTokens: 8192 }),
 };
@@ -521,6 +524,9 @@ export const MODEL_PRICING: Record<string, ModelPricing> = {
   'command-r-plus-08-2024': { tier: 'paid', costPer1MInput: 2.50, costPer1MOutput: 10.00, averageLatencyMs: 1200 },
   'command-r-08-2024': { tier: 'paid', costPer1MInput: 0.15, costPer1MOutput: 0.60, averageLatencyMs: 600 },
   'command-r7b-12-2024': { tier: 'paid', costPer1MInput: 0.037, costPer1MOutput: 0.15, averageLatencyMs: 300 },
+
+  // ============== CEREBRAS ==============
+  'llama-3.3-70b': { tier: 'freemium', costPer1MInput: 0.60, costPer1MOutput: 0.60, averageLatencyMs: 300 },
 
   // ============== CLOUDFLARE ==============
   '@cf/meta/llama-3.2-11b-vision-instruct': { tier: 'free', averageLatencyMs: 1000 },

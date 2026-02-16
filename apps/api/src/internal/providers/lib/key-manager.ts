@@ -225,12 +225,15 @@ export async function recordKeyFailure(keyId: string, reason: string): Promise<v
     await key.recordFailure(reason, maxPriority);
 
     // Set cooldown (atomic $set)
-    // For rate_limit errors: use key's rateLimitResetMs if configured, else exponential backoff
+    // For rate_limit errors: use key's rateLimitResetMs if configured, else 60s flat (matches most providers' per-minute windows)
     // For other errors: exponential backoff (30s base, doubles per failure, capped at 5min)
     const consecutiveFailures = (key.consecutiveFailures || 0) + 1; // +1 because recordFailure already incremented
+    const isRateLimit = /rate.?limit|429|RESOURCE_EXHAUSTED|quota/i.test(reason);
     let cooldownMs: number;
-    if (reason === 'rate_limit' && key.rateLimitResetMs) {
-      cooldownMs = key.rateLimitResetMs;
+    if (isRateLimit && key.rateLimitResetMs) {
+      cooldownMs = key.rateLimitResetMs;  // Per-key configured value
+    } else if (isRateLimit) {
+      cooldownMs = 60000;  // Default 60s for rate limits
     } else {
       cooldownMs = Math.min(30000 * Math.pow(2, consecutiveFailures - 1), 300000);
     }

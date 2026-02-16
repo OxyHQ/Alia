@@ -245,6 +245,10 @@ export async function recordFailure(
   modelId: string,
   errorCode?: string
 ): Promise<void> {
+  // Rate limits are transient (provider works fine, just hit quota).
+  // They should NOT increment consecutiveFailures or open the circuit breaker.
+  const isRateLimit = errorCode != null && /rate.?limit|429|RESOURCE_EXHAUSTED|quota/i.test(errorCode);
+
   try {
     await connectDB();
     const health = await ProviderHealth.findOne({ provider, modelId });
@@ -259,7 +263,7 @@ export async function recordFailure(
         totalRequests: 1,
         successRate: 0,
         lastFailure: new Date(),
-        consecutiveFailures: 1,
+        consecutiveFailures: isRateLimit ? 0 : 1,
         consecutiveSuccesses: 0,
         circuitState: 'closed',
         isHealthy: true // Still healthy after single failure
@@ -269,8 +273,12 @@ export async function recordFailure(
       health.failureCount++;
       health.totalRequests++;
       health.lastFailure = new Date();
-      health.consecutiveFailures++;
-      health.consecutiveSuccesses = 0;
+
+      if (!isRateLimit) {
+        // Only real failures (500s, timeouts, auth errors) affect circuit breaker
+        health.consecutiveFailures++;
+        health.consecutiveSuccesses = 0;
+      }
 
       // Update success rate
       health.successRate = (health.successCount / health.totalRequests) * 100;
