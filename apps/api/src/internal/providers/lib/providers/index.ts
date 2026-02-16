@@ -11,6 +11,7 @@ import { openrouterProvider } from './openrouter';
 import { mistralProvider } from './mistral';
 import { cloudflareProvider } from './cloudflare';
 import { deepseekProvider } from './deepseek';
+import { replicateProvider } from './replicate';
 import { grokVoiceProvider } from './grok-voice';
 import { openaiVoiceProvider } from './openai-voice';
 
@@ -27,6 +28,7 @@ export const providers: Record<string, Provider | VoiceProvider | CombinedProvid
   anthropic: anthropicProvider,
   cerebras: cerebrasProvider,
   together: togetherProvider,
+  replicate: replicateProvider,
   openrouter: openrouterProvider,
   mistral: mistralProvider,
   cloudflare: cloudflareProvider,

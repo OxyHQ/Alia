@@ -256,6 +256,13 @@ export const MODEL_CAPABILITIES: Record<string, ModelCapabilities> = {
   'accounts/fireworks/models/llama-v3p1-405b-instruct': createCapabilities({ maxContextTokens: 128000, maxOutputTokens: 8192 }),
   'accounts/fireworks/models/deepseek-v3': createCapabilities({ maxContextTokens: 64000, maxOutputTokens: 8192 }),
 
+  // ============== REPLICATE ==============
+  'meta/meta-llama-3.3-70b-instruct': createCapabilities({ maxContextTokens: 128000, maxOutputTokens: 8192 }),
+  'meta/meta-llama-3.1-405b-instruct': createCapabilities({ maxContextTokens: 128000, maxOutputTokens: 8192 }),
+  'meta/llama-4-maverick-instruct': createCapabilities({ maxContextTokens: 128000, maxOutputTokens: 8192 }),
+  'meta/llama-4-scout-instruct': createCapabilities({ maxContextTokens: 128000, maxOutputTokens: 8192 }),
+  'mistralai/mixtral-8x7b-instruct': createCapabilities({ maxContextTokens: 32000, maxOutputTokens: 8192 }),
+
   // ============== CLOUDFLARE ==============
   '@cf/meta/llama-3.2-11b-vision-instruct': createCapabilities({ vision: true, maxContextTokens: 128000, maxOutputTokens: 8192 }),
 };
@@ -491,6 +498,13 @@ export const MODEL_PRICING: Record<string, ModelPricing> = {
   'accounts/fireworks/models/mixtral-8x22b-instruct': { tier: 'paid', costPer1MInput: 1.20, costPer1MOutput: 1.20 },
   'accounts/fireworks/models/llama-v3p1-405b-instruct': { tier: 'paid', costPer1MInput: 3.00, costPer1MOutput: 3.00 },
   'accounts/fireworks/models/deepseek-v3': { tier: 'paid', costPer1MInput: 0.90, costPer1MOutput: 0.90 },
+
+  // ============== REPLICATE ==============
+  'meta/meta-llama-3.3-70b-instruct': { tier: 'paid', costPer1MInput: 0.65, costPer1MOutput: 2.75, averageLatencyMs: 500 },
+  'meta/meta-llama-3.1-405b-instruct': { tier: 'paid', costPer1MInput: 2.00, costPer1MOutput: 5.00, averageLatencyMs: 1500 },
+  'meta/llama-4-maverick-instruct': { tier: 'paid', costPer1MInput: 0.30, costPer1MOutput: 0.95, averageLatencyMs: 600 },
+  'meta/llama-4-scout-instruct': { tier: 'paid', costPer1MInput: 0.20, costPer1MOutput: 0.65, averageLatencyMs: 500 },
+  'mistralai/mixtral-8x7b-instruct': { tier: 'paid', costPer1MInput: 0.30, costPer1MOutput: 1.00, averageLatencyMs: 400 },
 
   // ============== CLOUDFLARE ==============
   '@cf/meta/llama-3.2-11b-vision-instruct': { tier: 'free', averageLatencyMs: 1000 },

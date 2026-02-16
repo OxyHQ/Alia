@@ -93,6 +93,7 @@ const ProviderKeySchema = new Schema<IProviderKey>(
         'mistral',
         'deepseek',
         'together',
+        'replicate',
         'cerebras',
         'cloudflare',
         'openrouter',

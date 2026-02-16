@@ -91,6 +91,7 @@ const ModelConfigSchema = new Schema<IModelConfig>(
         'mistral',
         'deepseek',
         'together',
+        'replicate',
         'cerebras',
         'cloudflare',
         'openrouter',

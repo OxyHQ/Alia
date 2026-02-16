@@ -38,6 +38,7 @@ export const GENERATED_TIER_MAPPINGS: Record<AliaTier, ModelMapping[]> = {
     createMapping('groq', 'llama-3.3-70b-versatile', 2, 65),
     createMapping('deepseek', 'deepseek-chat', 3, 72),
     createMapping('openai', 'gpt-4o-mini', 4, 68),
+    createMapping('replicate', 'meta/meta-llama-3.3-70b-instruct', 5, 63),
   ],
   'v1': [
     createMapping('google', 'gemini-2.5-flash', 1, 88),
@@ -45,6 +46,7 @@ export const GENERATED_TIER_MAPPINGS: Record<AliaTier, ModelMapping[]> = {
     createMapping('deepseek', 'deepseek-chat', 3, 83),
     createMapping('groq', 'llama-3.3-70b-versatile', 4, 80),
     createMapping('openai', 'gpt-4o-mini', 5, 82),
+    createMapping('replicate', 'meta/meta-llama-3.3-70b-instruct', 6, 78),
   ],
   'v1-codea': [
     createMapping('deepseek', 'deepseek-chat', 1, 94),
@@ -53,6 +55,7 @@ export const GENERATED_TIER_MAPPINGS: Record<AliaTier, ModelMapping[]> = {
     createMapping('groq', 'llama-3.3-70b-versatile', 4, 90),
     createMapping('google', 'gemini-2.5-pro', 5, 92),
     createMapping('openai', 'gpt-4o', 6, 91),
+    createMapping('replicate', 'meta/meta-llama-3.1-405b-instruct', 7, 88),
   ],
   'v1-cowork': [
     createMapping('deepseek', 'deepseek-chat', 1, 93),
@@ -60,6 +63,7 @@ export const GENERATED_TIER_MAPPINGS: Record<AliaTier, ModelMapping[]> = {
     createMapping('google', 'gemini-2.5-pro', 3, 92),
     createMapping('openai', 'gpt-4o', 4, 90),
     createMapping('groq', 'llama-3.3-70b-versatile', 5, 87),
+    createMapping('replicate', 'meta/meta-llama-3.3-70b-instruct', 6, 85),
   ],
   'v1-browser': [
     createMapping('google', 'gemini-3-flash-preview', 1, 97),
@@ -68,7 +72,8 @@ export const GENERATED_TIER_MAPPINGS: Record<AliaTier, ModelMapping[]> = {
     createMapping('deepseek', 'deepseek-chat', 4, 92),
     createMapping('groq', 'llama-3.3-70b-versatile', 5, 89),
     createMapping('openai', 'gpt-4o', 6, 90),
-    createMapping('cloudflare', '@cf/meta/llama-3.2-11b-vision-instruct', 7, 86),
+    createMapping('replicate', 'meta/meta-llama-3.3-70b-instruct', 7, 87),
+    createMapping('cloudflare', '@cf/meta/llama-3.2-11b-vision-instruct', 8, 86),
   ],
   'v1-vision': [
     createMapping('google', 'gemini-3-flash-preview', 1, 97),
