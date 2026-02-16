@@ -319,6 +319,7 @@ export function useVoiceRoom() {
   useEffect(() => cleanup, [cleanup]);
 
   return {
+    room: roomRef.current,
     roomState,
     agentState,
     isMuted,

@@ -6,6 +6,7 @@ import { Mic, MicOff, X, PhoneOff, Users } from 'lucide-react-native';
 import { useQueryClient } from '@tanstack/react-query';
 import { queryKeys } from '@/lib/hooks/query-keys';
 import { useVoiceRoom } from '@/lib/hooks/use-voice-room';
+import { useAudioLevelMonitor } from '@/lib/hooks/use-audio-level-monitor';
 import { useAudioLevels } from './voice-chat/use-audio-levels';
 import { AudioWaveVisualizer } from './voice-chat/audio-wave-visualizer';
 import { toast } from '@/components/sonner';
@@ -22,6 +23,7 @@ export function VoiceChat({ visible, onClose }: VoiceChatProps) {
   const insets = useSafeAreaInsets();
   const queryClient = useQueryClient();
   const {
+    room,
     roomState,
     agentState,
     isMuted,
@@ -36,13 +38,16 @@ export function VoiceChat({ visible, onClose }: VoiceChatProps) {
     enableCohost,
     disableCohost,
     continueCohost,
+    isConnected,
   } = useVoiceRoom();
 
+  const { captureLevel, playbackLevel } = useAudioLevelMonitor(room, isConnected);
+
   const { waveAmplitude } = useAudioLevels({
-    captureLevel: 0,
-    playbackLevel: 0,
+    captureLevel,
+    playbackLevel,
     agentState,
-    isConnected: roomState === 'connected',
+    isConnected,
   });
 
   const prevVisibleRef = useRef(visible);
@@ -173,7 +178,7 @@ export function VoiceChat({ visible, onClose }: VoiceChatProps) {
             <AudioWaveVisualizer
               waveAmplitude={waveAmplitude}
               agentState={agentState}
-              isConnected={roomState === 'connected'}
+              isConnected={isConnected}
             />
           </View>
 
