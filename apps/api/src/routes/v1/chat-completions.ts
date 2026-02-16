@@ -76,12 +76,27 @@ function convertToAISDKMessages(messages: any[], toolNameMapping: Map<string, st
         });
       }
     } else if (msg.role === 'assistant') {
-      if (msg.tool_calls && Array.isArray(msg.tool_calls) && msg.tool_calls.length > 0) {
+      // Support both formats:
+      // - tool_calls: OpenAI/editor format (from Cursor, VS Code, etc.)
+      // - toolInvocations: Alia app format (from mobile/web app)
+      let toolCalls = msg.tool_calls;
+      if (!toolCalls && msg.toolInvocations && Array.isArray(msg.toolInvocations) && msg.toolInvocations.length > 0) {
+        toolCalls = msg.toolInvocations.map((inv: any) => ({
+          id: inv.toolCallId,
+          type: 'function',
+          function: {
+            name: inv.toolName,
+            arguments: JSON.stringify(inv.args || {}),
+          },
+        }));
+      }
+
+      if (toolCalls && Array.isArray(toolCalls) && toolCalls.length > 0) {
         // Track tool calls for matching with results
-        for (const tc of msg.tool_calls) {
+        for (const tc of toolCalls) {
           if (tc.id && tc.function?.name) {
             const sanitizedName = Array.from(toolNameMapping.entries())
-              .find(([_, orig]) => orig === tc.function.name)?.[0] || tc.function.name;
+              .find(([_, orig]: [string, string]) => orig === tc.function.name)?.[0] || tc.function.name;
             toolCallsMap.set(tc.id, { name: sanitizedName, index: result.length });
           }
         }
@@ -89,9 +104,9 @@ function convertToAISDKMessages(messages: any[], toolNameMapping: Map<string, st
         result.push({
           role: 'assistant',
           content: msg.content || '',
-          toolCalls: msg.tool_calls.map((tc: any) => {
+          toolCalls: toolCalls.map((tc: any) => {
             const sanitizedName = Array.from(toolNameMapping.entries())
-              .find(([_, orig]) => orig === tc.function?.name)?.[0] || tc.function?.name || 'unknown';
+              .find(([_, orig]: [string, string]) => orig === tc.function?.name)?.[0] || tc.function?.name || 'unknown';
 
             return {
               toolCallId: tc.id,
@@ -102,6 +117,28 @@ function convertToAISDKMessages(messages: any[], toolNameMapping: Map<string, st
             };
           })
         });
+
+        // For toolInvocations with results, also push corresponding tool result messages
+        // (These are already resolved — the app stores the tool output inline)
+        if (msg.toolInvocations && Array.isArray(msg.toolInvocations)) {
+          for (const inv of msg.toolInvocations) {
+            if (inv.state === 'result' && inv.result !== undefined) {
+              const resultValue = typeof inv.result === 'string' ? inv.result : JSON.stringify(inv.result);
+              result.push({
+                role: 'tool',
+                content: [{
+                  type: 'tool-result',
+                  toolCallId: inv.toolCallId,
+                  toolName: inv.toolName,
+                  output: {
+                    type: 'text',
+                    value: resultValue,
+                  },
+                }],
+              });
+            }
+          }
+        }
       } else {
         result.push({
           role: 'assistant',
@@ -212,11 +249,43 @@ router.post('/', async (req: Request, res: Response) => {
       clientContext = messages[0].content as string;
     }
 
+    // For streaming requests, send SSE headers immediately — before any async work.
+    // This gives the client instant feedback that the connection is established and
+    // prevents proxy timeouts during pre-stream operations.
+    let earlySSE = false;
+    if (body.stream === true) {
+      res.setHeader('Content-Type', 'text/event-stream');
+      res.setHeader('Cache-Control', 'no-cache');
+      res.setHeader('Connection', 'keep-alive');
+      res.setHeader('X-Accel-Buffering', 'no');
+      if (res.socket) {
+        res.socket.setNoDelay(true);
+      }
+      res.write(': keep-alive\n\n');
+      res.flushHeaders();
+      earlySSE = true;
+    }
+
+    /** Send an error over the SSE stream and end the response (used when headers already sent). */
+    function sendSSEError(errorPayload: Record<string, any>) {
+      const chunk = {
+        id: `chatcmpl-${Date.now()}`,
+        object: 'chat.completion.chunk',
+        created: Math.floor(Date.now() / 1000),
+        model: aliasModelId,
+        choices: [{ index: 0, delta: {}, finish_reason: 'error' }],
+        error: errorPayload,
+      };
+      res.write(`data: ${JSON.stringify(chunk)}\n\n`);
+      res.write('data: [DONE]\n\n');
+      res.end();
+    }
+
     // --- PARALLEL PRE-STREAMING OPERATIONS ---
     // Run independent operations concurrently to reduce time-to-first-token
     const preStreamStart = Date.now();
 
-    const [creditResult, resolvedResult, userMemory, oxyUser, skill] = await Promise.all([
+    const [creditResult, resolvedResult, userMemory, oxyUser, skill, entitlements] = await Promise.all([
       // Credits: sequential pair (getOrCreate → reserve), parallel with everything else
       req.user ? (async () => {
         await getOrCreateUserCredits(req.user!.id);
@@ -250,6 +319,11 @@ router.post('/', async (req: Request, res: Response) => {
       (body.skillId && isDirectUserSession)
         ? Skill.findOne({ skillId: body.skillId }).select('systemPrompt title').lean().catch(() => null)
         : Promise.resolve(null),
+
+      // User entitlements (plan-based model access) — parallelized to avoid sequential delay
+      (req.user && !req.apiKey)
+        ? getUserEntitlements(req.user.id).catch(() => null)
+        : Promise.resolve(null),
     ]);
 
     log.v1.info({ durationMs: Date.now() - preStreamStart }, 'Pre-stream setup complete');
@@ -260,15 +334,19 @@ router.post('/', async (req: Request, res: Response) => {
     creditReservation = creditResult.reservation;
     if (req.user && !creditReservation && !creditResult.error) {
       clearTimeout(globalTimer);
-      res.status(402).json({
-        error: {
-          code: 'INSUFFICIENT_CREDITS',
-          message: "You've run out of credits. Add more or upgrade your plan to continue.",
-          retryable: false,
-          suggestedAction: 'upgrade',
-          details: { limitType: 'credits' },
-        },
-      });
+      const creditError = {
+        code: 'INSUFFICIENT_CREDITS',
+        message: "You've run out of credits. Add more or upgrade your plan to continue.",
+        retryable: false,
+        suggestedAction: 'upgrade',
+        status: 402,
+        details: { limitType: 'credits' },
+      };
+      if (earlySSE) {
+        sendSSEError(creditError);
+      } else {
+        res.status(402).json({ error: creditError });
+      }
       return;
     }
 
@@ -276,7 +354,11 @@ router.post('/', async (req: Request, res: Response) => {
     resolved = resolvedResult;
     if (!resolved) {
       clearTimeout(globalTimer);
-      res.status(503).json({ error: 'No models available', requested_model: requestedModel });
+      if (earlySSE) {
+        sendSSEError({ code: 'NO_MODELS', message: 'No models available. Please try again.', status: 503 });
+      } else {
+        res.status(503).json({ error: 'No models available', requested_model: requestedModel });
+      }
       return;
     }
 
@@ -284,39 +366,26 @@ router.post('/', async (req: Request, res: Response) => {
     log.v1.info({ provider: resolved.provider, modelId: resolved.modelId }, 'Using provider');
 
     // Enforce plan-based model access (skip for API-key requests)
-    if (req.user && !req.apiKey) {
-      const entitlements = await getUserEntitlements(req.user.id);
+    // Uses entitlements prefetched in Promise.all above
+    if (req.user && !req.apiKey && entitlements) {
       if (!entitlements.allowedModelIds.includes(aliasModelId)) {
         if (creditReservation) await refundReservation(creditReservation);
         clearTimeout(globalTimer);
-        res.status(403).json({
-          error: {
-            code: 'MODEL_NOT_IN_PLAN',
-            message: 'Upgrade your plan to use this model.',
-            retryable: false,
-            suggestedAction: 'upgrade',
-            details: { model: aliasModelId },
-          },
-        });
+        const modelError = {
+          code: 'MODEL_NOT_IN_PLAN',
+          message: 'Upgrade your plan to use this model.',
+          retryable: false,
+          suggestedAction: 'upgrade',
+          status: 403,
+          details: { model: aliasModelId },
+        };
+        if (earlySSE) {
+          sendSSEError(modelError);
+        } else {
+          res.status(403).json({ error: modelError });
+        }
         return;
       }
-    }
-
-    // For streaming requests, send SSE headers immediately to prevent DO proxy timeout.
-    // This establishes the connection with the proxy before the potentially slow
-    // system prompt building + provider call. Non-streaming requests skip this.
-    let earlySSE = false;
-    if (body.stream === true) {
-      res.setHeader('Content-Type', 'text/event-stream');
-      res.setHeader('Cache-Control', 'no-cache');
-      res.setHeader('Connection', 'keep-alive');
-      res.setHeader('X-Accel-Buffering', 'no');
-      if (res.socket) {
-        res.socket.setNoDelay(true);
-      }
-      res.write(': keep-alive\n\n');
-      res.flushHeaders();
-      earlySSE = true;
     }
 
     // Build system prompt (depends on aliasModelId from model resolution)
@@ -488,6 +557,7 @@ When you use a tool successfully:
     const tierMappings = aliaModelInfo ? getModelMappingsForTier(aliaModelInfo.tier) : [];
     const modelContextTokens = tierMappings[0]?.capabilities?.maxContextTokens || 128000;
     const truncatedTools = wrapToolsWithTruncation(allTools, getToolResultBudget(modelContextTokens));
+    log.v1.info({ toolNames: Object.keys(truncatedTools), toolCount: Object.keys(truncatedTools).length }, 'Tools passed to model');
 
     // Record agent.start for observability
     recordEvent({
@@ -746,6 +816,14 @@ When you use a tool successfully:
 
     // Streaming request
     const result = streamText(baseConfig);
+
+    // Periodic keep-alive during stream processing.
+    // Prevents proxy timeouts during multi-step LLM calls (e.g., after tool execution
+    // when the AI SDK makes a second LLM request with the tool result).
+    const KEEPALIVE_INTERVAL_MS = 15_000;
+    const keepAliveTimer = setInterval(() => {
+      if (!res.writableEnded) res.write(': keepalive\n\n');
+    }, KEEPALIVE_INTERVAL_MS);
 
     // Stream OpenAI-compatible chunks
     log.v1.info('Starting to process AI SDK stream');
@@ -1020,7 +1098,99 @@ When you use a tool successfully:
       }
     }
 
+    clearInterval(keepAliveTimer);
     log.v1.info({ totalChunks: chunkCount }, 'Stream processing complete');
+
+    // ── Text-based tool call fallback ──
+    // Some models (Gemini 3 preview, Minimax, etc.) output tool calls as text
+    // instead of using the native tool calling API. Detect and execute them.
+    const TEXT_TOOL_CALL_RE = /<function\((\w+)\)>\s*<?\s*(\{[\s\S]*?\})\s*>?\s*<\/function>/g;
+    if (assistantResponse && toolInvocations.length === 0) {
+      const textToolMatches = [...assistantResponse.matchAll(TEXT_TOOL_CALL_RE)];
+      if (textToolMatches.length > 0) {
+        log.v1.warn({ matchCount: textToolMatches.length, provider: resolved!.provider, modelId: resolved!.modelId }, 'Detected text-based tool calls — executing fallback');
+
+        for (const match of textToolMatches) {
+          const toolName = match[1];
+          const toolFn = truncatedTools[toolName];
+          if (!toolFn?.execute) {
+            log.v1.warn({ toolName }, 'Text tool call references unknown tool, skipping');
+            continue;
+          }
+
+          let args: any;
+          try {
+            args = JSON.parse(match[2]);
+          } catch {
+            log.v1.warn({ toolName, raw: match[2] }, 'Failed to parse text tool call arguments');
+            continue;
+          }
+
+          const toolCallId = `text-fallback-${Date.now()}-${toolName}`;
+
+          // Emit tool-call event to client
+          const toolCallChunk = {
+            id: `chatcmpl-${Date.now()}`,
+            object: 'chat.completion.chunk',
+            created: Math.floor(Date.now() / 1000),
+            model: aliasModelId,
+            choices: [{ index: 0, delta: { tool_calls: [{ index: 0, id: toolCallId, type: 'function', function: { name: toolName, arguments: JSON.stringify(args) } }] }, finish_reason: null }],
+          };
+          res.write(`data: ${JSON.stringify(toolCallChunk)}\n\n`);
+
+          // Execute the tool
+          try {
+            const toolOutput = await (toolFn.execute as Function)(args);
+
+            // Emit tool-result event to client
+            const toolResultChunk = {
+              id: `chatcmpl-${Date.now()}`,
+              object: 'chat.completion.chunk',
+              created: Math.floor(Date.now() / 1000),
+              model: aliasModelId,
+              choices: [{ index: 0, delta: { tool_result: { tool_call_id: toolCallId, name: toolName, output: toolOutput } }, finish_reason: null }],
+            };
+            res.write(`data: ${JSON.stringify(toolResultChunk)}\n\n`);
+
+            toolInvocations.push({ toolCallId, toolName, state: 'result', args, result: toolOutput });
+
+            // Make a follow-up LLM call with the tool result so the model can generate a real response
+            try {
+              const followUpMessages = [
+                ...convertedMessages,
+                { role: 'assistant', content: '', toolCalls: [{ toolCallId, toolName, args }] },
+                { role: 'tool', content: [{ type: 'tool-result', toolCallId, toolName, output: { type: 'text', value: typeof toolOutput === 'string' ? toolOutput : JSON.stringify(toolOutput) } }] },
+              ];
+              const followUpResult = streamText({ ...baseConfig, messages: followUpMessages, tools: undefined, stopWhen: undefined });
+
+              for await (const followUpChunk of followUpResult.fullStream) {
+                if (followUpChunk.type === 'text-delta' && followUpChunk.text) {
+                  const followUpText = followUpChunk.text.replace(/<thinking>[\s\S]*?<\/thinking>/g, '');
+                  if (followUpText) {
+                    assistantResponse = followUpText; // Replace the text-based tool call text
+                    const textChunk = {
+                      id: `chatcmpl-${Date.now()}`,
+                      object: 'chat.completion.chunk',
+                      created: Math.floor(Date.now() / 1000),
+                      model: aliasModelId,
+                      choices: [{ index: 0, delta: { content: followUpText }, finish_reason: null }],
+                    };
+                    res.write(`data: ${JSON.stringify(textChunk)}\n\n`);
+                  }
+                }
+              }
+            } catch (followUpErr) {
+              log.v1.error({ err: followUpErr }, 'Error in text-tool-call follow-up LLM call');
+            }
+          } catch (toolErr) {
+            log.v1.error({ err: toolErr, toolName }, 'Error executing text-based tool call');
+          }
+        }
+
+        // Strip the raw text tool calls from the response for saving
+        assistantResponse = assistantResponse.replace(TEXT_TOOL_CALL_RE, '').trim();
+      }
+    }
 
     // Auto-save conversation if conversationId provided and user is authenticated
     // Save when there's text content OR tool invocations (tools without text are valid responses)
@@ -1123,7 +1293,8 @@ When you use a tool successfully:
     return; // Success - exit the route handler
 
     } catch (providerError: unknown) {
-      // Clean up first-byte timer on provider failure
+      // Clean up timers on provider failure
+      clearInterval(keepAliveTimer);
       if (firstByteTimer) { clearTimeout(firstByteTimer); firstByteTimer = null; }
       // Provider attempt failed
       log.v1.error({ err: providerError, provider: resolved!.provider, modelId: resolved!.modelId }, 'Provider failed');

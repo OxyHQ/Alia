@@ -40,8 +40,8 @@ export const GENERATED_TIER_MAPPINGS: Record<AliaTier, ModelMapping[]> = {
     createMapping('openai', 'gpt-4o-mini', 4, 68),
   ],
   'v1': [
-    createMapping('google', 'gemini-3-flash-preview', 1, 88),
-    createMapping('google', 'gemini-2.5-flash', 2, 85),
+    createMapping('google', 'gemini-2.5-flash', 1, 88),
+    createMapping('google', 'gemini-3-flash-preview', 2, 85),
     createMapping('deepseek', 'deepseek-chat', 3, 83),
     createMapping('groq', 'llama-3.3-70b-versatile', 4, 80),
     createMapping('openai', 'gpt-4o-mini', 5, 82),
