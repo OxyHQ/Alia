@@ -1,4 +1,5 @@
 import { AccessToken, RoomServiceClient } from 'livekit-server-sdk';
+import { log } from './logger.js';
 
 const LIVEKIT_API_KEY = process.env.LIVEKIT_API_KEY || '';
 const LIVEKIT_API_SECRET = process.env.LIVEKIT_API_SECRET || '';
@@ -106,7 +107,8 @@ export async function deleteVoiceRoom(roomName: string): Promise<void> {
   try {
     const service = getRoomService();
     await service.deleteRoom(roomName);
-  } catch {
-    // Room may already be deleted; ignore errors
+  } catch (err) {
+    // Room may already be deleted or API unreachable; log and continue
+    log.providers.warn({ err, roomName }, 'Could not delete LiveKit room');
   }
 }

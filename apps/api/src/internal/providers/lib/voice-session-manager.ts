@@ -190,26 +190,34 @@ export class VoiceSessionManager {
     this.userSessionCounts.set(userId, userSessions + 1);
 
     try {
-      // 1. Create LiveKit room
-      await createVoiceRoom(roomName);
-      log.providers.info({ roomName }, 'Created LiveKit room');
+      const t0 = Date.now();
+
+      // 1. Create LiveKit room (best-effort — rooms auto-create on first join)
+      try {
+        await createVoiceRoom(roomName);
+        log.providers.info({ roomName, ms: Date.now() - t0 }, '[Voice] Step 1/4: Created LiveKit room');
+      } catch (err) {
+        log.providers.warn({ err, roomName, ms: Date.now() - t0 }, '[Voice] Step 1/4: Could not pre-create LiveKit room (will auto-create on join)');
+      }
 
       // 2. Connect to AI provider via WebSocket
+      const t1 = Date.now();
       const providerSocket = await providerImpl.voice.connect(keyConfig, {
         ...config,
         model: modelId,
       });
       session.providerSocket = providerSocket;
-      log.providers.info({ sessionId, provider }, 'Connected to provider');
+      log.providers.info({ sessionId, provider, ms: Date.now() - t1 }, '[Voice] Step 2/4: Connected to provider');
 
-      // 3. Create agent bridge and join room
+      // 3. Create agent bridge and join LiveKit room
+      const t2 = Date.now();
       const agentBridge = new LiveKitAgentBridge('alia-agent');
       const agentToken = await createAgentToken(roomName, 'alia-agent');
       await agentBridge.join(getLiveKitUrl(), agentToken);
       session.agentBridge = agentBridge;
-      log.providers.info({ sessionId }, 'Agent joined LiveKit room');
+      log.providers.info({ sessionId, ms: Date.now() - t2 }, '[Voice] Step 3/4: Agent joined LiveKit room');
 
-      // 4. Bridge: User audio (LiveKit) → Provider WebSocket
+      // 4. Wire up audio bridge and event handlers
       agentBridge.onUserAudioFrame = (base64Pcm16) => {
         if (session.providerSocket?.readyState === WebSocket.OPEN) {
           session.providerSocket.send(JSON.stringify({
@@ -219,28 +227,26 @@ export class VoiceSessionManager {
         }
       };
 
-      // 5. Handle client data messages (cohost enable/disable)
       agentBridge.onClientData = (data: ClientDataMessage) => {
         this.handleClientDataMessage(sessionId, data);
       };
 
-      // 6. Handle user disconnect from LiveKit room
       agentBridge.onUserDisconnected = () => {
         this.closeSession(sessionId, 'client_disconnected');
       };
 
-      // 7. Setup provider → agent bridge handlers
       this.setupProviderHandlers(session, providerImpl, 'primary');
 
-      // 8. Start billing
+      // Start billing
       this.startBillingTimer(session);
       await this.saveUsageRecord(session, false);
 
       session.state = 'active';
+      log.providers.info({ sessionId, totalMs: Date.now() - t0 }, '[Voice] Step 4/4: Session active');
       return session;
 
     } catch (error) {
-      log.providers.error({ err: error }, 'Failed to create voice session');
+      log.providers.error({ err: error, sessionId }, '[Voice] Failed to create voice session');
       await this.closeSession(sessionId, 'setup_failed');
       throw error;
     }
