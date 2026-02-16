@@ -199,6 +199,13 @@ export default function AppLayout() {
               }}
             />
             <Drawer.Screen
+              name="agents/create"
+              options={{
+                drawerItemStyle: { display: 'none' },
+                title: i18n.t('nav.createAgent'),
+              }}
+            />
+            <Drawer.Screen
               name="agents/[id]"
               options={{
                 drawerItemStyle: { display: 'none' },

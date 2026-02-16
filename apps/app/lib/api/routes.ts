@@ -86,6 +86,7 @@ export const API_ROUTES = {
     delete: (id: string) => `/agents/${id}`,
     follow: (id: string) => `/agents/${id}/follow`,
     hire: (id: string) => `/agents/${id}/hire`,
+    generateAvatar: '/agents/avatar/generate',
   },
 
   // Health check

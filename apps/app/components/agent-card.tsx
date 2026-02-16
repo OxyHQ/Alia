@@ -1,6 +1,5 @@
 import React from "react";
 import { View, Pressable } from "react-native";
-import { LinearGradient } from "expo-linear-gradient";
 import { Text } from "@/components/ui/text";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -37,133 +36,137 @@ export const AgentCard = React.memo(function AgentCard({
 }: AgentCardProps) {
   const { t } = useTranslation();
   const isFeatured = variant === "featured";
-  const bannerHeight = isFeatured ? 70 : 60;
-  const avatarSize = isFeatured ? "h-14 w-14" : "h-12 w-12";
-  const avatarOffset = isFeatured ? -28 : -24;
+  const avatarSize = isFeatured ? "h-16 w-16" : "h-14 w-14";
+  const avatarTextSize = isFeatured ? "text-xl" : "text-lg";
+  const statusDotSize = isFeatured
+    ? "w-3.5 h-3.5 border-[2.5px]"
+    : "w-3 h-3 border-2";
 
   return (
     <Pressable
       onPress={() => onPress(agent._id)}
       className="active:opacity-80"
-      style={isFeatured ? { width: 280 } : undefined}
+      style={isFeatured ? { width: 300 } : undefined}
     >
-      <View className="rounded-2xl overflow-hidden border border-border bg-surface">
-        {/* Banner */}
-        <LinearGradient
-          colors={agent.bannerGradient as [string, string, ...string[]]}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={{ height: bannerHeight }}
-        />
-
-        {/* Content */}
-        <View className="px-3 pb-3">
-          {/* Avatar overlapping banner */}
-          <View className="flex-row items-end" style={{ marginTop: avatarOffset }}>
-            <View className="relative">
-              <Avatar className={cn(avatarSize, "border-2 border-surface")}>
-                {agent.avatar ? (
-                  <AvatarImage source={{ uri: agent.avatar }} />
-                ) : (
-                  <AvatarFallback>
-                    <Text className={cn("font-bold text-foreground", isFeatured ? "text-lg" : "text-base")}>
-                      {agent.name.charAt(0)}
-                    </Text>
-                  </AvatarFallback>
-                )}
-              </Avatar>
-              {/* Status dot */}
-              <View
-                className={cn(
-                  "absolute bottom-0 right-0 w-3 h-3 rounded-full border-2 border-surface",
-                  STATUS_COLORS[agent.status]
-                )}
-              />
-            </View>
+      <View className="rounded-2xl border border-border bg-surface p-4">
+        {/* Top row: Avatar + Follow button */}
+        <View className="flex-row items-start justify-between">
+          <View className="relative">
+            <Avatar className={cn(avatarSize)}>
+              {agent.avatar ? (
+                <AvatarImage source={{ uri: agent.avatar }} />
+              ) : (
+                <AvatarFallback>
+                  <Text className={cn("font-bold text-foreground", avatarTextSize)}>
+                    {agent.name.charAt(0)}
+                  </Text>
+                </AvatarFallback>
+              )}
+            </Avatar>
+            {/* Status dot */}
+            <View
+              className={cn(
+                "absolute bottom-0 right-0 rounded-full border-surface",
+                statusDotSize,
+                STATUS_COLORS[agent.status]
+              )}
+            />
           </View>
 
-          {/* Name + verified */}
-          <View className="flex-row items-center gap-1 mt-2">
-            <Text className="text-[14px] font-bold text-foreground" numberOfLines={1}>
-              {agent.name}
-            </Text>
-            {agent.isVerified && (
-              <CheckCircle2
-                size={13}
-                className="text-blue-500"
-                fill="#3b82f6"
-                strokeWidth={0}
-              />
-            )}
-          </View>
-
-          {/* Handle */}
-          <Text className="text-[11px] text-muted-foreground" numberOfLines={1}>
-            {agent.handle}
-          </Text>
-
-          {/* Tagline */}
-          <Text
-            className="text-[12px] text-muted-foreground leading-4 mt-1.5"
-            numberOfLines={2}
+          {/* Follow button */}
+          <Button
+            variant="pill"
+            size="sm"
+            className="rounded-full h-8 px-4"
+            onPress={(e) => {
+              e.stopPropagation?.();
+              onFollow?.(agent._id);
+            }}
           >
-            {agent.tagline}
-          </Text>
+            <View className="flex-row items-center gap-1">
+              <Plus size={13} className="text-primary-foreground" />
+              <Text className="text-[12px] font-bold text-primary-foreground">
+                {t("agents.follow")}
+              </Text>
+            </View>
+          </Button>
+        </View>
 
-          {/* Stats */}
-          <View className="flex-row items-center gap-1.5 mt-2">
-            <Text className="text-[11px] font-semibold text-foreground">
+        {/* Name + verified */}
+        <View className="flex-row items-center gap-1 mt-3">
+          <Text
+            className={cn(
+              "font-bold text-foreground",
+              isFeatured ? "text-[15px]" : "text-[14px]"
+            )}
+            numberOfLines={1}
+          >
+            {agent.name}
+          </Text>
+          {agent.isVerified && (
+            <CheckCircle2
+              size={14}
+              className="text-blue-500"
+              fill="#3b82f6"
+              strokeWidth={0}
+            />
+          )}
+        </View>
+
+        {/* Handle */}
+        <Text className="text-[12px] text-muted-foreground mt-0.5" numberOfLines={1}>
+          {agent.handle}
+        </Text>
+
+        {/* Tagline */}
+        <Text
+          className="text-[13px] text-foreground leading-[18px] mt-2"
+          numberOfLines={2}
+        >
+          {agent.tagline}
+        </Text>
+
+        {/* Stats row */}
+        <View className="flex-row items-center gap-3 mt-2.5">
+          <View className="flex-row items-center gap-1">
+            <Text className="text-[13px] font-bold text-foreground">
               {formatCount(agent.followerCount)}
             </Text>
-            <Text className="text-[11px] text-muted-foreground">
+            <Text className="text-[13px] text-muted-foreground">
               {t("agents.followers")}
             </Text>
-            <Text className="text-[11px] text-muted-foreground mx-0.5">·</Text>
-            <Text className="text-[11px] font-semibold text-foreground">
+          </View>
+          <View className="flex-row items-center gap-1">
+            <Text className="text-[13px] font-bold text-foreground">
               {formatCount(agent.hireCount)}
             </Text>
-            <Text className="text-[11px] text-muted-foreground">
+            <Text className="text-[13px] text-muted-foreground">
               {t("agents.hires")}
             </Text>
           </View>
-
-          {/* Action Buttons */}
-          <View className="flex-row gap-2 mt-3">
-            <Button
-              variant="outline"
-              size="sm"
-              className="flex-1 rounded-full h-8"
-              onPress={(e) => {
-                e.stopPropagation?.();
-                onFollow?.(agent._id);
-              }}
-            >
-              <View className="flex-row items-center gap-1">
-                <Plus size={13} className="text-foreground" />
-                <Text className="text-[11px] font-medium text-foreground">
-                  {t("agents.follow")}
-                </Text>
-              </View>
-            </Button>
-            <Button
-              size="sm"
-              className="flex-1 rounded-full h-8"
-              onPress={(e) => {
-                e.stopPropagation?.();
-                onHire?.(agent._id);
-              }}
-            >
-              <View className="flex-row items-center gap-1">
-                <Zap size={12} className="text-primary-foreground" />
-                <Text className="text-[11px] font-semibold text-primary-foreground">
-                  {agent.price != null
-                    ? `${t("agents.hire")} · $${agent.price.toFixed(2)}`
-                    : t("agents.hire")}
-                </Text>
-              </View>
-            </Button>
-          </View>
         </View>
+
+        {/* Hire button */}
+        {agent.allowHiring && (
+          <Button
+            variant="outline"
+            size="sm"
+            className="rounded-full h-9 mt-3 w-full"
+            onPress={(e) => {
+              e.stopPropagation?.();
+              onHire?.(agent._id);
+            }}
+          >
+            <View className="flex-row items-center justify-center gap-1.5">
+              <Zap size={13} className="text-foreground" />
+              <Text className="text-[12px] font-semibold text-foreground">
+                {agent.price != null
+                  ? `${t("agents.hire")} · $${agent.price.toFixed(2)}`
+                  : t("agents.hire")}
+              </Text>
+            </View>
+          </Button>
+        )}
       </View>
     </Pressable>
   );
