@@ -34,6 +34,10 @@ export interface IProviderKey extends Document {
   currentPriority: number;      // Dynamic priority (changes on failure)
   originalPriority: number;     // Original priority to restore on success
 
+  // Credit/Spending Limits
+  creditLimitUSD?: number | null;  // Max spend for this key (null = unlimited)
+  spentUSD: number;                // Total USD spent through this key
+
   // Usage Tracking
   lastUsedAt?: Date;
   lastSuccessAt?: Date;
@@ -158,6 +162,15 @@ const ProviderKeySchema = new Schema<IProviderKey>(
       default: 10,
       min: 1,
       max: 100,
+    },
+    creditLimitUSD: {
+      type: Number,
+      default: null,
+    },
+    spentUSD: {
+      type: Number,
+      default: 0,
+      min: 0,
     },
     lastUsedAt: {
       type: Date,

@@ -115,6 +115,12 @@ export async function getBestKeyForModel(
       continue;
     }
 
+    // Skip keys that have exceeded their credit limit
+    if (key.creditLimitUSD != null && key.spentUSD >= key.creditLimitUSD) {
+      log.keys.debug({ keyPrefix: key.keyPrefix, provider: key.provider, spentUSD: key.spentUSD, creditLimitUSD: key.creditLimitUSD }, 'Key credit exhausted, skipping');
+      continue;
+    }
+
     // Check rate limits
     const isLimited = await isKeyRateLimited(key, estimatedTokens);
     if (isLimited) {
@@ -256,6 +262,35 @@ export async function getProviderKeyStats(provider: string): Promise<any> {
     totalRequests: keys.reduce((sum, k) => sum + k.totalRequests, 0),
     totalFailures: keys.reduce((sum, k) => sum + k.totalFailures, 0),
   };
+}
+
+/**
+ * Record key spend (fire and forget) - increments spentUSD on the key
+ */
+export async function recordKeySpend(keyId: string, costUSD: number): Promise<void> {
+  if (costUSD <= 0) return;
+  ProviderKey.findByIdAndUpdate(keyId, {
+    $inc: { spentUSD: costUSD },
+  }).catch((err) => log.keys.error({ err }, 'Failed to update key spend'));
+}
+
+/**
+ * Mark a key as credit-exhausted (set spentUSD = creditLimitUSD)
+ */
+export async function markKeyCreditExhausted(keyId: string): Promise<void> {
+  try {
+    const key = await ProviderKey.findById(keyId);
+    if (key && key.creditLimitUSD != null) {
+      await ProviderKey.updateOne(
+        { _id: keyId },
+        { $set: { spentUSD: key.creditLimitUSD } }
+      );
+      invalidateKeyCache(key.provider);
+      log.keys.warn({ keyPrefix: key.keyPrefix, provider: key.provider, creditLimitUSD: key.creditLimitUSD }, 'Key marked as credit exhausted');
+    }
+  } catch (err) {
+    log.keys.error({ err }, 'Failed to mark key as credit exhausted');
+  }
 }
 
 /**
