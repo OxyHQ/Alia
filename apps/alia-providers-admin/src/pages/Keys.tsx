@@ -73,12 +73,17 @@ type KeyFormData = {
   provider: string;
   apiKey: string;
   isPaid: boolean;
+  tier: string;
   priority: number;
   rateLimitResetMs?: number;
   rateLimit: {
+    rps?: number;
     rpm?: number;
-    tpm?: number;
+    rph?: number;
     rpd?: number;
+    tps?: number;
+    tpm?: number;
+    tph?: number;
     tpd?: number;
   };
 };
@@ -98,11 +103,9 @@ export function KeysPage() {
     provider: 'openai',
     apiKey: '',
     isPaid: false,
+    tier: 'free',
     priority: 1,
-    rateLimit: {
-      rpm: 500,
-      tpm: 150000,
-    },
+    rateLimit: {},
   });
 
   const [rotateKeyValue, setRotateKeyValue] = useState('');
@@ -206,12 +209,10 @@ export function KeysPage() {
       provider: 'openai',
       apiKey: '',
       isPaid: false,
+      tier: 'free',
       priority: 1,
       rateLimitResetMs: undefined,
-      rateLimit: {
-        rpm: 500,
-        tpm: 150000,
-      },
+      rateLimit: {},
     });
   };
 
@@ -220,11 +221,12 @@ export function KeysPage() {
     setFormData({
       name: key.name,
       provider: key.provider,
-      apiKey: '', // Don't show actual key
+      apiKey: '',
       isPaid: key.isPaid,
+      tier: key.tier || 'free',
       priority: key.originalPriority,
       rateLimitResetMs: key.rateLimitResetMs || undefined,
-      rateLimit: key.rateLimit,
+      rateLimit: key.rateLimit || {},
     });
     setIsEditDialogOpen(true);
   };
@@ -241,21 +243,25 @@ export function KeysPage() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    // Remove empty rate limit values before sending
+    const cleanRateLimit = Object.fromEntries(
+      Object.entries(formData.rateLimit).filter(([_, v]) => v != null && v > 0)
+    );
     if (isEditDialogOpen && selectedKey) {
       const updateData: Record<string, unknown> = {
         name: formData.name,
         isPaid: formData.isPaid,
+        tier: formData.tier,
         priority: formData.priority,
-        rateLimit: formData.rateLimit,
+        rateLimit: cleanRateLimit,
         rateLimitResetMs: formData.rateLimitResetMs || null,
       };
-      // Only include apiKey if it's provided
       if (formData.apiKey) {
         updateData.apiKey = formData.apiKey;
       }
       updateMutation.mutate({ keyId: selectedKey._id, data: updateData });
     } else {
-      createMutation.mutate(formData);
+      createMutation.mutate({ ...formData, rateLimit: cleanRateLimit });
     }
   };
 
@@ -362,46 +368,79 @@ export function KeysPage() {
                     rows={3}
                   />
                 </div>
-                <div className="flex items-center gap-2">
-                  <input
-                    type="checkbox"
-                    id="isPaid"
-                    checked={formData.isPaid}
-                    onChange={(e) => setFormData({ ...formData, isPaid: e.target.checked })}
-                    className="h-4 w-4"
-                  />
-                  <Label htmlFor="isPaid">Paid Tier (used as fallback after free keys)</Label>
-                </div>
                 <div className="grid grid-cols-2 gap-4">
-                  <div className="grid gap-2">
-                    <Label htmlFor="rpm">Requests Per Minute</Label>
-                    <Input
-                      id="rpm"
-                      type="number"
-                      min="0"
-                      value={formData.rateLimit.rpm || ''}
-                      onChange={(e) =>
-                        setFormData({
-                          ...formData,
-                          rateLimit: { ...formData.rateLimit, rpm: parseInt(e.target.value) || undefined },
-                        })
-                      }
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      id="isPaid"
+                      checked={formData.isPaid}
+                      onChange={(e) => setFormData({ ...formData, isPaid: e.target.checked })}
+                      className="h-4 w-4"
                     />
+                    <Label htmlFor="isPaid">Paid (fallback after free keys)</Label>
                   </div>
                   <div className="grid gap-2">
-                    <Label htmlFor="tpm">Tokens Per Minute</Label>
-                    <Input
-                      id="tpm"
-                      type="number"
-                      min="0"
-                      value={formData.rateLimit.tpm || ''}
-                      onChange={(e) =>
-                        setFormData({
-                          ...formData,
-                          rateLimit: { ...formData.rateLimit, tpm: parseInt(e.target.value) || undefined },
-                        })
-                      }
-                    />
+                    <Label htmlFor="tier">Tier</Label>
+                    <Select
+                      value={formData.tier}
+                      onValueChange={(value) => setFormData({ ...formData, tier: value })}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="free">Free</SelectItem>
+                        <SelectItem value="freemium">Freemium</SelectItem>
+                        <SelectItem value="paid">Paid</SelectItem>
+                        <SelectItem value="enterprise">Enterprise</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                <div className="space-y-3">
+                  <Label className="text-sm font-semibold">Request Limits</Label>
+                  <div className="grid grid-cols-4 gap-3">
+                    {([['rps', '/sec'], ['rpm', '/min'], ['rph', '/hour'], ['rpd', '/day']] as const).map(([field, label]) => (
+                      <div key={field} className="grid gap-1">
+                        <Label htmlFor={`add-${field}`} className="text-xs text-muted-foreground">{label}</Label>
+                        <Input
+                          id={`add-${field}`}
+                          type="number"
+                          min="0"
+                          placeholder="--"
+                          value={formData.rateLimit[field] ?? ''}
+                          onChange={(e) =>
+                            setFormData({
+                              ...formData,
+                              rateLimit: { ...formData.rateLimit, [field]: parseInt(e.target.value) || undefined },
+                            })
+                          }
+                        />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                <div className="space-y-3">
+                  <Label className="text-sm font-semibold">Token Limits</Label>
+                  <div className="grid grid-cols-4 gap-3">
+                    {([['tps', '/sec'], ['tpm', '/min'], ['tph', '/hour'], ['tpd', '/day']] as const).map(([field, label]) => (
+                      <div key={field} className="grid gap-1">
+                        <Label htmlFor={`add-${field}`} className="text-xs text-muted-foreground">{label}</Label>
+                        <Input
+                          id={`add-${field}`}
+                          type="number"
+                          min="0"
+                          placeholder="--"
+                          value={formData.rateLimit[field] ?? ''}
+                          onChange={(e) =>
+                            setFormData({
+                              ...formData,
+                              rateLimit: { ...formData.rateLimit, [field]: parseInt(e.target.value) || undefined },
+                            })
+                          }
+                        />
+                      </div>
+                    ))}
                   </div>
                 </div>
                 <div className="grid gap-2">
@@ -548,8 +587,8 @@ export function KeysPage() {
                         </div>
                       </TableCell>
                       <TableCell>
-                        <Badge variant={key.isPaid ? 'default' : 'outline'}>
-                          {key.isPaid ? 'Paid' : 'Free'}
+                        <Badge variant={key.tier === 'free' ? 'outline' : 'default'}>
+                          {key.tier ? key.tier.charAt(0).toUpperCase() + key.tier.slice(1) : (key.isPaid ? 'Paid' : 'Free')}
                         </Badge>
                       </TableCell>
                       <TableCell>
@@ -670,46 +709,79 @@ export function KeysPage() {
                   rows={3}
                 />
               </div>
-              <div className="flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  id="edit-isPaid"
-                  checked={formData.isPaid}
-                  onChange={(e) => setFormData({ ...formData, isPaid: e.target.checked })}
-                  className="h-4 w-4"
-                />
-                <Label htmlFor="edit-isPaid">Paid Tier</Label>
-              </div>
               <div className="grid grid-cols-2 gap-4">
-                <div className="grid gap-2">
-                  <Label htmlFor="edit-rpm">Requests Per Minute</Label>
-                  <Input
-                    id="edit-rpm"
-                    type="number"
-                    min="0"
-                    value={formData.rateLimit.rpm || ''}
-                    onChange={(e) =>
-                      setFormData({
-                        ...formData,
-                        rateLimit: { ...formData.rateLimit, rpm: parseInt(e.target.value) || undefined },
-                      })
-                    }
+                <div className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    id="edit-isPaid"
+                    checked={formData.isPaid}
+                    onChange={(e) => setFormData({ ...formData, isPaid: e.target.checked })}
+                    className="h-4 w-4"
                   />
+                  <Label htmlFor="edit-isPaid">Paid (fallback after free keys)</Label>
                 </div>
                 <div className="grid gap-2">
-                  <Label htmlFor="edit-tpm">Tokens Per Minute</Label>
-                  <Input
-                    id="edit-tpm"
-                    type="number"
-                    min="0"
-                    value={formData.rateLimit.tpm || ''}
-                    onChange={(e) =>
-                      setFormData({
-                        ...formData,
-                        rateLimit: { ...formData.rateLimit, tpm: parseInt(e.target.value) || undefined },
-                      })
-                    }
-                  />
+                  <Label htmlFor="edit-tier">Tier</Label>
+                  <Select
+                    value={formData.tier}
+                    onValueChange={(value) => setFormData({ ...formData, tier: value })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="free">Free</SelectItem>
+                      <SelectItem value="freemium">Freemium</SelectItem>
+                      <SelectItem value="paid">Paid</SelectItem>
+                      <SelectItem value="enterprise">Enterprise</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <div className="space-y-3">
+                <Label className="text-sm font-semibold">Request Limits</Label>
+                <div className="grid grid-cols-4 gap-3">
+                  {([['rps', '/sec'], ['rpm', '/min'], ['rph', '/hour'], ['rpd', '/day']] as const).map(([field, label]) => (
+                    <div key={field} className="grid gap-1">
+                      <Label htmlFor={`edit-${field}`} className="text-xs text-muted-foreground">{label}</Label>
+                      <Input
+                        id={`edit-${field}`}
+                        type="number"
+                        min="0"
+                        placeholder="--"
+                        value={formData.rateLimit[field] ?? ''}
+                        onChange={(e) =>
+                          setFormData({
+                            ...formData,
+                            rateLimit: { ...formData.rateLimit, [field]: parseInt(e.target.value) || undefined },
+                          })
+                        }
+                      />
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <div className="space-y-3">
+                <Label className="text-sm font-semibold">Token Limits</Label>
+                <div className="grid grid-cols-4 gap-3">
+                  {([['tps', '/sec'], ['tpm', '/min'], ['tph', '/hour'], ['tpd', '/day']] as const).map(([field, label]) => (
+                    <div key={field} className="grid gap-1">
+                      <Label htmlFor={`edit-${field}`} className="text-xs text-muted-foreground">{label}</Label>
+                      <Input
+                        id={`edit-${field}`}
+                        type="number"
+                        min="0"
+                        placeholder="--"
+                        value={formData.rateLimit[field] ?? ''}
+                        onChange={(e) =>
+                          setFormData({
+                            ...formData,
+                            rateLimit: { ...formData.rateLimit, [field]: parseInt(e.target.value) || undefined },
+                          })
+                        }
+                      />
+                    </div>
+                  ))}
                 </div>
               </div>
               <div className="grid gap-2">

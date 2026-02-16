@@ -24,9 +24,11 @@ export interface ProviderKey {
   archivedReason?: string;
   rateLimitResetMs?: number | null;
   rateLimit: {
+    rps?: number;
     rpm?: number;
     rph?: number;
     rpd?: number;
+    tps?: number;
     tpm?: number;
     tph?: number;
     tpd?: number;

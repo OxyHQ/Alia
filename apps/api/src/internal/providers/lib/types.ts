@@ -1,9 +1,13 @@
 // ============== TIPOS COMPARTIDOS ==============
 
 export interface KeyLimits {
+  rps?: number;    // Requests per second
   rpm?: number;    // Requests per minute
+  rph?: number;    // Requests per hour
   rpd?: number;    // Requests per day
+  tps?: number;    // Tokens per second
   tpm?: number;    // Tokens per minute
+  tph?: number;    // Tokens per hour
   tpd?: number;    // Tokens per day
 }
 
@@ -13,10 +17,13 @@ export interface KeyConfig {
   modelId: string;
   key: string;
   isPaid?: boolean;
-  // Límites (todos opcionales)
+  rps?: number;
   rpm?: number;
+  rph?: number;
   rpd?: number;
+  tps?: number;
   tpm?: number;
+  tph?: number;
   tpd?: number;
 }
 
