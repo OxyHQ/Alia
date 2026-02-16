@@ -35,6 +35,7 @@ export interface SubscriptionPlan {
   creditsLabel?: string;
   isFeatured?: boolean;
   isFree?: boolean;
+  sortOrder?: number;
 }
 
 export interface Subscription {
@@ -54,6 +55,7 @@ export interface Subscription {
     creditsPerMonth: number;
     price: number;
     currency: string;
+    billingPeriod?: 'monthly' | 'annual';
   };
   createdAt: string;
   updatedAt: string;
@@ -261,6 +263,24 @@ export function useCreateSubscriptionCheckout() {
         cancelUrl,
       });
       return response.data;
+    },
+  });
+}
+
+export function useChangePlan() {
+  return useMutation({
+    mutationFn: async ({
+      planId,
+      billingPeriod,
+    }: {
+      planId: string;
+      billingPeriod: 'monthly' | 'annual';
+    }) => {
+      const response = await apiClient.post('/billing/subscription/change-plan', {
+        planId,
+        billingPeriod,
+      });
+      return response.data as { subscription: Subscription; direction: 'upgrade' | 'downgrade' };
     },
   });
 }

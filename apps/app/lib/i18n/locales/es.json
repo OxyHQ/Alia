@@ -384,7 +384,19 @@
     "failedCheckout": "Error al crear la sesión de pago",
     "modelRequiresPlan": "Este modelo requiere el plan {{plan}}",
     "featureRequiresPlan": "{{feature}} requiere un plan de pago",
-    "signInRequired": "Inicia sesión para usar esta función."
+    "signInRequired": "Inicia sesión para usar esta función.",
+    "downgrade": "Bajar de plan",
+    "reactivate": "Reactivar",
+    "switchToAnnual": "Cambiar a Anual",
+    "switchToMonthly": "Cambiar a Mensual",
+    "confirmDowngradeTitle": "¿Bajar de plan?",
+    "confirmDowngradeDescription": "Cambiarás de {{from}} a {{to}}. El cambio se aplica en tu próximo ciclo de facturación.",
+    "downgradeToFreeTitle": "¿Cancelar suscripción?",
+    "downgradeToFreeDescription": "Tu plan actual seguirá activo hasta {{date}}. Después volverás al plan gratuito.",
+    "confirmDowngrade": "Confirmar",
+    "upgradeSuccess": "¡Plan mejorado exitosamente!",
+    "downgradeSuccess": "Plan cambiado exitosamente.",
+    "failedPlanChange": "Error al cambiar de plan. Inténtalo de nuevo."
   },
   "usageLimit": {
     "outOfCreditsTitle": "Sin créditos",

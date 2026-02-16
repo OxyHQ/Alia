@@ -384,7 +384,19 @@
     "failedCheckout": "Failed to create checkout session",
     "modelRequiresPlan": "This model requires the {{plan}} plan",
     "featureRequiresPlan": "{{feature}} requires a paid plan",
-    "signInRequired": "Please sign in to use this feature."
+    "signInRequired": "Please sign in to use this feature.",
+    "downgrade": "Downgrade",
+    "reactivate": "Reactivate",
+    "switchToAnnual": "Switch to Annual",
+    "switchToMonthly": "Switch to Monthly",
+    "confirmDowngradeTitle": "Downgrade plan?",
+    "confirmDowngradeDescription": "You'll be switching from {{from}} to {{to}}. The change takes effect on your next billing cycle.",
+    "downgradeToFreeTitle": "Cancel subscription?",
+    "downgradeToFreeDescription": "Your current plan will remain active until {{date}}. After that, you'll return to the free plan.",
+    "confirmDowngrade": "Confirm",
+    "upgradeSuccess": "Plan upgraded successfully!",
+    "downgradeSuccess": "Plan changed successfully.",
+    "failedPlanChange": "Failed to change plan. Please try again."
   },
   "usageLimit": {
     "outOfCreditsTitle": "Out of credits",

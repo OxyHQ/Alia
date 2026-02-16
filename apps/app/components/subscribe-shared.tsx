@@ -36,6 +36,7 @@ export interface PricingTier {
   isFeatured: boolean;
   isFree: boolean;
   creditsLabel: string;
+  sortOrder: number;
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────
@@ -190,10 +191,48 @@ function AnimatedSubtext({
 
 const COL_WIDTH = 220;
 
+function getButtonState(
+  tier: PricingTier,
+  currentPlanId: string | undefined,
+  currentBillingPeriod: BillingPeriod | undefined,
+  hasActiveSubscription: boolean,
+  cancelAtPeriodEnd: boolean | undefined,
+  billingPeriod: BillingPeriod,
+  tiers: PricingTier[],
+): { label: string; disabled: boolean } {
+  if (tier.isFree) {
+    if (!hasActiveSubscription) return { label: 'subscribe.currentPlan', disabled: true };
+    return { label: 'subscribe.downgrade', disabled: false };
+  }
+
+  if (!hasActiveSubscription) {
+    return { label: 'subscribe.upgrade', disabled: false };
+  }
+
+  if (currentPlanId === tier.id) {
+    if (cancelAtPeriodEnd) return { label: 'subscribe.reactivate', disabled: false };
+    if (currentBillingPeriod && currentBillingPeriod !== billingPeriod) {
+      return {
+        label: billingPeriod === 'annual' ? 'subscribe.switchToAnnual' : 'subscribe.switchToMonthly',
+        disabled: false,
+      };
+    }
+    return { label: 'subscribe.currentPlan', disabled: true };
+  }
+
+  const currentTier = tiers.find(t => t.id === currentPlanId);
+  if (currentTier && tier.sortOrder > currentTier.sortOrder) {
+    return { label: 'subscribe.upgrade', disabled: false };
+  }
+  return { label: 'subscribe.downgrade', disabled: false };
+}
+
 export function PlanGrid({
   tiers,
   billingPeriod,
   currentPlanId,
+  currentBillingPeriod,
+  cancelAtPeriodEnd,
   hasActiveSubscription,
   onSubscribe,
   loadingPlanId,
@@ -203,6 +242,8 @@ export function PlanGrid({
   tiers: PricingTier[];
   billingPeriod: BillingPeriod;
   currentPlanId?: string;
+  currentBillingPeriod?: BillingPeriod;
+  cancelAtPeriodEnd?: boolean;
   hasActiveSubscription: boolean;
   onSubscribe: (planId: string) => void;
   loadingPlanId?: string;
@@ -240,16 +281,13 @@ export function PlanGrid({
     }
   }
 
-  const isCurrentPlan = (tier: PricingTier) =>
-    tier.isFree ? !hasActiveSubscription : currentPlanId === tier.id;
-
   const tableContent = (
     <View style={isWideLayout ? undefined : { width: tiers.length * COL_WIDTH }}>
       {/* Header band: name + price + button */}
       <View className="flex-row border-b border-border">
         {tiers.map((tier, i) => {
           const price = billingPeriod === 'annual' ? Math.round(tier.annualPrice / 12) : tier.monthlyPrice;
-          const current = isCurrentPlan(tier);
+          const btnState = getButtonState(tier, currentPlanId, currentBillingPeriod, hasActiveSubscription, cancelAtPeriodEnd, billingPeriod, tiers);
           return (
             <View key={tier.id} className={cn(isWideLayout ? 'flex-1' : '', 'py-5 px-4 gap-3 border-l border-border', i === 0 && 'border-l-0', tier.isFeatured && 'bg-primary/5')} style={isWideLayout ? undefined : { width: COL_WIDTH }}>
               <View className="flex-row items-center gap-2">
@@ -282,15 +320,15 @@ export function PlanGrid({
                 </View>
               )}
               <Button
-                variant={tier.isFeatured ? 'default' : 'outline'}
+                variant={tier.isFeatured && !btnState.label.includes('downgrade') ? 'default' : 'outline'}
                 size="sm"
                 className="w-full rounded-full"
-                onPress={() => { if (!tier.isFree) onSubscribe(tier.id); }}
-                disabled={current || tier.isFree || !!loadingPlanId}
+                onPress={() => onSubscribe(tier.id)}
+                disabled={btnState.disabled || !!loadingPlanId}
                 isLoading={loadingPlanId === tier.id}
               >
-                <Text className={cn('text-sm font-medium', tier.isFeatured ? 'text-primary-foreground' : 'text-foreground')}>
-                  {current ? t('subscribe.currentPlan') : t('subscribe.upgrade')}
+                <Text className={cn('text-sm font-medium', tier.isFeatured && !btnState.label.includes('downgrade') ? 'text-primary-foreground' : 'text-foreground')}>
+                  {t(btnState.label)}
                 </Text>
               </Button>
             </View>
