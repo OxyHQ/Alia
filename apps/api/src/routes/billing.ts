@@ -307,6 +307,7 @@ router.get('/plans', async (req: Request, res: Response) => {
         creditsLabel: p.creditsLabel,
         isFeatured: p.isFeatured,
         isFree: p.isFree,
+        sortOrder: p.sortOrder,
       };
     });
     res.json({ plans });
@@ -424,6 +425,108 @@ router.post('/subscription/cancel', authenticateToken, async (req: Request, res:
     res.json({ message: 'Subscription will be canceled at end of billing period', subscription });
   } catch (error: any) {
     log.credits.error({ err: error }, 'Error canceling subscription');
+    res.status(500).json({ error: error.message });
+  }
+});
+
+const changePlanSchema = z.object({
+  planId: z.string(),
+  billingPeriod: z.enum(['monthly', 'annual']).default('monthly'),
+});
+
+router.post('/subscription/change-plan', authenticateToken, async (req: Request, res: Response) => {
+  try {
+    const { planId, billingPeriod } = changePlanSchema.parse(req.body);
+    const userId = req.user!.id;
+
+    // Find existing active subscription
+    const subscription = await Subscription.findOne({
+      oxyUserId: userId,
+      status: { $in: ['active', 'trialing'] },
+    });
+
+    if (!subscription) {
+      return res.status(404).json({ error: 'No active subscription found' });
+    }
+
+    // Find target plan
+    const targetPlan = await Plan.findOne({ planId, isActive: true, isFree: false }).lean();
+    if (!targetPlan) {
+      return res.status(400).json({ error: 'Invalid plan ID' });
+    }
+
+    // Guard: same plan + same billing period
+    if (subscription.planId === planId && subscription.billingPeriod === billingPeriod) {
+      return res.status(400).json({ error: 'You are already on this plan' });
+    }
+
+    // Look up current plan for sortOrder comparison
+    const currentPlan = await Plan.findOne({ planId: subscription.planId }).lean();
+    if (!currentPlan) {
+      return res.status(500).json({ error: 'Current plan not found' });
+    }
+
+    const isUpgrade = targetPlan.sortOrder > currentPlan.sortOrder;
+    const isAnnual = billingPeriod === 'annual';
+    const targetPriceId = isAnnual ? targetPlan.stripeAnnualPriceId : targetPlan.stripeMonthlyPriceId;
+
+    if (!targetPriceId) {
+      return res.status(400).json({ error: 'Target plan does not have a configured Stripe price' });
+    }
+
+    // Retrieve Stripe subscription to get item ID
+    const stripeSubscription = await getStripe().subscriptions.retrieve(subscription.stripeSubscriptionId);
+    const itemId = stripeSubscription.items.data[0]?.id;
+    if (!itemId) {
+      return res.status(500).json({ error: 'Could not find subscription item' });
+    }
+
+    // If pending cancellation, undo it first
+    if ((stripeSubscription as any).cancel_at_period_end) {
+      await getStripe().subscriptions.update(subscription.stripeSubscriptionId, {
+        cancel_at_period_end: false,
+      });
+    }
+
+    // Update the Stripe subscription
+    await getStripe().subscriptions.update(subscription.stripeSubscriptionId, {
+      items: [{ id: itemId, price: targetPriceId }],
+      proration_behavior: isUpgrade ? 'create_prorations' : 'none',
+      metadata: {
+        ...stripeSubscription.metadata,
+        planId: targetPlan.planId,
+        billingPeriod,
+        product: targetPlan.product,
+      },
+    });
+
+    // Update local subscription document
+    const price = isAnnual ? targetPlan.annualPrice : targetPlan.monthlyPrice;
+    subscription.planId = targetPlan.planId;
+    subscription.billingPeriod = billingPeriod;
+    subscription.cancelAtPeriodEnd = false;
+    subscription.stripePriceId = targetPriceId;
+    subscription.plan = {
+      planId: targetPlan.planId,
+      name: targetPlan.name,
+      product: targetPlan.product,
+      creditsPerMonth: targetPlan.creditsPerMonth,
+      price,
+      currency: targetPlan.currency,
+      billingPeriod,
+    };
+    await subscription.save();
+
+    invalidateEntitlementsCache(userId);
+
+    const direction = isUpgrade ? 'upgrade' : 'downgrade';
+    log.credits.info({ userId, from: currentPlan.planId, to: targetPlan.planId, direction, billingPeriod }, 'Plan changed');
+    res.json({ message: 'Plan changed successfully', subscription, direction });
+  } catch (error: any) {
+    if (error instanceof z.ZodError) {
+      return res.status(400).json({ error: 'Invalid input', details: error.errors });
+    }
+    log.credits.error({ err: error }, 'Error changing plan');
     res.status(500).json({ error: error.message });
   }
 });

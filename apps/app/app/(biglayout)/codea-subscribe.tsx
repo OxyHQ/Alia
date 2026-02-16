@@ -8,11 +8,14 @@ import {
   useSubscription,
   useSubscriptionPolling,
   useCreateSubscriptionCheckout,
+  useChangePlan,
+  useCancelSubscription,
   type SubscriptionPlan,
 } from '@/lib/hooks/use-billing';
 import { useAuth } from '@oxyhq/services';
 import { toast } from '@/components/sonner';
 import { useTranslation } from '@/hooks/useTranslation';
+import { ConfirmationDialog } from '@/components/ui/confirmation-dialog';
 import {
   type BillingPeriod,
   type PricingTier,
@@ -28,7 +31,7 @@ function buildCodeaTiers(
   apiPlans: SubscriptionPlan[],
   t: (key: string) => string,
 ): PricingTier[] {
-  return apiPlans.map((plan) => ({
+  return apiPlans.map((plan, index) => ({
     id: plan.id,
     name: plan.name,
     subtitle: plan.subtitle ? t(plan.subtitle) : '',
@@ -41,6 +44,7 @@ function buildCodeaTiers(
     isFeatured: plan.isFeatured || false,
     isFree: plan.isFree || false,
     creditsLabel: plan.creditsLabel || `${plan.creditsPerMonth.toLocaleString()} credits / mo`,
+    sortOrder: plan.sortOrder ?? index,
   }));
 }
 
@@ -57,11 +61,21 @@ export default function CodeaSubscribeScreen() {
   const [billingPeriod, setBillingPeriod] = useState<BillingPeriod>('monthly');
   const [loadingPlanId, setLoadingPlanId] = useState<string>();
   const [isMounted, setIsMounted] = useState(false);
+  const [confirmDialog, setConfirmDialog] = useState<{
+    open: boolean;
+    title: string;
+    description: string;
+    confirmText: string;
+    confirmVariant: 'default' | 'destructive';
+    onConfirm: () => Promise<void>;
+  }>({ open: false, title: '', description: '', confirmText: '', confirmVariant: 'default', onConfirm: async () => {} });
 
   const { data: apiPlans = [], isLoading: plansLoading, isError: plansError } = useSubscriptionPlans('codea');
   const { data: subscription, refetch: refetchSubscription } =
     useSubscription('codea');
   const checkoutMutation = useCreateSubscriptionCheckout();
+  const changePlanMutation = useChangePlan();
+  const cancelMutation = useCancelSubscription();
 
   const tiers = useMemo(() => buildCodeaTiers(apiPlans, t), [apiPlans, t]);
 
@@ -101,12 +115,80 @@ export default function CodeaSubscribeScreen() {
     return () => clearTimeout(timeout);
   }, [isPaymentSuccess]);
 
+  const executePlanChange = async (planId: string) => {
+    setLoadingPlanId(planId);
+    try {
+      const result = await changePlanMutation.mutateAsync({ planId, billingPeriod });
+      await refetchSubscription();
+      toast.success(t(result.direction === 'upgrade' ? 'subscribe.upgradeSuccess' : 'subscribe.downgradeSuccess'));
+    } catch (error: any) {
+      toast.error(error?.response?.data?.error || error.message || t('subscribe.failedPlanChange'));
+    } finally {
+      setLoadingPlanId(undefined);
+    }
+  };
+
   const handleSubscribe = async (planId: string) => {
     if (!isAuthenticated) {
       router.push('/login' as any);
       return;
     }
 
+    const targetTier = tiers.find(tier => tier.id === planId);
+    if (!targetTier) return;
+
+    const hasActiveSub = subscription && (subscription.status === 'active' || subscription.status === 'trialing');
+
+    // Downgrade to Free = cancel subscription
+    if (targetTier.isFree && hasActiveSub) {
+      setConfirmDialog({
+        open: true,
+        title: t('subscribe.downgradeToFreeTitle'),
+        description: t('subscribe.downgradeToFreeDescription', {
+          date: new Date(subscription.currentPeriodEnd).toLocaleDateString(),
+        }),
+        confirmText: t('subscribe.confirmDowngrade'),
+        confirmVariant: 'destructive',
+        onConfirm: async () => {
+          setLoadingPlanId(planId);
+          try {
+            await cancelMutation.mutateAsync();
+            await refetchSubscription();
+            toast.success(t('subscribe.downgradeSuccess'));
+          } catch (error: any) {
+            toast.error(error?.response?.data?.error || error.message || t('subscribe.failedPlanChange'));
+          } finally {
+            setLoadingPlanId(undefined);
+          }
+        },
+      });
+      return;
+    }
+
+    // Has active subscription → change plan
+    if (hasActiveSub) {
+      const currentTier = tiers.find(tier => tier.id === subscription.plan?.planId);
+      const isDowngrade = currentTier && targetTier.sortOrder < currentTier.sortOrder;
+
+      if (isDowngrade) {
+        setConfirmDialog({
+          open: true,
+          title: t('subscribe.confirmDowngradeTitle'),
+          description: t('subscribe.confirmDowngradeDescription', {
+            from: currentTier?.name || subscription.plan?.name,
+            to: targetTier.name,
+          }),
+          confirmText: t('subscribe.confirmDowngrade'),
+          confirmVariant: 'default',
+          onConfirm: () => executePlanChange(planId),
+        });
+      } else {
+        await executePlanChange(planId);
+      }
+      return;
+    }
+
+    // No subscription → Stripe Checkout
     setLoadingPlanId(planId);
     try {
       const { url } = await checkoutMutation.mutateAsync({
@@ -198,6 +280,8 @@ export default function CodeaSubscribeScreen() {
               tiers={tiers}
               billingPeriod={billingPeriod}
               currentPlanId={subscription?.plan?.planId}
+              currentBillingPeriod={subscription?.plan?.billingPeriod}
+              cancelAtPeriodEnd={subscription?.cancelAtPeriodEnd}
               hasActiveSubscription={
                 !!subscription && subscription.status === 'active'
               }
@@ -217,6 +301,17 @@ export default function CodeaSubscribeScreen() {
 
           <PageFooter t={t} />
         </View>
+
+        <ConfirmationDialog
+          open={confirmDialog.open}
+          onOpenChange={(open) => setConfirmDialog(prev => ({ ...prev, open }))}
+          title={confirmDialog.title}
+          description={confirmDialog.description}
+          confirmText={confirmDialog.confirmText}
+          confirmVariant={confirmDialog.confirmVariant}
+          onConfirm={confirmDialog.onConfirm}
+          loading={!!loadingPlanId}
+        />
       </ScrollView>
     </View>
   );
