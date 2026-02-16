@@ -21,6 +21,7 @@ import {
   AudioStream,
   TrackPublishOptions,
   TrackSource,
+  TrackKind,
 } from '@livekit/rtc-node';
 import type WebSocket from 'ws';
 import type { AgentDataMessage, LiveKitAgentBridgeRef } from '../internal/providers/lib/types-voice.js';
@@ -81,7 +82,7 @@ export class LiveKitAgentBridge implements LiveKitAgentBridgeRef {
     this.room.on(RoomEvent.TrackSubscribed, (track, publication, participant) => {
       log.providers.info({ kind: track.kind, participant: participant.identity, identity: this.identity }, '[Voice] TrackSubscribed event');
       // Only subscribe to audio from non-agent participants
-      if (track.kind === 'audio' && participant.identity !== this.identity) {
+      if (track.kind === TrackKind.KIND_AUDIO && participant.identity !== this.identity) {
         this.startAudioCapture(track, participant.identity);
       }
     });
@@ -115,7 +116,7 @@ export class LiveKitAgentBridge implements LiveKitAgentBridgeRef {
     for (const [, participant] of this.room.remoteParticipants) {
       if (participant.identity === this.identity) continue;
       for (const [, publication] of participant.trackPublications) {
-        if (publication.track && publication.track.kind === 'audio') {
+        if (publication.track && publication.track.kind === TrackKind.KIND_AUDIO) {
           this.startAudioCapture(publication.track, participant.identity);
         }
       }
