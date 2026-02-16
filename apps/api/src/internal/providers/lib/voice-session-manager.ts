@@ -34,7 +34,7 @@ import {
   createAgentToken,
   createVoiceRoom,
   deleteVoiceRoom,
-  getLiveKitUrl,
+  getLiveKitInternalUrl,
 } from '../../../lib/livekit-token.js';
 
 // ============== TOOL EXECUTORS ==============
@@ -213,7 +213,7 @@ export class VoiceSessionManager {
       const t2 = Date.now();
       const agentBridge = new LiveKitAgentBridge('alia-agent');
       const agentToken = await createAgentToken(roomName, 'alia-agent');
-      await agentBridge.join(getLiveKitUrl(), agentToken);
+      await agentBridge.join(getLiveKitInternalUrl(), agentToken);
       session.agentBridge = agentBridge;
       log.providers.info({ sessionId, ms: Date.now() - t2 }, '[Voice] Step 3/4: Agent joined LiveKit room');
 
@@ -587,7 +587,7 @@ export class VoiceSessionManager {
       // Create cohost agent bridge and join room
       const cohostBridge = new LiveKitAgentBridge('alia-cohost');
       const cohostToken = await createAgentToken(session.roomName, 'alia-cohost');
-      await cohostBridge.join(getLiveKitUrl(), cohostToken);
+      await cohostBridge.join(getLiveKitInternalUrl(), cohostToken);
       session.cohostBridge = cohostBridge;
 
       // Cohost does NOT subscribe to user audio (no onUserAudioFrame callback)

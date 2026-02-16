@@ -22,10 +22,14 @@ export function getLiveKitUrl(): string {
   return process.env.LIVEKIT_URL || 'ws://localhost:7880';
 }
 
+/** Internal URL for server-to-server connections (bypasses reverse proxy). */
+export function getLiveKitInternalUrl(): string {
+  return process.env.LIVEKIT_INTERNAL_URL || getLiveKitUrl();
+}
+
 /** Get the HTTP URL for the LiveKit server (for RoomServiceClient). */
 function getLiveKitHttpUrl(): string {
-  const wsUrl = getLiveKitUrl();
-  // Convert ws:// to http:// and wss:// to https://
+  const wsUrl = getLiveKitInternalUrl();
   return wsUrl.replace(/^ws:/, 'http:').replace(/^wss:/, 'https:');
 }
 
