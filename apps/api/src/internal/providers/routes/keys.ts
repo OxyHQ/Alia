@@ -47,6 +47,13 @@ router.post('/reload', async (req: Request, res: Response) => {
     invalidateKeyCache();
     clearHealthCache();
 
+    // Reset all key cooldowns and failure counters
+    const cooldownResult = await ProviderKey.updateMany(
+      { $or: [{ cooldownUntil: { $ne: null } }, { consecutiveFailures: { $gt: 0 } }] },
+      { $set: { cooldownUntil: null, consecutiveFailures: 0 } }
+    );
+    const cooldownsReset = cooldownResult.modifiedCount;
+
     // Compute config hash for tracking
     const keyCount = await ProviderKey.countDocuments({ isArchived: false, isActive: true });
     const configHash = crypto
@@ -55,13 +62,14 @@ router.post('/reload', async (req: Request, res: Response) => {
       .digest('hex')
       .substring(0, 12);
 
-    log.keys.info({ configHash, keyCount }, 'Caches invalidated');
+    log.keys.info({ configHash, keyCount, cooldownsReset }, 'Configuration reloaded');
 
     res.json({
       success: true,
       message: 'Configuration reloaded successfully',
       configHash,
       keyCount,
+      cooldownsReset,
       reloadedAt: new Date().toISOString(),
     });
   } catch (error: any) {

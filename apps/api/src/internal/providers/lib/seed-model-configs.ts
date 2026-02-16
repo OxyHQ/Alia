@@ -8,6 +8,7 @@
 
 import { ModelConfig } from '../models/model-config.js';
 import { AliaModel } from '../models/alia-model.js';
+import { ProviderKey } from '../models/provider-key.js';
 import { TIER_MODEL_MAPPINGS, ALIA_MODELS, type ModelCapabilities } from './alia-models.js';
 import { connectDB } from './db.js';
 import mongoose from 'mongoose';
@@ -267,6 +268,25 @@ export async function resetAllCircuitBreakers(): Promise<number> {
 }
 
 /**
+ * Reset all key cooldowns and consecutive failure counters.
+ * Prevents stale lockouts from persisting across deploys.
+ */
+export async function resetAllKeyCooldowns(): Promise<number> {
+  await connectDB();
+
+  const result = await ProviderKey.updateMany(
+    { $or: [{ cooldownUntil: { $ne: null } }, { consecutiveFailures: { $gt: 0 } }] },
+    { $set: { cooldownUntil: null, consecutiveFailures: 0 } }
+  );
+
+  if (result.modifiedCount > 0) {
+    log.seed.info({ count: result.modifiedCount }, 'Reset key cooldowns and failure counters');
+  }
+
+  return result.modifiedCount;
+}
+
+/**
  * Run all seed operations on startup
  */
 export async function runStartupSeed(): Promise<void> {
@@ -282,6 +302,7 @@ export async function runStartupSeed(): Promise<void> {
     await seedFeatures();
     await seedPlanFeatures();
     await resetAllCircuitBreakers();
+    await resetAllKeyCooldowns();
     log.seed.info('Startup seed complete');
   } catch (error) {
     log.seed.error({ err: error }, 'Error during startup seed');
