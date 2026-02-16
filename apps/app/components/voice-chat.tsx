@@ -2,10 +2,10 @@ import { useEffect, useRef } from 'react';
 import { View, Pressable, Modal, ActivityIndicator, ScrollView } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Text } from '@/components/ui/text';
-import { Mic, MicOff, X, PhoneOff } from 'lucide-react-native';
+import { Mic, MicOff, X, PhoneOff, Users } from 'lucide-react-native';
 import { useQueryClient } from '@tanstack/react-query';
 import { queryKeys } from '@/lib/hooks/query-keys';
-import { useRealtimeVoice, type AgentState } from '@/lib/hooks/use-realtime-voice';
+import { useVoiceRoom } from '@/lib/hooks/use-voice-room';
 import { useAudioLevels } from './voice-chat/use-audio-levels';
 import { AudioWaveVisualizer } from './voice-chat/audio-wave-visualizer';
 import { toast } from '@/components/sonner';
@@ -16,20 +16,13 @@ interface VoiceChatProps {
   conversationId?: string;
 }
 
-const AGENT_COLORS: Record<AgentState, string> = {
-  idle: '#6b7280',
-  listening: '#22c55e',
-  thinking: '#eab308',
-  speaking: '#6366f1',
-};
-
 const CLOSE_BTN_MARGIN = 16;
 
 export function VoiceChat({ visible, onClose }: VoiceChatProps) {
   const insets = useSafeAreaInsets();
   const queryClient = useQueryClient();
   const {
-    voiceState,
+    roomState,
     agentState,
     isMuted,
     error,
@@ -37,15 +30,19 @@ export function VoiceChat({ visible, onClose }: VoiceChatProps) {
     connect,
     disconnect,
     toggleMute,
-    captureLevel,
-    playbackLevel,
-  } = useRealtimeVoice();
+    cohostActive,
+    currentSpeaker,
+    roundComplete,
+    enableCohost,
+    disableCohost,
+    continueCohost,
+  } = useVoiceRoom();
 
   const { waveAmplitude } = useAudioLevels({
-    captureLevel,
-    playbackLevel,
+    captureLevel: 0,
+    playbackLevel: 0,
     agentState,
-    isConnected: voiceState === 'connected',
+    isConnected: roomState === 'connected',
   });
 
   const prevVisibleRef = useRef(visible);
@@ -57,16 +54,17 @@ export function VoiceChat({ visible, onClose }: VoiceChatProps) {
     prevVisibleRef.current = visible;
   }, [visible, connect, disconnect]);
 
-  // Auto-close on fatal errors (insufficient credits, auth failures)
+  // On any error or connection failure → close modal + toast
   useEffect(() => {
-    if (!error || !visible) return;
-    const lower = error.toLowerCase();
-    if (lower.includes('insufficient') || lower.includes('credit') || lower.includes('unauthorized') || lower.includes('not authenticated')) {
+    if (!visible) return;
+    if (error) {
       toast.error(error);
-      disconnect();
-      onClose();
+      handleClose();
+    } else if (roomState === 'error') {
+      toast.error('Voice connection failed');
+      handleClose();
     }
-  }, [error, visible, disconnect, onClose]);
+  }, [error, roomState, visible]);
 
   useEffect(() => {
     if (messages.length > 0) {
@@ -83,28 +81,22 @@ export function VoiceChat({ visible, onClose }: VoiceChatProps) {
   };
 
   const statusText = (() => {
-    if (voiceState === 'connecting') return 'Connecting...';
-    if (voiceState === 'error') return 'Connection failed';
-    if (voiceState === 'connected') {
+    if (roomState === 'connecting') return 'Connecting...';
+    if (roomState === 'connected') {
+      if (cohostActive && currentSpeaker === 'cohost') return 'Cohost speaking...';
+      if (cohostActive && currentSpeaker === 'primary') return 'Alia speaking...';
       if (agentState === 'listening') return isMuted ? 'Muted' : 'Listening...';
       if (agentState === 'thinking') return 'Thinking...';
       if (agentState === 'speaking') return 'Speaking...';
       return 'Connected';
     }
-    return 'Tap to connect';
+    return '';
   })();
-
-  const pulseColor =
-    voiceState !== 'connected'
-      ? '#6b7280'
-      : isMuted && agentState === 'listening'
-        ? '#6b7280'
-        : AGENT_COLORS[agentState];
 
   return (
     <Modal visible={visible} transparent animationType="fade">
       <View className="flex-1 bg-black/90">
-        {/* Close button — top-right corner, equal margin from safe area and right edge */}
+        {/* Close button */}
         <Pressable
           onPress={handleClose}
           className="absolute w-10 h-10 rounded-full items-center justify-center z-10"
@@ -131,13 +123,23 @@ export function VoiceChat({ visible, onClose }: VoiceChatProps) {
                 msg.role === 'user' ? 'self-end' : 'self-start'
               }`}
             >
+              {msg.role === 'assistant' && cohostActive && (
+                <Text
+                  className="text-xs mb-0.5"
+                  style={{ color: msg.speaker === 'cohost' ? '#a78bfa' : '#94a3b8' }}
+                >
+                  {msg.speaker === 'cohost' ? 'Cohost' : 'Alia'}
+                </Text>
+              )}
               <Text
                 className={`text-base ${
                   msg.role === 'user'
                     ? 'text-white/60'
-                    : msg.isStreaming
-                      ? 'text-white/90'
-                      : 'text-white'
+                    : msg.speaker === 'cohost'
+                      ? msg.isStreaming ? 'text-indigo-300/90' : 'text-indigo-300'
+                      : msg.isStreaming
+                        ? 'text-white/90'
+                        : 'text-white'
                 }`}
               >
                 {msg.content}
@@ -145,11 +147,20 @@ export function VoiceChat({ visible, onClose }: VoiceChatProps) {
               </Text>
             </View>
           ))}
+
+          {roundComplete && (
+            <Pressable
+              onPress={continueCohost}
+              className="self-center mt-4 px-5 py-2 rounded-full"
+              style={{ backgroundColor: 'rgba(139, 92, 246, 0.3)' }}
+            >
+              <Text className="text-indigo-300 text-sm font-medium">Continue conversation</Text>
+            </Pressable>
+          )}
         </ScrollView>
 
         {/* Bottom: ambient glow + controls */}
         <View style={{ position: 'relative', overflow: 'visible' }}>
-          {/* Full-width ambient glow background */}
           <View
             style={{
               position: 'absolute',
@@ -162,20 +173,19 @@ export function VoiceChat({ visible, onClose }: VoiceChatProps) {
             <AudioWaveVisualizer
               waveAmplitude={waveAmplitude}
               agentState={agentState}
-              isConnected={voiceState === 'connected'}
+              isConnected={roomState === 'connected'}
             />
           </View>
 
-          {/* Controls overlaid on glow */}
           <View style={{ alignItems: 'center', paddingBottom: 48, paddingTop: 24, zIndex: 1 }}>
-            {/* Status text */}
-            <Text className="text-white text-lg font-medium mb-6">
-              {statusText}
-            </Text>
+            {statusText ? (
+              <Text className="text-white text-lg font-medium mb-6">
+                {statusText}
+              </Text>
+            ) : null}
 
-            {/* Controls */}
-            {voiceState === 'connected' && (
-              <View className="flex-row items-center gap-10">
+            {roomState === 'connected' && (
+              <View className="flex-row items-center gap-8">
                 <View className="items-center gap-2">
                   <Pressable
                     onPress={toggleMute}
@@ -192,6 +202,20 @@ export function VoiceChat({ visible, onClose }: VoiceChatProps) {
                     {isMuted ? 'Unmute' : 'Mute'}
                   </Text>
                 </View>
+
+                <View className="items-center gap-2">
+                  <Pressable
+                    onPress={cohostActive ? disableCohost : enableCohost}
+                    className="w-14 h-14 rounded-full items-center justify-center"
+                    style={{ backgroundColor: cohostActive ? '#8b5cf6' : 'rgba(255,255,255,0.15)' }}
+                  >
+                    <Users size={24} color="white" />
+                  </Pressable>
+                  <Text className="text-white/70 text-xs">
+                    {cohostActive ? 'Solo' : 'Cohost'}
+                  </Text>
+                </View>
+
                 <View className="items-center gap-2">
                   <Pressable
                     onPress={handleClose}
@@ -205,22 +229,9 @@ export function VoiceChat({ visible, onClose }: VoiceChatProps) {
               </View>
             )}
 
-            {voiceState === 'connecting' && (
+            {roomState === 'connecting' && (
               <ActivityIndicator size="large" color="#38bdf8" />
             )}
-
-            {voiceState === 'error' && (
-              <Pressable
-                onPress={connect}
-                className="mt-4 px-6 py-3 bg-indigo-500 rounded-full"
-              >
-                <Text className="text-white font-medium">Retry</Text>
-              </Pressable>
-            )}
-
-            {error ? (
-              <Text className="text-red-400 text-sm mt-4">{error}</Text>
-            ) : null}
           </View>
         </View>
       </View>

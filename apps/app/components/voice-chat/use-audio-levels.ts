@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { useSharedValue, withTiming, Easing } from 'react-native-reanimated';
-import type { AgentState } from '@/lib/hooks/use-realtime-voice';
+import type { AgentState } from '@/lib/hooks/use-voice-room';
 
 interface UseAudioLevelsOptions {
   captureLevel: number;

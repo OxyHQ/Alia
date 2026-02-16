@@ -1,13 +1,16 @@
 import { Router } from 'express';
-import { randomUUID } from 'crypto';
 import { createVoiceToken, isLiveKitConfigured, getLiveKitUrl } from '../../lib/livekit-token.js';
 import { getBestKeyForModel, recordKeySuccess, recordKeyFailure } from '../../internal/providers/lib/key-manager.js';
 import { getModelMappingsForTier } from '../../internal/providers/lib/alia-models.js';
-import { reserveCredits, finalizeCredits, refundReservation } from '../../lib/credits-manager.js';
+import { reserveCredits, finalizeCredits } from '../../lib/credits-manager.js';
 import { getOrCreateUserCredits } from '../../lib/user-credits-helpers.js';
+import { voiceSessionManager } from '../../internal/providers/lib/voice-session-manager.js';
+import { buildSystemPrompt } from '../../lib/prompt-loader.js';
+import { buildUserContext } from '../../lib/user-context.js';
 import { log } from '../../lib/logger.js';
 import { getUserEntitlements } from '../../lib/plan-access.js';
 import type { Request, Response } from 'express';
+import type { OpenAITool } from '../../internal/providers/lib/types.js';
 
 const WHISPER_URLS: Record<string, string> = {
   openai: 'https://api.openai.com/v1/audio/transcriptions',
@@ -18,7 +21,12 @@ const router = Router();
 
 /**
  * POST /v1/voice/token
- * Get a LiveKit token to join a voice room
+ *
+ * Create a full voice session with a LiveKit room, then return
+ * a user-facing LiveKit token so the client can join.
+ *
+ * Body: { model?, voice?, instructions? }
+ * Returns: { token, url, roomName, sessionId }
  */
 router.post('/token', async (req: Request, res: Response) => {
   try {
@@ -44,19 +52,163 @@ router.post('/token', async (req: Request, res: Response) => {
       });
     }
 
-    const { conversationId } = req.body;
-    const roomName = `voice-${conversationId || randomUUID()}`;
+    const model = req.body.model || 'alia-v1-voice';
+    const voice = req.body.voice || undefined;
+    const clientInstructions = req.body.instructions || undefined;
 
-    const token = await createVoiceToken(userId, roomName);
+    // Enforce model access
+    if (!entitlements.allowedModelIds.includes(model)) {
+      return res.status(403).json({
+        error: {
+          code: 'MODEL_NOT_IN_PLAN',
+          message: 'Upgrade your plan to use this model.',
+          retryable: false,
+          suggestedAction: 'upgrade',
+        },
+      });
+    }
+
+    // Build rich voice instructions (same logic as realtime.ts)
+    let voiceInstructions = 'You are in a real-time voice conversation. Keep responses concise and conversational — avoid long lists, markdown, or code blocks. Speak naturally and expressively — vary your tone, pacing, and energy like a real person would. Use vocal inflections and reactions naturally.\n\n';
+
+    try {
+      const basePrompt = await buildSystemPrompt(model);
+      voiceInstructions += basePrompt;
+    } catch (e) {
+      log.general.error({ err: e }, 'Error loading system prompt for voice');
+    }
+
+    const userContext = await buildUserContext(userId);
+    voiceInstructions += userContext.contextString;
+    if (userContext.language) {
+      voiceInstructions += `\n\nCRITICAL LANGUAGE RULE: You MUST respond in the SAME language the user is currently speaking.
+- If the user speaks English, respond in English.
+- If the user speaks Spanish, respond in Spanish.
+- If the user switches languages mid-conversation, switch with them immediately.
+- The language preference "${userContext.language}" is ONLY your default for the first message or when the user's language is ambiguous.
+- NEVER tell the user you're responding in a language because of their "preferences" — always match their actual spoken language.`;
+    }
+
+    // Allow client to override instructions entirely
+    if (clientInstructions) {
+      voiceInstructions = clientInstructions;
+    }
+
+    // Voice-appropriate tools (executed server-side by VoiceSessionManager)
+    const voiceTools: OpenAITool[] = [
+      {
+        type: 'function',
+        function: {
+          name: 'getCurrentDate',
+          description: 'Get the current date, time, and day of the week',
+          parameters: { type: 'object', properties: {}, required: [] },
+        },
+      },
+      {
+        type: 'function',
+        function: {
+          name: 'sendTelegramMessage',
+          description: "Send a message to user's Telegram. Use ONLY when user explicitly requests (e.g., 'send me X on Telegram', 'remind me via Telegram').",
+          parameters: {
+            type: 'object',
+            properties: {
+              message: { type: 'string', description: 'Complete message to send to user on Telegram' },
+            },
+            required: ['message'],
+          },
+        },
+      },
+      {
+        type: 'function',
+        function: {
+          name: 'saveUserMemory',
+          description: 'Save important user information for future conversations. Use when user shares preferences, personal info, goals, or anything they want remembered.',
+          parameters: {
+            type: 'object',
+            properties: {
+              key: { type: 'string', description: 'Short descriptive key (e.g., "favorite_fruit", "occupation", "pet")' },
+              value: { type: 'string', description: 'Memory value (e.g., "strawberries", "software engineer", "dog named Max")' },
+              category: { type: 'string', description: 'Optional category: preference, personal, goal, experience' },
+            },
+            required: ['key', 'value'],
+          },
+        },
+      },
+      {
+        type: 'function',
+        function: {
+          name: 'updateUserPreferences',
+          description: 'Update user communication preferences: language, tone, response length, interests.',
+          parameters: {
+            type: 'object',
+            properties: {
+              language: { type: 'string', description: 'Preferred language (e.g., "Spanish", "English")' },
+              tone: { type: 'string', description: 'Preferred tone (formal, casual, technical, friendly)' },
+              responseLength: { type: 'string', enum: ['short', 'medium', 'long'], description: 'Preferred response length' },
+            },
+            required: [],
+          },
+        },
+      },
+      {
+        type: 'function',
+        function: {
+          name: 'updateUserContext',
+          description: 'Update user context: occupation, location, timezone.',
+          parameters: {
+            type: 'object',
+            properties: {
+              occupation: { type: 'string', description: 'User occupation/profession' },
+              location: { type: 'string', description: 'User location (city, country)' },
+              timezone: { type: 'string', description: 'User timezone' },
+            },
+            required: [],
+          },
+        },
+      },
+    ];
+
+    // Create the voice session (creates LiveKit room, joins as agent, connects to provider)
+    const session = await voiceSessionManager.createSession(userId, model, {
+      model,
+      instructions: voiceInstructions,
+      voice,
+      tools: voiceTools,
+    });
+
+    // Generate a user-facing LiveKit token to join the same room
+    const token = await createVoiceToken(userId, session.roomName);
 
     res.json({
       token,
       url: getLiveKitUrl(),
-      roomName,
+      roomName: session.roomName,
+      sessionId: session.sessionId,
     });
+
   } catch (error: any) {
-    log.general.error({ err: error, userId: req.user?.id }, 'Voice token generation failed');
-    res.status(500).json({ error: error.message || 'Failed to create voice token' });
+    log.general.error({ err: error, userId: req.user?.id }, 'Voice session creation failed');
+
+    const code = error.message?.includes('Insufficient credits')
+      ? 'INSUFFICIENT_CREDITS'
+      : error.message?.includes('Maximum concurrent sessions')
+        ? 'RATE_LIMIT_EXCEEDED'
+        : error.message?.includes('resolve model')
+          ? 'INVALID_MODEL'
+          : 'INTERNAL_ERROR';
+
+    const status = code === 'INSUFFICIENT_CREDITS' ? 402
+      : code === 'RATE_LIMIT_EXCEEDED' ? 429
+        : code === 'INVALID_MODEL' ? 400
+          : 500;
+
+    res.status(status).json({
+      error: {
+        code,
+        message: error.message || 'Failed to create voice session',
+        retryable: false,
+      },
+    });
   }
 });
 
