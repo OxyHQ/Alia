@@ -27,11 +27,13 @@ import {
 } from "@/components/ui/command";
 import { Kbd, KbdGroup } from "@/components/ui/kbd";
 import { useConversations } from "@/lib/hooks/use-conversations";
+import { useUIStore } from "@/lib/stores/ui-store";
 
 export function CommandPalette() {
   const [open, setOpen] = React.useState(false);
   const router = useRouter();
   const { data: conversationsData } = useConversations();
+  const toggleShortcutsDialog = useUIStore((s) => s.toggleShortcutsDialog);
 
   const recentConversations = React.useMemo(() => {
     if (!conversationsData?.pages) return [];
@@ -70,10 +72,17 @@ export function CommandPalette() {
         runCommand(() => router.replace("/(app)"));
         return;
       }
+
+      if (e.key === "/" && meta) {
+        e.preventDefault();
+        setOpen(false);
+        toggleShortcutsDialog();
+        return;
+      }
     };
     document.addEventListener("keydown", handleKeyDown);
     return () => document.removeEventListener("keydown", handleKeyDown);
-  }, [runCommand, router]);
+  }, [runCommand, router, toggleShortcutsDialog]);
 
   if (Platform.OS !== "web") return null;
 

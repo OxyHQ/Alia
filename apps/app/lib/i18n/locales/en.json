@@ -803,5 +803,32 @@
       "step4": "4. Scan the QR code with your phone",
       "scanInstructions": "Open WhatsApp on your phone, go to Settings > Linked Devices > Link a Device, then scan this code."
     }
+  },
+  "thought": {
+    "title": "Thought",
+    "steps": "Steps",
+    "sources": "Sources",
+    "thinking": "Thinking",
+    "thinkingFor": "Thinking for {{seconds}}s...",
+    "thoughtFor": "Thought for {{seconds}} seconds",
+    "done": "Done",
+    "noSources": "No sources used",
+    "noSteps": "No steps to display",
+    "websites": "Websites",
+    "viewDetails": "View details"
+  },
+  "keyboardShortcuts": {
+    "title": "Keyboard Shortcuts",
+    "navigation": "Navigation",
+    "composer": "Composer",
+    "conversation": "Conversation",
+    "general": "General",
+    "commandPalette": "Command palette / Search",
+    "settings": "Settings",
+    "shortcuts": "Keyboard shortcuts",
+    "sendMessage": "Send message",
+    "newLine": "New line",
+    "newChat": "New chat",
+    "closeDialog": "Close dialog"
   }
 }

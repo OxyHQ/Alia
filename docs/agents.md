@@ -141,19 +141,18 @@ In the Alia interface, you can easily switch between agents based on your needs:
 
 ---
 
-## Underlying AI Models
+## Alia Model Tiers
 
-Alia uses the most advanced AI models available:
+Alia abstracts AI complexity behind a simple tier system. You choose the right tier for your task — Alia handles provider routing, fallbacks, and optimization automatically.
 
-- **OpenAI GPT-4** - Advanced reasoning
-- **Anthropic Claude** - Deep analysis and creativity
-- **Google Gemini** - Multimodality and long context
-- **Groq** - Ultra-fast responses
+| Model | Best For | Credit Multiplier |
+|-------|----------|-------------------|
+| `alia-lite` | Quick answers, simple tasks | 0.5x |
+| `alia-v1` | Everyday conversations | 1x |
+| `alia-v1-pro` | Complex reasoning | 3x |
+| `alia-v1-pro-max` | Most demanding tasks | 5x |
 
-The system automatically selects the best model based on:
-- The type of task
-- Availability and costs
-- User preferences
+Specialized models are also available for vision, audio, voice, coding, and more. See the [Developer API Reference](api-reference.md) for the full list.
 
 ---
 

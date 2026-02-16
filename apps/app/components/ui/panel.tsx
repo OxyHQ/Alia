@@ -6,8 +6,11 @@ import {
   Animated,
   useWindowDimensions,
   StyleSheet,
+  Platform,
 } from "react-native";
 import { cn } from "@/lib/utils";
+
+const USE_NATIVE_DRIVER = Platform.OS !== "web";
 
 interface PanelProps {
   /** Whether the panel is open */
@@ -60,12 +63,12 @@ export function Panel({
           Animated.timing(slideAnim, {
             toValue: 0,
             duration: 300,
-            useNativeDriver: true,
+            useNativeDriver: USE_NATIVE_DRIVER,
           }),
           Animated.timing(fadeAnim, {
             toValue: 1,
             duration: 300,
-            useNativeDriver: true,
+            useNativeDriver: USE_NATIVE_DRIVER,
           }),
         ]).start();
       } else {
@@ -73,12 +76,12 @@ export function Panel({
           Animated.timing(slideAnim, {
             toValue: side === "right" ? screenWidth : -screenWidth,
             duration: 250,
-            useNativeDriver: true,
+            useNativeDriver: USE_NATIVE_DRIVER,
           }),
           Animated.timing(fadeAnim, {
             toValue: 0,
             duration: 250,
-            useNativeDriver: true,
+            useNativeDriver: USE_NATIVE_DRIVER,
           }),
         ]).start();
       }

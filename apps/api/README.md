@@ -85,43 +85,25 @@ The API emits chunks in OpenAI format with extensions for reasoning:
 
 ## Alia Models
 
-| ID | Name | Description | Multiplier | Max Tokens |
-|----|------|-------------|------------|------------|
-| `alia-lite` | Alia Lite | Fast responses | 0.5x | 4,096 |
-| `alia-v1` | Alia V1 | Performance/quality balance | 1x | 8,192 |
-| `alia-v1-codea` | Alia V1 Codea | Optimized for code | 1.5x | 16,384 |
-| `alia-v1-pro` | Alia V1 Pro | High quality | 3x | 32,768 |
-| `alia-v1-pro-max` | Alia V1 Pro Max | Best available | 5x | 128,000 |
+| ID | Name | Category | Multiplier | Max Tokens |
+|----|------|----------|------------|------------|
+| `alia-lite` | Alia Lite | General | 0.5x | 4,096 |
+| `alia-v1` | Alia V1 | General | 1x | 8,192 |
+| `alia-v1-codea` | Codea | Coding | 1.5x | 16,384 |
+| `alia-v1-cowork` | Alia V1 Cowork | Desktop | 1.5x | 16,384 |
+| `alia-v1-browser` | Alia V1 Browser | Browser | 1.5x | 16,384 |
+| `alia-v1-vision` | Alia V1 Vision | Vision | 1.5x | 16,384 |
+| `alia-v1-audio` | Alia V1 Audio | Audio | 1x | 8,192 |
+| `alia-v1-multimodal` | Alia V1 Multimodal | Multimodal | 2x | 32,768 |
+| `alia-v1-pro` | Codea Pro | Coding | 3x | 32,768 |
+| `alia-v1-thinking` | Alia V1 Thinking | Coding | 5x | 128,000 |
+| `alia-v1-pro-max` | Alia V1 Pro Max | General | 5x | 128,000 |
+| `alia-v1-voice` | Alia V1 Voice | Voice | 2x | 8,192 |
+| `alia-v1-voice-pro` | Alia V1 Voice Pro | Voice | 4x | 32,768 |
 
 ## Internal Model Mappings
 
-Each Alia tier maps to real provider models with automatic fallback:
-
-### alia-lite
-1. Gemini 2.0 Flash (**default**)
-2. Llama 3.3 70B (Groq)
-3. Llama 3.3 70B (Cerebras)
-4. Llama 3.3 70B (Together)
-
-### alia-v1
-1. Gemini 2.5 Flash (**default**)
-2. GPT-4o-mini
-3. Llama 3.3 70B (Groq)
-
-### alia-v1-codea
-1. Gemini 2.5 Pro (**default**)
-2. GPT-4o
-3. Claude Sonnet 4
-
-### alia-v1-pro
-1. GPT-4o (**default**)
-2. Claude Sonnet 4
-3. Gemini 2.5 Pro
-
-### alia-v1-pro-max
-1. Claude Sonnet 4 (**default**)
-2. GPT-4o
-3. Gemini 2.5 Pro
+Each Alia tier maps to real provider models with automatic fallback. Mappings are auto-generated from the provider admin database — see `src/internal/providers/lib/generate-model-mappings.ts` for the current source of truth.
 
 ## Credit System
 
@@ -196,33 +178,63 @@ NEXTAUTH_URL='http://localhost:3001'
 
 ## Endpoints
 
+### Core
+
 - `GET /` - API information
 - `GET /health` - Health check
+
+### Auth
+
 - `POST /auth/register` - User registration
 - `POST /auth/login` - User login
 - `POST /auth/forgot-password` - Forgot password
 - `POST /auth/reset-password` - Reset password
+
+### Chat & AI (OpenAI-compatible)
+
+- `POST /alia/chat` - Streaming chat with Alia (session auth)
+- `POST /v1/chat/completions` - Chat completions (OpenAI-compatible)
+- `POST /v1/responses` - Responses API (OpenAI-compatible)
+- `GET /v1/models` - List available models
+- `POST /v1/voice/token` - Get ephemeral voice session token
+- `POST /v1/voice/transcription` - Audio transcription
+- `GET /v1/realtime` - WebSocket endpoint for real-time voice
+
+### Conversations
+
 - `GET /conversations` - List conversations
 - `POST /conversations` - Create conversation
 - `GET /conversations/:id` - Get conversation
 - `PUT /conversations/:id` - Update conversation
 - `DELETE /conversations/:id` - Delete conversation
+
+### Folders
+
 - `GET /folders` - List folders
 - `POST /folders` - Create folder
 - `DELETE /folders/:id` - Delete folder
+
+### Memory
+
 - `GET /memory` - Get user memory
 - `POST /memory/add` - Add memory
 - `PUT /memory/:id` - Update memory
 - `DELETE /memory/:id` - Delete memory
 - `PUT /memory/preferences` - Update preferences
 - `PUT /memory/context` - Update context
-- `POST /upload/avatar` - Upload avatar
-- `DELETE /upload/avatar` - Delete avatar
-- `GET /credits` - Get user credits
-- `POST /alia/chat` - Streaming chat with Alia
-- `POST /v1/chat/completions` - Chat completions (OpenAI-compatible)
-- `GET /v1/models` - List available models
-- `GET /billing/plans` - List subscription plans (from DB)
+- `GET /memory/search` - Search memories
+- `GET /memory/semantic-search` - Semantic search across memories
+- `POST /memory/export/*` - Export memory data
+- `POST /memory/import/*` - Import memory data
+
+### Credits
+
+- `GET /credits` - Get credit balance
+- `GET /credits/usage` - Credit usage history
+
+### Billing
+
+- `GET /billing/plans` - List subscription plans
 - `GET /billing/packages` - List credit packages
 - `POST /billing/checkout/credits` - Create credit checkout (Stripe)
 - `POST /billing/checkout/subscription` - Create subscription checkout (Stripe)
@@ -232,25 +244,114 @@ NEXTAUTH_URL='http://localhost:3001'
 - `POST /billing/portal` - Create Stripe portal session
 - `POST /billing/webhook` - Stripe webhook
 
+### Developer API
+
+- `GET /developer/apps` - List developer apps
+- `POST /developer/apps` - Create app
+- `GET /developer/apps/:id` - Get app details
+- `PUT /developer/apps/:id` - Update app
+- `DELETE /developer/apps/:id` - Delete app
+- `POST /developer/apps/:id/keys` - Generate API key
+- `DELETE /developer/apps/:id/keys/:keyId` - Revoke API key
+- `GET /developer/stats` - Developer usage statistics
+
+### Models
+
+- `GET /models/stats` - Model usage statistics
+- `GET /external-models` - Browse external model directory
+
+### Skills
+
+- `GET /skills` - List available skills
+- `GET /skills/:id` - Get skill details
+
+### Organization
+
+- `POST /organization` - Create organization
+- `GET /organization/:id` - Get organization
+- `PUT /organization/:id` - Update organization
+- `GET /organization/:id/members` - List members
+- `POST /organization/:id/members` - Add member
+- `DELETE /organization/:id/members/:memberId` - Remove member
+
+### Automations
+
+- `GET /automations` - List automations
+- `POST /automations` - Create automation
+- `PUT /automations/:id` - Update automation
+- `DELETE /automations/:id` - Delete automation
+- `POST /automations/:id/execute` - Execute automation
+
+### Analytics
+
+- `GET /analytics/usage` - Usage analytics
+- `GET /analytics/credits` - Credit analytics
+
+### Canvas (Workflow Builder)
+
+- `GET /api/workflows` - List workflows
+- `POST /api/workflows` - Create workflow
+- `GET /api/workflows/:id` - Get workflow
+- `PUT /api/workflows/:id` - Update workflow
+- `DELETE /api/workflows/:id` - Delete workflow
+- `POST /api/execute` - Execute workflow
+- `GET /api/sessions/:conversationId` - Get canvas session
+
+### Codea (IDE Integration)
+
+- `GET /codea/entitlements` - Check IDE entitlements
+- `GET /codea/mcp/servers` - List MCP servers
+- `POST /codea/mcp/servers` - Register MCP server
+
+### Feedback & Referrals
+
+- `POST /feedback` - Submit feedback
+- `GET /referrals` - Get referral info
+- `POST /referrals/redeem` - Redeem referral code
+
 ## Project Structure
 
 ```
 src/
-├── index.ts          # Entry point
-├── routes/           # API routes
+├── index.ts              # Entry point
+├── routes/               # API routes
 │   ├── health.ts
 │   ├── auth.ts
 │   ├── conversations.ts
 │   ├── folders.ts
+│   ├── memory.ts
+│   ├── credits.ts
 │   ├── chat.ts
+│   ├── billing.ts
+│   ├── developer.ts
+│   ├── organization.ts
+│   ├── feedback.ts
+│   ├── referrals.ts
+│   ├── skills.ts
+│   ├── automations.ts
+│   ├── analytics.ts
+│   ├── models-stats.ts
+│   ├── external-models.ts
+│   ├── codea.ts
+│   ├── channels.ts
+│   ├── webhooks.ts
+│   ├── telegram.ts
 │   ├── v1.ts
-│   └── v1/
-│       ├── chat-completions.ts
-│       └── models.ts
-├── models/           # MongoDB models
-├── lib/              # Utilities and providers
-└── internal/         # INTERNAL MODULES - NOT PUBLIC
-    └── providers/    # Provider management (admin only, HMAC auth)
+│   ├── v1/
+│   │   ├── chat-completions.ts
+│   │   ├── models.ts
+│   │   ├── voice.ts
+│   │   ├── realtime.ts
+│   │   └── responses.ts
+│   └── canvas/
+│       ├── index.ts
+│       ├── workflows.ts
+│       ├── sessions.ts
+│       └── execute.ts
+├── models/               # MongoDB models
+├── lib/                  # Utilities and providers
+└── internal/             # INTERNAL MODULES - NOT PUBLIC
+    └── providers/        # Provider management (admin only, HMAC auth)
 ```
 
 ### Internal Modules -- WARNING

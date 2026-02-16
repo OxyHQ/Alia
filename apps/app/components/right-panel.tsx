@@ -1,6 +1,7 @@
 import { useWindowDimensions } from "react-native";
 import { useUIStore } from "@/lib/stores/ui-store";
 import { CreditsPanel } from "./credits-panel";
+import { ThoughtPanel } from "./thought-panel";
 import { Panel } from "./ui/panel";
 
 const PANEL_WIDTH = 320;
@@ -21,6 +22,8 @@ export function RightPanel() {
     switch (rightPanel) {
       case "credits":
         return <CreditsPanel />;
+      case "thought":
+        return <ThoughtPanel />;
       default:
         return null;
     }

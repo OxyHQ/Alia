@@ -243,6 +243,20 @@ Use this role to guide your responses, maintaining the specified tone, style, an
             try {
               const parsed = JSON.parse(data);
 
+              // Handle structured error events sent via SSE (when headers were sent before validation)
+              if (parsed.error?.status) {
+                const err = parsed.error;
+                if ([429, 402, 403].includes(err.status)) {
+                  throw new UsageLimitError({
+                    type: err.code === 'MODEL_NOT_IN_PLAN' ? 'model_access' : err.code === 'INSUFFICIENT_CREDITS' ? 'credits' : 'rate_limit',
+                    code: err.code,
+                    message: err.message,
+                    retryable: err.retryable ?? false,
+                    suggestedAction: err.suggestedAction || 'upgrade',
+                  });
+                }
+              }
+
               // Handle OpenAI-compatible format
               const choice = parsed.choices?.[0];
               if (!choice) continue;

@@ -7,14 +7,22 @@ import React, { useEffect, useState } from "react";
 import type { ScrollView as GHScrollView } from "react-native-gesture-handler";
 import { processMessage } from "@/lib/message-processor";
 import { cn } from "@/lib/utils";
-import { LottieLoader } from "@/components/lottie-loader";
+import { ThinkingIndicator } from "@/components/thinking-indicator";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Bot, Copy, ThumbsUp, ThumbsDown, Pencil, Check } from "lucide-react-native";
-import Animated, { FadeInUp } from "react-native-reanimated";
+import { Copy, ThumbsUp, ThumbsDown, Pencil, Check } from "lucide-react-native";
+import Animated, {
+  FadeInUp,
+  useSharedValue,
+  useAnimatedStyle,
+  withRepeat,
+  withSequence,
+  withTiming,
+} from "react-native-reanimated";
 import * as Clipboard from "expo-clipboard";
-import { Reasoning, ReasoningTrigger, ReasoningContent } from "@/components/ui/reasoning";
-import { getToolIcon, getToolLabel } from "@/lib/tool-registry";
+import { Reasoning, ReasoningTrigger } from "@/components/ui/reasoning";
+import { getToolLabel } from "@/lib/tool-registry";
 import { getTextFromContent, getImagesFromContent } from "@/lib/attachment-utils";
+import { useUIStore } from "@/lib/stores/ui-store";
 import type { ToolInvocation } from "@/lib/types/messages";
 
 type MessagePart = {
@@ -69,10 +77,45 @@ function getMessageImages(message: Message): string[] {
   return [];
 }
 
+/** Pulsing colored bullet for tool execution status (alia-codea style). */
+function ToolBullet({ isRunning }: { isRunning: boolean }) {
+  const opacity = useSharedValue(1);
+  React.useEffect(() => {
+    if (isRunning) {
+      opacity.value = withRepeat(
+        withSequence(
+          withTiming(0.3, { duration: 500 }),
+          withTiming(1, { duration: 500 })
+        ),
+        -1
+      );
+    } else {
+      opacity.value = 1;
+    }
+  }, [isRunning, opacity]);
+  const style = useAnimatedStyle(() => ({ opacity: opacity.value }));
+  return (
+    <Animated.View style={style}>
+      <Text
+        style={{ color: isRunning ? '#eab308' : '#22c55e', fontSize: 10 }}
+      >
+        ●
+      </Text>
+    </Animated.View>
+  );
+}
+
 export const ChatInterface = React.memo(function ChatInterface({ messages, scrollViewRef, isLoading, onSuggestionPress, onEditMessage, onCopyMessage, bottomPadding = 160 }: ChatInterfaceProps) {
     const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
     const [editedContent, setEditedContent] = useState("");
     const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
+    const openThoughtPanel = useUIStore((s) => s.openThoughtPanel);
+    const setThoughtMessages = useUIStore((s) => s.setThoughtMessages);
+
+    // Sync messages to the UI store so ThoughtPanel (a sibling in the layout tree) can access them
+    useEffect(() => {
+      setThoughtMessages(messages as any);
+    }, [messages, setThoughtMessages]);
 
     const handleCopyMessage = async (messageId: string, content: string) => {
       await Clipboard.setStringAsync(content);
@@ -136,50 +179,40 @@ export const ChatInterface = React.memo(function ChatInterface({ messages, scrol
                   key={m.id || `msg-${index}`}
                   entering={FadeInUp.delay(index * 50).springify()}
                 >
-                  {/* Tool Invocations */}
+                  {/* Tool Invocations — alia-codea bullet style */}
                   {m.toolInvocations?.map((t, ti) => {
                     const key = t.toolCallId || `tool-${m.id}-${ti}`;
-                    const ToolIcon = getToolIcon(t.toolName);
                     const toolLabel = getToolLabel(t.toolName);
+                    const isRunning = t.state === 'call' || t.state === 'partial-call';
 
-                    // Show loading state for calls
-                    if (t.state === 'call' || t.state === 'partial-call') {
-                      return (
-                        <View
-                          key={key}
-                          className="mb-2 flex-row items-center justify-start"
-                        >
-                          <View className="rounded-full bg-muted/50 px-3 py-1.5 flex-row items-center gap-1.5">
-                            <LottieLoader width={14} height={14} />
-                            <ToolIcon size={12} className="text-muted-foreground" />
-                            <Text className="text-xs text-muted-foreground">
-                              {toolLabel}
-                              {t.args?.query ? `: ${t.args.query.substring(0, 30)}${t.args.query.length > 30 ? '...' : ''}` : ''}
-                              {t.args?.url ? `: ${t.args.url.substring(0, 30)}${t.args.url.length > 30 ? '...' : ''}` : ''}
-                            </Text>
-                          </View>
-                        </View>
-                      );
+                    // Build description from tool args
+                    let description = '';
+                    if (t.args?.url) {
+                      const url = String(t.args.url);
+                      description = url.length > 40 ? url.substring(0, 40) + '...' : url;
+                    } else if (t.args?.query) {
+                      const q = String(t.args.query);
+                      description = `"${q.length > 30 ? q.substring(0, 30) + '...' : q}"`;
                     }
 
-                    // Show completed state (result is embedded in text)
-                    if (t.state === 'result') {
-                      return (
-                        <View
-                          key={key}
-                          className="mb-2 flex-row items-center justify-start"
-                        >
-                          <View className="rounded-full bg-primary/10 border border-primary/20 px-3 py-1.5 flex-row items-center gap-1.5">
-                            <ToolIcon size={12} className="text-primary" />
-                            <Text className="text-xs font-medium text-primary">
-                              {toolLabel}
-                            </Text>
-                          </View>
-                        </View>
-                      );
-                    }
+                    const isDone = t.state === 'result';
 
-                    return null;
+                    return (
+                      <Pressable
+                        key={key}
+                        className="flex-row items-center gap-2 py-1 active:opacity-70"
+                        onPress={isDone ? () => openThoughtPanel(m.id) : undefined}
+                        disabled={!isDone}
+                      >
+                        <ToolBullet isRunning={isRunning} />
+                        <Text className="text-sm text-foreground flex-1 flex-shrink">
+                          <Text className="font-bold">{toolLabel}</Text>
+                          {description ? (
+                            <Text className="text-muted-foreground"> {description}</Text>
+                          ) : null}
+                        </Text>
+                      </Pressable>
+                    );
                   })}
 
                   {/* Thinking Content (Extended Thinking Mode) */}
@@ -192,11 +225,13 @@ export const ChatInterface = React.memo(function ChatInterface({ messages, scrol
                           !messageText
                         }
                       >
-                        <ReasoningTrigger />
-                        <ReasoningContent>{(m as any).thinking}</ReasoningContent>
+                        <ReasoningTrigger
+                          onPress={() => openThoughtPanel(m.id)}
+                        />
                       </Reasoning>
                     </View>
                   )}
+
 
                   {/* Message Content */}
                   {(messageText.length > 0 || messageImages.length > 0) && (
@@ -309,20 +344,16 @@ export const ChatInterface = React.memo(function ChatInterface({ messages, scrol
                     </View>
                   )}
 
-                  {/* Loading Indicator */}
+                  {/* ThinkingIndicator — shows when the last assistant message has no text yet */}
                   {isLoading &&
-                    messages[messages.length - 1]?.role === "user" &&
-                    m === messages[messages.length - 1] && (
-                      <View key="loading-indicator" className="mt-4 flex-row items-start gap-2">
-                        <Avatar className="h-8 w-8">
-                          <AvatarFallback className="bg-primary/10">
-                            <Bot size={16} className="text-primary" />
-                          </AvatarFallback>
-                        </Avatar>
-                        <View className="rounded-2xl bg-muted px-4 py-3">
-                          <LottieLoader width={40} height={40} />
-                        </View>
-                      </View>
+                    m.role === "assistant" &&
+                    m === messages[messages.length - 1] &&
+                    !getMessageText(m) && (
+                      <ThinkingIndicator
+                        isWorking={
+                          (m.toolInvocations?.length ?? 0) > 0
+                        }
+                      />
                     )}
                 </Animated.View>
               );

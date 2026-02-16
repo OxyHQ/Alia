@@ -66,8 +66,8 @@ GET /api/v1/models?app={app_type}
 
 **Model Filtering by App:**
 
-- **Main App** (`app=main`): General models + multimodal (vision, audio)
-  - Available: `alia-lite`, `alia-v1`, `alia-v1-vision`, `alia-v1-audio`, `alia-v1-multimodal`, `alia-v1-pro`, `alia-v1-pro-max`
+- **Main App** (`app=main`): General models + multimodal (vision, audio, voice)
+  - Available: `alia-lite`, `alia-v1`, `alia-v1-vision`, `alia-v1-audio`, `alia-v1-multimodal`, `alia-v1-pro`, `alia-v1-pro-max`, `alia-v1-thinking`, `alia-v1-voice`, `alia-v1-voice-pro`
 
 - **Codea** (`app=codea`): Coding-specialized models
   - Available: `alia-v1-codea`, `alia-v1-pro`, `alia-v1-thinking`
@@ -522,6 +522,10 @@ GET /api/user/dashboard
 **Audio:**
 - `alia-v1-audio` - Transcription, speech-to-text
 
+**Voice (Real-time):**
+- `alia-v1-voice` - Real-time voice conversations
+- `alia-v1-voice-pro` - Premium voice with extended context
+
 **Desktop Automation (Cowork):**
 - `alia-v1-cowork` - Desktop control
 - `alia-v1-vision` - Screen understanding
@@ -711,6 +715,6 @@ See our [GitHub repository](https://github.com/alia-ai/examples) for complete ex
 
 ---
 
-**Last Updated:** February 14, 2026
+**Last Updated:** February 15, 2026
 **API Version:** v1
 **Status:** Production Ready

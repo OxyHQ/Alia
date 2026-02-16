@@ -13,7 +13,7 @@ import {
   CollapsibleTrigger,
   CollapsibleContent,
 } from "@/components/ui/collapsible";
-import { Brain, ChevronDown } from "lucide-react-native";
+import { Brain, ChevronDown, ChevronRight } from "lucide-react-native";
 import { cn } from "@/lib/utils";
 import Animated, {
   useAnimatedStyle,
@@ -64,6 +64,8 @@ export type ReasoningProps = {
 export type ReasoningTriggerProps = {
   /** Optional function to customize the thinking message. */
   getThinkingMessage?: (isStreaming: boolean, duration?: number) => React.ReactNode;
+  /** When provided, pressing the trigger calls this instead of toggling the collapsible. */
+  onPress?: () => void;
   className?: string;
 };
 
@@ -168,6 +170,7 @@ export function Reasoning({
  */
 export function ReasoningTrigger({
   getThinkingMessage,
+  onPress,
   className,
 }: ReasoningTriggerProps) {
   const { isStreaming, isOpen, duration } = useReasoning();
@@ -207,24 +210,27 @@ export function ReasoningTrigger({
     ? getThinkingMessage(isStreaming, duration)
     : defaultThinkingMessage(isStreaming, duration);
 
-  return (
-    <CollapsibleTrigger asChild>
-      <Pressable
-        className={cn(
-          "flex-row items-center gap-2 py-2 px-3 rounded-lg",
-          "active:opacity-70",
-          className
-        )}
+  const triggerContent = (
+    <Pressable
+      onPress={onPress}
+      className={cn(
+        "flex-row items-center gap-2 py-2 px-3 rounded-lg",
+        "active:opacity-70",
+        className
+      )}
+    >
+      <Animated.View style={isStreaming ? pulseStyle : undefined}>
+        <Brain size={16} color="#a855f7" />
+      </Animated.View>
+      <Text
+        className="text-sm font-medium flex-1"
+        style={{ color: "#a855f7" }}
       >
-        <Animated.View style={isStreaming ? pulseStyle : undefined}>
-          <Brain size={16} color="#a855f7" />
-        </Animated.View>
-        <Text
-          className="text-sm font-medium flex-1"
-          style={{ color: "#a855f7" }}
-        >
-          {message}
-        </Text>
+        {message}
+      </Text>
+      {onPress ? (
+        <ChevronRight size={16} color="#a855f7" />
+      ) : (
         <View
           style={{
             transform: [{ rotate: isOpen ? "180deg" : "0deg" }],
@@ -232,7 +238,19 @@ export function ReasoningTrigger({
         >
           <ChevronDown size={16} color="#a855f7" />
         </View>
-      </Pressable>
+      )}
+    </Pressable>
+  );
+
+  // When onPress is provided, render as a plain Pressable (opens panel)
+  // Otherwise, wrap in CollapsibleTrigger for inline expand/collapse
+  if (onPress) {
+    return triggerContent;
+  }
+
+  return (
+    <CollapsibleTrigger asChild>
+      {triggerContent}
     </CollapsibleTrigger>
   );
 }
