@@ -25,7 +25,7 @@ Four specialized agents are available:
 | `apps/alia-cowork` | Electron | Desktop AI assistant |
 | `apps/alia-console` | TanStack Start + React | Admin console |
 | `apps/alia-providers-admin` | Vite + React | Provider management panel |
-| `apps/canvas` | Next.js | Web canvas app |
+| `apps/alia-canvas` | Next.js | Web canvas app |
 | `apps/codea-cli` | CLI | Terminal AI coding assistant |
 | `apps/integrations` | Express + TypeScript | Unified messaging service (Telegram, Discord, WhatsApp, Signal) |
 
@@ -65,7 +65,7 @@ npm run ios
 - [apps/alia-cowork](apps/alia-cowork/README.md)
 - [apps/alia-console](apps/alia-console/README.md)
 - [apps/alia-providers-admin](apps/alia-providers-admin/README.md)
-- [apps/canvas](apps/canvas/README.md)
+- [apps/alia-canvas](apps/alia-canvas/README.md)
 - [apps/codea-cli](apps/codea-cli/README.md)
 - [apps/integrations](apps/integrations/README.md)
 
