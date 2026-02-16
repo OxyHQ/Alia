@@ -5,6 +5,7 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { View, useWindowDimensions } from 'react-native';
 import { useProjectsStore } from '@/lib/stores/projects-store';
 import { useRolesStore } from '@/lib/stores/roles-store';
+import { useAgentsStore } from '@/lib/stores/agents-store';
 import { useFoldersStore } from '@/lib/stores/folders-store';
 import { useFavoritesStore } from '@/lib/stores/favorites-store';
 import { usePinnedStore } from '@/lib/stores/pinned-store';
@@ -21,6 +22,7 @@ export default function AppLayout() {
   const { colorScheme, colors } = useColorScheme();
   const loadProjects = useProjectsStore((state) => state.loadProjects);
   const loadRoles = useRolesStore((state) => state.loadRoles);
+  const loadAgents = useAgentsStore((state) => state.loadAgents);
   const loadFolders = useFoldersStore((state) => state.loadFolders);
   const loadFavorites = useFavoritesStore((state) => state.loadFavorites);
   const loadPinned = usePinnedStore((state) => state.loadPinned);
@@ -30,10 +32,11 @@ export default function AppLayout() {
   useEffect(() => {
     loadProjects();
     loadRoles();
+    loadAgents();
     loadFolders();
     loadFavorites();
     loadPinned();
-  }, [loadProjects, loadRoles, loadFolders, loadFavorites, loadPinned]);
+  }, [loadProjects, loadRoles, loadAgents, loadFolders, loadFavorites, loadPinned]);
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
@@ -193,6 +196,13 @@ export default function AppLayout() {
               options={{
                 drawerItemStyle: { display: 'none' },
                 title: i18n.t('nav.roleDetail'),
+              }}
+            />
+            <Drawer.Screen
+              name="agents/[id]"
+              options={{
+                drawerItemStyle: { display: 'none' },
+                title: i18n.t('nav.agentDetail'),
               }}
             />
             <Drawer.Screen
