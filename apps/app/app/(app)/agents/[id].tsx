@@ -1,4 +1,4 @@
-import React, { useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import { View, ScrollView, Pressable } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { Text } from "@/components/ui/text";
@@ -12,7 +12,7 @@ import {
   Share2,
   Star,
 } from "lucide-react-native";
-import { useAgentsStore } from "@/lib/stores/agents-store";
+import { useAgentsStore, type Agent } from "@/lib/stores/agents-store";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { useTranslation } from "@/hooks/useTranslation";
 import { toast } from "@/components/sonner";
@@ -38,19 +38,29 @@ function formatCount(n: number): string {
 
 export default function AgentDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const agents = useAgentsStore((state) => state.agents);
-  const loadAgents = useAgentsStore((state) => state.loadAgents);
-  const toggleFollow = useAgentsStore((state) => state.toggleFollow);
+  const getAgent = useAgentsStore((state) => state.getAgent);
+  const followAgent = useAgentsStore((state) => state.followAgent);
   const router = useRouter();
   const { t } = useTranslation();
-
-  const agent = agents.find((a) => a.id === id);
+  const [agent, setAgent] = useState<Agent | null>(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (agents.length === 0) {
-      loadAgents();
+    if (id) {
+      setLoading(true);
+      getAgent(id).then((data) => {
+        setAgent(data);
+        setLoading(false);
+      });
     }
-  }, [agents, loadAgents]);
+  }, [id, getAgent]);
+
+  const handleFollow = async () => {
+    if (!agent) return;
+    await followAgent(agent._id);
+    const updated = await getAgent(agent._id);
+    if (updated) setAgent(updated);
+  };
 
   const handleHire = () => {
     toast.info(t("agents.hireComingSoon"));
@@ -59,6 +69,14 @@ export default function AgentDetailScreen() {
   const handleShare = () => {
     toast.info(t("agents.shareComingSoon"));
   };
+
+  if (loading) {
+    return (
+      <View className="flex-1 bg-background items-center justify-center">
+        <Text className="text-muted-foreground">{t("common.loading")}</Text>
+      </View>
+    );
+  }
 
   if (!agent) {
     return (
@@ -155,7 +173,7 @@ export default function AgentDetailScreen() {
               </Text>
               <Text className="text-[13px] text-muted-foreground mx-1">·</Text>
               <Text className="text-[13px] text-muted-foreground">
-                {agent.author}
+                {agent.authorName}
               </Text>
               {agent.authorVerified && (
                 <CheckCircle2
@@ -204,7 +222,7 @@ export default function AgentDetailScreen() {
           <View className="flex-row gap-2 mb-5">
             <Button
               variant="outline"
-              onPress={() => toggleFollow(agent.id)}
+              onPress={handleFollow}
               className="flex-1 h-11 rounded-full"
             >
               <View className="flex-row items-center gap-1.5">

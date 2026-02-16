@@ -15,7 +15,7 @@ export default function AgentsScreen() {
   const { t } = useTranslation();
   const agents = useAgentsStore((state) => state.agents);
   const loadAgents = useAgentsStore((state) => state.loadAgents);
-  const toggleFollow = useAgentsStore((state) => state.toggleFollow);
+  const followAgent = useAgentsStore((state) => state.followAgent);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const router = useRouter();
@@ -32,7 +32,7 @@ export default function AgentsScreen() {
   };
 
   const handleFollow = (agentId: string) => {
-    toggleFollow(agentId);
+    followAgent(agentId);
   };
 
   const handleHire = (_agentId: string) => {
@@ -170,7 +170,7 @@ export default function AgentsScreen() {
             >
               {featuredAgents.map((agent) => (
                 <AgentCard
-                  key={agent.id}
+                  key={agent._id}
                   agent={agent}
                   variant="featured"
                   onPress={handleSelectAgent}
@@ -203,7 +203,7 @@ export default function AgentsScreen() {
           <View className="flex-row flex-wrap" style={{ margin: -6 }}>
             {filteredAgents.map((agent) => (
               <View
-                key={agent.id}
+                key={agent._id}
                 style={{
                   width: isLargeScreen ? "33.33%" : "50%",
                   padding: 6,
