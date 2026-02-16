@@ -2,7 +2,7 @@
  * Voice Provider Types
  *
  * Type definitions for real-time voice calling functionality
- * Compatible with OpenAI Realtime API specification
+ * Compatible with OpenAI Realtime API specification + LiveKit rooms
  */
 
 import type WebSocket from 'ws';
@@ -27,8 +27,7 @@ export type VoiceSessionState = 'connecting' | 'active' | 'disconnecting' | 'clo
 
 export interface VoiceSession {
   sessionId: string;
-  clientSocket: WebSocket;          // Client-facing WebSocket
-  providerSocket: WebSocket | null; // Provider WebSocket connection
+  providerSocket: WebSocket | null; // Provider WebSocket connection (OpenAI/Grok)
   state: VoiceSessionState;
   startTime: Date;
   userId: string;
@@ -37,13 +36,18 @@ export interface VoiceSession {
   providerModelId: string;
   creditReservation: CreditReservation | null;
 
+  // LiveKit room
+  roomName: string;
+  agentBridge: LiveKitAgentBridgeRef | null;
+
   // Audio state
   lastActivityTime: Date;
+  lastUserSpeechTime: Date | null;
 
   // Billing
   billingTimer: NodeJS.Timeout | null;
   minutesElapsed: number;
-  costPerMinute: number;             // Provider's cost per minute
+  costPerMinute: number;
 
   // Session metadata
   audioFormat: string;
@@ -52,19 +56,79 @@ export interface VoiceSession {
 
   // Server-side tool executors for function calling
   toolExecutors?: Map<string, (args: any) => Promise<any>>;
+
+  // Inactivity timer (10s after AI finishes speaking in normal mode)
+  userSilenceTimer: NodeJS.Timeout | null;
+
+  // Cohost
+  cohostEnabled: boolean;
+  cohostBridge: LiveKitAgentBridgeRef | null;
+  cohostProviderSocket: WebSocket | null;
+  cohostProvider: string | null;
+  cohostProviderModelId: string | null;
+  cohostCreditReservation: CreditReservation | null;
+  cohostCostPerMinute: number;
+  cohostBillingTimer: NodeJS.Timeout | null;
+  cohostMinutesElapsed: number;
+  cohostState: CohostState | null;
+  cohostToolExecutors?: Map<string, (args: any) => Promise<any>>;
+  cohostInactivityTimer: NodeJS.Timeout | null;
+  recentTranscripts: TranscriptEntry[];
+}
+
+/** Opaque reference to LiveKitAgentBridge to avoid circular deps */
+export interface LiveKitAgentBridgeRef {
+  disconnect(): Promise<void>;
+  publishData(data: object): Promise<void>;
+}
+
+// ============== COHOST ==============
+
+export interface CohostConfig {
+  voice: string;
+  autoConverse: boolean;
+  maxTurnsPerRound: number;
+  turnPauseMs: number;
+}
+
+export const DEFAULT_COHOST_CONFIG: CohostConfig = {
+  voice: 'nova',
+  autoConverse: true,
+  maxTurnsPerRound: 10,
+  turnPauseMs: 500,
+};
+
+export type CohostTurnState =
+  | 'idle'
+  | 'primary_speaking'
+  | 'cohost_speaking'
+  | 'waiting_for_next'
+  | 'user_speaking';
+
+export interface CohostState {
+  turnState: CohostTurnState;
+  turnsInCurrentRound: number;
+  lastTranscript: string | null;
+  config: CohostConfig;
+}
+
+export interface TranscriptEntry {
+  speaker: 'primary' | 'cohost' | 'user';
+  text: string;
+  timestamp: number;
 }
 
 // ============== VOICE SESSION CONFIG ==============
 
 export interface VoiceSessionConfig {
   model: string;
-  audioFormat?: string;              // 'pcm16', 'opus', 'g711_ulaw', 'g711_alaw'
-  sampleRate?: number;               // 16000, 24000, 48000
-  instructions?: string;             // System instructions
-  voice?: string;                    // Voice ID (e.g., 'alloy', 'echo', 'nova')
-  temperature?: number;              // Temperature for responses
-  tools?: OpenAITool[];             // Function calling tools
-  maxDuration?: number;              // Max duration in minutes
+  audioFormat?: string;
+  sampleRate?: number;
+  instructions?: string;
+  voice?: string;
+  temperature?: number;
+  tools?: OpenAITool[];
+  maxDuration?: number;
 }
 
 // ============== VOICE PROVIDER ==============
@@ -73,17 +137,11 @@ export interface VoiceProvider {
   name: string;
   isEnabled: () => boolean;
   voice: {
-    // Capabilities
     capabilities: VoiceCapabilities;
-
-    // Create WebSocket connection to provider
     connect: (
       key: KeyConfig,
       config: VoiceSessionConfig
     ) => Promise<WebSocket>;
-
-    // Translate events between OpenAI format and provider format
-    // Optional: if provider uses OpenAI format, these can be omitted
     translateClientEvent?: (event: any) => any;
     translateProviderEvent?: (event: any) => any;
   };
@@ -96,3 +154,22 @@ export interface SessionCloseReason {
   reason: string;
   wasClean: boolean;
 }
+
+// ============== DATA CHANNEL PROTOCOL ==============
+
+export type AgentDataMessage =
+  | { type: 'agent.state'; state: 'listening' | 'thinking' | 'speaking'; speaker: 'primary' | 'cohost' }
+  | { type: 'transcript.delta'; delta: string; speaker: 'primary' | 'cohost' }
+  | { type: 'transcript.done'; transcript: string; speaker: 'primary' | 'cohost' }
+  | { type: 'transcript.user'; transcript: string }
+  | { type: 'cohost.enabled' }
+  | { type: 'cohost.disabled' }
+  | { type: 'cohost.turn_changed'; speaker: 'primary' | 'cohost' | 'user' }
+  | { type: 'cohost.round_complete'; turns: number }
+  | { type: 'session.ended'; reason: string }
+  | { type: 'error'; code: string; message: string };
+
+export type ClientDataMessage =
+  | { type: 'cohost.enable' }
+  | { type: 'cohost.disable' }
+  | { type: 'cohost.continue' };

@@ -1,4 +1,4 @@
-import { AccessToken } from 'livekit-server-sdk';
+import { AccessToken, RoomServiceClient } from 'livekit-server-sdk';
 
 const LIVEKIT_API_KEY = process.env.LIVEKIT_API_KEY || '';
 const LIVEKIT_API_SECRET = process.env.LIVEKIT_API_SECRET || '';
@@ -21,6 +21,27 @@ export function getLiveKitUrl(): string {
   return process.env.LIVEKIT_URL || 'ws://localhost:7880';
 }
 
+/** Get the HTTP URL for the LiveKit server (for RoomServiceClient). */
+function getLiveKitHttpUrl(): string {
+  const wsUrl = getLiveKitUrl();
+  // Convert ws:// to http:// and wss:// to https://
+  return wsUrl.replace(/^ws:/, 'http:').replace(/^wss:/, 'https:');
+}
+
+let _roomService: RoomServiceClient | null = null;
+
+function getRoomService(): RoomServiceClient {
+  if (!_roomService) {
+    if (!isLiveKitConfigured()) {
+      throw new Error('LiveKit is not configured. Set LIVEKIT_API_KEY and LIVEKIT_API_SECRET.');
+    }
+    _roomService = new RoomServiceClient(getLiveKitHttpUrl(), LIVEKIT_API_KEY, LIVEKIT_API_SECRET);
+  }
+  return _roomService;
+}
+
+// ============== TOKEN GENERATION ==============
+
 export async function createVoiceToken(userId: string, roomName: string): Promise<string> {
   if (!isLiveKitConfigured()) {
     throw new Error('LiveKit is not configured. Set LIVEKIT_API_KEY and LIVEKIT_API_SECRET.');
@@ -42,14 +63,14 @@ export async function createVoiceToken(userId: string, roomName: string): Promis
   return await withTimeout(token.toJwt(), TOKEN_TIMEOUT_MS, 'LiveKit token generation');
 }
 
-export async function createAgentToken(roomName: string): Promise<string> {
+export async function createAgentToken(roomName: string, identity = 'alia-agent'): Promise<string> {
   if (!isLiveKitConfigured()) {
     throw new Error('LiveKit is not configured.');
   }
 
   const token = new AccessToken(LIVEKIT_API_KEY, LIVEKIT_API_SECRET, {
-    identity: 'alia-agent',
-    ttl: '10m',
+    identity,
+    ttl: '30m', // Agents may run longer
   });
 
   token.addGrant({
@@ -62,4 +83,30 @@ export async function createAgentToken(roomName: string): Promise<string> {
   });
 
   return await withTimeout(token.toJwt(), TOKEN_TIMEOUT_MS, 'LiveKit agent token generation');
+}
+
+// ============== ROOM MANAGEMENT ==============
+
+/**
+ * Create a LiveKit room. Rooms are auto-created on first join,
+ * but explicit creation lets us set options like emptyTimeout.
+ */
+export async function createVoiceRoom(roomName: string): Promise<void> {
+  const service = getRoomService();
+  await service.createRoom({
+    name: roomName,
+    emptyTimeout: 300,       // 5 minutes before auto-delete if empty
+    departureTimeout: 30,    // 30s grace period after last participant leaves
+    maxParticipants: 5,      // user + primary agent + cohost agent + buffer
+  });
+}
+
+/** Delete a LiveKit room explicitly (for cleanup). */
+export async function deleteVoiceRoom(roomName: string): Promise<void> {
+  try {
+    const service = getRoomService();
+    await service.deleteRoom(roomName);
+  } catch {
+    // Room may already be deleted; ignore errors
+  }
 }

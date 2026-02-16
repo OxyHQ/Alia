@@ -48,9 +48,7 @@ import { seedSkills } from './lib/seed-skills.js';
 import { startScheduler } from './lib/automation-scheduler.js';
 import { warmupProviders } from './lib/provider-warmup.js';
 import { initChannels } from './lib/channels/index.js';
-// WebSocket and Socket.io
-import { WebSocketServer } from 'ws';
-import { setupRealtimeEndpoint } from './routes/v1/realtime.js';
+// Socket.io
 import { initSocket } from './socket.js';
 
 // Fix for ES Modules __dirname
@@ -94,23 +92,12 @@ server.on('connection', (socket) => {
 
 initSocket(server);
 
-const wss = new WebSocketServer({
-  noServer: true,
-  clientTracking: true,
-  maxPayload: 10 * 1024 * 1024, // 10MB max payload for audio
-});
-
-// Handle WebSocket upgrade for /v1/realtime path
+// Handle WebSocket upgrade for internal providers admin
 server.on('upgrade', (request, socket, head) => {
   try {
     const pathname = new URL(request.url!, `http://${request.headers.host}`).pathname;
 
-    if (pathname === '/v1/realtime') {
-      wss.handleUpgrade(request, socket, head, (ws) => {
-        wss.emit('connection', ws, request);
-      });
-    } else if (pathname === '/internal/providers/ws') {
-      // Validate JWT access token from query string
+    if (pathname === '/internal/providers/ws') {
       const url = new URL(request.url!, `http://${request.headers.host}`);
       const token = url.searchParams.get('token');
       if (!token) {
@@ -118,7 +105,6 @@ server.on('upgrade', (request, socket, head) => {
         socket.destroy();
         return;
       }
-      // Validate token using per-request OxyServices instance
       const perRequestOxy = new OxyServices({ baseURL: process.env.OXY_API_URL || 'https://api.oxy.so' });
       perRequestOxy.setTokens(token);
       perRequestOxy.validate().then((valid: boolean) => {
@@ -142,9 +128,6 @@ server.on('upgrade', (request, socket, head) => {
     socket.destroy();
   }
 });
-
-// Setup realtime endpoint
-setupRealtimeEndpoint(wss);
 
 // Public API routes (/v1) - allow all origins (like OpenAI's API)
 app.use('/v1', cors({
@@ -287,7 +270,6 @@ app.get('/', (_req, res) => {
       '/agents',
       '/v1/voice/token',
       '/v1/voice/transcribe',
-      '/v1/realtime (WebSocket)',
       '/internal/trigger',
       '/internal/providers'
     ]
@@ -345,7 +327,6 @@ connectDB()
       startScheduler().catch((err) => console.error('[Scheduler] Startup error:', err));
       // Pre-warm TLS connections to AI providers (non-blocking)
       warmupProviders().catch((err) => console.error('[Warmup] Provider warmup error:', err));
-      // LiveKit agent disabled — voice uses WebSocket Realtime API (/v1/realtime)
     });
 
     // Graceful shutdown handler

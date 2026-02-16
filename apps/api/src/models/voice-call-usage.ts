@@ -33,6 +33,13 @@ export interface IVoiceCallUsage extends Document {
   clientType?: string;
   ipAddress?: string;
 
+  // Cohost
+  cohostEnabled: boolean;
+  cohostProvider?: string;
+  cohostProviderModel?: string;
+  cohostDurationMinutes: number;
+  cohostCreditsCharged: number;
+
   // Timestamps
   createdAt?: Date;
   updatedAt?: Date;
@@ -115,6 +122,26 @@ const VoiceCallUsageSchema = new Schema<IVoiceCallUsage>(
     },
     ipAddress: {
       type: String,
+    },
+
+    // Cohost fields
+    cohostEnabled: {
+      type: Boolean,
+      default: false,
+    },
+    cohostProvider: {
+      type: String,
+    },
+    cohostProviderModel: {
+      type: String,
+    },
+    cohostDurationMinutes: {
+      type: Number,
+      default: 0,
+    },
+    cohostCreditsCharged: {
+      type: Number,
+      default: 0,
     },
   },
   {
