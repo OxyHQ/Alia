@@ -218,12 +218,21 @@ export class VoiceSessionManager {
       log.providers.info({ sessionId, ms: Date.now() - t2 }, '[Voice] Step 3/4: Agent joined LiveKit room');
 
       // 4. Wire up audio bridge and event handlers
+      let audioFramesSent = 0;
       agentBridge.onUserAudioFrame = (base64Pcm16) => {
         if (session.providerSocket?.readyState === WebSocket.OPEN) {
+          if (audioFramesSent === 0) {
+            log.providers.info({ sessionId, base64Length: base64Pcm16.length }, '[Voice] Forwarding first user audio frame to provider');
+          }
+          audioFramesSent++;
           session.providerSocket.send(JSON.stringify({
             type: 'input_audio_buffer.append',
             audio: base64Pcm16,
           }));
+        } else {
+          if (audioFramesSent === 0) {
+            log.providers.warn({ sessionId, readyState: session.providerSocket?.readyState }, '[Voice] Provider socket not open when first audio arrived');
+          }
         }
       };
 
@@ -342,6 +351,16 @@ export class VoiceSessionManager {
     providerSocket.on('message', async (data: Buffer) => {
       try {
         const event = JSON.parse(data.toString('utf-8'));
+
+        // Log all provider events for diagnostics
+        if (event.type === 'error') {
+          log.providers.error({ event, sessionId: session.sessionId, role }, '[Voice] Provider error event');
+        } else if (event.type === 'session.created' || event.type === 'session.updated') {
+          log.providers.info({ eventType: event.type, sessionId: session.sessionId, role }, '[Voice] Provider session confirmed');
+        } else if (event.type !== 'response.audio.delta' && event.type !== 'input_audio_buffer.speech_started') {
+          // Log non-audio events (audio.delta is too frequent)
+          log.providers.info({ eventType: event.type, sessionId: session.sessionId, role }, '[Voice] Provider event');
+        }
 
         // Route audio to LiveKit
         if (event.type === 'response.audio.delta' && event.delta) {

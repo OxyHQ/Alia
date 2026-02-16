@@ -88,14 +88,25 @@ export const openaiVoiceProvider: VoiceProvider = {
           }
 
           ws.send(JSON.stringify(sessionConfig));
-          log.providers.info('Sent session configuration');
+          log.providers.info({ model }, '[Voice] Sent OpenAI session configuration');
+
+          // Log provider's first response (session confirmation or error)
+          ws.once('message', (msgData: Buffer) => {
+            try {
+              const event = JSON.parse(msgData.toString('utf-8'));
+              log.providers.info({ eventType: event.type, model }, '[Voice] First OpenAI event after session.update');
+              if (event.type === 'error') {
+                log.providers.error({ event, model }, '[Voice] OpenAI rejected session config');
+              }
+            } catch {}
+          });
 
           resolve(ws);
         });
 
         ws.on('error', (error) => {
           clearTimeout(timeout);
-          log.providers.error({ err: error }, 'Connection error');
+          log.providers.error({ err: error }, '[Voice] OpenAI connection error');
           reject(error);
         });
       });

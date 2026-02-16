@@ -36,6 +36,8 @@ export class LiveKitAgentBridge implements LiveKitAgentBridgeRef {
   private audioStreamReader: ReadableStreamDefaultReader<AudioFrame> | null = null;
   private identity: string;
   private connected = false;
+  private capturedFrameCount = 0;
+  private publishedFrameCount = 0;
 
   /** Callback invoked when user audio frames arrive from LiveKit */
   onUserAudioFrame: ((base64Pcm16: string) => void) | null = null;
@@ -60,6 +62,12 @@ export class LiveKitAgentBridge implements LiveKitAgentBridgeRef {
     await this.room.connect(url, token, { autoSubscribe: true });
     this.connected = true;
 
+    log.providers.info({
+      identity: this.identity,
+      remoteParticipants: this.room.remoteParticipants.size,
+      localParticipant: this.room.localParticipant?.identity,
+    }, '[Voice] Agent connected to room');
+
     // Set up audio output (agent → room)
     this.audioSource = new AudioSource(SAMPLE_RATE, NUM_CHANNELS);
     this.audioTrack = LocalAudioTrack.createAudioTrack(`${this.identity}-audio`, this.audioSource);
@@ -71,10 +79,16 @@ export class LiveKitAgentBridge implements LiveKitAgentBridgeRef {
 
     // Listen for remote audio tracks (user's microphone)
     this.room.on(RoomEvent.TrackSubscribed, (track, publication, participant) => {
+      log.providers.info({ kind: track.kind, participant: participant.identity, identity: this.identity }, '[Voice] TrackSubscribed event');
       // Only subscribe to audio from non-agent participants
       if (track.kind === 'audio' && participant.identity !== this.identity) {
         this.startAudioCapture(track, participant.identity);
       }
+    });
+
+    // Log when participants join
+    this.room.on(RoomEvent.ParticipantConnected, (participant) => {
+      log.providers.info({ participant: participant.identity, identity: this.identity }, '[Voice] Participant connected to room');
     });
 
     // Listen for data messages from client
@@ -126,6 +140,10 @@ export class LiveKitAgentBridge implements LiveKitAgentBridgeRef {
         // Convert Int16Array to base64 PCM16
         const buffer = Buffer.from(value.data.buffer, value.data.byteOffset, value.data.byteLength);
         const base64 = buffer.toString('base64');
+        if (this.capturedFrameCount === 0) {
+          log.providers.info({ participant: participantIdentity, bufferSize: buffer.length }, '[Voice] First audio frame received from user');
+        }
+        this.capturedFrameCount++;
         this.onUserAudioFrame?.(base64);
       }
     } catch (err: any) {
@@ -145,6 +163,11 @@ export class LiveKitAgentBridge implements LiveKitAgentBridgeRef {
     const buffer = Buffer.from(base64Pcm16, 'base64');
     const int16 = new Int16Array(buffer.buffer, buffer.byteOffset, buffer.byteLength / 2);
     const frame = new AudioFrame(int16, SAMPLE_RATE, NUM_CHANNELS, int16.length);
+
+    if (this.publishedFrameCount === 0) {
+      log.providers.info({ identity: this.identity, bufferSize: buffer.length }, '[Voice] Publishing first AI audio frame to LiveKit');
+    }
+    this.publishedFrameCount++;
 
     await this.audioSource.captureFrame(frame);
   }

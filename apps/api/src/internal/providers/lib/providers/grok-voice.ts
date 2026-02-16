@@ -96,14 +96,25 @@ export const grokVoiceProvider: VoiceProvider = {
           }
 
           ws.send(JSON.stringify(sessionConfig));
-          log.providers.info('Sent session configuration');
+          log.providers.info({ model }, '[Voice] Sent Grok session configuration');
+
+          // Log provider's first response (session confirmation or error)
+          ws.once('message', (msgData: Buffer) => {
+            try {
+              const event = JSON.parse(msgData.toString('utf-8'));
+              log.providers.info({ eventType: event.type, model }, '[Voice] First Grok event after session.update');
+              if (event.type === 'error') {
+                log.providers.error({ event, model }, '[Voice] Grok rejected session config');
+              }
+            } catch {}
+          });
 
           resolve(ws);
         });
 
         ws.on('error', (error) => {
           clearTimeout(timeout);
-          log.providers.error({ err: error }, 'Connection error');
+          log.providers.error({ err: error }, '[Voice] Grok connection error');
           reject(error);
         });
       });
