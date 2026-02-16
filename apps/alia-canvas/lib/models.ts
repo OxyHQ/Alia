@@ -25,7 +25,7 @@ export async function fetchModels(): Promise<Model[]> {
       name: m.name,
       description: m.description,
     }));
-    return cachedModels;
+    return cachedModels!;
   } catch {
     return DEFAULT_MODELS;
   }
