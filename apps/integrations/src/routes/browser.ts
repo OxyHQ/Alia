@@ -1,7 +1,7 @@
-import { Router } from 'express';
+import { Router, type Router as RouterType } from 'express';
 import { getOrCreateContext, takeScreenshot, closeContext } from '../browser/manager';
 
-export const browserRouter = Router();
+export const browserRouter: RouterType = Router();
 
 // Start or get a browser session
 browserRouter.post('/session/:sessionId/navigate', async (req, res) => {

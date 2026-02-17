@@ -1,7 +1,7 @@
-import { Router } from 'express';
+import { Router, type Router as RouterType } from 'express';
 import { createSession, runCommand, destroySession, writeToSession } from '../terminal/manager';
 
-export const terminalRouter = Router();
+export const terminalRouter: RouterType = Router();
 
 // Create a terminal session
 terminalRouter.post('/session/:sessionId/create', async (req, res) => {
