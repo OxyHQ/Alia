@@ -8,12 +8,20 @@ export interface IToolInvocation {
   result?: any;
 }
 
+export interface IAgentInfo {
+  id: string;
+  name: string;
+  avatar: string | null;
+  handle: string;
+}
+
 export interface IMessage {
   id?: string;
   role: 'user' | 'assistant' | 'system';
   content: string | Array<{ type: string; [key: string]: any }>;
   vote?: 'up' | 'down';
   toolInvocations?: IToolInvocation[];
+  agentInfo?: IAgentInfo;
   createdAt?: Date;
 }
 
@@ -54,12 +62,20 @@ const ToolInvocationSchema = new Schema<IToolInvocation>({
   result: Schema.Types.Mixed
 }, { _id: false });
 
+const AgentInfoSchema = new Schema({
+  id: String,
+  name: String,
+  avatar: { type: String, default: null },
+  handle: String,
+}, { _id: false });
+
 const MessageSchema = new Schema<IMessage>({
   id: String,
   role: { type: String, required: true, enum: ['user', 'assistant', 'system'] },
   content: { type: Schema.Types.Mixed, required: true },
   vote: { type: String, enum: ['up', 'down'], required: false },
   toolInvocations: [ToolInvocationSchema],
+  agentInfo: { type: AgentInfoSchema, required: false },
   createdAt: { type: Date, default: Date.now }
 }, { _id: false });
 

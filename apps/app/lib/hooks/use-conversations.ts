@@ -16,6 +16,13 @@ export interface Message {
   source?: 'text' | 'voice';
   speaker?: 'primary' | 'cohost';
   isStreaming?: boolean;
+  // Agent delegation metadata (when agent mode delegates to a specialist agent)
+  agentInfo?: {
+    id: string;
+    name: string;
+    avatar: string | null;
+    handle: string;
+  };
 }
 
 export interface Conversation {

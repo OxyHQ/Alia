@@ -40,6 +40,7 @@ export interface SaveConversationParams {
   toolInvocations?: any[];
   source?: ConversationSource;
   agentId?: string;
+  agentMessages?: Array<{ role: 'assistant'; content: string; agentInfo: { id: string; name: string; avatar: string | null; handle: string } }>;
 }
 
 /**
@@ -47,13 +48,19 @@ export interface SaveConversationParams {
  * Handles title extraction, tag stripping, and message assembly.
  */
 export async function saveConversation(params: SaveConversationParams): Promise<void> {
-  const { userId, conversationId, messages, assistantResponse, toolInvocations, source, agentId } = params;
+  const { userId, conversationId, messages, assistantResponse, toolInvocations, source, agentId, agentMessages } = params;
 
   const allMessages = [
     ...messages.filter(m => m && m.role).map((m: any) => ({
       role: m.role,
       content: m.content,
       toolInvocations: m.toolInvocations,
+    })),
+    // Insert agent messages before the final assistant response
+    ...(agentMessages || []).map(am => ({
+      role: am.role,
+      content: am.content,
+      agentInfo: am.agentInfo,
     })),
     {
       role: 'assistant',

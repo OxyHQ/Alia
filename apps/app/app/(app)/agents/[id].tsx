@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback } from "react";
-import { View, ScrollView, Pressable, Share, TextInput, Switch, Alert } from "react-native";
+import { View, ScrollView, Pressable, Share, TextInput, Switch, Alert, useWindowDimensions } from "react-native";
 import { Text } from "@/components/ui/text";
 import { Avatar, AvatarImage } from "@/components/ui/avatar";
 import * as DropdownMenu from "@/components/ui/dropdown-menu";
@@ -15,6 +15,7 @@ import {
   Bookmark,
   Ellipsis,
   Share2,
+  Trash2,
 } from "lucide-react-native";
 import { useAgentsStore, type Agent } from "@/lib/stores/agents-store";
 import { useRouter, useLocalSearchParams } from "expo-router";
@@ -51,6 +52,8 @@ export default function AgentDetailScreen() {
   const router = useRouter();
   const { t } = useTranslation();
   const { user } = useOxy();
+  const { width } = useWindowDimensions();
+  const isLargeScreen = width >= 768;
   const [agent, setAgent] = useState<Agent | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -212,284 +215,312 @@ export default function AgentDetailScreen() {
   return (
     <View className="flex-1 bg-background">
       {/* Header */}
-      <View className="px-5 py-3 z-10 flex-row items-center">
+      <View className="px-4 py-2.5 z-10 flex-row items-center gap-3 border-b border-border">
         <Pressable
           onPress={() => router.back()}
-          className="active:opacity-70"
+          className="active:opacity-70 p-1"
         >
-          <ArrowLeft size={22} className="text-foreground" />
+          <ArrowLeft size={20} className="text-foreground" />
         </Pressable>
+        {isLargeScreen && (
+          <Text className="text-sm font-medium text-foreground" numberOfLines={1}>
+            {agent.name}
+          </Text>
+        )}
       </View>
 
-      <ScrollView className="flex-1" showsVerticalScrollIndicator={false}>
-        <View className="px-5 pb-6 pt-2">
-          {/* Avatar */}
-          <View className="relative self-start">
-            <Avatar className="h-20 w-20">
-              <AvatarImage source={agent.avatar ? { uri: agent.avatar } : DEFAULT_AVATAR} />
-            </Avatar>
-            <View
-              className={cn(
-                "absolute bottom-1 right-1 w-4 h-4 rounded-full border-2 border-background",
-                STATUS_COLORS[agent.status]
-              )}
-            />
-          </View>
-
-          {/* Name + Verified + Status */}
-          <View className="mt-3">
-            <View className="flex-row items-center gap-1.5">
-              <Text className="text-xl font-bold text-foreground">
-                {agent.name}
-              </Text>
-              {agent.isVerified && (
-                <BadgeCheck size={16} className="text-blue-500" />
-              )}
+      {/* Content area: side-by-side on desktop, stacked on mobile */}
+      <View className={cn("flex-1", isLargeScreen && "flex-row")}>
+        {/* Left panel (or full-width on mobile): agent details */}
+        <ScrollView className="flex-1" showsVerticalScrollIndicator={false}>
+          <View className={cn("px-5 pb-6 pt-4", isLargeScreen && "px-6 max-w-2xl")}>
+            {/* Avatar */}
+            <View className="relative self-start">
+              <Avatar className="h-20 w-20">
+                <AvatarImage source={agent.avatar ? { uri: agent.avatar } : DEFAULT_AVATAR} />
+              </Avatar>
               <View
                 className={cn(
-                  "px-2 py-0.5 rounded-full ml-1",
-                  agent.status === "active"
-                    ? "bg-green-500/15"
-                    : agent.status === "idle"
-                      ? "bg-yellow-500/15"
-                      : "bg-gray-500/15"
+                  "absolute bottom-1 right-1 w-4 h-4 rounded-full border-2 border-background",
+                  STATUS_COLORS[agent.status]
                 )}
-              >
-                <Text
+              />
+            </View>
+
+            {/* Name + Verified + Status */}
+            <View className="mt-3">
+              <View className="flex-row items-center gap-1.5">
+                <Text className="text-xl font-bold text-foreground">
+                  {agent.name}
+                </Text>
+                {agent.isVerified && (
+                  <BadgeCheck size={16} className="text-blue-500" />
+                )}
+                <View
                   className={cn(
-                    "text-[10px] font-semibold",
-                    STATUS_TEXT_COLORS[agent.status]
+                    "px-2 py-0.5 rounded-full ml-1",
+                    agent.status === "active"
+                      ? "bg-green-500/15"
+                      : agent.status === "idle"
+                        ? "bg-yellow-500/15"
+                        : "bg-gray-500/15"
                   )}
                 >
-                  {t(`agents.status${agent.status.charAt(0).toUpperCase() + agent.status.slice(1)}`)}
+                  <Text
+                    className={cn(
+                      "text-[10px] font-semibold",
+                      STATUS_TEXT_COLORS[agent.status]
+                    )}
+                  >
+                    {t(`agents.status${agent.status.charAt(0).toUpperCase() + agent.status.slice(1)}`)}
+                  </Text>
+                </View>
+              </View>
+
+              {/* Handle + Author */}
+              <View className="flex-row items-center gap-1 mt-0.5">
+                <Text className="text-[13px] text-muted-foreground">
+                  @{agent.handle}
                 </Text>
+                <Text className="text-[13px] text-muted-foreground mx-1">·</Text>
+                <Text className="text-[13px] text-muted-foreground">
+                  {agent.authorName}
+                </Text>
+                {agent.authorVerified && (
+                  <CheckCircle2
+                    size={11}
+                    className="text-blue-500"
+                    fill="#3b82f6"
+                    strokeWidth={0}
+                  />
+                )}
               </View>
             </View>
 
-            {/* Handle + Author */}
-            <View className="flex-row items-center gap-1 mt-0.5">
-              <Text className="text-[13px] text-muted-foreground">
-                @{agent.handle}
+            {/* Tagline */}
+            {agent.tagline && (
+              <Text className="text-[14px] text-muted-foreground leading-5 mt-2">
+                {agent.tagline}
               </Text>
-              <Text className="text-[13px] text-muted-foreground mx-1">·</Text>
-              <Text className="text-[13px] text-muted-foreground">
-                {agent.authorName}
-              </Text>
-              {agent.authorVerified && (
-                <CheckCircle2
-                  size={11}
-                  className="text-blue-500"
-                  fill="#3b82f6"
-                  strokeWidth={0}
-                />
-              )}
-            </View>
-          </View>
+            )}
 
-          {/* Tagline */}
-          {agent.tagline && (
-            <Text className="text-[14px] text-muted-foreground leading-5 mt-2">
-              {agent.tagline}
-            </Text>
-          )}
-
-          {/* Stats Row */}
-          <View className="flex-row items-center gap-4 mt-3 mb-4">
-            <View className="flex-row items-center gap-1">
-              <Star size={13} className="text-amber-500" fill="#f59e0b" />
-              <Text className="text-[13px] font-bold text-foreground">
-                {agent.rating}
-              </Text>
-              <Text className="text-[11px] text-muted-foreground">
-                ({agent.reviewCount})
-              </Text>
-            </View>
-            <Text className="text-[11px] text-muted-foreground">·</Text>
-            <Text className="text-[12px] text-muted-foreground">
-              {formatCount(agent.hireCount)} {t("agents.hires")}
-            </Text>
-            <Text className="text-[11px] text-muted-foreground">·</Text>
-            <Text className="text-[12px] text-muted-foreground">
-              {formatCount(agent.usageCount)} {t("agents.uses")}
-            </Text>
-          </View>
-
-          {/* Owner Controls */}
-          {isOwner && (
-            <View className="flex-row items-center justify-between bg-muted/50 rounded-xl px-4 py-3 mb-4">
-              <View>
-                <Text className="text-[13px] font-semibold text-foreground">
-                  {agent.status === "active" ? "Active" : "Paused"}
+            {/* Stats Row */}
+            <View className="flex-row items-center gap-4 mt-3 mb-4">
+              <View className="flex-row items-center gap-1">
+                <Star size={13} className="text-amber-500" fill="#f59e0b" />
+                <Text className="text-[13px] font-bold text-foreground">
+                  {agent.rating}
                 </Text>
                 <Text className="text-[11px] text-muted-foreground">
-                  {agent.status === "active"
-                    ? "Accepting hires"
-                    : "Not accepting hires"}
+                  ({agent.reviewCount})
                 </Text>
               </View>
-              <Switch
-                value={agent.status === "active"}
-                onValueChange={(on) =>
-                  handleStatusToggle(on ? "active" : "idle")
-                }
-                trackColor={{ false: "#3e3e3e", true: "#22c55e" }}
-                thumbColor="#ffffff"
-              />
+              <Text className="text-[11px] text-muted-foreground">·</Text>
+              <Text className="text-[12px] text-muted-foreground">
+                {formatCount(agent.hireCount)} {t("agents.hires")}
+              </Text>
+              <Text className="text-[11px] text-muted-foreground">·</Text>
+              <Text className="text-[12px] text-muted-foreground">
+                {formatCount(agent.usageCount)} {t("agents.uses")}
+              </Text>
             </View>
-          )}
 
-          {/* Action Buttons — shadcn button group */}
-          <View className="flex-row self-start rounded-md border border-border overflow-hidden mb-4">
+            {/* Owner Controls */}
             {isOwner && (
-              <>
-                <Pressable
-                  onPress={() => router.push(`/(app)/agents/edit/${agent._id}` as any)}
-                  className="items-center justify-center px-3.5 py-2 active:bg-muted"
-                >
-                  <Text className="text-[13px] font-medium text-foreground">
-                    {t("agents.edit")}
+              <View className="flex-row items-center justify-between bg-muted/50 rounded-xl px-4 py-3 mb-4">
+                <View>
+                  <Text className="text-[13px] font-semibold text-foreground">
+                    {agent.status === "active" ? "Active" : "Paused"}
                   </Text>
-                </Pressable>
-                <View className="w-px bg-border" />
+                  <Text className="text-[11px] text-muted-foreground">
+                    {agent.status === "active"
+                      ? "Accepting hires"
+                      : "Not accepting hires"}
+                  </Text>
+                </View>
+                <Switch
+                  value={agent.status === "active"}
+                  onValueChange={(on) =>
+                    handleStatusToggle(on ? "active" : "idle")
+                  }
+                  trackColor={{ false: "#3e3e3e", true: "#22c55e" }}
+                  thumbColor="#ffffff"
+                />
+              </View>
+            )}
+
+            {/* Action Buttons — shadcn button group */}
+            <View className="flex-row self-start rounded-md border border-border overflow-hidden mb-4">
+              {isOwner && (
+                <>
+                  <Pressable
+                    onPress={() => router.push(`/(app)/agents/edit/${agent._id}` as any)}
+                    className="items-center justify-center px-3.5 py-2 active:bg-muted"
+                  >
+                    <Text className="text-[13px] font-medium text-foreground">
+                      {t("agents.edit")}
+                    </Text>
+                  </Pressable>
+                  <View className="w-px bg-border" />
+                </>
+              )}
+              <Pressable
+                onPress={handleChat}
+                className="items-center justify-center px-3.5 py-2 active:bg-muted"
+              >
+                <Text className="text-[13px] font-medium text-foreground">
+                  {t("agents.chat")}
+                </Text>
+              </Pressable>
+              <View className="w-px bg-border" />
+              <Pressable
+                onPress={handleHirePress}
+                className="items-center justify-center px-3.5 py-2 active:bg-muted"
+              >
+                <Text className="text-[13px] font-medium text-foreground">
+                  {agent.price != null
+                    ? `${t("agents.hire")} · $${agent.price.toFixed(2)}`
+                    : t("agents.hire")}
+                </Text>
+              </Pressable>
+              <View className="w-px bg-border" />
+              <Pressable
+                onPress={handleAddToTeam}
+                disabled={addingToTeam}
+                className="items-center justify-center px-3.5 py-2 active:bg-muted"
+              >
+                <Text className="text-[13px] font-medium text-foreground">
+                  {t("agents.addToTeam")}
+                </Text>
+              </Pressable>
+              <View className="w-px bg-border" />
+              <Pressable
+                onPress={handleShare}
+                className="items-center justify-center px-3 py-2 active:bg-muted"
+              >
+                <Share2 size={15} className="text-foreground" />
+              </Pressable>
+              <View className="w-px bg-border" />
+              <DropdownMenu.Root>
+                <DropdownMenu.Trigger>
+                  <Pressable className="items-center justify-center px-2.5 py-2">
+                    <Ellipsis size={16} className="text-foreground" />
+                  </Pressable>
+                </DropdownMenu.Trigger>
+                <DropdownMenu.Content>
+                  <DropdownMenu.Item key="bookmark" onSelect={handleBookmark}>
+                    <DropdownMenu.ItemIcon ios={{ name: bookmarked ? "bookmark.fill" : "bookmark" }} />
+                    <DropdownMenu.ItemTitle>
+                      {bookmarked ? t("agents.removeBookmark") : t("agents.bookmark")}
+                    </DropdownMenu.ItemTitle>
+                  </DropdownMenu.Item>
+                  <DropdownMenu.Item key="report" onSelect={() => toast.info(t("agents.reportSubmitted"))}>
+                    <DropdownMenu.ItemIcon ios={{ name: "exclamationmark.triangle" }} />
+                    <DropdownMenu.ItemTitle>{t("agents.report")}</DropdownMenu.ItemTitle>
+                  </DropdownMenu.Item>
+                </DropdownMenu.Content>
+              </DropdownMenu.Root>
+            </View>
+
+            {/* Hire Task Input */}
+            {showHireInput && (
+              <View className="mb-5 bg-muted/30 rounded-xl px-3 py-2 border border-border">
+                <TextInput
+                  value={taskInput}
+                  onChangeText={setTaskInput}
+                  placeholder={t("agents.taskPlaceholder")}
+                  placeholderTextColor="#888"
+                  editable={!hiring}
+                  multiline
+                  numberOfLines={3}
+                  style={{
+                    color: "#fff",
+                    fontSize: 14,
+                    paddingVertical: 8,
+                    minHeight: 72,
+                    textAlignVertical: "top",
+                  }}
+                />
+                <View className="flex-row justify-end mt-1">
+                  <Pressable
+                    onPress={handleHireSubmit}
+                    disabled={hiring || !taskInput.trim()}
+                    className="p-2 active:opacity-70"
+                  >
+                    <Send
+                      size={18}
+                      className={
+                        taskInput.trim() ? "text-primary" : "text-muted-foreground"
+                      }
+                    />
+                  </Pressable>
+                </View>
+              </View>
+            )}
+
+            {/* Divider */}
+            <View className="h-px bg-border mx-0 mb-5" />
+
+            {/* About / Description */}
+            <View className="mb-5">
+              <SectionLabel>{t("agents.about")}</SectionLabel>
+              <Text className="text-[14px] text-foreground leading-5 mt-1">
+                {agent.description}
+              </Text>
+            </View>
+
+            {/* Capabilities */}
+            {agent.capabilities.length > 0 && (
+              <>
+                <View className="h-px bg-border mx-0 mb-5" />
+                <View className="mb-5">
+                  <SectionLabel>{t("agents.capabilities")}</SectionLabel>
+                  <PillList items={agent.capabilities} />
+                </View>
               </>
             )}
-            <Pressable
-              onPress={handleChat}
-              className="items-center justify-center px-3.5 py-2 active:bg-muted"
-            >
-              <Text className="text-[13px] font-medium text-foreground">
-                {t("agents.chat")}
-              </Text>
-            </Pressable>
-            <View className="w-px bg-border" />
-            <Pressable
-              onPress={handleHirePress}
-              className="items-center justify-center px-3.5 py-2 active:bg-muted"
-            >
-              <Text className="text-[13px] font-medium text-foreground">
-                {agent.price != null
-                  ? `${t("agents.hire")} · $${agent.price.toFixed(2)}`
-                  : t("agents.hire")}
-              </Text>
-            </Pressable>
-            <View className="w-px bg-border" />
-            <Pressable
-              onPress={handleAddToTeam}
-              disabled={addingToTeam}
-              className="items-center justify-center px-3.5 py-2 active:bg-muted"
-            >
-              <Text className="text-[13px] font-medium text-foreground">
-                {t("agents.addToTeam")}
-              </Text>
-            </Pressable>
-            <View className="w-px bg-border" />
-            <Pressable
-              onPress={handleShare}
-              className="items-center justify-center px-3 py-2 active:bg-muted"
-            >
-              <Share2 size={15} className="text-foreground" />
-            </Pressable>
-            <View className="w-px bg-border" />
-            <DropdownMenu.Root>
-              <DropdownMenu.Trigger>
-                <Pressable className="items-center justify-center px-2.5 py-2">
-                  <Ellipsis size={16} className="text-foreground" />
-                </Pressable>
-              </DropdownMenu.Trigger>
-              <DropdownMenu.Content>
-                <DropdownMenu.Item key="bookmark" onSelect={handleBookmark}>
-                  <DropdownMenu.ItemIcon ios={{ name: bookmarked ? "bookmark.fill" : "bookmark" }} />
-                  <DropdownMenu.ItemTitle>
-                    {bookmarked ? t("agents.removeBookmark") : t("agents.bookmark")}
-                  </DropdownMenu.ItemTitle>
-                </DropdownMenu.Item>
-                <DropdownMenu.Item key="report" onSelect={() => toast.info(t("agents.reportSubmitted"))}>
-                  <DropdownMenu.ItemIcon ios={{ name: "exclamationmark.triangle" }} />
-                  <DropdownMenu.ItemTitle>{t("agents.report")}</DropdownMenu.ItemTitle>
-                </DropdownMenu.Item>
-              </DropdownMenu.Content>
-            </DropdownMenu.Root>
-          </View>
 
-          {/* Hire Task Input */}
-          {showHireInput && (
-            <View className="mb-5 bg-muted/30 rounded-xl px-3 py-2 border border-border">
-              <TextInput
-                value={taskInput}
-                onChangeText={setTaskInput}
-                placeholder={t("agents.taskPlaceholder")}
-                placeholderTextColor="#888"
-                editable={!hiring}
-                multiline
-                numberOfLines={3}
-                style={{
-                  color: "#fff",
-                  fontSize: 14,
-                  paddingVertical: 8,
-                  minHeight: 72,
-                  textAlignVertical: "top",
-                }}
-              />
-              <View className="flex-row justify-end mt-1">
-                <Pressable
-                  onPress={handleHireSubmit}
-                  disabled={hiring || !taskInput.trim()}
-                  className="p-2 active:opacity-70"
-                >
-                  <Send
-                    size={18}
-                    className={
-                      taskInput.trim() ? "text-primary" : "text-muted-foreground"
-                    }
-                  />
-                </Pressable>
-              </View>
+            {/* Tags */}
+            {agent.tags.length > 0 && (
+              <>
+                <View className="h-px bg-border mx-0 mb-5" />
+                <View className="mb-5">
+                  <SectionLabel>{t("agents.tags")}</SectionLabel>
+                  <PillList items={agent.tags} />
+                </View>
+              </>
+            )}
+
+            {/* Activity Terminal — mobile only */}
+            {!isLargeScreen && (
+              <>
+                <View className="h-px bg-border mx-0 mb-5" />
+                <View className="mb-5">
+                  <SectionLabel>{t("agents.activity")}</SectionLabel>
+                  <View style={{ height: 300 }} className="rounded-lg overflow-hidden mt-2">
+                    <AgentTerminal agentId={agent._id} />
+                  </View>
+                </View>
+              </>
+            )}
+          </View>
+        </ScrollView>
+
+        {/* Right panel: terminal — desktop only */}
+        {isLargeScreen && (
+          <View className="flex-1 bg-[#0d0d0d]">
+            <View className="px-4 py-2.5 flex-row items-center gap-2">
+              <View className="w-2 h-2 rounded-full bg-green-500" />
+              <Text className="text-xs font-medium text-[#808080]">
+                {t("agents.activity")}
+              </Text>
             </View>
-          )}
-
-          {/* Divider */}
-          <View className="h-px bg-border mx-0 mb-5" />
-
-          {/* About / Description */}
-          <View className="mb-5">
-            <SectionLabel>{t("agents.about")}</SectionLabel>
-            <Text className="text-[14px] text-foreground leading-5 mt-1">
-              {agent.description}
-            </Text>
-          </View>
-
-          {/* Capabilities */}
-          {agent.capabilities.length > 0 && (
-            <>
-              <View className="h-px bg-border mx-0 mb-5" />
-              <View className="mb-5">
-                <SectionLabel>{t("agents.capabilities")}</SectionLabel>
-                <PillList items={agent.capabilities} />
-              </View>
-            </>
-          )}
-
-          {/* Tags */}
-          {agent.tags.length > 0 && (
-            <>
-              <View className="h-px bg-border mx-0 mb-5" />
-              <View className="mb-5">
-                <SectionLabel>{t("agents.tags")}</SectionLabel>
-                <PillList items={agent.tags} />
-              </View>
-            </>
-          )}
-
-          {/* Activity Terminal */}
-          <View className="h-px bg-border mx-0 mb-5" />
-          <View className="mb-5">
-            <SectionLabel>{t("agents.activity")}</SectionLabel>
-            <View style={{ height: 300 }} className="rounded-lg overflow-hidden mt-2">
+            <View className="flex-1">
               <AgentTerminal agentId={agent._id} />
             </View>
           </View>
-        </View>
-      </ScrollView>
+        )}
+      </View>
     </View>
   );
 }

@@ -203,7 +203,7 @@ export function PromptInput({
 
   return (
     <PromptInputContext.Provider value={contextValue}>
-      {autocomplete && autocompletePosition === "top" && (
+      {autocomplete && autocompletePosition === "top" && !leadingAddMenu && (
         <PromptInputAutocomplete position="top" />
       )}
 
@@ -214,14 +214,22 @@ export function PromptInput({
               iconSize={20}
               className="h-10 w-10 rounded-full border"
             />
-            <View className="flex-1">{inputBox}</View>
+            <View className="flex-1">
+              {autocomplete && autocompletePosition === "top" && (
+                <PromptInputAutocomplete position="top" />
+              )}
+              {inputBox}
+              {autocomplete && autocompletePosition === "bottom" && (
+                <PromptInputAutocomplete position="bottom" />
+              )}
+            </View>
           </View>
         ) : (
           inputBox
         )}
       </KeyboardAvoidingView>
 
-      {autocomplete && autocompletePosition === "bottom" && (
+      {autocomplete && autocompletePosition === "bottom" && !leadingAddMenu && (
         <PromptInputAutocomplete position="bottom" />
       )}
 

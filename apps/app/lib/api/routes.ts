@@ -89,6 +89,7 @@ export const API_ROUTES = {
     sessions: (id: string) => `/agents/${id}/sessions`,
     status: (id: string) => `/agents/${id}/status`,
     cancelSession: (id: string, sid: string) => `/agents/${id}/sessions/${sid}/cancel`,
+    reviews: (id: string) => `/agents/${id}/reviews`,
     generateAvatar: '/agents/avatar/generate',
     generate: '/agents/generate',
     teams: {

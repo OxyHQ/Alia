@@ -39,6 +39,9 @@ interface StoreState {
 
   ghostMode: boolean;
   setGhostMode: (value: boolean) => void;
+
+  agentMode: boolean;
+  setAgentMode: (value: boolean) => void;
 }
 
 export const useStore = create<StoreState>((set, get) => ({
@@ -77,4 +80,7 @@ export const useStore = create<StoreState>((set, get) => ({
 
   ghostMode: false,
   setGhostMode: (value: boolean) => set({ ghostMode: value }),
+
+  agentMode: false,
+  setAgentMode: (value: boolean) => set({ agentMode: value }),
 }));
