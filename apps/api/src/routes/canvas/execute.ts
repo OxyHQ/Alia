@@ -7,6 +7,7 @@ import { resolveModel, getAIModel, getDefaultAliaModel } from '../../lib/chat-co
 import { UserMemory } from '../../models/user-memory.js';
 import { getIO } from '../../socket.js';
 import type { Request, Response } from 'express';
+import { callProviderAPI } from '../../internal/providers/lib/provider-api.js';
 import { log } from '../../lib/logger.js';
 
 // Response types for external API calls
@@ -242,30 +243,19 @@ async function executeNode(node: WorkflowNode, input: string, userId: string): P
     }
 
     case 'aiImage': {
-      const apiKey = process.env.OPENAI_API_KEY;
-      if (!apiKey) {
-        throw new Error('OPENAI_API_KEY environment variable is not set');
-      }
       const imagePrompt = node.data.prompt
         ? node.data.prompt.replace(/\{\{input\}\}/g, input)
         : input;
-      const response = await fetch('https://api.openai.com/v1/images/generations', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${apiKey}`
-        },
-        body: JSON.stringify({
+      const data = await callProviderAPI<OpenAIImageResponse>({
+        provider: 'openai',
+        modelId: 'dall-e-3',
+        endpoint: '/v1/images/generations',
+        body: {
           prompt: imagePrompt,
           n: 1,
-          size: node.data.size || '1024x1024'
-        })
+          size: node.data.size || '1024x1024',
+        },
       });
-      if (!response.ok) {
-        const err = await response.json() as OpenAIErrorResponse;
-        throw new Error(`OpenAI image generation failed: ${err.error?.message || response.statusText}`);
-      }
-      const data = await response.json() as OpenAIImageResponse;
       return data.data[0].url;
     }
 

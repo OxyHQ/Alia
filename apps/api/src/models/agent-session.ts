@@ -7,9 +7,10 @@ export interface IAgentSessionMessage {
 }
 
 export interface IAgentSessionResource {
-  type: 'vm';
+  type: 'vm' | 'container';
   resourceId: string;
   ip?: string;
+  previewUrl?: string;
   status: 'active' | 'destroyed';
   createdAt: Date;
 }
@@ -72,9 +73,10 @@ const AgentSessionSchema = new Schema<IAgentSession>({
     timestamp: { type: Date, default: Date.now },
   }],
   resources: [{
-    type: { type: String, enum: ['vm'], required: true },
+    type: { type: String, enum: ['vm', 'container'], required: true },
     resourceId: { type: String, required: true },
     ip: { type: String },
+    previewUrl: { type: String },
     status: { type: String, enum: ['active', 'destroyed'], default: 'active' },
     createdAt: { type: Date, default: Date.now },
   }],

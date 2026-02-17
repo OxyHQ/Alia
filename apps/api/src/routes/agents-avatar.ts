@@ -5,8 +5,7 @@ import { fileURLToPath } from 'url';
 import { generateText } from 'ai';
 import { authenticateToken } from '../middleware/auth.js';
 import { resolveModel, getAIModel, reportModelUsage } from '../lib/chat-core.js';
-import { getBestKeyForModel, recordKeyUsage, recordKeySuccess, recordKeyFailure, markKeyCreditExhausted } from '../internal/providers/lib/key-manager.js';
-import { classifyError } from '../lib/errors/failover-error.js';
+import { callProviderAPI } from '../internal/providers/lib/provider-api.js';
 import { uploadToS3 } from '../lib/s3.js';
 import { log } from '../lib/logger.js';
 import type { Request, Response } from 'express';
@@ -132,99 +131,45 @@ router.post('/generate', authenticateToken, async (req: Request, res: Response) 
         `The image should work as a circular social media profile picture. No text, letters, or words in the image.`;
     }
 
-    // Retry loop: try up to 3 different keys on retryable failures
-    const MAX_DALLE_ATTEMPTS = 3;
-    let lastErrorStatus = 502;
-    let lastErrorMessage = 'Image generation failed';
+    // Call the internal provider system — it handles keys, retries, and error recording
+    try {
+      const data = await callProviderAPI<any>({
+        provider: 'openai',
+        modelId: 'dall-e-3',
+        endpoint: '/v1/images/generations',
+        body: {
+          model: 'dall-e-3',
+          prompt: imagePrompt,
+          n: 1,
+          size: '1024x1024',
+          quality: 'standard',
+          response_format: 'b64_json',
+        },
+      });
 
-    for (let attempt = 1; attempt <= MAX_DALLE_ATTEMPTS; attempt++) {
-      const keyConfig = await getBestKeyForModel('openai', 'dall-e-3');
-      if (!keyConfig) {
-        log.agents.error({ attempt }, 'No OpenAI keys available for image generation');
-        return res.status(503).json({ error: 'Image generation service unavailable' });
+      const b64Image = data.data?.[0]?.b64_json;
+      if (!b64Image) {
+        return res.status(502).json({ error: 'Image generation returned no result' });
       }
 
-      log.agents.info({ attempt, keyPrefix: keyConfig.keyId.slice(-6) }, 'DALL-E generation attempt');
+      // Convert to buffer — upload as WebP for smaller S3 size
+      const imageBuffer = Buffer.from(b64Image, 'base64');
 
-      try {
-        const generateRes = await fetch('https://api.openai.com/v1/images/generations', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${keyConfig.key}`,
-          },
-          body: JSON.stringify({
-            model: 'dall-e-3',
-            prompt: imagePrompt,
-            n: 1,
-            size: '1024x1024',
-            quality: 'standard',
-            response_format: 'b64_json',
-          }),
-        });
+      const avatarUrl = await uploadToS3(
+        imageBuffer,
+        'avatar.webp',
+        `agents/${req.user.id}`,
+        'avatar'
+      );
 
-        if (!generateRes.ok) {
-          const errBody = await generateRes.text();
-          const reason = classifyError({ status: generateRes.status, message: errBody });
-
-          log.agents.warn({ attempt, status: generateRes.status, reason, err: errBody }, 'DALL-E generation failed');
-
-          if (reason === 'billing') {
-            await markKeyCreditExhausted(keyConfig.keyId);
-            lastErrorStatus = 502;
-            lastErrorMessage = 'Image generation temporarily unavailable';
-            continue;
-          }
-
-          if (reason === 'content_filter') {
-            await recordKeyFailure(keyConfig.keyId, `DALL-E content filter: ${generateRes.status}`);
-            return res.status(400).json({ error: 'Image generation request was rejected by content policy. Try a different description.' });
-          }
-
-          // rate_limit, auth, format, timeout, unknown — record failure and try next key
-          await recordKeyFailure(keyConfig.keyId, `DALL-E generation failed: ${generateRes.status}`);
-          lastErrorStatus = 502;
-          lastErrorMessage = 'Image generation failed';
-          continue;
-        }
-
-        const generateData = await generateRes.json() as any;
-        const b64Image = generateData.data?.[0]?.b64_json;
-
-        if (!b64Image) {
-          await recordKeyFailure(keyConfig.keyId, 'DALL-E returned no image data');
-          lastErrorMessage = 'Image generation returned no result';
-          continue;
-        }
-
-        // Record successful generation
-        await recordKeyUsage(keyConfig.keyId, 0, 'openai', 'dall-e-3');
-        await recordKeySuccess(keyConfig.keyId);
-
-        // Convert to buffer — upload as WebP for smaller S3 size
-        const imageBuffer = Buffer.from(b64Image, 'base64');
-
-        const avatarUrl = await uploadToS3(
-          imageBuffer,
-          'avatar.webp',
-          `agents/${req.user.id}`,
-          'avatar'
-        );
-
-        return res.json({ avatarUrl });
-      } catch (fetchErr: any) {
-        // Network-level errors (DNS failure, connection refused, etc.)
-        log.agents.warn({ attempt, err: fetchErr }, 'DALL-E fetch error');
-        await recordKeyFailure(keyConfig.keyId, `DALL-E fetch error: ${fetchErr?.message}`);
-        lastErrorStatus = 502;
-        lastErrorMessage = 'Image generation failed';
-        continue;
+      return res.json({ avatarUrl });
+    } catch (genErr: any) {
+      if (genErr.reason === 'content_filter') {
+        return res.status(400).json({ error: 'Image generation request was rejected by content policy. Try a different description.' });
       }
+      log.agents.error({ err: genErr }, 'Avatar generation failed');
+      return res.status(502).json({ error: 'Image generation failed' });
     }
-
-    // All attempts exhausted
-    log.agents.error({ attempts: MAX_DALLE_ATTEMPTS }, 'All DALL-E generation attempts exhausted');
-    return res.status(lastErrorStatus).json({ error: lastErrorMessage });
   } catch (error) {
     log.agents.error({ err: error }, 'Error generating agent avatar');
     res.status(500).json({ error: 'Failed to generate avatar' });

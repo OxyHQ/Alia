@@ -101,6 +101,18 @@ export function VoiceChat({ visible, onClose }: VoiceChatProps) {
   return (
     <Modal visible={visible} transparent animationType="fade">
       <View className="flex-1 bg-black/90">
+        {/* Background waves — anchored to bottom, behind all content */}
+        <View
+          style={{ position: 'absolute', bottom: 0, left: 0, right: 0, zIndex: 0 }}
+          pointerEvents="none"
+        >
+          <AudioWaveVisualizer
+            waveAmplitude={waveAmplitude}
+            agentState={agentState}
+            isConnected={isConnected}
+          />
+        </View>
+
         {/* Close button */}
         <Pressable
           onPress={handleClose}
@@ -114,11 +126,12 @@ export function VoiceChat({ visible, onClose }: VoiceChatProps) {
           <X size={20} color="white" />
         </Pressable>
 
-        {/* Transcript area */}
+        {/* Transcript area — above waves */}
         <ScrollView
           ref={scrollViewRef}
           className="flex-1 px-6"
-          contentContainerStyle={{ paddingVertical: 16 }}
+          style={{ position: 'relative', zIndex: 1 }}
+          contentContainerStyle={{ paddingTop: 16, paddingBottom: 180 }}
           showsVerticalScrollIndicator={false}
         >
           {messages.map((msg) => (
@@ -164,80 +177,62 @@ export function VoiceChat({ visible, onClose }: VoiceChatProps) {
           )}
         </ScrollView>
 
-        {/* Bottom: ambient glow + controls */}
-        <View style={{ position: 'relative', overflow: 'visible' }}>
-          <View
-            style={{
-              position: 'absolute',
-              bottom: 0,
-              left: 0,
-              right: 0,
-              overflow: 'visible',
-            }}
-          >
-            <AudioWaveVisualizer
-              waveAmplitude={waveAmplitude}
-              agentState={agentState}
-              isConnected={isConnected}
-            />
-          </View>
+        {/* Bottom controls — above waves */}
+        <View style={{ alignItems: 'center', paddingBottom: 48, paddingTop: 24, position: 'relative', zIndex: 2 }}>
+          {statusText ? (
+            <Text className="text-white text-lg font-medium mb-6">
+              {statusText}
+            </Text>
+          ) : null}
 
-          <View style={{ alignItems: 'center', paddingBottom: 48, paddingTop: 24, zIndex: 1 }}>
-            {statusText ? (
-              <Text className="text-white text-lg font-medium mb-6">
-                {statusText}
-              </Text>
-            ) : null}
-
-            {roomState === 'connected' && (
-              <View className="flex-row items-center gap-8">
-                <View className="items-center gap-2">
-                  <Pressable
-                    onPress={toggleMute}
-                    className="w-14 h-14 rounded-full items-center justify-center"
-                    style={{ backgroundColor: isMuted ? '#ef4444' : 'rgba(255,255,255,0.15)' }}
-                  >
-                    {isMuted ? (
-                      <MicOff size={24} color="white" />
-                    ) : (
-                      <Mic size={24} color="white" />
-                    )}
-                  </Pressable>
-                  <Text className="text-white/70 text-xs">
-                    {isMuted ? 'Unmute' : 'Mute'}
-                  </Text>
-                </View>
-
-                <View className="items-center gap-2">
-                  <Pressable
-                    onPress={cohostActive ? disableCohost : enableCohost}
-                    className="w-14 h-14 rounded-full items-center justify-center"
-                    style={{ backgroundColor: cohostActive ? '#8b5cf6' : 'rgba(255,255,255,0.15)' }}
-                  >
-                    <Users size={24} color="white" />
-                  </Pressable>
-                  <Text className="text-white/70 text-xs">
-                    {cohostActive ? 'Solo' : 'Cohost'}
-                  </Text>
-                </View>
-
-                <View className="items-center gap-2">
-                  <Pressable
-                    onPress={handleClose}
-                    className="w-14 h-14 rounded-full items-center justify-center"
-                    style={{ backgroundColor: '#ef4444' }}
-                  >
-                    <PhoneOff size={24} color="white" />
-                  </Pressable>
-                  <Text className="text-white/70 text-xs">End</Text>
-                </View>
+          {roomState === 'connected' && (
+            <View className="flex-row items-center gap-8">
+              <View className="items-center gap-2">
+                <Pressable
+                  onPress={toggleMute}
+                  className="w-14 h-14 rounded-full items-center justify-center"
+                  style={{ backgroundColor: isMuted ? '#ef4444' : 'rgba(255,255,255,0.15)' }}
+                >
+                  {isMuted ? (
+                    <MicOff size={24} color="white" />
+                  ) : (
+                    <Mic size={24} color="white" />
+                  )}
+                </Pressable>
+                <Text className="text-white/70 text-xs">
+                  {isMuted ? 'Unmute' : 'Mute'}
+                </Text>
               </View>
-            )}
 
-            {roomState === 'connecting' && (
-              <ActivityIndicator size="large" color="#38bdf8" />
-            )}
-          </View>
+              <View className="items-center gap-2">
+                <Pressable
+                  onPress={cohostActive ? disableCohost : enableCohost}
+                  className="w-14 h-14 rounded-full items-center justify-center"
+                  style={{ backgroundColor: cohostActive ? '#8b5cf6' : 'rgba(255,255,255,0.15)' }}
+                >
+                  <Users size={24} color="white" />
+                </Pressable>
+                <Text className="text-white/70 text-xs">
+                  {cohostActive ? 'Solo' : 'Cohost'}
+                </Text>
+              </View>
+
+              <View className="items-center gap-2">
+                <Pressable
+                  onPress={handleClose}
+                  className="w-14 h-14 rounded-full items-center justify-center"
+                  style={{ backgroundColor: '#ef4444' }}
+                >
+                  <PhoneOff size={24} color="white" />
+                </Pressable>
+                <Text className="text-white/70 text-xs">End</Text>
+              </View>
+            </View>
+          )}
+
+          {roomState === 'connecting' && (
+            <ActivityIndicator size="large" color="#38bdf8" />
+          )}
         </View>
       </View>
     </Modal>

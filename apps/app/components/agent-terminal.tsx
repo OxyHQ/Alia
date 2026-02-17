@@ -89,7 +89,7 @@ function WebTerminal({ agentId }: AgentTerminalProps) {
 
     async function init() {
       try {
-        const { Terminal } = await import("xterm");
+        const { Terminal } = await import("@xterm/xterm");
         const { FitAddon } = await import("@xterm/addon-fit");
 
         if (cancelled || !containerRef.current) return;
@@ -100,7 +100,7 @@ function WebTerminal({ agentId }: AgentTerminalProps) {
           link.id = "xterm-css";
           link.rel = "stylesheet";
           link.href =
-            "https://cdn.jsdelivr.net/npm/xterm@5/css/xterm.css";
+            "https://cdn.jsdelivr.net/npm/@xterm/xterm/css/xterm.css";
           document.head.appendChild(link);
         }
 

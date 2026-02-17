@@ -3,7 +3,7 @@ import { Agent } from '../models/agent.js';
 import { AgentSession } from '../models/agent-session.js';
 import { authenticateToken, optionalAuth } from '../middleware/auth.js';
 import { runAgentSession, getRecentActivity } from '../lib/agent-runner.js';
-import { cleanupSessionVMs } from '../lib/agent-tools.js';
+import { cleanupSessionResources } from '../lib/agent-tools.js';
 import { log } from '../lib/logger.js';
 import type { Request, Response } from 'express';
 
@@ -346,7 +346,7 @@ router.patch('/:id/status', authenticateToken, async (req: Request, res: Respons
       for (const session of runningSessions) {
         session.status = 'cancelled';
         session.stats.completedAt = new Date();
-        await cleanupSessionVMs(session);
+        await cleanupSessionResources(session);
         await session.save();
       }
     }
@@ -381,7 +381,7 @@ router.post('/:id/sessions/:sid/cancel', authenticateToken, async (req: Request,
 
     session.status = 'cancelled';
     session.stats.completedAt = new Date();
-    await cleanupSessionVMs(session);
+    await cleanupSessionResources(session);
     await session.save();
 
     res.json({ cancelled: true });
