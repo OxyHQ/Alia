@@ -257,64 +257,72 @@ Check DigitalOcean metrics for:
 
 ## Docker Host Setup (Agent Containers)
 
-Agents execute code in sandboxed Docker containers managed by the `alia-docker-host` service. This service runs alongside the API and provides container lifecycle management.
+Agents execute code in sandboxed Docker containers on a dedicated DigitalOcean Droplet. The `alia-docker-host` service manages container lifecycle and Traefik handles HTTPS preview URLs.
+
+Two services run on the Droplet:
+- **alia-docker-api** (port 9090) — Express service managing containers via Dockerode
+- **alia-preview-proxy** (ports 80/443) — Traefik v3.2 reverse proxy for `*.preview.alia.onl`
 
 ### Quick Setup
 
-```bash
-# From the monorepo root
-./scripts/setup-docker-host.sh
-```
+1. **Create a Droplet** with the Docker 1-click image (recommended: s-4vcpu-8gb)
+2. **Create wildcard DNS** — `*.preview.alia.onl` pointing to the Droplet IP
+3. **Create firewall** — allow ports 22, 80, 443 inbound; port 9090 restricted to API server IP
+4. **Copy files** — `scp -r apps/alia-docker-host root@<droplet-ip>:/opt/alia-docker-host`
+5. **Run setup** — `ssh root@<droplet-ip> 'cd /opt/alia-docker-host && bash ../../scripts/setup-docker-host.sh'`
 
 Or manually:
 
 ```bash
-cd apps/alia-docker-host
+# On the Droplet
+cd /opt/alia-docker-host
 cp .env.example .env
-# Edit .env with your settings
-docker-compose up -d
+# Edit .env with your DOCKER_HOST_SECRET
+docker compose up -d --build
+
+# Pre-pull base images
+docker pull node:22 && docker pull python:3.12 && docker pull ubuntu:22.04
 ```
 
-### Environment Variables (`apps/alia-docker-host`)
+### Docker Host Environment Variables
 
 ```bash
-PORT=3010
-NODE_ENV=production
-AUTH_SECRET=<shared-secret-with-api>    # Must match API's DOCKER_HOST_SECRET
-
-# Docker settings
-DOCKER_SOCKET=/var/run/docker.sock     # Docker socket path
-MAX_CONTAINERS=50                       # Max concurrent containers
-CONTAINER_TIMEOUT=3600                  # Container TTL in seconds (1 hour)
+DOCKER_HOST_SECRET=<shared-secret>      # Must match API's DOCKER_HOST_SECRET
+PREVIEW_DOMAIN=preview.alia.onl         # Wildcard DNS domain for preview URLs
+ACME_EMAIL=admin@alia.onl               # Let's Encrypt certificate email
+PORT=9090                               # Management API port
 ```
 
 ### API Environment Variables
 
-Add these to the API server's `.env`:
+Add these to `apps/api/.env`:
 
 ```bash
-# Docker Host
-DOCKER_HOST_URL=http://localhost:3010   # URL of alia-docker-host service
-DOCKER_HOST_SECRET=<shared-secret>      # Must match AUTH_SECRET above
+DOCKER_HOST_URL=http://<droplet-ip>:9090
+DOCKER_HOST_SECRET=<same-shared-secret>
 ```
 
-### Production Deployment
+### Container Sizes
 
-For production, deploy `alia-docker-host` on a dedicated droplet with Docker installed:
+| Size | CPU | Memory | PID Limit |
+|------|-----|--------|-----------|
+| `small` | 1 core | 512 MB | 512 |
+| `medium` | 2 cores | 2 GB | 1024 |
+| `large` | 4 cores | 4 GB | 2048 |
 
-1. **Create a Docker-enabled droplet** (minimum 2 vCPU, 4GB RAM)
-2. **Clone the repo** and run `docker-compose up -d` in `apps/alia-docker-host`
-3. **Configure firewall** — only allow port 3010 from your API server's VPC
-4. **Set environment variables** in both the Docker host and API server
+### Auto-Cleanup
 
-### Resource Limits
+Containers are automatically destroyed after inactivity:
+- **Ephemeral** (default): 30 minutes
+- **Persistent**: 24 hours
 
-Containers are created with default resource limits:
-- **CPU**: 1 core
-- **Memory**: 512MB
-- **Disk**: 1GB
-- **Network**: Isolated bridge network
-- **TTL**: Auto-destroyed after timeout (default 1 hour)
+### Verify
+
+```bash
+curl http://<droplet-ip>:9090/health
+```
+
+See [apps/alia-docker-host/README.md](../apps/alia-docker-host/README.md) for full API reference.
 
 ---
 

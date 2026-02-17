@@ -2,132 +2,110 @@
 # ==============================================================================
 # Alia Docker Host - Droplet Setup Script
 #
-# Run this on a fresh Ubuntu 24.04 DigitalOcean Droplet to set up the Docker
-# host for Alia's container execution system.
+# Provisions a DigitalOcean Droplet to run Alia's container execution system.
+# Agents create Docker containers on this host to execute code, develop
+# projects, and expose web app previews via HTTPS.
+#
+# Architecture:
+#   alia-docker-api    — Express service managing containers via Docker API
+#   alia-preview-proxy — Traefik reverse proxy for *.preview.alia.onl
 #
 # Prerequisites:
-#   - Ubuntu 24.04 Droplet (recommended: s-4vcpu-8gb or larger)
-#   - Root access
+#   - DigitalOcean Droplet with Docker pre-installed (Docker 1-click image)
+#   - Recommended: s-4vcpu-8gb or larger
+#   - Root/SSH access
+#   - Wildcard DNS *.preview.alia.onl -> Droplet IP (create via DO control panel)
 #
 # Usage:
-#   curl -sSL <raw-url> | bash
-#   OR
-#   bash setup-docker-host.sh
+#   1. Create Droplet with Docker 1-click image from DO Marketplace
+#   2. Copy apps/alia-docker-host to /opt/alia-docker-host on the Droplet
+#   3. Run this script on the Droplet: bash setup-docker-host.sh
 # ==============================================================================
 
 set -euo pipefail
 
 echo "=== Alia Docker Host Setup ==="
+echo ""
 
-# ── 1. Install Docker Engine ──
+# ── 1. Verify Docker is available ──
 
-echo "[1/7] Installing Docker Engine..."
-apt-get update -qq
-apt-get install -y -qq ca-certificates curl gnupg
+echo "[1/5] Verifying Docker..."
+if ! command -v docker &>/dev/null; then
+  echo "ERROR: Docker not found. Use the Docker 1-click image from DigitalOcean Marketplace."
+  exit 1
+fi
+echo "Docker $(docker --version) found."
 
-install -m 0755 -d /etc/apt/keyrings
-curl -fsSL https://download.docker.com/linux/ubuntu/gpg | gpg --dearmor -o /etc/apt/keyrings/docker.gpg
-chmod a+r /etc/apt/keyrings/docker.gpg
+if ! docker compose version &>/dev/null; then
+  echo "ERROR: Docker Compose plugin not found."
+  exit 1
+fi
+echo "Docker Compose $(docker compose version --short) found."
 
-echo \
-  "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu \
-  $(. /etc/os-release && echo "$VERSION_CODENAME") stable" | \
-  tee /etc/apt/sources.list.d/docker.list > /dev/null
+# ── 2. Configure .env ──
 
-apt-get update -qq
-apt-get install -y -qq docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+echo "[2/5] Configuring environment..."
 
-systemctl enable docker
-systemctl start docker
-
-echo "Docker $(docker --version) installed."
-
-# ── 2. Configure UFW Firewall ──
-
-echo "[2/7] Configuring firewall..."
-apt-get install -y -qq ufw
-
-ufw --force reset
-ufw default deny incoming
-ufw default allow outgoing
-ufw allow 22/tcp    # SSH
-ufw allow 80/tcp    # HTTP (Traefik)
-ufw allow 443/tcp   # HTTPS (Traefik)
-# Port 9090 (management API) should be restricted to the API server IP.
-# Uncomment and replace with your API server's IP:
-# ufw allow from <API_SERVER_IP> to any port 9090
-
-# For initial setup, allow 9090 from anywhere (restrict later):
-ufw allow 9090/tcp
-
-ufw --force enable
-echo "Firewall configured."
-
-# ── 3. Create project directory ──
-
-echo "[3/7] Setting up project directory..."
-mkdir -p /opt/alia-docker-host
 cd /opt/alia-docker-host
 
-# ── 4. Prompt for configuration ──
-
-echo "[4/7] Configuration..."
-
 if [ ! -f .env ]; then
-  echo "Creating .env file..."
-
-  read -p "Enter DOCKER_HOST_SECRET (shared secret for API auth): " DOCKER_HOST_SECRET
-  read -p "Enter DO_DNS_TOKEN (DigitalOcean API token for DNS): " DO_DNS_TOKEN
-  read -p "Enter PREVIEW_DOMAIN [preview.alia.onl]: " PREVIEW_DOMAIN
+  if [ -z "${DOCKER_HOST_SECRET:-}" ]; then
+    read -rp "Enter DOCKER_HOST_SECRET (shared secret, must match API .env): " DOCKER_HOST_SECRET
+  fi
+  read -rp "Enter PREVIEW_DOMAIN [preview.alia.onl]: " PREVIEW_DOMAIN
   PREVIEW_DOMAIN=${PREVIEW_DOMAIN:-preview.alia.onl}
-  read -p "Enter ACME_EMAIL [admin@alia.onl]: " ACME_EMAIL
+  read -rp "Enter ACME_EMAIL [admin@alia.onl]: " ACME_EMAIL
   ACME_EMAIL=${ACME_EMAIL:-admin@alia.onl}
 
   cat > .env << EOF
 DOCKER_HOST_SECRET=${DOCKER_HOST_SECRET}
-DO_DNS_TOKEN=${DO_DNS_TOKEN}
 PREVIEW_DOMAIN=${PREVIEW_DOMAIN}
 ACME_EMAIL=${ACME_EMAIL}
 PORT=9090
+NODE_ENV=production
 EOF
-
-  echo ".env file created."
+  echo ".env created."
 else
-  echo ".env file already exists, skipping."
+  echo ".env already exists, skipping."
 fi
 
-# ── 5. Copy service files ──
+# ── 3. Pre-pull base images ──
 
-echo "[5/7] Copying service files..."
-echo "Please copy the apps/docker-host directory contents to /opt/alia-docker-host"
-echo "  scp -r apps/docker-host/* root@<droplet-ip>:/opt/alia-docker-host/"
-
-# ── 6. Pre-pull base images ──
-
-echo "[6/7] Pre-pulling base Docker images..."
+echo "[3/5] Pre-pulling base Docker images (parallel)..."
 docker pull node:22 &
 docker pull python:3.12 &
 docker pull ubuntu:22.04 &
-docker pull golang:1.22 &
 wait
-echo "Base images pulled."
+echo "Base images ready."
 
-# ── 7. Create Traefik dynamic config directory ──
+# ── 4. Build and start services ──
 
-echo "[7/7] Creating Traefik config directory..."
-mkdir -p /etc/traefik/dynamic
+echo "[4/5] Building and starting services..."
+docker compose up -d --build
 
-# ── Done ──
+# ── 5. Verify ──
 
-echo ""
-echo "=== Setup Complete ==="
-echo ""
-echo "Next steps:"
-echo "  1. Copy apps/docker-host/ files to /opt/alia-docker-host/"
-echo "  2. Set up wildcard DNS: *.${PREVIEW_DOMAIN:-preview.alia.onl} -> $(curl -s ifconfig.me)"
-echo "  3. Restrict port 9090 in UFW to your API server IP:"
-echo "     ufw delete allow 9090/tcp"
-echo "     ufw allow from <API_SERVER_IP> to any port 9090"
-echo "  4. cd /opt/alia-docker-host && docker compose up -d"
-echo "  5. Verify: curl http://localhost:9090/health"
-echo ""
+echo "[5/5] Verifying deployment..."
+sleep 5
+
+if curl -sf http://localhost:9090/health > /dev/null; then
+  echo ""
+  echo "=== Setup Complete ==="
+  echo ""
+  echo "Services running:"
+  docker ps --format "  {{.Names}}\t{{.Status}}\t{{.Ports}}"
+  echo ""
+  echo "Health check: curl http://localhost:9090/health"
+  echo "Droplet IP:   $(curl -sf ifconfig.me || echo 'unknown')"
+  echo ""
+  echo "Ensure the following are configured:"
+  echo "  - Wildcard DNS: *.${PREVIEW_DOMAIN:-preview.alia.onl} -> this Droplet's IP"
+  echo "  - Firewall: ports 22, 80, 443 open; port 9090 restricted to API server IP"
+  echo "  - API .env: DOCKER_HOST_URL=http://<this-ip>:9090"
+  echo "  - API .env: DOCKER_HOST_SECRET=<same secret as above>"
+else
+  echo ""
+  echo "WARNING: Health check failed. Check logs with:"
+  echo "  docker logs alia-docker-api"
+  echo "  docker logs alia-preview-proxy"
+fi

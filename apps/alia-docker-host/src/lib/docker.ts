@@ -28,7 +28,7 @@ const ALLOWED_IMAGES = [
 ];
 
 export interface CreateContainerOpts {
-  image: string;
+  image?: string;
   name?: string;
   size?: string;
   persistent?: boolean;
@@ -299,6 +299,11 @@ export async function exposeContainerPort(
           service: routerName,
           entryPoints: ['websecure'],
           tls: { certResolver: 'letsencrypt' },
+        },
+        [`${routerName}-http`]: {
+          rule: `Host(\`${host}\`)`,
+          service: routerName,
+          entryPoints: ['web'],
         },
       },
       services: {

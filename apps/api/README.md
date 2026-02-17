@@ -303,17 +303,15 @@ NEXTAUTH_URL='http://localhost:3001'
 - `PATCH /agents/:id/status` - Toggle agent status (active/idle/offline)
 - `POST /agents/:id/sessions/:sid/cancel` - Cancel running session
 
-### Containers (Docker Sandbox)
+### Containers (Admin)
 
-- `POST /containers` - Create container from template
-- `GET /containers/:id` - Get container status
-- `POST /containers/:id/exec` - Execute command in container
-- `POST /containers/:id/files/write` - Write file to container
-- `GET /containers/:id/files/read` - Read file from container
-- `GET /containers/:id/files/list` - List files in container
-- `POST /containers/:id/expose` - Expose container port
-- `POST /containers/:id/snapshot` - Snapshot container state
-- `DELETE /containers/:id` - Destroy container
+- `GET /containers` - List user's active containers
+- `GET /containers/:id` - Get container details
+- `DELETE /containers/:id` - Force destroy a container
+- `GET /containers/templates/list` - List user's saved templates
+- `DELETE /containers/templates/:id` - Delete a template
+
+> Container operations (exec, files, expose, snapshot) are performed by agents via tools, not via REST endpoints. The Docker host service at `DOCKER_HOST_URL` handles the actual container management.
 
 ### Canvas (Workflow Builder)
 
