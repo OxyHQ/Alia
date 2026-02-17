@@ -1,14 +1,7 @@
 import React, { useState, useCallback } from "react";
 import { View, ActivityIndicator } from "react-native";
 import { Text } from "@/components/ui/text";
-import { Button } from "@/components/ui/button";
-import {
-  PromptInput,
-  PromptInputTextarea,
-  PromptInputActions,
-  PromptInputMicButton,
-} from "@/components/ui/prompt-input";
-import { ArrowUp, Plus } from "lucide-react-native";
+import { PromptInput } from "@/components/ui/prompt-input";
 import { useRouter } from "expo-router";
 import { useAgentsStore } from "@/lib/stores/agents-store";
 import { useTranslation } from "@/hooks/useTranslation";
@@ -89,46 +82,15 @@ export default function CreateAgentScreen() {
           {t("agents.createTitle")}
         </Text>
 
-        {/* Prompt Input */}
         <PromptInput
           value={inputValue}
           onValueChange={setInputValue}
           onSubmit={handleGenerate}
           isLoading={generating}
           disabled={generating}
-        >
-          <PromptInputTextarea
-            value={inputValue}
-            onChangeText={setInputValue}
-            placeholder={t("agents.createPlaceholder")}
-            className="min-h-[44px] text-base py-3"
-          />
-          <PromptInputActions className="flex-row items-center justify-between gap-2 mt-2 mb-1 px-3">
-            <View className="flex-row items-center gap-1.5">
-              <Button
-                variant="outline"
-                size="icon"
-                className="h-8 w-8 rounded-full border-0"
-                onPress={() => {
-                  /* future: add context/files */
-                }}
-              >
-                <Plus size={16} className="text-muted-foreground" />
-              </Button>
-            </View>
-            <View className="flex-row items-center gap-1.5">
-              <PromptInputMicButton />
-              <Button
-                size="icon"
-                onPress={handleGenerate}
-                disabled={!inputValue.trim()}
-                className="h-8 w-8 rounded-full"
-              >
-                <ArrowUp size={16} color="white" />
-              </Button>
-            </View>
-          </PromptInputActions>
-        </PromptInput>
+          placeholder={t("agents.createPlaceholder")}
+          autocomplete
+        />
       </View>
     </View>
   );
