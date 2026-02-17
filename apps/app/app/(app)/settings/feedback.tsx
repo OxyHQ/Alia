@@ -12,7 +12,6 @@ import { generateAPIUrl } from "@/lib/generate-api-url";
 import { MessageSquare, Bug, Lightbulb, Sparkles, Star } from "lucide-react-native";
 import { SettingsHeader } from "@/components/settings/settings-header";
 import { toast } from "@/components/sonner";
-import { Platform } from "react-native";
 import { useTranslation } from "@/hooks/useTranslation";
 
 type FeedbackType = 'bug' | 'feature' | 'improvement' | 'other';
