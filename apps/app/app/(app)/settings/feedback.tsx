@@ -1,5 +1,7 @@
-import { View, Pressable, ActivityIndicator } from "react-native";
+import { View, ScrollView, Pressable, ActivityIndicator, Platform } from "react-native";
 import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
+
+const ScrollComponent = Platform.OS === 'web' ? ScrollView : KeyboardAwareScrollView;
 import { Text } from "@/components/ui/text";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -114,7 +116,7 @@ export default function FeedbackScreen() {
     <View className="flex-1 bg-background">
       <SettingsHeader title={t('feedback.title')} subtitle={t('feedback.subtitle')} showBack />
 
-      <KeyboardAwareScrollView bottomOffset={20} className="flex-1 p-4">
+      <ScrollComponent bottomOffset={20} className="flex-1 p-4">
         <View className="max-w-2xl mx-auto w-full gap-6">
           {/* Feedback Type Selection */}
           <View className="gap-3">
@@ -211,7 +213,7 @@ export default function FeedbackScreen() {
             </Text>
           </View>
         </View>
-      </KeyboardAwareScrollView>
+      </ScrollComponent>
     </View>
   );
 }
