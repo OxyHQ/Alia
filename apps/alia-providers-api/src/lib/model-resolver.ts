@@ -8,7 +8,7 @@
  * The public API (resolveAliaModel) remains backward-compatible.
  */
 
-import type { KeyConfig } from './types.js';
+import type { KeyConfig } from './types';
 import {
   ALIA_MODELS,
   TIER_MODEL_MAPPINGS,
@@ -16,8 +16,8 @@ import {
   getAliaModel,
   type AliaModel,
   type AliaTier,
-} from './alia-models.js';
-import { resolveWithFallback, type FallbackResult, type FallbackAttempt } from './fallback-engine.js';
+} from './alia-models';
+import { resolveWithFallback, type FallbackResult, type FallbackAttempt } from './fallback-engine';
 
 export interface ResolvedModel {
   aliasModelId: string;

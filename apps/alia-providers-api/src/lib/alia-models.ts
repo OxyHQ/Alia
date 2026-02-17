@@ -240,10 +240,10 @@ export const ALIA_MODELS: Record<string, AliaModel> = {
  */
 
 // Import the generated mappings with full capabilities and pricing data
-import { GENERATED_TIER_MAPPINGS } from './generate-model-mappings.js';
-import { isProviderAvailable } from './provider-health.js';
+import { GENERATED_TIER_MAPPINGS } from './generate-model-mappings';
+import { isProviderAvailable } from './provider-health';
 import { AliaModel as AliaModelDB } from '../models/alia-model.js';
-import { log } from './logger.js';
+import { log } from './logger';
 export const TIER_MODEL_MAPPINGS = GENERATED_TIER_MAPPINGS;
 
 /**

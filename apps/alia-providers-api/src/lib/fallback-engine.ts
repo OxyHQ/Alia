@@ -16,19 +16,19 @@
  * Records FallbackEvents asynchronously for analytics (fire-and-forget).
  */
 
-import type { KeyConfig } from './types.js';
-import type { FailoverReason } from './errors/error-codes.js';
-import type { ResolvedModel } from './model-resolver.js';
-import type { AliaModel, ModelMapping } from './alia-models.js';
+import type { KeyConfig } from './types';
+import type { FailoverReason } from './errors/error-codes';
+import type { ResolvedModel } from './model-resolver';
+import type { AliaModel, ModelMapping } from './alia-models';
 import {
   TIER_MODEL_MAPPINGS,
   isAliaModel,
   getAliaModel,
-} from './alia-models.js';
-import { getBestKeyForModel, markKeyCreditExhausted } from './key-manager.js';
-import { isProviderAvailable } from './provider-health.js';
+} from './alia-models';
+import { getBestKeyForModel, markKeyCreditExhausted } from './key-manager';
+import { isProviderAvailable } from './provider-health';
 import { FallbackEvent } from '../models/fallback-event.js';
-import { log } from './logger.js';
+import { log } from './logger';
 
 // ============== TYPES ==============
 

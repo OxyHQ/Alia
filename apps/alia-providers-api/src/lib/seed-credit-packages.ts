@@ -4,8 +4,8 @@
  */
 
 import { CreditPackage } from '../models/credit-package.js';
-import { connectDB } from './db.js';
-import { log } from './logger.js';
+import { connectDB } from './db';
+import { log } from './logger';
 
 interface CreditPackageSeed {
   packageId: string;

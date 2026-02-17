@@ -4,7 +4,7 @@
  * Comprehensive capability definitions for all supported models
  */
 
-import type { ModelCapabilities, PricingTier } from './alia-models.js';
+import type { ModelCapabilities, PricingTier } from './alia-models';
 
 // ============== CAPABILITY PRESETS ==============
 

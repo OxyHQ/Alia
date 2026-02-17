@@ -9,8 +9,8 @@
 
 import { Feature } from '../models/feature.js';
 import { PlanFeature } from '../models/plan-feature.js';
-import { connectDB } from './db.js';
-import { log } from './logger.js';
+import { connectDB } from './db';
+import { log } from './logger';
 
 // ─── Feature seed data ──────────────────────────────────────
 

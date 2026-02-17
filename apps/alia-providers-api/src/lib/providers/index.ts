@@ -1,17 +1,17 @@
 import type { Provider } from '../types.js';
 
-import { googleProvider } from './google.js';
-import { groqProvider } from './groq.js';
-import { openaiProvider } from './openai.js';
-import { anthropicProvider } from './anthropic.js';
-import { cerebrasProvider } from './cerebras.js';
-import { togetherProvider } from './together.js';
-import { openrouterProvider } from './openrouter.js';
-import { mistralProvider } from './mistral.js';
-import { cloudflareProvider } from './cloudflare.js';
-import { deepseekProvider } from './deepseek.js';
-import { replicateProvider } from './replicate.js';
-import { cohereProvider } from './cohere.js';
+import { googleProvider } from './google';
+import { groqProvider } from './groq';
+import { openaiProvider } from './openai';
+import { anthropicProvider } from './anthropic';
+import { cerebrasProvider } from './cerebras';
+import { togetherProvider } from './together';
+import { openrouterProvider } from './openrouter';
+import { mistralProvider } from './mistral';
+import { cloudflareProvider } from './cloudflare';
+import { deepseekProvider } from './deepseek';
+import { replicateProvider } from './replicate';
+import { cohereProvider } from './cohere';
 
 // ============== PROVIDER REGISTRY ==============
 // Note: Voice providers (openai-voice, grok-voice) stay in the main API
