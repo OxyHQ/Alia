@@ -68,8 +68,7 @@ export const BaseSidebar = React.memo(function BaseSidebar({
         {showTopGradient && (
           <LinearGradient
             colors={[colors.background, "transparent"]}
-            pointerEvents="none"
-            style={{ position: "absolute", top: 0, left: 0, right: 0, height: GRADIENT_HEIGHT, zIndex: 10 }}
+            style={{ position: "absolute", top: 0, left: 0, right: 0, height: GRADIENT_HEIGHT, zIndex: 10, pointerEvents: "none" }}
           />
         )}
 
@@ -96,8 +95,7 @@ export const BaseSidebar = React.memo(function BaseSidebar({
         {showBottomGradient && (
           <LinearGradient
             colors={["transparent", colors.background]}
-            pointerEvents="none"
-            style={{ position: "absolute", bottom: 0, left: 0, right: 0, height: GRADIENT_HEIGHT, zIndex: 10 }}
+            style={{ position: "absolute", bottom: 0, left: 0, right: 0, height: GRADIENT_HEIGHT, zIndex: 10, pointerEvents: "none" }}
           />
         )}
       </View>

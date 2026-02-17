@@ -29,8 +29,8 @@ export function VoiceOverlay({ waveAmplitude, agentState, isConnected }: VoiceOv
         height: 350,
         zIndex: 5,
         opacity: 0.35,
+        pointerEvents: 'none',
       }}
-      pointerEvents="none"
     >
       <AudioWaveVisualizer
         waveAmplitude={waveAmplitude}
