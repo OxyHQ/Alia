@@ -1,4 +1,5 @@
-import { View, ScrollView, Pressable, TextInput } from "react-native";
+import { View, Pressable, TextInput } from "react-native";
+import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { Image } from "expo-image";
 import { CustomMarkdown } from "@/components/ui/markdown";
 import { Text } from "@/components/ui/text";
@@ -166,8 +167,9 @@ export const ChatInterface = React.memo(function ChatInterface({ messages, scrol
     );
 
     return (
-      <ScrollView
+      <KeyboardAwareScrollView
         ref={scrollViewRef}
+        bottomOffset={60}
         className="flex-1 bg-background px-4 py-4"
         contentContainerStyle={{ flexGrow: 1, paddingTop: 60, paddingBottom: bottomPadding }}
         showsVerticalScrollIndicator={false}
@@ -386,6 +388,6 @@ export const ChatInterface = React.memo(function ChatInterface({ messages, scrol
               <ThinkingIndicator isWorking={false} />
             )}
         </View>
-      </ScrollView>
+      </KeyboardAwareScrollView>
     );
 });
