@@ -16,6 +16,7 @@ interface UserMemory {
   preferences: {
     language?: string;
     tone?: string;
+    voice?: string;
     responseLength?: 'short' | 'medium' | 'long';
     interests?: string[];
   };
