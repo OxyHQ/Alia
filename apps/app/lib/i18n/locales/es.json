@@ -593,11 +593,8 @@
     "trending": "Tendencia",
     "createAgent": "Crear agente",
     "createComingSoon": "La creación de agentes estará disponible pronto!",
-    "follow": "Seguir",
-    "following": "Siguiendo",
     "hire": "Contratar",
     "free": "Gratis",
-    "followers": "seguidores",
     "hires": "contrataciones",
     "uses": "usos",
     "capabilities": "Capacidades",
@@ -614,7 +611,13 @@
     "activity": "Actividad",
     "taskPlaceholder": "Describe la tarea para este agente...",
     "hireStarted": "El agente está trabajando en tu tarea",
-    "notActive": "Este agente no está activo actualmente"
+    "notActive": "Este agente no está activo actualmente",
+    "chat": "Chat",
+    "addToTeam": "Añadir al equipo",
+    "selectTeam": "Selecciona un equipo",
+    "addedToTeam": "Agente añadido al equipo",
+    "addToTeamFailed": "Error al añadir agente al equipo",
+    "noTeams": "Aún no tienes ningún equipo"
   },
   "authorize": {
     "sendMessages": "Enviar mensajes a modelos de IA",

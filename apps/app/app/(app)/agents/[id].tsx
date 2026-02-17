@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback } from "react";
-import { View, ScrollView, Pressable, Share, TextInput, Switch } from "react-native";
+import { View, ScrollView, Pressable, Share, TextInput, Switch, Alert } from "react-native";
 import { Text } from "@/components/ui/text";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarImage } from "@/components/ui/avatar";
@@ -9,11 +9,13 @@ const DEFAULT_AVATAR = require("@/assets/images/agent-avatar-reference.png");
 import {
   ArrowLeft,
   CheckCircle2,
-  Plus,
   Zap,
   Share2,
   Star,
   Send,
+  MessageCircle,
+  Bookmark,
+  UserPlus,
 } from "lucide-react-native";
 import { useAgentsStore, type Agent } from "@/lib/stores/agents-store";
 import { useRouter, useLocalSearchParams } from "expo-router";
@@ -24,6 +26,8 @@ import { SectionLabel, PillList } from "@/components/detail";
 import { AgentTerminal } from "@/components/agent-terminal";
 import apiClient from "@/lib/api/client";
 import { cn } from "@/lib/utils";
+import { useCreateConversation } from "@/lib/hooks/use-conversations";
+import { useAgentFavoritesStore } from "@/lib/stores/agent-favorites-store";
 
 const STATUS_COLORS: Record<string, string> = {
   active: "bg-green-500",
@@ -45,7 +49,6 @@ function formatCount(n: number): string {
 export default function AgentDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const getAgent = useAgentsStore((state) => state.getAgent);
-  const followAgent = useAgentsStore((state) => state.followAgent);
   const router = useRouter();
   const { t } = useTranslation();
   const { user } = useOxy();
@@ -56,6 +59,21 @@ export default function AgentDetailScreen() {
   const [showHireInput, setShowHireInput] = useState(false);
   const [taskInput, setTaskInput] = useState("");
   const [hiring, setHiring] = useState(false);
+
+  // Chat
+  const createConversationMutation = useCreateConversation();
+
+  // Favorites
+  const toggleFavorite = useAgentFavoritesStore((s) => s.toggleFavorite);
+  const isFavorite = useAgentFavoritesStore((s) => s.isFavorite);
+  const loadFavorites = useAgentFavoritesStore((s) => s.loadFavorites);
+
+  // Add to team state
+  const [addingToTeam, setAddingToTeam] = useState(false);
+
+  useEffect(() => {
+    loadFavorites();
+  }, [loadFavorites]);
 
   useEffect(() => {
     if (id) {
@@ -68,13 +86,17 @@ export default function AgentDetailScreen() {
   }, [id, getAgent]);
 
   const isOwner = !!(user && agent && user._id === agent.author);
+  const bookmarked = agent ? isFavorite(agent._id) : false;
 
-  const handleFollow = async () => {
+  const handleChat = useCallback(async () => {
     if (!agent) return;
-    await followAgent(agent._id);
-    const updated = await getAgent(agent._id);
-    if (updated) setAgent(updated);
-  };
+    try {
+      const conversation = await createConversationMutation.mutateAsync({ agentId: agent._id });
+      router.replace(`/(app)/c/${conversation.id}?agentId=${agent._id}` as any);
+    } catch {
+      toast.error("Failed to start chat");
+    }
+  }, [agent, createConversationMutation, router]);
 
   const handleHirePress = () => {
     if (agent?.status !== "active") {
@@ -113,6 +135,55 @@ export default function AgentDetailScreen() {
     }
   };
 
+  const handleBookmark = () => {
+    if (!agent) return;
+    toggleFavorite(agent._id);
+  };
+
+  const handleAddToTeam = async () => {
+    if (!agent) return;
+    setAddingToTeam(true);
+    try {
+      const res = await apiClient.get("/organization");
+      const orgs = res.data.organizations || [];
+
+      if (orgs.length === 0) {
+        toast.info(t("agents.noTeams"));
+        return;
+      }
+
+      // Show simple selection via Alert
+      if (orgs.length === 1) {
+        await apiClient.post(`/organization/${orgs[0]._id}/agents`, { agentId: agent._id });
+        toast.success(t("agents.addedToTeam"));
+      } else {
+        // For multiple orgs, use Alert with buttons
+        Alert.alert(
+          t("agents.addToTeam"),
+          t("agents.selectTeam"),
+          [
+            ...orgs.slice(0, 4).map((org: any) => ({
+              text: org.name,
+              onPress: async () => {
+                try {
+                  await apiClient.post(`/organization/${org._id}/agents`, { agentId: agent._id });
+                  toast.success(t("agents.addedToTeam"));
+                } catch {
+                  toast.error(t("agents.addToTeamFailed"));
+                }
+              },
+            })),
+            { text: t("common.cancel"), style: "cancel" as const },
+          ],
+        );
+      }
+    } catch {
+      toast.error(t("agents.addToTeamFailed"));
+    } finally {
+      setAddingToTeam(false);
+    }
+  };
+
   const handleStatusToggle = async (newStatus: "active" | "idle") => {
     if (!agent) return;
     try {
@@ -143,14 +214,26 @@ export default function AgentDetailScreen() {
 
   return (
     <View className="flex-1 bg-background">
-      {/* Back Header */}
-      <View className="px-5 py-3 z-10">
+      {/* Header */}
+      <View className="px-5 py-3 z-10 flex-row items-center justify-between">
         <Pressable
           onPress={() => router.back()}
-          className="active:opacity-70 self-start"
+          className="active:opacity-70"
         >
           <ArrowLeft size={22} className="text-foreground" />
         </Pressable>
+        <View className="flex-row items-center gap-3">
+          <Pressable onPress={handleBookmark} className="active:opacity-70">
+            <Bookmark
+              size={20}
+              className={bookmarked ? "text-primary" : "text-muted-foreground"}
+              fill={bookmarked ? "currentColor" : "none"}
+            />
+          </Pressable>
+          <Pressable onPress={handleShare} className="active:opacity-70">
+            <Share2 size={20} className="text-muted-foreground" />
+          </Pressable>
+        </View>
       </View>
 
       <ScrollView className="flex-1" showsVerticalScrollIndicator={false}>
@@ -243,10 +326,6 @@ export default function AgentDetailScreen() {
             </View>
             <Text className="text-[11px] text-muted-foreground">·</Text>
             <Text className="text-[12px] text-muted-foreground">
-              {formatCount(agent.followerCount)} {t("agents.followers")}
-            </Text>
-            <Text className="text-[11px] text-muted-foreground">·</Text>
-            <Text className="text-[12px] text-muted-foreground">
               {formatCount(agent.hireCount)} {t("agents.hires")}
             </Text>
             <Text className="text-[11px] text-muted-foreground">·</Text>
@@ -279,17 +358,13 @@ export default function AgentDetailScreen() {
             </View>
           )}
 
-          {/* Action Buttons */}
-          <View className="flex-row gap-2 mb-4">
-            <Button
-              variant="outline"
-              onPress={handleFollow}
-              className="flex-1 h-11 rounded-full"
-            >
+          {/* Action Buttons: Chat + Hire */}
+          <View className="flex-row gap-2 mb-2">
+            <Button variant="outline" onPress={handleChat} className="flex-1 h-11 rounded-full">
               <View className="flex-row items-center gap-1.5">
-                <Plus size={15} className="text-foreground" />
+                <MessageCircle size={15} className="text-foreground" />
                 <Text className="text-[13px] font-semibold text-foreground">
-                  {t("agents.follow")}
+                  {t("agents.chat")}
                 </Text>
               </View>
             </Button>
@@ -303,80 +378,94 @@ export default function AgentDetailScreen() {
                 </Text>
               </View>
             </Button>
-            <Button
-              variant="secondary"
-              onPress={handleShare}
-              className="h-11 px-4 rounded-full"
-            >
-              <Share2 size={15} className="text-foreground" />
-            </Button>
           </View>
+
+          {/* Add to Team */}
+          <Button
+            variant="secondary"
+            onPress={handleAddToTeam}
+            disabled={addingToTeam}
+            className="h-9 rounded-full mb-4"
+          >
+            <View className="flex-row items-center gap-1.5">
+              <UserPlus size={14} className="text-foreground" />
+              <Text className="text-[12px] font-medium text-foreground">
+                {t("agents.addToTeam")}
+              </Text>
+            </View>
+          </Button>
 
           {/* Hire Task Input */}
           {showHireInput && (
-            <View className="flex-row items-center gap-2 mb-5 bg-muted/30 rounded-xl px-3 py-2 border border-border">
+            <View className="mb-5 bg-muted/30 rounded-xl px-3 py-2 border border-border">
               <TextInput
                 value={taskInput}
                 onChangeText={setTaskInput}
                 placeholder={t("agents.taskPlaceholder")}
                 placeholderTextColor="#888"
                 editable={!hiring}
-                onSubmitEditing={handleHireSubmit}
-                returnKeyType="send"
-                multiline={false}
+                multiline
+                numberOfLines={3}
                 style={{
-                  flex: 1,
                   color: "#fff",
                   fontSize: 14,
                   paddingVertical: 8,
+                  minHeight: 72,
+                  textAlignVertical: "top",
                 }}
               />
-              <Pressable
-                onPress={handleHireSubmit}
-                disabled={hiring || !taskInput.trim()}
-                className="p-2 active:opacity-70"
-              >
-                <Send
-                  size={18}
-                  className={
-                    taskInput.trim() ? "text-primary" : "text-muted-foreground"
-                  }
-                />
-              </Pressable>
+              <View className="flex-row justify-end mt-1">
+                <Pressable
+                  onPress={handleHireSubmit}
+                  disabled={hiring || !taskInput.trim()}
+                  className="p-2 active:opacity-70"
+                >
+                  <Send
+                    size={18}
+                    className={
+                      taskInput.trim() ? "text-primary" : "text-muted-foreground"
+                    }
+                  />
+                </Pressable>
+              </View>
             </View>
           )}
 
-          {/* Price Badge */}
-          {agent.price != null && (
-            <View className="flex-row items-center gap-1.5 mb-4">
-              <Text className="text-[12px] text-muted-foreground">
-                ${agent.price.toFixed(2)} per use
-              </Text>
-            </View>
-          )}
+          {/* Divider */}
+          <View className="h-px bg-border mx-0 mb-5" />
 
-          {/* Description */}
-          <Text className="text-[14px] text-foreground leading-5 mb-5">
-            {agent.description}
-          </Text>
+          {/* About / Description */}
+          <View className="mb-5">
+            <SectionLabel>{t("agents.about")}</SectionLabel>
+            <Text className="text-[14px] text-foreground leading-5 mt-1">
+              {agent.description}
+            </Text>
+          </View>
 
           {/* Capabilities */}
           {agent.capabilities.length > 0 && (
-            <View className="mb-5">
-              <SectionLabel>{t("agents.capabilities")}</SectionLabel>
-              <PillList items={agent.capabilities} />
-            </View>
+            <>
+              <View className="h-px bg-border mx-0 mb-5" />
+              <View className="mb-5">
+                <SectionLabel>{t("agents.capabilities")}</SectionLabel>
+                <PillList items={agent.capabilities} />
+              </View>
+            </>
           )}
 
           {/* Tags */}
           {agent.tags.length > 0 && (
-            <View className="mb-5">
-              <SectionLabel>{t("agents.tags")}</SectionLabel>
-              <PillList items={agent.tags} />
-            </View>
+            <>
+              <View className="h-px bg-border mx-0 mb-5" />
+              <View className="mb-5">
+                <SectionLabel>{t("agents.tags")}</SectionLabel>
+                <PillList items={agent.tags} />
+              </View>
+            </>
           )}
 
           {/* Activity Terminal */}
+          <View className="h-px bg-border mx-0 mb-5" />
           <View className="mb-5">
             <SectionLabel>{t("agents.activity")}</SectionLabel>
             <View style={{ height: 300 }} className="rounded-lg overflow-hidden mt-2">

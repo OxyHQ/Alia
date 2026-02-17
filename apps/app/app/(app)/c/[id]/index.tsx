@@ -9,7 +9,7 @@ import { UsageLimitError } from "@/lib/errors/usage-limit-error";
 import { isThinkingModel } from "@/components/model-selector";
 
 const ChatConversationPage = () => {
-  const { id, roleId } = useLocalSearchParams<{ id: string; roleId?: string }>();
+  const { id, roleId, agentId } = useLocalSearchParams<{ id: string; roleId?: string; agentId?: string }>();
   const roles = useRolesStore((state) => state.roles);
   const activeSkillId = useStore((state) => state.activeSkillId);
 
@@ -28,7 +28,7 @@ const ChatConversationPage = () => {
     stopGeneration,
     clearConversation,
     clearError,
-  } = useChatConversation({ conversationId: id, activeRole, thinkingMode, selectedModel, skillId: activeSkillId });
+  } = useChatConversation({ conversationId: id, activeRole, thinkingMode, selectedModel, skillId: activeSkillId, agentId });
 
   // Check both instanceof AND name — Hermes can break instanceof for Error subclasses
   const usageLimitError = (error instanceof UsageLimitError || (error as any)?.name === 'UsageLimitError')

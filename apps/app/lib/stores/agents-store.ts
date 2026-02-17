@@ -7,8 +7,6 @@ export interface Agent {
   name: string;
   handle: string;
   avatar: string | null;
-  banner: string | null;
-  bannerGradient: string[];
   tagline: string;
   description: string;
   author: string;
@@ -19,7 +17,6 @@ export interface Agent {
   rating: number;
   reviewCount: number;
   usageCount: number;
-  followerCount: number;
   hireCount: number;
   price: number | null;
   capabilities: string[];
@@ -44,7 +41,6 @@ interface AgentsStoreState {
   createAgent: (data: Partial<Agent>) => Promise<Agent | null>;
   updateAgent: (id: string, updates: Partial<Agent>) => Promise<void>;
   deleteAgent: (id: string) => Promise<void>;
-  followAgent: (id: string) => Promise<void>;
   hireAgent: (id: string, task: string) => Promise<string | null>;
 }
 
@@ -111,18 +107,6 @@ export const useAgentsStore = create<AgentsStoreState>((set, get) => ({
       }));
     } catch (error) {
       console.error('Error deleting agent:', error);
-    }
-  },
-
-  followAgent: async (id) => {
-    try {
-      const res = await apiClient.post(API_ROUTES.agents.follow(id));
-      const updated = res.data.agent;
-      set((state) => ({
-        agents: state.agents.map((a) => (a._id === id ? updated : a)),
-      }));
-    } catch (error) {
-      console.error('Error following agent:', error);
     }
   },
 

@@ -3,6 +3,8 @@ import multer from 'multer';
 import { authenticateToken } from '../middleware/auth';
 import { Organization } from '../models/organization';
 import { OrganizationMember } from '../models/organization-member';
+import { OrganizationAgent } from '../models/organization-agent';
+import { Agent } from '../models/agent';
 import { uploadToS3, deleteFromS3 } from '../lib/s3';
 import { z } from 'zod';
 import { log } from '../lib/logger.js';
@@ -420,6 +422,113 @@ router.delete('/:id/members/:memberId', async (req: Request, res: Response) => {
   } catch (error) {
     log.organization.error({ err: error }, 'Error removing member');
     res.status(500).json({ error: 'Failed to remove member' });
+  }
+});
+
+// ===========================================
+// ORGANIZATION AGENT ROUTES
+// ===========================================
+
+// Add an agent to an organization
+router.post('/:id/agents', async (req: Request, res: Response) => {
+  try {
+    const userId = req.user!.id;
+    const { id } = req.params;
+    const { agentId } = req.body;
+
+    if (!agentId) {
+      return res.status(400).json({ error: 'agentId is required' });
+    }
+
+    // Check if user is admin or owner
+    const membership = await OrganizationMember.findOne({
+      organizationId: id,
+      oxyUserId: userId,
+      role: { $in: ['owner', 'admin'] },
+    });
+
+    if (!membership) {
+      return res.status(403).json({ error: 'Insufficient permissions' });
+    }
+
+    // Verify agent exists
+    const agent = await Agent.findById(agentId);
+    if (!agent) {
+      return res.status(404).json({ error: 'Agent not found' });
+    }
+
+    // Upsert to avoid duplicates
+    await OrganizationAgent.findOneAndUpdate(
+      { organizationId: id, agentId },
+      { $setOnInsert: { addedBy: userId } },
+      { upsert: true, new: true },
+    );
+
+    res.json({ added: true });
+  } catch (error) {
+    log.organization.error({ err: error }, 'Error adding agent to organization');
+    res.status(500).json({ error: 'Failed to add agent' });
+  }
+});
+
+// List agents in an organization
+router.get('/:id/agents', async (req: Request, res: Response) => {
+  try {
+    const userId = req.user!.id;
+    const { id } = req.params;
+
+    // Check if user is a member
+    const membership = await OrganizationMember.findOne({
+      organizationId: id,
+      oxyUserId: userId,
+    });
+
+    if (!membership) {
+      return res.status(403).json({ error: 'Not a member of this organization' });
+    }
+
+    const orgAgents = await OrganizationAgent.find({ organizationId: id })
+      .populate('agentId')
+      .sort({ createdAt: -1 });
+
+    const agents = orgAgents
+      .filter(oa => oa.agentId != null)
+      .map(oa => oa.agentId);
+
+    res.json({ agents });
+  } catch (error) {
+    log.organization.error({ err: error }, 'Error fetching organization agents');
+    res.status(500).json({ error: 'Failed to fetch agents' });
+  }
+});
+
+// Remove an agent from an organization
+router.delete('/:id/agents/:agentId', async (req: Request, res: Response) => {
+  try {
+    const userId = req.user!.id;
+    const { id, agentId } = req.params;
+
+    // Check if user is admin or owner
+    const membership = await OrganizationMember.findOne({
+      organizationId: id,
+      oxyUserId: userId,
+      role: { $in: ['owner', 'admin'] },
+    });
+
+    if (!membership) {
+      return res.status(403).json({ error: 'Insufficient permissions' });
+    }
+
+    const result = await OrganizationAgent.deleteOne({ organizationId: id, agentId });
+
+    if (result.deletedCount === 0) {
+      return res.status(404).json({ error: 'Agent not found in organization' });
+    }
+
+    res.json({ removed: true });
+  } catch (error) {
+    log.organization.error({ err: error }, 'Error removing agent from organization');
+    res.status(500).json({ error: 'Failed to remove agent' });
   }
 });
 

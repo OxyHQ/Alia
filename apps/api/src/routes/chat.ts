@@ -12,6 +12,7 @@ import { getOrCreateUserCredits } from '../lib/user-credits-helpers.js';
 import { saveConversation, extractConversationTitle } from '../lib/conversation-saver.js';
 import { CanvasSession } from '../models/canvas-session.js';
 import { Skill } from '../models/skill.js';
+import { Agent } from '../models/agent.js';
 import type { IUserMemory } from '../models/user-memory.js';
 import { processMessagesForPlatform } from '../lib/message-processor.js';
 import { reserveCredits, finalizeCredits, safeRefund, type CreditReservation, type CreditUsage } from '../lib/credits-manager.js';
@@ -41,13 +42,19 @@ async function buildChatSystemPrompt(
   memory?: IUserMemory | null,
   platform: 'app' | 'telegram' = 'app',
   skillPrompt?: string | null,
-  recalledMemories?: RecalledMemory[]
+  recalledMemories?: RecalledMemory[],
+  agentPrompt?: string | null
 ): Promise<string> {
   let prompt = await loadPrompt(platform === 'telegram' ? 'alia-telegram' : 'alia-app');
 
   // Inject skill system prompt before the base prompt
   if (skillPrompt) {
     prompt = `${skillPrompt}\n\n---\n\n${prompt}`;
+  }
+
+  // Inject agent system prompt before the base prompt
+  if (agentPrompt) {
+    prompt = `# ACTIVE AGENT\n\n${agentPrompt}\n\n---\n\n${prompt}`;
   }
 
   const userContext: string[] = [];
@@ -132,12 +139,13 @@ router.post('/', optionalAuth, async (req, res) => {
   const requestStartTime = Date.now();
 
   try {
-    const { messages, conversationId, model: requestedModel, thinkingMode, skillId } = req.body as {
+    const { messages, conversationId, model: requestedModel, thinkingMode, skillId, agentId } = req.body as {
       messages: any[];
       conversationId?: string;
       model?: string;
       thinkingMode?: boolean;
       skillId?: string;
+      agentId?: string;
     };
 
     if (!messages || !messages.length) {
@@ -317,6 +325,21 @@ router.post('/', optionalAuth, async (req, res) => {
       }
     }
 
+    // Look up active agent system prompt if agentId provided
+    let agentPrompt: string | null = null;
+    if (agentId) {
+      try {
+        const agent = await Agent.findById(agentId).select('name tagline description capabilities systemPrompt').lean();
+        if (agent) {
+          agentPrompt = agent.systemPrompt
+            || `You are "${agent.name}". ${agent.tagline}\n\n${agent.description}${agent.capabilities?.length ? `\n\nCapabilities: ${agent.capabilities.join(', ')}` : ''}`;
+          log.chat.info({ agentName: agent.name }, 'Agent context activated');
+        }
+      } catch (e) {
+        log.chat.error({ err: e }, 'Error loading agent');
+      }
+    }
+
     // Run beforeChat hooks (memory recall, etc.)
     let recalledMemories: RecalledMemory[] | undefined;
     if (req.user?.id) {
@@ -340,7 +363,7 @@ router.post('/', optionalAuth, async (req, res) => {
     }
 
     // Build personalized system prompt (with skill injection + recalled memories)
-    let systemPrompt = await buildChatSystemPrompt(oxyUser, memory, platform, skillPrompt, recalledMemories);
+    let systemPrompt = await buildChatSystemPrompt(oxyUser, memory, platform, skillPrompt, recalledMemories, agentPrompt);
 
     // Inject current model identity so Alia knows which tier it's running as
     const aliaModel = await getAliaModel(resolved.aliasModelId);
@@ -670,6 +693,7 @@ router.post('/', optionalAuth, async (req, res) => {
           messages,
           assistantResponse,
           source: platform,
+          agentId,
         });
         log.chat.info({ conversationId }, 'Conversation saved successfully');
       } catch (error) {

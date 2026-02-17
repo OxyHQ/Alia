@@ -16,9 +16,10 @@ interface UseChatConversationOptions {
   thinkingMode?: boolean;
   selectedModel?: string;
   skillId?: string | null;
+  agentId?: string;
 }
 
-export function useChatConversation({ conversationId, activeRole, thinkingMode, selectedModel, skillId }: UseChatConversationOptions = {}) {
+export function useChatConversation({ conversationId, activeRole, thinkingMode, selectedModel, skillId, agentId }: UseChatConversationOptions = {}) {
   const router = useRouter();
   const queryClient = useQueryClient();
   const scrollViewRef = useRef<GHScrollView>(null);
@@ -38,7 +39,7 @@ export function useChatConversation({ conversationId, activeRole, thinkingMode, 
     clearError,
     setMessages,
     stop,
-  } = useStreamingChat(generateAPIUrl('/v1/chat/completions'), activeRole, conversationId, thinkingMode, selectedModel, skillId);
+  } = useStreamingChat(generateAPIUrl('/v1/chat/completions'), activeRole, conversationId, thinkingMode, selectedModel, skillId, agentId);
 
   // Refresh sidebar when streaming finishes (backend auto-saves with AI-generated title)
   useEffect(() => {
@@ -113,7 +114,7 @@ export function useChatConversation({ conversationId, activeRole, thinkingMode, 
     }
 
     // Create conversation on backend and get the ID
-    const newConversation = await createConversationMutation.mutateAsync();
+    const newConversation = await createConversationMutation.mutateAsync({ agentId });
 
     // Navigate to the new conversation
     router.replace(`/(app)/c/${newConversation.id}` as any);

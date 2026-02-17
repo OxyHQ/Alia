@@ -15,7 +15,7 @@ router.post('/new', authenticateToken, async (req: Request, res: Response) => {
     }
 
     const conversationId = randomUUID();
-    const { source = 'app' } = req.body;
+    const { source = 'app', agentId } = req.body;
 
     const conversation = await Conversation.create({
       oxyUserId: req.user.id,
@@ -23,6 +23,7 @@ router.post('/new', authenticateToken, async (req: Request, res: Response) => {
       title: 'New chat',
       messages: [],
       source,
+      ...(agentId && { agentId }),
       createdAt: new Date(),
       updatedAt: new Date()
     });
@@ -31,6 +32,7 @@ router.post('/new', authenticateToken, async (req: Request, res: Response) => {
       id: conversation.conversationId,
       title: conversation.title,
       source: conversation.source,
+      agentId: conversation.agentId,
       createdAt: conversation.createdAt,
       updatedAt: conversation.updatedAt
     });
@@ -60,7 +62,7 @@ router.get('/', authenticateToken, async (req: Request, res: Response) => {
     }
 
     const conversations = await Conversation.find(query)
-      .select('conversationId title lastMessage source createdAt updatedAt')
+      .select('conversationId title lastMessage source agentId createdAt updatedAt')
       .sort({ updatedAt: -1 })
       .limit(limit + 1); // Fetch one extra to determine if there are more
 
@@ -79,6 +81,7 @@ router.get('/', authenticateToken, async (req: Request, res: Response) => {
         title: c.title,
         lastMessage: c.lastMessage,
         source: c.source || 'app',
+        agentId: c.agentId,
         createdAt: c.createdAt,
         updatedAt: c.updatedAt
       })),
@@ -117,6 +120,7 @@ router.get('/:id', authenticateToken, async (req: Request, res: Response) => {
       title: conversation.title,
       lastMessage: conversation.lastMessage,
       source: conversation.source || 'app',
+      agentId: conversation.agentId,
       messages: validMessages,
       createdAt: conversation.createdAt,
       updatedAt: conversation.updatedAt

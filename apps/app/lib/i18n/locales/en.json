@@ -593,11 +593,8 @@
     "trending": "Trending",
     "createAgent": "Create Agent",
     "createComingSoon": "Agent creation is coming soon!",
-    "follow": "Follow",
-    "following": "Following",
     "hire": "Hire",
     "free": "Free",
-    "followers": "followers",
     "hires": "hires",
     "uses": "uses",
     "capabilities": "Capabilities",
@@ -614,7 +611,13 @@
     "activity": "Activity",
     "taskPlaceholder": "Describe the task for this agent...",
     "hireStarted": "Agent is working on your task",
-    "notActive": "This agent is not currently active"
+    "notActive": "This agent is not currently active",
+    "chat": "Chat",
+    "addToTeam": "Add to team",
+    "selectTeam": "Select a team",
+    "addedToTeam": "Agent added to team",
+    "addToTeamFailed": "Failed to add agent to team",
+    "noTeams": "You don't have any teams yet"
   },
   "authorize": {
     "sendMessages": "Send messages to AI models",

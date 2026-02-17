@@ -101,7 +101,7 @@ router.post('/', authenticateToken, async (req: Request, res: Response) => {
     }
 
     const {
-      name, handle, avatar, banner, bannerGradient,
+      name, handle, avatar,
       tagline, description, category, tags, price,
       capabilities, isPublished, creditBalance, allowHiring,
     } = req.body;
@@ -121,8 +121,6 @@ router.post('/', authenticateToken, async (req: Request, res: Response) => {
       name,
       handle,
       avatar: avatar || null,
-      banner: banner || null,
-      bannerGradient: bannerGradient || ['#6366f1', '#8b5cf6'],
       tagline,
       description,
       author: req.user.id,
@@ -161,7 +159,7 @@ router.patch('/:id', authenticateToken, async (req: Request, res: Response) => {
     }
 
     const allowedFields = [
-      'name', 'avatar', 'banner', 'bannerGradient', 'tagline',
+      'name', 'avatar', 'tagline',
       'description', 'category', 'tags', 'price', 'capabilities',
       'isPublished', 'status', 'creditBalance', 'allowHiring',
       'systemPrompt', 'allowedModels', 'scheduleInterval',
@@ -201,28 +199,6 @@ router.delete('/:id', authenticateToken, async (req: Request, res: Response) => 
   } catch (error) {
     log.agents.error({ err: error }, 'Error deleting agent');
     res.status(500).json({ error: 'Failed to delete agent' });
-  }
-});
-
-// POST /agents/:id/follow - toggle follow
-router.post('/:id/follow', authenticateToken, async (req: Request, res: Response) => {
-  try {
-    if (!req.user?.id) {
-      return res.status(401).json({ error: 'Unauthorized' });
-    }
-
-    const agent = await Agent.findById(req.params.id);
-    if (!agent || !agent.isPublished) {
-      return res.status(404).json({ error: 'Agent not found' });
-    }
-
-    agent.followerCount += 1;
-    await agent.save();
-
-    res.json({ agent, followed: true });
-  } catch (error) {
-    log.agents.error({ err: error }, 'Error following agent');
-    res.status(500).json({ error: 'Failed to follow agent' });
   }
 });
 

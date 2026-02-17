@@ -4,8 +4,6 @@ export interface IAgent extends Document {
   name: string;
   handle: string;
   avatar: string | null;
-  banner: string | null;
-  bannerGradient: string[];
   tagline: string;
   description: string;
   author: mongoose.Types.ObjectId;
@@ -16,7 +14,6 @@ export interface IAgent extends Document {
   rating: number;
   reviewCount: number;
   usageCount: number;
-  followerCount: number;
   hireCount: number;
   price: number | null;
   capabilities: string[];
@@ -44,11 +41,6 @@ const AgentSchema = new Schema<IAgent>({
     index: true,
   },
   avatar: { type: String, default: null },
-  banner: { type: String, default: null },
-  bannerGradient: {
-    type: [String],
-    default: ['#6366f1', '#8b5cf6'],
-  },
   tagline: { type: String, required: true },
   description: { type: String, required: true },
   author: {
@@ -64,7 +56,6 @@ const AgentSchema = new Schema<IAgent>({
   rating: { type: Number, default: 0, min: 0, max: 5 },
   reviewCount: { type: Number, default: 0 },
   usageCount: { type: Number, default: 0 },
-  followerCount: { type: Number, default: 0 },
   hireCount: { type: Number, default: 0 },
   price: { type: Number, default: null },
   capabilities: [{ type: String }],
