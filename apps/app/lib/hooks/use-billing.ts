@@ -1,4 +1,4 @@
-import { useQuery, useMutation } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useOxy } from '@oxyhq/services';
 import apiClient from '../api/client';
 import { queryKeys } from './query-keys';
@@ -268,6 +268,7 @@ export function useCreateSubscriptionCheckout() {
 }
 
 export function useChangePlan() {
+  const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async ({
       planId,
@@ -282,14 +283,23 @@ export function useChangePlan() {
       });
       return response.data as { subscription: Subscription; direction: 'upgrade' | 'downgrade' };
     },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.billing.entitlements });
+      queryClient.invalidateQueries({ queryKey: queryKeys.billing.subscription() });
+    },
   });
 }
 
 export function useCancelSubscription() {
+  const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async () => {
       const response = await apiClient.post('/billing/subscription/cancel');
       return response.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.billing.entitlements });
+      queryClient.invalidateQueries({ queryKey: queryKeys.billing.subscription() });
     },
   });
 }

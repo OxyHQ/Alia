@@ -12,9 +12,11 @@ import {
   useCancelSubscription,
   type SubscriptionPlan,
 } from '@/lib/hooks/use-billing';
+import { useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@oxyhq/services';
 import { toast } from '@/components/sonner';
 import { useTranslation } from '@/hooks/useTranslation';
+import { queryKeys } from '@/lib/hooks/query-keys';
 import { ConfirmationDialog } from '@/components/ui/confirmation-dialog';
 import {
   type BillingPeriod,
@@ -69,6 +71,7 @@ export default function SubscribeScreen() {
     onConfirm: () => Promise<void>;
   }>({ open: false, title: '', description: '', confirmText: '', confirmVariant: 'default', onConfirm: async () => {} });
 
+  const queryClient = useQueryClient();
   const { data: apiPlans = [], isLoading: plansLoading, isError: plansError } = useSubscriptionPlans('alia');
   const { data: subscription, refetch: refetchSubscription } =
     useSubscription('alia');
@@ -96,6 +99,7 @@ export default function SubscribeScreen() {
     if (polledSubscription && (polledSubscription.status === 'active' || polledSubscription.status === 'trialing')) {
       toastShown.current = true;
       refetchSubscription();
+      queryClient.invalidateQueries({ queryKey: queryKeys.billing.entitlements });
       toast.success(t('subscribe.paymentSuccess'));
       setTimeout(() => router.replace('/(biglayout)/subscribe'), 100);
     }
@@ -109,6 +113,7 @@ export default function SubscribeScreen() {
       if (!toastShown.current) {
         toastShown.current = true;
         refetchSubscription();
+        queryClient.invalidateQueries({ queryKey: queryKeys.billing.entitlements });
         toast.success(t('subscribe.paymentSuccess'));
         setTimeout(() => router.replace('/(biglayout)/subscribe'), 100);
       }
