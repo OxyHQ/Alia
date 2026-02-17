@@ -60,7 +60,11 @@
   },
   "overrides": {
     "react": "19.2.0",
-    "react-dom": "19.2.0"
+    "react-dom": "19.2.0",
+    "react-native": "0.81.5",
+    "react-native-svg": "15.12.1",
+    "react-native-worklets": "0.5.1",
+    "@react-native-async-storage/async-storage": "2.2.0"
   },
   "dependencies": {
     "@oxyhq/auth": "^2.0.1",
