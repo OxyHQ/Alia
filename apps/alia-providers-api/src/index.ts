@@ -33,7 +33,7 @@ app.get('/health', (_req, res) => {
 });
 
 // Admin routes (existing admin panel UI)
-app.use('/internal/providers', providersModule);
+app.use('/providers', providersModule);
 
 // Service-to-service API routes (require HMAC auth)
 app.use('/api/resolve', authenticateService, resolveRouter);
@@ -49,12 +49,12 @@ async function start() {
     log.general.info('alia-providers-api listening on port %d', PORT);
   });
 
-  // WebSocket upgrade for /internal/providers/ws
+  // WebSocket upgrade for /providers/ws
   server.on('upgrade', (request, socket, head) => {
     try {
       const pathname = new URL(request.url!, `http://${request.headers.host}`).pathname;
 
-      if (pathname === '/internal/providers/ws') {
+      if (pathname === '/providers/ws') {
         const url = new URL(request.url!, `http://${request.headers.host}`);
         const token = url.searchParams.get('token');
         if (!token) {
