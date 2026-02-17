@@ -14,7 +14,7 @@ AI coding assistant for your terminal by Alia.
 ## Installation
 
 ```bash
-npm install -g codea
+npm install -g alia-codea-cli
 ```
 
 ## Quick Start
