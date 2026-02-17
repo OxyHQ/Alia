@@ -42,6 +42,7 @@ export class LiveKitAgentBridge implements LiveKitAgentBridgeRef {
   private publishChain: Promise<void> = Promise.resolve();
   private totalSamplesPublished = 0;
   private firstFrameTime: number | null = null;
+  private gainMultiplier = 1.0;
 
   /** Callback invoked when user audio frames arrive from LiveKit */
   onUserAudioFrame: ((base64Pcm16: string) => void) | null = null;
@@ -165,7 +166,28 @@ export class LiveKitAgentBridge implements LiveKitAgentBridgeRef {
     if (!this.audioSource || !this.connected) return;
 
     const buffer = Buffer.from(base64Pcm16, 'base64');
-    const int16 = new Int16Array(buffer.buffer, buffer.byteOffset, buffer.byteLength / 2);
+    if (buffer.byteLength % 2 !== 0) return; // skip incomplete PCM16 sample
+
+    // Ensure 2-byte alignment for Int16Array — Node's Buffer pool can
+    // produce odd byteOffset values, causing misaligned 16-bit reads (buzzing)
+    let int16: Int16Array;
+    if (buffer.byteOffset % 2 === 0) {
+      int16 = new Int16Array(buffer.buffer, buffer.byteOffset, buffer.byteLength / 2);
+    } else {
+      const aligned = new ArrayBuffer(buffer.byteLength);
+      new Uint8Array(aligned).set(buffer);
+      int16 = new Int16Array(aligned);
+    }
+
+    // Apply gain control (for audio ducking when user speaks)
+    if (this.gainMultiplier !== 1.0) {
+      const scaled = new Int16Array(int16.length);
+      for (let i = 0; i < int16.length; i++) {
+        scaled[i] = Math.round(int16[i] * this.gainMultiplier);
+      }
+      int16 = scaled;
+    }
+
     const frame = new AudioFrame(int16, SAMPLE_RATE, NUM_CHANNELS, int16.length);
 
     if (!this.firstFrameTime) {
@@ -203,6 +225,14 @@ export class LiveKitAgentBridge implements LiveKitAgentBridgeRef {
    * Waits for the publishChain to drain, then estimates remaining playback
    * time based on total samples published and elapsed wall-clock time.
    */
+  /**
+   * Set the audio gain multiplier for output audio.
+   * 1.0 = full volume, 0.3 = ducked, 0.0 = silent.
+   */
+  setGain(level: number): void {
+    this.gainMultiplier = Math.max(0, Math.min(1, level));
+  }
+
   async waitForPlaybackDrain(): Promise<void> {
     await this.publishChain;
 

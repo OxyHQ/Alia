@@ -183,6 +183,12 @@ export class VoiceSessionManager {
       cohostToolExecutors: undefined,
       cohostInactivityTimer: null,
       recentTranscripts: [],
+      originalVadConfig: {
+        type: 'server_vad',
+        threshold: 0.5,
+        prefix_padding_ms: 300,
+        silence_duration_ms: 500,
+      },
     };
 
     // Store session
@@ -425,6 +431,8 @@ export class VoiceSessionManager {
         if (event.type === 'response.created') {
           hasEmittedSpeaking = false;
           (bridge as LiveKitAgentBridge).resetPlaybackTracking();
+          // Ensure full volume for new response (safety net for missed speech_stopped)
+          bridge.setGain(1.0);
           await bridge.publishData({
             type: 'agent.state', state: 'thinking', speaker: role,
           } satisfies AgentDataMessage);
@@ -447,6 +455,9 @@ export class VoiceSessionManager {
           await bridge.publishData({
             type: 'agent.state', state: 'listening', speaker: 'primary',
           } satisfies AgentDataMessage);
+          // Duck AI audio when user starts speaking
+          session.agentBridge?.setGain(0.3);
+          session.cohostBridge?.setGain(0.3);
           // If cohost is active and an AI is speaking, interrupt for user
           if (session.cohostEnabled && session.cohostState) {
             this.handleUserInterruptDuringCohost(session);
@@ -455,6 +466,9 @@ export class VoiceSessionManager {
 
         // User stopped speaking
         if (event.type === 'input_audio_buffer.speech_stopped' && role === 'primary') {
+          // Restore AI audio volume
+          session.agentBridge?.setGain(1.0);
+          session.cohostBridge?.setGain(1.0);
           await bridge.publishData({
             type: 'agent.state', state: 'thinking', speaker: 'primary',
           } satisfies AgentDataMessage);
@@ -668,6 +682,8 @@ export class VoiceSessionManager {
         .filter(t => t.speaker === 'primary')
         .pop();
       if (lastPrimary) {
+        // Disable primary VAD during cohost's first turn
+        this.disablePrimaryVad(session);
         session.cohostState.turnState = 'cohost_speaking';
         this.injectTranscriptAndTrigger(session, 'cohost', `[Alia] ${lastPrimary.text}`);
       }
@@ -728,10 +744,42 @@ export class VoiceSessionManager {
     session.cohostState = null;
     session.cohostToolExecutors = undefined;
 
+    // Restore primary VAD to normal operation
+    this.enablePrimaryVad(session);
+
     // Notify client
     await session.agentBridge?.publishData({ type: 'cohost.disabled' } satisfies AgentDataMessage).catch(() => {});
 
     log.providers.info({ sessionId }, 'Cohost disabled');
+  }
+
+  // ============== PRIMARY VAD CONTROL ==============
+
+  /**
+   * Disable VAD on primary's provider socket.
+   * Prevents primary from self-triggering during cohost turns or waiting states.
+   */
+  private disablePrimaryVad(session: VoiceSession): void {
+    if (!session.providerSocket || session.providerSocket.readyState !== WebSocket.OPEN) return;
+    session.providerSocket.send(JSON.stringify({
+      type: 'session.update',
+      session: { turn_detection: null },
+    }));
+    log.providers.info({ sessionId: session.sessionId }, '[Voice] Disabled primary VAD');
+  }
+
+  /**
+   * Re-enable VAD on primary's provider socket with original settings.
+   * Called when it becomes primary's turn to listen/respond.
+   */
+  private enablePrimaryVad(session: VoiceSession): void {
+    if (!session.providerSocket || session.providerSocket.readyState !== WebSocket.OPEN) return;
+    if (!session.originalVadConfig) return;
+    session.providerSocket.send(JSON.stringify({
+      type: 'session.update',
+      session: { turn_detection: session.originalVadConfig },
+    }));
+    log.providers.info({ sessionId: session.sessionId }, '[Voice] Re-enabled primary VAD');
   }
 
   // ============== COHOST TURN ORCHESTRATION ==============
@@ -777,6 +825,9 @@ export class VoiceSessionManager {
     // Set state to 'waiting_for_next' IMMEDIATELY to prevent re-entry
     session.cohostState.turnState = 'waiting_for_next';
 
+    // Disable primary VAD during transition to prevent self-triggering
+    this.disablePrimaryVad(session);
+
     // Clear any existing turn-change timeout
     if (session.cohostState.turnChangeTimeout) {
       clearTimeout(session.cohostState.turnChangeTimeout);
@@ -798,6 +849,9 @@ export class VoiceSessionManager {
           // Non-fatal: proceed with turn change even if drain fails
         }
       }
+
+      // Guard period to ensure clean audio separation and VAD update propagation
+      await new Promise(resolve => setTimeout(resolve, 200));
 
       // Verify session and state are still valid after async wait
       if (!session.cohostEnabled || session.state !== 'active') return;
@@ -825,9 +879,12 @@ export class VoiceSessionManager {
           type: 'cohost.turn_changed', speaker: nextRole,
         } satisfies AgentDataMessage).catch(() => {});
         if (nextRole === 'cohost') {
+          // Keep primary VAD disabled during cohost's turn
           // Cohost already heard primary's audio via input buffer — commit and trigger
           this.commitAudioAndTrigger(session);
         } else {
+          // Re-enable primary VAD so it can listen after responding
+          this.enablePrimaryVad(session);
           // Primary doesn't receive cohost audio (to avoid VAD interference) — use text
           this.injectTranscriptAndTrigger(session, 'primary', `${prefix} ${lastTranscript.text}`);
         }
@@ -904,6 +961,8 @@ export class VoiceSessionManager {
     }
 
     session.cohostState.turnState = 'user_speaking';
+    // Re-enable primary VAD so it can detect user speech and respond
+    this.enablePrimaryVad(session);
     session.agentBridge?.publishData({
       type: 'cohost.turn_changed', speaker: 'user',
     } satisfies AgentDataMessage).catch(() => {});
@@ -920,6 +979,8 @@ export class VoiceSessionManager {
     }
 
     session.cohostState.turnsInCurrentRound = 0;
+    // Disable primary VAD during cohost's turn
+    this.disablePrimaryVad(session);
     // Re-trigger cohost via audio commit (it has been hearing the conversation)
     session.cohostState.turnState = 'cohost_speaking';
     session.agentBridge?.publishData({

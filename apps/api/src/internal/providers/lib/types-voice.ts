@@ -74,6 +74,9 @@ export interface VoiceSession {
   cohostToolExecutors?: Map<string, (args: any) => Promise<any>>;
   cohostInactivityTimer: NodeJS.Timeout | null;
   recentTranscripts: TranscriptEntry[];
+
+  /** Stored VAD config from initial session setup, used for toggling VAD on/off during cohost turns */
+  originalVadConfig: object | null;
 }
 
 /** Opaque reference to LiveKitAgentBridge to avoid circular deps */
@@ -82,6 +85,7 @@ export interface LiveKitAgentBridgeRef {
   publishData(data: object): Promise<void>;
   resetPlaybackTracking(): void;
   waitForPlaybackDrain(): Promise<void>;
+  setGain(level: number): void;
 }
 
 // ============== COHOST ==============
