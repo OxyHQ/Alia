@@ -31,6 +31,11 @@ export const queryKeys = {
     all: ['organizations'] as const,
     detail: (id: string) => ['organization', id] as const,
     members: (orgId: string) => ['organization-members', orgId] as const,
+    agents: (orgId: string) => ['organization-agents', orgId] as const,
+  },
+  agentTeams: {
+    all: ['agent-teams'] as const,
+    detail: (id: string) => ['agent-team', id] as const,
   },
   referrals: {
     info: ['referral-info'] as const,

@@ -10,67 +10,49 @@ import {
 } from "@/components/ui/prompt-input";
 import { ArrowUp, Plus } from "lucide-react-native";
 import { useRouter } from "expo-router";
-import { useAgentsStore } from "@/lib/stores/agents-store";
+import { useCreateAgentTeam } from "@/lib/hooks/use-agent-teams";
 import { useTranslation } from "@/hooks/useTranslation";
 import { toast } from "@/components/sonner";
-import apiClient from "@/lib/api/client";
-import { API_ROUTES } from "@/lib/api/routes";
 
-export default function CreateAgentScreen() {
+export default function CreateTeamScreen() {
   const router = useRouter();
   const { t } = useTranslation();
-  const createAgent = useAgentsStore((state) => state.createAgent);
+  const createTeam = useCreateAgentTeam();
 
   const [inputValue, setInputValue] = useState("");
-  const [generating, setGenerating] = useState(false);
+  const [creating, setCreating] = useState(false);
 
-  const handleGenerate = useCallback(async () => {
-    if (!inputValue.trim() || generating) return;
-    setGenerating(true);
+  const handleCreate = useCallback(async () => {
+    if (!inputValue.trim() || creating) return;
+    setCreating(true);
 
     try {
-      // Step 1: AI generates agent config from prompt
-      const genRes = await apiClient.post(API_ROUTES.agents.generate, {
-        prompt: inputValue.trim(),
-      });
-      const config = genRes.data;
+      const text = inputValue.trim();
 
-      // Step 2: Generate avatar (graceful degradation)
-      let avatarUrl: string | null = null;
-      try {
-        const avatarRes = await apiClient.post(
-          API_ROUTES.agents.generateAvatar,
-          { name: config.name, description: config.description },
-          { timeout: 60000 }
-        );
-        avatarUrl = avatarRes.data.avatarUrl;
-      } catch {
-        // Continue without avatar
-      }
+      // Extract a name from the first line or first few words
+      const firstLine = text.split("\n")[0];
+      const name =
+        firstLine.length <= 60
+          ? firstLine
+          : firstLine.split(/\s+/).slice(0, 6).join(" ");
 
-      // Step 3: Create the agent as draft
-      const agent = await createAgent({
-        ...config,
-        avatar: avatarUrl,
-        isPublished: false,
+      const team = await createTeam.mutateAsync({
+        name,
+        description: text,
       });
 
-      if (agent) {
-        toast.success(t("agents.agentUpdated"));
-        router.replace(`/(app)/agents/edit/${agent._id}` as any);
-      } else {
-        toast.error("Failed to create agent");
+      if (team) {
+        toast.success(t("agents.teamCreated"));
+        router.replace(`/(app)/agents/teams/${team._id}` as any);
       }
-    } catch (error: any) {
-      const message =
-        error?.response?.data?.error || "Failed to generate agent";
-      toast.error(message);
+    } catch {
+      toast.error("Failed to create team");
     } finally {
-      setGenerating(false);
+      setCreating(false);
     }
-  }, [inputValue, generating, createAgent, router, t]);
+  }, [inputValue, creating, createTeam, router, t]);
 
-  if (generating) {
+  if (creating) {
     return (
       <View className="flex-1 bg-background items-center justify-center gap-4">
         <ActivityIndicator size="large" />
@@ -86,21 +68,21 @@ export default function CreateAgentScreen() {
       <View className="w-full max-w-2xl gap-6">
         {/* Title */}
         <Text className="text-2xl font-semibold text-foreground text-center">
-          {t("agents.createTitle")}
+          {t("agents.createTeamTitle")}
         </Text>
 
         {/* Prompt Input */}
         <PromptInput
           value={inputValue}
           onValueChange={setInputValue}
-          onSubmit={handleGenerate}
-          isLoading={generating}
-          disabled={generating}
+          onSubmit={handleCreate}
+          isLoading={creating}
+          disabled={creating}
         >
           <PromptInputTextarea
             value={inputValue}
             onChangeText={setInputValue}
-            placeholder={t("agents.createPlaceholder")}
+            placeholder={t("agents.createTeamPlaceholder")}
             className="min-h-[44px] text-base py-3"
           />
           <PromptInputActions className="flex-row items-center justify-between gap-2 mt-2 mb-1 px-3">
@@ -110,7 +92,7 @@ export default function CreateAgentScreen() {
                 size="icon"
                 className="h-8 w-8 rounded-full border-0"
                 onPress={() => {
-                  /* future: add context/files */
+                  /* future */
                 }}
               >
                 <Plus size={16} className="text-muted-foreground" />
@@ -120,7 +102,7 @@ export default function CreateAgentScreen() {
               <PromptInputMicButton />
               <Button
                 size="icon"
-                onPress={handleGenerate}
+                onPress={handleCreate}
                 disabled={!inputValue.trim()}
                 className="h-8 w-8 rounded-full"
               >

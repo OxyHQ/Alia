@@ -6,9 +6,11 @@ import React, {
   useRef,
   useState,
 } from "react";
-import { View, Pressable, type TextInput as RNTextInput, KeyboardAvoidingView, Platform } from "react-native";
+import { View, Pressable, ActivityIndicator, type TextInput as RNTextInput, KeyboardAvoidingView, Platform } from "react-native";
 import { ChatTextInput } from "./chat-text-input";
-import { Maximize2, Minimize2 } from "lucide-react-native";
+import { Maximize2, Minimize2, Mic, MicOff } from "lucide-react-native";
+import { useSpeechToText } from "@/lib/hooks/use-speech-to-text";
+import { toast } from "@/components/sonner";
 
 type PromptInputContextType = {
   isLoading: boolean;
@@ -238,4 +240,47 @@ function PromptInputActions({
   );
 }
 
-export { PromptInput, PromptInputTextarea, PromptInputActions, usePromptInput };
+export type PromptInputMicButtonProps = {
+  className?: string;
+};
+
+function PromptInputMicButton({ className }: PromptInputMicButtonProps) {
+  const { value, setValue } = usePromptInput();
+  const stt = useSpeechToText();
+
+  useEffect(() => {
+    if (stt.error) toast.error(stt.error);
+  }, [stt.error]);
+
+  const handlePress = async () => {
+    if (stt.isRecording) {
+      const text = await stt.stopAndTranscribe();
+      if (text) {
+        setValue(value ? `${value} ${text}` : text);
+      }
+    } else if (!stt.isTranscribing) {
+      stt.startRecording();
+    }
+  };
+
+  return (
+    <Pressable
+      onPress={handlePress}
+      disabled={stt.isTranscribing}
+      className={cn(
+        "h-8 w-8 rounded-full items-center justify-center active:opacity-70",
+        className
+      )}
+    >
+      {stt.isTranscribing ? (
+        <ActivityIndicator size="small" color="#6366f1" />
+      ) : stt.isRecording ? (
+        <MicOff size={16} color="#ef4444" />
+      ) : (
+        <Mic size={16} className="text-muted-foreground" />
+      )}
+    </Pressable>
+  );
+}
+
+export { PromptInput, PromptInputTextarea, PromptInputActions, PromptInputMicButton, usePromptInput };

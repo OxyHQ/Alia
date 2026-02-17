@@ -24,6 +24,7 @@ import {
   Target,
   Lightbulb,
   Star as StarIcon,
+  UsersRound,
   Heart,
   Zap,
   ChevronDown,
@@ -136,6 +137,7 @@ const ChatSidebar = React.memo(function ChatSidebar() {
   const [editingProject, setEditingProject] = React.useState<Project | null>(null);
   const [folderEditDialogOpen, setFolderEditDialogOpen] = React.useState(false);
   const [editingFolder, setEditingFolder] = React.useState<FolderType | null>(null);
+  const [agentsExpanded, setAgentsExpanded] = React.useState(false);
   const [projectsCollapsed, setProjectsCollapsed] = React.useState(false);
   const [historyCollapsed, setHistoryCollapsed] = React.useState(false);
   const [inviteDialogOpen, setInviteDialogOpen] = React.useState(false);
@@ -212,6 +214,14 @@ const ChatSidebar = React.memo(function ChatSidebar() {
   const handleAgents = React.useCallback(() => {
     router.push("/(app)/agents");
   }, [router]);
+
+  const handleAgentTeams = React.useCallback(() => {
+    router.push("/(app)/agents/teams" as any);
+  }, [router]);
+
+  const handleToggleAgents = React.useCallback(() => {
+    setAgentsExpanded((prev) => !prev);
+  }, []);
 
   const handleConsole = React.useCallback(() => {
     Linking.openURL("https://console.alia.onl");
@@ -467,14 +477,42 @@ const ChatSidebar = React.memo(function ChatSidebar() {
           <BrainCircuit size={16} className="text-muted-foreground" />
           <Text className="text-sm md:text-xs">{t('sidebar.roles')}</Text>
         </Button>
-        <Button
-          variant="ghost"
-          className="h-10 md:h-8 flex-row items-center justify-start gap-2 rounded-full px-3 md:px-2 w-full"
-          onPress={handleAgents}
-        >
-          <Users size={16} className="text-muted-foreground" />
-          <Text className="text-sm md:text-xs">{t('sidebar.agents')}</Text>
-        </Button>
+        <View>
+          <Pressable
+            onPress={handleToggleAgents}
+            className="h-10 md:h-8 flex-row items-center justify-between rounded-full px-3 md:px-2 w-full active:opacity-70"
+          >
+            <View className="flex-row items-center gap-2">
+              <Users size={16} className="text-muted-foreground" />
+              <Text className="text-sm md:text-xs text-foreground">{t('sidebar.agents')}</Text>
+            </View>
+            {agentsExpanded ? (
+              <ChevronDown size={12} className="text-muted-foreground" />
+            ) : (
+              <ChevronRight size={12} className="text-muted-foreground" />
+            )}
+          </Pressable>
+          {agentsExpanded && (
+            <View className="ml-5 gap-0.5">
+              <Button
+                variant="ghost"
+                className="h-9 md:h-7 flex-row items-center justify-start gap-2 rounded-full px-3 md:px-2 w-full"
+                onPress={handleAgents}
+              >
+                <Users size={14} className="text-muted-foreground" />
+                <Text className="text-xs">{t('agents.allAgents')}</Text>
+              </Button>
+              <Button
+                variant="ghost"
+                className="h-9 md:h-7 flex-row items-center justify-start gap-2 rounded-full px-3 md:px-2 w-full"
+                onPress={handleAgentTeams}
+              >
+                <UsersRound size={14} className="text-muted-foreground" />
+                <Text className="text-xs">{t('agents.teams')}</Text>
+              </Button>
+            </View>
+          )}
+        </View>
         <Button
           variant="ghost"
           className="h-10 md:h-8 flex-row items-center justify-start gap-2 rounded-full px-3 md:px-2 w-full"

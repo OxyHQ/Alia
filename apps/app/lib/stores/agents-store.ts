@@ -27,6 +27,8 @@ export interface Agent {
   status: 'active' | 'idle' | 'offline';
   creditBalance: number;
   allowHiring: boolean;
+  systemPrompt?: string;
+  allowedModels?: string[];
   createdAt: string;
   updatedAt: string;
 }
