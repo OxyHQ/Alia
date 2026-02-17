@@ -1,27 +1,36 @@
 /**
- * Providers API Client
+ * Providers Client — Dual-mode facade
  *
- * Thin HTTP client for the alia-providers-api service.
- * Replaces direct imports from internal/providers/* with API calls.
- * Uses HMAC service auth for all requests.
+ * When PROVIDERS_API is available (SERVICE_SECRET is set):
+ *   → Routes all calls through the alia-providers-api HTTP service
+ *
+ * When PROVIDERS_API is NOT available:
+ *   → Falls back to direct imports from internal/providers/ modules
+ *
+ * Consumer files always import from this module — the backend is transparent.
  */
 
 import crypto from 'crypto';
 import { log } from './logger.js';
 
-const PROVIDERS_API_URL = process.env.PROVIDERS_API_URL || 'http://localhost:9091';
-const SERVICE_NAME = 'alia-api';
-const SERVICE_SECRET = process.env.SERVICE_SECRET;
+// ============== MODE DETECTION ==============
 
-// ============== AUTH ==============
+const SERVICE_SECRET = process.env.SERVICE_SECRET;
+const PROVIDERS_API_URL = process.env.PROVIDERS_API_URL || 'http://localhost:9091';
+const PROVIDERS_API_ENABLED = !!SERVICE_SECRET;
+
+if (!PROVIDERS_API_ENABLED) {
+  log.general.info('Providers API not configured (no SERVICE_SECRET) — using local fallback');
+}
+
+// ============== HTTP AUTH (only used when PROVIDERS_API_ENABLED) ==============
+
+const SERVICE_NAME = 'alia-api';
 
 function generateAuthHeaders(): Record<string, string> {
-  if (!SERVICE_SECRET) {
-    throw new Error('SERVICE_SECRET is not configured');
-  }
   const timestamp = Date.now().toString();
   const payload = JSON.stringify({ timestamp, service: SERVICE_NAME });
-  const signature = crypto.createHmac('sha256', SERVICE_SECRET).update(payload).digest('hex');
+  const signature = crypto.createHmac('sha256', SERVICE_SECRET!).update(payload).digest('hex');
 
   return {
     'X-Service-Name': SERVICE_NAME,
@@ -141,7 +150,7 @@ export type AliaTier = string;
 export type ModelCategory = string;
 export type PricingTier = string;
 
-// ============== IN-MEMORY CACHE ==============
+// ============== IN-MEMORY CACHE (HTTP mode only) ==============
 
 interface CacheEntry<T> {
   data: T;
@@ -167,16 +176,22 @@ export async function resolveAliaModel(
   tokens: number = 1000,
   skipProviders: Set<string> = new Set()
 ): Promise<ResolvedModel | null> {
-  try {
-    return await apiPost<ResolvedModel>('/api/resolve', {
-      model,
-      estimatedTokens: tokens,
-      skipProviders: [...skipProviders],
-    });
-  } catch (error: any) {
-    if (error.status === 503) return null;
-    throw error;
+  if (PROVIDERS_API_ENABLED) {
+    try {
+      return await apiPost<ResolvedModel>('/api/resolve', {
+        model,
+        estimatedTokens: tokens,
+        skipProviders: [...skipProviders],
+      });
+    } catch (error: any) {
+      if (error.status === 503) return null;
+      throw error;
+    }
   }
+
+  // Local fallback
+  const { resolveAliaModel: localResolve } = await import('../internal/providers/lib/model-resolver.js');
+  return localResolve(model, tokens, skipProviders);
 }
 
 // ============== PROVIDER API CALLS ==============
@@ -197,7 +212,35 @@ export interface ProviderCallOptions {
  * Used for images, embeddings, transcription.
  */
 export async function callProviderAPI<T = any>(options: ProviderCallOptions): Promise<T> {
-  return apiPost<T>('/api/call', options);
+  if (PROVIDERS_API_ENABLED) {
+    return apiPost<T>('/api/call', options);
+  }
+
+  // Local fallback — convert audio field to FormData for the local callProviderAPI
+  const { callProviderAPI: localCall } = await import('../internal/providers/lib/provider-api.js');
+
+  let formData: FormData | undefined;
+  if (options.audio?.base64) {
+    const buffer = Buffer.from(options.audio.base64, 'base64');
+    const blob = new Blob([buffer], { type: options.audio.mimeType || 'audio/webm' });
+    formData = new FormData();
+    formData.append('file', blob, options.audio.filename || 'audio.webm');
+    if (options.extraFormFields) {
+      for (const [key, value] of Object.entries(options.extraFormFields)) {
+        formData.append(key, value);
+      }
+    }
+  }
+
+  return localCall<T>({
+    provider: options.provider,
+    modelId: options.modelId,
+    endpoint: options.endpoint,
+    body: options.body,
+    formData,
+    maxAttempts: options.maxAttempts,
+    timeout: options.timeout,
+  });
 }
 
 // ============== USAGE REPORTING ==============
@@ -212,78 +255,140 @@ export function reportModelUsage(
   success: boolean,
   opts?: { latencyMs?: number; errorCode?: string; tokens?: number; reason?: string }
 ): void {
-  apiPost('/api/report', {
-    keyId,
-    provider,
-    modelId,
-    success,
-    ...opts,
-  }).catch((err: any) => {
-    log.general.warn({ err }, 'Failed to report model usage');
-  });
+  if (PROVIDERS_API_ENABLED) {
+    apiPost('/api/report', {
+      keyId,
+      provider,
+      modelId,
+      success,
+      ...opts,
+    }).catch((err: any) => {
+      log.general.warn({ err }, 'Failed to report model usage');
+    });
+    return;
+  }
+
+  // Local fallback — fire-and-forget
+  (async () => {
+    try {
+      const { recordKeySuccess, recordKeyFailure } = await import('../internal/providers/lib/key-manager.js');
+      const { recordSuccess, recordFailure } = await import('../internal/providers/lib/provider-health.js');
+
+      if (success) {
+        await recordKeySuccess(keyId);
+        await recordSuccess(provider, modelId, opts?.latencyMs ?? 0);
+      } else {
+        await recordKeyFailure(keyId, opts?.errorCode || 'unknown');
+        await recordFailure(provider, modelId, opts?.errorCode || 'unknown');
+      }
+    } catch (err) {
+      log.general.warn({ err }, 'Failed to report model usage (local)');
+    }
+  })();
 }
 
 // ============== MODEL DATA ==============
 
 /**
- * Get all alia models (cached).
+ * Get all alia models.
  */
 export async function getAllAliaModels(): Promise<AliaModel[]> {
-  if (isCacheValid(modelsCache)) return modelsCache.data;
+  if (PROVIDERS_API_ENABLED) {
+    if (isCacheValid(modelsCache)) return modelsCache.data;
+    const data = await apiGet<{ models: AliaModel[] }>('/api/models');
+    const models = data.models;
+    modelsCache = { data: models, expiresAt: Date.now() + CACHE_TTL };
+    return models;
+  }
 
-  const data = await apiGet<{ models: AliaModel[] }>('/api/models');
-  const models = data.models;
-  modelsCache = { data: models, expiresAt: Date.now() + CACHE_TTL };
-  return models;
+  const { getAllAliaModels: localGetAll } = await import('../internal/providers/lib/alia-models.js');
+  return localGetAll();
 }
 
 /**
- * Get all alia models with availability (not cached — checks health).
+ * Get all alia models with availability (checks health).
  */
 export async function getAvailableModels(): Promise<AliaModelWithAvailability[]> {
-  const data = await apiGet<{ models: AliaModelWithAvailability[] }>('/api/models?available=true');
-  return data.models;
+  if (PROVIDERS_API_ENABLED) {
+    const data = await apiGet<{ models: AliaModelWithAvailability[] }>('/api/models?available=true');
+    return data.models;
+  }
+
+  const { getAvailableModels: localGetAvailable } = await import('../internal/providers/lib/alia-models.js');
+  return localGetAvailable();
 }
 
 /**
  * Get a specific alia model by ID.
  */
 export async function getAliaModel(modelId: string): Promise<AliaModel | null> {
-  const models = await getAllAliaModels();
-  return models.find(m => m.id === modelId) ?? null;
+  if (PROVIDERS_API_ENABLED) {
+    const models = await getAllAliaModels();
+    return models.find(m => m.id === modelId) ?? null;
+  }
+
+  const { getAliaModel: localGet } = await import('../internal/providers/lib/alia-models.js');
+  return localGet(modelId);
 }
 
 /**
  * Synchronous model lookup from cache (returns null if cache cold).
  */
 export function getAliaModelSync(modelId: string): AliaModel | null {
-  if (!isCacheValid(modelsCache)) return null;
-  return modelsCache.data.find(m => m.id === modelId) ?? null;
+  if (PROVIDERS_API_ENABLED) {
+    if (!isCacheValid(modelsCache)) return null;
+    return modelsCache.data.find(m => m.id === modelId) ?? null;
+  }
+
+  // Local: always available from static ALIA_MODELS
+  // Use synchronous require-like approach via dynamic import cache
+  // Since this is sync, we can't use await — fall back to null if not cached
+  try {
+    // The module is likely already loaded from a prior async call
+    const mod = (globalThis as any).__aliaModelsCache;
+    if (mod) return mod.getAliaModel(modelId);
+  } catch { /* ignore */ }
+  return null;
 }
 
 /**
  * Check if a model ID is an alia model.
  */
 export async function isAliaModel(modelId: string): Promise<boolean> {
-  const models = await getAllAliaModels();
-  return models.some(m => m.id === modelId);
+  if (PROVIDERS_API_ENABLED) {
+    const models = await getAllAliaModels();
+    return models.some(m => m.id === modelId);
+  }
+
+  const { isAliaModel: localIsAlia } = await import('../internal/providers/lib/alia-models.js');
+  return localIsAlia(modelId);
 }
 
 /**
  * Get all alia models by category.
  */
 export async function getAliaModelsByCategory(category: string): Promise<AliaModel[]> {
-  const models = await getAllAliaModels();
-  return models.filter(m => m.category === category);
+  if (PROVIDERS_API_ENABLED) {
+    const models = await getAllAliaModels();
+    return models.filter(m => m.category === category);
+  }
+
+  const { getAliaModelsByCategory: localGetByCategory } = await import('../internal/providers/lib/alia-models.js');
+  return localGetByCategory(category as any);
 }
 
 /**
  * Get default model for a category.
  */
 export async function getDefaultModelForCategory(category: string): Promise<AliaModel | null> {
-  const models = await getAliaModelsByCategory(category);
-  if (models.length === 0) return null;
-  return models.reduce((best, m) => m.creditMultiplier < best.creditMultiplier ? m : best);
+  if (PROVIDERS_API_ENABLED) {
+    const models = await getAliaModelsByCategory(category);
+    if (models.length === 0) return null;
+    return models.reduce((best, m) => m.creditMultiplier < best.creditMultiplier ? m : best);
+  }
+
+  const { getDefaultModelForCategory: localGetDefault } = await import('../internal/providers/lib/alia-models.js');
+  return localGetDefault(category as any);
 }
 
 /**
@@ -296,31 +401,37 @@ export function getDefaultAliaModel(): string {
 // ============== TIER MAPPINGS ==============
 
 /**
- * Get tier-to-model mappings (cached).
+ * Get tier-to-model mappings.
  */
 export async function getTierMappings(): Promise<Record<string, ModelMapping[]>> {
-  if (isCacheValid(tierMappingsCache)) return tierMappingsCache.data;
-
-  const data = await apiGet<{ models: AliaModel[]; tierMappings: Record<string, ModelMapping[]> }>(
-    '/api/models?tierMappings=true'
-  );
-  const mappings = data.tierMappings;
-  tierMappingsCache = { data: mappings, expiresAt: Date.now() + CACHE_TTL };
-
-  // Also update models cache as a side effect
-  if (data.models) {
-    modelsCache = { data: data.models, expiresAt: Date.now() + CACHE_TTL };
+  if (PROVIDERS_API_ENABLED) {
+    if (isCacheValid(tierMappingsCache)) return tierMappingsCache.data;
+    const data = await apiGet<{ models: AliaModel[]; tierMappings: Record<string, ModelMapping[]> }>(
+      '/api/models?tierMappings=true'
+    );
+    const mappings = data.tierMappings;
+    tierMappingsCache = { data: mappings, expiresAt: Date.now() + CACHE_TTL };
+    if (data.models) {
+      modelsCache = { data: data.models, expiresAt: Date.now() + CACHE_TTL };
+    }
+    return mappings;
   }
 
-  return mappings;
+  const { TIER_MODEL_MAPPINGS } = await import('../internal/providers/lib/alia-models.js');
+  return TIER_MODEL_MAPPINGS as Record<string, ModelMapping[]>;
 }
 
 /**
  * Get model mappings for a specific tier.
  */
 export async function getModelMappingsForTier(tier: string): Promise<ModelMapping[]> {
-  const mappings = await getTierMappings();
-  return mappings[tier] ?? [];
+  if (PROVIDERS_API_ENABLED) {
+    const mappings = await getTierMappings();
+    return mappings[tier] ?? [];
+  }
+
+  const { getModelMappingsForTier: localGetMappings } = await import('../internal/providers/lib/alia-models.js');
+  return localGetMappings(tier as any);
 }
 
 // ============== PROVIDER HEALTH ==============
@@ -329,63 +440,100 @@ export async function getModelMappingsForTier(tier: string): Promise<ModelMappin
  * Get all provider health metrics.
  */
 export async function getAllProviderHealth(): Promise<HealthMetrics[]> {
-  return apiGet<HealthMetrics[]>('/api/health');
+  if (PROVIDERS_API_ENABLED) {
+    return apiGet<HealthMetrics[]>('/api/health');
+  }
+
+  const { getAllProviderHealth: localGetAll } = await import('../internal/providers/lib/provider-health.js');
+  return localGetAll();
 }
 
 /**
  * Get health for a specific provider/model.
  */
 export async function getProviderHealth(provider: string, modelId: string): Promise<HealthMetrics> {
-  return apiGet<HealthMetrics>(`/api/health?provider=${encodeURIComponent(provider)}&modelId=${encodeURIComponent(modelId)}`);
+  if (PROVIDERS_API_ENABLED) {
+    return apiGet<HealthMetrics>(`/api/health?provider=${encodeURIComponent(provider)}&modelId=${encodeURIComponent(modelId)}`);
+  }
+
+  const { getProviderHealth: localGet } = await import('../internal/providers/lib/provider-health.js');
+  return localGet(provider, modelId);
 }
 
 // ============== BILLING DATA ==============
 
 /**
- * Get plans from the providers API.
+ * Get plans.
  */
 export async function getPlans(filter?: Record<string, any>): Promise<any[]> {
-  const data = await apiGet<{ plans: any[] }>('/api/billing?type=plans');
-  const plans = data.plans ?? [];
-  if (!filter) return plans;
-  return plans.filter((p: any) => Object.entries(filter).every(([k, v]) => p[k] === v));
+  if (PROVIDERS_API_ENABLED) {
+    const data = await apiGet<{ plans: any[] }>('/api/billing?type=plans');
+    const plans = data.plans ?? [];
+    if (!filter) return plans;
+    return plans.filter((p: any) => Object.entries(filter).every(([k, v]) => p[k] === v));
+  }
+
+  const { Plan } = await import('../internal/providers/models/plan.js');
+  return Plan.find(filter || {}).lean();
 }
 
 /**
- * Get credit packages from the providers API.
+ * Get credit packages.
  */
 export async function getCreditPackages(active?: boolean): Promise<any[]> {
-  const query = active !== undefined ? `&active=${active}` : '';
-  const data = await apiGet<{ packages: any[] }>(`/api/billing?type=packages${query}`);
-  return data.packages ?? [];
+  if (PROVIDERS_API_ENABLED) {
+    const query = active !== undefined ? `&active=${active}` : '';
+    const data = await apiGet<{ packages: any[] }>(`/api/billing?type=packages${query}`);
+    return data.packages ?? [];
+  }
+
+  const { CreditPackage } = await import('../internal/providers/models/credit-package.js');
+  const query: any = {};
+  if (active !== undefined) query.isActive = active;
+  return CreditPackage.find(query).lean();
 }
 
 /**
- * Get features from the providers API.
+ * Get features.
  */
 export async function getFeatures(): Promise<any[]> {
-  const data = await apiGet<{ features: any[] }>('/api/billing?type=features');
-  return data.features ?? [];
+  if (PROVIDERS_API_ENABLED) {
+    const data = await apiGet<{ features: any[] }>('/api/billing?type=features');
+    return data.features ?? [];
+  }
+
+  const { Feature } = await import('../internal/providers/models/feature.js');
+  return Feature.find({}).lean();
 }
 
 /**
- * Get plan features from the providers API.
+ * Get plan features.
  */
 export async function getPlanFeatures(planId?: string): Promise<any[]> {
-  const query = planId ? `&planId=${encodeURIComponent(planId)}` : '';
-  const data = await apiGet<{ planFeatures: any[] }>(`/api/billing?type=plan-features${query}`);
-  return data.planFeatures ?? [];
+  if (PROVIDERS_API_ENABLED) {
+    const query = planId ? `&planId=${encodeURIComponent(planId)}` : '';
+    const data = await apiGet<{ planFeatures: any[] }>(`/api/billing?type=plan-features${query}`);
+    return data.planFeatures ?? [];
+  }
+
+  const { PlanFeature } = await import('../internal/providers/models/plan-feature.js');
+  const query: any = {};
+  if (planId) query.planId = planId;
+  return PlanFeature.find(query).lean();
 }
 
 // ============== CACHE WARMUP ==============
 
 /**
  * Warm up the in-memory cache at startup.
- * Call this during main API initialization.
  */
 export async function warmupProvidersClient(): Promise<void> {
+  if (!PROVIDERS_API_ENABLED) {
+    log.general.info('Providers client using local modules — no warmup needed');
+    return;
+  }
+
   try {
-    // Fetch models + tier mappings in a single call
     await getTierMappings();
     log.general.info('Providers client cache warmed up');
   } catch (error: any) {
