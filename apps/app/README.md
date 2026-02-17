@@ -15,6 +15,7 @@ Main Alia application built with Expo Router and React Native. Runs on web, iOS,
 - **Organizations** — Team workspaces with member management
 - **Automations** — User-configured automated workflows
 - **Canvas** — Visual workflow builder with node-based execution
+- **Agent Runtime** — Live agent activity terminal (xterm.js), hire agents, owner controls
 - **Skills** — Browseable skill library with prompt templates
 - **Sidebar** — Conversation history, folders, favorites, pinned items
 - **i18n** — Internationalization with reactive language switching
@@ -36,6 +37,7 @@ app/
 │   ├── forgot-password.tsx    # Forgot password
 │   ├── reset-password.tsx     # Reset password
 │   ├── agents.tsx             # Agent browser
+│   ├── agents/[id].tsx        # Agent detail (terminal, hire, owner controls)
 │   ├── library.tsx            # Content library
 │   ├── favorites.tsx          # Favorited items
 │   ├── skills.tsx             # Skills directory
@@ -79,6 +81,7 @@ app/
 | `library-store` | Content library |
 | `projects-store` | Projects/workspaces |
 | `organization-store` | Organization data |
+| `agents-store` | Agent CRUD and hiring |
 | `roles-store` | Custom roles/personas |
 | `theme-store` | Theme and accent color |
 | `i18n-store` | Language selection |

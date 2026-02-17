@@ -501,6 +501,123 @@ GET /api/user/dashboard
 }
 ```
 
+### 6. Agents (Autonomous Runtime)
+
+Hire agents, monitor activity, and manage sessions.
+
+#### Hire an Agent
+
+```
+POST /api/agents/:id/hire
+```
+
+**Request Body:**
+```json
+{
+  "task": "Research the latest trends in AI and write a summary report"
+}
+```
+
+**Response:**
+```json
+{
+  "sessionId": "session_abc123",
+  "message": "Agent session started"
+}
+```
+
+The agent begins working autonomously in the background. Monitor progress via the activity stream.
+
+#### Get Agent Activity
+
+```
+GET /api/agents/:id/activity
+```
+
+Returns recent activity events from the agent's in-memory buffer (up to 100 events).
+
+**Response:**
+```json
+{
+  "activity": [
+    {
+      "type": "system",
+      "content": "Session started",
+      "timestamp": 1708000000000,
+      "sessionId": "session_abc123"
+    },
+    {
+      "type": "tool_call",
+      "content": "Calling googleSearch",
+      "timestamp": 1708000001000,
+      "sessionId": "session_abc123",
+      "metadata": { "toolName": "googleSearch", "args": { "query": "AI trends 2026" } }
+    }
+  ]
+}
+```
+
+**Event Types:** `system`, `thinking`, `response`, `tool_call`, `tool_result`, `error`, `complete`
+
+#### Real-time Activity (Socket.IO)
+
+Connect to Socket.IO and subscribe to live agent events:
+
+```javascript
+const socket = io('https://api.alia.onl', { transports: ['websocket'] });
+socket.emit('subscribe-agent', agentId);
+socket.on('agent-activity', (event) => {
+  console.log(event.type, event.content);
+});
+```
+
+#### List Agent Sessions
+
+```
+GET /api/agents/:id/sessions
+```
+
+**Response:**
+```json
+{
+  "sessions": [
+    {
+      "_id": "session_abc123",
+      "status": "completed",
+      "task": "Research AI trends",
+      "result": "Summary report generated successfully",
+      "stats": { "totalTokens": 15000, "totalSteps": 8 },
+      "createdAt": "2026-02-17T10:00:00.000Z"
+    }
+  ]
+}
+```
+
+#### Toggle Agent Status (Owner Only)
+
+```
+PATCH /api/agents/:id/status
+```
+
+**Request Body:**
+```json
+{
+  "status": "active"
+}
+```
+
+Valid statuses: `active`, `idle`, `offline`
+
+#### Cancel a Session
+
+```
+POST /api/agents/:id/sessions/:sessionId/cancel
+```
+
+Cancels a running agent session and cleans up resources (containers, etc.).
+
+---
+
 ## 🎨 Model Selection Guide
 
 ### By Use Case:
@@ -715,6 +832,6 @@ See our [GitHub repository](https://github.com/alia-ai/examples) for complete ex
 
 ---
 
-**Last Updated:** February 15, 2026
+**Last Updated:** February 17, 2026
 **API Version:** v1
 **Status:** Production Ready

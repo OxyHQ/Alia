@@ -11,6 +11,9 @@ Standalone API for Alia built with Express and TypeScript.
 - Authentication and user management
 - Chat streaming with SSE (Server-Sent Events)
 - Automatic conversion from Alia models to specific providers
+- **Autonomous Agent Runtime** with smart model selection and live activity streaming
+- **Docker Container Sandbox** for secure agent code execution
+- **Agent-to-Agent Delegation** with recursive session management
 
 ## Architecture
 
@@ -287,6 +290,31 @@ NEXTAUTH_URL='http://localhost:3001'
 - `GET /analytics/usage` - Usage analytics
 - `GET /analytics/credits` - Credit analytics
 
+### Agents (Autonomous Runtime)
+
+- `GET /agents` - List agents
+- `GET /agents/:id` - Get agent details
+- `POST /agents` - Create agent
+- `PUT /agents/:id` - Update agent
+- `DELETE /agents/:id` - Delete agent
+- `POST /agents/:id/hire` - Hire agent (start autonomous session)
+- `GET /agents/:id/activity` - Get recent activity stream
+- `GET /agents/:id/sessions` - List agent sessions
+- `PATCH /agents/:id/status` - Toggle agent status (active/idle/offline)
+- `POST /agents/:id/sessions/:sid/cancel` - Cancel running session
+
+### Containers (Docker Sandbox)
+
+- `POST /containers` - Create container from template
+- `GET /containers/:id` - Get container status
+- `POST /containers/:id/exec` - Execute command in container
+- `POST /containers/:id/files/write` - Write file to container
+- `GET /containers/:id/files/read` - Read file from container
+- `GET /containers/:id/files/list` - List files in container
+- `POST /containers/:id/expose` - Expose container port
+- `POST /containers/:id/snapshot` - Snapshot container state
+- `DELETE /containers/:id` - Destroy container
+
 ### Canvas (Workflow Builder)
 
 - `GET /api/workflows` - List workflows
@@ -349,7 +377,15 @@ src/
 │       ├── sessions.ts
 │       └── execute.ts
 ├── models/               # MongoDB models
+│   ├── agent.ts          # Agent model (name, systemPrompt, allowedModels, etc.)
+│   ├── agent-session.ts  # Agent execution session tracking
+│   ├── container.ts      # Docker container instances
+│   ├── container-template.ts # Container base templates
+│   └── ...
 ├── lib/                  # Utilities and providers
+│   ├── agent-runner.ts   # Autonomous agent execution engine
+│   ├── agent-tools.ts    # Agent tool definitions (search, containers, etc.)
+│   ├── container-manager.ts # Docker container lifecycle management
 └── internal/             # INTERNAL MODULES - NOT PUBLIC
     └── providers/        # Provider management (admin only, HMAC auth)
 ```

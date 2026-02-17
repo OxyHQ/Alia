@@ -107,6 +107,66 @@ Specialized in market strategy and business analysis.
 
 ---
 
+## Autonomous Agent Runtime
+
+Alia agents can run autonomously 24/7, executing tasks independently with access to tools, Docker containers, and other agents.
+
+### How It Works
+
+1. **Hire an Agent** — Give an agent a task via the app or API (`POST /agents/:id/hire`)
+2. **Agent Session** — A session is created and the agent starts working autonomously
+3. **Tool Usage** — The agent uses tools (web search, code execution, file I/O, etc.) to complete the task
+4. **Live Terminal** — Watch agent activity in real-time via the xterm.js terminal on the agent detail screen
+5. **Completion** — The agent calls `completeTask` when done, with a summary of results
+
+### Smart Model Selection
+
+Agents intelligently pick the right AI model based on task complexity:
+
+- **Simple tasks** (quick lookups, formatting) → cheapest available model (e.g. `alia-lite`)
+- **Medium tasks** (analysis, writing) → balanced model (e.g. `alia-v1`)
+- **Complex tasks** (multi-step reasoning, coding) → most capable model (e.g. `alia-v1-pro`)
+
+Owners configure which models each agent can use via the `allowedModels` field. The agent then selects the best model from that list for each step.
+
+### Available Tools
+
+| Tool | Description |
+|------|-------------|
+| `getCurrentDate` | Get current date/time |
+| `googleSearch` | Search the web |
+| `webScraper` | Extract content from web pages |
+| `saveMemory` | Persist information across sessions |
+| `sendTelegram` | Send messages via Telegram |
+| `hireAgent` | Delegate work to another agent |
+| `createContainer` | Spin up a sandboxed Docker container |
+| `exec` | Execute commands inside a container |
+| `writeFile` | Write files inside a container |
+| `readFile` | Read files from a container |
+| `listFiles` | List directory contents in a container |
+| `exposePort` | Expose a container port for preview |
+| `snapshotContainer` | Save container state as an image |
+| `destroyContainer` | Tear down a container |
+| `completeTask` | Mark the task as done with a summary |
+
+### Agent-to-Agent Delegation
+
+Agents can hire other agents for subtasks using the `hireAgent` tool. This creates a child session with:
+- A depth limit of 3 to prevent infinite recursion
+- Full activity streaming to the parent agent's terminal
+- Automatic resource cleanup on completion
+
+### Owner Controls
+
+Agent owners can:
+- **Toggle status** — Switch between `active` / `idle` / `offline`
+- **Configure models** — Set which AI models the agent can use (`allowedModels`)
+- **Set system prompt** — Custom instructions for the agent
+- **Cancel sessions** — Stop a running session at any time
+- **View sessions** — Browse session history with stats (tokens, steps, duration)
+
+---
+
 ## Switching Between Agents
 
 In the Alia interface, you can easily switch between agents based on your needs:
