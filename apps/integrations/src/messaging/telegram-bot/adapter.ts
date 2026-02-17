@@ -82,6 +82,21 @@ export class TelegramBotAdapter implements MessagingAdapter {
       await this.handleChatMessage(ctx);
     });
 
+    // Voice messages => transcribe, then chat
+    bot.on('voice', async (ctx) => {
+      await this.handleVoiceMessage(ctx);
+    });
+
+    // Audio files => transcribe, then chat
+    bot.on('audio', async (ctx) => {
+      await this.handleVoiceMessage(ctx);
+    });
+
+    // Photos => vision via chat
+    bot.on('photo', async (ctx) => {
+      await this.handlePhotoMessage(ctx);
+    });
+
     // Global error handler
     bot.catch((err: any, ctx: any) => {
       console.error('[Telegram Bot] Error:', err);
@@ -103,14 +118,18 @@ export class TelegramBotAdapter implements MessagingAdapter {
   // -----------------------------------------------------------------------
   // Streaming chat handler (preserves original behaviour)
   // -----------------------------------------------------------------------
-  private async handleChatMessage(ctx: any) {
+  private async handleChatMessage(
+    ctx: any,
+    options?: { textOverride?: string; imageUrl?: string },
+  ) {
     const telegramId = ctx.from?.id.toString();
     const messageText: string | undefined =
-      'message' in ctx && ctx.message && 'text' in ctx.message
+      options?.textOverride ??
+      ('message' in ctx && ctx.message && 'text' in ctx.message
         ? ctx.message.text
-        : undefined;
+        : undefined);
 
-    if (!telegramId || !messageText) return;
+    if (!telegramId || (!messageText && !options?.imageUrl)) return;
 
     try {
       // Check authentication
@@ -132,7 +151,7 @@ export class TelegramBotAdapter implements MessagingAdapter {
       }
 
       // Load conversation history (last 20 messages, user/assistant only)
-      let messages: Array<{ role: string; content: string }> = [];
+      let messages: Array<{ role: string; content: any }> = [];
       try {
         const conversation = await apiClient.getConversation(
           channelUser.oxyUserId.toString(),
@@ -148,8 +167,15 @@ export class TelegramBotAdapter implements MessagingAdapter {
         console.error('[Telegram Bot] Failed to load conversation history:', error);
       }
 
-      // Append new user message
-      messages.push({ role: 'user', content: messageText });
+      // Append new user message (multi-part if image is included)
+      if (options?.imageUrl) {
+        const parts: Array<any> = [];
+        if (messageText) parts.push({ type: 'text', text: messageText });
+        parts.push({ type: 'image_url', image_url: { url: options.imageUrl } });
+        messages.push({ role: 'user', content: parts });
+      } else {
+        messages.push({ role: 'user', content: messageText! });
+      }
 
       // Platform instructions passed as first system message —
       // the API extracts this as clientContext and merges it into the full system prompt
@@ -272,6 +298,122 @@ Be concise and friendly. Use these Telegram features when appropriate.`,
           { parse_mode: 'HTML' },
         );
       }
+    }
+  }
+
+  // -----------------------------------------------------------------------
+  // Media message handlers
+  // -----------------------------------------------------------------------
+
+  /**
+   * Download a Telegram file by file_id and return it as a base64 string.
+   */
+  private async downloadTelegramFile(ctx: any, fileId: string): Promise<string> {
+    const fileUrl = await ctx.telegram.getFileLink(fileId);
+    const response = await fetch(fileUrl.href);
+    if (!response.ok) throw new Error(`Failed to download file: HTTP ${response.status}`);
+    const arrayBuffer = await response.arrayBuffer();
+    return Buffer.from(arrayBuffer).toString('base64');
+  }
+
+  /**
+   * Handle voice/audio messages: download, transcribe, then pass text to chat.
+   */
+  private async handleVoiceMessage(ctx: any) {
+    const telegramId = ctx.from?.id.toString();
+    if (!telegramId) return;
+
+    try {
+      const channelUser = await apiClient.getChannelUser(telegramId);
+      if (!channelUser || !channelUser.isAuthenticated || !channelUser.oxyUserId) {
+        await sendAuthRequest(ctx);
+        return;
+      }
+
+      await ctx.sendChatAction('typing');
+
+      const voice = ctx.message.voice;
+      const audio = ctx.message.audio;
+      const fileObj = voice || audio;
+
+      if (!fileObj?.file_id) {
+        await ctx.reply('Could not process this audio message.');
+        return;
+      }
+
+      // Telegram Bot API file download limit is 20MB
+      if (fileObj.file_size && fileObj.file_size > 20 * 1024 * 1024) {
+        await ctx.reply('This audio file is too large (max 20MB). Please send a shorter recording.');
+        return;
+      }
+
+      const base64Audio = await this.downloadTelegramFile(ctx, fileObj.file_id);
+      const mimeType = voice ? 'audio/ogg' : (audio.mime_type || 'audio/mpeg');
+
+      const transcribedText = await apiClient.transcribe(
+        channelUser.oxyUserId.toString(),
+        base64Audio,
+        mimeType,
+      );
+
+      if (!transcribedText?.trim()) {
+        await ctx.reply("I couldn't understand the audio. Could you try again or type your message?");
+        return;
+      }
+
+      await this.handleChatMessage(ctx, { textOverride: transcribedText });
+    } catch (error: any) {
+      console.error('[Telegram Bot] Voice message error:', error);
+
+      if (error.response?.status === 402 || error.code === 'INSUFFICIENT_CREDITS') {
+        const appUrl = process.env.APP_URL || 'https://alia.onl';
+        await ctx.reply(
+          `You've run out of credits. Add more to continue using Alia.\n\n${appUrl}`,
+        ).catch(() => {});
+      } else {
+        await ctx.reply('Sorry, I had trouble processing that audio. Please try again or type your message.').catch(() => {});
+      }
+    }
+  }
+
+  /**
+   * Handle photo messages: download, build data URL, pass to vision-capable chat.
+   */
+  private async handlePhotoMessage(ctx: any) {
+    const telegramId = ctx.from?.id.toString();
+    if (!telegramId) return;
+
+    try {
+      const channelUser = await apiClient.getChannelUser(telegramId);
+      if (!channelUser || !channelUser.isAuthenticated || !channelUser.oxyUserId) {
+        await sendAuthRequest(ctx);
+        return;
+      }
+
+      await ctx.sendChatAction('typing');
+
+      const photos = ctx.message.photo;
+      if (!photos || photos.length === 0) {
+        await ctx.reply('Could not process this image.');
+        return;
+      }
+
+      // Pick the largest photo (last in array)
+      const largestPhoto = photos[photos.length - 1];
+
+      if (largestPhoto.file_size && largestPhoto.file_size > 20 * 1024 * 1024) {
+        await ctx.reply('This image is too large to process (max 20MB).');
+        return;
+      }
+
+      const base64Image = await this.downloadTelegramFile(ctx, largestPhoto.file_id);
+      const dataUrl = `data:image/jpeg;base64,${base64Image}`;
+      const caption = ctx.message.caption || undefined;
+
+      await this.handleChatMessage(ctx, { textOverride: caption, imageUrl: dataUrl });
+    } catch (error: any) {
+      console.error('[Telegram Bot] Photo message error:', error);
+      await ctx.reply('Sorry, I had trouble processing that image. Please try again.').catch(() => {});
     }
   }
 
