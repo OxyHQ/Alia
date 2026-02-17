@@ -96,14 +96,16 @@ export function ChatHeader({
       <View className="flex-row items-center gap-2">
         <CreditsMenu />
 
-        <Button
-          variant="ghost"
-          size="icon"
-          onPress={onGhostModePress}
-          className={ghostModeActive ? "h-9 w-9 rounded-full bg-accent" : "h-9 w-9 rounded-full"}
-        >
-          <Ghost size={20} className={ghostModeActive ? "text-accent-foreground" : "text-muted-foreground"} />
-        </Button>
+        {!isConversation && (
+          <Button
+            variant="ghost"
+            size="icon"
+            onPress={onGhostModePress}
+            className={ghostModeActive ? "h-9 w-9 rounded-full bg-accent" : "h-9 w-9 rounded-full"}
+          >
+            <Ghost size={20} className={ghostModeActive ? "text-accent-foreground" : "text-muted-foreground"} />
+          </Button>
+        )}
 
         <Button
           variant="ghost"
