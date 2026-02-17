@@ -30,7 +30,10 @@ export async function executeTool(name: string, args: Record<string, any>): Prom
       case 'run_command':
         return await runCommand(args.command, args.cwd);
       default:
-        return { success: false, result: `Unknown tool: ${name}` };
+        return {
+          success: false,
+          result: `Error: Tool '${name}' does not exist. Available tools: read_file, write_file, edit_file, apply_patch, list_files, search_files, run_command. Do NOT retry this tool.`,
+        };
     }
   } catch (error: any) {
     return { success: false, result: error.message };

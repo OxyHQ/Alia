@@ -1,6 +1,6 @@
 {
   "name": "@alia-codea/cli",
-  "version": "2.0.0",
+  "version": "2.0.1",
   "description": "Codea CLI - AI coding assistant for your terminal by Alia",
   "main": "dist/index.js",
   "bin": {
