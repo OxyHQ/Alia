@@ -36,6 +36,9 @@ interface StoreState {
 
   activeSkillId: string | null;
   setActiveSkillId: (skillId: string | null) => void;
+
+  ghostMode: boolean;
+  setGhostMode: (value: boolean) => void;
 }
 
 export const useStore = create<StoreState>((set, get) => ({
@@ -71,4 +74,7 @@ export const useStore = create<StoreState>((set, get) => ({
 
   activeSkillId: null,
   setActiveSkillId: (skillId: string | null) => set({ activeSkillId: skillId }),
+
+  ghostMode: false,
+  setGhostMode: (value: boolean) => set({ ghostMode: value }),
 }));
