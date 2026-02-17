@@ -3,9 +3,8 @@ import {
   View,
   Pressable,
   type TextInput as RNTextInput,
-  KeyboardAvoidingView,
-  Platform,
 } from "react-native";
+import { KeyboardAvoidingView } from "react-native-keyboard-controller";
 import { Maximize2, Minimize2 } from "lucide-react-native";
 import { cn } from "@/lib/utils";
 import { PromptInputContext, type Attachment } from "./context";
@@ -204,9 +203,7 @@ export function PromptInput({
     <PromptInputContext.Provider value={contextValue}>
       {autocomplete && <PromptInputAutocomplete />}
 
-      <KeyboardAvoidingView
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
-      >
+      <KeyboardAvoidingView behavior="padding">
         {leadingAddMenu ? (
           <View className="flex-row items-end gap-2">
             <PromptInputAddMenu

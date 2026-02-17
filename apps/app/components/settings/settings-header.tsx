@@ -5,6 +5,7 @@ import { useNavigation } from "expo-router";
 import { useRouter } from "expo-router";
 import { DrawerNavigationProp } from "@react-navigation/drawer";
 import { Menu, ArrowLeft } from "lucide-react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 interface SettingsHeaderProps {
   title: string;
@@ -18,6 +19,7 @@ export function SettingsHeader({ title, subtitle, showBack = false, onBack }: Se
   const router = useRouter();
   const { width } = useWindowDimensions();
   const isLargeScreen = width >= 768;
+  const insets = useSafeAreaInsets();
 
   const handleBack = () => {
     if (onBack) {
@@ -28,7 +30,7 @@ export function SettingsHeader({ title, subtitle, showBack = false, onBack }: Se
   };
 
   return (
-    <View className="flex-row items-center gap-2 px-4 h-14 border-b border-border">
+    <View className="flex-row items-end gap-2 px-4 border-b border-border" style={{ paddingTop: insets.top, height: 56 + insets.top }}>
       {!isLargeScreen && (
         <Button
           variant="ghost"

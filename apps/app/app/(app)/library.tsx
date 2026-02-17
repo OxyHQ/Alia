@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { View, ScrollView, Pressable, TextInput } from 'react-native';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 import { Text } from '@/components/ui/text';
 import { Button } from '@/components/ui/button';
 import {
@@ -122,7 +123,7 @@ export default function LibraryScreen() {
 
   return (
     <View className="flex-1 bg-background">
-      <ScrollView className="flex-1">
+      <KeyboardAwareScrollView className="flex-1">
         {/* Hero Section */}
         <View className="items-center px-6 py-12">
           <LibraryIcon size={48} className="text-primary mb-4" />
@@ -274,7 +275,7 @@ export default function LibraryScreen() {
             </View>
           )}
         </View>
-      </ScrollView>
+      </KeyboardAwareScrollView>
     </View>
   );
 }

@@ -1,5 +1,6 @@
 import * as React from "react";
-import { View, ScrollView, KeyboardAvoidingView, Platform } from "react-native";
+import { View } from "react-native";
+import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { cn } from "@/lib/utils";
 
 export interface AuthContainerProps {
@@ -9,20 +10,16 @@ export interface AuthContainerProps {
 
 export function AuthContainer({ children, className }: AuthContainerProps) {
   return (
-    <KeyboardAvoidingView
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+    <KeyboardAwareScrollView
+      bottomOffset={20}
       className="flex-1 bg-background"
+      contentContainerClassName="flex-1 justify-center px-6 py-6"
+      keyboardShouldPersistTaps="handled"
+      showsVerticalScrollIndicator={false}
     >
-      <ScrollView
-        className="flex-1"
-        contentContainerClassName="flex-1 justify-center px-6 py-6"
-        keyboardShouldPersistTaps="handled"
-        showsVerticalScrollIndicator={false}
-      >
-        <View className={cn("max-w-sm w-full mx-auto", className)}>
-          {children}
-        </View>
-      </ScrollView>
-    </KeyboardAvoidingView>
+      <View className={cn("max-w-sm w-full mx-auto", className)}>
+        {children}
+      </View>
+    </KeyboardAwareScrollView>
   );
 }
