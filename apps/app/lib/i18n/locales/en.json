@@ -600,7 +600,11 @@
     "statusOffline": "Offline",
     "share": "Share",
     "shareComingSoon": "Share agent coming soon!",
-    "hireComingSoon": "Hire agent coming soon!"
+    "hireComingSoon": "Hire agent coming soon!",
+    "activity": "Activity",
+    "taskPlaceholder": "Describe the task for this agent...",
+    "hireStarted": "Agent is working on your task",
+    "notActive": "This agent is not currently active"
   },
   "authorize": {
     "sendMessages": "Send messages to AI models",

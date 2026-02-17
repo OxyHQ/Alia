@@ -600,7 +600,11 @@
     "statusOffline": "Desconectado",
     "share": "Compartir",
     "shareComingSoon": "Compartir agente próximamente!",
-    "hireComingSoon": "Contratar agente próximamente!"
+    "hireComingSoon": "Contratar agente próximamente!",
+    "activity": "Actividad",
+    "taskPlaceholder": "Describe la tarea para este agente...",
+    "hireStarted": "El agente está trabajando en tu tarea",
+    "notActive": "Este agente no está activo actualmente"
   },
   "authorize": {
     "sendMessages": "Enviar mensajes a modelos de IA",

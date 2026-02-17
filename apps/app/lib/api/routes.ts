@@ -86,6 +86,10 @@ export const API_ROUTES = {
     delete: (id: string) => `/agents/${id}`,
     follow: (id: string) => `/agents/${id}/follow`,
     hire: (id: string) => `/agents/${id}/hire`,
+    activity: (id: string) => `/agents/${id}/activity`,
+    sessions: (id: string) => `/agents/${id}/sessions`,
+    status: (id: string) => `/agents/${id}/status`,
+    cancelSession: (id: string, sid: string) => `/agents/${id}/sessions/${sid}/cancel`,
     generateAvatar: '/agents/avatar/generate',
   },
 

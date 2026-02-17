@@ -1,33 +1,85 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { View, Platform, ActivityIndicator } from "react-native";
 import { Text } from "@/components/ui/text";
+import { io as socketIO, type Socket } from "socket.io-client";
+import config from "@/lib/config";
+import apiClient from "@/lib/api/client";
 
 interface AgentTerminalProps {
+  agentId: string;
+}
+
+interface AgentActivityEvent {
+  type:
+    | "system"
+    | "thinking"
+    | "response"
+    | "tool_call"
+    | "tool_result"
+    | "error"
+    | "complete";
+  content: string;
+  timestamp: number;
   sessionId: string;
-  wsUrl: string;
+  metadata?: { toolName?: string; args?: any; duration?: number };
 }
 
 /**
- * Terminal viewer for the agent view.
+ * Format an activity event into ANSI-colored terminal output.
+ */
+function formatActivity(event: AgentActivityEvent): string {
+  const time = new Date(event.timestamp);
+  const ts = `\x1b[90m[${time.toLocaleTimeString("en-US", { hour12: false })}]\x1b[0m`;
+
+  switch (event.type) {
+    case "system":
+      return `${ts} \x1b[90m\u25B8 ${event.content}\x1b[0m\r\n`;
+    case "thinking":
+      return `${ts} \x1b[33m\u25C6 ${event.content}\x1b[0m\r\n`;
+    case "tool_call":
+      return `${ts} \x1b[36m\u26A1 ${event.content}\x1b[0m\r\n`;
+    case "tool_result": {
+      const truncated =
+        event.content.length > 300
+          ? event.content.slice(0, 300) + "..."
+          : event.content;
+      return `${ts} \x1b[90m\u2190 ${truncated}\x1b[0m\r\n`;
+    }
+    case "response":
+      return `${ts} \x1b[32m${event.content}\x1b[0m\r\n`;
+    case "error":
+      return `${ts} \x1b[31m\u2717 ${event.content}\x1b[0m\r\n`;
+    case "complete":
+      return `${ts} \x1b[32m\u2713 ${event.content}\x1b[0m\r\n`;
+    default:
+      return `${ts} ${event.content}\r\n`;
+  }
+}
+
+/**
+ * Terminal viewer for agent activity.
  * - Web: uses xterm.js directly via DOM manipulation
  * - Native: uses a WebView that loads xterm.js from CDN
+ *
+ * Connects to Socket.IO and subscribes to agent activity events.
+ * Backfills recent activity on mount via REST API.
  */
-export function AgentTerminal({ sessionId, wsUrl }: AgentTerminalProps) {
+export function AgentTerminal({ agentId }: AgentTerminalProps) {
   if (Platform.OS === "web") {
-    return <WebTerminal sessionId={sessionId} wsUrl={wsUrl} />;
+    return <WebTerminal agentId={agentId} />;
   }
-  return <NativeTerminal sessionId={sessionId} wsUrl={wsUrl} />;
+  return <NativeTerminal agentId={agentId} />;
 }
 
 // ---------------------------------------------------------------------------
 // Web implementation (xterm.js directly)
 // ---------------------------------------------------------------------------
 
-function WebTerminal({ sessionId, wsUrl }: AgentTerminalProps) {
+function WebTerminal({ agentId }: AgentTerminalProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const terminalRef = useRef<any>(null);
   const fitAddonRef = useRef<any>(null);
-  const wsRef = useRef<WebSocket | null>(null);
+  const socketRef = useRef<Socket | null>(null);
   const [ready, setReady] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -128,50 +180,56 @@ function WebTerminal({ sessionId, wsUrl }: AgentTerminalProps) {
     return () => window.removeEventListener("resize", handleResize);
   }, [ready]);
 
-  // Connect WebSocket
+  // Backfill activity + connect Socket.IO
   useEffect(() => {
     if (!ready) return;
 
-    const ws = new WebSocket(wsUrl);
-    wsRef.current = ws;
-
-    ws.onopen = () => {
-      ws.send(
-        JSON.stringify({
-          type: "subscribe",
-          channel: "terminal",
-          sessionId,
-        })
-      );
-    };
-
-    ws.onmessage = (event) => {
-      try {
-        const data = JSON.parse(event.data);
-        if (data.type === "terminal:output" && data.sessionId === sessionId) {
-          terminalRef.current?.write(data.data);
+    // Backfill recent activity from REST API
+    apiClient
+      .get(`/agents/${agentId}/activity`)
+      .then((res) => {
+        const events: AgentActivityEvent[] = res.data?.activity || [];
+        for (const event of events) {
+          terminalRef.current?.write(formatActivity(event));
         }
-      } catch {
-        // If not JSON, write raw data
-        terminalRef.current?.write(event.data);
+        if (events.length === 0) {
+          terminalRef.current?.writeln(
+            "\x1b[90mWaiting for activity...\x1b[0m"
+          );
+        }
+      })
+      .catch(() => {
+        // Silently fail backfill
+      });
+
+    // Connect Socket.IO
+    const socket = socketIO(config.apiUrl, {
+      transports: ["websocket"],
+    });
+    socketRef.current = socket;
+
+    socket.on("connect", () => {
+      socket.emit("subscribe-agent", agentId);
+    });
+
+    socket.on("agent-activity", (data: any) => {
+      if (data.agentId === agentId) {
+        terminalRef.current?.write(formatActivity(data));
       }
-    };
+    });
 
-    ws.onerror = () => {
-      setError("WebSocket connection failed");
-    };
-
-    ws.onclose = () => {
+    socket.on("connect_error", () => {
+      // Show error only if terminal is still mounted
       terminalRef.current?.writeln(
-        "\r\n\x1b[90m--- Connection closed ---\x1b[0m"
+        "\x1b[31mConnection error — retrying...\x1b[0m"
       );
-    };
+    });
 
     return () => {
-      ws.close();
-      wsRef.current = null;
+      socket.disconnect();
+      socketRef.current = null;
     };
-  }, [ready, wsUrl, sessionId]);
+  }, [ready, agentId]);
 
   if (error) {
     return (
@@ -295,9 +353,9 @@ const TERMINAL_HTML = `
 </html>
 `;
 
-function NativeTerminal({ sessionId, wsUrl }: AgentTerminalProps) {
+function NativeTerminal({ agentId }: AgentTerminalProps) {
   const webViewRef = useRef<any>(null);
-  const wsRef = useRef<WebSocket | null>(null);
+  const socketRef = useRef<Socket | null>(null);
   const [webViewReady, setWebViewReady] = useState(false);
   const [WebViewComponent, setWebViewComponent] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
@@ -324,56 +382,58 @@ function NativeTerminal({ sessionId, wsUrl }: AgentTerminalProps) {
     };
   }, []);
 
-  // Connect WebSocket once WebView is ready
+  const writeToWebView = useCallback(
+    (text: string) => {
+      webViewRef.current?.postMessage(
+        JSON.stringify({ type: "write", data: text })
+      );
+    },
+    []
+  );
+
+  // Backfill + Socket.IO once WebView is ready
   useEffect(() => {
     if (!webViewReady) return;
 
-    const ws = new WebSocket(wsUrl);
-    wsRef.current = ws;
-
-    ws.onopen = () => {
-      ws.send(
-        JSON.stringify({
-          type: "subscribe",
-          channel: "terminal",
-          sessionId,
-        })
-      );
-    };
-
-    ws.onmessage = (event) => {
-      try {
-        const data = JSON.parse(event.data);
-        if (data.type === "terminal:output" && data.sessionId === sessionId) {
-          webViewRef.current?.postMessage(
-            JSON.stringify({ type: "write", data: data.data })
-          );
+    // Backfill recent activity
+    apiClient
+      .get(`/agents/${agentId}/activity`)
+      .then((res) => {
+        const events: AgentActivityEvent[] = res.data?.activity || [];
+        for (const event of events) {
+          writeToWebView(formatActivity(event));
         }
-      } catch {
-        webViewRef.current?.postMessage(
-          JSON.stringify({ type: "write", data: event.data })
-        );
+        if (events.length === 0) {
+          writeToWebView("\x1b[90mWaiting for activity...\x1b[0m\r\n");
+        }
+      })
+      .catch(() => {});
+
+    // Connect Socket.IO
+    const socket = socketIO(config.apiUrl, {
+      transports: ["websocket"],
+    });
+    socketRef.current = socket;
+
+    socket.on("connect", () => {
+      socket.emit("subscribe-agent", agentId);
+    });
+
+    socket.on("agent-activity", (data: any) => {
+      if (data.agentId === agentId) {
+        writeToWebView(formatActivity(data));
       }
-    };
+    });
 
-    ws.onerror = () => {
-      setError("WebSocket connection failed");
-    };
-
-    ws.onclose = () => {
-      webViewRef.current?.postMessage(
-        JSON.stringify({
-          type: "write",
-          data: "\r\n\x1b[90m--- Connection closed ---\x1b[0m",
-        })
-      );
-    };
+    socket.on("connect_error", () => {
+      writeToWebView("\x1b[31mConnection error — retrying...\x1b[0m\r\n");
+    });
 
     return () => {
-      ws.close();
-      wsRef.current = null;
+      socket.disconnect();
+      socketRef.current = null;
     };
-  }, [webViewReady, wsUrl, sessionId]);
+  }, [webViewReady, agentId, writeToWebView]);
 
   const handleWebViewMessage = useCallback((event: any) => {
     try {

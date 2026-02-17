@@ -27,6 +27,10 @@ export interface IAgent extends Document {
   status: 'active' | 'idle' | 'offline';
   creditBalance: number;
   allowHiring: boolean;
+  systemPrompt?: string;
+  allowedModels: string[];
+  scheduleInterval?: number;
+  lastScheduledCheck?: Date;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -75,6 +79,13 @@ const AgentSchema = new Schema<IAgent>({
   },
   creditBalance: { type: Number, default: 0 },
   allowHiring: { type: Boolean, default: false },
+  systemPrompt: { type: String },
+  allowedModels: {
+    type: [String],
+    default: ['alia-lite', 'alia-v1'],
+  },
+  scheduleInterval: { type: Number },
+  lastScheduledCheck: { type: Date },
 }, {
   timestamps: true,
 });
