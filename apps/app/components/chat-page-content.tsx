@@ -3,17 +3,23 @@ import { View, Pressable, useWindowDimensions } from "react-native";
 import { useColorScheme } from "@/lib/useColorScheme";
 import { LinearGradient } from "expo-linear-gradient";
 import type { ScrollView as GHScrollView } from "react-native-gesture-handler";
-import { useStore, type Attachment } from "@/lib/globalStore";
-import { ActivityIndicator } from "react-native";
-import { Plus, Globe, ArrowUp, MoreHorizontal, X, Ghost, Sparkles, Square, Brain, Bot, Search, ShoppingBag, BookOpen } from "lucide-react-native";
-import Entypo from '@expo/vector-icons/Entypo';
-import { useImagePicker } from "@/hooks/useImagePicker";
-import { useDocumentPicker } from "@/hooks/useDocumentPicker";
-import { AttachmentPreview } from "@/components/attachment-preview";
+import { useStore } from "@/lib/globalStore";
+import { Globe, MoreHorizontal, X, Ghost, Sparkles, Brain, Bot, Search, ShoppingBag, BookOpen } from "lucide-react-native";
+import Entypo from "@expo/vector-icons/Entypo";
 import * as DropdownMenu from "@/components/ui/dropdown-menu";
 import { Text } from "@/components/ui/text";
 import { Button } from "@/components/ui/button";
-import { PromptInput, PromptInputTextarea, PromptInputActions, PromptInputMicButton, usePromptInput } from "@/components/ui/prompt-input";
+import {
+  PromptInput,
+  PromptInputTextarea,
+  PromptInputActions,
+  PromptInputMicButton,
+  PromptInputAutocomplete,
+  PromptInputAttachments,
+  PromptInputSubmitButton,
+  PromptInputAddMenu,
+  type Attachment,
+} from "@/components/ui/prompt-input";
 import { ChatInterface } from "@/components/chat-interface";
 import { ChatHeader } from "@/components/chat-header";
 import { useAuth } from "@oxyhq/services";
@@ -23,9 +29,6 @@ import { VoiceChat } from "@/components/voice-chat";
 import { CanvasPanel } from "@/components/canvas-panel";
 import { AlertTriangle } from "lucide-react-native";
 import { CreditWarningBanner } from "@/components/credit-warning-banner";
-import { PromptAutocomplete } from "@/components/prompt-autocomplete";
-import { usePromptCompletions } from "@/hooks/usePromptCompletions";
-import type { PromptCompletion } from "@/lib/prompt-completions";
 import { getThinkingModelId, isThinkingModel } from "@/components/model-selector";
 import { useModelStore } from "@/lib/stores/model-store";
 import { useEntitlements } from "@/lib/hooks/use-billing";
@@ -70,44 +73,6 @@ interface ChatPageContentProps {
   disabled?: boolean;
 }
 
-const SubmitButtonWrapper = ({
-  isLoading,
-  stop,
-  inputValue,
-  attachments,
-  onVoicePress,
-}: {
-  isLoading: boolean;
-  stop?: () => void;
-  inputValue: string;
-  attachments: any[];
-  onVoicePress?: () => void;
-}) => {
-  const { onSubmit } = usePromptInput();
-  const hasContent = inputValue.trim() || attachments.length > 0;
-
-  if (isLoading) {
-    return (
-      <Button size="icon" onPress={stop} className="h-8 w-8 rounded-full">
-        <Square size={12} color="white" className="fill-current" />
-      </Button>
-    );
-  }
-
-  if (!hasContent) {
-    return (
-      <Button size="icon" onPress={onVoicePress} className="h-8 w-8 rounded-full">
-        <Entypo name="sound" size={16} color="white" />
-      </Button>
-    );
-  }
-
-  return (
-    <Button size="icon" onPress={onSubmit} className="h-8 w-8 rounded-full">
-      <ArrowUp size={16} color="white" />
-    </Button>
-  );
-};
 
 const ModeChip = ({ icon: Icon, label, color, onDismiss }: {
   icon: React.ComponentType<{ size: number; color: string }>;
@@ -140,6 +105,8 @@ export const ChatPageContent = ({
   disabled = false,
 }: ChatPageContentProps) => {
   const attachments = useStore((state) => state.attachments);
+  const addAttachment = useStore((state) => state.addAttachment);
+  const removeAttachment = useStore((state) => state.removeAttachment);
   const { isAuthenticated } = useAuth();
   const { data: entitlements } = useEntitlements();
   const { data: creditsInfo } = useCredits();
@@ -162,14 +129,10 @@ export const ChatPageContent = ({
   const [showVoice, setShowVoice] = useState(false);
   const [showCanvas, setShowCanvas] = useState(false);
   const [canvasComponents, setCanvasComponents] = useState<any[]>([]);
-  const { pickImage } = useImagePicker();
-  const { pickDocument } = useDocumentPicker();
   const { colors } = useColorScheme();
-
 
   const [bottomBarHeight, setBottomBarHeight] = useState(160);
   const isMainScreen = messages.length === 0;
-  const completions = usePromptCompletions(inputValue, isMainScreen);
 
   const toggleMode = useCallback((mode: Mode) => {
     const config = MODE_CONFIG[mode];
@@ -192,10 +155,6 @@ export const ChatPageContent = ({
     });
   }, [entitlements, t, router]);
 
-  const handleAutocompleteSelect = useCallback((completion: PromptCompletion) => {
-    setInputValue(completion.text);
-  }, []);
-
   const handleSubmit = () => {
     if (!inputValue.trim() || isLoading || disabled) return;
     onSubmit(inputValue, attachments.length > 0 ? attachments : undefined);
@@ -207,102 +166,6 @@ export const ChatPageContent = ({
     if (isLoading) return;
     onSuggestionPress(message);
   }, [isLoading, onSuggestionPress]);
-
-  const handleAddPhotos = async () => {
-    if (!isAuthenticated) {
-      toast.error(t('subscribe.signInRequired'));
-      return;
-    }
-
-    try {
-      const assets = await pickImage();
-      if (assets && assets.length > 0) {
-        assets.forEach((asset) => {
-          useStore.getState().addAttachment({
-            id: `img-${Date.now()}-${Math.random().toString(36).slice(2)}`,
-            uri: asset.uri,
-            type: 'image',
-            name: asset.name,
-            size: asset.size,
-            mimeType: asset.mimeType,
-          });
-        });
-      }
-    } catch (err) {
-      console.error('Error picking images:', err);
-    }
-  };
-
-  const handleAddDocument = async () => {
-    if (!isAuthenticated) {
-      toast.error(t('subscribe.signInRequired'));
-      return;
-    }
-
-    try {
-      const docs = await pickDocument();
-      if (docs && docs.length > 0) {
-        docs.forEach((doc) => {
-          useStore.getState().addAttachment({
-            id: `doc-${Date.now()}-${Math.random().toString(36).slice(2)}`,
-            uri: doc.uri,
-            type: 'document',
-            name: doc.name,
-            size: doc.size,
-            mimeType: doc.mimeType,
-          });
-        });
-      }
-    } catch (err) {
-      console.error('Error picking documents:', err);
-      toast.error(t('chat.failedPickDocuments'));
-    }
-  };
-
-  const handleRemoveAttachment = (id: string) => {
-    useStore.getState().removeAttachment(id);
-  };
-
-  const handleImagePaste = async (files: File[]) => {
-    if (!isAuthenticated) {
-      toast.error(t('subscribe.signInRequired'));
-      return;
-    }
-
-    try {
-      for (const file of files) {
-        const attachmentId = `paste-${Date.now()}-${Math.random().toString(36).slice(2)}`;
-
-        useStore.getState().addAttachment({
-          id: attachmentId,
-          uri: '',
-          type: 'image',
-          name: file.name || 'Pasted image',
-          size: file.size || 0,
-          mimeType: file.type || 'image/png',
-          isLoading: true,
-        });
-
-        const reader = new FileReader();
-        reader.onload = (e) => {
-          const dataUrl = e.target?.result as string;
-          if (dataUrl) {
-            useStore.getState().updateAttachment(attachmentId, {
-              uri: dataUrl,
-              isLoading: false,
-            });
-          }
-        };
-        reader.onerror = () => {
-          useStore.getState().removeAttachment(attachmentId);
-        };
-        reader.readAsDataURL(file);
-      }
-    } catch (err) {
-      console.error('Error handling pasted images:', err);
-      toast.error(t('chat.failedPasteImages'));
-    }
-  };
 
   const handleThinkingMode = () => {
     if (thinkingMode) {
@@ -317,6 +180,29 @@ export const ChatPageContent = ({
   const handleAddSources = () => {
     toast.info(t('chat.addSourcesHint'));
   };
+
+  const handleImagePaste = useCallback((files: File[]) => {
+    files.forEach((file) => {
+      const id = `paste-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+      addAttachment({
+        id,
+        uri: "",
+        type: "image",
+        name: file.name || "Pasted image",
+        size: file.size || 0,
+        mimeType: file.type || "image/png",
+        isLoading: true,
+      });
+      const reader = new FileReader();
+      reader.onload = () => {
+        useStore.getState().updateAttachment(id, {
+          uri: reader.result as string,
+          isLoading: false,
+        });
+      };
+      reader.readAsDataURL(file);
+    });
+  }, [addAttachment]);
 
   const handleCanvas = () => {
     setShowCanvas(true);
@@ -401,47 +287,20 @@ export const ChatPageContent = ({
           )}
 
           <View className="p-4">
-            <View className="mx-auto w-full max-w-3xl flex-row items-end gap-2">
-              <DropdownMenu.Root>
-                <DropdownMenu.Trigger>
-                  <Button
-                    variant="outline"
-                    size="icon"
-                    className="h-10 w-10 rounded-full text-muted-foreground hover:text-foreground"
-                  >
-                    <Plus size={20} className="text-muted-foreground" />
-                  </Button>
-                </DropdownMenu.Trigger>
-                <DropdownMenu.Content side="top" align="start">
-                  <DropdownMenu.Item key="photos" onSelect={handleAddPhotos}>
-                    <DropdownMenu.ItemIcon ios={{ name: "photo" }} />
-                    <DropdownMenu.ItemTitle>Add photos</DropdownMenu.ItemTitle>
-                  </DropdownMenu.Item>
-                  <DropdownMenu.Item key="document" onSelect={handleAddDocument}>
-                    <DropdownMenu.ItemIcon ios={{ name: "doc" }} />
-                    <DropdownMenu.ItemTitle>Add document</DropdownMenu.ItemTitle>
-                  </DropdownMenu.Item>
-                </DropdownMenu.Content>
-              </DropdownMenu.Root>
-              <View className="flex-1">
-                {isMainScreen && (
-                  <PromptAutocomplete
-                    completions={completions}
-                    onSelect={handleAutocompleteSelect}
-                  />
-                )}
+            <View className="mx-auto w-full max-w-3xl">
                 <PromptInput
                   value={inputValue}
                   onValueChange={setInputValue}
                   onSubmit={handleSubmit}
                   isLoading={isLoading}
                   disabled={isLoading || disabled}
+                  attachments={attachments}
+                  onAddAttachment={addAttachment}
+                  onRemoveAttachment={removeAttachment}
                   onImagePaste={handleImagePaste}
                 >
-                  <AttachmentPreview
-                    attachments={attachments}
-                    onRemove={handleRemoveAttachment}
-                  />
+                  <PromptInputAutocomplete enabled={isMainScreen} />
+                  <PromptInputAttachments />
 
                   <PromptInputTextarea
                     value={inputValue}
@@ -452,6 +311,7 @@ export const ChatPageContent = ({
                   />
                   <PromptInputActions className="flex-row items-center justify-between gap-2 mt-2 mb-1 px-3">
                     <View className="flex-row items-center gap-1.5">
+                      <PromptInputAddMenu />
                       <Button
                         variant={activeModes.has('search') ? "default" : "outline"}
                         className="h-8 rounded-full px-3 flex-row items-center gap-2 text-muted-foreground hover:text-foreground font-normal text-xs"
@@ -574,32 +434,38 @@ export const ChatPageContent = ({
 
                     <View className="flex-row items-center gap-1.5">
                       <PromptInputMicButton />
-                      <SubmitButtonWrapper
+                      <PromptInputSubmitButton
                         isLoading={isLoading}
-                        stop={onStop}
-                        inputValue={inputValue}
-                        attachments={attachments}
-                        onVoicePress={() => {
-                          if (!isAuthenticated) {
-                            toast.error(t('subscribe.signInRequired'));
-                            return;
-                          }
-                          if (!entitlements?.features['voice-mode']) {
-                            toast.info(t('subscribe.featureRequiresPlan', { feature: t('modes.voiceMode') }));
-                            router.push('/(biglayout)/subscribe');
-                            return;
-                          }
-                          if (creditsInfo && creditsInfo.credits <= 0) {
-                            toast.error(t('usageLimit.outOfCreditsTitle'));
-                            return;
-                          }
-                          setShowVoice(true);
-                        }}
+                        onStop={onStop}
+                        emptyAction={
+                          <Button
+                            size="icon"
+                            variant="outline"
+                            className="h-8 w-8 rounded-full"
+                            onPress={() => {
+                              if (!isAuthenticated) {
+                                toast.error(t('subscribe.signInRequired'));
+                                return;
+                              }
+                              if (!entitlements?.features['voice-mode']) {
+                                toast.info(t('subscribe.featureRequiresPlan', { feature: t('modes.voiceMode') }));
+                                router.push('/(biglayout)/subscribe');
+                                return;
+                              }
+                              if (creditsInfo && creditsInfo.credits <= 0) {
+                                toast.error(t('usageLimit.outOfCreditsTitle'));
+                                return;
+                              }
+                              setShowVoice(true);
+                            }}
+                          >
+                            <Entypo name="modern-mic" size={16} className="text-muted-foreground" />
+                          </Button>
+                        }
                       />
                     </View>
                   </PromptInputActions>
                 </PromptInput>
-              </View>
             </View>
           </View>
         </LinearGradient>
