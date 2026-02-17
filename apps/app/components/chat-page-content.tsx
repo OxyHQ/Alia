@@ -5,7 +5,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import type { ScrollView as GHScrollView } from "react-native-gesture-handler";
 import { useStore, type Attachment } from "@/lib/globalStore";
 import { ActivityIndicator } from "react-native";
-import { Plus, Globe, ArrowUp, MoreHorizontal, X, Ghost, Sparkles, Square, Brain, Mic, MicOff, Bot, Search, ShoppingBag, BookOpen } from "lucide-react-native";
+import { Plus, Globe, ArrowUp, MoreHorizontal, X, Ghost, Sparkles, Square, Brain, Bot, Search, ShoppingBag, BookOpen } from "lucide-react-native";
 import Entypo from '@expo/vector-icons/Entypo';
 import { useImagePicker } from "@/hooks/useImagePicker";
 import { useDocumentPicker } from "@/hooks/useDocumentPicker";
@@ -13,7 +13,7 @@ import { AttachmentPreview } from "@/components/attachment-preview";
 import * as DropdownMenu from "@/components/ui/dropdown-menu";
 import { Text } from "@/components/ui/text";
 import { Button } from "@/components/ui/button";
-import { PromptInput, PromptInputTextarea, PromptInputActions, usePromptInput } from "@/components/ui/prompt-input";
+import { PromptInput, PromptInputTextarea, PromptInputActions, PromptInputMicButton, usePromptInput } from "@/components/ui/prompt-input";
 import { ChatInterface } from "@/components/chat-interface";
 import { ChatHeader } from "@/components/chat-header";
 import { useAuth } from "@oxyhq/services";
@@ -21,7 +21,6 @@ import type { Message } from "@/types/chat";
 import { toast } from "@/components/sonner";
 import { VoiceChat } from "@/components/voice-chat";
 import { CanvasPanel } from "@/components/canvas-panel";
-import { useSpeechToText } from "@/lib/hooks/use-speech-to-text";
 import { AlertTriangle } from "lucide-react-native";
 import { CreditWarningBanner } from "@/components/credit-warning-banner";
 import { PromptAutocomplete } from "@/components/prompt-autocomplete";
@@ -165,12 +164,8 @@ export const ChatPageContent = ({
   const [canvasComponents, setCanvasComponents] = useState<any[]>([]);
   const { pickImage } = useImagePicker();
   const { pickDocument } = useDocumentPicker();
-  const stt = useSpeechToText();
   const { colors } = useColorScheme();
 
-  useEffect(() => {
-    if (stt.error) toast.error(stt.error);
-  }, [stt.error]);
 
   const [bottomBarHeight, setBottomBarHeight] = useState(160);
   const isMainScreen = messages.length === 0;
@@ -327,18 +322,6 @@ export const ChatPageContent = ({
     setShowCanvas(true);
   };
 
-  const handleMicPress = async () => {
-    if (stt.isRecording) {
-      const text = await stt.stopAndTranscribe();
-      if (text) {
-        setInputValue((prev) => (prev ? `${prev} ${text}` : text));
-      }
-    } else if (stt.isTranscribing) {
-      // Already transcribing, do nothing
-    } else {
-      stt.startRecording();
-    }
-  };
 
   const extraMenuItems = (
     <>
@@ -590,19 +573,7 @@ export const ChatPageContent = ({
                     </View>
 
                     <View className="flex-row items-center gap-1.5">
-                      <Pressable
-                        onPress={handleMicPress}
-                        disabled={stt.isTranscribing}
-                        className="h-8 w-8 rounded-full items-center justify-center active:opacity-70"
-                      >
-                        {stt.isTranscribing ? (
-                          <ActivityIndicator size="small" color="#6366f1" />
-                        ) : stt.isRecording ? (
-                          <MicOff size={16} color="#ef4444" />
-                        ) : (
-                          <Mic size={16} className="text-muted-foreground" />
-                        )}
-                      </Pressable>
+                      <PromptInputMicButton />
                       <SubmitButtonWrapper
                         isLoading={isLoading}
                         stop={onStop}

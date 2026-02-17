@@ -8,7 +8,7 @@ import {
   Star, Pencil, Trash2, Share2, Download, Settings, HelpCircle,
   Image, FileText, Search, ShoppingBag, MoreHorizontal, ExternalLink,
   BookOpen, Globe, PenTool, Sparkles, User, CreditCard, Bell, LogOut,
-  Folder, Check, Brain, Ghost, Bot,
+  Folder, Check, Brain, Ghost, Bot, Bookmark, AlertTriangle, Pin,
 } from "lucide-react-native";
 
 // Map iOS SF Symbol names to Lucide icons for web rendering
@@ -23,6 +23,9 @@ const SF_SYMBOL_MAP: Record<string, React.ComponentType<any>> = {
   "bell": Bell, "rectangle.portrait.and.arrow.right": LogOut,
   "folder": Folder, "checkmark": Check, "brain": Brain,
   "eye.slash": Ghost, "cpu": Bot,
+  "bookmark": Bookmark, "bookmark.fill": Bookmark,
+  "exclamationmark.triangle": AlertTriangle,
+  "pin": Pin, "pin.fill": Pin,
 };
 
 

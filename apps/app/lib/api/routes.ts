@@ -90,6 +90,16 @@ export const API_ROUTES = {
     status: (id: string) => `/agents/${id}/status`,
     cancelSession: (id: string, sid: string) => `/agents/${id}/sessions/${sid}/cancel`,
     generateAvatar: '/agents/avatar/generate',
+    generate: '/agents/generate',
+    teams: {
+      list: '/agents/teams',
+      get: (id: string) => `/agents/teams/${id}`,
+      create: '/agents/teams',
+      update: (id: string) => `/agents/teams/${id}`,
+      delete: (id: string) => `/agents/teams/${id}`,
+      addAgent: (id: string) => `/agents/teams/${id}/agents`,
+      removeAgent: (id: string, agentId: string) => `/agents/teams/${id}/agents/${agentId}`,
+    },
   },
 
   // Health check

@@ -153,3 +153,50 @@ export function useOrganizationMembers(orgId: string) {
     retry: 1,
   });
 }
+
+// ======================
+// Organization Agents
+// ======================
+
+async function fetchOrganizationAgents(orgId: string) {
+  const response = await apiClient.get(`/organization/${orgId}/agents`);
+  return response.data.agents;
+}
+
+export function useOrganizationAgents(orgId: string) {
+  return useQuery({
+    queryKey: queryKeys.organizations.agents(orgId),
+    queryFn: () => fetchOrganizationAgents(orgId),
+    enabled: !!orgId,
+    staleTime: 1000 * 60 * 2,
+    retry: 1,
+  });
+}
+
+export function useAddAgentToOrg() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ orgId, agentId }: { orgId: string; agentId: string }) => {
+      const response = await apiClient.post(`/organization/${orgId}/agents`, { agentId });
+      return response.data;
+    },
+    onSuccess: (_, { orgId }) => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.organizations.agents(orgId) });
+    },
+  });
+}
+
+export function useRemoveAgentFromOrg() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ orgId, agentId }: { orgId: string; agentId: string }) => {
+      await apiClient.delete(`/organization/${orgId}/agents/${agentId}`);
+      return { orgId, agentId };
+    },
+    onSuccess: (_, { orgId }) => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.organizations.agents(orgId) });
+    },
+  });
+}

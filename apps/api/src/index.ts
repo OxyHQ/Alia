@@ -35,6 +35,7 @@ import webhooksRouter from './routes/webhooks.js';
 import referralsRouter from './routes/referrals.js';
 import agentsRouter from './routes/agents.js';
 import agentsAvatarRouter from './routes/agents-avatar.js';
+import agentTeamsRouter from './routes/agent-teams.js';
 import containersRouter from './routes/containers.js';
 
 // Register hooks (side-effect import)
@@ -201,6 +202,7 @@ app.use('/channels', channelsRouter);
 app.use('/webhooks', webhooksRouter);
 app.use('/referrals', referralsRouter);
 app.use('/agents/avatar', agentsAvatarRouter);
+app.use('/agents/teams', agentTeamsRouter);
 app.use('/agents', agentsRouter);
 app.use('/containers', containersRouter);
 app.use('/internal', internalRouter);

@@ -1,21 +1,20 @@
 import React, { useEffect, useState, useCallback } from "react";
 import { View, ScrollView, Pressable, Share, TextInput, Switch, Alert } from "react-native";
 import { Text } from "@/components/ui/text";
-import { Button } from "@/components/ui/button";
 import { Avatar, AvatarImage } from "@/components/ui/avatar";
+import * as DropdownMenu from "@/components/ui/dropdown-menu";
 
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 const DEFAULT_AVATAR = require("@/assets/images/agent-avatar-reference.png");
 import {
   ArrowLeft,
+  BadgeCheck,
   CheckCircle2,
-  Zap,
-  Share2,
   Star,
   Send,
-  MessageCircle,
   Bookmark,
-  UserPlus,
+  Ellipsis,
+  Share2,
 } from "lucide-react-native";
 import { useAgentsStore, type Agent } from "@/lib/stores/agents-store";
 import { useRouter, useLocalSearchParams } from "expo-router";
@@ -85,7 +84,7 @@ export default function AgentDetailScreen() {
     }
   }, [id, getAgent]);
 
-  const isOwner = !!(user && agent && user._id === agent.author);
+  const isOwner = !!(user && agent && user.id === agent.author);
   const bookmarked = agent ? isFavorite(agent._id) : false;
 
   const handleChat = useCallback(async () => {
@@ -144,29 +143,27 @@ export default function AgentDetailScreen() {
     if (!agent) return;
     setAddingToTeam(true);
     try {
-      const res = await apiClient.get("/organization");
-      const orgs = res.data.organizations || [];
+      const res = await apiClient.get("/agents/teams");
+      const teams = res.data.teams || [];
 
-      if (orgs.length === 0) {
+      if (teams.length === 0) {
         toast.info(t("agents.noTeams"));
         return;
       }
 
-      // Show simple selection via Alert
-      if (orgs.length === 1) {
-        await apiClient.post(`/organization/${orgs[0]._id}/agents`, { agentId: agent._id });
+      if (teams.length === 1) {
+        await apiClient.post(`/agents/teams/${teams[0]._id}/agents`, { agentId: agent._id });
         toast.success(t("agents.addedToTeam"));
       } else {
-        // For multiple orgs, use Alert with buttons
         Alert.alert(
           t("agents.addToTeam"),
           t("agents.selectTeam"),
           [
-            ...orgs.slice(0, 4).map((org: any) => ({
-              text: org.name,
+            ...teams.slice(0, 4).map((team: any) => ({
+              text: team.name,
               onPress: async () => {
                 try {
-                  await apiClient.post(`/organization/${org._id}/agents`, { agentId: agent._id });
+                  await apiClient.post(`/agents/teams/${team._id}/agents`, { agentId: agent._id });
                   toast.success(t("agents.addedToTeam"));
                 } catch {
                   toast.error(t("agents.addToTeamFailed"));
@@ -215,25 +212,13 @@ export default function AgentDetailScreen() {
   return (
     <View className="flex-1 bg-background">
       {/* Header */}
-      <View className="px-5 py-3 z-10 flex-row items-center justify-between">
+      <View className="px-5 py-3 z-10 flex-row items-center">
         <Pressable
           onPress={() => router.back()}
           className="active:opacity-70"
         >
           <ArrowLeft size={22} className="text-foreground" />
         </Pressable>
-        <View className="flex-row items-center gap-3">
-          <Pressable onPress={handleBookmark} className="active:opacity-70">
-            <Bookmark
-              size={20}
-              className={bookmarked ? "text-primary" : "text-muted-foreground"}
-              fill={bookmarked ? "currentColor" : "none"}
-            />
-          </Pressable>
-          <Pressable onPress={handleShare} className="active:opacity-70">
-            <Share2 size={20} className="text-muted-foreground" />
-          </Pressable>
-        </View>
       </View>
 
       <ScrollView className="flex-1" showsVerticalScrollIndicator={false}>
@@ -258,12 +243,7 @@ export default function AgentDetailScreen() {
                 {agent.name}
               </Text>
               {agent.isVerified && (
-                <CheckCircle2
-                  size={16}
-                  className="text-blue-500"
-                  fill="#3b82f6"
-                  strokeWidth={0}
-                />
+                <BadgeCheck size={16} className="text-blue-500" />
               )}
               <View
                 className={cn(
@@ -289,7 +269,7 @@ export default function AgentDetailScreen() {
             {/* Handle + Author */}
             <View className="flex-row items-center gap-1 mt-0.5">
               <Text className="text-[13px] text-muted-foreground">
-                {agent.handle}
+                @{agent.handle}
               </Text>
               <Text className="text-[13px] text-muted-foreground mx-1">·</Text>
               <Text className="text-[13px] text-muted-foreground">
@@ -358,42 +338,78 @@ export default function AgentDetailScreen() {
             </View>
           )}
 
-          {/* Action Buttons: Chat + Hire */}
-          <View className="flex-row gap-2 mb-2">
-            <Button variant="outline" onPress={handleChat} className="flex-1 h-11 rounded-full">
-              <View className="flex-row items-center gap-1.5">
-                <MessageCircle size={15} className="text-foreground" />
-                <Text className="text-[13px] font-semibold text-foreground">
-                  {t("agents.chat")}
-                </Text>
-              </View>
-            </Button>
-            <Button onPress={handleHirePress} className="flex-1 h-11 rounded-full">
-              <View className="flex-row items-center gap-1.5">
-                <Zap size={15} className="text-primary-foreground" />
-                <Text className="text-[13px] font-semibold text-primary-foreground">
-                  {agent.price != null
-                    ? `${t("agents.hire")} · $${agent.price.toFixed(2)}`
-                    : t("agents.hire")}
-                </Text>
-              </View>
-            </Button>
-          </View>
-
-          {/* Add to Team */}
-          <Button
-            variant="secondary"
-            onPress={handleAddToTeam}
-            disabled={addingToTeam}
-            className="h-9 rounded-full mb-4"
-          >
-            <View className="flex-row items-center gap-1.5">
-              <UserPlus size={14} className="text-foreground" />
-              <Text className="text-[12px] font-medium text-foreground">
+          {/* Action Buttons — shadcn button group */}
+          <View className="flex-row self-start rounded-md border border-border overflow-hidden mb-4">
+            {isOwner && (
+              <>
+                <Pressable
+                  onPress={() => router.push(`/(app)/agents/edit/${agent._id}` as any)}
+                  className="items-center justify-center px-3.5 py-2 active:bg-muted"
+                >
+                  <Text className="text-[13px] font-medium text-foreground">
+                    {t("agents.edit")}
+                  </Text>
+                </Pressable>
+                <View className="w-px bg-border" />
+              </>
+            )}
+            <Pressable
+              onPress={handleChat}
+              className="items-center justify-center px-3.5 py-2 active:bg-muted"
+            >
+              <Text className="text-[13px] font-medium text-foreground">
+                {t("agents.chat")}
+              </Text>
+            </Pressable>
+            <View className="w-px bg-border" />
+            <Pressable
+              onPress={handleHirePress}
+              className="items-center justify-center px-3.5 py-2 active:bg-muted"
+            >
+              <Text className="text-[13px] font-medium text-foreground">
+                {agent.price != null
+                  ? `${t("agents.hire")} · $${agent.price.toFixed(2)}`
+                  : t("agents.hire")}
+              </Text>
+            </Pressable>
+            <View className="w-px bg-border" />
+            <Pressable
+              onPress={handleAddToTeam}
+              disabled={addingToTeam}
+              className="items-center justify-center px-3.5 py-2 active:bg-muted"
+            >
+              <Text className="text-[13px] font-medium text-foreground">
                 {t("agents.addToTeam")}
               </Text>
-            </View>
-          </Button>
+            </Pressable>
+            <View className="w-px bg-border" />
+            <Pressable
+              onPress={handleShare}
+              className="items-center justify-center px-3 py-2 active:bg-muted"
+            >
+              <Share2 size={15} className="text-foreground" />
+            </Pressable>
+            <View className="w-px bg-border" />
+            <DropdownMenu.Root>
+              <DropdownMenu.Trigger>
+                <Pressable className="items-center justify-center px-2.5 py-2">
+                  <Ellipsis size={16} className="text-foreground" />
+                </Pressable>
+              </DropdownMenu.Trigger>
+              <DropdownMenu.Content>
+                <DropdownMenu.Item key="bookmark" onSelect={handleBookmark}>
+                  <DropdownMenu.ItemIcon ios={{ name: bookmarked ? "bookmark.fill" : "bookmark" }} />
+                  <DropdownMenu.ItemTitle>
+                    {bookmarked ? t("agents.removeBookmark") : t("agents.bookmark")}
+                  </DropdownMenu.ItemTitle>
+                </DropdownMenu.Item>
+                <DropdownMenu.Item key="report" onSelect={() => toast.info(t("agents.reportSubmitted"))}>
+                  <DropdownMenu.ItemIcon ios={{ name: "exclamationmark.triangle" }} />
+                  <DropdownMenu.ItemTitle>{t("agents.report")}</DropdownMenu.ItemTitle>
+                </DropdownMenu.Item>
+              </DropdownMenu.Content>
+            </DropdownMenu.Root>
+          </View>
 
           {/* Hire Task Input */}
           {showHireInput && (

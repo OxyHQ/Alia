@@ -213,6 +213,34 @@ export default function AppLayout() {
               }}
             />
             <Drawer.Screen
+              name="agents/edit/[id]"
+              options={{
+                drawerItemStyle: { display: 'none' },
+                title: 'Edit Agent',
+              }}
+            />
+            <Drawer.Screen
+              name="agents/teams"
+              options={{
+                drawerItemStyle: { display: 'none' },
+                title: 'Teams',
+              }}
+            />
+            <Drawer.Screen
+              name="agents/teams/create"
+              options={{
+                drawerItemStyle: { display: 'none' },
+                title: 'Create Team',
+              }}
+            />
+            <Drawer.Screen
+              name="agents/teams/[id]"
+              options={{
+                drawerItemStyle: { display: 'none' },
+                title: 'Team Detail',
+              }}
+            />
+            <Drawer.Screen
               name="invite/[code]"
               options={{
                 drawerItemStyle: { display: 'none' },
