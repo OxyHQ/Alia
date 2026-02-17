@@ -1,9 +1,9 @@
 import Conf from 'conf';
 
-interface Session {
+export interface Session {
   id: string;
   title: string;
-  messages: Array<{ role: string; content: string }>;
+  messages: Array<{ role: 'user' | 'assistant' | 'system' | 'tool'; content: string }>;
   createdAt: number;
   updatedAt: number;
   cwd: string;

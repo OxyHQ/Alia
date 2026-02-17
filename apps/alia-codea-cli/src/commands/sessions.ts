@@ -1,6 +1,6 @@
 import chalk from 'chalk';
 import * as readline from 'readline';
-import { getSessions, getSession, config } from '../utils/config.js';
+import { getSessions, getSession, config, Session } from '../utils/config.js';
 import { startRepl } from './repl.js';
 
 export async function listSessions(): Promise<void> {
@@ -41,67 +41,64 @@ export async function resumeSession(sessionId?: string): Promise<void> {
     return;
   }
 
-  let selectedSession;
+  let session: Session | undefined;
 
   if (sessionId) {
-    // Try to find by index (1-based) or ID
-    const index = parseInt(sessionId) - 1;
+    const index = parseInt(sessionId, 10) - 1;
     if (!isNaN(index) && index >= 0 && index < sessions.length) {
-      selectedSession = sessions[index];
+      session = sessions[index];
     } else {
-      selectedSession = getSession(sessionId);
+      session = getSession(sessionId);
     }
 
-    if (!selectedSession) {
+    if (!session) {
       console.log(chalk.red('✗ Error: ') + `Session not found: ${sessionId}`);
       return;
     }
   } else {
-    // Show picker
-    console.log();
-    console.log(chalk.bold('Select a session to resume:'));
-    console.log();
-
-    sessions.slice(0, 10).forEach((session, index) => {
-      const date = new Date(session.updatedAt).toLocaleDateString();
-      const title = session.title.slice(0, 50) + (session.title.length > 50 ? '...' : '');
-      console.log(chalk.cyan(`  ${index + 1}.`) + ' ' + title + ' ' + chalk.gray(`(${date})`));
-    });
-
-    console.log();
-
-    const rl = readline.createInterface({
-      input: process.stdin,
-      output: process.stdout
-    });
-
-    return new Promise((resolve) => {
-      rl.question(chalk.cyan('Enter number: '), (answer) => {
-        rl.close();
-
-        const index = parseInt(answer) - 1;
-        if (isNaN(index) || index < 0 || index >= sessions.length) {
-          console.log(chalk.red('✗ Error: ') + 'Invalid selection.');
-          resolve();
-          return;
-        }
-
-        selectedSession = sessions[index];
-        startRestoredSession(selectedSession).then(resolve);
-      });
-    });
+    session = await promptSessionPicker(sessions);
+    if (!session) return;
   }
 
-  if (selectedSession) {
-    await startRestoredSession(selectedSession);
-  }
+  await startRestoredSession(session);
 }
 
-async function startRestoredSession(session: any): Promise<void> {
+function promptSessionPicker(sessions: Session[]): Promise<Session | undefined> {
+  console.log();
+  console.log(chalk.bold('Select a session to resume:'));
+  console.log();
+
+  sessions.slice(0, 10).forEach((s, index) => {
+    const date = new Date(s.updatedAt).toLocaleDateString();
+    const title = s.title.slice(0, 50) + (s.title.length > 50 ? '...' : '');
+    console.log(chalk.cyan(`  ${index + 1}.`) + ' ' + title + ' ' + chalk.gray(`(${date})`));
+  });
+
+  console.log();
+
+  const rl = readline.createInterface({
+    input: process.stdin,
+    output: process.stdout,
+  });
+
+  return new Promise((resolve) => {
+    rl.question(chalk.cyan('Enter number: '), (answer) => {
+      rl.close();
+      const index = parseInt(answer, 10) - 1;
+      if (isNaN(index) || index < 0 || index >= sessions.length) {
+        console.log(chalk.red('✗ Error: ') + 'Invalid selection.');
+        resolve(undefined);
+        return;
+      }
+      resolve(sessions[index]);
+    });
+  });
+}
+
+async function startRestoredSession(session: Session): Promise<void> {
   console.log(chalk.blue('ℹ ') + `Resuming: ${session.title}`);
   console.log();
 
-  // Display previous messages
   for (const msg of session.messages || []) {
     if (msg.role === 'user') {
       console.log(chalk.cyan('❯ ') + msg.content);
@@ -115,7 +112,6 @@ async function startRestoredSession(session: any): Promise<void> {
   console.log(chalk.gray('Session restored. Continue the conversation below.'));
   console.log();
 
-  // Start REPL with restored session
   const model = config.get('defaultModel') || 'alia-v1-codea';
   await startRepl({ model, context: true });
 }

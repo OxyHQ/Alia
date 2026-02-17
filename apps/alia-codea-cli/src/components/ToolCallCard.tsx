@@ -1,33 +1,15 @@
 import React from 'react';
 import { Box, Text } from 'ink';
 import { ToolExecution } from '../utils/conversation.js';
+import { formatToolArgs } from '../utils/format.js';
 
 interface ToolCallCardProps {
   execution: ToolExecution;
 }
 
-function formatArgs(tool: string, args: Record<string, any>): string {
-  switch (tool) {
-    case 'read_file':
-    case 'write_file':
-    case 'edit_file':
-      return args.path || '';
-    case 'apply_patch':
-      return 'applying patch...';
-    case 'list_files':
-      return args.path || '.';
-    case 'search_files':
-      return `"${args.pattern}" in ${args.path || '.'}`;
-    case 'run_command':
-      return args.command || '';
-    default:
-      return JSON.stringify(args).slice(0, 60);
-  }
-}
-
 export function ToolCallCard({ execution }: ToolCallCardProps) {
   const { tool, args, result, success, approved } = execution;
-  const argStr = formatArgs(tool, args);
+  const argStr = formatToolArgs(tool, args);
   const isDone = result !== undefined;
 
   if (approved === false) {

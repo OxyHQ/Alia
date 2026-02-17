@@ -1,14 +1,16 @@
 #!/usr/bin/env node
 
+import { createRequire } from 'module';
 import { Command } from 'commander';
 import { config } from './utils/config.js';
 import { startRepl } from './commands/repl.js';
 import { runPrompt } from './commands/run.js';
-import { login } from './commands/auth.js';
+import { login, logout } from './commands/auth.js';
 import { listSessions, resumeSession } from './commands/sessions.js';
 import chalk from 'chalk';
 
-const VERSION = '2.0.2';
+const require = createRequire(import.meta.url);
+const { version: VERSION } = require('../package.json') as { version: string };
 
 const program = new Command();
 
@@ -27,7 +29,7 @@ program
   .version(VERSION)
   .hook('preAction', async () => {
     const command = program.args[0];
-    if (command === 'login' || command === 'help') return;
+    if (command === 'login' || command === 'logout' || command === 'help') return;
 
     if (!config.get('apiKey')) {
       console.log(banner);
@@ -67,7 +69,7 @@ program
     await runPrompt(prompt, options);
   });
 
-// Exec command - shorthand for run --json --quiet --yes
+// Exec command - shorthand for run --json --yes
 program
   .command('exec <prompt>')
   .alias('x')
@@ -84,6 +86,14 @@ program
   .description('Configure your Alia API key')
   .action(async () => {
     await login();
+  });
+
+// Logout
+program
+  .command('logout')
+  .description('Remove saved credentials')
+  .action(() => {
+    logout();
   });
 
 // Session management

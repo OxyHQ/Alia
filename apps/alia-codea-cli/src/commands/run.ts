@@ -1,8 +1,9 @@
 import chalk from 'chalk';
+import * as readline from 'readline';
 import { buildSystemMessage, getCodebaseContext, loadProjectInstructions } from '../utils/context.js';
 import { processConversation, Message, ToolExecution } from '../utils/conversation.js';
-import { ApprovalMode } from '../utils/approval.js';
-import * as readline from 'readline';
+import { parseApprovalMode } from '../utils/approval.js';
+import { formatToolArgs } from '../utils/format.js';
 
 interface RunOptions {
   model: string;
@@ -17,14 +18,13 @@ interface JsonOutput {
   model: string;
   prompt: string;
   response: string;
-  tool_calls: Array<{ tool: string; args: Record<string, any>; result: string; success: boolean }>;
+  tool_calls: Array<{ tool: string; args: Record<string, unknown>; result: string; success: boolean }>;
 }
 
 export async function runPrompt(prompt: string, options: RunOptions): Promise<void> {
   const messages: Message[] = [];
   const toolResults: JsonOutput['tool_calls'] = [];
 
-  // Get codebase context
   let codebaseContext = '';
   if (options.context !== false) {
     codebaseContext = await getCodebaseContext();
@@ -34,20 +34,23 @@ export async function runPrompt(prompt: string, options: RunOptions): Promise<vo
 
   messages.push({ role: 'user', content: prompt });
 
-  const systemMessage = buildSystemMessage(options.model, codebaseContext, instructions);
+  const systemMessage = buildSystemMessage(codebaseContext, instructions);
 
-  const approvalMode: ApprovalMode = options.yes
-    ? 'full-auto'
-    : (options.approvalMode as ApprovalMode) || 'suggest';
+  const approvalMode = options.yes
+    ? 'full-auto' as const
+    : parseApprovalMode(options.approvalMode);
 
   let fullResponse = '';
+  let active = true;
+
+  process.once('SIGINT', () => { active = false; });
 
   await processConversation({
     messages,
     systemMessage,
     model: options.model,
     approvalMode,
-    isActive: () => true,
+    isActive: () => active,
     requestApproval: async (execution) => {
       if (options.quiet || options.json) return false;
       return askApproval(execution);
@@ -68,7 +71,7 @@ export async function runPrompt(prompt: string, options: RunOptions): Promise<vo
         case 'tool_start':
           if (!options.quiet && !options.json) {
             console.log();
-            console.log(chalk.cyan('  → ') + chalk.bold(event.execution.tool) + ' ' + chalk.gray(formatArgs(event.execution)));
+            console.log(chalk.cyan('  → ') + chalk.bold(event.execution.tool) + ' ' + chalk.gray(formatToolArgs(event.execution.tool, event.execution.args)));
           }
           break;
         case 'tool_done':
@@ -121,7 +124,7 @@ async function askApproval(execution: ToolExecution): Promise<boolean> {
     output: process.stdout,
   });
 
-  const desc = formatArgs(execution);
+  const desc = formatToolArgs(execution.tool, execution.args);
   console.log();
   console.log(chalk.yellow('⚠ ') + chalk.bold(execution.tool) + ' ' + desc);
 
@@ -131,24 +134,4 @@ async function askApproval(execution: ToolExecution): Promise<boolean> {
       resolve(answer.toLowerCase() === 'y' || answer.toLowerCase() === 'yes');
     });
   });
-}
-
-function formatArgs(execution: ToolExecution): string {
-  const { tool, args } = execution;
-  switch (tool) {
-    case 'read_file':
-    case 'write_file':
-    case 'edit_file':
-      return args.path || '';
-    case 'apply_patch':
-      return 'applying patch...';
-    case 'list_files':
-      return args.path || '.';
-    case 'search_files':
-      return `"${args.pattern}" in ${args.path || '.'}`;
-    case 'run_command':
-      return args.command || '';
-    default:
-      return JSON.stringify(args).slice(0, 60);
-  }
 }

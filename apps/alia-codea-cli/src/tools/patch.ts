@@ -157,9 +157,10 @@ export async function applyPatch(patchText: string, basePath: string): Promise<P
         success: true,
         message: `Applied ${filePatch.hunks.length} hunk(s)`,
       });
-    } catch (error: any) {
+    } catch (error: unknown) {
       allSuccess = false;
-      results.push({ file: filePatch.filePath, success: false, message: error.message });
+      const message = error instanceof Error ? error.message : String(error);
+      results.push({ file: filePatch.filePath, success: false, message });
     }
   }
 
