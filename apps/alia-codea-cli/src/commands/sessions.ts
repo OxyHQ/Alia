@@ -2,13 +2,12 @@ import chalk from 'chalk';
 import * as readline from 'readline';
 import { getSessions, getSession, config } from '../utils/config.js';
 import { startRepl } from './repl.js';
-import { printBanner, printError, printInfo } from '../utils/ui.js';
 
 export async function listSessions(): Promise<void> {
   const sessions = getSessions();
 
   if (sessions.length === 0) {
-    printInfo('No saved sessions found.');
+    console.log(chalk.blue('ℹ ') + 'No saved sessions found.');
     console.log(chalk.gray('Start a new session with: ') + chalk.cyan('codea'));
     return;
   }
@@ -38,7 +37,7 @@ export async function resumeSession(sessionId?: string): Promise<void> {
   const sessions = getSessions();
 
   if (sessions.length === 0) {
-    printInfo('No saved sessions found.');
+    console.log(chalk.blue('ℹ ') + 'No saved sessions found.');
     return;
   }
 
@@ -54,7 +53,7 @@ export async function resumeSession(sessionId?: string): Promise<void> {
     }
 
     if (!selectedSession) {
-      printError(`Session not found: ${sessionId}`);
+      console.log(chalk.red('✗ Error: ') + `Session not found: ${sessionId}`);
       return;
     }
   } else {
@@ -82,7 +81,7 @@ export async function resumeSession(sessionId?: string): Promise<void> {
 
         const index = parseInt(answer) - 1;
         if (isNaN(index) || index < 0 || index >= sessions.length) {
-          printError('Invalid selection.');
+          console.log(chalk.red('✗ Error: ') + 'Invalid selection.');
           resolve();
           return;
         }
@@ -99,7 +98,7 @@ export async function resumeSession(sessionId?: string): Promise<void> {
 }
 
 async function startRestoredSession(session: any): Promise<void> {
-  printInfo(`Resuming: ${session.title}`);
+  console.log(chalk.blue('ℹ ') + `Resuming: ${session.title}`);
   console.log();
 
   // Display previous messages

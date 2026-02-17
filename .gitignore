@@ -31,6 +31,9 @@ dist/
 # claude
 .claude/
 
+# IDE
+.vscode/
+
 # misc
 .DS_Store
 *.pem

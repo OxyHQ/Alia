@@ -4,7 +4,17 @@ import * as http from 'http';
 import { exec } from 'child_process';
 import chalk from 'chalk';
 import { config } from '../utils/config.js';
-import { printSuccess, printError, printInfo } from '../utils/ui.js';
+function printSuccess(message: string): void {
+  console.log(chalk.green('✓ ') + message);
+}
+
+function printError(message: string): void {
+  console.log(chalk.red('✗ Error: ') + message);
+}
+
+function printInfo(message: string): void {
+  console.log(chalk.blue('ℹ ') + message);
+}
 
 function openBrowser(url: string): void {
   const cmd =

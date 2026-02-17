@@ -59,7 +59,7 @@ export const fileTools = [
     type: 'function',
     function: {
       name: 'edit_file',
-      description: 'Make targeted edits to a file by replacing specific text',
+      description: 'Make targeted edits to a file by replacing specific text. For small single-location changes.',
       parameters: {
         type: 'object',
         properties: {
@@ -68,6 +68,23 @@ export const fileTools = [
           new_text: { type: 'string', description: 'The replacement text' }
         },
         required: ['path', 'old_text', 'new_text']
+      }
+    }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'apply_patch',
+      description: 'Apply a unified diff patch to one or more files. Preferred for multi-line or multi-file changes. Uses standard unified diff format with fuzzy line matching (±20 line drift).',
+      parameters: {
+        type: 'object',
+        properties: {
+          patch: {
+            type: 'string',
+            description: 'The unified diff patch text. Must include --- a/file and +++ b/file headers and @@ hunk headers.'
+          }
+        },
+        required: ['patch']
       }
     }
   },
@@ -89,13 +106,15 @@ export const fileTools = [
     type: 'function',
     function: {
       name: 'search_files',
-      description: 'Search for text patterns across files',
+      description: 'Search for text patterns across files. Uses ripgrep when available for fast results with context lines.',
       parameters: {
         type: 'object',
         properties: {
           pattern: { type: 'string', description: 'The search pattern (regex supported)' },
           path: { type: 'string', description: 'Directory to search in (default: current)' },
-          file_pattern: { type: 'string', description: 'File glob pattern (e.g., "*.ts")' }
+          file_pattern: { type: 'string', description: 'File glob pattern (e.g., "*.ts")' },
+          context_lines: { type: 'number', description: 'Number of context lines around matches (default: 2)' },
+          max_results: { type: 'number', description: 'Maximum number of matches to return (default: 50)' }
         },
         required: ['pattern']
       }

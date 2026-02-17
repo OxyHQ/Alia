@@ -1,33 +1,28 @@
 import chalk from 'chalk';
-import { config } from '../utils/config.js';
-import { streamChat } from '../utils/api.js';
-import { executeTool, formatToolCall } from '../tools/executor.js';
-import { buildSystemMessage, getCodebaseContext } from '../utils/context.js';
-import {
-  printToolExecution,
-  printToolResult,
-  showThinkingStatus,
-  hideThinkingStatus,
-  printAssistantPrefix,
-  printError,
-  printInfo
-} from '../utils/ui.js';
-
-interface Message {
-  role: 'user' | 'assistant' | 'system' | 'tool';
-  content: string;
-  tool_calls?: any[];
-  tool_call_id?: string;
-}
+import { buildSystemMessage, getCodebaseContext, loadProjectInstructions } from '../utils/context.js';
+import { processConversation, Message, ToolExecution } from '../utils/conversation.js';
+import { ApprovalMode } from '../utils/approval.js';
+import * as readline from 'readline';
 
 interface RunOptions {
   model: string;
   yes: boolean;
   context: boolean;
+  approvalMode?: string;
+  quiet?: boolean;
+  json?: boolean;
+}
+
+interface JsonOutput {
+  model: string;
+  prompt: string;
+  response: string;
+  tool_calls: Array<{ tool: string; args: Record<string, any>; result: string; success: boolean }>;
 }
 
 export async function runPrompt(prompt: string, options: RunOptions): Promise<void> {
   const messages: Message[] = [];
+  const toolResults: JsonOutput['tool_calls'] = [];
 
   // Get codebase context
   let codebaseContext = '';
@@ -35,136 +30,118 @@ export async function runPrompt(prompt: string, options: RunOptions): Promise<vo
     codebaseContext = await getCodebaseContext();
   }
 
-  // Add user message
+  const instructions = await loadProjectInstructions();
+
   messages.push({ role: 'user', content: prompt });
 
-  // Build system message
-  const systemMessage = buildSystemMessage(options.model, codebaseContext);
+  const systemMessage = buildSystemMessage(options.model, codebaseContext, instructions);
 
-  // Process with tool loop
-  await processConversation(messages, systemMessage, options.model, options.yes);
-}
+  const approvalMode: ApprovalMode = options.yes
+    ? 'full-auto'
+    : (options.approvalMode as ApprovalMode) || 'suggest';
 
-async function processConversation(
-  messages: Message[],
-  systemMessage: string,
-  model: string,
-  autoApprove: boolean
-): Promise<void> {
-  let continueProcessing = true;
+  let fullResponse = '';
 
-  while (continueProcessing) {
-    printAssistantPrefix();
-
-    let fullContent = '';
-    let toolCalls: any[] | undefined;
-
-    showThinkingStatus('Thinking');
-
-    try {
-      await streamChat(messages, systemMessage, model, {
-        onContent: (content) => {
-          hideThinkingStatus();
-          process.stdout.write(content);
-          fullContent += content;
-        },
-        onToolCall: () => {},
-        onDone: (content, tcs) => {
-          hideThinkingStatus();
-          toolCalls = tcs;
-        },
-        onError: (error) => {
-          hideThinkingStatus();
-          printError(error.message);
-          continueProcessing = false;
-        }
-      });
-    } catch (error: any) {
-      hideThinkingStatus();
-      printError(error.message);
-      break;
-    }
-
-    // Handle tool calls
-    if (toolCalls && toolCalls.length > 0) {
-      messages.push({
-        role: 'assistant',
-        content: fullContent,
-        tool_calls: toolCalls
-      });
-
-      if (fullContent) console.log();
-
-      for (const tc of toolCalls) {
-        const args = JSON.parse(tc.function.arguments);
-
-        // Check if we need approval for file writes
-        const isDestructive = ['write_file', 'edit_file', 'run_command'].includes(tc.function.name);
-
-        if (isDestructive && !autoApprove) {
-          console.log();
-          console.log(chalk.yellow('⚠ ') + chalk.bold('Approval required:'));
-          console.log(formatToolCall(tc.function.name, args));
-          console.log();
-
-          const approved = await askApproval();
-          if (!approved) {
-            messages.push({
-              role: 'tool',
-              tool_call_id: tc.id,
-              content: 'User declined this action.'
-            });
-            continue;
+  await processConversation({
+    messages,
+    systemMessage,
+    model: options.model,
+    approvalMode,
+    isActive: () => true,
+    requestApproval: async (execution) => {
+      if (options.quiet || options.json) return false;
+      return askApproval(execution);
+    },
+    onEvent: (event) => {
+      switch (event.type) {
+        case 'thinking':
+          if (!options.quiet && !options.json) {
+            process.stdout.write(chalk.magenta('✦ '));
           }
-        }
-
-        printToolExecution(tc.function.name, formatToolArgs(tc.function.name, args));
-
-        showThinkingStatus(`Executing ${tc.function.name}`);
-        const result = await executeTool(tc.function.name, args);
-        hideThinkingStatus();
-
-        printToolResult(result.success, result.result);
-
-        messages.push({
-          role: 'tool',
-          tool_call_id: tc.id,
-          content: result.result
-        });
+          break;
+        case 'content':
+          fullResponse += event.text;
+          if (!options.quiet && !options.json) {
+            process.stdout.write(event.text);
+          }
+          break;
+        case 'tool_start':
+          if (!options.quiet && !options.json) {
+            console.log();
+            console.log(chalk.cyan('  → ') + chalk.bold(event.execution.tool) + ' ' + chalk.gray(formatArgs(event.execution)));
+          }
+          break;
+        case 'tool_done':
+          if (event.execution.result !== undefined) {
+            toolResults.push({
+              tool: event.execution.tool,
+              args: event.execution.args,
+              result: event.execution.result,
+              success: event.execution.success ?? false,
+            });
+          }
+          if (!options.quiet && !options.json) {
+            const icon = event.execution.success ? chalk.green('  ✓') : chalk.red('  ✗');
+            const preview = (event.execution.result || '').slice(0, 100).replace(/\n/g, ' ');
+            console.log(`${icon} ${chalk.gray(preview)}`);
+          }
+          break;
+        case 'done':
+          if (!options.quiet && !options.json) {
+            console.log();
+          }
+          break;
+        case 'error':
+          if (!options.json) {
+            console.error(chalk.red('Error: ') + event.message);
+          }
+          break;
       }
+    },
+  });
 
-      continue;
-    } else {
-      if (fullContent) {
-        messages.push({ role: 'assistant', content: fullContent });
-        console.log();
-      }
-      break;
+  if (options.json) {
+    const output: JsonOutput = {
+      model: options.model,
+      prompt,
+      response: fullResponse,
+      tool_calls: toolResults,
+    };
+    console.log(JSON.stringify(output, null, 2));
+  } else if (options.quiet) {
+    if (fullResponse) {
+      console.log(fullResponse);
     }
   }
 }
 
-async function askApproval(): Promise<boolean> {
-  const readline = await import('readline');
+async function askApproval(execution: ToolExecution): Promise<boolean> {
   const rl = readline.createInterface({
     input: process.stdin,
-    output: process.stdout
+    output: process.stdout,
   });
 
+  const desc = formatArgs(execution);
+  console.log();
+  console.log(chalk.yellow('⚠ ') + chalk.bold(execution.tool) + ' ' + desc);
+
   return new Promise((resolve) => {
-    rl.question(chalk.cyan('Allow? [y/N] '), (answer) => {
+    rl.question(chalk.cyan('  Allow? [y/N] '), (answer) => {
       rl.close();
       resolve(answer.toLowerCase() === 'y' || answer.toLowerCase() === 'yes');
     });
   });
 }
 
-function formatToolArgs(name: string, args: Record<string, any>): string {
-  switch (name) {
+function formatArgs(execution: ToolExecution): string {
+  const { tool, args } = execution;
+  switch (tool) {
     case 'read_file':
     case 'write_file':
     case 'edit_file':
       return args.path || '';
+    case 'apply_patch':
+      return 'applying patch...';
     case 'list_files':
       return args.path || '.';
     case 'search_files':
@@ -172,6 +149,6 @@ function formatToolArgs(name: string, args: Record<string, any>): string {
     case 'run_command':
       return args.command || '';
     default:
-      return JSON.stringify(args).slice(0, 50);
+      return JSON.stringify(args).slice(0, 60);
   }
 }

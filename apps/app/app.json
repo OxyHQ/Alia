@@ -1,5 +1,6 @@
 {
   "expo": {
+    "owner": "oxyhq",
     "name": "Alia",
     "slug": "alia",
     "version": "1.0.0",
@@ -25,7 +26,11 @@
       },
       "package": "onl.alia.app",
       "edgeToEdgeEnabled": true,
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "permissions": [
+        "android.permission.RECORD_AUDIO",
+        "android.permission.MODIFY_AUDIO_SETTINGS"
+      ]
     },
     "web": {
       "bundler": "metro",
@@ -39,6 +44,12 @@
     ],
     "experiments": {
       "typedRoutes": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "ca1a1ca1-2469-4ceb-8387-e43d6832bbab"
+      }
     }
   }
 }
