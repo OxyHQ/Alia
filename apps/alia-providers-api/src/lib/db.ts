@@ -1,7 +1,10 @@
 import mongoose from 'mongoose';
 import { log } from './logger.js';
 
-const APP_NAME = 'alia-providers-api';
+// Share the same database as the main API — providers-api manages
+// a subset of collections (provider keys, models, plans, etc.)
+// within the shared alia-{env} database.
+const APP_NAME = 'alia';
 
 function getDatabaseName(): string {
   const env = process.env.NODE_ENV || 'development';
