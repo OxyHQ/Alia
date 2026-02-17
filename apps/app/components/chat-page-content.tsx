@@ -14,7 +14,6 @@ import {
   PromptInputTextarea,
   PromptInputActions,
   PromptInputMicButton,
-  PromptInputAutocomplete,
   PromptInputAttachments,
   PromptInputSubmitButton,
   PromptInputAddMenu,
@@ -298,8 +297,14 @@ export const ChatPageContent = ({
                   onAddAttachment={addAttachment}
                   onRemoveAttachment={removeAttachment}
                   onImagePaste={handleImagePaste}
+                  autocomplete={isMainScreen}
+                  leadingAction={
+                    <PromptInputAddMenu
+                      iconSize={20}
+                      className="h-10 w-10 rounded-full border text-muted-foreground hover:text-foreground"
+                    />
+                  }
                 >
-                  <PromptInputAutocomplete enabled={isMainScreen} />
                   <PromptInputAttachments />
 
                   <PromptInputTextarea
@@ -311,7 +316,6 @@ export const ChatPageContent = ({
                   />
                   <PromptInputActions className="flex-row items-center justify-between gap-2 mt-2 mb-1 px-3">
                     <View className="flex-row items-center gap-1.5">
-                      <PromptInputAddMenu />
                       <Button
                         variant={activeModes.has('search') ? "default" : "outline"}
                         className="h-8 rounded-full px-3 flex-row items-center gap-2 text-muted-foreground hover:text-foreground font-normal text-xs"
