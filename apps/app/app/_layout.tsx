@@ -8,7 +8,7 @@ import * as Linking from 'expo-linking';
 import { Platform, View } from 'react-native';
 import { vars } from 'nativewind';
 
-import { KeyboardProvider } from 'react-native-keyboard-controller';
+import { KeyboardProvider } from '@/lib/keyboard';
 import { useColorScheme } from '@/lib/useColorScheme';
 import { useThemeStore } from '@/lib/stores/theme-store';
 import { ACCENT_PRESETS, getAccentCSSVariables, applyAccentToDocument } from '@/lib/accent-presets';
@@ -69,7 +69,7 @@ function AppContent() {
   return (
     <AuthSetup>
       <View style={[{ flex: 1 }, accentVars]}>
-        {Platform.OS === 'web' ? stack : <KeyboardProvider>{stack}</KeyboardProvider>}
+        <KeyboardProvider>{stack}</KeyboardProvider>
       </View>
     </AuthSetup>
   );

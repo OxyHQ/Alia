@@ -1,8 +1,6 @@
 import React, { useEffect, useState, useMemo } from 'react';
-import { View, ScrollView, Pressable, TextInput, Platform } from 'react-native';
-import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
-
-const ScrollComponent = Platform.OS === 'web' ? ScrollView : KeyboardAwareScrollView;
+import { View, ScrollView, Pressable, TextInput } from 'react-native';
+import { KeyboardAwareScrollView } from '@/lib/keyboard';
 import { Text } from '@/components/ui/text';
 import { Button } from '@/components/ui/button';
 import {
@@ -125,7 +123,7 @@ export default function LibraryScreen() {
 
   return (
     <View className="flex-1 bg-background">
-      <ScrollComponent className="flex-1">
+      <KeyboardAwareScrollView className="flex-1">
         {/* Hero Section */}
         <View className="items-center px-6 py-12">
           <LibraryIcon size={48} className="text-primary mb-4" />
@@ -277,7 +275,7 @@ export default function LibraryScreen() {
             </View>
           )}
         </View>
-      </ScrollComponent>
+      </KeyboardAwareScrollView>
     </View>
   );
 }

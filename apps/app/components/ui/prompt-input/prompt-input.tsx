@@ -2,13 +2,9 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   View,
   Pressable,
-  Platform,
-  KeyboardAvoidingView as RNKeyboardAvoidingView,
   type TextInput as RNTextInput,
 } from "react-native";
-import { KeyboardAvoidingView as KCKeyboardAvoidingView } from "react-native-keyboard-controller";
-
-const KeyboardAvoidingView = Platform.OS === 'web' ? RNKeyboardAvoidingView : KCKeyboardAvoidingView;
+import { KeyboardAvoidingView } from "@/lib/keyboard";
 import { Maximize2, Minimize2 } from "lucide-react-native";
 import { cn } from "@/lib/utils";
 import { PromptInputContext, type Attachment } from "./context";

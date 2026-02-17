@@ -1,8 +1,6 @@
 import React, { useEffect, useState, useMemo } from 'react';
-import { View, ScrollView, Pressable, TextInput, Platform } from 'react-native';
-import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
-
-const ScrollComponent = Platform.OS === 'web' ? ScrollView : KeyboardAwareScrollView;
+import { View, ScrollView, Pressable, TextInput } from 'react-native';
+import { KeyboardAwareScrollView } from '@/lib/keyboard';
 import { Text } from '@/components/ui/text';
 import { Button } from '@/components/ui/button';
 import {
@@ -67,7 +65,7 @@ export default function RolesScreen() {
 
   return (
     <View className="flex-1 bg-background">
-      <ScrollComponent className="flex-1" showsVerticalScrollIndicator={false}>
+      <KeyboardAwareScrollView className="flex-1" showsVerticalScrollIndicator={false}>
         {/* Header */}
         <View className="px-5 pt-6 pb-1">
           <View className="flex-row items-center justify-between">
@@ -180,7 +178,7 @@ export default function RolesScreen() {
             </View>
           )}
         </View>
-      </ScrollComponent>
+      </KeyboardAwareScrollView>
     </View>
   );
 }
