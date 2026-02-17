@@ -1,42 +1,43 @@
 import * as fs from 'fs/promises';
 import * as path from 'path';
-import { exec } from 'child_process';
+import { exec, execFile } from 'child_process';
 import { promisify } from 'util';
-import chalk from 'chalk';
 import { applyPatch } from './patch.js';
 
 const execAsync = promisify(exec);
+const execFileAsync = promisify(execFile);
 
 interface ToolResult {
   success: boolean;
   result: string;
 }
 
-export async function executeTool(name: string, args: Record<string, any>): Promise<ToolResult> {
+export async function executeTool(name: string, args: Record<string, unknown>): Promise<ToolResult> {
   try {
     switch (name) {
       case 'read_file':
-        return await readFile(args.path);
+        return await readFile(args.path as string);
       case 'write_file':
-        return await writeFile(args.path, args.content);
+        return await writeFile(args.path as string, args.content as string);
       case 'edit_file':
-        return await editFile(args.path, args.old_text, args.new_text);
+        return await editFile(args.path as string, args.old_text as string, args.new_text as string);
       case 'apply_patch':
-        return await applyPatchTool(args.patch);
+        return await applyPatchTool(args.patch as string);
       case 'list_files':
-        return await listFiles(args.path, args.recursive);
+        return await listFiles(args.path as string, args.recursive as boolean);
       case 'search_files':
-        return await searchFiles(args.pattern, args.path, args.file_pattern, args.context_lines, args.max_results);
+        return await searchFiles(args.pattern as string, args.path as string, args.file_pattern as string | undefined, args.context_lines as number, args.max_results as number);
       case 'run_command':
-        return await runCommand(args.command, args.cwd);
+        return await runCommand(args.command as string, args.cwd as string | undefined);
       default:
         return {
           success: false,
           result: `Error: Tool '${name}' does not exist. Available tools: read_file, write_file, edit_file, apply_patch, list_files, search_files, run_command. Do NOT retry this tool.`,
         };
     }
-  } catch (error: any) {
-    return { success: false, result: error.message };
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : String(error);
+    return { success: false, result: message };
   }
 }
 
@@ -159,7 +160,7 @@ async function searchFiles(
 
     rgArgs.push('--', pattern, absolutePath);
 
-    const { stdout } = await execAsync(`rg ${rgArgs.map(a => `'${a}'`).join(' ')}`, {
+    const { stdout } = await execFileAsync('rg', rgArgs, {
       maxBuffer: 2 * 1024 * 1024,
       timeout: 30000,
     });
@@ -197,7 +198,7 @@ async function searchFiles(
   }
 
   // Built-in fallback
-  const regex = new RegExp(pattern, 'gi');
+  const regex = new RegExp(pattern, 'i');
   const results: Array<{ file: string; line: number; text: string; isMatch: boolean }> = [];
   const fileMatchCounts = new Map<string, number>();
 
@@ -232,7 +233,6 @@ async function searchFiles(
           const matchIndices: number[] = [];
 
           lines.forEach((line, index) => {
-            regex.lastIndex = 0;
             if (regex.test(line)) {
               matchIndices.push(index);
             }
@@ -292,29 +292,12 @@ async function runCommand(command: string, cwd?: string): Promise<ToolResult> {
 
     const output = stdout + (stderr ? `\nStderr:\n${stderr}` : '');
     return { success: true, result: output || 'Command completed successfully.' };
-  } catch (error: any) {
+  } catch (error: unknown) {
+    const e = error as { stdout?: string; stderr?: string; message?: string };
+    const output = (e.stdout || '') + (e.stderr ? `\nStderr:\n${e.stderr}` : '');
     return {
       success: false,
-      result: error.stdout + (error.stderr ? `\nStderr:\n${error.stderr}` : '') || error.message
+      result: output || e.message || String(error),
     };
   }
-}
-
-export function formatToolCall(name: string, args: Record<string, any>): string {
-  const labels: Record<string, string> = {
-    read_file: 'Reading file',
-    write_file: 'Writing file',
-    edit_file: 'Editing file',
-    apply_patch: 'Applying patch',
-    list_files: 'Listing files',
-    search_files: 'Searching files',
-    run_command: 'Running command'
-  };
-
-  const label = labels[name] || name;
-  const argStr = Object.entries(args)
-    .map(([k, v]) => `${k}: ${typeof v === 'string' ? v.slice(0, 50) : v}`)
-    .join(', ');
-
-  return `${chalk.cyan('→')} ${chalk.bold(label)}: ${chalk.gray(argStr)}`;
 }
