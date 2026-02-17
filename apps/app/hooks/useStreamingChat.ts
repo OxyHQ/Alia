@@ -14,7 +14,7 @@ export type { ToolInvocation };
 
 import { extractTitle, stripTitleTagsPartial as stripTitleTags } from '@/lib/utils/title-tags';
 
-export function useStreamingChat(apiUrl: string, activeRole?: any, conversationId?: string, thinkingMode?: boolean, selectedModel?: string, skillId?: string | null) {
+export function useStreamingChat(apiUrl: string, activeRole?: any, conversationId?: string, thinkingMode?: boolean, selectedModel?: string, skillId?: string | null, agentId?: string | null) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<Error | null>(null);
@@ -112,6 +112,7 @@ Use this role to guide your responses, maintaining the specified tone, style, an
           ...(thinkingMode && { thinkingMode: true }),
           ...(selectedModel && { model: selectedModel }),
           ...(skillId && { skillId }),
+          ...(agentId && { agentId }),
         }),
         signal: abortControllerRef.current.signal,
       });
@@ -477,7 +478,7 @@ Use this role to guide your responses, maintaining the specified tone, style, an
       abortControllerRef.current = null;
       setIsLoading(false);
     }
-  }, [apiUrl, messages, oxyServices, activeRole, queryClient, thinkingMode, selectedModel, skillId]);
+  }, [apiUrl, messages, oxyServices, activeRole, queryClient, thinkingMode, selectedModel, skillId, agentId]);
 
   const stop = useCallback(() => {
     if (abortControllerRef.current) {

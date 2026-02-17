@@ -37,6 +37,7 @@ export interface IConversation extends Document {
   iconColor?: string;
   isFavorite?: boolean;
   isPublic?: boolean;
+  agentId?: mongoose.Types.ObjectId;
 
   createdAt: Date;
   updatedAt: Date;
@@ -92,12 +93,14 @@ const ConversationSchema = new Schema<IConversation>({
   iconColor: { type: String },
   isFavorite: { type: Boolean, default: false },
   isPublic: { type: Boolean, default: false },
+  agentId: { type: Schema.Types.ObjectId, ref: 'Agent' },
 }, {
   timestamps: true
 });
 
 // Compound index for userId + conversationId (unique per user)
 ConversationSchema.index({ oxyUserId: 1, conversationId: 1 }, { unique: true });
+ConversationSchema.index({ oxyUserId: 1, agentId: 1 });
 
 // Evitar recompilación del modelo en hot-reload
 export const Conversation: Model<IConversation> = mongoose.models.Conversation || mongoose.model<IConversation>('Conversation', ConversationSchema);

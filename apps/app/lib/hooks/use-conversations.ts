@@ -19,6 +19,7 @@ export interface Conversation {
   title: string;
   lastMessage?: string;
   source?: string;
+  agentId?: string;
   createdAt: Date;
   updatedAt: Date;
   messages: Message[];
@@ -308,15 +309,18 @@ export function useCreateConversation() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async (): Promise<Conversation> => {
+    mutationFn: async (params?: { agentId?: string }): Promise<Conversation> => {
       try {
-        const response = await apiClient.post('/conversations/new');
+        const response = await apiClient.post('/conversations/new', {
+          ...(params?.agentId && { agentId: params.agentId }),
+        });
         const data = response.data;
         return {
           id: data.id,
           title: data.title,
           lastMessage: undefined,
           source: data.source,
+          agentId: data.agentId,
           createdAt: new Date(data.createdAt),
           updatedAt: new Date(data.updatedAt),
           messages: [],

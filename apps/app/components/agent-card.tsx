@@ -3,7 +3,7 @@ import { View, Pressable } from "react-native";
 import { Text } from "@/components/ui/text";
 import { Avatar, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
-import { CheckCircle2, Plus, Zap } from "lucide-react-native";
+import { CheckCircle2, Zap, MessageCircle, Star } from "lucide-react-native";
 import { cn } from "@/lib/utils";
 import { useTranslation } from "@/hooks/useTranslation";
 import type { Agent } from "@/lib/stores/agents-store";
@@ -14,7 +14,7 @@ const DEFAULT_AVATAR = require("@/assets/images/agent-avatar-reference.png");
 interface AgentCardProps {
   agent: Agent;
   onPress: (id: string) => void;
-  onFollow?: (id: string) => void;
+  onChat?: (id: string) => void;
   onHire?: (id: string) => void;
   variant?: "featured" | "grid";
 }
@@ -33,7 +33,7 @@ const STATUS_COLORS: Record<Agent["status"], string> = {
 export const AgentCard = React.memo(function AgentCard({
   agent,
   onPress,
-  onFollow,
+  onChat,
   onHire,
   variant = "grid",
 }: AgentCardProps) {
@@ -51,8 +51,8 @@ export const AgentCard = React.memo(function AgentCard({
       style={isFeatured ? { width: 300 } : undefined}
     >
       <View className="rounded-2xl border border-border bg-surface p-4">
-        {/* Top row: Avatar + Follow button */}
-        <View className="flex-row items-start justify-between">
+        {/* Top row: Avatar */}
+        <View className="flex-row items-start">
           <View className="relative">
             <Avatar className={cn(avatarSize)}>
               <AvatarImage source={agent.avatar ? { uri: agent.avatar } : DEFAULT_AVATAR} />
@@ -66,24 +66,6 @@ export const AgentCard = React.memo(function AgentCard({
               )}
             />
           </View>
-
-          {/* Follow button */}
-          <Button
-            variant="pill"
-            size="sm"
-            className="rounded-full h-8 px-4"
-            onPress={(e) => {
-              e.stopPropagation?.();
-              onFollow?.(agent._id);
-            }}
-          >
-            <View className="flex-row items-center gap-1">
-              <Plus size={13} className="text-primary-foreground" />
-              <Text className="text-[12px] font-bold text-primary-foreground">
-                {t("agents.follow")}
-              </Text>
-            </View>
-          </Button>
         </View>
 
         {/* Name + verified */}
@@ -122,14 +104,17 @@ export const AgentCard = React.memo(function AgentCard({
 
         {/* Stats row */}
         <View className="flex-row items-center gap-3 mt-2.5">
-          <View className="flex-row items-center gap-1">
-            <Text className="text-[13px] font-bold text-foreground">
-              {formatCount(agent.followerCount)}
-            </Text>
-            <Text className="text-[13px] text-muted-foreground">
-              {t("agents.followers")}
-            </Text>
-          </View>
+          {agent.rating > 0 && (
+            <>
+              <View className="flex-row items-center gap-0.5">
+                <Star size={11} className="text-amber-500" fill="#f59e0b" />
+                <Text className="text-[12px] font-bold text-foreground">
+                  {agent.rating}
+                </Text>
+              </View>
+              <Text className="text-[10px] text-muted-foreground">·</Text>
+            </>
+          )}
           <View className="flex-row items-center gap-1">
             <Text className="text-[13px] font-bold text-foreground">
               {formatCount(agent.hireCount)}
@@ -140,27 +125,42 @@ export const AgentCard = React.memo(function AgentCard({
           </View>
         </View>
 
-        {/* Hire button */}
-        {agent.allowHiring && (
+        {/* Action buttons */}
+        <View className="flex-row gap-2 mt-3">
           <Button
             variant="outline"
             size="sm"
-            className="rounded-full h-9 mt-3 w-full"
+            className="rounded-full h-9 flex-1"
             onPress={(e) => {
               e.stopPropagation?.();
-              onHire?.(agent._id);
+              onChat?.(agent._id);
             }}
           >
             <View className="flex-row items-center justify-center gap-1.5">
-              <Zap size={13} className="text-foreground" />
+              <MessageCircle size={13} className="text-foreground" />
               <Text className="text-[12px] font-semibold text-foreground">
-                {agent.price != null
-                  ? `${t("agents.hire")} · $${agent.price.toFixed(2)}`
-                  : t("agents.hire")}
+                {t("agents.chat")}
               </Text>
             </View>
           </Button>
-        )}
+          {agent.allowHiring && (
+            <Button
+              size="sm"
+              className="rounded-full h-9 flex-1"
+              onPress={(e) => {
+                e.stopPropagation?.();
+                onHire?.(agent._id);
+              }}
+            >
+              <View className="flex-row items-center justify-center gap-1.5">
+                <Zap size={13} className="text-primary-foreground" />
+                <Text className="text-[12px] font-semibold text-primary-foreground">
+                  {t("agents.hire")}
+                </Text>
+              </View>
+            </Button>
+          )}
+        </View>
       </View>
     </Pressable>
   );

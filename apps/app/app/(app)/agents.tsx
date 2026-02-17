@@ -15,7 +15,6 @@ export default function AgentsScreen() {
   const { t } = useTranslation();
   const agents = useAgentsStore((state) => state.agents);
   const loadAgents = useAgentsStore((state) => state.loadAgents);
-  const followAgent = useAgentsStore((state) => state.followAgent);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const router = useRouter();
@@ -31,8 +30,8 @@ export default function AgentsScreen() {
     router.push(`/(app)/agents/${agentId}`);
   };
 
-  const handleFollow = (agentId: string) => {
-    followAgent(agentId);
+  const handleChat = (agentId: string) => {
+    router.push(`/(app)/agents/${agentId}`);
   };
 
   const handleHire = (_agentId: string) => {
@@ -174,7 +173,7 @@ export default function AgentsScreen() {
                   agent={agent}
                   variant="featured"
                   onPress={handleSelectAgent}
-                  onFollow={handleFollow}
+                  onChat={handleChat}
                   onHire={handleHire}
                 />
               ))}
@@ -213,7 +212,7 @@ export default function AgentsScreen() {
                   agent={agent}
                   variant="grid"
                   onPress={handleSelectAgent}
-                  onFollow={handleFollow}
+                  onChat={handleChat}
                   onHire={handleHire}
                 />
               </View>

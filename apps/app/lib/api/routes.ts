@@ -84,7 +84,6 @@ export const API_ROUTES = {
     create: '/agents',
     update: (id: string) => `/agents/${id}`,
     delete: (id: string) => `/agents/${id}`,
-    follow: (id: string) => `/agents/${id}/follow`,
     hire: (id: string) => `/agents/${id}/hire`,
     activity: (id: string) => `/agents/${id}/activity`,
     sessions: (id: string) => `/agents/${id}/sessions`,
