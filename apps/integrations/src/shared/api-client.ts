@@ -1,5 +1,11 @@
 import axios, { AxiosInstance } from 'axios';
 
+/** OpenAI-compatible message content — plain string or multi-part array */
+type MessageContentPart =
+  | { type: 'text'; text: string }
+  | { type: 'image_url'; image_url: { url: string } };
+type MessageContent = string | MessageContentPart[];
+
 /**
  * Parameterized API client — one instance per platform, all sharing the same core logic.
  */
@@ -141,7 +147,7 @@ export class APIClient {
    */
   async chatCompletion(
     oxyUserId: string,
-    messages: Array<{ role: string; content: string }>,
+    messages: Array<{ role: string; content: MessageContent }>,
     options: { model?: string; conversationId?: string } = {},
   ): Promise<{ content: string; finishReason: string }> {
     const response = await fetch(`${this.baseURL}/v1/chat/completions`, {
@@ -179,12 +185,31 @@ export class APIClient {
   }
 
   /**
+   * Transcribe audio to text via the voice/transcribe API endpoint.
+   */
+  async transcribe(
+    oxyUserId: string,
+    audio: string,
+    format?: string,
+  ): Promise<string> {
+    const response = await this.client.post(
+      '/v1/voice/transcribe',
+      { audio, format },
+      {
+        headers: { ...this.authHeaders, 'X-Oxy-User-Id': oxyUserId },
+        timeout: 30000,
+      },
+    );
+    return response.data.text;
+  }
+
+  /**
    * Streaming chat completion — async generator yielding text deltas (Telegram).
    * Tools execute server-side; only text content is yielded.
    */
   async *chatCompletionStream(
     oxyUserId: string,
-    messages: Array<{ role: string; content: string }>,
+    messages: Array<{ role: string; content: MessageContent }>,
     options: { model?: string; conversationId?: string } = {},
   ): AsyncGenerator<string, void, undefined> {
     const response = await fetch(`${this.baseURL}/v1/chat/completions`, {
