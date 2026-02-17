@@ -15,6 +15,7 @@ export type PromptInputAutocompleteProps = {
 
 export function PromptInputAutocomplete({
   enabled = true,
+  position = "top",
   className,
 }: PromptInputAutocompleteProps) {
   const { value, setValue } = usePromptInput();
@@ -48,12 +49,12 @@ export function PromptInputAutocomplete({
 
   return (
     <View className={className}>
-      <View className="pb-2">
+      <View className={position === "bottom" ? "pt-1" : "pb-1"}>
         {completions.map((item) => (
           <Pressable
             key={item.text}
             onPress={() => setValue(item.text)}
-            className="px-3 py-2.5 rounded-lg active:bg-muted/50"
+            className="px-3 py-1.5 rounded-lg active:bg-muted/50"
           >
             <Text className="text-sm leading-5" numberOfLines={1}>
               <Text className="text-foreground">
