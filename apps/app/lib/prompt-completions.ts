@@ -31,10 +31,10 @@ const SUGGESTIONS: Record<string, string[]> = {
     "Explain blockchain technology like I'm five",
   ],
   create: [
-    "Create a workout plan for beginners",
-    "Create a budget spreadsheet template",
-    "Create a study schedule for final exams",
-    "Create a list of books to read this year",
+    "Create a customer support agent that handles tickets and FAQs",
+    "Create a coding assistant that helps with Python and JavaScript",
+    "Create a creative writing agent for blog posts and stories",
+    "Create a research assistant that summarizes academic papers",
   ],
   what: [
     "What are the best practices for remote work?",
@@ -77,6 +77,24 @@ const SUGGESTIONS: Record<string, string[]> = {
     "Show me the steps to start a blog",
     "Show me a simple recipe for pasta",
     "Show me interesting facts about history",
+  ],
+  build: [
+    "Build a sales outreach agent for cold emails and follow-ups",
+    "Build a data analyst agent that interprets charts and metrics",
+    "Build a social media manager agent for scheduling posts",
+    "Build a personal finance advisor agent",
+  ],
+  agent: [
+    "An agent that translates between multiple languages in real-time",
+    "An agent that generates marketing copy for product launches",
+    "An agent that reviews code and suggests improvements",
+    "An agent that helps onboard new employees",
+  ],
+  team: [
+    "A content creation team with a writer, editor, and SEO specialist",
+    "A development team with a frontend, backend, and QA agent",
+    "A marketing team with a copywriter, designer, and strategist",
+    "A support team with a triage agent and specialist agents",
   ],
   make: [
     "Make a to-do list for moving to a new city",

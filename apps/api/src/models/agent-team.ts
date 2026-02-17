@@ -5,6 +5,8 @@ export interface IAgentTeam extends Document {
   description?: string;
   creator: mongoose.Types.ObjectId;
   agents: mongoose.Types.ObjectId[];
+  skills: mongoose.Types.ObjectId[];
+  knowledge: mongoose.Types.ObjectId[];
   createdAt: Date;
   updatedAt: Date;
 }
@@ -21,6 +23,14 @@ const AgentTeamSchema = new Schema<IAgentTeam>({
   agents: [{
     type: Schema.Types.ObjectId,
     ref: 'Agent',
+  }],
+  skills: [{
+    type: Schema.Types.ObjectId,
+    ref: 'Skill',
+  }],
+  knowledge: [{
+    type: Schema.Types.ObjectId,
+    ref: 'LibraryFile',
   }],
 }, {
   timestamps: true,

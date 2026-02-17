@@ -37,6 +37,7 @@ import agentsRouter from './routes/agents.js';
 import agentsAvatarRouter from './routes/agents-avatar.js';
 import agentTeamsRouter from './routes/agent-teams.js';
 import containersRouter from './routes/containers.js';
+import libraryRouter from './routes/library.js';
 
 // Register hooks (side-effect import)
 import './lib/hooks/index.js';
@@ -205,6 +206,7 @@ app.use('/agents/avatar', agentsAvatarRouter);
 app.use('/agents/teams', agentTeamsRouter);
 app.use('/agents', agentsRouter);
 app.use('/containers', containersRouter);
+app.use('/library', libraryRouter);
 app.use('/internal', internalRouter);
 
 // Root route
