@@ -402,14 +402,16 @@ export const ChatPageContent = ({
                             <DropdownMenu.ItemIcon ios={{ name: "brain" }} />
                             <DropdownMenu.ItemTitle>Thinking mode</DropdownMenu.ItemTitle>
                           </DropdownMenu.CheckboxItem>
-                          <DropdownMenu.CheckboxItem
-                            key="ghost"
-                            value={activeModes.has('ghost') ? 'on' : 'off'}
-                            onValueChange={() => toggleMode('ghost')}
-                          >
-                            <DropdownMenu.ItemIcon ios={{ name: "eye.slash" }} />
-                            <DropdownMenu.ItemTitle>Ghost mode</DropdownMenu.ItemTitle>
-                          </DropdownMenu.CheckboxItem>
+                          {isMainScreen && (
+                            <DropdownMenu.CheckboxItem
+                              key="ghost"
+                              value={activeModes.has('ghost') ? 'on' : 'off'}
+                              onValueChange={() => toggleMode('ghost')}
+                            >
+                              <DropdownMenu.ItemIcon ios={{ name: "eye.slash" }} />
+                              <DropdownMenu.ItemTitle>Ghost mode</DropdownMenu.ItemTitle>
+                            </DropdownMenu.CheckboxItem>
+                          )}
                           <DropdownMenu.CheckboxItem
                             key="agent"
                             value={activeModes.has('agent') ? 'on' : 'off'}
