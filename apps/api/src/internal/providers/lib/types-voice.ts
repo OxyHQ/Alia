@@ -173,6 +173,8 @@ export type AgentDataMessage =
   | { type: 'cohost.disabled' }
   | { type: 'cohost.turn_changed'; speaker: 'primary' | 'cohost' | 'user' }
   | { type: 'cohost.round_complete'; turns: number }
+  | { type: 'tool.call'; toolName: string; callId: string; args?: any; speaker: 'primary' | 'cohost' }
+  | { type: 'tool.result'; callId: string; speaker: 'primary' | 'cohost' }
   | { type: 'session.ended'; reason: string }
   | { type: 'error'; code: string; message: string };
 

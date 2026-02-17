@@ -42,7 +42,8 @@ export class LiveKitAgentBridge implements LiveKitAgentBridgeRef {
   private publishChain: Promise<void> = Promise.resolve();
   private totalSamplesPublished = 0;
   private firstFrameTime: number | null = null;
-  private gainMultiplier = 1.0;
+  private targetGain = 1.0;
+  private currentGain = 1.0;
 
   /** Callback invoked when user audio frames arrive from LiveKit */
   onUserAudioFrame: ((base64Pcm16: string) => void) | null = null;
@@ -179,12 +180,16 @@ export class LiveKitAgentBridge implements LiveKitAgentBridgeRef {
       int16 = new Int16Array(aligned);
     }
 
-    // Apply gain control (for audio ducking when user speaks)
-    if (this.gainMultiplier !== 1.0) {
+    // Apply gain with smooth ramping to avoid clicks/pops from abrupt changes
+    if (this.currentGain !== this.targetGain || this.targetGain !== 1.0) {
       const scaled = new Int16Array(int16.length);
+      const step = (this.targetGain - this.currentGain) / int16.length;
+      let gain = this.currentGain;
       for (let i = 0; i < int16.length; i++) {
-        scaled[i] = Math.round(int16[i] * this.gainMultiplier);
+        gain += step;
+        scaled[i] = Math.round(int16[i] * gain);
       }
+      this.currentGain = this.targetGain;
       int16 = scaled;
     }
 
@@ -230,7 +235,7 @@ export class LiveKitAgentBridge implements LiveKitAgentBridgeRef {
    * 1.0 = full volume, 0.3 = ducked, 0.0 = silent.
    */
   setGain(level: number): void {
-    this.gainMultiplier = Math.max(0, Math.min(1, level));
+    this.targetGain = Math.max(0, Math.min(1, level));
   }
 
   async waitForPlaybackDrain(): Promise<void> {

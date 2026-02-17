@@ -1,16 +1,20 @@
-import { useState, useEffect } from "react";
-import { useLocalSearchParams } from "expo-router";
+import { useState, useEffect, useCallback } from "react";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import Head from "expo-router/head";
 import { useRolesStore } from "@/lib/stores/roles-store";
 import { useStore } from "@/lib/globalStore";
 import { useModelStore } from "@/lib/stores/model-store";
 import { useChatConversation } from "@/hooks/useChatConversation";
+import { useCreateConversation } from "@/lib/hooks/use-conversations";
 import { ChatPageContent } from "@/components/chat-page-content";
+import { toast } from "@/components/sonner";
 
 const ChatPage = () => {
+  const router = useRouter();
   const { roleId, skillId: skillIdParam } = useLocalSearchParams<{ roleId?: string; skillId?: string }>();
   const roles = useRolesStore((state) => state.roles);
   const activeSkillId = useStore((state) => state.activeSkillId);
+  const createConversationMutation = useCreateConversation();
 
   const effectiveSkillId = skillIdParam || activeSkillId;
 
@@ -39,6 +43,15 @@ const ChatPage = () => {
 
   const handleSubmit = ghostMode ? sendMessage : createNewConversation;
 
+  const handleVoiceStart = useCallback(async () => {
+    try {
+      const conv = await createConversationMutation.mutateAsync({});
+      router.replace(`/(app)/c/${conv.id}?startVoice=true` as any);
+    } catch {
+      toast.error("Failed to start voice session");
+    }
+  }, [createConversationMutation, router]);
+
   return (
     <>
       <Head>
@@ -61,6 +74,7 @@ const ChatPage = () => {
         onModelChange={setSelectedModel}
         activeRole={activeRole}
         onRemoveRole={() => setActiveRoleId(undefined)}
+        onVoiceStart={handleVoiceStart}
       />
     </>
   );

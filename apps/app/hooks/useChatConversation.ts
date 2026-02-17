@@ -150,5 +150,6 @@ export function useChatConversation({ conversationId, activeRole, thinkingMode, 
     stopGeneration,
     clearConversation,
     clearError,
+    setMessages,
   };
 }
