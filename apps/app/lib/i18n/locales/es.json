@@ -125,6 +125,12 @@
       "description": "Temas que te interesan (separados por comas)",
       "placeholder": "ej., IA, Tecnología, Viajes"
     },
+    "voicePreference": {
+      "title": "Voz",
+      "description": "Elige la voz de Alia para las llamadas",
+      "female": "Femenina",
+      "male": "Masculina"
+    },
     "saveButton": "Guardar preferencias",
     "saving": "Guardando...",
     "saveSuccess": "Preferencias guardadas exitosamente",

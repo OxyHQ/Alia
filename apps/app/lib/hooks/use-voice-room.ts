@@ -21,6 +21,7 @@ import {
 import { useOxy } from '@oxyhq/services';
 import config from '../config';
 import { stripTitleTags, stripTitleTagsPartial } from '../utils/title-tags';
+import { useUserDataStore } from '../stores/user-data-store';
 
 // ============== TYPES ==============
 
@@ -74,6 +75,7 @@ export function useVoiceRoom() {
   const cohostTextRef = useRef('');
 
   const { oxyServices } = useOxy();
+  const voicePref = useUserDataStore(s => s.memory?.preferences?.voice);
 
   // ============== CLEANUP ==============
 
@@ -218,7 +220,10 @@ export function useVoiceRoom() {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ model: 'alia-v1-voice' }),
+        body: JSON.stringify({
+          model: 'alia-v1-voice',
+          voice: voicePref === 'male' ? 'echo' : 'nova',
+        }),
       });
 
       if (!resp.ok) {
@@ -274,7 +279,7 @@ export function useVoiceRoom() {
       setRoomState('error');
       cleanup();
     }
-  }, [oxyServices, cleanup, handleDataMessage]);
+  }, [oxyServices, cleanup, handleDataMessage, voicePref]);
 
   // ============== DISCONNECT ==============
 
