@@ -1,6 +1,9 @@
 import { Router } from 'express';
 import { Agent } from '../models/agent.js';
+import { AgentSession } from '../models/agent-session.js';
 import { authenticateToken, optionalAuth } from '../middleware/auth.js';
+import { runAgentSession, getRecentActivity } from '../lib/agent-runner.js';
+import { cleanupSessionVMs } from '../lib/agent-tools.js';
 import { log } from '../lib/logger.js';
 import type { Request, Response } from 'express';
 
@@ -161,6 +164,7 @@ router.patch('/:id', authenticateToken, async (req: Request, res: Response) => {
       'name', 'avatar', 'banner', 'bannerGradient', 'tagline',
       'description', 'category', 'tags', 'price', 'capabilities',
       'isPublished', 'status', 'creditBalance', 'allowHiring',
+      'systemPrompt', 'allowedModels', 'scheduleInterval',
     ];
 
     for (const field of allowedFields) {
@@ -222,11 +226,16 @@ router.post('/:id/follow', authenticateToken, async (req: Request, res: Response
   }
 });
 
-// POST /agents/:id/hire - hire/use agent
+// POST /agents/:id/hire - hire agent with a task
 router.post('/:id/hire', authenticateToken, async (req: Request, res: Response) => {
   try {
     if (!req.user?.id) {
       return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const { task } = req.body;
+    if (!task || typeof task !== 'string') {
+      return res.status(400).json({ error: 'task is required' });
     }
 
     const agent = await Agent.findById(req.params.id);
@@ -234,15 +243,151 @@ router.post('/:id/hire', authenticateToken, async (req: Request, res: Response) 
       return res.status(404).json({ error: 'Agent not found' });
     }
 
-    // TODO: Handle payment/credits for paid agents
+    if (agent.status !== 'active') {
+      return res.status(400).json({ error: 'Agent is not currently active' });
+    }
+
+    // Create session
+    const session = await AgentSession.create({
+      agentId: agent._id,
+      userId: req.user.id,
+      task,
+      status: 'queued',
+      depth: 0,
+    });
+
+    // Increment counters
     agent.hireCount += 1;
     agent.usageCount += 1;
     await agent.save();
 
-    res.json({ agent, hired: true });
+    // Start runner in background (fire-and-forget)
+    runAgentSession(session._id.toString()).catch(err => {
+      log.agents.error({ err, sessionId: session._id }, 'Agent session runner failed');
+    });
+
+    res.json({ sessionId: session._id, hired: true });
   } catch (error) {
     log.agents.error({ err: error }, 'Error hiring agent');
     res.status(500).json({ error: 'Failed to hire agent' });
+  }
+});
+
+// GET /agents/:id/activity - get recent activity buffer
+router.get('/:id/activity', optionalAuth, async (req: Request, res: Response) => {
+  try {
+    const agent = await Agent.findById(req.params.id);
+    if (!agent || !agent.isPublished) {
+      return res.status(404).json({ error: 'Agent not found' });
+    }
+
+    const activity = getRecentActivity(agent._id.toString());
+    res.json({ activity });
+  } catch (error) {
+    log.agents.error({ err: error }, 'Error getting agent activity');
+    res.status(500).json({ error: 'Failed to get activity' });
+  }
+});
+
+// GET /agents/:id/sessions - list sessions for an agent
+router.get('/:id/sessions', authenticateToken, async (req: Request, res: Response) => {
+  try {
+    if (!req.user?.id) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const sessions = await AgentSession.find({
+      agentId: req.params.id,
+      userId: req.user.id,
+    })
+      .sort({ createdAt: -1 })
+      .limit(50)
+      .select('status task result stats config createdAt')
+      .lean();
+
+    res.json({ sessions });
+  } catch (error) {
+    log.agents.error({ err: error }, 'Error listing sessions');
+    res.status(500).json({ error: 'Failed to list sessions' });
+  }
+});
+
+// PATCH /agents/:id/status - owner toggle status
+router.patch('/:id/status', authenticateToken, async (req: Request, res: Response) => {
+  try {
+    if (!req.user?.id) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const { status } = req.body;
+    if (!status || !['active', 'idle', 'offline'].includes(status)) {
+      return res.status(400).json({ error: 'status must be active, idle, or offline' });
+    }
+
+    const agent = await Agent.findOne({
+      _id: req.params.id,
+      author: req.user.id,
+    });
+
+    if (!agent) {
+      return res.status(404).json({ error: 'Agent not found or not owned by you' });
+    }
+
+    agent.status = status;
+    await agent.save();
+
+    // If setting to idle/offline, cancel running sessions
+    if (status !== 'active') {
+      const runningSessions = await AgentSession.find({
+        agentId: agent._id,
+        status: { $in: ['queued', 'running'] },
+      });
+
+      for (const session of runningSessions) {
+        session.status = 'cancelled';
+        session.stats.completedAt = new Date();
+        await cleanupSessionVMs(session);
+        await session.save();
+      }
+    }
+
+    res.json({ agent, cancelledSessions: status !== 'active' ? true : false });
+  } catch (error) {
+    log.agents.error({ err: error }, 'Error updating agent status');
+    res.status(500).json({ error: 'Failed to update status' });
+  }
+});
+
+// POST /agents/:id/sessions/:sid/cancel - cancel a session
+router.post('/:id/sessions/:sid/cancel', authenticateToken, async (req: Request, res: Response) => {
+  try {
+    if (!req.user?.id) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const session = await AgentSession.findOne({
+      _id: req.params.sid,
+      agentId: req.params.id,
+      userId: req.user.id,
+    });
+
+    if (!session) {
+      return res.status(404).json({ error: 'Session not found' });
+    }
+
+    if (session.status !== 'running' && session.status !== 'queued') {
+      return res.status(400).json({ error: 'Session is not running' });
+    }
+
+    session.status = 'cancelled';
+    session.stats.completedAt = new Date();
+    await cleanupSessionVMs(session);
+    await session.save();
+
+    res.json({ cancelled: true });
+  } catch (error) {
+    log.agents.error({ err: error }, 'Error cancelling session');
+    res.status(500).json({ error: 'Failed to cancel session' });
   }
 });
 

@@ -1,9 +1,11 @@
-import React, { useEffect, useState } from "react";
-import { View, ScrollView, Pressable } from "react-native";
-import { LinearGradient } from "expo-linear-gradient";
+import React, { useEffect, useState, useCallback } from "react";
+import { View, ScrollView, Pressable, Share, TextInput, Switch } from "react-native";
 import { Text } from "@/components/ui/text";
 import { Button } from "@/components/ui/button";
-import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarImage } from "@/components/ui/avatar";
+
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const DEFAULT_AVATAR = require("@/assets/images/agent-avatar-reference.png");
 import {
   ArrowLeft,
   CheckCircle2,
@@ -11,12 +13,16 @@ import {
   Zap,
   Share2,
   Star,
+  Send,
 } from "lucide-react-native";
 import { useAgentsStore, type Agent } from "@/lib/stores/agents-store";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { useTranslation } from "@/hooks/useTranslation";
+import { useOxy } from "@oxyhq/services";
 import { toast } from "@/components/sonner";
 import { SectionLabel, PillList } from "@/components/detail";
+import { AgentTerminal } from "@/components/agent-terminal";
+import apiClient from "@/lib/api/client";
 import { cn } from "@/lib/utils";
 
 const STATUS_COLORS: Record<string, string> = {
@@ -42,8 +48,14 @@ export default function AgentDetailScreen() {
   const followAgent = useAgentsStore((state) => state.followAgent);
   const router = useRouter();
   const { t } = useTranslation();
+  const { user } = useOxy();
   const [agent, setAgent] = useState<Agent | null>(null);
   const [loading, setLoading] = useState(true);
+
+  // Hire input state
+  const [showHireInput, setShowHireInput] = useState(false);
+  const [taskInput, setTaskInput] = useState("");
+  const [hiring, setHiring] = useState(false);
 
   useEffect(() => {
     if (id) {
@@ -55,6 +67,8 @@ export default function AgentDetailScreen() {
     }
   }, [id, getAgent]);
 
+  const isOwner = !!(user && agent && user._id === agent.author);
+
   const handleFollow = async () => {
     if (!agent) return;
     await followAgent(agent._id);
@@ -62,12 +76,53 @@ export default function AgentDetailScreen() {
     if (updated) setAgent(updated);
   };
 
-  const handleHire = () => {
-    toast.info(t("agents.hireComingSoon"));
+  const handleHirePress = () => {
+    if (agent?.status !== "active") {
+      toast.error(t("agents.notActive"));
+      return;
+    }
+    setShowHireInput(true);
   };
 
-  const handleShare = () => {
-    toast.info(t("agents.shareComingSoon"));
+  const handleHireSubmit = useCallback(async () => {
+    if (!agent || !taskInput.trim() || hiring) return;
+    setHiring(true);
+    try {
+      await apiClient.post(`/agents/${agent._id}/hire`, {
+        task: taskInput.trim(),
+      });
+      setTaskInput("");
+      setShowHireInput(false);
+      toast.success(t("agents.hireStarted"));
+    } catch (err: any) {
+      const msg = err?.response?.data?.error || "Failed to hire agent";
+      toast.error(msg);
+    } finally {
+      setHiring(false);
+    }
+  }, [agent, taskInput, hiring, t]);
+
+  const handleShare = async () => {
+    if (!agent) return;
+    try {
+      await Share.share({
+        message: `${agent.name} — ${agent.tagline}\nhttps://alia.app/agents/${agent._id}`,
+      });
+    } catch {
+      // user cancelled — no action needed
+    }
+  };
+
+  const handleStatusToggle = async (newStatus: "active" | "idle") => {
+    if (!agent) return;
+    try {
+      await apiClient.patch(`/agents/${agent._id}/status`, {
+        status: newStatus,
+      });
+      setAgent({ ...agent, status: newStatus });
+    } catch {
+      toast.error("Failed to update status");
+    }
   };
 
   if (loading) {
@@ -99,36 +154,18 @@ export default function AgentDetailScreen() {
       </View>
 
       <ScrollView className="flex-1" showsVerticalScrollIndicator={false}>
-        {/* Banner */}
-        <LinearGradient
-          colors={agent.bannerGradient as [string, string, ...string[]]}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={{ height: 120 }}
-        />
-
-        <View className="px-5 pb-6">
-          {/* Avatar overlapping banner */}
-          <View className="flex-row items-end" style={{ marginTop: -40 }}>
-            <View className="relative">
-              <Avatar className="h-20 w-20 border-4 border-background">
-                {agent.avatar ? (
-                  <AvatarImage source={{ uri: agent.avatar }} />
-                ) : (
-                  <AvatarFallback>
-                    <Text className="text-2xl font-bold text-foreground">
-                      {agent.name.charAt(0)}
-                    </Text>
-                  </AvatarFallback>
-                )}
-              </Avatar>
-              <View
-                className={cn(
-                  "absolute bottom-1 right-1 w-4 h-4 rounded-full border-2 border-background",
-                  STATUS_COLORS[agent.status]
-                )}
-              />
-            </View>
+        <View className="px-5 pb-6 pt-2">
+          {/* Avatar */}
+          <View className="relative self-start">
+            <Avatar className="h-20 w-20">
+              <AvatarImage source={agent.avatar ? { uri: agent.avatar } : DEFAULT_AVATAR} />
+            </Avatar>
+            <View
+              className={cn(
+                "absolute bottom-1 right-1 w-4 h-4 rounded-full border-2 border-background",
+                STATUS_COLORS[agent.status]
+              )}
+            />
           </View>
 
           {/* Name + Verified + Status */}
@@ -218,8 +255,32 @@ export default function AgentDetailScreen() {
             </Text>
           </View>
 
+          {/* Owner Controls */}
+          {isOwner && (
+            <View className="flex-row items-center justify-between bg-muted/50 rounded-xl px-4 py-3 mb-4">
+              <View>
+                <Text className="text-[13px] font-semibold text-foreground">
+                  {agent.status === "active" ? "Active" : "Paused"}
+                </Text>
+                <Text className="text-[11px] text-muted-foreground">
+                  {agent.status === "active"
+                    ? "Accepting hires"
+                    : "Not accepting hires"}
+                </Text>
+              </View>
+              <Switch
+                value={agent.status === "active"}
+                onValueChange={(on) =>
+                  handleStatusToggle(on ? "active" : "idle")
+                }
+                trackColor={{ false: "#3e3e3e", true: "#22c55e" }}
+                thumbColor="#ffffff"
+              />
+            </View>
+          )}
+
           {/* Action Buttons */}
-          <View className="flex-row gap-2 mb-5">
+          <View className="flex-row gap-2 mb-4">
             <Button
               variant="outline"
               onPress={handleFollow}
@@ -232,7 +293,7 @@ export default function AgentDetailScreen() {
                 </Text>
               </View>
             </Button>
-            <Button onPress={handleHire} className="flex-1 h-11 rounded-full">
+            <Button onPress={handleHirePress} className="flex-1 h-11 rounded-full">
               <View className="flex-row items-center gap-1.5">
                 <Zap size={15} className="text-primary-foreground" />
                 <Text className="text-[13px] font-semibold text-primary-foreground">
@@ -250,6 +311,40 @@ export default function AgentDetailScreen() {
               <Share2 size={15} className="text-foreground" />
             </Button>
           </View>
+
+          {/* Hire Task Input */}
+          {showHireInput && (
+            <View className="flex-row items-center gap-2 mb-5 bg-muted/30 rounded-xl px-3 py-2 border border-border">
+              <TextInput
+                value={taskInput}
+                onChangeText={setTaskInput}
+                placeholder={t("agents.taskPlaceholder")}
+                placeholderTextColor="#888"
+                editable={!hiring}
+                onSubmitEditing={handleHireSubmit}
+                returnKeyType="send"
+                multiline={false}
+                style={{
+                  flex: 1,
+                  color: "#fff",
+                  fontSize: 14,
+                  paddingVertical: 8,
+                }}
+              />
+              <Pressable
+                onPress={handleHireSubmit}
+                disabled={hiring || !taskInput.trim()}
+                className="p-2 active:opacity-70"
+              >
+                <Send
+                  size={18}
+                  className={
+                    taskInput.trim() ? "text-primary" : "text-muted-foreground"
+                  }
+                />
+              </Pressable>
+            </View>
+          )}
 
           {/* Price Badge */}
           {agent.price != null && (
@@ -280,6 +375,14 @@ export default function AgentDetailScreen() {
               <PillList items={agent.tags} />
             </View>
           )}
+
+          {/* Activity Terminal */}
+          <View className="mb-5">
+            <SectionLabel>{t("agents.activity")}</SectionLabel>
+            <View style={{ height: 300 }} className="rounded-lg overflow-hidden mt-2">
+              <AgentTerminal agentId={agent._id} />
+            </View>
+          </View>
         </View>
       </ScrollView>
     </View>

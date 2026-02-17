@@ -45,7 +45,7 @@ interface AgentsStoreState {
   updateAgent: (id: string, updates: Partial<Agent>) => Promise<void>;
   deleteAgent: (id: string) => Promise<void>;
   followAgent: (id: string) => Promise<void>;
-  hireAgent: (id: string) => Promise<void>;
+  hireAgent: (id: string, task: string) => Promise<string | null>;
 }
 
 export const useAgentsStore = create<AgentsStoreState>((set, get) => ({
@@ -126,15 +126,13 @@ export const useAgentsStore = create<AgentsStoreState>((set, get) => ({
     }
   },
 
-  hireAgent: async (id) => {
+  hireAgent: async (id, task) => {
     try {
-      const res = await apiClient.post(API_ROUTES.agents.hire(id));
-      const updated = res.data.agent;
-      set((state) => ({
-        agents: state.agents.map((a) => (a._id === id ? updated : a)),
-      }));
+      const res = await apiClient.post(API_ROUTES.agents.hire(id), { task });
+      return res.data.sessionId || null;
     } catch (error) {
       console.error('Error hiring agent:', error);
+      return null;
     }
   },
 }));

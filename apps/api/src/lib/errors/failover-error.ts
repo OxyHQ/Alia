@@ -23,7 +23,7 @@ const TIMEOUT_HINT_RE = /timeout|timed out|deadline exceeded|context deadline ex
 const ABORT_TIMEOUT_RE = /request was aborted|request aborted/i;
 const RATE_LIMIT_RE = /rate.?limit|too many requests/i;
 const CONTENT_FILTER_RE = /content.?filter|safety|moderation|harmful/i;
-const BILLING_RE = /payment required|insufficient credits|credit balance|insufficient balance|plans & billing/i;
+const BILLING_RE = /payment required|insufficient credits|credit balance|insufficient balance|plans & billing|billing.?hard.?limit/i;
 const AUTH_RE = /invalid.?api.?key|incorrect api key|invalid token|authentication|unauthorized|forbidden|access denied|expired|token has expired/i;
 const OVERLOADED_RE = /overloaded|resource.?exhausted|quota exceeded/i;
 
@@ -177,13 +177,14 @@ export function classifyError(err: unknown): FailoverReason {
     return err.reason;
   }
 
-  // --- 1. HTTP status code classification ---
+  // --- 1. HTTP status code classification (except 400, which needs message inspection) ---
   const status = getStatusCode(err);
   if (status === 429) return 'rate_limit';
   if (status === 402) return 'billing';
   if (status === 401 || status === 403) return 'auth';
   if (status === 408) return 'timeout';
-  if (status === 400) return 'format';
+  // HTTP 400 intentionally omitted — providers (especially OpenAI) return
+  // billing/rate-limit errors with 400 status, so we fall through to message checks.
 
   // --- 2. Error code classification ---
   const code = (getErrorCode(err) ?? '').toUpperCase();
@@ -206,7 +207,10 @@ export function classifyError(err: unknown): FailoverReason {
     if (CONTENT_FILTER_RE.test(message)) return 'content_filter';
   }
 
-  // --- 5. Default ---
+  // --- 5. HTTP 400 fallback (no message pattern matched → genuine format error) ---
+  if (status === 400) return 'format';
+
+  // --- 6. Default ---
   return 'unknown';
 }
 

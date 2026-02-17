@@ -1,12 +1,15 @@
 import React from "react";
 import { View, Pressable } from "react-native";
 import { Text } from "@/components/ui/text";
-import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { CheckCircle2, Plus, Zap } from "lucide-react-native";
 import { cn } from "@/lib/utils";
 import { useTranslation } from "@/hooks/useTranslation";
 import type { Agent } from "@/lib/stores/agents-store";
+
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const DEFAULT_AVATAR = require("@/assets/images/agent-avatar-reference.png");
 
 interface AgentCardProps {
   agent: Agent;
@@ -37,7 +40,6 @@ export const AgentCard = React.memo(function AgentCard({
   const { t } = useTranslation();
   const isFeatured = variant === "featured";
   const avatarSize = isFeatured ? "h-16 w-16" : "h-14 w-14";
-  const avatarTextSize = isFeatured ? "text-xl" : "text-lg";
   const statusDotSize = isFeatured
     ? "w-3.5 h-3.5 border-[2.5px]"
     : "w-3 h-3 border-2";
@@ -53,15 +55,7 @@ export const AgentCard = React.memo(function AgentCard({
         <View className="flex-row items-start justify-between">
           <View className="relative">
             <Avatar className={cn(avatarSize)}>
-              {agent.avatar ? (
-                <AvatarImage source={{ uri: agent.avatar }} />
-              ) : (
-                <AvatarFallback>
-                  <Text className={cn("font-bold text-foreground", avatarTextSize)}>
-                    {agent.name.charAt(0)}
-                  </Text>
-                </AvatarFallback>
-              )}
+              <AvatarImage source={agent.avatar ? { uri: agent.avatar } : DEFAULT_AVATAR} />
             </Avatar>
             {/* Status dot */}
             <View

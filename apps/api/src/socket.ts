@@ -34,6 +34,11 @@ export function initSocket(server: http.Server) {
       if (typeof conversationId !== 'string' || conversationId.length > 256) return;
       socket.join(`canvas:${conversationId}`);
     });
+
+    socket.on('subscribe-agent', (agentId: string) => {
+      if (typeof agentId !== 'string' || agentId.length > 256) return;
+      socket.join(`agent:${agentId}`);
+    });
   });
   return io;
 }
@@ -57,5 +62,19 @@ export function emitCanvasUpdate(conversationId: string, component: any) {
 export function emitWorkflowProgress(executionId: string, data: any) {
   if (io) {
     io.to(`workflow:${executionId}`).emit('workflow-progress', { executionId, ...data });
+  }
+}
+
+export interface AgentActivityEvent {
+  type: 'system' | 'thinking' | 'response' | 'tool_call' | 'tool_result' | 'error' | 'complete';
+  content: string;
+  timestamp: number;
+  sessionId: string;
+  metadata?: { toolName?: string; args?: any; duration?: number };
+}
+
+export function emitAgentActivity(agentId: string, data: AgentActivityEvent) {
+  if (io) {
+    io.to(`agent:${agentId}`).emit('agent-activity', { agentId, ...data });
   }
 }
