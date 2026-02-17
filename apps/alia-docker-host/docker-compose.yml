@@ -16,9 +16,9 @@ services:
     networks:
       - alia-containers
 
-  traefik:
+  alia-preview-proxy:
     image: traefik:v3.2
-    container_name: alia-traefik
+    container_name: alia-preview-proxy
     command:
       - --api.insecure=false
       - --providers.docker=true
@@ -27,11 +27,9 @@ services:
       - --providers.file.directory=/etc/traefik/dynamic
       - --providers.file.watch=true
       - --entrypoints.web.address=:80
-      - --entrypoints.web.http.redirections.entryPoint.to=websecure
-      - --entrypoints.web.http.redirections.entryPoint.scheme=https
       - --entrypoints.websecure.address=:443
-      - --certificatesresolvers.letsencrypt.acme.dnschallenge=true
-      - --certificatesresolvers.letsencrypt.acme.dnschallenge.provider=digitalocean
+      - --certificatesresolvers.letsencrypt.acme.httpchallenge=true
+      - --certificatesresolvers.letsencrypt.acme.httpchallenge.entrypoint=web
       - --certificatesresolvers.letsencrypt.acme.email=${ACME_EMAIL:-admin@alia.onl}
       - --certificatesresolvers.letsencrypt.acme.storage=/letsencrypt/acme.json
       - --log.level=WARN
@@ -42,8 +40,6 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock:ro
       - letsencrypt:/letsencrypt
       - traefik-dynamic:/etc/traefik/dynamic:ro
-    environment:
-      - DO_AUTH_TOKEN=${DO_DNS_TOKEN}
     restart: unless-stopped
     networks:
       - alia-containers
