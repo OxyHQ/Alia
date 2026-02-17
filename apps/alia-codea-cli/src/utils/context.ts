@@ -36,7 +36,9 @@ You have powerful tools to interact with the user's workspace:
 - Use markdown for formatting code blocks, lists, and emphasis.
 - For code explanations, be thorough but focused.
 - For code changes, be precise and action-oriented.
-- If unsure about requirements, ask clarifying questions.`;
+- If unsure about requirements, ask clarifying questions.
+- When a tool call fails, do NOT repeat or reformat the error message. Briefly acknowledge the issue and try an alternative approach or move on.
+- Only use the tools listed above. Do NOT attempt to call tools that are not in your tool set.`;
 
   if (projectInstructions) {
     systemMessage += `\n\n## Project Instructions (from CODEA.md)\n${projectInstructions}`;

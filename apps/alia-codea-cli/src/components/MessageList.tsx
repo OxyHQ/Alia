@@ -46,7 +46,7 @@ function MessageBlock({ message }: { message: DisplayMessage }) {
         <Box flexDirection="column" paddingLeft={1}>
           <Box>
             <Text color="magenta">{'✦ '}</Text>
-            <Text>{message.streaming ? message.content : renderMarkdown(message.content)}</Text>
+            <Text>{message.content ? renderMarkdown(message.content) : ''}</Text>
           </Box>
         </Box>
       );

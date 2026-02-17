@@ -46,8 +46,14 @@ export interface ConversationOptions {
   isActive: () => boolean;
 }
 
+const MAX_CONSECUTIVE_FAILURES = 2;
+const MAX_TOOL_ROUNDS = 20;
+
 export async function processConversation(opts: ConversationOptions): Promise<void> {
   const { messages, systemMessage, model, approvalMode, onEvent, requestApproval, isActive } = opts;
+
+  let consecutiveFailures = 0;
+  let toolRounds = 0;
 
   while (isActive()) {
     let fullContent = '';
@@ -78,11 +84,21 @@ export async function processConversation(opts: ConversationOptions): Promise<vo
     if (!isActive()) break;
 
     if (toolCalls && toolCalls.length > 0) {
+      toolRounds++;
+
+      // Safety: break if too many tool rounds
+      if (toolRounds > MAX_TOOL_ROUNDS) {
+        onEvent({ type: 'error', message: 'Too many tool rounds. Stopping.' });
+        break;
+      }
+
       messages.push({
         role: 'assistant',
         content: fullContent,
         tool_calls: toolCalls,
       });
+
+      let allFailed = true;
 
       for (const tc of toolCalls) {
         if (!isActive()) break;
@@ -120,6 +136,10 @@ export async function processConversation(opts: ConversationOptions): Promise<vo
         execution.result = result.result;
         execution.success = result.success;
 
+        if (result.success) {
+          allFailed = false;
+        }
+
         messages.push({
           role: 'tool',
           tool_call_id: tc.id,
@@ -127,6 +147,17 @@ export async function processConversation(opts: ConversationOptions): Promise<vo
         });
 
         onEvent({ type: 'tool_done', execution });
+      }
+
+      // Track consecutive all-fail rounds to prevent infinite loops
+      if (allFailed) {
+        consecutiveFailures++;
+        if (consecutiveFailures >= MAX_CONSECUTIVE_FAILURES) {
+          onEvent({ type: 'error', message: 'Multiple consecutive tool failures. Stopping to prevent loop.' });
+          break;
+        }
+      } else {
+        consecutiveFailures = 0;
       }
 
       continue;

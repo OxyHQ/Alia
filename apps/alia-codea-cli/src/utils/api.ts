@@ -214,8 +214,19 @@ export async function streamChat(
 
     callbacks.onDone(fullContent, toolCalls.length > 0 ? toolCalls : undefined);
   } catch (error: any) {
-    callbacks.onError(error);
+    callbacks.onError(new Error(extractErrorMessage(error)));
   }
+}
+
+function extractErrorMessage(error: any): string {
+  if (typeof error === 'string') return error;
+  // OpenAI SDK structured errors
+  if (error?.error?.message) return error.error.message;
+  // Standard Error objects
+  if (error?.message) return error.message;
+  // HTTP status only
+  if (error?.status) return `API error (HTTP ${error.status})`;
+  return 'Unknown error occurred';
 }
 
 export async function fetchModels(): Promise<any[]> {

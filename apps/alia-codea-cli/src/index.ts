@@ -8,7 +8,7 @@ import { login } from './commands/auth.js';
 import { listSessions, resumeSession } from './commands/sessions.js';
 import chalk from 'chalk';
 
-const VERSION = '2.0.0';
+const VERSION = '2.0.1';
 
 const program = new Command();
 
