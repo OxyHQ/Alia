@@ -71,6 +71,24 @@ async function apiPost<T = any>(path: string, body: any): Promise<T> {
   return json.data ?? json;
 }
 
+async function apiPatch<T = any>(path: string, body: any): Promise<T> {
+  const res = await fetch(`${PROVIDERS_API_URL}${path}`, {
+    method: 'PATCH',
+    headers: generateAuthHeaders(),
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    const text = await res.text();
+    let parsed: any;
+    try { parsed = JSON.parse(text); } catch { parsed = { error: text }; }
+    const error: any = new Error(parsed.error || `Providers API PATCH ${path} failed (${res.status})`);
+    error.status = res.status;
+    throw error;
+  }
+  const json = await res.json() as any;
+  return json.data ?? json;
+}
+
 // ============== TYPES ==============
 
 export interface KeyConfig {
@@ -520,6 +538,18 @@ export async function getPlanFeatures(planId?: string): Promise<any[]> {
   const query: any = {};
   if (planId) query.planId = planId;
   return PlanFeature.find(query).lean();
+}
+
+/**
+ * Update a plan (e.g. to persist auto-created Stripe price IDs).
+ */
+export async function updatePlan(planId: string, updates: Record<string, any>): Promise<any> {
+  if (PROVIDERS_API_ENABLED) {
+    return apiPatch(`/v1/plans/${planId}`, updates);
+  }
+
+  const { Plan } = await import('../internal/providers/models/plan.js');
+  return Plan.findOneAndUpdate({ planId }, { $set: updates }, { new: true }).lean();
 }
 
 // ============== CACHE WARMUP ==============
