@@ -10,7 +10,7 @@ import { recordUsage } from '../../middleware/api-key-rate-limit.js';
 import { detectCreditAnomaly } from '../../lib/credit-anomaly.js';
 import { getUserEntitlements } from '../../lib/plan-access.js';
 import { convertOpenAIToolsToToolSet } from '../../lib/tool-converter.js';
-import { getCurrentDateTool, saveUserMemoryTool, updateUserPreferencesTool, updateUserContextTool, createSendTelegramTool, createGetWhatsAppChatsTool, createGetWhatsAppMessagesTool, createSendWhatsAppMessageTool, createProvidersAdminTool, webScraperTool, generateFileTool } from '../../lib/tools/index.js';
+import { getCurrentDateTool, saveUserMemoryTool, updateUserPreferencesTool, updateUserContextTool, createSendTelegramTool, createGetWhatsAppChatsTool, createGetWhatsAppMessagesTool, createSendWhatsAppMessageTool, createProvidersAdminTool, webScraperTool, generateFileTool, createSearchAgentsTool, createDelegateToAgentTool } from '../../lib/tools/index.js';
 import { oxyClient } from '../../middleware/auth.js';
 import type { KeyConfig } from '../../lib/providers-client.js';
 import type { IUserMemory } from '../../models/user-memory.js';
@@ -245,8 +245,9 @@ router.post('/', async (req: Request, res: Response) => {
     // Extract optional parameters for Alia internal features
     const conversationId = body.conversationId as string | undefined;
     const thinkingMode = body.thinkingMode as boolean | undefined;
+    const agentMode = body.agentMode as boolean | undefined;
 
-    log.v1.info({ messageCount: messages.length, conversationId, thinkingMode }, 'Processing messages');
+    log.v1.info({ messageCount: messages.length, conversationId, thinkingMode, agentMode }, 'Processing messages');
 
     // Determine if this is a direct user session (not API key)
     // API key requests should be neutral and not include creator's personal info
@@ -435,6 +436,13 @@ router.post('/', async (req: Request, res: Response) => {
 
     const allTools = { ...aliaTools, ...editorTools };
 
+    // Agent mode: add search & delegation tools
+    const agentMessages: Array<{ role: 'assistant'; content: string; agentInfo: { id: string; name: string; avatar: string | null; handle: string } }> = [];
+    if (agentMode && isDirectUserSession) {
+      allTools.searchAgents = createSearchAgentsTool();
+      allTools.delegateToAgent = createDelegateToAgentTool();
+    }
+
     // Log tool schemas for debugging
     if (Array.isArray(body.tools) && body.tools.length > 0) {
       log.v1.info({ toolCount: body.tools.length }, 'Received tools from client');
@@ -493,6 +501,9 @@ When you use a tool successfully:
       }
       systemMessage += '\n\n**IMPORTANT**: You have a `sendTelegram` tool available. Use it IMMEDIATELY when the user asks you to send them a Telegram message (e.g., "send me X on Telegram", "enviame un telegram", "remind me via Telegram"). Do NOT say you can\'t - you CAN send Telegram messages using this tool!';
       systemMessage += '\n\n**IMPORTANT**: You have WhatsApp tools available: `getWhatsAppChats` to see the user\'s WhatsApp conversations, `getWhatsAppMessages` to read messages from a specific chat (requires JID from getWhatsAppChats), and `sendWhatsAppMessage` to send messages. When the user asks about their WhatsApp, use getWhatsAppChats first, then getWhatsAppMessages to read specific conversations.';
+      if (agentMode) {
+        systemMessage += '\n\n**AGENT MODE ACTIVE**: You have `searchAgents` and `delegateToAgent` tools. When the user asks for help, search for specialist agents that can assist, then delegate tasks to the best-matching agent(s). Briefly explain which agent you\'re delegating to and why. If no suitable agent is found, handle the task yourself. Agents are autonomous workers — let them do their job fully.';
+      }
     } else if (req.apiKey) {
       // API key request - add neutral context
       log.v1.info('API key request - using neutral context');
@@ -1020,6 +1031,36 @@ When you use a tool successfully:
             result: chunk.output,
           });
         }
+
+        // Emit agent_message SSE event when delegateToAgent returns successfully
+        if (originalToolName === 'delegateToAgent' && chunk.output && !chunk.output.error) {
+          const ar = chunk.output;
+          const agentChunk = {
+            id: `chatcmpl-${Date.now()}`,
+            object: 'chat.completion.chunk',
+            created: Math.floor(Date.now() / 1000),
+            model: aliasModelId,
+            choices: [{
+              index: 0,
+              delta: {
+                agent_message: {
+                  agentId: ar.agentId,
+                  agentName: ar.agentName,
+                  agentHandle: ar.agentHandle,
+                  agentAvatar: ar.agentAvatar,
+                  content: ar.response,
+                },
+              },
+              finish_reason: null,
+            }],
+          };
+          res.write(`data: ${JSON.stringify(agentChunk)}\n\n`);
+          agentMessages.push({
+            role: 'assistant',
+            content: ar.response,
+            agentInfo: { id: ar.agentId, name: ar.agentName, avatar: ar.agentAvatar, handle: ar.agentHandle },
+          });
+        }
       } else if (chunk.type === 'tool-error') {
         // Handle tool execution errors
         ensureSSEHeaders();
@@ -1213,6 +1254,7 @@ When you use a tool successfully:
           messages,
           assistantResponse,
           toolInvocations,
+          agentMessages: agentMessages.length > 0 ? agentMessages : undefined,
         });
         log.v1.info({ conversationId }, 'Conversation saved');
       } catch (error) {

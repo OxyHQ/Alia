@@ -8,6 +8,7 @@ import type { CreditsInfo } from '@/lib/hooks/use-credits';
 import { collectDeviceInfo } from '@/lib/device-info';
 import { UsageLimitError } from '@/lib/errors/usage-limit-error';
 import { queryKeys } from '@/lib/hooks/query-keys';
+import { useStore } from '@/lib/globalStore';
 
 import type { ToolInvocation } from '@/lib/types/messages';
 export type { ToolInvocation };
@@ -102,6 +103,8 @@ Use this role to guide your responses, maintaining the specified tone, style, an
       // Create abort controller for this request
       abortControllerRef.current = new AbortController();
 
+      const agentMode = useStore.getState().agentMode;
+
       const response = await expoFetch(apiUrl, {
         method: 'POST',
         headers,
@@ -113,6 +116,7 @@ Use this role to guide your responses, maintaining the specified tone, style, an
           ...(selectedModel && { model: selectedModel }),
           ...(skillId && { skillId }),
           ...(agentId && { agentId }),
+          ...(agentMode && { agentMode: true }),
         }),
         signal: abortControllerRef.current.signal,
       });
@@ -389,6 +393,29 @@ Use this role to guide your responses, maintaining the specified tone, style, an
                     return updated;
                   });
                 }
+              }
+
+              // Handle agent delegation messages (agent mode)
+              if (delta.agent_message) {
+                const am = delta.agent_message;
+                setMessages((prev) => {
+                  const updated = [...prev];
+                  const agentMsg: Message = {
+                    id: `agent-${Date.now()}-${am.agentId}`,
+                    role: 'assistant',
+                    content: am.content,
+                    agentInfo: {
+                      id: am.agentId,
+                      name: am.agentName,
+                      avatar: am.agentAvatar,
+                      handle: am.agentHandle,
+                    },
+                  };
+                  // Insert before the last message (Alia's in-progress response)
+                  const lastIdx = updated.length - 1;
+                  updated.splice(lastIdx, 0, agentMsg);
+                  return updated;
+                });
               }
 
               // Handle error events from server

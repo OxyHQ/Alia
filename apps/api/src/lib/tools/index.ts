@@ -14,6 +14,8 @@ import { webScraperTool } from './web-scraper.js';
 import { generateFileTool } from './file-generator.js';
 import { canvasTool } from './canvas.js';
 import { delegateSubtaskTool } from './delegate.js';
+import { createSearchAgentsTool } from './agent-search.js';
+import { createDelegateToAgentTool } from './agent-delegate.js';
 
 // ---------------------------------------------------------------------------
 // Register all tools in the registry
@@ -58,6 +60,22 @@ registerTool({
   tool: delegateSubtaskTool,
   enabledByDefault: true,
   category: 'utility',
+});
+
+registerTool({
+  name: 'searchAgents',
+  description: 'Search for available AI agents to help with tasks',
+  tool: createSearchAgentsTool,   // factory: () => Tool
+  enabledByDefault: false,
+  category: 'agent',
+});
+
+registerTool({
+  name: 'delegateToAgent',
+  description: 'Delegate a task to a specific agent',
+  tool: createDelegateToAgentTool, // factory: () => Tool
+  enabledByDefault: false,
+  category: 'agent',
 });
 
 // Factory tools (need context — userId, apiKey, deviceInfo, etc.)
@@ -157,6 +175,8 @@ export { webScraperTool } from './web-scraper.js';
 export { generateFileTool } from './file-generator.js';
 export { canvasTool } from './canvas.js';
 export { delegateSubtaskTool, type SubtaskResult } from './delegate.js';
+export { createSearchAgentsTool } from './agent-search.js';
+export { createDelegateToAgentTool, type AgentDelegationResult } from './agent-delegate.js';
 
 // Registry API exports
 export {

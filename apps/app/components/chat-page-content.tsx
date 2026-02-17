@@ -157,6 +157,9 @@ export const ChatPageContent = ({
       if (mode === 'ghost') {
         useStore.getState().setGhostMode(next.has('ghost'));
       }
+      if (mode === 'agent') {
+        useStore.getState().setAgentMode(next.has('agent'));
+      }
       return next;
     });
   }, [entitlements, t, router]);

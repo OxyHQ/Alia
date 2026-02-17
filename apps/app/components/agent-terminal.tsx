@@ -164,9 +164,9 @@ function WebTerminal({ agentId }: AgentTerminalProps) {
     };
   }, []);
 
-  // Handle resize
+  // Handle resize (ResizeObserver for flex container changes + window fallback)
   useEffect(() => {
-    if (!ready) return;
+    if (!ready || !containerRef.current) return;
 
     const handleResize = () => {
       try {
@@ -176,8 +176,13 @@ function WebTerminal({ agentId }: AgentTerminalProps) {
       }
     };
 
+    const observer = new ResizeObserver(handleResize);
+    observer.observe(containerRef.current);
     window.addEventListener("resize", handleResize);
-    return () => window.removeEventListener("resize", handleResize);
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("resize", handleResize);
+    };
   }, [ready]);
 
   // Backfill activity + connect Socket.IO
@@ -203,13 +208,24 @@ function WebTerminal({ agentId }: AgentTerminalProps) {
       });
 
     // Connect Socket.IO
+    let wasConnected = false;
     const socket = socketIO(config.apiUrl, {
       transports: ["websocket"],
+      reconnection: true,
+      reconnectionAttempts: Infinity,
+      reconnectionDelay: 1000,
+      reconnectionDelayMax: 10000,
     });
     socketRef.current = socket;
 
     socket.on("connect", () => {
       socket.emit("subscribe-agent", agentId);
+      if (wasConnected) {
+        terminalRef.current?.writeln(
+          "\x1b[32m\u25B8 Reconnected\x1b[0m"
+        );
+      }
+      wasConnected = true;
     });
 
     socket.on("agent-activity", (data: any) => {
@@ -218,10 +234,17 @@ function WebTerminal({ agentId }: AgentTerminalProps) {
       }
     });
 
+    socket.on("disconnect", (reason) => {
+      if (reason !== "io client disconnect") {
+        terminalRef.current?.writeln(
+          "\x1b[33m\u25B8 Connection lost — reconnecting...\x1b[0m"
+        );
+      }
+    });
+
     socket.on("connect_error", () => {
-      // Show error only if terminal is still mounted
       terminalRef.current?.writeln(
-        "\x1b[31mConnection error — retrying...\x1b[0m"
+        "\x1b[31m\u25B8 Connection error — retrying...\x1b[0m"
       );
     });
 
@@ -410,13 +433,22 @@ function NativeTerminal({ agentId }: AgentTerminalProps) {
       .catch(() => {});
 
     // Connect Socket.IO
+    let wasConnected = false;
     const socket = socketIO(config.apiUrl, {
       transports: ["websocket"],
+      reconnection: true,
+      reconnectionAttempts: Infinity,
+      reconnectionDelay: 1000,
+      reconnectionDelayMax: 10000,
     });
     socketRef.current = socket;
 
     socket.on("connect", () => {
       socket.emit("subscribe-agent", agentId);
+      if (wasConnected) {
+        writeToWebView("\x1b[32m\u25B8 Reconnected\x1b[0m\r\n");
+      }
+      wasConnected = true;
     });
 
     socket.on("agent-activity", (data: any) => {
@@ -425,8 +457,14 @@ function NativeTerminal({ agentId }: AgentTerminalProps) {
       }
     });
 
+    socket.on("disconnect", (reason) => {
+      if (reason !== "io client disconnect") {
+        writeToWebView("\x1b[33m\u25B8 Connection lost — reconnecting...\x1b[0m\r\n");
+      }
+    });
+
     socket.on("connect_error", () => {
-      writeToWebView("\x1b[31mConnection error — retrying...\x1b[0m\r\n");
+      writeToWebView("\x1b[31m\u25B8 Connection error — retrying...\x1b[0m\r\n");
     });
 
     return () => {

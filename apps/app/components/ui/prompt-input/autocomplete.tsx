@@ -49,7 +49,7 @@ export function PromptInputAutocomplete({
 
   return (
     <View className={className}>
-      <View className={position === "bottom" ? "pt-1" : "pb-1"}>
+      <View className={position === "bottom" ? "pt-0.5" : "pb-0.5"}>
         {completions.map((item) => (
           <Pressable
             key={item.text}

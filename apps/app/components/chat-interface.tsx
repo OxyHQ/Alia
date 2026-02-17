@@ -43,6 +43,13 @@ type Message = {
   source?: 'text' | 'voice';
   speaker?: 'primary' | 'cohost';
   isStreaming?: boolean;
+  // Agent delegation metadata
+  agentInfo?: {
+    id: string;
+    name: string;
+    avatar: string | null;
+    handle: string;
+  };
 };
 
 type ChatInterfaceProps = {
@@ -247,8 +254,26 @@ export const ChatInterface = React.memo(function ChatInterface({ messages, scrol
                       {m.role === "assistant" ? (
                         // Assistant message: logo on top, text below
                         <View className="flex-col items-start gap-0.5">
-                          {/* Speaker label for cohost voice messages */}
-                          {(m as any).source === 'voice' && (m as any).speaker === 'cohost' ? (
+                          {/* Agent identity, cohost label, or Alia logo */}
+                          {m.agentInfo ? (
+                            <View className="flex-row items-center gap-2 mb-0.5">
+                              {m.agentInfo.avatar ? (
+                                <Image
+                                  source={{ uri: m.agentInfo.avatar }}
+                                  style={{ width: 20, height: 20, borderRadius: 10 }}
+                                />
+                              ) : (
+                                <Avatar className="h-5 w-5">
+                                  <AvatarFallback className="text-[10px]">
+                                    {m.agentInfo.name.charAt(0).toUpperCase()}
+                                  </AvatarFallback>
+                                </Avatar>
+                              )}
+                              <Text className="text-xs font-semibold" style={{ color: '#f97316' }}>
+                                {m.agentInfo.name}
+                              </Text>
+                            </View>
+                          ) : (m as any).source === 'voice' && (m as any).speaker === 'cohost' ? (
                             <Text className="text-xs text-indigo-400 mb-0.5">Cohost</Text>
                           ) : (
                             <Image
