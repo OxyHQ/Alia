@@ -61,10 +61,6 @@ services:
     instance_size_slug: basic-xxs
     instance_count: 1
 
-    # Internal-only service (not publicly accessible)
-    internal_ports:
-      - 9091
-
     # Health check
     health_check:
       http_path: /health
