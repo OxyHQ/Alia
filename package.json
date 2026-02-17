@@ -59,8 +59,8 @@
     "typescript": "^5.9.3"
   },
   "overrides": {
-    "react": "19.2.0",
-    "react-dom": "19.2.0",
+    "react": "19.1.0",
+    "react-dom": "19.1.0",
     "react-native": "0.81.5",
     "react-native-svg": "15.12.1",
     "react-native-worklets": "0.5.1",
