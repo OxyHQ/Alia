@@ -7,6 +7,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+#### Autonomous Agent Runtime
+- **Agent execution engine** (`agent-runner.ts`) with event-driven architecture and smart model selection
+- **Agent tools** (`agent-tools.ts`): web search, web scraper, memory, Telegram, agent-to-agent delegation, Docker containers
+- **Smart model selection** — agents pick cheaper models for simple tasks and more capable models for complex tasks based on configurable `allowedModels`
+- **Agent-to-agent delegation** via `hireAgent` tool with recursive session depth limit of 3
+- **Live activity streaming** via Socket.IO (`subscribe-agent` channel) with ANSI-colored terminal output
+- **Agent session model** (`AgentSession`) tracking status, task, result, resources, token/step stats
+- **Agent API endpoints**: `POST /agents/:id/hire`, `GET /agents/:id/activity`, `GET /agents/:id/sessions`, `PATCH /agents/:id/status`, `POST /agents/:id/sessions/:sid/cancel`
+- **Owner controls**: toggle agent active/idle/offline, configure allowed models, set system prompt, cancel sessions
+
+#### Docker Container Sandbox
+- **`alia-docker-host` app** — standalone Express service for Docker container lifecycle management
+- **Container manager** (`container-manager.ts`) for creating, executing, and destroying sandboxed containers
+- **Container models** (`Container`, `ContainerTemplate`) for tracking container instances and base templates
+- **Container API endpoints**: create, exec, read/write files, list files, expose ports, snapshot, destroy
+- **Auto-cleanup** — containers are destroyed after timeout or when agent sessions complete
+
+#### Agent Terminal (Frontend)
+- **`AgentTerminal` component** with xterm.js for web and WebView for native
+- **Real-time activity display** with ANSI color formatting per event type (system, thinking, tool_call, tool_result, response, error, complete)
+- **Activity backfill** from REST API on mount
+- **Agent detail screen** with live terminal, hire input, and owner toggle controls
+- Migrated from deprecated `xterm` package to `@xterm/xterm`
+
 ### Fixed
 - **CRITICAL**: Fixed memory not saving during conversations - AI tools were using `userId` instead of `oxyUserId` ([#memory-bug-fix](apps/api/src/lib/tools/user-memory.ts))
   - Updated `saveUserMemoryTool` to use correct field name

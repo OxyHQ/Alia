@@ -175,6 +175,7 @@ Before deploying, verify:
 - [ ] LLM API keys are valid
 - [ ] `TELEGRAM_BOT_SECRET` is configured
 - [ ] LiveKit server is deployed and accessible (if using voice mode)
+- [ ] Docker host is deployed and accessible (if using agent containers)
 - [ ] Channel bot tokens are configured (for each enabled channel)
 - [ ] Build completes successfully locally
 - [ ] Tests pass (if applicable)
@@ -253,6 +254,69 @@ Check DigitalOcean metrics for:
 - Memory usage (should be stable)
 - CPU usage (spikes during AI requests are normal)
 - Error rate (should be minimal)
+
+## Docker Host Setup (Agent Containers)
+
+Agents execute code in sandboxed Docker containers managed by the `alia-docker-host` service. This service runs alongside the API and provides container lifecycle management.
+
+### Quick Setup
+
+```bash
+# From the monorepo root
+./scripts/setup-docker-host.sh
+```
+
+Or manually:
+
+```bash
+cd apps/alia-docker-host
+cp .env.example .env
+# Edit .env with your settings
+docker-compose up -d
+```
+
+### Environment Variables (`apps/alia-docker-host`)
+
+```bash
+PORT=3010
+NODE_ENV=production
+AUTH_SECRET=<shared-secret-with-api>    # Must match API's DOCKER_HOST_SECRET
+
+# Docker settings
+DOCKER_SOCKET=/var/run/docker.sock     # Docker socket path
+MAX_CONTAINERS=50                       # Max concurrent containers
+CONTAINER_TIMEOUT=3600                  # Container TTL in seconds (1 hour)
+```
+
+### API Environment Variables
+
+Add these to the API server's `.env`:
+
+```bash
+# Docker Host
+DOCKER_HOST_URL=http://localhost:3010   # URL of alia-docker-host service
+DOCKER_HOST_SECRET=<shared-secret>      # Must match AUTH_SECRET above
+```
+
+### Production Deployment
+
+For production, deploy `alia-docker-host` on a dedicated droplet with Docker installed:
+
+1. **Create a Docker-enabled droplet** (minimum 2 vCPU, 4GB RAM)
+2. **Clone the repo** and run `docker-compose up -d` in `apps/alia-docker-host`
+3. **Configure firewall** — only allow port 3010 from your API server's VPC
+4. **Set environment variables** in both the Docker host and API server
+
+### Resource Limits
+
+Containers are created with default resource limits:
+- **CPU**: 1 core
+- **Memory**: 512MB
+- **Disk**: 1GB
+- **Network**: Isolated bridge network
+- **TTL**: Auto-destroyed after timeout (default 1 hour)
+
+---
 
 ## LiveKit Server Setup
 
@@ -570,4 +634,4 @@ For deployment issues:
 
 ---
 
-**Last Updated:** February 13, 2026
+**Last Updated:** February 17, 2026
