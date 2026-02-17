@@ -25,14 +25,19 @@ const ChatPage = () => {
   const [activeRoleId, setActiveRoleId] = useState<string | undefined>(roleId);
   const activeRole = activeRoleId ? roles.find(r => r.id === activeRoleId) : undefined;
 
+  const ghostMode = useStore((state) => state.ghostMode);
+
   const {
     messages,
     isLoading,
     scrollViewRef,
+    sendMessage,
     createNewConversation,
     editMessage,
     clearConversation,
   } = useChatConversation({ activeRole, selectedModel, skillId: effectiveSkillId });
+
+  const handleSubmit = ghostMode ? sendMessage : createNewConversation;
 
   return (
     <>
@@ -48,8 +53,8 @@ const ChatPage = () => {
         messages={messages}
         scrollViewRef={scrollViewRef}
         isLoading={isLoading}
-        onSubmit={createNewConversation}
-        onSuggestionPress={createNewConversation}
+        onSubmit={handleSubmit}
+        onSuggestionPress={handleSubmit}
         onEditMessage={editMessage}
         onClear={clearConversation}
         selectedModel={selectedModel}
