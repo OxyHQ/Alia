@@ -4,6 +4,7 @@ import * as http from 'http';
 import { exec } from 'child_process';
 import chalk from 'chalk';
 import { config } from '../utils/config.js';
+
 function printSuccess(message: string): void {
   console.log(chalk.green('✓ ') + message);
 }
@@ -34,8 +35,25 @@ async function loginWithBrowser(): Promise<boolean> {
     .digest('base64url');
 
   return new Promise((resolve) => {
+    let resolved = false;
+    let timeoutHandle: ReturnType<typeof setTimeout> | undefined;
+
+    function done(result: boolean) {
+      if (resolved) return;
+      resolved = true;
+      clearTimeout(timeoutHandle);
+      server.close();
+      resolve(result);
+    }
+
     const server = http.createServer(async (req, res) => {
-      const url = new URL(req.url!, `http://localhost`);
+      if (!req.url) {
+        res.writeHead(400);
+        res.end();
+        return;
+      }
+
+      const url = new URL(req.url, `http://localhost`);
       if (url.pathname !== '/callback') {
         res.writeHead(404);
         res.end();
@@ -51,8 +69,7 @@ async function loginWithBrowser(): Promise<boolean> {
           '<html><body style="font-family:system-ui;text-align:center;padding:60px">' +
             '<h2>Authorization cancelled</h2><p>You can close this window.</p></body></html>',
         );
-        server.close();
-        resolve(false);
+        done(false);
         return;
       }
 
@@ -80,8 +97,7 @@ async function loginWithBrowser(): Promise<boolean> {
           );
           console.log();
           printSuccess('Logged in successfully!');
-          server.close();
-          resolve(true);
+          done(true);
         } else {
           throw new Error('No token received');
         }
@@ -92,8 +108,7 @@ async function loginWithBrowser(): Promise<boolean> {
             '<h2>Login failed</h2><p>Please try again.</p></body></html>',
         );
         printError('Failed to exchange authorization code.');
-        server.close();
-        resolve(false);
+        done(false);
       }
     });
 
@@ -116,11 +131,9 @@ async function loginWithBrowser(): Promise<boolean> {
       console.log(chalk.gray('Waiting for authorization...'));
     });
 
-    // Timeout after 5 minutes
-    setTimeout(() => {
-      server.close();
+    timeoutHandle = setTimeout(() => {
       printError('Authorization timed out.');
-      resolve(false);
+      done(false);
     }, 5 * 60 * 1000);
   });
 }
@@ -163,8 +176,9 @@ async function loginWithApiKey(): Promise<boolean> {
           printError('Invalid API key. Please check and try again.');
           resolve(false);
         }
-      } catch (error: any) {
-        printError(`Could not validate API key: ${error.message}`);
+      } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : String(error);
+        printError(`Could not validate API key: ${message}`);
         resolve(false);
       }
     });

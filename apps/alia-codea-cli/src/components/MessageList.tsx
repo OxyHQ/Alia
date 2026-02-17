@@ -17,7 +17,7 @@ interface MessageListProps {
   messages: DisplayMessage[];
 }
 
-const marked = new Marked(markedTerminal() as any);
+const marked = new Marked(markedTerminal());
 
 function renderMarkdown(text: string): string {
   try {

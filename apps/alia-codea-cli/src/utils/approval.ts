@@ -15,6 +15,11 @@ export function categorize(toolName: string): ToolCategory {
   return TOOL_CATEGORIES[toolName] || 'shell';
 }
 
+export function parseApprovalMode(value: string | undefined): ApprovalMode {
+  if (value === 'suggest' || value === 'auto-edit' || value === 'full-auto') return value;
+  return 'suggest';
+}
+
 export function needsApproval(toolName: string, mode: ApprovalMode): boolean {
   const category = categorize(toolName);
 

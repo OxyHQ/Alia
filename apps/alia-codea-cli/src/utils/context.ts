@@ -5,7 +5,7 @@ import { promisify } from 'util';
 
 const execAsync = promisify(exec);
 
-export function buildSystemMessage(model: string, codebaseContext: string, projectInstructions?: string): string {
+export function buildSystemMessage(codebaseContext: string, projectInstructions?: string): string {
   let systemMessage = `You are Codea, an expert AI coding assistant created by Alia. You help developers write, debug, refactor, and understand code directly in their terminal.
 
 ## Core Principles

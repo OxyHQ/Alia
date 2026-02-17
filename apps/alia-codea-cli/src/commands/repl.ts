@@ -1,7 +1,7 @@
 import React from 'react';
 import { render } from 'ink';
 import { App, AppOptions } from '../app.js';
-import { ApprovalMode } from '../utils/approval.js';
+import { parseApprovalMode } from '../utils/approval.js';
 
 interface ReplOptions {
   model: string;
@@ -12,7 +12,7 @@ interface ReplOptions {
 export async function startRepl(options: ReplOptions): Promise<void> {
   const appOptions: AppOptions = {
     model: options.model,
-    approvalMode: (options.approvalMode as ApprovalMode) || 'suggest',
+    approvalMode: parseApprovalMode(options.approvalMode),
     context: options.context,
   };
 

@@ -1,25 +1,11 @@
 import React from 'react';
 import { Box, Text, useInput } from 'ink';
 import { ToolExecution } from '../utils/conversation.js';
+import { formatApprovalDescription } from '../utils/format.js';
 
 interface ApprovalPromptProps {
   execution: ToolExecution;
   onResolve: (approved: boolean) => void;
-}
-
-function formatArgs(tool: string, args: Record<string, any>): string {
-  switch (tool) {
-    case 'write_file':
-      return `Write to ${args.path}`;
-    case 'edit_file':
-      return `Edit ${args.path}`;
-    case 'apply_patch':
-      return `Apply patch`;
-    case 'run_command':
-      return `Run: ${args.command}`;
-    default:
-      return `${tool}: ${JSON.stringify(args).slice(0, 80)}`;
-  }
 }
 
 export function ApprovalPrompt({ execution, onResolve }: ApprovalPromptProps) {
@@ -31,7 +17,7 @@ export function ApprovalPrompt({ execution, onResolve }: ApprovalPromptProps) {
     }
   });
 
-  const description = formatArgs(execution.tool, execution.args);
+  const description = formatApprovalDescription(execution.tool, execution.args);
 
   return (
     <Box flexDirection="column" paddingLeft={2} paddingY={0}>
@@ -39,14 +25,14 @@ export function ApprovalPrompt({ execution, onResolve }: ApprovalPromptProps) {
         <Text color="yellow">{'⚠'}</Text>
         <Text bold>{description}</Text>
       </Box>
-      {execution.tool === 'run_command' && execution.args.command && (
+      {execution.tool === 'run_command' && Boolean(execution.args.command) && (
         <Box paddingLeft={2}>
-          <Text color="gray">$ {execution.args.command}</Text>
+          <Text color="gray">$ {String(execution.args.command)}</Text>
         </Box>
       )}
-      {execution.tool === 'write_file' && execution.args.content && (
+      {execution.tool === 'write_file' && Boolean(execution.args.content) && (
         <Box paddingLeft={2}>
-          <Text color="gray">{execution.args.content.split('\n').length} lines</Text>
+          <Text color="gray">{String(execution.args.content).split('\n').length} lines</Text>
         </Box>
       )}
       <Box paddingLeft={2} gap={1}>

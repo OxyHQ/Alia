@@ -1,26 +1,9 @@
 import OpenAI from 'openai';
 import { config } from './config.js';
-
-interface Message {
-  role: 'user' | 'assistant' | 'system' | 'tool';
-  content: string;
-  tool_calls?: ToolCall[];
-  tool_call_id?: string;
-  name?: string;
-}
-
-interface ToolCall {
-  id: string;
-  type: 'function';
-  function: {
-    name: string;
-    arguments: string;
-  };
-}
+import type { Message, ToolCall } from './conversation.js';
 
 interface StreamCallbacks {
   onContent: (content: string) => void;
-  onToolCall: (toolCall: ToolCall) => void;
   onDone: (content: string, toolCalls?: ToolCall[]) => void;
   onError: (error: Error) => void;
 }
@@ -143,8 +126,10 @@ export async function streamChat(
   model: string,
   callbacks: StreamCallbacks
 ): Promise<void> {
-  const apiKey = config.get('apiKey') as string;
-  const baseUrl = config.get('apiBaseUrl') as string || 'https://api.alia.onl';
+  const apiKey = config.get('apiKey');
+  if (!apiKey) throw new Error('No API key configured. Run `codea login` first.');
+
+  const baseUrl = config.get('apiBaseUrl') || 'https://api.alia.onl';
 
   const openai = new OpenAI({
     apiKey,
@@ -153,13 +138,17 @@ export async function streamChat(
 
   const allMessages: OpenAI.Chat.ChatCompletionMessageParam[] = [
     { role: 'system', content: systemMessage },
-    ...messages.map(m => {
+    ...messages.map((m): OpenAI.Chat.ChatCompletionMessageParam => {
       if (m.role === 'tool') {
-        return { role: 'tool', tool_call_id: m.tool_call_id!, content: m.content };
+        return { role: 'tool' as const, tool_call_id: m.tool_call_id!, content: m.content };
       } else if (m.tool_calls) {
-        return { role: 'assistant', content: m.content || '', tool_calls: m.tool_calls as any };
+        return {
+          role: 'assistant' as const,
+          content: m.content || '',
+          tool_calls: m.tool_calls as unknown as OpenAI.Chat.ChatCompletionMessageToolCall[],
+        };
       }
-      return { role: m.role, content: m.content };
+      return { role: m.role as 'user' | 'assistant', content: m.content };
     })
   ];
 
@@ -222,31 +211,23 @@ export async function streamChat(
     }
 
     callbacks.onDone(fullContent, toolCalls.length > 0 ? toolCalls : undefined);
-  } catch (error: any) {
+  } catch (error: unknown) {
     callbacks.onError(new Error(extractErrorMessage(error)));
   }
 }
 
-function extractErrorMessage(error: any): string {
+function extractErrorMessage(error: unknown): string {
   if (typeof error === 'string') return error;
+  if (typeof error !== 'object' || error === null) return 'Unknown error occurred';
+  const e = error as Record<string, unknown>;
   // OpenAI SDK structured errors
-  if (error?.error?.message) return error.error.message;
-  // Standard Error objects
-  if (error?.message) return error.message;
-  // HTTP status only
-  if (error?.status) return `API error (HTTP ${error.status})`;
-  return 'Unknown error occurred';
-}
-
-export async function fetchModels(): Promise<any[]> {
-  const baseUrl = config.get('apiBaseUrl') || 'https://api.alia.onl';
-
-  try {
-    const response = await fetch(`${baseUrl}/v1/models?category=coding`);
-    if (!response.ok) return [];
-    const data = await response.json();
-    return data.data || [];
-  } catch {
-    return [];
+  if (typeof e.error === 'object' && e.error !== null) {
+    const inner = e.error as Record<string, unknown>;
+    if (typeof inner.message === 'string') return inner.message;
   }
+  // Standard Error objects
+  if (typeof e.message === 'string') return e.message;
+  // HTTP status only
+  if (typeof e.status === 'number') return `API error (HTTP ${e.status})`;
+  return 'Unknown error occurred';
 }
