@@ -8,10 +8,10 @@
  * headers. The internal system handles key selection, retries, and error recording.
  */
 
-import { getBestKeyForModel, recordKeySuccess, recordKeyFailure, recordKeyUsage, markKeyCreditExhausted } from './key-manager.js';
-import { classifyError } from './errors/failover-error.js';
-import { log } from './logger.js';
-import type { FailoverReason } from './errors/error-codes.js';
+import { getBestKeyForModel, recordKeySuccess, recordKeyFailure, recordKeyUsage, markKeyCreditExhausted } from './key-manager';
+import { classifyError } from './errors/failover-error';
+import { log } from './logger';
+import type { FailoverReason } from './errors/error-codes';
 
 // Provider base URLs — internal knowledge
 const PROVIDER_BASES: Record<string, string> = {

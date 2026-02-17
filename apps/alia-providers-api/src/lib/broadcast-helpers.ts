@@ -12,8 +12,8 @@ import { Plan } from '../models/plan.js';
 import { CreditPackage } from '../models/credit-package.js';
 import { Feature } from '../models/feature.js';
 import { PlanFeature } from '../models/plan-feature.js';
-import { getAllProviderHealth, getProviderHealth } from './provider-health.js';
-import { log } from './logger.js';
+import { getAllProviderHealth, getProviderHealth } from './provider-health';
+import { log } from './logger';
 
 export async function broadcastKeysUpdate(provider: string): Promise<void> {
   try {

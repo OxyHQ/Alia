@@ -5,8 +5,8 @@
 
 import { ProviderKey, IProviderKey } from '../models/provider-key.js';
 import { ApiUsage } from '../models/api-usage.js';
-import type { KeyConfig } from './types.js';
-import { log } from './logger.js';
+import type { KeyConfig } from './types';
+import { log } from './logger';
 
 // Cache for loaded keys (TTL: 30 seconds)
 const keyCache = new Map<string, { keys: IProviderKey[]; timestamp: number }>();

@@ -1,17 +1,17 @@
 import express from 'express';
-import { authenticateService } from './middleware/auth.js';
-import providersRouter from './routes/providers.js';
-import modelsRouter from './routes/models.js';
-import aliaModelsRouter from './routes/alia-models.js';
-import keysRouter from './routes/keys.js';
-import usageRouter from './routes/usage.js';
-import authHealthRouter from './routes/auth-health.js';
-import fallbackStatsRouter from './routes/fallback-stats.js';
-import plansRouter from './routes/plans.js';
-import creditPackagesRouter from './routes/credit-packages.js';
-import billingAdminRouter from './routes/billing-admin.js';
-import featuresRouter from './routes/features.js';
-import planFeaturesRouter from './routes/plan-features.js';
+import { authenticateService } from './middleware/auth';
+import providersRouter from './routes/providers';
+import modelsRouter from './routes/models';
+import aliaModelsRouter from './routes/alia-models';
+import keysRouter from './routes/keys';
+import usageRouter from './routes/usage';
+import authHealthRouter from './routes/auth-health';
+import fallbackStatsRouter from './routes/fallback-stats';
+import plansRouter from './routes/plans';
+import creditPackagesRouter from './routes/credit-packages';
+import billingAdminRouter from './routes/billing-admin';
+import featuresRouter from './routes/features';
+import planFeaturesRouter from './routes/plan-features';
 
 const providersModule = express.Router();
 

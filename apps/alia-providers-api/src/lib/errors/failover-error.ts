@@ -15,7 +15,7 @@ import {
   AliaError,
   AliaErrorCode,
   type FailoverReason,
-} from './error-codes.js';
+} from './error-codes';
 
 // ============== REGEX PATTERNS ==============
 

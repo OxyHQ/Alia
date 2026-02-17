@@ -5,9 +5,9 @@
  * and automatically adjusts routing based on real-time health metrics.
  */
 
-import { connectDB } from './db.js';
+import { connectDB } from './db';
 import mongoose from 'mongoose';
-import { log } from './logger.js';
+import { log } from './logger';
 
 // ============== HEALTH METRICS ==============
 

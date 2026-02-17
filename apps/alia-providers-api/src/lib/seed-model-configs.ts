@@ -9,10 +9,10 @@
 import { ModelConfig } from '../models/model-config.js';
 import { AliaModel } from '../models/alia-model.js';
 import { ProviderKey } from '../models/provider-key.js';
-import { TIER_MODEL_MAPPINGS, ALIA_MODELS, type ModelCapabilities } from './alia-models.js';
-import { connectDB } from './db.js';
+import { TIER_MODEL_MAPPINGS, ALIA_MODELS, type ModelCapabilities } from './alia-models';
+import { connectDB } from './db';
 import mongoose from 'mongoose';
-import { log } from './logger.js';
+import { log } from './logger';
 
 // Human-readable display names for common models
 const MODEL_DISPLAY_NAMES: Record<string, string> = {

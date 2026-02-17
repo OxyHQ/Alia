@@ -5,8 +5,8 @@
  * IMPORTANT: Only use REAL, currently available model IDs
  */
 
-import type { ModelMapping, AliaTier } from './alia-models.js';
-import { getModelCapabilities, getModelPricing } from './model-capabilities-data.js';
+import type { ModelMapping, AliaTier } from './alia-models';
+import { getModelCapabilities, getModelPricing } from './model-capabilities-data';
 
 // Helper to create a model mapping with all required fields
 export function createMapping(

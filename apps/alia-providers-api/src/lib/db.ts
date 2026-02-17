@@ -1,5 +1,5 @@
 import mongoose from 'mongoose';
-import { log } from './logger.js';
+import { log } from './logger';
 
 // Share the same database as the main API — providers-api manages
 // a subset of collections (provider keys, models, plans, etc.)
