@@ -491,7 +491,7 @@ router.post('/subscription/change-plan', authenticateToken, async (req: Request,
     // Update the Stripe subscription
     await getStripe().subscriptions.update(subscription.stripeSubscriptionId, {
       items: [{ id: itemId, price: targetPriceId }],
-      proration_behavior: isUpgrade ? 'create_prorations' : 'none',
+      proration_behavior: isUpgrade ? 'always_invoice' : 'none',
       metadata: {
         ...stripeSubscription.metadata,
         planId: targetPlan.planId,
