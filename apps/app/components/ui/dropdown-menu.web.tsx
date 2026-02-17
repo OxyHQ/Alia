@@ -70,6 +70,7 @@ function DropdownMenu({
 
   return (
     <DropdownMenuPrimitive.Root
+      modal={false}
       open={open}
       onOpenChange={handleOpenChange}
       {...props}

@@ -4,6 +4,7 @@ import {
   View,
   Pressable,
   Animated,
+  Platform,
   useWindowDimensions,
   StyleSheet,
 } from "react-native";
@@ -85,12 +86,12 @@ const SheetContent = React.forwardRef<
         Animated.timing(slideAnim, {
           toValue: 0,
           duration: 300,
-          useNativeDriver: true,
+          useNativeDriver: Platform.OS !== 'web',
         }),
         Animated.timing(fadeAnim, {
           toValue: 1,
           duration: 300,
-          useNativeDriver: true,
+          useNativeDriver: Platform.OS !== 'web',
         }),
       ]).start();
     } else {
@@ -98,12 +99,12 @@ const SheetContent = React.forwardRef<
         Animated.timing(slideAnim, {
           toValue: slideDistance,
           duration: 250,
-          useNativeDriver: true,
+          useNativeDriver: Platform.OS !== 'web',
         }),
         Animated.timing(fadeAnim, {
           toValue: 0,
           duration: 250,
-          useNativeDriver: true,
+          useNativeDriver: Platform.OS !== 'web',
         }),
       ]).start();
     }

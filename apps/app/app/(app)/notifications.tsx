@@ -29,6 +29,11 @@ export default function NotificationsScreen() {
   }, []);
 
   const checkPermissions = async () => {
+    if (Platform.OS === 'web') {
+      setPermissionStatus('unavailable');
+      setLoading(false);
+      return;
+    }
     try {
       const { status } = await Notifications.getPermissionsAsync();
       setPermissionStatus(status);
@@ -41,6 +46,7 @@ export default function NotificationsScreen() {
   };
 
   const handleTogglePush = async (value: boolean) => {
+    if (Platform.OS === 'web') return;
     if (value) {
       const { status } = await Notifications.requestPermissionsAsync();
       setPermissionStatus(status);

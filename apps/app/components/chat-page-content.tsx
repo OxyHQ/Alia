@@ -290,8 +290,7 @@ export const ChatPageContent = ({
         <LinearGradient
           colors={[colors.background, "transparent"]}
           locations={[0.1, 1]}
-          pointerEvents="box-none"
-          style={{ position: "absolute", top: 0, left: 0, right: 0, zIndex: 10, paddingBottom: 32 }}
+          style={{ position: "absolute", top: 0, left: 0, right: 0, zIndex: 10, paddingBottom: 32, pointerEvents: "box-none" }}
         >
           <ChatHeader
             title="Alia"

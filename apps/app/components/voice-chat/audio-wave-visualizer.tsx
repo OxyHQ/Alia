@@ -298,8 +298,8 @@ function OceanWave({
         bottom: 0,
         opacity: isConnected ? 1 : 0,
         ...webBlurStyle,
+        pointerEvents: 'none',
       }}
-      pointerEvents="none"
     >
       <Svg width={screenWidth} height={GLOW_HEIGHT}>
         <AnimatedPath animatedProps={animatedProps} fill={color} />
