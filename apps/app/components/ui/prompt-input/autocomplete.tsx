@@ -9,6 +9,7 @@ import { usePromptInput } from "./context";
 
 export type PromptInputAutocompleteProps = {
   enabled?: boolean;
+  position?: "top" | "bottom";
   className?: string;
 };
 

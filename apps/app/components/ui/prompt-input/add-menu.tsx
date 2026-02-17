@@ -9,9 +9,10 @@ import { usePromptInput } from "./context";
 
 export type PromptInputAddMenuProps = {
   className?: string;
+  iconSize?: number;
 };
 
-export function PromptInputAddMenu({ className }: PromptInputAddMenuProps) {
+export function PromptInputAddMenu({ className, iconSize = 16 }: PromptInputAddMenuProps) {
   const { addAttachment } = usePromptInput();
   const { pickImage } = useImagePicker();
   const { pickDocument } = useDocumentPicker();
@@ -64,7 +65,7 @@ export function PromptInputAddMenu({ className }: PromptInputAddMenuProps) {
           size="icon"
           className={cn("h-8 w-8 rounded-full border-0", className)}
         >
-          <Plus size={16} className="text-muted-foreground" />
+          <Plus size={iconSize} className="text-muted-foreground" />
         </Button>
       </DropdownMenu.Trigger>
       <DropdownMenu.Content side="top" align="start">

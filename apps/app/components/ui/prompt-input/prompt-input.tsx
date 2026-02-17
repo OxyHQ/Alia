@@ -30,6 +30,8 @@ export type PromptInputProps = {
   // Simple mode props (when no children)
   placeholder?: string;
   autocomplete?: boolean;
+  // Renders outside the box but inside context (e.g. standalone add button to the left)
+  leadingAction?: React.ReactNode;
   // Controlled attachments (optional — uses internal state if omitted)
   attachments?: Attachment[];
   onAddAttachment?: (attachment: Attachment) => void;
@@ -49,6 +51,7 @@ export function PromptInput({
   onImagePaste,
   placeholder,
   autocomplete = false,
+  leadingAction,
   attachments: controlledAttachments,
   onAddAttachment,
   onRemoveAttachment,
@@ -157,38 +160,49 @@ export function PromptInput({
     children
   );
 
+  const inputBox = (
+    <Pressable
+      onPress={() => {
+        if (!disabled) textareaRef.current?.focus();
+      }}
+      disabled={disabled}
+    >
+      <View
+        className={cn(
+          "rounded-[24px] border border-border bg-background relative overflow-hidden",
+          disabled && "opacity-60",
+          className
+        )}
+        {...props}
+      >
+        {showExpandIcon && !disabled && (
+          <Pressable
+            onPress={() => setShowFullscreen(true)}
+            className="absolute top-2 right-2 z-10 bg-background rounded-full p-1.5 border border-border active:opacity-70"
+          >
+            <Maximize2 size={16} className="text-muted-foreground" />
+          </Pressable>
+        )}
+        {content}
+      </View>
+    </Pressable>
+  );
+
   return (
     <PromptInputContext.Provider value={contextValue}>
-      {isSimpleMode && autocomplete && <PromptInputAutocomplete />}
+      {autocomplete && <PromptInputAutocomplete />}
 
       <KeyboardAvoidingView
         behavior={Platform.OS === "ios" ? "padding" : "height"}
       >
-        <Pressable
-          onPress={() => {
-            if (!disabled) textareaRef.current?.focus();
-          }}
-          disabled={disabled}
-        >
-          <View
-            className={cn(
-              "rounded-[24px] border border-border bg-background relative overflow-hidden",
-              disabled && "opacity-60",
-              className
-            )}
-            {...props}
-          >
-            {showExpandIcon && !disabled && (
-              <Pressable
-                onPress={() => setShowFullscreen(true)}
-                className="absolute top-2 right-2 z-10 bg-background rounded-full p-1.5 border border-border active:opacity-70"
-              >
-                <Maximize2 size={16} className="text-muted-foreground" />
-              </Pressable>
-            )}
-            {content}
+        {leadingAction ? (
+          <View className="flex-row items-end gap-2">
+            {leadingAction}
+            <View className="flex-1">{inputBox}</View>
           </View>
-        </Pressable>
+        ) : (
+          inputBox
+        )}
       </KeyboardAvoidingView>
 
       {showFullscreen && (
