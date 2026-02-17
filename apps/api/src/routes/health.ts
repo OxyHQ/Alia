@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import mongoose from 'mongoose';
-import { getAllProviderHealth, type HealthMetrics } from '../internal/providers/lib/provider-health.js';
+import { getAllProviderHealth, type HealthMetrics } from '../lib/providers-client.js';
 
 const router = Router();
 

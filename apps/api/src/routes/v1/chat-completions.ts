@@ -1,7 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { streamText, generateText, stepCountIs, type ToolSet } from 'ai';
 import { resolveModel, getAIModel, getDefaultAliaModel, reportModelUsage } from '../../lib/chat-core.js';
-import { getAliaModel, getModelMappingsForTier } from '../../internal/providers/lib/alia-models.js';
+import { getAliaModel, getModelMappingsForTier } from '../../lib/providers-client.js';
 import { UserMemory } from '../../models/user-memory.js';
 import { getOrCreateUserCredits } from '../../lib/user-credits-helpers.js';
 import { saveConversation } from '../../lib/conversation-saver.js';
@@ -12,7 +12,7 @@ import { getUserEntitlements } from '../../lib/plan-access.js';
 import { convertOpenAIToolsToToolSet } from '../../lib/tool-converter.js';
 import { getCurrentDateTool, saveUserMemoryTool, updateUserPreferencesTool, updateUserContextTool, createSendTelegramTool, createGetWhatsAppChatsTool, createGetWhatsAppMessagesTool, createSendWhatsAppMessageTool, createProvidersAdminTool, webScraperTool, generateFileTool } from '../../lib/tools/index.js';
 import { oxyClient } from '../../middleware/auth.js';
-import type { KeyConfig } from '../../internal/providers/lib/types.js';
+import type { KeyConfig } from '../../lib/providers-client.js';
 import type { IUserMemory } from '../../models/user-memory.js';
 import { Skill } from '../../models/skill.js';
 import { estimateMessageTokens } from '../../lib/token-counter.js';
@@ -474,7 +474,7 @@ When you use a tool successfully:
     let systemMessage = languageInstruction + baseSystemPrompt;
 
     // Inject current model identity so Alia knows which tier it's running as
-    const aliaModel = getAliaModel(aliasModelId);
+    const aliaModel = await getAliaModel(aliasModelId);
     if (aliaModel) {
       systemMessage += `\n\nYou are currently using the **${aliaModel.name}** model. When asked what model you use, say you are using ${aliaModel.name}.`;
     }
@@ -563,8 +563,8 @@ When you use a tool successfully:
     };
 
     // Wrap tools with truncation to cap large results (saves tokens)
-    const aliaModelInfo = getAliaModel(aliasModelId);
-    const tierMappings = aliaModelInfo ? getModelMappingsForTier(aliaModelInfo.tier) : [];
+    const aliaModelInfo = await getAliaModel(aliasModelId);
+    const tierMappings = aliaModelInfo ? await getModelMappingsForTier(aliaModelInfo.tier) : [];
     const modelContextTokens = tierMappings[0]?.capabilities?.maxContextTokens || 128000;
     const truncatedTools = wrapToolsWithTruncation(allTools, getToolResultBudget(modelContextTokens));
     log.v1.info({ toolNames: Object.keys(truncatedTools), toolCount: Object.keys(truncatedTools).length }, 'Tools passed to model');
@@ -814,7 +814,7 @@ When you use a tool successfully:
         try {
           const warning = await detectCreditAnomaly(req.user.id);
           if (warning) {
-            warning.currentModelMultiplier = getAliaModel(aliasModelId)?.creditMultiplier || 1;
+            warning.currentModelMultiplier = (await getAliaModel(aliasModelId))?.creditMultiplier || 1;
           }
           response.usage.credit_warning = warning;
         } catch {}
@@ -1240,7 +1240,7 @@ When you use a tool successfully:
           try {
             creditWarning = await detectCreditAnomaly(req.user.id);
             if (creditWarning) {
-              creditWarning.currentModelMultiplier = getAliaModel(aliasModelId)?.creditMultiplier || 1;
+              creditWarning.currentModelMultiplier = (await getAliaModel(aliasModelId))?.creditMultiplier || 1;
             }
           } catch {}
         }

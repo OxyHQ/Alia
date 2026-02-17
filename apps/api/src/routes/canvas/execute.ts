@@ -7,7 +7,7 @@ import { resolveModel, getAIModel, getDefaultAliaModel } from '../../lib/chat-co
 import { UserMemory } from '../../models/user-memory.js';
 import { getIO } from '../../socket.js';
 import type { Request, Response } from 'express';
-import { callProviderAPI } from '../../internal/providers/lib/provider-api.js';
+import { callProviderAPI } from '../../lib/providers-client.js';
 import { log } from '../../lib/logger.js';
 
 // Response types for external API calls

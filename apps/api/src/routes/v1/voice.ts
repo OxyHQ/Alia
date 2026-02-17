@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { createVoiceToken, isLiveKitConfigured, getLiveKitUrl } from '../../lib/livekit-token.js';
-import { getBestKeyForModel, recordKeySuccess, recordKeyFailure } from '../../internal/providers/lib/key-manager.js';
-import { getModelMappingsForTier } from '../../internal/providers/lib/alia-models.js';
+import { getModelMappingsForTier } from '../../lib/providers-client.js';
+import { callProviderAPI } from '../../lib/providers-client.js';
 import { reserveCredits, finalizeCredits } from '../../lib/credits-manager.js';
 import { getOrCreateUserCredits } from '../../lib/user-credits-helpers.js';
 import { voiceSessionManager } from '../../internal/providers/lib/voice-session-manager.js';
@@ -9,13 +9,9 @@ import { buildSystemPrompt } from '../../lib/prompt-loader.js';
 import { buildUserContext } from '../../lib/user-context.js';
 import { log } from '../../lib/logger.js';
 import { getUserEntitlements } from '../../lib/plan-access.js';
+import { getVoiceUsageSummary } from '../../lib/voice-usage.js';
 import type { Request, Response } from 'express';
 import type { OpenAITool } from '../../internal/providers/lib/types.js';
-
-const WHISPER_URLS: Record<string, string> = {
-  openai: 'https://api.openai.com/v1/audio/transcriptions',
-  groq: 'https://api.groq.com/openai/v1/audio/transcriptions',
-};
 
 const router = Router();
 
@@ -50,6 +46,29 @@ router.post('/token', async (req: Request, res: Response) => {
           suggestedAction: 'upgrade',
         },
       });
+    }
+
+    // Enforce monthly voice minutes limit
+    const voiceMinutesLimit = entitlements.features['voice-minutes'];
+    let maxSessionDuration = 30;
+    if (typeof voiceMinutesLimit === 'number' && voiceMinutesLimit > 0) {
+      const usage = await getVoiceUsageSummary(userId, voiceMinutesLimit);
+      if (usage.remainingMinutes <= 0) {
+        return res.status(403).json({
+          error: {
+            code: 'VOICE_MINUTES_EXHAUSTED',
+            message: `You've used all ${voiceMinutesLimit} voice minutes this month. Upgrade your plan for more.`,
+            retryable: false,
+            suggestedAction: 'upgrade',
+            details: {
+              limitType: 'voice-minutes',
+              usedMinutes: usage.usedMinutes,
+              limitMinutes: usage.limitMinutes,
+            },
+          },
+        });
+      }
+      maxSessionDuration = Math.max(1, Math.min(Math.floor(usage.remainingMinutes), 30));
     }
 
     const model = req.body.model || 'alia-v1-voice';
@@ -174,6 +193,7 @@ router.post('/token', async (req: Request, res: Response) => {
       instructions: voiceInstructions,
       voice,
       tools: voiceTools,
+      maxDuration: maxSessionDuration,
     });
 
     // Generate a user-facing LiveKit token to join the same room
@@ -245,82 +265,36 @@ router.post('/transcribe', async (req: Request, res: Response) => {
       });
     }
 
-    // Resolve a Whisper-compatible provider key using the v1-audio tier
-    let apiKey: string | null = null;
-    let whisperUrl = '';
-    let whisperModel = '';
-    let resolvedKeyId: string | null = null;
-
-    const audioMappings = getModelMappingsForTier('v1-audio');
-
-    for (const mapping of audioMappings) {
-      const url = WHISPER_URLS[mapping.provider];
-      if (!url) continue;
-
-      try {
-        const keyConfig = await getBestKeyForModel(mapping.provider, mapping.modelId);
-        if (keyConfig?.key) {
-          apiKey = keyConfig.key;
-          whisperUrl = url;
-          whisperModel = mapping.modelId;
-          resolvedKeyId = keyConfig.keyId || null;
-          break;
-        }
-      } catch (err) {
-        log.general.warn({ err, provider: mapping.provider, model: mapping.modelId }, 'Transcription key lookup failed');
-      }
-    }
-
-    if (!apiKey) {
-      log.general.error('All transcription providers exhausted, no key available');
-      await finalizeCredits(reservation, { promptTokens: 0, completionTokens: 0, totalTokens: 0 });
-      return res.status(503).json({ error: 'No transcription provider available' });
-    }
-
-    // Convert base64 to buffer and call Whisper API with 30s timeout
+    // Convert base64 to buffer
     const audioBuffer = Buffer.from(audio, 'base64');
     const mimeType = format || 'audio/m4a';
     const ext = mimeType.split('/')[1] || 'm4a';
 
-    const formData = new FormData();
-    const blob = new Blob([audioBuffer], { type: mimeType });
-    formData.append('file', blob, `audio.${ext}`);
-    formData.append('model', whisperModel);
+    // Try each audio provider until one succeeds
+    const audioMappings = await getModelMappingsForTier('v1-audio');
+    let result: { text: string } | null = null;
 
-    const controller = new AbortController();
-    const fetchTimeout = setTimeout(() => controller.abort(), 30000);
-
-    let response: globalThis.Response;
-    try {
-      response = await fetch(whisperUrl, {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${apiKey}` },
-        body: formData,
-        signal: controller.signal,
-      });
-      clearTimeout(fetchTimeout);
-    } catch (fetchError: any) {
-      clearTimeout(fetchTimeout);
-      if (fetchError.name === 'AbortError') {
-        log.general.error({ whisperModel, whisperUrl }, 'Whisper API timeout (30s)');
-        if (resolvedKeyId) recordKeyFailure(resolvedKeyId, 'Whisper API timeout').catch(() => {});
-        await finalizeCredits(reservation, { promptTokens: 0, completionTokens: 0, totalTokens: 0 });
-        return res.status(504).json({ error: 'Transcription timed out' });
+    for (const mapping of audioMappings) {
+      try {
+        result = await callProviderAPI<{ text: string }>({
+          provider: mapping.provider,
+          modelId: mapping.modelId,
+          endpoint: '/v1/audio/transcriptions',
+          audio: { base64: audio, mimeType, filename: `audio.${ext}` },
+          extraFormFields: { model: mapping.modelId },
+          timeout: 30_000,
+        });
+        break;
+      } catch (err: any) {
+        log.general.warn({ err, provider: mapping.provider, model: mapping.modelId }, 'Transcription provider failed, trying next');
+        continue;
       }
-      throw fetchError;
     }
 
-    if (!response.ok) {
-      const errorBody = await response.text();
-      log.general.error({ whisperModel, statusCode: response.status, errorBody }, 'Whisper API error');
-      if (resolvedKeyId) recordKeyFailure(resolvedKeyId, `Whisper API ${response.status}`).catch(() => {});
+    if (!result) {
       await finalizeCredits(reservation, { promptTokens: 0, completionTokens: 0, totalTokens: 0 });
-      return res.status(502).json({ error: 'Transcription failed' });
+      return res.status(503).json({ error: 'All transcription providers exhausted' });
     }
-
-    const result = await response.json() as { text: string };
-
-    if (resolvedKeyId) recordKeySuccess(resolvedKeyId).catch(() => {});
 
     // Charge minimal credits for transcription (~100 tokens equivalent)
     await finalizeCredits(reservation, {

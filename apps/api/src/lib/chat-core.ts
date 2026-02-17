@@ -10,17 +10,25 @@ import { createOpenAI } from '@ai-sdk/openai';
 import { createAnthropic } from '@ai-sdk/anthropic';
 import { log } from './logger.js';
 
-import { resolveAliaModel as internalResolveAliaModel, resolveAliaModelWithAttempts, getDefaultAliaModel } from '../internal/providers/lib/model-resolver';
-import type { FallbackResult, FallbackAttempt } from '../internal/providers/lib/model-resolver';
-import { recordKeySuccess, recordKeyFailure } from '../internal/providers/lib/key-manager';
-import { recordSuccess, recordFailure } from '../internal/providers/lib/provider-health';
-import { isAliaModel, getAliaModel, getAllAliaModels, getAliaModelsByCategory, getDefaultModelForCategory, getAvailableModels } from '../internal/providers/lib/alia-models';
-import type { KeyConfig } from '../internal/providers/lib/types';
-import type { AliaModel, AliaModelWithAvailability, ModelCategory } from '../internal/providers/lib/alia-models';
+import {
+  resolveAliaModel as internalResolveAliaModel,
+  getDefaultAliaModel,
+  isAliaModel,
+  getAliaModel,
+  getAllAliaModels,
+  getAliaModelsByCategory,
+  getDefaultModelForCategory,
+  getAvailableModels,
+  reportModelUsage as reportToProvidersAPI,
+  type KeyConfig,
+  type AliaModel,
+  type AliaModelWithAvailability,
+  type ModelCategory,
+} from './providers-client.js';
 
 // Re-export types and helpers that chat routes need
-export { getDefaultAliaModel, isAliaModel, getAliaModel, getAllAliaModels, getAliaModelsByCategory, getDefaultModelForCategory, getAvailableModels, resolveAliaModelWithAttempts };
-export type { KeyConfig, AliaModel, AliaModelWithAvailability, ModelCategory, FallbackResult, FallbackAttempt };
+export { getDefaultAliaModel, isAliaModel, getAliaModel, getAllAliaModels, getAliaModelsByCategory, getDefaultModelForCategory, getAvailableModels };
+export type { KeyConfig, AliaModel, AliaModelWithAvailability, ModelCategory };
 
 /**
  * Result of resolving an Alia model to a concrete provider/model.
@@ -33,12 +41,12 @@ export interface ResolvedModel {
   keyConfig: KeyConfig;
   aliaModel: AliaModel;
   isFallback: boolean;
-  fallbackIndex: number;
+  fallbackIndex?: number;
 }
 
 /**
  * Resolve an Alia model ID to a concrete provider and model.
- * Uses the internal providers module (key-manager + circuit breaker + priority rotation).
+ * Uses the providers API for key-manager + circuit breaker + priority rotation.
  *
  * @param aliasModelId - The Alia model ID (e.g., "alia-v1", "alia-lite")
  * @param skipProviders - Providers to skip (for retry scenarios)
@@ -48,11 +56,16 @@ export async function resolveModel(
   aliasModelId: string,
   skipProviders?: Set<string>
 ): Promise<ResolvedModel | null> {
-  return internalResolveAliaModel(
+  const result = await internalResolveAliaModel(
     aliasModelId,
     1000,
     skipProviders || new Set()
   );
+  if (!result) return null;
+  return {
+    ...result,
+    aliasModelId: result.aliasModelId || aliasModelId,
+  } as ResolvedModel;
 }
 
 /**
@@ -124,6 +137,7 @@ export function getAIModel(keyConfig: KeyConfig) {
 
 /**
  * Report the result of a provider call for health tracking and key rotation.
+ * Delegates to the providers API via providers-client (fire-and-forget).
  *
  * @param keyId - The key ID from the resolved model (may not exist for env-based keys)
  * @param provider - Provider name
@@ -140,24 +154,11 @@ export async function reportModelUsage(
   latencyMs: number = 0,
   errorCode?: string
 ): Promise<void> {
-  try {
-    // Report to provider health (circuit breaker)
-    if (success) {
-      await recordSuccess(provider, modelId, latencyMs);
-    } else {
-      await recordFailure(provider, modelId, errorCode);
-    }
-
-    // Report to key manager (priority rotation)
-    if (keyId) {
-      if (success) {
-        await recordKeySuccess(keyId);
-      } else {
-        await recordKeyFailure(keyId, errorCode || 'unknown error');
-      }
-    }
-  } catch (err: any) {
-    // Health reporting should never break the request flow
-    log.chat.error({ err }, 'Error reporting model usage');
-  }
+  reportToProvidersAPI(
+    keyId || '',
+    provider,
+    modelId,
+    success,
+    { latencyMs, errorCode: errorCode || undefined }
+  );
 }

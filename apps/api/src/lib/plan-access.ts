@@ -5,8 +5,7 @@
  */
 
 import { Subscription } from '../models/subscription.js';
-import { Plan } from '../internal/providers/models/plan.js';
-import { PlanFeature } from '../internal/providers/models/plan-feature.js';
+import { getPlans, getPlanFeatures } from './providers-client.js';
 
 const FREE_MODEL_IDS = ['alia-lite', 'alia-v1', 'alia-v1-audio'];
 
@@ -33,10 +32,13 @@ export async function getUserEntitlements(userId: string): Promise<Entitlements>
     .filter(Boolean) as string[];
   if (planIds.length === 0) planIds.push('free');
 
-  const [plans, planFeatures] = await Promise.all([
-    Plan.find({ planId: { $in: planIds } }).lean(),
-    PlanFeature.find({ planId: { $in: planIds }, enabled: true }).lean(),
+  // Fetch all plans and filter client-side (providers API returns all plans)
+  const [allPlans, allPlanFeatures] = await Promise.all([
+    getPlans(),
+    Promise.all(planIds.map(id => getPlanFeatures(id))).then(results => results.flat()),
   ]);
+  const plans = allPlans.filter((p: any) => planIds.includes(p.planId));
+  const planFeatures = allPlanFeatures.filter((pf: any) => pf.enabled !== false);
 
   const modelIds = new Set(FREE_MODEL_IDS);
   for (const plan of plans) {
