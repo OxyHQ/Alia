@@ -65,7 +65,7 @@ export default function LibraryScreen() {
     }
 
     // Sort by upload date (newest first)
-    return filtered.sort((a, b) => b.uploadedAt.getTime() - a.uploadedAt.getTime());
+    return filtered.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
   }, [files, searchQuery, selectedCategory]);
 
   const handleUploadImage = async () => {
@@ -78,9 +78,7 @@ export default function LibraryScreen() {
             name: fileName,
             uri,
             type: 'image/jpeg',
-            size: 0, // Would need to fetch actual size
-            category: 'images',
-            thumbnail: uri,
+            size: 0,
           });
         }
         toast.success(t('library.imagesUploaded', { count: uris.length }));
@@ -95,19 +93,11 @@ export default function LibraryScreen() {
       const docs = await pickDocument();
       if (docs && docs.length > 0) {
         for (const doc of docs) {
-          const category: FileCategory = doc.mimeType.startsWith('image/')
-            ? 'images'
-            : doc.mimeType.includes('pdf') || doc.mimeType.includes('document')
-            ? 'documents'
-            : 'other';
-
           await addFile({
             name: doc.name,
             uri: doc.uri,
             type: doc.mimeType,
             size: doc.size,
-            category,
-            thumbnail: doc.mimeType.startsWith('image/') ? doc.uri : undefined,
           });
         }
         toast.success(t('library.filesUploaded', { count: docs.length }));
@@ -276,9 +266,9 @@ export default function LibraryScreen() {
               {/* Table Body */}
               {filteredFiles.map((file) => (
                 <FileCard
-                  key={file.id}
+                  key={file._id}
                   file={file}
-                  onDelete={(f) => handleDeleteFile(f.id)}
+                  onDelete={(f) => handleDeleteFile(f._id)}
                 />
               ))}
             </View>

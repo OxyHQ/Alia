@@ -102,6 +102,14 @@ export const API_ROUTES = {
     },
   },
 
+  // Library routes
+  library: {
+    list: '/library',
+    upload: '/library/upload',
+    get: (id: string) => `/library/${id}`,
+    delete: (id: string) => `/library/${id}`,
+  },
+
   // Health check
   health: '/health',
 

@@ -30,8 +30,13 @@ export type PromptInputProps = {
   // Simple mode props (when no children)
   placeholder?: string;
   autocomplete?: boolean;
-  // Renders outside the box but inside context (e.g. standalone add button to the left)
-  leadingAction?: React.ReactNode;
+  // Shows the add menu as a standalone button to the left of the input box
+  leadingAddMenu?: boolean;
+  // Custom left-side actions (replaces default add menu in the actions bar)
+  actionsLeft?: React.ReactNode;
+  // Submit button props
+  onStop?: () => void;
+  emptyAction?: React.ReactNode;
   // Controlled attachments (optional — uses internal state if omitted)
   attachments?: Attachment[];
   onAddAttachment?: (attachment: Attachment) => void;
@@ -51,7 +56,10 @@ export function PromptInput({
   onImagePaste,
   placeholder,
   autocomplete = false,
-  leadingAction,
+  leadingAddMenu = false,
+  actionsLeft,
+  onStop,
+  emptyAction,
   attachments: controlledAttachments,
   onAddAttachment,
   onRemoveAttachment,
@@ -148,11 +156,15 @@ export function PromptInput({
       />
       <PromptInputActions className="flex-row items-center justify-between gap-2 mt-2 mb-1 px-3">
         <View className="flex-row items-center gap-1.5">
-          <PromptInputAddMenu />
+          {actionsLeft ?? <PromptInputAddMenu />}
         </View>
         <View className="flex-row items-center gap-1.5">
           <PromptInputMicButton />
-          <PromptInputSubmitButton />
+          <PromptInputSubmitButton
+            isLoading={isLoading}
+            onStop={onStop}
+            emptyAction={emptyAction}
+          />
         </View>
       </PromptInputActions>
     </>
@@ -195,9 +207,12 @@ export function PromptInput({
       <KeyboardAvoidingView
         behavior={Platform.OS === "ios" ? "padding" : "height"}
       >
-        {leadingAction ? (
+        {leadingAddMenu ? (
           <View className="flex-row items-end gap-2">
-            {leadingAction}
+            <PromptInputAddMenu
+              iconSize={20}
+              className="h-10 w-10 rounded-full border"
+            />
             <View className="flex-1">{inputBox}</View>
           </View>
         ) : (

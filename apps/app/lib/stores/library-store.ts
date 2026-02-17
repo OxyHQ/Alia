@@ -1,67 +1,48 @@
 import { create } from "zustand";
-import AsyncStorage from "@react-native-async-storage/async-storage";
+import { Platform } from "react-native";
+import apiClient from "../api/client";
+import { API_ROUTES } from "../api/routes";
 
 export type FileCategory = "documents" | "images" | "other";
 
 export interface LibraryFile {
-  id: string;
+  _id: string;
   name: string;
-  uri: string;
-  type: string; // MIME type
-  size: number; // in bytes
+  url: string;
+  type: string;
+  size: number;
   category: FileCategory;
-  uploadedAt: Date;
-  thumbnail?: string; // For images
+  thumbnail?: string;
+  createdAt: Date;
+  updatedAt: Date;
 }
 
 interface LibraryStoreState {
   files: LibraryFile[];
   loading: boolean;
-  loadFiles: () => Promise<void>;
-  addFile: (file: Omit<LibraryFile, 'id' | 'uploadedAt'>) => Promise<void>;
+  loadFiles: (category?: FileCategory) => Promise<void>;
+  addFile: (file: { name: string; uri: string; type: string; size: number }) => Promise<LibraryFile | null>;
   deleteFile: (id: string) => Promise<void>;
   getFilesByCategory: (category: FileCategory) => LibraryFile[];
   searchFiles: (query: string) => LibraryFile[];
 }
 
-const LIBRARY_STORAGE_KEY = "alia-library";
-const LIBRARY_SCHEMA_VERSION = "1.0";
-const LIBRARY_VERSION_KEY = "alia-library-version";
-
 export const useLibraryStore = create<LibraryStoreState>((set, get) => ({
   files: [],
   loading: false,
 
-  loadFiles: async () => {
+  loadFiles: async (category?: FileCategory) => {
     try {
       set({ loading: true });
-      const [filesData, storedVersion] = await Promise.all([
-        AsyncStorage.getItem(LIBRARY_STORAGE_KEY),
-        AsyncStorage.getItem(LIBRARY_VERSION_KEY),
-      ]);
+      const params: any = {};
+      if (category) params.category = category;
 
-      let files: LibraryFile[] = [];
-
-      // Check if schema version changed
-      const needsReset = !storedVersion || storedVersion !== LIBRARY_SCHEMA_VERSION;
-
-      if (filesData && !needsReset) {
-        try {
-          const parsed = JSON.parse(filesData);
-          files = parsed.map((file: any) => ({
-            ...file,
-            uploadedAt: new Date(file.uploadedAt),
-          }));
-        } catch (parseError) {
-          console.error("Error parsing library data:", parseError);
-        }
-      }
-
-      // Set version if needed
-      if (needsReset) {
-        await AsyncStorage.setItem(LIBRARY_VERSION_KEY, LIBRARY_SCHEMA_VERSION);
-      }
-
+      const res = await apiClient.get(API_ROUTES.library.list, { params });
+      const files = res.data.files.map((f: any) => ({
+        ...f,
+        createdAt: new Date(f.createdAt),
+        updatedAt: new Date(f.updatedAt),
+      }));
       set({ files, loading: false });
     } catch (error) {
       console.error("Error loading library files:", error);
@@ -71,31 +52,44 @@ export const useLibraryStore = create<LibraryStoreState>((set, get) => ({
 
   addFile: async (fileData) => {
     try {
-      const state = get();
+      const formData = new FormData();
+
+      if (Platform.OS === "web") {
+        const response = await fetch(fileData.uri);
+        const blob = await response.blob();
+        formData.append("file", blob, fileData.name);
+      } else {
+        formData.append("file", {
+          uri: fileData.uri,
+          name: fileData.name,
+          type: fileData.type,
+        } as any);
+      }
+
+      const res = await apiClient.post(API_ROUTES.library.upload, formData, {
+        headers: { "Content-Type": "multipart/form-data" },
+      });
+
       const file: LibraryFile = {
-        ...fileData,
-        id: `file-${Date.now()}`,
-        uploadedAt: new Date(),
+        ...res.data.file,
+        createdAt: new Date(res.data.file.createdAt),
+        updatedAt: new Date(res.data.file.updatedAt),
       };
 
-      const newFiles = [...state.files, file];
-      await Promise.all([
-        AsyncStorage.setItem(LIBRARY_STORAGE_KEY, JSON.stringify(newFiles)),
-        AsyncStorage.setItem(LIBRARY_VERSION_KEY, LIBRARY_SCHEMA_VERSION),
-      ]);
-      set({ files: newFiles });
+      set((state) => ({ files: [file, ...state.files] }));
+      return file;
     } catch (error) {
-      console.error("Error adding file:", error);
+      console.error("Error uploading file:", error);
       throw error;
     }
   },
 
   deleteFile: async (id: string) => {
     try {
-      const state = get();
-      const newFiles = state.files.filter((file) => file.id !== id);
-      await AsyncStorage.setItem(LIBRARY_STORAGE_KEY, JSON.stringify(newFiles));
-      set({ files: newFiles });
+      await apiClient.delete(API_ROUTES.library.delete(id));
+      set((state) => ({
+        files: state.files.filter((file) => file._id !== id),
+      }));
     } catch (error) {
       console.error("Error deleting file:", error);
       throw error;
@@ -108,9 +102,10 @@ export const useLibraryStore = create<LibraryStoreState>((set, get) => ({
 
   searchFiles: (query: string) => {
     const lowerQuery = query.toLowerCase();
-    return get().files.filter((file) =>
-      file.name.toLowerCase().includes(lowerQuery) ||
-      file.type.toLowerCase().includes(lowerQuery)
+    return get().files.filter(
+      (file) =>
+        file.name.toLowerCase().includes(lowerQuery) ||
+        file.type.toLowerCase().includes(lowerQuery)
     );
   },
 }));

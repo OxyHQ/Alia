@@ -3,7 +3,6 @@ import {
   Modal,
   View,
   Pressable,
-  type ModalProps,
 } from 'react-native';
 import { X } from 'lucide-react-native';
 import { cn } from '@/lib/utils';
@@ -52,14 +51,17 @@ DialogTrigger.displayName = 'DialogTrigger';
 
 interface DialogContentProps extends React.ComponentPropsWithoutRef<typeof View> {
   overlayClassName?: string;
+  showCloseButton?: boolean;
+  /** @deprecated Use showCloseButton instead */
   closeButton?: boolean;
 }
 
 const DialogContent = React.forwardRef<
   React.ElementRef<typeof View>,
   DialogContentProps
->(({ className, overlayClassName, closeButton = true, children, ...props }, ref) => {
+>(({ className, overlayClassName, showCloseButton, closeButton, children, ...props }, ref) => {
   const { open, onOpenChange } = React.useContext(DialogContext);
+  const shouldShowClose = showCloseButton ?? closeButton ?? true;
 
   return (
     <Modal
@@ -71,7 +73,7 @@ const DialogContent = React.forwardRef<
     >
       <Pressable
         className={cn(
-          'flex-1 items-center justify-center bg-black/50 p-6',
+          'flex-1 items-center justify-center bg-black/50 px-4 sm:px-0',
           overlayClassName
         )}
         onPress={() => onOpenChange?.(false)}
@@ -79,18 +81,18 @@ const DialogContent = React.forwardRef<
         <Pressable
           ref={ref}
           className={cn(
-            'w-full max-w-lg rounded-2xl bg-background p-6 shadow-lg',
+            'w-full max-w-lg gap-4 rounded-lg border border-border bg-background p-6 shadow-lg',
             className
           )}
           onPress={(e) => e.stopPropagation()}
           {...props}
         >
-          {closeButton && (
+          {shouldShowClose && (
             <Pressable
-              className="absolute right-4 top-4 z-10 rounded-lg p-1 active:opacity-70"
+              className="absolute right-4 top-4 z-10 rounded-sm opacity-70 active:opacity-100"
               onPress={() => onOpenChange?.(false)}
             >
-              <X size={24} className="text-muted-foreground" />
+              <X size={16} className="text-muted-foreground" />
             </Pressable>
           )}
           {children}
@@ -109,7 +111,7 @@ const DialogHeader = React.forwardRef<
   return (
     <View
       ref={ref}
-      className={cn('mb-4 gap-1.5', className)}
+      className={cn('flex-col gap-2 text-center sm:text-left', className)}
       {...props}
     />
   );
@@ -124,7 +126,7 @@ const DialogTitle = React.forwardRef<
   return (
     <Text
       ref={ref}
-      className={cn('text-lg font-semibold text-foreground', className)}
+      className={cn('text-lg leading-none font-semibold text-foreground', className)}
       {...props}
     />
   );
@@ -154,7 +156,7 @@ const DialogFooter = React.forwardRef<
   return (
     <View
       ref={ref}
-      className={cn('mt-6 flex-row gap-2', className)}
+      className={cn('flex-col-reverse gap-2 sm:flex-row sm:justify-end', className)}
       {...props}
     />
   );
@@ -162,8 +164,29 @@ const DialogFooter = React.forwardRef<
 
 DialogFooter.displayName = 'DialogFooter';
 
+const DialogClose = React.forwardRef<
+  React.ElementRef<typeof Pressable>,
+  React.ComponentPropsWithoutRef<typeof Pressable>
+>(({ onPress, ...props }, ref) => {
+  const { onOpenChange } = React.useContext(DialogContext);
+
+  return (
+    <Pressable
+      ref={ref}
+      onPress={(e) => {
+        onOpenChange?.(false);
+        onPress?.(e);
+      }}
+      {...props}
+    />
+  );
+});
+
+DialogClose.displayName = 'DialogClose';
+
 export {
   Dialog,
+  DialogClose,
   DialogContent,
   DialogDescription,
   DialogFooter,

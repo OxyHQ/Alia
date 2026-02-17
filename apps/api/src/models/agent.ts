@@ -17,6 +17,8 @@ export interface IAgent extends Document {
   hireCount: number;
   price: number | null;
   capabilities: string[];
+  skills: mongoose.Types.ObjectId[];
+  knowledge: mongoose.Types.ObjectId[];
   isVerified: boolean;
   isFeatured: boolean;
   isTrending: boolean;
@@ -59,6 +61,14 @@ const AgentSchema = new Schema<IAgent>({
   hireCount: { type: Number, default: 0 },
   price: { type: Number, default: null },
   capabilities: [{ type: String }],
+  skills: [{
+    type: Schema.Types.ObjectId,
+    ref: 'Skill',
+  }],
+  knowledge: [{
+    type: Schema.Types.ObjectId,
+    ref: 'LibraryFile',
+  }],
   isVerified: { type: Boolean, default: false },
   isFeatured: { type: Boolean, default: false },
   isTrending: { type: Boolean, default: false },

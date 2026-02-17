@@ -9,6 +9,8 @@ export interface AgentTeam {
   description?: string;
   creator: string;
   agents: any[];
+  skills: Array<{ _id: string; skillId: string; title: string; icon: string; color: string }>;
+  knowledge: Array<{ _id: string; name: string; type: string; category: string; url: string }>;
   createdAt: string;
   updatedAt: string;
 }
@@ -63,7 +65,7 @@ export function useUpdateAgentTeam() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async ({ id, data }: { id: string; data: { name?: string; description?: string } }) => {
+    mutationFn: async ({ id, data }: { id: string; data: { name?: string; description?: string; skills?: string[]; knowledge?: string[] } }) => {
       const response = await apiClient.patch(`/agents/teams/${id}`, data);
       return response.data.team as AgentTeam;
     },

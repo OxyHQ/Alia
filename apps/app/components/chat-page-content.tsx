@@ -9,16 +9,7 @@ import Entypo from "@expo/vector-icons/Entypo";
 import * as DropdownMenu from "@/components/ui/dropdown-menu";
 import { Text } from "@/components/ui/text";
 import { Button } from "@/components/ui/button";
-import {
-  PromptInput,
-  PromptInputTextarea,
-  PromptInputActions,
-  PromptInputMicButton,
-  PromptInputAttachments,
-  PromptInputSubmitButton,
-  PromptInputAddMenu,
-  type Attachment,
-} from "@/components/ui/prompt-input";
+import { PromptInput, type Attachment } from "@/components/ui/prompt-input";
 import { ChatInterface } from "@/components/chat-interface";
 import { ChatHeader } from "@/components/chat-header";
 import { useAuth } from "@oxyhq/services";
@@ -298,24 +289,35 @@ export const ChatPageContent = ({
                   onRemoveAttachment={removeAttachment}
                   onImagePaste={handleImagePaste}
                   autocomplete={isMainScreen}
-                  leadingAction={
-                    <PromptInputAddMenu
-                      iconSize={20}
-                      className="h-10 w-10 rounded-full border text-muted-foreground hover:text-foreground"
-                    />
+                  leadingAddMenu
+                  placeholder={disabled ? t('usageLimit.inputDisabledPlaceholder') : "Message Alia..."}
+                  onStop={onStop}
+                  emptyAction={
+                    <Button
+                      size="icon"
+                      className="h-8 w-8 rounded-full"
+                      onPress={() => {
+                        if (!isAuthenticated) {
+                          toast.error(t('subscribe.signInRequired'));
+                          return;
+                        }
+                        if (!entitlements?.features['voice-mode']) {
+                          toast.info(t('subscribe.featureRequiresPlan', { feature: t('modes.voiceMode') }));
+                          router.push('/(biglayout)/subscribe');
+                          return;
+                        }
+                        if (creditsInfo && creditsInfo.credits <= 0) {
+                          toast.error(t('usageLimit.outOfCreditsTitle'));
+                          return;
+                        }
+                        setShowVoice(true);
+                      }}
+                    >
+                      <Entypo name="sound" size={16} color="white" />
+                    </Button>
                   }
-                >
-                  <PromptInputAttachments />
-
-                  <PromptInputTextarea
-                    value={inputValue}
-                    onChangeText={setInputValue}
-                    placeholder={disabled ? t('usageLimit.inputDisabledPlaceholder') : "Message Alia..."}
-                    editable={!disabled}
-                    className="min-h-[44px] text-base md:text-base py-3"
-                  />
-                  <PromptInputActions className="flex-row items-center justify-between gap-2 mt-2 mb-1 px-3">
-                    <View className="flex-row items-center gap-1.5">
+                  actionsLeft={
+                    <>
                       <Button
                         variant={activeModes.has('search') ? "default" : "outline"}
                         className="h-8 rounded-full px-3 flex-row items-center gap-2 text-muted-foreground hover:text-foreground font-normal text-xs"
@@ -434,42 +436,9 @@ export const ChatPageContent = ({
                           )}
                         </DropdownMenu.Content>
                       </DropdownMenu.Root>
-                    </View>
-
-                    <View className="flex-row items-center gap-1.5">
-                      <PromptInputMicButton />
-                      <PromptInputSubmitButton
-                        isLoading={isLoading}
-                        onStop={onStop}
-                        emptyAction={
-                          <Button
-                            size="icon"
-                            variant="outline"
-                            className="h-8 w-8 rounded-full"
-                            onPress={() => {
-                              if (!isAuthenticated) {
-                                toast.error(t('subscribe.signInRequired'));
-                                return;
-                              }
-                              if (!entitlements?.features['voice-mode']) {
-                                toast.info(t('subscribe.featureRequiresPlan', { feature: t('modes.voiceMode') }));
-                                router.push('/(biglayout)/subscribe');
-                                return;
-                              }
-                              if (creditsInfo && creditsInfo.credits <= 0) {
-                                toast.error(t('usageLimit.outOfCreditsTitle'));
-                                return;
-                              }
-                              setShowVoice(true);
-                            }}
-                          >
-                            <Entypo name="modern-mic" size={16} className="text-muted-foreground" />
-                          </Button>
-                        }
-                      />
-                    </View>
-                  </PromptInputActions>
-                </PromptInput>
+                    </>
+                  }
+                />
             </View>
           </View>
         </LinearGradient>

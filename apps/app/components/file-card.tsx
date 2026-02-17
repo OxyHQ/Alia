@@ -93,7 +93,7 @@ export function FileCard({ file, onPress, onDelete }: FileCardProps) {
         {/* Date */}
         <View className="w-20 mr-3 hidden md:flex">
           <Text className="text-xs text-muted-foreground">
-            {formatDate(file.uploadedAt)}
+            {formatDate(file.createdAt)}
           </Text>
         </View>
 

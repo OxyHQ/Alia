@@ -38,6 +38,11 @@ app/
 │   ├── reset-password.tsx     # Reset password
 │   ├── agents.tsx             # Agent browser
 │   ├── agents/[id].tsx        # Agent detail (terminal, hire, owner controls)
+│   ├── agents/create.tsx      # Create agent via AI prompt
+│   ├── agents/edit/[id].tsx   # Edit agent details
+│   ├── agents/teams.tsx       # Agent teams list
+│   ├── agents/teams/[id].tsx  # Team detail
+│   ├── agents/teams/create.tsx # Create team via AI prompt
 │   ├── library.tsx            # Content library
 │   ├── favorites.tsx          # Favorited items
 │   ├── skills.tsx             # Skills directory
@@ -100,6 +105,7 @@ app/
 | `use-voice-chat` | Voice mode state |
 | `use-realtime-voice` | WebRTC voice streaming |
 | `use-speech-to-text` | Audio transcription |
+| `use-agent-teams` | Agent team CRUD and list |
 
 ## AI Integration
 
@@ -125,7 +131,57 @@ Features:
 
 Components in [components/ui/](components/ui/) follow shadcn/ui patterns adapted for React Native:
 
-`Button`, `Input`, `Textarea`, `Card`, `Dialog`, `Sheet`, `DropdownMenu`, `Command`, `Collapsible`, `ToggleGroup`, `Separator`, `Skeleton`, `ScrollArea`, `Avatar`, `Label`, `Kbd`, `Icon`, `Panel`, `PromptInput`, `ChatTextInput`, `Markdown`, `RichBlocks`, `Reasoning`
+`Button`, `Input`, `Textarea`, `Card`, `Dialog`, `Sheet`, `DropdownMenu`, `Command`, `Collapsible`, `ToggleGroup`, `Separator`, `Skeleton`, `ScrollArea`, `Avatar`, `Label`, `Kbd`, `Icon`, `Panel`, `ChatTextInput`, `Markdown`, `RichBlocks`, `Reasoning`
+
+### PromptInput
+
+A self-contained, props-driven chat input component in [components/ui/prompt-input/](components/ui/prompt-input/). All sub-components (textarea, attachments, autocomplete, add menu, mic, submit button) are rendered internally — consumers only import `<PromptInput />` and configure via props.
+
+```tsx
+// Simple usage (create screens)
+<PromptInput
+  value={text}
+  onValueChange={setText}
+  onSubmit={handleSubmit}
+  placeholder="Describe your agent..."
+  autocomplete
+/>
+
+// Full usage (chat screen)
+<PromptInput
+  value={text}
+  onValueChange={setText}
+  onSubmit={handleSubmit}
+  isLoading={isLoading}
+  leadingAddMenu              // standalone "+" button to the left
+  autocomplete={isMainScreen} // suggestions above the box
+  actionsLeft={<>...</>}      // custom left actions (search, modes, menus)
+  onStop={onStop}             // stop button when loading
+  emptyAction={<VoiceBtn />}  // shown when input is empty
+  attachments={attachments}   // controlled attachments
+  onAddAttachment={add}
+  onRemoveAttachment={remove}
+  onImagePaste={handlePaste}
+/>
+```
+
+| Prop | Type | Description |
+|------|------|-------------|
+| `value` | `string` | Controlled input value |
+| `onValueChange` | `(v: string) => void` | Input change handler |
+| `onSubmit` | `() => void` | Submit handler |
+| `isLoading` | `boolean` | Shows loading state |
+| `disabled` | `boolean` | Disables input |
+| `placeholder` | `string` | Textarea placeholder |
+| `autocomplete` | `boolean` | Shows autocomplete suggestions above box |
+| `leadingAddMenu` | `boolean` | Standalone "+" add menu to the left of the box |
+| `actionsLeft` | `ReactNode` | Custom left-side actions (replaces default add menu) |
+| `onStop` | `() => void` | Stop button handler (shown when loading) |
+| `emptyAction` | `ReactNode` | Custom action shown when input is empty |
+| `attachments` | `Attachment[]` | Controlled attachments (internal state if omitted) |
+| `onAddAttachment` | `(a: Attachment) => void` | Add attachment handler |
+| `onRemoveAttachment` | `(id: string) => void` | Remove attachment handler |
+| `onImagePaste` | `(files: File[]) => void` | Image paste handler |
 
 ## Development
 

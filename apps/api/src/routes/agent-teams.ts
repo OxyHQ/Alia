@@ -17,6 +17,8 @@ router.get('/', async (req: Request, res: Response) => {
 
     const teams = await AgentTeam.find({ creator: userId })
       .populate('agents', 'name handle avatar tagline status')
+      .populate('skills', 'skillId title icon color')
+      .populate('knowledge', 'name type category url')
       .sort({ createdAt: -1 });
 
     res.json({ teams });
@@ -33,7 +35,9 @@ router.get('/:id', async (req: Request, res: Response) => {
     const { id } = req.params;
 
     const team = await AgentTeam.findOne({ _id: id, creator: userId })
-      .populate('agents');
+      .populate('agents')
+      .populate('skills', 'skillId title icon color')
+      .populate('knowledge', 'name type category url');
 
     if (!team) {
       return res.status(404).json({ error: 'Agent team not found' });
@@ -51,6 +55,8 @@ const createTeamSchema = z.object({
   name: z.string().min(1).max(100),
   description: z.string().max(500).optional(),
   agents: z.array(z.string()).optional(),
+  skills: z.array(z.string()).optional(),
+  knowledge: z.array(z.string()).optional(),
 });
 
 router.post('/', async (req: Request, res: Response) => {
@@ -63,6 +69,8 @@ router.post('/', async (req: Request, res: Response) => {
       description: data.description,
       creator: userId,
       agents: data.agents || [],
+      skills: data.skills || [],
+      knowledge: data.knowledge || [],
     });
 
     await team.save();
@@ -82,6 +90,8 @@ router.post('/', async (req: Request, res: Response) => {
 const updateTeamSchema = z.object({
   name: z.string().min(1).max(100).optional(),
   description: z.string().max(500).optional(),
+  skills: z.array(z.string()).optional(),
+  knowledge: z.array(z.string()).optional(),
 });
 
 router.patch('/:id', async (req: Request, res: Response) => {

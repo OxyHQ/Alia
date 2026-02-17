@@ -47,6 +47,8 @@ router.get('/', optionalAuth, async (req: Request, res: Response) => {
 
     const [agents, total] = await Promise.all([
       Agent.find(filter)
+        .populate('skills', 'skillId title icon color')
+        .populate('knowledge', 'name type category url')
         .sort({ isFeatured: -1, createdAt: -1 })
         .skip(skip)
         .limit(limitNum)
@@ -94,7 +96,7 @@ Return ONLY valid JSON with these fields:
 - "systemPrompt": Detailed instructions for the agent including its role, goals, behavior guidelines, and how it should interact with users. This should be comprehensive and specific.
 - "category": Exactly one of: "Assistant", "Creative", "Developer", "Research", "Business", "Education"
 - "tags": An array of 3-5 relevant lowercase tags
-- "capabilities": An array of 3-5 specific things this agent can do (short phrases)
+- "capabilities": An array of tool IDs this agent should have enabled. Choose from: "web-browsing", "code-execution", "google-search", "web-scraping", "file-management", "image-generation", "memory", "agent-delegation". Pick only the ones relevant to the agent's purpose.
 
 Do not include any text outside the JSON object.`,
         },
@@ -160,6 +162,8 @@ router.get('/me', authenticateToken, async (req: Request, res: Response) => {
     }
 
     const agents = await Agent.find({ author: req.user.id })
+      .populate('skills', 'skillId title icon color')
+      .populate('knowledge', 'name type category url')
       .sort({ createdAt: -1 })
       .lean();
 
@@ -173,7 +177,10 @@ router.get('/me', authenticateToken, async (req: Request, res: Response) => {
 // GET /agents/:id - get single agent (public)
 router.get('/:id', optionalAuth, async (req: Request, res: Response) => {
   try {
-    const agent = await Agent.findById(req.params.id).lean();
+    const agent = await Agent.findById(req.params.id)
+      .populate('skills', 'skillId title icon color')
+      .populate('knowledge', 'name type category url')
+      .lean();
 
     if (!agent) {
       return res.status(404).json({ error: 'Agent not found' });
@@ -201,7 +208,8 @@ router.post('/', authenticateToken, async (req: Request, res: Response) => {
     const {
       name, handle, avatar,
       tagline, description, category, tags, price,
-      capabilities, isPublished, creditBalance, allowHiring,
+      capabilities, skills, knowledge,
+      isPublished, creditBalance, allowHiring,
       systemPrompt,
     } = req.body;
 
@@ -229,6 +237,8 @@ router.post('/', authenticateToken, async (req: Request, res: Response) => {
       tags: tags || [],
       price: price ?? null,
       capabilities: capabilities || [],
+      skills: skills || [],
+      knowledge: knowledge || [],
       isPublished: isPublished ?? true,
       creditBalance: creditBalance ?? 0,
       allowHiring: allowHiring ?? false,
@@ -261,6 +271,7 @@ router.patch('/:id', authenticateToken, async (req: Request, res: Response) => {
     const allowedFields = [
       'name', 'avatar', 'tagline',
       'description', 'category', 'tags', 'price', 'capabilities',
+      'skills', 'knowledge',
       'isPublished', 'status', 'creditBalance', 'allowHiring',
       'systemPrompt', 'allowedModels', 'scheduleInterval',
     ];

@@ -20,6 +20,8 @@ export interface Agent {
   hireCount: number;
   price: number | null;
   capabilities: string[];
+  skills: Array<{ _id: string; skillId: string; title: string; icon: string; color: string }>;
+  knowledge: Array<{ _id: string; name: string; type: string; category: string; url: string }>;
   isVerified: boolean;
   isFeatured: boolean;
   isTrending: boolean;
