@@ -29,6 +29,7 @@ export interface IPlan extends Document {
   isFree: boolean;
 
   // Stripe
+  stripeProductId?: string;
   stripeMonthlyPriceId?: string;
   stripeAnnualPriceId?: string;
 
@@ -110,6 +111,9 @@ const PlanSchema = new Schema<IPlan>(
     isFree: {
       type: Boolean,
       default: false,
+    },
+    stripeProductId: {
+      type: String,
     },
     stripeMonthlyPriceId: {
       type: String,

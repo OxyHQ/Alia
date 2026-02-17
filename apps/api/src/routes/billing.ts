@@ -5,6 +5,7 @@ import { UserCredits } from '../models/user-credits.js';
 import { Subscription } from '../models/subscription.js';
 import { Transaction } from '../models/transaction.js';
 import { getPlans, getCreditPackages, getFeatures, getPlanFeatures, getAllAliaModels } from '../lib/providers-client.js';
+import { ensureStripePriceId } from '../lib/stripe-prices.js';
 import { getOrCreateUserCredits } from '../lib/user-credits-helpers.js';
 import { getUserEntitlements, invalidateEntitlementsCache } from '../lib/plan-access.js';
 import { z } from 'zod';
@@ -347,19 +348,16 @@ router.post('/checkout/subscription', authenticateToken, async (req: Request, re
     const customerId = await getOrCreateStripeCustomer(userId, userCredits);
 
     const isAnnual = billingPeriod === 'annual';
-    const stripePriceId = isAnnual ? plan.stripeAnnualPriceId : plan.stripeMonthlyPriceId;
 
-    const lineItem = stripePriceId
-      ? { price: stripePriceId, quantity: 1 }
-      : {
-          price_data: {
-            currency: plan.currency,
-            product_data: { name: `${plan.name} Plan (${isAnnual ? 'Annual' : 'Monthly'})` },
-            unit_amount: isAnnual ? plan.annualPrice : plan.monthlyPrice,
-            recurring: { interval: isAnnual ? ('year' as const) : ('month' as const) },
-          },
-          quantity: 1,
-        };
+    let stripePriceId: string;
+    try {
+      stripePriceId = await ensureStripePriceId(getStripe, plan.planId, billingPeriod);
+    } catch (err: any) {
+      log.credits.error({ err, planId: plan.planId, billingPeriod }, 'Failed to ensure Stripe price for checkout');
+      return res.status(500).json({ error: 'Failed to configure plan pricing' });
+    }
+
+    const lineItem = { price: stripePriceId, quantity: 1 };
 
     const session = await getStripe().checkout.sessions.create({
       customer: customerId,
@@ -467,10 +465,13 @@ router.post('/subscription/change-plan', authenticateToken, async (req: Request,
 
     const isUpgrade = targetPlan.sortOrder > currentPlan.sortOrder;
     const isAnnual = billingPeriod === 'annual';
-    const targetPriceId = isAnnual ? targetPlan.stripeAnnualPriceId : targetPlan.stripeMonthlyPriceId;
 
-    if (!targetPriceId) {
-      return res.status(400).json({ error: 'Target plan does not have a configured Stripe price' });
+    let targetPriceId: string;
+    try {
+      targetPriceId = await ensureStripePriceId(getStripe, targetPlan.planId, billingPeriod);
+    } catch (err: any) {
+      log.credits.error({ err, planId: targetPlan.planId, billingPeriod }, 'Failed to ensure Stripe price');
+      return res.status(500).json({ error: 'Failed to configure plan pricing' });
     }
 
     // Retrieve Stripe subscription to get item ID
