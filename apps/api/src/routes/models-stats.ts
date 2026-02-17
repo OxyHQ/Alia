@@ -7,8 +7,7 @@
 
 import { Router, Request, Response } from 'express';
 import { getAllAliaModels, type AliaModel } from '../lib/chat-core.js';
-import { TIER_MODEL_MAPPINGS } from '../internal/providers/lib/alia-models.js';
-import { getProviderHealth } from '../internal/providers/lib/provider-health.js';
+import { getTierMappings, getProviderHealth } from '../lib/providers-client.js';
 import { connectDB } from '../lib/db.js';
 import mongoose from 'mongoose';
 import { log } from '../lib/logger.js';
@@ -42,7 +41,8 @@ interface ModelStats {
  */
 router.get('/stats', async (req: Request, res: Response) => {
   try {
-    const models = getAllAliaModels();
+    const models = await getAllAliaModels();
+    const TIER_MODEL_MAPPINGS = await getTierMappings();
     const modelStats: ModelStats[] = [];
 
     for (const model of models) {
@@ -128,7 +128,7 @@ router.get('/stats', async (req: Request, res: Response) => {
 router.get('/stats/:modelId', async (req: Request, res: Response) => {
   try {
     const { modelId } = req.params;
-    const models = getAllAliaModels();
+    const models = await getAllAliaModels();
     const model = models.find(m => m.id === modelId);
 
     if (!model) {
@@ -141,6 +141,7 @@ router.get('/stats/:modelId', async (req: Request, res: Response) => {
     }
 
     // Get provider mappings
+    const TIER_MODEL_MAPPINGS = await getTierMappings();
     const mappings = TIER_MODEL_MAPPINGS[model.tier] || [];
 
     // Aggregate metrics

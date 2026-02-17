@@ -4,12 +4,7 @@ import { authenticateToken, oxyClient } from '../middleware/auth.js';
 import { UserCredits } from '../models/user-credits.js';
 import { Subscription } from '../models/subscription.js';
 import { Transaction } from '../models/transaction.js';
-import { Plan } from '../internal/providers/models/plan.js';
-import { CreditPackage } from '../internal/providers/models/credit-package.js';
-import { AliaModel as AliaModelDB } from '../internal/providers/models/alia-model.js';
-import { Feature } from '../internal/providers/models/feature.js';
-import { PlanFeature } from '../internal/providers/models/plan-feature.js';
-import { ALIA_MODELS } from '../internal/providers/lib/alia-models.js';
+import { getPlans, getCreditPackages, getFeatures, getPlanFeatures, getAllAliaModels } from '../lib/providers-client.js';
 import { getOrCreateUserCredits } from '../lib/user-credits-helpers.js';
 import { getUserEntitlements, invalidateEntitlementsCache } from '../lib/plan-access.js';
 import { z } from 'zod';
@@ -77,9 +72,9 @@ const LEGACY_PLAN_MAP: Record<string, string> = {
 
 router.get('/packages', async (_req: Request, res: Response) => {
   try {
-    const packages = await CreditPackage.find({ isActive: true }).sort({ sortOrder: 1 }).lean();
+    const packages = await getCreditPackages(true);
     res.json({
-      packages: packages.map(p => ({
+      packages: packages.map((p: any) => ({
         id: p.packageId,
         name: p.name,
         credits: p.credits,
@@ -104,7 +99,8 @@ router.post('/checkout/credits', authenticateToken, async (req: Request, res: Re
     const { packageId, successUrl, cancelUrl } = createCheckoutSchema.parse(req.body);
     const userId = req.user!.id;
 
-    const pkg = await CreditPackage.findOne({ packageId, isActive: true }).lean();
+    const allPackages = await getCreditPackages(true);
+    const pkg = allPackages.find((p: any) => p.packageId === packageId);
     if (!pkg) {
       return res.status(400).json({ error: 'Invalid package ID' });
     }
@@ -161,7 +157,7 @@ router.post('/checkout/custom-credits', authenticateToken, async (req: Request, 
     const userId = req.user!.id;
 
     // Use best per-credit rate from active packages, fall back to constant
-    const packages = await CreditPackage.find({ isActive: true }).lean();
+    const packages = await getCreditPackages(true);
     let pricePerCredit = CREDIT_PRICE_PER_1K_CENTS / 1000;
     if (packages.length > 0) {
       pricePerCredit = Math.min(...packages.map(p => p.price / p.credits));
@@ -206,10 +202,10 @@ router.post('/checkout/custom-credits', authenticateToken, async (req: Request, 
 // Expose the per-credit rate so the frontend can show live pricing
 router.get('/credit-price', async (_req: Request, res: Response) => {
   try {
-    const packages = await CreditPackage.find({ isActive: true }).lean();
     let pricePerCredit = CREDIT_PRICE_PER_1K_CENTS / 1000;
-    if (packages.length > 0) {
-      pricePerCredit = Math.min(...packages.map(p => p.price / p.credits));
+    const creditPricePackages = await getCreditPackages(true);
+    if (creditPricePackages.length > 0) {
+      pricePerCredit = Math.min(...creditPricePackages.map((p: any) => p.price / p.credits));
     }
     res.json({ pricePerCreditCents: pricePerCredit, minCredits: MIN_CUSTOM_CREDITS, maxCredits: MAX_CUSTOM_CREDITS });
   } catch (error: any) {
@@ -220,14 +216,17 @@ router.get('/credit-price', async (_req: Request, res: Response) => {
 router.get('/plans', async (req: Request, res: Response) => {
   try {
     const product = req.query.product as string | undefined;
-    const query: any = { isActive: true };
-    if (product) query.product = product;
+    const planFilter: any = { isActive: true };
+    if (product) planFilter.product = product;
 
-    const [dbPlans, allFeatures, allPlanFeatures] = await Promise.all([
-      Plan.find(query).sort({ sortOrder: 1 }).lean(),
-      Feature.find({ isActive: true, isVisibleOnPricing: true }).sort({ category: 1, sortOrder: 1 }).lean(),
-      PlanFeature.find({ enabled: true }).lean(),
+    const [dbPlans, rawFeatures, rawPlanFeatures] = await Promise.all([
+      getPlans(planFilter),
+      getFeatures(),
+      getPlanFeatures(),
     ]);
+    // Filter features/plan-features client-side (API may return all)
+    const allFeatures = rawFeatures.filter((f: any) => f.isActive !== false && f.isVisibleOnPricing !== false);
+    const allPlanFeatures = rawPlanFeatures.filter((pf: any) => pf.enabled !== false);
 
     // Build lookup: planId -> featureId -> PlanFeature mapping
     const pfMap: Record<string, Record<string, any>> = {};
@@ -236,17 +235,14 @@ router.get('/plans', async (req: Request, res: Response) => {
       pfMap[pf.planId][pf.featureId] = pf;
     }
 
-    // Load all active Alia models from DB, fall back to hardcoded
+    // Load all Alia models from providers API
     let modelMap: Record<string, { displayName: string; description?: string }> = {};
     try {
-      const dbModels = await AliaModelDB.find({ isActive: true }).lean();
-      if (dbModels.length > 0) {
-        for (const m of dbModels) modelMap[m.aliasModelId] = { displayName: m.displayName, description: m.description };
+      const aliaModels = await getAllAliaModels();
+      for (const m of aliaModels) {
+        modelMap[m.id] = { displayName: m.name, description: m.description };
       }
     } catch { /* ignore */ }
-    for (const [id, m] of Object.entries(ALIA_MODELS)) {
-      if (!modelMap[id]) modelMap[id] = { displayName: m.name, description: m.description };
-    }
 
     const plans = dbPlans.map(p => {
       const planId = (p as any).planId;
@@ -329,7 +325,8 @@ router.post('/checkout/subscription', authenticateToken, async (req: Request, re
     const { planId, billingPeriod, successUrl, cancelUrl } = createSubscriptionSchema.parse(req.body);
     const userId = req.user!.id;
 
-    const plan = await Plan.findOne({ planId, isActive: true, isFree: false }).lean();
+    const matchingPlans = await getPlans({ planId, isActive: true, isFree: false });
+    const plan = matchingPlans[0];
     if (!plan) {
       return res.status(400).json({ error: 'Invalid plan ID' });
     }
@@ -450,7 +447,8 @@ router.post('/subscription/change-plan', authenticateToken, async (req: Request,
     }
 
     // Find target plan
-    const targetPlan = await Plan.findOne({ planId, isActive: true, isFree: false }).lean();
+    const targetPlans = await getPlans({ planId, isActive: true, isFree: false });
+    const targetPlan = targetPlans[0];
     if (!targetPlan) {
       return res.status(400).json({ error: 'Invalid plan ID' });
     }
@@ -461,7 +459,8 @@ router.post('/subscription/change-plan', authenticateToken, async (req: Request,
     }
 
     // Look up current plan for sortOrder comparison
-    const currentPlan = await Plan.findOne({ planId: subscription.planId }).lean();
+    const currentPlans = await getPlans({ planId: subscription.planId });
+    const currentPlan = currentPlans[0];
     if (!currentPlan) {
       return res.status(500).json({ error: 'Current plan not found' });
     }
@@ -578,6 +577,27 @@ router.get('/entitlements', authenticateToken, async (req: Request, res: Respons
   }
 });
 
+// Voice usage: returns current voice minutes used vs limit for the billing period
+router.get('/voice-usage', authenticateToken, async (req: Request, res: Response) => {
+  try {
+    const { getUserEntitlements: getEntitlements } = await import('../lib/plan-access.js');
+    const { getVoiceUsageSummary } = await import('../lib/voice-usage.js');
+
+    const entitlements = await getEntitlements(req.user!.id);
+    const voiceMinutesLimit = entitlements.features['voice-minutes'];
+
+    if (typeof voiceMinutesLimit !== 'number' || voiceMinutesLimit <= 0) {
+      return res.json({ usedMinutes: 0, limitMinutes: 0, remainingMinutes: 0 });
+    }
+
+    const usage = await getVoiceUsageSummary(req.user!.id, voiceMinutesLimit);
+    res.json(usage);
+  } catch (error: any) {
+    log.credits.error({ err: error }, 'Error fetching voice usage');
+    res.status(500).json({ error: error.message });
+  }
+});
+
 router.post('/webhook', async (req: Request, res: Response) => {
   const sig = req.headers['stripe-signature'] as string;
   if (!sig) return res.status(400).send('Missing stripe-signature');
@@ -683,7 +703,8 @@ async function handleSubscriptionUpdate(stripeSubscription: Stripe.Subscription)
 
   // Match plan by metadata (set via subscription_data.metadata in checkout)
   const resolvedPlanId = LEGACY_PLAN_MAP[metadata?.planId || ''] || metadata?.planId;
-  const plan = await Plan.findOne({ planId: resolvedPlanId }).lean();
+  const resolvedPlans = await getPlans({ planId: resolvedPlanId });
+  const plan = resolvedPlans[0];
   if (!plan) {
     throw new Error(`Plan not found for subscription ${stripeSubscription.id}, planId: ${resolvedPlanId}`);
   }

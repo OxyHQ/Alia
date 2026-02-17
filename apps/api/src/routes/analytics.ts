@@ -2,7 +2,7 @@ import { Router, Request, Response } from 'express';
 import mongoose from 'mongoose';
 import { authenticateToken } from '../middleware/auth.js';
 import { ChatAnalytics } from '../lib/hooks/built-in/analytics-hook.js';
-import { getAliaModel } from '../internal/providers/lib/alia-models.js';
+import { getAliaModel } from '../lib/providers-client.js';
 import { log } from '../lib/logger.js';
 
 const router = Router();
@@ -55,14 +55,14 @@ router.get('/models', async (req: Request, res: Response) => {
       { $sort: { count: -1 } },
     ]);
 
-    const models = raw.map((m) => {
-      const aliaModel = getAliaModel(m._id);
+    const models = await Promise.all(raw.map(async (m) => {
+      const aliaModel = await getAliaModel(m._id);
       return {
         ...m,
         name: aliaModel?.name ?? m._id,
         emoji: aliaModel?.emoji,
       };
-    });
+    }));
 
     res.json({ models, period: days });
   } catch (error: any) {

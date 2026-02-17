@@ -4,7 +4,7 @@
 import { Router } from 'express';
 import { streamText, stepCountIs, type ToolSet } from 'ai';
 import { resolveModel, getAIModel, getDefaultAliaModel } from '../lib/chat-core.js';
-import { getAliaModel, getModelMappingsForTier } from '../internal/providers/lib/alia-models.js';
+import { getAliaModel, getModelMappingsForTier } from '../lib/providers-client.js';
 import { getCurrentDateTool, createGoogleSearchTool, saveUserMemoryTool, updateUserPreferencesTool, updateUserContextTool, createGetDeviceInfoTool, createSendTelegramTool, createProvidersAdminTool, webScraperTool, generateFileTool, canvasTool, type DeviceInfo } from '../lib/tools/index.js';
 import { optionalAuth, oxyClient } from '../middleware/auth.js';
 import type { User as OxyUser } from '@oxyhq/core';
@@ -343,7 +343,7 @@ router.post('/', optionalAuth, async (req, res) => {
     let systemPrompt = await buildChatSystemPrompt(oxyUser, memory, platform, skillPrompt, recalledMemories);
 
     // Inject current model identity so Alia knows which tier it's running as
-    const aliaModel = getAliaModel(resolved.aliasModelId);
+    const aliaModel = await getAliaModel(resolved.aliasModelId);
     if (aliaModel) {
       systemPrompt += `\n\nYou are currently using the **${aliaModel.name}** model. When asked what model you use, say you are using ${aliaModel.name}.`;
     }
@@ -353,7 +353,7 @@ router.post('/', optionalAuth, async (req, res) => {
     log.chat.info({ systemPromptTokens }, 'Estimated system prompt tokens');
 
     // Get model context window from tier mappings
-    const tierMappings = aliaModel ? getModelMappingsForTier(aliaModel.tier) : [];
+    const tierMappings = aliaModel ? await getModelMappingsForTier(aliaModel.tier) : [];
     const modelContextTokens = tierMappings[0]?.capabilities?.maxContextTokens || 128000;
 
     // Context window guard — block if messages would exceed 90% of context

@@ -36,19 +36,16 @@ import referralsRouter from './routes/referrals.js';
 import agentsRouter from './routes/agents.js';
 import agentsAvatarRouter from './routes/agents-avatar.js';
 import containersRouter from './routes/containers.js';
-import providersModule from './internal/providers/index.js';
 
 // Register hooks (side-effect import)
 import './lib/hooks/index.js';
-import { providersWss } from './internal/providers/ws.js';
 import { oxyClient } from './middleware/auth.js';
 import { resolveWorkspace } from './middleware/workspace.js';
-import { OxyServices } from '@oxyhq/core';
 import { syncZeroEval } from './scripts/sync-zeroeval.js';
-import { runStartupSeed } from './internal/providers/lib/seed-model-configs.js';
 import { seedSkills } from './lib/seed-skills.js';
 import { startScheduler } from './lib/automation-scheduler.js';
 import { warmupProviders } from './lib/provider-warmup.js';
+import { warmupProvidersClient } from './lib/providers-client.js';
 import { initChannels } from './lib/channels/index.js';
 // Socket.io
 import { initSocket } from './socket.js';
@@ -94,42 +91,7 @@ server.on('connection', (socket) => {
 
 initSocket(server);
 
-// Handle WebSocket upgrade for internal providers admin
-server.on('upgrade', (request, socket, head) => {
-  try {
-    const pathname = new URL(request.url!, `http://${request.headers.host}`).pathname;
-
-    if (pathname === '/internal/providers/ws') {
-      const url = new URL(request.url!, `http://${request.headers.host}`);
-      const token = url.searchParams.get('token');
-      if (!token) {
-        socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n');
-        socket.destroy();
-        return;
-      }
-      const perRequestOxy = new OxyServices({ baseURL: process.env.OXY_API_URL || 'https://api.oxy.so' });
-      perRequestOxy.setTokens(token);
-      perRequestOxy.validate().then((valid: boolean) => {
-        if (!valid) {
-          socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n');
-          socket.destroy();
-          return;
-        }
-        providersWss.handleUpgrade(request, socket, head, (ws) => {
-          providersWss.emit('connection', ws, request);
-        });
-      }).catch(() => {
-        socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n');
-        socket.destroy();
-      });
-    } else {
-      socket.destroy();
-    }
-  } catch (error) {
-    console.error('[Server] Error during WebSocket upgrade:', error);
-    socket.destroy();
-  }
-});
+// Note: WebSocket upgrade for providers admin is now handled by alia-providers-api
 
 // Public API routes (/v1) - allow all origins (like OpenAI's API)
 app.use('/v1', cors({
@@ -242,7 +204,6 @@ app.use('/agents/avatar', agentsAvatarRouter);
 app.use('/agents', agentsRouter);
 app.use('/containers', containersRouter);
 app.use('/internal', internalRouter);
-app.use('/internal/providers', providersModule);
 
 // Root route
 app.get('/', (_req, res) => {
@@ -275,8 +236,7 @@ app.get('/', (_req, res) => {
       '/containers',
       '/v1/voice/token',
       '/v1/voice/transcribe',
-      '/internal/trigger',
-      '/internal/providers'
+      '/internal/trigger'
     ]
   });
 });
@@ -322,8 +282,8 @@ connectDB()
   .then(() => {
     server.listen(PORT, '0.0.0.0', () => {
       console.log(`🚀 API Server running on http://0.0.0.0:${PORT}`);
-      // Seed model configs and reset circuit breakers (non-blocking)
-      runStartupSeed().catch((err) => console.error('[Seed] Startup seed error:', err));
+      // Warm up providers client cache (non-blocking)
+      warmupProvidersClient().catch((err) => console.error('[Providers] Client warmup error:', err));
       // Seed built-in skills (non-blocking)
       seedSkills().catch((err) => console.error('[Skills] Seed error:', err));
       // Sync external models in background (non-blocking)
@@ -351,16 +311,6 @@ connectDB()
       forceTimeout.unref(); // Don't keep the process alive for this timer
 
       try {
-        // Stop background processes
-        const { stopHealthCheckMonitor } = await import('./internal/providers/lib/provider-health.js');
-        stopHealthCheckMonitor();
-        log.general.info('Health check monitor stopped');
-
-        // Invalidate provider key cache (prevents stale keys on restart)
-        const { invalidateKeyCache } = await import('./internal/providers/lib/key-manager.js');
-        invalidateKeyCache();
-        log.general.info('Provider key cache invalidated');
-
         // Close MongoDB connection
         const mongoose = await import('mongoose');
         await mongoose.default.connection.close();

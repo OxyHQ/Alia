@@ -1,81 +1,44 @@
 import { tool } from 'ai';
 import { z } from 'zod';
 import crypto from 'crypto';
-import { ProviderKey } from '../../internal/providers/models/provider-key.js';
-import { ModelConfig } from '../../internal/providers/models/model-config.js';
-import { AliaModel } from '../../internal/providers/models/alia-model.js';
-import { ApiUsage } from '../../internal/providers/models/api-usage.js';
 import { log } from '../logger.js';
 
-/**
- * Get the Mongoose model for a given entity name.
- */
-function getModel(entity: string) {
-  switch (entity) {
-    case 'keys': return ProviderKey;
-    case 'models': return ModelConfig;
-    case 'aliaModels': return AliaModel;
-    case 'usage': return ApiUsage;
-    default: throw new Error(`Unknown entity: ${entity}`);
-  }
+const PROVIDERS_API_URL = process.env.PROVIDERS_API_URL || 'http://localhost:9091';
+const SERVICE_SECRET = process.env.SERVICE_SECRET;
+
+function generateAuthHeaders(): Record<string, string> {
+  if (!SERVICE_SECRET) throw new Error('SERVICE_SECRET is not configured');
+  const timestamp = Date.now().toString();
+  const payload = JSON.stringify({ timestamp, service: 'alia-api' });
+  const signature = crypto.createHmac('sha256', SERVICE_SECRET).update(payload).digest('hex');
+  return {
+    'X-Service-Name': 'alia-api',
+    'X-Timestamp': timestamp,
+    'X-Signature': signature,
+    'Content-Type': 'application/json',
+  };
 }
 
-/**
- * Strip sensitive fields (raw key, keyHash) from ProviderKey documents.
- */
-function sanitize(entity: string, docs: any[]): any[] {
-  if (entity === 'keys') {
-    return docs.map(doc => {
-      const { key, keyHash, ...safe } = doc;
-      return safe;
-    });
-  }
-  return docs;
+async function proxyRequest(method: string, path: string, body?: any): Promise<any> {
+  const res = await fetch(`${PROVIDERS_API_URL}${path}`, {
+    method,
+    headers: generateAuthHeaders(),
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  return res.json();
 }
 
-/**
- * Aggregation / stats queries for different entities.
- */
-async function getStats(entity: string, filter: Record<string, any> | undefined, days: number) {
-  const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
-
-  if (entity === 'usage') {
-    const pipeline: any[] = [
-      { $match: { timestamp: { $gte: since }, ...(filter || {}) } },
-      {
-        $group: {
-          _id: { provider: '$provider', modelId: '$modelId' },
-          totalTokens: { $sum: '$tokens' },
-          totalRequests: { $sum: 1 },
-        },
-      },
-      { $sort: { totalTokens: -1 } },
-    ];
-    const result = await ApiUsage.aggregate(pipeline);
-    return { success: true, period: `${days} days`, data: result };
-  }
-
-  if (entity === 'keys') {
-    const keys = await ProviderKey.find(filter || {})
-      .select('name provider keyPrefix isActive isArchived currentPriority originalPriority totalRequests totalTokens successCount totalFailures consecutiveFailures lastUsedAt lastSuccessAt lastFailureAt lastFailureReason tier environment isPaid')
-      .sort({ provider: 1, currentPriority: 1 })
-      .lean();
-    return { success: true, data: keys };
-  }
-
-  if (entity === 'aliaModels') {
-    const models = await AliaModel.find(filter || {})
-      .select('aliasModelId displayName tier isActive isLegacy totalRequests totalTokens averageLatencyMs providerMappings')
-      .lean();
-    return { success: true, data: models };
-  }
-
-  return { success: false, message: 'Stats not supported for this entity' };
-}
+// Map entity names to admin API paths
+const ENTITY_PATHS: Record<string, string> = {
+  keys: '/internal/providers/v1/keys',
+  models: '/internal/providers/v1/models',
+  aliaModels: '/internal/providers/v1/alia-models',
+  usage: '/internal/providers/v1/usage',
+};
 
 /**
  * Admin tool for managing AI providers, keys, models, and Alia models.
- * Only available to admin users (gated by username check in chat.ts).
+ * Routes all operations through the alia-providers-api service.
  */
 export function createProvidersAdminTool() {
   return tool({
@@ -85,120 +48,69 @@ export function createProvidersAdminTool() {
     inputSchema: z.object({
       entity: z
         .enum(['keys', 'models', 'aliaModels', 'usage'])
-        .describe('Which collection to operate on: keys (provider API keys), models (provider model configs), aliaModels (virtual Alia models), usage (API usage records)'),
+        .describe('Which collection to operate on'),
 
       action: z
         .enum(['list', 'get', 'create', 'update', 'delete', 'stats'])
-        .describe('Operation: list (query with filters), get (by id), create, update (by id), delete (by id), stats (aggregated overview)'),
+        .describe('Operation to perform'),
 
-      id: z
-        .string()
-        .optional()
-        .describe('MongoDB document _id. Required for get, update, delete.'),
-
-      filter: z
-        .record(z.any())
-        .optional()
-        .describe('Query filter as key-value pairs for list action, e.g. {"provider":"openai","isActive":true}'),
-
-      data: z
-        .record(z.any())
-        .optional()
-        .describe('Document data for create, or fields to update for update action'),
-
-      limit: z
-        .number()
-        .optional()
-        .default(20)
-        .describe('Max documents to return for list (default 20)'),
-
-      days: z
-        .number()
-        .optional()
-        .default(7)
-        .describe('Lookback period in days for stats queries (default 7)'),
+      id: z.string().optional().describe('Document _id for get/update/delete'),
+      filter: z.record(z.any()).optional().describe('Query filter for list'),
+      data: z.record(z.any()).optional().describe('Document data for create/update'),
+      limit: z.number().optional().default(20).describe('Max documents for list'),
+      days: z.number().optional().default(7).describe('Lookback for stats'),
     }),
 
     execute: async ({ entity, action, id, filter, data, limit, days }) => {
       try {
-        const model = getModel(entity);
+        const basePath = ENTITY_PATHS[entity];
+        if (!basePath) return { success: false, message: `Unknown entity: ${entity}` };
 
         switch (action) {
           case 'list': {
-            const docs = await model.find(filter || {}).limit(limit).sort({ createdAt: -1 }).lean();
-            return { success: true, count: docs.length, data: sanitize(entity, docs) };
+            const params = new URLSearchParams();
+            if (limit) params.set('limit', String(limit));
+            if (filter) {
+              for (const [k, v] of Object.entries(filter)) params.set(k, String(v));
+            }
+            return await proxyRequest('GET', `${basePath}?${params}`);
           }
 
           case 'get': {
-            if (!id) return { success: false, message: 'id is required for get action' };
-            const doc = await model.findById(id).lean();
-            if (!doc) return { success: false, message: 'Document not found' };
-            return { success: true, data: sanitize(entity, [doc])[0] };
+            if (!id) return { success: false, message: 'id is required' };
+            return await proxyRequest('GET', `${basePath}/${id}`);
           }
 
           case 'create': {
-            if (!data) return { success: false, message: 'data is required for create action' };
-
-            // Special handling for provider keys: hash the raw key
-            if (entity === 'keys' && data.key) {
-              data.keyHash = crypto.createHash('sha256').update(data.key).digest('hex');
-              data.keyPrefix = data.key.substring(0, Math.min(8, data.key.length)) + '...';
-            }
-
-            const doc = await model.create(data);
-            return { success: true, data: sanitize(entity, [doc.toObject()])[0] };
+            if (!data) return { success: false, message: 'data is required' };
+            return await proxyRequest('POST', basePath, data);
           }
 
           case 'update': {
-            if (!id) return { success: false, message: 'id is required for update action' };
-            if (!data) return { success: false, message: 'data is required for update action' };
-
-            // Prevent updating the raw key field directly — use key rotation instead
-            if (entity === 'keys') {
-              delete data.key;
-              delete data.keyHash;
-            }
-
-            const doc = await model.findByIdAndUpdate(id, { $set: data }, { new: true }).lean();
-            if (!doc) return { success: false, message: 'Document not found' };
-            return { success: true, data: sanitize(entity, [doc])[0] };
+            if (!id) return { success: false, message: 'id is required' };
+            if (!data) return { success: false, message: 'data is required' };
+            return await proxyRequest('PATCH', `${basePath}/${id}`, data);
           }
 
           case 'delete': {
-            if (!id) return { success: false, message: 'id is required for delete action' };
-
-            // Soft delete for provider keys to prevent accidental data loss
-            if (entity === 'keys') {
-              const doc = await ProviderKey.findByIdAndUpdate(
-                id,
-                {
-                  $set: {
-                    isActive: false,
-                    isArchived: true,
-                    archivedAt: new Date(),
-                    archivedReason: 'Deleted via admin chat tool',
-                  },
-                },
-                { new: true }
-              ).lean();
-              if (!doc) return { success: false, message: 'Key not found' };
-              return { success: true, message: `Provider key "${doc.name}" archived (soft delete)` };
-            }
-
-            const doc = await model.findByIdAndDelete(id);
-            if (!doc) return { success: false, message: 'Document not found' };
-            return { success: true, message: 'Document deleted' };
+            if (!id) return { success: false, message: 'id is required' };
+            return await proxyRequest('DELETE', `${basePath}/${id}`);
           }
 
           case 'stats': {
-            return await getStats(entity, filter, days);
+            const params = new URLSearchParams();
+            if (days) params.set('days', String(days));
+            if (filter) {
+              for (const [k, v] of Object.entries(filter)) params.set(k, String(v));
+            }
+            return await proxyRequest('GET', `${basePath}/stats?${params}`);
           }
 
           default:
             return { success: false, message: `Unknown action: ${action}` };
         }
       } catch (error: any) {
-        log.tools.error({ err: error }, 'Error');
+        log.tools.error({ err: error }, 'Admin tool error');
         return { success: false, message: error.message };
       }
     },

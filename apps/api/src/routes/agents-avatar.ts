@@ -5,7 +5,7 @@ import { fileURLToPath } from 'url';
 import { generateText } from 'ai';
 import { authenticateToken } from '../middleware/auth.js';
 import { resolveModel, getAIModel, reportModelUsage } from '../lib/chat-core.js';
-import { callProviderAPI } from '../internal/providers/lib/provider-api.js';
+import { callProviderAPI } from '../lib/providers-client.js';
 import { uploadToS3 } from '../lib/s3.js';
 import { log } from '../lib/logger.js';
 import type { Request, Response } from 'express';

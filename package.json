@@ -12,10 +12,12 @@
     "apps/alia-providers-admin",
     "apps/alia-codea",
     "apps/alia-cowork",
-    "apps/codea-cli"
+    "apps/codea-cli",
+    "apps/alia-providers-api"
   ],
   "scripts": {
     "dev": "npm run dev --workspaces --if-present",
+    "dev:providers-api": "npm run dev --workspace=@alia/providers-api",
     "dev:app": "npm run dev --workspace=@alia/app --clear --tunnel",
     "dev:api": "npm run dev --workspace=@alia/api",
     "dev:admin": "npm run dev --workspace=alia-console",
@@ -35,6 +37,8 @@
     "start:admin": "npm run start --workspace=alia-console",
     "start:canvas": "npm run start --workspace=alia-canvas",
     "start:integrations": "npm run start --workspace=@alia/integrations",
+    "build:providers-api": "npm run build --workspace=@alia/providers-api",
+    "start:providers-api": "npm run start --workspace=@alia/providers-api",
     "lint": "npm run lint --workspaces --if-present",
     "lint:canvas": "npm run lint --workspace=alia-canvas",
     "android": "npm run android --workspace=@alia/app",

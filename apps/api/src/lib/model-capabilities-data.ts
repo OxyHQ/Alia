@@ -4,7 +4,24 @@
  * Comprehensive capability definitions for all supported models
  */
 
-import type { ModelCapabilities, PricingTier } from '../internal/providers/lib/alia-models';
+import type { PricingTier } from './providers-client.js';
+
+export interface ModelCapabilities {
+  vision: boolean;
+  audio: boolean;
+  video: boolean;
+  voice: boolean;
+  tools: boolean;
+  codeExecution: boolean;
+  webSearch: boolean;
+  computerUse: boolean;
+  streaming: boolean;
+  systemPrompts: boolean;
+  functionCalling: boolean;
+  promptCaching: boolean;
+  maxContextTokens: number;
+  maxOutputTokens: number;
+}
 
 // ============== CAPABILITY PRESETS ==============
 
