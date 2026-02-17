@@ -15,7 +15,8 @@ import { ChatHeader } from "@/components/chat-header";
 import { useAuth } from "@oxyhq/services";
 import type { Message } from "@/types/chat";
 import { toast } from "@/components/sonner";
-import { VoiceChat } from "@/components/voice-chat";
+import { VoiceOverlay } from "@/components/voice-overlay";
+import { VoiceControls } from "@/components/voice-controls";
 import { CanvasPanel } from "@/components/canvas-panel";
 import { AlertTriangle } from "lucide-react-native";
 import { CreditWarningBanner } from "@/components/credit-warning-banner";
@@ -25,6 +26,7 @@ import { useEntitlements } from "@/lib/hooks/use-billing";
 import { useCredits } from "@/lib/hooks/use-credits";
 import { useRouter } from "expo-router";
 import { useTranslation } from "@/hooks/useTranslation";
+import type { useVoiceMode } from "@/lib/hooks/use-voice-mode";
 
 type Mode = 'search' | 'agent' | 'ghost' | 'deepResearch' | 'shoppingResearch' | 'study';
 
@@ -47,6 +49,8 @@ const MODE_CONFIG: Record<Mode, {
 
 const MODE_ORDER: Mode[] = ['ghost', 'agent', 'deepResearch', 'shoppingResearch', 'study'];
 
+type VoiceState = ReturnType<typeof useVoiceMode>;
+
 interface ChatPageContentProps {
   messages: Message[];
   scrollViewRef: React.RefObject<GHScrollView>;
@@ -61,6 +65,8 @@ interface ChatPageContentProps {
   activeRole?: { id: string; name: string };
   onRemoveRole?: () => void;
   disabled?: boolean;
+  voice?: VoiceState;
+  onVoiceStart?: () => void;
 }
 
 
@@ -93,6 +99,8 @@ export const ChatPageContent = ({
   activeRole,
   onRemoveRole,
   disabled = false,
+  voice,
+  onVoiceStart,
 }: ChatPageContentProps) => {
   const attachments = useStore((state) => state.attachments);
   const addAttachment = useStore((state) => state.addAttachment);
@@ -109,6 +117,8 @@ export const ChatPageContent = ({
   const baseModel = useModelStore((s) => s.baseModel);
   const setBaseModel = useModelStore((s) => s.setBaseModel);
 
+  const isVoiceActive = voice?.isVoiceActive ?? false;
+
   useEffect(() => {
     if (!isThinkingModel(selectedModel)) {
       setBaseModel(selectedModel);
@@ -116,13 +126,16 @@ export const ChatPageContent = ({
   }, [selectedModel, setBaseModel]);
 
   const [inputValue, setInputValue] = useState("");
-  const [showVoice, setShowVoice] = useState(false);
   const [showCanvas, setShowCanvas] = useState(false);
   const [canvasComponents, setCanvasComponents] = useState<any[]>([]);
   const { colors } = useColorScheme();
 
   const [bottomBarHeight, setBottomBarHeight] = useState(160);
   const isMainScreen = messages.length === 0;
+
+  useEffect(() => {
+    useStore.getState().setGhostMode(false);
+  }, []);
 
   const toggleMode = useCallback((mode: Mode) => {
     const config = MODE_CONFIG[mode];
@@ -140,6 +153,9 @@ export const ChatPageContent = ({
         next.add(mode);
         config.exclusive?.forEach(m => next.delete(m as Mode));
         toast.info(t(config.onToast));
+      }
+      if (mode === 'ghost') {
+        useStore.getState().setGhostMode(next.has('ghost'));
       }
       return next;
     });
@@ -198,6 +214,26 @@ export const ChatPageContent = ({
     setShowCanvas(true);
   };
 
+  const handleVoiceActivate = useCallback(() => {
+    if (!isAuthenticated) {
+      toast.error(t('subscribe.signInRequired'));
+      return;
+    }
+    if (!entitlements?.features['voice-mode']) {
+      toast.info(t('subscribe.featureRequiresPlan', { feature: t('modes.voiceMode') }));
+      router.push('/(biglayout)/subscribe');
+      return;
+    }
+    if (creditsInfo && creditsInfo.credits <= 0) {
+      toast.error(t('usageLimit.outOfCreditsTitle'));
+      return;
+    }
+    if (voice) {
+      voice.activateVoice();
+    } else if (onVoiceStart) {
+      onVoiceStart();
+    }
+  }, [voice, onVoiceStart, isAuthenticated, entitlements, creditsInfo, t, router]);
 
   const extraMenuItems = (
     <>
@@ -238,7 +274,18 @@ export const ChatPageContent = ({
           onSuggestionPress={handleSuggestionPress}
           onEditMessage={onEditMessage}
           bottomPadding={bottomBarHeight}
+          isVoiceActive={isVoiceActive}
+          voiceAgentState={voice?.agentState}
         />
+
+        {/* Voice wave overlay — renders on top of messages at low opacity */}
+        {isVoiceActive && voice && (
+          <VoiceOverlay
+            waveAmplitude={voice.waveAmplitude}
+            agentState={voice.agentState}
+            isConnected={voice.isConnected}
+          />
+        )}
 
         <LinearGradient
           colors={[colors.background, "transparent"]}
@@ -254,199 +301,206 @@ export const ChatPageContent = ({
             ghostModeActive={activeModes.has('ghost')}
             onClear={onClear}
             isConversation={messages.length > 0}
+            isVoiceActive={isVoiceActive}
           />
         </LinearGradient>
 
-        <LinearGradient
-          colors={["transparent", colors.background]}
-          locations={[0, 0.9]}
-          style={{ position: "absolute", bottom: 0, left: 0, right: 0, zIndex: 10, paddingTop: 24 }}
-          onLayout={(e) => setBottomBarHeight(e.nativeEvent.layout.height)}
-        >
-          <CreditWarningBanner selectedModel={selectedModel} onSwitchModel={onModelChange} />
+        {/* Bottom area: voice controls OR text input */}
+        {isVoiceActive && voice ? (
+          <View
+            style={{ position: "absolute", bottom: 0, left: 0, right: 0, zIndex: 10 }}
+            onLayout={(e) => setBottomBarHeight(e.nativeEvent.layout.height)}
+          >
+            <VoiceControls
+              roomState={voice.roomState}
+              agentState={voice.agentState}
+              isMuted={voice.isMuted}
+              cohostActive={voice.cohostActive}
+              currentSpeaker={voice.currentSpeaker}
+              roundComplete={voice.roundComplete}
+              onToggleMute={voice.toggleMute}
+              onEnableCohost={voice.enableCohost}
+              onDisableCohost={voice.disableCohost}
+              onContinueCohost={voice.continueCohost}
+              onEnd={voice.deactivateVoice}
+            />
+          </View>
+        ) : (
+          <LinearGradient
+            colors={["transparent", colors.background]}
+            locations={[0, 0.9]}
+            style={{ position: "absolute", bottom: 0, left: 0, right: 0, zIndex: 10, paddingTop: 24 }}
+            onLayout={(e) => setBottomBarHeight(e.nativeEvent.layout.height)}
+          >
+            <CreditWarningBanner selectedModel={selectedModel} onSwitchModel={onModelChange} />
 
-          {disabled && (
-            <View className="mx-auto w-full max-w-3xl px-4 pb-1">
-              <View className="flex-row items-center gap-2 rounded-lg bg-destructive/10 px-3 py-2">
-                <AlertTriangle size={14} className="text-destructive" />
-                <Text className="text-xs text-destructive flex-1">
-                  {t('usageLimit.limitReachedBanner')}
-                </Text>
+            {disabled && (
+              <View className="mx-auto w-full max-w-3xl px-4 pb-1">
+                <View className="flex-row items-center gap-2 rounded-lg bg-destructive/10 px-3 py-2">
+                  <AlertTriangle size={14} className="text-destructive" />
+                  <Text className="text-xs text-destructive flex-1">
+                    {t('usageLimit.limitReachedBanner')}
+                  </Text>
+                </View>
               </View>
-            </View>
-          )}
+            )}
 
-          <View className="p-4">
-            <View className="mx-auto w-full max-w-3xl">
-                <PromptInput
-                  value={inputValue}
-                  onValueChange={setInputValue}
-                  onSubmit={handleSubmit}
-                  isLoading={isLoading}
-                  disabled={isLoading || disabled}
-                  attachments={attachments}
-                  onAddAttachment={addAttachment}
-                  onRemoveAttachment={removeAttachment}
-                  onImagePaste={handleImagePaste}
-                  autocomplete={isMainScreen}
-                  leadingAddMenu
-                  placeholder={disabled ? t('usageLimit.inputDisabledPlaceholder') : "Message Alia..."}
-                  onStop={onStop}
-                  emptyAction={
-                    <Button
-                      size="icon"
-                      className="h-8 w-8 rounded-full"
-                      onPress={() => {
-                        if (!isAuthenticated) {
-                          toast.error(t('subscribe.signInRequired'));
-                          return;
-                        }
-                        if (!entitlements?.features['voice-mode']) {
-                          toast.info(t('subscribe.featureRequiresPlan', { feature: t('modes.voiceMode') }));
-                          router.push('/(biglayout)/subscribe');
-                          return;
-                        }
-                        if (creditsInfo && creditsInfo.credits <= 0) {
-                          toast.error(t('usageLimit.outOfCreditsTitle'));
-                          return;
-                        }
-                        setShowVoice(true);
-                      }}
-                    >
-                      <Entypo name="sound" size={16} color="white" />
-                    </Button>
-                  }
-                  actionsLeft={
-                    <>
+            <View className="p-4">
+              <View className="mx-auto w-full max-w-3xl">
+                  <PromptInput
+                    value={inputValue}
+                    onValueChange={setInputValue}
+                    onSubmit={handleSubmit}
+                    isLoading={isLoading}
+                    disabled={isLoading || disabled}
+                    attachments={attachments}
+                    onAddAttachment={addAttachment}
+                    onRemoveAttachment={removeAttachment}
+                    onImagePaste={handleImagePaste}
+                    autocomplete={isMainScreen}
+                    leadingAddMenu
+                    placeholder={disabled ? t('usageLimit.inputDisabledPlaceholder') : "Message Alia..."}
+                    onStop={onStop}
+                    emptyAction={
                       <Button
-                        variant={activeModes.has('search') ? "default" : "outline"}
-                        className="h-8 rounded-full px-3 flex-row items-center gap-2 text-muted-foreground hover:text-foreground font-normal text-xs"
-                        onPress={() => toggleMode('search')}
+                        size="icon"
+                        className="h-8 w-8 rounded-full"
+                        onPress={handleVoiceActivate}
                       >
-                        <Globe size={16} className={activeModes.has('search') ? "text-primary-foreground" : "text-muted-foreground"} />
+                        <Entypo name="sound" size={16} color="white" />
                       </Button>
+                    }
+                    actionsLeft={
+                      <>
+                        <Button
+                          variant={activeModes.has('search') ? "default" : "outline"}
+                          className="h-8 rounded-full px-3 flex-row items-center gap-2 text-muted-foreground hover:text-foreground font-normal text-xs"
+                          onPress={() => toggleMode('search')}
+                        >
+                          <Globe size={16} className={activeModes.has('search') ? "text-primary-foreground" : "text-muted-foreground"} />
+                        </Button>
 
-                      {thinkingMode && (
-                        <ModeChip
-                          icon={Brain}
-                          label={t('modes.thinkingLabel')}
-                          color="#a855f7"
-                          onDismiss={handleThinkingMode}
-                        />
-                      )}
-
-                      {MODE_ORDER.map(mode =>
-                        activeModes.has(mode) && (
+                        {thinkingMode && (
                           <ModeChip
-                            key={mode}
-                            icon={MODE_CONFIG[mode].icon}
-                            label={t(MODE_CONFIG[mode].label)}
-                            color={MODE_CONFIG[mode].color}
-                            onDismiss={() => toggleMode(mode)}
+                            icon={Brain}
+                            label={t('modes.thinkingLabel')}
+                            color="#a855f7"
+                            onDismiss={handleThinkingMode}
                           />
-                        )
-                      )}
+                        )}
 
-                      {activeRole && (
-                        <View className="h-8 rounded-full px-3 bg-primary/10 flex-row items-center gap-1.5">
-                          <Sparkles size={12} className="text-primary" />
-                          <Text className="text-xs font-medium text-primary" numberOfLines={1}>
-                            {activeRole.name}
-                          </Text>
-                          <Pressable onPress={onRemoveRole} className="active:opacity-70">
-                            <X size={12} className="text-primary" />
-                          </Pressable>
-                        </View>
-                      )}
+                        {MODE_ORDER.map(mode =>
+                          activeModes.has(mode) && (
+                            <ModeChip
+                              key={mode}
+                              icon={MODE_CONFIG[mode].icon}
+                              label={t(MODE_CONFIG[mode].label)}
+                              color={MODE_CONFIG[mode].color}
+                              onDismiss={() => toggleMode(mode)}
+                            />
+                          )
+                        )}
 
-                      <DropdownMenu.Root>
-                        <DropdownMenu.Trigger>
-                          <Button
-                            variant="outline"
-                            size="icon"
-                            className="h-8 w-8 rounded-full text-muted-foreground hover:text-foreground"
-                          >
-                            <MoreHorizontal size={16} className="text-muted-foreground" />
-                          </Button>
-                        </DropdownMenu.Trigger>
-                        <DropdownMenu.Content side="top" align="start" collisionPadding={8}>
-                          <DropdownMenu.Sub>
-                            <DropdownMenu.SubTrigger key="research">
-                              <DropdownMenu.ItemIcon ios={{ name: "magnifyingglass" }} />
-                              <DropdownMenu.ItemTitle>Research</DropdownMenu.ItemTitle>
-                            </DropdownMenu.SubTrigger>
-                            <DropdownMenu.SubContent>
-                              <DropdownMenu.CheckboxItem
-                                key="deep-research"
-                                value={activeModes.has('deepResearch') ? 'on' : 'off'}
-                                onValueChange={() => toggleMode('deepResearch')}
-                              >
-                                <DropdownMenu.ItemIcon ios={{ name: "magnifyingglass" }} />
-                                <DropdownMenu.ItemTitle>Deep research</DropdownMenu.ItemTitle>
-                              </DropdownMenu.CheckboxItem>
-                              <DropdownMenu.CheckboxItem
-                                key="shopping"
-                                value={activeModes.has('shoppingResearch') ? 'on' : 'off'}
-                                onValueChange={() => toggleMode('shoppingResearch')}
-                              >
-                                <DropdownMenu.ItemIcon ios={{ name: "bag" }} />
-                                <DropdownMenu.ItemTitle>Shopping research</DropdownMenu.ItemTitle>
-                              </DropdownMenu.CheckboxItem>
-                            </DropdownMenu.SubContent>
-                          </DropdownMenu.Sub>
-                          <DropdownMenu.CheckboxItem
-                            key="thinking"
-                            value={thinkingMode ? 'on' : 'off'}
-                            onValueChange={handleThinkingMode}
-                          >
-                            <DropdownMenu.ItemIcon ios={{ name: "brain" }} />
-                            <DropdownMenu.ItemTitle>Thinking mode</DropdownMenu.ItemTitle>
-                          </DropdownMenu.CheckboxItem>
-                          {isMainScreen && (
-                            <DropdownMenu.CheckboxItem
-                              key="ghost"
-                              value={activeModes.has('ghost') ? 'on' : 'off'}
-                              onValueChange={() => toggleMode('ghost')}
+                        {activeRole && (
+                          <View className="h-8 rounded-full px-3 bg-primary/10 flex-row items-center gap-1.5">
+                            <Sparkles size={12} className="text-primary" />
+                            <Text className="text-xs font-medium text-primary" numberOfLines={1}>
+                              {activeRole.name}
+                            </Text>
+                            <Pressable onPress={onRemoveRole} className="active:opacity-70">
+                              <X size={12} className="text-primary" />
+                            </Pressable>
+                          </View>
+                        )}
+
+                        <DropdownMenu.Root>
+                          <DropdownMenu.Trigger>
+                            <Button
+                              variant="outline"
+                              size="icon"
+                              className="h-8 w-8 rounded-full text-muted-foreground hover:text-foreground"
                             >
-                              <DropdownMenu.ItemIcon ios={{ name: "eye.slash" }} />
-                              <DropdownMenu.ItemTitle>Ghost mode</DropdownMenu.ItemTitle>
-                            </DropdownMenu.CheckboxItem>
-                          )}
-                          <DropdownMenu.CheckboxItem
-                            key="agent"
-                            value={activeModes.has('agent') ? 'on' : 'off'}
-                            onValueChange={() => toggleMode('agent')}
-                          >
-                            <DropdownMenu.ItemIcon ios={{ name: "cpu" }} />
-                            <DropdownMenu.ItemTitle>Agent mode</DropdownMenu.ItemTitle>
-                          </DropdownMenu.CheckboxItem>
-                          {isNarrowScreen ? (
-                            <>
-                              <DropdownMenu.Separator />
-                              {extraMenuItems}
-                            </>
-                          ) : (
+                              <MoreHorizontal size={16} className="text-muted-foreground" />
+                            </Button>
+                          </DropdownMenu.Trigger>
+                          <DropdownMenu.Content side="top" align="start" collisionPadding={8}>
                             <DropdownMenu.Sub>
-                              <DropdownMenu.SubTrigger key="more">
-                                <DropdownMenu.ItemIcon ios={{ name: "ellipsis" }} />
-                                <DropdownMenu.ItemTitle>More</DropdownMenu.ItemTitle>
+                              <DropdownMenu.SubTrigger key="research">
+                                <DropdownMenu.ItemIcon ios={{ name: "magnifyingglass" }} />
+                                <DropdownMenu.ItemTitle>Research</DropdownMenu.ItemTitle>
                               </DropdownMenu.SubTrigger>
                               <DropdownMenu.SubContent>
-                                {extraMenuItems}
+                                <DropdownMenu.CheckboxItem
+                                  key="deep-research"
+                                  value={activeModes.has('deepResearch') ? 'on' : 'off'}
+                                  onValueChange={() => toggleMode('deepResearch')}
+                                >
+                                  <DropdownMenu.ItemIcon ios={{ name: "magnifyingglass" }} />
+                                  <DropdownMenu.ItemTitle>Deep research</DropdownMenu.ItemTitle>
+                                </DropdownMenu.CheckboxItem>
+                                <DropdownMenu.CheckboxItem
+                                  key="shopping"
+                                  value={activeModes.has('shoppingResearch') ? 'on' : 'off'}
+                                  onValueChange={() => toggleMode('shoppingResearch')}
+                                >
+                                  <DropdownMenu.ItemIcon ios={{ name: "bag" }} />
+                                  <DropdownMenu.ItemTitle>Shopping research</DropdownMenu.ItemTitle>
+                                </DropdownMenu.CheckboxItem>
                               </DropdownMenu.SubContent>
                             </DropdownMenu.Sub>
-                          )}
-                        </DropdownMenu.Content>
-                      </DropdownMenu.Root>
-                    </>
-                  }
-                />
+                            <DropdownMenu.CheckboxItem
+                              key="thinking"
+                              value={thinkingMode ? 'on' : 'off'}
+                              onValueChange={handleThinkingMode}
+                            >
+                              <DropdownMenu.ItemIcon ios={{ name: "brain" }} />
+                              <DropdownMenu.ItemTitle>Thinking mode</DropdownMenu.ItemTitle>
+                            </DropdownMenu.CheckboxItem>
+                            {isMainScreen && (
+                              <DropdownMenu.CheckboxItem
+                                key="ghost"
+                                value={activeModes.has('ghost') ? 'on' : 'off'}
+                                onValueChange={() => toggleMode('ghost')}
+                              >
+                                <DropdownMenu.ItemIcon ios={{ name: "eye.slash" }} />
+                                <DropdownMenu.ItemTitle>Ghost mode</DropdownMenu.ItemTitle>
+                              </DropdownMenu.CheckboxItem>
+                            )}
+                            <DropdownMenu.CheckboxItem
+                              key="agent"
+                              value={activeModes.has('agent') ? 'on' : 'off'}
+                              onValueChange={() => toggleMode('agent')}
+                            >
+                              <DropdownMenu.ItemIcon ios={{ name: "cpu" }} />
+                              <DropdownMenu.ItemTitle>Agent mode</DropdownMenu.ItemTitle>
+                            </DropdownMenu.CheckboxItem>
+                            {isNarrowScreen ? (
+                              <>
+                                <DropdownMenu.Separator />
+                                {extraMenuItems}
+                              </>
+                            ) : (
+                              <DropdownMenu.Sub>
+                                <DropdownMenu.SubTrigger key="more">
+                                  <DropdownMenu.ItemIcon ios={{ name: "ellipsis" }} />
+                                  <DropdownMenu.ItemTitle>More</DropdownMenu.ItemTitle>
+                                </DropdownMenu.SubTrigger>
+                                <DropdownMenu.SubContent>
+                                  {extraMenuItems}
+                                </DropdownMenu.SubContent>
+                              </DropdownMenu.Sub>
+                            )}
+                          </DropdownMenu.Content>
+                        </DropdownMenu.Root>
+                      </>
+                    }
+                  />
+              </View>
             </View>
-          </View>
-        </LinearGradient>
+          </LinearGradient>
+        )}
       </View>
 
-      <VoiceChat visible={showVoice} onClose={() => setShowVoice(false)} />
       <CanvasPanel visible={showCanvas} onClose={() => setShowCanvas(false)} components={canvasComponents} />
     </View>
   );

@@ -28,6 +28,13 @@ import { useUserDataStore } from '../stores/user-data-store';
 export type RoomState = 'disconnected' | 'connecting' | 'connected' | 'error';
 export type AgentState = 'idle' | 'listening' | 'thinking' | 'speaking';
 
+export interface VoiceToolInvocation {
+  toolCallId: string;
+  toolName: string;
+  state: 'call' | 'result';
+  args?: any;
+}
+
 export interface VoiceMessage {
   id: string;
   role: 'user' | 'assistant';
@@ -35,6 +42,7 @@ export interface VoiceMessage {
   content: string;
   timestamp: number;
   isStreaming: boolean;
+  toolInvocations?: VoiceToolInvocation[];
 }
 
 // Agent data message types (must match backend AgentDataMessage)
@@ -46,13 +54,15 @@ interface CohostEnabledMsg { type: 'cohost.enabled' }
 interface CohostDisabledMsg { type: 'cohost.disabled' }
 interface CohostTurnMsg { type: 'cohost.turn_changed'; speaker: 'primary' | 'cohost' | 'user' }
 interface CohostRoundMsg { type: 'cohost.round_complete'; turns: number }
+interface ToolCallMsg { type: 'tool.call'; toolName: string; callId: string; args?: any; speaker: 'primary' | 'cohost' }
+interface ToolResultMsg { type: 'tool.result'; callId: string; speaker: 'primary' | 'cohost' }
 interface SessionEndedMsg { type: 'session.ended'; reason: string }
 interface ErrorMsg { type: 'error'; code: string; message: string }
 
 type AgentDataMessage =
   | AgentStateMsg | TranscriptDeltaMsg | TranscriptDoneMsg | TranscriptUserMsg
   | CohostEnabledMsg | CohostDisabledMsg | CohostTurnMsg | CohostRoundMsg
-  | SessionEndedMsg | ErrorMsg;
+  | ToolCallMsg | ToolResultMsg | SessionEndedMsg | ErrorMsg;
 
 // ============== HOOK ==============
 
@@ -69,6 +79,7 @@ export function useVoiceRoom() {
   const roomRef = useRef<Room | null>(null);
   const sessionIdRef = useRef<string | null>(null);
   const msgIdRef = useRef(0);
+  const sessionPrefixRef = useRef(`vm-${Date.now().toString(36)}`);
 
   // Per-speaker streaming transcript refs
   const primaryTextRef = useRef('');
@@ -120,7 +131,7 @@ export function useVoiceRoom() {
             }
             msgIdRef.current++;
             return [...prev, {
-              id: `vm-${msgIdRef.current}`,
+              id: `${sessionPrefixRef.current}-${msgIdRef.current}`,
               role: 'assistant',
               speaker: msg.speaker,
               content: text,
@@ -147,14 +158,22 @@ export function useVoiceRoom() {
 
         case 'transcript.user': {
           if (!msg.transcript.trim()) break;
-          msgIdRef.current++;
-          setMessages(prev => [...prev, {
-            id: `vm-${msgIdRef.current}`,
-            role: 'user',
-            content: msg.transcript.trim(),
-            timestamp: Date.now(),
-            isStreaming: false,
-          }]);
+          const transcript = msg.transcript.trim();
+          setMessages(prev => {
+            const last = prev[prev.length - 1];
+            // Update existing user message instead of creating duplicates
+            if (last && last.role === 'user') {
+              return [...prev.slice(0, -1), { ...last, content: transcript }];
+            }
+            msgIdRef.current++;
+            return [...prev, {
+              id: `${sessionPrefixRef.current}-${msgIdRef.current}`,
+              role: 'user',
+              content: transcript,
+              timestamp: Date.now(),
+              isStreaming: false,
+            }];
+          });
           break;
         }
 
@@ -174,6 +193,41 @@ export function useVoiceRoom() {
         case 'cohost.round_complete':
           setRoundComplete(true);
           break;
+
+        case 'tool.call': {
+          const tool: VoiceToolInvocation = { toolCallId: msg.callId, toolName: msg.toolName, state: 'call', args: msg.args };
+          setMessages(prev => {
+            const last = prev[prev.length - 1];
+            if (last && last.role === 'assistant' && last.speaker === msg.speaker) {
+              return [...prev.slice(0, -1), {
+                ...last,
+                toolInvocations: [...(last.toolInvocations || []), tool],
+              }];
+            }
+            msgIdRef.current++;
+            return [...prev, {
+              id: `${sessionPrefixRef.current}-${msgIdRef.current}`,
+              role: 'assistant' as const,
+              speaker: msg.speaker,
+              content: '',
+              timestamp: Date.now(),
+              isStreaming: true,
+              toolInvocations: [tool],
+            }];
+          });
+          break;
+        }
+
+        case 'tool.result': {
+          setMessages(prev => prev.map(m => {
+            if (!m.toolInvocations) return m;
+            const updated = m.toolInvocations.map(t =>
+              t.toolCallId === msg.callId ? { ...t, state: 'result' as const } : t
+            );
+            return { ...m, toolInvocations: updated };
+          }));
+          break;
+        }
 
         case 'session.ended': {
           cleanup();

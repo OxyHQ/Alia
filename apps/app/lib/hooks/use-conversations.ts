@@ -12,6 +12,10 @@ export interface Message {
   content: string | Array<{ type: string; [key: string]: any }>;
   thinking?: string; // Extended thinking content (when thinking mode is enabled)
   toolInvocations?: ToolInvocation[];
+  // Voice fields (optional, only present for voice-originated messages)
+  source?: 'text' | 'voice';
+  speaker?: 'primary' | 'cohost';
+  isStreaming?: boolean;
 }
 
 export interface Conversation {

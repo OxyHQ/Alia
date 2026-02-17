@@ -38,6 +38,10 @@ type Message = {
   thinking?: string; // Extended thinking content
   parts?: MessagePart[];
   toolInvocations?: ToolInvocation[];
+  // Voice fields
+  source?: 'text' | 'voice';
+  speaker?: 'primary' | 'cohost';
+  isStreaming?: boolean;
 };
 
 type ChatInterfaceProps = {
@@ -48,6 +52,8 @@ type ChatInterfaceProps = {
   onEditMessage?: (messageId: string, newContent: string) => void;
   onCopyMessage?: (content: string) => void;
   bottomPadding?: number;
+  isVoiceActive?: boolean;
+  voiceAgentState?: 'idle' | 'listening' | 'thinking' | 'speaking';
 };
 
 // Helper function to extract and process text content for the app
@@ -105,7 +111,7 @@ function ToolBullet({ isRunning }: { isRunning: boolean }) {
   );
 }
 
-export const ChatInterface = React.memo(function ChatInterface({ messages, scrollViewRef, isLoading, onSuggestionPress, onEditMessage, onCopyMessage, bottomPadding = 160 }: ChatInterfaceProps) {
+export const ChatInterface = React.memo(function ChatInterface({ messages, scrollViewRef, isLoading, onSuggestionPress, onEditMessage, onCopyMessage, bottomPadding = 160, isVoiceActive = false, voiceAgentState }: ChatInterfaceProps) {
     const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
     const [editedContent, setEditedContent] = useState("");
     const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
@@ -234,18 +240,30 @@ export const ChatInterface = React.memo(function ChatInterface({ messages, scrol
 
 
                   {/* Message Content */}
-                  {(messageText.length > 0 || messageImages.length > 0) && (
+                  {(messageText.length > 0 || messageImages.length > 0 || (m as any).isStreaming) && (
                     <View key="message-content" className="w-full">
                       {m.role === "assistant" ? (
                         // Assistant message: logo on top, text below
                         <View className="flex-col items-start gap-0.5">
-                          <Image
-                            source={require("@/assets/images/logo.png")}
-                            style={{ width: 48, height: 20 }}
-                            contentFit="contain"
-                          />
+                          {/* Speaker label for cohost voice messages */}
+                          {(m as any).source === 'voice' && (m as any).speaker === 'cohost' ? (
+                            <Text className="text-xs text-indigo-400 mb-0.5">Cohost</Text>
+                          ) : (
+                            <Image
+                              source={require("@/assets/images/logo.png")}
+                              style={{ width: 48, height: 20 }}
+                              contentFit="contain"
+                            />
+                          )}
                           <View className="w-full">
-                            <CustomMarkdown content={messageText} />
+                            {(m as any).source === 'voice' ? (
+                              <Text className="text-base text-foreground leading-7">
+                                {messageText}
+                                {(m as any).isStreaming ? '\u258C' : ''}
+                              </Text>
+                            ) : (
+                              <CustomMarkdown content={messageText} />
+                            )}
                           </View>
                           {/* Action Buttons for Assistant Messages */}
                           <View className="flex-row gap-1">
@@ -345,7 +363,7 @@ export const ChatInterface = React.memo(function ChatInterface({ messages, scrol
                   )}
 
                   {/* ThinkingIndicator — shows when the last assistant message has no text yet */}
-                  {isLoading &&
+                  {(isLoading || voiceAgentState === 'thinking') &&
                     m.role === "assistant" &&
                     m === messages[messages.length - 1] &&
                     !getMessageText(m) && (
@@ -359,6 +377,14 @@ export const ChatInterface = React.memo(function ChatInterface({ messages, scrol
               );
             })}
           </View>
+
+          {/* Standalone ThinkingIndicator for voice mode — shows when AI is thinking
+              but there's no pending assistant message yet (e.g. right after user speaks) */}
+          {voiceAgentState === 'thinking' &&
+            !isLoading &&
+            (messages.length === 0 || messages[messages.length - 1]?.role !== 'assistant') && (
+              <ThinkingIndicator isWorking={false} />
+            )}
         </View>
       </ScrollView>
     );

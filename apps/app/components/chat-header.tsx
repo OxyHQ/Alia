@@ -1,6 +1,6 @@
 import { View, useWindowDimensions, Platform } from "react-native";
 import { Text } from "@/components/ui/text";
-import { Search, MoreHorizontal, Menu, Ghost } from "lucide-react-native";
+import { Search, MoreHorizontal, Menu, Ghost, Mic } from "lucide-react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Button } from "@/components/ui/button";
 import { ModelSelector } from "@/components/model-selector";
@@ -22,6 +22,7 @@ interface ChatHeaderProps {
   onSearchPress?: () => void;
   onClear?: () => void;
   isConversation?: boolean;
+  isVoiceActive?: boolean;
 }
 
 export function ChatHeader({
@@ -33,6 +34,7 @@ export function ChatHeader({
   onSearchPress,
   onClear,
   isConversation = false,
+  isVoiceActive = false,
 }: ChatHeaderProps) {
   const { t } = useTranslation();
   const insets = useSafeAreaInsets();
@@ -91,6 +93,12 @@ export function ChatHeader({
           selectedModel={selectedModel}
           onModelChange={onModelChange}
         />
+        {isVoiceActive && (
+          <View className="h-6 rounded-full px-2 flex-row items-center gap-1" style={{ backgroundColor: 'rgba(56, 189, 248, 0.15)' }}>
+            <Mic size={12} color="#38bdf8" />
+            <Text className="text-[11px] font-medium" style={{ color: '#38bdf8' }}>Voice</Text>
+          </View>
+        )}
       </View>
 
       <View className="flex-row items-center gap-2">

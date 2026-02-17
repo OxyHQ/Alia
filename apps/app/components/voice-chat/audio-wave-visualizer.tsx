@@ -148,10 +148,10 @@ const WAVE_COLORS: Record<AgentState, WaveLayerConfig['color'][]> = {
     'rgba(99, 102, 241, 0.25)',
   ],
   thinking: [
-    'rgba(30, 58, 110, 0.75)',
-    'rgba(99, 102, 241, 0.45)',
-    'rgba(139, 92, 246, 0.35)',
-    'rgba(56, 189, 248, 0.25)',
+    'rgba(120, 80, 20, 0.75)',
+    'rgba(234, 179, 8, 0.45)',
+    'rgba(251, 191, 36, 0.35)',
+    'rgba(253, 224, 71, 0.25)',
   ],
   speaking: [
     'rgba(30, 40, 100, 0.8)',
@@ -164,7 +164,7 @@ const WAVE_COLORS: Record<AgentState, WaveLayerConfig['color'][]> = {
 const BLOB_COLORS: Record<AgentState, string[]> = {
   idle: ['#0c4a6e', '#0ea5e9', '#6366f1', '#a855f7'],
   listening: ['#0c4a6e', '#0ea5e9', '#6366f1', '#a855f7'],
-  thinking: ['#0c4a6e', '#6366f1', '#7c3aed', '#0ea5e9'],
+  thinking: ['#92400e', '#eab308', '#f59e0b', '#fbbf24'],
   speaking: ['#1e2870', '#6366f1', '#9333ea', '#0ea5e9'],
 };
 

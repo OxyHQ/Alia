@@ -458,9 +458,11 @@ export class VoiceSessionManager {
           // Duck AI audio when user starts speaking
           session.agentBridge?.setGain(0.3);
           session.cohostBridge?.setGain(0.3);
-          // If cohost is active and an AI is speaking, interrupt for user
+          // Cancel in-progress AI response for clean barge-in
           if (session.cohostEnabled && session.cohostState) {
             this.handleUserInterruptDuringCohost(session);
+          } else if (session.providerSocket?.readyState === WebSocket.OPEN) {
+            session.providerSocket.send(JSON.stringify({ type: 'response.cancel' }));
           }
         }
 
@@ -541,13 +543,24 @@ export class VoiceSessionManager {
     const executors = role === 'primary' ? session.toolExecutors : session.cohostToolExecutors;
     if (!providerSocket || providerSocket.readyState !== WebSocket.OPEN) return false;
 
+    const bridge = role === 'primary' ? session.agentBridge : session.cohostBridge;
+
     for (const fc of functionCalls) {
       const executor = executors?.get(fc.name);
       let output: string;
+      let args: any = {};
+
+      try {
+        args = JSON.parse(fc.arguments || '{}');
+      } catch { /* use empty args */ }
+
+      // Notify client that a tool is being called
+      await bridge?.publishData({
+        type: 'tool.call', toolName: fc.name, callId: fc.call_id, args, speaker: role,
+      } satisfies AgentDataMessage);
 
       if (executor) {
         try {
-          const args = JSON.parse(fc.arguments || '{}');
           log.providers.info({ toolName: fc.name, args, role }, 'Executing voice tool');
           const result = await executor(args);
           output = JSON.stringify(result);
@@ -558,6 +571,11 @@ export class VoiceSessionManager {
       } else {
         output = JSON.stringify({ error: `Unknown tool: ${fc.name}` });
       }
+
+      // Notify client that the tool has completed
+      await bridge?.publishData({
+        type: 'tool.result', callId: fc.call_id, speaker: role,
+      } satisfies AgentDataMessage);
 
       providerSocket.send(JSON.stringify({
         type: 'conversation.item.create',
