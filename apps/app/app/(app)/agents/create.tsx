@@ -90,6 +90,7 @@ export default function CreateAgentScreen() {
           disabled={generating}
           placeholder={t("agents.createPlaceholder")}
           autocomplete
+          autocompletePosition="bottom"
         />
       </View>
     </View>

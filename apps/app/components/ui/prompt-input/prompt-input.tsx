@@ -29,6 +29,7 @@ export type PromptInputProps = {
   // Simple mode props (when no children)
   placeholder?: string;
   autocomplete?: boolean;
+  autocompletePosition?: "top" | "bottom";
   // Shows the add menu as a standalone button to the left of the input box
   leadingAddMenu?: boolean;
   // Custom left-side actions (replaces default add menu in the actions bar)
@@ -55,6 +56,7 @@ export function PromptInput({
   onImagePaste,
   placeholder,
   autocomplete = false,
+  autocompletePosition = "top",
   leadingAddMenu = false,
   actionsLeft,
   onStop,
@@ -201,7 +203,9 @@ export function PromptInput({
 
   return (
     <PromptInputContext.Provider value={contextValue}>
-      {autocomplete && <PromptInputAutocomplete />}
+      {autocomplete && autocompletePosition === "top" && (
+        <PromptInputAutocomplete position="top" />
+      )}
 
       <KeyboardAvoidingView behavior="padding">
         {leadingAddMenu ? (
@@ -216,6 +220,10 @@ export function PromptInput({
           inputBox
         )}
       </KeyboardAvoidingView>
+
+      {autocomplete && autocompletePosition === "bottom" && (
+        <PromptInputAutocomplete position="bottom" />
+      )}
 
       {showFullscreen && (
         <View

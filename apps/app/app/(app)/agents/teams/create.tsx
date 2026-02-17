@@ -72,6 +72,7 @@ export default function CreateTeamScreen() {
           disabled={creating}
           placeholder={t("agents.createTeamPlaceholder")}
           autocomplete
+          autocompletePosition="bottom"
         />
       </View>
     </View>
