@@ -26,7 +26,7 @@ Four specialized agents are available:
 | `apps/alia-console` | TanStack Start + React | Admin console |
 | `apps/alia-providers-admin` | Vite + React | Provider management panel |
 | `apps/alia-canvas` | Next.js | Web canvas app |
-| `apps/codea-cli` | CLI | Terminal AI coding assistant |
+| `apps/alia-codea-cli` | CLI | Terminal AI coding assistant |
 | `apps/alia-docker-host` | Express + TypeScript | Docker container host for agent sandboxed execution |
 | `apps/integrations` | Express + TypeScript | Unified messaging service (Telegram, Discord, WhatsApp, Signal) |
 
@@ -67,7 +67,7 @@ npm run ios
 - [apps/alia-console](apps/alia-console/README.md)
 - [apps/alia-providers-admin](apps/alia-providers-admin/README.md)
 - [apps/alia-canvas](apps/alia-canvas/README.md)
-- [apps/codea-cli](apps/codea-cli/README.md)
+- [apps/alia-codea-cli](apps/alia-codea-cli/README.md)
 - [apps/alia-docker-host](apps/alia-docker-host/README.md)
 - [apps/integrations](apps/integrations/README.md)
 

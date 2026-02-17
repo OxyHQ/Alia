@@ -12,7 +12,7 @@
     "apps/alia-providers-admin",
     "apps/alia-codea",
     "apps/alia-cowork",
-    "apps/codea-cli",
+    "apps/alia-codea-cli",
     "apps/alia-providers-api"
   ],
   "scripts": {
