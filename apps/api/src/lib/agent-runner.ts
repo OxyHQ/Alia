@@ -7,7 +7,7 @@
  *   - Token budgets and step limits
  *   - Real-time activity streaming via Socket.IO
  *   - Agent-to-agent delegation (recursive, depth-limited)
- *   - VM lifecycle management
+ *   - Container lifecycle management
  *   - In-memory activity buffer for backfill on connect
  */
 
@@ -15,7 +15,7 @@ import { generateText } from 'ai';
 import { AgentSession, type IAgentSession } from '../models/agent-session.js';
 import { Agent, type IAgent } from '../models/agent.js';
 import { resolveModel, getAIModel, reportModelUsage, getDefaultAliaModel } from './chat-core.js';
-import { buildAgentTools, cleanupSessionVMs } from './agent-tools.js';
+import { buildAgentTools, cleanupSessionResources } from './agent-tools.js';
 import { emitAgentActivity, type AgentActivityEvent } from '../socket.js';
 import { log } from './logger.js';
 
@@ -63,9 +63,9 @@ ${agent.description}${capabilities}
 - Complete the user's task efficiently. Minimize unnecessary steps and token usage.
 - When you are done, call the completeTask tool with your final result.
 - Do NOT continue working after completing the task.
-- If you need to run code, create a VM first, execute your code, then destroy the VM when done.
+- If you need to run code, create a container first, execute your code, then destroy the container when done.
 - If a subtask is better handled by a specialist, use the hireAgent tool.
-- Always destroy VMs when you are finished with them.
+- Always destroy containers when you are finished with them.
 
 ## Budget
 - Maximum ${config.maxSteps} steps. Be efficient.
@@ -449,7 +449,7 @@ export async function runAgentSession(sessionId: string): Promise<void> {
 
     // ── Session Complete ──
 
-    await cleanupSessionVMs(session);
+    await cleanupSessionResources(session);
 
     if (taskCompleted) {
       session.status = 'completed';
@@ -491,7 +491,7 @@ export async function runAgentSession(sessionId: string): Promise<void> {
   } catch (err: any) {
     log.agents.error({ err, sessionId }, 'Agent session failed');
 
-    await cleanupSessionVMs(session);
+    await cleanupSessionResources(session);
 
     session.status = 'failed';
     session.result = err.message || 'Session failed unexpectedly';

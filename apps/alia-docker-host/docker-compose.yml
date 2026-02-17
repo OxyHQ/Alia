@@ -1,0 +1,58 @@
+services:
+  alia-docker-api:
+    build: .
+    container_name: alia-docker-api
+    ports:
+      - "9090:9090"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - traefik-dynamic:/etc/traefik/dynamic
+    environment:
+      - DOCKER_HOST_SECRET=${DOCKER_HOST_SECRET}
+      - PREVIEW_DOMAIN=${PREVIEW_DOMAIN:-preview.alia.onl}
+      - NODE_ENV=production
+      - PORT=9090
+    restart: unless-stopped
+    networks:
+      - alia-containers
+
+  traefik:
+    image: traefik:v3.2
+    container_name: alia-traefik
+    command:
+      - --api.insecure=false
+      - --providers.docker=true
+      - --providers.docker.exposedByDefault=false
+      - --providers.docker.network=alia-containers
+      - --providers.file.directory=/etc/traefik/dynamic
+      - --providers.file.watch=true
+      - --entrypoints.web.address=:80
+      - --entrypoints.web.http.redirections.entryPoint.to=websecure
+      - --entrypoints.web.http.redirections.entryPoint.scheme=https
+      - --entrypoints.websecure.address=:443
+      - --certificatesresolvers.letsencrypt.acme.dnschallenge=true
+      - --certificatesresolvers.letsencrypt.acme.dnschallenge.provider=digitalocean
+      - --certificatesresolvers.letsencrypt.acme.email=${ACME_EMAIL:-admin@alia.onl}
+      - --certificatesresolvers.letsencrypt.acme.storage=/letsencrypt/acme.json
+      - --log.level=WARN
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - letsencrypt:/letsencrypt
+      - traefik-dynamic:/etc/traefik/dynamic:ro
+    environment:
+      - DO_AUTH_TOKEN=${DO_DNS_TOKEN}
+    restart: unless-stopped
+    networks:
+      - alia-containers
+
+volumes:
+  letsencrypt:
+  traefik-dynamic:
+
+networks:
+  alia-containers:
+    name: alia-containers
+    driver: bridge

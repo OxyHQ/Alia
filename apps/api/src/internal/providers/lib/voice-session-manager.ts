@@ -234,6 +234,13 @@ export class VoiceSessionManager {
             log.providers.warn({ sessionId, readyState: session.providerSocket?.readyState }, '[Voice] Provider socket not open when first audio arrived');
           }
         }
+        // Also forward user audio to cohost so it hears the full conversation
+        if (session.cohostEnabled && session.cohostProviderSocket?.readyState === WebSocket.OPEN) {
+          session.cohostProviderSocket.send(JSON.stringify({
+            type: 'input_audio_buffer.append',
+            audio: base64Pcm16,
+          }));
+        }
       };
 
       agentBridge.onClientData = (data: ClientDataMessage) => {
@@ -373,6 +380,13 @@ export class VoiceSessionManager {
             } satisfies AgentDataMessage);
           }
           await (bridge as LiveKitAgentBridge).publishAudioFrame(event.delta);
+          // Forward primary's speech audio to cohost's input so it "hears" the conversation
+          if (role === 'primary' && session.cohostEnabled && session.cohostProviderSocket?.readyState === WebSocket.OPEN) {
+            session.cohostProviderSocket.send(JSON.stringify({
+              type: 'input_audio_buffer.append',
+              audio: event.delta,
+            }));
+          }
         }
 
         // Transcript streaming → data channel
@@ -810,7 +824,13 @@ export class VoiceSessionManager {
         session.agentBridge?.publishData({
           type: 'cohost.turn_changed', speaker: nextRole,
         } satisfies AgentDataMessage).catch(() => {});
-        this.injectTranscriptAndTrigger(session, nextRole, `${prefix} ${lastTranscript.text}`);
+        if (nextRole === 'cohost') {
+          // Cohost already heard primary's audio via input buffer — commit and trigger
+          this.commitAudioAndTrigger(session);
+        } else {
+          // Primary doesn't receive cohost audio (to avoid VAD interference) — use text
+          this.injectTranscriptAndTrigger(session, 'primary', `${prefix} ${lastTranscript.text}`);
+        }
       }, session.cohostState.config.turnPauseMs);
     };
 
@@ -841,6 +861,25 @@ export class VoiceSessionManager {
     }));
 
     // Trigger response
+    socket.send(JSON.stringify({ type: 'response.create' }));
+  }
+
+  /**
+   * Commit the cohost's audio buffer (containing primary's speech audio + user audio)
+   * and trigger a response. The cohost "heard" the conversation via forwarded audio
+   * and responds based on what it heard rather than text transcripts.
+   */
+  private commitAudioAndTrigger(session: VoiceSession): void {
+    const socket = session.cohostProviderSocket;
+    if (!socket || socket.readyState !== WebSocket.OPEN) return;
+
+    // Cancel any in-progress response
+    socket.send(JSON.stringify({ type: 'response.cancel' }));
+
+    // Commit the accumulated audio buffer (creates a conversation item from heard audio)
+    socket.send(JSON.stringify({ type: 'input_audio_buffer.commit' }));
+
+    // Trigger response based on what was heard
     socket.send(JSON.stringify({ type: 'response.create' }));
   }
 

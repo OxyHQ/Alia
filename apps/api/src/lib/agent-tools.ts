@@ -2,27 +2,24 @@
  * Agent Tools
  *
  * Factory that builds the tool set available to autonomous agent sessions.
- * Includes built-in Alia tools + agent-specific tools (completeTask, hireAgent, VM ops).
+ * Includes built-in Alia tools + agent-specific tools (completeTask, hireAgent, container ops).
  */
 
 import { tool } from 'ai';
 import { z } from 'zod';
-import crypto from 'crypto';
 import { getCurrentDateTool } from './tools/date.js';
 import { createGoogleSearchTool } from './tools/google-search.js';
 import { webScraperTool } from './tools/web-scraper.js';
 import { saveUserMemoryTool } from './tools/user-memory.js';
 import { createSendTelegramTool } from './tools/telegram.js';
 import { log } from './logger.js';
+import * as containerManager from './container-manager.js';
+import { Container } from '../models/container.js';
+import { ContainerTemplate } from '../models/container-template.js';
 import type { IAgent } from '../models/agent.js';
 import type { IAgentSession } from '../models/agent-session.js';
 
-const DO_API = 'https://api.digitalocean.com/v2';
-const DO_TOKEN = process.env.DIGITALOCEAN_API_TOKEN;
 const GOOGLE_API_KEY = process.env.GOOGLE_AI_API_KEY || '';
-
-// SSH key pairs per session (generated on first VM create)
-const sessionSSHKeys = new Map<string, { publicKey: string; privateKey: string }>();
 
 interface BuildToolsContext {
   agent: IAgent;
@@ -33,10 +30,9 @@ interface BuildToolsContext {
 
 export function buildAgentTools(ctx: BuildToolsContext) {
   const { agent, session, onComplete, onHireAgent } = ctx;
-  const sessionId = session._id.toString();
   const userId = session.userId.toString();
 
-  const tools: Record<string, ReturnType<typeof tool>> = {};
+  const tools: Record<string, any> = {};
 
   // ── Built-in tools ──
 
@@ -82,154 +78,115 @@ export function buildAgentTools(ctx: BuildToolsContext) {
     });
   }
 
-  // ── VM Tools (only if DO token available) ──
+  // ── Container Tools (only if Docker host is configured) ──
 
-  if (DO_TOKEN) {
-    tools.createVM = tool({
-      description: 'Create a virtual machine (DigitalOcean droplet) for executing code. Returns the VM ID and IP address.',
+  if (containerManager.isContainerSystemAvailable()) {
+    tools.createContainer = tool({
+      description: 'Create a Docker container for code execution. Choose the right image for the project type. The container starts with a /workspace directory.',
       parameters: z.object({
-        name: z.string().optional().describe('Name for the VM (auto-generated if not provided)'),
-        image: z.string().optional().describe('OS image slug (default: ubuntu-24-04-x64)'),
-        size: z.string().optional().describe('Droplet size slug (default: s-1vcpu-1gb)'),
+        image: z.enum(['node:22', 'node:20', 'node:18', 'python:3.12', 'python:3.11', 'ubuntu:24.04', 'ubuntu:22.04', 'golang:1.22', 'ruby:3.3', 'rust:1.77'])
+          .default('ubuntu:22.04')
+          .describe('Base image. Use node:22 for JS/TS projects, python:3.12 for Python, ubuntu for general use'),
+        name: z.string().optional().describe('Container name (auto-generated if omitted)'),
+        size: z.enum(['small', 'medium', 'large']).default('small')
+          .describe('small=1CPU/512MB, medium=2CPU/2GB, large=4CPU/4GB'),
+        persistent: z.boolean().default(false)
+          .describe('If true, container persists after task completion (24h inactivity timeout). If false, destroyed on session end (30min timeout)'),
       }),
-      execute: async ({ name, image, size }: { name?: string; image?: string; size?: string }) => {
-        // Check VM limit
-        const activeVMs = session.resources.filter(r => r.type === 'vm' && r.status === 'active');
-        if (activeVMs.length >= session.config.maxVMs) {
-          return { error: `VM limit reached (${session.config.maxVMs}). Destroy an existing VM first.` };
+      execute: async ({ image, name, size, persistent }) => {
+        // Check container limit (reuses maxVMs config)
+        const activeContainers = session.resources.filter(r => r.status === 'active');
+        if (activeContainers.length >= session.config.maxVMs) {
+          return { error: `Container limit reached (${session.config.maxVMs}). Destroy an existing container first.` };
         }
 
         try {
-          // Generate SSH key pair for this session if not already done
-          if (!sessionSSHKeys.has(sessionId)) {
-            const { generateKeyPairSync } = await import('crypto');
-            const { publicKey, privateKey } = generateKeyPairSync('rsa', {
-              modulusLength: 2048,
-              publicKeyEncoding: { type: 'pkcs1', format: 'pem' },
-              privateKeyEncoding: { type: 'pkcs1', format: 'pem' },
-            });
-            // Convert PEM public key to OpenSSH format for cloud-init
-            const sshPubKey = pemToOpenSSH(publicKey);
-            sessionSSHKeys.set(sessionId, { publicKey: sshPubKey, privateKey });
-          }
-
-          const sshKey = sessionSSHKeys.get(sessionId)!;
-          const vmName = name || `agent-${agent.handle}-${crypto.randomUUID().slice(0, 8)}`;
-
-          const userData = `#!/bin/bash
-mkdir -p /root/.ssh
-echo "${sshKey.publicKey}" >> /root/.ssh/authorized_keys
-chmod 600 /root/.ssh/authorized_keys
-`;
-
-          const createRes = await fetch(`${DO_API}/droplets`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${DO_TOKEN}`,
+          const info = await containerManager.createContainer({
+            image,
+            name,
+            size,
+            persistent,
+            labels: {
+              'alia.session': session._id.toString(),
+              'alia.agent': session.agentId.toString(),
+              'alia.user': userId,
             },
-            body: JSON.stringify({
-              name: vmName,
-              region: 'nyc1',
-              size: size || 's-1vcpu-1gb',
-              image: image || 'ubuntu-24-04-x64',
-              user_data: userData,
-              tags: [`agent-session:${sessionId}`],
-            }),
           });
-
-          if (!createRes.ok) {
-            const err = await createRes.text();
-            log.agents.error({ err, status: createRes.status }, 'Failed to create droplet');
-            return { error: 'Failed to create VM' };
-          }
-
-          const dropletData = await createRes.json() as any;
-          const dropletId = String(dropletData.droplet.id);
-
-          // Wait for the droplet to get an IP (poll up to 60s)
-          let ip: string | undefined;
-          for (let i = 0; i < 12; i++) {
-            await new Promise(r => setTimeout(r, 5000));
-            const statusRes = await fetch(`${DO_API}/droplets/${dropletId}`, {
-              headers: { 'Authorization': `Bearer ${DO_TOKEN}` },
-            });
-            if (statusRes.ok) {
-              const d = await statusRes.json() as any;
-              const v4 = d.droplet?.networks?.v4?.find((n: any) => n.type === 'public');
-              if (v4?.ip_address) {
-                ip = v4.ip_address;
-                break;
-              }
-            }
-          }
 
           // Track resource in session
           session.resources.push({
-            type: 'vm',
-            resourceId: dropletId,
-            ip,
+            type: 'container',
+            resourceId: info.containerId,
             status: 'active',
             createdAt: new Date(),
           });
           await session.save();
 
-          return { vmId: dropletId, ip: ip || 'pending', name: vmName };
+          // Track in Container model
+          await Container.create({
+            containerId: info.containerId,
+            name: info.name,
+            sessionId: session._id,
+            agentId: session.agentId,
+            userId: session.userId,
+            image,
+            size: size || 'small',
+            status: 'running',
+            persistent: persistent || false,
+          });
+
+          return { containerId: info.containerId, name: info.name, image };
         } catch (err: any) {
-          log.agents.error({ err }, 'VM creation error');
-          return { error: err.message || 'VM creation failed' };
+          log.agents.error({ err }, 'Container creation error');
+          return { error: err.message || 'Container creation failed' };
         }
       },
     });
 
-    tools.executeCommand = tool({
-      description: 'Execute a shell command on a VM via SSH. Returns stdout, stderr, and exit code.',
+    tools.exec = tool({
+      description: 'Execute a shell command in a container. Returns stdout, stderr, and exit code. Working directory is /workspace.',
       parameters: z.object({
-        vmId: z.string().describe('The VM ID returned by createVM'),
+        containerId: z.string().describe('The container ID returned by createContainer'),
         command: z.string().describe('The shell command to execute'),
-        timeout: z.number().optional().describe('Command timeout in seconds (default: 30)'),
+        timeout: z.number().optional().default(30).describe('Timeout in seconds (max 300)'),
       }),
-      execute: async ({ vmId, command, timeout }: { vmId: string; command: string; timeout?: number }) => {
-        const resource = session.resources.find(r => r.resourceId === vmId && r.status === 'active');
-        if (!resource?.ip) {
-          return { error: 'VM not found or has no IP address' };
-        }
-
-        const keys = sessionSSHKeys.get(sessionId);
-        if (!keys) {
-          return { error: 'No SSH keys for this session' };
+      execute: async ({ containerId, command, timeout }) => {
+        // Validate container belongs to this session
+        const resource = session.resources.find(r => r.resourceId === containerId && r.status === 'active');
+        if (!resource) {
+          return { error: 'Container not found or not active in this session' };
         }
 
         try {
-          const { Client } = await import('ssh2');
-          const result = await sshExec(resource.ip, keys.privateKey, command, timeout || 30);
+          const result = await containerManager.execInContainer(containerId, command, Math.min(timeout || 30, 300));
+
+          // Update activity tracking
+          await Container.updateOne(
+            { containerId },
+            { lastActivityAt: new Date() },
+          );
+
           return result;
         } catch (err: any) {
-          return { error: err.message || 'SSH execution failed' };
+          return { error: err.message || 'Command execution failed' };
         }
       },
     });
 
     tools.writeFile = tool({
-      description: 'Write content to a file on a VM via SSH.',
+      description: 'Write content to a file inside a container. Creates parent directories automatically.',
       parameters: z.object({
-        vmId: z.string().describe('The VM ID'),
-        path: z.string().describe('Absolute file path on the VM'),
+        containerId: z.string().describe('The container ID'),
+        path: z.string().describe('Absolute file path (e.g. /workspace/app/index.js)'),
         content: z.string().describe('File content to write'),
       }),
-      execute: async ({ vmId, path, content }: { vmId: string; path: string; content: string }) => {
-        const resource = session.resources.find(r => r.resourceId === vmId && r.status === 'active');
-        if (!resource?.ip) return { error: 'VM not found or has no IP' };
-
-        const keys = sessionSSHKeys.get(sessionId);
-        if (!keys) return { error: 'No SSH keys for this session' };
+      execute: async ({ containerId, path, content }) => {
+        const resource = session.resources.find(r => r.resourceId === containerId && r.status === 'active');
+        if (!resource) return { error: 'Container not found or not active' };
 
         try {
-          // Escape single quotes in content for the heredoc
-          const escaped = content.replace(/'/g, "'\\''");
-          const cmd = `cat > '${path}' << 'AGENT_EOF'\n${content}\nAGENT_EOF`;
-          const result = await sshExec(resource.ip, keys.privateKey, cmd, 15);
-          return { success: result.exitCode === 0, path };
+          await containerManager.writeFileToContainer(containerId, path, content);
+          return { success: true, path };
         } catch (err: any) {
           return { error: err.message };
         }
@@ -237,48 +194,135 @@ chmod 600 /root/.ssh/authorized_keys
     });
 
     tools.readFile = tool({
-      description: 'Read a file from a VM via SSH.',
+      description: 'Read a file from a container.',
       parameters: z.object({
-        vmId: z.string().describe('The VM ID'),
-        path: z.string().describe('Absolute file path on the VM'),
+        containerId: z.string().describe('The container ID'),
+        path: z.string().describe('Absolute file path to read'),
       }),
-      execute: async ({ vmId, path }: { vmId: string; path: string }) => {
-        const resource = session.resources.find(r => r.resourceId === vmId && r.status === 'active');
-        if (!resource?.ip) return { error: 'VM not found or has no IP' };
-
-        const keys = sessionSSHKeys.get(sessionId);
-        if (!keys) return { error: 'No SSH keys for this session' };
+      execute: async ({ containerId, path }) => {
+        const resource = session.resources.find(r => r.resourceId === containerId && r.status === 'active');
+        if (!resource) return { error: 'Container not found or not active' };
 
         try {
-          const result = await sshExec(resource.ip, keys.privateKey, `cat '${path}'`, 15);
-          if (result.exitCode !== 0) return { error: result.stderr || 'File not found' };
-          return { content: result.stdout, path };
+          const content = await containerManager.readFileFromContainer(containerId, path);
+          return { content, path };
         } catch (err: any) {
           return { error: err.message };
         }
       },
     });
 
-    tools.destroyVM = tool({
-      description: 'Destroy a VM (DigitalOcean droplet). Always destroy VMs when done to save costs.',
+    tools.listFiles = tool({
+      description: 'List files and directories in a container path.',
       parameters: z.object({
-        vmId: z.string().describe('The VM ID to destroy'),
+        containerId: z.string().describe('The container ID'),
+        dir: z.string().optional().default('/workspace').describe('Directory to list'),
       }),
-      execute: async ({ vmId }: { vmId: string }) => {
+      execute: async ({ containerId, dir }) => {
+        const resource = session.resources.find(r => r.resourceId === containerId && r.status === 'active');
+        if (!resource) return { error: 'Container not found or not active' };
+
         try {
-          const res = await fetch(`${DO_API}/droplets/${vmId}`, {
-            method: 'DELETE',
-            headers: { 'Authorization': `Bearer ${DO_TOKEN}` },
+          const files = await containerManager.listFilesInContainer(containerId, dir);
+          return { files, dir };
+        } catch (err: any) {
+          return { error: err.message };
+        }
+      },
+    });
+
+    tools.exposePort = tool({
+      description: 'Make a port accessible via a public HTTPS preview URL. Use this when developing web apps so the user can see the running application.',
+      parameters: z.object({
+        containerId: z.string().describe('The container ID'),
+        port: z.number().describe('The port the app is listening on inside the container (e.g. 3000, 8080)'),
+      }),
+      execute: async ({ containerId, port }) => {
+        const resource = session.resources.find(r => r.resourceId === containerId && r.status === 'active');
+        if (!resource) return { error: 'Container not found or not active' };
+
+        try {
+          const previewUrl = await containerManager.exposeContainerPort(containerId, port);
+
+          // Update Container model
+          await Container.updateOne(
+            { containerId },
+            {
+              previewUrl,
+              $addToSet: { exposedPorts: port },
+            },
+          );
+
+          // Update session resource
+          (resource as any).previewUrl = previewUrl;
+          await session.save();
+
+          return { previewUrl, port };
+        } catch (err: any) {
+          return { error: err.message };
+        }
+      },
+    });
+
+    tools.snapshotContainer = tool({
+      description: 'Save the current container state as a reusable template/snapshot. Useful for preserving a configured environment for later use.',
+      parameters: z.object({
+        containerId: z.string().describe('The container ID'),
+        name: z.string().describe('Name for the snapshot (alphanumeric, dashes, dots, underscores)'),
+        description: z.string().optional().describe('Description of what the snapshot contains'),
+      }),
+      execute: async ({ containerId, name, description }) => {
+        const resource = session.resources.find(r => r.resourceId === containerId && r.status === 'active');
+        if (!resource) return { error: 'Container not found or not active' };
+
+        try {
+          // Sanitize tag
+          const tag = name.replace(/[^a-zA-Z0-9._-]/g, '-').toLowerCase();
+          const imageTag = await containerManager.snapshotContainer(containerId, tag);
+
+          // Get container info for base image
+          const containerDoc = await Container.findOne({ containerId });
+
+          // Create template record
+          const template = await ContainerTemplate.create({
+            name,
+            description,
+            baseImage: containerDoc?.image || 'unknown',
+            snapshotTag: tag,
+            userId: session.userId,
+            agentId: session.agentId,
           });
 
+          return { templateId: template._id.toString(), name, imageTag };
+        } catch (err: any) {
+          return { error: err.message };
+        }
+      },
+    });
+
+    tools.destroyContainer = tool({
+      description: 'Destroy a container and free its resources. Always destroy containers when you are done with them.',
+      parameters: z.object({
+        containerId: z.string().describe('The container ID to destroy'),
+      }),
+      execute: async ({ containerId }) => {
+        try {
+          await containerManager.destroyContainer(containerId);
+
           // Mark resource as destroyed in session
-          const resource = session.resources.find(r => r.resourceId === vmId);
+          const resource = session.resources.find(r => r.resourceId === containerId);
           if (resource) {
             resource.status = 'destroyed';
             await session.save();
           }
 
-          return { destroyed: res.ok, vmId };
+          // Update Container model
+          await Container.updateOne(
+            { containerId },
+            { status: 'destroyed', destroyedAt: new Date() },
+          );
+
+          return { destroyed: true, containerId };
         } catch (err: any) {
           return { error: err.message };
         }
@@ -290,109 +334,29 @@ chmod 600 /root/.ssh/authorized_keys
 }
 
 /**
- * Destroy all active VMs for a session (cleanup on completion/failure).
+ * Destroy all active containers for a session (cleanup on completion/failure).
  */
-export async function cleanupSessionVMs(session: IAgentSession): Promise<void> {
-  if (!DO_TOKEN) return;
+export async function cleanupSessionResources(session: IAgentSession): Promise<void> {
+  if (!containerManager.isContainerSystemAvailable()) return;
 
   for (const resource of session.resources) {
-    if (resource.type === 'vm' && resource.status === 'active') {
+    if (resource.status === 'active') {
       try {
-        await fetch(`${DO_API}/droplets/${resource.resourceId}`, {
-          method: 'DELETE',
-          headers: { 'Authorization': `Bearer ${DO_TOKEN}` },
-        });
+        await containerManager.destroyContainer(resource.resourceId);
         resource.status = 'destroyed';
-        log.agents.info({ vmId: resource.resourceId }, 'Cleaned up agent VM');
+
+        // Update Container model
+        await Container.updateOne(
+          { containerId: resource.resourceId },
+          { status: 'destroyed', destroyedAt: new Date() },
+        );
+
+        log.agents.info({ containerId: resource.resourceId }, 'Cleaned up agent container');
       } catch (err) {
-        log.agents.warn({ err, vmId: resource.resourceId }, 'Failed to clean up VM');
+        log.agents.warn({ err, containerId: resource.resourceId }, 'Failed to clean up container');
       }
     }
   }
 
-  // Clean up SSH keys
-  const sessionId = session._id.toString();
-  sessionSSHKeys.delete(sessionId);
-
   await session.save();
-}
-
-// ── SSH Helper ──
-
-async function sshExec(
-  host: string,
-  privateKey: string,
-  command: string,
-  timeoutSec: number
-): Promise<{ stdout: string; stderr: string; exitCode: number }> {
-  const { Client } = await import('ssh2');
-
-  return new Promise((resolve, reject) => {
-    const conn = new Client();
-    const timer = setTimeout(() => {
-      conn.end();
-      reject(new Error(`SSH command timed out after ${timeoutSec}s`));
-    }, timeoutSec * 1000);
-
-    conn.on('ready', () => {
-      let stdout = '';
-      let stderr = '';
-
-      conn.exec(command, (err, stream) => {
-        if (err) {
-          clearTimeout(timer);
-          conn.end();
-          return reject(err);
-        }
-
-        stream.on('data', (data: Buffer) => {
-          stdout += data.toString();
-          // Cap output at 50KB
-          if (stdout.length > 50000) stdout = stdout.slice(0, 50000) + '\n... [truncated]';
-        });
-
-        stream.stderr.on('data', (data: Buffer) => {
-          stderr += data.toString();
-          if (stderr.length > 50000) stderr = stderr.slice(0, 50000) + '\n... [truncated]';
-        });
-
-        stream.on('close', (code: number) => {
-          clearTimeout(timer);
-          conn.end();
-          resolve({ stdout, stderr, exitCode: code ?? 0 });
-        });
-      });
-    });
-
-    conn.on('error', (err) => {
-      clearTimeout(timer);
-      reject(err);
-    });
-
-    conn.connect({
-      host,
-      port: 22,
-      username: 'root',
-      privateKey,
-      readyTimeout: 10000,
-    });
-  });
-}
-
-/**
- * Convert PEM RSA public key to OpenSSH format.
- */
-function pemToOpenSSH(pemPublicKey: string): string {
-  // Use crypto to create a proper OpenSSH key
-  const keyObject = crypto.createPublicKey(pemPublicKey);
-  const sshKey = keyObject.export({ type: 'spki', format: 'der' });
-  // For simplicity, use the crypto module's built-in SSH export (Node 16+)
-  try {
-    return (keyObject as any).export({ type: 'pkcs1', format: 'pem' })
-      ? `ssh-rsa ${sshKey.toString('base64')} agent-key`
-      : pemPublicKey;
-  } catch {
-    // Fallback: just base64 encode the DER
-    return `ssh-rsa ${sshKey.toString('base64')} agent-key`;
-  }
 }
