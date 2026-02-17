@@ -1,7 +1,9 @@
 import * as React from "react";
-import { View } from "react-native";
+import { View, ScrollView, Platform } from "react-native";
 import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { cn } from "@/lib/utils";
+
+const ScrollComponent = Platform.OS === 'web' ? ScrollView : KeyboardAwareScrollView;
 
 export interface AuthContainerProps {
   children: React.ReactNode;
@@ -10,7 +12,7 @@ export interface AuthContainerProps {
 
 export function AuthContainer({ children, className }: AuthContainerProps) {
   return (
-    <KeyboardAwareScrollView
+    <ScrollComponent
       bottomOffset={20}
       className="flex-1 bg-background"
       contentContainerClassName="flex-1 justify-center px-6 py-6"
@@ -20,6 +22,6 @@ export function AuthContainer({ children, className }: AuthContainerProps) {
       <View className={cn("max-w-sm w-full mx-auto", className)}>
         {children}
       </View>
-    </KeyboardAwareScrollView>
+    </ScrollComponent>
   );
 }
