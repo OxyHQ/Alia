@@ -26,12 +26,18 @@ program
   .name('codea')
   .description('Codea CLI - AI coding assistant for your terminal')
   .version(VERSION)
-  .hook('preAction', () => {
-    // Check for API key before running commands (except login)
+  .hook('preAction', async () => {
     const command = program.args[0];
-    if (command !== 'login' && command !== 'help' && !config.get('apiKey')) {
-      console.log(chalk.yellow('\nNo API key found. Please run `codea login` first.\n'));
-      process.exit(1);
+    if (command === 'login' || command === 'help') return;
+
+    if (!config.get('apiKey')) {
+      console.log(banner);
+      console.log(chalk.yellow('No API key found. Let\'s get you logged in.\n'));
+      const success = await login();
+      if (!success) {
+        process.exit(1);
+      }
+      console.log();
     }
   });
 
