@@ -306,8 +306,8 @@ router.post('/users/:telegramId/model', authenticateTelegramBot, async (req, res
     const { telegramId } = req.params;
     const { model } = req.body;
 
-    if (!model || !isAliaModel(model)) {
-      const allModels = getAllAliaModels().map(m => m.id);
+    if (!model || !(await isAliaModel(model))) {
+      const allModels = (await getAllAliaModels()).map(m => m.id);
       return res.status(400).json({
         error: 'Invalid model',
         details: `Model must be one of: ${allModels.join(', ')}`

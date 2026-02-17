@@ -592,6 +592,18 @@ export class VoiceSessionManager {
     const session = this.sessions.get(sessionId);
     if (!session || session.state !== 'active' || session.cohostEnabled) return;
 
+    // Enforce voice-cohost plan requirement
+    const { getUserEntitlements } = await import('../../../lib/plan-access.js');
+    const entitlements = await getUserEntitlements(session.userId);
+    if (!entitlements.features['voice-cohost']) {
+      await session.agentBridge?.publishData({
+        type: 'error',
+        code: 'FEATURE_NOT_IN_PLAN',
+        message: 'Upgrade to Pro or higher to use voice cohost.',
+      } satisfies AgentDataMessage);
+      return;
+    }
+
     log.providers.info({ sessionId }, 'Enabling cohost mode');
 
     try {
@@ -1117,12 +1129,29 @@ You are now in a live voice conversation with a second AI called "Cohost" and th
   private startBillingTimer(session: VoiceSession): void {
     if (session.billingTimer) clearInterval(session.billingTimer);
 
-    session.billingTimer = setInterval(() => {
+    session.billingTimer = setInterval(async () => {
       session.minutesElapsed++;
       const maxDuration = session.config.maxDuration || 30;
       if (session.minutesElapsed >= maxDuration) {
         log.providers.info({ sessionId: session.sessionId, maxDuration }, 'Max duration reached');
         this.closeSession(session.sessionId, 'max_duration_exceeded');
+        return;
+      }
+
+      // Check if user can afford another minute
+      try {
+        const { getOrCreateUserCredits } = await import('../../../lib/user-credits-helpers.js');
+        const { calculateCreditsFromMinutes } = await import('../../../lib/credits-manager.js');
+        const userCredits = await getOrCreateUserCredits(session.userId);
+        const totalCredits = (userCredits.credits?.free || 0) + (userCredits.credits?.paid || 0);
+        const creditsForNextMinute = await calculateCreditsFromMinutes(1, session.aliaModelId, session.costPerMinute);
+
+        if (totalCredits < creditsForNextMinute) {
+          log.providers.info({ sessionId: session.sessionId, totalCredits, creditsForNextMinute }, 'Credits exhausted during voice session');
+          this.closeSession(session.sessionId, 'credits_exhausted');
+        }
+      } catch (e) {
+        log.providers.error({ err: e }, 'Error checking credits during billing timer');
       }
     }, BILLING_INTERVAL_MS);
   }

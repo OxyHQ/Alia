@@ -103,7 +103,11 @@
     "responseTone": {
       "title": "Response Tone",
       "description": "How Alia should communicate with you",
-      "placeholder": "e.g., casual, professional, friendly"
+      "selectPlaceholder": "Select a tone",
+      "casual": "Casual",
+      "professional": "Professional",
+      "friendly": "Friendly",
+      "concise": "Concise"
     },
     "occupation": {
       "title": "Occupation",

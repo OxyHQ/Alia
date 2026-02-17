@@ -184,7 +184,8 @@ export function useVoiceRoom() {
           setError(
             reason === 'user_silent' ? 'Call ended due to inactivity'
             : reason === 'user_unresponsive' ? 'Call ended — no response'
-            : reason === 'max_duration_exceeded' ? 'Maximum call duration reached'
+            : reason === 'max_duration_exceeded' ? 'Voice minutes limit reached. Upgrade for more.'
+            : reason === 'credits_exhausted' ? 'Not enough credits to continue. Add more or upgrade your plan.'
             : 'Voice session ended'
           );
           break;
