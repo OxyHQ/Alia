@@ -18,7 +18,7 @@ interface ConfigSchema {
 }
 
 export const config = new Conf<ConfigSchema>({
-  projectName: 'codea-cli',
+  projectName: 'alia-codea-cli',
   defaults: {
     apiKey: '',
     apiBaseUrl: 'https://api.alia.onl',

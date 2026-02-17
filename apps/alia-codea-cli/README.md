@@ -14,7 +14,7 @@ AI coding assistant for your terminal by Alia.
 ## Installation
 
 ```bash
-npm install -g codea-cli
+npm install -g codea
 ```
 
 ## Quick Start
@@ -116,7 +116,7 @@ codea
 
 ## Configuration
 
-Config is stored in `~/.config/codea-cli/config.json`:
+Config is stored in `~/.config/alia-codea-cli/config.json`:
 
 ```json
 {
