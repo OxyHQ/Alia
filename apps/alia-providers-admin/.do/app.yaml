@@ -20,7 +20,7 @@ static_sites:
     # Environment variables
     envs:
       - key: VITE_PROVIDERS_API_URL
-        value: https://api.alia.onl/internal/providers
+        value: https://api.providers.alia.onl/providers
         scope: BUILD_TIME
 
     # Routes configuration for SPA
