@@ -103,7 +103,27 @@ export async function processConversation(opts: ConversationOptions): Promise<vo
       for (const tc of toolCalls) {
         if (!isActive()) break;
 
-        const args = JSON.parse(tc.function.arguments);
+        let args: Record<string, any>;
+        try {
+          args = JSON.parse(tc.function.arguments);
+        } catch {
+          const execution: ToolExecution = {
+            id: tc.id,
+            tool: tc.function.name,
+            args: {},
+            result: 'Failed to parse tool arguments.',
+            success: false,
+          };
+          onEvent({ type: 'tool_start', execution });
+          messages.push({
+            role: 'tool',
+            tool_call_id: tc.id,
+            content: 'Error: Malformed tool arguments. Please retry with valid JSON.',
+          });
+          onEvent({ type: 'tool_done', execution });
+          continue;
+        }
+
         const execution: ToolExecution = {
           id: tc.id,
           tool: tc.function.name,

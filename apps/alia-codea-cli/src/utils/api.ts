@@ -212,6 +212,15 @@ export async function streamChat(
       }
     }
 
+    // Validate tool call arguments before returning
+    for (const tc of toolCalls) {
+      try {
+        JSON.parse(tc.function.arguments);
+      } catch {
+        tc.function.arguments = '{}';
+      }
+    }
+
     callbacks.onDone(fullContent, toolCalls.length > 0 ? toolCalls : undefined);
   } catch (error: any) {
     callbacks.onError(new Error(extractErrorMessage(error)));
