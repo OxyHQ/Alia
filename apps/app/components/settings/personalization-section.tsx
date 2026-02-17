@@ -167,13 +167,30 @@ export function PersonalizationSection() {
         <Text className="text-xs text-muted-foreground">
           {t("settings.responseTone.description")}
         </Text>
-        <RNTextInput
-          className={inputClass}
-          placeholder={t("settings.responseTone.placeholder")}
-          placeholderTextColor="#9ca3af"
-          value={tone}
-          onChangeText={setTone}
-        />
+        <DropdownMenu.Root>
+          <DropdownMenu.Trigger>
+            <Pressable className={`${inputClass} flex-row items-center justify-between`}>
+              <Text className="text-foreground text-sm">
+                {tone
+                  ? t(`settings.responseTone.${tone}`)
+                  : t("settings.responseTone.selectPlaceholder")}
+              </Text>
+              <ChevronDown size={16} className="text-muted-foreground" />
+            </Pressable>
+          </DropdownMenu.Trigger>
+          <DropdownMenu.Content>
+            {(["casual", "professional", "friendly", "concise"] as const).map((opt) => (
+              <DropdownMenu.CheckboxItem
+                key={opt}
+                value={tone === opt ? "on" : "off"}
+                onValueChange={() => setTone(opt)}
+              >
+                <DropdownMenu.ItemIndicator />
+                <DropdownMenu.ItemTitle>{t(`settings.responseTone.${opt}`)}</DropdownMenu.ItemTitle>
+              </DropdownMenu.CheckboxItem>
+            ))}
+          </DropdownMenu.Content>
+        </DropdownMenu.Root>
       </View>
 
       {/* Voice Preference */}

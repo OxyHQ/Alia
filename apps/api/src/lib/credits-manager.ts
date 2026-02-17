@@ -39,9 +39,9 @@ export const CREDITS_CONFIG = {
 /**
  * Get credit multiplier for an Alia model
  */
-export function getCreditMultiplier(aliasModelId?: string): number {
+export async function getCreditMultiplier(aliasModelId?: string): Promise<number> {
   if (!aliasModelId) return 1;
-  const model = getAliaModel(aliasModelId);
+  const model = await getAliaModel(aliasModelId);
   return model?.creditMultiplier || 1;
 }
 
@@ -54,11 +54,11 @@ export function getCreditMultiplier(aliasModelId?: string): number {
  * @param aliasModelId - The Alia model being used
  * @param systemPromptTokens - Tokens from our system prompt (not charged to user)
  */
-export function calculateCreditsFromTokens(
+export async function calculateCreditsFromTokens(
   totalTokens: number,
   aliasModelId?: string,
   systemPromptTokens?: number
-): number {
+): Promise<number> {
   if (totalTokens === 0) {
     return CREDITS_CONFIG.MIN_CREDITS_PER_REQUEST;
   }
@@ -69,7 +69,7 @@ export function calculateCreditsFromTokens(
 
   log.credits.info({ totalTokens, systemTokens, billableTokens }, 'Token breakdown');
 
-  const multiplier = getCreditMultiplier(aliasModelId);
+  const multiplier = await getCreditMultiplier(aliasModelId);
   const calculatedCredits = Math.ceil((billableTokens / CREDITS_CONFIG.TOKENS_PER_CREDIT) * multiplier);
   return Math.max(calculatedCredits, CREDITS_CONFIG.MIN_CREDITS_PER_REQUEST);
 }
@@ -146,7 +146,7 @@ export async function finalizeCredits(
   aliasModelId?: string
 ): Promise<{ creditsCharged: number; creditsRemaining: number }> {
   try {
-    const actualCreditsNeeded = calculateCreditsFromTokens(
+    const actualCreditsNeeded = await calculateCreditsFromTokens(
       usage.totalTokens,
       aliasModelId,
       usage.systemPromptTokens
@@ -302,16 +302,16 @@ export async function getUserCredits(userId: string): Promise<{ free: number; pa
  * @param costPerMinute - Provider's cost per minute (e.g., 0.05 for Grok)
  * @returns Credits to charge
  */
-export function calculateCreditsFromMinutes(
+export async function calculateCreditsFromMinutes(
   minutes: number,
   aliasModelId: string,
   costPerMinute: number
-): number {
+): Promise<number> {
   if (minutes === 0) {
     return CREDITS_CONFIG.MIN_CREDITS_PER_REQUEST;
   }
 
-  const multiplier = getCreditMultiplier(aliasModelId);
+  const multiplier = await getCreditMultiplier(aliasModelId);
 
   // Convert to credits: $1 = 1000 credits
   // Example: $0.05/min * 1000 = 50 credits/min
@@ -339,7 +339,7 @@ export async function reserveVoiceCredits(
   aliasModelId: string = 'alia-v1-voice',
   costPerMinute: number = 0.05
 ): Promise<CreditReservation | null> {
-  const estimatedCredits = calculateCreditsFromMinutes(
+  const estimatedCredits = await calculateCreditsFromMinutes(
     estimatedMinutes,
     aliasModelId,
     costPerMinute
@@ -367,7 +367,7 @@ export async function finalizeVoiceCredits(
   costPerMinute: number
 ): Promise<{ creditsCharged: number; creditsRemaining: number }> {
   try {
-    const actualCreditsNeeded = calculateCreditsFromMinutes(
+    const actualCreditsNeeded = await calculateCreditsFromMinutes(
       actualMinutes,
       aliasModelId,
       costPerMinute

@@ -103,7 +103,11 @@
     "responseTone": {
       "title": "Tono de respuesta",
       "description": "Cómo debe comunicarse Alia contigo",
-      "placeholder": "ej., casual, profesional, amigable"
+      "selectPlaceholder": "Selecciona un tono",
+      "casual": "Casual",
+      "professional": "Profesional",
+      "friendly": "Amigable",
+      "concise": "Conciso"
     },
     "occupation": {
       "title": "Ocupación",

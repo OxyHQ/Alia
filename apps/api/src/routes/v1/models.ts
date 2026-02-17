@@ -66,7 +66,7 @@ router.get('/', async (req, res) => {
       aliaModels = aliaModels.filter(m => m.category === category);
     }
 
-    const defaultModel = category ? getDefaultModelForCategory(category) : null;
+    const defaultModel = category ? await getDefaultModelForCategory(category) : null;
 
     const data = aliaModels.map(model =>
       serializeModel(model, model.id === defaultModel?.id)
@@ -97,7 +97,7 @@ router.get('/', async (req, res) => {
  */
 router.get('/:modelId', async (req, res) => {
   try {
-    const model = getAliaModel(req.params.modelId);
+    const model = await getAliaModel(req.params.modelId);
 
     if (!model) {
       res.status(404).json({ error: 'Model not found' });
