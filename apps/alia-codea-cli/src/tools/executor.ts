@@ -2,8 +2,8 @@ import * as fs from 'fs/promises';
 import * as path from 'path';
 import { exec } from 'child_process';
 import { promisify } from 'util';
-import { glob } from 'fs/promises';
 import chalk from 'chalk';
+import { applyPatch } from './patch.js';
 
 const execAsync = promisify(exec);
 
@@ -21,10 +21,12 @@ export async function executeTool(name: string, args: Record<string, any>): Prom
         return await writeFile(args.path, args.content);
       case 'edit_file':
         return await editFile(args.path, args.old_text, args.new_text);
+      case 'apply_patch':
+        return await applyPatchTool(args.patch);
       case 'list_files':
         return await listFiles(args.path, args.recursive);
       case 'search_files':
-        return await searchFiles(args.pattern, args.path, args.file_pattern);
+        return await searchFiles(args.pattern, args.path, args.file_pattern, args.context_lines, args.max_results);
       case 'run_command':
         return await runCommand(args.command, args.cwd);
       default:
@@ -55,14 +57,46 @@ async function editFile(filePath: string, oldText: string, newText: string): Pro
   const absolutePath = path.resolve(process.cwd(), filePath);
   const content = await fs.readFile(absolutePath, 'utf-8');
 
-  if (!content.includes(oldText)) {
-    return { success: false, result: `Text not found in file: "${oldText.slice(0, 50)}..."` };
+  // Try exact match first
+  if (content.includes(oldText)) {
+    const newContent = content.replace(oldText, newText);
+    await fs.writeFile(absolutePath, newContent, 'utf-8');
+    return { success: true, result: `File edited: ${filePath}` };
   }
 
-  const newContent = content.replace(oldText, newText);
-  await fs.writeFile(absolutePath, newContent, 'utf-8');
+  // Try whitespace-normalized match
+  const normalizedOld = oldText.replace(/\s+/g, ' ').trim();
+  const lines = content.split('\n');
+  let matchStart = -1;
+  let matchEnd = -1;
 
-  return { success: true, result: `File edited: ${filePath}` };
+  for (let i = 0; i < lines.length; i++) {
+    for (let j = i; j < lines.length; j++) {
+      const block = lines.slice(i, j + 1).join('\n');
+      if (block.replace(/\s+/g, ' ').trim() === normalizedOld) {
+        matchStart = i;
+        matchEnd = j;
+        break;
+      }
+    }
+    if (matchStart >= 0) break;
+  }
+
+  if (matchStart >= 0) {
+    const newLines = [...lines.slice(0, matchStart), ...newText.split('\n'), ...lines.slice(matchEnd + 1)];
+    await fs.writeFile(absolutePath, newLines.join('\n'), 'utf-8');
+    return { success: true, result: `File edited (fuzzy match): ${filePath}` };
+  }
+
+  return { success: false, result: `Text not found in file: "${oldText.slice(0, 50)}..."` };
+}
+
+async function applyPatchTool(patchText: string): Promise<ToolResult> {
+  const result = await applyPatch(patchText, process.cwd());
+  const summary = result.results
+    .map((r) => `${r.success ? '✓' : '✗'} ${r.file}: ${r.message}`)
+    .join('\n');
+  return { success: result.success, result: summary };
 }
 
 async function listFiles(dirPath: string = '.', recursive: boolean = false): Promise<ToolResult> {
@@ -98,10 +132,71 @@ async function listFiles(dirPath: string = '.', recursive: boolean = false): Pro
   }
 }
 
-async function searchFiles(pattern: string, dirPath: string = '.', filePattern?: string): Promise<ToolResult> {
+async function searchFiles(
+  pattern: string,
+  dirPath: string = '.',
+  filePattern?: string,
+  contextLines: number = 2,
+  maxResults: number = 50
+): Promise<ToolResult> {
   const absolutePath = path.resolve(process.cwd(), dirPath);
+
+  // Try ripgrep first
+  try {
+    const rgArgs = [
+      '--json',
+      '-C', String(contextLines),
+      '-m', String(maxResults),
+      '--no-heading',
+    ];
+
+    if (filePattern) {
+      rgArgs.push('-g', filePattern);
+    }
+
+    rgArgs.push('--', pattern, absolutePath);
+
+    const { stdout } = await execAsync(`rg ${rgArgs.map(a => `'${a}'`).join(' ')}`, {
+      maxBuffer: 2 * 1024 * 1024,
+      timeout: 30000,
+    });
+
+    // Parse rg --json output
+    const results: string[] = [];
+    const lines = stdout.trim().split('\n');
+
+    for (const line of lines) {
+      try {
+        const data = JSON.parse(line);
+        if (data.type === 'match') {
+          const relPath = path.relative(absolutePath, data.data.path.text);
+          const lineNum = data.data.line_number;
+          const text = data.data.lines.text.trimEnd();
+          results.push(`${relPath}:${lineNum}: ${text}`);
+        } else if (data.type === 'context') {
+          const relPath = path.relative(absolutePath, data.data.path.text);
+          const lineNum = data.data.line_number;
+          const text = data.data.lines.text.trimEnd();
+          results.push(`${relPath}:${lineNum}  ${text}`);
+        }
+      } catch {
+        // Skip malformed JSON lines
+      }
+    }
+
+    if (results.length === 0) {
+      return { success: true, result: 'No matches found.' };
+    }
+
+    return { success: true, result: results.join('\n') };
+  } catch {
+    // ripgrep not available or failed, use built-in
+  }
+
+  // Built-in fallback
   const regex = new RegExp(pattern, 'gi');
-  const results: string[] = [];
+  const results: Array<{ file: string; line: number; text: string; isMatch: boolean }> = [];
+  const fileMatchCounts = new Map<string, number>();
 
   async function searchDir(dir: string) {
     const entries = await fs.readdir(dir, { withFileTypes: true });
@@ -109,7 +204,6 @@ async function searchFiles(pattern: string, dirPath: string = '.', filePattern?:
     for (const entry of entries) {
       const fullPath = path.join(dir, entry.name);
 
-      // Skip common ignored directories
       if (entry.name === 'node_modules' || entry.name === '.git' || entry.name === 'dist') {
         continue;
       }
@@ -117,7 +211,6 @@ async function searchFiles(pattern: string, dirPath: string = '.', filePattern?:
       if (entry.isDirectory()) {
         await searchDir(fullPath);
       } else {
-        // Check file pattern
         if (filePattern) {
           const ext = path.extname(entry.name);
           const patternExt = filePattern.replace('*', '');
@@ -128,14 +221,38 @@ async function searchFiles(pattern: string, dirPath: string = '.', filePattern?:
 
         try {
           const content = await fs.readFile(fullPath, 'utf-8');
+
+          // Skip binary files
+          if (content.includes('\0')) continue;
+
           const lines = content.split('\n');
+          const matchIndices: number[] = [];
 
           lines.forEach((line, index) => {
+            regex.lastIndex = 0;
             if (regex.test(line)) {
-              const relativePath = path.relative(absolutePath, fullPath);
-              results.push(`${relativePath}:${index + 1}: ${line.trim()}`);
+              matchIndices.push(index);
             }
           });
+
+          if (matchIndices.length > 0) {
+            const relativePath = path.relative(absolutePath, fullPath);
+            fileMatchCounts.set(relativePath, matchIndices.length);
+
+            for (const idx of matchIndices) {
+              const start = Math.max(0, idx - contextLines);
+              const end = Math.min(lines.length - 1, idx + contextLines);
+
+              for (let i = start; i <= end; i++) {
+                results.push({
+                  file: relativePath,
+                  line: i + 1,
+                  text: lines[i].trimEnd(),
+                  isMatch: i === idx,
+                });
+              }
+            }
+          }
         } catch {
           // Skip unreadable files
         }
@@ -149,7 +266,15 @@ async function searchFiles(pattern: string, dirPath: string = '.', filePattern?:
     return { success: true, result: 'No matches found.' };
   }
 
-  return { success: true, result: results.slice(0, 100).join('\n') + (results.length > 100 ? `\n... and ${results.length - 100} more` : '') };
+  const formatted = results
+    .slice(0, maxResults * (1 + contextLines * 2))
+    .map((r) => `${r.file}:${r.line}${r.isMatch ? ':' : ' '} ${r.text}`)
+    .join('\n');
+
+  const totalMatches = Array.from(fileMatchCounts.values()).reduce((a, b) => a + b, 0);
+  const footer = `\n(${totalMatches} matches in ${fileMatchCounts.size} files)`;
+
+  return { success: true, result: formatted + footer };
 }
 
 async function runCommand(command: string, cwd?: string): Promise<ToolResult> {
@@ -177,6 +302,7 @@ export function formatToolCall(name: string, args: Record<string, any>): string 
     read_file: 'Reading file',
     write_file: 'Writing file',
     edit_file: 'Editing file',
+    apply_patch: 'Applying patch',
     list_files: 'Listing files',
     search_files: 'Searching files',
     run_command: 'Running command'

@@ -1,6 +1,5 @@
 const { getDefaultConfig } = require("expo/metro-config");
 const { withNativeWind } = require('nativewind/metro');
-const path = require('path');
 
 module.exports = (() => {
   const config = getDefaultConfig(__dirname);
@@ -10,12 +9,6 @@ module.exports = (() => {
 
   // Add web-specific resolver settings to handle ESM modules
   config.resolver.sourceExts = [...config.resolver.sourceExts, 'mjs', 'cjs'];
-
-  // Monorepo-safe: solo incluir carpetas necesarias en watchFolders
-  config.watchFolders = [
-    path.resolve(__dirname, 'node_modules'),
-    // Si necesitas otras libs del workspace, solo inclúyelas individualmente
-  ];
 
   // SVG support for react-native-svg-transformer (Expo transformer)
   const { transformer, resolver } = config;

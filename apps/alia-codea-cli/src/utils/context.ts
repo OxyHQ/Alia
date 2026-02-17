@@ -5,7 +5,7 @@ import { promisify } from 'util';
 
 const execAsync = promisify(exec);
 
-export function buildSystemMessage(model: string, codebaseContext: string): string {
+export function buildSystemMessage(model: string, codebaseContext: string, projectInstructions?: string): string {
   let systemMessage = `You are Codea, an expert AI coding assistant created by Alia. You help developers write, debug, refactor, and understand code directly in their terminal.
 
 ## Core Principles
@@ -19,16 +19,18 @@ You have powerful tools to interact with the user's workspace:
 
 - **read_file**: Read file contents. Use to understand existing code before making changes.
 - **write_file**: Create new files or completely rewrite existing ones.
-- **edit_file**: Make precise, targeted changes to existing files. Preferred for small modifications.
+- **edit_file**: Make precise, targeted changes using exact text match and replace.
+- **apply_patch**: Apply unified diff patches to files. Preferred for multi-line or multi-file changes. Supports fuzzy line matching.
 - **list_files**: Explore directory structure. Use to understand project layout.
-- **search_files**: Find text/patterns across the codebase. Great for finding usages, definitions, etc.
+- **search_files**: Find text/patterns across the codebase with context lines. Uses ripgrep when available.
 - **run_command**: Execute shell commands (build, test, git, npm, etc.)
 
 ## Best Practices
 1. **Read before writing**: Always read relevant files before modifying them.
 2. **Minimal changes**: Make the smallest change necessary to accomplish the task.
 3. **Preserve style**: Match existing formatting, naming conventions, and patterns.
-4. **Explain when helpful**: For complex changes, briefly explain the approach.
+4. **Prefer apply_patch**: For multi-line edits, use apply_patch with unified diff format.
+5. **Explain when helpful**: For complex changes, briefly explain the approach.
 
 ## Response Style
 - Use markdown for formatting code blocks, lists, and emphasis.
@@ -36,11 +38,70 @@ You have powerful tools to interact with the user's workspace:
 - For code changes, be precise and action-oriented.
 - If unsure about requirements, ask clarifying questions.`;
 
+  if (projectInstructions) {
+    systemMessage += `\n\n## Project Instructions (from CODEA.md)\n${projectInstructions}`;
+  }
+
   if (codebaseContext) {
     systemMessage += `\n\n## Current Codebase Context\n${codebaseContext}`;
   }
 
   return systemMessage;
+}
+
+export async function loadProjectInstructions(): Promise<string> {
+  const parts: string[] = [];
+
+  // 1. Global: ~/.codea/CODEA.md
+  const home = process.env.HOME || '';
+  if (home) {
+    const globalPath = path.join(home, '.codea', 'CODEA.md');
+    try {
+      const content = await fs.readFile(globalPath, 'utf-8');
+      if (content.trim()) {
+        parts.push(`# Global Instructions (~/.codea/CODEA.md)\n${content.trim()}`);
+      }
+    } catch {
+      // No global instructions
+    }
+  }
+
+  // 2. Project root: {git_root}/CODEA.md
+  let gitRoot = '';
+  try {
+    const { stdout } = await execAsync('git rev-parse --show-toplevel', { cwd: process.cwd() });
+    gitRoot = stdout.trim();
+  } catch {
+    // Not a git repo
+  }
+
+  if (gitRoot) {
+    const projectPath = path.join(gitRoot, 'CODEA.md');
+    try {
+      const content = await fs.readFile(projectPath, 'utf-8');
+      if (content.trim()) {
+        parts.push(`# Project Instructions (CODEA.md)\n${content.trim()}`);
+      }
+    } catch {
+      // No project instructions
+    }
+  }
+
+  // 3. Directory-level: {cwd}/CODEA.md (if different from git root)
+  const cwd = process.cwd();
+  if (cwd !== gitRoot) {
+    const dirPath = path.join(cwd, 'CODEA.md');
+    try {
+      const content = await fs.readFile(dirPath, 'utf-8');
+      if (content.trim()) {
+        parts.push(`# Directory Instructions (./CODEA.md)\n${content.trim()}`);
+      }
+    } catch {
+      // No directory instructions
+    }
+  }
+
+  return parts.join('\n\n---\n\n');
 }
 
 export async function getCodebaseContext(): Promise<string> {
