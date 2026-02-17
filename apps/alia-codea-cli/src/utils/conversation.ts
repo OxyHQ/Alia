@@ -21,7 +21,7 @@ export interface ToolCall {
 export interface ToolExecution {
   id: string;
   tool: string;
-  args: Record<string, any>;
+  args: Record<string, unknown>;
   result?: string;
   success?: boolean;
   approved?: boolean;
@@ -31,7 +31,6 @@ export type ConversationEvent =
   | { type: 'thinking' }
   | { type: 'content'; text: string }
   | { type: 'tool_start'; execution: ToolExecution }
-  | { type: 'approval_needed'; execution: ToolExecution; resolve: (approved: boolean) => void }
   | { type: 'tool_done'; execution: ToolExecution }
   | { type: 'done'; content: string }
   | { type: 'error'; message: string };
@@ -68,7 +67,6 @@ export async function processConversation(opts: ConversationOptions): Promise<vo
           fullContent += content;
           onEvent({ type: 'content', text: content });
         },
-        onToolCall: () => {},
         onDone: (_content, tcs) => {
           toolCalls = tcs;
         },
@@ -76,8 +74,9 @@ export async function processConversation(opts: ConversationOptions): Promise<vo
           onEvent({ type: 'error', message: error.message });
         },
       });
-    } catch (error: any) {
-      onEvent({ type: 'error', message: error.message });
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error);
+      onEvent({ type: 'error', message });
       break;
     }
 
@@ -98,12 +97,13 @@ export async function processConversation(opts: ConversationOptions): Promise<vo
         tool_calls: toolCalls,
       });
 
-      let allFailed = true;
+      let hasExecutionFailure = false;
+      let hasAnyExecution = false;
 
       for (const tc of toolCalls) {
         if (!isActive()) break;
 
-        let args: Record<string, any>;
+        let args: Record<string, unknown>;
         try {
           args = JSON.parse(tc.function.arguments);
         } catch {
@@ -121,6 +121,8 @@ export async function processConversation(opts: ConversationOptions): Promise<vo
             content: 'Error: Malformed tool arguments. Please retry with valid JSON.',
           });
           onEvent({ type: 'tool_done', execution });
+          hasAnyExecution = true;
+          hasExecutionFailure = true;
           continue;
         }
 
@@ -145,6 +147,7 @@ export async function processConversation(opts: ConversationOptions): Promise<vo
               content: 'User declined this action.',
             });
             onEvent({ type: 'tool_done', execution });
+            // User declines are intentional, not failures — don't count toward failure limit
             continue;
           }
           execution.approved = true;
@@ -155,9 +158,10 @@ export async function processConversation(opts: ConversationOptions): Promise<vo
         const result = await executeTool(tc.function.name, args);
         execution.result = result.result;
         execution.success = result.success;
+        hasAnyExecution = true;
 
-        if (result.success) {
-          allFailed = false;
+        if (!result.success) {
+          hasExecutionFailure = true;
         }
 
         messages.push({
@@ -170,13 +174,14 @@ export async function processConversation(opts: ConversationOptions): Promise<vo
       }
 
       // Track consecutive all-fail rounds to prevent infinite loops
-      if (allFailed) {
+      // Only count rounds where tools actually executed and all failed
+      if (hasAnyExecution && hasExecutionFailure) {
         consecutiveFailures++;
         if (consecutiveFailures >= MAX_CONSECUTIVE_FAILURES) {
           onEvent({ type: 'error', message: 'Multiple consecutive tool failures. Stopping to prevent loop.' });
           break;
         }
-      } else {
+      } else if (hasAnyExecution) {
         consecutiveFailures = 0;
       }
 

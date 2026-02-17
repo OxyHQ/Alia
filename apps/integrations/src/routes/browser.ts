@@ -37,6 +37,10 @@ browserRouter.get('/session/:sessionId/screenshot', async (req, res) => {
 
 // Close a browser session
 browserRouter.post('/session/:sessionId/close', async (req, res) => {
-  await closeContext(req.params.sessionId);
-  res.json({ closed: true });
+  try {
+    await closeContext(req.params.sessionId);
+    res.json({ closed: true });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
 });
