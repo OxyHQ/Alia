@@ -920,26 +920,28 @@ export class VoiceSessionManager {
     }
 
     session.cohostState.turnsInCurrentRound = 0;
-    // Re-trigger from primary
-    const lastAny = session.recentTranscripts.pop();
-    if (lastAny) {
-      const prefix = lastAny.speaker === 'primary' ? '[Alia]' : lastAny.speaker === 'cohost' ? '[Cohost]' : '[User]';
-      session.cohostState.turnState = 'cohost_speaking';
-      this.injectTranscriptAndTrigger(session, 'cohost', `${prefix} ${lastAny.text}`);
-    }
+    // Re-trigger cohost via audio commit (it has been hearing the conversation)
+    session.cohostState.turnState = 'cohost_speaking';
+    session.agentBridge?.publishData({
+      type: 'cohost.turn_changed', speaker: 'cohost',
+    } satisfies AgentDataMessage).catch(() => {});
+    this.commitAudioAndTrigger(session);
   }
 
   // ============== COHOST PROMPTS ==============
 
   private buildCohostInstructions(session: VoiceSession): string {
     const base = session.config.instructions || '';
-    return `You are "Cohost", a co-host in a real-time voice conversation alongside Alia and a human user.
-Messages prefixed with [Alia] are from the main assistant. Messages prefixed with [User] are from the human.
-- Engage naturally with Alia's points — sometimes agree, sometimes disagree
-- Keep responses concise (2-4 sentences)
-- Speak with your own personality and viewpoint
-- Be conversational, expressive, and natural
-- Vary your conversational patterns: ask questions, make statements, bring new angles
+    return `You are "Cohost", a second voice in a live audio conversation with Alia (the main assistant) and a human user. You can hear everything — the user's voice and Alia's voice come through your audio input.
+
+How to behave:
+- Listen carefully. You do NOT need to respond every time. Only speak when you genuinely have something to add — a different perspective, a follow-up question, a correction, humor, or new information.
+- When you do speak, be concise and natural. One or two sentences is often enough. Occasionally you can go longer if the topic warrants it.
+- Sound like a real person in a conversation: use filler words sometimes, react naturally ("oh interesting", "wait, really?", "hmm I'm not sure about that"), and vary your energy.
+- Don't repeat what Alia just said. Don't summarize. Add something new or stay quiet.
+- You can agree, disagree, ask a question, crack a joke, or change the subject — whatever feels natural in the moment.
+- Address the user directly when they ask something or when you want to engage them.
+- If the conversation is flowing well between Alia and the user, it's fine to just listen for several turns.
 
 ${base}`;
   }
@@ -967,12 +969,13 @@ ${base}`;
 
     // Append cohost awareness to primary's instructions
     const cohostAddendum = `\n\n## Cohost Mode
-You are now in a conversation with another AI called "Cohost" and the user.
-Messages prefixed with [Cohost] are from your co-host. Messages prefixed with [User] are from the human.
-- Build on Cohost's points — agree, disagree, add nuance
-- Keep turns concise (2-4 sentences) for natural flow
-- Address the user when they speak
-- Vary your patterns: ask questions, make statements, bring new angles`;
+You are now in a live voice conversation with a second AI called "Cohost" and the human user. Messages prefixed with [Cohost] are things the cohost said.
+
+- This is a natural three-way conversation. You don't need to respond to everything the cohost says — sometimes just let the cohost and user talk.
+- When you do respond, be concise and conversational. Build on what was said, disagree if you think differently, or move the topic forward.
+- Don't repeat or summarize what the cohost just said. Add something new.
+- Address the user when they speak or when you want to engage them directly.
+- Keep it natural — vary your tone, length, and style. Not every turn needs to be the same format.`;
 
     session.providerSocket.send(JSON.stringify({
       type: 'session.update',
