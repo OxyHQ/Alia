@@ -10,6 +10,31 @@ function getDatabaseName(): string {
 
 // Singleton promise to ensure only one connection attempt at a time
 let connectionPromise: Promise<typeof mongoose> | null = null;
+let listenersRegistered = false;
+
+function setupConnectionListeners(): void {
+  if (listenersRegistered) return;
+  listenersRegistered = true;
+
+  const conn = mongoose.connection;
+
+  conn.on('connected', () => {
+    log.general.info('MongoDB connected');
+  });
+
+  conn.on('disconnected', () => {
+    log.general.warn('MongoDB disconnected — mongoose will attempt to reconnect');
+    connectionPromise = null;
+  });
+
+  conn.on('reconnected', () => {
+    log.general.info('MongoDB reconnected');
+  });
+
+  conn.on('error', (err) => {
+    log.general.error({ err }, 'MongoDB connection error');
+  });
+}
 
 export async function connectDB() {
   // Read MONGODB_URI here, after dotenv.config() has been called
@@ -38,7 +63,11 @@ export async function connectDB() {
     maxPoolSize: 10,
     serverSelectionTimeoutMS: 10000, // Increased from 5s to 10s for production
     socketTimeoutMS: 45000,
+    heartbeatFrequencyMS: 10000, // Check connection health every 10s
   };
+
+  // Register connection event listeners before connecting
+  setupConnectionListeners();
 
   log.general.info('Connecting to MongoDB...');
 

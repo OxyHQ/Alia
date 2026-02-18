@@ -1,26 +1,24 @@
-name: alia-api
-region: nyc
+# DigitalOcean App Platform spec for alia-production
+# NOTE: The actual deployment is managed via DO dashboard.
+# This file serves as documentation and reference.
+# Actual app name: alia-production | App ID: 47f815eb-e095-44c9-a0a4-c315307dac22
+name: alia-production
+region: ams
 
 services:
-  - name: api
+  - name: alia
     github:
+      repo: Alia-onl/Alia
       branch: main
       deploy_on_push: true
 
-    # Build configuration (runs from monorepo root)
     build_command: npm ci && npm run build:api
-
-    # Run configuration (runs from monorepo root)
     run_command: npm run start:api
-
-    # Environment
+    source_dir: /
     environment_slug: node-js
-
-    # Instance size
-    instance_size_slug: basic-xxs
+    instance_size_slug: apps-s-2vcpu-4gb
     instance_count: 1
 
-    # Health check
     health_check:
       http_path: /health
       initial_delay_seconds: 30
@@ -29,10 +27,8 @@ services:
       success_threshold: 1
       failure_threshold: 3
 
-    # HTTP port
     http_port: 8080
 
-    # Environment variables (set these in DO dashboard)
     envs:
       - key: NODE_ENV
         value: production
@@ -40,50 +36,141 @@ services:
         value: "8080"
       - key: PROVIDERS_API_URL
         value: "${providers-api.INTERNAL_URL}"
+      - key: MONGODB_URI
+        value: "${db-oxy.DATABASE_URL}"
+      - key: CA_CERT
+        value: "${db-oxy.CA_CERT}"
       - key: SERVICE_SECRET
         type: SECRET
+      - key: WEB_URL
+        value: "https://alia.onl"
+      # S3/Spaces
+      - key: AWS_REGION
+        value: "ams3"
+      - key: AWS_ACCESS_KEY_ID
+        type: SECRET
+      - key: AWS_SECRET_ACCESS_KEY
+        type: SECRET
+      - key: AWS_ENDPOINT_URL
+        value: "https://ams3.digitaloceanspaces.com"
+      - key: AWS_S3_BUCKET
+        value: "bucket-alia"
+      # Stripe
+      - key: STRIPE_SECRET_KEY
+        type: SECRET
+      - key: STRIPE_WEBHOOK_SECRET
+        type: SECRET
+      # Telegram
+      - key: TELEGRAM_BOT_TOKEN
+        type: SECRET
+      - key: TELEGRAM_BOT_USERNAME
+        value: "alia_onlbot"
+      # LiveKit
+      - key: LIVEKIT_URL
+        value: "wss://livekit.oxy.so"
+      - key: LIVEKIT_API_KEY
+        type: SECRET
+      - key: LIVEKIT_API_SECRET
+        type: SECRET
 
-  - name: providers-api
+  - name: alia-console
     github:
+      repo: Alia-onl/Alia
       branch: main
       deploy_on_push: true
-
-    # Build configuration (runs from monorepo root)
-    build_command: npm ci && npm run build:providers-api
-
-    # Run configuration (runs from monorepo root)
-    run_command: npm run start:providers-api
-
-    # Environment
+    build_command: npm install && npm run build
+    run_command: node .output/server/index.mjs
+    source_dir: apps/alia-console
     environment_slug: node-js
-
-    # Instance size
-    instance_size_slug: basic-xxs
+    instance_size_slug: apps-s-1vcpu-0.5gb
     instance_count: 1
+    http_port: 8080
 
-    # Health check
+  - name: integrations
+    github:
+      repo: Alia-onl/Alia
+      branch: main
+      deploy_on_push: true
+    dockerfile_path: apps/integrations/Dockerfile
+    source_dir: /
+    instance_size_slug: apps-s-2vcpu-4gb
+    instance_count: 1
+    http_port: 8080
     health_check:
       http_path: /health
-      initial_delay_seconds: 20
-      period_seconds: 10
-      timeout_seconds: 5
+      initial_delay_seconds: 120
+      period_seconds: 15
+      timeout_seconds: 10
       success_threshold: 1
-      failure_threshold: 3
+      failure_threshold: 10
+      port: 3005
+    internal_ports:
+      - 3005
 
-    # HTTP port
-    http_port: 9091
+  - name: alia-canvas
+    github:
+      repo: Alia-onl/Alia
+      branch: main
+      deploy_on_push: true
+    build_command: npm ci && npm run build:canvas
+    run_command: npm run start:canvas
+    source_dir: /
+    environment_slug: node-js
+    instance_size_slug: apps-s-1vcpu-0.5gb
+    instance_count: 1
+    http_port: 3002
 
-    # Environment variables (set these in DO dashboard)
-    envs:
-      - key: NODE_ENV
-        value: production
-      - key: PORT
-        value: "9091"
-      - key: MONGODB_URI
-        type: SECRET
-      - key: SERVICE_SECRET
-        type: SECRET
-      - key: OXY_API_URL
-        value: "https://api.oxy.so"
-      - key: ADMIN_USERNAMES
-        value: "nate"
+static_sites:
+  - name: alia-apps-app
+    github:
+      repo: Alia-onl/Alia
+      branch: main
+      deploy_on_push: true
+    build_command: npm install && npm run build --workspace=@alia/app
+    source_dir: /
+    environment_slug: node-js
+    output_dir: apps/app/dist
+    catchall_document: index.html
+
+  - name: providers-admin
+    github:
+      repo: Alia-onl/Alia
+      branch: main
+      deploy_on_push: true
+    build_command: npm install --include=dev && npm run build
+    source_dir: apps/alia-providers-admin
+    environment_slug: node-js
+    output_dir: dist
+    catchall_document: index.html
+
+databases:
+  - name: db-oxy
+    engine: MONGODB
+    version: "8"
+    production: true
+    cluster_name: db-oxy
+
+domains:
+  - domain: alia.onl
+    type: PRIMARY
+    zone: alia.onl
+  - domain: api.alia.onl
+    type: ALIAS
+    zone: alia.onl
+  - domain: api.providers.alia.onl
+    type: ALIAS
+    zone: alia.onl
+  - domain: providers.alia.onl
+    type: ALIAS
+    zone: alia.onl
+  - domain: console.alia.onl
+    type: ALIAS
+    zone: alia.onl
+  - domain: canvas.alia.onl
+    type: ALIAS
+    zone: alia.onl
+
+alerts:
+  - rule: DEPLOYMENT_FAILED
+  - rule: DOMAIN_FAILED
+  - rule: COMPONENT_RESTARTING

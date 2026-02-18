@@ -12,6 +12,31 @@ function getDatabaseName(): string {
 }
 
 let connectionPromise: Promise<typeof mongoose> | null = null;
+let listenersRegistered = false;
+
+function setupConnectionListeners(): void {
+  if (listenersRegistered) return;
+  listenersRegistered = true;
+
+  const conn = mongoose.connection;
+
+  conn.on('connected', () => {
+    log.general.info('MongoDB connected');
+  });
+
+  conn.on('disconnected', () => {
+    log.general.warn('MongoDB disconnected — mongoose will attempt to reconnect');
+    connectionPromise = null;
+  });
+
+  conn.on('reconnected', () => {
+    log.general.info('MongoDB reconnected');
+  });
+
+  conn.on('error', (err) => {
+    log.general.error({ err }, 'MongoDB connection error');
+  });
+}
 
 export async function connectDB(): Promise<typeof mongoose> {
   const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/alia';
@@ -36,7 +61,11 @@ export async function connectDB(): Promise<typeof mongoose> {
     maxPoolSize: 10,
     serverSelectionTimeoutMS: 10000,
     socketTimeoutMS: 45000,
+    heartbeatFrequencyMS: 10000,
   };
+
+  // Register connection event listeners before connecting
+  setupConnectionListeners();
 
   log.general.info({ dbName }, 'Connecting to MongoDB...');
 
