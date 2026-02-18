@@ -453,7 +453,7 @@ router.post('/', async (req: Request, res: Response) => {
     const userLanguagePreference = isDirectUserSession ? userMemory?.preferences?.language : undefined;
     let systemMessage = baseSystemPrompt;
     if (userLanguagePreference) {
-      systemMessage += `\n\nIf the user's language is ambiguous, default to ${userLanguagePreference}.`;
+      systemMessage += `\n\nThe user's default language is ${userLanguagePreference}, but ONLY use this when the language of their message is truly ambiguous or impossible to detect. If the user writes in any identifiable language, always respond in that language.`;
     }
 
     // Inject current model identity so Alia knows which tier it's running as
@@ -493,7 +493,7 @@ router.post('/', async (req: Request, res: Response) => {
       }
       if (userMemory.preferences && Object.keys(userMemory.preferences).length > 0) {
         const prefs = Object.entries(userMemory.preferences)
-          .filter(([_, v]) => v !== undefined && v !== null)
+          .filter(([k, v]) => v !== undefined && v !== null && k !== 'language')
           .map(([k, v]) => `- ${k}: ${Array.isArray(v) ? v.join(', ') : v}`);
         if (prefs.length > 0) {
           systemMessage += '\n### User Preferences:\n' + prefs.join('\n');

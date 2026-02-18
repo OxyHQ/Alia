@@ -84,7 +84,7 @@ async function buildChatSystemPrompt(
   // Add memory preferences and context (these are small and always relevant)
   if (memory) {
     if (memory.preferences?.language) {
-      userContext.push(`User's preferred language: ${memory.preferences.language}. Use this if the message language is unclear.`);
+      userContext.push(`User's default language: ${memory.preferences.language} (ONLY use when the user's message language is ambiguous or undetectable — always match the language the user actually writes in).`);
     }
     if (memory.context?.occupation) {
       userContext.push(`The user works as a ${memory.context.occupation}.`);
