@@ -25,6 +25,7 @@ export function PromptInputTextarea({
     isFullscreen,
     maxHeight,
     onImagePaste,
+    acceptCompletion,
   } = usePromptInput();
 
   const textInput = (
@@ -35,6 +36,7 @@ export function PromptInputTextarea({
       onSubmitEditing={onSubmit}
       onEnterPress={onSubmit}
       onHeightChange={setCurrentHeight}
+      onTabPress={acceptCompletion ? () => acceptCompletion() : undefined}
       disableEnterToSubmit={isFullscreen}
       disableAutoHeight={isFullscreen}
       maxHeight={isFullscreen ? 10000 : maxHeight}
