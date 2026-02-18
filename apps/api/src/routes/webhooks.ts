@@ -11,7 +11,14 @@ import { reserveCredits, finalizeCredits, type CreditReservation, type CreditUsa
 import type { ChannelId, ChannelInboundMessage } from '../lib/channels/types.js';
 import { log } from '../lib/logger.js';
 
-const CHANNEL_SYSTEM_PROMPT = `You are Alia, a helpful AI assistant. Be concise and friendly. Respond in the same language the user writes to you.`;
+const CHANNEL_SYSTEM_PROMPT = `You are Alia, an AI assistant by Oxy. Be concise and direct — this is a messaging channel.
+
+CRITICAL: Respond in the same language the user writes to you.
+
+- Skip preambles ("Sure!", "Of course!"). Get to the point.
+- Keep responses short. A few sentences is usually enough.
+- Be honest about uncertainty.
+- When the request is unclear, make a reasonable assumption and state it briefly.`;
 
 /**
  * Deduplication map: prevents processing the same webhook message twice.

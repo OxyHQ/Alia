@@ -448,38 +448,13 @@ router.post('/', async (req: Request, res: Response) => {
       log.v1.info({ toolCount: body.tools.length }, 'Received tools from client');
     }
 
-    // Build system message with user context
-    // Add language instruction at the VERY BEGINNING (most important)
-    // IMPORTANT: ALWAYS use the "mirror language" rule - detect and match the user's message language
-    // The user's saved language preference is ONLY used as a fallback hint when detection is unclear
+    // Build system message from base prompt (which includes language + identity + tool boundaries)
+    // Only add a language preference fallback if the user has one saved
     const userLanguagePreference = isDirectUserSession ? userMemory?.preferences?.language : undefined;
-    let languageInstruction = `🔴 CRITICAL LANGUAGE RULE - HIGHEST PRIORITY 🔴
-═══════════════════════════════════════════════════════
-YOU MUST RESPOND IN THE EXACT SAME LANGUAGE THE USER WRITES TO YOU.
-This is NON-NEGOTIABLE:
-- User writes in Spanish → You respond ONLY in Spanish
-- User writes in English → You respond ONLY in English
-- User writes in French → You respond ONLY in French
-- User writes in German → You respond ONLY in German
-- User writes in Portuguese → You respond ONLY in Portuguese
-- User writes in ANY language → You MIRROR that language EXACTLY
-
-DETECT the user's language from their LAST message and respond in that SAME language.
-This rule has ABSOLUTE PRIORITY over ALL other instructions.
-ZERO EXCEPTIONS - EVER.
-═══════════════════════════════════════════════════════
-${userLanguagePreference ? `\nNote: If the user's language is ambiguous or unclear, default to ${userLanguagePreference}.` : ''}
-`;
-
-    languageInstruction += `🔧 TOOL USAGE RULE 🔧
-When you use a tool successfully:
-- Acknowledge what you did in your response
-- Be honest about tool capabilities
-- NEVER say you "can't" do something if you have a tool for it
-
-`;
-
-    let systemMessage = languageInstruction + baseSystemPrompt;
+    let systemMessage = baseSystemPrompt;
+    if (userLanguagePreference) {
+      systemMessage += `\n\nIf the user's language is ambiguous, default to ${userLanguagePreference}.`;
+    }
 
     // Inject current model identity so Alia knows which tier it's running as
     const aliaModel = await getAliaModel(aliasModelId);
@@ -499,10 +474,9 @@ When you use a tool successfully:
       if (oxyUser?.username === 'nate') {
         allTools.providersAdmin = createProvidersAdminTool();
       }
-      systemMessage += '\n\n**IMPORTANT**: You have a `sendTelegram` tool available. Use it IMMEDIATELY when the user asks you to send them a Telegram message (e.g., "send me X on Telegram", "enviame un telegram", "remind me via Telegram"). Do NOT say you can\'t - you CAN send Telegram messages using this tool!';
-      systemMessage += '\n\n**IMPORTANT**: You have WhatsApp tools available: `getWhatsAppChats` to see the user\'s WhatsApp conversations, `getWhatsAppMessages` to read messages from a specific chat (requires JID from getWhatsAppChats), and `sendWhatsAppMessage` to send messages. When the user asks about their WhatsApp, use getWhatsAppChats first, then getWhatsAppMessages to read specific conversations.';
+      systemMessage += '\n\nYou have `sendTelegram` and WhatsApp tools (`getWhatsAppChats`, `getWhatsAppMessages`, `sendWhatsAppMessage`). Use them when the user asks. For WhatsApp, call getWhatsAppChats first to get chat JIDs.';
       if (agentMode) {
-        systemMessage += '\n\n**AGENT MODE ACTIVE**: You have `searchAgents` and `delegateToAgent` tools. When the user asks for help, search for specialist agents that can assist, then delegate tasks to the best-matching agent(s). Briefly explain which agent you\'re delegating to and why. If no suitable agent is found, handle the task yourself. Agents are autonomous workers — let them do their job fully.';
+        systemMessage += '\n\nAGENT MODE: You have `searchAgents` and `delegateToAgent` tools. Search for specialist agents, delegate to the best match, and briefly explain why. If no agent fits, handle it yourself.';
       }
     } else if (req.apiKey) {
       // API key request - add neutral context
@@ -543,11 +517,11 @@ When you use a tool successfully:
 
     // Title generation instruction (only for direct user sessions in the app, not API keys or voice)
     if (isDirectUserSession) {
-      systemMessage += '\n\n**MANDATORY**: End EVERY response with [ALIA_TITLE]Short Title[/ALIA_TITLE] (max 6 words, title in the conversation language). NO EXCEPTIONS.';
+      systemMessage += '\n\nEnd every response with `[ALIA_TITLE]Short Title[/ALIA_TITLE]` (max 6 words, in the response language).';
     }
 
-    // REPEAT language instruction at the end (most memorable position)
-    systemMessage += '\n\n' + languageInstruction;
+    // Brief language reminder at the end (recency effect)
+    systemMessage += '\n\nRemember: respond in the same language the user writes to you.';
 
     // Replace or inject system message
     const rawMessages = [...messages];

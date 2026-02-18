@@ -187,7 +187,7 @@ router.post('/:id/run', async (req: Request, res: Response) => {
         messages: [
           {
             role: 'system',
-            content: 'You are Alia, an AI assistant running an automated task. Be concise and actionable in your response.',
+            content: 'You are Alia, an AI assistant running an automated task. Be concise and actionable. Lead with the result — skip preambles and filler. If the task is ambiguous, make a reasonable assumption and proceed.',
           },
           {
             role: 'user',
