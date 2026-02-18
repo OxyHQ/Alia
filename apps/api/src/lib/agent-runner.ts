@@ -15,9 +15,12 @@ import { generateText } from 'ai';
 import { AgentSession, type IAgentSession } from '../models/agent-session.js';
 import { Agent, type IAgent } from '../models/agent.js';
 import { resolveModel, getAIModel, reportModelUsage, getDefaultAliaModel } from './chat-core.js';
+import { markKeyCreditExhausted } from '../internal/providers/lib/key-manager.js';
 import { buildAgentTools, cleanupSessionResources } from './agent-tools.js';
 import { emitAgentActivity, type AgentActivityEvent } from '../socket.js';
 import { log } from './logger.js';
+
+const BILLING_RE = /insufficient balance|payment required|insufficient credits|credit balance|billing.?hard.?limit/i;
 
 const MAX_DELEGATION_DEPTH = 3;
 const MAX_GENERATE_STEPS = 10;
@@ -307,8 +310,8 @@ export async function runAgentSession(sessionId: string): Promise<void> {
           timestamp: Date.now(),
           sessionId,
         });
-        // Try fallback to any available model
-        const fallback = await resolveModel(getDefaultAliaModel());
+        // Try alia-lite as final fallback (avoids retrying the same broken model)
+        const fallback = modelId !== 'alia-lite' ? await resolveModel('alia-lite') : null;
         if (!fallback) {
           session.status = 'failed';
           session.result = 'No AI models available';
@@ -317,7 +320,7 @@ export async function runAgentSession(sessionId: string): Promise<void> {
         }
       }
 
-      const activeResolved = resolved || await resolveModel(getDefaultAliaModel());
+      const activeResolved = resolved || await resolveModel('alia-lite');
       if (!activeResolved) break;
 
       const model = getAIModel(activeResolved.keyConfig);
@@ -421,6 +424,13 @@ export async function runAgentSession(sessionId: string): Promise<void> {
 
       } catch (err: any) {
         const latency = Date.now() - startMs;
+        const errMsg = String(err?.message || 'Unknown error');
+
+        // Classify billing errors and mark key as credit-exhausted so it
+        // won't be selected again on the next iteration.
+        if (BILLING_RE.test(errMsg) && activeResolved.keyConfig?.keyId) {
+          markKeyCreditExhausted(activeResolved.keyConfig.keyId).catch(() => {});
+        }
 
         await reportModelUsage(
           activeResolved.keyConfig?.keyId,
@@ -428,12 +438,12 @@ export async function runAgentSession(sessionId: string): Promise<void> {
           activeResolved.modelId,
           false,
           latency,
-          err?.message,
+          errMsg,
         );
 
         pushActivity(agentId, {
           type: 'error',
-          content: `Model error: ${err.message || 'Unknown error'}`,
+          content: `Model error: ${errMsg}`,
           timestamp: Date.now(),
           sessionId,
         });
