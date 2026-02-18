@@ -2,11 +2,8 @@ import React, { useEffect, useState, useCallback } from "react";
 import { View, ScrollView, Pressable, Share, TextInput, Alert, useWindowDimensions } from "react-native";
 import { Switch } from "@/components/ui/switch";
 import { Text } from "@/components/ui/text";
-import { Avatar, AvatarImage } from "@/components/ui/avatar";
+import { AgentPlaceholder } from "@/components/ui/agent-placeholder";
 import * as DropdownMenu from "@/components/ui/dropdown-menu";
-
-// eslint-disable-next-line @typescript-eslint/no-var-requires
-const DEFAULT_AVATAR = require("@/assets/images/agent-avatar-reference.png");
 import {
   ArrowLeft,
   BadgeCheck,
@@ -324,9 +321,7 @@ export default function AgentDetailScreen() {
           <View className={cn("px-5 pb-6 pt-4", isLargeScreen && "px-6 max-w-2xl")}>
             {/* Avatar */}
             <View className="relative self-start">
-              <Avatar className="h-20 w-20">
-                <AvatarImage source={agent.avatar ? { uri: agent.avatar } : DEFAULT_AVATAR} />
-              </Avatar>
+              <AgentPlaceholder seed={agent._id} size={80} avatarUrl={agent.avatar} />
               <View
                 className={cn(
                   "absolute bottom-1 right-1 w-4 h-4 rounded-full border-2 border-background",
