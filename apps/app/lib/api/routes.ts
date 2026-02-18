@@ -56,8 +56,13 @@ export const API_ROUTES = {
   // Skills routes
   skills: {
     list: '/skills',
+    me: '/skills/me',
     get: (skillId: string) => `/skills/${skillId}`,
     prompt: (skillId: string) => `/skills/${skillId}/prompt`,
+    create: '/skills',
+    update: (skillId: string) => `/skills/${skillId}`,
+    delete: (skillId: string) => `/skills/${skillId}`,
+    generate: '/skills/generate',
   },
 
   // Automations routes
