@@ -41,4 +41,9 @@ export const queryKeys = {
     info: ['referral-info'] as const,
     history: ['referral-history'] as const,
   },
+  suggestions: {
+    welcome: ['suggestions', 'welcome'] as const,
+    autocomplete: ['suggestions', 'autocomplete'] as const,
+    me: ['suggestions', 'me'] as const,
+  },
 } as const;

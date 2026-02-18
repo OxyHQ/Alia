@@ -1,8 +1,12 @@
-import { View, Pressable } from "react-native";
+import { Pressable, StyleSheet } from "react-native";
+import { BlurView } from "expo-blur";
 import { Text } from "@/components/ui/text";
 import { useAuth } from "@oxyhq/services";
 import { useMemo } from "react";
 import { useTranslation } from "@/hooks/useTranslation";
+import { useWelcomeSuggestions, useRecordSuggestionUsage } from "@/lib/hooks/use-suggestions";
+import Animated, { FadeIn } from "react-native-reanimated";
+import { View } from "react-native";
 
 type TimeOfDay = "morning" | "afternoon" | "evening";
 
@@ -22,6 +26,8 @@ type WelcomeMessageProps = {
 export const WelcomeMessage = ({ onSuggestionPress }: WelcomeMessageProps) => {
   const { user, isAuthenticated } = useAuth();
   const { t } = useTranslation();
+  const { data: apiSuggestions } = useWelcomeSuggestions();
+  const recordUsage = useRecordSuggestionUsage();
 
   const timeOfDay = useMemo(() => getTimeOfDay(), []);
   const pairIndex = useMemo(() => Math.floor(Math.random() * PAIRS_COUNT), []);
@@ -30,24 +36,11 @@ export const WelcomeMessage = ({ onSuggestionPress }: WelcomeMessageProps) => {
   const greeting = t(`welcome.${timeOfDay}Greetings.${pairIndex}`, { name: userName });
   const subtitle = t(`welcome.${timeOfDay}Subtitles.${pairIndex}`);
 
-  const suggestions = [
-    {
-      title: t('welcome.summarizeTitle'),
-      description: t('welcome.summarizeDescription'),
-    },
-    {
-      title: t('welcome.draftEmailTitle'),
-      description: t('welcome.draftEmailDescription'),
-    },
-    {
-      title: t('welcome.exploreIdeasTitle'),
-      description: t('welcome.exploreIdeasDescription'),
-    },
-    {
-      title: t('welcome.pythonCodeTitle'),
-      description: t('welcome.pythonCodeDescription'),
-    },
-  ];
+  const suggestions = (apiSuggestions || []).map(s => ({
+    suggestionId: s.suggestionId,
+    title: s.title,
+    description: s.description || s.text,
+  }));
 
   return (
     <View className="flex-1 items-center justify-center px-4">
@@ -62,26 +55,37 @@ export const WelcomeMessage = ({ onSuggestionPress }: WelcomeMessageProps) => {
           </Text>
         </View>
 
-        {/* Suggestion Grid */}
-        <View className="flex-row flex-wrap gap-2">
-          {suggestions.map((item, index) => (
-            <Pressable
-              key={index}
-              className="flex-1 min-w-[35%] flex-col items-start rounded-3xl border border-border bg-surface p-4 active:bg-muted/50"
-              onPress={() => onSuggestionPress?.(item.description)}
-            >
-              <Text className="text-sm font-medium text-surface-foreground mb-1">
-                {item.title}
-              </Text>
-              <Text
-                className="text-xs text-muted-foreground line-clamp-1"
-                numberOfLines={1}
+        {/* Suggestion Grid - fade in when loaded from backend */}
+        {suggestions.length > 0 && (
+          <Animated.View
+            entering={FadeIn.duration(400)}
+            className="flex-row flex-wrap gap-2"
+          >
+            {suggestions.map((item) => (
+              <Pressable
+                key={item.suggestionId}
+                className="flex-1 min-w-[35%] flex-col items-start rounded-3xl border border-border overflow-hidden active:bg-muted/50"
+                onPress={() => {
+                  recordUsage.mutate(item.suggestionId);
+                  onSuggestionPress?.(item.description);
+                }}
               >
-                {item.description}
-              </Text>
-            </Pressable>
-          ))}
-        </View>
+                <BlurView intensity={60} tint="default" experimentalBlurMethod="dimezisBlurView" style={StyleSheet.absoluteFill} />
+                <View className="p-4 w-full">
+                  <Text className="text-sm font-medium text-surface-foreground mb-1" numberOfLines={1}>
+                    {item.title}
+                  </Text>
+                  <Text
+                    className="text-xs text-muted-foreground line-clamp-1"
+                    numberOfLines={1}
+                  >
+                    {item.description}
+                  </Text>
+                </View>
+              </Pressable>
+            ))}
+          </Animated.View>
+        )}
       </View>
     </View>
   );

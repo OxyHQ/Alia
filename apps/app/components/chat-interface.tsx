@@ -1,4 +1,5 @@
-import { View, Pressable, TextInput } from "react-native";
+import { View, Pressable, TextInput, StyleSheet } from "react-native";
+import { BlurView } from "expo-blur";
 import { KeyboardAwareScrollView } from "@/lib/keyboard";
 import { Image } from "expo-image";
 import { CustomMarkdown } from "@/components/ui/markdown";
@@ -328,48 +329,54 @@ export const ChatInterface = React.memo(function ChatInterface({ messages, scrol
                         // User message: bubble only
                         <View className="flex-col items-end gap-0.5">
                           {editingMessageId === m.id ? (
-                            <View className="max-w-[85%] sm:max-w-[75%] rounded-[24px] px-5 py-2.5 bg-muted">
-                              <TextInput
-                                value={editedContent}
-                                onChangeText={setEditedContent}
-                                multiline
-                                className="text-base text-foreground leading-7"
-                                autoFocus
-                              />
-                              <View className="flex-row gap-2 mt-2">
-                                <Pressable
-                                  className="px-3 py-1.5 rounded-lg bg-primary"
-                                  onPress={() => handleSaveEdit(m.id)}
-                                >
-                                  <Text className="text-xs text-primary-foreground">Save</Text>
-                                </Pressable>
-                                <Pressable
-                                  className="px-3 py-1.5 rounded-lg bg-muted-foreground"
-                                  onPress={handleCancelEdit}
-                                >
-                                  <Text className="text-xs text-background">Cancel</Text>
-                                </Pressable>
+                            <View className="max-w-[85%] sm:max-w-[75%] rounded-[24px] overflow-hidden border border-border">
+                              <BlurView intensity={60} tint="default" experimentalBlurMethod="dimezisBlurView" style={StyleSheet.absoluteFill} />
+                              <View className="px-4 py-2">
+                                <TextInput
+                                  value={editedContent}
+                                  onChangeText={setEditedContent}
+                                  multiline
+                                  className="text-base text-foreground leading-7"
+                                  autoFocus
+                                />
+                                <View className="flex-row gap-2 mt-2">
+                                  <Pressable
+                                    className="px-3 py-1.5 rounded-lg bg-primary"
+                                    onPress={() => handleSaveEdit(m.id)}
+                                  >
+                                    <Text className="text-xs text-primary-foreground">Save</Text>
+                                  </Pressable>
+                                  <Pressable
+                                    className="px-3 py-1.5 rounded-lg bg-muted-foreground"
+                                    onPress={handleCancelEdit}
+                                  >
+                                    <Text className="text-xs text-background">Cancel</Text>
+                                  </Pressable>
+                                </View>
                               </View>
                             </View>
                           ) : (
-                            <View className="max-w-[85%] sm:max-w-[75%] rounded-[24px] px-5 py-2.5 bg-muted">
-                              {/* Inline images from multi-part content */}
-                              {messageImages.length > 0 && (
-                                <View className="flex-row flex-wrap gap-2 mb-2">
-                                  {messageImages.map((imgUrl, imgIdx) => (
-                                    <View key={`img-${imgIdx}`} className="rounded-xl overflow-hidden" style={{ width: 120, height: 120 }}>
-                                      <Image
-                                        source={{ uri: imgUrl }}
-                                        className="w-full h-full"
-                                        contentFit="cover"
-                                      />
-                                    </View>
-                                  ))}
-                                </View>
-                              )}
-                              <Text className="text-base text-foreground leading-7">
-                                {messageText}
-                              </Text>
+                            <View className="max-w-[85%] sm:max-w-[75%] rounded-[24px] overflow-hidden border border-border">
+                              <BlurView intensity={60} tint="default" experimentalBlurMethod="dimezisBlurView" style={StyleSheet.absoluteFill} />
+                              <View className="px-4 py-2">
+                                {/* Inline images from multi-part content */}
+                                {messageImages.length > 0 && (
+                                  <View className="flex-row flex-wrap gap-2 mb-2">
+                                    {messageImages.map((imgUrl, imgIdx) => (
+                                      <View key={`img-${imgIdx}`} className="rounded-xl overflow-hidden" style={{ width: 120, height: 120 }}>
+                                        <Image
+                                          source={{ uri: imgUrl }}
+                                          className="w-full h-full"
+                                          contentFit="cover"
+                                        />
+                                      </View>
+                                    ))}
+                                  </View>
+                                )}
+                                <Text className="text-base text-foreground leading-7">
+                                  {messageText}
+                                </Text>
+                              </View>
                             </View>
                           )}
                           {/* Action Buttons for User Messages */}

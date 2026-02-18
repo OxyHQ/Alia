@@ -48,6 +48,7 @@ export default function EditSkillScreen() {
   const [goodAtInput, setGoodAtInput] = useState('');
   const [notGoodAt, setNotGoodAt] = useState<string[]>([]);
   const [notGoodAtInput, setNotGoodAtInput] = useState('');
+  const [isPublished, setIsPublished] = useState(false);
 
   // UI state
   const [saving, setSaving] = useState(false);
@@ -72,6 +73,7 @@ export default function EditSkillScreen() {
         setIncludes(skill.includes || []);
         setGoodAt(skill.goodAt || []);
         setNotGoodAt(skill.notGoodAt || []);
+        setIsPublished(skill.isPublished ?? false);
       }
       setLoading(false);
       setTimeout(() => { isInitialLoad.current = false; }, 500);
@@ -152,6 +154,19 @@ export default function EditSkillScreen() {
     ]);
   }, [id, deleteSkill, router, t]);
 
+  const handlePublishToggle = useCallback(async () => {
+    if (!id) return;
+    const newValue = !isPublished;
+    setIsPublished(newValue);
+    try {
+      await updateSkill(id, { isPublished: newValue });
+      toast.success(newValue ? t('skills.published') : t('skills.draft'));
+    } catch {
+      setIsPublished(!newValue);
+      toast.error(t('skills.createError'));
+    }
+  }, [id, isPublished, updateSkill, t]);
+
   if (loading) {
     return (
       <View className="flex-1 bg-background items-center justify-center">
@@ -224,15 +239,27 @@ export default function EditSkillScreen() {
           <Text className="text-base font-semibold text-foreground">
             {t('skills.editSkill')}
           </Text>
+          <View className={`px-2 py-0.5 rounded-full ${isPublished ? 'bg-green-500/15' : 'bg-muted'}`}>
+            <Text className={`text-xs font-medium ${isPublished ? 'text-green-500' : 'text-muted-foreground'}`}>
+              {isPublished ? t('skills.published') : t('skills.draft')}
+            </Text>
+          </View>
           {saving && (
-            <Text className="text-xs text-muted-foreground ml-2">
+            <Text className="text-xs text-muted-foreground">
               {t('common.saving')}
             </Text>
           )}
         </View>
-        <Pressable onPress={handleDelete} className="p-2 active:opacity-70">
-          <Trash2 size={18} className="text-destructive" />
-        </Pressable>
+        <View className="flex-row items-center gap-2">
+          <Pressable onPress={handleDelete} className="p-2 active:opacity-70">
+            <Trash2 size={18} className="text-destructive" />
+          </Pressable>
+          <Button onPress={handlePublishToggle} className="h-8 px-4 rounded-full">
+            <Text className="text-sm font-medium text-primary-foreground">
+              {isPublished ? t('skills.unpublish') : t('skills.publish')}
+            </Text>
+          </Button>
+        </View>
       </View>
 
       <ScrollView

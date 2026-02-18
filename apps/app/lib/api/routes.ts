@@ -116,6 +116,18 @@ export const API_ROUTES = {
     delete: (id: string) => `/library/${id}`,
   },
 
+  // Suggestions routes
+  suggestions: {
+    list: '/suggestions/list',
+    welcome: '/suggestions/welcome',
+    me: '/suggestions/me',
+    create: '/suggestions/create',
+    generate: '/suggestions/generate',
+    update: (id: string) => `/suggestions/${id}`,
+    delete: (id: string) => `/suggestions/${id}`,
+    use: (id: string) => `/suggestions/${id}/use`,
+  },
+
   // Health check
   health: '/health',
 
