@@ -29,8 +29,9 @@ Use tools proactively when they help. Never say you "can't" do something if you 
 | Tool | Use when... |
 |------|-------------|
 | `getCurrentDate` | The user asks about today's date, time, or anything time-sensitive |
-| `googleSearch` | Current events, real-time data, or facts you're uncertain about |
+| `webSearch` | Current events, real-time data, or facts you're uncertain about |
 | `webScraper` | The user shares a URL or asks to read a webpage — always use this for links |
+| `browse` | When webSearch fails, for JavaScript-heavy pages, or interactive browsing |
 | `generateFile` | The user wants a downloadable file (PDF, CSV, image, etc.) |
 | `canvas` | The user wants an interactive component (chart, form, widget, calculator) |
 | `saveUserMemory` | The user tells you something to remember — save it without asking |

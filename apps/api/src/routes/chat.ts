@@ -6,7 +6,7 @@ import { streamText, stepCountIs, type ToolSet } from 'ai';
 import { resolveModel, getAIModel, getDefaultAliaModel, reportModelUsage } from '../lib/chat-core.js';
 import { markKeyCreditExhausted } from '../lib/providers-client.js';
 import { getAliaModel, getModelMappingsForTier } from '../lib/providers-client.js';
-import { getCurrentDateTool, createGoogleSearchTool, saveUserMemoryTool, updateUserPreferencesTool, updateUserContextTool, createGetDeviceInfoTool, createSendTelegramTool, createProvidersAdminTool, webScraperTool, generateFileTool, canvasTool, type DeviceInfo } from '../lib/tools/index.js';
+import { getCurrentDateTool, webSearchTool, browseTool, saveUserMemoryTool, updateUserPreferencesTool, updateUserContextTool, createGetDeviceInfoTool, createSendTelegramTool, createProvidersAdminTool, webScraperTool, generateFileTool, canvasTool, type DeviceInfo } from '../lib/tools/index.js';
 import { optionalAuth, oxyClient } from '../middleware/auth.js';
 import type { User as OxyUser } from '@oxyhq/core';
 import { getOrCreateUserCredits } from '../lib/user-credits-helpers.js';
@@ -359,14 +359,14 @@ router.post('/', optionalAuth, async (req, res) => {
         platform,
       });
 
-      // Build tools (Google search depends on the resolved provider)
-      const googleApiKey = resolved.keyConfig.provider === 'google' ? resolved.keyConfig.key : null;
+      // Build tools
       const tools: ToolSet = {
         getCurrentDate: getCurrentDateTool,
         webScraper: webScraperTool,
         generateFile: generateFileTool,
         canvas: canvasTool,
-        ...(googleApiKey ? { googleSearch: createGoogleSearchTool(googleApiKey) } : {}),
+        webSearch: webSearchTool,
+        browse: browseTool,
         ...(deviceInfo ? { getDeviceInfo: createGetDeviceInfoTool(deviceInfo) } : {}),
         ...(req.user ? {
           saveUserMemory: saveUserMemoryTool(req.user.id),
@@ -866,7 +866,7 @@ router.get('/', async (req, res) => {
     service: 'Alia AI Chat',
     tools: {
       getCurrentDate: true,
-      googleSearch: true,
+      webSearch: true,
       webScraper: true
     }
   });

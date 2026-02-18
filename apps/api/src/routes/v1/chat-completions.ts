@@ -10,7 +10,7 @@ import { recordUsage } from '../../middleware/api-key-rate-limit.js';
 import { detectCreditAnomaly } from '../../lib/credit-anomaly.js';
 import { getUserEntitlements } from '../../lib/plan-access.js';
 import { convertOpenAIToolsToToolSet } from '../../lib/tool-converter.js';
-import { getCurrentDateTool, saveUserMemoryTool, updateUserPreferencesTool, updateUserContextTool, createSendTelegramTool, createGetWhatsAppChatsTool, createGetWhatsAppMessagesTool, createSendWhatsAppMessageTool, createProvidersAdminTool, webScraperTool, generateFileTool, createSearchAgentsTool, createDelegateToAgentTool } from '../../lib/tools/index.js';
+import { getCurrentDateTool, webSearchTool, browseTool, saveUserMemoryTool, updateUserPreferencesTool, updateUserContextTool, createSendTelegramTool, createGetWhatsAppChatsTool, createGetWhatsAppMessagesTool, createSendWhatsAppMessageTool, createProvidersAdminTool, webScraperTool, generateFileTool, createSearchAgentsTool, createDelegateToAgentTool } from '../../lib/tools/index.js';
 import { oxyClient } from '../../middleware/auth.js';
 import type { KeyConfig } from '../../lib/providers-client.js';
 import type { IUserMemory } from '../../models/user-memory.js';
@@ -298,7 +298,8 @@ router.post('/', async (req: Request, res: Response) => {
 
     const [creditResult, resolvedResult, userMemory, oxyUser, skill, entitlements] = await Promise.all([
       // Credits: sequential pair (getOrCreate → reserve), parallel with everything else
-      req.user ? (async () => {
+      // Skip for internal service requests (no credits charged)
+      (req.user && !req.serviceApp) ? (async () => {
         await getOrCreateUserCredits(req.user!.id);
         const reservation = await reserveCredits(req.user!.id);
         return { reservation, error: false as const };
@@ -343,7 +344,7 @@ router.post('/', async (req: Request, res: Response) => {
     // Only return 402 if reserveCredits explicitly returned null (insufficient credits),
     // not if there was a DB error (original behavior: continue without credits on error)
     creditReservation = creditResult.reservation;
-    if (req.user && !creditReservation && !creditResult.error) {
+    if (req.user && !req.serviceApp && !creditReservation && !creditResult.error) {
       clearTimeout(globalTimer);
       const creditError = {
         code: 'INSUFFICIENT_CREDITS',
@@ -412,6 +413,7 @@ router.post('/', async (req: Request, res: Response) => {
 
     // Always include server-only tools (no conflicts with client tools):
     // - getCurrentDate: Server time/date
+    // - webSearch: Web search via DuckDuckGo (free, no API key)
     // - sendTelegram: Server-side Telegram API (only for direct user sessions)
     // - saveUserMemory/updateUserPreferences/updateUserContext: Server-side DB operations (only for direct user sessions)
     //
@@ -422,6 +424,8 @@ router.post('/', async (req: Request, res: Response) => {
       getCurrentDate: getCurrentDateTool,
       webScraper: webScraperTool,
       generateFile: generateFileTool,
+      webSearch: webSearchTool,
+      browse: browseTool,
       // Personal tools only available for direct user sessions (not API key requests)
       ...(isDirectUserSession ? {
         sendTelegram: createSendTelegramTool(req.user!.id),

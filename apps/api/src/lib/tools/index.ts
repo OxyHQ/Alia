@@ -4,13 +4,14 @@
 
 import { registerTool } from './registry.js';
 import { getCurrentDateTool } from './date.js';
-import { createGoogleSearchTool } from './google-search.js';
+import { webSearchTool } from './web-search.js';
 import { saveUserMemoryTool, updateUserPreferencesTool, updateUserContextTool } from './user-memory.js';
 import { createGetDeviceInfoTool } from './device-info.js';
 import { createSendTelegramTool } from './telegram.js';
 import { createProvidersAdminTool } from './providers-admin.js';
 import { createGetWhatsAppChatsTool, createGetWhatsAppMessagesTool, createSendWhatsAppMessageTool } from './whatsapp.js';
 import { webScraperTool } from './web-scraper.js';
+import { browseTool } from './browse.js';
 import { generateFileTool } from './file-generator.js';
 import { canvasTool } from './canvas.js';
 import { delegateSubtaskTool } from './delegate.js';
@@ -78,15 +79,23 @@ registerTool({
   category: 'agent',
 });
 
-// Factory tools (need context — userId, apiKey, deviceInfo, etc.)
 registerTool({
-  name: 'googleSearch',
-  description: 'Search the web with Google',
-  tool: createGoogleSearchTool,    // factory: (apiKey: string) => Tool
+  name: 'webSearch',
+  description: 'Search the web for current information',
+  tool: webSearchTool,
   enabledByDefault: true,
   category: 'search',
 });
 
+registerTool({
+  name: 'browse',
+  description: 'Browse the web with a real browser (search & read)',
+  tool: browseTool,
+  enabledByDefault: true,
+  category: 'search',
+});
+
+// Factory tools (need context — userId, apiKey, deviceInfo, etc.)
 registerTool({
   name: 'getDeviceInfo',
   description: 'Get information about the user device',
@@ -165,13 +174,14 @@ registerTool({
 // ---------------------------------------------------------------------------
 
 export { getCurrentDateTool } from './date.js';
-export { createGoogleSearchTool, type WebSearchResult, type WebSearchResponse } from './google-search.js';
+export { webSearchTool, type WebSearchResult, type WebSearchResponse } from './web-search.js';
 export { saveUserMemoryTool, updateUserPreferencesTool, updateUserContextTool } from './user-memory.js';
 export { createGetDeviceInfoTool, type DeviceInfo } from './device-info.js';
 export { createSendTelegramTool } from './telegram.js';
 export { createGetWhatsAppChatsTool, createGetWhatsAppMessagesTool, createSendWhatsAppMessageTool } from './whatsapp.js';
 export { createProvidersAdminTool } from './providers-admin.js';
 export { webScraperTool } from './web-scraper.js';
+export { browseTool } from './browse.js';
 export { generateFileTool } from './file-generator.js';
 export { canvasTool } from './canvas.js';
 export { delegateSubtaskTool, type SubtaskResult } from './delegate.js';
