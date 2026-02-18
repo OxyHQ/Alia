@@ -123,6 +123,7 @@ export const API_ROUTES = {
     me: '/suggestions/me',
     create: '/suggestions/create',
     generate: '/suggestions/generate',
+    search: '/suggestions/search',
     update: (id: string) => `/suggestions/${id}`,
     delete: (id: string) => `/suggestions/${id}`,
     use: (id: string) => `/suggestions/${id}/use`,

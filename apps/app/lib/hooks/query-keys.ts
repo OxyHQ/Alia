@@ -44,6 +44,7 @@ export const queryKeys = {
   suggestions: {
     welcome: ['suggestions', 'welcome'] as const,
     autocomplete: ['suggestions', 'autocomplete'] as const,
+    search: (query: string) => ['suggestions', 'search', query] as const,
     me: ['suggestions', 'me'] as const,
   },
 } as const;

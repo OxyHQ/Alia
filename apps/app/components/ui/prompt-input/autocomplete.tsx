@@ -3,11 +3,11 @@ import { View, Pressable } from "react-native";
 import { Text } from "@/components/ui/text";
 import { cn } from "@/lib/utils";
 import {
-  getCompletionsHybrid,
+  getCompletions,
   type PromptCompletion,
 } from "@/lib/prompt-completions";
 import { usePromptInput } from "./context";
-import { useAutocompleteSuggestions, useRecordSuggestionUsage } from "@/lib/hooks/use-suggestions";
+import { useSearchSuggestions, useRecordSuggestionUsage } from "@/lib/hooks/use-suggestions";
 
 export type PromptInputAutocompleteProps = {
   enabled?: boolean;
@@ -21,48 +21,91 @@ export function PromptInputAutocomplete({
   className,
 }: PromptInputAutocompleteProps) {
   const { value, setValue, setHandleCompletionKey } = usePromptInput();
-  const [completions, setCompletions] = useState<PromptCompletion[]>([]);
   const [selectedIndex, setSelectedIndex] = useState(-1);
   const selectedIndexRef = useRef(-1);
   const completionsRef = useRef<PromptCompletion[]>([]);
-  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const { data: cachedSuggestions } = useAutocompleteSuggestions();
+  const [debouncedQuery, setDebouncedQuery] = useState('');
   const recordUsage = useRecordSuggestionUsage();
 
-  // Memoize the cached suggestions for stable reference
-  const suggestions = useMemo(() => cachedSuggestions || [], [cachedSuggestions]);
+  // Debounce the search query (200ms)
+  useEffect(() => {
+    if (!enabled) {
+      setDebouncedQuery('');
+      return;
+    }
+    const trimmed = value.trim();
+    if (!trimmed || trimmed.length < 2) {
+      setDebouncedQuery('');
+      return;
+    }
+    const timer = setTimeout(() => setDebouncedQuery(trimmed), 200);
+    return () => clearTimeout(timer);
+  }, [value, enabled]);
 
-  // Keep completions ref in sync
+  // API search results (fires when debouncedQuery changes)
+  const { data: apiResults } = useSearchSuggestions(debouncedQuery);
+
+  // Instant local results (no delay)
+  const localResults = useMemo<PromptCompletion[]>(() => {
+    if (!enabled) return [];
+    const trimmed = value.trim();
+    if (!trimmed || trimmed.length < 2) return [];
+    return getCompletions(trimmed, 4);
+  }, [value, enabled]);
+
+  // Merge: API results first, fill from local, dedupe
+  const completions = useMemo<PromptCompletion[]>(() => {
+    const trimmed = value.trim();
+    if (!trimmed || trimmed.length < 2) return [];
+
+    if (!apiResults?.length) return localResults;
+
+    const results: PromptCompletion[] = [];
+    const seen = new Set<string>();
+    const lower = trimmed.toLowerCase();
+
+    // API results first
+    for (const s of apiResults) {
+      if (results.length >= 6) break;
+      const idx = s.text.toLowerCase().indexOf(lower);
+      const matchStart = idx !== -1 ? idx : 0;
+      const matchEnd = idx !== -1 ? idx + trimmed.length : 0;
+      const textLower = s.text.toLowerCase();
+      if (!seen.has(textLower)) {
+        seen.add(textLower);
+        results.push({
+          text: s.text,
+          matchStart,
+          matchEnd,
+          suggestionId: s.suggestionId,
+          isTemplate: s.isTemplate,
+          templateVariables: s.templateVariables,
+        });
+      }
+    }
+
+    // Fill from local
+    for (const r of localResults) {
+      if (results.length >= 6) break;
+      if (!seen.has(r.text.toLowerCase())) {
+        seen.add(r.text.toLowerCase());
+        results.push(r);
+      }
+    }
+
+    return results;
+  }, [apiResults, localResults, value]);
+
+  // Keep refs in sync
   useEffect(() => {
     completionsRef.current = completions;
   }, [completions]);
 
+  // Reset selection when completions change
   useEffect(() => {
-    // Reset selection when user types
     selectedIndexRef.current = -1;
     setSelectedIndex(-1);
-
-    if (!enabled) {
-      setCompletions([]);
-      return;
-    }
-
-    if (timerRef.current) clearTimeout(timerRef.current);
-
-    const trimmed = value.trim();
-    if (!trimmed || trimmed.length < 2) {
-      setCompletions([]);
-      return;
-    }
-
-    timerRef.current = setTimeout(() => {
-      setCompletions(getCompletionsHybrid(trimmed, suggestions));
-    }, 100);
-
-    return () => {
-      if (timerRef.current) clearTimeout(timerRef.current);
-    };
-  }, [value, enabled, suggestions]);
+  }, [completions]);
 
   // Arrow key handler — stable callback using refs
   const handleKey = useCallback((key: string): boolean => {
