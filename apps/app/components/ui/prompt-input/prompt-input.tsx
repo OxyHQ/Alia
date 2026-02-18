@@ -70,7 +70,7 @@ export function PromptInput({
   const [internalValue, setInternalValue] = useState(value || "");
   const [currentHeight, setCurrentHeight] = useState(44);
   const [showFullscreen, setShowFullscreen] = useState(false);
-  const [acceptCompletion, setAcceptCompletion] = useState<(() => boolean) | null>(null);
+  const [handleCompletionKey, setHandleCompletionKey] = useState<((key: string) => boolean) | null>(null);
   const textareaRef = useRef<RNTextInput>(null);
 
   // Internal attachment state (used when no controlled props)
@@ -147,8 +147,8 @@ export function PromptInput({
     addAttachment,
     removeAttachment,
     updateAttachment,
-    acceptCompletion,
-    setAcceptCompletion,
+    handleCompletionKey,
+    setHandleCompletionKey,
   };
 
   const content = isSimpleMode ? (
