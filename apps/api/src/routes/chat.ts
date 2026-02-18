@@ -36,7 +36,7 @@ const router = Router();
 
 const BILLING_RE = /insufficient balance|payment required|insufficient credits|credit balance|billing.?hard.?limit|exceeded.*quota|quota.*exceeded/i;
 const AUTH_RE = /unauthorized|forbidden|invalid.*api.*key|access denied|authentication/i;
-const MAX_CHAT_RETRIES = 3;
+const MAX_CHAT_RETRIES = 5;
 
 // Build personalized system prompt from external prompt files + user context.
 // Uses recalled memories (semantic search) instead of dumping all memories.
@@ -533,12 +533,14 @@ router.post('/', optionalAuth, async (req, res) => {
 
             log.chat.warn({ errMsg, statusCode, isBilling, isAuth, provider: resolved!.provider, attempt: attempt + 1 }, 'Provider error in stream');
 
-            // Mark key as exhausted and track failed provider for skip on retry
+            // Mark key as exhausted for billing/auth errors
             if ((isBilling || isAuth) && resolved!.keyConfig?.keyId) {
               markKeyCreditExhausted(resolved!.keyConfig.keyId).catch(() => {});
-              failedProviders.add(resolved!.provider);
               log.chat.warn({ keyId: resolved!.keyConfig.keyId, provider: resolved!.provider }, 'Marked key as exhausted');
             }
+
+            // Always track failed provider so retry skips it
+            failedProviders.add(resolved!.provider);
 
             // Report failure to providers API
             reportModelUsage(resolved!.keyConfig?.keyId, resolved!.provider, resolved!.modelId, false, Date.now() - requestStartTime, errMsg);
@@ -685,9 +687,11 @@ router.post('/', optionalAuth, async (req, res) => {
 
         if ((isBilling || isAuth) && resolved.keyConfig?.keyId) {
           markKeyCreditExhausted(resolved.keyConfig.keyId).catch(() => {});
-          failedProviders.add(resolved.provider);
           log.chat.warn({ keyId: resolved.keyConfig.keyId, provider: resolved.provider, isBilling, isAuth }, 'Marked key as exhausted');
         }
+
+        // Always track failed provider so retry skips it
+        failedProviders.add(resolved.provider);
 
         // Report failure to providers API
         reportModelUsage(

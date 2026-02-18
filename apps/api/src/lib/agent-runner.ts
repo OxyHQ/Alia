@@ -431,8 +431,10 @@ export async function runAgentSession(sessionId: string): Promise<void> {
         // won't be selected again on the next iteration.
         if (BILLING_RE.test(errMsg) && activeResolved.keyConfig?.keyId) {
           markKeyCreditExhausted(activeResolved.keyConfig.keyId).catch(() => {});
-          failedProviders.add(activeResolved.provider);
         }
+
+        // Always track failed provider so next iteration skips it
+        failedProviders.add(activeResolved.provider);
 
         await reportModelUsage(
           activeResolved.keyConfig?.keyId,

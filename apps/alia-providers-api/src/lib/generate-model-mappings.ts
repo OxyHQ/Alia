@@ -40,7 +40,7 @@ export const GENERATED_TIER_MAPPINGS: Record<AliaTier, ModelMapping[]> = {
     createMapping('openai', 'gpt-4o-mini', 4, 68),
     createMapping('replicate', 'meta/meta-llama-3.3-70b-instruct', 5, 63),
     createMapping('cohere', 'command-r7b-12-2024', 6, 60),
-    createMapping('cerebras', 'llama-3.3-70b', 7, 62),
+    createMapping('cerebras', 'llama3.1-8b', 7, 62),
     createMapping('mistral', 'mistral-small-3.1-2503', 8, 58),
   ],
   'v1': [
@@ -51,7 +51,7 @@ export const GENERATED_TIER_MAPPINGS: Record<AliaTier, ModelMapping[]> = {
     createMapping('openai', 'gpt-4o-mini', 5, 82),
     createMapping('replicate', 'meta/meta-llama-3.3-70b-instruct', 6, 78),
     createMapping('cohere', 'command-r-08-2024', 7, 75),
-    createMapping('cerebras', 'llama-3.3-70b', 8, 74),
+    createMapping('cerebras', 'llama3.1-8b', 8, 74),
     createMapping('mistral', 'mistral-small-3.1-2503', 9, 70),
   ],
   'v1-codea': [
@@ -63,7 +63,7 @@ export const GENERATED_TIER_MAPPINGS: Record<AliaTier, ModelMapping[]> = {
     createMapping('openai', 'gpt-4o', 6, 91),
     createMapping('replicate', 'meta/meta-llama-3.1-405b-instruct', 7, 88),
     createMapping('cohere', 'command-a-03-2025', 8, 86),
-    createMapping('cerebras', 'llama-3.3-70b', 9, 82),
+    createMapping('cerebras', 'llama3.1-8b', 9, 82),
     createMapping('mistral', 'mistral-small-3.1-2503', 10, 78),
   ],
   'v1-cowork': [
@@ -74,7 +74,7 @@ export const GENERATED_TIER_MAPPINGS: Record<AliaTier, ModelMapping[]> = {
     createMapping('groq', 'llama-3.3-70b-versatile', 5, 87),
     createMapping('replicate', 'meta/meta-llama-3.3-70b-instruct', 6, 85),
     createMapping('cohere', 'command-a-03-2025', 7, 83),
-    createMapping('cerebras', 'llama-3.3-70b', 8, 80),
+    createMapping('cerebras', 'llama3.1-8b', 8, 80),
     createMapping('mistral', 'mistral-small-3.1-2503', 9, 76),
   ],
   'v1-browser': [
@@ -86,7 +86,7 @@ export const GENERATED_TIER_MAPPINGS: Record<AliaTier, ModelMapping[]> = {
     createMapping('openai', 'gpt-4o', 6, 90),
     createMapping('replicate', 'meta/meta-llama-3.3-70b-instruct', 7, 87),
     createMapping('cloudflare', '@cf/meta/llama-3.2-11b-vision-instruct', 8, 86),
-    createMapping('cerebras', 'llama-3.3-70b', 9, 82),
+    createMapping('cerebras', 'llama3.1-8b', 9, 82),
     createMapping('mistral', 'mistral-small-3.1-2503', 10, 78),
   ],
   'v1-vision': [
