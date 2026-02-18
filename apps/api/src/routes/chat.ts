@@ -34,7 +34,7 @@ import { recordEvent } from '../lib/observability/index.js';
 
 const router = Router();
 
-const BILLING_RE = /insufficient balance|payment required|insufficient credits|credit balance|billing.?hard.?limit/i;
+const BILLING_RE = /insufficient balance|payment required|insufficient credits|credit balance|billing.?hard.?limit|exceeded.*quota|quota.*exceeded/i;
 const AUTH_RE = /unauthorized|forbidden|invalid.*api.*key|access denied|authentication/i;
 const MAX_CHAT_RETRIES = 3;
 
@@ -285,17 +285,18 @@ router.post('/', optionalAuth, async (req, res) => {
     let tokenUsage: CreditUsage = { promptTokens: 0, completionTokens: 0, totalTokens: 0, systemPromptTokens: 0 };
     let toolCallCount = 0;
     let streamSuccess = false;
+    const failedProviders = new Set<string>(); // Track failed providers for skip on retry
 
     for (let attempt = 0; attempt < MAX_CHAT_RETRIES; attempt++) {
       // ── Resolve model (picks a healthy provider/key) ──
       try {
         const aliasModelId = requestedModel || getDefaultAliaModel();
         if (attempt > 0) {
-          log.chat.info({ aliasModelId, attempt: attempt + 1 }, 'Retrying model resolution after provider failure');
+          log.chat.info({ aliasModelId, attempt: attempt + 1, skipProviders: [...failedProviders] }, 'Retrying model resolution after provider failure');
         } else {
           log.chat.info({ aliasModelId }, 'Resolving model');
         }
-        resolved = await resolveModel(aliasModelId);
+        resolved = await resolveModel(aliasModelId, failedProviders.size > 0 ? failedProviders : undefined);
         log.chat.info({ resolved: resolved ? `${resolved.aliasModelId} -> ${resolved.provider}/${resolved.modelId}` : 'none' }, 'Resolved model');
       } catch (keyError: any) {
         log.chat.error({ err: keyError }, 'Error loading keys');
@@ -303,10 +304,16 @@ router.post('/', optionalAuth, async (req, res) => {
 
         await safeRefund(creditReservation, 'key resolution error');
 
-        res.status(503).json({
-          error: 'Service temporarily unavailable',
-          details: 'Unable to connect to AI models. Please try again later.'
-        });
+        if (res.headersSent) {
+          writeSSE(res, `data: ${JSON.stringify({ type: 'error', error: 'Service temporarily unavailable. Unable to connect to AI models.' })}\n\n`);
+          writeSSE(res, 'data: [DONE]\n\n');
+          res.end();
+        } else {
+          res.status(503).json({
+            error: 'Service temporarily unavailable',
+            details: 'Unable to connect to AI models. Please try again later.'
+          });
+        }
         return;
       }
 
@@ -325,10 +332,16 @@ router.post('/', optionalAuth, async (req, res) => {
 
           await safeRefund(creditReservation, 'no available models');
 
-          res.status(503).json({
-            error: 'No AI models available',
-            details: 'All models are currently unavailable or disabled. Please try again later.'
-          });
+          if (res.headersSent) {
+            writeSSE(res, `data: ${JSON.stringify({ type: 'error', error: 'All AI models are currently unavailable. Please try again later.' })}\n\n`);
+            writeSSE(res, 'data: [DONE]\n\n');
+            res.end();
+          } else {
+            res.status(503).json({
+              error: 'No AI models available',
+              details: 'All models are currently unavailable or disabled. Please try again later.'
+            });
+          }
           return;
         }
       }
@@ -437,6 +450,7 @@ router.post('/', optionalAuth, async (req, res) => {
       tokenUsage = { promptTokens: 0, completionTokens: 0, totalTokens: 0, systemPromptTokens };
 
       // Configure streamText with thinking mode support
+      // maxRetries: 0 — we handle retries ourselves via the provider retry loop
       const streamConfig: any = {
         model,
         messages: compactedMessages as any,
@@ -444,6 +458,7 @@ router.post('/', optionalAuth, async (req, res) => {
         stopWhen: stepCountIs(5),
         system: systemPrompt,
         temperature: 0.6,
+        maxRetries: 0,
         onFinish: async (result) => {
           if (result.usage) {
             tokenUsage = {
@@ -518,9 +533,10 @@ router.post('/', optionalAuth, async (req, res) => {
 
             log.chat.warn({ errMsg, statusCode, isBilling, isAuth, provider: resolved!.provider, attempt: attempt + 1 }, 'Provider error in stream');
 
-            // Mark key as exhausted so it won't be selected again
+            // Mark key as exhausted and track failed provider for skip on retry
             if ((isBilling || isAuth) && resolved!.keyConfig?.keyId) {
               markKeyCreditExhausted(resolved!.keyConfig.keyId).catch(() => {});
+              failedProviders.add(resolved!.provider);
               log.chat.warn({ keyId: resolved!.keyConfig.keyId, provider: resolved!.provider }, 'Marked key as exhausted');
             }
 
@@ -669,6 +685,7 @@ router.post('/', optionalAuth, async (req, res) => {
 
         if ((isBilling || isAuth) && resolved.keyConfig?.keyId) {
           markKeyCreditExhausted(resolved.keyConfig.keyId).catch(() => {});
+          failedProviders.add(resolved.provider);
           log.chat.warn({ keyId: resolved.keyConfig.keyId, provider: resolved.provider, isBilling, isAuth }, 'Marked key as exhausted');
         }
 
@@ -697,17 +714,19 @@ router.post('/', optionalAuth, async (req, res) => {
           continue; // Try next provider
         }
 
-        // Content was already sent or last attempt — send error to client
+        // Content was already sent or last attempt — send error to client and end
+        await safeRefund(creditReservation, 'streaming error');
+
         if (!res.writableEnded) {
           writeSSE(res, `data: ${JSON.stringify({
             type: 'error',
             error: errMsg || 'An error occurred while streaming the response'
           })}\n\n`);
+          writeSSE(res, 'data: [DONE]\n\n');
+          res.end();
         }
-
-        await safeRefund(creditReservation, 'streaming error');
-
-        throw streamError; // Re-throw to be caught by outer try-catch
+        clearTimeout(requestTimeout);
+        return;
       }
     } // end retry loop
 
