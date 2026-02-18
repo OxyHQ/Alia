@@ -255,6 +255,9 @@ export const MODEL_CAPABILITIES: Record<string, ModelCapabilities> = {
   'accounts/fireworks/models/mixtral-8x22b-instruct': createCapabilities({ maxContextTokens: 64000, maxOutputTokens: 8192 }),
   'accounts/fireworks/models/llama-v3p1-405b-instruct': createCapabilities({ maxContextTokens: 128000, maxOutputTokens: 8192 }),
   'accounts/fireworks/models/deepseek-v3': createCapabilities({ maxContextTokens: 64000, maxOutputTokens: 8192 }),
+  'accounts/fireworks/models/glm-4.7': createCapabilities({ maxContextTokens: 128000, maxOutputTokens: 8192 }),
+  'accounts/fireworks/models/gpt-oss-120b': createCapabilities({ codeExecution: true, webSearch: true, maxContextTokens: 128000, maxOutputTokens: 8192 }),
+  'accounts/fireworks/models/qwen3-30b-a3b': createCapabilities({ maxContextTokens: 128000, maxOutputTokens: 8192 }),
 
   // ============== REPLICATE ==============
   'meta/meta-llama-3.3-70b-instruct': createCapabilities({ maxContextTokens: 128000, maxOutputTokens: 8192 }),
@@ -276,6 +279,20 @@ export const MODEL_CAPABILITIES: Record<string, ModelCapabilities> = {
 
   // ============== CLOUDFLARE ==============
   '@cf/meta/llama-3.2-11b-vision-instruct': createCapabilities({ vision: true, maxContextTokens: 128000, maxOutputTokens: 8192 }),
+
+  // ============== SAMBANOVA ==============
+  'Meta-Llama-3.3-70B-Instruct': createCapabilities({ maxContextTokens: 128000, maxOutputTokens: 8192 }),
+  'Meta-Llama-3.1-8B-Instruct': createCapabilities({ maxContextTokens: 128000, maxOutputTokens: 8192 }),
+  'Qwen3-32B': createCapabilities({ maxContextTokens: 128000, maxOutputTokens: 8192 }),
+
+  // ============== HYPERBOLIC ==============
+  'Qwen/Qwen2.5-72B-Instruct': createCapabilities({ maxContextTokens: 128000, maxOutputTokens: 8192 }),
+  'meta-llama/Llama-3.3-70B-Instruct': createCapabilities({ maxContextTokens: 128000, maxOutputTokens: 8192 }),
+
+  // ============== NOVITA AI ==============
+  'deepseek/deepseek-r1': createCapabilities({ maxContextTokens: 64000, maxOutputTokens: 8192 }),
+  'Qwen/Qwen3-235B-A22B': createCapabilities({ maxContextTokens: 128000, maxOutputTokens: 8192 }),
+  'meta-llama/llama-3.3-70b-instruct': createCapabilities({ maxContextTokens: 128000, maxOutputTokens: 8192 }),
 };
 
 // ============== PRICING DATABASE ==============
@@ -508,7 +525,10 @@ export const MODEL_PRICING: Record<string, ModelPricing> = {
   'accounts/fireworks/models/mixtral-8x7b-instruct': { tier: 'paid', costPer1MInput: 0.50, costPer1MOutput: 0.50 },
   'accounts/fireworks/models/mixtral-8x22b-instruct': { tier: 'paid', costPer1MInput: 1.20, costPer1MOutput: 1.20 },
   'accounts/fireworks/models/llama-v3p1-405b-instruct': { tier: 'paid', costPer1MInput: 3.00, costPer1MOutput: 3.00 },
-  'accounts/fireworks/models/deepseek-v3': { tier: 'paid', costPer1MInput: 0.90, costPer1MOutput: 0.90 },
+  'accounts/fireworks/models/deepseek-v3': { tier: 'paid', costPer1MInput: 0.56, costPer1MOutput: 1.68 },
+  'accounts/fireworks/models/glm-4.7': { tier: 'paid', costPer1MInput: 0.60, costPer1MOutput: 2.20 },
+  'accounts/fireworks/models/gpt-oss-120b': { tier: 'paid', costPer1MInput: 0.15, costPer1MOutput: 0.60 },
+  'accounts/fireworks/models/qwen3-30b-a3b': { tier: 'paid', costPer1MInput: 0.20, costPer1MOutput: 0.20 },
 
   // ============== REPLICATE ==============
   'meta/meta-llama-3.3-70b-instruct': { tier: 'paid', costPer1MInput: 0.65, costPer1MOutput: 2.75, averageLatencyMs: 500 },
@@ -530,6 +550,20 @@ export const MODEL_PRICING: Record<string, ModelPricing> = {
 
   // ============== CLOUDFLARE ==============
   '@cf/meta/llama-3.2-11b-vision-instruct': { tier: 'free', averageLatencyMs: 1000 },
+
+  // ============== SAMBANOVA ==============
+  'Meta-Llama-3.3-70B-Instruct': { tier: 'paid', costPer1MInput: 0.60, costPer1MOutput: 1.20, averageLatencyMs: 200 },
+  'Meta-Llama-3.1-8B-Instruct': { tier: 'paid', costPer1MInput: 0.10, costPer1MOutput: 0.20, averageLatencyMs: 100 },
+  'Qwen3-32B': { tier: 'paid', costPer1MInput: 0.20, costPer1MOutput: 0.40, averageLatencyMs: 150 },
+
+  // ============== HYPERBOLIC ==============
+  'Qwen/Qwen2.5-72B-Instruct': { tier: 'paid', costPer1MInput: 0.40, costPer1MOutput: 0.40 },
+  'meta-llama/Llama-3.3-70B-Instruct': { tier: 'paid', costPer1MInput: 0.40, costPer1MOutput: 0.40 },
+
+  // ============== NOVITA AI ==============
+  'deepseek/deepseek-r1': { tier: 'paid', costPer1MInput: 0.70, costPer1MOutput: 2.50 },
+  'Qwen/Qwen3-235B-A22B': { tier: 'paid', costPer1MInput: 0.09, costPer1MOutput: 0.58 },
+  'meta-llama/llama-3.3-70b-instruct': { tier: 'paid', costPer1MInput: 0.135, costPer1MOutput: 0.40 },
 
 };
 
