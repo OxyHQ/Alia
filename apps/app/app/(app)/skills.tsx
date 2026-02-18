@@ -7,46 +7,12 @@ import { useTranslation } from '@/hooks/useTranslation';
 import { useRouter } from 'expo-router';
 import { useSkillsStore, type Skill } from '@/lib/stores/skills-store';
 import { useI18nStore } from '@/lib/stores/i18n-store';
+import { SkillCover } from '@/components/ui/skill-cover';
 
 function SkillBook({ skill, onPress }: { skill: Skill; onPress: () => void }) {
   return (
-    <Pressable
-      onPress={onPress}
-      className="rounded-sm overflow-hidden active:opacity-80 mr-2.5"
-      style={{
-        backgroundColor: skill.color,
-        width: 110,
-        aspectRatio: 2 / 3,
-      }}
-    >
-      <View
-        className="items-center justify-center"
-        style={{
-          backgroundColor: 'rgba(255,255,255,0.2)',
-          width: '100%',
-          aspectRatio: 16 / 10,
-        }}
-      >
-        <Text className="text-xl">{skill.icon}</Text>
-      </View>
-      <View className="flex-1 px-2 pt-1.5 pb-2 justify-between">
-        <Text
-          className="text-[15px] font-black leading-5"
-          style={{ color: 'rgba(255,255,255,0.95)' }}
-          numberOfLines={3}
-        >
-          {skill.title}
-        </Text>
-        <View className="mt-1">
-          <Text
-            className="text-[10px]"
-            style={{ color: 'rgba(255,255,255,0.6)' }}
-            numberOfLines={1}
-          >
-            {skill.author}
-          </Text>
-        </View>
-      </View>
+    <Pressable onPress={onPress} className="active:opacity-80 mr-2.5">
+      <SkillCover seed={skill.skillId} width={110} color={skill.color} title={skill.title} author={skill.author} updatedAt={skill.updatedAt} />
     </Pressable>
   );
 }

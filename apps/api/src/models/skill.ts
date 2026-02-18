@@ -16,6 +16,7 @@ export interface ISkill extends Document {
   useCase: string;
   goodAt: string[];
   notGoodAt: string[];
+  coverImage: string | null;
   isBuiltIn: boolean;
   isPublished: boolean;
   oxyUserId?: mongoose.Types.ObjectId;

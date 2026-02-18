@@ -196,6 +196,7 @@ function AnimatedCell({
   cell,
   palette,
   clock,
+  glowBlur,
 }: {
   x: number;
   y: number;
@@ -204,12 +205,17 @@ function AnimatedCell({
   cell: Cell;
   palette: [HSL, HSL, HSL];
   clock: { value: number };
+  glowBlur: number;
 }) {
   const color = useDerivedValue(() => {
     return computeCellColor(clock.value, cell, palette);
   });
 
-  return <Rect x={x} y={y} width={width} height={height} color={color} />;
+  return (
+    <Rect x={x} y={y} width={width} height={height} color={color}>
+      <Shadow dx={0} dy={0} blur={glowBlur} color={color} />
+    </Rect>
+  );
 }
 
 function StaticCell({
@@ -218,14 +224,20 @@ function StaticCell({
   width,
   height,
   color,
+  glowBlur,
 }: {
   x: number;
   y: number;
   width: number;
   height: number;
   color: string;
+  glowBlur: number;
 }) {
-  return <Rect x={x} y={y} width={width} height={height} color={color} />;
+  return (
+    <Rect x={x} y={y} width={width} height={height} color={color}>
+      <Shadow dx={0} dy={0} blur={glowBlur} color={color} />
+    </Rect>
+  );
 }
 
 // ─── Main component ──────────────────────────────────────────────────────────
@@ -309,7 +321,7 @@ export function AgentPlaceholder({
         {/* Dark background */}
         <Rect x={0} y={0} width={size} height={size} color="#08080f" />
 
-        {/* Scale-pulsing grid */}
+        {/* Scale-pulsing grid — per-cell glow */}
         <Group transform={scaleTransform}>
           {grid.map((cell, i) =>
             animated ? (
@@ -322,6 +334,7 @@ export function AgentPlaceholder({
                 cell={cell}
                 palette={palette}
                 clock={clock}
+                glowBlur={cellSize * 0.45}
               />
             ) : (
               <StaticCell
@@ -331,6 +344,7 @@ export function AgentPlaceholder({
                 width={cellSize}
                 height={cellSize}
                 color={staticColors[i]}
+                glowBlur={cellSize * 0.45}
               />
             ),
           )}
