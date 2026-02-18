@@ -1,10 +1,17 @@
-import { View, ScrollView, Pressable } from 'react-native';
+import { useEffect, useMemo } from 'react';
+import { View, ScrollView, Pressable, ActivityIndicator } from 'react-native';
 import { Text } from '@/components/ui/text';
 import { Button } from '@/components/ui/button';
 import { Plus } from 'lucide-react-native';
 import { useTranslation } from '@/hooks/useTranslation';
 import { useRouter } from 'expo-router';
-import { FEATURED_SKILLS, COMMUNITY_SKILLS, RECENT_SKILLS, type Skill } from '@/lib/data/skills';
+import { useSkillsStore, type Skill } from '@/lib/stores/skills-store';
+import { useI18nStore } from '@/lib/stores/i18n-store';
+
+function formatDate(dateStr: string): string {
+  const d = new Date(dateStr);
+  return d.toLocaleDateString('en', { month: 'short', year: 'numeric' });
+}
 
 function SkillBook({ skill, onPress }: { skill: Skill; onPress: () => void }) {
   return (
@@ -48,7 +55,7 @@ function SkillBook({ skill, onPress }: { skill: Skill; onPress: () => void }) {
             className="text-[10px]"
             style={{ color: 'rgba(255,255,255,0.5)' }}
           >
-            {skill.date}
+            {formatDate(skill.createdAt)}
           </Text>
         </View>
       </View>
@@ -57,6 +64,7 @@ function SkillBook({ skill, onPress }: { skill: Skill; onPress: () => void }) {
 }
 
 function ShelfSection({ title, skills, onPressSkill }: { title: string; skills: Skill[]; onPressSkill: (id: string) => void }) {
+  if (skills.length === 0) return null;
   return (
     <View className="mb-5">
       <View className="px-5 mb-2">
@@ -68,7 +76,7 @@ function ShelfSection({ title, skills, onPressSkill }: { title: string; skills: 
         contentContainerStyle={{ paddingHorizontal: 20 }}
       >
         {skills.map((skill) => (
-          <SkillBook key={skill.id} skill={skill} onPress={() => onPressSkill(skill.id)} />
+          <SkillBook key={skill.skillId} skill={skill} onPress={() => onPressSkill(skill.skillId)} />
         ))}
       </ScrollView>
     </View>
@@ -78,9 +86,20 @@ function ShelfSection({ title, skills, onPressSkill }: { title: string; skills: 
 export default function SkillsScreen() {
   const { t } = useTranslation();
   const router = useRouter();
+  const locale = useI18nStore((s) => s.locale);
+  const { skills, loading, loadSkills } = useSkillsStore();
 
-  const handlePressSkill = (id: string) => {
-    router.push(`/(app)/skills/${id}`);
+  useEffect(() => {
+    const lang = locale.split('-')[0];
+    loadSkills({ language: lang });
+  }, [locale, loadSkills]);
+
+  const featured = useMemo(() => skills.filter((s) => s.category === 'featured'), [skills]);
+  const community = useMemo(() => skills.filter((s) => s.category === 'community'), [skills]);
+  const recent = useMemo(() => skills.filter((s) => s.category === 'recent'), [skills]);
+
+  const handlePressSkill = (skillId: string) => {
+    router.push(`/(app)/skills/${skillId}`);
   };
 
   return (
@@ -95,6 +114,7 @@ export default function SkillsScreen() {
             <Button
               size="icon"
               className="rounded-full h-8 w-8"
+              onPress={() => router.push('/(app)/skills/create')}
             >
               <Plus size={16} className="text-primary-foreground" />
             </Button>
@@ -104,10 +124,17 @@ export default function SkillsScreen() {
           </Text>
         </View>
 
-        {/* Shelves */}
-        <ShelfSection title="Featured" skills={FEATURED_SKILLS} onPressSkill={handlePressSkill} />
-        <ShelfSection title="Community" skills={COMMUNITY_SKILLS} onPressSkill={handlePressSkill} />
-        <ShelfSection title="Recently Added" skills={RECENT_SKILLS} onPressSkill={handlePressSkill} />
+        {loading ? (
+          <View className="py-12 items-center">
+            <ActivityIndicator />
+          </View>
+        ) : (
+          <>
+            <ShelfSection title="Featured" skills={featured} onPressSkill={handlePressSkill} />
+            <ShelfSection title="Community" skills={community} onPressSkill={handlePressSkill} />
+            <ShelfSection title={t('skills.recentlyAdded')} skills={recent} onPressSkill={handlePressSkill} />
+          </>
+        )}
       </ScrollView>
     </View>
   );

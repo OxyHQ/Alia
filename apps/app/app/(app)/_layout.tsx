@@ -192,6 +192,20 @@ export default function AppLayout() {
               }}
             />
             <Drawer.Screen
+              name="skills/create"
+              options={{
+                drawerItemStyle: { display: 'none' },
+                title: i18n.t('skills.createSkill'),
+              }}
+            />
+            <Drawer.Screen
+              name="skills/edit/[id]"
+              options={{
+                drawerItemStyle: { display: 'none' },
+                title: i18n.t('skills.editSkill'),
+              }}
+            />
+            <Drawer.Screen
               name="roles/[id]"
               options={{
                 drawerItemStyle: { display: 'none' },

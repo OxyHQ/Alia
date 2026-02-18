@@ -1,19 +1,47 @@
-import { View, ScrollView, Pressable } from 'react-native';
+import { useState, useEffect } from 'react';
+import { View, ScrollView, Pressable, ActivityIndicator } from 'react-native';
 import { Text } from '@/components/ui/text';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, Plus, MessageSquare } from 'lucide-react-native';
+import { ArrowLeft, Pencil, MessageSquare } from 'lucide-react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useTranslation } from '@/hooks/useTranslation';
-import { toast } from '@/components/sonner';
-import { ALL_SKILLS } from '@/lib/data/skills';
-import { StatsRow, SectionLabel, BulletList, PromptChipList, GoodAtNotFor } from '@/components/detail';
+import { useSkillsStore, type Skill } from '@/lib/stores/skills-store';
+import { SectionLabel, BulletList, PromptChipList, GoodAtNotFor } from '@/components/detail';
+
+function formatDate(dateStr: string): string {
+  const d = new Date(dateStr);
+  return d.toLocaleDateString('en', { month: 'short', year: 'numeric' });
+}
 
 export default function SkillDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const { t } = useTranslation();
+  const { skills, getSkill } = useSkillsStore();
 
-  const skill = ALL_SKILLS.find((s) => s.id === id);
+  const [skill, setSkill] = useState<Skill | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const cached = skills.find((s) => s.skillId === id);
+    if (cached) {
+      setSkill(cached);
+      setLoading(false);
+    } else if (id) {
+      getSkill(id).then((s) => {
+        setSkill(s);
+        setLoading(false);
+      });
+    }
+  }, [id, skills, getSkill]);
+
+  if (loading) {
+    return (
+      <View className="flex-1 bg-background items-center justify-center">
+        <ActivityIndicator />
+      </View>
+    );
+  }
 
   if (!skill) {
     return (
@@ -23,21 +51,26 @@ export default function SkillDetailScreen() {
     );
   }
 
-  const handleAddToLibrary = () => {
-    toast.info(t('skills.comingSoon'));
+  const handleUseSkill = () => {
+    router.replace({ pathname: '/(app)', params: { skillId: skill.skillId } });
   };
 
-  const handleUseSkill = () => {
-    router.replace({ pathname: '/(app)', params: { skillId: skill.id } });
+  const handleEdit = () => {
+    router.push(`/(app)/skills/edit/${skill.skillId}` as any);
   };
 
   return (
     <View className="flex-1 bg-background">
       {/* Header */}
-      <View className="px-5 py-3">
-        <Pressable onPress={() => router.back()} className="active:opacity-70 self-start">
+      <View className="px-5 py-3 flex-row items-center justify-between">
+        <Pressable onPress={() => router.back()} className="active:opacity-70">
           <ArrowLeft size={22} className="text-foreground" />
         </Pressable>
+        {!skill.isBuiltIn && skill.oxyUserId && (
+          <Pressable onPress={handleEdit} className="active:opacity-70">
+            <Pencil size={18} className="text-foreground" />
+          </Pressable>
+        )}
       </View>
 
       <ScrollView className="flex-1" showsVerticalScrollIndicator={false}>
@@ -85,8 +118,15 @@ export default function SkillDetailScreen() {
                 {skill.title}
               </Text>
               <Text className="text-[13px] text-muted-foreground">
-                {skill.author} · {skill.date}
+                {skill.author} · {formatDate(skill.createdAt)}
               </Text>
+              <View className="flex-row items-center gap-1.5 mt-1">
+                <View className="bg-muted px-2 py-0.5 rounded">
+                  <Text className="text-[10px] font-medium text-muted-foreground uppercase">
+                    {skill.language}
+                  </Text>
+                </View>
+              </View>
             </View>
           </View>
 
@@ -94,15 +134,6 @@ export default function SkillDetailScreen() {
           <Text className="text-[14px] text-muted-foreground leading-5 mb-3">
             {skill.tagline}
           </Text>
-
-          {/* Stats Row */}
-          <StatsRow
-            rating={skill.rating}
-            reviewCount={skill.reviewCount}
-            usageCount={skill.usageCount}
-            forkCount={skill.forkCount}
-            version={skill.version}
-          />
 
           {/* Action Buttons */}
           <View className="flex-row gap-2 mb-5">
@@ -115,16 +146,6 @@ export default function SkillDetailScreen() {
                 <Text className="text-[13px] font-semibold text-primary-foreground">
                   {t('skills.useSkill')}
                 </Text>
-              </View>
-            </Button>
-            <Button
-              variant="secondary"
-              onPress={handleAddToLibrary}
-              className="h-11 px-4 rounded-full"
-            >
-              <View className="flex-row items-center gap-1.5">
-                <Plus size={15} className="text-foreground" />
-                <Text className="text-[13px] font-medium text-foreground">{t('skills.addToLibrary')}</Text>
               </View>
             </Button>
           </View>
