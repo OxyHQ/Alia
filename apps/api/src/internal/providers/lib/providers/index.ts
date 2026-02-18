@@ -15,6 +15,12 @@ import { replicateProvider } from './replicate';
 import { cohereProvider } from './cohere';
 import { grokVoiceProvider } from './grok-voice';
 import { openaiVoiceProvider } from './openai-voice';
+import { xaiProvider } from './xai';
+import { fireworksProvider } from './fireworks';
+import { perplexityProvider } from './perplexity';
+import { sambanovaProvider } from './sambanova';
+import { hyperbolicProvider } from './hyperbolic';
+import { novitaProvider } from './novita';
 
 // ============== PROVIDER REGISTRY ==============
 
@@ -35,7 +41,13 @@ export const providers: Record<string, Provider | VoiceProvider | CombinedProvid
   cloudflare: cloudflareProvider,
   deepseek: deepseekProvider,
   cohere: cohereProvider,
-  xai: grokVoiceProvider,
+  // xAI supports both text chat (proxy) and realtime voice
+  xai: { ...xaiProvider, voice: grokVoiceProvider.voice } as CombinedProvider,
+  fireworks: fireworksProvider,
+  perplexity: perplexityProvider,
+  sambanova: sambanovaProvider,
+  hyperbolic: hyperbolicProvider,
+  novita: novitaProvider,
 };
 
 export function getProvider(name: string): Provider | VoiceProvider | undefined {

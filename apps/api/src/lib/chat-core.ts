@@ -130,6 +130,70 @@ export function getAIModel(keyConfig: KeyConfig) {
       });
       return openrouter.chat(modelId || 'meta-llama/llama-3.3-70b-instruct');
     }
+    case 'replicate': {
+      const replicate = createOpenAI({
+        apiKey,
+        baseURL: 'https://api.replicate.com/v1',
+      });
+      return replicate.chat(modelId || 'meta/meta-llama-3.3-70b-instruct');
+    }
+    case 'cloudflare': {
+      const [accountId, apiToken] = apiKey.split(':');
+      const cf = createOpenAI({
+        apiKey: apiToken || apiKey,
+        baseURL: `https://api.cloudflare.com/client/v4/accounts/${accountId}/ai/v1`,
+      });
+      return cf.chat(modelId || '@cf/meta/llama-3.2-11b-vision-instruct');
+    }
+    case 'cohere': {
+      const cohere = createOpenAI({
+        apiKey,
+        baseURL: 'https://api.cohere.ai/compatibility/v1',
+      });
+      return cohere.chat(modelId || 'command-a-03-2025');
+    }
+    case 'xai': {
+      const xai = createOpenAI({
+        apiKey,
+        baseURL: 'https://api.x.ai/v1',
+      });
+      return xai.chat(modelId || 'grok-4-fast');
+    }
+    case 'fireworks': {
+      const fireworks = createOpenAI({
+        apiKey,
+        baseURL: 'https://api.fireworks.ai/inference/v1',
+      });
+      return fireworks.chat(modelId || 'accounts/fireworks/models/deepseek-v3');
+    }
+    case 'perplexity': {
+      const perplexity = createOpenAI({
+        apiKey,
+        baseURL: 'https://api.perplexity.ai',
+      });
+      return perplexity.chat(modelId || 'sonar');
+    }
+    case 'sambanova': {
+      const sambanova = createOpenAI({
+        apiKey,
+        baseURL: 'https://api.sambanova.ai/v1',
+      });
+      return sambanova.chat(modelId || 'Meta-Llama-3.3-70B-Instruct');
+    }
+    case 'hyperbolic': {
+      const hyperbolic = createOpenAI({
+        apiKey,
+        baseURL: 'https://api.hyperbolic.xyz/v1',
+      });
+      return hyperbolic.chat(modelId || 'deepseek-ai/DeepSeek-V3');
+    }
+    case 'novita': {
+      const novita = createOpenAI({
+        apiKey,
+        baseURL: 'https://api.novita.ai/v3/openai',
+      });
+      return novita.chat(modelId || 'meta-llama/llama-3.3-70b-instruct');
+    }
     default:
       throw new Error(`Provider "${keyConfig.provider}" not supported`);
   }
