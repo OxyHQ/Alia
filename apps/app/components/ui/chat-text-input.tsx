@@ -13,6 +13,7 @@ import { cn } from "@/lib/utils";
 type ChatTextInputProps = React.ComponentPropsWithoutRef<typeof TextInput> & {
   noFocus?: boolean;
   onEnterPress?: () => void;
+  onTabPress?: () => boolean;
   maxHeight?: number;
   minHeight?: number;
   onHeightChange?: (height: number) => void;
@@ -27,6 +28,7 @@ const ChatTextInput = React.forwardRef<TextInput, ChatTextInputProps>(
     className,
     noFocus = false,
     onEnterPress,
+    onTabPress,
     onKeyPress,
     maxHeight = 200,
     minHeight = 44,
@@ -98,6 +100,14 @@ const ChatTextInput = React.forwardRef<TextInput, ChatTextInputProps>(
     ) => {
       // Call the original onKeyPress if provided
       onKeyPress?.(e);
+
+      // Tab key — accept autocomplete if available
+      if (e.nativeEvent.key === "Tab" && onTabPress) {
+        if (onTabPress()) {
+          e.preventDefault();
+          return;
+        }
+      }
 
       // Handle Enter key press (without Shift on web)
       if (e.nativeEvent.key === "Enter" && !disableEnterToSubmit) {

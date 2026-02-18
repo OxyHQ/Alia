@@ -19,7 +19,7 @@ export function PromptInputAutocomplete({
   position = "top",
   className,
 }: PromptInputAutocompleteProps) {
-  const { value, setValue } = usePromptInput();
+  const { value, setValue, setAcceptCompletion } = usePromptInput();
   const [completions, setCompletions] = useState<PromptCompletion[]>([]);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const { data: cachedSuggestions } = useAutocompleteSuggestions();
@@ -50,6 +50,21 @@ export function PromptInputAutocomplete({
       if (timerRef.current) clearTimeout(timerRef.current);
     };
   }, [value, enabled, suggestions]);
+
+  // Register Tab-accept handler when completions are available
+  useEffect(() => {
+    if (completions.length > 0) {
+      setAcceptCompletion(() => () => {
+        const first = completions[0];
+        if (first.suggestionId) recordUsage.mutate(first.suggestionId);
+        setValue(first.text);
+        return true;
+      });
+    } else {
+      setAcceptCompletion(null);
+    }
+    return () => setAcceptCompletion(null);
+  }, [completions, setValue, setAcceptCompletion, recordUsage]);
 
   if (completions.length === 0) return null;
 

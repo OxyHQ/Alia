@@ -27,6 +27,8 @@ export type PromptInputContextType = {
   addAttachment: (attachment: Attachment) => void;
   removeAttachment: (id: string) => void;
   updateAttachment: (id: string, updates: Partial<Attachment>) => void;
+  acceptCompletion: (() => boolean) | null;
+  setAcceptCompletion: (fn: (() => boolean) | null) => void;
 };
 
 export const PromptInputContext = createContext<PromptInputContextType>({
@@ -44,6 +46,8 @@ export const PromptInputContext = createContext<PromptInputContextType>({
   addAttachment: () => {},
   removeAttachment: () => {},
   updateAttachment: () => {},
+  acceptCompletion: null,
+  setAcceptCompletion: () => {},
 });
 
 export function usePromptInput() {
