@@ -192,7 +192,8 @@ function isCacheValid<T>(entry: CacheEntry<T> | null): entry is CacheEntry<T> {
 export async function resolveAliaModel(
   model: string,
   tokens: number = 1000,
-  skipProviders: Set<string> = new Set()
+  skipProviders: Set<string> = new Set(),
+  skipKeyIds?: Set<string>
 ): Promise<ResolvedModel | null> {
   if (PROVIDERS_API_ENABLED) {
     try {
@@ -200,6 +201,7 @@ export async function resolveAliaModel(
         model,
         estimatedTokens: tokens,
         skipProviders: [...skipProviders],
+        skipKeyIds: skipKeyIds ? [...skipKeyIds] : [],
       });
     } catch (error: any) {
       if (error.status === 503) return null;
@@ -209,7 +211,7 @@ export async function resolveAliaModel(
 
   // Local fallback
   const { resolveAliaModel: localResolve } = await import('../internal/providers/lib/model-resolver.js');
-  return localResolve(model, tokens, skipProviders);
+  return localResolve(model, tokens, skipProviders, skipKeyIds || new Set());
 }
 
 // ============== PROVIDER API CALLS ==============
@@ -413,7 +415,7 @@ export async function getDefaultModelForCategory(category: string): Promise<Alia
  * Get the default alia model ID.
  */
 export function getDefaultAliaModel(): string {
-  return 'alia-v1';
+  return 'alia-lite';
 }
 
 // ============== TIER MAPPINGS ==============
@@ -550,6 +552,22 @@ export async function updatePlan(planId: string, updates: Record<string, any>): 
 
   const { Plan } = await import('../internal/providers/models/plan.js');
   return Plan.findOneAndUpdate({ planId }, { $set: updates }, { new: true }).lean();
+}
+
+// ============== KEY MANAGEMENT ==============
+
+/**
+ * Mark a provider key as credit-exhausted.
+ * Routes through providers-api when enabled so it operates on the correct database.
+ */
+export async function markKeyCreditExhausted(keyId: string): Promise<void> {
+  if (!keyId) return;
+  if (PROVIDERS_API_ENABLED) {
+    apiPost('/api/report', { keyId, provider: '', modelId: '', success: false, reason: 'billing' }).catch(() => {});
+    return;
+  }
+  const { markKeyCreditExhausted: localMark } = await import('../internal/providers/lib/key-manager.js');
+  localMark(keyId).catch(() => {});
 }
 
 // ============== CACHE WARMUP ==============

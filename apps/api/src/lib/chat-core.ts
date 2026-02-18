@@ -50,16 +50,19 @@ export interface ResolvedModel {
  *
  * @param aliasModelId - The Alia model ID (e.g., "alia-v1", "alia-lite")
  * @param skipProviders - Providers to skip (for retry scenarios)
+ * @param skipKeyIds - Specific key IDs to skip (for retry scenarios)
  * @returns Resolved model with key config, or null if no providers available
  */
 export async function resolveModel(
   aliasModelId: string,
-  skipProviders?: Set<string>
+  skipProviders?: Set<string>,
+  skipKeyIds?: Set<string>
 ): Promise<ResolvedModel | null> {
   const result = await internalResolveAliaModel(
     aliasModelId,
     1000,
-    skipProviders || new Set()
+    skipProviders || new Set(),
+    skipKeyIds
   );
   if (!result) return null;
   return {

@@ -64,12 +64,14 @@ const NON_RETRYABLE_REASONS: Set<FailoverReason> = new Set([
  * @param aliasModelId - The Alia model ID requested
  * @param tokens - Estimated tokens for rate limit checking
  * @param skipProviders - Providers to skip entirely (from caller)
+ * @param callerSkipKeyIds - Specific key IDs to skip (from caller, e.g. keys that already failed)
  * @returns FallbackResult with the resolved model and attempt history
  */
 export async function resolveWithFallback(
   aliasModelId: string,
   tokens: number = 1000,
   skipProviders: Set<string> = new Set(),
+  callerSkipKeyIds: Set<string> = new Set(),
 ): Promise<FallbackResult> {
   const startTime = Date.now();
   const attempts: FallbackAttempt[] = [];
@@ -96,8 +98,8 @@ export async function resolveWithFallback(
 
   // Track providers to skip for this request (billing issues = skip all keys)
   const requestSkipProviders = new Set(skipProviders);
-  // Track specific keys to skip (auth issues = skip that key, try others)
-  const skipKeyIds = new Set<string>();
+  // Track specific keys to skip — merge caller-provided IDs with local auth failures
+  const skipKeyIds = new Set<string>(callerSkipKeyIds);
   // Track if we already retried a timeout on a given provider/model
   const timeoutRetried = new Set<string>();
 
@@ -270,10 +272,12 @@ async function tryResolveWithKey(
   const attemptStart = Date.now();
 
   try {
+    // Pass skipKeyIds so the key manager filters them out directly
     const keyConfig = await getBestKeyForModel(
       mapping.provider,
       mapping.modelId,
       tokens,
+      skipKeyIds,
     );
 
     if (!keyConfig) {
@@ -282,26 +286,11 @@ async function tryResolveWithKey(
         attempt: {
           provider: mapping.provider,
           model: mapping.modelId,
-          error: 'No available keys (all rate-limited or in cooldown)',
+          error: 'No available keys (all rate-limited, skipped, or in cooldown)',
           reason: 'rate_limit',
           latencyMs: Date.now() - attemptStart,
         },
         failedKeyId: null,
-      };
-    }
-
-    // Check if this specific key should be skipped (auth failures)
-    if (keyConfig.keyId && skipKeyIds.has(keyConfig.keyId)) {
-      return {
-        resolved: null,
-        attempt: {
-          provider: mapping.provider,
-          model: mapping.modelId,
-          error: 'Key skipped due to previous auth failure',
-          reason: 'auth',
-          latencyMs: Date.now() - attemptStart,
-        },
-        failedKeyId: keyConfig.keyId,
       };
     }
 

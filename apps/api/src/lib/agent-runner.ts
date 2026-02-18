@@ -15,7 +15,7 @@ import { generateText } from 'ai';
 import { AgentSession, type IAgentSession } from '../models/agent-session.js';
 import { Agent, type IAgent } from '../models/agent.js';
 import { resolveModel, getAIModel, reportModelUsage, getDefaultAliaModel } from './chat-core.js';
-import { markKeyCreditExhausted } from '../internal/providers/lib/key-manager.js';
+import { markKeyCreditExhausted } from './providers-client.js';
 import { buildAgentTools, cleanupSessionResources } from './agent-tools.js';
 import { emitAgentActivity, type AgentActivityEvent } from '../socket.js';
 import { log } from './logger.js';
@@ -275,7 +275,7 @@ export async function runAgentSession(sessionId: string): Promise<void> {
 
   let totalSteps = 0;
   let totalTokens = 0;
-  const failedProviders = new Set<string>(); // Track providers that returned billing/auth errors
+  const failedKeyIds = new Set<string>(); // Track key IDs that returned billing/auth errors
   let lastStepHadToolCalls = false;
 
   try {
@@ -303,7 +303,7 @@ export async function runAgentSession(sessionId: string): Promise<void> {
         sessionId,
       });
 
-      const resolved = await resolveModel(modelId, failedProviders.size > 0 ? failedProviders : undefined);
+      const resolved = await resolveModel(modelId, undefined, failedKeyIds.size > 0 ? failedKeyIds : undefined);
       if (!resolved) {
         pushActivity(agentId, {
           type: 'error',
@@ -312,7 +312,7 @@ export async function runAgentSession(sessionId: string): Promise<void> {
           sessionId,
         });
         // Try alia-lite as final fallback (avoids retrying the same broken model)
-        const fallback = modelId !== 'alia-lite' ? await resolveModel('alia-lite', failedProviders.size > 0 ? failedProviders : undefined) : null;
+        const fallback = modelId !== 'alia-lite' ? await resolveModel('alia-lite', undefined, failedKeyIds.size > 0 ? failedKeyIds : undefined) : null;
         if (!fallback) {
           session.status = 'failed';
           session.result = 'No AI models available';
@@ -321,7 +321,7 @@ export async function runAgentSession(sessionId: string): Promise<void> {
         }
       }
 
-      const activeResolved = resolved || await resolveModel('alia-lite', failedProviders.size > 0 ? failedProviders : undefined);
+      const activeResolved = resolved || await resolveModel('alia-lite', undefined, failedKeyIds.size > 0 ? failedKeyIds : undefined);
       if (!activeResolved) break;
 
       const model = getAIModel(activeResolved.keyConfig);
@@ -433,8 +433,8 @@ export async function runAgentSession(sessionId: string): Promise<void> {
           markKeyCreditExhausted(activeResolved.keyConfig.keyId).catch(() => {});
         }
 
-        // Always track failed provider so next iteration skips it
-        failedProviders.add(activeResolved.provider);
+        // Track the failed key so next iteration skips it (not the entire provider)
+        if (activeResolved.keyConfig?.keyId) failedKeyIds.add(activeResolved.keyConfig.keyId);
 
         await reportModelUsage(
           activeResolved.keyConfig?.keyId,

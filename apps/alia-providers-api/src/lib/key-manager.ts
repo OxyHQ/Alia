@@ -123,7 +123,8 @@ async function isKeyRateLimited(key: IProviderKey, tokens: number = 0): Promise<
 export async function getBestKeyForModel(
   provider: string,
   modelId: string,
-  estimatedTokens: number = 0
+  estimatedTokens: number = 0,
+  skipKeyIds?: Set<string>
 ): Promise<KeyConfig | null> {
   const keys = await loadProviderKeys(provider);
 
@@ -136,6 +137,11 @@ export async function getBestKeyForModel(
   // Failed keys will have been moved to end of queue
   const now = new Date();
   for (const key of keys) {
+    // Skip keys explicitly excluded by the caller (already failed in this request)
+    if (skipKeyIds?.has(key._id.toString())) {
+      continue;
+    }
+
     // Skip keys in cooldown period
     if (key.cooldownUntil && key.cooldownUntil > now) {
       log.keys.debug({ keyPrefix: key.keyPrefix, provider: key.provider, cooldownUntil: key.cooldownUntil }, 'Key in cooldown, skipping');
@@ -315,19 +321,29 @@ export async function recordKeySpend(keyId: string, costUSD: number): Promise<vo
 }
 
 /**
- * Mark a key as credit-exhausted (set spentUSD = creditLimitUSD)
+ * Mark a key as credit-exhausted.
+ * If creditLimitUSD is set, marks spent = limit.
+ * If no credit limit configured, sets a 1-hour cooldown to prevent retry loops.
  */
 export async function markKeyCreditExhausted(keyId: string): Promise<void> {
   try {
     const key = await ProviderKey.findById(keyId);
-    if (key && key.creditLimitUSD != null) {
+    if (!key) return;
+
+    if (key.creditLimitUSD != null) {
       await ProviderKey.updateOne(
         { _id: keyId },
         { $set: { spentUSD: key.creditLimitUSD } }
       );
-      invalidateKeyCache(key.provider);
-      log.keys.warn({ keyPrefix: key.keyPrefix, provider: key.provider, creditLimitUSD: key.creditLimitUSD }, 'Key marked as credit exhausted');
+    } else {
+      // No credit limit configured — set a 1-hour cooldown
+      await ProviderKey.updateOne(
+        { _id: keyId },
+        { $set: { cooldownUntil: new Date(Date.now() + 3600000) } }
+      );
     }
+    invalidateKeyCache(key.provider);
+    log.keys.warn({ keyPrefix: key.keyPrefix, provider: key.provider }, 'Key marked as credit exhausted');
   } catch (err) {
     log.keys.error({ err }, 'Failed to mark key as credit exhausted');
   }

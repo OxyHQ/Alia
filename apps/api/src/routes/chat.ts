@@ -4,7 +4,7 @@
 import { Router } from 'express';
 import { streamText, stepCountIs, type ToolSet } from 'ai';
 import { resolveModel, getAIModel, getDefaultAliaModel, reportModelUsage } from '../lib/chat-core.js';
-import { markKeyCreditExhausted } from '../internal/providers/lib/key-manager.js';
+import { markKeyCreditExhausted } from '../lib/providers-client.js';
 import { getAliaModel, getModelMappingsForTier } from '../lib/providers-client.js';
 import { getCurrentDateTool, createGoogleSearchTool, saveUserMemoryTool, updateUserPreferencesTool, updateUserContextTool, createGetDeviceInfoTool, createSendTelegramTool, createProvidersAdminTool, webScraperTool, generateFileTool, canvasTool, type DeviceInfo } from '../lib/tools/index.js';
 import { optionalAuth, oxyClient } from '../middleware/auth.js';
@@ -285,18 +285,18 @@ router.post('/', optionalAuth, async (req, res) => {
     let tokenUsage: CreditUsage = { promptTokens: 0, completionTokens: 0, totalTokens: 0, systemPromptTokens: 0 };
     let toolCallCount = 0;
     let streamSuccess = false;
-    const failedProviders = new Set<string>(); // Track failed providers for skip on retry
+    const failedKeyIds = new Set<string>(); // Track failed key IDs for skip on retry
 
     for (let attempt = 0; attempt < MAX_CHAT_RETRIES; attempt++) {
       // ── Resolve model (picks a healthy provider/key) ──
       try {
         const aliasModelId = requestedModel || getDefaultAliaModel();
         if (attempt > 0) {
-          log.chat.info({ aliasModelId, attempt: attempt + 1, skipProviders: [...failedProviders] }, 'Retrying model resolution after provider failure');
+          log.chat.info({ aliasModelId, attempt: attempt + 1, skipKeyIds: [...failedKeyIds] }, 'Retrying model resolution after provider failure');
         } else {
           log.chat.info({ aliasModelId }, 'Resolving model');
         }
-        resolved = await resolveModel(aliasModelId, failedProviders.size > 0 ? failedProviders : undefined);
+        resolved = await resolveModel(aliasModelId, undefined, failedKeyIds.size > 0 ? failedKeyIds : undefined);
         log.chat.info({ resolved: resolved ? `${resolved.aliasModelId} -> ${resolved.provider}/${resolved.modelId}` : 'none' }, 'Resolved model');
       } catch (keyError: any) {
         log.chat.error({ err: keyError }, 'Error loading keys');
@@ -539,8 +539,8 @@ router.post('/', optionalAuth, async (req, res) => {
               log.chat.warn({ keyId: resolved!.keyConfig.keyId, provider: resolved!.provider }, 'Marked key as exhausted');
             }
 
-            // Always track failed provider so retry skips it
-            failedProviders.add(resolved!.provider);
+            // Track the failed key so retry skips it (not the entire provider)
+            if (resolved!.keyConfig?.keyId) failedKeyIds.add(resolved!.keyConfig.keyId);
 
             // Report failure to providers API
             reportModelUsage(resolved!.keyConfig?.keyId, resolved!.provider, resolved!.modelId, false, Date.now() - requestStartTime, errMsg);
@@ -548,7 +548,7 @@ router.post('/', optionalAuth, async (req, res) => {
             // If we can retry (no content sent yet), signal retry
             if (!hasReceivedContent && attempt < MAX_CHAT_RETRIES - 1) {
               providerError = errMsg;
-              break; // Exit stream loop to retry with next provider
+              break; // Exit stream loop to retry with next key/provider
             }
 
             // Can't retry — forward error to client
@@ -690,8 +690,8 @@ router.post('/', optionalAuth, async (req, res) => {
           log.chat.warn({ keyId: resolved.keyConfig.keyId, provider: resolved.provider, isBilling, isAuth }, 'Marked key as exhausted');
         }
 
-        // Always track failed provider so retry skips it
-        failedProviders.add(resolved.provider);
+        // Track the failed key so retry skips it (not the entire provider)
+        if (resolved.keyConfig?.keyId) failedKeyIds.add(resolved.keyConfig.keyId);
 
         // Report failure to providers API
         reportModelUsage(
