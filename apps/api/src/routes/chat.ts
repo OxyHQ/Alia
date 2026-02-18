@@ -3,7 +3,8 @@
 
 import { Router } from 'express';
 import { streamText, stepCountIs, type ToolSet } from 'ai';
-import { resolveModel, getAIModel, getDefaultAliaModel } from '../lib/chat-core.js';
+import { resolveModel, getAIModel, getDefaultAliaModel, reportModelUsage } from '../lib/chat-core.js';
+import { markKeyCreditExhausted } from '../internal/providers/lib/key-manager.js';
 import { getAliaModel, getModelMappingsForTier } from '../lib/providers-client.js';
 import { getCurrentDateTool, createGoogleSearchTool, saveUserMemoryTool, updateUserPreferencesTool, updateUserContextTool, createGetDeviceInfoTool, createSendTelegramTool, createProvidersAdminTool, webScraperTool, generateFileTool, canvasTool, type DeviceInfo } from '../lib/tools/index.js';
 import { optionalAuth, oxyClient } from '../middleware/auth.js';
@@ -33,7 +34,9 @@ import { recordEvent } from '../lib/observability/index.js';
 
 const router = Router();
 
-// getAIModel is now imported from chat-core.ts
+const BILLING_RE = /insufficient balance|payment required|insufficient credits|credit balance|billing.?hard.?limit/i;
+const AUTH_RE = /unauthorized|forbidden|invalid.*api.*key|access denied|authentication/i;
+const MAX_CHAT_RETRIES = 3;
 
 // Build personalized system prompt from external prompt files + user context.
 // Uses recalled memories (semantic search) instead of dumping all memories.
@@ -232,69 +235,7 @@ router.post('/', optionalAuth, async (req, res) => {
       }
     }
 
-    let resolved;
-
-    try {
-      const aliasModelId = requestedModel || getDefaultAliaModel();
-      log.chat.info({ aliasModelId }, 'Resolving model');
-      resolved = await resolveModel(aliasModelId);
-      log.chat.info({ resolved: resolved ? `${resolved.aliasModelId} -> ${resolved.provider}/${resolved.modelId}` : 'none' }, 'Resolved model');
-    } catch (keyError: any) {
-      log.chat.error({ err: keyError }, 'Error loading keys');
-      clearTimeout(requestTimeout);
-
-      await safeRefund(creditReservation, 'key resolution error');
-
-      res.status(503).json({
-        error: 'Service temporarily unavailable',
-        details: 'Unable to connect to AI models. Please try again later.'
-      });
-      return;
-    }
-
-    if (!resolved) {
-      log.chat.info('No available models');
-      clearTimeout(requestTimeout);
-
-      await safeRefund(creditReservation, 'no available models');
-
-      res.status(503).json({
-        error: 'No AI models available',
-        details: 'All models are currently unavailable or disabled. Please try again later.'
-      });
-      return;
-    }
-
-    const model = getAIModel(resolved.keyConfig);
-
-    // Record agent start event for observability
-    recordEvent({
-      type: 'agent.start',
-      timestamp: Date.now(),
-      provider: resolved.provider,
-      modelId: resolved.aliasModelId,
-      userId: req.user?.id,
-      conversationId,
-      platform,
-    });
-
-    const googleApiKey = resolved.keyConfig.provider === 'google' ? resolved.keyConfig.key : null;
-    const tools: ToolSet = {
-      getCurrentDate: getCurrentDateTool,
-      webScraper: webScraperTool,
-      generateFile: generateFileTool,
-      canvas: canvasTool,
-      ...(googleApiKey ? { googleSearch: createGoogleSearchTool(googleApiKey) } : {}),
-      // Add device info tool if device info is available
-      ...(deviceInfo ? { getDeviceInfo: createGetDeviceInfoTool(deviceInfo) } : {}),
-      // Add memory tools for authenticated users
-      ...(req.user ? {
-        saveUserMemory: saveUserMemoryTool(req.user.id),
-        updateUserPreferences: updateUserPreferencesTool(req.user.id),
-        updateUserContext: updateUserContextTool(req.user.id),
-        sendTelegramMessage: createSendTelegramTool(req.user.id)
-      } : {})
-    };
+    // ── One-time setup (not provider-dependent) ──
 
     // Fetch full user profile from Oxy for personalization
     let oxyUser: OxyUser | null = null;
@@ -304,11 +245,6 @@ router.post('/', optionalAuth, async (req, res) => {
       } catch (e) {
         log.chat.error({ err: e }, 'Could not fetch Oxy user profile');
       }
-    }
-
-    // Add admin tools for authorized users
-    if (oxyUser?.username === 'nate') {
-      tools.providersAdmin = createProvidersAdminTool();
     }
 
     // Look up active skill system prompt if skillId provided
@@ -340,286 +276,454 @@ router.post('/', optionalAuth, async (req, res) => {
       }
     }
 
-    // Run beforeChat hooks (memory recall, etc.)
-    let recalledMemories: RecalledMemory[] | undefined;
-    if (req.user?.id) {
-      try {
-        const hookResult = await runBeforeChatHooks({
-          userId: req.user.id,
-          conversationId,
-          messages: processedMessages,
-          model: resolved.aliasModelId,
-          skillId,
-          platform,
-          metadata: {},
-        });
-        recalledMemories = hookResult.metadata?.recalledMemories as RecalledMemory[] | undefined;
-        if (recalledMemories?.length) {
-          log.chat.info({ recalled: recalledMemories.length, total: memory?.memories?.length || 0 }, 'Memory recall');
-        }
-      } catch (e) {
-        log.chat.error({ err: e }, 'beforeChat hooks error');
-      }
-    }
-
-    // Build personalized system prompt (with skill injection + recalled memories)
-    let systemPrompt = await buildChatSystemPrompt(oxyUser, memory, platform, skillPrompt, recalledMemories, agentPrompt);
-
-    // Inject current model identity so Alia knows which tier it's running as
-    const aliaModel = await getAliaModel(resolved.aliasModelId);
-    if (aliaModel) {
-      systemPrompt += `\n\nYou are currently using the **${aliaModel.name}** model. When asked what model you use, say you are using ${aliaModel.name}.`;
-    }
-
-    // Estimate system prompt tokens (so we don't charge users for our system prompts)
-    const systemPromptTokens = estimateMessageTokens('system', systemPrompt);
-    log.chat.info({ systemPromptTokens }, 'Estimated system prompt tokens');
-
-    // Get model context window from tier mappings
-    const tierMappings = aliaModel ? await getModelMappingsForTier(aliaModel.tier) : [];
-    const modelContextTokens = tierMappings[0]?.capabilities?.maxContextTokens || 128000;
-
-    // Context window guard — block if messages would exceed 90% of context
-    const contextCheck = checkContextFit(processedMessages as any, systemPrompt, modelContextTokens);
-    if (!contextCheck.fits) {
-      clearTimeout(requestTimeout);
-      await safeRefund(creditReservation, 'context length exceeded');
-      res.status(400).json({
-        error: 'Your conversation is too long for this model. Please start a new chat or use a shorter message.',
-        code: 'CONTEXT_LENGTH_EXCEEDED',
-        details: { estimatedTokens: contextCheck.estimatedTokens, limit: contextCheck.contextLimit, usage: contextCheck.usage },
-      });
-      return;
-    }
-
-    // History compaction — trim older messages if approaching context limit
-    const historyBudget = Math.floor(modelContextTokens * 0.6); // 60% of context for history
-    const compactedMessages = compactHistory(processedMessages as any, historyBudget);
-
-    // Wrap tools with truncation to cap large tool results (saves tokens)
-    const toolResultBudget = getToolResultBudget(modelContextTokens);
-    const truncatedTools = wrapToolsWithTruncation(tools, toolResultBudget);
-
-    // Set headers for SSE streaming
-    setupSSEHeaders(res);
-
-    // Track usage for credits
-    let tokenUsage: CreditUsage = {
-      promptTokens: 0,
-      completionTokens: 0,
-      totalTokens: 0,
-      systemPromptTokens,
-    };
-
-    // Configure streamText with thinking mode support
-    const streamConfig: any = {
-      model,
-      messages: compactedMessages as any, // Compacted messages (saves tokens)
-      tools: truncatedTools,
-      stopWhen: stepCountIs(5),
-      system: systemPrompt,
-      temperature: 0.6,
-      onFinish: async (result) => {
-        // Capture token usage from AI SDK
-        // AI SDK uses inputTokens/outputTokens, not promptTokens/completionTokens
-        if (result.usage) {
-          tokenUsage = {
-            promptTokens: result.usage.inputTokens || 0,
-            completionTokens: result.usage.outputTokens || 0,
-            totalTokens: result.usage.totalTokens || 0,
-            systemPromptTokens, // Keep our estimated system prompt tokens
-          };
-          log.chat.info({ tokenUsage }, 'Token usage captured');
-        } else {
-          log.chat.warn('No usage data available from AI SDK');
-        }
-      },
-    };
-
-    // Enable extended thinking for Anthropic models when thinking mode is requested
-    if (thinkingMode && resolved.provider === 'anthropic') {
-      log.chat.info('Configuring Anthropic extended thinking mode');
-      streamConfig.experimental_thinking = true;
-    }
-
-    const result = streamText(streamConfig);
-
-    // Stream all events including tool calls
+    // ── Provider retry loop ──
+    // When a provider fails (billing, auth, etc.), mark the key as exhausted
+    // and retry with a different provider. This prevents cascading failures.
+    let resolved: Awaited<ReturnType<typeof resolveModel>> | null = null;
     let assistantResponse = '';
     let hasReceivedContent = false;
-    let streamTimeout: NodeJS.Timeout | null = null;
-    const batcher = new TextBatcher(res);
-
-    // Tool invocation tracking (ZeroClaw pattern)
-    const toolTimers = new Map<string, number>(); // toolCallId → startTime
+    let tokenUsage: CreditUsage = { promptTokens: 0, completionTokens: 0, totalTokens: 0, systemPromptTokens: 0 };
     let toolCallCount = 0;
-    const MAX_TOOL_CALLS = 15;
+    let streamSuccess = false;
 
-    // Set a timeout for stream inactivity (30 seconds without any content)
-    const resetStreamTimeout = () => {
-      if (streamTimeout) clearTimeout(streamTimeout);
-      streamTimeout = setTimeout(() => {
-        if (!hasReceivedContent && !res.writableEnded) {
-          log.chat.error('Stream timeout - no content received in 30s');
-          batcher.flush();
-          const errorEvent = {
-            type: 'error',
-            error: 'Stream timeout - the AI model did not respond in time. Please try again.'
-          };
-          writeSSE(res, `data: ${JSON.stringify(errorEvent)}\n\n`);
-          writeSSE(res, 'data: [DONE]\n\n');
-          res.end();
+    for (let attempt = 0; attempt < MAX_CHAT_RETRIES; attempt++) {
+      // ── Resolve model (picks a healthy provider/key) ──
+      try {
+        const aliasModelId = requestedModel || getDefaultAliaModel();
+        if (attempt > 0) {
+          log.chat.info({ aliasModelId, attempt: attempt + 1 }, 'Retrying model resolution after provider failure');
+        } else {
+          log.chat.info({ aliasModelId }, 'Resolving model');
         }
-      }, 30000) as any;
-    };
+        resolved = await resolveModel(aliasModelId);
+        log.chat.info({ resolved: resolved ? `${resolved.aliasModelId} -> ${resolved.provider}/${resolved.modelId}` : 'none' }, 'Resolved model');
+      } catch (keyError: any) {
+        log.chat.error({ err: keyError }, 'Error loading keys');
+        clearTimeout(requestTimeout);
 
-    resetStreamTimeout();
+        await safeRefund(creditReservation, 'key resolution error');
 
-    try {
-      for await (const chunk of result.fullStream) {
-        // Mark that we've received content
-        if (chunk.type === 'text-delta' || chunk.type === 'tool-call' || (chunk as any).type === 'thinking-delta') {
-          hasReceivedContent = true;
-          if (streamTimeout) clearTimeout(streamTimeout);
+        res.status(503).json({
+          error: 'Service temporarily unavailable',
+          details: 'Unable to connect to AI models. Please try again later.'
+        });
+        return;
+      }
+
+      if (!resolved) {
+        // Try alia-lite as fallback if we were requesting something else
+        const aliasModelId = requestedModel || getDefaultAliaModel();
+        if (aliasModelId !== 'alia-lite') {
+          log.chat.info('No providers for requested model, trying alia-lite fallback');
+          try {
+            resolved = await resolveModel('alia-lite');
+          } catch { /* ignore */ }
         }
+        if (!resolved) {
+          log.chat.info('No available models');
+          clearTimeout(requestTimeout);
 
-        // Handle thinking deltas (extended thinking mode)
-        if ((chunk as any).type === 'thinking-delta' && thinkingMode) {
-          // Flush any pending text first
-          batcher.flush();
+          await safeRefund(creditReservation, 'no available models');
 
-          // Send thinking content to frontend
-          const thinkingEvent = JSON.stringify({
-            type: 'thinking-delta',
-            text: (chunk as any).text || (chunk as any).thinking || ''
+          res.status(503).json({
+            error: 'No AI models available',
+            details: 'All models are currently unavailable or disabled. Please try again later.'
           });
-          writeSSE(res, `data: ${thinkingEvent}\n\n`);
-          continue;
+          return;
         }
+      }
 
-        // Handle text deltas with intelligent batching
-        if (chunk.type === 'text-delta') {
-          assistantResponse += chunk.text;
-          batcher.add(chunk.text);
+      const model = getAIModel(resolved.keyConfig);
+
+      // Record agent start event for observability
+      recordEvent({
+        type: 'agent.start',
+        timestamp: Date.now(),
+        provider: resolved.provider,
+        modelId: resolved.aliasModelId,
+        userId: req.user?.id,
+        conversationId,
+        platform,
+      });
+
+      // Build tools (Google search depends on the resolved provider)
+      const googleApiKey = resolved.keyConfig.provider === 'google' ? resolved.keyConfig.key : null;
+      const tools: ToolSet = {
+        getCurrentDate: getCurrentDateTool,
+        webScraper: webScraperTool,
+        generateFile: generateFileTool,
+        canvas: canvasTool,
+        ...(googleApiKey ? { googleSearch: createGoogleSearchTool(googleApiKey) } : {}),
+        ...(deviceInfo ? { getDeviceInfo: createGetDeviceInfoTool(deviceInfo) } : {}),
+        ...(req.user ? {
+          saveUserMemory: saveUserMemoryTool(req.user.id),
+          updateUserPreferences: updateUserPreferencesTool(req.user.id),
+          updateUserContext: updateUserContextTool(req.user.id),
+          sendTelegramMessage: createSendTelegramTool(req.user.id)
+        } : {})
+      };
+
+      // Add admin tools for authorized users
+      if (oxyUser?.username === 'nate') {
+        tools.providersAdmin = createProvidersAdminTool();
+      }
+
+      // Run beforeChat hooks (only on first attempt)
+      let recalledMemories: RecalledMemory[] | undefined;
+      if (attempt === 0 && req.user?.id) {
+        try {
+          const hookResult = await runBeforeChatHooks({
+            userId: req.user.id,
+            conversationId,
+            messages: processedMessages,
+            model: resolved.aliasModelId,
+            skillId,
+            platform,
+            metadata: {},
+          });
+          recalledMemories = hookResult.metadata?.recalledMemories as RecalledMemory[] | undefined;
+          if (recalledMemories?.length) {
+            log.chat.info({ recalled: recalledMemories.length, total: memory?.memories?.length || 0 }, 'Memory recall');
+          }
+        } catch (e) {
+          log.chat.error({ err: e }, 'beforeChat hooks error');
         }
-        // Non-text events (tool calls, etc.) are sent immediately
-        else {
-          // Flush any pending text first
-          batcher.flush();
+      }
 
-          // Track tool call timing (start)
-          if (chunk.type === 'tool-call') {
-            toolTimers.set((chunk as any).toolCallId, Date.now());
-            toolCallCount++;
+      // Build personalized system prompt (with skill injection + recalled memories)
+      let systemPrompt = await buildChatSystemPrompt(oxyUser, memory, platform, skillPrompt, recalledMemories, agentPrompt);
 
-            // Tool iteration guard (ZeroClaw limits to 10, we allow 15)
-            if (toolCallCount > MAX_TOOL_CALLS) {
-              log.chat.warn({ toolCallCount, max: MAX_TOOL_CALLS }, 'Tool call limit exceeded');
-              writeSSE(res, `data: ${JSON.stringify({
-                type: 'error',
-                error: 'Too many tool calls in a single request. Please simplify your request.'
-              })}\n\n`);
-              break;
-            }
+      // Inject current model identity so Alia knows which tier it's running as
+      const aliaModel = await getAliaModel(resolved.aliasModelId);
+      if (aliaModel) {
+        systemPrompt += `\n\nYou are currently using the **${aliaModel.name}** model. When asked what model you use, say you are using ${aliaModel.name}.`;
+      }
+
+      // Estimate system prompt tokens (so we don't charge users for our system prompts)
+      const systemPromptTokens = estimateMessageTokens('system', systemPrompt);
+      if (attempt === 0) log.chat.info({ systemPromptTokens }, 'Estimated system prompt tokens');
+
+      // Get model context window from tier mappings
+      const tierMappings = aliaModel ? await getModelMappingsForTier(aliaModel.tier) : [];
+      const modelContextTokens = tierMappings[0]?.capabilities?.maxContextTokens || 128000;
+
+      // Context window guard — block if messages would exceed 90% of context (first attempt only)
+      if (attempt === 0) {
+        const contextCheck = checkContextFit(processedMessages as any, systemPrompt, modelContextTokens);
+        if (!contextCheck.fits) {
+          clearTimeout(requestTimeout);
+          await safeRefund(creditReservation, 'context length exceeded');
+          res.status(400).json({
+            error: 'Your conversation is too long for this model. Please start a new chat or use a shorter message.',
+            code: 'CONTEXT_LENGTH_EXCEEDED',
+            details: { estimatedTokens: contextCheck.estimatedTokens, limit: contextCheck.contextLimit, usage: contextCheck.usage },
+          });
+          return;
+        }
+      }
+
+      // History compaction — trim older messages if approaching context limit
+      const historyBudget = Math.floor(modelContextTokens * 0.6);
+      const compactedMessages = compactHistory(processedMessages as any, historyBudget);
+
+      // Wrap tools with truncation to cap large tool results (saves tokens)
+      const toolResultBudget = getToolResultBudget(modelContextTokens);
+      const truncatedTools = wrapToolsWithTruncation(tools, toolResultBudget);
+
+      // Set headers for SSE streaming (only once)
+      if (attempt === 0) setupSSEHeaders(res);
+
+      // Reset usage tracking for this attempt
+      tokenUsage = { promptTokens: 0, completionTokens: 0, totalTokens: 0, systemPromptTokens };
+
+      // Configure streamText with thinking mode support
+      const streamConfig: any = {
+        model,
+        messages: compactedMessages as any,
+        tools: truncatedTools,
+        stopWhen: stepCountIs(5),
+        system: systemPrompt,
+        temperature: 0.6,
+        onFinish: async (result) => {
+          if (result.usage) {
+            tokenUsage = {
+              promptTokens: result.usage.inputTokens || 0,
+              completionTokens: result.usage.outputTokens || 0,
+              totalTokens: result.usage.totalTokens || 0,
+              systemPromptTokens,
+            };
+            log.chat.info({ tokenUsage }, 'Token usage captured');
+          } else {
+            log.chat.warn('No usage data available from AI SDK');
+          }
+        },
+      };
+
+      // Enable extended thinking for Anthropic models when thinking mode is requested
+      if (thinkingMode && resolved.provider === 'anthropic') {
+        log.chat.info('Configuring Anthropic extended thinking mode');
+        streamConfig.experimental_thinking = true;
+      }
+
+      const result = streamText(streamConfig);
+
+      // Reset per-attempt state
+      assistantResponse = '';
+      hasReceivedContent = false;
+      toolCallCount = 0;
+      let streamTimeout: NodeJS.Timeout | null = null;
+      const batcher = new TextBatcher(res);
+
+      // Tool invocation tracking (ZeroClaw pattern)
+      const toolTimers = new Map<string, number>();
+      const MAX_TOOL_CALLS = 15;
+
+      // Set a timeout for stream inactivity (30 seconds without any content)
+      const resetStreamTimeout = () => {
+        if (streamTimeout) clearTimeout(streamTimeout);
+        streamTimeout = setTimeout(() => {
+          if (!hasReceivedContent && !res.writableEnded) {
+            log.chat.error('Stream timeout - no content received in 30s');
+            batcher.flush();
+            const errorEvent = {
+              type: 'error',
+              error: 'Stream timeout - the AI model did not respond in time. Please try again.'
+            };
+            writeSSE(res, `data: ${JSON.stringify(errorEvent)}\n\n`);
+            writeSSE(res, 'data: [DONE]\n\n');
+            res.end();
+          }
+        }, 30000) as any;
+      };
+
+      resetStreamTimeout();
+      let providerError: string | null = null; // Set when stream yields a retryable error
+
+      try {
+        for await (const chunk of result.fullStream) {
+          // Mark that we've received content
+          if (chunk.type === 'text-delta' || chunk.type === 'tool-call' || (chunk as any).type === 'thinking-delta') {
+            hasReceivedContent = true;
+            if (streamTimeout) clearTimeout(streamTimeout);
           }
 
-          // Track tool call timing (end) + record observability event
-          if (chunk.type === 'tool-result') {
-            const startTime = toolTimers.get((chunk as any).toolCallId);
-            const durationMs = startTime ? Date.now() - startTime : 0;
-            toolTimers.delete((chunk as any).toolCallId);
+          // Intercept provider error events from the AI SDK
+          // These come as stream events (not thrown), e.g. 402 Insufficient Balance
+          if ((chunk as any).type === 'error') {
+            const errObj = (chunk as any).error || chunk;
+            const errMsg = String(errObj?.message || errObj?.error?.message || JSON.stringify(errObj).slice(0, 300));
+            const statusCode = errObj?.statusCode || errObj?.status;
+            const isBilling = BILLING_RE.test(errMsg) || statusCode === 402;
+            const isAuth = AUTH_RE.test(errMsg) || statusCode === 401 || statusCode === 403;
 
-            recordEvent({
-              type: 'tool.call',
-              timestamp: Date.now(),
-              toolName: (chunk as any).toolName || 'unknown',
-              durationMs,
-              success: !(chunk as any).isError,
-              resultSizeChars: JSON.stringify((chunk as any).result || '').length,
+            log.chat.warn({ errMsg, statusCode, isBilling, isAuth, provider: resolved!.provider, attempt: attempt + 1 }, 'Provider error in stream');
+
+            // Mark key as exhausted so it won't be selected again
+            if ((isBilling || isAuth) && resolved!.keyConfig?.keyId) {
+              markKeyCreditExhausted(resolved!.keyConfig.keyId).catch(() => {});
+              log.chat.warn({ keyId: resolved!.keyConfig.keyId, provider: resolved!.provider }, 'Marked key as exhausted');
+            }
+
+            // Report failure to providers API
+            reportModelUsage(resolved!.keyConfig?.keyId, resolved!.provider, resolved!.modelId, false, Date.now() - requestStartTime, errMsg);
+
+            // If we can retry (no content sent yet), signal retry
+            if (!hasReceivedContent && attempt < MAX_CHAT_RETRIES - 1) {
+              providerError = errMsg;
+              break; // Exit stream loop to retry with next provider
+            }
+
+            // Can't retry — forward error to client
+            if (!res.writableEnded) {
+              writeSSE(res, `data: ${JSON.stringify({ type: 'error', error: errMsg })}\n\n`);
+            }
+            break;
+          }
+
+          // Handle thinking deltas (extended thinking mode)
+          if ((chunk as any).type === 'thinking-delta' && thinkingMode) {
+            batcher.flush();
+            const thinkingEvent = JSON.stringify({
+              type: 'thinking-delta',
+              text: (chunk as any).text || (chunk as any).thinking || ''
             });
+            writeSSE(res, `data: ${thinkingEvent}\n\n`);
+            continue;
           }
 
-          // Log extracted title (saveConversation handles full extraction + tag stripping)
-          if (chunk.type === 'finish' && assistantResponse) {
-            log.chat.info({ title: extractConversationTitle(assistantResponse, messages) }, 'Extracted title');
+          // Handle text deltas with intelligent batching
+          if (chunk.type === 'text-delta') {
+            assistantResponse += chunk.text;
+            batcher.add(chunk.text);
           }
+          // Non-text events (tool calls, etc.) are sent immediately
+          else {
+            batcher.flush();
 
-          // Handle canvas tool results - persist and emit via Socket.IO
-          if (chunk.type === 'tool-result' && (chunk as any).toolName === 'canvas' && (chunk as any).result) {
-            const component = (chunk as any).result;
-            if (conversationId && req.user?.id) {
-              CanvasSession.findOneAndUpdate(
-                { oxyUserId: req.user.id, conversationId },
-                { $push: { components: { ...component, createdAt: new Date() } } },
-                { upsert: true, new: true }
-              ).catch(err => log.chat.error({ err }, 'Canvas save error'));
-              emitCanvasUpdate(conversationId, component);
+            if (chunk.type === 'tool-call') {
+              toolTimers.set((chunk as any).toolCallId, Date.now());
+              toolCallCount++;
+
+              if (toolCallCount > MAX_TOOL_CALLS) {
+                log.chat.warn({ toolCallCount, max: MAX_TOOL_CALLS }, 'Tool call limit exceeded');
+                writeSSE(res, `data: ${JSON.stringify({
+                  type: 'error',
+                  error: 'Too many tool calls in a single request. Please simplify your request.'
+                })}\n\n`);
+                break;
+              }
             }
-            // Send as canvas-component event to SSE
-            const canvasEvent = JSON.stringify({ type: 'canvas-component', component });
-            writeSSE(res, `data: ${canvasEvent}\n\n`);
+
+            if (chunk.type === 'tool-result') {
+              const startTime = toolTimers.get((chunk as any).toolCallId);
+              const durationMs = startTime ? Date.now() - startTime : 0;
+              toolTimers.delete((chunk as any).toolCallId);
+
+              recordEvent({
+                type: 'tool.call',
+                timestamp: Date.now(),
+                toolName: (chunk as any).toolName || 'unknown',
+                durationMs,
+                success: !(chunk as any).isError,
+                resultSizeChars: JSON.stringify((chunk as any).result || '').length,
+              });
+            }
+
+            if (chunk.type === 'finish' && assistantResponse) {
+              log.chat.info({ title: extractConversationTitle(assistantResponse, messages) }, 'Extracted title');
+            }
+
+            // Handle canvas tool results
+            if (chunk.type === 'tool-result' && (chunk as any).toolName === 'canvas' && (chunk as any).result) {
+              const component = (chunk as any).result;
+              if (conversationId && req.user?.id) {
+                CanvasSession.findOneAndUpdate(
+                  { oxyUserId: req.user.id, conversationId },
+                  { $push: { components: { ...component, createdAt: new Date() } } },
+                  { upsert: true, new: true }
+                ).catch(err => log.chat.error({ err }, 'Canvas save error'));
+                emitCanvasUpdate(conversationId, component);
+              }
+              const canvasEvent = JSON.stringify({ type: 'canvas-component', component });
+              writeSSE(res, `data: ${canvasEvent}\n\n`);
+            }
+
+            const event = JSON.stringify(chunk);
+            writeSSE(res, `data: ${event}\n\n`);
           }
-
-          // Send non-text event
-          const event = JSON.stringify(chunk);
-          writeSSE(res, `data: ${event}\n\n`);
         }
+
+        // Flush any remaining text and clean up batcher
+        batcher.cleanup();
+        if (streamTimeout) clearTimeout(streamTimeout);
+
+        // If a retryable provider error was detected, continue to next attempt
+        if (providerError) {
+          log.chat.info({ attempt: attempt + 1, provider: resolved!.provider, error: providerError }, 'Retrying with different provider');
+          continue; // Next iteration of the retry loop
+        }
+
+        // Check if we got any response
+        if (!hasReceivedContent) {
+          log.chat.error('Stream completed but no content was received');
+          writeSSE(res, `data: ${JSON.stringify({
+            type: 'error',
+            error: 'No response received from AI model. Please try again.'
+          })}\n\n`);
+        }
+
+        // Record success for observability
+        recordEvent({
+          type: 'agent.end',
+          timestamp: Date.now(),
+          durationMs: Date.now() - requestStartTime,
+          inputTokens: tokenUsage.promptTokens,
+          outputTokens: tokenUsage.completionTokens,
+          toolCallCount,
+        });
+
+        // Report successful usage to providers API
+        reportModelUsage(
+          resolved.keyConfig?.keyId,
+          resolved.provider,
+          resolved.modelId,
+          true,
+          Date.now() - requestStartTime,
+        );
+
+        streamSuccess = true;
+        break; // Success — exit retry loop
+
+      } catch (streamError: any) {
+        const errMsg = String(streamError?.message || 'Unknown error');
+        const latency = Date.now() - requestStartTime;
+        log.chat.error({ err: streamError, attempt: attempt + 1 }, 'Error during streaming');
+
+        // Clean up timers
+        if (streamTimeout) clearTimeout(streamTimeout);
+        batcher.cleanup();
+
+        // Classify the error and feed it back to the key manager
+        const isBilling = BILLING_RE.test(errMsg);
+        const isAuth = AUTH_RE.test(errMsg);
+
+        if ((isBilling || isAuth) && resolved.keyConfig?.keyId) {
+          markKeyCreditExhausted(resolved.keyConfig.keyId).catch(() => {});
+          log.chat.warn({ keyId: resolved.keyConfig.keyId, provider: resolved.provider, isBilling, isAuth }, 'Marked key as exhausted');
+        }
+
+        // Report failure to providers API
+        reportModelUsage(
+          resolved.keyConfig?.keyId,
+          resolved.provider,
+          resolved.modelId,
+          false,
+          latency,
+          errMsg,
+        );
+
+        // Record error for observability
+        recordEvent({
+          type: 'agent.end',
+          timestamp: Date.now(),
+          durationMs: latency,
+          toolCallCount,
+          error: errMsg,
+        });
+
+        // If no content was sent to client yet, we can retry with a different provider
+        if (!hasReceivedContent && attempt < MAX_CHAT_RETRIES - 1) {
+          log.chat.info({ attempt: attempt + 1, errMsg, provider: resolved.provider }, 'Retrying with different provider');
+          continue; // Try next provider
+        }
+
+        // Content was already sent or last attempt — send error to client
+        if (!res.writableEnded) {
+          writeSSE(res, `data: ${JSON.stringify({
+            type: 'error',
+            error: errMsg || 'An error occurred while streaming the response'
+          })}\n\n`);
+        }
+
+        await safeRefund(creditReservation, 'streaming error');
+
+        throw streamError; // Re-throw to be caught by outer try-catch
       }
+    } // end retry loop
 
-      // Flush any remaining text and clean up batcher
-      batcher.cleanup();
-
-      // Clear stream timeout
-      if (streamTimeout) clearTimeout(streamTimeout);
-
-      // Check if we got any response
-      if (!hasReceivedContent) {
-        log.chat.error('Stream completed but no content was received');
-        const errorEvent = {
-          type: 'error',
-          error: 'No response received from AI model. Please try again.'
-        };
-        log.chat.info('Sending empty stream error to client');
-        writeSSE(res, `data: ${JSON.stringify(errorEvent)}\n\n`);
-      }
-
-      // Record agent.end for observability (success path)
-      recordEvent({
-        type: 'agent.end',
-        timestamp: Date.now(),
-        durationMs: Date.now() - requestStartTime,
-        inputTokens: tokenUsage.promptTokens,
-        outputTokens: tokenUsage.completionTokens,
-        toolCallCount,
-      });
-    } catch (streamError: any) {
-      log.chat.error({ err: streamError }, 'Error during streaming');
-
-      // Record agent.end for observability (error path)
-      recordEvent({
-        type: 'agent.end',
-        timestamp: Date.now(),
-        durationMs: Date.now() - requestStartTime,
-        toolCallCount,
-        error: streamError.message,
-      });
-
-      // Clean up timers and flush pending text
-      if (streamTimeout) clearTimeout(streamTimeout);
-      batcher.cleanup();
-
+    // If all retries failed without throwing (shouldn't happen, but safety net)
+    if (!streamSuccess) {
+      await safeRefund(creditReservation, 'all provider retries exhausted');
       if (!res.writableEnded) {
-        const errorEvent = {
+        writeSSE(res, `data: ${JSON.stringify({
           type: 'error',
-          error: streamError.message || 'An error occurred while streaming the response'
-        };
-        log.chat.info({ error: errorEvent.error }, 'Sending stream error to client');
-        writeSSE(res, `data: ${JSON.stringify(errorEvent)}\n\n`);
+          error: 'All AI providers are currently unavailable. Please try again later.'
+        })}\n\n`);
+        writeSSE(res, 'data: [DONE]\n\n');
+        res.end();
       }
-
-      await safeRefund(creditReservation, 'streaming error');
-
-      throw streamError; // Re-throw to be caught by outer try-catch
+      clearTimeout(requestTimeout);
+      return;
     }
 
     // Finalize credits based on actual token usage and model tier
