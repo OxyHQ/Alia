@@ -161,7 +161,7 @@ router.post('/token', async (req: Request, res: Response) => {
           parameters: {
             type: 'object',
             properties: {
-              language: { type: 'string', description: 'Preferred language (e.g., "Spanish", "English")' },
+              language: { type: 'string', description: 'Preferred language as BCP 47 locale code (e.g., "en-US", "es-ES")' },
               tone: { type: 'string', description: 'Preferred tone (formal, casual, technical, friendly)' },
               responseLength: { type: 'string', enum: ['short', 'medium', 'long'], description: 'Preferred response length' },
             },

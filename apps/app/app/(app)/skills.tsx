@@ -8,11 +8,6 @@ import { useRouter } from 'expo-router';
 import { useSkillsStore, type Skill } from '@/lib/stores/skills-store';
 import { useI18nStore } from '@/lib/stores/i18n-store';
 
-function formatDate(dateStr: string): string {
-  const d = new Date(dateStr);
-  return d.toLocaleDateString('en', { month: 'short', year: 'numeric' });
-}
-
 function SkillBook({ skill, onPress }: { skill: Skill; onPress: () => void }) {
   return (
     <Pressable
@@ -24,20 +19,19 @@ function SkillBook({ skill, onPress }: { skill: Skill; onPress: () => void }) {
         aspectRatio: 2 / 3,
       }}
     >
-      <View className="p-2 pb-0">
-        <View
-          className="items-center justify-center"
-          style={{
-            backgroundColor: 'rgba(255,255,255,0.2)',
-            aspectRatio: 16 / 10,
-          }}
-        >
-          <Text className="text-xl">{skill.icon}</Text>
-        </View>
+      <View
+        className="items-center justify-center"
+        style={{
+          backgroundColor: 'rgba(255,255,255,0.2)',
+          width: '100%',
+          aspectRatio: 16 / 10,
+        }}
+      >
+        <Text className="text-xl">{skill.icon}</Text>
       </View>
       <View className="flex-1 px-2 pt-1.5 pb-2 justify-between">
         <Text
-          className="text-[13px] font-black leading-4"
+          className="text-[15px] font-black leading-5"
           style={{ color: 'rgba(255,255,255,0.95)' }}
           numberOfLines={3}
         >
@@ -50,12 +44,6 @@ function SkillBook({ skill, onPress }: { skill: Skill; onPress: () => void }) {
             numberOfLines={1}
           >
             {skill.author}
-          </Text>
-          <Text
-            className="text-[10px]"
-            style={{ color: 'rgba(255,255,255,0.5)' }}
-          >
-            {formatDate(skill.createdAt)}
           </Text>
         </View>
       </View>

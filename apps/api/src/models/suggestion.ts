@@ -37,7 +37,7 @@ const SuggestionSchema = new Schema<ISuggestion>({
   triggerWords: [{ type: String }],
   scope: { type: String, enum: ['global', 'personal'], required: true, default: 'global' },
   oxyUserId: { type: Schema.Types.ObjectId, ref: 'User', index: true },
-  language: { type: String, required: true, default: 'en' },
+  language: { type: String, required: true, default: 'en-US' },
   usageCount: { type: Number, default: 0 },
   priority: { type: Number, default: 0 },
   isBuiltIn: { type: Boolean, default: false },

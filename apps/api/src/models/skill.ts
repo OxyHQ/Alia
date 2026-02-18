@@ -33,7 +33,7 @@ const SkillSchema = new Schema<ISkill>({
   icon: { type: String, required: true },
   color: { type: String, required: true },
   category: { type: String, enum: ['featured', 'community', 'recent'], required: true },
-  language: { type: String, required: true, default: 'en', index: true },
+  language: { type: String, required: true, default: 'en-US', index: true },
   triggers: [{ type: String }],
   includes: [{ type: String }],
   useCase: { type: String },

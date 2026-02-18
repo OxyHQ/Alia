@@ -85,20 +85,19 @@ export default function SkillDetailScreen() {
                 aspectRatio: 2 / 3,
               }}
             >
-              <View className="p-2 pb-0">
-                <View
-                  className="items-center justify-center"
-                  style={{
-                    backgroundColor: 'rgba(255,255,255,0.2)',
-                    aspectRatio: 16 / 10,
-                  }}
-                >
-                  <Text className="text-lg">{skill.icon}</Text>
-                </View>
+              <View
+                className="items-center justify-center"
+                style={{
+                  backgroundColor: 'rgba(255,255,255,0.2)',
+                  width: '100%',
+                  aspectRatio: 16 / 10,
+                }}
+              >
+                <Text className="text-lg">{skill.icon}</Text>
               </View>
               <View className="flex-1 px-2 pt-1.5 pb-2 justify-between">
                 <Text
-                  className="text-[11px] font-black leading-3"
+                  className="text-[13px] font-black leading-4"
                   style={{ color: 'rgba(255,255,255,0.95)' }}
                   numberOfLines={3}
                 >

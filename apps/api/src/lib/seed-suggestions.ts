@@ -459,7 +459,7 @@ export async function seedSuggestions(): Promise<void> {
           $set: {
             ...suggestion,
             scope: 'global',
-            language: 'en',
+            language: 'en-US',
             isBuiltIn: true,
             isAIGenerated: false,
           },

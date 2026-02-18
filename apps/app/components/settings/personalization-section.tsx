@@ -21,18 +21,18 @@ import { useTranslation } from "@/hooks/useTranslation";
 import { toast } from "@/components/sonner";
 
 const LANGUAGES = [
-  { value: "English", label: "English" },
-  { value: "Spanish", label: "Español" },
-  { value: "French", label: "Français" },
-  { value: "German", label: "Deutsch" },
-  { value: "Italian", label: "Italiano" },
-  { value: "Portuguese", label: "Português" },
-  { value: "Chinese", label: "中文" },
-  { value: "Japanese", label: "日本語" },
-  { value: "Korean", label: "한국어" },
-  { value: "Russian", label: "Русский" },
-  { value: "Arabic", label: "العربية" },
-  { value: "Hindi", label: "हिन्दी" },
+  { value: "en-US", label: "English" },
+  { value: "es-ES", label: "Español" },
+  { value: "fr-FR", label: "Français" },
+  { value: "de-DE", label: "Deutsch" },
+  { value: "it-IT", label: "Italiano" },
+  { value: "pt-BR", label: "Português" },
+  { value: "zh-CN", label: "中文" },
+  { value: "ja-JP", label: "日本語" },
+  { value: "ko-KR", label: "한국어" },
+  { value: "ru-RU", label: "Русский" },
+  { value: "ar-SA", label: "العربية" },
+  { value: "hi-IN", label: "हिन्दी" },
 ];
 
 export function PersonalizationSection() {
@@ -138,7 +138,7 @@ export function PersonalizationSection() {
           <DropdownMenu.Trigger>
             <Pressable className={`${inputClass} flex-row items-center justify-between`}>
               <Text className="text-foreground text-sm">
-                {language || t("settings.aliaLanguage.selectPlaceholder")}
+                {LANGUAGES.find(l => l.value === language)?.label || language || t("settings.aliaLanguage.selectPlaceholder")}
               </Text>
               <ChevronDown size={16} className="text-muted-foreground" />
             </Pressable>

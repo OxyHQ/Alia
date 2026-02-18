@@ -1,10 +1,24 @@
 import { Router, Request, Response } from 'express';
 import { generateText } from 'ai';
+import { z } from 'zod';
 import { Suggestion } from '../models/suggestion.js';
 import { UserMemory } from '../models/user-memory.js';
 import { authenticateToken, optionalAuth } from '../middleware/auth.js';
 import { resolveModel, getAIModel, getDefaultAliaModel } from '../lib/chat-core.js';
 import { log } from '../lib/logger.js';
+
+const aiSuggestionSchema = z.object({
+  title: z.string().min(1),
+  text: z.string().min(1),
+  description: z.string().optional().default(''),
+  type: z.enum(['welcome', 'autocomplete']).catch('autocomplete'),
+  category: z.string().optional().default('general'),
+  language: z.string().regex(/^[a-z]{2}-[A-Z]{2}$/).optional(),
+  triggerWords: z.array(z.string()).optional().default([]),
+  tags: z.array(z.string()).optional().default([]),
+  occupations: z.array(z.string()).optional().default([]),
+  interests: z.array(z.string()).optional().default([]),
+});
 
 const router = Router();
 
@@ -42,17 +56,17 @@ setInterval(() => {
 }, 2 * 60 * 1000);
 
 /**
- * Helper: resolve user language from memory preferences, fallback to 'en'
+ * Helper: resolve user language from memory preferences, fallback to 'en-US'
  */
 async function getUserLanguage(userId?: string): Promise<string> {
-  if (!userId) return 'en';
+  if (!userId) return 'en-US';
   try {
     const memory = await UserMemory.findOne({ oxyUserId: userId })
       .select('preferences.language')
       .lean();
-    return memory?.preferences?.language || 'en';
+    return memory?.preferences?.language || 'en-US';
   } catch {
-    return 'en';
+    return 'en-US';
   }
 }
 
@@ -257,7 +271,7 @@ router.post('/generate', authenticateToken, async (req: Request, res: Response) 
       .select('preferences context')
       .lean();
 
-    const language = memory?.preferences?.language || 'en';
+    const language = memory?.preferences?.language || 'en-US';
     const interests = memory?.preferences?.interests || [];
     const tone = memory?.preferences?.tone || 'friendly';
     const occupation = memory?.context?.occupation || '';
@@ -295,7 +309,7 @@ router.post('/generate', authenticateToken, async (req: Request, res: Response) 
               role: 'user',
               content: `Generate ${count} prompt suggestions as JSON array. User: ${profileParts}
 Types: ${types.join(',')}. Language: ${language}.
-Each object: {"title":"2-4 words","text":"full prompt","description":"1 sentence","type":"welcome|autocomplete","category":"productivity|coding|creative|communication|learning","triggerWords":["1-3 words"],"tags":["2-3"],"occupations":[],"interests":[]}
+Each object: {"title":"2-4 words","text":"full prompt","description":"1 sentence","type":"welcome|autocomplete","category":"productivity|coding|creative|communication|learning","language":"BCP 47 locale code (e.g. en-US, es-ES, fr-FR)","triggerWords":["1-3 words"],"tags":["2-3"],"occupations":[],"interests":[]}
 Use {variable} placeholders where useful. Return ONLY valid JSON array.`,
             },
           ],
@@ -316,23 +330,29 @@ Use {variable} placeholders where useful. Return ONLY valid JSON array.`,
 
     const responseText = result.text || '';
 
-    // Parse JSON array from response
-    let parsed: any[];
+    // Parse and validate JSON array from response
+    let rawParsed: unknown[];
     try {
       const jsonMatch = responseText.match(/\[[\s\S]*\]/);
       if (!jsonMatch) throw new Error('No JSON array found');
-      parsed = JSON.parse(jsonMatch[0]);
-      if (!Array.isArray(parsed)) throw new Error('Not an array');
+      const arr = JSON.parse(jsonMatch[0]);
+      if (!Array.isArray(arr)) throw new Error('Not an array');
+      rawParsed = arr;
     } catch {
       log.general.error({ responseText }, 'Failed to parse AI-generated suggestions');
       return res.status(500).json({ error: 'Failed to generate suggestions' });
     }
 
+    // Validate each item with Zod, skip invalid ones
+    const validated = rawParsed
+      .map(item => aiSuggestionSchema.safeParse(item))
+      .filter(r => r.success)
+      .map(r => r.data!);
+
     // Create suggestion documents
     const created = [];
-    for (let i = 0; i < parsed.length; i++) {
-      const item = parsed[i];
-      if (!item.title || !item.text) continue;
+    for (let i = 0; i < validated.length; i++) {
+      const item = validated[i];
 
       const slug = item.title
         .toLowerCase()
@@ -346,15 +366,15 @@ Use {variable} placeholders where useful. Return ONLY valid JSON array.`,
           suggestionId,
           title: item.title,
           text: item.text,
-          description: item.description || '',
-          type: ['welcome', 'autocomplete'].includes(item.type) ? item.type : 'autocomplete',
-          category: item.category || 'general',
-          triggerWords: Array.isArray(item.triggerWords) ? item.triggerWords.slice(0, 5) : [],
-          tags: Array.isArray(item.tags) ? item.tags.slice(0, 5) : [],
-          occupations: Array.isArray(item.occupations) ? item.occupations.slice(0, 5) : [],
-          interests: Array.isArray(item.interests) ? item.interests.slice(0, 5) : [],
+          description: item.description,
+          type: item.type,
+          category: item.category,
+          triggerWords: item.triggerWords.slice(0, 5),
+          tags: item.tags.slice(0, 5),
+          occupations: item.occupations.slice(0, 5),
+          interests: item.interests.slice(0, 5),
           scope: 'personal',
-          language,
+          language: item.language || language,
           isBuiltIn: false,
           isAIGenerated: true,
           oxyUserId: req.user!.id,
@@ -465,18 +485,17 @@ router.post('/search', optionalAuth, async (req: Request, res: Response) => {
       { text: { $regex: escaped, $options: 'i' } },
     ];
 
-    // 1. Global results — shared cache by query+language (serves all users)
+    // 1. Global results — search all languages, cache by query+language (sort order depends on pref)
     const globalCacheKey = `search:${trimmed}:${language}`;
     let globalResults = cacheGet(globalCacheKey);
     if (!globalResults) {
       globalResults = await Suggestion.find({
-        language,
         scope: 'global',
         $and: [notExpiredFilter(), { $or: searchOr }],
       })
         .sort({ priority: -1, usageCount: -1 })
-        .limit(limitNum)
-        .select('suggestionId title text triggerWords isTemplate templateVariables')
+        .limit(limitNum * 2)
+        .select('suggestionId title text language triggerWords isTemplate templateVariables')
         .lean();
       cacheSet(globalCacheKey, globalResults, SEARCH_CACHE_TTL);
     }
@@ -485,27 +504,32 @@ router.post('/search', optionalAuth, async (req: Request, res: Response) => {
     let personalResults: any[] = [];
     if (req.user?.id) {
       personalResults = await Suggestion.find({
-        language,
         scope: 'personal',
         oxyUserId: req.user.id,
         $and: [notExpiredFilter(), { $or: searchOr }],
       })
         .sort({ priority: -1, usageCount: -1 })
         .limit(limitNum)
-        .select('suggestionId title text triggerWords isTemplate templateVariables')
+        .select('suggestionId title text language triggerWords isTemplate templateVariables')
         .lean();
     }
 
-    // 3. Merge: personal first, then global, dedupe by suggestionId
+    // 3. Merge: personal first, then global, dedupe, prioritize user's language
     const seen = new Set<string>();
-    const suggestions = [];
+    const candidates = [];
     for (const s of [...personalResults, ...globalResults]) {
-      if (suggestions.length >= limitNum) break;
       if (!seen.has(s.suggestionId)) {
         seen.add(s.suggestionId);
-        suggestions.push(s);
+        candidates.push(s);
       }
     }
+    // Sort: user's preferred language first, then others
+    candidates.sort((a: any, b: any) => {
+      const aMatch = a.language === language ? 0 : 1;
+      const bMatch = b.language === language ? 0 : 1;
+      return aMatch - bMatch;
+    });
+    const suggestions = candidates.slice(0, limitNum);
 
     res.json({ suggestions });
   } catch (error: any) {
