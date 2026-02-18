@@ -1,16 +1,39 @@
 import React, { useState, useCallback, useEffect, useRef } from 'react';
-import { View, ScrollView, Pressable, TextInput, Alert } from 'react-native';
+import {
+  View,
+  ScrollView,
+  Pressable,
+  TextInput,
+  Alert,
+  useWindowDimensions,
+} from 'react-native';
 import { Text } from '@/components/ui/text';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, X, Trash2 } from 'lucide-react-native';
+import { Panel } from '@/components/ui/panel';
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
+import * as DropdownMenu from '@/components/ui/dropdown-menu';
+import { SkillCover } from '@/components/ui/skill-cover';
+import {
+  ArrowLeft,
+  X,
+  Plus,
+  Ellipsis,
+  Settings,
+  ChevronRight,
+  Zap,
+  List,
+  ThumbsUp,
+  ThumbsDown,
+} from 'lucide-react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useTranslation } from '@/hooks/useTranslation';
 import { useColorScheme } from '@/lib/useColorScheme';
 import { useSkillsStore } from '@/lib/stores/skills-store';
 import { toast } from '@/components/sonner';
+import { cn } from '@/lib/utils';
 
 const SKILL_COLORS = [
   '#6366f1', '#ec4899', '#14b8a6', '#f59e0b', '#8b5cf6',
@@ -20,11 +43,15 @@ const SKILL_COLORS = [
 
 const CATEGORIES: Array<'featured' | 'community' | 'recent'> = ['featured', 'community', 'recent'];
 
+type SidebarTab = 'content' | 'settings';
+
 export default function EditSkillScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const { t } = useTranslation();
   const { colors } = useColorScheme();
+  const { width } = useWindowDimensions();
+  const isLargeScreen = width >= 768;
   const { getSkill, updateSkill, deleteSkill } = useSkillsStore();
 
   // Loading
@@ -35,7 +62,6 @@ export default function EditSkillScreen() {
   const [tagline, setTagline] = useState('');
   const [description, setDescription] = useState('');
   const [systemPrompt, setSystemPrompt] = useState('');
-  const [icon, setIcon] = useState('');
   const [color, setColor] = useState(SKILL_COLORS[0]);
   const [category, setCategory] = useState<'featured' | 'community' | 'recent'>('community');
   const [language, setLanguage] = useState('en-US');
@@ -52,7 +78,9 @@ export default function EditSkillScreen() {
 
   // UI state
   const [saving, setSaving] = useState(false);
-  const saveTimeoutRef = useRef<ReturnType<typeof setTimeout>>();
+  const [showPanel, setShowPanel] = useState(isLargeScreen);
+  const [sidebarTab, setSidebarTab] = useState<SidebarTab>('content');
+  const saveTimeoutRef = useRef<ReturnType<typeof setTimeout>>(undefined);
   const isInitialLoad = useRef(true);
 
   // Load skill data
@@ -64,7 +92,6 @@ export default function EditSkillScreen() {
         setTitle(skill.title);
         setTagline(skill.tagline);
         setDescription(skill.description);
-        setIcon(skill.icon);
         setColor(skill.color);
         setCategory(skill.category);
         setLanguage(skill.language);
@@ -80,7 +107,7 @@ export default function EditSkillScreen() {
     });
   }, [id, getSkill]);
 
-  // Load system prompt separately (it's excluded from normal responses)
+  // Load system prompt separately
   useEffect(() => {
     if (!id) return;
     import('@/lib/api/client').then(({ default: apiClient }) => {
@@ -117,10 +144,10 @@ export default function EditSkillScreen() {
   useEffect(() => {
     debouncedSave({
       title, tagline, description, systemPrompt,
-      icon, color, category, language,
+      color, category, language,
       useCase, triggers, includes, goodAt, notGoodAt,
     });
-  }, [title, tagline, description, systemPrompt, icon, color, category, language, useCase, triggers, includes, goodAt, notGoodAt, debouncedSave]);
+  }, [title, tagline, description, systemPrompt, color, category, language, useCase, triggers, includes, goodAt, notGoodAt, debouncedSave]);
 
   const addTag = useCallback((input: string, setter: React.Dispatch<React.SetStateAction<string[]>>, clearInput: React.Dispatch<React.SetStateAction<string>>) => {
     const trimmed = input.trim();
@@ -175,273 +202,345 @@ export default function EditSkillScreen() {
     );
   }
 
-  function TagInput({
+  // ─── Tag list section (reusable for triggers, includes, goodAt, notGoodAt) ──
+  function TagListSection({
+    icon: Icon,
     label,
-    value,
-    onChangeText,
-    tags: tagList,
+    items,
+    inputValue,
+    onChangeInput,
     onAdd,
     onRemove,
     placeholder,
   }: {
+    icon: React.ComponentType<any>;
     label: string;
-    value: string;
-    onChangeText: (v: string) => void;
-    tags: string[];
+    items: string[];
+    inputValue: string;
+    onChangeInput: (v: string) => void;
     onAdd: () => void;
     onRemove: (tag: string) => void;
     placeholder: string;
   }) {
+    const [showInput, setShowInput] = useState(false);
     return (
-      <View className="gap-1.5">
-        <Label>{label}</Label>
-        <View className="flex-row items-center gap-2">
-          <View className="flex-1">
-            <Input
-              value={value}
-              onChangeText={onChangeText}
-              placeholder={placeholder}
-              placeholderTextColor={colors.mutedForeground}
-              onSubmitEditing={onAdd}
-              returnKeyType="done"
-            />
+      <View className={cn(isLargeScreen && 'flex-1', 'border-b border-border')}>
+        <View className="px-4 pt-4 pb-2 flex-row items-center justify-between">
+          <View className="flex-row items-center gap-2">
+            <Icon size={16} className="text-foreground" />
+            <Text className="text-sm font-semibold text-foreground">{label}</Text>
           </View>
-          <Button size="sm" onPress={onAdd} className="h-9 px-3">
-            <Text className="text-xs font-medium text-primary-foreground">+</Text>
-          </Button>
+          <Pressable
+            onPress={() => setShowInput(!showInput)}
+            className="active:opacity-70"
+          >
+            <Plus size={16} className="text-muted-foreground" />
+          </Pressable>
         </View>
-        {tagList.length > 0 && (
-          <View className="flex-row flex-wrap gap-1.5 mt-1">
-            {tagList.map((tag) => (
-              <Pressable
-                key={tag}
-                onPress={() => onRemove(tag)}
-                className="flex-row items-center gap-1 bg-muted px-2.5 py-1 rounded-full"
-              >
-                <Text className="text-xs text-foreground">{tag}</Text>
-                <X size={12} className="text-muted-foreground" />
+        <View className="px-4 pb-4 gap-2">
+          {showInput && (
+            <View className="flex-row items-center gap-2">
+              <TextInput
+                value={inputValue}
+                onChangeText={onChangeInput}
+                placeholder={placeholder}
+                placeholderTextColor={colors.mutedForeground}
+                className="flex-1 text-sm text-foreground border border-border rounded-md px-3 py-1.5"
+                onSubmitEditing={() => {
+                  onAdd();
+                  if (!inputValue.trim()) setShowInput(false);
+                }}
+                autoFocus
+                returnKeyType="done"
+              />
+            </View>
+          )}
+          {items.map((item) => (
+            <View key={item} className="flex-row items-center justify-between py-1.5">
+              <Text className="text-sm text-foreground flex-1" numberOfLines={1}>{item}</Text>
+              <Pressable onPress={() => onRemove(item)} className="active:opacity-70 ml-2">
+                <X size={14} className="text-muted-foreground" />
               </Pressable>
-            ))}
-          </View>
-        )}
+            </View>
+          ))}
+        </View>
       </View>
     );
   }
 
-  return (
+  // ─── Sidebar content ────────────────────────────────────────────────────────
+  const sidebarContent = (
     <View className="flex-1 bg-background">
-      {/* Header */}
+      {/* Sidebar Header */}
       <View className="flex-row items-center justify-between px-4 py-3 border-b border-border">
-        <View className="flex-row items-center gap-3">
-          <Pressable onPress={() => router.back()} className="active:opacity-70">
-            <ArrowLeft size={20} className="text-foreground" />
+        <Text className="text-base font-semibold text-foreground">
+          {sidebarTab === 'content' ? t('skills.content') : t('skills.settings')}
+        </Text>
+        {!isLargeScreen && (
+          <Pressable className="p-1 rounded-lg active:opacity-70" onPress={() => setShowPanel(false)}>
+            <X size={20} className="text-muted-foreground" />
           </Pressable>
-          <Text className="text-base font-semibold text-foreground">
-            {t('skills.editSkill')}
+        )}
+      </View>
+
+      {/* Tabs */}
+      <View className="flex-row border-b border-border">
+        <Pressable
+          onPress={() => setSidebarTab('content')}
+          className={cn('flex-1 py-2.5 items-center', sidebarTab === 'content' && 'border-b-2 border-primary')}
+        >
+          <Text className={cn('text-sm font-medium', sidebarTab === 'content' ? 'text-foreground' : 'text-muted-foreground')}>
+            {t('skills.content')}
           </Text>
-          <View className={`px-2 py-0.5 rounded-full ${isPublished ? 'bg-green-500/15' : 'bg-muted'}`}>
-            <Text className={`text-xs font-medium ${isPublished ? 'text-green-500' : 'text-muted-foreground'}`}>
-              {isPublished ? t('skills.published') : t('skills.draft')}
-            </Text>
-          </View>
-          {saving && (
-            <Text className="text-xs text-muted-foreground">
-              {t('common.saving')}
-            </Text>
-          )}
-        </View>
-        <View className="flex-row items-center gap-2">
-          <Pressable onPress={handleDelete} className="p-2 active:opacity-70">
-            <Trash2 size={18} className="text-destructive" />
-          </Pressable>
-          <Button onPress={handlePublishToggle} className="h-8 px-4 rounded-full">
-            <Text className="text-sm font-medium text-primary-foreground">
-              {isPublished ? t('skills.unpublish') : t('skills.publish')}
-            </Text>
-          </Button>
-        </View>
+        </Pressable>
+        <Pressable
+          onPress={() => setSidebarTab('settings')}
+          className={cn('flex-1 py-2.5 items-center', sidebarTab === 'settings' && 'border-b-2 border-primary')}
+        >
+          <Text className={cn('text-sm font-medium', sidebarTab === 'settings' ? 'text-foreground' : 'text-muted-foreground')}>
+            {t('skills.settings')}
+          </Text>
+        </Pressable>
       </View>
 
       <ScrollView
         className="flex-1"
-        contentContainerStyle={{ padding: 20, paddingBottom: 60 }}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
+        scrollEnabled={!isLargeScreen}
+        contentContainerStyle={isLargeScreen ? { flex: 1 } : undefined}
       >
-        {/* Icon + Color */}
-        <View className="flex-row gap-4 mb-5">
-          <View className="gap-1.5">
-            <Label>{t('skills.icon')}</Label>
-            <View className="items-center justify-center border border-border rounded-lg" style={{ width: 64, height: 64, backgroundColor: color }}>
-              <TextInput
-                value={icon}
-                onChangeText={setIcon}
-                placeholder="🎯"
-                placeholderTextColor="rgba(255,255,255,0.4)"
-                className="text-center"
-                style={{ fontSize: 28, color: '#fff', width: 64, height: 64, textAlign: 'center', textAlignVertical: 'center' }}
-                maxLength={2}
+        {sidebarTab === 'content' ? (
+          <View className={isLargeScreen ? 'flex-1' : ''}>
+            <TagListSection
+              icon={Zap}
+              label={t('skills.triggersLabel')}
+              items={triggers}
+              inputValue={triggerInput}
+              onChangeInput={setTriggerInput}
+              onAdd={() => addTag(triggerInput, setTriggers, setTriggerInput)}
+              onRemove={(tag) => removeTag(tag, setTriggers)}
+              placeholder={t('skills.triggerPlaceholder')}
+            />
+            <TagListSection
+              icon={List}
+              label={t('skills.includesLabel')}
+              items={includes}
+              inputValue={includeInput}
+              onChangeInput={setIncludeInput}
+              onAdd={() => addTag(includeInput, setIncludes, setIncludeInput)}
+              onRemove={(tag) => removeTag(tag, setIncludes)}
+              placeholder={t('skills.includePlaceholder')}
+            />
+            <TagListSection
+              icon={ThumbsUp}
+              label={t('skills.goodAtLabel')}
+              items={goodAt}
+              inputValue={goodAtInput}
+              onChangeInput={setGoodAtInput}
+              onAdd={() => addTag(goodAtInput, setGoodAt, setGoodAtInput)}
+              onRemove={(tag) => removeTag(tag, setGoodAt)}
+              placeholder={t('skills.goodAtPlaceholder')}
+            />
+            <TagListSection
+              icon={ThumbsDown}
+              label={t('skills.notGoodAtLabel')}
+              items={notGoodAt}
+              inputValue={notGoodAtInput}
+              onChangeInput={setNotGoodAtInput}
+              onAdd={() => addTag(notGoodAtInput, setNotGoodAt, setNotGoodAtInput)}
+              onRemove={(tag) => removeTag(tag, setNotGoodAt)}
+              placeholder={t('skills.notGoodAtPlaceholder')}
+            />
+          </View>
+        ) : (
+          <View className="p-4 gap-4">
+            {/* Color */}
+            <View className="gap-1.5">
+              <Label>{t('skills.color')}</Label>
+              <View className="flex-row flex-wrap gap-2">
+                {SKILL_COLORS.map((c) => (
+                  <Pressable
+                    key={c}
+                    onPress={() => setColor(c)}
+                    className="rounded-full"
+                    style={{
+                      width: 28,
+                      height: 28,
+                      backgroundColor: c,
+                      borderWidth: color === c ? 2 : 0,
+                      borderColor: '#fff',
+                    }}
+                  />
+                ))}
+              </View>
+            </View>
+
+            {/* Category */}
+            <View className="gap-1.5">
+              <Label>{t('skills.categoryLabel')}</Label>
+              <ToggleGroup
+                type="single"
+                value={category}
+                onValueChange={(val) => setCategory(val as typeof category)}
+              >
+                {CATEGORIES.map((cat) => (
+                  <ToggleGroupItem key={cat} value={cat}>
+                    {cat}
+                  </ToggleGroupItem>
+                ))}
+              </ToggleGroup>
+            </View>
+
+            {/* Tagline */}
+            <View className="gap-1.5">
+              <Label>{t('skills.taglineLabel')}</Label>
+              <Input
+                value={tagline}
+                onChangeText={setTagline}
+                placeholder={t('skills.taglinePlaceholder')}
+                placeholderTextColor={colors.mutedForeground}
               />
             </View>
-          </View>
-          <View className="flex-1 gap-1.5">
-            <Label>{t('skills.color')}</Label>
-            <View className="flex-row flex-wrap gap-2">
-              {SKILL_COLORS.map((c) => (
-                <Pressable
-                  key={c}
-                  onPress={() => setColor(c)}
-                  className="rounded-full"
-                  style={{
-                    width: 28,
-                    height: 28,
-                    backgroundColor: c,
-                    borderWidth: color === c ? 2 : 0,
-                    borderColor: '#fff',
-                  }}
-                />
-              ))}
+
+            {/* Description */}
+            <View className="gap-1.5">
+              <Label>{t('skills.descriptionLabel')}</Label>
+              <Textarea
+                value={description}
+                onChangeText={setDescription}
+                placeholder={t('skills.descriptionPlaceholder')}
+                placeholderTextColor={colors.mutedForeground}
+              />
+            </View>
+
+            {/* Use Case */}
+            <View className="gap-1.5">
+              <Label>{t('skills.useCaseLabel')}</Label>
+              <Input
+                value={useCase}
+                onChangeText={setUseCase}
+                placeholder={t('skills.useCasePlaceholder')}
+                placeholderTextColor={colors.mutedForeground}
+              />
+            </View>
+
+            {/* Language badge */}
+            <View className="gap-1.5">
+              <Label>{t('skills.languageLabel')}</Label>
+              <View className="flex-row">
+                <View className="bg-muted px-3 py-1.5 rounded-full">
+                  <Text className="text-xs font-medium text-muted-foreground uppercase">{language}</Text>
+                </View>
+              </View>
             </View>
           </View>
+        )}
+      </ScrollView>
+    </View>
+  );
+
+  return (
+    <View className="flex-1 bg-background flex-row">
+      {/* Main Content */}
+      <View className="flex-1">
+        {/* Header */}
+        <View className="flex-row items-center justify-between px-4 py-3 border-b border-border">
+          <View className="flex-row items-center gap-3">
+            <Pressable onPress={() => router.back()} className="active:opacity-70">
+              <ArrowLeft size={20} className="text-foreground" />
+            </Pressable>
+            <Text className="text-sm font-medium text-foreground">
+              {t('skills.instructions')}
+            </Text>
+            <ChevronRight size={14} className="text-muted-foreground" />
+            <View className={cn('px-2 py-0.5 rounded-full', isPublished ? 'bg-green-500/15' : 'bg-muted')}>
+              <Text className={cn('text-xs font-medium', isPublished ? 'text-green-500' : 'text-muted-foreground')}>
+                {isPublished ? t('skills.published') : t('skills.draft')}
+              </Text>
+            </View>
+            {saving && (
+              <Text className="text-xs text-muted-foreground ml-2">
+                {t('common.saving')}
+              </Text>
+            )}
+          </View>
+          <View className="flex-row items-center gap-2">
+            {!isLargeScreen && (
+              <Pressable onPress={() => setShowPanel(true)} className="p-2 active:opacity-70">
+                <Settings size={18} className="text-foreground" />
+              </Pressable>
+            )}
+            <DropdownMenu.Root>
+              <DropdownMenu.Trigger>
+                <Pressable className="p-2">
+                  <Ellipsis size={18} className="text-foreground" />
+                </Pressable>
+              </DropdownMenu.Trigger>
+              <DropdownMenu.Content>
+                <DropdownMenu.Item key="delete" onSelect={handleDelete}>
+                  <DropdownMenu.ItemIcon ios={{ name: 'trash' }} />
+                  <DropdownMenu.ItemTitle>
+                    {t('skills.deleteSkill')}
+                  </DropdownMenu.ItemTitle>
+                </DropdownMenu.Item>
+              </DropdownMenu.Content>
+            </DropdownMenu.Root>
+            <Button onPress={handlePublishToggle} className="h-8 px-4 rounded-full">
+              <Text className="text-sm font-medium text-primary-foreground">
+                {isPublished ? t('skills.unpublish') : t('skills.publish')}
+              </Text>
+            </Button>
+          </View>
         </View>
 
-        {/* Title */}
-        <View className="gap-1.5 mb-4">
-          <Label>{t('skills.titleLabel')}</Label>
-          <Input
-            value={title}
-            onChangeText={setTitle}
-            placeholder={t('skills.titlePlaceholder')}
-            placeholderTextColor={colors.mutedForeground}
-          />
-        </View>
+        {/* Main Editor */}
+        <ScrollView
+          className="flex-1"
+          contentContainerStyle={{ padding: 20, paddingBottom: 60 }}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+        >
+          {/* Cover + Title */}
+          <View className="flex-row items-center gap-3 mb-6">
+            <SkillCover seed={title || 'default'} width={48} animated={false} />
+            <TextInput
+              value={title}
+              onChangeText={setTitle}
+              placeholder={t('skills.titlePlaceholder')}
+              placeholderTextColor={colors.mutedForeground}
+              className="text-foreground"
+              style={{
+                fontSize: 24,
+                fontWeight: '700',
+                flex: 1,
+                padding: 0,
+              }}
+            />
+          </View>
 
-        {/* Tagline */}
-        <View className="gap-1.5 mb-4">
-          <Label>{t('skills.taglineLabel')}</Label>
-          <Input
-            value={tagline}
-            onChangeText={setTagline}
-            placeholder={t('skills.taglinePlaceholder')}
-            placeholderTextColor={colors.mutedForeground}
-          />
-        </View>
-
-        {/* Description */}
-        <View className="gap-1.5 mb-4">
-          <Label>{t('skills.descriptionLabel')}</Label>
+          {/* System Prompt */}
           <Textarea
-            value={description}
-            onChangeText={setDescription}
-            placeholder={t('skills.descriptionPlaceholder')}
-            placeholderTextColor={colors.mutedForeground}
-            style={{ minHeight: 80 }}
-          />
-        </View>
-
-        {/* System Prompt */}
-        <View className="gap-1.5 mb-4">
-          <Label>{t('skills.systemPromptLabel')}</Label>
-          <Textarea
+            variant="ghost"
             value={systemPrompt}
             onChangeText={setSystemPrompt}
             placeholder={t('skills.systemPromptPlaceholder')}
             placeholderTextColor={colors.mutedForeground}
-            style={{ minHeight: 160 }}
+            style={{ fontSize: 15, lineHeight: 22, minHeight: 300 }}
           />
-        </View>
+        </ScrollView>
+      </View>
 
-        {/* Category */}
-        <View className="gap-1.5 mb-4">
-          <Label>{t('skills.categoryLabel')}</Label>
-          <View className="flex-row gap-2">
-            {CATEGORIES.map((cat) => (
-              <Pressable
-                key={cat}
-                onPress={() => setCategory(cat)}
-                className={`px-3 py-1.5 rounded-full ${category === cat ? 'bg-primary' : 'bg-muted'}`}
-              >
-                <Text className={`text-xs font-medium capitalize ${category === cat ? 'text-primary-foreground' : 'text-muted-foreground'}`}>
-                  {cat}
-                </Text>
-              </Pressable>
-            ))}
-          </View>
+      {/* Right Sidebar — Desktop: inline, Mobile: Panel modal */}
+      {isLargeScreen ? (
+        <View style={{ width: 320 }} className="border-l border-border bg-background">
+          {sidebarContent}
         </View>
-
-        {/* Language badge */}
-        <View className="gap-1.5 mb-4">
-          <Label>{t('skills.languageLabel')}</Label>
-          <View className="flex-row">
-            <View className="bg-muted px-3 py-1.5 rounded-full">
-              <Text className="text-xs font-medium text-muted-foreground uppercase">{language}</Text>
-            </View>
-          </View>
-        </View>
-
-        {/* Use Case */}
-        <View className="gap-1.5 mb-4">
-          <Label>{t('skills.useCaseLabel')}</Label>
-          <Input
-            value={useCase}
-            onChangeText={setUseCase}
-            placeholder={t('skills.useCasePlaceholder')}
-            placeholderTextColor={colors.mutedForeground}
-          />
-        </View>
-
-        {/* Triggers */}
-        <View className="mb-4">
-          <TagInput
-            label={t('skills.triggersLabel')}
-            value={triggerInput}
-            onChangeText={setTriggerInput}
-            tags={triggers}
-            onAdd={() => addTag(triggerInput, setTriggers, setTriggerInput)}
-            onRemove={(tag) => removeTag(tag, setTriggers)}
-            placeholder={t('skills.triggerPlaceholder')}
-          />
-        </View>
-
-        {/* Includes */}
-        <View className="mb-4">
-          <TagInput
-            label={t('skills.includesLabel')}
-            value={includeInput}
-            onChangeText={setIncludeInput}
-            tags={includes}
-            onAdd={() => addTag(includeInput, setIncludes, setIncludeInput)}
-            onRemove={(tag) => removeTag(tag, setIncludes)}
-            placeholder={t('skills.includePlaceholder')}
-          />
-        </View>
-
-        {/* Good At */}
-        <View className="mb-4">
-          <TagInput
-            label={t('skills.goodAtLabel')}
-            value={goodAtInput}
-            onChangeText={setGoodAtInput}
-            tags={goodAt}
-            onAdd={() => addTag(goodAtInput, setGoodAt, setGoodAtInput)}
-            onRemove={(tag) => removeTag(tag, setGoodAt)}
-            placeholder={t('skills.goodAtPlaceholder')}
-          />
-        </View>
-
-        {/* Not Good At */}
-        <View className="mb-4">
-          <TagInput
-            label={t('skills.notGoodAtLabel')}
-            value={notGoodAtInput}
-            onChangeText={setNotGoodAtInput}
-            tags={notGoodAt}
-            onAdd={() => addTag(notGoodAtInput, setNotGoodAt, setNotGoodAtInput)}
-            onRemove={(tag) => removeTag(tag, setNotGoodAt)}
-            placeholder={t('skills.notGoodAtPlaceholder')}
-          />
-        </View>
-      </ScrollView>
+      ) : (
+        <Panel open={showPanel} onClose={() => setShowPanel(false)} side="right" width={320}>
+          {sidebarContent}
+        </Panel>
+      )}
     </View>
   );
 }

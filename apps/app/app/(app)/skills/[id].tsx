@@ -78,7 +78,7 @@ export default function SkillDetailScreen() {
         <View className="px-5 pb-6">
           {/* Identity: book cover + info */}
           <View className="flex-row gap-4 mb-3">
-            <SkillCover seed={skill.skillId} width={90} color={skill.color} title={skill.title} author={skill.author} updatedAt={skill.updatedAt} />
+            <SkillCover seed={skill.title} width={90} title={skill.title} author={skill.author} updatedAt={skill.updatedAt} />
 
             <View className="flex-1 justify-center">
               <Text className="text-xl font-bold text-foreground mb-0.5">

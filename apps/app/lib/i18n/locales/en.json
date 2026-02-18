@@ -398,7 +398,10 @@
     "published": "Published",
     "draft": "Draft",
     "publish": "Publish",
-    "unpublish": "Unpublish"
+    "unpublish": "Unpublish",
+    "instructions": "Instructions",
+    "content": "Content",
+    "settings": "Settings"
   },
   "subscribe": {
     "title": "Choose your plan",

@@ -12,7 +12,7 @@ import { SkillCover } from '@/components/ui/skill-cover';
 function SkillBook({ skill, onPress }: { skill: Skill; onPress: () => void }) {
   return (
     <Pressable onPress={onPress} className="active:opacity-80 mr-2.5">
-      <SkillCover seed={skill.skillId} width={110} color={skill.color} title={skill.title} author={skill.author} updatedAt={skill.updatedAt} />
+      <SkillCover seed={skill.title} width={110} title={skill.title} author={skill.author} updatedAt={skill.updatedAt} />
     </Pressable>
   );
 }
