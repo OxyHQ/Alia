@@ -3,11 +3,11 @@ import {
   View,
   ScrollView,
   Pressable,
-  Switch,
   TextInput,
   Alert,
   useWindowDimensions,
 } from "react-native";
+import { Switch } from "@/components/ui/switch";
 import { Text } from "@/components/ui/text";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -474,8 +474,7 @@ export default function EditAgentScreen() {
                         <Switch
                           value={enabled}
                           onValueChange={() => toggleCapability(tool.id)}
-                          trackColor={{ false: colors.border, true: colors.primary }}
-                          style={{ transform: [{ scale: 0.8 }] }}
+                          size="sm"
                         />
                       </Pressable>
                     );
@@ -635,10 +634,6 @@ export default function EditAgentScreen() {
               <Switch
                 value={allowHiring}
                 onValueChange={setAllowHiring}
-                trackColor={{
-                  false: colors.muted,
-                  true: colors.primary,
-                }}
               />
             </View>
           </View>

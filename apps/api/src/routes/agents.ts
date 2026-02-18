@@ -76,19 +76,28 @@ router.post('/generate', authenticateToken, async (req: Request, res: Response) 
       return res.status(400).json({ error: 'A prompt of at least 10 characters is required' });
     }
 
-    const resolved = await resolveModel(getDefaultAliaModel());
-    if (!resolved) {
-      return res.status(503).json({ error: 'No AI models available' });
-    }
+    // Provider fallback retry loop (mirrors v1/chat-completions pattern)
+    const MAX_PROVIDER_RETRIES = 3;
+    const skipProviders = new Set<string>();
+    let result: Awaited<ReturnType<typeof generateText>> | null = null;
 
-    const model = getAIModel(resolved.keyConfig);
+    for (let attempt = 0; attempt < MAX_PROVIDER_RETRIES; attempt++) {
+      const resolved = await resolveModel(getDefaultAliaModel(), skipProviders);
+      if (!resolved) {
+        if (attempt === 0) {
+          return res.status(503).json({ error: 'No AI models available' });
+        }
+        break;
+      }
 
-    const result = await generateText({
-      model,
-      messages: [
-        {
-          role: 'system',
-          content: `You are an agent configuration generator. Given a user's description of what they want their AI agent to do, generate a structured JSON configuration for the agent.
+      try {
+        const model = getAIModel(resolved.keyConfig);
+        result = await generateText({
+          model,
+          messages: [
+            {
+              role: 'system',
+              content: `You are an agent configuration generator. Given a user's description of what they want their AI agent to do, generate a structured JSON configuration for the agent.
 
 Return ONLY valid JSON with these fields:
 - "name": A short, memorable name for the agent (2-4 words max)
@@ -100,15 +109,26 @@ Return ONLY valid JSON with these fields:
 - "capabilities": An array of tool IDs this agent should have enabled. Choose from: "web-browsing", "code-execution", "google-search", "web-scraping", "file-management", "image-generation", "memory", "agent-delegation". Pick only the ones relevant to the agent's purpose.
 
 Do not include any text outside the JSON object.`,
-        },
-        {
-          role: 'user',
-          content: prompt.trim(),
-        },
-      ],
-      temperature: 0.7,
-      maxRetries: 0,
-    });
+            },
+            {
+              role: 'user',
+              content: prompt.trim(),
+            },
+          ],
+          temperature: 0.7,
+          maxRetries: 0,
+        });
+        break; // Success — exit retry loop
+      } catch (providerError: any) {
+        log.agents.error({ err: providerError, provider: resolved.provider, attempt }, 'Provider failed for agent generation');
+        skipProviders.add(resolved.provider);
+        if (attempt >= MAX_PROVIDER_RETRIES - 1) throw providerError;
+      }
+    }
+
+    if (!result) {
+      return res.status(503).json({ error: 'No AI models available' });
+    }
 
     const responseText = result.text || '';
 

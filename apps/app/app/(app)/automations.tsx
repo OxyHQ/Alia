@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
-import { View, ScrollView, Pressable, Switch, ActivityIndicator } from 'react-native';
+import { View, ScrollView, Pressable, ActivityIndicator } from 'react-native';
+import { Switch } from '@/components/ui/switch';
 import { Text } from '@/components/ui/text';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -346,7 +347,6 @@ export default function AutomationsScreen() {
                       <Switch
                         value={automation.enabled}
                         onValueChange={() => handleToggleEnabled(automation)}
-                        trackColor={{ false: colors.muted, true: colors.primary }}
                       />
                     </View>
 
