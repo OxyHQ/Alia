@@ -4,7 +4,7 @@ import { Image } from "expo-image";
 import { CustomMarkdown } from "@/components/ui/markdown";
 import { Text } from "@/components/ui/text";
 import { WelcomeMessage } from "@/components/welcome-message";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import type { ScrollView as GHScrollView } from "react-native-gesture-handler";
 import { processMessage } from "@/lib/message-processor";
 import { cn } from "@/lib/utils";
@@ -25,6 +25,7 @@ import { getToolLabel } from "@/lib/tool-registry";
 import { getTextFromContent, getImagesFromContent } from "@/lib/attachment-utils";
 import { useUIStore } from "@/lib/stores/ui-store";
 import type { ToolInvocation } from "@/lib/types/messages";
+import { useScrollToBottom } from "@/hooks/use-scroll-to-bottom";
 
 type MessagePart = {
   type: string;
@@ -62,6 +63,7 @@ type ChatInterfaceProps = {
   bottomPadding?: number;
   isVoiceActive?: boolean;
   voiceAgentState?: 'idle' | 'listening' | 'thinking' | 'speaking';
+  onAtBottomChange?: (isAtBottom: boolean) => void;
 };
 
 // Helper function to extract and process text content for the app
@@ -119,12 +121,18 @@ function ToolBullet({ isRunning }: { isRunning: boolean }) {
   );
 }
 
-export const ChatInterface = React.memo(function ChatInterface({ messages, scrollViewRef, isLoading, onSuggestionPress, onEditMessage, onCopyMessage, bottomPadding = 160, isVoiceActive = false, voiceAgentState }: ChatInterfaceProps) {
+export const ChatInterface = React.memo(function ChatInterface({ messages, scrollViewRef, isLoading, onSuggestionPress, onEditMessage, onCopyMessage, bottomPadding = 160, isVoiceActive = false, voiceAgentState, onAtBottomChange }: ChatInterfaceProps) {
     const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
     const [editedContent, setEditedContent] = useState("");
     const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
     const openThoughtPanel = useUIStore((s) => s.openThoughtPanel);
     const setThoughtMessages = useUIStore((s) => s.setThoughtMessages);
+
+    const { isAtBottom, onScroll, onContentSizeChange } = useScrollToBottom(scrollViewRef);
+
+    useEffect(() => {
+      onAtBottomChange?.(isAtBottom);
+    }, [isAtBottom, onAtBottomChange]);
 
     // Sync messages to the UI store so ThoughtPanel (a sibling in the layout tree) can access them
     useEffect(() => {
@@ -180,6 +188,9 @@ export const ChatInterface = React.memo(function ChatInterface({ messages, scrol
         className="flex-1 bg-background px-4 py-4"
         contentContainerStyle={{ flexGrow: 1, paddingTop: 60, paddingBottom: bottomPadding }}
         showsVerticalScrollIndicator={false}
+        onScroll={onScroll}
+        scrollEventThrottle={16}
+        onContentSizeChange={onContentSizeChange}
       >
         <View className={containerClassName}>
           {!messages.length && <WelcomeMessage onSuggestionPress={onSuggestionPress} />}

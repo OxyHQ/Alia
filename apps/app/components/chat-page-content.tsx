@@ -10,6 +10,7 @@ import * as DropdownMenu from "@/components/ui/dropdown-menu";
 import { Text } from "@/components/ui/text";
 import { Button } from "@/components/ui/button";
 import { PromptInput, type Attachment } from "@/components/ui/prompt-input";
+import { ScrollButton } from "@/components/ui/scroll-button";
 import { ChatInterface } from "@/components/chat-interface";
 import { ChatHeader } from "@/components/chat-header";
 import { useAuth } from "@oxyhq/services";
@@ -131,7 +132,12 @@ export const ChatPageContent = ({
   const { colors } = useColorScheme();
 
   const [bottomBarHeight, setBottomBarHeight] = useState(160);
+  const [isAtBottom, setIsAtBottom] = useState(true);
   const isMainScreen = messages.length === 0;
+
+  const handleScrollToBottom = useCallback(() => {
+    scrollViewRef.current?.scrollToEnd({ animated: true });
+  }, [scrollViewRef]);
 
   useEffect(() => {
     useStore.getState().setGhostMode(false);
@@ -279,6 +285,7 @@ export const ChatPageContent = ({
           bottomPadding={bottomBarHeight}
           isVoiceActive={isVoiceActive}
           voiceAgentState={voice?.agentState}
+          onAtBottomChange={setIsAtBottom}
         />
 
         {/* Voice wave overlay — renders on top of messages at low opacity */}
@@ -348,7 +355,15 @@ export const ChatPageContent = ({
             )}
 
             <View className="p-4">
-              <View className="mx-auto w-full max-w-3xl">
+              <View className="mx-auto w-full max-w-3xl relative">
+                  {messages.length > 0 && (
+                    <View style={{ position: "absolute", top: -48, right: 0, zIndex: 1 }}>
+                      <ScrollButton
+                        isAtBottom={isAtBottom}
+                        onScrollToBottom={handleScrollToBottom}
+                      />
+                    </View>
+                  )}
                   <PromptInput
                     value={inputValue}
                     onValueChange={setInputValue}
