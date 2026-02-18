@@ -7,6 +7,7 @@ import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useTranslation } from '@/hooks/useTranslation';
 import { useSkillsStore, type Skill } from '@/lib/stores/skills-store';
 import { SectionLabel, BulletList, PromptChipList, GoodAtNotFor } from '@/components/detail';
+import { SkillCover } from '@/components/ui/skill-cover';
 
 function formatDate(dateStr: string): string {
   const d = new Date(dateStr);
@@ -77,40 +78,7 @@ export default function SkillDetailScreen() {
         <View className="px-5 pb-6">
           {/* Identity: book cover + info */}
           <View className="flex-row gap-4 mb-3">
-            <View
-              className="rounded-sm overflow-hidden"
-              style={{
-                backgroundColor: skill.color,
-                width: 90,
-                aspectRatio: 2 / 3,
-              }}
-            >
-              <View
-                className="items-center justify-center"
-                style={{
-                  backgroundColor: 'rgba(255,255,255,0.2)',
-                  width: '100%',
-                  aspectRatio: 16 / 10,
-                }}
-              >
-                <Text className="text-lg">{skill.icon}</Text>
-              </View>
-              <View className="flex-1 px-2 pt-1.5 pb-2 justify-between">
-                <Text
-                  className="text-[13px] font-black leading-4"
-                  style={{ color: 'rgba(255,255,255,0.95)' }}
-                  numberOfLines={3}
-                >
-                  {skill.title}
-                </Text>
-                <Text
-                  className="text-[8px]"
-                  style={{ color: 'rgba(255,255,255,0.5)' }}
-                >
-                  {skill.author}
-                </Text>
-              </View>
-            </View>
+            <SkillCover seed={skill.skillId} width={90} color={skill.color} title={skill.title} author={skill.author} updatedAt={skill.updatedAt} />
 
             <View className="flex-1 justify-center">
               <Text className="text-xl font-bold text-foreground mb-0.5">

@@ -157,6 +157,17 @@ Do not include any text outside the JSON object.`,
     // Validate color is from palette
     const validColor = SKILL_COLORS.includes(parsed.color) ? parsed.color : SKILL_COLORS[0];
 
+    // Resolve author name from Oxy user profile
+    let authorName = req.user.username || '';
+    if (!authorName) {
+      try {
+        const oxyUser = await oxyClient.getUserById(req.user.id) as any;
+        authorName = oxyUser?.username || oxyUser?.name?.first || 'Unknown';
+      } catch {
+        authorName = 'Unknown';
+      }
+    }
+
     res.json({
       title: parsed.title || 'New Skill',
       tagline: parsed.tagline || '',
@@ -166,6 +177,7 @@ Do not include any text outside the JSON object.`,
       color: validColor,
       category: ['featured', 'community', 'recent'].includes(parsed.category) ? parsed.category : 'community',
       language,
+      author: authorName,
       triggers: Array.isArray(parsed.triggers) ? parsed.triggers.slice(0, 10) : [],
       includes: Array.isArray(parsed.includes) ? parsed.includes.slice(0, 10) : [],
       useCase: parsed.useCase || '',
