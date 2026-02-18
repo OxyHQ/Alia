@@ -1,18 +1,18 @@
-import { View, ScrollView, Pressable, Switch, Platform } from "react-native";
+import { View, ScrollView, Pressable, Platform } from "react-native";
+import { Switch } from "@/components/ui/switch";
 import { Text } from "@/components/ui/text";
 import { useRouter } from "expo-router";
 import { ArrowLeft, Bell, BellOff } from "lucide-react-native";
 import { useState, useEffect } from "react";
 import { useAuth } from "@oxyhq/services";
 import * as Notifications from "expo-notifications";
-import { useColorScheme } from "@/lib/useColorScheme";
+
 import { useTranslation } from "@/hooks/useTranslation";
 
 export default function NotificationsScreen() {
   const { t } = useTranslation();
   const router = useRouter();
   const { isAuthenticated } = useAuth();
-  const { isDarkColorScheme } = useColorScheme();
 
   const [pushEnabled, setPushEnabled] = useState(false);
   const [permissionStatus, setPermissionStatus] = useState<string | null>(null);
@@ -88,11 +88,6 @@ export default function NotificationsScreen() {
             value={pushEnabled}
             onValueChange={handleTogglePush}
             disabled={loading}
-            trackColor={{
-              false: isDarkColorScheme ? "#333" : "#ccc",
-              true: isDarkColorScheme ? "#6366f1" : "#4f46e5",
-            }}
-            thumbColor={Platform.OS === "android" ? "#fff" : undefined}
           />
         </View>
 

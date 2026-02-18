@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { View, TextInput, Pressable, Switch } from 'react-native';
+import { View, TextInput, Pressable } from 'react-native';
+import { Switch } from '@/components/ui/switch';
 import { Text } from '@/components/ui/text';
 import { ChevronDown } from 'lucide-react-native';
 import { Button } from '@/components/ui/button';

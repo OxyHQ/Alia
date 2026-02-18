@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useCallback } from "react";
-import { View, ScrollView, Pressable, Share, TextInput, Switch, Alert, useWindowDimensions } from "react-native";
+import { View, ScrollView, Pressable, Share, TextInput, Alert, useWindowDimensions } from "react-native";
+import { Switch } from "@/components/ui/switch";
 import { Text } from "@/components/ui/text";
 import { Avatar, AvatarImage } from "@/components/ui/avatar";
 import * as DropdownMenu from "@/components/ui/dropdown-menu";
@@ -46,6 +47,22 @@ function formatCount(n: number): string {
   return String(n);
 }
 
+function StarRatingInput({ value, onChange }: { value: number; onChange: (v: number) => void }) {
+  return (
+    <View className="flex-row gap-1">
+      {[1, 2, 3, 4, 5].map((star) => (
+        <Pressable key={star} onPress={() => onChange(star)} className="p-0.5">
+          <Star
+            size={20}
+            className={star <= value ? "text-amber-500" : "text-muted-foreground/30"}
+            fill={star <= value ? "#f59e0b" : "transparent"}
+          />
+        </Pressable>
+      ))}
+    </View>
+  );
+}
+
 export default function AgentDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const getAgent = useAgentsStore((state) => state.getAgent);
@@ -73,6 +90,14 @@ export default function AgentDetailScreen() {
   // Add to team state
   const [addingToTeam, setAddingToTeam] = useState(false);
 
+  // Review state
+  const [reviews, setReviews] = useState<any[]>([]);
+  const [userReview, setUserReview] = useState<any>(null);
+  const [showReviewForm, setShowReviewForm] = useState(false);
+  const [reviewRating, setReviewRating] = useState(0);
+  const [reviewComment, setReviewComment] = useState("");
+  const [submittingReview, setSubmittingReview] = useState(false);
+
   useEffect(() => {
     loadFavorites();
   }, [loadFavorites]);
@@ -86,6 +111,20 @@ export default function AgentDetailScreen() {
       });
     }
   }, [id, getAgent]);
+
+  // Load reviews
+  useEffect(() => {
+    if (id) {
+      apiClient.get(`/agents/${id}/reviews`).then((res) => {
+        setReviews(res.data?.reviews || []);
+        setUserReview(res.data?.userReview || null);
+        if (res.data?.userReview) {
+          setReviewRating(res.data.userReview.rating);
+          setReviewComment(res.data.userReview.comment || "");
+        }
+      }).catch(() => {});
+    }
+  }, [id]);
 
   const isOwner = !!(user && agent && user.id === agent.author);
   const bookmarked = agent ? isFavorite(agent._id) : false;
@@ -195,6 +234,55 @@ export default function AgentDetailScreen() {
       toast.error("Failed to update status");
     }
   };
+
+  const handleSubmitReview = useCallback(async () => {
+    if (!agent || !reviewRating || submittingReview) return;
+    setSubmittingReview(true);
+    try {
+      const res = await apiClient.post(`/agents/${agent._id}/reviews`, {
+        rating: reviewRating,
+        comment: reviewComment.trim(),
+      });
+      setUserReview(res.data.review);
+      setAgent({ ...agent, rating: res.data.rating, reviewCount: res.data.reviewCount });
+      setShowReviewForm(false);
+      toast.success(t("agents.reviewSubmitted"));
+      const reviewsRes = await apiClient.get(`/agents/${agent._id}/reviews`);
+      setReviews(reviewsRes.data?.reviews || []);
+    } catch (err: any) {
+      toast.error(err?.response?.data?.error || "Failed to submit review");
+    } finally {
+      setSubmittingReview(false);
+    }
+  }, [agent, reviewRating, reviewComment, submittingReview, t]);
+
+  const handleDeleteReview = useCallback(async () => {
+    if (!agent) return;
+    Alert.alert(t("agents.deleteReview"), t("agents.deleteReviewConfirm"), [
+      { text: t("common.cancel"), style: "cancel" },
+      {
+        text: t("agents.deleteReview"),
+        style: "destructive",
+        onPress: async () => {
+          try {
+            await apiClient.delete(`/agents/${agent._id}/reviews`);
+            setUserReview(null);
+            setReviewRating(0);
+            setReviewComment("");
+            toast.success(t("agents.reviewDeleted"));
+            const [agentRes, reviewsRes] = await Promise.all([
+              getAgent(agent._id),
+              apiClient.get(`/agents/${agent._id}/reviews`),
+            ]);
+            if (agentRes) setAgent(agentRes);
+            setReviews(reviewsRes.data?.reviews || []);
+          } catch {
+            toast.error("Failed to delete review");
+          }
+        },
+      },
+    ]);
+  }, [agent, t, getAgent]);
 
   if (loading) {
     return (
@@ -343,8 +431,6 @@ export default function AgentDetailScreen() {
                   onValueChange={(on) =>
                     handleStatusToggle(on ? "active" : "idle")
                   }
-                  trackColor={{ false: "#3e3e3e", true: "#22c55e" }}
-                  thumbColor="#ffffff"
                 />
               </View>
             )}
@@ -491,6 +577,114 @@ export default function AgentDetailScreen() {
               </>
             )}
 
+            {/* Reviews */}
+            <View className="h-px bg-border mx-0 mb-5" />
+            <View className="mb-5">
+              <View className="flex-row items-center justify-between mb-3">
+                <SectionLabel>{t("agents.reviews")}</SectionLabel>
+                {user && !isOwner && !showReviewForm && (
+                  <Pressable
+                    onPress={() => setShowReviewForm(true)}
+                    className="active:opacity-70"
+                  >
+                    <Text className="text-[12px] font-medium text-primary">
+                      {userReview ? t("agents.editReview") : t("agents.writeReview")}
+                    </Text>
+                  </Pressable>
+                )}
+              </View>
+
+              {/* Review Form */}
+              {showReviewForm && (
+                <View className="bg-muted/30 rounded-xl px-4 py-3 border border-border mb-4">
+                  <View className="mb-3">
+                    <StarRatingInput value={reviewRating} onChange={setReviewRating} />
+                  </View>
+                  <TextInput
+                    value={reviewComment}
+                    onChangeText={setReviewComment}
+                    placeholder={t("agents.reviewPlaceholder")}
+                    placeholderTextColor="#888"
+                    multiline
+                    numberOfLines={3}
+                    style={{
+                      color: "#fff",
+                      fontSize: 14,
+                      paddingVertical: 8,
+                      minHeight: 60,
+                      textAlignVertical: "top",
+                    }}
+                  />
+                  <View className="flex-row justify-end gap-2 mt-2">
+                    <Pressable
+                      onPress={() => setShowReviewForm(false)}
+                      className="px-3 py-1.5 active:opacity-70"
+                    >
+                      <Text className="text-[13px] text-muted-foreground">
+                        {t("common.cancel")}
+                      </Text>
+                    </Pressable>
+                    <Pressable
+                      onPress={handleSubmitReview}
+                      disabled={!reviewRating || submittingReview}
+                      className={cn(
+                        "px-3 py-1.5 rounded-md active:opacity-70",
+                        reviewRating ? "bg-primary" : "bg-muted"
+                      )}
+                    >
+                      <Text className={cn(
+                        "text-[13px] font-medium",
+                        reviewRating ? "text-primary-foreground" : "text-muted-foreground"
+                      )}>
+                        {submittingReview ? "..." : t("agents.writeReview")}
+                      </Text>
+                    </Pressable>
+                  </View>
+                </View>
+              )}
+
+              {/* Reviews List */}
+              {reviews.length === 0 && !showReviewForm ? (
+                <Text className="text-[13px] text-muted-foreground">
+                  {t("agents.noReviews")}
+                </Text>
+              ) : (
+                <View className="gap-3">
+                  {reviews.map((review: any) => (
+                    <View key={review._id} className="gap-1">
+                      <View className="flex-row items-center justify-between">
+                        <View className="flex-row items-center gap-2">
+                          <Text className="text-[13px] font-medium text-foreground">
+                            {review.userId?.username || "User"}
+                          </Text>
+                          <View className="flex-row">
+                            {[1, 2, 3, 4, 5].map((star) => (
+                              <Star
+                                key={star}
+                                size={10}
+                                className={star <= review.rating ? "text-amber-500" : "text-muted-foreground/20"}
+                                fill={star <= review.rating ? "#f59e0b" : "transparent"}
+                              />
+                            ))}
+                          </View>
+                        </View>
+                        {user && review.userId?._id === user.id && (
+                          <Pressable onPress={handleDeleteReview} className="p-1 active:opacity-70">
+                            <Trash2 size={12} className="text-muted-foreground" />
+                          </Pressable>
+                        )}
+                      </View>
+                      {review.comment ? (
+                        <Text className="text-[13px] text-foreground/80 leading-[18px]">
+                          {review.comment}
+                        </Text>
+                      ) : null}
+                    </View>
+                  ))}
+                </View>
+              )}
+            </View>
+
             {/* Activity Terminal — mobile only */}
             {!isLargeScreen && (
               <>
@@ -508,15 +702,17 @@ export default function AgentDetailScreen() {
 
         {/* Right panel: terminal — desktop only */}
         {isLargeScreen && (
-          <View className="flex-1 bg-[#0d0d0d]">
-            <View className="px-4 py-2.5 flex-row items-center gap-2">
-              <View className="w-2 h-2 rounded-full bg-green-500" />
-              <Text className="text-xs font-medium text-[#808080]">
-                {t("agents.activity")}
-              </Text>
-            </View>
-            <View className="flex-1">
-              <AgentTerminal agentId={agent._id} />
+          <View className="flex-1 p-4 pl-0">
+            <View className="flex-1 bg-[#0d0d0d] rounded-xl overflow-hidden border border-border">
+              <View className="px-4 py-2.5 flex-row items-center gap-2 border-b border-white/5">
+                <View className="w-2 h-2 rounded-full bg-green-500" />
+                <Text className="text-xs font-medium text-[#808080]">
+                  {t("agents.activity")}
+                </Text>
+              </View>
+              <View className="flex-1">
+                <AgentTerminal agentId={agent._id} />
+              </View>
             </View>
           </View>
         )}

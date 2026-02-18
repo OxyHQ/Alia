@@ -107,7 +107,7 @@ export function getAIModel(keyConfig: KeyConfig) {
         apiKey,
         baseURL: 'https://api.cerebras.ai/v1',
       });
-      return cerebras.chat(modelId || 'llama-3.3-70b');
+      return cerebras.chat(modelId || 'llama3.1-8b');
     }
     case 'mistral': {
       const mistral = createOpenAI({

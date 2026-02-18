@@ -4,7 +4,7 @@
   "version": "1.0.0",
   "scripts": {
     "start": "expo start --clear --tunnel",
-    "dev": "expo start",
+    "dev": "expo start --scheme alia",
     "android": "expo run:android",
     "ios": "expo run:ios",
     "web": "expo start --web",
