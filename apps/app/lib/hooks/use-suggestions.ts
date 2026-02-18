@@ -66,6 +66,23 @@ export function useRecordSuggestionUsage() {
 }
 
 /**
+ * Real-time autocomplete search (Google-style, debounced client-side)
+ */
+export function useSearchSuggestions(query: string) {
+  return useQuery<Suggestion[]>({
+    queryKey: queryKeys.suggestions.search(query),
+    queryFn: async () => {
+      const res = await apiClient.post(API_ROUTES.suggestions.search, { query, limit: 6 });
+      return res.data.suggestions;
+    },
+    enabled: query.trim().length >= 2,
+    staleTime: 1000 * 60 * 5,
+    gcTime: 1000 * 60 * 10,
+    retry: 0,
+  });
+}
+
+/**
  * AI-generate personalized suggestions
  */
 export function useGenerateSuggestions() {

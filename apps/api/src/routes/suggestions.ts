@@ -8,6 +8,39 @@ import { log } from '../lib/logger.js';
 
 const router = Router();
 
+// ============== IN-MEMORY CACHE ==============
+
+const cache = new Map<string, { data: any; expiresAt: number }>();
+const CACHE_MAX_SIZE = 500;
+const SEARCH_CACHE_TTL = 3 * 60 * 1000; // 3 min — autocomplete results
+
+function cacheGet(key: string): any | null {
+  const entry = cache.get(key);
+  if (!entry) return null;
+  if (entry.expiresAt < Date.now()) {
+    cache.delete(key);
+    return null;
+  }
+  return entry.data;
+}
+
+function cacheSet(key: string, data: any, ttl: number): void {
+  // Evict oldest if full
+  if (cache.size >= CACHE_MAX_SIZE) {
+    const oldest = cache.keys().next().value;
+    if (oldest) cache.delete(oldest);
+  }
+  cache.set(key, { data, expiresAt: Date.now() + ttl });
+}
+
+// Periodic cleanup every 2 min
+setInterval(() => {
+  const now = Date.now();
+  for (const [key, entry] of cache) {
+    if (entry.expiresAt < now) cache.delete(key);
+  }
+}, 2 * 60 * 1000);
+
 /**
  * Helper: resolve user language from memory preferences, fallback to 'en'
  */
@@ -424,6 +457,58 @@ router.delete('/:id', authenticateToken, async (req: Request, res: Response) => 
   } catch (error: any) {
     log.general.error({ err: error }, 'Error deleting suggestion');
     res.status(500).json({ error: 'Failed to delete suggestion' });
+  }
+});
+
+/**
+ * POST /suggestions/search
+ * Real-time autocomplete search (Google-style). Debounced client-side.
+ * Body: { query, limit? }
+ */
+router.post('/search', optionalAuth, async (req: Request, res: Response) => {
+  try {
+    const { query, limit = 6 } = req.body || {};
+    if (!query || typeof query !== 'string' || query.trim().length < 2) {
+      return res.json({ suggestions: [] });
+    }
+
+    const trimmed = query.trim().toLowerCase();
+    const userId = req.user?.id || 'anon';
+    const language = await getUserLanguage(req.user?.id);
+    const cacheKey = `search:${trimmed}:${language}:${userId}`;
+
+    const cached = cacheGet(cacheKey);
+    if (cached) return res.json(cached);
+
+    // Escape regex special chars to prevent ReDoS
+    const escaped = trimmed.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+    const suggestions = await Suggestion.find({
+      language,
+      $and: [
+        notExpiredFilter(),
+        { $or: [
+          { scope: 'global' },
+          ...(req.user?.id ? [{ scope: 'personal', oxyUserId: req.user.id }] : []),
+        ]},
+        { $or: [
+          { triggerWords: { $regex: `^${escaped}`, $options: 'i' } },
+          { title: { $regex: escaped, $options: 'i' } },
+          { text: { $regex: escaped, $options: 'i' } },
+        ]},
+      ],
+    })
+      .sort({ priority: -1, usageCount: -1 })
+      .limit(Math.min(Number(limit) || 6, 20))
+      .select('suggestionId title text triggerWords isTemplate templateVariables')
+      .lean();
+
+    const result = { suggestions };
+    cacheSet(cacheKey, result, SEARCH_CACHE_TTL);
+    res.json(result);
+  } catch (error: any) {
+    log.general.error({ err: error }, 'Error searching suggestions');
+    res.status(500).json({ error: 'Failed to search suggestions' });
   }
 });
 

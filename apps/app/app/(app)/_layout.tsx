@@ -15,7 +15,7 @@ import { useColorScheme } from '@/lib/useColorScheme';
 import { CommandPalette } from '@/components/command-palette';
 import { KeyboardShortcutsDialog } from '@/components/keyboard-shortcuts-dialog';
 import i18n from '@/lib/i18n';
-import { useWelcomeSuggestions, useAutocompleteSuggestions } from '@/lib/hooks/use-suggestions';
+import { useWelcomeSuggestions } from '@/lib/hooks/use-suggestions';
 
 export default function AppLayout() {
   const dimensions = useWindowDimensions();
@@ -29,9 +29,8 @@ export default function AppLayout() {
   const loadPinned = usePinnedStore((state) => state.loadPinned);
   const rightPanel = useUIStore((state) => state.rightPanel);
 
-  // Prefetch suggestions so they're ready before any chat screen mounts
+  // Prefetch welcome suggestions so they're ready before any chat screen mounts
   useWelcomeSuggestions();
-  useAutocompleteSuggestions();
 
   // Load projects, roles, folders, favorites, and pinned on mount
   useEffect(() => {
