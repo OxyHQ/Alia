@@ -20,11 +20,12 @@ export interface ToolDefinition {
 
 const TOOL_REGISTRY: Record<string, ToolDefinition> = {
   // Search
-  googleSearch:        { icon: Search,        label: "Searching the web",         category: "search" },
+  webSearch:           { icon: Search,        label: "Searching the web",         category: "search" },
   scrapeURL:           { icon: Link,          label: "Reading URL",               category: "search" },
   getTimeline:         { icon: Calendar,      label: "Getting timeline",          category: "search" },
   searchKnowledgeBase: { icon: Database,      label: "Searching knowledge base",  category: "search" },
   webScraper:          { icon: Globe,         label: "Reading web page",          category: "search" },
+  browse:              { icon: Globe,         label: "Browsing the web",          category: "search" },
 
   // Communication
   sendWhatsAppMessage: { icon: MessageCircle, label: "Sending WhatsApp message",  category: "communication" },

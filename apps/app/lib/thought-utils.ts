@@ -25,7 +25,7 @@ function getDomain(url: string): string {
 }
 
 /**
- * Extract unique sources from tool invocations (googleSearch, webScraper).
+ * Extract unique sources from tool invocations (webSearch, webScraper).
  */
 export function extractSources(toolInvocations?: ToolInvocation[]): Source[] {
   if (!toolInvocations) return [];
@@ -36,7 +36,7 @@ export function extractSources(toolInvocations?: ToolInvocation[]): Source[] {
   for (const inv of toolInvocations) {
     if (inv.state !== 'result' || !inv.result) continue;
 
-    if (inv.toolName === 'googleSearch' && Array.isArray(inv.result.results)) {
+    if ((inv.toolName === 'webSearch' || (inv.toolName === 'browse' && inv.result.action === 'search')) && Array.isArray(inv.result.results)) {
       for (const r of inv.result.results) {
         if (r.url && !seen.has(r.url)) {
           seen.add(r.url);
@@ -47,6 +47,19 @@ export function extractSources(toolInvocations?: ToolInvocation[]): Source[] {
             domain: getDomain(r.url),
           });
         }
+      }
+    }
+
+    if (inv.toolName === 'browse' && inv.result.action === 'read' && inv.result.url) {
+      const url = inv.result.url;
+      if (!seen.has(url)) {
+        seen.add(url);
+        sources.push({
+          title: inv.result.title || getDomain(url),
+          url,
+          snippet: inv.result.content ? inv.result.content.slice(0, 200) : '',
+          domain: getDomain(url),
+        });
       }
     }
 
@@ -92,7 +105,7 @@ export function buildSteps(
       };
 
       // Attach sources for search tools that have results
-      if (inv.toolName === 'googleSearch' && inv.state === 'result' && inv.result?.results) {
+      if ((inv.toolName === 'webSearch' || (inv.toolName === 'browse' && inv.result?.action === 'search')) && inv.state === 'result' && inv.result?.results) {
         step.sources = inv.result.results
           .filter((r: any) => r.url)
           .map((r: any) => ({
