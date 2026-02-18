@@ -43,9 +43,10 @@ export interface ResolvedModel {
 export async function resolveAliaModel(
   requestedModel: string,
   tokens: number = 1000,
-  skipProviders: Set<string> = new Set()
+  skipProviders: Set<string> = new Set(),
+  skipKeyIds: Set<string> = new Set()
 ): Promise<ResolvedModel | null> {
-  const result = await resolveWithFallback(requestedModel, tokens, skipProviders);
+  const result = await resolveWithFallback(requestedModel, tokens, skipProviders, skipKeyIds);
   return result.resolved;
 }
 
@@ -56,21 +57,23 @@ export async function resolveAliaModel(
  * @param requestedModel - The model ID requested
  * @param tokens - Estimated tokens for rate limit checking
  * @param skipProviders - Optional set of providers to skip
+ * @param skipKeyIds - Optional set of key IDs to skip
  * @returns Full FallbackResult with resolved model, attempts, and metadata
  */
 export async function resolveAliaModelWithAttempts(
   requestedModel: string,
   tokens: number = 1000,
-  skipProviders: Set<string> = new Set()
+  skipProviders: Set<string> = new Set(),
+  skipKeyIds: Set<string> = new Set()
 ): Promise<FallbackResult> {
-  return resolveWithFallback(requestedModel, tokens, skipProviders);
+  return resolveWithFallback(requestedModel, tokens, skipProviders, skipKeyIds);
 }
 
 /**
  * Get the default Alia model ID
  */
 export function getDefaultAliaModel(): string {
-  return 'alia-v1';
+  return 'alia-lite';
 }
 
 /**

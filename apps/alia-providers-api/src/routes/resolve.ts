@@ -12,7 +12,7 @@ const router = express.Router();
 
 router.post('/', async (req: Request, res: Response) => {
   try {
-    const { model, estimatedTokens, skipProviders } = req.body;
+    const { model, estimatedTokens, skipProviders, skipKeyIds } = req.body;
 
     if (!model || typeof model !== 'string') {
       return res.status(400).json({
@@ -23,7 +23,8 @@ router.post('/', async (req: Request, res: Response) => {
     }
 
     const skip = skipProviders ? new Set<string>(skipProviders) : new Set<string>();
-    const resolved = await resolveAliaModel(model, estimatedTokens ?? 1000, skip);
+    const skipKeys = skipKeyIds ? new Set<string>(skipKeyIds) : new Set<string>();
+    const resolved = await resolveAliaModel(model, estimatedTokens ?? 1000, skip, skipKeys);
 
     if (!resolved) {
       return res.status(503).json({
