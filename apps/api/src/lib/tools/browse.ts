@@ -73,9 +73,12 @@ export const browseTool = tool({
 
       stagehand = new Stagehand({
         env: 'LOCAL',
-        headless: true,
-        model: 'openai/alia-lite',
-        modelClientOptions: {
+        localBrowserLaunchOptions: {
+          headless: true,
+          args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'],
+        },
+        model: {
+          modelName: 'openai/alia-lite',
           apiKey: serviceSecret,
           baseURL: `${aliaApiUrl}/v1`,
         },
