@@ -268,8 +268,17 @@ router.post('/generate', authenticateToken, async (req: Request, res: Response) 
     const skipProviders = new Set<string>();
     let result: Awaited<ReturnType<typeof generateText>> | null = null;
 
+    // Build compact user profile string (only non-empty fields)
+    const profileParts = [
+      `lang:${language}`,
+      interests.length ? `interests:${interests.join(',')}` : '',
+      occupation ? `job:${occupation}` : '',
+      location ? `loc:${location}` : '',
+      `tone:${tone}`,
+    ].filter(Boolean).join(' | ');
+
     for (let attempt = 0; attempt < MAX_PROVIDER_RETRIES; attempt++) {
-      const resolved = await resolveModel(getDefaultAliaModel(), skipProviders);
+      const resolved = await resolveModel('alia-lite', skipProviders);
       if (!resolved) {
         if (attempt === 0) {
           return res.status(503).json({ error: 'No AI models available' });
@@ -283,38 +292,11 @@ router.post('/generate', authenticateToken, async (req: Request, res: Response) 
           model,
           messages: [
             {
-              role: 'system',
-              content: `You are a suggestion generator for an AI assistant app. Generate ${count} personalized prompt suggestions for the user based on their profile.
-
-User profile:
-- Language: ${language}
-- Interests: ${interests.join(', ') || 'general'}
-- Tone preference: ${tone}
-- Occupation: ${occupation || 'not specified'}
-- Location: ${location || 'not specified'}
-
-Generate a JSON array of suggestion objects. Each suggestion should have:
-- "title": Short label (2-4 words)
-- "text": Full prompt text the user would send
-- "description": One-sentence explanation
-- "type": One of: ${types.map((t: string) => `"${t}"`).join(', ')}
-- "category": A category string (e.g., "productivity", "coding", "creative", "communication", "learning")
-- "triggerWords": Array of 1-3 trigger words for autocomplete matching
-- "tags": Array of 2-3 relevant tags
-- "occupations": Array of relevant occupations (can be empty)
-- "interests": Array of relevant interests
-
-The text may include {variable} template placeholders where the user would fill in their own content (e.g., "Translate {text} into {language}").
-
-Write ALL text content in: ${language}
-
-Mix suggestion types across the requested types. Make them specific, actionable, and relevant to the user's profile.
-
-Return ONLY valid JSON array, no other text.`,
-            },
-            {
               role: 'user',
-              content: `Generate ${count} personalized suggestions for me.`,
+              content: `Generate ${count} prompt suggestions as JSON array. User: ${profileParts}
+Types: ${types.join(',')}. Language: ${language}.
+Each object: {"title":"2-4 words","text":"full prompt","description":"1 sentence","type":"welcome|autocomplete","category":"productivity|coding|creative|communication|learning","triggerWords":["1-3 words"],"tags":["2-3"],"occupations":[],"interests":[]}
+Use {variable} placeholders where useful. Return ONLY valid JSON array.`,
             },
           ],
           temperature: 0.8,
