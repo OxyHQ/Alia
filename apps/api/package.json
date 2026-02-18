@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "description": "Alia API - Un servidor proxy inteligente que orquesta múltiples API Keys de distintos proveedores de IA",
   "private": true,
+  "type": "module",
   "main": "dist/index.js",
   "scripts": {
     "dev": "tsx watch src/index.ts",
