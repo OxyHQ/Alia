@@ -473,39 +473,59 @@ router.post('/search', optionalAuth, async (req: Request, res: Response) => {
     }
 
     const trimmed = query.trim().toLowerCase();
-    const userId = req.user?.id || 'anon';
     const language = await getUserLanguage(req.user?.id);
-    const cacheKey = `search:${trimmed}:${language}:${userId}`;
-
-    const cached = cacheGet(cacheKey);
-    if (cached) return res.json(cached);
-
-    // Escape regex special chars to prevent ReDoS
     const escaped = trimmed.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const limitNum = Math.min(Number(limit) || 6, 20);
 
-    const suggestions = await Suggestion.find({
-      language,
-      $and: [
-        notExpiredFilter(),
-        { $or: [
-          { scope: 'global' },
-          ...(req.user?.id ? [{ scope: 'personal', oxyUserId: req.user.id }] : []),
-        ]},
-        { $or: [
-          { triggerWords: { $regex: `^${escaped}`, $options: 'i' } },
-          { title: { $regex: escaped, $options: 'i' } },
-          { text: { $regex: escaped, $options: 'i' } },
-        ]},
-      ],
-    })
-      .sort({ priority: -1, usageCount: -1 })
-      .limit(Math.min(Number(limit) || 6, 20))
-      .select('suggestionId title text triggerWords isTemplate templateVariables')
-      .lean();
+    const searchOr = [
+      { triggerWords: { $regex: `^${escaped}`, $options: 'i' } },
+      { title: { $regex: escaped, $options: 'i' } },
+      { text: { $regex: escaped, $options: 'i' } },
+    ];
 
-    const result = { suggestions };
-    cacheSet(cacheKey, result, SEARCH_CACHE_TTL);
-    res.json(result);
+    // 1. Global results — shared cache by query+language (serves all users)
+    const globalCacheKey = `search:${trimmed}:${language}`;
+    let globalResults = cacheGet(globalCacheKey);
+    if (!globalResults) {
+      globalResults = await Suggestion.find({
+        language,
+        scope: 'global',
+        $and: [notExpiredFilter(), { $or: searchOr }],
+      })
+        .sort({ priority: -1, usageCount: -1 })
+        .limit(limitNum)
+        .select('suggestionId title text triggerWords isTemplate templateVariables')
+        .lean();
+      cacheSet(globalCacheKey, globalResults, SEARCH_CACHE_TTL);
+    }
+
+    // 2. Personal results — only for authenticated users, not cached
+    let personalResults: any[] = [];
+    if (req.user?.id) {
+      personalResults = await Suggestion.find({
+        language,
+        scope: 'personal',
+        oxyUserId: req.user.id,
+        $and: [notExpiredFilter(), { $or: searchOr }],
+      })
+        .sort({ priority: -1, usageCount: -1 })
+        .limit(limitNum)
+        .select('suggestionId title text triggerWords isTemplate templateVariables')
+        .lean();
+    }
+
+    // 3. Merge: personal first, then global, dedupe by suggestionId
+    const seen = new Set<string>();
+    const suggestions = [];
+    for (const s of [...personalResults, ...globalResults]) {
+      if (suggestions.length >= limitNum) break;
+      if (!seen.has(s.suggestionId)) {
+        seen.add(s.suggestionId);
+        suggestions.push(s);
+      }
+    }
+
+    res.json({ suggestions });
   } catch (error: any) {
     log.general.error({ err: error }, 'Error searching suggestions');
     res.status(500).json({ error: 'Failed to search suggestions' });
