@@ -398,7 +398,10 @@
     "published": "Publicado",
     "draft": "Borrador",
     "publish": "Publicar",
-    "unpublish": "Despublicar"
+    "unpublish": "Despublicar",
+    "instructions": "Instrucciones",
+    "content": "Contenido",
+    "settings": "Ajustes"
   },
   "subscribe": {
     "title": "Elige tu plan",
