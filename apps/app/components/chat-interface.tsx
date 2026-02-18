@@ -11,6 +11,7 @@ import { processMessage } from "@/lib/message-processor";
 import { cn } from "@/lib/utils";
 import { ThinkingIndicator } from "@/components/thinking-indicator";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { AgentPlaceholder } from "@/components/ui/agent-placeholder";
 import { Copy, ThumbsUp, ThumbsDown, Pencil, Check } from "lucide-react-native";
 import Animated, {
   FadeInUp,
@@ -269,18 +270,12 @@ export const ChatInterface = React.memo(function ChatInterface({ messages, scrol
                           {/* Agent identity, cohost label, or Alia logo */}
                           {m.agentInfo ? (
                             <View className="flex-row items-center gap-2 mb-0.5">
-                              {m.agentInfo.avatar ? (
-                                <Image
-                                  source={{ uri: m.agentInfo.avatar }}
-                                  style={{ width: 20, height: 20, borderRadius: 10 }}
-                                />
-                              ) : (
-                                <Avatar className="h-5 w-5">
-                                  <AvatarFallback className="text-[10px]">
-                                    {m.agentInfo.name.charAt(0).toUpperCase()}
-                                  </AvatarFallback>
-                                </Avatar>
-                              )}
+                              <AgentPlaceholder
+                                seed={m.agentInfo.id}
+                                size={20}
+                                animated={false}
+                                avatarUrl={m.agentInfo.avatar}
+                              />
                               <Text className="text-xs font-semibold" style={{ color: '#f97316' }}>
                                 {m.agentInfo.name}
                               </Text>

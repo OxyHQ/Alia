@@ -1,15 +1,12 @@
 import React from "react";
 import { View, Pressable } from "react-native";
 import { Text } from "@/components/ui/text";
-import { Avatar, AvatarImage } from "@/components/ui/avatar";
+import { AgentPlaceholder } from "@/components/ui/agent-placeholder";
 import { Button } from "@/components/ui/button";
 import { BadgeCheck, Zap } from "lucide-react-native";
 import { cn } from "@/lib/utils";
 import { useTranslation } from "@/hooks/useTranslation";
 import type { Agent } from "@/lib/stores/agents-store";
-
-// eslint-disable-next-line @typescript-eslint/no-var-requires
-const DEFAULT_AVATAR = require("@/assets/images/agent-avatar-reference.png");
 
 interface AgentCardProps {
   agent: Agent;
@@ -54,9 +51,11 @@ export const AgentCard = React.memo(function AgentCard({
         {/* Top row: Avatar (left) + Chat button (right) — like Twitter avatar + Follow */}
         <View className="flex-row items-start justify-between">
           <View className="relative">
-            <Avatar className={cn(avatarSize)}>
-              <AvatarImage source={agent.avatar ? { uri: agent.avatar } : DEFAULT_AVATAR} />
-            </Avatar>
+            <AgentPlaceholder
+              seed={agent._id}
+              size={isFeatured ? 64 : 56}
+              avatarUrl={agent.avatar}
+            />
             <View
               className={cn(
                 "absolute bottom-0 right-0 rounded-full border-surface",
@@ -68,13 +67,13 @@ export const AgentCard = React.memo(function AgentCard({
           <Button
             variant="default"
             size="sm"
-            className="rounded-full h-8 px-4"
+            className="rounded-full h-8 px-4 bg-foreground"
             onPress={(e) => {
               e.stopPropagation?.();
               onChat?.(agent._id);
             }}
           >
-            <Text className="text-[13px] font-semibold text-primary-foreground">
+            <Text className="text-[13px] font-semibold text-background">
               {t("agents.chat")}
             </Text>
           </Button>
@@ -97,7 +96,7 @@ export const AgentCard = React.memo(function AgentCard({
         </View>
 
         {/* Handle */}
-        <Text className="text-[13px] text-muted-foreground" numberOfLines={1}>
+        <Text className="text-[13px] text-muted-foreground mt-0.5" numberOfLines={1}>
           @{agent.handle}
         </Text>
 
