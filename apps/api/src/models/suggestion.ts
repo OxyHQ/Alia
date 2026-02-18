@@ -52,7 +52,7 @@ const SuggestionSchema = new Schema<ISuggestion>({
 SuggestionSchema.index({ scope: 1, language: 1, type: 1 });
 SuggestionSchema.index({ oxyUserId: 1, scope: 1 });
 SuggestionSchema.index({ triggerWords: 1, language: 1 });
-SuggestionSchema.index({ text: 'text', title: 'text' });
+SuggestionSchema.index({ text: 'text', title: 'text' }, { language_override: 'textSearchLang' });
 
 // Pre-save: extract {variable} patterns from text
 SuggestionSchema.pre('save', function () {
