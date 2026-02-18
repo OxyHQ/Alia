@@ -126,6 +126,13 @@ export default function SkillDetailScreen() {
                     {skill.language}
                   </Text>
                 </View>
+                {!skill.isPublished && !skill.isBuiltIn && (
+                  <View className="bg-muted px-2 py-0.5 rounded">
+                    <Text className="text-[10px] font-medium text-muted-foreground">
+                      {t('skills.draft')}
+                    </Text>
+                  </View>
+                )}
               </View>
             </View>
           </View>

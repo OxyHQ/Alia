@@ -19,6 +19,7 @@ export interface Skill {
   goodAt: string[];
   notGoodAt: string[];
   isBuiltIn: boolean;
+  isPublished: boolean;
   oxyUserId?: string;
   createdAt: string;
   updatedAt: string;

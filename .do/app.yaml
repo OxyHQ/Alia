@@ -30,18 +30,14 @@ services:
     http_port: 8080
 
     envs:
-      - key: NODE_ENV
-        value: production
-      - key: PORT
-        value: "8080"
-      - key: PROVIDERS_API_URL
-        value: "${providers-api.INTERNAL_URL}"
       - key: MONGODB_URI
         value: "${db-oxy.DATABASE_URL}"
       - key: CA_CERT
         value: "${db-oxy.CA_CERT}"
       - key: SERVICE_SECRET
         type: SECRET
+      - key: PROVIDERS_API_URL
+        value: "http://providers-api:9091"
       - key: WEB_URL
         value: "https://alia.onl"
       # S3/Spaces
@@ -72,6 +68,45 @@ services:
         type: SECRET
       - key: LIVEKIT_API_SECRET
         type: SECRET
+      - key: LIVEKIT_INTERNAL_URL
+        value: "ws://10.110.0.8:7880"
+
+  - name: providers-api
+    github:
+      repo: Alia-onl/Alia
+      branch: main
+      deploy_on_push: true
+
+    build_command: npm ci --include=dev && npm run build:providers-api
+    run_command: npm run start:providers-api
+    source_dir: /
+    environment_slug: node-js
+
+    # Upgraded from apps-s-1vcpu-0.5gb (was at 35.5% memory on 512MB)
+    instance_size_slug: apps-s-1vcpu-1gb
+    instance_count: 1
+
+    health_check:
+      http_path: /health
+      initial_delay_seconds: 20
+      period_seconds: 10
+      timeout_seconds: 5
+      success_threshold: 1
+      failure_threshold: 3
+
+    http_port: 9091
+
+    envs:
+      - key: MONGODB_URI
+        value: "${db-oxy.DATABASE_URL}"
+      - key: PORT
+        value: "9091"
+      - key: SERVICE_SECRET
+        type: SECRET
+      - key: OXY_API_URL
+        value: "https://api.oxy.so"
+      - key: ADMIN_USERNAMES
+        value: "nate"
 
   - name: alia-console
     github:
@@ -173,4 +208,4 @@ domains:
 alerts:
   - rule: DEPLOYMENT_FAILED
   - rule: DOMAIN_FAILED
-  - rule: COMPONENT_RESTARTING
+  - rule: DEPLOYMENT_LIVE

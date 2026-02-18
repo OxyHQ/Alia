@@ -1,11 +1,12 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useMemo } from "react";
 import { View, Pressable } from "react-native";
 import { Text } from "@/components/ui/text";
 import {
-  getCompletions,
+  getCompletionsHybrid,
   type PromptCompletion,
 } from "@/lib/prompt-completions";
 import { usePromptInput } from "./context";
+import { useAutocompleteSuggestions, useRecordSuggestionUsage } from "@/lib/hooks/use-suggestions";
 
 export type PromptInputAutocompleteProps = {
   enabled?: boolean;
@@ -21,6 +22,11 @@ export function PromptInputAutocomplete({
   const { value, setValue } = usePromptInput();
   const [completions, setCompletions] = useState<PromptCompletion[]>([]);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const { data: cachedSuggestions } = useAutocompleteSuggestions();
+  const recordUsage = useRecordSuggestionUsage();
+
+  // Memoize the cached suggestions for stable reference
+  const suggestions = useMemo(() => cachedSuggestions || [], [cachedSuggestions]);
 
   useEffect(() => {
     if (!enabled) {
@@ -37,13 +43,13 @@ export function PromptInputAutocomplete({
     }
 
     timerRef.current = setTimeout(() => {
-      setCompletions(getCompletions(trimmed));
+      setCompletions(getCompletionsHybrid(trimmed, suggestions));
     }, 100);
 
     return () => {
       if (timerRef.current) clearTimeout(timerRef.current);
     };
-  }, [value, enabled]);
+  }, [value, enabled, suggestions]);
 
   if (completions.length === 0) return null;
 
@@ -52,8 +58,13 @@ export function PromptInputAutocomplete({
       <View className={position === "bottom" ? "pt-0.5" : "pb-0.5"}>
         {completions.map((item) => (
           <Pressable
-            key={item.text}
-            onPress={() => setValue(item.text)}
+            key={item.suggestionId || item.text}
+            onPress={() => {
+              if (item.suggestionId) {
+                recordUsage.mutate(item.suggestionId);
+              }
+              setValue(item.text);
+            }}
             className="px-3 py-1.5 rounded-lg active:bg-muted/50"
           >
             <Text className="text-sm leading-5" numberOfLines={1}>

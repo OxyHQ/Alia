@@ -1,7 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { generateText } from 'ai';
 import { Skill } from '../models/skill.js';
-import { authenticateToken } from '../middleware/auth.js';
+import { authenticateToken, optionalAuth } from '../middleware/auth.js';
 import { resolveModel, getAIModel, getDefaultAliaModel } from '../lib/chat-core.js';
 import { log } from '../lib/logger.js';
 
@@ -15,7 +15,9 @@ const router = Router();
 router.get('/', async (req: Request, res: Response) => {
   try {
     const { language, category } = req.query;
-    const filter: any = {};
+    const filter: any = {
+      $or: [{ isPublished: true }, { isBuiltIn: true }],
+    };
 
     if (language && typeof language === 'string') {
       filter.language = language;
@@ -179,14 +181,21 @@ Do not include any text outside the JSON object.`,
 /**
  * GET /skills/:skillId
  * Get a single skill by ID (excludes system prompt)
+ * Unpublished non-built-in skills are only visible to their owner
  */
-router.get('/:skillId', async (req: Request, res: Response) => {
+router.get('/:skillId', optionalAuth, async (req: Request, res: Response) => {
   try {
     const skill = await Skill.findOne({ skillId: req.params.skillId })
       .select('-systemPrompt')
       .lean();
     if (!skill) {
       return res.status(404).json({ error: 'Skill not found' });
+    }
+    // Unpublished user-created skills are only visible to their owner
+    if (!skill.isPublished && !skill.isBuiltIn) {
+      if (!req.user?.id || String(skill.oxyUserId) !== req.user.id) {
+        return res.status(404).json({ error: 'Skill not found' });
+      }
     }
     res.json({ skill });
   } catch (error: any) {
@@ -265,6 +274,7 @@ router.post('/', authenticateToken, async (req: Request, res: Response) => {
       goodAt: goodAt || [],
       notGoodAt: notGoodAt || [],
       isBuiltIn: false,
+      isPublished: false,
       oxyUserId: req.user.id,
     });
 
@@ -301,7 +311,7 @@ router.patch('/:skillId', authenticateToken, async (req: Request, res: Response)
     const allowedFields = [
       'title', 'tagline', 'description', 'systemPrompt',
       'icon', 'color', 'category', 'language',
-      'triggers', 'includes', 'useCase', 'goodAt', 'notGoodAt',
+      'triggers', 'includes', 'useCase', 'goodAt', 'notGoodAt', 'isPublished',
     ];
 
     for (const field of allowedFields) {

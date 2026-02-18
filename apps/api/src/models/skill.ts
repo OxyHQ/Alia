@@ -17,6 +17,7 @@ export interface ISkill extends Document {
   goodAt: string[];
   notGoodAt: string[];
   isBuiltIn: boolean;
+  isPublished: boolean;
   oxyUserId?: mongoose.Types.ObjectId;
   createdAt: Date;
   updatedAt: Date;
@@ -39,6 +40,7 @@ const SkillSchema = new Schema<ISkill>({
   goodAt: [{ type: String }],
   notGoodAt: [{ type: String }],
   isBuiltIn: { type: Boolean, default: true },
+  isPublished: { type: Boolean, default: false, index: true },
   oxyUserId: { type: Schema.Types.ObjectId, ref: 'User', index: true },
 }, { timestamps: true });
 

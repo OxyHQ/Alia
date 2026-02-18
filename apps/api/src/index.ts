@@ -38,6 +38,7 @@ import agentsAvatarRouter from './routes/agents-avatar.js';
 import agentTeamsRouter from './routes/agent-teams.js';
 import containersRouter from './routes/containers.js';
 import libraryRouter from './routes/library.js';
+import suggestionsRouter from './routes/suggestions.js';
 
 // Register hooks (side-effect import)
 import './lib/hooks/index.js';
@@ -45,6 +46,7 @@ import { oxyClient } from './middleware/auth.js';
 import { resolveWorkspace } from './middleware/workspace.js';
 import { syncZeroEval } from './scripts/sync-zeroeval.js';
 import { seedSkills } from './lib/seed-skills.js';
+import { seedSuggestions } from './lib/seed-suggestions.js';
 import { startScheduler } from './lib/automation-scheduler.js';
 import { warmupProviders } from './lib/provider-warmup.js';
 import { warmupProvidersClient } from './lib/providers-client.js';
@@ -207,6 +209,7 @@ app.use('/agents/teams', agentTeamsRouter);
 app.use('/agents', agentsRouter);
 app.use('/containers', containersRouter);
 app.use('/library', libraryRouter);
+app.use('/suggestions', suggestionsRouter);
 app.use('/internal', internalRouter);
 
 // Root route
@@ -238,6 +241,7 @@ app.get('/', (_req, res) => {
       '/webhooks',
       '/agents',
       '/containers',
+      '/suggestions',
       '/v1/voice/token',
       '/v1/voice/transcribe',
       '/internal/trigger'
@@ -288,8 +292,9 @@ connectDB()
       console.log(`🚀 API Server running on http://0.0.0.0:${PORT}`);
       // Warm up providers client cache (non-blocking)
       warmupProvidersClient().catch((err) => console.error('[Providers] Client warmup error:', err));
-      // Seed built-in skills (non-blocking)
+      // Seed built-in skills and suggestions (non-blocking)
       seedSkills().catch((err) => console.error('[Skills] Seed error:', err));
+      seedSuggestions().catch((err) => console.error('[Suggestions] Seed error:', err));
       // Sync external models in background (non-blocking)
       syncZeroEval().catch((err) => console.error('[ZeroEval] Background sync error:', err));
       // Start automation scheduler (non-blocking)

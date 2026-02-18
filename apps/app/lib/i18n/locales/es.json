@@ -394,7 +394,11 @@
     "notGoodAtPlaceholder": "ej. Escribir código desde cero",
     "createTitle": "Crear una nueva skill",
     "createPlaceholder": "Describe la skill que quieres crear...",
-    "generating": "Creando tu skill..."
+    "generating": "Creando tu skill...",
+    "published": "Publicado",
+    "draft": "Borrador",
+    "publish": "Publicar",
+    "unpublish": "Despublicar"
   },
   "subscribe": {
     "title": "Elige tu plan",
@@ -605,15 +609,7 @@
       "¿En qué trabajamos esta noche?"
     ],
     "defaultSubtitle": "¿Cómo puedo ayudarte hoy?",
-    "appName": "Alia",
-    "summarizeTitle": "Resumir texto",
-    "summarizeDescription": "Resume este artículo en 3 puntos clave:",
-    "draftEmailTitle": "Redactar correo",
-    "draftEmailDescription": "Escribe un correo formal solicitando una reunión para...",
-    "exploreIdeasTitle": "Explorar ideas",
-    "exploreIdeasDescription": "Dame 5 ideas creativas para una campaña de marketing sobre...",
-    "pythonCodeTitle": "Código Python",
-    "pythonCodeDescription": "Escribe un script de Python para analizar un archivo CSV."
+    "appName": "Alia"
   },
   "notifications": {
     "title": "Notificaciones",

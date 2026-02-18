@@ -2,6 +2,17 @@ export interface PromptCompletion {
   text: string;
   matchStart: number;
   matchEnd: number;
+  suggestionId?: string;
+  isTemplate?: boolean;
+  templateVariables?: string[];
+}
+
+interface CachedSuggestion {
+  suggestionId: string;
+  text: string;
+  triggerWords: string[];
+  isTemplate?: boolean;
+  templateVariables?: string[];
 }
 
 // Full prompt suggestions keyed by trigger words
@@ -166,6 +177,66 @@ export function getCompletions(
           matchEnd: idx + trimmed.length,
         });
         if (results.length >= maxResults) return results;
+      }
+    }
+  }
+
+  return results;
+}
+
+/**
+ * Hybrid search: API-cached suggestions first, then static fallback.
+ * Deduplicates by text to avoid showing the same suggestion twice.
+ */
+export function getCompletionsHybrid(
+  input: string,
+  cachedSuggestions: CachedSuggestion[],
+  maxResults = 4
+): PromptCompletion[] {
+  const trimmed = input.trim();
+  if (!trimmed || trimmed.length < 2) return [];
+
+  const lower = trimmed.toLowerCase();
+  const results: PromptCompletion[] = [];
+  const seenTexts = new Set<string>();
+
+  // 1. Search cached API suggestions (triggerWord prefix + text substring)
+  for (const suggestion of cachedSuggestions) {
+    if (results.length >= maxResults) break;
+
+    // Check triggerWord prefix match
+    const triggerMatch = suggestion.triggerWords.some(tw =>
+      tw.toLowerCase().startsWith(lower) || lower.startsWith(tw.toLowerCase())
+    );
+
+    // Check text substring match
+    const textIdx = suggestion.text.toLowerCase().indexOf(lower);
+
+    if (triggerMatch || textIdx !== -1) {
+      const matchIdx = textIdx !== -1 ? textIdx : 0;
+      const textLower = suggestion.text.toLowerCase();
+      if (!seenTexts.has(textLower)) {
+        seenTexts.add(textLower);
+        results.push({
+          text: suggestion.text,
+          matchStart: matchIdx,
+          matchEnd: matchIdx + (textIdx !== -1 ? trimmed.length : 0),
+          suggestionId: suggestion.suggestionId,
+          isTemplate: suggestion.isTemplate,
+          templateVariables: suggestion.templateVariables,
+        });
+      }
+    }
+  }
+
+  // 2. Fill remaining slots from static fallback
+  if (results.length < maxResults) {
+    const staticResults = getCompletions(input, maxResults - results.length);
+    for (const result of staticResults) {
+      if (!seenTexts.has(result.text.toLowerCase())) {
+        seenTexts.add(result.text.toLowerCase());
+        results.push(result);
+        if (results.length >= maxResults) break;
       }
     }
   }
