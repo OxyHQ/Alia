@@ -203,6 +203,14 @@ export function authenticateTokenOrApiKey(
     return;
   }
 
+  // Internal service auth (e.g., browse tool calling Alia API as LLM)
+  const serviceSecret = process.env.SERVICE_SECRET;
+  if (serviceSecret && token === serviceSecret) {
+    (req as any).user = { id: 'system' };
+    (req as any).serviceApp = { appName: 'internal' };
+    return next();
+  }
+
   // API key auth
   if (token.startsWith('alia_sk_')) {
     authenticateApiKey(req, res, next);
