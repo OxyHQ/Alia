@@ -357,7 +357,7 @@ export const ChatPageContent = ({
             <View className="p-4">
               <View className="mx-auto w-full max-w-3xl relative">
                   {messages.length > 0 && (
-                    <View style={{ position: "absolute", top: -48, right: 0, zIndex: 1 }}>
+                    <View style={{ position: "absolute", top: -48, right: 0, zIndex: -1 }}>
                       <ScrollButton
                         isAtBottom={isAtBottom}
                         onScrollToBottom={handleScrollToBottom}
