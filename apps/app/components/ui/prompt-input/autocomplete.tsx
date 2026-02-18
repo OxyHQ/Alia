@@ -25,7 +25,7 @@ export function PromptInputAutocomplete({
   const selectedIndexRef = useRef(-1);
   const completionsRef = useRef<PromptCompletion[]>([]);
   const [debouncedQuery, setDebouncedQuery] = useState('');
-  const recordUsage = useRecordSuggestionUsage();
+  const { mutate: recordUsage } = useRecordSuggestionUsage();
 
   // Debounce the search query (200ms)
   useEffect(() => {
@@ -133,7 +133,7 @@ export function PromptInputAutocomplete({
     if (key === "Enter") {
       if (selectedIndexRef.current < 0) return false;
       const item = items[selectedIndexRef.current];
-      if (item.suggestionId) recordUsage.mutate(item.suggestionId);
+      if (item.suggestionId) recordUsage(item.suggestionId);
       setValue(item.text);
       return true;
     }
@@ -156,7 +156,7 @@ export function PromptInputAutocomplete({
       setHandleCompletionKey(null);
     }
     return () => setHandleCompletionKey(null);
-  }, [completions.length > 0, handleKey, setHandleCompletionKey]);
+  }, [completions.length, handleKey, setHandleCompletionKey]);
 
   if (completions.length === 0) return null;
 
@@ -168,7 +168,7 @@ export function PromptInputAutocomplete({
             key={item.suggestionId || item.text}
             onPress={() => {
               if (item.suggestionId) {
-                recordUsage.mutate(item.suggestionId);
+                recordUsage(item.suggestionId);
               }
               setValue(item.text);
             }}
