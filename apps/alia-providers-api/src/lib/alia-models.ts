@@ -302,7 +302,6 @@ export interface AliaModelWithAvailability extends AliaModel {
  */
 export async function getAvailableModels(): Promise<AliaModelWithAvailability[]> {
   const models = getAllAliaModels();
-  const results: AliaModelWithAvailability[] = [];
 
   // Fetch legacy flags from MongoDB
   let legacyMap = new Map<string, boolean>();
@@ -315,23 +314,23 @@ export async function getAvailableModels(): Promise<AliaModelWithAvailability[]>
     log.providers.warn({ data: err }, 'Failed to fetch legacy flags');
   }
 
-  for (const model of models) {
-    const mappings = TIER_MODEL_MAPPINGS[model.tier] || [];
-    // A model is available if at least ONE provider in its tier is healthy
-    let isAvailable = false;
-    for (const mapping of mappings) {
-      const available = await isProviderAvailable(mapping.provider, mapping.modelId);
-      if (available) {
-        isAvailable = true;
-        break; // No need to check more - at least one is available
+  const results = await Promise.all(
+    models.map(async (model) => {
+      const mappings = TIER_MODEL_MAPPINGS[model.tier] || [];
+      let isAvailable = false;
+      for (const mapping of mappings) {
+        if (await isProviderAvailable(mapping.provider, mapping.modelId)) {
+          isAvailable = true;
+          break;
+        }
       }
-    }
-    results.push({
-      ...model,
-      isAvailable,
-      isLegacy: legacyMap.get(model.id) ?? false,
-    });
-  }
+      return {
+        ...model,
+        isAvailable,
+        isLegacy: legacyMap.get(model.id) ?? false,
+      };
+    })
+  );
 
   return results;
 }
