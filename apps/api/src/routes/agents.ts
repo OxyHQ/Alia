@@ -106,7 +106,7 @@ Return ONLY valid JSON with these fields:
 - "systemPrompt": Detailed instructions for the agent including its role, goals, behavior guidelines, and how it should interact with users. This should be comprehensive and specific.
 - "category": Exactly one of: "Assistant", "Creative", "Developer", "Research", "Business", "Education"
 - "tags": An array of 3-5 relevant lowercase tags
-- "capabilities": An array of tool IDs this agent should have enabled. Choose from: "web-browsing", "code-execution", "google-search", "web-scraping", "file-management", "image-generation", "memory", "agent-delegation". Pick only the ones relevant to the agent's purpose.
+- "capabilities": An array of tool IDs this agent should have enabled. Choose from: "web-browsing", "code-execution", "web-search", "web-scraping", "file-management", "image-generation", "memory", "agent-delegation". Pick only the ones relevant to the agent's purpose.
 
 Do not include any text outside the JSON object.`,
             },

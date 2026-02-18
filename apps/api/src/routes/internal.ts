@@ -13,7 +13,8 @@ import { generateText, stepCountIs, type ToolSet } from 'ai';
 import { resolveModel, getAIModel, getDefaultAliaModel, reportModelUsage } from '../lib/chat-core.js';
 import {
   getCurrentDateTool,
-  createGoogleSearchTool,
+  webSearchTool,
+  browseTool,
   saveUserMemoryTool,
   updateUserPreferencesTool,
   updateUserContextTool,
@@ -171,13 +172,12 @@ router.post('/trigger', oxyServiceAuth, async (req, res) => {
     }
 
     const model = getAIModel(resolved.keyConfig);
-    const googleApiKey = resolved.keyConfig.provider === 'google' ? resolved.keyConfig.key : null;
-
     // Build tools — authenticated user tools + general tools
     const tools: ToolSet = {
       getCurrentDate: getCurrentDateTool,
       webScraper: webScraperTool,
-      ...(googleApiKey ? { googleSearch: createGoogleSearchTool(googleApiKey) } : {}),
+      webSearch: webSearchTool,
+      browse: browseTool,
       saveUserMemory: saveUserMemoryTool(userId),
       updateUserPreferences: updateUserPreferencesTool(userId),
       updateUserContext: updateUserContextTool(userId),

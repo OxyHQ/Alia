@@ -8,7 +8,8 @@
 import { tool } from 'ai';
 import { z } from 'zod';
 import { getCurrentDateTool } from './tools/date.js';
-import { createGoogleSearchTool } from './tools/google-search.js';
+import { webSearchTool } from './tools/web-search.js';
+import { browseTool } from './tools/browse.js';
 import { webScraperTool } from './tools/web-scraper.js';
 import { saveUserMemoryTool } from './tools/user-memory.js';
 import { createSendTelegramTool } from './tools/telegram.js';
@@ -18,8 +19,6 @@ import { Container } from '../models/container.js';
 import { ContainerTemplate } from '../models/container-template.js';
 import type { IAgent } from '../models/agent.js';
 import type { IAgentSession } from '../models/agent-session.js';
-
-const GOOGLE_API_KEY = process.env.GOOGLE_AI_API_KEY || '';
 
 interface BuildToolsContext {
   agent: IAgent;
@@ -37,11 +36,8 @@ export function buildAgentTools(ctx: BuildToolsContext) {
   // ── Built-in tools ──
 
   tools.getCurrentDate = getCurrentDateTool;
-
-  if (GOOGLE_API_KEY) {
-    tools.googleSearch = createGoogleSearchTool(GOOGLE_API_KEY);
-  }
-
+  tools.webSearch = webSearchTool;
+  tools.browse = browseTool;
   tools.webScraper = webScraperTool;
   tools.saveMemory = saveUserMemoryTool(userId);
   tools.sendTelegram = createSendTelegramTool(userId);
