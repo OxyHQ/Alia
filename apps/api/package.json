@@ -23,7 +23,7 @@
     "@livekit/agents": "^1.0.43",
     "@livekit/rtc-node": "^0.13.24",
     "@mozilla/readability": "^0.6.0",
-    "@oxyhq/core": "^1.6.1",
+    "@oxyhq/core": "^1.6.6",
     "ai": "^6.0.33",
     "cors": "^2.8.5",
     "dotenv": "^16.4.7",
