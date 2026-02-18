@@ -33,7 +33,7 @@ function getDeviceLocale(): string {
   }
 
   // Fallback to language code (e.g., "en")
-  return locales[0]?.languageCode ?? 'en';
+  return locales[0]?.languageCode ?? 'en-US';
 }
 
 // Set the locale from device settings

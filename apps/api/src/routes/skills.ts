@@ -1,7 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { generateText } from 'ai';
 import { Skill } from '../models/skill.js';
-import { authenticateToken, optionalAuth } from '../middleware/auth.js';
+import { authenticateToken, optionalAuth, oxyClient } from '../middleware/auth.js';
 import { resolveModel, getAIModel, getDefaultAliaModel } from '../lib/chat-core.js';
 import { log } from '../lib/logger.js';
 
@@ -67,7 +67,7 @@ router.post('/generate', authenticateToken, async (req: Request, res: Response) 
       return res.status(401).json({ error: 'Unauthorized' });
     }
 
-    const { prompt, language = 'en' } = req.body;
+    const { prompt, language = 'en-US' } = req.body;
     if (!prompt || typeof prompt !== 'string' || prompt.trim().length < 10) {
       return res.status(400).json({ error: 'A prompt of at least 10 characters is required' });
     }
@@ -245,6 +245,17 @@ router.post('/', authenticateToken, async (req: Request, res: Response) => {
       });
     }
 
+    // Resolve author name
+    let authorName = author || req.user.username;
+    if (!authorName) {
+      try {
+        const oxyUser = await oxyClient.getUserById(req.user.id) as any;
+        authorName = oxyUser?.username || oxyUser?.name?.first || 'Unknown';
+      } catch {
+        authorName = 'Unknown';
+      }
+    }
+
     // Generate skillId from title (kebab-case, unique)
     let skillId = title
       .toLowerCase()
@@ -263,11 +274,11 @@ router.post('/', authenticateToken, async (req: Request, res: Response) => {
       tagline,
       description,
       systemPrompt,
-      author: author || req.user.username || 'Unknown',
+      author: authorName,
       icon,
       color,
       category,
-      language: language || 'en',
+      language: language || 'en-US',
       triggers: triggers || [],
       includes: includes || [],
       useCase: useCase || '',

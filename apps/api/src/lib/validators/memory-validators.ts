@@ -23,7 +23,7 @@ export const MemoryItemSchema = z.object({
 
 // Schema for preferences
 export const PreferencesSchema = z.object({
-  language: z.string().max(50).optional(),
+  language: z.string().regex(/^[a-z]{2}-[A-Z]{2}$/, 'Must be a BCP 47 locale code (e.g., en-US, es-ES)').optional(),
   tone: z.string().max(50).optional(),
   responseLength: z.enum(['short', 'medium', 'long']).optional(),
   interests: z.array(z.string().max(100)).max(50, 'Maximum 50 interests allowed').optional(),

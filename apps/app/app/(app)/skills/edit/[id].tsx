@@ -38,7 +38,7 @@ export default function EditSkillScreen() {
   const [icon, setIcon] = useState('');
   const [color, setColor] = useState(SKILL_COLORS[0]);
   const [category, setCategory] = useState<'featured' | 'community' | 'recent'>('community');
-  const [language, setLanguage] = useState('en');
+  const [language, setLanguage] = useState('en-US');
   const [useCase, setUseCase] = useState('');
   const [triggers, setTriggers] = useState<string[]>([]);
   const [triggerInput, setTriggerInput] = useState('');

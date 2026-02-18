@@ -7,7 +7,7 @@ import i18n from '@/lib/i18n';
 function getDeviceLocale(): string {
   const locales = getLocales();
   if (!locales || locales.length === 0) return 'en-US';
-  return locales[0]?.languageTag || locales[0]?.languageCode || 'en';
+  return locales[0]?.languageTag || locales[0]?.languageCode || 'en-US';
 }
 
 interface I18nState {
