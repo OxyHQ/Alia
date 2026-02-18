@@ -57,33 +57,32 @@ export const WelcomeMessage = ({ onSuggestionPress }: WelcomeMessageProps) => {
 
         {/* Suggestion Grid - fade in when loaded from backend */}
         {suggestions.length > 0 && (
-          <Animated.View
-            entering={FadeIn.duration(400)}
-            className="flex-row flex-wrap gap-2"
-          >
-            {suggestions.map((item) => (
-              <Pressable
-                key={item.suggestionId}
-                className="flex-1 min-w-[35%] flex-col items-start rounded-3xl border border-border overflow-hidden active:bg-muted/50"
-                onPress={() => {
-                  recordUsage.mutate(item.suggestionId);
-                  onSuggestionPress?.(item.description);
-                }}
-              >
-                <BlurView intensity={60} tint="default" experimentalBlurMethod="dimezisBlurView" style={StyleSheet.absoluteFill} />
-                <View className="p-4 w-full">
-                  <Text className="text-sm font-medium text-surface-foreground mb-1" numberOfLines={1}>
-                    {item.title}
-                  </Text>
-                  <Text
-                    className="text-xs text-muted-foreground line-clamp-1"
-                    numberOfLines={1}
-                  >
-                    {item.description}
-                  </Text>
-                </View>
-              </Pressable>
-            ))}
+          <Animated.View entering={FadeIn.duration(400)}>
+            <View className="flex-row flex-wrap gap-2">
+              {suggestions.map((item) => (
+                <Pressable
+                  key={item.suggestionId}
+                  className="flex-1 min-w-[35%] flex-col items-start rounded-3xl border border-border overflow-hidden active:bg-muted/50"
+                  onPress={() => {
+                    recordUsage.mutate(item.suggestionId);
+                    onSuggestionPress?.(item.description);
+                  }}
+                >
+                  <BlurView intensity={60} tint="default" experimentalBlurMethod="dimezisBlurView" style={StyleSheet.absoluteFill} />
+                  <View className="p-4 w-full">
+                    <Text className="text-sm font-medium text-surface-foreground mb-1" numberOfLines={1}>
+                      {item.title}
+                    </Text>
+                    <Text
+                      className="text-xs text-muted-foreground line-clamp-1"
+                      numberOfLines={1}
+                    >
+                      {item.description}
+                    </Text>
+                  </View>
+                </Pressable>
+              ))}
+            </View>
           </Animated.View>
         )}
       </View>
