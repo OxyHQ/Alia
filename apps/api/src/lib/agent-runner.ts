@@ -20,7 +20,7 @@ import { buildAgentTools, cleanupSessionResources } from './agent-tools.js';
 import { emitAgentActivity, type AgentActivityEvent } from '../socket.js';
 import { log } from './logger.js';
 
-const BILLING_RE = /insufficient balance|payment required|insufficient credits|credit balance|billing.?hard.?limit/i;
+const BILLING_RE = /insufficient balance|payment required|insufficient credits|credit balance|billing.?hard.?limit|exceeded.*quota|quota.*exceeded/i;
 
 const MAX_DELEGATION_DEPTH = 3;
 const MAX_GENERATE_STEPS = 10;
@@ -275,6 +275,7 @@ export async function runAgentSession(sessionId: string): Promise<void> {
 
   let totalSteps = 0;
   let totalTokens = 0;
+  const failedProviders = new Set<string>(); // Track providers that returned billing/auth errors
   let lastStepHadToolCalls = false;
 
   try {
@@ -302,7 +303,7 @@ export async function runAgentSession(sessionId: string): Promise<void> {
         sessionId,
       });
 
-      const resolved = await resolveModel(modelId);
+      const resolved = await resolveModel(modelId, failedProviders.size > 0 ? failedProviders : undefined);
       if (!resolved) {
         pushActivity(agentId, {
           type: 'error',
@@ -311,7 +312,7 @@ export async function runAgentSession(sessionId: string): Promise<void> {
           sessionId,
         });
         // Try alia-lite as final fallback (avoids retrying the same broken model)
-        const fallback = modelId !== 'alia-lite' ? await resolveModel('alia-lite') : null;
+        const fallback = modelId !== 'alia-lite' ? await resolveModel('alia-lite', failedProviders.size > 0 ? failedProviders : undefined) : null;
         if (!fallback) {
           session.status = 'failed';
           session.result = 'No AI models available';
@@ -320,7 +321,7 @@ export async function runAgentSession(sessionId: string): Promise<void> {
         }
       }
 
-      const activeResolved = resolved || await resolveModel('alia-lite');
+      const activeResolved = resolved || await resolveModel('alia-lite', failedProviders.size > 0 ? failedProviders : undefined);
       if (!activeResolved) break;
 
       const model = getAIModel(activeResolved.keyConfig);
@@ -430,6 +431,7 @@ export async function runAgentSession(sessionId: string): Promise<void> {
         // won't be selected again on the next iteration.
         if (BILLING_RE.test(errMsg) && activeResolved.keyConfig?.keyId) {
           markKeyCreditExhausted(activeResolved.keyConfig.keyId).catch(() => {});
+          failedProviders.add(activeResolved.provider);
         }
 
         await reportModelUsage(
