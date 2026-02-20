@@ -66,6 +66,11 @@ const PROVIDERS = [
   'cohere',
   'perplexity',
   'xai',
+  'sambanova',
+  'hyperbolic',
+  'novita',
+  'digitalocean',
+  'replicate',
 ];
 
 type KeyFormData = {
