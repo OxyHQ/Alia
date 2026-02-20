@@ -91,6 +91,7 @@ export const API_ROUTES = {
     delete: (id: string) => `/agents/${id}`,
     hire: (id: string) => `/agents/${id}/hire`,
     activity: (id: string) => `/agents/${id}/activity`,
+    activityGrid: (id: string) => `/agents/${id}/activity-grid`,
     sessions: (id: string) => `/agents/${id}/sessions`,
     status: (id: string) => `/agents/${id}/status`,
     cancelSession: (id: string, sid: string) => `/agents/${id}/sessions/${sid}/cancel`,

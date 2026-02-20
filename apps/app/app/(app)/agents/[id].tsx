@@ -20,7 +20,7 @@ import { useRouter, useLocalSearchParams } from "expo-router";
 import { useTranslation } from "@/hooks/useTranslation";
 import { useOxy } from "@oxyhq/services";
 import { toast } from "@/components/sonner";
-import { SectionLabel, PillList } from "@/components/detail";
+import { SectionLabel, PillList, ActivityGrid } from "@/components/detail";
 import { AgentTerminal } from "@/components/agent-terminal";
 import apiClient from "@/lib/api/client";
 import { cn } from "@/lib/utils";
@@ -538,6 +538,14 @@ export default function AgentDetailScreen() {
                 </View>
               </View>
             )}
+
+            {/* Activity Grid */}
+            <View className="mb-5">
+              <SectionLabel>{t("agents.contributions")}</SectionLabel>
+              <View className="mt-2">
+                <ActivityGrid agentId={agent._id} />
+              </View>
+            </View>
 
             {/* Divider */}
             <View className="h-px bg-border mx-0 mb-5" />

@@ -9,6 +9,7 @@ import { collectDeviceInfo } from '@/lib/device-info';
 import { UsageLimitError } from '@/lib/errors/usage-limit-error';
 import { queryKeys } from '@/lib/hooks/query-keys';
 import { useStore } from '@/lib/globalStore';
+import { toast } from '@/components/sonner';
 
 import type { ToolInvocation } from '@/lib/types/messages';
 export type { ToolInvocation };
@@ -260,6 +261,21 @@ Use this role to guide your responses, maintaining the specified tone, style, an
                     suggestedAction: err.suggestedAction || 'upgrade',
                   });
                 }
+              }
+
+              // Generic SSE error (503 NO_MODELS, 500, etc.) — show toast and stop
+              if (parsed.error) {
+                const msg = parsed.error.message || 'Something went wrong. Please try again.';
+                toast.error(msg);
+                setError(new Error(msg));
+                setIsLoading(false);
+                setMessages((prev) => prev.filter((m) => m.id !== assistantMessageId));
+                if (abortControllerRef.current) {
+                  abortControllerRef.current.abort();
+                  abortControllerRef.current = null;
+                }
+                reader.cancel();
+                return;
               }
 
               // Handle OpenAI-compatible format
