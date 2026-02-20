@@ -26,6 +26,7 @@ const CONTENT_FILTER_RE = /content.?filter|safety|moderation|harmful/i;
 const BILLING_RE = /payment required|insufficient credits|credit balance|insufficient balance|plans & billing|billing.?hard.?limit/i;
 const AUTH_RE = /invalid.?api.?key|incorrect api key|invalid token|authentication|unauthorized|forbidden|access denied|expired|token has expired/i;
 const OVERLOADED_RE = /overloaded|resource.?exhausted|quota exceeded/i;
+const TOOL_CAPABILITY_RE = /tool.?use.?failed|failed to call a function|does not support tools|tool.?call.*not supported/i;
 
 /** Error codes that indicate a network-level timeout */
 const TIMEOUT_ERROR_CODES = new Set([
@@ -191,6 +192,9 @@ export function classifyError(err: unknown): FailoverReason {
   if (TIMEOUT_ERROR_CODES.has(code)) {
     return 'timeout';
   }
+  if (code === 'TOOL_USE_FAILED') {
+    return 'format';
+  }
 
   // --- 3. Timeout detection (names + message patterns) ---
   if (isTimeoutError(err)) {
@@ -204,6 +208,7 @@ export function classifyError(err: unknown): FailoverReason {
     if (OVERLOADED_RE.test(message)) return 'rate_limit';
     if (BILLING_RE.test(message)) return 'billing';
     if (AUTH_RE.test(message)) return 'auth';
+    if (TOOL_CAPABILITY_RE.test(message)) return 'format';
     if (CONTENT_FILTER_RE.test(message)) return 'content_filter';
   }
 
