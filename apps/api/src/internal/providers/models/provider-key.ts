@@ -111,6 +111,7 @@ const ProviderKeySchema = new Schema<IProviderKey>(
         'sambanova',
         'hyperbolic',
         'novita',
+        'digitalocean',
       ],
       index: true,
     },
