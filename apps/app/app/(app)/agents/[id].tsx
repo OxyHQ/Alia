@@ -541,7 +541,7 @@ export default function AgentDetailScreen() {
 
             {/* Activity Grid */}
             <View className="mb-5">
-              <SectionLabel>{t("agents.contributions")}</SectionLabel>
+              <SectionLabel>{t("agents.activity")}</SectionLabel>
               <View className="mt-2">
                 <ActivityGrid agentId={agent._id} />
               </View>
