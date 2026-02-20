@@ -21,35 +21,13 @@ import { buildSystemPrompt } from '../../lib/prompt-loader.js';
 import { wrapToolsWithTruncation, getToolResultBudget } from '../../lib/tools/result-truncation.js';
 import { log } from '../../lib/logger.js';
 import { recordEvent } from '../../lib/observability/index.js';
-// recordFailure is now handled via reportModelUsage from chat-core
+import { classifyError } from '../../lib/errors/index.js';
+import type { FailoverReason } from '../../lib/errors/error-codes.js';
 
 const router = Router();
 
-/**
- * Classify a provider error into a clean reason string for cooldown/circuit breaker logic.
- * The AI SDK wraps errors inconsistently — .code might be missing or generic.
- */
-function classifyProviderError(error: unknown): string {
-  const status = (error as any)?.status || (error as any)?.statusCode;
-  const code = String((error as any)?.code || '');
-  const msg = String((error as any)?.message || '').toLowerCase();
-  const combined = `${code} ${msg}`;
-
-  if (status === 429 || /rate.?limit|quota|RESOURCE_EXHAUSTED/i.test(combined)) return 'rate_limit';
-  if (status === 401 || status === 403 || /unauthorized|invalid.*key/i.test(msg)) return 'auth';
-  if (/timeout|ETIMEDOUT|abort/i.test(combined)) return 'timeout';
-  if (status === 503 || status === 529 || /overload|capacity/i.test(msg)) return 'overloaded';
-  return 'unknown';
-}
-
-/**
- * Check if an error is retryable (rate limit, overloaded, etc.)
- * Used to decide whether to try the next provider in the tier.
- */
-function isRetryableError(error: unknown): boolean {
-  const reason = classifyProviderError(error);
-  return reason === 'rate_limit' || reason === 'overloaded' || reason === 'timeout';
-}
+/** Errors that should NOT be retried on a different provider (model-level issues, not provider-level) */
+const NON_RETRYABLE_STREAM: Set<FailoverReason> = new Set(['format', 'content_filter']);
 
 /**
  * Convert OpenAI-format messages to AI SDK ModelMessage format.
@@ -1077,8 +1055,9 @@ router.post('/', async (req: Request, res: Response) => {
       } else if (chunk.type === 'error') {
         log.v1.error({ err: (chunk as any).error }, 'Error chunk received');
 
-        // Record failure for circuit breaker - next request will use different provider
-        await reportModelUsage(resolved!.keyConfig?.keyId, resolved!.provider, resolved!.modelId, false, 0, (chunk as any).error?.code || 'STREAM_ERROR');
+        // Record failure for circuit breaker - classify error for accurate reporting
+        const streamErrorReason = classifyError((chunk as any).error);
+        await reportModelUsage(resolved!.keyConfig?.keyId, resolved!.provider, resolved!.modelId, false, 0, streamErrorReason);
 
         const rawError = (chunk as any).error;
 
@@ -1328,14 +1307,15 @@ router.post('/', async (req: Request, res: Response) => {
       // Clean up timers on provider failure
       if (keepAliveTimer) clearInterval(keepAliveTimer);
       if (firstByteTimer) { clearTimeout(firstByteTimer); firstByteTimer = null; }
-      // Provider attempt failed
+      // Provider attempt failed — classify with shared error classifier
       log.v1.error({ err: providerError, provider: resolved!.provider, modelId: resolved!.modelId }, 'Provider failed');
-      const errorReason = classifyProviderError(providerError);
+      const errorReason = classifyError(providerError);
       await reportModelUsage(resolved!.keyConfig?.keyId, resolved!.provider, resolved!.modelId, false, 0, errorReason);
 
-      // If we haven't streamed content yet, try next provider (any error is retryable pre-content)
-      if (!hasStreamedContent && providerAttempt < MAX_PROVIDER_RETRIES - 1) {
-        log.v1.info({ provider: resolved!.provider }, 'Provider failed, trying next provider');
+      // If no content streamed yet, try next provider — unless the error is non-retryable
+      // (format/content_filter errors will fail identically on any provider)
+      if (!hasStreamedContent && providerAttempt < MAX_PROVIDER_RETRIES - 1 && !NON_RETRYABLE_STREAM.has(errorReason)) {
+        log.v1.info({ provider: resolved!.provider, reason: errorReason }, 'Provider failed, trying next provider');
         skipProviders.add(resolved!.provider);
         continue; // Try next provider
       }

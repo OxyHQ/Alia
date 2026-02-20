@@ -108,6 +108,9 @@ const PROVIDER_ERROR_PATTERNS: ProviderErrorPattern[] = [
   { pattern: /timed.?out/i, code: AliaErrorCode.TIMEOUT, retryable: true, retryAfterSeconds: 5 },
   { pattern: /ETIMEDOUT/i, code: AliaErrorCode.TIMEOUT, retryable: true, retryAfterSeconds: 5 },
 
+  // Tool capability errors
+  { pattern: /tool.?use.?failed|failed to call a function/i, code: AliaErrorCode.INVALID_REQUEST, retryable: false },
+
   // Invalid request
   { pattern: /400/i, code: AliaErrorCode.INVALID_REQUEST, retryable: false },
   { pattern: /bad.?request/i, code: AliaErrorCode.INVALID_REQUEST, retryable: false },
