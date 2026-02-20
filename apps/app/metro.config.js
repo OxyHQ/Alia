@@ -14,7 +14,14 @@ module.exports = (() => {
   const { transformer, resolver } = config;
   config.transformer = {
     ...transformer,
-    babelTransformerPath: require.resolve("react-native-svg-transformer/expo")
+    babelTransformerPath: require.resolve("react-native-svg-transformer/expo"),
+    // Disable experimentalImportSupport to fix Skia import ordering (expo/expo#39277)
+    getTransformOptions: async () => ({
+      transform: {
+        experimentalImportSupport: false,
+        inlineRequires: true,
+      },
+    }),
   };
   config.resolver = {
     ...resolver,
