@@ -10,8 +10,8 @@
     "web": "expo start --web",
     "generate-sitemap": "tsx scripts/generate-sitemap.ts",
     "prebuild": "npm run generate-sitemap",
-    "build": "EXPO_UNSTABLE_TREE_SHAKING=1 EXPO_UNSTABLE_METRO_OPTIMIZE_GRAPH=1 npx expo export --platform web",
-    "build:production": "NODE_ENV=production EXPO_UNSTABLE_TREE_SHAKING=1 EXPO_UNSTABLE_METRO_OPTIMIZE_GRAPH=1 npx expo export --platform web --clear",
+    "build": "npx expo export --platform web",
+    "build:production": "NODE_ENV=production npx expo export --platform web --clear",
     "build:android": "eas build --platform android",
     "build:ios": "eas build --platform ios"
   },
