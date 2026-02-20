@@ -714,7 +714,8 @@
     "createTeamSubtitle": "Describe the purpose of your team",
     "createTeamPlaceholder": "Describe your team...",
     "agents": "Agents",
-    "addAgentToTeam": "Add agent"
+    "addAgentToTeam": "Add agent",
+    "contributions": "Contributions"
   },
   "authorize": {
     "sendMessages": "Send messages to AI models",

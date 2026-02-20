@@ -397,6 +397,45 @@ router.get('/:id/activity', optionalAuth, async (req: Request, res: Response) =>
   }
 });
 
+// GET /agents/:id/activity-grid - aggregated session counts by day for heatmap
+router.get('/:id/activity-grid', optionalAuth, async (req: Request, res: Response) => {
+  try {
+    const agent = await Agent.findById(req.params.id);
+    if (!agent || !agent.isPublished) {
+      return res.status(404).json({ error: 'Agent not found' });
+    }
+
+    const weeks = Math.min(52, Math.max(1, parseInt(req.query.weeks as string, 10) || 52));
+    const startDate = new Date();
+    startDate.setDate(startDate.getDate() - weeks * 7);
+
+    const result = await AgentSession.aggregate([
+      {
+        $match: {
+          agentId: agent._id,
+          createdAt: { $gte: startDate },
+        },
+      },
+      {
+        $group: {
+          _id: { $dateToString: { format: '%Y-%m-%d', date: '$createdAt' } },
+          count: { $sum: 1 },
+        },
+      },
+      { $sort: { _id: 1 } },
+    ]);
+
+    const grid = result.map((r: any) => ({ date: r._id, count: r.count }));
+    const totalSessions = grid.reduce((s: number, d: any) => s + d.count, 0);
+    const maxCount = grid.reduce((m: number, d: any) => Math.max(m, d.count), 0);
+
+    res.json({ grid, totalSessions, maxCount });
+  } catch (error) {
+    log.agents.error({ err: error }, 'Error getting activity grid');
+    res.status(500).json({ error: 'Failed to get activity grid' });
+  }
+});
+
 // GET /agents/:id/sessions - list sessions for an agent
 router.get('/:id/sessions', authenticateToken, async (req: Request, res: Response) => {
   try {
