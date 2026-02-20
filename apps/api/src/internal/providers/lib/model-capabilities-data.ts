@@ -293,6 +293,38 @@ export const MODEL_CAPABILITIES: Record<string, ModelCapabilities> = {
   'deepseek/deepseek-r1': createCapabilities({ maxContextTokens: 64000, maxOutputTokens: 8192 }),
   'Qwen/Qwen3-235B-A22B': createCapabilities({ maxContextTokens: 128000, maxOutputTokens: 8192 }),
   'meta-llama/llama-3.3-70b-instruct': createCapabilities({ maxContextTokens: 128000, maxOutputTokens: 8192 }),
+
+  // ============== DIGITALOCEAN GRADIENT ==============
+  // OpenAI models via DO
+  'openai-gpt-5-nano': createCapabilities({ vision: true, maxContextTokens: 256000, maxOutputTokens: 32768 }),
+  'openai-gpt-5-mini': createCapabilities({ vision: true, maxContextTokens: 256000, maxOutputTokens: 32768 }),
+  'openai-gpt-5': createCapabilities({ vision: true, maxContextTokens: 256000, maxOutputTokens: 32768 }),
+  'openai-gpt-5.1-codex-max': createCapabilities({ vision: true, maxContextTokens: 256000, maxOutputTokens: 32768 }),
+  'openai-gpt-5.2': createCapabilities({ vision: true, maxContextTokens: 256000, maxOutputTokens: 32768 }),
+  'openai-gpt-5.2-pro': createCapabilities({ vision: true, maxContextTokens: 256000, maxOutputTokens: 32768 }),
+  'openai-gpt-4.1': createCapabilities({ vision: true, maxContextTokens: 128000, maxOutputTokens: 16384 }),
+  'openai-gpt-4o': createCapabilities({ vision: true, maxContextTokens: 128000, maxOutputTokens: 16384 }),
+  'openai-gpt-4o-mini': createCapabilities({ vision: true, maxContextTokens: 128000, maxOutputTokens: 16384 }),
+  'openai-gpt-oss-20b': createCapabilities({ maxContextTokens: 128000, maxOutputTokens: 4096 }),
+  'openai-gpt-oss-120b': createCapabilities({ maxContextTokens: 128000, maxOutputTokens: 8192 }),
+  'openai-o1': createCapabilities({ vision: true, maxContextTokens: 200000, maxOutputTokens: 100000 }),
+  'openai-o3': createCapabilities({ maxContextTokens: 200000, maxOutputTokens: 100000 }),
+  'openai-o3-mini': createCapabilities({ maxContextTokens: 128000, maxOutputTokens: 65536 }),
+  // Anthropic models via DO
+  'anthropic-claude-sonnet-4': createCapabilities({ vision: true, computerUse: true, maxContextTokens: 200000, maxOutputTokens: 8192 }),
+  'anthropic-claude-4.5-sonnet': createCapabilities({ vision: true, computerUse: true, maxContextTokens: 200000, maxOutputTokens: 8192 }),
+  'anthropic-claude-4.6-sonnet': createCapabilities({ vision: true, computerUse: true, maxContextTokens: 200000, maxOutputTokens: 8192 }),
+  'anthropic-claude-opus-4': createCapabilities({ vision: true, computerUse: true, maxContextTokens: 200000, maxOutputTokens: 8192 }),
+  'anthropic-claude-4.1-opus': createCapabilities({ vision: true, computerUse: true, maxContextTokens: 200000, maxOutputTokens: 8192 }),
+  'anthropic-claude-opus-4.5': createCapabilities({ vision: true, computerUse: true, maxContextTokens: 200000, maxOutputTokens: 8192 }),
+  'anthropic-claude-opus-4.6': createCapabilities({ vision: true, computerUse: true, maxContextTokens: 200000, maxOutputTokens: 8192 }),
+  'anthropic-claude-haiku-4.5': createCapabilities({ vision: true, maxContextTokens: 200000, maxOutputTokens: 8192 }),
+  // Open-source models via DO
+  'llama3.3-70b-instruct': createCapabilities({ maxContextTokens: 128000, maxOutputTokens: 8192 }),
+  'llama3-8b-instruct': createCapabilities({ maxContextTokens: 128000, maxOutputTokens: 8192 }),
+  'deepseek-r1-distill-llama-70b': createCapabilities({ maxContextTokens: 64000, maxOutputTokens: 8192 }),
+  'alibaba-qwen3-32b': createCapabilities({ maxContextTokens: 128000, maxOutputTokens: 8192 }),
+  'mistral-nemo-instruct-2407': createCapabilities({ maxContextTokens: 128000, maxOutputTokens: 8192 }),
 };
 
 // ============== PRICING DATABASE ==============
@@ -564,6 +596,38 @@ export const MODEL_PRICING: Record<string, ModelPricing> = {
   'deepseek/deepseek-r1': { tier: 'paid', costPer1MInput: 0.70, costPer1MOutput: 2.50 },
   'Qwen/Qwen3-235B-A22B': { tier: 'paid', costPer1MInput: 0.09, costPer1MOutput: 0.58 },
   'meta-llama/llama-3.3-70b-instruct': { tier: 'paid', costPer1MInput: 0.135, costPer1MOutput: 0.40 },
+
+  // ============== DIGITALOCEAN GRADIENT ==============
+  // OpenAI models via DO
+  'openai-gpt-5-nano': { tier: 'paid', costPer1MInput: 0.05, costPer1MOutput: 0.40 },
+  'openai-gpt-5-mini': { tier: 'paid', costPer1MInput: 0.25, costPer1MOutput: 2.00 },
+  'openai-gpt-5': { tier: 'paid', costPer1MInput: 1.25, costPer1MOutput: 10.00 },
+  'openai-gpt-5.1-codex-max': { tier: 'paid', costPer1MInput: 1.25, costPer1MOutput: 10.00 },
+  'openai-gpt-5.2': { tier: 'paid', costPer1MInput: 1.75, costPer1MOutput: 14.00 },
+  'openai-gpt-5.2-pro': { tier: 'paid', costPer1MInput: 21.00, costPer1MOutput: 168.00 },
+  'openai-gpt-4.1': { tier: 'paid', costPer1MInput: 2.00, costPer1MOutput: 8.00 },
+  'openai-gpt-4o': { tier: 'paid', costPer1MInput: 2.50, costPer1MOutput: 10.00 },
+  'openai-gpt-4o-mini': { tier: 'paid', costPer1MInput: 0.15, costPer1MOutput: 0.60 },
+  'openai-gpt-oss-20b': { tier: 'paid', costPer1MInput: 0.05, costPer1MOutput: 0.45 },
+  'openai-gpt-oss-120b': { tier: 'paid', costPer1MInput: 0.10, costPer1MOutput: 0.70 },
+  'openai-o1': { tier: 'paid', costPer1MInput: 15.00, costPer1MOutput: 60.00 },
+  'openai-o3': { tier: 'paid', costPer1MInput: 2.00, costPer1MOutput: 8.00 },
+  'openai-o3-mini': { tier: 'paid', costPer1MInput: 1.10, costPer1MOutput: 4.40 },
+  // Anthropic models via DO
+  'anthropic-claude-sonnet-4': { tier: 'paid', costPer1MInput: 3.00, costPer1MOutput: 15.00 },
+  'anthropic-claude-4.5-sonnet': { tier: 'paid', costPer1MInput: 3.00, costPer1MOutput: 15.00 },
+  'anthropic-claude-4.6-sonnet': { tier: 'paid', costPer1MInput: 3.00, costPer1MOutput: 15.00 },
+  'anthropic-claude-opus-4': { tier: 'paid', costPer1MInput: 15.00, costPer1MOutput: 75.00 },
+  'anthropic-claude-4.1-opus': { tier: 'paid', costPer1MInput: 15.00, costPer1MOutput: 75.00 },
+  'anthropic-claude-opus-4.5': { tier: 'paid', costPer1MInput: 5.00, costPer1MOutput: 25.00 },
+  'anthropic-claude-opus-4.6': { tier: 'paid', costPer1MInput: 5.00, costPer1MOutput: 25.00 },
+  'anthropic-claude-haiku-4.5': { tier: 'paid', costPer1MInput: 1.00, costPer1MOutput: 5.00 },
+  // Open-source models via DO
+  'llama3.3-70b-instruct': { tier: 'paid', costPer1MInput: 0.65, costPer1MOutput: 0.65 },
+  'llama3-8b-instruct': { tier: 'paid', costPer1MInput: 0.20, costPer1MOutput: 0.20 },
+  'deepseek-r1-distill-llama-70b': { tier: 'paid', costPer1MInput: 0.99, costPer1MOutput: 0.99 },
+  'alibaba-qwen3-32b': { tier: 'paid', costPer1MInput: 0.25, costPer1MOutput: 0.55 },
+  'mistral-nemo-instruct-2407': { tier: 'paid', costPer1MInput: 0.30, costPer1MOutput: 0.30 },
 
 };
 

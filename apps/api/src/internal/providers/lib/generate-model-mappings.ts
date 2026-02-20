@@ -47,6 +47,9 @@ export const GENERATED_TIER_MAPPINGS: Record<AliaTier, ModelMapping[]> = {
     createMapping('cohere', 'command-r7b-12-2024', 11, 60),
     createMapping('cerebras', 'llama-3.3-70b', 12, 62),
     createMapping('mistral', 'mistral-small-3.1-2503', 13, 58),
+    createMapping('digitalocean', 'openai-gpt-5-nano', 14, 66),
+    createMapping('digitalocean', 'llama3.3-70b-instruct', 15, 63),
+    createMapping('digitalocean', 'openai-gpt-oss-20b', 16, 55),
   ],
   'v1': [
     createMapping('google', 'gemini-2.5-flash', 1, 88),
@@ -63,6 +66,9 @@ export const GENERATED_TIER_MAPPINGS: Record<AliaTier, ModelMapping[]> = {
     createMapping('cohere', 'command-r-08-2024', 12, 75),
     createMapping('cerebras', 'llama-3.3-70b', 13, 74),
     createMapping('mistral', 'mistral-small-3.1-2503', 14, 70),
+    createMapping('digitalocean', 'openai-gpt-5-mini', 15, 80),
+    createMapping('digitalocean', 'llama3.3-70b-instruct', 16, 72),
+    createMapping('digitalocean', 'alibaba-qwen3-32b', 17, 70),
   ],
   'v1-codea': [
     createMapping('deepseek', 'deepseek-chat', 1, 94),
@@ -77,6 +83,8 @@ export const GENERATED_TIER_MAPPINGS: Record<AliaTier, ModelMapping[]> = {
     createMapping('cohere', 'command-a-03-2025', 10, 86),
     createMapping('cerebras', 'llama-3.3-70b', 11, 82),
     createMapping('mistral', 'mistral-small-3.1-2503', 12, 78),
+    createMapping('digitalocean', 'openai-gpt-5', 13, 90),
+    createMapping('digitalocean', 'openai-gpt-5.1-codex-max', 14, 89),
   ],
   'v1-cowork': [
     createMapping('deepseek', 'deepseek-chat', 1, 93),
@@ -89,6 +97,7 @@ export const GENERATED_TIER_MAPPINGS: Record<AliaTier, ModelMapping[]> = {
     createMapping('cohere', 'command-a-03-2025', 8, 83),
     createMapping('cerebras', 'llama-3.3-70b', 9, 80),
     createMapping('mistral', 'mistral-small-3.1-2503', 10, 76),
+    createMapping('digitalocean', 'openai-gpt-5', 11, 88),
   ],
   'v1-browser': [
     createMapping('google', 'gemini-3-flash-preview', 1, 97),
@@ -103,6 +112,7 @@ export const GENERATED_TIER_MAPPINGS: Record<AliaTier, ModelMapping[]> = {
     createMapping('cloudflare', '@cf/meta/llama-3.2-11b-vision-instruct', 10, 86),
     createMapping('cerebras', 'llama-3.3-70b', 11, 82),
     createMapping('mistral', 'mistral-small-3.1-2503', 12, 78),
+    createMapping('digitalocean', 'openai-gpt-5-mini', 13, 80),
   ],
   'v1-vision': [
     createMapping('google', 'gemini-3-flash-preview', 1, 97),
@@ -112,6 +122,7 @@ export const GENERATED_TIER_MAPPINGS: Record<AliaTier, ModelMapping[]> = {
     createMapping('xai', 'grok-4', 5, 90),
     createMapping('cloudflare', '@cf/meta/llama-3.2-11b-vision-instruct', 6, 88),
     createMapping('cohere', 'command-a-vision-07-2025', 7, 87),
+    createMapping('digitalocean', 'openai-gpt-4o', 8, 90),
   ],
   'v1-audio': [
     createMapping('groq', 'whisper-large-v3-turbo', 1, 95),
@@ -134,6 +145,9 @@ export const GENERATED_TIER_MAPPINGS: Record<AliaTier, ModelMapping[]> = {
     createMapping('openai', 'o1', 5, 92),
     createMapping('cohere', 'command-a-reasoning-08-2025', 6, 91),
     createMapping('perplexity', 'sonar-reasoning-pro', 7, 89),
+    createMapping('digitalocean', 'anthropic-claude-4.6-sonnet', 8, 94),
+    createMapping('digitalocean', 'openai-o3', 9, 92),
+    createMapping('digitalocean', 'openai-gpt-5.2', 10, 90),
   ],
   'v1-pro-max': [
     createMapping('anthropic', 'claude-opus-4-20241120', 1, 98),
@@ -142,6 +156,9 @@ export const GENERATED_TIER_MAPPINGS: Record<AliaTier, ModelMapping[]> = {
     createMapping('xai', 'grok-4', 4, 94),
     createMapping('deepseek', 'deepseek-reasoner', 5, 94),
     createMapping('cohere', 'command-a-reasoning-08-2025', 6, 91),
+    createMapping('digitalocean', 'anthropic-claude-opus-4.6', 7, 96),
+    createMapping('digitalocean', 'openai-o1', 8, 93),
+    createMapping('digitalocean', 'openai-gpt-5.2-pro', 9, 92),
   ],
   'v1-voice': [
     {

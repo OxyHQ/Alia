@@ -21,6 +21,7 @@ import { perplexityProvider } from './perplexity';
 import { sambanovaProvider } from './sambanova';
 import { hyperbolicProvider } from './hyperbolic';
 import { novitaProvider } from './novita';
+import { digitaloceanProvider } from './digitalocean';
 
 // ============== PROVIDER REGISTRY ==============
 
@@ -48,6 +49,7 @@ export const providers: Record<string, Provider | VoiceProvider | CombinedProvid
   sambanova: sambanovaProvider,
   hyperbolic: hyperbolicProvider,
   novita: novitaProvider,
+  digitalocean: digitaloceanProvider,
 };
 
 export function getProvider(name: string): Provider | VoiceProvider | undefined {

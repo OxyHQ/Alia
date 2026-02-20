@@ -197,6 +197,13 @@ export function getAIModel(keyConfig: KeyConfig) {
       });
       return novita.chat(modelId || 'meta-llama/llama-3.3-70b-instruct');
     }
+    case 'digitalocean': {
+      const digitalocean = createOpenAI({
+        apiKey,
+        baseURL: 'https://inference.do-ai.run/v1',
+      });
+      return digitalocean.chat(modelId || 'openai-gpt-5-nano');
+    }
     default:
       throw new Error(`Provider "${keyConfig.provider}" not supported`);
   }
