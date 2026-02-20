@@ -12,11 +12,13 @@ const BASE_THEME_COLORS = {
     background: '#ffffff',
     muted: '#f4f4f4',
     mutedForeground: '#727272',
+    border: '#e5e5e5',
   },
   dark: {
     background: '#030510',
     muted: '#2b3749',
     mutedForeground: '#b2b2b2',
+    border: 'rgba(255,255,255,0.1)',
   },
 };
 

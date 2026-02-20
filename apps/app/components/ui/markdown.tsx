@@ -269,7 +269,7 @@ function renderBlock(blockType: string, data: any, key: number) {
 
 export function CustomMarkdown({ content }: { content: string }) {
   const blocks = parseSpecialBlocks(content);
-  const { colorScheme } = useColorScheme();
+  const { colorScheme, colors } = useColorScheme();
 
   const textColor = colorScheme === 'dark' ? '#ffffff' : '#0a0a0a';
   const sansFont = Platform.select({ ios: 'Inter', android: 'Inter', default: 'Inter, sans-serif' });
@@ -351,8 +351,12 @@ export function CustomMarkdown({ content }: { content: string }) {
     },
     table: {
       borderWidth: 1,
-      borderColor: colorScheme === 'dark' ? '#3f3f46' : '#d4d4d8',
+      borderColor: colors.border,
       borderRadius: 6,
+      marginVertical: 8,
+    },
+    thead: {
+      backgroundColor: colors.muted,
     },
     th: {
       flex: 1,
@@ -369,7 +373,7 @@ export function CustomMarkdown({ content }: { content: string }) {
     },
     tr: {
       borderBottomWidth: 1,
-      borderColor: colorScheme === 'dark' ? '#3f3f46' : '#d4d4d8',
+      borderColor: colors.border,
       flexDirection: 'row' as const,
     },
     link: {
