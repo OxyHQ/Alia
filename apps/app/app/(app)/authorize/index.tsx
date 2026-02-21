@@ -125,8 +125,7 @@ export default function AuthorizeScreen() {
     }
   };
 
-  // Unified channel auth handler for all channel types (Telegram, Discord, etc.)
-  // All channels now use /channels/{type}/* endpoints via the ChannelUser model.
+  // Bot auth handler for all bot types (Telegram, Discord, etc.)
   const handleChannelAuth = useCallback(async () => {
     const { token } = params;
     const channelType = channel || app;
@@ -139,9 +138,9 @@ export default function AuthorizeScreen() {
       return;
     }
 
-    // Verify token is valid
+    // Verify token is valid via bot route
     try {
-      const res = await apiClient.get(`/channels/${channelType}/check-token/${token}`);
+      const res = await apiClient.get(`/bots/internal/${channelType}/check-token/${token}`);
       if (!res.data?.valid) {
         setStatus('error');
         setMessage(res.data?.error || t('authorize.tokenExpired'));
@@ -163,9 +162,9 @@ export default function AuthorizeScreen() {
       return;
     }
 
-    // Link the channel account
+    // Link via bot platform route
     try {
-      const response = await apiClient.post(`/channels/${channelType}/link`, {
+      const response = await apiClient.post(`/bots/platform/${channelType}/link`, {
         authToken: token,
       });
       if (response.data.success) {
@@ -176,7 +175,7 @@ export default function AuthorizeScreen() {
         setMessage(t('authorize.failedToLink'));
       }
     } catch (error: any) {
-      console.error('Channel link error:', error);
+      console.error('Bot link error:', error);
       const errorMessage = error.response?.data?.error || t('authorize.failedToLink');
       setStatus('error');
       setMessage(errorMessage);
@@ -187,7 +186,7 @@ export default function AuthorizeScreen() {
     if (authLoading) return;
 
     if (appConfig.isChannel || channel) {
-      // Channel flow (Telegram, Discord, etc.) using /channels/{type}/* endpoints
+      // Bot flow (Telegram, Discord, etc.) using /bots/* endpoints
       if (params.token) {
         handleChannelAuth();
       } else {

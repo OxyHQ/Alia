@@ -8,7 +8,7 @@
 
 import { Telegraf, Markup } from 'telegraf';
 import { v4 as uuidv4 } from 'uuid';
-import type { MessagingAdapter } from '../types';
+import type { BotAdapter } from '../types';
 import { APIClient } from '../../shared/api-client';
 import {
   handleStart,
@@ -24,7 +24,7 @@ import {
 
 const apiClient = new APIClient('telegram', process.env.TELEGRAM_BOT_SECRET || '');
 
-export class TelegramBotAdapter implements MessagingAdapter {
+export class TelegramBotAdapter implements BotAdapter {
   name = 'telegram-bot';
   private bot: Telegraf;
 

@@ -1,6 +1,6 @@
 import { Client, GatewayIntentBits, Events, Partials } from 'discord.js';
 import { v4 as uuidv4 } from 'uuid';
-import type { MessagingAdapter } from '../types';
+import type { BotAdapter } from '../types';
 import { APIClient } from '../../shared/api-client';
 import { chunkText } from '../../shared/utils';
 import {
@@ -12,7 +12,7 @@ import {
 
 const apiClient = new APIClient('discord', process.env.DISCORD_BOT_SECRET || '');
 
-export class DiscordBotAdapter implements MessagingAdapter {
+export class DiscordBotAdapter implements BotAdapter {
   name = 'discord-bot';
   private client: Client;
 

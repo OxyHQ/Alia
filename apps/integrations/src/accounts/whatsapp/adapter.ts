@@ -1,9 +1,9 @@
 import { Router, Request, Response } from 'express';
-import type { MessagingAdapter } from '../types';
+import type { AccountAdapter } from '../types';
 import { sessionManager } from './session-manager';
 import { WhatsAppChat, WhatsAppMessage } from './models';
 
-export class WhatsAppAdapter implements MessagingAdapter {
+export class WhatsAppAdapter implements AccountAdapter {
   name = 'whatsapp';
 
   async initialize() {

@@ -4,7 +4,8 @@ import { generateText } from 'ai';
 import { getChannel } from '../lib/channels/registry.js';
 import { resolveModel, getAIModel, reportModelUsage } from '../lib/chat-core.js';
 import { sendChannelMessage } from '../lib/channels/outbound.js';
-import { ChannelUser } from '../models/channel-user.js';
+import { BotUser } from '../models/bot-user.js';
+import { Bot } from '../models/bot.js';
 import { Conversation } from '../models/conversation.js';
 import { getOrCreateUserCredits } from '../lib/user-credits-helpers.js';
 import { reserveCredits, finalizeCredits, type CreditReservation, type CreditUsage } from '../lib/credits-manager.js';
@@ -50,8 +51,8 @@ async function processChannelMessage(
   message: ChannelInboundMessage
 ): Promise<void> {
   try {
-    // Check authentication
-    if (!channelUser.isAuthenticated || !channelUser.oxyUserId) {
+    // Check if user has linked their Alia account
+    if (!channelUser.isLinked || !channelUser.oxyUserId) {
       // Generate auth token and send auth link
       const authToken = generateAuthToken();
       channelUser.authToken = authToken;
@@ -59,7 +60,7 @@ async function processChannelMessage(
       await channelUser.save();
 
       const apiBaseUrl = process.env.API_BASE_URL || 'http://localhost:3001';
-      const authUrl = `${apiBaseUrl}/channels/${channelType}/verify?token=${authToken}`;
+      const authUrl = `${apiBaseUrl}/bots/internal/${channelType}/verify?token=${authToken}`;
 
       await sendChannelMessage(
         channelType,
@@ -278,23 +279,31 @@ router.post('/:type', async (req, res) => {
   }, 'Inbound message');
 
   try {
-    // Find or create channel user
-    let channelUser = await ChannelUser.findOne({
-      channelType,
-      channelUserId: message.channelUserId,
+    // Find the system bot for this channel type
+    const bot = await Bot.findOne({ platform: channelType, status: 'active' });
+    if (!bot) {
+      log.webhook.warn({ channelType }, 'No active bot found for channel type');
+      return res.sendStatus(200);
+    }
+
+    // Find or create bot user
+    let channelUser = await BotUser.findOne({
+      botId: bot._id,
+      platformUserId: message.channelUserId,
     });
 
     if (!channelUser) {
-      channelUser = new ChannelUser({
-        channelType,
-        channelUserId: message.channelUserId,
+      channelUser = new BotUser({
+        botId: bot._id,
+        platform: channelType,
+        platformUserId: message.channelUserId,
         chatId: message.chatId,
         username: message.username,
         displayName: message.displayName,
         metadata: {},
       });
       await channelUser.save();
-      log.webhook.info({ channelType, channelUserId: message.channelUserId }, 'Created new channel user');
+      log.webhook.info({ channelType, platformUserId: message.channelUserId }, 'Created new bot user');
     } else {
       let updated = false;
       if (message.chatId && channelUser.chatId !== message.chatId) {

@@ -1,12 +1,13 @@
 import { tool } from 'ai';
 import { z } from 'zod';
 import mongoose from 'mongoose';
-import { ChannelUser } from '../../models/channel-user.js';
+import { BotUser } from '../../models/bot-user.js';
 import { log } from '../logger.js';
 
 /**
- * Create sendTelegramMessage tool for a specific user
- * Allows AI to send Telegram messages to the user
+ * Create sendTelegramMessage tool for a specific user.
+ * Uses the system Telegram BOT to send messages on behalf of the user.
+ * This is the "active send" path — Connected Accounts are passive only.
  */
 export function createSendTelegramTool(userId: string) {
   return tool({
@@ -16,17 +17,17 @@ export function createSendTelegramTool(userId: string) {
     }),
     execute: async ({ message }) => {
       try {
-        // Find user's Telegram account
-        const channelUser = await ChannelUser.findOne({
-          channelType: 'telegram',
+        // Find user's linked Telegram bot account
+        const botUser = await BotUser.findOne({
+          platform: 'telegram',
           oxyUserId: new mongoose.Types.ObjectId(userId),
-          isAuthenticated: true
+          isLinked: true,
         });
 
-        if (!channelUser || !channelUser.chatId) {
+        if (!botUser || !botUser.chatId) {
           return {
             success: false,
-            message: 'User does not have a linked Telegram account'
+            message: 'User does not have a linked Telegram account',
           };
         }
 
@@ -34,16 +35,16 @@ export function createSendTelegramTool(userId: string) {
         if (!botToken) {
           return {
             success: false,
-            message: 'Telegram bot not configured'
+            message: 'Telegram bot not configured',
           };
         }
 
-        // Send message via Telegram API
+        // Send message via Telegram Bot API
         const response = await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            chat_id: channelUser.chatId,
+            chat_id: botUser.chatId,
             text: message,
             parse_mode: 'HTML',
           }),
@@ -55,20 +56,20 @@ export function createSendTelegramTool(userId: string) {
           log.tools.error({ err: result }, 'Failed to send message');
           return {
             success: false,
-            message: `Failed to send Telegram: ${result.description || 'Unknown error'}`
+            message: `Failed to send Telegram: ${result.description || 'Unknown error'}`,
           };
         }
 
-        log.tools.info({ channelUserId: channelUser.channelUserId }, 'Telegram message sent successfully');
+        log.tools.info({ platformUserId: botUser.platformUserId }, 'Telegram message sent successfully');
         return {
           success: true,
-          message: 'Telegram message sent successfully'
+          message: 'Telegram message sent successfully',
         };
       } catch (error: any) {
         log.tools.error({ err: error }, 'Error');
         return {
           success: false,
-          message: `Error sending Telegram: ${error.message}`
+          message: `Error sending Telegram: ${error.message}`,
         };
       }
     },

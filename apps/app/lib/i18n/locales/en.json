@@ -147,7 +147,11 @@
       "billing": "Billing",
       "personalization": "Personalization",
       "memory": "Memory",
-      "connectors": "Connectors",
+      "accounts": "Connected Accounts",
+      "bots": "Bots",
+      "mcp": "MCP Servers",
+      "integrations": "Integrations",
+      "skills": "Skills",
       "feedback": "Feedback"
     },
     "accentColor": {
@@ -158,9 +162,6 @@
       "yellow": "Yellow",
       "pink": "Pink",
       "orange": "Orange"
-    },
-    "connectors": {
-      "subtitle": "Connect your messaging accounts"
     }
   },
   "nav": {
@@ -183,10 +184,10 @@
     "general": "General",
     "usage": "Usage",
     "personalization": "Personalization",
-    "connectors": "Connectors",
-    "whatsapp": "WhatsApp",
-    "telegramGateway": "Telegram Gateway",
-    "signalGateway": "Signal Gateway",
+    "accounts": "Connected Accounts",
+    "bots": "Bots",
+    "mcp": "MCP Servers",
+    "integrations": "Integrations",
     "notifications": "Notifications",
     "resetPassword": "Reset Password"
   },

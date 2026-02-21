@@ -12,7 +12,11 @@ import {
   CreditCard,
   Palette,
   Brain,
+  Smartphone,
+  Bot,
+  Blocks,
   Plug,
+  Zap,
   MessageSquarePlus,
   ArrowLeft,
   type LucideIcon,
@@ -31,7 +35,11 @@ const SECTIONS: SettingsSection[] = [
   { id: "usage", route: "/(app)/settings/usage", icon: CreditCard, labelKey: "settings.sections.billing" },
   { id: "personalization", route: "/(app)/settings/personalization", icon: Palette, labelKey: "settings.sections.personalization" },
   { id: "memory", route: "/(app)/settings/memory", icon: Brain, labelKey: "settings.sections.memory" },
-  { id: "connectors", route: "/(app)/settings/connectors", icon: Plug, labelKey: "settings.sections.connectors" },
+  { id: "accounts", route: "/(app)/settings/accounts", icon: Smartphone, labelKey: "settings.sections.accounts" },
+  { id: "bots", route: "/(app)/settings/bots", icon: Bot, labelKey: "settings.sections.bots" },
+  { id: "mcp", route: "/(app)/settings/mcp", icon: Blocks, labelKey: "settings.sections.mcp" },
+  { id: "integrations", route: "/(app)/settings/integrations", icon: Plug, labelKey: "settings.sections.integrations" },
+  { id: "skills", route: "/(app)/settings/skills", icon: Zap, labelKey: "settings.sections.skills" },
   { id: "feedback", route: "/(app)/settings/feedback", icon: MessageSquarePlus, labelKey: "settings.sections.feedback" },
 ];
 
@@ -41,18 +49,16 @@ export const SettingsSidebar = React.memo(function SettingsSidebar() {
   const { t } = useTranslation();
 
   const activeId = React.useMemo(() => {
-    // Gateway sub-pages map to connectors
-    if (pathname.includes("/whatsapp") || pathname.includes("/telegram-gateway") || pathname.includes("/signal-gateway")) {
-      return "connectors";
-    }
-    // Match specific section routes
     if (pathname.includes("/settings/general")) return "general";
     if (pathname.includes("/settings/usage")) return "usage";
     if (pathname.includes("/settings/personalization")) return "personalization";
     if (pathname.includes("/settings/memory")) return "memory";
-    if (pathname.includes("/settings/connectors")) return "connectors";
+    if (pathname.includes("/settings/accounts")) return "accounts";
+    if (pathname.includes("/settings/bots")) return "bots";
+    if (pathname.includes("/settings/mcp")) return "mcp";
+    if (pathname.includes("/settings/integrations")) return "integrations";
+    if (pathname.includes("/settings/skills")) return "skills";
     if (pathname.includes("/settings/feedback")) return "feedback";
-    // Default: account (settings/index)
     return "account";
   }, [pathname]);
 
