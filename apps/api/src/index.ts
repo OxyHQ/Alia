@@ -42,6 +42,7 @@ import agentTeamsRouter from './routes/agent-teams.js';
 import containersRouter from './routes/containers.js';
 import libraryRouter from './routes/library.js';
 import suggestionsRouter from './routes/suggestions.js';
+import writingStyleRouter from './routes/writing-style.js';
 
 // Register hooks (side-effect import)
 import './lib/hooks/index.js';
@@ -216,6 +217,7 @@ app.use('/agents', agentsRouter);
 app.use('/containers', containersRouter);
 app.use('/library', libraryRouter);
 app.use('/suggestions', suggestionsRouter);
+app.use('/writing-style', writingStyleRouter);
 app.use('/internal', internalRouter);
 
 // Root route
@@ -251,6 +253,7 @@ app.get('/', (_req, res) => {
       '/agents',
       '/containers',
       '/suggestions',
+      '/writing-style',
       '/v1/voice/token',
       '/v1/voice/transcribe',
       '/internal/trigger'

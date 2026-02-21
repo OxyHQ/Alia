@@ -8,6 +8,78 @@ export const MAX_MEMORY_VALUE_LENGTH = 10000;
 export const MAX_MEMORY_KEY_LENGTH = 200;
 export const MAX_CATEGORY_LENGTH = 50;
 
+// Writing style constants
+export const STYLE_MIN_MESSAGES = 15;
+export const STYLE_LLM_REFINE_INTERVAL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
+export const STYLE_LLM_REFINE_MIN_MESSAGES = 50;
+export const STYLE_RAW_ROLLING_WINDOW = 200;
+
+// Writing style profile interface
+export interface IWritingStyleRaw {
+  sentenceLengths: number[];
+  messageLengths: number[];
+  wordFrequency: Record<string, number>;
+  phraseFrequency: Record<string, number>;
+  emojiCount: number;
+  exclamationCount: number;
+  ellipsisCount: number;
+  questionMarkCount: number;
+  totalMessages: number;
+  totalSentences: number;
+  totalWords: number;
+  greetingsFound: Record<string, number>;
+  closingsFound: Record<string, number>;
+  languageCounts: Record<string, number>;
+  lowercaseMessages: number;
+}
+
+export interface IWritingStyleProfile {
+  // Readiness
+  messagesAnalyzed: number;
+  isReady: boolean;
+  lastAnalyzedAt: Date;
+  lastLLMRefinedAt?: Date;
+
+  // Vocabulary
+  vocabularyLevel: 'basic' | 'intermediate' | 'advanced' | 'technical';
+  commonWords: string[];
+  commonPhrases: string[];
+  jargonTerms: string[];
+
+  // Sentence structure
+  avgSentenceLength: number;
+  sentenceComplexity: 'simple' | 'moderate' | 'complex';
+  avgMessageLength: number;
+
+  // Tone and formality
+  formality: 'very_informal' | 'informal' | 'neutral' | 'formal' | 'very_formal';
+  toneDescriptors: string[];
+
+  // Punctuation and formatting
+  usesEmoji: boolean;
+  emojiFrequency: 'never' | 'rare' | 'moderate' | 'frequent';
+  commonEmojis: string[];
+  usesExclamationMarks: boolean;
+  usesEllipsis: boolean;
+  capitalizationStyle: 'standard' | 'all_lowercase' | 'mixed';
+
+  // Greetings and closings
+  greetingPatterns: string[];
+  closingPatterns: string[];
+  signOff?: string;
+
+  // Language
+  primaryLanguage: string;
+  secondaryLanguages: string[];
+  codeSwitch: boolean;
+
+  // Raw analysis data
+  _raw: IWritingStyleRaw;
+
+  // LLM-generated summary
+  llmSummary?: string;
+}
+
 // Helper to get memory limit based on plan name
 export const getMemoryLimit = (planName?: string): number => {
   if (!planName) return MAX_MEMORIES_FREE;
@@ -46,6 +118,7 @@ export interface IUserMemory extends Document {
     bio?: string;
     [key: string]: any;
   };
+  writingStyle: IWritingStyleProfile | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -70,6 +143,10 @@ const UserMemorySchema = new Schema<IUserMemory>({
     location: { type: String },
     timezone: { type: String },
     bio: { type: String }
+  },
+  writingStyle: {
+    type: Schema.Types.Mixed,
+    default: null
   }
 }, {
   timestamps: true

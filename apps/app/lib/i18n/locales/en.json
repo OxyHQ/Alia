@@ -152,7 +152,8 @@
       "mcp": "MCP Servers",
       "integrations": "Integrations",
       "skills": "Skills",
-      "feedback": "Feedback"
+      "feedback": "Feedback",
+      "writingStyle": "Writing Style"
     },
     "accentColor": {
       "title": "Accent Color",
@@ -189,7 +190,8 @@
     "mcp": "MCP Servers",
     "integrations": "Integrations",
     "notifications": "Notifications",
-    "resetPassword": "Reset Password"
+    "resetPassword": "Reset Password",
+    "writingStyle": "Writing Style"
   },
   "sidebar": {
     "newChat": "New Chat",
