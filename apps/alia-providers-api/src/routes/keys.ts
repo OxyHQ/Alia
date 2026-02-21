@@ -277,10 +277,10 @@ router.post('/', async (req: Request, res: Response) => {
     // Extract key prefix for display
     const keyPrefix = key.substring(0, Math.min(8, key.length)) + '...';
 
-    // Create new key
+    // Create new key (use sanitized values, not raw req.body)
     const newKey = await ProviderKey.create({
-      name,
-      provider,
+      name: sanitizedName,
+      provider: sanitizedProvider.toLowerCase(),
       keyHash,
       keyPrefix,
       key,
@@ -309,7 +309,14 @@ router.post('/', async (req: Request, res: Response) => {
 
     broadcastKeysUpdate(provider);
   } catch (error: any) {
-    log.keys.error({ err: error }, 'Error adding key');
+    log.keys.error({ err: error, body: { name: req.body?.name, provider: req.body?.provider } }, 'Error adding key');
+    if (error.name === 'ValidationError') {
+      return res.status(400).json({
+        success: false,
+        error: error.message,
+        code: 'VALIDATION_ERROR',
+      });
+    }
     res.status(500).json({
       success: false,
       error: 'An internal error occurred',
