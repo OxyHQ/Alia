@@ -1,3 +1,4 @@
+import crypto from 'crypto';
 import type { ChannelPlugin, OutboundContext, OutboundResult, ChannelInboundMessage } from '../types.js';
 import type { Request } from 'express';
 
@@ -71,6 +72,48 @@ export const telegramPlugin: ChannelPlugin = {
     looksLikeTarget(raw: string): boolean {
       const trimmed = raw.trim();
       return /^-?\d+$/.test(trimmed) || /^@[\w]{5,32}$/.test(trimmed);
+    },
+  },
+
+  webhook: {
+    verifySignature(req: Request): boolean {
+      const secret = process.env.TELEGRAM_BOT_SECRET;
+      if (!secret) return false;
+
+      const headerToken = req.headers['x-telegram-bot-api-secret-token'] as string;
+      if (!headerToken) return false;
+
+      try {
+        return crypto.timingSafeEqual(
+          Buffer.from(headerToken),
+          Buffer.from(secret),
+        );
+      } catch {
+        return false;
+      }
+    },
+
+    parseMessage(body: any): ChannelInboundMessage | null {
+      const msg = body.message ?? body.edited_message;
+      if (!msg?.text || !msg.from) return null;
+
+      // Ignore bot messages
+      if (msg.from.is_bot) return null;
+
+      const displayName = [msg.from.first_name, msg.from.last_name]
+        .filter(Boolean)
+        .join(' ') || undefined;
+
+      return {
+        channelUserId: String(msg.from.id),
+        chatId: String(msg.chat.id),
+        text: msg.text,
+        username: msg.from.username,
+        displayName,
+        replyToId: msg.reply_to_message?.message_id
+          ? String(msg.reply_to_message.message_id)
+          : undefined,
+      };
     },
   },
 };
