@@ -1,6 +1,7 @@
 import mongoose, { Document, Schema } from 'mongoose';
 import crypto from 'crypto';
 import { log } from '../../../lib/logger.js';
+import { PROVIDER_NAMES } from '../lib/provider-names.js';
 
 export interface IRateLimit {
   rps?: number;  // Requests per second
@@ -92,27 +93,7 @@ const ProviderKeySchema = new Schema<IProviderKey>(
     provider: {
       type: String,
       required: true,
-      enum: [
-        'openai',
-        'anthropic',
-        'google',
-        'groq',
-        'mistral',
-        'deepseek',
-        'together',
-        'replicate',
-        'cerebras',
-        'cloudflare',
-        'openrouter',
-        'cohere',
-        'fireworks',
-        'perplexity',
-        'xai',
-        'sambanova',
-        'hyperbolic',
-        'novita',
-        'digitalocean',
-      ],
+      enum: [...PROVIDER_NAMES],
       index: true,
     },
     environment: {

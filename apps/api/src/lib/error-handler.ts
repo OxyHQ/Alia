@@ -7,6 +7,7 @@
  */
 
 import { log, sanitizeForLog } from './logger.js';
+import { PROVIDER_NAMES as REGISTERED_PROVIDERS } from '../internal/providers/lib/provider-names.js';
 
 // ============== USER-FACING ERROR TYPES ==============
 
@@ -271,10 +272,10 @@ export async function withProviderErrorHandling<T>(
  * Sanitize any string to remove provider names
  * Use this as a last resort safety check
  */
-const PROVIDER_NAMES = [
-  'openai', 'anthropic', 'google', 'gemini', 'claude',
-  'groq', 'deepseek', 'mistral', 'cerebras', 'together',
-  'cloudflare', 'gpt-', 'llama', 'whisper'
+// Combine registered provider names with model-name patterns for sanitization
+const PROVIDER_NAMES: string[] = [
+  ...REGISTERED_PROVIDERS,
+  'gemini', 'claude', 'gpt-', 'llama', 'whisper',
 ];
 
 export function sanitizeMessage(message: string): string {

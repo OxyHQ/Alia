@@ -1,4 +1,5 @@
 import mongoose, { Document, Schema } from 'mongoose';
+import { PROVIDER_NAMES } from '../lib/provider-names.js';
 
 export interface IModelCapabilities {
   vision: boolean;
@@ -83,26 +84,7 @@ const ModelConfigSchema = new Schema<IModelConfig>(
     provider: {
       type: String,
       required: true,
-      enum: [
-        'openai',
-        'anthropic',
-        'google',
-        'groq',
-        'mistral',
-        'deepseek',
-        'together',
-        'replicate',
-        'cerebras',
-        'cloudflare',
-        'openrouter',
-        'cohere',
-        'xai',
-        'fireworks',
-        'perplexity',
-        'sambanova',
-        'hyperbolic',
-        'novita',
-      ],
+      enum: [...PROVIDER_NAMES],
       index: true,
     },
     displayName: {

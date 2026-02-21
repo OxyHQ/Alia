@@ -49,29 +49,7 @@ import {
   AlertTriangle,
   Loader2,
 } from 'lucide-react';
-import type { ProviderKey } from '@/types';
-
-const PROVIDERS = [
-  'openai',
-  'anthropic',
-  'google',
-  'groq',
-  'mistral',
-  'deepseek',
-  'together',
-  'fireworks',
-  'cerebras',
-  'cloudflare',
-  'openrouter',
-  'cohere',
-  'perplexity',
-  'xai',
-  'sambanova',
-  'hyperbolic',
-  'novita',
-  'digitalocean',
-  'replicate',
-];
+import { PROVIDERS, type ProviderKey } from '@/types';
 
 type KeyFormData = {
   name: string;
