@@ -188,6 +188,9 @@ export { delegateSubtaskTool, type SubtaskResult } from './delegate.js';
 export { createSearchAgentsTool } from './agent-search.js';
 export { createDelegateToAgentTool, type AgentDelegationResult } from './agent-delegate.js';
 
+// MCP tools
+export { buildMcpTools } from './mcp.js';
+
 // Registry API exports
 export {
   registerTool,
