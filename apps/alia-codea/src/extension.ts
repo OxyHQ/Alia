@@ -3,6 +3,9 @@ import { CodeaChatViewProvider } from './chatProvider';
 import { AliaInlineCompletionProvider } from './inlineCompletionProvider';
 import { AliaChatParticipant } from './chatParticipant';
 import { AliaAuthenticationProvider } from './authProvider';
+import { McpLocalClient } from './mcp-client';
+
+let mcpClient: McpLocalClient | null = null;
 
 export function activate(context: vscode.ExtensionContext) {
   const authProvider = new AliaAuthenticationProvider(context);
@@ -33,6 +36,11 @@ export function activate(context: vscode.ExtensionContext) {
       webviewOptions: { retainContextWhenHidden: true },
     }),
   );
+
+  // Start local MCP client (non-blocking)
+  mcpClient = new McpLocalClient(authProvider);
+  context.subscriptions.push(mcpClient);
+  mcpClient.start().catch((err) => console.error('[MCP] Startup error:', err));
 
   // Commands
   context.subscriptions.push(
@@ -110,4 +118,7 @@ export function activate(context: vscode.ExtensionContext) {
   );
 }
 
-export function deactivate() {}
+export function deactivate() {
+  mcpClient?.dispose();
+  mcpClient = null;
+}
