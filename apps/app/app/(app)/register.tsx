@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { View, Text } from 'react-native';
+import { View, Text, Linking } from 'react-native';
 import { useRouter } from 'expo-router';
 import Head from 'expo-router/head';
 import { AuthContainer, AuthLogo } from '@/components/auth';
@@ -58,7 +58,20 @@ export default function RegisterScreen() {
         {/* Privacy note */}
         <View className="mt-8">
           <Text className="text-xs text-muted-foreground text-center leading-4">
-            {t('register.termsAndPrivacy')}
+            {t('register.termsPrefix')}
+            <Text
+              className="text-xs text-foreground underline"
+              onPress={() => Linking.openURL('https://oxy.so/company/transparency/policies/terms-of-service')}
+            >
+              {t('register.termsOfService')}
+            </Text>
+            {t('register.termsAnd')}
+            <Text
+              className="text-xs text-foreground underline"
+              onPress={() => Linking.openURL('https://oxy.so/company/transparency/policies/privacy')}
+            >
+              {t('register.privacyPolicy')}
+            </Text>
           </Text>
         </View>
       </AuthContainer>
