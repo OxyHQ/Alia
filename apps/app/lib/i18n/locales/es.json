@@ -43,7 +43,10 @@
     "signingIn": "Iniciando sesión...",
     "footerText": "¿No tienes una cuenta?",
     "footerLink": "Registrarse",
-    "termsAndPrivacy": "Al continuar, aceptas los Términos de Servicio y la Política de Privacidad de Alia"
+    "termsPrefix": "Al continuar, aceptas los ",
+    "termsOfService": "Términos de Servicio",
+    "termsAnd": " y la ",
+    "privacyPolicy": "Política de Privacidad de Alia"
   },
   "register": {
     "title": "Crear cuenta Oxy",
@@ -57,7 +60,10 @@
     "creatingAccount": "Creando cuenta...",
     "footerText": "¿Ya tienes una cuenta?",
     "footerLink": "Iniciar sesión",
-    "termsAndPrivacy": "Al continuar, aceptas los Términos de Servicio y la Política de Privacidad de Oxy"
+    "termsPrefix": "Al continuar, aceptas los ",
+    "termsOfService": "Términos de Servicio",
+    "termsAnd": " y la ",
+    "privacyPolicy": "Política de Privacidad de Oxy"
   },
   "errors": {
     "emailRequired": "Por favor ingresa tu dirección de correo electrónico",
@@ -208,7 +214,9 @@
     "account": "Cuenta",
     "billing": "Facturación",
     "notifications": "Notificaciones",
-    "logOut": "Cerrar sesión"
+    "logOut": "Cerrar sesión",
+    "termsOfService": "Términos de Servicio",
+    "privacyPolicy": "Política de Privacidad"
   },
   "billing": {
     "title": "Facturación",

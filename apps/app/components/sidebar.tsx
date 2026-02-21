@@ -859,6 +859,15 @@ const ChatSidebar = React.memo(function ChatSidebar() {
                     <DropdownMenu.ItemTitle>{t('sidebar.notifications')}</DropdownMenu.ItemTitle>
                   </DropdownMenu.Item>
                   <DropdownMenu.Separator />
+                  <DropdownMenu.Item key="terms" onSelect={() => Linking.openURL('https://oxy.so/company/transparency/policies/terms-of-service')}>
+                    <DropdownMenu.ItemIcon ios={{ name: "doc.text" }} />
+                    <DropdownMenu.ItemTitle>{t('sidebar.termsOfService')}</DropdownMenu.ItemTitle>
+                  </DropdownMenu.Item>
+                  <DropdownMenu.Item key="privacy" onSelect={() => Linking.openURL('https://oxy.so/company/transparency/policies/privacy')}>
+                    <DropdownMenu.ItemIcon ios={{ name: "hand.raised" }} />
+                    <DropdownMenu.ItemTitle>{t('sidebar.privacyPolicy')}</DropdownMenu.ItemTitle>
+                  </DropdownMenu.Item>
+                  <DropdownMenu.Separator />
                   <DropdownMenu.Item key="logout" destructive onSelect={handleLogout}>
                     <DropdownMenu.ItemIcon ios={{ name: "rectangle.portrait.and.arrow.right" }} />
                     <DropdownMenu.ItemTitle>{t('sidebar.logOut')}</DropdownMenu.ItemTitle>
@@ -941,6 +950,21 @@ const ChatSidebar = React.memo(function ChatSidebar() {
                 </Text>
               </View>
             </Button>
+            <View className="flex-row items-center justify-center gap-1 mt-1">
+              <Text
+                className="text-[10px] text-muted-foreground underline"
+                onPress={() => Linking.openURL('https://oxy.so/company/transparency/policies/privacy')}
+              >
+                {t('sidebar.privacyPolicy')}
+              </Text>
+              <Text className="text-[10px] text-muted-foreground">·</Text>
+              <Text
+                className="text-[10px] text-muted-foreground underline"
+                onPress={() => Linking.openURL('https://oxy.so/company/transparency/policies/terms-of-service')}
+              >
+                {t('sidebar.termsOfService')}
+              </Text>
+            </View>
           </View>
         )}
     </>

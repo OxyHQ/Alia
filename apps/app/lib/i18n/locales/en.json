@@ -43,7 +43,10 @@
     "signingIn": "Signing in...",
     "footerText": "Don't have an account?",
     "footerLink": "Sign up",
-    "termsAndPrivacy": "By continuing, you agree to Alia's Terms of Service and Privacy Policy"
+    "termsPrefix": "By continuing, you agree to Alia's ",
+    "termsOfService": "Terms of Service",
+    "termsAnd": " and ",
+    "privacyPolicy": "Privacy Policy"
   },
   "register": {
     "title": "Create Oxy Account",
@@ -57,7 +60,10 @@
     "creatingAccount": "Creating account...",
     "footerText": "Already have an account?",
     "footerLink": "Sign in",
-    "termsAndPrivacy": "By continuing, you agree to Oxy's Terms of Service and Privacy Policy"
+    "termsPrefix": "By continuing, you agree to Oxy's ",
+    "termsOfService": "Terms of Service",
+    "termsAnd": " and ",
+    "privacyPolicy": "Privacy Policy"
   },
   "errors": {
     "emailRequired": "Please enter your email address",
@@ -208,7 +214,9 @@
     "account": "Account",
     "billing": "Billing",
     "notifications": "Notifications",
-    "logOut": "Log out"
+    "logOut": "Log out",
+    "termsOfService": "Terms of Service",
+    "privacyPolicy": "Privacy Policy"
   },
   "billing": {
     "title": "Billing",

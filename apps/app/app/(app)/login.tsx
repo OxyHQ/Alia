@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text } from 'react-native';
+import { View, Text, Linking } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import Head from 'expo-router/head';
 import { AuthContainer, AuthLogo } from '@/components/auth';
@@ -64,7 +64,20 @@ export default function LoginScreen() {
         {/* Privacy note */}
         <View className="mt-8">
           <Text className="text-xs text-muted-foreground text-center leading-4">
-            {t('login.termsAndPrivacy')}
+            {t('login.termsPrefix')}
+            <Text
+              className="text-xs text-foreground underline"
+              onPress={() => Linking.openURL('https://oxy.so/company/transparency/policies/terms-of-service')}
+            >
+              {t('login.termsOfService')}
+            </Text>
+            {t('login.termsAnd')}
+            <Text
+              className="text-xs text-foreground underline"
+              onPress={() => Linking.openURL('https://oxy.so/company/transparency/policies/privacy')}
+            >
+              {t('login.privacyPolicy')}
+            </Text>
           </Text>
         </View>
       </AuthContainer>
