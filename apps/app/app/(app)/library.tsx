@@ -1,17 +1,9 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { View, ScrollView, Pressable, TextInput } from 'react-native';
-import { KeyboardAwareScrollView } from '@/lib/keyboard';
 import { Text } from '@/components/ui/text';
 import { Button } from '@/components/ui/button';
-import {
-  Library as LibraryIcon,
-  FileText,
-  Image as ImageIcon,
-  File,
-  Plus,
-  Search,
-  Upload
-} from 'lucide-react-native';
+import { Plus, Search } from 'lucide-react-native';
+import * as DropdownMenu from '@/components/ui/dropdown-menu';
 import { useLibraryStore, FileCategory } from '@/lib/stores/library-store';
 import { useImagePicker } from '@/hooks/useImagePicker';
 import { useDocumentPicker } from '@/hooks/useDocumentPicker';
@@ -41,22 +33,19 @@ export default function LibraryScreen() {
   }, [loadFiles]);
 
   const categories = useMemo(() => [
-    { value: null, label: t('common.all'), icon: LibraryIcon },
-    { value: 'documents', label: t('library.documents'), icon: FileText },
-    { value: 'images', label: t('library.images'), icon: ImageIcon },
-    { value: 'other', label: t('library.other'), icon: File },
+    { value: null, label: t('common.all') },
+    { value: 'documents', label: t('library.documents') },
+    { value: 'images', label: t('library.images') },
+    { value: 'other', label: t('library.other') },
   ], [t]);
 
-  // Filter files based on search and category
   const filteredFiles = useMemo(() => {
     let filtered = files;
 
-    // Filter by category
     if (selectedCategory) {
       filtered = filtered.filter(file => file.category === selectedCategory);
     }
 
-    // Filter by search query
     if (searchQuery.trim()) {
       const query = searchQuery.toLowerCase();
       filtered = filtered.filter(file =>
@@ -65,7 +54,6 @@ export default function LibraryScreen() {
       );
     }
 
-    // Sort by upload date (newest first)
     return filtered.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
   }, [files, searchQuery, selectedCategory]);
 
@@ -117,72 +105,63 @@ export default function LibraryScreen() {
     }
   };
 
-  const getCategoryStats = (category: FileCategory) => {
-    return files.filter(f => f.category === category).length;
-  };
-
   return (
     <View className="flex-1 bg-background">
-      <KeyboardAwareScrollView className="flex-1">
-        {/* Hero Section */}
-        <View className="items-center px-6 py-12">
-          <LibraryIcon size={48} className="text-primary mb-4" />
-          <Text className="text-4xl font-bold text-foreground mb-3 text-center">
-            {t('library.title')}
-          </Text>
-          <Text className="text-base text-muted-foreground mb-6 text-center max-w-md">
+      <ScrollView className="flex-1" showsVerticalScrollIndicator={false}>
+        {/* Header */}
+        <View className="px-5 pt-6 pb-1">
+          <View className="flex-row items-center justify-between">
+            <Text className="text-2xl font-bold text-foreground">
+              {t('library.title')}
+            </Text>
+            <DropdownMenu.Root>
+              <DropdownMenu.Trigger>
+                <Button size="icon" className="rounded-full h-8 w-8">
+                  <Plus size={16} className="text-primary-foreground" />
+                </Button>
+              </DropdownMenu.Trigger>
+              <DropdownMenu.Content>
+                <DropdownMenu.Item key="photos" onSelect={handleUploadImage}>
+                  <DropdownMenu.ItemIcon ios={{ name: "photo" }} />
+                  <DropdownMenu.ItemTitle>{t('library.addImages')}</DropdownMenu.ItemTitle>
+                </DropdownMenu.Item>
+                <DropdownMenu.Item key="document" onSelect={handleUploadDocument}>
+                  <DropdownMenu.ItemIcon ios={{ name: "doc" }} />
+                  <DropdownMenu.ItemTitle>{t('library.uploadFiles')}</DropdownMenu.ItemTitle>
+                </DropdownMenu.Item>
+              </DropdownMenu.Content>
+            </DropdownMenu.Root>
+          </View>
+          <Text className="text-[13px] text-muted-foreground mt-0.5">
             {t('library.subtitle')}
           </Text>
+        </View>
 
-          {/* Search Bar */}
-          <View className="w-full max-w-md flex-row items-center gap-2 bg-muted rounded-full px-4 py-3 mb-4">
-            <Search size={18} className="text-muted-foreground" />
+        {/* Search */}
+        <View className="px-5 pt-3 pb-2">
+          <View className="flex-row items-center gap-2 bg-muted/70 rounded-lg px-3 py-2">
+            <Search size={15} className="text-muted-foreground" />
             <TextInput
               value={searchQuery}
               onChangeText={setSearchQuery}
               placeholder={t('library.searchPlaceholder')}
               placeholderTextColor={colors.mutedForeground}
-              className="flex-1 text-sm text-foreground"
+              className="flex-1 text-[13px] text-foreground"
             />
-          </View>
-
-          {/* Upload Buttons */}
-          <View className="flex-row gap-2 w-full max-w-md">
-            <Button
-              onPress={handleUploadImage}
-              variant="outline"
-              className="flex-1 h-11 rounded-full"
-            >
-              <View className="flex-row items-center gap-2">
-                <ImageIcon size={18} className="text-foreground" />
-                <Text className="text-sm font-semibold text-foreground">
-                  {t('library.addImages')}
-                </Text>
-              </View>
-            </Button>
-            <Button
-              onPress={handleUploadDocument}
-              className="flex-1 h-11 rounded-full"
-            >
-              <View className="flex-row items-center gap-2">
-                <Upload size={18} className="text-primary-foreground" />
-                <Text className="text-sm font-semibold text-primary-foreground">
-                  {t('library.uploadFiles')}
-                </Text>
-              </View>
-            </Button>
           </View>
         </View>
 
         {/* Category Chips */}
-        <View className="px-6 pb-4">
-          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-            <View className="flex-row gap-2">
+        <View className="py-2">
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={{ paddingHorizontal: 20 }}
+          >
+            <View className="flex-row gap-1.5">
               {categories.map((category) => {
-                const Icon = category.icon;
-                const isSelected = selectedCategory === category.value || (!selectedCategory && category.value === null);
-                const count = category.value ? getCategoryStats(category.value as FileCategory) : files.length;
-
+                const isActive = selectedCategory === category.value ||
+                  (!selectedCategory && category.value === null);
                 return (
                   <Pressable
                     key={category.label}
@@ -190,34 +169,15 @@ export default function LibraryScreen() {
                     className="active:opacity-70"
                   >
                     <View className={cn(
-                      "px-4 py-2 rounded-full border flex-row items-center gap-2",
-                      isSelected
-                        ? "bg-primary border-primary"
-                        : "bg-background border-border"
+                      "px-3 py-1 rounded-full",
+                      isActive ? "bg-foreground" : "bg-muted/70"
                     )}>
-                      <Icon
-                        size={16}
-                        className={cn(
-                          isSelected ? "text-primary-foreground" : "text-foreground"
-                        )}
-                      />
                       <Text className={cn(
-                        "text-sm font-medium",
-                        isSelected ? "text-primary-foreground" : "text-foreground"
+                        "text-xs font-medium",
+                        isActive ? "text-background" : "text-muted-foreground"
                       )}>
                         {category.label}
                       </Text>
-                      <View className={cn(
-                        "px-1.5 py-0.5 rounded-full min-w-[20px] items-center justify-center",
-                        isSelected ? "bg-primary-foreground/20" : "bg-muted"
-                      )}>
-                        <Text className={cn(
-                          "text-xs font-semibold",
-                          isSelected ? "text-primary-foreground" : "text-muted-foreground"
-                        )}>
-                          {count}
-                        </Text>
-                      </View>
                     </View>
                   </Pressable>
                 );
@@ -227,44 +187,38 @@ export default function LibraryScreen() {
         </View>
 
         {/* Files List */}
-        <View className="px-6 pb-6">
+        <View className="px-5 pb-6">
+          {(searchQuery || selectedCategory) ? (
+            <View className="mb-2">
+              <Text className="text-[11px] font-semibold text-muted-foreground tracking-wider uppercase">
+                {filteredFiles.length} {filteredFiles.length === 1 ? 'file' : 'files'}
+              </Text>
+            </View>
+          ) : (
+            <View className="mb-2">
+              <Text className="text-[11px] font-semibold text-muted-foreground tracking-wider uppercase">
+                {t('common.all')}
+              </Text>
+            </View>
+          )}
+
           {loading ? (
-            <View className="items-center justify-center py-20">
-              <Text className="text-muted-foreground">{t('common.loading')}</Text>
+            <View className="items-center justify-center py-16">
+              <Text className="text-sm text-muted-foreground">{t('common.loading')}</Text>
             </View>
           ) : filteredFiles.length === 0 ? (
-            <View className="items-center justify-center py-20">
-              <LibraryIcon size={64} className="text-muted-foreground opacity-50" />
-              <Text className="text-lg font-medium text-foreground mt-4">
+            <View className="items-center justify-center py-16">
+              <Text className="text-sm font-medium text-foreground">
                 {searchQuery ? t('library.noFilesFound') : t('library.noFiles')}
               </Text>
-              <Text className="text-sm text-muted-foreground text-center mt-2 max-w-md">
+              <Text className="text-xs text-muted-foreground text-center mt-1">
                 {searchQuery
                   ? t('common.tryDifferentSearch')
                   : t('library.uploadToStart')}
               </Text>
             </View>
           ) : (
-            <View className="border border-border rounded-lg overflow-hidden bg-surface">
-              {/* Table Header */}
-              <View className="flex-row items-center border-b border-border px-3 py-2 bg-muted/30">
-                <View className="w-8 mr-2" />
-                <View className="flex-1 mr-3">
-                  <Text className="text-xs font-medium text-muted-foreground">{t('common.name')}</Text>
-                </View>
-                <View className="w-20 mr-3 hidden md:flex">
-                  <Text className="text-xs font-medium text-muted-foreground">{t('common.category')}</Text>
-                </View>
-                <View className="w-16 mr-3 hidden md:flex">
-                  <Text className="text-xs font-medium text-muted-foreground">{t('common.size')}</Text>
-                </View>
-                <View className="w-20 mr-3 hidden md:flex">
-                  <Text className="text-xs font-medium text-muted-foreground">{t('common.date')}</Text>
-                </View>
-                <View className="w-8" />
-              </View>
-
-              {/* Table Body */}
+            <View>
               {filteredFiles.map((file) => (
                 <FileCard
                   key={file._id}
@@ -275,7 +229,7 @@ export default function LibraryScreen() {
             </View>
           )}
         </View>
-      </KeyboardAwareScrollView>
+      </ScrollView>
     </View>
   );
 }
