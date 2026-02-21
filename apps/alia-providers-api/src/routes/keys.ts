@@ -17,7 +17,7 @@ const router = express.Router();
 // Note: Service authentication is applied at mount point in index.ts
 
 // Valid provider names (derived from shared constant)
-const VALID_PROVIDERS = [...PROVIDER_NAMES];
+const VALID_PROVIDERS: string[] = [...PROVIDER_NAMES];
 
 // Sanitize string input: must be a non-empty string within length limits
 function sanitizeString(value: unknown, maxLength = 200): string | null {
