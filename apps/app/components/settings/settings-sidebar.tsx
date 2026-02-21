@@ -12,6 +12,7 @@ import {
   CreditCard,
   Palette,
   Brain,
+  PenTool,
   Smartphone,
   Bot,
   Blocks,
@@ -35,6 +36,7 @@ const SECTIONS: SettingsSection[] = [
   { id: "usage", route: "/(app)/settings/usage", icon: CreditCard, labelKey: "settings.sections.billing" },
   { id: "personalization", route: "/(app)/settings/personalization", icon: Palette, labelKey: "settings.sections.personalization" },
   { id: "memory", route: "/(app)/settings/memory", icon: Brain, labelKey: "settings.sections.memory" },
+  { id: "writing-style", route: "/(app)/settings/writing-style", icon: PenTool, labelKey: "settings.sections.writingStyle" },
   { id: "accounts", route: "/(app)/settings/accounts", icon: Smartphone, labelKey: "settings.sections.accounts" },
   { id: "bots", route: "/(app)/settings/bots", icon: Bot, labelKey: "settings.sections.bots" },
   { id: "mcp", route: "/(app)/settings/mcp", icon: Blocks, labelKey: "settings.sections.mcp" },
@@ -53,6 +55,7 @@ export const SettingsSidebar = React.memo(function SettingsSidebar() {
     if (pathname.includes("/settings/usage")) return "usage";
     if (pathname.includes("/settings/personalization")) return "personalization";
     if (pathname.includes("/settings/memory")) return "memory";
+    if (pathname.includes("/settings/writing-style")) return "writing-style";
     if (pathname.includes("/settings/accounts")) return "accounts";
     if (pathname.includes("/settings/bots")) return "bots";
     if (pathname.includes("/settings/mcp")) return "mcp";

@@ -84,6 +84,13 @@ export default function AppLayout() {
               }}
             />
             <Drawer.Screen
+              name="settings/writing-style"
+              options={{
+                drawerItemStyle: { display: 'none' },
+                title: i18n.t('nav.writingStyle'),
+              }}
+            />
+            <Drawer.Screen
               name="settings/general"
               options={{
                 drawerItemStyle: { display: 'none' },
