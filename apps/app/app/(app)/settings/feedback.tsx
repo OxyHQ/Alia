@@ -1,4 +1,4 @@
-import { View, Pressable, ActivityIndicator } from "react-native";
+import { View, Platform, Pressable, ActivityIndicator } from "react-native";
 import { KeyboardAwareScrollView } from "@/lib/keyboard";
 import { Text } from "@/components/ui/text";
 import { Button } from "@/components/ui/button";
@@ -11,6 +11,7 @@ import { MessageSquare, Bug, Lightbulb, Sparkles, Star } from "lucide-react-nati
 import { SettingsHeader } from "@/components/settings/settings-header";
 import { toast } from "@/components/sonner";
 import { useTranslation } from "@/hooks/useTranslation";
+import { cn } from "@/lib/utils";
 
 type FeedbackType = 'bug' | 'feature' | 'improvement' | 'other';
 
@@ -113,11 +114,13 @@ export default function FeedbackScreen() {
     <View className="flex-1 bg-background">
       <SettingsHeader title={t('feedback.title')} subtitle={t('feedback.subtitle')} showBack />
 
-      <KeyboardAwareScrollView bottomOffset={20} className="flex-1 p-4">
+      <KeyboardAwareScrollView bottomOffset={20} className="flex-1 p-5">
         <View className="max-w-2xl mx-auto w-full gap-6">
           {/* Feedback Type Selection */}
           <View className="gap-3">
-            <Text className="text-lg font-semibold">{t('feedback.typeQuestion')}</Text>
+            <Text className="text-[11px] font-semibold text-muted-foreground tracking-wider uppercase">
+              {t('feedback.typeQuestion')}
+            </Text>
             <View className="gap-2">
               {feedbackTypes.map((option) => {
                 const Icon = option.icon;
@@ -126,20 +129,24 @@ export default function FeedbackScreen() {
                   <Pressable
                     key={option.type}
                     onPress={() => setSelectedType(option.type)}
-                    className={`flex-row items-center gap-3 p-4 rounded-lg border ${
+                    className={cn(
+                      "flex-row items-center gap-3 p-4 rounded-xl border",
                       isSelected
-                        ? 'border-primary bg-primary/10'
-                        : 'border-border bg-muted/30'
-                    }`}
+                        ? "border-foreground bg-foreground/5"
+                        : "border-border bg-muted/30"
+                    )}
                   >
-                    <View className={`p-2 rounded-full ${isSelected ? 'bg-primary/20' : 'bg-muted'}`}>
-                      <Icon size={20} className={isSelected ? 'text-primary' : 'text-muted-foreground'} />
+                    <View className={cn(
+                      "p-2 rounded-full",
+                      isSelected ? "bg-foreground/10" : "bg-muted"
+                    )}>
+                      <Icon size={20} className={isSelected ? "text-foreground" : "text-muted-foreground"} />
                     </View>
                     <View className="flex-1">
-                      <Text className={`font-medium ${isSelected ? 'text-primary' : 'text-foreground'}`}>
+                      <Text className="font-medium text-foreground">
                         {t(option.labelKey)}
                       </Text>
-                      <Text className="text-sm text-muted-foreground">
+                      <Text className="text-xs text-muted-foreground">
                         {t(option.descriptionKey)}
                       </Text>
                     </View>
@@ -151,24 +158,26 @@ export default function FeedbackScreen() {
 
           {/* Rating (Optional) */}
           <View className="gap-3">
-            <Text className="text-lg font-semibold">{t('feedback.rateExperience')}</Text>
+            <Text className="text-[11px] font-semibold text-muted-foreground tracking-wider uppercase">
+              {t('feedback.rateExperience')}
+            </Text>
             <View className="flex-row gap-2">
               {[1, 2, 3, 4, 5].map((star) => (
                 <Pressable
                   key={star}
                   onPress={() => setRating(rating === star ? null : star)}
-                  className="p-2"
+                  className="p-1.5 active:opacity-70"
                 >
                   <Star
-                    size={32}
-                    className={rating && star <= rating ? 'text-yellow-500' : 'text-muted-foreground'}
-                    fill={rating && star <= rating ? '#eab308' : 'transparent'}
+                    size={24}
+                    className={rating && star <= rating ? "text-yellow-500" : "text-muted-foreground"}
+                    fill={rating && star <= rating ? "#eab308" : "transparent"}
                   />
                 </Pressable>
               ))}
             </View>
             {rating && (
-              <Text className="text-sm text-muted-foreground">
+              <Text className="text-xs text-muted-foreground">
                 {ratingLabels[rating]}
               </Text>
             )}
@@ -176,7 +185,9 @@ export default function FeedbackScreen() {
 
           {/* Message */}
           <View className="gap-3">
-            <Text className="text-lg font-semibold">{t('feedback.yourFeedback')}</Text>
+            <Text className="text-[11px] font-semibold text-muted-foreground tracking-wider uppercase">
+              {t('feedback.yourFeedback')}
+            </Text>
             <Textarea
               placeholder={selectedType ? placeholderMap[selectedType] : t('feedback.otherPlaceholder')}
               value={message}
@@ -189,20 +200,18 @@ export default function FeedbackScreen() {
           </View>
 
           {/* Submit Button */}
-          <View className="gap-4 pt-4">
+          <View className="gap-4 pt-2">
             <Button
               onPress={handleSubmit}
               disabled={submitting || !selectedType || !message.trim()}
-              className="flex-row items-center justify-center gap-2"
             >
               {submitting ? (
                 <ActivityIndicator size="small" color="white" />
               ) : (
-                <MessageSquare size={20} className="text-primary-foreground" />
+                <Text className="text-sm font-medium text-primary-foreground">
+                  {t('feedback.submitButton')}
+                </Text>
               )}
-              <Text className="text-primary-foreground font-semibold">
-                {submitting ? t('feedback.submitting') : t('feedback.submitButton')}
-              </Text>
             </Button>
 
             <Text className="text-xs text-center text-muted-foreground">
