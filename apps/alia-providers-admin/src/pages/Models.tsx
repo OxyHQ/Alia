@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@oxyhq/auth';
 import { apiClient } from '@/lib/api/client';
 import { useRealtimeModels } from '@/lib/websocket/hooks';
-import { ALIA_TIERS } from '@/types';
+import { ALIA_TIERS, PROVIDERS } from '@/types';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -49,20 +49,6 @@ import {
   X,
 } from 'lucide-react';
 import type { ModelConfig, AliaModel } from '@/types';
-
-const PROVIDERS = [
-  'openai',
-  'anthropic',
-  'google',
-  'groq',
-  'mistral',
-  'deepseek',
-  'together',
-  'cerebras',
-  'cloudflare',
-  'openrouter',
-  'cohere',
-];
 
 export function ModelsPage() {
   const [activeTab, setActiveTab] = useState('provider-models');

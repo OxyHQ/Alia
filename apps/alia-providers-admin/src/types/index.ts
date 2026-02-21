@@ -248,9 +248,18 @@ export const PROVIDERS = [
   'mistral',
   'deepseek',
   'together',
+  'replicate',
   'cerebras',
   'cloudflare',
   'openrouter',
+  'cohere',
+  'fireworks',
+  'perplexity',
+  'xai',
+  'sambanova',
+  'hyperbolic',
+  'novita',
+  'digitalocean',
 ] as const;
 
 export type Provider = typeof PROVIDERS[number];
@@ -266,6 +275,8 @@ export const ALIA_TIERS = [
   'v1-multimodal',
   'v1-pro',
   'v1-pro-max',
+  'v1-voice',
+  'v1-voice-pro',
 ] as const;
 
 export type AliaTier = typeof ALIA_TIERS[number];

@@ -10,18 +10,14 @@ import { invalidateKeyCache } from '../lib/key-manager';
 import { clearHealthCache } from '../lib/provider-health';
 import { broadcastKeysUpdate } from '../lib/broadcast-helpers';
 import { log } from '../../../lib/logger.js';
+import { PROVIDER_NAMES } from '../lib/provider-names.js';
 
 const router = express.Router();
 
 // Note: Service authentication is applied at mount point in index.ts
 
-// Valid provider names
-const VALID_PROVIDERS = [
-  'openai', 'anthropic', 'google', 'mistral', 'cohere', 'together',
-  'groq', 'fireworks', 'deepseek', 'openrouter', 'perplexity', 'xai',
-  'cerebras', 'cloudflare', 'replicate', 'sambanova', 'hyperbolic',
-  'novita', 'digitalocean',
-];
+// Valid provider names (derived from shared constant)
+const VALID_PROVIDERS = [...PROVIDER_NAMES];
 
 // Sanitize string input: must be a non-empty string within length limits
 function sanitizeString(value: unknown, maxLength = 200): string | null {
