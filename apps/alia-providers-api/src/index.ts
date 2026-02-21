@@ -100,6 +100,16 @@ app.use('/api/call', authenticateService, callRouter);
 app.use('/api/report', authenticateService, reportRouter);
 app.use('/api', authenticateService, dataRouter);
 
+// Global error handler — ensures JSON responses for unhandled middleware errors
+app.use((err: any, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
+  log.general.error({ err }, 'Unhandled error');
+  res.status(err.status || 500).json({
+    success: false,
+    error: err.message || 'Internal server error',
+    code: 'INTERNAL_ERROR',
+  });
+});
+
 async function start() {
   await connectDB();
   await runStartupSeed();
