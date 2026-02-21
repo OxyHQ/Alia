@@ -112,38 +112,10 @@ export default function AppLayout() {
               }}
             />
             <Drawer.Screen
-              name="settings/connectors"
-              options={{
-                drawerItemStyle: { display: 'none' },
-                title: i18n.t('nav.connectors'),
-              }}
-            />
-            <Drawer.Screen
               name="settings/feedback"
               options={{
                 drawerItemStyle: { display: 'none' },
                 title: i18n.t('nav.feedback'),
-              }}
-            />
-            <Drawer.Screen
-              name="settings/whatsapp"
-              options={{
-                drawerItemStyle: { display: 'none' },
-                title: i18n.t('nav.whatsapp'),
-              }}
-            />
-            <Drawer.Screen
-              name="settings/telegram-gateway"
-              options={{
-                drawerItemStyle: { display: 'none' },
-                title: i18n.t('nav.telegramGateway'),
-              }}
-            />
-            <Drawer.Screen
-              name="settings/signal-gateway"
-              options={{
-                drawerItemStyle: { display: 'none' },
-                title: i18n.t('nav.signalGateway'),
               }}
             />
             <Drawer.Screen
