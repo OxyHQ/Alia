@@ -6,6 +6,7 @@ import { ToolExecutor } from './tools'
 import { ChatProvider } from './chat'
 import { AuthProvider } from './auth'
 import { WindowStateManager } from './windowState'
+import { McpLocalClient } from './mcp-client'
 
 // Load environment variables from .env file
 config({ path: join(__dirname, '../../.env') })
@@ -19,6 +20,7 @@ let toolExecutor: ToolExecutor
 let chatProvider: ChatProvider
 let authProvider: AuthProvider
 let windowStateManager: WindowStateManager
+let mcpClient: McpLocalClient | null = null
 let isFullScreen = false
 let savedBounds: Electron.Rectangle | null = null
 
@@ -84,6 +86,10 @@ function createWindow(): void {
   toolExecutor = new ToolExecutor(mainWindow)
   chatProvider = new ChatProvider(mainWindow, toolExecutor)
   authProvider = new AuthProvider(mainWindow)
+
+  // Start local MCP client (non-blocking)
+  mcpClient = new McpLocalClient()
+  mcpClient.start().catch((err) => console.error('[MCP] Startup error:', err))
 
   // Register keyboard shortcuts
   mainWindow.webContents.on('before-input-event', handleKeyboardShortcuts)
@@ -461,4 +467,5 @@ app.on('before-quit', () => {
   if (windowStateManager) {
     windowStateManager.untrack()
   }
+  mcpClient?.shutdown().catch(console.error)
 })

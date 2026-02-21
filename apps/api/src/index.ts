@@ -57,6 +57,8 @@ import { warmupProvidersClient } from './lib/providers-client.js';
 import { initChannels } from './lib/channels/index.js';
 // Socket.io
 import { initSocket } from './socket.js';
+// MCP relay for local MCP tool calls via WebSocket
+import { initMcpRelay, shutdownMcpRelay } from './lib/mcp-relay.js';
 
 // Fix for ES Modules __dirname
 const __filename = fileURLToPath(import.meta.url);
@@ -98,6 +100,7 @@ server.on('connection', (socket) => {
 });
 
 initSocket(server);
+initMcpRelay(server);
 
 // Note: WebSocket upgrade for providers admin is now handled by alia-providers-api
 
@@ -332,6 +335,9 @@ connectDB()
       forceTimeout.unref(); // Don't keep the process alive for this timer
 
       try {
+        // Close MCP relay connections
+        shutdownMcpRelay();
+
         // Close MongoDB connection
         const mongoose = await import('mongoose');
         await mongoose.default.connection.close();

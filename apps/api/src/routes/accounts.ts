@@ -1,4 +1,5 @@
 import express from 'express';
+import crypto from 'crypto';
 import mongoose from 'mongoose';
 import { authenticateToken } from '../middleware/auth.js';
 import { ConnectedAccount } from '../models/connected-account.js';
@@ -74,6 +75,24 @@ const PLATFORM_PATHS: Record<string, string> = {
   gmail: 'accounts/gmail',
 };
 
+// OAuth state store for Gmail connect flow
+const gmailOAuthStates = new Map<string, { userId: string; accountId: string; expiresAt: number }>();
+setInterval(() => {
+  const now = Date.now();
+  for (const [key, value] of gmailOAuthStates) {
+    if (value.expiresAt < now) gmailOAuthStates.delete(key);
+  }
+}, 60_000);
+
+const GMAIL_SCOPES = [
+  'https://www.googleapis.com/auth/gmail.readonly',
+  'https://www.googleapis.com/auth/gmail.send',
+  'https://www.googleapis.com/auth/gmail.modify',
+  'https://www.googleapis.com/auth/userinfo.email',
+];
+const GOOGLE_AUTH_URL = 'https://accounts.google.com/o/oauth2/v2/auth';
+const GOOGLE_TOKEN_URL = 'https://oauth2.googleapis.com/token';
+
 // List all connected accounts for the current user
 router.get('/', authenticateToken, async (req, res) => {
   try {
@@ -98,6 +117,163 @@ router.get('/:platform', authenticateToken, async (req, res) => {
     res.json({ accounts });
   } catch (error) {
     log.channels.error({ err: error }, 'List platform accounts error');
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Gmail OAuth connect — returns OAuth URL for Google authorization
+router.post('/gmail/connect', authenticateToken, (req, res) => {
+  const clientId = process.env.GOOGLE_OAUTH_CLIENT_ID;
+  if (!clientId) {
+    return res.status(503).json({ error: 'Google OAuth not configured' });
+  }
+
+  // Create pending account
+  const accountId = new mongoose.Types.ObjectId();
+  const account = new ConnectedAccount({
+    _id: accountId,
+    oxyUserId: new mongoose.Types.ObjectId(req.userId),
+    platform: 'gmail',
+    accountId: 'pending',
+    status: 'connecting',
+    capabilities: ['read_messages', 'send_messages'],
+  });
+  account.save().catch((err: any) => log.channels.error({ err }, 'Gmail account save error'));
+
+  const state = crypto.randomBytes(32).toString('hex');
+  gmailOAuthStates.set(state, {
+    userId: req.userId!,
+    accountId: accountId.toString(),
+    expiresAt: Date.now() + 10 * 60 * 1000,
+  });
+
+  const apiBaseUrl = process.env.API_BASE_URL || 'http://localhost:3001';
+  const redirectUri = `${apiBaseUrl}/accounts/gmail/callback`;
+
+  const params = new URLSearchParams({
+    client_id: clientId,
+    redirect_uri: redirectUri,
+    scope: GMAIL_SCOPES.join(' '),
+    state,
+    response_type: 'code',
+    access_type: 'offline',
+    prompt: 'consent',
+  });
+
+  res.json({ accountId, authUrl: `${GOOGLE_AUTH_URL}?${params}` });
+});
+
+// Gmail OAuth callback — exchanges code for tokens
+router.get('/gmail/callback', async (req, res) => {
+  const { code, state } = req.query;
+  if (!code || !state || typeof code !== 'string' || typeof state !== 'string') {
+    return res.status(400).json({ error: 'Missing code or state' });
+  }
+
+  const stateData = gmailOAuthStates.get(state);
+  if (!stateData || stateData.expiresAt < Date.now()) {
+    return res.status(400).json({ error: 'Invalid or expired state' });
+  }
+  gmailOAuthStates.delete(state);
+
+  const clientId = process.env.GOOGLE_OAUTH_CLIENT_ID;
+  const clientSecret = process.env.GOOGLE_OAUTH_CLIENT_SECRET;
+  if (!clientId || !clientSecret) {
+    return res.status(503).json({ error: 'Google OAuth not configured' });
+  }
+
+  try {
+    const apiBaseUrl = process.env.API_BASE_URL || 'http://localhost:3001';
+    const redirectUri = `${apiBaseUrl}/accounts/gmail/callback`;
+
+    // Exchange code for tokens
+    const tokenResponse = await fetch(GOOGLE_TOKEN_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        Accept: 'application/json',
+      },
+      body: new URLSearchParams({
+        client_id: clientId,
+        client_secret: clientSecret,
+        code,
+        redirect_uri: redirectUri,
+        grant_type: 'authorization_code',
+      }),
+      signal: AbortSignal.timeout(10_000),
+    });
+
+    const tokenData = (await tokenResponse.json()) as any;
+
+    if (!tokenResponse.ok || !tokenData.access_token) {
+      log.channels.error({ tokenData }, 'Gmail OAuth token exchange failed');
+      return res.status(400).json({ error: 'Failed to exchange code for tokens' });
+    }
+
+    // Fetch user email from Google
+    const profileResponse = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
+      headers: { Authorization: `Bearer ${tokenData.access_token}` },
+      signal: AbortSignal.timeout(5_000),
+    });
+    const profile = (await profileResponse.json()) as any;
+    const email = profile.email || 'unknown';
+
+    // Update the ConnectedAccount
+    const account = await ConnectedAccount.findById(stateData.accountId);
+    if (account) {
+      account.status = 'connected';
+      account.accountId = email;
+      account.email = email;
+      account.displayName = profile.name || email;
+      account.connectedAt = new Date();
+      account.oauthTokens = {
+        accessToken: tokenData.access_token,
+        refreshToken: tokenData.refresh_token,
+        expiresAt: tokenData.expires_in
+          ? new Date(Date.now() + tokenData.expires_in * 1000)
+          : undefined,
+        scope: tokenData.scope || GMAIL_SCOPES.join(' '),
+      };
+      await account.save();
+
+      // Create session in integrations service
+      if (INTEGRATIONS_URL && INTEGRATIONS_SECRET) {
+        try {
+          const sessionResponse = await fetch(
+            `${INTEGRATIONS_URL}/accounts/gmail/sessions/connect`,
+            {
+              method: 'POST',
+              headers: {
+                'X-Gateway-Secret': INTEGRATIONS_SECRET,
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                oxyUserId: stateData.userId,
+                accountId: stateData.accountId,
+                accessToken: tokenData.access_token,
+                refreshToken: tokenData.refresh_token,
+                expiresAt: account.oauthTokens.expiresAt?.toISOString(),
+                email,
+              }),
+              signal: AbortSignal.timeout(10_000),
+            },
+          );
+          const sessionData = (await sessionResponse.json()) as any;
+          if (sessionData.sessionId) {
+            account.sessionId = sessionData.sessionId;
+            await account.save();
+          }
+        } catch (err) {
+          log.channels.warn({ err }, 'Failed to create Gmail session in integrations');
+        }
+      }
+    }
+
+    // Redirect to frontend
+    const appUrl = process.env.APP_URL || process.env.WEB_URL || 'http://localhost:3000';
+    res.redirect(`${appUrl}/settings/accounts?connected=gmail`);
+  } catch (error) {
+    log.channels.error({ err: error }, 'Gmail callback error');
     res.status(500).json({ error: 'Internal server error' });
   }
 });
