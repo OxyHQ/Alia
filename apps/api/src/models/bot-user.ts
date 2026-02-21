@@ -1,14 +1,15 @@
 import mongoose, { Schema, Model, Document } from 'mongoose';
 
-export interface IChannelUser extends Document {
-  channelType: string;
-  channelUserId: string;
+export interface IBotUser extends Document {
+  botId: mongoose.Types.ObjectId;
+  platform: string;
+  platformUserId: string;
   chatId: string;
   oxyUserId?: mongoose.Types.ObjectId;
+  isLinked: boolean;
+  linkedAt?: Date;
   username?: string;
   displayName?: string;
-  isAuthenticated: boolean;
-  linkedAt?: Date;
   authToken?: string;
   authTokenExpiry?: Date;
   authTokenMode?: 'link' | 'signin';
@@ -17,14 +18,18 @@ export interface IChannelUser extends Document {
   metadata: Record<string, any>;
 }
 
-const ChannelUserSchema = new Schema<IChannelUser>(
+const BotUserSchema = new Schema<IBotUser>(
   {
-    channelType: {
+    botId: {
+      type: Schema.Types.ObjectId,
+      ref: 'Bot',
+      required: true,
+    },
+    platform: {
       type: String,
       required: true,
-      index: true,
     },
-    channelUserId: {
+    platformUserId: {
       type: String,
       required: true,
     },
@@ -37,13 +42,13 @@ const ChannelUserSchema = new Schema<IChannelUser>(
       ref: 'User',
       sparse: true,
     },
-    username: String,
-    displayName: String,
-    isAuthenticated: {
+    isLinked: {
       type: Boolean,
       default: false,
     },
     linkedAt: Date,
+    username: String,
+    displayName: String,
     authToken: String,
     authTokenExpiry: Date,
     authTokenMode: {
@@ -59,11 +64,11 @@ const ChannelUserSchema = new Schema<IChannelUser>(
   },
   {
     timestamps: true,
-  }
+  },
 );
 
-ChannelUserSchema.index({ channelType: 1, channelUserId: 1 }, { unique: true });
-ChannelUserSchema.index({ channelType: 1, oxyUserId: 1 });
-ChannelUserSchema.index({ authToken: 1, authTokenExpiry: 1 });
+BotUserSchema.index({ botId: 1, platformUserId: 1 }, { unique: true });
+BotUserSchema.index({ oxyUserId: 1 });
+BotUserSchema.index({ authToken: 1, authTokenExpiry: 1 });
 
-export const ChannelUser: Model<IChannelUser> = mongoose.model<IChannelUser>('ChannelUser', ChannelUserSchema);
+export const BotUser: Model<IBotUser> = mongoose.model<IBotUser>('BotUser', BotUserSchema);

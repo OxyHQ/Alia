@@ -1,9 +1,9 @@
 import { Router, Request, Response } from 'express';
-import type { MessagingAdapter } from '../types';
+import type { AccountAdapter } from '../types';
 import { sessionManager } from './session-manager';
 import { TelegramChat, TelegramMessage } from './models';
 
-export class TelegramGatewayAdapter implements MessagingAdapter {
+export class TelegramGatewayAdapter implements AccountAdapter {
   name = 'telegram-gateway';
 
   async initialize() {

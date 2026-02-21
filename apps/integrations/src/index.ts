@@ -3,7 +3,8 @@ import express from 'express';
 import mongoose from 'mongoose';
 import { Server as WebSocketServer } from 'ws';
 import http from 'http';
-import type { MessagingAdapter } from './messaging/types';
+import type { AccountAdapter } from './accounts/types';
+import type { BotAdapter } from './bots/types';
 
 const PORT = Number(process.env.PORT) || 3005;
 const INTERNAL_PORT = 3005; // Must match DO App Platform internal_ports + health_check.port
@@ -20,13 +21,16 @@ if (!process.env.INTEGRATIONS_SECRET) {
   process.exit(1);
 }
 
-const adapters: MessagingAdapter[] = [];
+const accountAdapters: AccountAdapter[] = [];
+const botAdapters: BotAdapter[] = [];
 
 async function loadAdapters(): Promise<void> {
-  // WhatsApp Gateway
+  // Account Adapters — personal user accounts (passive monitoring + response)
+
+  // WhatsApp
   if (process.env.WHATSAPP_ENABLED !== 'false') {
-    const { WhatsAppAdapter } = await import('./messaging/whatsapp/adapter');
-    adapters.push(new WhatsAppAdapter());
+    const { WhatsAppAdapter } = await import('./accounts/whatsapp/adapter');
+    accountAdapters.push(new WhatsAppAdapter());
   }
 
   // Telegram Gateway
@@ -36,33 +40,35 @@ async function loadAdapters(): Promise<void> {
     if (!telegramApiId || isNaN(telegramApiId) || !telegramApiHash) {
       console.warn('[Integrations] Telegram Gateway disabled: valid TELEGRAM_API_ID / TELEGRAM_API_HASH not set');
     } else {
-      const { TelegramGatewayAdapter } = await import('./messaging/telegram-gateway/adapter');
-      adapters.push(new TelegramGatewayAdapter());
+      const { TelegramGatewayAdapter } = await import('./accounts/telegram-gateway/adapter');
+      accountAdapters.push(new TelegramGatewayAdapter());
     }
   }
 
-  // Signal Gateway
+  // Signal
   if (process.env.SIGNAL_ENABLED !== 'false') {
-    const { SignalAdapter } = await import('./messaging/signal/adapter');
-    adapters.push(new SignalAdapter());
+    const { SignalAdapter } = await import('./accounts/signal/adapter');
+    accountAdapters.push(new SignalAdapter());
   }
+
+  // Bot Adapters — system bots (active sending + external user interaction)
 
   // Telegram Bot
   if (process.env.TELEGRAM_BOT_ENABLED !== 'false' && process.env.TELEGRAM_BOT_TOKEN) {
-    const { TelegramBotAdapter } = await import('./messaging/telegram-bot/adapter');
-    adapters.push(new TelegramBotAdapter());
+    const { TelegramBotAdapter } = await import('./bots/telegram-bot/adapter');
+    botAdapters.push(new TelegramBotAdapter());
   }
 
   // Discord Bot
   if (process.env.DISCORD_BOT_ENABLED !== 'false' && process.env.DISCORD_BOT_TOKEN) {
-    const { DiscordBotAdapter } = await import('./messaging/discord-bot/adapter');
-    adapters.push(new DiscordBotAdapter());
+    const { DiscordBotAdapter } = await import('./bots/discord-bot/adapter');
+    botAdapters.push(new DiscordBotAdapter());
   }
 }
 
 const ADAPTER_INIT_TIMEOUT_MS = 30_000;
 
-async function initAdapterWithTimeout(adapter: MessagingAdapter): Promise<void> {
+async function initAdapterWithTimeout(adapter: { name: string; initialize(): Promise<void> }): Promise<void> {
   await Promise.race([
     adapter.initialize(),
     new Promise<never>((_, reject) =>
@@ -90,11 +96,12 @@ async function main() {
       status: 'ok',
       service: APP_NAME,
       uptime: process.uptime(),
-      adapters: adapters.map((a) => a.name),
+      accounts: accountAdapters.map((a) => a.name),
+      bots: botAdapters.map((a) => a.name),
     });
   });
 
-  // Auth middleware for gateway routes
+  // Auth middleware
   const requireSecret = (req: express.Request, res: express.Response, next: express.NextFunction): void => {
     const secret = req.headers['x-gateway-secret'] as string;
     if (secret !== process.env.INTEGRATIONS_SECRET) {
@@ -104,13 +111,13 @@ async function main() {
     next();
   };
 
-  // Mount adapter routes (routers are available before initialize())
-  for (const adapter of adapters) {
-    if (adapter.getRouter) {
-      app.use(`/${adapter.name}`, requireSecret, adapter.getRouter());
-      console.log(`[Integrations] Mounted routes: /${adapter.name}`);
-    }
+  // Mount account adapter routes under /accounts/<platform>
+  for (const adapter of accountAdapters) {
+    app.use(`/accounts/${adapter.name}`, requireSecret, adapter.getRouter());
+    console.log(`[Integrations] Mounted account routes: /accounts/${adapter.name}`);
   }
+
+  // Bot adapters don't expose REST routes (they use polling/websockets)
 
   // Browser routes (lazy-loaded)
   try {
@@ -167,8 +174,9 @@ async function main() {
     });
   }
 
-  // Initialize adapters AFTER the server is listening (with timeouts)
-  for (const adapter of adapters) {
+  // Initialize all adapters AFTER the server is listening (with timeouts)
+  const allAdapters = [...accountAdapters, ...botAdapters];
+  for (const adapter of allAdapters) {
     try {
       await initAdapterWithTimeout(adapter);
       console.log(`[Integrations] ${adapter.name} adapter initialized`);
@@ -182,7 +190,8 @@ async function main() {
 async function shutdown(signal: string) {
   console.log(`[Integrations] Received ${signal}, shutting down...`);
   try {
-    for (const adapter of adapters) {
+    const allAdapters = [...accountAdapters, ...botAdapters];
+    for (const adapter of allAdapters) {
       await adapter.shutdown();
       console.log(`[Integrations] ${adapter.name} shut down`);
     }

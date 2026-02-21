@@ -17,7 +17,11 @@ import chatRouter from './routes/chat.js';
 import memoryRouter from './routes/memory.js';
 import creditsRouter from './routes/credits.js';
 import v1Router from './routes/v1.js';
-import telegramRouter from './routes/telegram.js';
+import accountsRouter from './routes/accounts.js';
+import botsRouter from './routes/bots.js';
+import mcpRouter from './routes/mcp.js';
+import integrationsOauthRouter from './routes/integrations-oauth.js';
+import toolsProxyRouter from './routes/tools-proxy.js';
 import developerRouter from './routes/developer.js';
 import billingRouter from './routes/billing.js';
 import organizationRouter from './routes/organization.js';
@@ -30,7 +34,6 @@ import internalRouter from './routes/internal.js';
 import skillsRouter from './routes/skills.js';
 import automationsRouter from './routes/automations.js';
 import analyticsRouter from './routes/analytics.js';
-import channelsRouter from './routes/channels.js';
 import webhooksRouter from './routes/webhooks.js';
 import referralsRouter from './routes/referrals.js';
 import agentsRouter from './routes/agents.js';
@@ -189,7 +192,11 @@ app.use('/memory', memoryRouter);
 app.use('/credits', creditsRouter);
 app.use('/alia/chat', chatRouter);
 app.use('/v1', v1Router);
-app.use('/telegram', telegramRouter);
+app.use('/accounts', accountsRouter);
+app.use('/bots', botsRouter);
+app.use('/mcp', mcpRouter);
+app.use('/integrations', integrationsOauthRouter);
+app.use('/tools', toolsProxyRouter);
 app.use('/developer', resolveWorkspace, developerRouter);
 app.use('/billing', billingRouter);
 app.use('/organization', organizationRouter);
@@ -201,7 +208,6 @@ app.use('/external-models', externalModelsRouter);
 app.use('/skills', skillsRouter);
 app.use('/automations', automationsRouter);
 app.use('/analytics', analyticsRouter);
-app.use('/channels', channelsRouter);
 app.use('/webhooks', webhooksRouter);
 app.use('/referrals', referralsRouter);
 app.use('/agents/avatar', agentsAvatarRouter);
@@ -226,7 +232,11 @@ app.get('/', (_req, res) => {
       '/credits',
       '/alia/chat',
       '/v1',
-      '/telegram',
+      '/accounts',
+      '/bots',
+      '/mcp',
+      '/integrations',
+      '/tools',
       '/developer',
       '/billing',
       '/organization',
@@ -237,7 +247,6 @@ app.get('/', (_req, res) => {
       '/skills',
       '/automations',
       '/analytics',
-      '/channels',
       '/webhooks',
       '/agents',
       '/containers',

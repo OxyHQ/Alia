@@ -1,9 +1,9 @@
 import { Router, Request, Response } from 'express';
-import type { MessagingAdapter } from '../types';
+import type { AccountAdapter } from '../types';
 import { sessionManager } from './session-manager';
 import { SignalChat, SignalMessage } from './models';
 
-export class SignalAdapter implements MessagingAdapter {
+export class SignalAdapter implements AccountAdapter {
   name = 'signal-gateway';
 
   async initialize() {
