@@ -6,8 +6,9 @@ import {
   FileText,
   Image as ImageIcon,
   File,
-  Trash2
+  MoreHorizontal,
 } from 'lucide-react-native';
+import * as DropdownMenu from '@/components/ui/dropdown-menu';
 import { LibraryFile } from '@/lib/stores/library-store';
 import { formatFileSize } from '@/lib/utils';
 
@@ -18,12 +19,6 @@ interface FileCardProps {
 }
 
 export function FileCard({ file, onPress, onDelete }: FileCardProps) {
-  const handleDelete = (e: any) => {
-    // Prevent event bubbling to parent Pressable
-    e?.stopPropagation?.();
-    onDelete?.(file);
-  };
-
   const getFileIcon = () => {
     if (file.category === 'images') {
       return <ImageIcon size={16} className="text-blue-500" />;
@@ -41,72 +36,61 @@ export function FileCard({ file, onPress, onDelete }: FileCardProps) {
 
     if (days === 0) return 'Today';
     if (days === 1) return 'Yesterday';
-    if (days < 7) return `${days} days ago`;
+    if (days < 7) return `${days}d ago`;
 
     return date.toLocaleDateString();
   };
 
+  const subtitle = [
+    file.type.split('/').pop()?.toUpperCase(),
+    file.size > 0 ? formatFileSize(file.size) : null,
+    formatDate(file.createdAt),
+  ].filter(Boolean).join(' \u00B7 ');
+
   return (
     <Pressable
       onPress={() => onPress?.(file)}
-      className="active:bg-muted/50 w-full"
+      className="active:opacity-70"
     >
-      <View className="flex-row items-center border-b border-border px-3 py-2 hover:bg-muted/50 transition-colors">
-        {/* Thumbnail or Icon */}
-        <View className="w-8 mr-2">
+      <View className="flex-row items-center py-2.5 gap-3">
+        {/* Thumbnail / Icon */}
+        <View className="w-9 h-9 rounded-full bg-muted items-center justify-center overflow-hidden">
           {file.category === 'images' && file.thumbnail ? (
             <Image
               source={{ uri: file.thumbnail }}
-              className="w-8 h-8 rounded"
+              className="w-9 h-9"
               contentFit="cover"
-              placeholder={{ blurhash: 'L6PZfSi_.AyE_3t7t7R**0o#DgR4' }}
               transition={200}
             />
           ) : (
-            <View className="w-8 h-8 rounded bg-muted items-center justify-center">
-              {getFileIcon()}
-            </View>
+            getFileIcon()
           )}
         </View>
 
-        {/* Name - takes most space */}
-        <View className="flex-1 mr-3">
-          <Text className="text-sm text-foreground" numberOfLines={1}>
+        {/* Content */}
+        <View className="flex-1">
+          <Text className="text-[14px] font-semibold text-foreground" numberOfLines={1}>
             {file.name}
           </Text>
-        </View>
-
-        {/* Category */}
-        <View className="w-20 mr-3 hidden md:flex">
-          <Text className="text-xs text-muted-foreground capitalize">
-            {file.category}
-          </Text>
-        </View>
-
-        {/* Size */}
-        <View className="w-16 mr-3 hidden md:flex">
-          <Text className="text-xs text-muted-foreground">
-            {formatFileSize(file.size)}
-          </Text>
-        </View>
-
-        {/* Date */}
-        <View className="w-20 mr-3 hidden md:flex">
-          <Text className="text-xs text-muted-foreground">
-            {formatDate(file.createdAt)}
+          <Text className="text-xs text-muted-foreground" numberOfLines={1}>
+            {subtitle}
           </Text>
         </View>
 
         {/* Actions */}
-        <Pressable
-          onPress={(e) => {
-            e.stopPropagation();
-            handleDelete(e);
-          }}
-          className="p-1.5 rounded hover:bg-muted active:opacity-70"
-        >
-          <Trash2 size={16} className="text-muted-foreground hover:text-destructive" />
-        </Pressable>
+        <DropdownMenu.Root>
+          <DropdownMenu.Trigger>
+            <Pressable className="h-8 w-8 items-center justify-center rounded-full active:bg-muted/70">
+              <MoreHorizontal size={14} className="text-muted-foreground" />
+            </Pressable>
+          </DropdownMenu.Trigger>
+          <DropdownMenu.Content>
+            <DropdownMenu.Item key="delete" destructive onSelect={() => onDelete?.(file)}>
+              <DropdownMenu.ItemIcon ios={{ name: "trash" }} />
+              <DropdownMenu.ItemTitle>Delete</DropdownMenu.ItemTitle>
+            </DropdownMenu.Item>
+          </DropdownMenu.Content>
+        </DropdownMenu.Root>
       </View>
     </Pressable>
   );
