@@ -6,7 +6,7 @@
  */
 
 import { tool } from 'ai';
-import { z } from 'zod';
+import { jsonSchemaToZod } from './tools/mcp-schema.js';
 
 /**
  * OpenAI tool format (as received from clients like Cursor)
@@ -35,84 +35,6 @@ export function sanitizeFunctionName(name: string): string {
 
   // Truncate to 64 chars
   return sanitized.slice(0, 64);
-}
-
-/**
- * Convert JSON Schema to Zod schema.
- * Handles common JSON Schema types used in OpenAI function calling.
- */
-function jsonSchemaToZod(schema: Record<string, any> | undefined): z.ZodTypeAny {
-  if (!schema || Object.keys(schema).length === 0) {
-    return z.object({}).passthrough();
-  }
-
-  // Handle based on type
-  const type = schema.type;
-
-  if (type === 'object') {
-    const properties = schema.properties || {};
-    const required = schema.required || [];
-
-    const shape: Record<string, z.ZodTypeAny> = {};
-
-    for (const [key, propSchema] of Object.entries(properties)) {
-      let zodProp = jsonSchemaToZod(propSchema as Record<string, any>);
-
-      // Add description if present
-      if ((propSchema as any).description) {
-        zodProp = zodProp.describe((propSchema as any).description);
-      }
-
-      // Make optional if not required
-      if (!required.includes(key)) {
-        zodProp = zodProp.optional();
-      }
-
-      shape[key] = zodProp;
-    }
-
-    // Use passthrough to allow additional properties (common in editor tools)
-    return z.object(shape).passthrough();
-  }
-
-  if (type === 'string') {
-    if (schema.enum) {
-      return z.enum(schema.enum as [string, ...string[]]);
-    }
-    return z.string();
-  }
-
-  if (type === 'number' || type === 'integer') {
-    return z.number();
-  }
-
-  if (type === 'boolean') {
-    return z.boolean();
-  }
-
-  if (type === 'array') {
-    const itemSchema = schema.items ? jsonSchemaToZod(schema.items) : z.any();
-    return z.array(itemSchema);
-  }
-
-  if (type === 'null') {
-    return z.null();
-  }
-
-  // Union types (anyOf, oneOf)
-  if (schema.anyOf || schema.oneOf) {
-    const schemas = (schema.anyOf || schema.oneOf) as Record<string, any>[];
-    if (schemas.length === 0) return z.any();
-    if (schemas.length === 1) return jsonSchemaToZod(schemas[0]);
-    return z.union([
-      jsonSchemaToZod(schemas[0]),
-      jsonSchemaToZod(schemas[1]),
-      ...schemas.slice(2).map(s => jsonSchemaToZod(s))
-    ] as [z.ZodTypeAny, z.ZodTypeAny, ...z.ZodTypeAny[]]);
-  }
-
-  // Fallback: accept any
-  return z.any();
 }
 
 /**

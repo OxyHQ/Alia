@@ -91,13 +91,20 @@ async function main() {
   app.use(express.json());
 
   // Health check
-  app.get('/health', (_req, res) => {
+  app.get('/health', async (_req, res) => {
+    let mcpSessions: any[] = [];
+    try {
+      const { listSessions } = await import('./mcp/manager');
+      mcpSessions = listSessions();
+    } catch {}
+
     res.json({
       status: 'ok',
       service: APP_NAME,
       uptime: process.uptime(),
       accounts: accountAdapters.map((a) => a.name),
       bots: botAdapters.map((a) => a.name),
+      mcpServers: mcpSessions.length,
     });
   });
 
@@ -118,6 +125,11 @@ async function main() {
   }
 
   // Bot adapters don't expose REST routes (they use polling/websockets)
+
+  // MCP server management routes
+  const { mcpRouter } = await import('./mcp/routes');
+  app.use('/mcp', requireSecret, mcpRouter);
+  console.log('[Integrations] Mounted routes: /mcp');
 
   // Browser routes (lazy-loaded)
   try {
@@ -190,6 +202,11 @@ async function main() {
 async function shutdown(signal: string) {
   console.log(`[Integrations] Received ${signal}, shutting down...`);
   try {
+    // Shutdown MCP servers
+    const { shutdownAll: shutdownMcp } = await import('./mcp/manager');
+    await shutdownMcp();
+    console.log('[Integrations] MCP servers shut down');
+
     const allAdapters = [...accountAdapters, ...botAdapters];
     for (const adapter of allAdapters) {
       await adapter.shutdown();

@@ -7,6 +7,7 @@ import { resolveModel, getAIModel, getDefaultAliaModel, reportModelUsage } from 
 import { markKeyCreditExhausted } from '../lib/providers-client.js';
 import { getAliaModel, getModelMappingsForTier } from '../lib/providers-client.js';
 import { getCurrentDateTool, webSearchTool, browseTool, saveUserMemoryTool, updateUserPreferencesTool, updateUserContextTool, createGetDeviceInfoTool, createSendTelegramTool, createProvidersAdminTool, webScraperTool, generateFileTool, canvasTool, type DeviceInfo } from '../lib/tools/index.js';
+import { buildMcpTools } from '../lib/tools/mcp.js';
 import { optionalAuth, oxyClient } from '../middleware/auth.js';
 import type { User as OxyUser } from '@oxyhq/core';
 import { getOrCreateUserCredits } from '../lib/user-credits-helpers.js';
@@ -31,6 +32,7 @@ import { writeSSE, TextBatcher, setupSSEHeaders } from '../lib/streaming-helpers
 import { loadPrompt } from '../lib/prompt-loader.js';
 import { wrapToolsWithTruncation, getToolResultBudget } from '../lib/tools/result-truncation.js';
 import { recordEvent } from '../lib/observability/index.js';
+import { formatStyleForPrompt } from '../lib/style/style-prompt.js';
 
 const router = Router();
 
@@ -117,6 +119,14 @@ async function buildChatSystemPrompt(
     // Fallback: if recall didn't run (e.g. unauthenticated), use all memories
     const memoryItems = memory.memories.map(m => `- ${m.key}: ${m.value}`).join('\n');
     userContext.push(`\nThings to remember about the user:\n${memoryItems}`);
+  }
+
+  // Inject writing style profile (for composing on behalf of user)
+  if (memory?.writingStyle?.isReady) {
+    const styleBlock = formatStyleForPrompt(memory.writingStyle);
+    if (styleBlock) {
+      userContext.push(`\n${styleBlock}`);
+    }
   }
 
   if (userContext.length > 0) {
@@ -379,6 +389,16 @@ router.post('/', optionalAuth, async (req, res) => {
       // Add admin tools for authorized users
       if (oxyUser?.username === 'nate') {
         tools.providersAdmin = createProvidersAdminTool();
+      }
+
+      // Add user's MCP server tools (only on first attempt to avoid re-querying)
+      if (attempt === 0 && req.user?.id) {
+        try {
+          const mcpTools = await buildMcpTools(req.user.id);
+          Object.assign(tools, mcpTools);
+        } catch (err) {
+          log.chat.warn({ err }, 'Failed to load MCP tools');
+        }
       }
 
       // Run beforeChat hooks (only on first attempt)
