@@ -377,7 +377,7 @@ async function sendEmail(
   const body: any = { raw };
   if (params.threadId) body.threadId = params.threadId;
 
-  const response = await fetch(url, {
+  const response = await fetch(`${GMAIL_API}/users/me/messages/send`, {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${accessToken}`,
