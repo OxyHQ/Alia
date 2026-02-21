@@ -2,7 +2,6 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { View, ScrollView, Pressable } from "react-native";
 import { Text } from "@/components/ui/text";
 import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
@@ -23,7 +22,6 @@ import {
   Brain,
   Plus,
   Trash2,
-  Edit3,
   Search,
   Heart,
   Briefcase,
@@ -510,114 +508,96 @@ export default function MemoryScreen() {
   return (
     <View className="flex-1 bg-background">
       <SettingsHeader title={t("memory.title")} />
-      <ScrollView className="flex-1">
-        {/* Hero Section - Centered */}
-        <View className="items-center px-6 py-12">
-          <Brain size={48} className="text-primary mb-4" />
-          <Text className="text-4xl font-bold text-foreground mb-3 text-center">
-            {t("memory.title")}
-          </Text>
-          <Text className="text-base text-muted-foreground mb-6 text-center max-w-md">
-            {t("memory.subtitle")}
-          </Text>
-
-          {/* Search Bar */}
-          <View className="w-full max-w-md flex-row items-center gap-2 bg-muted rounded-full px-4 py-3 mb-4">
-            <Search size={18} className="text-muted-foreground" />
-            <Input
-              value={searchQuery}
-              onChangeText={setSearchQuery}
-              placeholder={semanticMode ? t("memory.aiSearchPlaceholder") : t("memory.searchPlaceholder")}
-              className="flex-1 border-0 bg-transparent h-auto p-0 web:focus-visible:ring-0"
-              placeholderTextColor={colors.mutedForeground}
-            />
-            {semanticLoading && (
-              <Text className="text-xs text-muted-foreground">...</Text>
-            )}
-            <Pressable
-              onPress={() => {
-                setSemanticMode(!semanticMode);
-                if (!semanticMode) {
-                  toast.info(t("memory.aiSearchEnabled"));
-                }
-              }}
-              className={cn(
-                "px-2.5 py-1 rounded-full border",
-                semanticMode ? "bg-primary/10 border-primary" : "border-transparent"
+      <ScrollView className="flex-1" contentContainerClassName="max-w-2xl">
+        {/* Compact Toolbar */}
+        <View className="px-4 pt-3 pb-2 gap-2">
+          {/* Row 1: Search + Add */}
+          <View className="flex-row items-center gap-2">
+            <View className="flex-1 flex-row items-center gap-2 bg-muted rounded-lg px-3 h-9">
+              <Search size={15} className="text-muted-foreground" />
+              <Input
+                value={searchQuery}
+                onChangeText={setSearchQuery}
+                placeholder={semanticMode ? t("memory.aiSearchPlaceholder") : t("memory.searchPlaceholder")}
+                className="flex-1 border-0 bg-transparent h-auto p-0 text-sm web:focus-visible:ring-0"
+                placeholderTextColor={colors.mutedForeground}
+              />
+              {semanticLoading && (
+                <Text className="text-xs text-muted-foreground">...</Text>
               )}
+              <Pressable
+                onPress={() => {
+                  setSemanticMode(!semanticMode);
+                  if (!semanticMode) {
+                    toast.info(t("memory.aiSearchEnabled"));
+                  }
+                }}
+                className={cn(
+                  "px-2 py-0.5 rounded-md",
+                  semanticMode ? "bg-primary/15" : ""
+                )}
+              >
+                <View className="flex-row items-center gap-1">
+                  <Wand2 size={11} className={semanticMode ? "text-primary" : "text-muted-foreground"} />
+                  <Text className={cn("text-[11px] font-medium", semanticMode ? "text-primary" : "text-muted-foreground")}>
+                    AI
+                  </Text>
+                </View>
+              </Pressable>
+            </View>
+
+            <Button
+              onPress={() => handleOpenDialog()}
+              size="sm"
+              className="h-9 px-3 rounded-lg"
             >
-              <View className="flex-row items-center gap-1">
-                <Wand2 size={12} className={semanticMode ? "text-primary" : "text-muted-foreground"} />
-                <Text className={cn("text-xs font-medium", semanticMode ? "text-primary" : "text-muted-foreground")}>
-                  AI
-                </Text>
+              <View className="flex-row items-center gap-1.5">
+                <Plus size={16} className="text-primary-foreground" />
               </View>
-            </Pressable>
+            </Button>
           </View>
 
-          {/* Create Button */}
-          <Button
-            onPress={() => handleOpenDialog()}
-            className="h-11 px-6 rounded-full"
-          >
-            <View className="flex-row items-center gap-2">
-              <Plus size={18} className="text-primary-foreground" />
-              <Text className="text-sm font-semibold text-primary-foreground">
-                {t("memory.addMemory")}
-              </Text>
+          {/* Row 2: Count + actions */}
+          <View className="flex-row items-center justify-between">
+            <Text className="text-xs text-muted-foreground">
+              {displayMemories.length} {displayMemories.length === 1 ? 'memoria' : 'memorias'}
+            </Text>
+            <View className="flex-row items-center gap-1">
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-7 w-7"
+                onPress={() => {
+                  setShowExportDialog(true);
+                  loadExportStats();
+                }}
+              >
+                <Download size={14} className="text-muted-foreground" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-7 w-7"
+                onPress={() => setShowImportDialog(true)}
+              >
+                <Upload size={14} className="text-muted-foreground" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-7 w-7"
+                onPress={loadDuplicates}
+                disabled={duplicatesLoading}
+              >
+                <Copy size={14} className="text-muted-foreground" />
+              </Button>
             </View>
-          </Button>
-
-          {/* Export/Import/Duplicates Buttons */}
-          <View className="flex-row gap-2 mt-3">
-            <Button
-              onPress={() => {
-                setShowExportDialog(true);
-                loadExportStats();
-              }}
-              variant="outline"
-              className="h-11 px-4 rounded-full flex-1"
-            >
-              <View className="flex-row items-center gap-2">
-                <Download size={16} className="text-foreground" />
-                <Text className="text-sm font-semibold text-foreground">
-                  {t("memory.export")}
-                </Text>
-              </View>
-            </Button>
-
-            <Button
-              onPress={() => setShowImportDialog(true)}
-              variant="outline"
-              className="h-11 px-4 rounded-full flex-1"
-            >
-              <View className="flex-row items-center gap-2">
-                <Upload size={16} className="text-foreground" />
-                <Text className="text-sm font-semibold text-foreground">
-                  {t("memory.import")}
-                </Text>
-              </View>
-            </Button>
-
-            <Button
-              onPress={loadDuplicates}
-              variant="outline"
-              className="h-11 px-4 rounded-full flex-1"
-              disabled={duplicatesLoading}
-            >
-              <View className="flex-row items-center gap-2">
-                <Copy size={16} className="text-foreground" />
-                <Text className="text-sm font-semibold text-foreground">
-                  {duplicatesLoading ? "..." : t("memory.duplicates")}
-                </Text>
-              </View>
-            </Button>
           </View>
         </View>
 
         {/* Category Toggle Group */}
         {memories.length > 0 && (
-          <View className="px-6 pb-4">
+          <View className="px-4 pb-2">
             <ScrollView horizontal showsHorizontalScrollIndicator={false}>
               <ToggleGroup
                 type="single"
@@ -634,15 +614,15 @@ export default function MemoryScreen() {
           </View>
         )}
 
-        {/* Memories Grid */}
-        <View className="px-6 pb-6">
+        {/* Memory List */}
+        <View className="px-4 pb-4">
           {displayMemories.length === 0 ? (
-            <View className="items-center justify-center py-20">
-              <Brain size={64} className="text-muted-foreground opacity-50" />
-              <Text className="text-lg font-medium text-foreground mt-4">
+            <View className="items-center justify-center py-12">
+              <Brain size={32} className="text-muted-foreground opacity-40" />
+              <Text className="text-sm font-medium text-muted-foreground mt-3">
                 {memories.length === 0 ? t('memory.noMemories') : t('memory.noMemoriesFound')}
               </Text>
-              <Text className="text-sm text-muted-foreground text-center mt-2 max-w-md">
+              <Text className="text-xs text-muted-foreground text-center mt-1 max-w-xs">
                 {searchQuery
                   ? semanticMode ? t('memory.noSemanticResults') : t('memory.noMemoriesFound')
                   : t('memory.shareInfo')
@@ -650,15 +630,16 @@ export default function MemoryScreen() {
               </Text>
             </View>
           ) : (
-            <View className="flex-row flex-wrap gap-3">
-              {displayMemories.map((memory) => (
-                <MemoryCard
+            <View className="border border-border rounded-xl overflow-hidden bg-surface">
+              {displayMemories.map((memory, index) => (
+                <MemoryRow
                   key={memory._id}
                   memory={memory}
                   onEdit={() => handleOpenDialog(memory)}
                   onDelete={() => handleDeleteMemory(memory._id)}
                   getCategoryConfig={getCategoryConfig}
                   t={t}
+                  isLast={index === displayMemories.length - 1}
                 />
               ))}
             </View>
@@ -1009,73 +990,62 @@ export default function MemoryScreen() {
   );
 }
 
-function MemoryCard({
+function MemoryRow({
   memory,
   onEdit,
   onDelete,
   getCategoryConfig,
   t,
+  isLast,
 }: {
   memory: Memory;
   onEdit: () => void;
   onDelete: () => void;
   getCategoryConfig: (category?: string) => { icon: any; color: string; bgColor: string };
   t: (key: string, params?: Record<string, any>) => string;
+  isLast: boolean;
 }) {
   const config = getCategoryConfig(memory.category);
   const CategoryIcon = config.icon;
 
   return (
-    <View className="w-[48%] md:w-[31%]">
-      <Card className="overflow-hidden h-full">
-        <View className="p-4">
-          {/* Category Badge */}
-          {memory.category && (
-            <View className="flex-row items-center gap-1 mb-3">
-              <View className={cn("px-2 py-1 rounded-full flex-row items-center gap-1", config.bgColor)}>
-                <CategoryIcon size={10} className={config.color} />
-                <Text className={cn("text-xs font-medium", config.color)}>
-                  {memory.category}
-                </Text>
-              </View>
-            </View>
-          )}
+    <Pressable
+      onPress={onEdit}
+      className={cn(
+        "flex-row items-center px-3 py-2.5 active:bg-accent/50",
+        !isLast && "border-b border-border"
+      )}
+    >
+      {/* Category icon */}
+      <View className={cn("w-7 h-7 rounded-lg items-center justify-center mr-3", config.bgColor)}>
+        <CategoryIcon size={14} className={config.color} />
+      </View>
 
-          {/* Key */}
-          <Text className="text-base font-semibold text-foreground mb-2" numberOfLines={1}>
+      {/* Content */}
+      <View className="flex-1 mr-2">
+        <View className="flex-row items-center gap-1.5">
+          <Text className="text-sm font-medium text-foreground flex-1" numberOfLines={1}>
             {memory.key}
           </Text>
-
-          {/* Value */}
-          <Text className="text-sm text-muted-foreground mb-3" numberOfLines={3}>
-            {memory.value}
+          <Text className="text-[10px] text-muted-foreground/60">
+            {new Date(memory.updatedAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
           </Text>
-
-          {/* Date */}
-          <View className="px-2 py-1 bg-muted rounded-md self-start mb-3">
-            <Text className="text-xs text-muted-foreground">
-              {memory.createdAt !== memory.updatedAt ? t('memory.updated') : t('memory.added')}{' '}
-              {new Date(memory.updatedAt).toLocaleDateString()}
-            </Text>
-          </View>
-
-          {/* Actions */}
-          <View className="flex-row gap-2">
-            <Pressable
-              onPress={onEdit}
-              className="flex-1 bg-primary/10 rounded-lg p-2 items-center active:opacity-70"
-            >
-              <Edit3 size={16} className="text-primary" />
-            </Pressable>
-            <Pressable
-              onPress={onDelete}
-              className="flex-1 bg-destructive/10 rounded-lg p-2 items-center active:opacity-70"
-            >
-              <Trash2 size={16} className="text-destructive" />
-            </Pressable>
-          </View>
         </View>
-      </Card>
-    </View>
+        <Text className="text-xs text-muted-foreground" numberOfLines={1}>
+          {memory.value}
+        </Text>
+      </View>
+
+      {/* Delete */}
+      <Pressable
+        onPress={(e) => {
+          e.stopPropagation();
+          onDelete();
+        }}
+        className="w-7 h-7 items-center justify-center rounded-md active:bg-destructive/10"
+      >
+        <Trash2 size={14} className="text-muted-foreground" />
+      </Pressable>
+    </Pressable>
   );
 }
