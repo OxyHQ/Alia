@@ -44,10 +44,10 @@ export async function handleIncomingMessage(
   } = params;
 
   try {
-    // Get channel user from API
-    const channelUser = await apiClient.getChannelUser(oxyUserId);
+    // Get bot user from API
+    const botUser = await apiClient.getBotUser(oxyUserId);
 
-    if (!channelUser || !channelUser.isAuthenticated || !channelUser.oxyUserId) {
+    if (!botUser || !botUser.isLinked || !botUser.oxyUserId) {
       await sendResponse(
         'Please link your Alia account first. Visit the Alia app and go to Settings.',
       );
@@ -60,7 +60,7 @@ export async function handleIncomingMessage(
     }
 
     // Conversation management
-    let conversationId = channelUser.conversationId;
+    let conversationId = botUser.conversationId;
     if (!conversationId) {
       conversationId = uuidv4();
       await apiClient.updateConversation(oxyUserId, conversationId);
@@ -69,7 +69,7 @@ export async function handleIncomingMessage(
     // Load conversation history (last 20 messages, user/assistant only)
     let messages: Array<{ role: string; content: string }> = [];
     try {
-      const conversation = await apiClient.getConversation(channelUser.oxyUserId, conversationId);
+      const conversation = await apiClient.getConversation(botUser.oxyUserId, conversationId);
       if (conversation?.messages?.length) {
         messages = conversation.messages
           .filter((m: any) => m.role === 'user' || m.role === 'assistant')
@@ -94,10 +94,10 @@ export async function handleIncomingMessage(
 
     // Route through the main API to get system prompt, memory, tools, etc.
     const result = await apiClient.chatCompletion(
-      channelUser.oxyUserId,
+      botUser.oxyUserId,
       apiMessages,
       {
-        model: channelUser.preferredModel || 'alia-lite',
+        model: botUser.preferredModel || 'alia-lite',
         conversationId,
       },
     );

@@ -29,10 +29,10 @@ export class APIClient {
     return { 'X-Channel-Bot-Secret': this.secret };
   }
 
-  async getChannelUser(channelUserId: string): Promise<any> {
+  async getBotUser(platformUserId: string): Promise<any> {
     try {
       const response = await this.client.get(
-        `/bots/internal/${this.platform}/users/${channelUserId}`,
+        `/bots/internal/${this.platform}/users/${platformUserId}`,
         { headers: this.authHeaders },
       );
       return response.data;
@@ -42,7 +42,7 @@ export class APIClient {
     }
   }
 
-  async createOrUpdateChannelUser(data: {
+  async createOrUpdateBotUser(data: {
     platformUserId: string;
     chatId: string;
     username?: string;
@@ -56,22 +56,22 @@ export class APIClient {
     return response.data;
   }
 
-  async requestAuthToken(channelUserId: string): Promise<{
+  async requestAuthToken(platformUserId: string): Promise<{
     authToken: string;
     authUrl: string;
     expiresAt: Date;
   }> {
     const response = await this.client.post(
       `/bots/internal/${this.platform}/auth-request`,
-      { platformUserId: channelUserId },
+      { platformUserId },
       { headers: this.authHeaders },
     );
     return response.data;
   }
 
-  async updateConversation(channelUserId: string, conversationId: string): Promise<void> {
+  async updateConversation(platformUserId: string, conversationId: string): Promise<void> {
     await this.client.post(
-      `/bots/internal/${this.platform}/users/${channelUserId}/conversation`,
+      `/bots/internal/${this.platform}/users/${platformUserId}/conversation`,
       { conversationId },
       { headers: this.authHeaders },
     );
@@ -119,17 +119,17 @@ export class APIClient {
     }
   }
 
-  async updateModel(channelUserId: string, model: string): Promise<void> {
+  async updateModel(platformUserId: string, model: string): Promise<void> {
     await this.client.post(
-      `/bots/internal/${this.platform}/users/${channelUserId}/model`,
+      `/bots/internal/${this.platform}/users/${platformUserId}/model`,
       { model },
       { headers: this.authHeaders },
     );
   }
 
-  async logoutUser(channelUserId: string): Promise<void> {
+  async logoutUser(platformUserId: string): Promise<void> {
     await this.client.post(
-      `/bots/internal/${this.platform}/users/${channelUserId}/logout`,
+      `/bots/internal/${this.platform}/users/${platformUserId}/logout`,
       {},
       { headers: this.authHeaders },
     );

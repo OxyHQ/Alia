@@ -109,7 +109,7 @@ export const discordPlugin: ChannelPlugin = {
       if (author.bot) return null;
 
       return {
-        channelUserId: author.id,
+        platformUserId: author.id,
         chatId: data.channel_id,
         text: data.content || '',
         username: author.username,

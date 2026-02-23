@@ -72,7 +72,7 @@ export interface ChannelWebhookAdapter {
 }
 
 export interface ChannelInboundMessage {
-  channelUserId: string;
+  platformUserId: string;
   chatId: string;
   text: string;
   username?: string;

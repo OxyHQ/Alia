@@ -37,7 +37,7 @@ export async function registerSlashCommands(client: Client): Promise<void> {
 
 export async function sendAuthRequest(message: Message): Promise<void> {
   try {
-    await apiClient.createOrUpdateChannelUser({
+    await apiClient.createOrUpdateBotUser({
       platformUserId: message.author.id,
       chatId: message.channelId,
       displayName: message.author.displayName || message.author.username,
@@ -104,8 +104,8 @@ export async function handleTextCommand(
 
 async function handleStatus(message: Message): Promise<void> {
   try {
-    const channelUser = await apiClient.getChannelUser(message.author.id);
-    if (!channelUser?.isAuthenticated) {
+    const botUser = await apiClient.getBotUser(message.author.id);
+    if (!botUser?.isLinked) {
       await sendAuthRequest(message);
       return;
     }
@@ -116,7 +116,7 @@ async function handleStatus(message: Message): Promise<void> {
           color: 0x00ff00,
           fields: [
             { name: 'Status', value: 'Connected', inline: true },
-            { name: 'Model', value: channelUser.preferredModel || 'alia-lite', inline: true },
+            { name: 'Model', value: botUser.preferredModel || 'alia-lite', inline: true },
           ],
         },
       ],
@@ -128,8 +128,8 @@ async function handleStatus(message: Message): Promise<void> {
 
 async function handleNewConversation(message: Message): Promise<void> {
   try {
-    const channelUser = await apiClient.getChannelUser(message.author.id);
-    if (!channelUser?.isAuthenticated) {
+    const botUser = await apiClient.getBotUser(message.author.id);
+    if (!botUser?.isLinked) {
       await sendAuthRequest(message);
       return;
     }
@@ -142,15 +142,15 @@ async function handleNewConversation(message: Message): Promise<void> {
 
 async function handleModelChange(message: Message, modelName: string): Promise<void> {
   try {
-    const channelUser = await apiClient.getChannelUser(message.author.id);
-    if (!channelUser?.isAuthenticated) {
+    const botUser = await apiClient.getBotUser(message.author.id);
+    if (!botUser?.isLinked) {
       await sendAuthRequest(message);
       return;
     }
     if (!modelName) {
       const models = await apiClient.fetchModels();
       const list = models.map((m: any) => `\`${m.id}\` - ${m.name}`).join('\n');
-      await message.reply(`**Available Models:**\n${list || 'None'}\n\nCurrent: ${channelUser.preferredModel || 'alia-lite'}`);
+      await message.reply(`**Available Models:**\n${list || 'None'}\n\nCurrent: ${botUser.preferredModel || 'alia-lite'}`);
       return;
     }
     await apiClient.updateModel(message.author.id, modelName);

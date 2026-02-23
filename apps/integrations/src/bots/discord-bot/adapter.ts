@@ -86,11 +86,11 @@ export class DiscordBotAdapter implements BotAdapter {
         case 'status':
           await interaction.deferReply({ ephemeral: true });
           try {
-            const channelUser = await apiClient.getChannelUser(interaction.user.id);
-            if (!channelUser?.isAuthenticated) {
+            const botUser = await apiClient.getBotUser(interaction.user.id);
+            if (!botUser?.isLinked) {
               await interaction.editReply('Not linked. Use /start to connect.');
             } else {
-              await interaction.editReply(`Connected | Model: ${channelUser.preferredModel || 'alia-lite'}`);
+              await interaction.editReply(`Connected | Model: ${botUser.preferredModel || 'alia-lite'}`);
             }
           } catch {
             await interaction.editReply('Error checking status.');
@@ -173,12 +173,12 @@ export class DiscordBotAdapter implements BotAdapter {
     const discordUserId = message.author.id;
 
     try {
-      let channelUser: any;
+      let botUser: any;
       try {
-        channelUser = await apiClient.getChannelUser(discordUserId);
+        botUser = await apiClient.getBotUser(discordUserId);
       } catch (error: any) {
         if (error.response?.status === 404) {
-          await apiClient.createOrUpdateChannelUser({
+          await apiClient.createOrUpdateBotUser({
             platformUserId: discordUserId,
             chatId: message.channelId,
             displayName: message.author.displayName || message.author.username,
@@ -189,7 +189,7 @@ export class DiscordBotAdapter implements BotAdapter {
         throw error;
       }
 
-      if (!channelUser?.isAuthenticated || !channelUser?.oxyUserId) {
+      if (!botUser?.isLinked || !botUser?.oxyUserId) {
         await sendAuthRequest(message);
         return;
       }
@@ -205,7 +205,7 @@ export class DiscordBotAdapter implements BotAdapter {
       }, 5000);
 
       try {
-        let conversationId = channelUser.conversationId;
+        let conversationId = botUser.conversationId;
         if (!conversationId) {
           conversationId = uuidv4();
           await apiClient.updateConversation(discordUserId, conversationId);
@@ -214,7 +214,7 @@ export class DiscordBotAdapter implements BotAdapter {
         // Load conversation history (user/assistant only)
         let messages_history: Array<{ role: string; content: string }> = [];
         try {
-          const conversation = await apiClient.getConversation(channelUser.oxyUserId, conversationId);
+          const conversation = await apiClient.getConversation(botUser.oxyUserId, conversationId);
           if (conversation?.messages?.length) {
             messages_history = conversation.messages
               .filter((m: any) => m.role === 'user' || m.role === 'assistant')
@@ -237,10 +237,10 @@ export class DiscordBotAdapter implements BotAdapter {
         ];
 
         const result = await apiClient.chatCompletion(
-          channelUser.oxyUserId,
+          botUser.oxyUserId,
           apiMessages,
           {
-            model: channelUser.preferredModel || 'alia-lite',
+            model: botUser.preferredModel || 'alia-lite',
             conversationId,
           },
         );

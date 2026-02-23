@@ -23,14 +23,14 @@ CRITICAL: Respond in the same language the user writes to you.
 
 /**
  * Deduplication map: prevents processing the same webhook message twice.
- * Key format: `${channelType}:${channelUserId}:${messageId || hash(text)}`
+ * Key format: `${channelType}:${platformUserId}:${messageId || hash(text)}`
  * Entries are automatically removed after 60 seconds.
  */
 const processedWebhookMessages = new Set<string>();
 
 function getDeduplicationKey(channelType: ChannelId, message: ChannelInboundMessage): string {
   const contentHash = crypto.createHash('md5').update(message.text).digest('hex').slice(0, 12);
-  return `${channelType}:${message.channelUserId}:${contentHash}`;
+  return `${channelType}:${message.platformUserId}:${contentHash}`;
 }
 
 function isDuplicate(channelType: ChannelId, message: ChannelInboundMessage): boolean {
@@ -47,17 +47,17 @@ function generateAuthToken(): string {
 
 async function processChannelMessage(
   channelType: ChannelId,
-  channelUser: any,
+  botUser: any,
   message: ChannelInboundMessage
 ): Promise<void> {
   try {
     // Check if user has linked their Alia account
-    if (!channelUser.isLinked || !channelUser.oxyUserId) {
+    if (!botUser.isLinked || !botUser.oxyUserId) {
       // Generate auth token and send auth link
       const authToken = generateAuthToken();
-      channelUser.authToken = authToken;
-      channelUser.authTokenExpiry = new Date(Date.now() + 15 * 60 * 1000);
-      await channelUser.save();
+      botUser.authToken = authToken;
+      botUser.authTokenExpiry = new Date(Date.now() + 15 * 60 * 1000);
+      await botUser.save();
 
       const apiBaseUrl = process.env.API_BASE_URL || 'http://localhost:3001';
       const authUrl = `${apiBaseUrl}/bots/internal/${channelType}/verify?token=${authToken}`;
@@ -71,8 +71,8 @@ async function processChannelMessage(
       return;
     }
 
-    const userId = channelUser.oxyUserId.toString();
-    const aliasModelId = channelUser.preferredModel || 'alia-lite';
+    const userId = botUser.oxyUserId.toString();
+    const aliasModelId = botUser.preferredModel || 'alia-lite';
 
     // Reserve credits before processing
     await getOrCreateUserCredits(userId);
@@ -90,18 +90,18 @@ async function processChannelMessage(
     }
 
     // Load or create conversation
-    let conversationId = channelUser.conversationId;
+    let conversationId = botUser.conversationId;
     if (!conversationId) {
       conversationId = crypto.randomUUID();
-      channelUser.conversationId = conversationId;
-      await channelUser.save();
+      botUser.conversationId = conversationId;
+      await botUser.save();
     }
 
     // Load conversation history
     let messages: Array<{ role: string; content: string }> = [];
     try {
       const conversation = await Conversation.findOne({
-        oxyUserId: channelUser.oxyUserId,
+        oxyUserId: botUser.oxyUserId,
         conversationId,
       });
       if (conversation?.messages?.length) {
@@ -179,7 +179,7 @@ async function processChannelMessage(
     if (fullResponse) {
       messages.push({ role: 'assistant', content: fullResponse });
       await Conversation.findOneAndUpdate(
-        { oxyUserId: channelUser.oxyUserId, conversationId },
+        { oxyUserId: botUser.oxyUserId, conversationId },
         {
           $set: {
             messages,
@@ -187,7 +187,7 @@ async function processChannelMessage(
             updatedAt: new Date(),
           },
           $setOnInsert: {
-            oxyUserId: channelUser.oxyUserId,
+            oxyUserId: botUser.oxyUserId,
             conversationId,
             source: channelType,
             title: message.text.slice(0, 50),
@@ -266,13 +266,13 @@ router.post('/:type', async (req, res) => {
 
   // Deduplicate: skip if this message was already processed recently
   if (isDuplicate(channelType, message)) {
-    log.webhook.info({ channelType, channelUserId: message.channelUserId }, 'Duplicate message skipped');
+    log.webhook.info({ channelType, platformUserId: message.platformUserId }, 'Duplicate message skipped');
     return res.sendStatus(200);
   }
 
   log.webhook.info({
     channelType,
-    from: message.channelUserId,
+    from: message.platformUserId,
     chatId: message.chatId,
     text: message.text.slice(0, 100),
     username: message.username,
@@ -287,45 +287,45 @@ router.post('/:type', async (req, res) => {
     }
 
     // Find or create bot user
-    let channelUser = await BotUser.findOne({
+    let botUser = await BotUser.findOne({
       botId: bot._id,
-      platformUserId: message.channelUserId,
+      platformUserId: message.platformUserId,
     });
 
-    if (!channelUser) {
-      channelUser = new BotUser({
+    if (!botUser) {
+      botUser = new BotUser({
         botId: bot._id,
         platform: channelType,
-        platformUserId: message.channelUserId,
+        platformUserId: message.platformUserId,
         chatId: message.chatId,
         username: message.username,
         displayName: message.displayName,
         metadata: {},
       });
-      await channelUser.save();
-      log.webhook.info({ channelType, platformUserId: message.channelUserId }, 'Created new bot user');
+      await botUser.save();
+      log.webhook.info({ channelType, platformUserId: message.platformUserId }, 'Created new bot user');
     } else {
       let updated = false;
-      if (message.chatId && channelUser.chatId !== message.chatId) {
-        channelUser.chatId = message.chatId;
+      if (message.chatId && botUser.chatId !== message.chatId) {
+        botUser.chatId = message.chatId;
         updated = true;
       }
-      if (message.username && channelUser.username !== message.username) {
-        channelUser.username = message.username;
+      if (message.username && botUser.username !== message.username) {
+        botUser.username = message.username;
         updated = true;
       }
-      if (message.displayName && channelUser.displayName !== message.displayName) {
-        channelUser.displayName = message.displayName;
+      if (message.displayName && botUser.displayName !== message.displayName) {
+        botUser.displayName = message.displayName;
         updated = true;
       }
-      if (updated) await channelUser.save();
+      if (updated) await botUser.save();
     }
 
     // Respond immediately to webhook (Slack has 3s timeout)
     res.sendStatus(200);
 
     // Process message asynchronously
-    processChannelMessage(channelType, channelUser, message).catch(error => {
+    processChannelMessage(channelType, botUser, message).catch(error => {
       log.webhook.error({ err: error, channelType }, 'Async processing error');
     });
   } catch (error) {

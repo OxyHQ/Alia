@@ -240,10 +240,6 @@ router.post('/internal/:platform/users', botAuth, async (req, res) => {
       isLinked: botUser.isLinked,
       conversationId: botUser.conversationId,
       preferredModel: botUser.preferredModel,
-      // Backward compat fields for bot adapters
-      channelType: botUser.platform,
-      channelUserId: botUser.platformUserId,
-      isAuthenticated: botUser.isLinked,
       oxyUserId: botUser.oxyUserId,
     });
   } catch (error) {
@@ -278,10 +274,6 @@ router.get('/internal/:platform/users/:platformUserId', botAuth, async (req, res
       conversationId: botUser.conversationId,
       linkedAt: botUser.linkedAt,
       preferredModel: botUser.preferredModel,
-      // Backward compat
-      channelType: botUser.platform,
-      channelUserId: botUser.platformUserId,
-      isAuthenticated: botUser.isLinked,
     });
   } catch (error) {
     log.channels.error({ err: error }, 'Get bot user error');
@@ -386,9 +378,6 @@ router.get('/internal/:platform/users/token/:token', async (req, res) => {
       oxyUserId: botUser.oxyUserId,
       isLinked: botUser.isLinked,
       displayName: botUser.displayName || botUser.username || '',
-      // Backward compat
-      channelUserId: botUser.platformUserId,
-      isAuthenticated: botUser.isLinked,
     });
   } catch (error) {
     log.channels.error({ err: error }, 'Token info error');

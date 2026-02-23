@@ -127,7 +127,7 @@ export const whatsappPlugin: ChannelPlugin = {
         if (msg.type !== 'text' || !msg.text?.body) return null;
 
         return {
-          channelUserId: msg.from,
+          platformUserId: msg.from,
           chatId: msg.from,
           text: msg.text.body,
           username: contact?.wa_id,

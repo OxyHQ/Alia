@@ -29,7 +29,7 @@ async function getModels() {
 // Auth helpers
 // ---------------------------------------------------------------------------
 
-/** Ensure the channel user exists, then generate an auth-request link. */
+/** Ensure the bot user exists, then generate an auth-request link. */
 export async function sendAuthRequest(ctx: Context): Promise<boolean> {
   const telegramId = ctx.from?.id.toString();
   const chatId = ctx.chat?.id.toString();
@@ -39,10 +39,10 @@ export async function sendAuthRequest(ctx: Context): Promise<boolean> {
   }
 
   try {
-    // Ensure channel user exists
-    let channelUser = await apiClient.getChannelUser(telegramId);
-    if (!channelUser) {
-      channelUser = await apiClient.createOrUpdateChannelUser({
+    // Ensure bot user exists
+    let botUser = await apiClient.getBotUser(telegramId);
+    if (!botUser) {
+      botUser = await apiClient.createOrUpdateBotUser({
         platformUserId: telegramId,
         chatId,
         displayName: [ctx.from?.first_name, ctx.from?.last_name].filter(Boolean).join(' ') || undefined,
@@ -50,7 +50,7 @@ export async function sendAuthRequest(ctx: Context): Promise<boolean> {
     }
 
     // Already authenticated?
-    if (channelUser.isAuthenticated) {
+    if (botUser.isLinked) {
       return true;
     }
 
@@ -90,10 +90,10 @@ export async function handleStart(ctx: Context) {
   }
 
   try {
-    // Ensure channel user exists
-    let channelUser = await apiClient.getChannelUser(telegramId);
-    if (!channelUser) {
-      channelUser = await apiClient.createOrUpdateChannelUser({
+    // Ensure bot user exists
+    let botUser = await apiClient.getBotUser(telegramId);
+    if (!botUser) {
+      botUser = await apiClient.createOrUpdateBotUser({
         platformUserId: telegramId,
         chatId,
         displayName: [ctx.from?.first_name, ctx.from?.last_name].filter(Boolean).join(' ') || undefined,
@@ -101,8 +101,8 @@ export async function handleStart(ctx: Context) {
     }
 
     // Already linked & authenticated
-    if (channelUser.isAuthenticated) {
-      const displayName = channelUser.displayName || ctx.from?.first_name || 'there';
+    if (botUser.isLinked) {
+      const displayName = botUser.displayName || ctx.from?.first_name || 'there';
       await ctx.reply(
         `👋 <b>Welcome back, ${displayName}!</b>\n\n` +
         `✅ Your Telegram is already linked to your Alia account.\n\n` +
@@ -151,8 +151,8 @@ export async function handleLogout(ctx: Context) {
   }
 
   try {
-    const channelUser = await apiClient.getChannelUser(telegramId);
-    if (!channelUser || !channelUser.isAuthenticated) {
+    const botUser = await apiClient.getBotUser(telegramId);
+    if (!botUser || !botUser.isLinked) {
       await ctx.reply('You are not currently authenticated.');
       return;
     }
@@ -187,20 +187,20 @@ export async function handleStatus(ctx: Context) {
   }
 
   try {
-    const channelUser = await apiClient.getChannelUser(telegramId);
-    if (!channelUser || !channelUser.isAuthenticated) {
+    const botUser = await apiClient.getBotUser(telegramId);
+    if (!botUser || !botUser.isLinked) {
       await sendAuthRequest(ctx);
       return;
     }
 
-    const displayName = channelUser.displayName || channelUser.username || 'Not set';
+    const displayName = botUser.displayName || botUser.username || 'Not set';
 
     await ctx.reply(
       `📊 <b>Account Status</b>\n\n` +
       `👤 <b>Name:</b> ${displayName}\n` +
       `✅ <b>Status:</b> Connected\n` +
-      `🤖 <b>Model:</b> ${channelUser.preferredModel || 'alia-lite'}\n` +
-      `🔗 <b>Linked:</b> ${channelUser.linkedAt ? new Date(channelUser.linkedAt).toLocaleDateString() : 'N/A'}`,
+      `🤖 <b>Model:</b> ${botUser.preferredModel || 'alia-lite'}\n` +
+      `🔗 <b>Linked:</b> ${botUser.linkedAt ? new Date(botUser.linkedAt).toLocaleDateString() : 'N/A'}`,
       {
         parse_mode: 'HTML',
         ...Markup.inlineKeyboard([
@@ -270,8 +270,8 @@ export async function handleModel(ctx: Context) {
   }
 
   try {
-    const channelUser = await apiClient.getChannelUser(telegramId);
-    if (!channelUser || !channelUser.isAuthenticated) {
+    const botUser = await apiClient.getBotUser(telegramId);
+    if (!botUser || !botUser.isLinked) {
       await ctx.reply(
         '🔒 <b>Authentication Required</b>\n\n' +
         'Please sign in first to change your AI model.',
@@ -291,7 +291,7 @@ export async function handleModel(ctx: Context) {
       return;
     }
 
-    const currentModel = channelUser.preferredModel || 'alia-lite';
+    const currentModel = botUser.preferredModel || 'alia-lite';
     let message = '🤖 <b>Choose AI Model</b>\n\n';
     const currentInfo = models.find(m => m.id === currentModel);
     message += `<b>Current Model:</b> ${currentInfo?.emoji || '🤖'} ${currentInfo?.name || currentModel}\n\n`;
@@ -372,8 +372,8 @@ export async function handleNewConversation(ctx: Context) {
   }
 
   try {
-    const channelUser = await apiClient.getChannelUser(telegramId);
-    if (!channelUser || !channelUser.isAuthenticated) {
+    const botUser = await apiClient.getBotUser(telegramId);
+    if (!botUser || !botUser.isLinked) {
       await sendAuthRequest(ctx);
       return;
     }
@@ -409,14 +409,14 @@ export async function handleHistory(ctx: Context) {
   }
 
   try {
-    const channelUser = await apiClient.getChannelUser(telegramId);
-    if (!channelUser || !channelUser.isAuthenticated || !channelUser.oxyUserId) {
+    const botUser = await apiClient.getBotUser(telegramId);
+    if (!botUser || !botUser.isLinked || !botUser.oxyUserId) {
       await sendAuthRequest(ctx);
       return;
     }
 
     try {
-      const conversations = await apiClient.getConversations(channelUser.oxyUserId);
+      const conversations = await apiClient.getConversations(botUser.oxyUserId);
       if (!conversations || conversations.length === 0) {
         await ctx.reply(
           '📚 <b>No Conversations Yet</b>\n\n' +
@@ -435,7 +435,7 @@ export async function handleHistory(ctx: Context) {
       conversations.slice(0, 10).forEach((conv: any, index: number) => {
         const title = conv.title || 'Untitled';
         const date = new Date(conv.updatedAt || conv.createdAt).toLocaleDateString();
-        const current = conv.conversationId === channelUser.conversationId ? '▶️ ' : '  ';
+        const current = conv.conversationId === botUser.conversationId ? '▶️ ' : '  ';
         message += `${current}<b>${index + 1}.</b> ${title}\n   <i>${date}</i>\n\n`;
       });
 
