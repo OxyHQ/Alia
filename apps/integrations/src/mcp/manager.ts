@@ -383,6 +383,7 @@ async function sendHttpRequest(session: McpServerSession, method: string, params
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
+      'Accept': 'application/json, text/event-stream',
       ...(session.config.headers || {}),
     },
     body: JSON.stringify({
@@ -419,7 +420,7 @@ function sendNotification(session: McpServerSession, method: string, params?: Re
     // Fire-and-forget for HTTP notifications
     fetch(session.config.url, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', ...(session.config.headers || {}) },
+      headers: { 'Content-Type': 'application/json', 'Accept': 'application/json, text/event-stream', ...(session.config.headers || {}) },
       body,
       signal: AbortSignal.timeout(5_000),
     }).catch(() => {});
