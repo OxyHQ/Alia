@@ -5,6 +5,7 @@ import DeveloperApp from '../models/developer-app.js';
 import ApiKeyUsage from '../models/api-key-usage.js';
 import { log } from '../lib/logger.js';
 import { getClientIp } from '../lib/net-utils.js';
+import { getConfiguredChannels } from '../lib/channels/registry.js';
 
 // Initialize Oxy client
 const OXY_API_URL = process.env.OXY_API_URL || 'https://api.oxy.so';
@@ -193,6 +194,13 @@ export function authenticateTokenOrApiKey(
     return;
   }
 
+  // Channel bot secret (used by integrations service)
+  const channelBotSecret = req.headers['x-channel-bot-secret'] as string;
+  if (channelBotSecret) {
+    authenticateChannelBotSecret(req, res, next);
+    return;
+  }
+
   const authHeader = req.headers.authorization;
   const token = authHeader?.startsWith('Bearer ')
     ? authHeader.substring(7)
@@ -315,6 +323,80 @@ export async function authenticateTelegramBot(
     next();
   } catch (error) {
     log.auth.error({ err: error }, 'Bot authentication error');
+    res.status(500).json({ error: 'Authentication failed' });
+  }
+}
+
+/**
+ * Authenticate requests from the integrations service using a generic channel bot secret.
+ *
+ * Security layers:
+ * 1. Reads `X-Channel-Bot-Secret` header and matches it against every
+ *    configured channel's `config.getBotSecret()` using constant-time comparison
+ * 2. Requires `X-Oxy-User-Id` header so the request carries user context
+ * 3. Logs authentication attempts for audit trail
+ */
+export async function authenticateChannelBotSecret(
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    const channelBotSecret = req.headers['x-channel-bot-secret'] as string;
+    const oxyUserId = req.headers['x-oxy-user-id'] as string;
+
+    if (!channelBotSecret) {
+      res.status(401).json({ error: 'Channel bot authentication required' });
+      return;
+    }
+
+    if (!oxyUserId) {
+      log.auth.warn({ ip: getClientIp(req) }, 'Missing X-Oxy-User-Id in channel bot request');
+      res.status(401).json({ error: 'User context required for channel bot requests' });
+      return;
+    }
+
+    // Validate oxyUserId is a valid 24-char hex ObjectId to prevent injection
+    if (!/^[a-f0-9]{24}$/.test(oxyUserId)) {
+      log.auth.warn({ ip: getClientIp(req), oxyUserId }, 'Invalid oxyUserId format in channel bot request');
+      res.status(400).json({ error: 'Invalid user ID format' });
+      return;
+    }
+
+    const crypto = await import('crypto');
+    const configuredChannels = getConfiguredChannels();
+    const providedBuffer = Buffer.from(channelBotSecret);
+    let matched = false;
+
+    for (const channel of configuredChannels) {
+      const expectedSecret = channel.config.getBotSecret();
+      if (!expectedSecret) continue;
+
+      const expectedBuffer = Buffer.from(expectedSecret);
+      if (expectedBuffer.length !== providedBuffer.length) continue;
+
+      if (crypto.timingSafeEqual(expectedBuffer, providedBuffer)) {
+        matched = true;
+        break;
+      }
+    }
+
+    if (!matched) {
+      log.auth.warn({ ip: getClientIp(req) }, 'Invalid channel bot secret');
+      res.status(401).json({ error: 'Invalid channel bot authentication' });
+      return;
+    }
+
+    log.auth.info(
+      { oxyUserId, ip: getClientIp(req), endpoint: req.path },
+      'Channel bot authenticated'
+    );
+
+    req.userId = oxyUserId;
+    req.user = { id: oxyUserId };
+    next();
+  } catch (error) {
+    log.auth.error({ err: error }, 'Channel bot authentication error');
     res.status(500).json({ error: 'Authentication failed' });
   }
 }
