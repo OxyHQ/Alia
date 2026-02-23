@@ -17,7 +17,12 @@ import {
   DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog";
-import { Server, Play, Square, Trash2, Download, Wrench } from "lucide-react-native";
+import { Server, Play, Square, Trash2, Download, Wrench, Plus, ChevronDown } from "lucide-react-native";
+import {
+  Collapsible,
+  CollapsibleTrigger,
+  CollapsibleContent,
+} from "@/components/ui/collapsible";
 
 function ServerStatusBadge({ status }: { status: InstalledMcpServer["status"] }) {
   const config = {
@@ -129,13 +134,22 @@ function RegistryCard({
 }
 
 export function McpSection() {
-  const { registry, installed, loading, install, uninstall, start, stop, refresh } =
+  const { registry, installed, loading, install, installCustom, uninstall, start, stop, refresh } =
     useMcpServers();
   const [uninstallTarget, setUninstallTarget] = useState<string | null>(null);
   const [uninstalling, setUninstalling] = useState(false);
   const [installTarget, setInstallTarget] = useState<McpRegistryEntry | null>(null);
   const [envValues, setEnvValues] = useState<Record<string, string>>({});
   const [installing, setInstalling] = useState(false);
+
+  // Custom server dialog state
+  const [customDialogOpen, setCustomDialogOpen] = useState(false);
+  const [customName, setCustomName] = useState("");
+  const [customUrl, setCustomUrl] = useState("");
+  const [customHeaderKey, setCustomHeaderKey] = useState("");
+  const [customHeaderValue, setCustomHeaderValue] = useState("");
+  const [customInstalling, setCustomInstalling] = useState(false);
+  const [advancedOpen, setAdvancedOpen] = useState(false);
 
   const handleStart = async (serverId: string) => {
     try {
@@ -203,6 +217,53 @@ export function McpSection() {
     setInstallTarget(entry);
   };
 
+  const resetCustomDialog = () => {
+    setCustomDialogOpen(false);
+    setCustomName("");
+    setCustomUrl("");
+    setCustomHeaderKey("");
+    setCustomHeaderValue("");
+    setAdvancedOpen(false);
+  };
+
+  const handleInstallCustom = async () => {
+    if (!customName.trim() || !customUrl.trim()) return;
+    setCustomInstalling(true);
+    try {
+      const slug = customName
+        .trim()
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/^-+|-+$/g, "");
+
+      const headers: Record<string, string> = {};
+      if (customHeaderKey.trim() && customHeaderValue.trim()) {
+        headers[customHeaderKey.trim()] = customHeaderValue.trim();
+      }
+
+      await installCustom({
+        name: slug,
+        displayName: customName.trim(),
+        transport: "streamable-http",
+        config: {
+          url: customUrl.trim(),
+          ...(Object.keys(headers).length > 0 ? { headers } : {}),
+        },
+      });
+
+      toast.success(`${customName.trim()} added`);
+      resetCustomDialog();
+    } catch (err: any) {
+      if (err?.response?.status === 409) {
+        toast.error("A server with this name already exists");
+      } else {
+        toast.error("Failed to add server");
+      }
+    } finally {
+      setCustomInstalling(false);
+    }
+  };
+
   const installedRegistryIds = new Set(installed.map((s) => s.registryId).filter(Boolean));
 
   const inputClass =
@@ -219,9 +280,22 @@ export function McpSection() {
   return (
     <View className="gap-6">
       <View className="gap-3">
-        <Text className="text-[11px] font-semibold text-muted-foreground tracking-wider uppercase">
-          Installed
-        </Text>
+        <View className="flex-row items-center justify-between">
+          <Text className="text-[11px] font-semibold text-muted-foreground tracking-wider uppercase">
+            Installed
+          </Text>
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-7"
+            onPress={() => setCustomDialogOpen(true)}
+          >
+            <View className="flex-row items-center gap-1">
+              <Plus size={12} className="text-foreground" />
+              <Text className="text-xs">Add Custom</Text>
+            </View>
+          </Button>
+        </View>
         {installed.length === 0 ? (
           <View className="items-center py-6">
             <Text className="text-sm text-muted-foreground">No MCP servers installed yet.</Text>
@@ -311,6 +385,115 @@ export function McpSection() {
               disabled={installing}
             >
               <Text className="text-sm">{installing ? "Installing..." : "Install"}</Text>
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={customDialogOpen} onOpenChange={(open) => !open && resetCustomDialog()}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader className="gap-1">
+            <DialogTitle className="text-lg">Add Custom MCP Server</DialogTitle>
+            <DialogDescription className="text-sm">
+              Connect to a remote MCP server using its URL.
+            </DialogDescription>
+          </DialogHeader>
+
+          <View className="gap-3">
+            <View className="gap-1">
+              <Text className="text-xs font-medium text-muted-foreground">Name</Text>
+              <RNTextInput
+                className={inputClass}
+                placeholder="My Custom Server"
+                placeholderTextColor="#9ca3af"
+                value={customName}
+                onChangeText={setCustomName}
+                autoCapitalize="words"
+              />
+            </View>
+
+            <View className="gap-1">
+              <Text className="text-xs font-medium text-muted-foreground">
+                Remote MCP Server URL
+              </Text>
+              <RNTextInput
+                className={inputClass}
+                placeholder="https://example.com/mcp"
+                placeholderTextColor="#9ca3af"
+                value={customUrl}
+                onChangeText={setCustomUrl}
+                autoCapitalize="none"
+                autoCorrect={false}
+                keyboardType="url"
+              />
+            </View>
+
+            <Collapsible open={advancedOpen} onOpenChange={setAdvancedOpen}>
+              <CollapsibleTrigger asChild>
+                <Pressable className="flex-row items-center gap-1 py-1">
+                  <ChevronDown
+                    size={14}
+                    className="text-muted-foreground"
+                    style={advancedOpen ? undefined : { transform: [{ rotate: "-90deg" }] }}
+                  />
+                  <Text className="text-xs font-medium text-muted-foreground">
+                    Advanced settings
+                  </Text>
+                </Pressable>
+              </CollapsibleTrigger>
+              <CollapsibleContent>
+                <View className="gap-3 mt-2">
+                  <View className="gap-1">
+                    <Text className="text-xs font-medium text-muted-foreground">
+                      Header Name (optional)
+                    </Text>
+                    <RNTextInput
+                      className={inputClass}
+                      placeholder="Authorization"
+                      placeholderTextColor="#9ca3af"
+                      value={customHeaderKey}
+                      onChangeText={setCustomHeaderKey}
+                      autoCapitalize="none"
+                      autoCorrect={false}
+                    />
+                  </View>
+                  <View className="gap-1">
+                    <Text className="text-xs font-medium text-muted-foreground">
+                      Header Value (optional)
+                    </Text>
+                    <RNTextInput
+                      className={inputClass}
+                      placeholder="Bearer sk-..."
+                      placeholderTextColor="#9ca3af"
+                      value={customHeaderValue}
+                      onChangeText={setCustomHeaderValue}
+                      autoCapitalize="none"
+                      autoCorrect={false}
+                      secureTextEntry
+                    />
+                  </View>
+                </View>
+              </CollapsibleContent>
+            </Collapsible>
+          </View>
+
+          <DialogFooter className="gap-2 mt-2">
+            <Button
+              variant="outline"
+              size="sm"
+              className="flex-1 h-9"
+              onPress={resetCustomDialog}
+              disabled={customInstalling}
+            >
+              <Text className="text-sm">Cancel</Text>
+            </Button>
+            <Button
+              size="sm"
+              className="flex-1 h-9"
+              onPress={handleInstallCustom}
+              disabled={customInstalling || !customName.trim() || !customUrl.trim()}
+            >
+              <Text className="text-sm">{customInstalling ? "Adding..." : "Add"}</Text>
             </Button>
           </DialogFooter>
         </DialogContent>

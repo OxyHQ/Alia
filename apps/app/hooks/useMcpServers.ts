@@ -32,6 +32,7 @@ export interface InstalledMcpServer {
     command?: string;
     args?: string[];
     url?: string;
+    headers?: Record<string, string>;
     env?: Record<string, string>;
   };
   status: 'installed' | 'running' | 'stopped' | 'error';
@@ -77,8 +78,13 @@ export function useMcpServers() {
     await fetchAll();
   };
 
-  const installCustom = async (config: { name: string; displayName: string; transport: string; url?: string; command?: string; args?: string[]; env?: Record<string, string> }) => {
-    await apiClient.post('/mcp/install', config);
+  const installCustom = async (params: {
+    name: string;
+    displayName: string;
+    transport: string;
+    config: { url?: string; headers?: Record<string, string>; env?: Record<string, string> };
+  }) => {
+    await apiClient.post('/mcp/install', params);
     await fetchAll();
   };
 
