@@ -51,6 +51,7 @@ import { resolveWorkspace } from './middleware/workspace.js';
 import { syncZeroEval } from './scripts/sync-zeroeval.js';
 import { seedSkills } from './lib/seed-skills.js';
 import { seedSuggestions } from './lib/seed-suggestions.js';
+import { seedBots } from './lib/seed-bots.js';
 import { startScheduler } from './lib/automation-scheduler.js';
 import { warmupProviders } from './lib/provider-warmup.js';
 import { warmupProvidersClient } from './lib/providers-client.js';
@@ -310,6 +311,7 @@ connectDB()
       // Seed built-in skills and suggestions (non-blocking)
       seedSkills().catch((err) => console.error('[Skills] Seed error:', err));
       seedSuggestions().catch((err) => console.error('[Suggestions] Seed error:', err));
+      seedBots().catch((err) => console.error('[Bots] Seed error:', err));
       // Sync external models in background (non-blocking)
       syncZeroEval().catch((err) => console.error('[ZeroEval] Background sync error:', err));
       // Start automation scheduler (non-blocking)
