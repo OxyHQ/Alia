@@ -213,7 +213,7 @@ export default function AuthorizeScreen() {
     const token = params.token as string | undefined;
     if (app !== 'telegram' || !token) return;
 
-    const socket = socketIO(config.apiUrl, { transports: ['websocket'] });
+    const socket = socketIO(config.apiUrl);
 
     socket.on('connect', () => {
       socket.emit('subscribe-telegram-token', token);
