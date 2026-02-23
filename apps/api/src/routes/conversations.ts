@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { randomUUID } from 'crypto';
 import { Conversation } from '../models/conversation.js';
-import { authenticateToken } from '../middleware/auth.js';
+import { authenticateToken, authenticateTokenOrApiKey } from '../middleware/auth.js';
 import type { Request, Response } from 'express';
 import { log } from '../lib/logger.js';
 
@@ -43,7 +43,7 @@ router.post('/new', authenticateToken, async (req: Request, res: Response) => {
 });
 
 // Get all conversations for the authenticated user with cursor-based pagination
-router.get('/', authenticateToken, async (req: Request, res: Response) => {
+router.get('/', authenticateTokenOrApiKey, async (req: Request, res: Response) => {
   try {
     if (!req.user?.id) {
       return res.status(401).json({ error: 'Unauthorized' });
@@ -95,7 +95,7 @@ router.get('/', authenticateToken, async (req: Request, res: Response) => {
 });
 
 // Get a specific conversation by ID
-router.get('/:id', authenticateToken, async (req: Request, res: Response) => {
+router.get('/:id', authenticateTokenOrApiKey, async (req: Request, res: Response) => {
   try {
     if (!req.user?.id) {
       return res.status(401).json({ error: 'Unauthorized' });
@@ -132,7 +132,7 @@ router.get('/:id', authenticateToken, async (req: Request, res: Response) => {
 });
 
 // Save or update a conversation
-router.post('/', authenticateToken, async (req: Request, res: Response) => {
+router.post('/', authenticateTokenOrApiKey, async (req: Request, res: Response) => {
   try {
     if (!req.user?.id) {
       return res.status(401).json({ error: 'Unauthorized' });
