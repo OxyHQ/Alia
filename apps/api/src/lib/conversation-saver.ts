@@ -88,6 +88,6 @@ export async function saveConversation(params: SaveConversationParams): Promise<
         createdAt: new Date(),
       },
     },
-    { upsert: true, new: true },
+    { upsert: true, returnDocument: 'after' },
   );
 }

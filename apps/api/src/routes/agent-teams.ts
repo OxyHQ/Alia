@@ -103,7 +103,7 @@ router.patch('/:id', async (req: Request, res: Response) => {
     const team = await AgentTeam.findOneAndUpdate(
       { _id: id, creator: userId },
       { $set: data },
-      { new: true },
+      { returnDocument: 'after' },
     ).populate('agents', 'name handle avatar tagline status');
 
     if (!team) {
@@ -159,7 +159,7 @@ router.post('/:id/agents', async (req: Request, res: Response) => {
     const team = await AgentTeam.findOneAndUpdate(
       { _id: id, creator: userId },
       { $addToSet: { agents: agentId } },
-      { new: true },
+      { returnDocument: 'after' },
     ).populate('agents', 'name handle avatar tagline status');
 
     if (!team) {
@@ -182,7 +182,7 @@ router.delete('/:id/agents/:agentId', async (req: Request, res: Response) => {
     const team = await AgentTeam.findOneAndUpdate(
       { _id: id, creator: userId },
       { $pull: { agents: agentId } },
-      { new: true },
+      { returnDocument: 'after' },
     ).populate('agents', 'name handle avatar tagline status');
 
     if (!team) {

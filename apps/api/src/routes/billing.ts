@@ -734,7 +734,7 @@ async function handleSubscriptionUpdate(stripeSubscription: Stripe.Subscription)
       billingPeriod: isAnnual ? 'annual' : 'monthly',
       plan: { planId: plan.planId, name: plan.name, product: plan.product, creditsPerMonth: plan.creditsPerMonth, price, currency: plan.currency, billingPeriod: isAnnual ? 'annual' : 'monthly' },
     },
-    { upsert: true, new: true }
+    { upsert: true, returnDocument: 'after' }
   );
 
   // Add subscription credits with dedup protection (no time window — dedup key prevents duplicates)

@@ -69,7 +69,7 @@ services:
       - key: LIVEKIT_API_SECRET
         type: SECRET
       - key: LIVEKIT_INTERNAL_URL
-        value: "ws://10.110.0.8:7880"
+        value: "wss://livekit.oxy.so"
 
   - name: providers-api
     github:

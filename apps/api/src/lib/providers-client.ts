@@ -551,7 +551,7 @@ export async function updatePlan(planId: string, updates: Record<string, any>): 
   }
 
   const { Plan } = await import('../internal/providers/models/plan.js');
-  return Plan.findOneAndUpdate({ planId }, { $set: updates }, { new: true }).lean();
+  return Plan.findOneAndUpdate({ planId }, { $set: updates }, { returnDocument: 'after' }).lean();
 }
 
 // ============== KEY MANAGEMENT ==============

@@ -22,6 +22,6 @@ export async function getOrCreateUserCredits(userId: string) {
         },
       },
     },
-    { upsert: true, new: true }
+    { upsert: true, returnDocument: 'after' }
   );
 }

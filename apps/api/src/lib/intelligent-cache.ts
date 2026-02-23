@@ -260,7 +260,7 @@ export async function setCachedResponse(
         createdAt: new Date(),
         expiresAt
       },
-      { upsert: true, new: true }
+      { upsert: true, returnDocument: 'after' }
     );
 
     // Store in hot cache

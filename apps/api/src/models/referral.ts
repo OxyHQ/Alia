@@ -56,7 +56,7 @@ export async function getOrCreateReferral(userId: string): Promise<IReferral> {
             totalReferrals: 0,
           },
         },
-        { upsert: true, new: true }
+        { upsert: true, returnDocument: 'after' }
       );
       return result;
     } catch (err: any) {

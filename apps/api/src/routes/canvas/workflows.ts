@@ -121,7 +121,7 @@ router.put('/:id', async (req: Request, res: Response) => {
         edges,
         updatedAt: new Date()
       },
-      { new: true }
+      { returnDocument: 'after' }
     );
 
     if (!workflow) {

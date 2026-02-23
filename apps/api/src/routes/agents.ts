@@ -597,7 +597,7 @@ router.post('/:id/reviews', authenticateToken, async (req: Request, res: Respons
     const review = await AgentReview.findOneAndUpdate(
       { agentId: req.params.id, userId: req.user.id },
       { rating: Math.round(rating), comment: (comment || '').slice(0, 1000) },
-      { upsert: true, new: true, setDefaultsOnInsert: true },
+      { upsert: true, returnDocument: 'after', setDefaultsOnInsert: true },
     );
 
     // Recalculate agent rating

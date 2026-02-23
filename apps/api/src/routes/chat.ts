@@ -638,7 +638,7 @@ router.post('/', optionalAuth, async (req, res) => {
                 CanvasSession.findOneAndUpdate(
                   { oxyUserId: req.user.id, conversationId },
                   { $push: { components: { ...component, createdAt: new Date() } } },
-                  { upsert: true, new: true }
+                  { upsert: true, returnDocument: 'after' }
                 ).catch(err => log.chat.error({ err }, 'Canvas save error'));
                 emitCanvasUpdate(conversationId, component);
               }

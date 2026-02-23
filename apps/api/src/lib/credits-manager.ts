@@ -112,7 +112,7 @@ export async function reserveCredits(
           }
         }
       ],
-      { new: true, runValidators: false, updatePipeline: true }
+      { returnDocument: 'after', runValidators: false, updatePipeline: true }
     );
 
     if (!reserveResult) {
@@ -170,7 +170,7 @@ export async function finalizeCredits(
         updatedCredits = await UserCredits.findByIdAndUpdate(
           reservation.userId,
           { $inc: { 'credits.free': creditAdjustment } },
-          { new: true, runValidators: false }
+          { returnDocument: 'after', runValidators: false }
         );
         log.credits.info({ refunded: creditAdjustment }, 'Refunded credits');
       } else {
@@ -205,7 +205,7 @@ export async function finalizeCredits(
               }
             }
           ],
-          { new: true, runValidators: false, updatePipeline: true }
+          { returnDocument: 'after', runValidators: false, updatePipeline: true }
         );
 
         if (!updatedCredits) {
@@ -213,7 +213,7 @@ export async function finalizeCredits(
           updatedCredits = await UserCredits.findByIdAndUpdate(
             reservation.userId,
             { $set: { 'credits.free': 0, 'credits.paid': 0 } },
-            { new: true }
+            { returnDocument: 'after' }
           );
           log.credits.warn('Insufficient credits for additional charge, set to 0');
         } else {
@@ -391,7 +391,7 @@ export async function finalizeVoiceCredits(
         updatedCredits = await UserCredits.findByIdAndUpdate(
           reservation.userId,
           { $inc: { 'credits.free': creditAdjustment } },
-          { new: true, runValidators: false }
+          { returnDocument: 'after', runValidators: false }
         );
         log.credits.info({ refunded: creditAdjustment }, 'Refunded credits');
       } else {
@@ -426,7 +426,7 @@ export async function finalizeVoiceCredits(
               }
             }
           ],
-          { new: true, runValidators: false, updatePipeline: true }
+          { returnDocument: 'after', runValidators: false, updatePipeline: true }
         );
 
         if (!updatedCredits) {
@@ -434,7 +434,7 @@ export async function finalizeVoiceCredits(
           updatedCredits = await UserCredits.findByIdAndUpdate(
             reservation.userId,
             { $set: { 'credits.free': 0, 'credits.paid': 0 } },
-            { new: true }
+            { returnDocument: 'after' }
           );
           log.credits.warn('Insufficient credits for additional charge, set to 0');
         } else {

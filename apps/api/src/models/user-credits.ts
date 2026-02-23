@@ -42,7 +42,7 @@ UserCreditsSchema.methods.refreshCreditsIfNeeded = async function(): Promise<voi
     const result = await UserCredits.findOneAndUpdate(
       { _id: this._id, 'credits.lastRefresh': this.credits.lastRefresh },
       { $set: { 'credits.free': this.credits.freeLimit, 'credits.lastRefresh': now } },
-      { new: true }
+      { returnDocument: 'after' }
     );
     if (result) {
       this.credits.free = result.credits.free;
@@ -56,7 +56,7 @@ UserCreditsSchema.methods.addCredits = async function(amount: number, type: 'fre
   const result = await UserCredits.findByIdAndUpdate(
     this._id,
     { $inc: { [field]: amount } },
-    { new: true }
+    { returnDocument: 'after' }
   );
   if (result) {
     this.credits = result.credits;
@@ -74,7 +74,7 @@ UserCreditsSchema.methods.deductCredits = async function(amount: number): Promis
     const result = await UserCredits.findOneAndUpdate(
       { _id: this._id, 'credits.paid': { $gte: amount } },
       { $inc: { 'credits.paid': -amount } },
-      { new: true }
+      { returnDocument: 'after' }
     );
     if (result) {
       this.credits = result.credits;
@@ -88,7 +88,7 @@ UserCreditsSchema.methods.deductCredits = async function(amount: number): Promis
   const result = await UserCredits.findOneAndUpdate(
     { _id: this._id, 'credits.free': { $gte: fromFree } },
     { $set: { 'credits.paid': 0 }, $inc: { 'credits.free': -fromFree } },
-    { new: true }
+    { returnDocument: 'after' }
   );
   if (result) {
     this.credits = result.credits;

@@ -308,6 +308,12 @@ router.post('/:platform/connect', ...authed, async (req, res) => {
       signal: AbortSignal.timeout(15_000),
     });
 
+    const contentType = response.headers.get('content-type') || '';
+    if (!contentType.includes('application/json')) {
+      await account.deleteOne();
+      return res.status(502).json({ error: `Integration service unavailable for ${platform}` });
+    }
+
     const data = await response.json();
 
     if (response.ok && data.sessionId) {
@@ -320,8 +326,11 @@ router.post('/:platform/connect', ...authed, async (req, res) => {
       ...data,
     });
   } catch (error) {
-    log.channels.error({ err: error }, 'Connect account error');
-    res.status(500).json({ error: 'Internal server error' });
+    log.channels.error({ err: error, platform }, 'Connect account error');
+    if (account?._id) {
+      await ConnectedAccount.deleteOne({ _id: account._id }).catch(() => {});
+    }
+    res.status(502).json({ error: `Failed to connect ${platform}` });
   }
 });
 

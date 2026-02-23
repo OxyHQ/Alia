@@ -103,7 +103,7 @@ router.patch('/apps/:id', async (req: Request, res: Response) => {
     const app = await DeveloperApp.findOneAndUpdate(
       { _id: id, oxyUserId: userId },
       { $set: validatedData },
-      { new: true }
+      { returnDocument: 'after' }
     );
 
     if (!app) {
@@ -279,7 +279,7 @@ router.patch('/apps/:appId/keys/:keyId', async (req: Request, res: Response) => 
     const apiKey = await DeveloperApiKey.findOneAndUpdate(
       { _id: keyId, appId, oxyUserId: userId },
       { $set: validatedData },
-      { new: true }
+      { returnDocument: 'after' }
     ).select('-keyHash');
 
     if (!apiKey) {
@@ -412,7 +412,7 @@ router.patch('/apps/:appId/keys/:keyId/rate-limits', async (req: Request, res: R
     const apiKey = await DeveloperApiKey.findOneAndUpdate(
       { _id: keyId, appId, oxyUserId: userId },
       { $set: updateFields },
-      { new: true }
+      { returnDocument: 'after' }
     ).select('-keyHash');
 
     if (!apiKey) {

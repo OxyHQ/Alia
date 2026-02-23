@@ -81,7 +81,7 @@ router.put('/:planId/:featureId', async (req: Request, res: Response) => {
           displayDescription,
         },
       },
-      { upsert: true, new: true, runValidators: true }
+      { upsert: true, returnDocument: 'after', runValidators: true }
     );
 
     res.json({ success: true, data: mapping });
