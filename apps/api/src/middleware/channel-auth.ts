@@ -7,7 +7,6 @@ declare global {
   namespace Express {
     interface Request {
       channelType?: ChannelId;
-      channelUserId?: string;
     }
   }
 }
@@ -43,8 +42,6 @@ export function authenticateChannelBot(channelType: ChannelId) {
     }
 
     req.channelType = channelType;
-    req.channelUserId = req.headers['x-channel-user-id'] as string;
-
     next();
   };
 }
