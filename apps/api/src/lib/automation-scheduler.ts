@@ -88,7 +88,7 @@ async function executeAutomation(automation: IAutomation): Promise<void> {
     const updated = await Automation.findOneAndUpdate(
       { _id: automationId, lastRunStatus: { $ne: 'running' } },
       { $set: { lastRunStatus: 'running' } },
-      { new: true }
+      { returnDocument: 'after' }
     );
     if (!updated) {
       log.automations.info({ name: automation.name }, 'Automation already running, skipping');

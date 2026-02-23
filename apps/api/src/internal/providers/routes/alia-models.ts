@@ -213,7 +213,7 @@ router.patch('/:aliasModelId', async (req: Request, res: Response) => {
     const model = await AliaModel.findOneAndUpdate(
       { aliasModelId },
       { $set: updates },
-      { new: true, runValidators: true }
+      { returnDocument: 'after', runValidators: true }
     );
 
     if (!model) {

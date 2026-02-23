@@ -164,7 +164,7 @@ router.patch('/:provider/:modelId', async (req: Request, res: Response) => {
     const model = await ModelConfig.findOneAndUpdate(
       { provider, modelId },
       { $set: updates },
-      { new: true, runValidators: true }
+      { returnDocument: 'after', runValidators: true }
     );
 
     if (!model) {

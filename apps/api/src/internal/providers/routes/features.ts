@@ -94,7 +94,7 @@ router.patch('/:featureId', async (req: Request, res: Response) => {
     const feature = await Feature.findOneAndUpdate(
       { featureId: req.params.featureId },
       { $set: updates },
-      { new: true, runValidators: true }
+      { returnDocument: 'after', runValidators: true }
     );
 
     if (!feature) {

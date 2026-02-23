@@ -184,7 +184,7 @@ router.patch('/:id', async (req: Request, res: Response) => {
     const organization = await Organization.findByIdAndUpdate(
       id,
       { $set: validatedData },
-      { new: true }
+      { returnDocument: 'after' }
     );
 
     if (!organization) {
@@ -233,7 +233,7 @@ router.post('/:id/image', upload.single('file'), async (req: Request, res: Respo
     const organization = await Organization.findByIdAndUpdate(
       id,
       { $set: { image: imageUrl } },
-      { new: true },
+      { returnDocument: 'after' },
     );
 
     if (!organization) {
@@ -371,7 +371,7 @@ router.patch('/:id/members/:memberId', async (req: Request, res: Response) => {
     const member = await OrganizationMember.findByIdAndUpdate(
       memberId,
       { role },
-      { new: true }
+      { returnDocument: 'after' }
     );
 
     if (!member) {
@@ -461,7 +461,7 @@ router.post('/:id/agents', async (req: Request, res: Response) => {
     await OrganizationAgent.findOneAndUpdate(
       { organizationId: id, agentId },
       { $setOnInsert: { addedBy: userId } },
-      { upsert: true, new: true },
+      { upsert: true, returnDocument: 'after' },
     );
 
     res.json({ added: true });

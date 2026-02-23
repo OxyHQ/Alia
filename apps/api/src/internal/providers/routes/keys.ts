@@ -346,7 +346,7 @@ router.patch('/:keyId', async (req: Request, res: Response) => {
     const key = await ProviderKey.findByIdAndUpdate(
       keyId,
       { $set: updates },
-      { new: true, runValidators: true }
+      { returnDocument: 'after', runValidators: true }
     ).select('-keyHash -key');
 
     if (!key) {
@@ -495,7 +495,7 @@ router.post('/:keyId/reset-spend', async (req: Request, res: Response) => {
     const key = await ProviderKey.findByIdAndUpdate(
       keyId,
       { $set: { spentUSD: 0 } },
-      { new: true }
+      { returnDocument: 'after' }
     ).select('-keyHash -key');
 
     if (!key) {
@@ -537,7 +537,7 @@ router.post('/:keyId/deactivate', async (req: Request, res: Response) => {
     const key = await ProviderKey.findByIdAndUpdate(
       keyId,
       { $set: { isActive: false } },
-      { new: true }
+      { returnDocument: 'after' }
     ).select('-keyHash -key');
 
     if (!key) {
@@ -579,7 +579,7 @@ router.post('/:keyId/activate', async (req: Request, res: Response) => {
     const key = await ProviderKey.findByIdAndUpdate(
       keyId,
       { $set: { isActive: true } },
-      { new: true }
+      { returnDocument: 'after' }
     ).select('-keyHash -key');
 
     if (!key) {

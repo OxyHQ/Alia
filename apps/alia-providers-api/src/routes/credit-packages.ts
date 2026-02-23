@@ -166,7 +166,7 @@ router.patch('/:packageId', async (req: Request, res: Response) => {
     const pkg = await CreditPackage.findOneAndUpdate(
       { packageId },
       { $set: updates },
-      { new: true, runValidators: true }
+      { returnDocument: 'after', runValidators: true }
     );
 
     if (!pkg) {

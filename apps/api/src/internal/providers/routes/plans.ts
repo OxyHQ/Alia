@@ -200,7 +200,7 @@ router.patch('/:planId', async (req: Request, res: Response) => {
     const plan = await Plan.findOneAndUpdate(
       { planId },
       { $set: updates },
-      { new: true, runValidators: true }
+      { returnDocument: 'after', runValidators: true }
     );
 
     if (!plan) {

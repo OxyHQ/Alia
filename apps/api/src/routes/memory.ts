@@ -82,7 +82,7 @@ router.put('/context', async (req, res) => {
           updatedAt: new Date()
         }
       },
-      { upsert: true, new: true }
+      { upsert: true, returnDocument: 'after' }
     );
 
     res.json(memory);
@@ -106,7 +106,7 @@ router.put('/preferences', async (req, res) => {
           updatedAt: new Date()
         }
       },
-      { upsert: true, new: true }
+      { upsert: true, returnDocument: 'after' }
     );
 
     res.json(memory);
@@ -278,7 +278,7 @@ router.put('/:memoryId', async (req, res) => {
           'memories.$.updatedAt': new Date()
         }
       },
-      { new: true }
+      { returnDocument: 'after' }
     );
 
     if (!memory) {
@@ -306,7 +306,7 @@ router.delete('/:memoryId', async (req, res) => {
           memories: { _id: req.params.memoryId }
         }
       },
-      { new: true }
+      { returnDocument: 'after' }
     );
 
     if (!memory) {
