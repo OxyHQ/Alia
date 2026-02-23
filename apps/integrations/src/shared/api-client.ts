@@ -32,7 +32,7 @@ export class APIClient {
   async getChannelUser(channelUserId: string): Promise<any> {
     try {
       const response = await this.client.get(
-        `/channels/${this.platform}/users/${channelUserId}`,
+        `/bots/internal/${this.platform}/users/${channelUserId}`,
         { headers: this.authHeaders },
       );
       return response.data;
@@ -48,7 +48,7 @@ export class APIClient {
     displayName?: string;
   }): Promise<any> {
     const response = await this.client.post(
-      `/channels/${this.platform}/users`,
+      `/bots/internal/${this.platform}/users`,
       data,
       { headers: this.authHeaders },
     );
@@ -61,7 +61,7 @@ export class APIClient {
     expiresAt: Date;
   }> {
     const response = await this.client.post(
-      `/channels/${this.platform}/auth-request`,
+      `/bots/internal/${this.platform}/auth-request`,
       { channelUserId },
       { headers: this.authHeaders },
     );
@@ -70,7 +70,7 @@ export class APIClient {
 
   async updateConversation(channelUserId: string, conversationId: string): Promise<void> {
     await this.client.post(
-      `/channels/${this.platform}/users/${channelUserId}/conversation`,
+      `/bots/internal/${this.platform}/users/${channelUserId}/conversation`,
       { conversationId },
       { headers: this.authHeaders },
     );
@@ -120,7 +120,7 @@ export class APIClient {
 
   async updateModel(channelUserId: string, model: string): Promise<void> {
     await this.client.post(
-      `/channels/${this.platform}/users/${channelUserId}/model`,
+      `/bots/internal/${this.platform}/users/${channelUserId}/model`,
       { model },
       { headers: this.authHeaders },
     );
@@ -128,7 +128,7 @@ export class APIClient {
 
   async logoutUser(channelUserId: string): Promise<void> {
     await this.client.post(
-      `/channels/${this.platform}/users/${channelUserId}/logout`,
+      `/bots/internal/${this.platform}/users/${channelUserId}/logout`,
       {},
       { headers: this.authHeaders },
     );
