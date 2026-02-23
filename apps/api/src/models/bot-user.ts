@@ -68,7 +68,6 @@ const BotUserSchema = new Schema<IBotUser>(
 );
 
 BotUserSchema.index({ botId: 1, platformUserId: 1 }, { unique: true });
-BotUserSchema.index({ oxyUserId: 1 });
 BotUserSchema.index({ authToken: 1, authTokenExpiry: 1 });
 
 export const BotUser: Model<IBotUser> = mongoose.model<IBotUser>('BotUser', BotUserSchema);
