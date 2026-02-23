@@ -36,6 +36,9 @@ router.use((req: Request, _res: Response, next) => {
   const oxyUserId = req.headers['x-oxy-user-id'] as string;
   if (!botSecret || !oxyUserId) return next();
 
+  // Validate oxyUserId is a valid 24-char hex ObjectId to prevent injection
+  if (!/^[a-f0-9]{24}$/.test(oxyUserId)) return next();
+
   for (const channel of listChannels()) {
     const expected = channel.config.getBotSecret();
     if (!expected) continue;
