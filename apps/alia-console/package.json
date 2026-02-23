@@ -17,7 +17,7 @@
     "@hugeicons/core-free-icons": "^3.1.1",
     "@hugeicons/react": "^1.1.4",
     "@oxyhq/auth": "^2.0.1",
-    "@oxyhq/core": "^1.6.6",
+    "@oxyhq/core": "^1.7.0",
     "@tailwindcss/vite": "^4.0.6",
     "@tanstack/devtools-vite": "^0.3.11",
     "@tanstack/react-devtools": "^0.7.0",
