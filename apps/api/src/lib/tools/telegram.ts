@@ -37,7 +37,7 @@ export function createSendTelegramTool(userId: string) {
           };
         }
 
-        const botToken = process.env.TELEGRAM_BOT_TOKEN;
+        const botToken = process.env.TELEGRAM_BOT_TOKEN?.trim();
         if (!botToken) {
           return {
             success: false,
@@ -59,7 +59,10 @@ export function createSendTelegramTool(userId: string) {
         const result = await response.json() as { ok?: boolean; description?: string };
 
         if (!response.ok) {
-          log.tools.error({ err: result }, 'Failed to send message');
+          log.tools.error(
+            { err: result, chatId: botUser.chatId, tokenPrefix: botToken.slice(0, 5) },
+            'Telegram sendMessage failed',
+          );
           return {
             success: false,
             message: `Failed to send Telegram: ${result.description || 'Unknown error'}`,
