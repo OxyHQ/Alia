@@ -30,7 +30,7 @@ export function SettingsHeader({ title, subtitle, showBack = false, onBack }: Se
   };
 
   return (
-    <View className="flex-row items-end gap-2 px-4 border-b border-border" style={{ paddingTop: insets.top, height: 56 + insets.top }}>
+    <View className="flex-row items-center gap-2 px-4 border-b border-border" style={{ paddingTop: insets.top, height: 56 + insets.top }}>
       {!isLargeScreen && (
         <Button
           variant="ghost"
