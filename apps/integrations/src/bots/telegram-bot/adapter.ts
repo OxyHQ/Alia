@@ -133,8 +133,8 @@ export class TelegramBotAdapter implements BotAdapter {
 
     try {
       // Check authentication
-      const channelUser = await apiClient.getChannelUser(telegramId);
-      if (!channelUser || !channelUser.isAuthenticated || !channelUser.oxyUserId) {
+      const botUser = await apiClient.getBotUser(telegramId);
+      if (!botUser || !botUser.isLinked || !botUser.oxyUserId) {
         await sendAuthRequest(ctx);
         return;
       }
@@ -144,7 +144,7 @@ export class TelegramBotAdapter implements BotAdapter {
       let lastActionTime = Date.now();
 
       // Conversation management
-      let conversationId = channelUser.conversationId;
+      let conversationId = botUser.conversationId;
       if (!conversationId) {
         conversationId = uuidv4();
         await apiClient.updateConversation(telegramId, conversationId);
@@ -154,7 +154,7 @@ export class TelegramBotAdapter implements BotAdapter {
       let messages: Array<{ role: string; content: any }> = [];
       try {
         const conversation = await apiClient.getConversation(
-          channelUser.oxyUserId.toString(),
+          botUser.oxyUserId.toString(),
           conversationId,
         );
         if (conversation?.messages?.length) {
@@ -201,10 +201,10 @@ Be concise and friendly. Use these Telegram features when appropriate.`,
       let currentMessage: any = null;
 
       const stream = apiClient.chatCompletionStream(
-        channelUser.oxyUserId.toString(),
+        botUser.oxyUserId.toString(),
         apiMessages,
         {
-          model: channelUser.preferredModel || 'alia-lite',
+          model: botUser.preferredModel || 'alia-lite',
           conversationId,
         },
       );
@@ -324,8 +324,8 @@ Be concise and friendly. Use these Telegram features when appropriate.`,
     if (!telegramId) return;
 
     try {
-      const channelUser = await apiClient.getChannelUser(telegramId);
-      if (!channelUser || !channelUser.isAuthenticated || !channelUser.oxyUserId) {
+      const botUser = await apiClient.getBotUser(telegramId);
+      if (!botUser || !botUser.isLinked || !botUser.oxyUserId) {
         await sendAuthRequest(ctx);
         return;
       }
@@ -351,7 +351,7 @@ Be concise and friendly. Use these Telegram features when appropriate.`,
       const mimeType = voice ? 'audio/ogg' : (audio.mime_type || 'audio/mpeg');
 
       const transcribedText = await apiClient.transcribe(
-        channelUser.oxyUserId.toString(),
+        botUser.oxyUserId.toString(),
         base64Audio,
         mimeType,
       );
@@ -384,8 +384,8 @@ Be concise and friendly. Use these Telegram features when appropriate.`,
     if (!telegramId) return;
 
     try {
-      const channelUser = await apiClient.getChannelUser(telegramId);
-      if (!channelUser || !channelUser.isAuthenticated || !channelUser.oxyUserId) {
+      const botUser = await apiClient.getBotUser(telegramId);
+      if (!botUser || !botUser.isLinked || !botUser.oxyUserId) {
         await sendAuthRequest(ctx);
         return;
       }

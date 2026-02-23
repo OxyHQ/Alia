@@ -123,7 +123,7 @@ export const slackPlugin: ChannelPlugin = {
       if (!event.text || !event.user) return null;
 
       return {
-        channelUserId: event.user,
+        platformUserId: event.user,
         chatId: event.channel,
         text: event.text,
         threadId: event.thread_ts,

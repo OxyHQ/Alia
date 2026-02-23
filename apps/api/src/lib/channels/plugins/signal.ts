@@ -106,7 +106,7 @@ export const signalPlugin: ChannelPlugin = {
         if (!source) return null;
 
         return {
-          channelUserId: source,
+          platformUserId: source,
           chatId: envelope.sourceUuid ?? source,
           text: dataMessage.message,
           displayName: envelope.sourceName,

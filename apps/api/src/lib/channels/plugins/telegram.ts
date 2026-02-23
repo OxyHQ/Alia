@@ -105,7 +105,7 @@ export const telegramPlugin: ChannelPlugin = {
         .join(' ') || undefined;
 
       return {
-        channelUserId: String(msg.from.id),
+        platformUserId: String(msg.from.id),
         chatId: String(msg.chat.id),
         text: msg.text,
         username: msg.from.username,
