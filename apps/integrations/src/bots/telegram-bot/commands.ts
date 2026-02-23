@@ -43,7 +43,8 @@ export async function sendAuthRequest(ctx: Context): Promise<boolean> {
     let channelUser = await apiClient.getChannelUser(telegramId);
     if (!channelUser) {
       channelUser = await apiClient.createOrUpdateChannelUser({
-        channelUserId: telegramId,
+        platformUserId: telegramId,
+        chatId,
         displayName: [ctx.from?.first_name, ctx.from?.last_name].filter(Boolean).join(' ') || undefined,
       });
     }
@@ -93,7 +94,8 @@ export async function handleStart(ctx: Context) {
     let channelUser = await apiClient.getChannelUser(telegramId);
     if (!channelUser) {
       channelUser = await apiClient.createOrUpdateChannelUser({
-        channelUserId: telegramId,
+        platformUserId: telegramId,
+        chatId,
         displayName: [ctx.from?.first_name, ctx.from?.last_name].filter(Boolean).join(' ') || undefined,
       });
     }
