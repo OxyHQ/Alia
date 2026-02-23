@@ -43,8 +43,9 @@ export class APIClient {
   }
 
   async createOrUpdateChannelUser(data: {
-    channelUserId: string;
-    phoneNumber?: string;
+    platformUserId: string;
+    chatId: string;
+    username?: string;
     displayName?: string;
   }): Promise<any> {
     const response = await this.client.post(
@@ -62,7 +63,7 @@ export class APIClient {
   }> {
     const response = await this.client.post(
       `/bots/internal/${this.platform}/auth-request`,
-      { channelUserId },
+      { platformUserId: channelUserId },
       { headers: this.authHeaders },
     );
     return response.data;

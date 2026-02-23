@@ -179,7 +179,8 @@ export class DiscordBotAdapter implements BotAdapter {
       } catch (error: any) {
         if (error.response?.status === 404) {
           await apiClient.createOrUpdateChannelUser({
-            channelUserId: discordUserId,
+            platformUserId: discordUserId,
+            chatId: message.channelId,
             displayName: message.author.displayName || message.author.username,
           });
           await sendAuthRequest(message);

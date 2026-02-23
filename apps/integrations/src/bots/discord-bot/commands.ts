@@ -38,7 +38,8 @@ export async function registerSlashCommands(client: Client): Promise<void> {
 export async function sendAuthRequest(message: Message): Promise<void> {
   try {
     await apiClient.createOrUpdateChannelUser({
-      channelUserId: message.author.id,
+      platformUserId: message.author.id,
+      chatId: message.channelId,
       displayName: message.author.displayName || message.author.username,
     });
 
