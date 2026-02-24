@@ -11,7 +11,7 @@ import { buildMcpTools } from '../lib/tools/mcp.js';
 import { optionalAuth, oxyClient } from '../middleware/auth.js';
 import type { User as OxyUser } from '@oxyhq/core';
 import { getOrCreateUserCredits } from '../lib/user-credits-helpers.js';
-import { saveConversation, extractConversationTitle } from '../lib/conversation-saver.js';
+import { saveConversation, extractConversationTitle, generateConversationTitle } from '../lib/conversation-saver.js';
 import { CanvasSession } from '../models/canvas-session.js';
 import { Skill } from '../models/skill.js';
 import { Agent } from '../models/agent.js';
@@ -843,6 +843,13 @@ router.post('/', optionalAuth, async (req, res) => {
           agentId,
         });
         log.chat.info({ conversationId }, 'Conversation saved successfully');
+
+        // Generate title asynchronously (fire-and-forget)
+        const firstUserMsg = messages.find((m: any) => m.role === 'user')?.content;
+        if (typeof firstUserMsg === 'string') {
+          generateConversationTitle(req.user.id, conversationId, firstUserMsg, assistantResponse)
+            .catch(err => log.chat.error({ err }, 'Background title generation failed'));
+        }
       } catch (error) {
         log.chat.error({ err: error, conversationId }, 'Error saving conversation');
       }
