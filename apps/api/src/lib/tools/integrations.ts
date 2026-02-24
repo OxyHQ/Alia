@@ -15,6 +15,37 @@ import { log } from '../logger.js';
 
 const TOOL_TIMEOUT_MS = 15_000;
 
+// ---------------------------------------------------------------------------
+// Input validators — prevent path traversal, injection via AI-controlled params
+// ---------------------------------------------------------------------------
+
+/** GitHub "owner/repo" — alphanumeric, hyphens, underscores, dots, one slash */
+const GITHUB_REPO_RE = /^[a-zA-Z0-9._-]+\/[a-zA-Z0-9._-]+$/;
+
+/** Notion/Linear IDs — UUID v4 with or without dashes */
+const UUID_RE = /^[0-9a-f]{8}-?[0-9a-f]{4}-?[0-9a-f]{4}-?[0-9a-f]{4}-?[0-9a-f]{12}$/i;
+
+/** Google Drive file IDs — alphanumeric, hyphens, underscores */
+const DRIVE_FILE_ID_RE = /^[a-zA-Z0-9_-]+$/;
+
+function assertGitHubRepo(repo: string): void {
+  if (!GITHUB_REPO_RE.test(repo)) {
+    throw new Error('Invalid repository format — expected "owner/repo"');
+  }
+}
+
+function assertUUID(id: string, label: string): void {
+  if (!UUID_RE.test(id)) {
+    throw new Error(`Invalid ${label} — expected a UUID`);
+  }
+}
+
+function assertDriveFileId(id: string): void {
+  if (!DRIVE_FILE_ID_RE.test(id)) {
+    throw new Error('Invalid Drive file ID');
+  }
+}
+
 // Short-lived cache (same pattern as MCP tools)
 const cache = new Map<string, { tools: ToolSet; expiresAt: number }>();
 const CACHE_TTL_MS = 30_000;
@@ -139,6 +170,7 @@ function buildGitHubTools(userId: string): ToolSet {
         state: z.enum(['open', 'closed', 'all']).default('open').describe('Issue state filter'),
       }),
       execute: async ({ repo, state }) => {
+        assertGitHubRepo(repo);
         const data = await authedFetch(userId, 'github', `https://api.github.com/repos/${encodeURIComponent(repo)}/issues?state=${state}&per_page=15`, {
           headers: { Accept: 'application/vnd.github.v3+json' },
         });
@@ -161,6 +193,7 @@ function buildGitHubTools(userId: string): ToolSet {
         state: z.enum(['open', 'closed', 'all']).default('open').describe('PR state filter'),
       }),
       execute: async ({ repo, state }) => {
+        assertGitHubRepo(repo);
         const data = await authedFetch(userId, 'github', `https://api.github.com/repos/${encodeURIComponent(repo)}/pulls?state=${state}&per_page=15`, {
           headers: { Accept: 'application/vnd.github.v3+json' },
         });
@@ -216,6 +249,7 @@ function buildNotionTools(userId: string): ToolSet {
         pageId: z.string().describe('The Notion page ID'),
       }),
       execute: async ({ pageId }) => {
+        assertUUID(pageId, 'Notion page ID');
         const [page, blocks] = await Promise.all([
           authedFetch(userId, 'notion', `https://api.notion.com/v1/pages/${pageId}`, {
             headers: notionHeaders,
@@ -368,6 +402,7 @@ function buildLinearTools(userId: string): ToolSet {
         teamId: z.string().optional().describe('Team ID (uses first team if not specified)'),
       }),
       execute: async ({ title, description, teamId }) => {
+        if (teamId) assertUUID(teamId, 'Linear team ID');
         // If no team specified, get the first team
         let resolvedTeamId = teamId;
         if (!resolvedTeamId) {
@@ -416,8 +451,10 @@ function buildGoogleDriveTools(userId: string): ToolSet {
         query: z.string().describe('Search query (file name, content keywords)'),
       }),
       execute: async ({ query }) => {
+        // Escape backslashes first, then single quotes (Drive API query syntax)
+        const safeQuery = query.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
         const params = new URLSearchParams({
-          q: `fullText contains '${query.replace(/'/g, "\\'")}'`,
+          q: `fullText contains '${safeQuery}'`,
           pageSize: '15',
           fields: 'files(id,name,mimeType,modifiedTime,webViewLink,size)',
         });
@@ -439,6 +476,7 @@ function buildGoogleDriveTools(userId: string): ToolSet {
         fileId: z.string().describe('The Drive file ID'),
       }),
       execute: async ({ fileId }) => {
+        assertDriveFileId(fileId);
         // First get file metadata to determine type
         const meta = await authedFetch(userId, 'google-drive', `https://www.googleapis.com/drive/v3/files/${fileId}?fields=id,name,mimeType`);
 
