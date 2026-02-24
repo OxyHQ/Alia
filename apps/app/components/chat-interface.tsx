@@ -27,6 +27,7 @@ import { Reasoning, ReasoningTrigger } from "@/components/ui/reasoning";
 import { getToolLabel } from "@/lib/tool-registry";
 import { getTextFromContent, getImagesFromContent } from "@/lib/attachment-utils";
 import { useUIStore } from "@/lib/stores/ui-store";
+import { useStore } from "@/lib/globalStore";
 import type { ToolInvocation } from "@/lib/types/messages";
 import { useScrollToBottom } from "@/hooks/use-scroll-to-bottom";
 
@@ -54,6 +55,7 @@ type Message = {
     avatar: string | null;
     handle: string;
   };
+  audioUrl?: string;
 };
 
 type ChatInterfaceProps = {
@@ -131,6 +133,7 @@ export const ChatInterface = React.memo(function ChatInterface({ messages, scrol
     const openThoughtPanel = useUIStore((s) => s.openThoughtPanel);
     const setThoughtMessages = useUIStore((s) => s.setThoughtMessages);
     const { readAloud, activeMessageId: ttsActiveMessageId, playbackState: ttsPlaybackState } = useTTS();
+    const chatId = useStore(s => s.chatId);
 
     const { isAtBottom, onScroll, onContentSizeChange } = useScrollToBottom(scrollViewRef);
 
@@ -306,7 +309,7 @@ export const ChatInterface = React.memo(function ChatInterface({ messages, scrol
                             <Pressable
                               key="read-aloud"
                               className="p-1.5 rounded-lg hover:bg-muted active:bg-muted"
-                              onPress={() => readAloud(m.id, messageText)}
+                              onPress={() => readAloud(m.id, messageText, chatId?.id, m.audioUrl)}
                             >
                               {ttsActiveMessageId === m.id && (ttsPlaybackState === 'playing' || ttsPlaybackState === 'paused') ? (
                                 <Square size={14} className={ttsPlaybackState === 'playing' ? "text-primary" : "text-muted-foreground"} />

@@ -22,6 +22,7 @@ export interface IMessage {
   vote?: 'up' | 'down';
   toolInvocations?: IToolInvocation[];
   agentInfo?: IAgentInfo;
+  audioUrl?: string;
   createdAt?: Date;
 }
 
@@ -76,6 +77,7 @@ const MessageSchema = new Schema<IMessage>({
   vote: { type: String, enum: ['up', 'down'], required: false },
   toolInvocations: [ToolInvocationSchema],
   agentInfo: { type: AgentInfoSchema, required: false },
+  audioUrl: { type: String, required: false },
   createdAt: { type: Date, default: Date.now }
 }, { _id: false });
 

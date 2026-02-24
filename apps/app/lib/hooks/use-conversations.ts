@@ -23,6 +23,7 @@ export interface Message {
     avatar: string | null;
     handle: string;
   };
+  audioUrl?: string;
 }
 
 export interface Conversation {
