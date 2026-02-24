@@ -191,6 +191,9 @@ export { createDelegateToAgentTool, type AgentDelegationResult } from './agent-d
 // MCP tools
 export { buildMcpTools } from './mcp.js';
 
+// Integration tools (OAuth-based external services)
+export { buildIntegrationTools } from './integrations.js';
+
 // Registry API exports
 export {
   registerTool,

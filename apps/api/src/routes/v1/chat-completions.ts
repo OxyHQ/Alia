@@ -12,6 +12,7 @@ import { getUserEntitlements } from '../../lib/plan-access.js';
 import { convertOpenAIToolsToToolSet } from '../../lib/tool-converter.js';
 import { getCurrentDateTool, webSearchTool, browseTool, saveUserMemoryTool, updateUserPreferencesTool, updateUserContextTool, createSendTelegramTool, createGetWhatsAppChatsTool, createGetWhatsAppMessagesTool, createSendWhatsAppMessageTool, createProvidersAdminTool, webScraperTool, generateFileTool, createSearchAgentsTool, createDelegateToAgentTool } from '../../lib/tools/index.js';
 import { buildMcpTools } from '../../lib/tools/mcp.js';
+import { buildIntegrationTools } from '../../lib/tools/integrations.js';
 import { oxyClient } from '../../middleware/auth.js';
 import type { KeyConfig } from '../../lib/providers-client.js';
 import type { IUserMemory } from '../../models/user-memory.js';
@@ -417,13 +418,16 @@ router.post('/', async (req: Request, res: Response) => {
       } : {}),
     };
 
-    // Add user's MCP server tools (only for direct user sessions)
+    // Add user's MCP server tools and integration tools (only for direct user sessions)
     if (isDirectUserSession && req.user?.id) {
       try {
-        const mcpTools = await buildMcpTools(req.user.id);
-        Object.assign(aliaTools, mcpTools);
+        const [mcpTools, integrationTools] = await Promise.all([
+          buildMcpTools(req.user.id),
+          buildIntegrationTools(req.user.id),
+        ]);
+        Object.assign(aliaTools, mcpTools, integrationTools);
       } catch (err) {
-        log.v1.warn({ err }, 'Failed to load MCP tools');
+        log.v1.warn({ err }, 'Failed to load MCP/integration tools');
       }
     }
 

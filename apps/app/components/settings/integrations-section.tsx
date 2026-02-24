@@ -1,7 +1,7 @@
 import { View, ActivityIndicator, Linking } from "react-native";
 import { Text } from "@/components/ui/text";
 import { Button } from "@/components/ui/button";
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
   useIntegrations,
   type ConnectedIntegration,
@@ -97,11 +97,27 @@ function AvailableCard({
   );
 }
 
-export function IntegrationsSection() {
+export function IntegrationsSection({
+  connectedService,
+  onConnectedHandled,
+}: {
+  connectedService?: string;
+  onConnectedHandled?: () => void;
+}) {
   const { available, connected, loading, getOAuthUrl, disconnect, refresh } = useIntegrations();
   const [connectingService, setConnectingService] = useState<string | null>(null);
   const [disconnectTarget, setDisconnectTarget] = useState<string | null>(null);
   const [disconnecting, setDisconnecting] = useState(false);
+  const handledRef = useRef(false);
+
+  useEffect(() => {
+    if (connectedService && !loading && !handledRef.current) {
+      handledRef.current = true;
+      refresh();
+      toast.success(`${connectedService} connected successfully`);
+      onConnectedHandled?.();
+    }
+  }, [connectedService, loading]);
 
   const connectedServices = new Set(connected.map((c) => c.service));
   const availableNotConnected = available.filter((a) => !connectedServices.has(a.service));
