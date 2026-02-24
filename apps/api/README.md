@@ -108,6 +108,50 @@ The API emits chunks in OpenAI format with extensions for reasoning:
 
 Each Alia tier maps to real provider models with automatic fallback. Mappings are auto-generated from the provider admin database — see `src/internal/providers/lib/generate-model-mappings.ts` for the current source of truth.
 
+### Provider Failover System
+
+The API implements a multi-layer failover system that ensures the client **never** sees a provider error:
+
+```
+Request
+  |
+  v
+Fallback Engine (iterates tier mappings by priority)
+  |
+  +-- Key Manager (selects best key, skips rate-limited/cooldown keys)
+  |     |
+  |     +-- Key fails? Try next key for same provider (up to 3)
+  |     +-- All keys exhausted? Move to next provider
+  |
+  +-- Error Classification (classifies into FailoverReason)
+  |     |
+  |     +-- provider_unavailable (geo, service down) -> skip provider
+  |     +-- rate_limit / auth                        -> try next key
+  |     +-- billing                                  -> skip provider, mark key exhausted
+  |     +-- timeout                                  -> retry once, then next provider
+  |     +-- format / content_filter                  -> stop (non-retryable)
+  |     +-- unknown                                  -> try next key, then next provider
+  |
+  +-- All providers exhausted?
+        |
+        +-- Synthetic response (friendly message, credits refunded)
+```
+
+**Key features**:
+- **Dynamic retry budget**: tries every provider in the tier (not just 3)
+- **Key-level retry**: failed keys are skipped, same provider retried with alternate keys
+- **Provider-specific error parsing**: Google (`FAILED_PRECONDITION`), OpenAI (`billing_hard_limit_reached`), Anthropic (`overloaded_error`)
+- **Retry-After propagation**: provider 429 headers feed into key cooldown duration
+- **Mid-stream recovery**: if a provider fails after content was streamed, a graceful message is appended
+- **Last-resort synthetic response**: when all providers fail, a friendly message is returned with `alia_meta: { synthetic: true, retryable: true }`
+- **Key cache TTL**: 10 seconds to minimize stale-key window
+
+Relevant source files:
+- `src/lib/errors/failover-error.ts` — error classification and provider-specific data extraction
+- `src/internal/providers/lib/fallback-engine.ts` — retry orchestration with reason-specific strategies
+- `src/internal/providers/lib/key-manager.ts` — key selection, cooldowns, rate limits
+- `src/routes/v1/chat-completions.ts` — retry loop, synthetic response, mid-stream recovery
+
 ## Credit System
 
 **Formula**: `credits = Math.ceil(tokens / 1000) * multiplier`

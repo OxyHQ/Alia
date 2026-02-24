@@ -28,6 +28,42 @@ Main API (Port 3001)
     └── /v1/plans (subscription plan CRUD, seeded on startup)
 ```
 
+### Provider Failover & Key Management:
+
+The module provides a multi-layer failover system for AI provider requests:
+
+**Key Manager** (`lib/key-manager.ts`):
+- Loads provider keys from MongoDB, sorted by priority (free first, then paid)
+- 10-second cache TTL to minimize stale-key window
+- Rate limit checking via single `$facet` aggregation (rps/rpm/rph/rpd and tps/tpm/tph/tpd)
+- Credit limit enforcement (`spentUSD >= creditLimitUSD` → skip)
+- Cooldown management: exponential backoff for errors, flat 60s for rate limits, provider Retry-After header priority
+- `skipKeyIds` parameter for caller-driven key exclusion (failed keys from previous attempts)
+
+**Fallback Engine** (`lib/fallback-engine.ts`):
+- Iterates tier model mappings by priority, applying reason-specific retry strategies
+- Key-level retry: up to 3 keys per provider before skipping to next provider
+- Error reason strategies:
+  - `timeout` → retry same provider once, then next
+  - `rate_limit` / `auth` / `unknown` → try next key (up to 3), then next provider
+  - `billing` → skip provider, mark key credit-exhausted
+  - `provider_unavailable` → skip provider entirely (geo-restriction, service down)
+  - `format` / `content_filter` → stop (non-retryable)
+- Records `FallbackEvent` documents for analytics (fire-and-forget)
+
+**Error Classification** (`../../lib/errors/failover-error.ts`):
+- Classifies unknown errors into `FailoverReason` categories
+- Provider-specific structured data extraction from `APICallError.data`:
+  - Google: `data.error.status` (FAILED_PRECONDITION, RESOURCE_EXHAUSTED, UNAVAILABLE)
+  - OpenAI: `data.error.type` + `data.error.code` (billing_hard_limit_reached, insufficient_quota)
+  - Anthropic: `data.error.type` (overloaded_error, rate_limit_error)
+- Classification priority: HTTP status → error codes → timeout detection → provider data → message regex → fallback
+- `getRetryAfterHeader()` extracts Retry-After from error response headers
+
+**Provider Health** (`lib/provider-health.ts`):
+- Circuit breaker pattern: 5 consecutive failures → open for 60s → half-open (3 attempts, 2 successes to close)
+- Per-provider/model health tracking in MongoDB
+
 ### Authentication:
 
 All internal provider endpoints require HMAC-based service authentication:
