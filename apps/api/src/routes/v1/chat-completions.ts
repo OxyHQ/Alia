@@ -23,7 +23,7 @@ import { buildSystemPrompt } from '../../lib/prompt-loader.js';
 import { wrapToolsWithTruncation, getToolResultBudget } from '../../lib/tools/result-truncation.js';
 import { log } from '../../lib/logger.js';
 import { recordEvent } from '../../lib/observability/index.js';
-import { classifyError } from '../../lib/errors/index.js';
+import { classifyError, getRetryAfterHeader } from '../../lib/errors/index.js';
 import type { FailoverReason } from '../../lib/errors/error-codes.js';
 
 const router = Router();
@@ -192,9 +192,35 @@ router.post('/', async (req: Request, res: Response) => {
   let globalTimedOut = false;
   const globalTimer = setTimeout(() => {
     globalTimedOut = true;
+    log.v1.error('Global request timeout after 80s');
     if (!res.headersSent) {
-      log.v1.error('Global request timeout after 80s');
-      res.status(503).json({ error: 'Request timeout', message: 'The request took too long. Please try again.' });
+      // Return synthetic response instead of raw error
+      res.json({
+        id: `chatcmpl-${Date.now()}`,
+        object: 'chat.completion',
+        created: Math.floor(Date.now() / 1000),
+        model: aliasModelId,
+        choices: [{
+          index: 0,
+          message: { role: 'assistant', content: "I'm sorry, the request took too long. Please try again." },
+          finish_reason: 'stop',
+        }],
+        usage: { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 },
+        alia_meta: { synthetic: true, retryable: true },
+      });
+    } else if (!res.writableEnded) {
+      // Mid-stream timeout: send graceful finish
+      const timeoutChunk = {
+        id: `chatcmpl-${Date.now()}`,
+        object: 'chat.completion.chunk',
+        created: Math.floor(Date.now() / 1000),
+        model: aliasModelId,
+        choices: [{ index: 0, delta: { content: '\n\nI encountered a brief interruption. Please send your message again.' }, finish_reason: null }],
+      };
+      res.write(`data: ${JSON.stringify(timeoutChunk)}\n\n`);
+      res.write(`data: ${JSON.stringify({ id: `chatcmpl-${Date.now()}`, object: 'chat.completion.chunk', created: Math.floor(Date.now() / 1000), model: aliasModelId, choices: [{ index: 0, delta: {}, finish_reason: 'stop' }] })}\n\n`);
+      res.write('data: [DONE]\n\n');
+      res.end();
     }
   }, GLOBAL_TIMEOUT_MS);
 
@@ -565,10 +591,19 @@ router.post('/', async (req: Request, res: Response) => {
     const MAX_TOOL_CALLS = 15;
 
     // Provider fallback retry loop
-    // When a provider returns 429/rate-limit, try the next provider in the tier
-    const MAX_PROVIDER_RETRIES = 3;
+    // Dynamic retry budget: try every configured provider in the tier, minimum 5
+    const MAX_PROVIDER_RETRIES = Math.max(tierMappings.length, 5);
     const skipProviders = new Set<string>();
+    const failedKeyIds = new Set<string>();
     let sseHeadersSent = earlySSE;
+
+    /** Reasons that indicate a key-level failure (try next key, not next provider) */
+    const KEY_LEVEL_REASONS: Set<FailoverReason> = new Set(['auth', 'rate_limit']);
+
+    // Detect user language for graceful error messages
+    const lastUserMsg = messages.slice().reverse().find((m: any) => m.role === 'user');
+    const lastUserText = typeof lastUserMsg?.content === 'string' ? lastUserMsg.content : '';
+    const isSpanish = /[áéíóúñ¿¡]/.test(lastUserText) || /\b(hola|por favor|gracias|cómo|qué|dime|puedes)\b/i.test(lastUserText);
 
     /** Set SSE headers if not already sent (idempotent). */
     function ensureSSEHeaders() {
@@ -584,9 +619,16 @@ router.post('/', async (req: Request, res: Response) => {
     // Check global timeout before each provider attempt
     if (globalTimedOut) break;
 
-    // Re-resolve model on retry (skipping failed providers)
+    // Check time budget before each attempt (leave 5s for last-resort response)
+    const elapsedMs = Date.now() - requestStartTime;
+    if (elapsedMs > GLOBAL_TIMEOUT_MS - 10_000) {
+      log.v1.warn({ elapsedMs }, 'Time budget nearly exhausted, breaking retry loop');
+      break;
+    }
+
+    // Re-resolve model on retry (skipping failed providers and keys)
     if (providerAttempt > 0) {
-      resolved = await resolveModel(requestedModel, skipProviders);
+      resolved = await resolveModel(requestedModel, skipProviders, failedKeyIds);
       if (!resolved) {
         log.v1.warn({ retries: providerAttempt }, 'No more providers available after retries');
         break;
@@ -1072,7 +1114,9 @@ router.post('/', async (req: Request, res: Response) => {
 
         // Record failure for circuit breaker - classify error for accurate reporting
         const streamErrorReason = classifyError((chunk as any).error);
-        await reportModelUsage(resolved!.keyConfig?.keyId, resolved!.provider, resolved!.modelId, false, 0, streamErrorReason);
+        const streamRetryAfterSec = getRetryAfterHeader((chunk as any).error);
+        const streamRetryAfterMs = streamRetryAfterSec ? streamRetryAfterSec * 1000 : undefined;
+        await reportModelUsage(resolved!.keyConfig?.keyId, resolved!.provider, resolved!.modelId, false, 0, streamErrorReason, streamRetryAfterMs);
 
         const rawError = (chunk as any).error;
 
@@ -1082,26 +1126,35 @@ router.post('/', async (req: Request, res: Response) => {
           throw rawError;
         }
 
-        // CRITICAL: Translate error to remove provider information!
-        const { translateError, sanitizeMessage } = await import('../../lib/error-handler.js');
-        const aliaError = translateError(rawError, resolved!.provider, resolved!.modelId);
-
+        // Mid-stream graceful recovery: send a friendly message instead of raw error
         ensureSSEHeaders();
 
-        const errorChunk = {
+        const midStreamMsg = isSpanish
+          ? '\n\nHubo una breve interrupción. Por favor, envía tu mensaje de nuevo y completaré mi respuesta.'
+          : '\n\nI encountered a brief interruption. Please send your message again and I\'ll complete my response.';
+
+        const recoveryChunk = {
           id: `chatcmpl-${Date.now()}`,
           object: 'chat.completion.chunk',
           created: Math.floor(Date.now() / 1000),
           model: aliasModelId,
           choices: [{
             index: 0,
-            delta: {
-              content: `\n\n⚠️ Error: ${sanitizeMessage(aliaError.userMessage)}`
-            },
-            finish_reason: 'error'
+            delta: { content: midStreamMsg },
+            finish_reason: null,
           }]
         };
-        res.write(`data: ${JSON.stringify(errorChunk)}\n\n`);
+        res.write(`data: ${JSON.stringify(recoveryChunk)}\n\n`);
+
+        // Send clean stop (not 'error') so client sees a normal finish
+        const stopChunk = {
+          id: `chatcmpl-${Date.now()}`,
+          object: 'chat.completion.chunk',
+          created: Math.floor(Date.now() / 1000),
+          model: aliasModelId,
+          choices: [{ index: 0, delta: {}, finish_reason: 'stop' }],
+        };
+        res.write(`data: ${JSON.stringify(stopChunk)}\n\n`);
       } else if (chunk.type === 'finish') {
         log.v1.debug('Finish chunk received');
         ensureSSEHeaders();
@@ -1325,39 +1378,102 @@ router.post('/', async (req: Request, res: Response) => {
       // Provider attempt failed — classify with shared error classifier
       log.v1.error({ err: providerError, provider: resolved!.provider, modelId: resolved!.modelId }, 'Provider failed');
       const errorReason = classifyError(providerError);
-      await reportModelUsage(resolved!.keyConfig?.keyId, resolved!.provider, resolved!.modelId, false, 0, errorReason);
+      const retryAfterSec = getRetryAfterHeader(providerError);
+      const retryAfterMs = retryAfterSec ? retryAfterSec * 1000 : undefined;
+      await reportModelUsage(resolved!.keyConfig?.keyId, resolved!.provider, resolved!.modelId, false, 0, errorReason, retryAfterMs);
 
-      // If no content streamed yet, try next provider — unless the error is non-retryable
-      // (format/content_filter errors will fail identically on any provider)
-      if (!hasStreamedContent && providerAttempt < MAX_PROVIDER_RETRIES - 1 && !NON_RETRYABLE_STREAM.has(errorReason)) {
-        log.v1.info({ provider: resolved!.provider, reason: errorReason }, 'Provider failed, trying next provider');
-        skipProviders.add(resolved!.provider);
-        continue; // Try next provider
+      // Non-retryable errors: stop immediately (would fail on any provider)
+      if (NON_RETRYABLE_STREAM.has(errorReason)) {
+        if (hasStreamedContent) throw providerError;
+        break; // Fall through to last-resort response
       }
 
-      // Non-retryable error, already streamed content, or last attempt - throw to outer handler
-      throw providerError;
+      // If content already streamed, can't retry — fall to outer handler
+      if (hasStreamedContent) {
+        throw providerError;
+      }
+
+      // Discriminate key-level vs provider-level failures for smarter retry
+      if (KEY_LEVEL_REASONS.has(errorReason) && resolved!.keyConfig?.keyId) {
+        // Key-level: skip just this key, keep the provider available
+        failedKeyIds.add(resolved!.keyConfig.keyId);
+        log.v1.info({ provider: resolved!.provider, reason: errorReason, keyId: resolved!.keyConfig.keyId }, 'Key-level failure, retrying with different key');
+      } else if (errorReason === 'provider_unavailable' || errorReason === 'billing') {
+        // Provider-level: skip the entire provider
+        skipProviders.add(resolved!.provider);
+        log.v1.info({ provider: resolved!.provider, reason: errorReason }, 'Provider-level failure, skipping provider');
+      } else {
+        // timeout, unknown: skip provider to try a different one
+        skipProviders.add(resolved!.provider);
+        log.v1.info({ provider: resolved!.provider, reason: errorReason }, 'Provider failed, trying next provider');
+      }
+
+      if (providerAttempt < MAX_PROVIDER_RETRIES - 1) {
+        continue; // Try next provider/key
+      }
+
+      // Last attempt exhausted — fall through to last-resort response
+      break;
     }
 
     } // End of provider retry loop
 
-    // If we get here, all providers were exhausted (resolved was null in the loop)
+    // ── LAST-RESORT SYNTHETIC RESPONSE ──
+    // All providers exhausted or time budget exceeded — respond with a friendly
+    // message instead of an error so the client never sees a raw failure.
+    log.v1.warn({ attempts: skipProviders.size + failedKeyIds.size, model: requestedModel }, 'All providers exhausted, sending synthetic response');
+
+    const syntheticMessage = isSpanish
+      ? 'Lo siento, en este momento todos los modelos están ocupados. Por favor, intenta de nuevo en unos segundos.'
+      : "I'm sorry, all models are currently busy. Please try again in a few seconds.";
+
+    // Refund credit reservation for synthetic responses
+    if (creditReservation) {
+      refundReservation(creditReservation).catch(() => {});
+      creditReservation = null;
+    }
+
     clearTimeout(globalTimer);
-    if (!res.headersSent) {
-      res.status(503).json({ error: 'All providers exhausted', requested_model: requestedModel });
-    } else if (sseHeadersSent) {
-      // SSE headers already sent — send error as SSE chunk
-      const errorChunk = {
+
+    if (!sseHeadersSent && !res.headersSent) {
+      // Non-streaming: return standard JSON response
+      res.json({
+        id: `chatcmpl-${Date.now()}`,
+        object: 'chat.completion',
+        created: Math.floor(Date.now() / 1000),
+        model: aliasModelId,
+        choices: [{
+          index: 0,
+          message: { role: 'assistant', content: syntheticMessage },
+          finish_reason: 'stop',
+        }],
+        usage: { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 },
+        alia_meta: { synthetic: true, retryable: true },
+      });
+    } else {
+      // Streaming: send synthetic message as normal SSE chunks
+      ensureSSEHeaders();
+      const contentChunk = {
         id: `chatcmpl-${Date.now()}`,
         object: 'chat.completion.chunk',
         created: Math.floor(Date.now() / 1000),
         model: aliasModelId,
-        choices: [{ index: 0, delta: { content: '\n\n⚠️ All models are currently unavailable. Please try again.' }, finish_reason: 'error' }]
+        choices: [{ index: 0, delta: { content: syntheticMessage }, finish_reason: null }],
+        alia_meta: { synthetic: true, retryable: true },
       };
-      res.write(`data: ${JSON.stringify(errorChunk)}\n\n`);
+      res.write(`data: ${JSON.stringify(contentChunk)}\n\n`);
+      const finishChunk = {
+        id: `chatcmpl-${Date.now()}`,
+        object: 'chat.completion.chunk',
+        created: Math.floor(Date.now() / 1000),
+        model: aliasModelId,
+        choices: [{ index: 0, delta: {}, finish_reason: 'stop' }],
+      };
+      res.write(`data: ${JSON.stringify(finishChunk)}\n\n`);
       res.write('data: [DONE]\n\n');
       res.end();
     }
+    return; // Handled — do not fall to outer catch
 
   } catch (e: unknown) {
     clearTimeout(globalTimer);
@@ -1377,22 +1493,29 @@ router.post('/', async (req: Request, res: Response) => {
 
     if (!res.headersSent) {
       res.status(aliaError.retryable ? 503 : 500).json(formatErrorResponse(aliaError));
-    } else {
-      // Headers already sent (streaming started), send error as SSE chunk
-      const errorChunk = {
+    } else if (!res.writableEnded) {
+      // Headers already sent (streaming started) — send graceful recovery message
+      const outerMidStreamMsg = '\n\nI encountered a brief interruption. Please send your message again and I\'ll complete my response.';
+      const recoveryChunk = {
         id: `chatcmpl-${Date.now()}`,
         object: 'chat.completion.chunk',
         created: Math.floor(Date.now() / 1000),
         model: aliasModelId,
         choices: [{
           index: 0,
-          delta: {
-            content: `\n\n⚠️ Error: ${sanitizeMessage(aliaError.userMessage)}`
-          },
-          finish_reason: 'error'
+          delta: { content: outerMidStreamMsg },
+          finish_reason: null,
         }]
       };
-      res.write(`data: ${JSON.stringify(errorChunk)}\n\n`);
+      res.write(`data: ${JSON.stringify(recoveryChunk)}\n\n`);
+      const stopChunk = {
+        id: `chatcmpl-${Date.now()}`,
+        object: 'chat.completion.chunk',
+        created: Math.floor(Date.now() / 1000),
+        model: aliasModelId,
+        choices: [{ index: 0, delta: {}, finish_reason: 'stop' }],
+      };
+      res.write(`data: ${JSON.stringify(stopChunk)}\n\n`);
       res.write('data: [DONE]\n\n');
       res.end();
     }

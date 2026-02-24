@@ -226,13 +226,14 @@ export async function reportModelUsage(
   modelId: string,
   success: boolean,
   latencyMs: number = 0,
-  errorCode?: string
+  errorCode?: string,
+  retryAfterMs?: number
 ): Promise<void> {
   reportToProvidersAPI(
     keyId || '',
     provider,
     modelId,
     success,
-    { latencyMs, errorCode: errorCode || undefined }
+    { latencyMs, errorCode: errorCode || undefined, retryAfterMs }
   );
 }

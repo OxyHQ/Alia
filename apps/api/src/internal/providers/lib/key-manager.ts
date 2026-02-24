@@ -8,9 +8,9 @@ import { ApiUsage } from '../models/api-usage';
 import type { KeyConfig } from './types';
 import { log } from '../../../lib/logger.js';
 
-// Cache for loaded keys (TTL: 30 seconds)
+// Cache for loaded keys (TTL: 10 seconds — short to minimize stale-key window)
 const keyCache = new Map<string, { keys: IProviderKey[]; timestamp: number }>();
-const KEY_CACHE_TTL = 30000;
+const KEY_CACHE_TTL = 10000;
 
 /**
  * Load all available keys for a provider from MongoDB
@@ -123,7 +123,8 @@ async function isKeyRateLimited(key: IProviderKey, tokens: number = 0): Promise<
 export async function getBestKeyForModel(
   provider: string,
   modelId: string,
-  estimatedTokens: number = 0
+  estimatedTokens: number = 0,
+  skipKeyIds?: Set<string>,
 ): Promise<KeyConfig | null> {
   const keys = await loadProviderKeys(provider);
 
@@ -136,6 +137,13 @@ export async function getBestKeyForModel(
   // Failed keys will have been moved to end of queue
   const now = new Date();
   for (const key of keys) {
+    const keyId = key._id.toString();
+
+    // Skip keys the caller has already tried and failed on
+    if (skipKeyIds?.has(keyId)) {
+      continue;
+    }
+
     // Skip keys in cooldown period
     if (key.cooldownUntil && key.cooldownUntil > now) {
       log.keys.debug({ keyPrefix: key.keyPrefix, provider: key.provider, cooldownUntil: key.cooldownUntil }, 'Key in cooldown, skipping');
@@ -162,7 +170,7 @@ export async function getBestKeyForModel(
 
     // Found a suitable key
     return {
-      keyId: key._id.toString(),
+      keyId,
       provider: key.provider,
       modelId,
       key: key.key,
@@ -233,7 +241,7 @@ export async function recordKeySuccess(keyId: string): Promise<void> {
  * Record key failure (moves key to last priority within its group - free or paid)
  * Also sets exponential cooldown: 30s * 2^consecutiveFailures, max 30min
  */
-export async function recordKeyFailure(keyId: string, reason: string): Promise<void> {
+export async function recordKeyFailure(keyId: string, reason: string, retryAfterMs?: number): Promise<void> {
   try {
     const key = await ProviderKey.findById(keyId);
     if (!key) {
@@ -256,12 +264,15 @@ export async function recordKeyFailure(keyId: string, reason: string): Promise<v
     await key.recordFailure(reason, maxPriority);
 
     // Set cooldown (atomic $set)
-    // For rate_limit errors: use key's rateLimitResetMs if configured, else 60s flat (matches most providers' per-minute windows)
+    // Priority: 1) Provider's Retry-After header, 2) Key's configured rateLimitResetMs, 3) Default
+    // For rate_limit errors: use provider Retry-After or key config or 60s flat
     // For other errors: exponential backoff (30s base, doubles per failure, capped at 5min)
     const consecutiveFailures = (key.consecutiveFailures || 0) + 1; // +1 because recordFailure already incremented
     const isRateLimit = /rate.?limit|429|RESOURCE_EXHAUSTED|quota/i.test(reason);
     let cooldownMs: number;
-    if (isRateLimit && key.rateLimitResetMs) {
+    if (retryAfterMs && retryAfterMs > 0) {
+      cooldownMs = retryAfterMs; // Provider-supplied Retry-After takes priority
+    } else if (isRateLimit && key.rateLimitResetMs) {
       cooldownMs = key.rateLimitResetMs;  // Per-key configured value
     } else if (isRateLimit) {
       cooldownMs = 60000;  // Default 60s for rate limits

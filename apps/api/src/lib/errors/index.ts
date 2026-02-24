@@ -20,4 +20,5 @@ export {
   classifyError,
   isTimeoutError,
   toAliaError,
+  getRetryAfterHeader,
 } from './failover-error';
