@@ -178,7 +178,8 @@ function incrementMap(map: Record<string, number>, key: string, maxEntries: numb
   return map;
 }
 
-function topEntries(map: Record<string, number>, n: number): string[] {
+function topEntries(map: Record<string, number> | null | undefined, n: number): string[] {
+  if (!map) return [];
   return Object.entries(map)
     .sort((a, b) => b[1] - a[1])
     .slice(0, n)
@@ -419,7 +420,7 @@ export function deriveProfile(profile: IWritingStyleProfile): IWritingStyleProfi
   }
 
   // ── Language ────────────────────────────────────────────────────
-  const langEntries = Object.entries(raw.languageCounts).sort((a, b) => b[1] - a[1]);
+  const langEntries = Object.entries(raw.languageCounts || {}).sort((a, b) => b[1] - a[1]);
   if (langEntries.length > 0) {
     profile.primaryLanguage = langEntries[0][0];
     profile.secondaryLanguages = langEntries.slice(1).map(([lang]) => lang);
