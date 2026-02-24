@@ -22,6 +22,7 @@ export interface IAgentSession extends Document {
   status: 'queued' | 'running' | 'completed' | 'failed' | 'cancelled';
   task: string;
   result?: string;
+  plan?: string;
   messages: IAgentSessionMessage[];
   resources: IAgentSessionResource[];
   stats: {
@@ -67,6 +68,7 @@ const AgentSessionSchema = new Schema<IAgentSession>({
   },
   task: { type: String, required: true },
   result: { type: String },
+  plan: { type: String, default: '' },
   messages: [{
     role: { type: String, enum: ['system', 'user', 'assistant', 'tool'], required: true },
     content: { type: String, required: true },
