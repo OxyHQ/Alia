@@ -30,6 +30,7 @@ export interface ProviderAPIOptions {
   formData?: FormData;      // Multipart body (e.g. Whisper audio)
   maxAttempts?: number;     // Default: 3
   timeout?: number;         // Per-attempt timeout in ms (e.g. 30000 for Whisper)
+  responseType?: 'json' | 'arrayBuffer'; // Default: 'json'. Use 'arrayBuffer' for binary responses (TTS audio)
 }
 
 /**
@@ -108,9 +109,15 @@ export async function callProviderAPI<T = any>(options: ProviderAPIOptions): Pro
       }
 
       // Success
-      const data = await response.json() as T;
       await recordKeyUsage(keyConfig.keyId, 0, provider, modelId);
       await recordKeySuccess(keyConfig.keyId);
+
+      if (options.responseType === 'arrayBuffer') {
+        const buffer = Buffer.from(await response.arrayBuffer());
+        return buffer as any as T;
+      }
+
+      const data = await response.json() as T;
       return data;
 
     } catch (fetchErr: any) {

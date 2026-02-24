@@ -12,7 +12,8 @@ import { cn } from "@/lib/utils";
 import { ThinkingIndicator } from "@/components/thinking-indicator";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { AgentPlaceholder } from "@/components/ui/agent-placeholder";
-import { Copy, ThumbsUp, ThumbsDown, Pencil, Check } from "lucide-react-native";
+import { Copy, ThumbsUp, ThumbsDown, Pencil, Check, Volume2, Square } from "lucide-react-native";
+import { useTTS } from "@/lib/hooks/use-tts";
 import Animated, {
   FadeInUp,
   useSharedValue,
@@ -129,6 +130,7 @@ export const ChatInterface = React.memo(function ChatInterface({ messages, scrol
     const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
     const openThoughtPanel = useUIStore((s) => s.openThoughtPanel);
     const setThoughtMessages = useUIStore((s) => s.setThoughtMessages);
+    const { readAloud, activeMessageId: ttsActiveMessageId, playbackState: ttsPlaybackState } = useTTS();
 
     const { isAtBottom, onScroll, onContentSizeChange } = useScrollToBottom(scrollViewRef);
 
@@ -301,6 +303,17 @@ export const ChatInterface = React.memo(function ChatInterface({ messages, scrol
                           </View>
                           {/* Action Buttons for Assistant Messages */}
                           <View className="flex-row gap-1">
+                            <Pressable
+                              key="read-aloud"
+                              className="p-1.5 rounded-lg hover:bg-muted active:bg-muted"
+                              onPress={() => readAloud(m.id, messageText)}
+                            >
+                              {ttsActiveMessageId === m.id && (ttsPlaybackState === 'playing' || ttsPlaybackState === 'paused') ? (
+                                <Square size={14} className={ttsPlaybackState === 'playing' ? "text-primary" : "text-muted-foreground"} />
+                              ) : (
+                                <Volume2 size={14} className={ttsActiveMessageId === m.id && ttsPlaybackState === 'loading' ? "text-primary opacity-50" : "text-muted-foreground"} />
+                              )}
+                            </Pressable>
                             <Pressable
                               key="copy"
                               className="p-1.5 rounded-lg hover:bg-muted active:bg-muted"

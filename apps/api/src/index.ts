@@ -260,6 +260,7 @@ app.get('/', (_req, res) => {
       '/writing-style',
       '/v1/voice/token',
       '/v1/voice/transcribe',
+      '/v1/audio/speech',
       '/internal/trigger'
     ]
   });

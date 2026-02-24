@@ -120,6 +120,7 @@ const AliaModelSchema = new Schema<IAliaModel>(
         'v1-browser',
         'v1-vision',
         'v1-audio',
+        'v1-tts',
         'v1-multimodal',
         'v1-pro',
         'v1-pro-max',
