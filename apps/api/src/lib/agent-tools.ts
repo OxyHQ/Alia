@@ -14,6 +14,7 @@ import { webScraperTool } from './tools/web-scraper.js';
 import { saveUserMemoryTool } from './tools/user-memory.js';
 import { createSendTelegramTool } from './tools/telegram.js';
 import { buildIntegrationTools } from './tools/integrations.js';
+import { buildMcpTools } from './tools/mcp.js';
 import { log } from './logger.js';
 import * as containerManager from './container-manager.js';
 import { Container } from '../models/container.js';
@@ -43,13 +44,36 @@ export async function buildAgentTools(ctx: BuildToolsContext) {
   tools.saveMemory = saveUserMemoryTool(userId);
   tools.sendTelegram = createSendTelegramTool(userId);
 
-  // ── Integration tools (GitHub, Notion, Calendar, Linear, Drive) ──
+  // ── Integration + MCP tools ──
 
   try {
-    const integrationTools = await buildIntegrationTools(userId);
+    const [integrationTools, mcpTools] = await Promise.all([
+      buildIntegrationTools(userId),
+      buildMcpTools(userId),
+    ]);
     Object.assign(tools, integrationTools);
+
+    // Wrap MCP tool executes with error handling (they don't have safeExecute)
+    for (const [name, mcpTool] of Object.entries(mcpTools)) {
+      if (mcpTool.execute) {
+        const originalExecute = mcpTool.execute;
+        tools[name] = {
+          ...mcpTool,
+          execute: async (...args: any[]) => {
+            try {
+              return await (originalExecute as Function)(...args);
+            } catch (err: any) {
+              log.agents.warn({ err, toolName: name }, 'MCP tool error in agent');
+              return { error: `MCP tool failed: ${err.message?.slice(0, 150) || 'unknown error'}` };
+            }
+          },
+        };
+      } else {
+        tools[name] = mcpTool;
+      }
+    }
   } catch (err) {
-    log.agents.warn({ err, userId }, 'Failed to load integration tools for agent');
+    log.agents.warn({ err, userId }, 'Failed to load integration/MCP tools for agent');
   }
 
   // ── Agent-specific tools ──
