@@ -125,20 +125,29 @@ router.get('/:service/callback', async (req, res) => {
     const apiBaseUrl = process.env.API_BASE_URL || 'http://localhost:3001';
     const redirectUri = `${apiBaseUrl}/integrations/${service}/callback`;
 
-    // Exchange code for tokens
+    // Build token exchange request (provider-specific auth method)
+    const authMethod = entry.oauthConfig.authMethod || 'body';
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/x-www-form-urlencoded',
+      Accept: 'application/json',
+    };
+    const bodyParams: Record<string, string> = {
+      code,
+      redirect_uri: redirectUri,
+      grant_type: 'authorization_code',
+    };
+
+    if (authMethod === 'basic') {
+      headers['Authorization'] = `Basic ${Buffer.from(`${creds.clientId}:${creds.clientSecret}`).toString('base64')}`;
+    } else {
+      bodyParams.client_id = creds.clientId;
+      bodyParams.client_secret = creds.clientSecret;
+    }
+
     const tokenResponse = await fetch(entry.oauthConfig.tokenUrl, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/x-www-form-urlencoded',
-        Accept: 'application/json',
-      },
-      body: new URLSearchParams({
-        client_id: creds.clientId,
-        client_secret: creds.clientSecret,
-        code,
-        redirect_uri: redirectUri,
-        grant_type: 'authorization_code',
-      }),
+      headers,
+      body: new URLSearchParams(bodyParams),
       signal: AbortSignal.timeout(10_000),
     });
 
@@ -147,6 +156,30 @@ router.get('/:service/callback', async (req, res) => {
     if (!tokenResponse.ok || !tokenData.access_token) {
       log.general.error({ tokenData }, 'OAuth token exchange failed');
       return res.status(400).json({ error: 'Failed to exchange code for tokens' });
+    }
+
+    // Fetch user profile from the connected service (best-effort)
+    let profileData: { accountId?: string; accountName?: string; avatarUrl?: string } = {};
+    if (entry.profile) {
+      try {
+        const profileHeaders: Record<string, string> = {
+          Authorization: `${tokenData.token_type || 'Bearer'} ${tokenData.access_token}`,
+          Accept: 'application/json',
+          ...entry.profile.headers,
+        };
+        const profileResponse = await fetch(entry.profile.url, {
+          method: entry.profile.method || 'GET',
+          headers: profileHeaders,
+          body: entry.profile.body || undefined,
+          signal: AbortSignal.timeout(5_000),
+        });
+        if (profileResponse.ok) {
+          const raw = await profileResponse.json();
+          profileData = entry.profile.mapResponse(raw);
+        }
+      } catch (profileErr) {
+        log.general.warn({ err: profileErr, service }, 'Profile fetch failed (non-blocking)');
+      }
     }
 
     // Create or update integration
@@ -163,6 +196,9 @@ router.get('/:service/callback', async (req, res) => {
         scope: tokenData.scope || entry.oauthConfig.scopes.join(' '),
         tokenType: tokenData.token_type || 'Bearer',
       },
+      accountId: profileData.accountId,
+      accountName: profileData.accountName,
+      avatarUrl: profileData.avatarUrl,
       status: 'active',
       connectedAt: new Date(),
     });

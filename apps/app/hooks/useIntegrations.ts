@@ -41,7 +41,11 @@ export function useIntegrations() {
         apiClient.get('/integrations/available'),
         apiClient.get('/integrations'),
       ]);
-      setAvailable(availableRes.data.integrations || []);
+      setAvailable(
+        (availableRes.data.integrations || []).filter(
+          (i: IntegrationEntry & { configured?: boolean }) => i.configured !== false,
+        ),
+      );
       setConnected(connectedRes.data.integrations || []);
       setError(null);
     } catch (err: any) {
@@ -57,7 +61,7 @@ export function useIntegrations() {
 
   const getOAuthUrl = async (service: string): Promise<string> => {
     const response = await apiClient.get(`/integrations/${service}/oauth-url`);
-    return response.data.url;
+    return response.data.authUrl;
   };
 
   const disconnect = async (integrationId: string) => {
