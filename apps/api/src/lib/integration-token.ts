@@ -3,6 +3,10 @@
  *
  * Provides getValidToken() to retrieve a fresh OAuth access token for a
  * user's connected integration, automatically refreshing when expired.
+ *
+ * Uses in-flight deduplication to prevent concurrent refresh races
+ * (e.g. Google rotates refresh tokens on first use — a double-refresh
+ * would permanently invalidate the integration).
  */
 
 import mongoose from 'mongoose';
@@ -11,6 +15,11 @@ import { INTEGRATION_REGISTRY } from './integration-registry.js';
 import { log } from './logger.js';
 
 const TOKEN_EXPIRY_BUFFER_MS = 5 * 60 * 1000; // refresh 5 minutes before expiry
+
+// In-flight refresh deduplication: key = integrationId, value = pending promise.
+// Prevents concurrent requests from triggering parallel refreshes that could
+// invalidate each other (especially for providers that rotate refresh tokens).
+const inflightRefreshes = new Map<string, Promise<string>>();
 
 /**
  * Get a valid access token for the given user + service.
@@ -54,7 +63,18 @@ export async function getValidToken(userId: string, service: string): Promise<st
     throw new Error(`${service} token expired and no refresh token available — please reconnect`);
   }
 
-  return refreshAndPersist(integration);
+  // Deduplicate: if a refresh is already in-flight for this integration, await it
+  const integrationId = integration._id.toString();
+  const existing = inflightRefreshes.get(integrationId);
+  if (existing) {
+    return existing;
+  }
+
+  const promise = refreshAndPersist(integration).finally(() => {
+    inflightRefreshes.delete(integrationId);
+  });
+  inflightRefreshes.set(integrationId, promise);
+  return promise;
 }
 
 async function refreshAndPersist(integration: IIntegration): Promise<string> {
@@ -97,7 +117,11 @@ async function refreshAndPersist(integration: IIntegration): Promise<string> {
     const data = await response.json();
 
     if (!response.ok || !data.access_token) {
-      log.general.error({ data, service: integration.service }, 'Token refresh failed');
+      // Log only error fields — never log token values
+      log.general.error(
+        { error: data.error, errorDescription: data.error_description, service: integration.service },
+        'Token refresh failed',
+      );
       await Integration.updateOne({ _id: integration._id }, { status: 'expired' });
       throw new Error(`Failed to refresh ${integration.service} token — please reconnect`);
     }

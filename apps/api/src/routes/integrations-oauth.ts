@@ -1,6 +1,6 @@
 import express from 'express';
 import crypto from 'crypto';
-import mongoose from 'mongoose';
+import mongoose, { Schema } from 'mongoose';
 import { authenticateToken } from '../middleware/auth.js';
 import { Integration } from '../models/integration.js';
 import { INTEGRATION_REGISTRY, type IntegrationRegistryEntry } from '../lib/integration-registry.js';
@@ -8,16 +8,15 @@ import { log } from '../lib/logger.js';
 
 const router = express.Router();
 
-// In-memory state store for OAuth flows (short-lived)
-const oauthStates = new Map<string, { service: string; userId: string; expiresAt: number }>();
-
-// Clean expired states periodically
-setInterval(() => {
-  const now = Date.now();
-  for (const [key, value] of oauthStates) {
-    if (value.expiresAt < now) oauthStates.delete(key);
-  }
-}, 60_000);
+// MongoDB-backed OAuth state store (survives restarts, works across instances)
+const OAuthStateSchema = new Schema({
+  _id: { type: String }, // the random state token
+  service: { type: String, required: true },
+  userId: { type: String, required: true },
+  expiresAt: { type: Date, required: true },
+});
+OAuthStateSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 }); // TTL auto-cleanup
+const OAuthState = mongoose.model('OAuthState', OAuthStateSchema);
 
 function getRegistryEntry(service: string): IntegrationRegistryEntry | undefined {
   return INTEGRATION_REGISTRY.find(i => i.service === service);
@@ -61,7 +60,7 @@ router.get('/', authenticateToken, async (req, res) => {
 });
 
 // Generate OAuth URL for a service
-router.get('/:service/oauth-url', authenticateToken, (req, res) => {
+router.get('/:service/oauth-url', authenticateToken, async (req, res) => {
   const { service } = req.params;
   const entry = getRegistryEntry(service);
   if (!entry) {
@@ -74,10 +73,11 @@ router.get('/:service/oauth-url', authenticateToken, (req, res) => {
   }
 
   const state = crypto.randomBytes(32).toString('hex');
-  oauthStates.set(state, {
+  await OAuthState.create({
+    _id: state,
     service,
     userId: req.userId!,
-    expiresAt: Date.now() + 10 * 60 * 1000, // 10 minutes
+    expiresAt: new Date(Date.now() + 10 * 60 * 1000), // 10 minutes
   });
 
   const apiBaseUrl = process.env.API_BASE_URL || 'http://localhost:3001';
@@ -105,11 +105,11 @@ router.get('/:service/callback', async (req, res) => {
     return res.status(400).json({ error: 'Missing code or state' });
   }
 
-  const stateData = oauthStates.get(state);
-  if (!stateData || stateData.service !== service || stateData.expiresAt < Date.now()) {
+  // Atomically find-and-delete to prevent replay attacks
+  const stateData = await OAuthState.findOneAndDelete({ _id: state });
+  if (!stateData || stateData.service !== service || stateData.expiresAt < new Date()) {
     return res.status(400).json({ error: 'Invalid or expired state' });
   }
-  oauthStates.delete(state);
 
   const entry = getRegistryEntry(service);
   if (!entry) {
@@ -154,7 +154,10 @@ router.get('/:service/callback', async (req, res) => {
     const tokenData = await tokenResponse.json();
 
     if (!tokenResponse.ok || !tokenData.access_token) {
-      log.general.error({ tokenData }, 'OAuth token exchange failed');
+      log.general.error(
+        { error: tokenData.error, errorDescription: tokenData.error_description, service },
+        'OAuth token exchange failed',
+      );
       return res.status(400).json({ error: 'Failed to exchange code for tokens' });
     }
 
