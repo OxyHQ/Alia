@@ -95,6 +95,7 @@ function getContentType(extension: string): string {
     webp: 'image/webp',
     pdf: 'application/pdf',
     txt: 'text/plain',
+    mp3: 'audio/mpeg',
   };
 
   return contentTypes[extension.toLowerCase()] || 'application/octet-stream';
