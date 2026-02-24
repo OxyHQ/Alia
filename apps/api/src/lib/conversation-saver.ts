@@ -4,7 +4,10 @@
  * Used by both the internal chat endpoint and the v1/chat-completions endpoint.
  */
 
+import { generateText } from 'ai';
 import { Conversation, type ConversationSource } from '../models/conversation.js';
+import { resolveModel, getAIModel } from './chat-core.js';
+import { log } from './logger.js';
 
 // Known translations of "TITLE" that LLMs may produce
 const TAG = String.raw`ALIA_TITLE|TITLE|TÍTULO|TITRE|TITOLO|TITEL|ЗАГОЛОВОК`;
@@ -90,4 +93,44 @@ export async function saveConversation(params: SaveConversationParams): Promise<
     },
     { upsert: true, returnDocument: 'after' },
   );
+}
+
+/**
+ * Generate a conversation title asynchronously using a cheap model.
+ * Skips if the conversation already has a meaningful title or was manually titled.
+ * Designed to be called fire-and-forget after saveConversation().
+ */
+export async function generateConversationTitle(
+  userId: string,
+  conversationId: string,
+  userMessage: string,
+  assistantResponse: string,
+): Promise<void> {
+  const conv = await Conversation.findOne({ oxyUserId: userId, conversationId });
+  if (!conv || conv.isManualTitle) return;
+  if (conv.title && conv.title !== 'New chat' && conv.title !== 'Nueva conversación') return;
+
+  const resolved = await resolveModel('alia-lite');
+  if (!resolved) return;
+
+  const model = getAIModel(resolved.keyConfig);
+  const result = await generateText({
+    model,
+    messages: [
+      { role: 'system', content: 'Generate a concise conversation title (max 6 words) in the same language as the user message. Return ONLY the title text, nothing else. No quotes, no punctuation at the end.' },
+      { role: 'user', content: userMessage },
+      { role: 'assistant', content: assistantResponse.slice(0, 500) },
+      { role: 'user', content: 'Title:' },
+    ],
+    maxTokens: 30,
+  });
+
+  const title = result.text.trim().replace(/^["']|["']$/g, '').replace(/\.+$/, '');
+  if (title.length > 0 && title.length < 100) {
+    await Conversation.updateOne(
+      { oxyUserId: userId, conversationId },
+      { $set: { title } },
+    );
+    log.chat.info({ conversationId, title }, 'Auto-generated conversation title');
+  }
 }

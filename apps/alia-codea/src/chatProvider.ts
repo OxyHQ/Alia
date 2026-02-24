@@ -3,6 +3,29 @@ import OpenAI from 'openai';
 import { fileTools, ToolExecutor } from './tools';
 import type { AliaAuthenticationProvider } from './authProvider';
 
+/** Patterns that indicate a synthetic/error response from the backend */
+const SYNTHETIC_ERROR_PATTERNS = [
+  'I encountered a brief interruption',
+  'Hubo una breve interrupción',
+  'all models are currently busy',
+  'todos los modelos están ocupados',
+  'the request took too long',
+];
+
+/** Thrown when a streaming response is detected as synthetic/error */
+class SyntheticErrorSignal extends Error {
+  constructor(public readonly message: string) {
+    super(message);
+    this.name = 'SyntheticErrorSignal';
+  }
+}
+
+/** Check if a message is a synthetic error response from the backend */
+function isSyntheticResponse(content: string): boolean {
+  const trimmed = content.trim();
+  return SYNTHETIC_ERROR_PATTERNS.some(pattern => trimmed.includes(pattern));
+}
+
 interface Conversation {
   id: string;
   title: string;
@@ -21,6 +44,7 @@ export class CodeaChatViewProvider implements vscode.WebviewViewProvider {
   private _toolExecutor: ToolExecutor;
   private _isProcessing: boolean = false;
   private _currentMode: string = 'ask';
+  private _lastRequestParams: { baseUrl: string; accessToken: string; model: string; clientContext: string } | null = null;
 
   constructor(
     private readonly _extensionUri: vscode.Uri,
@@ -75,6 +99,16 @@ export class CodeaChatViewProvider implements vscode.WebviewViewProvider {
     vscode.window.showInformationMessage('Signed out of Codea');
   }
 
+  private async handleRetry(): Promise<void> {
+    if (this._isProcessing || !this._lastRequestParams) return;
+
+    // Remove the last assistant message if it was an error (it won't be in _messages
+    // because synthetic errors are not pushed, but clear any leftover state)
+    this._isProcessing = true;
+    const { baseUrl, accessToken, model, clientContext } = this._lastRequestParams;
+    await this.processConversation(baseUrl, accessToken, model, clientContext);
+  }
+
   private async fetchModels(baseUrl: string): Promise<any[]> {
     const url = `${baseUrl}/v1/models?category=coding`;
 
@@ -124,6 +158,9 @@ export class CodeaChatViewProvider implements vscode.WebviewViewProvider {
           break;
         case 'addContext':
           await this.handleAddContext();
+          break;
+        case 'retry':
+          await this.handleRetry();
           break;
         case 'signIn':
           vscode.commands.executeCommand('codea.signIn');
@@ -568,6 +605,7 @@ export class CodeaChatViewProvider implements vscode.WebviewViewProvider {
     });
 
     this._isProcessing = true;
+    this._lastRequestParams = { baseUrl, accessToken, model, clientContext };
     await this.processConversation(baseUrl, accessToken, model, clientContext);
   }
 
@@ -651,6 +689,35 @@ You are running inside Visual Studio Code, Microsoft's popular code editor.
       try {
         await makeRequest(currentToken);
       } catch (error: any) {
+        // On synthetic error, auto-retry once after a short delay
+        if (error instanceof SyntheticErrorSignal) {
+          console.log('[Codea] Synthetic error detected, retrying in 2s...');
+          this._view?.webview.postMessage({ type: 'clearStream' });
+          await new Promise(resolve => setTimeout(resolve, 2000));
+
+          if (!this._isProcessing) {
+            this._view?.webview.postMessage({ type: 'endAssistantMessage' });
+            return;
+          }
+
+          try {
+            await makeRequest(currentToken);
+          } catch (retryError: any) {
+            // Second attempt also failed — show as retryable error
+            if (retryError instanceof SyntheticErrorSignal) {
+              this._view?.webview.postMessage({
+                type: 'error',
+                message: 'The service is temporarily unavailable. Please try again.',
+                retryable: true
+              });
+              return;
+            }
+            throw retryError;
+          }
+          this._view?.webview.postMessage({ type: 'endAssistantMessage' });
+          return;
+        }
+
         // On 401, try refreshing the token and retry once
         if (error?.status === 401 || error?.message?.includes('401')) {
           const refreshed = await this._authProvider.refreshToken();
@@ -704,9 +771,15 @@ You are running inside Visual Studio Code, Microsoft's popular code editor.
 
     let assistantMessage = '';
     let toolCalls: OpenAI.Chat.ChatCompletionMessageToolCall[] = [];
+    let detectedSynthetic = false;
 
     for await (const chunk of stream) {
       if (!this._isProcessing) break;
+
+      // Detect synthetic responses via alia_meta
+      if ((chunk as any).alia_meta?.synthetic) {
+        detectedSynthetic = true;
+      }
 
       const delta = chunk.choices?.[0]?.delta;
       if (!delta) continue;
@@ -744,6 +817,11 @@ You are running inside Visual Studio Code, Microsoft's popular code editor.
           }
         }
       }
+    }
+
+    // Check if the response is a synthetic error (pattern match or alia_meta flag)
+    if (detectedSynthetic || isSyntheticResponse(assistantMessage)) {
+      throw new SyntheticErrorSignal(assistantMessage.trim());
     }
 
     const validToolCalls = toolCalls.filter(tc => tc && tc.id && (tc as any).function && (tc as any).function.name);
@@ -850,9 +928,14 @@ You are running inside Visual Studio Code, Microsoft's popular code editor.
 
     let assistantMessage = '';
     let toolCalls: OpenAI.Chat.ChatCompletionMessageToolCall[] = [];
+    let detectedSynthetic = false;
 
     for await (const chunk of stream) {
       if (!this._isProcessing) break;
+
+      if ((chunk as any).alia_meta?.synthetic) {
+        detectedSynthetic = true;
+      }
 
       const delta = chunk.choices?.[0]?.delta;
       if (!delta) continue;
@@ -889,6 +972,11 @@ You are running inside Visual Studio Code, Microsoft's popular code editor.
           }
         }
       }
+    }
+
+    // Check if the response is a synthetic error
+    if (detectedSynthetic || isSyntheticResponse(assistantMessage)) {
+      throw new SyntheticErrorSignal(assistantMessage.trim());
     }
 
     const validToolCalls = toolCalls.filter(tc => tc && tc.id && (tc as any).function && (tc as any).function.name);

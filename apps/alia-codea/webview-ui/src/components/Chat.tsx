@@ -48,6 +48,7 @@ interface Message {
   content: string
   context?: ContextItem[]
   toolExecutions?: ToolExecution[]
+  retryable?: boolean
 }
 
 interface ToolExecution {
@@ -258,7 +259,16 @@ export function Chat() {
         }
         case "error":
           setIsGenerating(false)
-          setMessages((prev) => [...prev, { role: "assistant", content: `Error: ${data.message}` }])
+          setMessages((prev) => [...prev, {
+            role: "assistant",
+            content: `Error: ${data.message}`,
+            retryable: !!data.retryable
+          }])
+          setStreamingContent("")
+          streamingContentRef.current = ""
+          setToolExecutions([])
+          break
+        case "clearStream":
           setStreamingContent("")
           streamingContentRef.current = ""
           setToolExecutions([])
@@ -478,7 +488,15 @@ export function Chat() {
         ) : (
           <div className="flex flex-col gap-4 p-4">
             {messages.map((msg, i) => (
-              <MessageBubble key={i} message={msg} />
+              <MessageBubble
+                key={i}
+                message={msg}
+                onRetry={msg.retryable ? () => {
+                  // Remove the error message and retry
+                  setMessages((prev) => prev.filter((_, idx) => idx !== i))
+                  vscode?.postMessage({ type: "retry" })
+                } : undefined}
+              />
             ))}
             {isGenerating && (
               <>
@@ -801,7 +819,7 @@ function WelcomeScreen({ userName, onSuggestionClick }: { userName: string | nul
   )
 }
 
-function MessageBubble({ message, isStreaming }: { message: Message; isStreaming?: boolean }) {
+function MessageBubble({ message, isStreaming, onRetry }: { message: Message; isStreaming?: boolean; onRetry?: () => void }) {
   if (message.role === "user") {
     return (
       <div className="flex flex-col items-end gap-1.5">
@@ -851,6 +869,16 @@ function MessageBubble({ message, isStreaming }: { message: Message; isStreaming
             <Markdown>{message.content}</Markdown>
           </div>
         ) : null}
+        {message.retryable && onRetry && (
+          <Button
+            variant="outline"
+            size="sm"
+            className="mt-2 gap-1.5"
+            onClick={onRetry}
+          >
+            Retry
+          </Button>
+        )}
       </div>
     </div>
   )

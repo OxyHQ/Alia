@@ -14,7 +14,6 @@ import { toast } from '@/components/sonner';
 import type { ToolInvocation } from '@/lib/types/messages';
 export type { ToolInvocation };
 
-import { extractTitle, stripTitleTagsPartial as stripTitleTags } from '@/lib/utils/title-tags';
 
 export function useStreamingChat(apiUrl: string, activeRole?: any, conversationId?: string, thinkingMode?: boolean, selectedModel?: string, skillId?: string | null, agentId?: string | null) {
   const [messages, setMessages] = useState<Message[]>([]);
@@ -209,24 +208,6 @@ Use this role to guide your responses, maintaining the specified tone, style, an
               return updated;
             });
             setError(new Error('No response received from AI'));
-          } else if (fullContent) {
-            // Extract title from final content
-            const { content, title } = extractTitle(fullContent);
-            if (title) {
-              setConversationTitle(title);
-            }
-            // Update message with cleaned content
-            setMessages((prev) => {
-              const updated = [...prev];
-              const lastMessage = updated[updated.length - 1];
-              if (lastMessage?.role === 'assistant') {
-                updated[updated.length - 1] = {
-                  ...lastMessage,
-                  content: content,
-                };
-              }
-              return updated;
-            });
           }
           break;
         }
@@ -312,16 +293,13 @@ Use this role to guide your responses, maintaining the specified tone, style, an
                   Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
                 }
 
-                // Always update immediately for smooth streaming
-                // Strip title tags so they never appear in the UI
                 setMessages((prev) => {
                   const updated = [...prev];
                   const lastMessage = updated[updated.length - 1];
                   if (lastMessage?.role === 'assistant') {
-                    const raw = lastMessage.content + delta.content;
                     updated[updated.length - 1] = {
                       ...lastMessage,
-                      content: stripTitleTags(raw),
+                      content: lastMessage.content + delta.content,
                     };
                   }
                   return updated;

@@ -4,7 +4,7 @@ import { resolveModel, getAIModel, getDefaultAliaModel, reportModelUsage } from 
 import { getAliaModel, getModelMappingsForTier } from '../../lib/providers-client.js';
 import { UserMemory } from '../../models/user-memory.js';
 import { getOrCreateUserCredits } from '../../lib/user-credits-helpers.js';
-import { saveConversation } from '../../lib/conversation-saver.js';
+import { saveConversation, generateConversationTitle } from '../../lib/conversation-saver.js';
 import { reserveCredits, finalizeCredits, refundReservation, type CreditReservation, type CreditUsage } from '../../lib/credits-manager.js';
 import { recordUsage } from '../../middleware/api-key-rate-limit.js';
 import { detectCreditAnomaly } from '../../lib/credit-anomaly.js';
@@ -755,6 +755,13 @@ router.post('/', async (req: Request, res: Response) => {
             toolInvocations: nonStreamToolInvocations,
           });
           log.v1.info({ conversationId }, 'Conversation saved');
+
+          // Generate title asynchronously (fire-and-forget)
+          const firstUserMsg = messages.find((m: any) => m.role === 'user')?.content;
+          if (typeof firstUserMsg === 'string') {
+            generateConversationTitle(req.user.id, conversationId, firstUserMsg, assistantResponse)
+              .catch(err => log.v1.error({ err }, 'Background title generation failed'));
+          }
         } catch (error) {
           log.v1.error({ err: error }, 'Error saving conversation');
         }
@@ -1282,6 +1289,13 @@ router.post('/', async (req: Request, res: Response) => {
           agentMessages: agentMessages.length > 0 ? agentMessages : undefined,
         });
         log.v1.info({ conversationId }, 'Conversation saved');
+
+        // Generate title asynchronously (fire-and-forget)
+        const firstUserMsg = messages.find((m: any) => m.role === 'user')?.content;
+        if (typeof firstUserMsg === 'string') {
+          generateConversationTitle(req.user.id, conversationId, firstUserMsg, assistantResponse)
+            .catch(err => log.v1.error({ err }, 'Background title generation failed'));
+        }
       } catch (error) {
         log.v1.error({ err: error }, 'Error saving conversation');
       }
