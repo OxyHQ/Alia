@@ -63,11 +63,13 @@ function buildSystemPrompt(agent: IAgent, config: IAgentSession['config']): stri
 ${agent.description}${capabilities}
 
 ## Instructions
+- Use the updatePlan tool at the start to create a checklist of steps. Update it after completing each step.
 - Complete the user's task efficiently. Minimize unnecessary steps and token usage.
 - When you are done, call the completeTask tool with your final result.
 - Do NOT continue working after completing the task.
 - If you need to run code, create a container first, execute your code, then destroy the container when done.
 - If a subtask is better handled by a specialist, use the hireAgent tool.
+- For multiple independent subtasks, use parallelResearch to run them concurrently.
 - Always destroy containers when you are finished with them.
 
 ## Budget
@@ -248,7 +250,7 @@ export async function runAgentSession(sessionId: string): Promise<void> {
     : undefined;
 
   // Build tools
-  const tools = buildAgentTools({
+  const tools = await buildAgentTools({
     agent,
     session,
     onComplete,
@@ -291,6 +293,14 @@ export async function runAgentSession(sessionId: string): Promise<void> {
           sessionId,
         });
         break;
+      }
+
+      // Refresh plan in system message (context engineering — keeps plan visible)
+      if (currentSession.plan) {
+        messages[0] = {
+          role: 'system',
+          content: systemPrompt + `\n\n## Current Plan\n${currentSession.plan}`,
+        };
       }
 
       // Select model based on task complexity

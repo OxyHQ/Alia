@@ -13,6 +13,7 @@ import { browseTool } from './tools/browse.js';
 import { webScraperTool } from './tools/web-scraper.js';
 import { saveUserMemoryTool } from './tools/user-memory.js';
 import { createSendTelegramTool } from './tools/telegram.js';
+import { buildIntegrationTools } from './tools/integrations.js';
 import { log } from './logger.js';
 import * as containerManager from './container-manager.js';
 import { Container } from '../models/container.js';
@@ -27,7 +28,7 @@ interface BuildToolsContext {
   onHireAgent?: (handle: string, task: string) => Promise<string>;
 }
 
-export function buildAgentTools(ctx: BuildToolsContext) {
+export async function buildAgentTools(ctx: BuildToolsContext) {
   const { agent, session, onComplete, onHireAgent } = ctx;
   const userId = session.userId.toString();
 
@@ -42,7 +43,28 @@ export function buildAgentTools(ctx: BuildToolsContext) {
   tools.saveMemory = saveUserMemoryTool(userId);
   tools.sendTelegram = createSendTelegramTool(userId);
 
+  // ── Integration tools (GitHub, Notion, Calendar, Linear, Drive) ──
+
+  try {
+    const integrationTools = await buildIntegrationTools(userId);
+    Object.assign(tools, integrationTools);
+  } catch (err) {
+    log.agents.warn({ err, userId }, 'Failed to load integration tools for agent');
+  }
+
   // ── Agent-specific tools ──
+
+  tools.updatePlan = tool({
+    description: 'Create or update your task plan. Write a structured checklist of steps. Mark completed steps with [x] and pending with [ ]. Call this at the start of a task and after completing each step.',
+    parameters: z.object({
+      plan: z.string().describe('The full updated plan as a markdown checklist'),
+    }),
+    execute: async ({ plan }: { plan: string }) => {
+      session.plan = plan;
+      await session.save();
+      return { updated: true };
+    },
+  });
 
   tools.completeTask = tool({
     description: 'Signal that the current task is complete. Call this when you have finished working and have a final result.',
@@ -70,6 +92,40 @@ export function buildAgentTools(ctx: BuildToolsContext) {
         } catch (err: any) {
           return { success: false, error: err.message || 'Failed to hire agent' };
         }
+      },
+    });
+
+    tools.parallelResearch = tool({
+      description: 'Run multiple research tasks in parallel. Each task is executed by a separate agent concurrently. Use for tasks like "analyze these 5 repos" or "research these competitors". Max 10 tasks.',
+      parameters: z.object({
+        tasks: z.array(z.object({
+          agentHandle: z.string().describe('Agent handle (e.g. @researcher)'),
+          task: z.string().describe('Task description for this agent'),
+        })).min(1).max(10),
+        timeoutSeconds: z.number().optional().default(300).describe('Max seconds to wait (default 300)'),
+      }),
+      execute: async ({ tasks, timeoutSeconds }: { tasks: Array<{ agentHandle: string; task: string }>; timeoutSeconds?: number }) => {
+        const timeout = Math.min(timeoutSeconds || 300, 600) * 1000;
+
+        const promises = tasks.map(async ({ agentHandle, task }) => {
+          try {
+            const handle = agentHandle.replace(/^@/, '');
+            const result = await onHireAgent(handle, task);
+            return { agentHandle: handle, task: task.slice(0, 100), result, success: true };
+          } catch (err: any) {
+            return { agentHandle, task: task.slice(0, 100), error: err.message || 'Agent failed', success: false };
+          }
+        });
+
+        const results = await Promise.allSettled(
+          promises.map(p =>
+            Promise.race([p, new Promise<never>((_, rej) => setTimeout(() => rej(new Error('Timeout')), timeout))])
+          )
+        );
+
+        return results.map((r, i) =>
+          r.status === 'fulfilled' ? r.value : { agentHandle: tasks[i].agentHandle, task: tasks[i].task.slice(0, 100), error: 'Timed out', success: false }
+        );
       },
     });
   }
