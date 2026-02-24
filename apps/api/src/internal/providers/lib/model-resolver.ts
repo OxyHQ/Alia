@@ -43,9 +43,10 @@ export interface ResolvedModel {
 export async function resolveAliaModel(
   requestedModel: string,
   tokens: number = 1000,
-  skipProviders: Set<string> = new Set()
+  skipProviders: Set<string> = new Set(),
+  skipKeyIds: Set<string> = new Set()
 ): Promise<ResolvedModel | null> {
-  const result = await resolveWithFallback(requestedModel, tokens, skipProviders);
+  const result = await resolveWithFallback(requestedModel, tokens, skipProviders, skipKeyIds);
   return result.resolved;
 }
 
@@ -61,9 +62,10 @@ export async function resolveAliaModel(
 export async function resolveAliaModelWithAttempts(
   requestedModel: string,
   tokens: number = 1000,
-  skipProviders: Set<string> = new Set()
+  skipProviders: Set<string> = new Set(),
+  skipKeyIds: Set<string> = new Set()
 ): Promise<FallbackResult> {
-  return resolveWithFallback(requestedModel, tokens, skipProviders);
+  return resolveWithFallback(requestedModel, tokens, skipProviders, skipKeyIds);
 }
 
 /**

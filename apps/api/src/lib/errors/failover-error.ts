@@ -27,6 +27,7 @@ const BILLING_RE = /payment required|insufficient credits|credit balance|insuffi
 const AUTH_RE = /invalid.?api.?key|incorrect api key|invalid token|authentication|unauthorized|forbidden|access denied|expired|token has expired/i;
 const OVERLOADED_RE = /overloaded|resource.?exhausted|quota exceeded/i;
 const TOOL_CAPABILITY_RE = /tool.?use.?failed|failed to call a function|does not support tools|tool.?call.*not supported/i;
+const GEO_RESTRICTION_RE = /location.{0,20}not supported|not available in your (country|region)|geo.?restrict|region.?not.?supported|service.?not.?available.{0,30}(country|region|location)/i;
 
 /** Error codes that indicate a network-level timeout */
 const TIMEOUT_ERROR_CODES = new Set([
@@ -95,7 +96,7 @@ function getErrorMessage(err: unknown): string {
   return '';
 }
 
-function getRetryAfterHeader(err: unknown): number | undefined {
+export function getRetryAfterHeader(err: unknown): number | undefined {
   if (!err || typeof err !== 'object') {
     return undefined;
   }
@@ -114,6 +115,70 @@ function getRetryAfterHeader(err: unknown): number | undefined {
     }
   }
   return undefined;
+}
+
+// ============== PROVIDER-SPECIFIC DATA EXTRACTION ==============
+
+/**
+ * Structured data extracted from provider-specific error responses.
+ * The Vercel AI SDK parses each provider's error JSON into APICallError.data.
+ */
+interface ProviderErrorInfo {
+  /** Google: error.status (e.g. "FAILED_PRECONDITION", "RESOURCE_EXHAUSTED") */
+  googleStatus?: string;
+  /** OpenAI/compatible: error.type (e.g. "invalid_request_error", "server_error") */
+  openaiType?: string;
+  /** OpenAI/compatible: error.code (e.g. "billing_hard_limit_reached") */
+  openaiCode?: string;
+  /** Anthropic: error.type (e.g. "overloaded_error", "rate_limit_error") */
+  anthropicType?: string;
+}
+
+/**
+ * Extract structured error info from the AI SDK's APICallError.data field.
+ * Each provider returns errors in a different JSON format; this function
+ * reads all possible fields and lets the classifier decide relevance.
+ */
+function getProviderErrorData(err: unknown): ProviderErrorInfo {
+  if (!err || typeof err !== 'object') return {};
+
+  const data = (err as { data?: unknown }).data;
+  if (!data || typeof data !== 'object') return {};
+
+  const result: ProviderErrorInfo = {};
+
+  // Google format: { error: { code, message, status } }
+  // OpenAI format: { error: { message, type, param, code } }
+  const errorObj = (data as { error?: unknown }).error;
+  if (errorObj && typeof errorObj === 'object') {
+    const e = errorObj as Record<string, unknown>;
+
+    // Google's "status" field (FAILED_PRECONDITION, RESOURCE_EXHAUSTED, etc.)
+    if (typeof e.status === 'string' && /^[A-Z_]+$/.test(e.status)) {
+      result.googleStatus = e.status;
+    }
+
+    // OpenAI's "type" field (invalid_request_error, rate_limit_error, etc.)
+    if (typeof e.type === 'string' && e.type.includes('_')) {
+      result.openaiType = e.type;
+    }
+
+    // OpenAI's "code" field (billing_hard_limit_reached, etc.)
+    if (typeof e.code === 'string') {
+      result.openaiCode = e.code;
+    }
+  }
+
+  // Anthropic format: { type: "error", error: { type, message } }
+  const topType = (data as { type?: unknown }).type;
+  if (topType === 'error' && errorObj && typeof errorObj === 'object') {
+    const e = errorObj as Record<string, unknown>;
+    if (typeof e.type === 'string') {
+      result.anthropicType = e.type;
+    }
+  }
+
+  return result;
 }
 
 // ============== TIMEOUT DETECTION ==============
@@ -166,11 +231,14 @@ export function isTimeoutError(err: unknown): boolean {
  * Classifies an unknown error into a FailoverReason.
  *
  * Classification priority:
- * 1. HTTP status codes (most reliable signal)
+ * 1. HTTP status codes (unambiguous codes only)
  * 2. Error codes (ETIMEDOUT, ECONNRESET, etc.)
- * 3. Error names (TimeoutError, AbortError)
- * 4. Message pattern matching (regex against error text)
- * 5. Default to 'unknown'
+ * 3. Timeout detection (names + message patterns)
+ * 4. Provider-specific structured data (APICallError.data)
+ * 5. Message pattern matching (regex against error text)
+ * 6. HTTP 400 fallback (only after all inspections fail)
+ * 7. HTTP 5xx fallback
+ * 8. Default to 'unknown'
  */
 export function classifyError(err: unknown): FailoverReason {
   // If it's already an AliaError, use its reason directly
@@ -178,14 +246,15 @@ export function classifyError(err: unknown): FailoverReason {
     return err.reason;
   }
 
-  // --- 1. HTTP status code classification (except 400, which needs message inspection) ---
+  // --- 1. HTTP status code classification (unambiguous codes only) ---
   const status = getStatusCode(err);
   if (status === 429) return 'rate_limit';
   if (status === 402) return 'billing';
   if (status === 401 || status === 403) return 'auth';
   if (status === 408) return 'timeout';
+  if (status === 529) return 'rate_limit'; // Anthropic overloaded
   // HTTP 400 intentionally omitted — providers (especially OpenAI) return
-  // billing/rate-limit errors with 400 status, so we fall through to message checks.
+  // billing/rate-limit errors with 400 status, so we fall through to data+message checks.
 
   // --- 2. Error code classification ---
   const code = (getErrorCode(err) ?? '').toUpperCase();
@@ -201,21 +270,64 @@ export function classifyError(err: unknown): FailoverReason {
     return 'timeout';
   }
 
-  // --- 4. Message-based classification ---
+  // --- 4. Provider-specific structured data classification ---
+  const providerData = getProviderErrorData(err);
+
+  // Google: FAILED_PRECONDITION → provider-specific (geo-restriction, unsupported feature)
+  if (providerData.googleStatus === 'FAILED_PRECONDITION') {
+    return 'provider_unavailable';
+  }
+  // Google: RESOURCE_EXHAUSTED → rate limit (Google's 429 equivalent)
+  if (providerData.googleStatus === 'RESOURCE_EXHAUSTED') {
+    return 'rate_limit';
+  }
+  // Google: UNAVAILABLE → provider down
+  if (providerData.googleStatus === 'UNAVAILABLE') {
+    return 'provider_unavailable';
+  }
+  // Google: PERMISSION_DENIED → check message for geo vs auth
+  if (providerData.googleStatus === 'PERMISSION_DENIED') {
+    const msg = getErrorMessage(err);
+    if (msg && GEO_RESTRICTION_RE.test(msg)) {
+      return 'provider_unavailable';
+    }
+    return 'auth';
+  }
+
+  // OpenAI: structured error types
+  if (providerData.openaiType === 'rate_limit_error') return 'rate_limit';
+  if (providerData.openaiType === 'authentication_error') return 'auth';
+  if (providerData.openaiType === 'server_error') return 'provider_unavailable';
+  // OpenAI: billing codes surfaced as 400
+  if (providerData.openaiCode === 'billing_hard_limit_reached' ||
+      providerData.openaiCode === 'insufficient_quota') {
+    return 'billing';
+  }
+
+  // Anthropic: structured error types
+  if (providerData.anthropicType === 'rate_limit_error') return 'rate_limit';
+  if (providerData.anthropicType === 'authentication_error') return 'auth';
+  if (providerData.anthropicType === 'overloaded_error') return 'rate_limit';
+
+  // --- 5. Message-based classification ---
   const message = getErrorMessage(err);
   if (message) {
     if (RATE_LIMIT_RE.test(message)) return 'rate_limit';
     if (OVERLOADED_RE.test(message)) return 'rate_limit';
     if (BILLING_RE.test(message)) return 'billing';
     if (AUTH_RE.test(message)) return 'auth';
+    if (GEO_RESTRICTION_RE.test(message)) return 'provider_unavailable';
     if (TOOL_CAPABILITY_RE.test(message)) return 'format';
     if (CONTENT_FILTER_RE.test(message)) return 'content_filter';
   }
 
-  // --- 5. HTTP 400 fallback (no message pattern matched → genuine format error) ---
+  // --- 6. HTTP 400 fallback (no message or data pattern matched → genuine format error) ---
   if (status === 400) return 'format';
 
-  // --- 6. Default ---
+  // --- 7. HTTP 5xx → provider unavailable (retryable on different provider) ---
+  if (status !== undefined && status >= 500) return 'provider_unavailable';
+
+  // --- 8. Default ---
   return 'unknown';
 }
 
@@ -252,6 +364,10 @@ const REASON_TO_ERROR: Record<FailoverReason, ReasonMapping> = {
   content_filter: {
     code: AliaErrorCode.CONTENT_FILTERED,
     retryable: false,
+  },
+  provider_unavailable: {
+    code: AliaErrorCode.PROVIDER_UNAVAILABLE,
+    retryable: true,
   },
   unknown: {
     code: AliaErrorCode.PROVIDER_UNAVAILABLE,

@@ -23,6 +23,7 @@ export type FailoverReason =
   | 'timeout'
   | 'format'
   | 'content_filter'
+  | 'provider_unavailable'
   | 'unknown';
 
 // ============== ERROR CODES ==============

@@ -275,7 +275,7 @@ export function reportModelUsage(
   provider: string,
   modelId: string,
   success: boolean,
-  opts?: { latencyMs?: number; errorCode?: string; tokens?: number; reason?: string }
+  opts?: { latencyMs?: number; errorCode?: string; tokens?: number; reason?: string; retryAfterMs?: number }
 ): void {
   if (PROVIDERS_API_ENABLED) {
     apiPost('/api/report', {
@@ -300,7 +300,7 @@ export function reportModelUsage(
         await recordKeySuccess(keyId);
         await recordSuccess(provider, modelId, opts?.latencyMs ?? 0);
       } else {
-        await recordKeyFailure(keyId, opts?.errorCode || 'unknown');
+        await recordKeyFailure(keyId, opts?.errorCode || 'unknown', opts?.retryAfterMs);
         await recordFailure(provider, modelId, opts?.errorCode || 'unknown');
       }
     } catch (err) {

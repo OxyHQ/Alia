@@ -5,13 +5,14 @@
  * in model-resolver.ts with smart retry logic based on error classification.
  *
  * Retry strategies by FailoverReason:
- * - timeout     -> retry same provider once with shorter timeout, then next
- * - rate_limit  -> skip to next provider immediately
- * - billing     -> skip provider entirely for this request
- * - auth        -> skip that specific key, try next key for same provider
- * - format      -> do NOT retry (would fail again)
- * - content_filter -> do NOT retry
- * - unknown     -> move to next provider
+ * - timeout              -> retry same provider once, then next
+ * - rate_limit           -> try next key (up to 3), then next provider
+ * - billing              -> skip provider entirely, mark key credit-exhausted
+ * - auth                 -> try next key (up to 3), then next provider
+ * - provider_unavailable -> skip provider entirely (geo/regional/service-down)
+ * - format               -> do NOT retry (would fail again)
+ * - content_filter       -> do NOT retry
+ * - unknown              -> try next key (up to 3), then next provider
  *
  * Records FallbackEvents asynchronously for analytics (fire-and-forget).
  */
@@ -64,12 +65,14 @@ const NON_RETRYABLE_REASONS: Set<FailoverReason> = new Set([
  * @param aliasModelId - The Alia model ID requested
  * @param tokens - Estimated tokens for rate limit checking
  * @param skipProviders - Providers to skip entirely (from caller)
+ * @param callerSkipKeyIds - Specific key IDs to skip (from caller's previous failures)
  * @returns FallbackResult with the resolved model and attempt history
  */
 export async function resolveWithFallback(
   aliasModelId: string,
   tokens: number = 1000,
   skipProviders: Set<string> = new Set(),
+  callerSkipKeyIds: Set<string> = new Set(),
 ): Promise<FallbackResult> {
   const startTime = Date.now();
   const attempts: FallbackAttempt[] = [];
@@ -96,10 +99,13 @@ export async function resolveWithFallback(
 
   // Track providers to skip for this request (billing issues = skip all keys)
   const requestSkipProviders = new Set(skipProviders);
-  // Track specific keys to skip (auth issues = skip that key, try others)
-  const skipKeyIds = new Set<string>();
+  // Track specific keys to skip (auth/rate-limit issues = skip that key, try others)
+  const skipKeyIds = new Set<string>(callerSkipKeyIds);
   // Track if we already retried a timeout on a given provider/model
   const timeoutRetried = new Set<string>();
+  // Track key retries per provider to cap unbounded key cycling
+  const MAX_KEYS_PER_PROVIDER = 3;
+  const keyRetriesPerProvider = new Map<string, number>();
 
   for (let i = 0; i < sortedMappings.length; i++) {
     const mapping = sortedMappings[i];
@@ -179,18 +185,26 @@ export async function resolveWithFallback(
           if (!timeoutRetried.has(retryKey)) {
             timeoutRetried.add(retryKey);
             log.fallback.info({ provider: mapping.provider, modelId: mapping.modelId }, 'Timeout, retrying once');
-            // Retry the same mapping (decrement i so the loop re-tries it)
             i--;
             continue;
           }
-          // Already retried, move to next provider
           log.fallback.info({ provider: mapping.provider, modelId: mapping.modelId }, 'Timeout retry exhausted, moving to next');
           break;
         }
 
         case 'rate_limit': {
-          // Skip to next provider immediately
-          log.fallback.info({ provider: mapping.provider }, 'Rate limited, skipping to next provider');
+          // Try next key for same provider before skipping entirely
+          if (result.failedKeyId) {
+            const retries = keyRetriesPerProvider.get(mapping.provider) || 0;
+            if (retries < MAX_KEYS_PER_PROVIDER) {
+              skipKeyIds.add(result.failedKeyId);
+              keyRetriesPerProvider.set(mapping.provider, retries + 1);
+              log.fallback.info({ provider: mapping.provider, retries: retries + 1 }, 'Rate limited key, trying next key');
+              i--;
+              continue;
+            }
+          }
+          log.fallback.info({ provider: mapping.provider }, 'Rate limited (all keys tried), skipping to next provider');
           break;
         }
 
@@ -198,8 +212,6 @@ export async function resolveWithFallback(
           // Skip this provider entirely for the rest of this request
           requestSkipProviders.add(mapping.provider);
           log.fallback.info({ provider: mapping.provider }, 'Billing issue, skipping provider for this request');
-
-          // Mark the key as credit exhausted so it won't be selected again
           if (result.failedKeyId) {
             markKeyCreditExhausted(result.failedKeyId).catch(() => {});
           }
@@ -209,19 +221,38 @@ export async function resolveWithFallback(
         case 'auth': {
           // Skip that specific key, try next key for same provider
           if (result.failedKeyId) {
-            skipKeyIds.add(result.failedKeyId);
-            log.fallback.info({ provider: mapping.provider }, 'Auth issue on key, trying next key');
-            // Retry same mapping with different key
-            i--;
-            continue;
+            const retries = keyRetriesPerProvider.get(mapping.provider) || 0;
+            if (retries < MAX_KEYS_PER_PROVIDER) {
+              skipKeyIds.add(result.failedKeyId);
+              keyRetriesPerProvider.set(mapping.provider, retries + 1);
+              log.fallback.info({ provider: mapping.provider, retries: retries + 1 }, 'Auth issue on key, trying next key');
+              i--;
+              continue;
+            }
           }
-          // No key ID available, move to next provider
+          break;
+        }
+
+        case 'provider_unavailable': {
+          // Provider-level issue (geo-restriction, service down) — skip entirely
+          requestSkipProviders.add(mapping.provider);
+          log.fallback.info({ provider: mapping.provider }, 'Provider unavailable (geo/regional), skipping');
           break;
         }
 
         default: {
-          // 'unknown' - move to next provider
-          log.fallback.info({ provider: mapping.provider, modelId: mapping.modelId }, 'Unknown error, trying next');
+          // 'unknown' - try next key first, then next provider
+          if (result.failedKeyId) {
+            const retries = keyRetriesPerProvider.get(mapping.provider) || 0;
+            if (retries < MAX_KEYS_PER_PROVIDER) {
+              skipKeyIds.add(result.failedKeyId);
+              keyRetriesPerProvider.set(mapping.provider, retries + 1);
+              log.fallback.info({ provider: mapping.provider, modelId: mapping.modelId, retries: retries + 1 }, 'Unknown error, trying next key');
+              i--;
+              continue;
+            }
+          }
+          log.fallback.info({ provider: mapping.provider, modelId: mapping.modelId }, 'Unknown error, trying next provider');
           break;
         }
       }
@@ -274,6 +305,7 @@ async function tryResolveWithKey(
       mapping.provider,
       mapping.modelId,
       tokens,
+      skipKeyIds,
     );
 
     if (!keyConfig) {
@@ -282,26 +314,11 @@ async function tryResolveWithKey(
         attempt: {
           provider: mapping.provider,
           model: mapping.modelId,
-          error: 'No available keys (all rate-limited or in cooldown)',
+          error: 'No available keys (all rate-limited, in cooldown, or skipped)',
           reason: 'rate_limit',
           latencyMs: Date.now() - attemptStart,
         },
         failedKeyId: null,
-      };
-    }
-
-    // Check if this specific key should be skipped (auth failures)
-    if (keyConfig.keyId && skipKeyIds.has(keyConfig.keyId)) {
-      return {
-        resolved: null,
-        attempt: {
-          provider: mapping.provider,
-          model: mapping.modelId,
-          error: 'Key skipped due to previous auth failure',
-          reason: 'auth',
-          latencyMs: Date.now() - attemptStart,
-        },
-        failedKeyId: keyConfig.keyId,
       };
     }
 
