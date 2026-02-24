@@ -225,6 +225,7 @@ export interface ProviderCallOptions {
   extraFormFields?: Record<string, string>;
   maxAttempts?: number;
   timeout?: number;
+  responseType?: 'json' | 'arrayBuffer';
 }
 
 /**
@@ -260,6 +261,7 @@ export async function callProviderAPI<T = any>(options: ProviderCallOptions): Pr
     formData,
     maxAttempts: options.maxAttempts,
     timeout: options.timeout,
+    responseType: options.responseType,
   });
 }
 

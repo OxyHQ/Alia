@@ -137,5 +137,6 @@ export const API_ROUTES = {
   v1: {
     chatCompletions: '/v1/chat/completions',
     models: '/v1/models',
+    audioSpeech: '/v1/audio/speech',
   },
 } as const;

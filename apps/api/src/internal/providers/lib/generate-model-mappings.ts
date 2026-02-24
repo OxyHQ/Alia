@@ -129,6 +129,10 @@ export const GENERATED_TIER_MAPPINGS: Record<AliaTier, ModelMapping[]> = {
     createMapping('groq', 'whisper-large-v3', 2, 93),
     createMapping('openai', 'whisper-1', 3, 92),
   ],
+  'v1-tts': [
+    createMapping('openai', 'tts-1', 1, 90),
+    createMapping('openai', 'tts-1-hd', 2, 95),
+  ],
   'v1-multimodal': [
     createMapping('google', 'gemini-3-pro-preview', 1, 99),
     createMapping('google', 'gemini-2.5-pro', 2, 98),

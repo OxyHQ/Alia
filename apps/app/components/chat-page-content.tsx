@@ -28,6 +28,7 @@ import { useCredits } from "@/lib/hooks/use-credits";
 import { useRouter } from "expo-router";
 import { useTranslation } from "@/hooks/useTranslation";
 import type { useVoiceMode } from "@/lib/hooks/use-voice-mode";
+import { useTTS } from "@/lib/hooks/use-tts";
 
 type Mode = 'search' | 'agent' | 'ghost' | 'deepResearch' | 'shoppingResearch' | 'study';
 
@@ -119,6 +120,7 @@ export const ChatPageContent = ({
   const setBaseModel = useModelStore((s) => s.setBaseModel);
 
   const isVoiceActive = voice?.isVoiceActive ?? false;
+  const { ttsWaveAmplitude, playbackState: ttsPlaybackState } = useTTS();
 
   useEffect(() => {
     if (!isThinkingModel(selectedModel)) {
@@ -294,6 +296,13 @@ export const ChatPageContent = ({
             waveAmplitude={voice.waveAmplitude}
             agentState={voice.agentState}
             isConnected={voice.isConnected}
+          />
+        )}
+        {!isVoiceActive && ttsPlaybackState === 'playing' && (
+          <VoiceOverlay
+            waveAmplitude={ttsWaveAmplitude}
+            agentState="speaking"
+            isConnected={true}
           />
         )}
 
