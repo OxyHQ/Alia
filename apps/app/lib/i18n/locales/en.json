@@ -116,6 +116,10 @@
       "friendly": "Friendly",
       "concise": "Concise"
     },
+    "personalityStyle": {
+      "title": "Personality Style",
+      "description": "Choose how Alia communicates with you"
+    },
     "occupation": {
       "title": "Occupation",
       "description": "Your job or field of work",

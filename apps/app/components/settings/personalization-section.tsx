@@ -10,10 +10,10 @@ import {
   Briefcase,
   User as UserIcon,
   Languages,
-  MessageSquare,
   Mic,
   ChevronDown,
 } from "lucide-react-native";
+import { PersonalityStylePicker } from "./personality-style-picker";
 import { useUserData } from "@/hooks/useUserData";
 import { useUserDataStore } from "@/lib/stores/user-data-store";
 import * as DropdownMenu from "@/components/ui/dropdown-menu";
@@ -158,40 +158,8 @@ export function PersonalizationSection() {
         </DropdownMenu.Root>
       </View>
 
-      {/* Tone */}
-      <View className="gap-1.5">
-        <View className="flex-row items-center gap-2">
-          <MessageSquare size={18} className="text-primary" />
-          <Text className="text-sm font-semibold">{t("settings.responseTone.title")}</Text>
-        </View>
-        <Text className="text-xs text-muted-foreground">
-          {t("settings.responseTone.description")}
-        </Text>
-        <DropdownMenu.Root>
-          <DropdownMenu.Trigger>
-            <Pressable className={`${inputClass} flex-row items-center justify-between`}>
-              <Text className="text-foreground text-sm">
-                {tone
-                  ? t(`settings.responseTone.${tone}`)
-                  : t("settings.responseTone.selectPlaceholder")}
-              </Text>
-              <ChevronDown size={16} className="text-muted-foreground" />
-            </Pressable>
-          </DropdownMenu.Trigger>
-          <DropdownMenu.Content>
-            {(["casual", "professional", "friendly", "concise"] as const).map((opt) => (
-              <DropdownMenu.CheckboxItem
-                key={opt}
-                value={tone === opt ? "on" : "off"}
-                onValueChange={() => setTone(opt)}
-              >
-                <DropdownMenu.ItemIndicator />
-                <DropdownMenu.ItemTitle>{t(`settings.responseTone.${opt}`)}</DropdownMenu.ItemTitle>
-              </DropdownMenu.CheckboxItem>
-            ))}
-          </DropdownMenu.Content>
-        </DropdownMenu.Root>
-      </View>
+      {/* Personality Style */}
+      <PersonalityStylePicker selectedStyle={tone} onSelectStyle={setTone} />
 
       {/* Voice Preference */}
       <View className="gap-1.5">
