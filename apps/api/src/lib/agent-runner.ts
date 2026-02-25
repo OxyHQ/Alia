@@ -1,12 +1,14 @@
 /**
- * Agent Runner — Autonomous Agent Execution Engine (v2)
+ * Agent Runner — Autonomous Agent Execution Engine (v3)
  *
- * Manus-inspired architecture:
- *   - Event stream: append-only log of all actions/observations (persisted to MongoDB)
- *   - State machine: INITIALIZING → PLANNING → ACTING → OBSERVING → REFLECTING → COMPLETED
- *   - Structured todo: injected at context tail for attention manipulation
- *   - Tool prefixing: consistent prefixes with state-based filtering
- *   - Workspace memory: filesystem as extended context in containers
+ * Manus-level architecture:
+ *   - 5 action primitives (shell, browser, file_edit, plan, delegate)
+ *   - Persistent terminal session with CWD/env tracking
+ *   - Real browser with screenshots (Playwright/Stagehand)
+ *   - Stable tool context across iterations (KV-cache optimized)
+ *   - State instructions instead of tool removal (logit masking principle)
+ *   - Event stream: append-only log (persisted to MongoDB)
+ *   - Todo at context tail: attention manipulation
  *   - Error retention: failed actions persist in event stream
  *   - One action per iteration: maximum observability
  */
@@ -16,17 +18,21 @@ import { AgentSession, type IAgentSession } from '../models/agent-session.js';
 import { Agent, type IAgent } from '../models/agent.js';
 import { resolveModel, getAIModel, reportModelUsage, getDefaultAliaModel } from './chat-core.js';
 import { markKeyCreditExhausted } from './providers-client.js';
-import { buildAgentTools, cleanupSessionResources } from './agent-tools.js';
+import { cleanupSessionResources } from './agent-tools.js';
 import { log } from './logger.js';
 import { EventStream } from './agent/event-stream.js';
 import { AgentStateMachine } from './agent/state-machine.js';
 import { TodoManager } from './agent/todo-manager.js';
 import { WorkspaceMemory } from './agent/workspace-memory.js';
-import { BILLING_RE, MAX_DELEGATION_DEPTH, EVENT_STREAM_BUDGET } from './constants.js';
+import { TerminalSession } from './agent/terminal-session.js';
+import { BrowserSession } from './agent/browser-session.js';
+import { buildActions } from './agent/actions.js';
+import { classifyError } from './errors/failover-error.js';
+import { MAX_DELEGATION_DEPTH, EVENT_STREAM_BUDGET } from './constants.js';
 import { orchestrate, shouldOrchestrate } from './agent/orchestrator.js';
 import { compactContext } from './agent/context-compaction.js';
 
-/** Continuation prompts — varied to prevent brittle pattern mimicry (Manus context diversity) */
+/** Continuation prompts — varied to prevent brittle pattern mimicry */
 const CONTINUATION_PROMPTS = [
   'Continue working on the task.',
   'What is your next step?',
@@ -34,7 +40,7 @@ const CONTINUATION_PROMPTS = [
   'Continue executing your plan.',
 ];
 
-// ── System Prompt Builder ──
+// ── System Prompt Builder (v3 — simplified for 5 actions) ──
 
 function buildSystemPrompt(agent: IAgent, config: IAgentSession['config']): string {
   if (agent.systemPrompt) {
@@ -49,33 +55,31 @@ function buildSystemPrompt(agent: IAgent, config: IAgentSession['config']): stri
 
 ${agent.description}${capabilities}
 
-## Instructions
-- Use the plan_update_todo tool at the start to create a structured plan. Update it after completing each step.
-- Complete the user's task efficiently. Minimize unnecessary steps and token usage.
-- When you are done, call the plan_complete tool with your final result.
-- Do NOT continue working after completing the task.
-- If you need to run code, create a container first (shell_create_container), then prefer code_execute over shell_exec for complex operations. code_execute lets you write Python scripts that are saved and executed with full output capture. Use shell_exec for simple one-line commands.
-- If a subtask is better handled by a specialist, use the agent_hire tool.
-- For multiple independent subtasks, use agent_parallel to run them concurrently.
-- Always destroy containers when you are finished with them.
-- When an action fails, analyze the error and adjust your approach. Do not repeat the same failed action.
-- Large results are automatically saved to /workspace/.alia/observations/. Use file_read to retrieve them when needed.
+## Actions
 
-## Tool Naming
-All tools use consistent prefixes:
-- browser_* — Web operations (search, browse, scrape)
-- shell_* — Container execution (create, exec, destroy)
-- code_* — Execute Python code in containers (CodeAct — preferred for complex operations)
-- file_* — Container file operations (read, write, list)
-- memory_* — Persistent memory
-- comm_* — Communications (telegram, etc.)
-- plan_* — Planning and task completion
-- agent_* — Delegate to other agents
-- mcp_* — Connected MCP services
+You have 5 actions:
+
+1. **shell** — Run any bash command in a persistent terminal. Your working directory and environment persist between calls. Use this for installing packages, running code, git operations, and anything you'd do in a terminal.
+
+2. **browser** — Interact with a web browser. Navigate to URLs, search the web, click elements, fill forms, take screenshots. Use for web research and testing.
+
+3. **file_edit** — Read, write, or edit files directly. More precise than shell for file modifications. Use search-replace for targeted edits.
+
+4. **plan** — Create and update your task plan, or signal completion. Your plan persists as a checklist. Update it as you make progress. Call plan(action='complete', result='...') when done.
+
+5. **delegate** — Hire a specialist agent for a subtask outside your expertise.
+
+## How to Work
+- Start by creating a plan with the plan action.
+- Execute your plan step by step. Update the plan after each step.
+- When done, call plan with action='complete' and your final result.
+- A container is created automatically on your first shell command. You don't need to manage containers.
+- When an action fails, analyze the error and adjust. Do not repeat the same failed action.
+- Large results are automatically saved to /workspace/.alia/observations/. Use file_edit(action='read') to retrieve them.
 
 ## Budget
 - Maximum ${config.maxSteps} steps. Be efficient.
-- Use tools only when necessary — think before acting.`;
+- Use actions only when necessary — think before acting.`;
 }
 
 // ── Model Selection ──
@@ -133,19 +137,13 @@ function selectModelForStep(
   return mid;
 }
 
-// ── Context Builder ──
+// ── Context Builder (Manus KV-cache optimization) ──
 
-/**
- * Build the messages array for the model.
- * Layout (Manus KV-cache optimization pattern):
- *   [STABLE PREFIX] System prompt + tool descriptions (cached across iterations)
- *   [SEMI-STABLE]   Historical event stream entries
- *   [CHANGING TAIL]  Recent events + todo list + continuation prompt
- */
 function buildContextMessages(
   systemPrompt: string,
   eventStream: EventStream,
   todoManager: TodoManager,
+  stateMachine: AgentStateMachine,
   iteration: number,
 ): Array<{ role: 'system' | 'user' | 'assistant'; content: string }> {
   const messages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }> = [];
@@ -161,13 +159,21 @@ function buildContextMessages(
     messages.push({ role: 'user', content: serialized });
   }
 
-  // 3. Todo list at the END for attention manipulation (Manus's key trick)
+  // 3. Context tail: todo + state instructions (Manus attention manipulation)
+  const tailParts: string[] = [];
+
   const todoSerialized = todoManager.serialize();
   if (todoSerialized) {
-    messages.push({
-      role: 'system',
-      content: `## Current Objectives\n${todoSerialized}`,
-    });
+    tailParts.push(`## Current Plan\n${todoSerialized}`);
+  }
+
+  const stateInstruction = stateMachine.getStateInstruction();
+  if (stateInstruction) {
+    tailParts.push(stateInstruction);
+  }
+
+  if (tailParts.length > 0) {
+    messages.push({ role: 'system', content: tailParts.join('\n\n') });
   }
 
   // 4. Continuation prompt with diversity
@@ -195,6 +201,7 @@ export async function runAgentSession(sessionId: string): Promise<void> {
   }
 
   const agentId = agent._id.toString();
+  const userId = session.userId.toString();
 
   // ── Initialize core components ──
 
@@ -202,9 +209,15 @@ export async function runAgentSession(sessionId: string): Promise<void> {
   const stateMachine = new AgentStateMachine();
   const todoManager = new TodoManager();
   const workspaceMemory = new WorkspaceMemory();
+  const terminalSession = new TerminalSession({
+    sessionId,
+    agentId,
+    userId,
+    workspaceMemory,
+  });
+  const browserSession = new BrowserSession();
 
   // Restore from persisted event stream if resuming
-  // Try new DB collection first, fall back to embedded array (legacy)
   await eventStream.loadFromDB();
   if (eventStream.length() === 0 && session.eventStream?.length > 0) {
     eventStream.loadFromPersisted(session.eventStream as any);
@@ -238,7 +251,7 @@ export async function runAgentSession(sessionId: string): Promise<void> {
         if (!targetAgent) throw new Error(`Agent @${handle} not found or not available`);
 
         eventStream.append('action', `Hiring agent @${handle}: ${task.slice(0, 200)}`, {
-          toolName: 'agent_hire',
+          toolName: 'delegate',
           args: { handle, task: task.slice(0, 200) },
         });
 
@@ -262,7 +275,7 @@ export async function runAgentSession(sessionId: string): Promise<void> {
         const result = completed?.result || 'No result returned';
 
         eventStream.append('observation', `Agent @${handle} returned: ${result.slice(0, 500)}`, {
-          toolName: 'agent_hire',
+          toolName: 'delegate',
         });
 
         return result;
@@ -272,14 +285,17 @@ export async function runAgentSession(sessionId: string): Promise<void> {
   // Transition: INITIALIZING → PLANNING
   stateMachine.transition('initialized');
 
-  // Build tools
-  const allTools = await buildAgentTools({
+  // Build actions (5 primitives + MCP/integration tools)
+  // ALL actions are always in context — no state-based filtering (KV-cache stability)
+  const allActions = await buildActions({
     agent,
     session,
     onComplete,
     onHireAgent,
     todoManager,
     workspaceMemory,
+    terminalSession,
+    browserSession,
   });
 
   // Build system prompt (stable prefix — never changes between iterations)
@@ -297,7 +313,6 @@ export async function runAgentSession(sessionId: string): Promise<void> {
 
   try {
     // ── Orchestrator mode check ──
-    // For complex tasks, use three-layer orchestration: Planner → Executors → Verifier
     if (shouldOrchestrate(session.task, session.depth)) {
       eventStream.append('system_message', 'Task complexity detected — activating orchestrated execution');
 
@@ -315,7 +330,6 @@ export async function runAgentSession(sessionId: string): Promise<void> {
         maxConcurrency: Math.min(session.config.maxVMs, 3),
       });
 
-      // If orchestrator returned a real result (>1 subtask was executed)
       if (orchResult.executorResults.length > 0) {
         session.status = orchResult.success ? 'completed' : 'failed';
         session.result = orchResult.result;
@@ -327,13 +341,14 @@ export async function runAgentSession(sessionId: string): Promise<void> {
         await session.save();
 
         await cleanupSessionResources(session);
+        await terminalSession.destroy();
+        await browserSession.close();
         return;
       }
-      // If orchestrator returned empty (single subtask), fall through to standard loop
       eventStream.append('system_message', 'Single subtask — falling back to standard execution');
     }
 
-    // ── Main execution loop (state-machine driven) ──
+    // ── Main execution loop ──
 
     while (!stateMachine.isTerminal() && totalSteps < session.config.maxSteps && totalTokens < session.config.maxTokens) {
       // Check for cancellation
@@ -343,12 +358,6 @@ export async function runAgentSession(sessionId: string): Promise<void> {
         stateMachine.transition('cancelled');
         break;
       }
-
-      // Filter tools by current state + dynamic context
-      const stateTools = stateMachine.filterTools(allTools, {
-        hasSandbox: workspaceMemory.hasContainer(),
-        iteration,
-      });
 
       // Select model
       const modelId = selectModelForStep(allowedModels, session.task, totalSteps, lastStepHadToolCalls);
@@ -366,7 +375,7 @@ export async function runAgentSession(sessionId: string): Promise<void> {
           stateMachine.transition('error');
           session.status = 'failed';
           session.result = 'No AI models available';
-          await session.save();
+          try { await session.save(); } catch { /* ignore save errors */ }
           return;
         }
       }
@@ -377,18 +386,18 @@ export async function runAgentSession(sessionId: string): Promise<void> {
       const model = getAIModel(activeResolved.keyConfig);
       const startMs = Date.now();
 
-      // Build context (Manus layout: stable prefix + event stream + todo tail)
-      const messages = buildContextMessages(systemPrompt, eventStream, todoManager, iteration);
+      // Build context (stable prefix + event stream + todo/state tail)
+      const messages = buildContextMessages(systemPrompt, eventStream, todoManager, stateMachine, iteration);
 
       try {
         // One action per iteration (Manus principle)
         const result = await generateText({
           model,
           messages: messages as any,
-          tools: stateTools,
+          tools: allActions,  // ALL actions always present (KV-cache stability)
           temperature: 0.3,
           maxRetries: 0,
-          maxSteps: 1, // ONE action per iteration for maximum observability
+          maxSteps: 1,
         } as any);
 
         const latency = Date.now() - startMs;
@@ -411,12 +420,12 @@ export async function runAgentSession(sessionId: string): Promise<void> {
             if ((step as any).toolCalls?.length) {
               lastStepHadToolCalls = true;
               for (const tc of (step as any).toolCalls) {
-                eventStream.append('action', `${tc.toolName}(${JSON.stringify(tc.args).slice(0, 300)})`, {
+                const argsStr = JSON.stringify(tc.args || {});
+                eventStream.append('action', `${tc.toolName}(${argsStr.slice(0, 300)})`, {
                   toolName: tc.toolName,
                   args: tc.args,
                 });
 
-                // Transition state machine on action
                 if (stateMachine.canTransition('action_taken')) {
                   stateMachine.transition('action_taken');
                 }
@@ -430,15 +439,13 @@ export async function runAgentSession(sessionId: string): Promise<void> {
                   ? tr.result
                   : JSON.stringify(tr.result);
 
-                // Offload large results to filesystem
                 const offloaded = await workspaceMemory.maybeOffload(resultStr, eventStream.currentSeq());
 
-                eventStream.append('observation', offloaded.content.slice(0, 2000), {
+                eventStream.append('observation', (offloaded.content || '').slice(0, 2000), {
                   toolName: tr.toolName,
                   durationMs: Date.now() - startMs,
                 });
 
-                // Transition: OBSERVING → REFLECTING
                 if (stateMachine.canTransition('observation_received')) {
                   stateMachine.transition('observation_received');
                 }
@@ -456,28 +463,23 @@ export async function runAgentSession(sessionId: string): Promise<void> {
           eventStream.append('response', result.text);
         }
 
-        // Transition: REFLECTING → ACTING (continue) or COMPLETED
+        // State transitions
         if (taskCompleted) {
           if (stateMachine.canTransition('task_completed')) {
             stateMachine.transition('task_completed');
           }
         } else if (!lastStepHadToolCalls && result.text) {
-          // Model finished without calling plan_complete — treat response as result
+          // Model finished without calling plan(complete) — treat response as result
           taskCompleted = true;
           taskResult = result.text;
           if (stateMachine.canTransition('task_completed')) {
             stateMachine.transition('task_completed');
           }
         } else if (stateMachine.current() === 'REFLECTING') {
-          // Determine if we need replanning or can continue
-          const hasToolCalls = lastStepHadToolCalls;
-          if (hasToolCalls && stateMachine.canTransition('continue')) {
-            stateMachine.transition('continue');
-          } else if (stateMachine.canTransition('continue')) {
+          if (stateMachine.canTransition('continue')) {
             stateMachine.transition('continue');
           }
         } else if (stateMachine.current() === 'PLANNING') {
-          // After first iteration in PLANNING, move to ACTING
           if (stateMachine.canTransition('plan_created')) {
             stateMachine.transition('plan_created');
           }
@@ -489,27 +491,35 @@ export async function runAgentSession(sessionId: string): Promise<void> {
         session.stats.totalSteps = totalSteps;
         session.stats.totalTokens = totalTokens;
         session.stats.lastActivityAt = new Date();
-        await session.save();
+        try { await session.save(); } catch (saveErr: any) {
+          log.agents.warn({ saveErr, sessionId }, 'Failed to save session mid-loop');
+        }
 
-        // Run context compaction if event stream is getting large
+        // Context compaction if event stream is large
         await compactContext(eventStream, workspaceMemory);
 
         iteration++;
-
         if (taskCompleted) break;
 
       } catch (err: any) {
         const latency = Date.now() - startMs;
         const errMsg = String(err?.message || 'Unknown error');
 
-        // Record error in event stream (error retention — Manus principle)
-        eventStream.append('error', `Model error: ${errMsg}`);
+        // Classify error to determine retry strategy
+        const reason = classifyError(err);
 
-        if (BILLING_RE.test(errMsg) && activeResolved.keyConfig?.keyId) {
-          markKeyCreditExhausted(activeResolved.keyConfig.keyId).catch(() => {});
+        eventStream.append('error', `Model error (${reason}): ${errMsg}`);
+
+        // Only mark key as failed for key-specific errors
+        if (activeResolved.keyConfig?.keyId) {
+          if (reason === 'billing') {
+            markKeyCreditExhausted(activeResolved.keyConfig.keyId).catch(() => {});
+            failedKeyIds.add(activeResolved.keyConfig.keyId);
+          } else if (reason === 'auth' || reason === 'rate_limit') {
+            failedKeyIds.add(activeResolved.keyConfig.keyId);
+          }
+          // For 'format', 'unknown', 'timeout' — do NOT mark key as failed
         }
-
-        if (activeResolved.keyConfig?.keyId) failedKeyIds.add(activeResolved.keyConfig.keyId);
 
         await reportModelUsage(
           activeResolved.keyConfig?.keyId,
@@ -520,7 +530,7 @@ export async function runAgentSession(sessionId: string): Promise<void> {
           errMsg,
         );
 
-        log.agents.error({ err, sessionId }, 'Agent generation error');
+        log.agents.error({ err, sessionId, reason }, 'Agent generation error');
 
         totalSteps++;
         if (totalSteps >= session.config.maxSteps) break;
@@ -530,12 +540,15 @@ export async function runAgentSession(sessionId: string): Promise<void> {
 
     // ── Session Complete ──
 
+    // Cleanup resources
+    await terminalSession.destroy();
+    await browserSession.close();
     await cleanupSessionResources(session);
 
     if (taskCompleted) {
       session.status = 'completed';
       session.result = taskResult;
-      eventStream.append('complete', taskResult.slice(0, 1000));
+      eventStream.append('complete', (taskResult || '').slice(0, 1000));
     } else if (totalSteps >= session.config.maxSteps) {
       session.status = 'completed';
       session.result = 'Step limit reached. Partial progress was made.';
@@ -551,21 +564,39 @@ export async function runAgentSession(sessionId: string): Promise<void> {
     session.stats.completedAt = new Date();
     session.stats.totalSteps = totalSteps;
     session.stats.totalTokens = totalTokens;
-    await session.save();
+    try { await session.save(); } catch (saveErr: any) {
+      log.agents.warn({ saveErr, sessionId }, 'Failed to save session on completion');
+    }
 
   } catch (err: any) {
     log.agents.error({ err, sessionId }, 'Agent session failed');
 
+    // Cleanup resources
+    await terminalSession.destroy().catch(() => {});
+    await browserSession.close().catch(() => {});
     await cleanupSessionResources(session);
 
     eventStream.append('error', `Session failed: ${err.message || 'Unknown error'}`);
 
     session.status = 'failed';
     session.result = err.message || 'Session failed unexpectedly';
-    await eventStream.flush();
-    session.eventStream = eventStream.toJSON() as any;
-    session.stats.completedAt = new Date();
-    await session.save();
+
+    // Sanitize plan before save — malformed data causes ValidationError
+    if (session.plan?.items?.length) {
+      const planValid = (session.plan.items as any[]).every((item: any) => item.text && item.id != null);
+      if (!planValid) {
+        session.plan = undefined;
+      }
+    }
+
+    try {
+      await eventStream.flush();
+      session.eventStream = eventStream.toJSON() as any;
+      session.stats.completedAt = new Date();
+      await session.save();
+    } catch (saveErr: any) {
+      log.agents.error({ saveErr, sessionId }, 'Failed to save session in outer catch');
+    }
   }
 }
 
@@ -575,7 +606,6 @@ export async function runAgentSession(sessionId: string): Promise<void> {
  * to the embedded eventStream array (legacy).
  */
 export async function getRecentActivity(sessionId: string) {
-  // Try new collection first
   const { EventStreamEntry: ESEntry } = await import('../models/event-stream-entry.js');
   const dbEntries = await ESEntry.find({ sessionId }).sort({ seq: -1 }).limit(50).lean();
 
@@ -593,7 +623,6 @@ export async function getRecentActivity(sessionId: string) {
     }));
   }
 
-  // Fallback to embedded array
   const session = await AgentSession.findById(sessionId).select('eventStream').lean();
   if (!session?.eventStream) return [];
 

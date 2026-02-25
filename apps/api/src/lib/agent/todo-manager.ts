@@ -6,10 +6,9 @@
  * iteration. This keeps the agent's objectives in the model's most
  * recent attention window, preventing drift on long tasks.
  *
- * Key design:
- *   - Structured items (not a plain string)
- *   - Serializes as markdown checklist
- *   - Placed at context tail for maximum attention weight
+ * v2: Simplified interface — items are plain strings, status tracked internally.
+ * The agent sends string[] items and completed_items indices. No more
+ * { text, status } objects that caused schema validation failures across providers.
  */
 
 export type TodoStatus = 'pending' | 'in_progress' | 'completed' | 'blocked';
@@ -18,7 +17,6 @@ export interface TodoItem {
   id: number;
   text: string;
   status: TodoStatus;
-  subtasks?: TodoItem[];
 }
 
 export interface TodoList {
@@ -31,27 +29,46 @@ export class TodoManager {
   private items: TodoItem[] = [];
   private nextId = 1;
 
-  /** Set the overall objective */
-  setObjective(objective: string): void {
-    this.objective = objective;
+  /**
+   * Update the plan from simple string arrays (new v2 interface).
+   * Items are strings. completed_items marks items by 1-based index as done.
+   * The first non-completed item is automatically marked in_progress.
+   */
+  update(objective?: string, items?: string[], completedItems?: number[]): void {
+    if (objective !== undefined) {
+      this.objective = objective;
+    }
+
+    if (items && items.length > 0) {
+      // Replace entire item list with new strings
+      this.items = items.map((text, i) => ({
+        id: i + 1,
+        text,
+        status: 'pending' as TodoStatus,
+      }));
+      this.nextId = this.items.length + 1;
+    }
+
+    // Mark completed items (1-based indices)
+    if (completedItems) {
+      for (const idx of completedItems) {
+        const item = this.items.find(i => i.id === idx);
+        if (item) item.status = 'completed';
+      }
+    }
+
+    // Auto-mark first pending item as in_progress
+    const firstPending = this.items.find(i => i.status === 'pending');
+    if (firstPending) {
+      // Only if no item is already in_progress
+      const hasInProgress = this.items.some(i => i.status === 'in_progress');
+      if (!hasInProgress) {
+        firstPending.status = 'in_progress';
+      }
+    }
   }
 
-  /** Add a new todo item */
-  addItem(text: string, status: TodoStatus = 'pending'): TodoItem {
-    const item: TodoItem = { id: this.nextId++, text, status };
-    this.items.push(item);
-    return item;
-  }
-
-  /** Update an item's status */
-  updateItem(id: number, status: TodoStatus): boolean {
-    const item = this.findItem(id);
-    if (!item) return false;
-    item.status = status;
-    return true;
-  }
-
-  /** Replace the entire todo list (for the model's updateTodo tool) */
+  /** Legacy: Replace the entire todo list with structured items */
   setItems(objective: string, items: Array<{ text: string; status: TodoStatus }>): void {
     this.objective = objective;
     this.items = items.map((item, i) => ({
@@ -62,14 +79,17 @@ export class TodoManager {
     this.nextId = this.items.length + 1;
   }
 
-  /** Mark an item as completed */
-  markDone(id: number): boolean {
-    return this.updateItem(id, 'completed');
+  /** Set the overall objective */
+  setObjective(objective: string): void {
+    this.objective = objective;
   }
 
-  /** Mark an item as in progress */
-  markInProgress(id: number): boolean {
-    return this.updateItem(id, 'in_progress');
+  /** Mark an item as completed by id */
+  markDone(id: number): boolean {
+    const item = this.items.find(i => i.id === id);
+    if (!item) return false;
+    item.status = 'completed';
+    return true;
   }
 
   /** Get all items */
@@ -77,7 +97,7 @@ export class TodoManager {
     return this.items;
   }
 
-  /** Get the todo list as structured data */
+  /** Get the todo list as structured data (for session persistence) */
   toJSON(): TodoList {
     return {
       objective: this.objective,
@@ -87,10 +107,14 @@ export class TodoManager {
 
   /** Load from persisted data */
   loadFromPersisted(data: TodoList): void {
-    this.objective = data.objective;
-    this.items = data.items;
-    this.nextId = data.items.length > 0
-      ? Math.max(...data.items.map(i => i.id)) + 1
+    this.objective = data.objective || '';
+    this.items = (data.items || []).map(i => ({
+      id: i.id,
+      text: i.text || '',
+      status: i.status || 'pending',
+    }));
+    this.nextId = this.items.length > 0
+      ? Math.max(...this.items.map(i => i.id)) + 1
       : 1;
   }
 
@@ -107,8 +131,7 @@ export class TodoManager {
   }
 
   /**
-   * Serialize as markdown — this is what gets injected into the model's context.
-   * Format: markdown checklist with status indicators.
+   * Serialize as markdown — injected into the model's context at the tail.
    */
   serialize(): string {
     if (this.items.length === 0 && !this.objective) return '';
@@ -121,15 +144,7 @@ export class TodoManager {
     }
 
     for (const item of this.items) {
-      const checkbox = statusToCheckbox(item.status);
-      lines.push(`${checkbox} ${item.text}`);
-
-      if (item.subtasks) {
-        for (const sub of item.subtasks) {
-          const subCheckbox = statusToCheckbox(sub.status);
-          lines.push(`  ${subCheckbox} ${sub.text}`);
-        }
-      }
+      lines.push(`${statusToCheckbox(item.status)} ${item.text}`);
     }
 
     if (this.items.length > 0) {
@@ -138,17 +153,6 @@ export class TodoManager {
     }
 
     return lines.join('\n');
-  }
-
-  private findItem(id: number): TodoItem | undefined {
-    for (const item of this.items) {
-      if (item.id === id) return item;
-      if (item.subtasks) {
-        const sub = item.subtasks.find(s => s.id === id);
-        if (sub) return sub;
-      }
-    }
-    return undefined;
   }
 }
 
