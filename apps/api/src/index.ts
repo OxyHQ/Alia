@@ -36,6 +36,7 @@ import automationsRouter from './routes/automations.js';
 import analyticsRouter from './routes/analytics.js';
 import webhooksRouter from './routes/webhooks.js';
 import referralsRouter from './routes/referrals.js';
+import triggersRouter from './routes/triggers.js';
 import agentsRouter from './routes/agents.js';
 import agentsAvatarRouter from './routes/agents-avatar.js';
 import agentTeamsRouter from './routes/agent-teams.js';
@@ -53,6 +54,7 @@ import { seedSkills } from './lib/seed-skills.js';
 import { seedSuggestions } from './lib/seed-suggestions.js';
 import { seedBots } from './lib/seed-bots.js';
 import { startScheduler } from './lib/automation-scheduler.js';
+import { startTriggerScheduler } from './lib/trigger-engine.js';
 import { warmupProviders } from './lib/provider-warmup.js';
 import { warmupProvidersClient } from './lib/providers-client.js';
 import { initChannels } from './lib/channels/index.js';
@@ -213,6 +215,7 @@ app.use('/external-models', externalModelsRouter);
 app.use('/skills', skillsRouter);
 app.use('/automations', automationsRouter);
 app.use('/analytics', analyticsRouter);
+app.use('/triggers', triggersRouter);
 app.use('/webhooks', webhooksRouter);
 app.use('/referrals', referralsRouter);
 app.use('/agents/avatar', agentsAvatarRouter);
@@ -252,6 +255,7 @@ app.get('/', (_req, res) => {
       '/external-models',
       '/skills',
       '/automations',
+      '/triggers',
       '/analytics',
       '/webhooks',
       '/agents',
@@ -317,6 +321,8 @@ connectDB()
       syncZeroEval().catch((err) => console.error('[ZeroEval] Background sync error:', err));
       // Start automation scheduler (non-blocking)
       startScheduler().catch((err) => console.error('[Scheduler] Startup error:', err));
+      // Start trigger scheduler (non-blocking)
+      startTriggerScheduler().catch((err) => console.error('[Triggers] Scheduler startup error:', err));
       // Pre-warm TLS connections to AI providers (non-blocking)
       warmupProviders().catch((err) => console.error('[Warmup] Provider warmup error:', err));
     });

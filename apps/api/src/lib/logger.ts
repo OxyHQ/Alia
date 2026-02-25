@@ -120,6 +120,7 @@ export const log = {
   models: createLogger('models'),
   canvas: createLogger('canvas'),
   agents: createLogger('agents'),
+  triggers: createLogger('triggers'),
   general: rootLogger,
 };
 
