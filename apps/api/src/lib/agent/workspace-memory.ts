@@ -10,15 +10,14 @@
  *   /workspace/.alia/
  *     todo.md           — Rendered todo list (synced from TodoManager)
  *     observations/     — Offloaded large tool results
- *     scripts/          — Executed scripts (for CodeAct, Phase 2)
+ *     scripts/          — Executed scripts (for CodeAct)
  *     summary.md        — Running summary of session
  */
 
-import * as containerManager from '../container-manager.js';
+import { getSandboxProvider, type SandboxProvider } from '../sandbox/index.js';
 import { log } from '../logger.js';
+import { OFFLOAD_THRESHOLD_TOKENS } from '../constants.js';
 
-/** Token threshold above which results are offloaded to filesystem */
-const OFFLOAD_THRESHOLD_TOKENS = 4000;
 const CHARS_PER_TOKEN = 4;
 const OFFLOAD_THRESHOLD_CHARS = OFFLOAD_THRESHOLD_TOKENS * CHARS_PER_TOKEN;
 
@@ -31,6 +30,11 @@ export interface OffloadResult {
 export class WorkspaceMemory {
   private containerId: string | null = null;
   private observationSeq = 0;
+  private sandbox: SandboxProvider;
+
+  constructor() {
+    this.sandbox = getSandboxProvider();
+  }
 
   /** Set the container to use for filesystem operations */
   setContainer(containerId: string): void {
@@ -50,21 +54,21 @@ export class WorkspaceMemory {
     this.containerId = containerId;
 
     try {
-      await containerManager.execInContainer(
+      await this.sandbox.exec(
         containerId,
         'mkdir -p /workspace/.alia/observations /workspace/.alia/scripts',
         10,
       );
 
       // Initialize summary file
-      await containerManager.writeFileToContainer(
+      await this.sandbox.writeFile(
         containerId,
         '/workspace/.alia/summary.md',
         '# Session Summary\n\nThis file is updated as the agent works.\n',
       );
 
       // Initialize todo file
-      await containerManager.writeFileToContainer(
+      await this.sandbox.writeFile(
         containerId,
         '/workspace/.alia/todo.md',
         '# Task Plan\n\nNo plan yet.\n',
@@ -88,7 +92,7 @@ export class WorkspaceMemory {
     const filePath = `/workspace/.alia/observations/${fileName}`;
 
     try {
-      await containerManager.writeFileToContainer(this.containerId, filePath, content);
+      await this.sandbox.writeFile(this.containerId, filePath, content);
       this.observationSeq++;
 
       const sizeKB = Math.round(content.length / 1024);
@@ -111,7 +115,7 @@ export class WorkspaceMemory {
     if (!this.containerId) return;
 
     try {
-      await containerManager.writeFileToContainer(
+      await this.sandbox.writeFile(
         this.containerId,
         '/workspace/.alia/todo.md',
         `# Task Plan\n\n${todoMarkdown}\n`,
@@ -130,7 +134,7 @@ export class WorkspaceMemory {
     try {
       // Use exec to append (more reliable than read+write for concurrent access)
       const escaped = text.replace(/'/g, "'\\''");
-      await containerManager.execInContainer(
+      await this.sandbox.exec(
         this.containerId,
         `echo '${escaped}' >> /workspace/.alia/summary.md`,
         10,

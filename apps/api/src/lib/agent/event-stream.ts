@@ -9,9 +9,13 @@
  *   - Append-only: entries are never modified or removed
  *   - Deterministic serialization: stable output for KV-cache friendliness
  *   - Token-aware: can return a window that fits within a budget
+ *   - Persistent: entries are batched and flushed to a separate MongoDB collection
+ *     to avoid the 16MB BSON limit on long sessions
  */
 
 import { emitAgentActivity, type AgentActivityEvent } from '../../socket.js';
+import { EventStreamEntry as EventStreamEntryModel } from '../../models/event-stream-entry.js';
+import { log } from '../logger.js';
 
 export type EventType =
   | 'user_message'
@@ -43,6 +47,9 @@ function estimateTokens(text: string): number {
   return Math.ceil(text.length / 4);
 }
 
+/** Batch size for flushing to MongoDB */
+const FLUSH_BATCH_SIZE = 10;
+
 export class EventStream {
   private entries: EventStreamEntry[] = [];
   private seq = 0;
@@ -50,6 +57,9 @@ export class EventStream {
   /** Optionally wire up Socket.IO emission for real-time UI */
   private agentId?: string;
   private sessionId?: string;
+
+  /** Pending entries not yet flushed to MongoDB */
+  private pendingFlush: EventStreamEntry[] = [];
 
   constructor(opts?: { agentId?: string; sessionId?: string }) {
     this.agentId = opts?.agentId;
@@ -73,6 +83,7 @@ export class EventStream {
     };
 
     this.entries.push(entry);
+    this.pendingFlush.push(entry);
 
     // Emit to Socket.IO for real-time frontend
     if (this.agentId && this.sessionId) {
@@ -86,10 +97,49 @@ export class EventStream {
       });
     }
 
+    // Auto-flush when batch is full
+    if (this.pendingFlush.length >= FLUSH_BATCH_SIZE) {
+      this.flush().catch(err => log.agents.warn({ err }, 'EventStream: auto-flush failed'));
+    }
+
     return entry;
   }
 
-  /** Get all entries */
+  /**
+   * Flush pending entries to the MongoDB EventStreamEntry collection.
+   * Called automatically when batch size is reached, and explicitly
+   * at the end of each iteration or session.
+   */
+  async flush(): Promise<void> {
+    if (this.pendingFlush.length === 0 || !this.sessionId) return;
+
+    const toFlush = [...this.pendingFlush];
+    this.pendingFlush = [];
+
+    try {
+      await EventStreamEntryModel.insertMany(
+        toFlush.map(entry => ({
+          sessionId: this.sessionId,
+          seq: entry.seq,
+          timestamp: entry.timestamp,
+          type: entry.type,
+          content: entry.content,
+          metadata: entry.metadata,
+          archived: false,
+        })),
+        { ordered: false },
+      );
+    } catch (err: any) {
+      // On duplicate key (from resume), ignore — entries are already persisted
+      if (err.code !== 11000) {
+        log.agents.warn({ err, count: toFlush.length }, 'EventStream: flush failed');
+        // Re-add to pending for retry
+        this.pendingFlush.unshift(...toFlush);
+      }
+    }
+  }
+
+  /** Get all in-memory entries */
   getAll(): EventStreamEntry[] {
     return this.entries;
   }
@@ -114,6 +164,14 @@ export class EventStream {
     }
 
     return result;
+  }
+
+  /**
+   * Get entries older than a given sequence number.
+   * Used by context compaction to identify cold entries for summarization.
+   */
+  getEventsOlderThan(seq: number): EventStreamEntry[] {
+    return this.entries.filter(e => e.seq < seq);
   }
 
   /** Total estimated tokens in the stream */
@@ -146,15 +204,62 @@ export class EventStream {
   }
 
   /**
-   * Load entries from persisted data (e.g. MongoDB).
+   * Load entries from the persistent MongoDB collection.
    * Used when resuming a session after restart.
+   */
+  async loadFromDB(): Promise<void> {
+    if (!this.sessionId) return;
+
+    try {
+      const entries = await EventStreamEntryModel
+        .find({ sessionId: this.sessionId })
+        .sort({ seq: 1 })
+        .lean();
+
+      this.entries = entries.map(e => ({
+        seq: e.seq,
+        timestamp: e.timestamp,
+        type: e.type as EventType,
+        content: e.content,
+        metadata: e.metadata as EventStreamEntry['metadata'],
+      }));
+
+      this.seq = this.entries.length > 0 ? this.entries[this.entries.length - 1].seq + 1 : 0;
+    } catch (err) {
+      log.agents.warn({ err }, 'EventStream: failed to load from DB');
+    }
+  }
+
+  /**
+   * Load entries from persisted data (embedded array — legacy support).
+   * Used for backward compatibility with sessions that still have
+   * embedded eventStream arrays.
    */
   loadFromPersisted(entries: EventStreamEntry[]): void {
     this.entries = entries;
     this.seq = entries.length > 0 ? entries[entries.length - 1].seq + 1 : 0;
   }
 
-  /** Export entries for persistence to MongoDB */
+  /**
+   * Mark entries as archived in the database.
+   * Used after context compaction summarizes older entries.
+   */
+  async archiveOlderThan(seq: number): Promise<number> {
+    if (!this.sessionId) return 0;
+
+    try {
+      const result = await EventStreamEntryModel.updateMany(
+        { sessionId: this.sessionId, seq: { $lt: seq }, archived: false },
+        { $set: { archived: true } },
+      );
+      return result.modifiedCount;
+    } catch (err) {
+      log.agents.warn({ err }, 'EventStream: failed to archive entries');
+      return 0;
+    }
+  }
+
+  /** Export entries for persistence to MongoDB (legacy — embedded in session) */
   toJSON(): EventStreamEntry[] {
     return this.entries.map(e => ({ ...e }));
   }

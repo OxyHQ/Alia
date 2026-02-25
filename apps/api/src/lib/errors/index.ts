@@ -22,3 +22,10 @@ export {
   toAliaError,
   getRetryAfterHeader,
 } from './failover-error';
+
+// Sanitization and formatting (user-facing)
+export {
+  sanitizeMessage,
+  sanitizeError,
+  formatErrorResponse,
+} from './sanitize';

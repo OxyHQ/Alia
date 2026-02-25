@@ -7,7 +7,7 @@
 
 import { connectDB } from './db.js';
 import mongoose from 'mongoose';
-import { getModelPricing } from './model-capabilities-data.js';
+import { getModelPricing } from '../internal/providers/lib/model-capabilities-data.js';
 import { log } from './logger.js';
 
 // ============== TYPES ==============

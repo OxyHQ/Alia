@@ -121,17 +121,29 @@ vi.mock('../../../lib/hooks/index.js', () => ({
   runAfterChatHooks: vi.fn().mockResolvedValue(undefined),
 }));
 
-vi.mock('../../../lib/error-handler.js', () => ({
-  translateError: vi.fn((_e: any) => ({
+vi.mock('../../../lib/errors/index.js', () => ({
+  toAliaError: vi.fn((_e: any) => ({
     code: 'INTERNAL_ERROR',
     userMessage: 'Something went wrong',
     retryable: true,
-    retryAfterSeconds: 10,
+    retryAfter: 10,
+    httpStatus: 500,
+    reason: 'unknown',
+    message: 'Something went wrong',
+    name: 'AliaError',
   })),
   formatErrorResponse: vi.fn((e: any) => ({
     error: { code: e.code, message: e.userMessage, retryable: e.retryable },
   })),
   sanitizeMessage: vi.fn((msg: string) => msg),
+  sanitizeError: vi.fn((e: any) => e),
+  AliaError: class AliaError extends Error { code: string; retryable: boolean; },
+  AliaErrorCode: {},
+  classifyError: vi.fn(() => 'unknown'),
+  isAliaError: vi.fn(() => false),
+  toSSEError: vi.fn((e: any) => ({ code: e.code, message: e.userMessage })),
+  isTimeoutError: vi.fn(() => false),
+  getRetryAfterHeader: vi.fn(() => undefined),
 }));
 
 // ── Import router after mocks are set up ───────────────────────────────────

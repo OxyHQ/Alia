@@ -2,141 +2,43 @@
 // This is separate from /api/v1/chat/completions which is OpenAI-compatible for external clients
 
 import { Router } from 'express';
-import { streamText, stepCountIs, type ToolSet } from 'ai';
-import { resolveModel, getAIModel, getDefaultAliaModel, reportModelUsage } from '../lib/chat-core.js';
-import { markKeyCreditExhausted } from '../lib/providers-client.js';
-import { getAliaModel, getModelMappingsForTier } from '../lib/providers-client.js';
-import { getCurrentDateTool, webSearchTool, browseTool, saveUserMemoryTool, updateUserPreferencesTool, updateUserContextTool, createGetDeviceInfoTool, createSendTelegramTool, createProvidersAdminTool, webScraperTool, generateFileTool, canvasTool, type DeviceInfo } from '../lib/tools/index.js';
-import { buildMcpTools } from '../lib/tools/mcp.js';
-import { optionalAuth, oxyClient } from '../middleware/auth.js';
-import type { User as OxyUser } from '@oxyhq/core';
-import { getOrCreateUserCredits } from '../lib/user-credits-helpers.js';
+import { streamText, stepCountIs } from 'ai';
+import { getAIModel, resolveModel, reportModelUsage } from '../lib/chat-core.js';
+import { getAliaModel, getDefaultAliaModel } from '../lib/providers-client.js';
+import type { DeviceInfo } from '../lib/tools/index.js';
+import { processMessagesForPlatform } from '../lib/message-processor.js';
+import type { RecalledMemory } from '../lib/memory/recall.js';
+import { compactHistory } from '../lib/history-compaction.js';
+import { optionalAuth } from '../middleware/auth.js';
 import { saveConversation, extractConversationTitle, generateConversationTitle } from '../lib/conversation-saver.js';
 import { CanvasSession } from '../models/canvas-session.js';
-import { Skill } from '../models/skill.js';
-import { Agent } from '../models/agent.js';
-import type { IUserMemory } from '../models/user-memory.js';
-import { processMessagesForPlatform } from '../lib/message-processor.js';
-import { reserveCredits, finalizeCredits, safeRefund, type CreditReservation, type CreditUsage } from '../lib/credits-manager.js';
-import { getOrCreateUserMemory } from '../lib/memory/user-memory-service.js';
+import { finalizeCredits, safeRefund, type CreditReservation, type CreditUsage } from '../lib/credits-manager.js';
 import { estimateMessageTokens } from '../lib/token-counter.js';
-import { recordUsage, getUserTier } from '../middleware/api-key-rate-limit.js';
-import { runBeforeChatHooks, runAfterChatHooks } from '../lib/hooks/index.js';
+import { recordUsage } from '../middleware/api-key-rate-limit.js';
+import { runAfterChatHooks } from '../lib/hooks/index.js';
 import { emitCanvasUpdate } from '../socket.js';
-import type { RecalledMemory } from '../lib/memory/recall.js';
 import { incrementDailyCost, isApproachingDailyCap, getDailyCostCap } from '../lib/sliding-window-limiter.js';
-import { checkContextFit } from '../lib/context-window-guard.js';
-import { compactHistory } from '../lib/history-compaction.js';
 import { log } from '../lib/logger.js';
 import { writeSSE, TextBatcher, setupSSEHeaders } from '../lib/streaming-helpers.js';
-import { loadPrompt } from '../lib/prompt-loader.js';
-import { wrapToolsWithTruncation, getToolResultBudget } from '../lib/tools/result-truncation.js';
 import { recordEvent } from '../lib/observability/index.js';
-import { formatStyleForPrompt } from '../lib/style/style-prompt.js';
+import { MAX_CHAT_RETRIES } from '../lib/constants.js';
+import {
+  buildChatSystemPrompt,
+  loadUserContext,
+  loadSkillPrompt,
+  loadAgentPrompt,
+  buildChatTools,
+  classifyProviderError,
+  handleKeyExhaustion,
+  processAndCompactMessages,
+  checkContext,
+  wrapTools,
+  resolveModelForChat,
+  getModelContextWindow,
+  runPreChatHooks,
+} from '../services/chat.service.js';
 
 const router = Router();
-
-const BILLING_RE = /insufficient balance|payment required|insufficient credits|credit balance|billing.?hard.?limit|exceeded.*quota|quota.*exceeded/i;
-const AUTH_RE = /unauthorized|forbidden|invalid.*api.*key|access denied|authentication/i;
-const MAX_CHAT_RETRIES = 5;
-
-// Build personalized system prompt from external prompt files + user context.
-// Uses recalled memories (semantic search) instead of dumping all memories.
-async function buildChatSystemPrompt(
-  oxyUser?: OxyUser | null,
-  memory?: IUserMemory | null,
-  platform: 'app' | 'telegram' = 'app',
-  skillPrompt?: string | null,
-  recalledMemories?: RecalledMemory[],
-  agentPrompt?: string | null
-): Promise<string> {
-  let prompt = await loadPrompt(platform === 'telegram' ? 'alia-telegram' : 'alia-app');
-
-  // Inject skill system prompt before the base prompt
-  if (skillPrompt) {
-    prompt = `${skillPrompt}\n\n---\n\n${prompt}`;
-  }
-
-  // Inject agent system prompt before the base prompt
-  if (agentPrompt) {
-    prompt = `# ACTIVE AGENT\n\n${agentPrompt}\n\n---\n\n${prompt}`;
-  }
-
-  const userContext: string[] = [];
-
-  // Add user info from Oxy
-  if (oxyUser) {
-    if (oxyUser.name?.full || oxyUser.name?.first) {
-      const fullName = oxyUser.name.full || [oxyUser.name.first, oxyUser.name.middle, oxyUser.name.last].filter(Boolean).join(' ');
-      if (fullName && fullName !== 'User') {
-        userContext.push(`The user's name is ${fullName}.`);
-      }
-    }
-    if (oxyUser.username) {
-      userContext.push(`The user's username is @${oxyUser.username}.`);
-    }
-    if (oxyUser.location) {
-      userContext.push(`The user is located in ${oxyUser.location}.`);
-    }
-    if (oxyUser.bio) {
-      userContext.push(`About the user: ${oxyUser.bio}`);
-    }
-    if (oxyUser.website) {
-      userContext.push(`The user's website: ${oxyUser.website}`);
-    }
-  }
-
-  // Add memory preferences and context (these are small and always relevant)
-  if (memory) {
-    if (memory.preferences?.language) {
-      userContext.push(`User's default language: ${memory.preferences.language} (ONLY use when the user's message language is ambiguous or undetectable — always match the language the user actually writes in).`);
-    }
-    if (memory.context?.occupation) {
-      userContext.push(`The user works as a ${memory.context.occupation}.`);
-    }
-    if (memory.context?.location && !oxyUser?.location) {
-      userContext.push(`The user is located in ${memory.context.location}.`);
-    }
-    if (memory.context?.bio && !oxyUser?.bio) {
-      userContext.push(`About the user: ${memory.context.bio}`);
-    }
-    if (memory.preferences?.tone) {
-      userContext.push(`The user prefers a ${memory.preferences.tone} tone in responses.`);
-    }
-    if (memory.preferences?.responseLength) {
-      userContext.push(`The user prefers ${memory.preferences.responseLength} responses.`);
-    }
-    if (memory.preferences?.interests?.length) {
-      userContext.push(`The user is interested in: ${memory.preferences.interests.join(', ')}.`);
-    }
-  }
-
-  // Inject only recalled (relevant) memories instead of ALL memories
-  if (recalledMemories && recalledMemories.length > 0) {
-    const memoryItems = recalledMemories.map(m => `- ${m.key}: ${m.value}`).join('\n');
-    userContext.push(`\nRelevant things to remember about the user:\n${memoryItems}`);
-  } else if (memory?.memories?.length) {
-    // Fallback: if recall didn't run (e.g. unauthenticated), use all memories
-    const memoryItems = memory.memories.map(m => `- ${m.key}: ${m.value}`).join('\n');
-    userContext.push(`\nThings to remember about the user:\n${memoryItems}`);
-  }
-
-  // Inject writing style profile (for composing on behalf of user)
-  if (memory?.writingStyle?.isReady) {
-    const styleBlock = formatStyleForPrompt(memory.writingStyle);
-    if (styleBlock) {
-      userContext.push(`\n${styleBlock}`);
-    }
-  }
-
-  if (userContext.length > 0) {
-    log.chat.info({ userContext }, 'Personalization applied');
-    prompt = `# USER CONTEXT\n\n${userContext.join('\n')}\n\n---\n\n${prompt}`;
-  }
-
-  return prompt;
-}
-
 
 router.post('/', optionalAuth, async (req, res) => {
   // Set a timeout for the entire request (90 seconds)
@@ -201,90 +103,32 @@ router.post('/', optionalAuth, async (req, res) => {
       platform
     );
 
-    // Get user data from session and credits/memory from local DB
-    let userCredits: any = null;
-    let memory: IUserMemory | null = null;
-    let userTier: string | undefined;
+    // Load user context (credits, memory, profile) via service
+    let userContext = req.user ? await loadUserContext(req.user.id) : null;
+    creditReservation = userContext?.creditReservation ?? null;
 
-    if (req.user) {
-      try {
-        log.chat.info('Loading user data...');
-
-        // Get or create local credits record
-        userCredits = await getOrCreateUserCredits(req.user.id);
-
-        memory = await getOrCreateUserMemory(req.user.id);
-
-        // Get user tier for spending alerts
-        userTier = await getUserTier(req.user.id);
-
-        // Refresh credits if needed
-        await userCredits.refreshCreditsIfNeeded();
-
-        // Reserve credits using centralized manager
-        creditReservation = await reserveCredits(req.user.id);
-
-        if (!creditReservation) {
-          log.chat.info('Insufficient credits');
-          clearTimeout(requestTimeout);
-          res.status(402).json({
-            error: {
-              code: 'INSUFFICIENT_CREDITS',
-              message: "You've run out of credits. Add more or upgrade your plan to continue.",
-              retryable: false,
-              suggestedAction: 'upgrade',
-              details: { limitType: 'credits' },
-            },
-          });
-          return;
-        }
-
-        log.chat.info('User data loaded successfully');
-      } catch (error) {
-        log.chat.error({ err: error }, 'Error fetching user data');
-      }
+    if (req.user && !creditReservation) {
+      log.chat.info('Insufficient credits');
+      clearTimeout(requestTimeout);
+      res.status(402).json({
+        error: {
+          code: 'INSUFFICIENT_CREDITS',
+          message: "You've run out of credits. Add more or upgrade your plan to continue.",
+          retryable: false,
+          suggestedAction: 'upgrade',
+          details: { limitType: 'credits' },
+        },
+      });
+      return;
     }
 
-    // ── One-time setup (not provider-dependent) ──
+    const oxyUser = userContext?.oxyUser ?? null;
+    const memory = userContext?.memory ?? null;
+    const userTier = userContext?.userTier;
 
-    // Fetch full user profile from Oxy for personalization
-    let oxyUser: OxyUser | null = null;
-    if (req.user?.id) {
-      try {
-        oxyUser = await oxyClient.getUserById(req.user.id) as OxyUser;
-      } catch (e) {
-        log.chat.error({ err: e }, 'Could not fetch Oxy user profile');
-      }
-    }
-
-    // Look up active skill system prompt if skillId provided
-    let skillPrompt: string | null = null;
-    if (skillId) {
-      try {
-        const skill = await Skill.findOne({ skillId }).select('systemPrompt title').lean();
-        if (skill?.systemPrompt) {
-          skillPrompt = `# ACTIVE SKILL: ${skill.title}\n\n${skill.systemPrompt}`;
-          log.chat.info({ skillTitle: skill.title }, 'Skill activated');
-        }
-      } catch (e) {
-        log.chat.error({ err: e }, 'Error loading skill');
-      }
-    }
-
-    // Look up active agent system prompt if agentId provided
-    let agentPrompt: string | null = null;
-    if (agentId) {
-      try {
-        const agent = await Agent.findById(agentId).select('name tagline description capabilities systemPrompt').lean();
-        if (agent) {
-          agentPrompt = agent.systemPrompt
-            || `You are "${agent.name}". ${agent.tagline}\n\n${agent.description}${agent.capabilities?.length ? `\n\nCapabilities: ${agent.capabilities.join(', ')}` : ''}`;
-          log.chat.info({ agentName: agent.name }, 'Agent context activated');
-        }
-      } catch (e) {
-        log.chat.error({ err: e }, 'Error loading agent');
-      }
-    }
+    // Load skill/agent prompts via service
+    const skillPrompt = skillId ? await loadSkillPrompt(skillId) : null;
+    const agentPrompt = agentId ? await loadAgentPrompt(agentId) : null;
 
     // ── Provider retry loop ──
     // When a provider fails (billing, auth, etc.), mark the key as exhausted
@@ -369,57 +213,24 @@ router.post('/', optionalAuth, async (req, res) => {
         platform,
       });
 
-      // Build tools
-      const tools: ToolSet = {
-        getCurrentDate: getCurrentDateTool,
-        webScraper: webScraperTool,
-        generateFile: generateFileTool,
-        canvas: canvasTool,
-        webSearch: webSearchTool,
-        browse: browseTool,
-        ...(deviceInfo ? { getDeviceInfo: createGetDeviceInfoTool(deviceInfo) } : {}),
-        ...(req.user ? {
-          saveUserMemory: saveUserMemoryTool(req.user.id),
-          updateUserPreferences: updateUserPreferencesTool(req.user.id),
-          updateUserContext: updateUserContextTool(req.user.id),
-          sendTelegramMessage: createSendTelegramTool(req.user.id)
-        } : {})
-      };
-
-      // Add admin tools for authorized users
-      if (oxyUser?.username === 'nate') {
-        tools.providersAdmin = createProvidersAdminTool();
-      }
-
-      // Add user's MCP server tools (only on first attempt to avoid re-querying)
-      if (attempt === 0 && req.user?.id) {
-        try {
-          const mcpTools = await buildMcpTools(req.user.id);
-          Object.assign(tools, mcpTools);
-        } catch (err) {
-          log.chat.warn({ err }, 'Failed to load MCP tools');
-        }
-      }
+      // Build tools via service (only load MCP tools on first attempt)
+      const tools = attempt === 0
+        ? await buildChatTools({ userId: req.user?.id, deviceInfo, isAdmin: oxyUser?.username === 'nate' })
+        : await buildChatTools({ userId: req.user?.id, deviceInfo, isAdmin: oxyUser?.username === 'nate' });
 
       // Run beforeChat hooks (only on first attempt)
       let recalledMemories: RecalledMemory[] | undefined;
       if (attempt === 0 && req.user?.id) {
-        try {
-          const hookResult = await runBeforeChatHooks({
-            userId: req.user.id,
-            conversationId,
-            messages: processedMessages,
-            model: resolved.aliasModelId,
-            skillId,
-            platform,
-            metadata: {},
-          });
-          recalledMemories = hookResult.metadata?.recalledMemories as RecalledMemory[] | undefined;
-          if (recalledMemories?.length) {
-            log.chat.info({ recalled: recalledMemories.length, total: memory?.memories?.length || 0 }, 'Memory recall');
-          }
-        } catch (e) {
-          log.chat.error({ err: e }, 'beforeChat hooks error');
+        recalledMemories = await runPreChatHooks({
+          userId: req.user.id,
+          conversationId,
+          messages: processedMessages,
+          model: resolved.aliasModelId,
+          skillId,
+          platform,
+        });
+        if (recalledMemories?.length) {
+          log.chat.info({ recalled: recalledMemories.length, total: memory?.memories?.length || 0 }, 'Memory recall');
         }
       }
 
@@ -436,13 +247,12 @@ router.post('/', optionalAuth, async (req, res) => {
       const systemPromptTokens = estimateMessageTokens('system', systemPrompt);
       if (attempt === 0) log.chat.info({ systemPromptTokens }, 'Estimated system prompt tokens');
 
-      // Get model context window from tier mappings
-      const tierMappings = aliaModel ? await getModelMappingsForTier(aliaModel.tier) : [];
-      const modelContextTokens = tierMappings[0]?.capabilities?.maxContextTokens || 128000;
+      // Get model context window
+      const modelContextTokens = await getModelContextWindow(resolved.aliasModelId);
 
       // Context window guard — block if messages would exceed 90% of context (first attempt only)
       if (attempt === 0) {
-        const contextCheck = checkContextFit(processedMessages as any, systemPrompt, modelContextTokens);
+        const contextCheck = checkContext(processedMessages, systemPrompt, modelContextTokens);
         if (!contextCheck.fits) {
           clearTimeout(requestTimeout);
           await safeRefund(creditReservation, 'context length exceeded');
@@ -460,8 +270,7 @@ router.post('/', optionalAuth, async (req, res) => {
       const compactedMessages = compactHistory(processedMessages as any, historyBudget);
 
       // Wrap tools with truncation to cap large tool results (saves tokens)
-      const toolResultBudget = getToolResultBudget(modelContextTokens);
-      const truncatedTools = wrapToolsWithTruncation(tools, toolResultBudget);
+      const truncatedTools = wrapTools(tools, modelContextTokens);
 
       // Set headers for SSE streaming (only once)
       if (attempt === 0) setupSSEHeaders(res);
@@ -548,15 +357,13 @@ router.post('/', optionalAuth, async (req, res) => {
             const errObj = (chunk as any).error || chunk;
             const errMsg = String(errObj?.message || errObj?.error?.message || JSON.stringify(errObj).slice(0, 300));
             const statusCode = errObj?.statusCode || errObj?.status;
-            const isBilling = BILLING_RE.test(errMsg) || statusCode === 402;
-            const isAuth = AUTH_RE.test(errMsg) || statusCode === 401 || statusCode === 403;
+            const { isBilling, isAuth } = classifyProviderError(errMsg, statusCode);
 
             log.chat.warn({ errMsg, statusCode, isBilling, isAuth, provider: resolved!.provider, attempt: attempt + 1 }, 'Provider error in stream');
 
             // Mark key as exhausted for billing/auth errors
             if ((isBilling || isAuth) && resolved!.keyConfig?.keyId) {
-              markKeyCreditExhausted(resolved!.keyConfig.keyId).catch(() => {});
-              log.chat.warn({ keyId: resolved!.keyConfig.keyId, provider: resolved!.provider }, 'Marked key as exhausted');
+              handleKeyExhaustion(resolved!.keyConfig.keyId, resolved!.provider, isBilling ? 'billing' : 'auth');
             }
 
             // Track the failed key so retry skips it (not the entire provider)
@@ -702,12 +509,10 @@ router.post('/', optionalAuth, async (req, res) => {
         batcher.cleanup();
 
         // Classify the error and feed it back to the key manager
-        const isBilling = BILLING_RE.test(errMsg);
-        const isAuth = AUTH_RE.test(errMsg);
+        const { isBilling, isAuth } = classifyProviderError(errMsg);
 
         if ((isBilling || isAuth) && resolved.keyConfig?.keyId) {
-          markKeyCreditExhausted(resolved.keyConfig.keyId).catch(() => {});
-          log.chat.warn({ keyId: resolved.keyConfig.keyId, provider: resolved.provider, isBilling, isAuth }, 'Marked key as exhausted');
+          handleKeyExhaustion(resolved.keyConfig.keyId, resolved.provider, isBilling ? 'billing' : 'auth');
         }
 
         // Track the failed key so retry skips it (not the entire provider)

@@ -16,6 +16,7 @@ import {
   AliaErrorCode,
   type FailoverReason,
 } from './error-codes';
+import { BILLING_RE, AUTH_RE } from '../constants.js';
 
 // ============== REGEX PATTERNS ==============
 
@@ -23,8 +24,6 @@ const TIMEOUT_HINT_RE = /timeout|timed out|deadline exceeded|context deadline ex
 const ABORT_TIMEOUT_RE = /request was aborted|request aborted/i;
 const RATE_LIMIT_RE = /rate.?limit|too many requests/i;
 const CONTENT_FILTER_RE = /content.?filter|safety|moderation|harmful/i;
-const BILLING_RE = /payment required|insufficient credits|credit balance|insufficient balance|plans & billing|billing.?hard.?limit/i;
-const AUTH_RE = /invalid.?api.?key|incorrect api key|invalid token|authentication|unauthorized|forbidden|access denied|expired|token has expired/i;
 const OVERLOADED_RE = /overloaded|resource.?exhausted|quota exceeded/i;
 const TOOL_CAPABILITY_RE = /tool.?use.?failed|failed to call a function|does not support tools|tool.?call.*not supported/i;
 const GEO_RESTRICTION_RE = /location.{0,20}not supported|not available in your (country|region)|geo.?restrict|region.?not.?supported|service.?not.?available.{0,30}(country|region|location)/i;
