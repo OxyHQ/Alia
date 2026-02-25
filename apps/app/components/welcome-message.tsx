@@ -7,6 +7,7 @@ import { useTranslation } from "@/hooks/useTranslation";
 import { useWelcomeSuggestions, useRecordSuggestionUsage } from "@/lib/hooks/use-suggestions";
 import Animated, { FadeIn } from "react-native-reanimated";
 import { View } from "react-native";
+import { AliaFace } from "@/components/alia-face";
 
 type TimeOfDay = "morning" | "afternoon" | "evening";
 
@@ -45,14 +46,19 @@ export const WelcomeMessage = ({ onSuggestionPress }: WelcomeMessageProps) => {
   return (
     <View className="flex-1 items-center justify-center px-4">
       <View className="w-full max-w-2xl">
-        {/* Title */}
-        <View className="items-start space-y-2 mb-8">
-          <Text className="text-3xl font-bold tracking-tight text-foreground">
-            {isAuthenticated ? greeting : t('welcome.appName')}
-          </Text>
-          <Text className="text-xl font-medium text-muted-foreground">
-            {isAuthenticated ? subtitle : t('welcome.defaultSubtitle')}
-          </Text>
+        {/* Face + Title */}
+        <View className="items-start mb-8">
+          <View className="mb-4">
+            <AliaFace size={64} expression="Greeting" />
+          </View>
+          <View className="space-y-2">
+            <Text className="text-3xl font-bold tracking-tight text-foreground">
+              {isAuthenticated ? greeting : t('welcome.appName')}
+            </Text>
+            <Text className="text-xl font-medium text-muted-foreground">
+              {isAuthenticated ? subtitle : t('welcome.defaultSubtitle')}
+            </Text>
+          </View>
         </View>
 
         {/* Suggestion Grid - fade in when loaded from backend */}
