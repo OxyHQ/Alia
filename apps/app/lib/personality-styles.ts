@@ -18,10 +18,10 @@ export const PERSONALITY_STYLES: PersonalityStyleUI[] = [
   {
     id: 'alia',
     name: 'Alia',
-    emoji: '💜',
+    emoji: '😊',
     tagline: 'Direct, calm, helpful',
     sampleGreeting: "Hello! I'm the original Alia you know and love. How can I help?",
-    gradient: ['#a855f7', '#7c3aed'],
+    gradient: ['#c4b5fd', '#8b5cf6'],
   },
   {
     id: 'brief',
@@ -29,7 +29,7 @@ export const PERSONALITY_STYLES: PersonalityStyleUI[] = [
     emoji: '⚡',
     tagline: 'Concise and efficient',
     sampleGreeting: "Okay, let's keep it brief. Your primary question or topic?",
-    gradient: ['#94a3b8', '#64748b'],
+    gradient: ['#cbd5e1', '#94a3b8'],
   },
   {
     id: 'chill',
@@ -37,7 +37,7 @@ export const PERSONALITY_STYLES: PersonalityStyleUI[] = [
     emoji: '🍹',
     tagline: 'Relaxed and easygoing',
     sampleGreeting: 'Yo! All good vibes over here, dude. Take it easy!',
-    gradient: ['#a3e635', '#65a30d'],
+    gradient: ['#d9f99d', '#a3e635'],
   },
   {
     id: 'sweet',
@@ -45,7 +45,7 @@ export const PERSONALITY_STYLES: PersonalityStyleUI[] = [
     emoji: '🍬',
     tagline: 'Warm and encouraging',
     sampleGreeting: 'Hey friend! Here to support your goals with positive encouragement!',
-    gradient: ['#f472b6', '#db2777'],
+    gradient: ['#fbcfe8', '#f472b6'],
   },
 ];
 
