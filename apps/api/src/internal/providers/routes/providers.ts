@@ -17,7 +17,7 @@ import {
 } from '../lib/provider-health';
 import mongoose from 'mongoose';
 import { getBestKeyForModel, recordKeyUsage, recordKeySpend } from '../lib/key-manager';
-import { sanitizeError } from '../../../lib/error-handler.js';
+import { sanitizeError } from '../../../lib/errors/index.js';
 import { broadcastHealthUpdate } from '../lib/broadcast-helpers';
 import { calculateCost } from '../../../lib/cost-tracker.js';
 import { log } from '../../../lib/logger.js';

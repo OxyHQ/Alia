@@ -1502,8 +1502,8 @@ router.post('/', async (req: Request, res: Response) => {
     });
 
     // CRITICAL: Translate error to remove provider information!
-    const { translateError, formatErrorResponse, sanitizeMessage } = await import('../../lib/error-handler.js');
-    const aliaError = translateError(e, resolved?.provider, resolved?.modelId);
+    const { toAliaError, formatErrorResponse } = await import('../../lib/errors/index.js');
+    const aliaError = toAliaError(e, { provider: resolved?.provider, model: resolved?.modelId });
 
     if (!res.headersSent) {
       res.status(aliaError.retryable ? 503 : 500).json(formatErrorResponse(aliaError));

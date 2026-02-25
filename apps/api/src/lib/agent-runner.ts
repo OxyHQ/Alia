@@ -22,13 +22,9 @@ import { EventStream } from './agent/event-stream.js';
 import { AgentStateMachine } from './agent/state-machine.js';
 import { TodoManager } from './agent/todo-manager.js';
 import { WorkspaceMemory } from './agent/workspace-memory.js';
-
-const BILLING_RE = /insufficient balance|payment required|insufficient credits|credit balance|billing.?hard.?limit|exceeded.*quota|quota.*exceeded/i;
-
-const MAX_DELEGATION_DEPTH = 3;
-
-/** Context window budget for the event stream (tokens) */
-const EVENT_STREAM_BUDGET = 60000;
+import { BILLING_RE, MAX_DELEGATION_DEPTH, EVENT_STREAM_BUDGET } from './constants.js';
+import { orchestrate, shouldOrchestrate } from './agent/orchestrator.js';
+import { compactContext } from './agent/context-compaction.js';
 
 /** Continuation prompts — varied to prevent brittle pattern mimicry (Manus context diversity) */
 const CONTINUATION_PROMPTS = [
@@ -58,7 +54,7 @@ ${agent.description}${capabilities}
 - Complete the user's task efficiently. Minimize unnecessary steps and token usage.
 - When you are done, call the plan_complete tool with your final result.
 - Do NOT continue working after completing the task.
-- If you need to run code, create a container first (shell_create_container), execute your code (shell_exec), then destroy the container when done (shell_destroy_container).
+- If you need to run code, create a container first (shell_create_container), then prefer code_execute over shell_exec for complex operations. code_execute lets you write Python scripts that are saved and executed with full output capture. Use shell_exec for simple one-line commands.
 - If a subtask is better handled by a specialist, use the agent_hire tool.
 - For multiple independent subtasks, use agent_parallel to run them concurrently.
 - Always destroy containers when you are finished with them.
@@ -69,6 +65,7 @@ ${agent.description}${capabilities}
 All tools use consistent prefixes:
 - browser_* — Web operations (search, browse, scrape)
 - shell_* — Container execution (create, exec, destroy)
+- code_* — Execute Python code in containers (CodeAct — preferred for complex operations)
 - file_* — Container file operations (read, write, list)
 - memory_* — Persistent memory
 - comm_* — Communications (telegram, etc.)
@@ -207,7 +204,9 @@ export async function runAgentSession(sessionId: string): Promise<void> {
   const workspaceMemory = new WorkspaceMemory();
 
   // Restore from persisted event stream if resuming
-  if (session.eventStream?.length > 0) {
+  // Try new DB collection first, fall back to embedded array (legacy)
+  await eventStream.loadFromDB();
+  if (eventStream.length() === 0 && session.eventStream?.length > 0) {
     eventStream.loadFromPersisted(session.eventStream as any);
   }
   if (session.plan) {
@@ -297,6 +296,43 @@ export async function runAgentSession(sessionId: string): Promise<void> {
   let iteration = 0;
 
   try {
+    // ── Orchestrator mode check ──
+    // For complex tasks, use three-layer orchestration: Planner → Executors → Verifier
+    if (shouldOrchestrate(session.task, session.depth)) {
+      eventStream.append('system_message', 'Task complexity detected — activating orchestrated execution');
+
+      const orchResult = await orchestrate({
+        task: session.task,
+        session: {
+          _id: session._id,
+          userId: session.userId,
+          agentId: session.agentId,
+          depth: session.depth,
+          config: session.config,
+        },
+        agent: { name: agent.name, description: agent.description },
+        eventStream,
+        maxConcurrency: Math.min(session.config.maxVMs, 3),
+      });
+
+      // If orchestrator returned a real result (>1 subtask was executed)
+      if (orchResult.executorResults.length > 0) {
+        session.status = orchResult.success ? 'completed' : 'failed';
+        session.result = orchResult.result;
+        await eventStream.flush();
+        session.eventStream = eventStream.toJSON() as any;
+        session.stats.completedAt = new Date();
+        session.stats.totalSteps = orchResult.executorResults.length;
+        session.stats.lastActivityAt = new Date();
+        await session.save();
+
+        await cleanupSessionResources(session);
+        return;
+      }
+      // If orchestrator returned empty (single subtask), fall through to standard loop
+      eventStream.append('system_message', 'Single subtask — falling back to standard execution');
+    }
+
     // ── Main execution loop (state-machine driven) ──
 
     while (!stateMachine.isTerminal() && totalSteps < session.config.maxSteps && totalTokens < session.config.maxTokens) {
@@ -308,8 +344,11 @@ export async function runAgentSession(sessionId: string): Promise<void> {
         break;
       }
 
-      // Filter tools by current state
-      const stateTools = stateMachine.filterTools(allTools);
+      // Filter tools by current state + dynamic context
+      const stateTools = stateMachine.filterTools(allTools, {
+        hasSandbox: workspaceMemory.hasContainer(),
+        iteration,
+      });
 
       // Select model
       const modelId = selectModelForStep(allowedModels, session.task, totalSteps, lastStepHadToolCalls);
@@ -445,11 +484,15 @@ export async function runAgentSession(sessionId: string): Promise<void> {
         }
 
         // Persist event stream and stats
+        await eventStream.flush();
         session.eventStream = eventStream.toJSON() as any;
         session.stats.totalSteps = totalSteps;
         session.stats.totalTokens = totalTokens;
         session.stats.lastActivityAt = new Date();
         await session.save();
+
+        // Run context compaction if event stream is getting large
+        await compactContext(eventStream, workspaceMemory);
 
         iteration++;
 
@@ -503,6 +546,7 @@ export async function runAgentSession(sessionId: string): Promise<void> {
       eventStream.append('system_message', 'Token budget exhausted — session ending');
     }
 
+    await eventStream.flush();
     session.eventStream = eventStream.toJSON() as any;
     session.stats.completedAt = new Date();
     session.stats.totalSteps = totalSteps;
@@ -518,6 +562,7 @@ export async function runAgentSession(sessionId: string): Promise<void> {
 
     session.status = 'failed';
     session.result = err.message || 'Session failed unexpectedly';
+    await eventStream.flush();
     session.eventStream = eventStream.toJSON() as any;
     session.stats.completedAt = new Date();
     await session.save();
@@ -526,9 +571,29 @@ export async function runAgentSession(sessionId: string): Promise<void> {
 
 /**
  * Get recent activity for an agent session.
- * Now reads from MongoDB (persistent) instead of in-memory buffer.
+ * Reads from the EventStreamEntry collection (preferred) or falls back
+ * to the embedded eventStream array (legacy).
  */
 export async function getRecentActivity(sessionId: string) {
+  // Try new collection first
+  const { EventStreamEntry: ESEntry } = await import('../models/event-stream-entry.js');
+  const dbEntries = await ESEntry.find({ sessionId }).sort({ seq: -1 }).limit(50).lean();
+
+  if (dbEntries.length > 0) {
+    return dbEntries.reverse().map((entry: any) => ({
+      type: mapEventTypeToActivity(entry.type),
+      content: entry.content,
+      timestamp: entry.timestamp,
+      sessionId,
+      metadata: entry.metadata ? {
+        toolName: entry.metadata.toolName,
+        args: entry.metadata.args,
+        duration: entry.metadata.durationMs,
+      } : undefined,
+    }));
+  }
+
+  // Fallback to embedded array
   const session = await AgentSession.findById(sessionId).select('eventStream').lean();
   if (!session?.eventStream) return [];
 

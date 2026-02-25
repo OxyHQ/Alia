@@ -1,9 +1,14 @@
 /**
- * Agent State Machine
+ * Agent State Machine — With Dynamic Context-Aware Tool Masking
  *
  * Defines the agent lifecycle as a finite state machine with clear transitions.
  * Each state constrains which tool prefixes the model can use (state-based filtering),
  * mirroring Manus's logit-masking approach without modifying the tool set.
+ *
+ * Enhanced with dynamic masking:
+ *   - Remove container tools when no sandbox exists
+ *   - Allow plan_* in first iteration even in ACTING state
+ *   - Circuit breaker: disable recently-failed tools temporarily
  */
 
 export type AgentState =
@@ -85,9 +90,33 @@ const STATE_TOOL_PREFIXES: Record<AgentState, string[] | null> = {
   CANCELLED: [],
 };
 
+/** Tool prefixes that require a sandbox */
+const SANDBOX_PREFIXES = ['shell_', 'file_', 'code_', 'port_', 'snapshot_'];
+
+/** Circuit breaker: tool name -> failure timestamps */
+interface CircuitBreakerState {
+  failures: Map<string, number[]>;
+  /** Number of failures before tripping */
+  threshold: number;
+  /** How long to keep the breaker open (ms) */
+  resetMs: number;
+}
+
+export interface DynamicMaskingContext {
+  /** Whether a sandbox/container is available */
+  hasSandbox: boolean;
+  /** Current iteration number */
+  iteration: number;
+}
+
 export class AgentStateMachine {
   private state: AgentState = 'INITIALIZING';
   private history: Array<{ from: AgentState; event: TransitionEvent; to: AgentState; timestamp: number }> = [];
+  private circuitBreaker: CircuitBreakerState = {
+    failures: new Map(),
+    threshold: 3,
+    resetMs: 60_000, // 1 minute cooldown
+  };
 
   constructor(initialState?: AgentState) {
     if (initialState) this.state = initialState;
@@ -139,23 +168,95 @@ export class AgentStateMachine {
     return STATE_TOOL_PREFIXES[this.state];
   }
 
-  /** Filter a tool set by current state constraints */
-  filterTools<T>(tools: Record<string, T>): Record<string, T> {
+  /**
+   * Filter a tool set by current state constraints AND dynamic context.
+   *
+   * Dynamic rules:
+   *   1. Remove sandbox tools when no sandbox available
+   *   2. Allow plan_* in first iteration even during ACTING (so agent can plan)
+   *   3. Circuit breaker: temporarily disable tools that keep failing
+   */
+  filterTools<T>(tools: Record<string, T>, context?: DynamicMaskingContext): Record<string, T> {
     const prefixes = this.getAllowedToolPrefixes();
 
-    // null = all tools allowed
-    if (prefixes === null) return tools;
+    // Terminal states = no tools
+    if (prefixes !== null && prefixes.length === 0) return {};
 
-    // Empty = no tools
-    if (prefixes.length === 0) return {};
+    let filtered: Record<string, T>;
 
-    const filtered: Record<string, T> = {};
-    for (const [name, tool] of Object.entries(tools)) {
-      if (prefixes.some(prefix => name.startsWith(prefix))) {
-        filtered[name] = tool;
+    if (prefixes === null) {
+      // All tools allowed (ACTING state) — start with full set
+      filtered = { ...tools };
+    } else {
+      // Filter by prefix
+      filtered = {};
+      for (const [name, tool] of Object.entries(tools)) {
+        if (prefixes.some(prefix => name.startsWith(prefix))) {
+          filtered[name] = tool;
+        }
       }
     }
+
+    // ── Dynamic masking ──
+
+    if (context) {
+      // 1. Remove sandbox tools if no sandbox available
+      if (!context.hasSandbox) {
+        for (const name of Object.keys(filtered)) {
+          if (SANDBOX_PREFIXES.some(prefix => name.startsWith(prefix))) {
+            // Keep shell_create_container — that's how you GET a sandbox
+            if (name !== 'shell_create_container') {
+              delete filtered[name];
+            }
+          }
+        }
+      }
+
+      // 2. Allow plan_* in first iteration even in ACTING state
+      if (context.iteration === 0 && this.state === 'ACTING') {
+        for (const [name, tool] of Object.entries(tools)) {
+          if (name.startsWith('plan_')) {
+            filtered[name] = tool;
+          }
+        }
+      }
+    }
+
+    // 3. Circuit breaker: remove tools that have failed too many times recently
+    const now = Date.now();
+    for (const name of Object.keys(filtered)) {
+      const failures = this.circuitBreaker.failures.get(name);
+      if (!failures) continue;
+
+      // Prune old failures
+      const recent = failures.filter(t => now - t < this.circuitBreaker.resetMs);
+      if (recent.length !== failures.length) {
+        this.circuitBreaker.failures.set(name, recent);
+      }
+
+      if (recent.length >= this.circuitBreaker.threshold) {
+        delete filtered[name];
+      }
+    }
+
     return filtered;
+  }
+
+  /**
+   * Record a tool failure for the circuit breaker.
+   */
+  recordToolFailure(toolName: string): void {
+    if (!this.circuitBreaker.failures.has(toolName)) {
+      this.circuitBreaker.failures.set(toolName, []);
+    }
+    this.circuitBreaker.failures.get(toolName)!.push(Date.now());
+  }
+
+  /**
+   * Reset circuit breaker for a tool (e.g. after a successful call).
+   */
+  resetToolCircuit(toolName: string): void {
+    this.circuitBreaker.failures.delete(toolName);
   }
 
   /** Get transition history */

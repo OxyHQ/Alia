@@ -12,6 +12,7 @@
  *   info_*     — Information (date, etc.)
  *   port_*     — Port exposure
  *   snapshot_* — Container snapshots
+ *   code_*     — CodeAct (code-as-action execution)
  *   mcp_*      — MCP tools (already prefixed)
  */
 
@@ -27,6 +28,8 @@ import { buildIntegrationTools } from './tools/integrations.js';
 import { buildMcpTools } from './tools/mcp.js';
 import { log } from './logger.js';
 import * as containerManager from './container-manager.js';
+import { getSandboxProvider, isSandboxAvailable } from './sandbox/index.js';
+import { executeCode } from './agent/codeact/index.js';
 import { Container } from '../models/container.js';
 import { ContainerTemplate } from '../models/container-template.js';
 import { TodoManager, type TodoStatus } from './agent/todo-manager.js';
@@ -194,7 +197,7 @@ export async function buildAgentTools(ctx: BuildToolsContext) {
 
   // ── Container / Shell / File tools (only if Docker host is configured) ──
 
-  if (containerManager.isContainerSystemAvailable()) {
+  if (isSandboxAvailable()) {
     tools.shell_create_container = tool({
       description: 'Create a Docker container for code execution. Choose the right image for the project type. The container starts with a /workspace directory.',
       parameters: z.object({
@@ -416,6 +419,57 @@ export async function buildAgentTools(ctx: BuildToolsContext) {
         }
       },
     });
+
+    // ── CodeAct tool (code-as-action) ──
+
+    let codeActSeq = 0;
+
+    tools.code_execute = tool({
+      description: `Execute Python code in a container. This is your most powerful tool — write code to accomplish complex tasks, data processing, API calls, file manipulation, and more. The code runs in the container's /workspace directory with full Python 3 and common libraries available. Install packages with pip if needed.
+
+When to use: For any multi-step operation, data transformation, conditional logic, or when you need the full power of a programming language.
+When NOT to use: For simple web searches or file reads — use the dedicated tools instead.`,
+      parameters: z.object({
+        containerId: z.string().describe('Container ID to execute in'),
+        code: z.string().describe('Python code to execute'),
+        description: z.string().describe('Brief description of what this code does'),
+        timeout: z.number().optional().default(60).describe('Timeout in seconds (max 300)'),
+      }),
+      execute: async ({ containerId, code, description, timeout }) => {
+        const resource = session.resources.find(r => r.resourceId === containerId && r.status === 'active');
+        if (!resource) {
+          return { error: `Container ${containerId} not found or not active. Create one first with shell_create_container.` };
+        }
+
+        const result = await executeCode({
+          containerId,
+          code,
+          description,
+          seq: ++codeActSeq,
+          timeout: Math.min((timeout || 60) * 1000, 300_000),
+        });
+
+        // Format result for agent consumption
+        if (result.success) {
+          const output = result.stdout.trim();
+          return {
+            success: true,
+            output: output || '(no output)',
+            filePath: result.filePath,
+            executionTimeMs: result.executionTimeMs,
+            ...(result.safetyWarnings.length > 0 ? { warnings: result.safetyWarnings } : {}),
+          };
+        } else {
+          return {
+            success: false,
+            error: result.stderr.trim() || 'Unknown execution error',
+            exitCode: result.exitCode,
+            filePath: result.filePath,
+            ...(result.safetyWarnings.length > 0 ? { warnings: result.safetyWarnings } : {}),
+          };
+        }
+      },
+    });
   }
 
   return tools;
@@ -425,12 +479,13 @@ export async function buildAgentTools(ctx: BuildToolsContext) {
  * Destroy all active containers for a session (cleanup on completion/failure).
  */
 export async function cleanupSessionResources(session: IAgentSession): Promise<void> {
-  if (!containerManager.isContainerSystemAvailable()) return;
+  if (!isSandboxAvailable()) return;
 
+  const sandbox = getSandboxProvider();
   for (const resource of session.resources) {
     if (resource.status === 'active') {
       try {
-        await containerManager.destroyContainer(resource.resourceId);
+        await sandbox.destroy(resource.resourceId);
         resource.status = 'destroyed';
         await Container.updateOne(
           { containerId: resource.resourceId },
