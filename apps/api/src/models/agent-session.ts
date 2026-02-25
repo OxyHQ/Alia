@@ -98,8 +98,8 @@ const AgentSessionSchema = new Schema<IAgentSession>({
     type: {
       objective: { type: String, default: '' },
       items: [{
-        id: { type: Number, required: true },
-        text: { type: String, required: true },
+        id: { type: Number, default: 0 },
+        text: { type: String, default: '' },
         status: { type: String, enum: ['pending', 'in_progress', 'completed', 'blocked'], default: 'pending' },
       }],
     },

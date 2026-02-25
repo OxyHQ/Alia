@@ -87,7 +87,12 @@ export async function callProviderAPI<T = any>(options: ProviderAPIOptions): Pro
       if (timer) clearTimeout(timer);
 
       if (!response.ok) {
-        const errBody = await response.text();
+        let errBody = '';
+        try {
+          errBody = await response.text();
+        } catch {
+          errBody = `HTTP ${response.status} (body unreadable)`;
+        }
         const reason = classifyError({ status: response.status, message: errBody });
 
         log.keys.warn({ attempt, provider, modelId, status: response.status, reason }, 'Provider API call failed');
