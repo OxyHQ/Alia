@@ -97,7 +97,7 @@ export const updateUserPreferencesTool = (oxyUserId: string) => tool({
 
   inputSchema: z.object({
     language: z.string().optional().describe('Preferred language as BCP 47 locale code (e.g., "en-US", "es-ES", "fr-FR")'),
-    tone: z.string().optional().describe('Preferred tone (e.g., "formal", "casual", "technical", "friendly")'),
+    tone: z.string().optional().describe('Personality style ("alia", "brief", "chill", "sweet") or freeform tone (e.g., "formal", "casual")'),
     responseLength: z.enum(['short', 'medium', 'long']).optional().describe('Preferred response length'),
     interests: z.array(z.string()).optional().describe('List of user interests or topics'),
   }),

@@ -116,6 +116,10 @@
       "friendly": "Amigable",
       "concise": "Conciso"
     },
+    "personalityStyle": {
+      "title": "Estilo de personalidad",
+      "description": "Elige cómo se comunica Alia contigo"
+    },
     "occupation": {
       "title": "Ocupación",
       "description": "Tu trabajo o campo de trabajo",

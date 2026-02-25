@@ -33,6 +33,7 @@ import { log } from '../lib/logger.js';
 import { loadPrompt } from '../lib/prompt-loader.js';
 import { wrapToolsWithTruncation, getToolResultBudget } from '../lib/tools/result-truncation.js';
 import { formatStyleForPrompt } from '../lib/style/style-prompt.js';
+import { getPersonalityPromptSupplement } from '../lib/personality-styles.js';
 import { BILLING_RE, AUTH_RE } from '../lib/constants.js';
 
 // ── Types ──
@@ -109,7 +110,15 @@ export async function buildChatSystemPrompt(
     if (memory.context?.occupation) userContextParts.push(`The user works as a ${memory.context.occupation}.`);
     if (memory.context?.location && !oxyUser?.location) userContextParts.push(`The user is located in ${memory.context.location}.`);
     if (memory.context?.bio && !oxyUser?.bio) userContextParts.push(`About the user: ${memory.context.bio}`);
-    if (memory.preferences?.tone) userContextParts.push(`The user prefers a ${memory.preferences.tone} tone in responses.`);
+    if (memory.preferences?.tone) {
+      const personalitySupplement = getPersonalityPromptSupplement(memory.preferences.tone);
+      if (personalitySupplement) {
+        prompt = `${prompt}\n\n${personalitySupplement}`;
+      } else {
+        // Legacy freeform tone values (casual, professional, etc.)
+        userContextParts.push(`The user prefers a ${memory.preferences.tone} tone in responses.`);
+      }
+    }
     if (memory.preferences?.responseLength) userContextParts.push(`The user prefers ${memory.preferences.responseLength} responses.`);
     if (memory.preferences?.interests?.length) {
       userContextParts.push(`The user is interested in: ${memory.preferences.interests.join(', ')}.`);
