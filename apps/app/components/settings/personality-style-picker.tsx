@@ -1,10 +1,9 @@
 import { View, Pressable } from "react-native";
 import { Text } from "@/components/ui/text";
 import { LinearGradient } from "expo-linear-gradient";
-import { Sparkles } from "lucide-react-native";
+import { Check } from "lucide-react-native";
 import { PERSONALITY_STYLES, type PersonalityStyleId } from "@/lib/personality-styles";
 import { useTranslation } from "@/hooks/useTranslation";
-import { cn } from "@/lib/utils";
 
 interface PersonalityStylePickerProps {
   selectedStyle: string;
@@ -18,18 +17,12 @@ export function PersonalityStylePicker({
   const { t } = useTranslation();
 
   return (
-    <View className="gap-1.5">
-      <View className="flex-row items-center gap-2">
-        <Sparkles size={18} className="text-primary" />
-        <Text className="text-sm font-semibold">
-          {t("settings.personalityStyle.title")}
-        </Text>
-      </View>
-      <Text className="text-xs text-muted-foreground">
-        {t("settings.personalityStyle.description")}
+    <View className="gap-2">
+      <Text className="text-[11px] font-semibold text-muted-foreground tracking-wider uppercase">
+        {t("settings.personalityStyle.title")}
       </Text>
 
-      <View className="flex-row flex-wrap gap-3 mt-1">
+      <View className="flex-row flex-wrap gap-2.5">
         {PERSONALITY_STYLES.map((style) => {
           const isSelected = selectedStyle === style.id;
           return (
@@ -37,38 +30,61 @@ export function PersonalityStylePicker({
               key={style.id}
               onPress={() => onSelectStyle(style.id)}
               className="flex-1 min-w-[140px]"
+              style={{ opacity: isSelected ? 1 : 0.75 }}
             >
-              <View
-                className={cn(
-                  "rounded-2xl overflow-hidden",
-                  isSelected
-                    ? "border-2 border-foreground"
-                    : "border border-border"
-                )}
+              <LinearGradient
+                colors={style.gradient as [string, string, ...string[]]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 0.5, y: 1 }}
+                style={{
+                  borderRadius: 20,
+                  padding: 16,
+                  paddingBottom: 20,
+                  minHeight: 170,
+                  justifyContent: "space-between",
+                }}
               >
-                <LinearGradient
-                  colors={[style.gradient[0], style.gradient[1]]}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 1 }}
-                  style={{ padding: 16, minHeight: 160 }}
-                >
-                  {/* Emoji */}
-                  <Text className="text-3xl mb-2">{style.emoji}</Text>
+                {/* Top row: emoji + check */}
+                <View className="flex-row items-start justify-between">
+                  <Text style={{ fontSize: 36 }}>{style.emoji}</Text>
+                  {isSelected && (
+                    <View
+                      className="items-center justify-center"
+                      style={{
+                        width: 24,
+                        height: 24,
+                        borderRadius: 12,
+                        backgroundColor: "rgba(255,255,255,0.3)",
+                      }}
+                    >
+                      <Check size={14} color="#fff" strokeWidth={3} />
+                    </View>
+                  )}
+                </View>
 
-                  {/* Name */}
-                  <Text className="text-base font-bold text-white mb-1">
+                {/* Bottom: name + greeting */}
+                <View className="gap-1">
+                  <Text
+                    style={{
+                      fontSize: 15,
+                      fontWeight: "700",
+                      color: "#fff",
+                    }}
+                  >
                     {style.name}
                   </Text>
-
-                  {/* Sample greeting */}
                   <Text
-                    className="text-xs text-white/80 leading-4"
+                    style={{
+                      fontSize: 12,
+                      color: "rgba(255,255,255,0.7)",
+                      lineHeight: 16,
+                    }}
                     numberOfLines={3}
                   >
                     {style.sampleGreeting}
                   </Text>
-                </LinearGradient>
-              </View>
+                </View>
+              </LinearGradient>
             </Pressable>
           );
         })}
