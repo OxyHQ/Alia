@@ -139,6 +139,9 @@ export function useTTS() {
       });
 
       if (!response.ok) {
+        if (response.status === 504) {
+          throw new Error('Request timed out — please try again');
+        }
         const errData = await response.json().catch(() => ({}));
         throw new Error(errData.error?.message || errData.error || 'TTS failed');
       }

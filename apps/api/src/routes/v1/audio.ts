@@ -78,12 +78,14 @@ router.post('/speech', async (req: Request, res: Response) => {
       });
     }
 
-    // Resolve TTS provider via tier mappings
+    // Resolve TTS provider via tier mappings (use first available, no serial retry —
+    // both mappings are OpenAI so retrying wastes time against the 60s DO gateway limit)
     const ttsMappings = await getModelMappingsForTier('v1-tts');
     const ttsVoice = voice || 'nova';
     let audioBuffer: Buffer | null = null;
 
-    for (const mapping of ttsMappings) {
+    if (ttsMappings.length > 0) {
+      const mapping = ttsMappings[0];
       try {
         audioBuffer = await callProviderAPI<Buffer>({
           provider: mapping.provider,
@@ -97,39 +99,35 @@ router.post('/speech', async (req: Request, res: Response) => {
             speed: speed || 1.0,
           },
           responseType: 'arrayBuffer',
-          timeout: 30_000,
+          maxAttempts: 1,
+          timeout: 15_000,
         });
-        break;
       } catch (err: any) {
-        log.general.warn({ err, provider: mapping.provider, model: mapping.modelId }, 'TTS provider failed, trying next');
-        continue;
+        log.general.warn({ err, provider: mapping.provider, model: mapping.modelId }, 'TTS provider failed');
       }
     }
 
     if (!audioBuffer) {
       await finalizeCredits(reservation, { promptTokens: 0, completionTokens: 0, totalTokens: 0 });
-      return res.status(503).json({ error: { message: 'All TTS providers exhausted', type: 'server_error' } });
+      return res.status(503).json({ error: { message: 'TTS generation failed — please try again', type: 'server_error' } });
     }
 
     // Charge credits based on character count (~1 credit per 200 chars)
     const charCredits = Math.max(1, Math.ceil(input.length / 200));
-    await finalizeCredits(reservation, {
-      promptTokens: charCredits * 50,
-      completionTokens: 0,
-      totalTokens: charCredits * 50,
-    });
 
-    // Upload to S3
-    const audioUrl = await uploadToS3(
-      audioBuffer,
-      `audio.${format}`,
-      `tts/${userId}`,
-      'speech'
-    );
+    // Upload to S3 and finalize credits concurrently
+    const [audioUrl] = await Promise.all([
+      uploadToS3(audioBuffer, `audio.${format}`, `tts/${userId}`, 'speech'),
+      finalizeCredits(reservation, {
+        promptTokens: charCredits * 50,
+        completionTokens: 0,
+        totalTokens: charCredits * 50,
+      }),
+    ]);
 
-    // Link to message if conversationId + messageId provided
+    // Link to message (fire-and-forget, don't block response)
     if (conversationId && messageId) {
-      await Conversation.updateOne(
+      Conversation.updateOne(
         { conversationId, oxyUserId: userId, 'messages.id': messageId },
         { $set: { 'messages.$.audioUrl': audioUrl } }
       ).catch((err: any) => {
