@@ -11,9 +11,12 @@ Standalone API for Alia built with Express and TypeScript.
 - Authentication and user management
 - Chat streaming with SSE (Server-Sent Events)
 - Automatic conversion from Alia models to specific providers
-- **Autonomous Agent Runtime** with smart model selection and live activity streaming
+- **Autonomous Agent Runtime** — event-driven state machine with Manus-inspired context engineering
 - **Docker Container Sandbox** for secure agent code execution
 - **Agent-to-Agent Delegation** with recursive session management
+- **Event Stream** — append-only persistent log of all agent actions and observations
+- **Structured Planning** — todo-based task tracking with attention-optimized context injection
+- **Workspace Memory** — file-system-as-extended-context in containers
 
 ## Architecture
 
@@ -357,6 +360,74 @@ NEXTAUTH_URL='http://localhost:3001'
 
 > Container operations (exec, files, expose, snapshot) are performed by agents via tools, not via REST endpoints. The Docker host service at `DOCKER_HOST_URL` handles the actual container management.
 
+## Agent Architecture
+
+The agent runtime is an autonomous execution engine inspired by [Manus](https://manus.im/blog/Context-Engineering-for-AI-Agents-Lessons-from-Building-Manus)'s context engineering principles.
+
+### Execution Model
+
+```
+User hires agent → AgentSession created (queued)
+    |
+    v
+runAgentSession() — fire-and-forget background execution
+    |
+    v
+State Machine Loop:
+  INITIALIZING → PLANNING → ACTING → OBSERVING → REFLECTING → COMPLETED
+    |                                                |
+    |  (each iteration = one LLM call, one action)   |
+    |                                                |
+    +------------ Event Stream (append-only) --------+
+```
+
+### Core Components
+
+| Component | File | Purpose |
+|-----------|------|---------|
+| **Event Stream** | `lib/agent/event-stream.ts` | Append-only log of all actions, observations, and errors. Persisted to MongoDB. Replaces in-memory buffer. |
+| **State Machine** | `lib/agent/state-machine.ts` | Lifecycle states with state-based tool filtering (only `plan_*` tools during PLANNING, all tools during ACTING, etc.) |
+| **Todo Manager** | `lib/agent/todo-manager.ts` | Structured task tracking injected at context tail for maximum attention weight |
+| **Tool Router** | `lib/agent/tool-router.ts` | Consistent tool prefixes (`browser_*`, `shell_*`, `file_*`, etc.) with prefix-based filtering |
+| **Workspace Memory** | `lib/agent/workspace-memory.ts` | Offloads large tool results to `/workspace/.alia/` in containers; provisions workspace structure |
+
+### Tool Prefixing
+
+All agent tools use consistent prefixes (like Manus's `browser_`, `shell_` pattern):
+
+| Prefix | Tools | Purpose |
+|--------|-------|---------|
+| `browser_*` | `browser_search`, `browser_browse`, `browser_scrape` | Web operations |
+| `shell_*` | `shell_exec`, `shell_create_container`, `shell_destroy_container` | Container execution |
+| `file_*` | `file_read`, `file_write`, `file_list` | Container file operations |
+| `memory_*` | `memory_save` | Persistent user memory |
+| `comm_*` | `comm_telegram` | Communications |
+| `plan_*` | `plan_update_todo`, `plan_complete` | Planning and task completion |
+| `agent_*` | `agent_hire`, `agent_parallel` | Agent-to-agent delegation |
+| `mcp_*` | `mcp_{server}__{tool}` | Connected MCP services |
+
+### Context Engineering
+
+The context is structured for KV-cache efficiency:
+
+```
+[STABLE PREFIX — cached across iterations]
+  System prompt (static per agent)
+
+[SEMI-STABLE MIDDLE — cached until overflow]
+  Event stream history (oldest first)
+
+[CHANGING TAIL — fresh every iteration]
+  Recent events + current todo list + continuation prompt
+```
+
+Key principles:
+- **Error retention**: Failed actions persist in the event stream and are fed back to the model
+- **Todo at context tail**: Objectives placed at the end for maximum attention weight
+- **One action per iteration**: Each LLM call produces exactly one action for maximum observability
+- **Workspace memory**: Large results offloaded to container filesystem with references
+- **Context diversity**: Continuation prompts are varied to prevent brittle pattern mimicry
+
 ### Canvas (Workflow Builder)
 
 - `GET /api/workflows` - List workflows
@@ -425,8 +496,15 @@ src/
 │   ├── container-template.ts # Container base templates
 │   └── ...
 ├── lib/                  # Utilities and providers
-│   ├── agent-runner.ts   # Autonomous agent execution engine
-│   ├── agent-tools.ts    # Agent tool definitions (search, containers, etc.)
+│   ├── agent-runner.ts   # Autonomous agent execution engine (state-machine driven)
+│   ├── agent-tools.ts    # Prefixed agent tool factory (browser_*, shell_*, file_*, etc.)
+│   ├── agent/            # Agent engine modules
+│   │   ├── event-stream.ts    # Append-only event log (persisted to MongoDB)
+│   │   ├── state-machine.ts   # Agent lifecycle state machine with tool filtering
+│   │   ├── todo-manager.ts    # Structured task tracking (attention manipulation)
+│   │   ├── tool-router.ts     # Tool prefixing and state-based filtering
+│   │   ├── workspace-memory.ts # File-system-as-extended-context in containers
+│   │   └── index.ts           # Barrel exports
 │   ├── container-manager.ts # Docker container lifecycle management
 └── internal/             # INTERNAL MODULES - NOT PUBLIC
     └── providers/        # Provider management (admin only, HMAC auth)

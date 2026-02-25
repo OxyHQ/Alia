@@ -389,7 +389,18 @@ router.get('/:id/activity', optionalAuth, async (req: Request, res: Response) =>
       return res.status(404).json({ error: 'Agent not found' });
     }
 
-    const activity = getRecentActivity(agent._id.toString());
+    // Find the most recent running or completed session for this agent
+    const latestSession = await AgentSession.findOne(
+      { agentId: agent._id, status: { $in: ['running', 'completed'] } },
+      { _id: 1 },
+      { sort: { createdAt: -1 } },
+    );
+
+    if (!latestSession) {
+      return res.json({ activity: [] });
+    }
+
+    const activity = await getRecentActivity(latestSession._id.toString());
     res.json({ activity });
   } catch (error) {
     log.agents.error({ err: error }, 'Error getting agent activity');

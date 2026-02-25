@@ -1,14 +1,14 @@
 /**
- * Agent Runner — Autonomous Agent Execution Engine
+ * Agent Runner — Autonomous Agent Execution Engine (v2)
  *
- * Runs agent sessions using Alia's LLM system with tool access.
- * Features:
- *   - Smart model selection: agents pick cheaper models for simple tasks
- *   - Token budgets and step limits
- *   - Real-time activity streaming via Socket.IO
- *   - Agent-to-agent delegation (recursive, depth-limited)
- *   - Container lifecycle management
- *   - In-memory activity buffer for backfill on connect
+ * Manus-inspired architecture:
+ *   - Event stream: append-only log of all actions/observations (persisted to MongoDB)
+ *   - State machine: INITIALIZING → PLANNING → ACTING → OBSERVING → REFLECTING → COMPLETED
+ *   - Structured todo: injected at context tail for attention manipulation
+ *   - Tool prefixing: consistent prefixes with state-based filtering
+ *   - Workspace memory: filesystem as extended context in containers
+ *   - Error retention: failed actions persist in event stream
+ *   - One action per iteration: maximum observability
  */
 
 import { generateText } from 'ai';
@@ -17,35 +17,26 @@ import { Agent, type IAgent } from '../models/agent.js';
 import { resolveModel, getAIModel, reportModelUsage, getDefaultAliaModel } from './chat-core.js';
 import { markKeyCreditExhausted } from './providers-client.js';
 import { buildAgentTools, cleanupSessionResources } from './agent-tools.js';
-import { emitAgentActivity, type AgentActivityEvent } from '../socket.js';
 import { log } from './logger.js';
+import { EventStream } from './agent/event-stream.js';
+import { AgentStateMachine } from './agent/state-machine.js';
+import { TodoManager } from './agent/todo-manager.js';
+import { WorkspaceMemory } from './agent/workspace-memory.js';
 
 const BILLING_RE = /insufficient balance|payment required|insufficient credits|credit balance|billing.?hard.?limit|exceeded.*quota|quota.*exceeded/i;
 
 const MAX_DELEGATION_DEPTH = 3;
-const MAX_GENERATE_STEPS = 10;
 
-// ── Activity Buffer (in-memory ring buffer per agent) ──
+/** Context window budget for the event stream (tokens) */
+const EVENT_STREAM_BUDGET = 60000;
 
-const BUFFER_SIZE = 100;
-const activityBuffers = new Map<string, AgentActivityEvent[]>();
-
-function pushActivity(agentId: string, event: AgentActivityEvent) {
-  let buf = activityBuffers.get(agentId);
-  if (!buf) {
-    buf = [];
-    activityBuffers.set(agentId, buf);
-  }
-  buf.push(event);
-  if (buf.length > BUFFER_SIZE) buf.shift();
-
-  // Also emit via Socket.IO
-  emitAgentActivity(agentId, event);
-}
-
-export function getRecentActivity(agentId: string): AgentActivityEvent[] {
-  return activityBuffers.get(agentId) || [];
-}
+/** Continuation prompts — varied to prevent brittle pattern mimicry (Manus context diversity) */
+const CONTINUATION_PROMPTS = [
+  'Continue working on the task.',
+  'What is your next step?',
+  'Proceed with the plan.',
+  'Continue executing your plan.',
+];
 
 // ── System Prompt Builder ──
 
@@ -63,14 +54,27 @@ function buildSystemPrompt(agent: IAgent, config: IAgentSession['config']): stri
 ${agent.description}${capabilities}
 
 ## Instructions
-- Use the updatePlan tool at the start to create a checklist of steps. Update it after completing each step.
+- Use the plan_update_todo tool at the start to create a structured plan. Update it after completing each step.
 - Complete the user's task efficiently. Minimize unnecessary steps and token usage.
-- When you are done, call the completeTask tool with your final result.
+- When you are done, call the plan_complete tool with your final result.
 - Do NOT continue working after completing the task.
-- If you need to run code, create a container first, execute your code, then destroy the container when done.
-- If a subtask is better handled by a specialist, use the hireAgent tool.
-- For multiple independent subtasks, use parallelResearch to run them concurrently.
+- If you need to run code, create a container first (shell_create_container), execute your code (shell_exec), then destroy the container when done (shell_destroy_container).
+- If a subtask is better handled by a specialist, use the agent_hire tool.
+- For multiple independent subtasks, use agent_parallel to run them concurrently.
 - Always destroy containers when you are finished with them.
+- When an action fails, analyze the error and adjust your approach. Do not repeat the same failed action.
+- Large results are automatically saved to /workspace/.alia/observations/. Use file_read to retrieve them when needed.
+
+## Tool Naming
+All tools use consistent prefixes:
+- browser_* — Web operations (search, browse, scrape)
+- shell_* — Container execution (create, exec, destroy)
+- file_* — Container file operations (read, write, list)
+- memory_* — Persistent memory
+- comm_* — Communications (telegram, etc.)
+- plan_* — Planning and task completion
+- agent_* — Delegate to other agents
+- mcp_* — Connected MCP services
 
 ## Budget
 - Maximum ${config.maxSteps} steps. Be efficient.
@@ -79,32 +83,15 @@ ${agent.description}${capabilities}
 
 // ── Model Selection ──
 
-/**
- * Choose the best model for the current step based on task complexity.
- *
- * The agent has a list of allowedModels (set by the user/owner).
- * Strategy:
- *   - First call: assess task complexity. If the task is short/simple, use the cheapest model.
- *   - If the task involves reasoning, code, or multi-step logic, use a more capable model.
- *   - For tool-result processing (continuing after a tool call), use the cheapest model.
- *
- * This is a heuristic — the agent itself can't choose models, but we pick based on context.
- */
 function selectModelForStep(
   allowedModels: string[],
   task: string,
   stepNumber: number,
-  lastStepHadToolCalls: boolean
+  lastStepHadToolCalls: boolean,
 ): string {
-  if (allowedModels.length === 0) {
-    return getDefaultAliaModel();
-  }
+  if (allowedModels.length === 0) return getDefaultAliaModel();
+  if (allowedModels.length === 1) return allowedModels[0];
 
-  if (allowedModels.length === 1) {
-    return allowedModels[0];
-  }
-
-  // Sort models by cost tier (lite < v1 < v1-pro < v1-pro-max)
   const tierOrder: Record<string, number> = {
     'alia-lite': 0,
     'alia-v1': 1,
@@ -118,19 +105,15 @@ function selectModelForStep(
   };
 
   const sorted = [...allowedModels].sort(
-    (a, b) => (tierOrder[a] ?? 1) - (tierOrder[b] ?? 1)
+    (a, b) => (tierOrder[a] ?? 1) - (tierOrder[b] ?? 1),
   );
 
   const cheapest = sorted[0];
   const mid = sorted[Math.floor(sorted.length / 2)];
   const best = sorted[sorted.length - 1];
 
-  // After tool calls, just process the result — cheapest model is fine
-  if (lastStepHadToolCalls && stepNumber > 1) {
-    return cheapest;
-  }
+  if (lastStepHadToolCalls && stepNumber > 1) return cheapest;
 
-  // Heuristic: check task complexity indicators
   const complexIndicators = [
     /\b(analyze|architect|design|implement|debug|refactor|optimize)\b/i,
     /\b(code|script|program|function|algorithm|API)\b/i,
@@ -148,18 +131,53 @@ function selectModelForStep(
   const complexScore = complexIndicators.filter(r => r.test(task)).length;
   const simpleScore = simpleIndicators.filter(r => r.test(task)).length;
 
-  // First step with a complex task → use the best model
-  if (stepNumber === 0 && complexScore >= 2) {
-    return best;
-  }
-
-  // Simple task or follow-up steps → use cheapest or mid
-  if (simpleScore > complexScore) {
-    return cheapest;
-  }
-
-  // Default to mid-range
+  if (stepNumber === 0 && complexScore >= 2) return best;
+  if (simpleScore > complexScore) return cheapest;
   return mid;
+}
+
+// ── Context Builder ──
+
+/**
+ * Build the messages array for the model.
+ * Layout (Manus KV-cache optimization pattern):
+ *   [STABLE PREFIX] System prompt + tool descriptions (cached across iterations)
+ *   [SEMI-STABLE]   Historical event stream entries
+ *   [CHANGING TAIL]  Recent events + todo list + continuation prompt
+ */
+function buildContextMessages(
+  systemPrompt: string,
+  eventStream: EventStream,
+  todoManager: TodoManager,
+  iteration: number,
+): Array<{ role: 'system' | 'user' | 'assistant'; content: string }> {
+  const messages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }> = [];
+
+  // 1. Stable system prompt (never changes — KV-cache friendly)
+  messages.push({ role: 'system', content: systemPrompt });
+
+  // 2. Event stream as conversation history
+  const recentEvents = eventStream.getRecentWindow(EVENT_STREAM_BUDGET);
+  const serialized = eventStream.serialize(recentEvents);
+
+  if (serialized) {
+    messages.push({ role: 'user', content: serialized });
+  }
+
+  // 3. Todo list at the END for attention manipulation (Manus's key trick)
+  const todoSerialized = todoManager.serialize();
+  if (todoSerialized) {
+    messages.push({
+      role: 'system',
+      content: `## Current Objectives\n${todoSerialized}`,
+    });
+  }
+
+  // 4. Continuation prompt with diversity
+  const continuationPrompt = CONTINUATION_PROMPTS[iteration % CONTINUATION_PROMPTS.length];
+  messages.push({ role: 'user', content: continuationPrompt });
+
+  return messages;
 }
 
 // ── Main Runner ──
@@ -181,20 +199,31 @@ export async function runAgentSession(sessionId: string): Promise<void> {
 
   const agentId = agent._id.toString();
 
+  // ── Initialize core components ──
+
+  const eventStream = new EventStream({ agentId, sessionId });
+  const stateMachine = new AgentStateMachine();
+  const todoManager = new TodoManager();
+  const workspaceMemory = new WorkspaceMemory();
+
+  // Restore from persisted event stream if resuming
+  if (session.eventStream?.length > 0) {
+    eventStream.loadFromPersisted(session.eventStream as any);
+  }
+  if (session.plan) {
+    todoManager.loadFromPersisted(session.plan as any);
+  }
+
   // Mark session as running
   session.status = 'running';
   session.stats.startedAt = new Date();
   session.stats.lastActivityAt = new Date();
   await session.save();
 
-  pushActivity(agentId, {
-    type: 'system',
-    content: `Task received: ${session.task}`,
-    timestamp: Date.now(),
-    sessionId: sessionId,
-  });
+  eventStream.append('system_message', `Task received: ${session.task}`);
+  eventStream.append('user_message', session.task);
 
-  // Track completion signal from completeTask tool
+  // Track completion signal
   let taskCompleted = false;
   let taskResult = '';
 
@@ -209,12 +238,9 @@ export async function runAgentSession(sessionId: string): Promise<void> {
         const targetAgent = await Agent.findOne({ handle, isPublished: true, status: 'active' });
         if (!targetAgent) throw new Error(`Agent @${handle} not found or not available`);
 
-        pushActivity(agentId, {
-          type: 'tool_call',
-          content: `Hiring agent @${handle}: ${task.slice(0, 100)}...`,
-          timestamp: Date.now(),
-          sessionId,
-          metadata: { toolName: 'hireAgent', args: { handle, task: task.slice(0, 200) } },
+        eventStream.append('action', `Hiring agent @${handle}: ${task.slice(0, 200)}`, {
+          toolName: 'agent_hire',
+          args: { handle, task: task.slice(0, 200) },
         });
 
         const childSession = await AgentSession.create({
@@ -231,45 +257,34 @@ export async function runAgentSession(sessionId: string): Promise<void> {
           },
         });
 
-        // Run child session synchronously (it's a subtask)
         await runAgentSession(childSession._id.toString());
 
         const completed = await AgentSession.findById(childSession._id);
         const result = completed?.result || 'No result returned';
 
-        pushActivity(agentId, {
-          type: 'tool_result',
-          content: `Agent @${handle} returned: ${result.slice(0, 500)}`,
-          timestamp: Date.now(),
-          sessionId,
-          metadata: { toolName: 'hireAgent', duration: 0 },
+        eventStream.append('observation', `Agent @${handle} returned: ${result.slice(0, 500)}`, {
+          toolName: 'agent_hire',
         });
 
         return result;
       }
     : undefined;
 
+  // Transition: INITIALIZING → PLANNING
+  stateMachine.transition('initialized');
+
   // Build tools
-  const tools = await buildAgentTools({
+  const allTools = await buildAgentTools({
     agent,
     session,
     onComplete,
     onHireAgent,
+    todoManager,
+    workspaceMemory,
   });
 
-  // Build initial messages
+  // Build system prompt (stable prefix — never changes between iterations)
   const systemPrompt = buildSystemPrompt(agent, session.config);
-  const messages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }> = [
-    { role: 'system', content: systemPrompt },
-    { role: 'user', content: session.task },
-  ];
-
-  // Save initial messages to session
-  session.messages.push(
-    { role: 'system', content: systemPrompt, timestamp: new Date() },
-    { role: 'user', content: session.task, timestamp: new Date() },
-  );
-  await session.save();
 
   const allowedModels = agent.allowedModels.length > 0
     ? agent.allowedModels
@@ -277,53 +292,39 @@ export async function runAgentSession(sessionId: string): Promise<void> {
 
   let totalSteps = 0;
   let totalTokens = 0;
-  const failedKeyIds = new Set<string>(); // Track key IDs that returned billing/auth errors
+  const failedKeyIds = new Set<string>();
   let lastStepHadToolCalls = false;
+  let iteration = 0;
 
   try {
-    // Execution loop — each iteration is one generateText call (which itself can do up to MAX_GENERATE_STEPS tool iterations)
-    while (!taskCompleted && totalSteps < session.config.maxSteps && totalTokens < session.config.maxTokens) {
-      // Reload session to check for cancellation
+    // ── Main execution loop (state-machine driven) ──
+
+    while (!stateMachine.isTerminal() && totalSteps < session.config.maxSteps && totalTokens < session.config.maxTokens) {
+      // Check for cancellation
       const currentSession = await AgentSession.findById(sessionId);
       if (!currentSession || currentSession.status === 'cancelled') {
-        pushActivity(agentId, {
-          type: 'system',
-          content: 'Session cancelled',
-          timestamp: Date.now(),
-          sessionId,
-        });
+        eventStream.append('system_message', 'Session cancelled');
+        stateMachine.transition('cancelled');
         break;
       }
 
-      // Refresh plan in system message (context engineering — keeps plan visible)
-      if (currentSession.plan) {
-        messages[0] = {
-          role: 'system',
-          content: systemPrompt + `\n\n## Current Plan\n${currentSession.plan}`,
-        };
-      }
+      // Filter tools by current state
+      const stateTools = stateMachine.filterTools(allTools);
 
-      // Select model based on task complexity
+      // Select model
       const modelId = selectModelForStep(allowedModels, session.task, totalSteps, lastStepHadToolCalls);
 
-      pushActivity(agentId, {
-        type: 'thinking',
-        content: `Using model: ${modelId}`,
-        timestamp: Date.now(),
-        sessionId,
-      });
+      eventStream.append('thinking', `Step ${totalSteps + 1}: Using model ${modelId} in state ${stateMachine.current()}`);
 
+      // Resolve model provider
       const resolved = await resolveModel(modelId, undefined, failedKeyIds.size > 0 ? failedKeyIds : undefined);
       if (!resolved) {
-        pushActivity(agentId, {
-          type: 'error',
-          content: `No provider available for model ${modelId}`,
-          timestamp: Date.now(),
-          sessionId,
-        });
-        // Try alia-lite as final fallback (avoids retrying the same broken model)
-        const fallback = modelId !== 'alia-lite' ? await resolveModel('alia-lite', undefined, failedKeyIds.size > 0 ? failedKeyIds : undefined) : null;
+        const fallback = modelId !== 'alia-lite'
+          ? await resolveModel('alia-lite', undefined, failedKeyIds.size > 0 ? failedKeyIds : undefined)
+          : null;
         if (!fallback) {
+          eventStream.append('error', 'No AI models available');
+          stateMachine.transition('error');
           session.status = 'failed';
           session.result = 'No AI models available';
           await session.save();
@@ -337,14 +338,18 @@ export async function runAgentSession(sessionId: string): Promise<void> {
       const model = getAIModel(activeResolved.keyConfig);
       const startMs = Date.now();
 
+      // Build context (Manus layout: stable prefix + event stream + todo tail)
+      const messages = buildContextMessages(systemPrompt, eventStream, todoManager, iteration);
+
       try {
+        // One action per iteration (Manus principle)
         const result = await generateText({
           model,
           messages: messages as any,
-          tools,
+          tools: stateTools,
           temperature: 0.3,
           maxRetries: 0,
-          maxSteps: MAX_GENERATE_STEPS,
+          maxSteps: 1, // ONE action per iteration for maximum observability
         } as any);
 
         const latency = Date.now() - startMs;
@@ -357,40 +362,47 @@ export async function runAgentSession(sessionId: string): Promise<void> {
           latency,
         );
 
-        // Process steps and emit activity
+        // Process the single step
         lastStepHadToolCalls = false;
         if (result.steps) {
           for (const step of result.steps) {
             totalSteps++;
 
-            // Emit tool calls
+            // Record tool calls in event stream
             if ((step as any).toolCalls?.length) {
               lastStepHadToolCalls = true;
               for (const tc of (step as any).toolCalls) {
-                pushActivity(agentId, {
-                  type: 'tool_call',
-                  content: `${tc.toolName}(${JSON.stringify(tc.args).slice(0, 200)})`,
-                  timestamp: Date.now(),
-                  sessionId,
-                  metadata: { toolName: tc.toolName, args: tc.args },
+                eventStream.append('action', `${tc.toolName}(${JSON.stringify(tc.args).slice(0, 300)})`, {
+                  toolName: tc.toolName,
+                  args: tc.args,
                 });
+
+                // Transition state machine on action
+                if (stateMachine.canTransition('action_taken')) {
+                  stateMachine.transition('action_taken');
+                }
               }
             }
 
-            // Emit tool results
+            // Record tool results — with workspace memory offloading
             if ((step as any).toolResults?.length) {
               for (const tr of (step as any).toolResults) {
                 const resultStr = typeof tr.result === 'string'
-                  ? tr.result.slice(0, 500)
-                  : JSON.stringify(tr.result).slice(0, 500);
+                  ? tr.result
+                  : JSON.stringify(tr.result);
 
-                pushActivity(agentId, {
-                  type: 'tool_result',
-                  content: resultStr,
-                  timestamp: Date.now(),
-                  sessionId,
-                  metadata: { toolName: tr.toolName },
+                // Offload large results to filesystem
+                const offloaded = await workspaceMemory.maybeOffload(resultStr, eventStream.currentSeq());
+
+                eventStream.append('observation', offloaded.content.slice(0, 2000), {
+                  toolName: tr.toolName,
+                  durationMs: Date.now() - startMs,
                 });
+
+                // Transition: OBSERVING → REFLECTING
+                if (stateMachine.canTransition('observation_received')) {
+                  stateMachine.transition('observation_received');
+                }
               }
             }
           }
@@ -400,50 +412,60 @@ export async function runAgentSession(sessionId: string): Promise<void> {
         const usageTokens = result.usage?.totalTokens || 0;
         totalTokens += usageTokens;
 
-        // Emit response if there's text
+        // Record text response
         if (result.text) {
-          pushActivity(agentId, {
-            type: 'response',
-            content: result.text,
-            timestamp: Date.now(),
-            sessionId,
-          });
-
-          messages.push({ role: 'assistant', content: result.text });
-          session.messages.push({
-            role: 'assistant',
-            content: result.text,
-            timestamp: new Date(),
-          });
+          eventStream.append('response', result.text);
         }
 
-        // Update session stats
+        // Transition: REFLECTING → ACTING (continue) or COMPLETED
+        if (taskCompleted) {
+          if (stateMachine.canTransition('task_completed')) {
+            stateMachine.transition('task_completed');
+          }
+        } else if (!lastStepHadToolCalls && result.text) {
+          // Model finished without calling plan_complete — treat response as result
+          taskCompleted = true;
+          taskResult = result.text;
+          if (stateMachine.canTransition('task_completed')) {
+            stateMachine.transition('task_completed');
+          }
+        } else if (stateMachine.current() === 'REFLECTING') {
+          // Determine if we need replanning or can continue
+          const hasToolCalls = lastStepHadToolCalls;
+          if (hasToolCalls && stateMachine.canTransition('continue')) {
+            stateMachine.transition('continue');
+          } else if (stateMachine.canTransition('continue')) {
+            stateMachine.transition('continue');
+          }
+        } else if (stateMachine.current() === 'PLANNING') {
+          // After first iteration in PLANNING, move to ACTING
+          if (stateMachine.canTransition('plan_created')) {
+            stateMachine.transition('plan_created');
+          }
+        }
+
+        // Persist event stream and stats
+        session.eventStream = eventStream.toJSON() as any;
         session.stats.totalSteps = totalSteps;
         session.stats.totalTokens = totalTokens;
         session.stats.lastActivityAt = new Date();
         await session.save();
 
-        // If completeTask was called, we're done
-        if (taskCompleted) break;
+        iteration++;
 
-        // If no tool calls were made and there's a text response, the model is done
-        if (!lastStepHadToolCalls && result.text) {
-          // Model finished without calling completeTask — treat the response as the result
-          taskCompleted = true;
-          taskResult = result.text;
-        }
+        if (taskCompleted) break;
 
       } catch (err: any) {
         const latency = Date.now() - startMs;
         const errMsg = String(err?.message || 'Unknown error');
 
-        // Classify billing errors and mark key as credit-exhausted so it
-        // won't be selected again on the next iteration.
+        // Record error in event stream (error retention — Manus principle)
+        eventStream.append('error', `Model error: ${errMsg}`);
+
         if (BILLING_RE.test(errMsg) && activeResolved.keyConfig?.keyId) {
           markKeyCreditExhausted(activeResolved.keyConfig.keyId).catch(() => {});
         }
 
-        // Track the failed key so next iteration skips it (not the entire provider)
         if (activeResolved.keyConfig?.keyId) failedKeyIds.add(activeResolved.keyConfig.keyId);
 
         await reportModelUsage(
@@ -455,16 +477,8 @@ export async function runAgentSession(sessionId: string): Promise<void> {
           errMsg,
         );
 
-        pushActivity(agentId, {
-          type: 'error',
-          content: `Model error: ${errMsg}`,
-          timestamp: Date.now(),
-          sessionId,
-        });
-
         log.agents.error({ err, sessionId }, 'Agent generation error');
 
-        // Try one more time with a different provider
         totalSteps++;
         if (totalSteps >= session.config.maxSteps) break;
         continue;
@@ -478,35 +492,18 @@ export async function runAgentSession(sessionId: string): Promise<void> {
     if (taskCompleted) {
       session.status = 'completed';
       session.result = taskResult;
-
-      pushActivity(agentId, {
-        type: 'complete',
-        content: taskResult.slice(0, 1000),
-        timestamp: Date.now(),
-        sessionId,
-      });
+      eventStream.append('complete', taskResult.slice(0, 1000));
     } else if (totalSteps >= session.config.maxSteps) {
       session.status = 'completed';
       session.result = 'Step limit reached. Partial progress was made.';
-
-      pushActivity(agentId, {
-        type: 'system',
-        content: 'Step limit reached — session ending',
-        timestamp: Date.now(),
-        sessionId,
-      });
+      eventStream.append('system_message', 'Step limit reached — session ending');
     } else if (totalTokens >= session.config.maxTokens) {
       session.status = 'completed';
       session.result = 'Token budget exhausted. Partial progress was made.';
-
-      pushActivity(agentId, {
-        type: 'system',
-        content: 'Token budget exhausted — session ending',
-        timestamp: Date.now(),
-        sessionId,
-      });
+      eventStream.append('system_message', 'Token budget exhausted — session ending');
     }
 
+    session.eventStream = eventStream.toJSON() as any;
     session.stats.completedAt = new Date();
     session.stats.totalSteps = totalSteps;
     session.stats.totalTokens = totalTokens;
@@ -517,16 +514,48 @@ export async function runAgentSession(sessionId: string): Promise<void> {
 
     await cleanupSessionResources(session);
 
+    eventStream.append('error', `Session failed: ${err.message || 'Unknown error'}`);
+
     session.status = 'failed';
     session.result = err.message || 'Session failed unexpectedly';
+    session.eventStream = eventStream.toJSON() as any;
     session.stats.completedAt = new Date();
     await session.save();
+  }
+}
 
-    pushActivity(agentId, {
-      type: 'error',
-      content: `Session failed: ${err.message || 'Unknown error'}`,
-      timestamp: Date.now(),
-      sessionId,
-    });
+/**
+ * Get recent activity for an agent session.
+ * Now reads from MongoDB (persistent) instead of in-memory buffer.
+ */
+export async function getRecentActivity(sessionId: string) {
+  const session = await AgentSession.findById(sessionId).select('eventStream').lean();
+  if (!session?.eventStream) return [];
+
+  return session.eventStream.map((entry: any) => ({
+    type: mapEventTypeToActivity(entry.type),
+    content: entry.content,
+    timestamp: entry.timestamp,
+    sessionId,
+    metadata: entry.metadata ? {
+      toolName: entry.metadata.toolName,
+      args: entry.metadata.args,
+      duration: entry.metadata.durationMs,
+    } : undefined,
+  }));
+}
+
+function mapEventTypeToActivity(type: string): string {
+  switch (type) {
+    case 'user_message':   return 'system';
+    case 'system_message': return 'system';
+    case 'action':         return 'tool_call';
+    case 'observation':    return 'tool_result';
+    case 'error':          return 'error';
+    case 'plan_update':    return 'system';
+    case 'thinking':       return 'thinking';
+    case 'response':       return 'response';
+    case 'complete':       return 'complete';
+    default:               return 'system';
   }
 }

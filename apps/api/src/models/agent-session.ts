@@ -15,6 +15,31 @@ export interface IAgentSessionResource {
   createdAt: Date;
 }
 
+export interface IEventStreamEntry {
+  seq: number;
+  timestamp: number;
+  type: 'user_message' | 'system_message' | 'action' | 'observation' | 'error' | 'plan_update' | 'thinking' | 'response' | 'complete';
+  content: string;
+  metadata?: {
+    toolName?: string;
+    args?: Record<string, unknown>;
+    exitCode?: number;
+    durationMs?: number;
+    tokenEstimate?: number;
+  };
+}
+
+export interface ITodoItem {
+  id: number;
+  text: string;
+  status: 'pending' | 'in_progress' | 'completed' | 'blocked';
+}
+
+export interface IStructuredPlan {
+  objective: string;
+  items: ITodoItem[];
+}
+
 export interface IAgentSession extends Document {
   agentId: mongoose.Types.ObjectId;
   userId: mongoose.Types.ObjectId;
@@ -22,8 +47,9 @@ export interface IAgentSession extends Document {
   status: 'queued' | 'running' | 'completed' | 'failed' | 'cancelled';
   task: string;
   result?: string;
-  plan?: string;
+  plan?: IStructuredPlan;
   messages: IAgentSessionMessage[];
+  eventStream: IEventStreamEntry[];
   resources: IAgentSessionResource[];
   stats: {
     totalTokens: number;
@@ -68,11 +94,35 @@ const AgentSessionSchema = new Schema<IAgentSession>({
   },
   task: { type: String, required: true },
   result: { type: String },
-  plan: { type: String, default: '' },
+  plan: {
+    type: {
+      objective: { type: String, default: '' },
+      items: [{
+        id: { type: Number, required: true },
+        text: { type: String, required: true },
+        status: { type: String, enum: ['pending', 'in_progress', 'completed', 'blocked'], default: 'pending' },
+      }],
+    },
+    default: undefined,
+  },
   messages: [{
     role: { type: String, enum: ['system', 'user', 'assistant', 'tool'], required: true },
     content: { type: String, required: true },
     timestamp: { type: Date, default: Date.now },
+  }],
+  eventStream: [{
+    seq: { type: Number, required: true },
+    timestamp: { type: Number, required: true },
+    type: {
+      type: String,
+      enum: ['user_message', 'system_message', 'action', 'observation', 'error', 'plan_update', 'thinking', 'response', 'complete'],
+      required: true,
+    },
+    content: { type: String, required: true },
+    metadata: {
+      type: Schema.Types.Mixed,
+      default: undefined,
+    },
   }],
   resources: [{
     type: { type: String, enum: ['vm', 'container'], required: true },
