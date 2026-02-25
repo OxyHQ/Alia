@@ -24,7 +24,7 @@ export function PersonalityStylePicker({
 
       <View className="flex-row flex-wrap gap-2.5">
         {PERSONALITY_STYLES.map((style) => {
-          const isSelected = selectedStyle === style.id;
+          const isSelected = (selectedStyle || "alia") === style.id;
           return (
             <Pressable
               key={style.id}
