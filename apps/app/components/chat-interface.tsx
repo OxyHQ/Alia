@@ -12,6 +12,7 @@ import { cn } from "@/lib/utils";
 import { ThinkingIndicator } from "@/components/thinking-indicator";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { AgentPlaceholder } from "@/components/ui/agent-placeholder";
+import { AliaFace, type AliaExpression } from "@/components/alia-face";
 import { Copy, ThumbsUp, ThumbsDown, Pencil, Check, Volume2, Square } from "lucide-react-native";
 import { useTTS } from "@/lib/hooks/use-tts";
 import Animated, {
@@ -288,11 +289,16 @@ export const ChatInterface = React.memo(function ChatInterface({ messages, scrol
                           ) : (m as any).source === 'voice' && (m as any).speaker === 'cohost' ? (
                             <Text className="text-xs text-indigo-400 mb-0.5">Cohost</Text>
                           ) : (
-                            <Image
-                              source={require("@/assets/images/logo.png")}
-                              style={{ width: 48, height: 20 }}
-                              contentFit="contain"
-                            />
+                            <AliaFace size={28} expression={(() => {
+                              const isLastAssistant = m === messages[messages.length - 1];
+                              const hasActiveTools = m.toolInvocations?.some(
+                                (t: ToolInvocation) => t.state === 'call' || t.state === 'partial-call'
+                              );
+                              if (hasActiveTools) return "Searching A" as AliaExpression;
+                              if (isLoading && isLastAssistant && !messageText) return "Thinking" as AliaExpression;
+                              if (isLoading && isLastAssistant && messageText.length > 0) return "Writing E" as AliaExpression;
+                              return "Idle A" as AliaExpression;
+                            })()} />
                           )}
                           <View className="w-full">
                             {(m as any).source === 'voice' ? (
