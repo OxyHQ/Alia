@@ -1,8 +1,18 @@
 /**
- * Agent Tools
+ * Agent Tools — Factory for building the prefixed tool set for agent sessions.
  *
- * Factory that builds the tool set available to autonomous agent sessions.
- * Includes built-in Alia tools + agent-specific tools (completeTask, hireAgent, container ops).
+ * All tools use consistent prefixes (Manus pattern):
+ *   browser_*  — Web operations
+ *   shell_*    — Container execution
+ *   file_*     — Container file ops
+ *   memory_*   — Persistent memory
+ *   comm_*     — Communications
+ *   plan_*     — Planning / task completion
+ *   agent_*    — Agent delegation
+ *   info_*     — Information (date, etc.)
+ *   port_*     — Port exposure
+ *   snapshot_* — Container snapshots
+ *   mcp_*      — MCP tools (already prefixed)
  */
 
 import { tool } from 'ai';
@@ -19,30 +29,43 @@ import { log } from './logger.js';
 import * as containerManager from './container-manager.js';
 import { Container } from '../models/container.js';
 import { ContainerTemplate } from '../models/container-template.js';
+import { TodoManager, type TodoStatus } from './agent/todo-manager.js';
+import { WorkspaceMemory } from './agent/workspace-memory.js';
 import type { IAgent } from '../models/agent.js';
 import type { IAgentSession } from '../models/agent-session.js';
 
-interface BuildToolsContext {
+export interface BuildToolsContext {
   agent: IAgent;
   session: IAgentSession;
   onComplete: (result: string) => void;
   onHireAgent?: (handle: string, task: string) => Promise<string>;
+  todoManager: TodoManager;
+  workspaceMemory: WorkspaceMemory;
 }
 
 export async function buildAgentTools(ctx: BuildToolsContext) {
-  const { agent, session, onComplete, onHireAgent } = ctx;
+  const { agent, session, onComplete, onHireAgent, todoManager, workspaceMemory } = ctx;
   const userId = session.userId.toString();
 
   const tools: Record<string, any> = {};
 
-  // ── Built-in tools ──
+  // ── Info tools ──
 
-  tools.getCurrentDate = getCurrentDateTool;
-  tools.webSearch = webSearchTool;
-  tools.browse = browseTool;
-  tools.webScraper = webScraperTool;
-  tools.saveMemory = saveUserMemoryTool(userId);
-  tools.sendTelegram = createSendTelegramTool(userId);
+  tools.info_date = getCurrentDateTool;
+
+  // ── Browser tools ──
+
+  tools.browser_search = webSearchTool;
+  tools.browser_browse = browseTool;
+  tools.browser_scrape = webScraperTool;
+
+  // ── Memory tools ──
+
+  tools.memory_save = saveUserMemoryTool(userId);
+
+  // ── Communication tools ──
+
+  tools.comm_telegram = createSendTelegramTool(userId);
 
   // ── Integration + MCP tools ──
 
@@ -51,9 +74,11 @@ export async function buildAgentTools(ctx: BuildToolsContext) {
       buildIntegrationTools(userId),
       buildMcpTools(userId),
     ]);
+
+    // Integration tools keep their names (already descriptive, e.g. github_searchRepos)
     Object.assign(tools, integrationTools);
 
-    // Wrap MCP tool executes with error handling (they don't have safeExecute)
+    // MCP tools already prefixed with mcp_*
     for (const [name, mcpTool] of Object.entries(mcpTools)) {
       if (mcpTool.execute) {
         const originalExecute = mcpTool.execute;
@@ -76,21 +101,32 @@ export async function buildAgentTools(ctx: BuildToolsContext) {
     log.agents.warn({ err, userId }, 'Failed to load integration/MCP tools for agent');
   }
 
-  // ── Agent-specific tools ──
+  // ── Plan tools ──
 
-  tools.updatePlan = tool({
-    description: 'Create or update your task plan. Write a structured checklist of steps. Mark completed steps with [x] and pending with [ ]. Call this at the start of a task and after completing each step.',
+  tools.plan_update_todo = tool({
+    description: 'Create or update your task plan. Provide the overall objective and a list of items with their status. Call this at the start to create a plan, and update it as you complete steps.',
     parameters: z.object({
-      plan: z.string().describe('The full updated plan as a markdown checklist'),
+      objective: z.string().describe('The overall objective of the task'),
+      items: z.array(z.object({
+        text: z.string().describe('Description of this step'),
+        status: z.enum(['pending', 'in_progress', 'completed', 'blocked']).describe('Current status'),
+      })).describe('List of task items'),
     }),
-    execute: async ({ plan }: { plan: string }) => {
-      session.plan = plan;
+    execute: async ({ objective, items }: { objective: string; items: Array<{ text: string; status: TodoStatus }> }) => {
+      todoManager.setItems(objective, items);
+
+      // Persist to session
+      session.plan = todoManager.toJSON();
       await session.save();
-      return { updated: true };
+
+      // Sync to workspace filesystem if available
+      await workspaceMemory.syncTodo(todoManager.serialize());
+
+      return { updated: true, progress: todoManager.progressSummary() };
     },
   });
 
-  tools.completeTask = tool({
+  tools.plan_complete = tool({
     description: 'Signal that the current task is complete. Call this when you have finished working and have a final result.',
     parameters: z.object({
       result: z.string().describe('The final result or summary of what was accomplished'),
@@ -101,8 +137,10 @@ export async function buildAgentTools(ctx: BuildToolsContext) {
     },
   });
 
+  // ── Agent delegation tools ──
+
   if (onHireAgent) {
-    tools.hireAgent = tool({
+    tools.agent_hire = tool({
       description: 'Hire another agent for a subtask. The agent will work autonomously and return the result.',
       parameters: z.object({
         agentHandle: z.string().describe('The handle of the agent to hire (e.g. @researcher)'),
@@ -119,7 +157,7 @@ export async function buildAgentTools(ctx: BuildToolsContext) {
       },
     });
 
-    tools.parallelResearch = tool({
+    tools.agent_parallel = tool({
       description: 'Run multiple research tasks in parallel. Each task is executed by a separate agent concurrently. Use for tasks like "analyze these 5 repos" or "research these competitors". Max 10 tasks.',
       parameters: z.object({
         tasks: z.array(z.object({
@@ -154,23 +192,22 @@ export async function buildAgentTools(ctx: BuildToolsContext) {
     });
   }
 
-  // ── Container Tools (only if Docker host is configured) ──
+  // ── Container / Shell / File tools (only if Docker host is configured) ──
 
   if (containerManager.isContainerSystemAvailable()) {
-    tools.createContainer = tool({
+    tools.shell_create_container = tool({
       description: 'Create a Docker container for code execution. Choose the right image for the project type. The container starts with a /workspace directory.',
       parameters: z.object({
         image: z.enum(['node:22', 'node:20', 'node:18', 'python:3.12', 'python:3.11', 'ubuntu:24.04', 'ubuntu:22.04', 'golang:1.22', 'ruby:3.3', 'rust:1.77'])
           .default('ubuntu:22.04')
-          .describe('Base image. Use node:22 for JS/TS projects, python:3.12 for Python, ubuntu for general use'),
+          .describe('Base image. Use node:22 for JS/TS, python:3.12 for Python, ubuntu for general use'),
         name: z.string().optional().describe('Container name (auto-generated if omitted)'),
         size: z.enum(['small', 'medium', 'large']).default('small')
           .describe('small=1CPU/512MB, medium=2CPU/2GB, large=4CPU/4GB'),
         persistent: z.boolean().default(false)
-          .describe('If true, container persists after task completion (24h inactivity timeout). If false, destroyed on session end (30min timeout)'),
+          .describe('If true, container persists after task completion (24h timeout). If false, destroyed on session end (30min timeout)'),
       }),
       execute: async ({ image, name, size, persistent }) => {
-        // Check container limit (reuses maxVMs config)
         const activeContainers = session.resources.filter(r => r.status === 'active');
         if (activeContainers.length >= session.config.maxVMs) {
           return { error: `Container limit reached (${session.config.maxVMs}). Destroy an existing container first.` };
@@ -189,7 +226,6 @@ export async function buildAgentTools(ctx: BuildToolsContext) {
             },
           });
 
-          // Track resource in session
           session.resources.push({
             type: 'container',
             resourceId: info.containerId,
@@ -198,7 +234,6 @@ export async function buildAgentTools(ctx: BuildToolsContext) {
           });
           await session.save();
 
-          // Track in Container model
           await Container.create({
             containerId: info.containerId,
             name: info.name,
@@ -211,6 +246,9 @@ export async function buildAgentTools(ctx: BuildToolsContext) {
             persistent: persistent || false,
           });
 
+          // Provision workspace memory structure
+          await workspaceMemory.provision(info.containerId);
+
           return { containerId: info.containerId, name: info.name, image };
         } catch (err: any) {
           log.agents.error({ err }, 'Container creation error');
@@ -219,15 +257,14 @@ export async function buildAgentTools(ctx: BuildToolsContext) {
       },
     });
 
-    tools.exec = tool({
+    tools.shell_exec = tool({
       description: 'Execute a shell command in a container. Returns stdout, stderr, and exit code. Working directory is /workspace.',
       parameters: z.object({
-        containerId: z.string().describe('The container ID returned by createContainer'),
+        containerId: z.string().describe('The container ID returned by shell_create_container'),
         command: z.string().describe('The shell command to execute'),
         timeout: z.number().optional().default(30).describe('Timeout in seconds (max 300)'),
       }),
       execute: async ({ containerId, command, timeout }) => {
-        // Validate container belongs to this session
         const resource = session.resources.find(r => r.resourceId === containerId && r.status === 'active');
         if (!resource) {
           return { error: 'Container not found or not active in this session' };
@@ -235,13 +272,7 @@ export async function buildAgentTools(ctx: BuildToolsContext) {
 
         try {
           const result = await containerManager.execInContainer(containerId, command, Math.min(timeout || 30, 300));
-
-          // Update activity tracking
-          await Container.updateOne(
-            { containerId },
-            { lastActivityAt: new Date() },
-          );
-
+          await Container.updateOne({ containerId }, { lastActivityAt: new Date() });
           return result;
         } catch (err: any) {
           return { error: err.message || 'Command execution failed' };
@@ -249,7 +280,7 @@ export async function buildAgentTools(ctx: BuildToolsContext) {
       },
     });
 
-    tools.writeFile = tool({
+    tools.file_write = tool({
       description: 'Write content to a file inside a container. Creates parent directories automatically.',
       parameters: z.object({
         containerId: z.string().describe('The container ID'),
@@ -269,7 +300,7 @@ export async function buildAgentTools(ctx: BuildToolsContext) {
       },
     });
 
-    tools.readFile = tool({
+    tools.file_read = tool({
       description: 'Read a file from a container.',
       parameters: z.object({
         containerId: z.string().describe('The container ID'),
@@ -288,7 +319,7 @@ export async function buildAgentTools(ctx: BuildToolsContext) {
       },
     });
 
-    tools.listFiles = tool({
+    tools.file_list = tool({
       description: 'List files and directories in a container path.',
       parameters: z.object({
         containerId: z.string().describe('The container ID'),
@@ -307,11 +338,11 @@ export async function buildAgentTools(ctx: BuildToolsContext) {
       },
     });
 
-    tools.exposePort = tool({
+    tools.port_expose = tool({
       description: 'Make a port accessible via a public HTTPS preview URL. Use this when developing web apps so the user can see the running application.',
       parameters: z.object({
         containerId: z.string().describe('The container ID'),
-        port: z.number().describe('The port the app is listening on inside the container (e.g. 3000, 8080)'),
+        port: z.number().describe('The port the app is listening on (e.g. 3000, 8080)'),
       }),
       execute: async ({ containerId, port }) => {
         const resource = session.resources.find(r => r.resourceId === containerId && r.status === 'active');
@@ -319,20 +350,12 @@ export async function buildAgentTools(ctx: BuildToolsContext) {
 
         try {
           const previewUrl = await containerManager.exposeContainerPort(containerId, port);
-
-          // Update Container model
           await Container.updateOne(
             { containerId },
-            {
-              previewUrl,
-              $addToSet: { exposedPorts: port },
-            },
+            { previewUrl, $addToSet: { exposedPorts: port } },
           );
-
-          // Update session resource
           (resource as any).previewUrl = previewUrl;
           await session.save();
-
           return { previewUrl, port };
         } catch (err: any) {
           return { error: err.message };
@@ -340,8 +363,8 @@ export async function buildAgentTools(ctx: BuildToolsContext) {
       },
     });
 
-    tools.snapshotContainer = tool({
-      description: 'Save the current container state as a reusable template/snapshot. Useful for preserving a configured environment for later use.',
+    tools.snapshot_create = tool({
+      description: 'Save the current container state as a reusable template/snapshot. Useful for preserving a configured environment.',
       parameters: z.object({
         containerId: z.string().describe('The container ID'),
         name: z.string().describe('Name for the snapshot (alphanumeric, dashes, dots, underscores)'),
@@ -352,14 +375,9 @@ export async function buildAgentTools(ctx: BuildToolsContext) {
         if (!resource) return { error: 'Container not found or not active' };
 
         try {
-          // Sanitize tag
           const tag = name.replace(/[^a-zA-Z0-9._-]/g, '-').toLowerCase();
           const imageTag = await containerManager.snapshotContainer(containerId, tag);
-
-          // Get container info for base image
           const containerDoc = await Container.findOne({ containerId });
-
-          // Create template record
           const template = await ContainerTemplate.create({
             name,
             description,
@@ -368,7 +386,6 @@ export async function buildAgentTools(ctx: BuildToolsContext) {
             userId: session.userId,
             agentId: session.agentId,
           });
-
           return { templateId: template._id.toString(), name, imageTag };
         } catch (err: any) {
           return { error: err.message };
@@ -376,7 +393,7 @@ export async function buildAgentTools(ctx: BuildToolsContext) {
       },
     });
 
-    tools.destroyContainer = tool({
+    tools.shell_destroy_container = tool({
       description: 'Destroy a container and free its resources. Always destroy containers when you are done with them.',
       parameters: z.object({
         containerId: z.string().describe('The container ID to destroy'),
@@ -384,20 +401,15 @@ export async function buildAgentTools(ctx: BuildToolsContext) {
       execute: async ({ containerId }) => {
         try {
           await containerManager.destroyContainer(containerId);
-
-          // Mark resource as destroyed in session
           const resource = session.resources.find(r => r.resourceId === containerId);
           if (resource) {
             resource.status = 'destroyed';
             await session.save();
           }
-
-          // Update Container model
           await Container.updateOne(
             { containerId },
             { status: 'destroyed', destroyedAt: new Date() },
           );
-
           return { destroyed: true, containerId };
         } catch (err: any) {
           return { error: err.message };
@@ -420,13 +432,10 @@ export async function cleanupSessionResources(session: IAgentSession): Promise<v
       try {
         await containerManager.destroyContainer(resource.resourceId);
         resource.status = 'destroyed';
-
-        // Update Container model
         await Container.updateOne(
           { containerId: resource.resourceId },
           { status: 'destroyed', destroyedAt: new Date() },
         );
-
         log.agents.info({ containerId: resource.resourceId }, 'Cleaned up agent container');
       } catch (err) {
         log.agents.warn({ err, containerId: resource.resourceId }, 'Failed to clean up container');
