@@ -26,6 +26,7 @@ export function useTTS() {
   } = useTTSStore();
 
   const voicePref = useUserDataStore(s => s.memory?.preferences?.voice);
+  const tonePref = useUserDataStore(s => s.memory?.preferences?.tone);
   const playerRef = useRef<AudioPlayer | null>(null);
 
   // Simulated wave amplitude for visualization
@@ -52,6 +53,12 @@ export function useTTS() {
   const getTTSVoice = useCallback(() => {
     return voicePref === 'male' ? 'echo' : 'nova';
   }, [voicePref]);
+
+  const getTTSSpeed = useCallback(() => {
+    if (tonePref === 'brief') return 1.15;
+    if (tonePref === 'chill') return 0.9;
+    return 1.0;
+  }, [tonePref]);
 
   const releasePlayer = useCallback(() => {
     try {
@@ -133,6 +140,7 @@ export function useTTS() {
           model: 'alia-v1-voice',
           input: text,
           voice: getTTSVoice(),
+          speed: getTTSSpeed(),
           conversationId,
           messageId,
         }),
@@ -152,7 +160,7 @@ export function useTTS() {
       console.error('[TTS] Error:', e);
       setError(e.message || 'Failed to read aloud');
     }
-  }, [activeMessageId, playbackState, oxyServices, getTTSVoice, stop, playFromUrl, setActiveMessage, setPlaybackState, setError]);
+  }, [activeMessageId, playbackState, oxyServices, getTTSVoice, getTTSSpeed, stop, playFromUrl, setActiveMessage, setPlaybackState, setError]);
 
   // Cleanup on unmount
   useEffect(() => {
