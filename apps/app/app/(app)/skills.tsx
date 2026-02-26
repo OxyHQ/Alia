@@ -1,5 +1,5 @@
-import { useEffect, useMemo } from 'react';
-import { View, ScrollView, Pressable, ActivityIndicator } from 'react-native';
+import { useEffect, useMemo, useState, useCallback } from 'react';
+import { View, ScrollView, Pressable, RefreshControl } from 'react-native';
 import { Text } from '@/components/ui/text';
 import { Button } from '@/components/ui/button';
 import { Plus } from 'lucide-react-native';
@@ -8,6 +8,7 @@ import { useRouter } from 'expo-router';
 import { useSkillsStore, type Skill } from '@/lib/stores/skills-store';
 import { useI18nStore } from '@/lib/stores/i18n-store';
 import { SkillCover } from '@/components/ui/skill-cover';
+import { Skeleton } from '@/components/ui/skeleton';
 
 function SkillBook({ skill, onPress }: { skill: Skill; onPress: () => void }) {
   return (
@@ -48,6 +49,14 @@ export default function SkillsScreen() {
     loadSkills({ language: lang });
   }, [locale, loadSkills]);
 
+  const [refreshing, setRefreshing] = useState(false);
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    const lang = locale.split('-')[0];
+    await loadSkills({ language: lang });
+    setRefreshing(false);
+  }, [locale, loadSkills]);
+
   const featured = useMemo(() => skills.filter((s) => s.category === 'featured'), [skills]);
   const community = useMemo(() => skills.filter((s) => s.category === 'community'), [skills]);
   const recent = useMemo(() => skills.filter((s) => s.category === 'recent'), [skills]);
@@ -58,7 +67,11 @@ export default function SkillsScreen() {
 
   return (
     <View className="flex-1 bg-background">
-      <ScrollView className="flex-1" showsVerticalScrollIndicator={false}>
+      <ScrollView
+        className="flex-1"
+        showsVerticalScrollIndicator={false}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+      >
         {/* Header */}
         <View className="px-5 pt-6 pb-4">
           <View className="flex-row items-center justify-between">
@@ -78,10 +91,25 @@ export default function SkillsScreen() {
           </Text>
         </View>
 
-        {loading ? (
-          <View className="py-12 items-center">
-            <ActivityIndicator />
-          </View>
+        {loading && skills.length === 0 ? (
+          <>
+            {Array.from({ length: 3 }).map((_, shelfIdx) => (
+              <View key={shelfIdx} className="mb-5">
+                <View className="px-5 mb-2">
+                  <Skeleton style={{ width: 80, height: 10, borderRadius: 6 }} />
+                </View>
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={{ paddingHorizontal: 20, gap: 10 }}
+                >
+                  {Array.from({ length: 4 }).map((_, i) => (
+                    <Skeleton key={i} style={{ width: 110, height: 160, borderRadius: 8 }} />
+                  ))}
+                </ScrollView>
+              </View>
+            ))}
+          </>
         ) : (
           <>
             <ShelfSection title="Featured" skills={featured} onPressSkill={handlePressSkill} />
