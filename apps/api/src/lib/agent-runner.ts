@@ -372,24 +372,20 @@ export async function runAgentSession(sessionId: string): Promise<void> {
 
       eventStream.append('thinking', `Step ${totalSteps + 1}: Using model ${modelId} in state ${stateMachine.current()}`);
 
-      // Resolve model provider
-      const resolved = await resolveModel(modelId, undefined, failedKeyIds.size > 0 ? failedKeyIds : undefined);
-      if (!resolved) {
-        const fallback = modelId !== 'alia-lite'
-          ? await resolveModel('alia-lite', undefined, failedKeyIds.size > 0 ? failedKeyIds : undefined)
-          : null;
-        if (!fallback) {
-          eventStream.append('error', 'No AI models available');
-          stateMachine.transition('error');
-          session.status = 'failed';
-          session.result = 'No AI models available';
-          try { await session.save(); } catch { /* ignore save errors */ }
-          return;
-        }
+      // Resolve model provider (with alia-lite fallback)
+      const skipKeys = failedKeyIds.size > 0 ? failedKeyIds : undefined;
+      let activeResolved = await resolveModel(modelId, undefined, skipKeys);
+      if (!activeResolved && modelId !== 'alia-lite') {
+        activeResolved = await resolveModel('alia-lite', undefined, skipKeys);
       }
-
-      const activeResolved = resolved || await resolveModel('alia-lite', undefined, failedKeyIds.size > 0 ? failedKeyIds : undefined);
-      if (!activeResolved) break;
+      if (!activeResolved) {
+        eventStream.append('error', 'No AI models available');
+        stateMachine.transition('error');
+        session.status = 'failed';
+        session.result = 'No AI models available';
+        try { await session.save(); } catch { /* ignore save errors */ }
+        return;
+      }
 
       const model = getAIModel(activeResolved.keyConfig);
       const startMs = Date.now();
@@ -688,9 +684,12 @@ function mapEventTypeToActivity(type: string): string {
     case 'observation':    return 'tool_result';
     case 'error':          return 'error';
     case 'plan_update':    return 'system';
+    case 'plan_progress':  return 'plan_progress';
     case 'thinking':       return 'thinking';
     case 'response':       return 'response';
     case 'complete':       return 'complete';
+    case 'screenshot':     return 'screenshot';
+    case 'file_change':    return 'file_change';
     default:               return 'system';
   }
 }

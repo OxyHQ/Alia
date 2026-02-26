@@ -12,7 +12,7 @@
  *
  * Design principles (from Manus):
  *   - All 5 actions ALWAYS present in context (KV-cache stability)
- *   - Simple schemas with .passthrough() (provider-agnostic)
+ *   - Simple schemas (strict validation, no .passthrough())
  *   - Raw text returns (not structured JSON)
  *   - State instructions via prompt, not tool removal
  */
