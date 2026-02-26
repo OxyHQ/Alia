@@ -8,7 +8,6 @@
     "icon": "./assets/icon-512.png",
     "scheme": "alia",
     "userInterfaceStyle": "automatic",
-    "newArchEnabled": true,
     "splash": {
       "image": "./assets/icon-512.png",
       "resizeMode": "contain",
@@ -18,7 +17,9 @@
       "supportsTablet": true,
       "bundleIdentifier": "onl.alia.app",
       "infoPlist": {
-        "UIBackgroundModes": ["audio"]
+        "UIBackgroundModes": [
+          "audio"
+        ]
       }
     },
     "android": {
@@ -28,7 +29,6 @@
         "backgroundColor": "#ca52e9"
       },
       "package": "onl.alia.app",
-      "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
       "permissions": [
         "android.permission.RECORD_AUDIO",
@@ -43,7 +43,11 @@
     "plugins": [
       "expo-router",
       "expo-localization",
-      "expo-audio"
+      "expo-audio",
+      "expo-font",
+      "expo-image",
+      "expo-secure-store",
+      "expo-web-browser"
     ],
     "experiments": {
       "typedRoutes": true

@@ -430,7 +430,7 @@ export const ChatInterface = React.memo(function ChatInterface({ messages, scrol
                         <View className="flex-col items-end gap-0.5">
                           {editingMessageId === m.id ? (
                             <View className="max-w-[85%] sm:max-w-[75%] rounded-[24px] overflow-hidden border border-border">
-                              <BlurView intensity={60} tint="default" experimentalBlurMethod="dimezisBlurView" style={StyleSheet.absoluteFill} />
+                              <BlurView intensity={60} tint="default" style={StyleSheet.absoluteFill} />
                               <View className="px-4 py-2">
                                 <TextInput
                                   value={editedContent}
@@ -457,7 +457,7 @@ export const ChatInterface = React.memo(function ChatInterface({ messages, scrol
                             </View>
                           ) : (
                             <View className="max-w-[85%] sm:max-w-[75%] rounded-[24px] overflow-hidden border border-border">
-                              <BlurView intensity={60} tint="default" experimentalBlurMethod="dimezisBlurView" style={StyleSheet.absoluteFill} />
+                              <BlurView intensity={60} tint="default" style={StyleSheet.absoluteFill} />
                               <View className="px-4 py-2">
                                 {/* Inline images from multi-part content */}
                                 {messageImages.length > 0 && (
