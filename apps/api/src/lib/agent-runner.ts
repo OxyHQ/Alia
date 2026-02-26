@@ -176,13 +176,10 @@ function buildContextMessages(
     tailParts.push(stateInstruction);
   }
 
-  if (tailParts.length > 0) {
-    messages.push({ role: 'system', content: tailParts.join('\n\n') });
-  }
-
-  // 4. Continuation prompt with diversity
+  // 4. Continuation prompt with diversity (includes context tail for attention manipulation)
   const continuationPrompt = CONTINUATION_PROMPTS[iteration % CONTINUATION_PROMPTS.length];
-  messages.push({ role: 'user', content: continuationPrompt });
+  const tailContent = tailParts.length > 0 ? tailParts.join('\n\n') + '\n\n' : '';
+  messages.push({ role: 'user', content: tailContent + continuationPrompt });
 
   return messages;
 }
@@ -448,7 +445,7 @@ export async function runAgentSession(sessionId: string): Promise<void> {
               for (const tr of (step as any).toolResults) {
                 const resultStr = typeof tr.result === 'string'
                   ? tr.result
-                  : JSON.stringify(tr.result);
+                  : (tr.result != null ? JSON.stringify(tr.result) : '');
 
                 const offloaded = await workspaceMemory.maybeOffload(resultStr, eventStream.currentSeq());
 

@@ -154,7 +154,7 @@ export async function buildActions(ctx: ActionContext) {
       items: z.array(z.string()).optional().describe('List of task steps as strings (update action)'),
       completed_items: z.array(z.number()).optional().describe('1-based indices of completed items (update action)'),
       result: z.string().optional().describe('Final result summary (complete action)'),
-    }).passthrough(),
+    }),
     execute: async ({ action, objective, items, completed_items, result }: {
       action: 'update' | 'complete';
       objective?: string; items?: string[]; completed_items?: number[]; result?: string;
