@@ -538,10 +538,8 @@ router.post('/', async (req: Request, res: Response) => {
       log.v1.info({ skillTitle: (skill as any).title }, 'Skill activated');
     }
 
-    // Title generation instruction (only for direct user sessions in the app, not API keys or voice)
-    if (isDirectUserSession) {
-      systemMessage += '\n\nEnd every response with `[ALIA_TITLE]Short Title[/ALIA_TITLE]` (max 6 words, in the response language).';
-    }
+    // Title generation is handled asynchronously via generateConversationTitle()
+    // after conversation save — no in-response tags needed.
 
     // Brief language reminder at the end (recency effect)
     systemMessage += '\n\nRemember: respond in the same language the user writes to you.';
