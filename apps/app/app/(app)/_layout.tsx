@@ -147,6 +147,13 @@ export default function AppLayout() {
               }}
             />
             <Drawer.Screen
+              name="tasks"
+              options={{
+                drawerItemStyle: { display: 'none' },
+                title: 'Tasks',
+              }}
+            />
+            <Drawer.Screen
               name="automations"
               options={{
                 drawerItemStyle: { display: 'none' },

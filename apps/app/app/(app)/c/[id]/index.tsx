@@ -83,6 +83,7 @@ const ChatConversationPage = () => {
         onRemoveRole={() => setActiveRoleId(undefined)}
         disabled={!!usageLimitError}
         voice={voice}
+        agentId={agentId}
       />
       <UsageLimitDialog error={usageLimitError} onDismiss={clearError} />
     </>

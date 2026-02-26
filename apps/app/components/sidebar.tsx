@@ -36,6 +36,7 @@ import {
   Gift,
   Smartphone,
   Keyboard,
+  ListTodo,
   type LucideIcon,
 } from "lucide-react-native";
 import { useTranslation } from "@/hooks/useTranslation";
@@ -201,6 +202,10 @@ const ChatSidebar = React.memo(function ChatSidebar() {
 
   const handleRoles = React.useCallback(() => {
     router.push("/(app)/roles");
+  }, [router]);
+
+  const handleTasks = React.useCallback(() => {
+    router.push("/(app)/tasks" as any);
   }, [router]);
 
   const handleAutomations = React.useCallback(() => {
@@ -528,6 +533,14 @@ const ChatSidebar = React.memo(function ChatSidebar() {
         >
           <Library size={16} className="text-muted-foreground" />
           <Text className="text-sm md:text-xs">{t('sidebar.library')}</Text>
+        </Button>
+        <Button
+          variant="ghost"
+          className="h-10 md:h-8 flex-row items-center justify-start gap-2 rounded-full px-3 md:px-2 w-full"
+          onPress={handleTasks}
+        >
+          <ListTodo size={16} className="text-muted-foreground" />
+          <Text className="text-sm md:text-xs">Tasks</Text>
         </Button>
         <Button
           variant="ghost"

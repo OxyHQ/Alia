@@ -20,6 +20,24 @@ const DEFAULT_TIMEOUT = 30;
 const MAX_TIMEOUT = 300;
 const MAX_OUTPUT_CHARS = 16_000;
 
+/** Map of task keyword patterns to preferred Docker images */
+const IMAGE_HINTS: Array<{ pattern: RegExp; image: string }> = [
+  { pattern: /\b(node|npm|yarn|bun|javascript|typescript|react|next\.?js)\b/i, image: 'node:20' },
+  { pattern: /\b(rust|cargo)\b/i, image: 'rust:latest' },
+  { pattern: /\b(go|golang)\b/i, image: 'golang:latest' },
+  { pattern: /\b(java|maven|gradle|spring)\b/i, image: 'eclipse-temurin:21' },
+  { pattern: /\b(ruby|rails|gem)\b/i, image: 'ruby:latest' },
+];
+
+/** Infer Docker image from task description */
+export function inferImage(task: string, preferredImage?: string): string {
+  if (preferredImage) return preferredImage;
+  for (const { pattern, image } of IMAGE_HINTS) {
+    if (pattern.test(task)) return image;
+  }
+  return DEFAULT_IMAGE;
+}
+
 export class TerminalSession {
   private containerId: string | null = null;
   private cwd = '/workspace';
@@ -28,6 +46,7 @@ export class TerminalSession {
   private sessionId: string;
   private agentId: string;
   private userId: string;
+  private image: string;
   private workspaceMemory: WorkspaceMemory;
 
   constructor(opts: {
@@ -35,11 +54,13 @@ export class TerminalSession {
     agentId: string;
     userId: string;
     workspaceMemory: WorkspaceMemory;
+    image?: string;
   }) {
     this.sandbox = getSandboxProvider();
     this.sessionId = opts.sessionId;
     this.agentId = opts.agentId;
     this.userId = opts.userId;
+    this.image = opts.image || DEFAULT_IMAGE;
     this.workspaceMemory = opts.workspaceMemory;
   }
 
@@ -49,7 +70,7 @@ export class TerminalSession {
 
     const pool = getContainerPool();
     const info = await pool.claim({
-      image: DEFAULT_IMAGE,
+      image: this.image,
       size: 'small',
       labels: {
         'alia.session': this.sessionId,
@@ -67,7 +88,7 @@ export class TerminalSession {
       sessionId: this.sessionId,
       agentId: this.agentId,
       userId: this.userId,
-      image: DEFAULT_IMAGE,
+      image: this.image,
       size: 'small',
       status: 'running',
       persistent: false,
@@ -155,6 +176,50 @@ export class TerminalSession {
       await this.sandbox.exec(id, `mkdir -p ${shellEscape(dir)}`, 10);
     }
     await this.sandbox.writeFile(id, absPath, content);
+  }
+
+  /**
+   * Mark the container as idle instead of destroying it.
+   * The container persists for `ttlHours` so the user can browse workspace files
+   * or resume the session. A background cleanup job handles expiry.
+   */
+  async idle(ttlHours = 24): Promise<string | null> {
+    if (!this.containerId) return null;
+
+    const id = this.containerId;
+    try {
+      const expiresAt = new Date(Date.now() + ttlHours * 3600_000);
+      await Container.updateOne(
+        { containerId: id },
+        { status: 'idle', persistent: true, expiresAt },
+      );
+      log.agents.info({ containerId: id, ttlHours }, 'Terminal: container set to idle (persistent)');
+    } catch (err) {
+      log.agents.warn({ err, containerId: id }, 'Terminal: failed to mark container idle');
+    }
+
+    // Don't null out containerId — session document will store it
+    return id;
+  }
+
+  /**
+   * Reattach to an existing container (e.g. when resuming a session).
+   */
+  async reattach(containerId: string): Promise<boolean> {
+    try {
+      // Verify container still exists and is running/idle
+      const record = await Container.findOne({ containerId, status: { $in: ['running', 'idle'] } });
+      if (!record) return false;
+
+      this.containerId = containerId;
+      // Mark as running again
+      await Container.updateOne({ containerId }, { status: 'running', lastActivityAt: new Date() });
+      log.agents.info({ containerId }, 'Terminal: reattached to existing container');
+      return true;
+    } catch (err) {
+      log.agents.warn({ err, containerId }, 'Terminal: failed to reattach');
+      return false;
+    }
   }
 
   /** Destroy the container and clean up */

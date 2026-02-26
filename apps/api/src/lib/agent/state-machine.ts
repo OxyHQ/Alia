@@ -84,7 +84,12 @@ const STATE_INSTRUCTIONS: Record<AgentState, string> = {
   PLANNING: 'You are in PLANNING state. Create a plan using the plan action before taking other actions.',
   ACTING: '', // All actions available, no restrictions
   OBSERVING: '', // Passive state — no instruction needed
-  REFLECTING: 'Review the result of your last action. Update your plan, then continue.',
+  REFLECTING: `Review the result of your last action. If it failed, analyze WHY it failed:
+1. Is there a different tool or approach that could achieve the same goal?
+2. Is the task specification ambiguous — can you reframe it?
+3. Can you break this step into smaller sub-steps?
+4. Should you skip this step and move on to the next one?
+Update your plan with the new approach, then continue.`,
   COMPLETED: '',
   FAILED: '',
   CANCELLED: '',

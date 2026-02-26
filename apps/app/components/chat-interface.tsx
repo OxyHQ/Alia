@@ -32,6 +32,10 @@ import { useUIStore } from "@/lib/stores/ui-store";
 import { useStore } from "@/lib/globalStore";
 import type { ToolInvocation } from "@/lib/types/messages";
 import { useScrollToBottom } from "@/hooks/use-scroll-to-bottom";
+import { AgentTaskCard } from "@/components/agent-task-card";
+import { AgentResultCard } from "@/components/agent-result-card";
+import { ResearchProgressCard, type ResearchProgressData } from "@/components/research-progress-card";
+import type { AgentActivityState } from "@/lib/hooks/use-agent-activity";
 
 type MessagePart = {
   type: string;
@@ -71,6 +75,8 @@ type ChatInterfaceProps = {
   isVoiceActive?: boolean;
   voiceAgentState?: 'idle' | 'listening' | 'thinking' | 'speaking';
   onAtBottomChange?: (isAtBottom: boolean) => void;
+  agentActivity?: AgentActivityState | null;
+  agentSessionId?: string | null;
 };
 
 // Helper function to extract and process text content for the app
@@ -128,7 +134,7 @@ function ToolBullet({ isRunning }: { isRunning: boolean }) {
   );
 }
 
-export const ChatInterface = React.memo(function ChatInterface({ messages, scrollViewRef, isLoading, onSuggestionPress, onEditMessage, onCopyMessage, bottomPadding = 160, isVoiceActive = false, voiceAgentState, onAtBottomChange }: ChatInterfaceProps) {
+export const ChatInterface = React.memo(function ChatInterface({ messages, scrollViewRef, isLoading, onSuggestionPress, onEditMessage, onCopyMessage, bottomPadding = 160, isVoiceActive = false, voiceAgentState, onAtBottomChange, agentActivity, agentSessionId }: ChatInterfaceProps) {
     const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
     const [editedContent, setEditedContent] = useState("");
     const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
@@ -307,6 +313,11 @@ export const ChatInterface = React.memo(function ChatInterface({ messages, scrol
                       </Pressable>
                     );
                   })}
+
+                  {/* Deep Research Progress */}
+                  {m.role === "assistant" && (m as any).researchProgress && (
+                    <ResearchProgressCard progress={(m as any).researchProgress as ResearchProgressData} />
+                  )}
 
                   {/* Thinking Content (Extended Thinking Mode) */}
                   {m.role === "assistant" && (m as any).thinking && (
@@ -487,6 +498,18 @@ export const ChatInterface = React.memo(function ChatInterface({ messages, scrol
               );
             })}
           </View>
+
+          {/* Agent execution — in-progress card or completed result card */}
+          {agentActivity && agentActivity.eventCount > 0 && (
+            agentActivity.isComplete && agentSessionId ? (
+              <AgentResultCard
+                activity={agentActivity}
+                sessionId={agentSessionId}
+              />
+            ) : (
+              <AgentTaskCard activity={agentActivity} />
+            )
+          )}
 
           {/* Standalone ThinkingIndicator for voice mode — shows when AI is thinking
               but there's no pending assistant message yet (e.g. right after user speaks) */}

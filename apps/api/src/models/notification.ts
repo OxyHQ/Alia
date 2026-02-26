@@ -6,7 +6,8 @@ export type NotificationType =
   | 'daily_briefing'
   | 'price_alert'
   | 'integration_event'
-  | 'reminder';
+  | 'reminder'
+  | 'agent_task_complete';
 
 export type NotificationChannel = 'push' | 'telegram' | 'discord' | 'whatsapp' | 'slack' | 'in_app';
 export type NotificationStatus = 'pending' | 'sent' | 'read' | 'dismissed';

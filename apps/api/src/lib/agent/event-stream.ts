@@ -26,7 +26,10 @@ export type EventType =
   | 'plan_update'
   | 'thinking'
   | 'response'
-  | 'complete';
+  | 'complete'
+  | 'screenshot'
+  | 'plan_progress'
+  | 'file_change';
 
 export interface EventStreamEntry {
   seq: number;
@@ -71,6 +74,8 @@ export class EventStream {
     type: EventType,
     content: string,
     metadata?: EventStreamEntry['metadata'],
+    /** Structured data forwarded to Socket.IO but NOT stored in the event stream (to avoid bloating context). */
+    socketData?: AgentActivityEvent['data'],
   ): EventStreamEntry {
     const entry: EventStreamEntry = {
       seq: this.seq++,
@@ -94,6 +99,7 @@ export class EventStream {
         timestamp: entry.timestamp,
         sessionId: this.sessionId,
         metadata: metadata ? { toolName: metadata.toolName, args: metadata.args, duration: metadata.durationMs } : undefined,
+        data: socketData,
       });
     }
 
@@ -282,6 +288,9 @@ function entryPrefix(type: EventType): string {
     case 'thinking':       return '## Thinking';
     case 'response':       return '## Response';
     case 'complete':       return '## Complete';
+    case 'screenshot':     return '## Screenshot';
+    case 'plan_progress':  return '## Plan Progress';
+    case 'file_change':    return '## File Change';
   }
 }
 
@@ -296,5 +305,8 @@ function mapEventTypeToActivity(type: EventType): AgentActivityEvent['type'] {
     case 'thinking':       return 'thinking';
     case 'response':       return 'response';
     case 'complete':       return 'complete';
+    case 'screenshot':     return 'screenshot';
+    case 'plan_progress':  return 'plan_progress';
+    case 'file_change':    return 'file_change';
   }
 }

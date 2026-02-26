@@ -63,6 +63,8 @@ import { initChannels } from './lib/channels/index.js';
 import { initSocket } from './socket.js';
 // MCP relay for local MCP tool calls via WebSocket
 import { initMcpRelay, shutdownMcpRelay } from './lib/mcp-relay.js';
+// Task queue for async agent sessions (BullMQ + Redis)
+import { initTaskQueue, startWorker, shutdownTaskQueue } from './lib/task-queue.js';
 
 // Fix for ES Modules __dirname
 const __filename = fileURLToPath(import.meta.url);
@@ -327,6 +329,10 @@ connectDB()
       startTriggerScheduler().catch((err) => console.error('[Triggers] Scheduler startup error:', err));
       // Pre-warm TLS connections to AI providers (non-blocking)
       warmupProviders().catch((err) => console.error('[Warmup] Provider warmup error:', err));
+      // Initialize task queue for async agent sessions (non-blocking)
+      initTaskQueue()
+        .then(() => startWorker())
+        .catch((err) => console.error('[TaskQueue] Startup error:', err));
     });
 
     // Graceful shutdown handler
@@ -346,6 +352,9 @@ connectDB()
       forceTimeout.unref(); // Don't keep the process alive for this timer
 
       try {
+        // Close task queue
+        await shutdownTaskQueue();
+
         // Close MCP relay connections
         shutdownMcpRelay();
 
