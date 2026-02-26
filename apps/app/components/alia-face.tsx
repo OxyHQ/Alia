@@ -13,6 +13,7 @@ import Animated, {
   Easing,
 } from "react-native-reanimated";
 import { Text } from "@/components/ui/text";
+import { useColorScheme } from "@/lib/useColorScheme";
 
 // ─── Animated SVG wrappers ──────────────────────────────────────────────────
 
@@ -130,6 +131,11 @@ export function AliaFace({
   size = 120,
   showLabel = false,
 }: AliaFaceProps) {
+  const { isDarkColorScheme, colors } = useColorScheme();
+  const strokeColor = isDarkColorScheme ? "#ffffff" : "#000000";
+  const circleBg = colors.background;
+  const circleBorder = colors.border;
+
   const initial = EXPRESSIONS[DEFAULT_EXPRESSION];
 
   // ── Expression shared values (24 total) ──
@@ -340,11 +346,11 @@ export function AliaFace({
           width: size,
           height: size,
           borderRadius: size / 2,
-          backgroundColor: "#FFFFFF",
+          backgroundColor: circleBg,
           alignItems: "center",
           justifyContent: "center",
           borderWidth: 1,
-          borderColor: "rgba(0,0,0,0.08)",
+          borderColor: circleBorder,
         }}
       >
         <Animated.View style={breatheStyle}>
@@ -356,7 +362,7 @@ export function AliaFace({
             {/* Left brow */}
             <AnimatedPath
               animatedProps={leftBrowProps}
-              stroke="black"
+              stroke={strokeColor}
               strokeWidth={15}
               strokeLinecap="round"
               fill="none"
@@ -365,19 +371,19 @@ export function AliaFace({
             {/* Left eye */}
             <AnimatedEllipse
               animatedProps={leftEyeProps}
-              fill="black"
+              fill={strokeColor}
             />
 
             {/* Right eye */}
             <AnimatedEllipse
               animatedProps={rightEyeProps}
-              fill="black"
+              fill={strokeColor}
             />
 
             {/* Nose + right brow */}
             <AnimatedPath
               animatedProps={noseBrowProps}
-              stroke="black"
+              stroke={strokeColor}
               strokeWidth={15}
               strokeLinecap="round"
               strokeLinejoin="round"
