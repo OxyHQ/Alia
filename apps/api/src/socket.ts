@@ -39,6 +39,11 @@ export function initSocket(server: http.Server) {
       if (typeof agentId !== 'string' || agentId.length > 256) return;
       socket.join(`agent:${agentId}`);
     });
+
+    socket.on('subscribe-notifications', (userId: string) => {
+      if (typeof userId !== 'string' || userId.length > 256) return;
+      socket.join(`user:${userId}`);
+    });
   });
   return io;
 }
