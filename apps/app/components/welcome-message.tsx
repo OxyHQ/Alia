@@ -40,8 +40,12 @@ export const WelcomeMessage = ({ onSuggestionPress }: WelcomeMessageProps) => {
 
   const userName = user?.name?.first || user?.username || user?.email?.split('@')[0] || "there";
   const greeting = t(`welcome.${timeOfDay}Greetings.${pairIndex}`, { name: userName });
+  const styleSubtitleIndex = useMemo(
+    () => activeStyle ? Math.floor(Math.random() * activeStyle.subtitles.length) : 0,
+    [activeStyle]
+  );
   const subtitle = activeStyle
-    ? `${activeStyle.emoji} ${activeStyle.tagline}`
+    ? activeStyle.subtitles[styleSubtitleIndex]
     : t(`welcome.${timeOfDay}Subtitles.${pairIndex}`);
 
   const suggestions = (apiSuggestions || []).map(s => ({
