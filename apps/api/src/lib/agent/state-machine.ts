@@ -81,7 +81,7 @@ const TRANSITIONS: Record<AgentState, Partial<Record<TransitionEvent, AgentState
  */
 const STATE_INSTRUCTIONS: Record<AgentState, string> = {
   INITIALIZING: '',
-  PLANNING: 'You are in PLANNING state. Create a plan using the plan action before taking other actions.',
+  PLANNING: 'You are in PLANNING state. If the task requires multiple steps, create a plan using the plan action. For simple questions or greetings, you may respond directly.',
   ACTING: '', // All actions available, no restrictions
   OBSERVING: '', // Passive state — no instruction needed
   REFLECTING: `Review the result of your last action. If it failed, analyze WHY it failed:
