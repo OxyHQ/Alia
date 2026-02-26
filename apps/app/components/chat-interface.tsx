@@ -36,6 +36,7 @@ import { AgentTaskCard } from "@/components/agent-task-card";
 import { AgentResultCard } from "@/components/agent-result-card";
 import { ResearchProgressCard, type ResearchProgressData } from "@/components/research-progress-card";
 import type { AgentActivityState } from "@/lib/hooks/use-agent-activity";
+import { Skeleton } from "@/components/ui/skeleton";
 
 type MessagePart = {
   type: string;
@@ -68,6 +69,7 @@ type ChatInterfaceProps = {
   messages: Message[];
   scrollViewRef: React.RefObject<GHScrollView>;
   isLoading?: boolean;
+  conversationLoading?: boolean;
   onSuggestionPress?: (message: string) => void;
   onEditMessage?: (messageId: string, newContent: string) => void;
   onCopyMessage?: (content: string) => void;
@@ -134,7 +136,7 @@ function ToolBullet({ isRunning }: { isRunning: boolean }) {
   );
 }
 
-export const ChatInterface = React.memo(function ChatInterface({ messages, scrollViewRef, isLoading, onSuggestionPress, onEditMessage, onCopyMessage, bottomPadding = 160, isVoiceActive = false, voiceAgentState, onAtBottomChange, agentActivity, agentSessionId }: ChatInterfaceProps) {
+export const ChatInterface = React.memo(function ChatInterface({ messages, scrollViewRef, isLoading, conversationLoading, onSuggestionPress, onEditMessage, onCopyMessage, bottomPadding = 160, isVoiceActive = false, voiceAgentState, onAtBottomChange, agentActivity, agentSessionId }: ChatInterfaceProps) {
     const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
     const [editedContent, setEditedContent] = useState("");
     const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
@@ -248,7 +250,29 @@ export const ChatInterface = React.memo(function ChatInterface({ messages, scrol
         onContentSizeChange={onContentSizeChange}
       >
         <View className={containerClassName}>
-          {!messages.length && <WelcomeMessage onSuggestionPress={onSuggestionPress} />}
+          {!messages.length && (
+            conversationLoading ? (
+              <View className="gap-5 py-4">
+                <View className="items-end">
+                  <Skeleton style={{ width: '65%', height: 48, borderRadius: 24 }} />
+                </View>
+                <View className="items-start gap-2.5">
+                  <Skeleton style={{ width: '80%', height: 14, borderRadius: 8 }} />
+                  <Skeleton style={{ width: '70%', height: 14, borderRadius: 8 }} />
+                  <Skeleton style={{ width: '45%', height: 14, borderRadius: 8 }} />
+                </View>
+                <View className="items-end">
+                  <Skeleton style={{ width: '50%', height: 40, borderRadius: 24 }} />
+                </View>
+                <View className="items-start gap-2.5">
+                  <Skeleton style={{ width: '85%', height: 14, borderRadius: 8 }} />
+                  <Skeleton style={{ width: '60%', height: 14, borderRadius: 8 }} />
+                </View>
+              </View>
+            ) : (
+              <WelcomeMessage onSuggestionPress={onSuggestionPress} />
+            )
+          )}
 
           <View className="gap-2" style={{ position: 'relative' }}>
             {/* Single flying AliaFace */}

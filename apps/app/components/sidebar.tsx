@@ -48,7 +48,9 @@ import { useProjectsStore } from "@/lib/stores/projects-store";
 import { useFoldersStore } from "@/lib/stores/folders-store";
 import { useFavoritesStore } from "@/lib/stores/favorites-store";
 import { usePinnedStore } from "@/lib/stores/pinned-store";
-import { useConversations, useDeleteConversation } from "@/lib/hooks/use-conversations";
+import { useQueryClient } from "@tanstack/react-query";
+import { queryKeys } from "@/lib/hooks/query-keys";
+import { useConversations, useDeleteConversation, prefetchConversation } from "@/lib/hooks/use-conversations";
 import * as DropdownMenu from "@/components/ui/dropdown-menu";
 import { ProjectEditDialog } from "@/components/project-edit-dialog";
 import { InviteDialog } from "@/components/invite-dialog";
@@ -92,6 +94,7 @@ export function Sidebar() {
 
 const ChatSidebar = React.memo(function ChatSidebar() {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const { t } = useTranslation();
   // Use selectors to avoid worklet serialization issues
   const chatId = useStore((state) => state.chatId);
@@ -161,10 +164,29 @@ const ChatSidebar = React.memo(function ChatSidebar() {
     router.replace("/(app)");
   }, [router]);
 
+  const handlePrefetchConversation = React.useCallback((id: string) => {
+    prefetchConversation(queryClient, id);
+  }, [queryClient]);
+
   const handleSelectConversation = React.useCallback((id: string) => {
+    // Seed the detail cache with partial data from the sidebar list so the
+    // chat page renders something immediately while the full fetch completes.
+    const existingDetail = queryClient.getQueryData(queryKeys.conversations.detail(id));
+    if (!existingDetail) {
+      const convFromList = allConversations.find(c => c.id === id);
+      if (convFromList) {
+        queryClient.setQueryData(
+          queryKeys.conversations.detail(id),
+          { ...convFromList, messages: [] },
+          { updatedAt: 0 },
+        );
+      }
+    }
+    // Ensure full fetch is in-flight (may already be running from onPressIn prefetch)
+    prefetchConversation(queryClient, id);
     // Use replace to avoid accumulating chat history in navigation stack
     router.replace(`/(app)/c/${id}`);
-  }, [router]);
+  }, [router, queryClient, allConversations]);
 
   const handleDeleteConversation = React.useCallback((id: string, e: any) => {
     e?.stopPropagation?.();
@@ -666,6 +688,7 @@ const ChatSidebar = React.memo(function ChatSidebar() {
                             projects={projects}
                             folders={folders}
                             onSelect={handleSelectConversation}
+                            onPrefetch={handlePrefetchConversation}
                             onToggleFavorite={handleToggleFavorite}
                             onTogglePin={handleTogglePin}
                             onMoveToProject={handleMoveConversationToProject}
@@ -748,6 +771,7 @@ const ChatSidebar = React.memo(function ChatSidebar() {
                             onMoveToProject={handleMoveConversationToProject}
                             onMoveToFolder={handleMoveConversationToFolder}
                             onDeleteConversation={handleDeleteConversation}
+                            onPrefetchConversation={handlePrefetchConversation}
                             getConversationProject={getConversationProject}
                             getConversationFolder={getConversationFolder}
                           />
@@ -767,6 +791,7 @@ const ChatSidebar = React.memo(function ChatSidebar() {
                         projects={projects}
                         folders={folders}
                         onSelect={handleSelectConversation}
+                        onPrefetch={handlePrefetchConversation}
                         onToggleFavorite={handleToggleFavorite}
                         onTogglePin={handleTogglePin}
                         onMoveToProject={handleMoveConversationToProject}
@@ -791,6 +816,7 @@ const ChatSidebar = React.memo(function ChatSidebar() {
                       onMoveToProject={handleMoveConversationToProject}
                       onMoveToFolder={handleMoveConversationToFolder}
                       onDelete={handleDeleteConversation}
+                      onPrefetch={handlePrefetchConversation}
                       getConversationProject={getConversationProject}
                       getConversationFolder={getConversationFolder}
                     />
