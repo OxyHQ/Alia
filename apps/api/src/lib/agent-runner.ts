@@ -589,7 +589,7 @@ export async function runAgentSession(sessionId: string): Promise<void> {
     if (taskCompleted) {
       session.status = 'completed';
       session.result = taskResult;
-      eventStream.append('complete', (taskResult || '').slice(0, 1000));
+      eventStream.append('complete', 'Task completed.');
     } else if (totalSteps >= session.config.maxSteps) {
       session.status = 'completed';
       session.result = 'Step limit reached. Partial progress was made.';
