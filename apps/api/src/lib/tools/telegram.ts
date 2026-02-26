@@ -4,6 +4,7 @@ import mongoose from 'mongoose';
 import { Bot } from '../../models/bot.js';
 import { BotUser } from '../../models/bot-user.js';
 import { log } from '../logger.js';
+import { markdownToTelegramHtml } from '../channels/telegram-format.js';
 
 /**
  * Create sendTelegramMessage tool for a specific user.
@@ -45,20 +46,36 @@ export function createSendTelegramTool(userId: string) {
           };
         }
 
-        // Send message via Telegram Bot API
+        // Convert Markdown to Telegram HTML and send
+        const htmlMessage = markdownToTelegramHtml(message);
+
         const response = await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             chat_id: botUser.chatId,
-            text: message,
+            text: htmlMessage,
             parse_mode: 'HTML',
           }),
         });
 
-        const result = await response.json() as { ok?: boolean; description?: string };
-
         if (!response.ok) {
+          const result = await response.json() as { ok?: boolean; description?: string };
+
+          // If HTML parsing failed, retry as plain text
+          if (response.status === 400) {
+            const fallback = await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ chat_id: botUser.chatId, text: message }),
+            });
+
+            if (fallback.ok) {
+              log.tools.info({ platformUserId: botUser.platformUserId }, 'Telegram message sent (plain text fallback)');
+              return { success: true, message: 'Telegram message sent successfully' };
+            }
+          }
+
           log.tools.error(
             { err: result, chatId: botUser.chatId, tokenPrefix: botToken.slice(0, 5) },
             'Telegram sendMessage failed',
