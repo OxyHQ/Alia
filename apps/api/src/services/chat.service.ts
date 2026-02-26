@@ -12,7 +12,7 @@
 import { type ToolSet } from 'ai';
 import { resolveModel, getAIModel, getDefaultAliaModel, reportModelUsage } from '../lib/chat-core.js';
 import { markKeyCreditExhausted, getAliaModel, getModelMappingsForTier } from '../lib/providers-client.js';
-import { getCurrentDateTool, webSearchTool, browseTool, saveUserMemoryTool, updateUserPreferencesTool, updateUserContextTool, createGetDeviceInfoTool, createSendTelegramTool, createProvidersAdminTool, webScraperTool, generateFileTool, canvasTool, type DeviceInfo } from '../lib/tools/index.js';
+import { getCurrentDateTool, webSearchTool, browseTool, saveUserMemoryTool, updateUserPreferencesTool, updateUserContextTool, createGetDeviceInfoTool, createSendTelegramTool, createProvidersAdminTool, webScraperTool, generateFileTool, canvasTool, createTriggerTool, listTriggersTool, updateTriggerTool, deleteTriggerTool, type DeviceInfo } from '../lib/tools/index.js';
 import { buildMcpTools } from '../lib/tools/mcp.js';
 import { oxyClient } from '../middleware/auth.js';
 import type { User as OxyUser } from '@oxyhq/core';
@@ -230,6 +230,10 @@ export async function buildChatTools(opts: BuildToolsOptions): Promise<ToolSet> 
       updateUserPreferences: updateUserPreferencesTool(opts.userId),
       updateUserContext: updateUserContextTool(opts.userId),
       sendTelegramMessage: createSendTelegramTool(opts.userId),
+      createTrigger: createTriggerTool(opts.userId),
+      listTriggers: listTriggersTool(opts.userId),
+      updateTrigger: updateTriggerTool(opts.userId),
+      deleteTrigger: deleteTriggerTool(opts.userId),
     } : {}),
   };
 

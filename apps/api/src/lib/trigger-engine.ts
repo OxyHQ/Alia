@@ -27,6 +27,7 @@ import { buildMcpTools } from './tools/mcp.js';
 import { UserMemory, type IUserMemory } from '../models/user-memory.js';
 import { oxyClient } from '../middleware/auth.js';
 import { log } from './logger.js';
+import { sendNotification } from './notification-service.js';
 import type { User as OxyUser } from '@oxyhq/core';
 
 // ── Scheduled task registry ────────────────────────────────────────
@@ -284,6 +285,23 @@ export async function executeTrigger(
     });
 
     log.triggers.info({ name: trigger.name, triggerId, durationMs, toolCalls: toolCalls.length }, 'Trigger completed');
+
+    // Deliver notification if enabled
+    if (trigger.action.notify) {
+      sendNotification({
+        userId,
+        type: 'trigger_result',
+        title: trigger.name,
+        body: resultText.slice(0, 4000),
+        channels: trigger.action.channelId
+          ? [trigger.action.channelId as any, 'in_app']
+          : undefined,
+        triggerId,
+        data: { executionId: execution._id.toString() },
+      }).catch((err) => {
+        log.triggers.error({ err, triggerId }, 'Failed to send trigger notification');
+      });
+    }
 
     return { success: true, result: resultText, executionId: execution._id.toString() };
   } catch (error: any) {

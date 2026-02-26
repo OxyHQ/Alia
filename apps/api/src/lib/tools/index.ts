@@ -17,6 +17,7 @@ import { canvasTool } from './canvas.js';
 import { delegateSubtaskTool } from './delegate.js';
 import { createSearchAgentsTool } from './agent-search.js';
 import { createDelegateToAgentTool } from './agent-delegate.js';
+import { createTriggerTool, listTriggersTool, updateTriggerTool, deleteTriggerTool } from './trigger-management.js';
 
 // ---------------------------------------------------------------------------
 // Register all tools in the registry
@@ -169,6 +170,39 @@ registerTool({
   category: 'admin',
 });
 
+// Trigger/routine management tools (natural language automation)
+registerTool({
+  name: 'createTrigger',
+  description: 'Create an automated trigger/routine (schedules, webhooks, monitoring)',
+  tool: createTriggerTool,           // factory: (userId) => Tool
+  enabledByDefault: true,
+  category: 'automation',
+});
+
+registerTool({
+  name: 'listTriggers',
+  description: 'List user\'s active triggers/routines/automations',
+  tool: listTriggersTool,            // factory: (userId) => Tool
+  enabledByDefault: true,
+  category: 'automation',
+});
+
+registerTool({
+  name: 'updateTrigger',
+  description: 'Update an existing trigger/routine',
+  tool: updateTriggerTool,           // factory: (userId) => Tool
+  enabledByDefault: true,
+  category: 'automation',
+});
+
+registerTool({
+  name: 'deleteTrigger',
+  description: 'Delete a trigger/routine',
+  tool: deleteTriggerTool,           // factory: (userId) => Tool
+  enabledByDefault: true,
+  category: 'automation',
+});
+
 // ---------------------------------------------------------------------------
 // Backward-compatible re-exports (existing imports keep working)
 // ---------------------------------------------------------------------------
@@ -187,6 +221,7 @@ export { canvasTool } from './canvas.js';
 export { delegateSubtaskTool, type SubtaskResult } from './delegate.js';
 export { createSearchAgentsTool } from './agent-search.js';
 export { createDelegateToAgentTool, type AgentDelegationResult } from './agent-delegate.js';
+export { createTriggerTool, listTriggersTool, updateTriggerTool, deleteTriggerTool } from './trigger-management.js';
 
 // MCP tools
 export { buildMcpTools } from './mcp.js';
