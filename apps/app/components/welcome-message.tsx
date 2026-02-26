@@ -85,7 +85,7 @@ export const WelcomeMessage = ({ onSuggestionPress }: WelcomeMessageProps) => {
                     onSuggestionPress?.(item.description);
                   }}
                 >
-                  <BlurView intensity={60} tint="default" experimentalBlurMethod="dimezisBlurView" style={StyleSheet.absoluteFill} />
+                  <BlurView intensity={60} tint="default" style={StyleSheet.absoluteFill} />
                   <View className="p-4 w-full">
                     <Text className="text-sm font-medium text-surface-foreground mb-1" numberOfLines={1}>
                       {item.title}
