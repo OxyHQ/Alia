@@ -22,12 +22,13 @@ export interface ProcessedMessage {
  * - Preserves app-specific components ([COMPACTLIST], [BANNER], [COMPARISON], etc.)
  */
 function processForApp(content: string): ProcessedMessage {
-  // Remove Telegram-specific tags
+  // Remove Telegram-specific tags and title tags
   const cleanedText = content
     .replace(/\[(?:ALIA_)?REACT:[^\]]+\]\s*/g, '')
     .replace(/\[(?:ALIA_)?TGIMAGE[^\]]*\]\s*/g, '')
     .replace(/\[(?:ALIA_)?TGLINKS[^\]]*\][\s\S]*?\[\/(?:ALIA_)?TGLINKS\]\s*/g, '')
     .replace(/\[(?:ALIA_)?TGDOC[^\]]*\]\s*/g, '')
+    .replace(TITLE_STRIP_RE, '')
     .trim();
 
   // App-specific components like [COMPACTLIST], [BANNER], etc. are kept
