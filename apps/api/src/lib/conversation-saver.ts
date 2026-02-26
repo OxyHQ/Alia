@@ -108,7 +108,9 @@ export async function generateConversationTitle(
 ): Promise<void> {
   const conv = await Conversation.findOne({ oxyUserId: userId, conversationId });
   if (!conv || conv.isManualTitle) return;
-  if (conv.title && conv.title !== 'New chat' && conv.title !== 'Nueva conversación') return;
+  // Only generate on the first exchange (≤3 messages: system + user + assistant).
+  // After that, the title from the first generation is kept.
+  if (conv.messages && conv.messages.length > 3) return;
 
   const resolved = await resolveModel('alia-lite');
   if (!resolved) return;

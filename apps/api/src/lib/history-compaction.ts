@@ -64,9 +64,10 @@ export function compactHistory(messages: Message[], tokenBudget: number): Messag
   }
 
   // Phase 3: Drop all older messages, insert a summary marker
+  // Use 'user' role — 'system' mid-conversation is rejected by OpenAI-compatible providers.
   const summary: Message = {
-    role: 'system',
-    content: `[Earlier conversation with ${older.length} messages was summarized to save context. Recent messages follow.]`,
+    role: 'user',
+    content: `[System note: Earlier conversation with ${older.length} messages was compacted to save context. Recent messages follow.]`,
   };
 
   const finalTokens = estimateMsg(summary) + tail.reduce((sum, m) => sum + estimateMsg(m), 0);

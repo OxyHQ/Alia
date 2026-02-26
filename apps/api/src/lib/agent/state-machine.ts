@@ -149,14 +149,6 @@ export class AgentStateMachine {
     return STATE_INSTRUCTIONS[this.state];
   }
 
-  /**
-   * Legacy: Filter tools by state (kept for backward compat with old agent-runner).
-   * New runner uses getStateInstruction() instead.
-   */
-  filterTools<T>(tools: Record<string, T>): Record<string, T> {
-    return { ...tools };
-  }
-
   /** Get transition history */
   getHistory() {
     return this.history;

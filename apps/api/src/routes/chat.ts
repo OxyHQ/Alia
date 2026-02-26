@@ -737,8 +737,13 @@ router.post('/', optionalAuth, async (req, res) => {
         log.chat.info({ conversationId }, 'Conversation saved successfully');
 
         // Generate title asynchronously (fire-and-forget)
-        const firstUserMsg = messages.find((m: any) => m.role === 'user')?.content;
-        if (typeof firstUserMsg === 'string') {
+        const firstUserMsgRaw = messages.find((m: any) => m.role === 'user')?.content;
+        const firstUserMsg = typeof firstUserMsgRaw === 'string'
+          ? firstUserMsgRaw
+          : Array.isArray(firstUserMsgRaw)
+            ? (firstUserMsgRaw.find((p: any) => p.type === 'text')?.text ?? '')
+            : '';
+        if (firstUserMsg) {
           generateConversationTitle(req.user.id, conversationId, firstUserMsg, assistantResponse)
             .catch(err => log.chat.error({ err }, 'Background title generation failed'));
         }
