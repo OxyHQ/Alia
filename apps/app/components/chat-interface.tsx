@@ -22,7 +22,6 @@ import Animated, {
   withRepeat,
   withSequence,
   withTiming,
-  Easing,
 } from "react-native-reanimated";
 import * as Clipboard from "expo-clipboard";
 import { Reasoning, ReasoningTrigger } from "@/components/ui/reasoning";
@@ -143,8 +142,7 @@ export const ChatInterface = React.memo(function ChatInterface({ messages, scrol
       onAtBottomChange?.(isAtBottom);
     }, [isAtBottom, onAtBottomChange]);
 
-    // ── Flying AliaFace ──
-    const faceY = useSharedValue(0);
+    // ── AliaFace expression ──
     const [faceExpression, setFaceExpression] = useState<AliaExpression>("Idle A");
 
     const filteredMessages = messages.filter(m => m != null && m.role);
@@ -155,7 +153,6 @@ export const ChatInterface = React.memo(function ChatInterface({ messages, scrol
 
     // Update expression based on voice state or text chat state
     useEffect(() => {
-      // Voice state takes priority when active
       if (isVoiceActive && voiceAgentState) {
         switch (voiceAgentState) {
           case 'thinking': setFaceExpression("Thinking"); return;
@@ -165,7 +162,6 @@ export const ChatInterface = React.memo(function ChatInterface({ messages, scrol
         }
       }
 
-      // Text chat state
       if (lastAliaIndex < 0) return;
       const m = filteredMessages[lastAliaIndex];
       const text = getMessageText(m);
@@ -177,13 +173,6 @@ export const ChatInterface = React.memo(function ChatInterface({ messages, scrol
       else if (isLoading && text.length > 0) setFaceExpression("Writing E");
       else setFaceExpression("Idle A");
     }, [messages, isLoading, voiceAgentState, isVoiceActive]);
-
-    const faceAnimatedStyle = useAnimatedStyle(() => ({
-      position: 'absolute' as const,
-      left: 0,
-      top: faceY.value,
-      zIndex: 10,
-    }));
 
     // Sync messages to the UI store so ThoughtPanel (a sibling in the layout tree) can access them
     useEffect(() => {
@@ -246,32 +235,15 @@ export const ChatInterface = React.memo(function ChatInterface({ messages, scrol
         <View className={containerClassName}>
           {!messages.length && <WelcomeMessage onSuggestionPress={onSuggestionPress} />}
 
-          <View className="gap-2" style={{ position: 'relative' }}>
-            {/* Single flying AliaFace */}
-            {lastAliaIndex >= 0 && (
-              <Animated.View style={faceAnimatedStyle}>
-                <AliaFace size={28} expression={faceExpression} />
-              </Animated.View>
-            )}
-
+          <View className="gap-2">
             {filteredMessages.map((m, index) => {
               const messageText = getMessageText(m);
               const messageImages = getMessageImages(m);
-              const isAliaMessage = m.role === 'assistant' && !m.agentInfo &&
-                !((m as any).source === 'voice' && (m as any).speaker === 'cohost');
 
               return (
                 <Animated.View
                   key={m.id || `msg-${index}`}
                   entering={FadeInUp.delay(index * 50).springify()}
-                  onLayout={(e) => {
-                    if (isAliaMessage && index === lastAliaIndex) {
-                      faceY.value = withTiming(e.nativeEvent.layout.y, {
-                        duration: 500,
-                        easing: Easing.bezier(0.4, 0, 0.2, 1),
-                      });
-                    }
-                  }}
                 >
                   {/* Tool Invocations — alia-codea bullet style */}
                   {m.toolInvocations?.map((t, ti) => {
@@ -348,6 +320,8 @@ export const ChatInterface = React.memo(function ChatInterface({ messages, scrol
                             </View>
                           ) : (m as any).source === 'voice' && (m as any).speaker === 'cohost' ? (
                             <Text className="text-xs text-indigo-400 mb-0.5">Cohost</Text>
+                          ) : index === lastAliaIndex ? (
+                            <AliaFace size={28} expression={faceExpression} />
                           ) : null}
                           <View className="w-full">
                             {(m as any).source === 'voice' ? (
