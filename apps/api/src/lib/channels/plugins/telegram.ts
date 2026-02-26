@@ -1,6 +1,7 @@
 import crypto from 'crypto';
 import type { ChannelPlugin, OutboundContext, OutboundResult, ChannelInboundMessage } from '../types.js';
 import type { Request } from 'express';
+import { markdownToTelegramHtml } from '../telegram-format.js';
 
 export const telegramPlugin: ChannelPlugin = {
   id: 'telegram',
@@ -32,27 +33,49 @@ export const telegramPlugin: ChannelPlugin = {
         return { channel: 'telegram', ok: false, error: 'TELEGRAM_BOT_TOKEN not configured' };
       }
 
+      const replyParams = ctx.replyToId
+        ? { reply_parameters: { message_id: parseInt(ctx.replyToId, 10) } }
+        : {};
+
       try {
+        // Convert Markdown to Telegram HTML
+        const htmlText = markdownToTelegramHtml(ctx.text);
+
         const res = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             chat_id: ctx.to,
-            text: ctx.text,
-            parse_mode: 'Markdown',
-            ...(ctx.replyToId && {
-              reply_parameters: { message_id: parseInt(ctx.replyToId, 10) },
-            }),
+            text: htmlText,
+            parse_mode: 'HTML',
+            ...replyParams,
           }),
         });
 
-        if (!res.ok) {
-          const body = await res.text();
-          return { channel: 'telegram', ok: false, error: `Telegram API ${res.status}: ${body}` };
+        if (res.ok) {
+          const data = await res.json() as any;
+          return { channel: 'telegram', ok: true, messageId: String(data.result?.message_id) };
         }
 
-        const data = await res.json() as any;
-        return { channel: 'telegram', ok: true, messageId: String(data.result?.message_id) };
+        // If HTML parsing failed, retry as plain text
+        const body = await res.text();
+        if (res.status === 400) {
+          const fallbackRes = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ chat_id: ctx.to, text: ctx.text, ...replyParams }),
+          });
+
+          if (fallbackRes.ok) {
+            const data = await fallbackRes.json() as any;
+            return { channel: 'telegram', ok: true, messageId: String(data.result?.message_id) };
+          }
+
+          const fallbackBody = await fallbackRes.text();
+          return { channel: 'telegram', ok: false, error: `Telegram API ${fallbackRes.status}: ${fallbackBody}` };
+        }
+
+        return { channel: 'telegram', ok: false, error: `Telegram API ${res.status}: ${body}` };
       } catch (err: any) {
         return { channel: 'telegram', ok: false, error: err.message };
       }

@@ -4,6 +4,7 @@ import { generateText } from 'ai';
 import { getChannel } from '../lib/channels/registry.js';
 import { resolveModel, getAIModel, reportModelUsage } from '../lib/chat-core.js';
 import { sendChannelMessage } from '../lib/channels/outbound.js';
+import { loadPrompt } from '../lib/prompt-loader.js';
 import { BotUser } from '../models/bot-user.js';
 import { Bot } from '../models/bot.js';
 import { Conversation } from '../models/conversation.js';
@@ -12,7 +13,7 @@ import { reserveCredits, finalizeCredits, type CreditReservation, type CreditUsa
 import type { ChannelId, ChannelInboundMessage } from '../lib/channels/types.js';
 import { log } from '../lib/logger.js';
 
-const CHANNEL_SYSTEM_PROMPT = `You are Alia, an AI assistant by Oxy. Be concise and direct — this is a messaging channel.
+const DEFAULT_CHANNEL_PROMPT = `You are Alia, an AI assistant by Oxy. Be concise and direct — this is a messaging channel.
 
 CRITICAL: Respond in the same language the user writes to you.
 
@@ -20,6 +21,19 @@ CRITICAL: Respond in the same language the user writes to you.
 - Keep responses short. A few sentences is usually enough.
 - Be honest about uncertainty.
 - When the request is unclear, make a reasonable assumption and state it briefly.`;
+
+/** Map channel types to their dedicated prompt files (when available). */
+const CHANNEL_PROMPT_MAP: Partial<Record<ChannelId, string>> = {
+  telegram: 'alia-telegram',
+};
+
+async function getChannelSystemPrompt(channelType: ChannelId): Promise<string> {
+  const promptName = CHANNEL_PROMPT_MAP[channelType];
+  if (!promptName) return DEFAULT_CHANNEL_PROMPT;
+
+  const prompt = await loadPrompt(promptName);
+  return prompt || DEFAULT_CHANNEL_PROMPT;
+}
 
 /**
  * Deduplication map: prevents processing the same webhook message twice.
@@ -130,10 +144,11 @@ async function processChannelMessage(
     const model = getAIModel(resolved.keyConfig);
 
     // Generate AI response
+    const systemPrompt = await getChannelSystemPrompt(channelType);
     const startTime = Date.now();
     const result = await generateText({
       model,
-      system: CHANNEL_SYSTEM_PROMPT,
+      system: systemPrompt,
       messages: messages.map(m => ({
         role: m.role as 'user' | 'assistant',
         content: m.content,
