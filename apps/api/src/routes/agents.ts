@@ -7,6 +7,8 @@ import { authenticateToken, optionalAuth } from '../middleware/auth.js';
 import { runAgentSession, getRecentActivity } from '../lib/agent-runner.js';
 import { cleanupSessionResources } from '../lib/agent-tools.js';
 import { resolveModel, getAIModel, getDefaultAliaModel } from '../lib/chat-core.js';
+import { enqueueAgentSession, getJobStatus, cancelJob } from '../lib/task-queue.js';
+import { EventStreamEntry as EventStreamEntryModel } from '../models/event-stream-entry.js';
 import { log } from '../lib/logger.js';
 import type { Request, Response } from 'express';
 
@@ -369,12 +371,15 @@ router.post('/:id/hire', authenticateToken, async (req: Request, res: Response) 
     agent.usageCount += 1;
     await agent.save();
 
-    // Start runner in background (fire-and-forget)
-    runAgentSession(session._id.toString()).catch(err => {
-      log.agents.error({ err, sessionId: session._id }, 'Agent session runner failed');
+    // Enqueue via BullMQ (falls back to direct execution if Redis unavailable)
+    const { queued, jobId } = await enqueueAgentSession({
+      sessionId: session._id.toString(),
+      userId: req.user.id,
+      agentId: agent._id.toString(),
+      agentName: agent.name,
     });
 
-    res.json({ sessionId: session._id, hired: true });
+    res.json({ sessionId: session._id, hired: true, queued, jobId });
   } catch (error) {
     log.agents.error({ err: error }, 'Error hiring agent');
     res.status(500).json({ error: 'Failed to hire agent' });
@@ -546,6 +551,215 @@ router.post('/:id/sessions/:sid/cancel', authenticateToken, async (req: Request,
   } catch (error) {
     log.agents.error({ err: error }, 'Error cancelling session');
     res.status(500).json({ error: 'Failed to cancel session' });
+  }
+});
+
+// GET /agents/sessions/:sid/status - get session status, plan, recent events
+router.get('/sessions/:sid/status', authenticateToken, async (req: Request, res: Response) => {
+  try {
+    if (!req.user?.id) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const session = await AgentSession.findOne({
+      _id: req.params.sid,
+      userId: req.user.id,
+    })
+      .select('agentId status task result plan stats config depth createdAt updatedAt')
+      .populate('agentId', 'name handle avatar')
+      .lean();
+
+    if (!session) {
+      return res.status(404).json({ error: 'Session not found' });
+    }
+
+    // Get recent events from the separate collection
+    const recentEvents = await EventStreamEntryModel
+      .find({ sessionId: req.params.sid })
+      .sort({ seq: -1 })
+      .limit(30)
+      .lean();
+
+    // Get job queue status (if Redis is available)
+    const jobStatus = await getJobStatus(String(req.params.sid));
+
+    res.json({
+      session,
+      recentEvents: recentEvents.reverse(),
+      jobStatus,
+    });
+  } catch (error) {
+    log.agents.error({ err: error }, 'Error getting session status');
+    res.status(500).json({ error: 'Failed to get session status' });
+  }
+});
+
+// GET /agents/sessions/:sid/files - list workspace files
+router.get('/sessions/:sid/files', authenticateToken, async (req: Request, res: Response) => {
+  try {
+    if (!req.user?.id) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const session = await AgentSession.findOne({
+      _id: req.params.sid,
+      userId: req.user.id,
+    })
+      .select('resources')
+      .lean();
+
+    if (!session) {
+      return res.status(404).json({ error: 'Session not found' });
+    }
+
+    // Find active container resource
+    const container = session.resources?.find(
+      (r: any) => r.type === 'container' && r.status === 'active'
+    );
+
+    if (!container) {
+      return res.json({ files: [], message: 'No active workspace container' });
+    }
+
+    // List files via Docker host
+    const dockerHostUrl = process.env.DOCKER_HOST_URL;
+    const dockerHostSecret = process.env.DOCKER_HOST_SECRET;
+    if (!dockerHostUrl || !dockerHostSecret) {
+      return res.json({ files: [], message: 'Docker host not configured' });
+    }
+
+    const listRes = await fetch(`${dockerHostUrl}/containers/${container.resourceId}/files?path=/workspace`, {
+      headers: { Authorization: `Bearer ${dockerHostSecret}` },
+    });
+
+    if (!listRes.ok) {
+      return res.json({ files: [], message: 'Failed to list workspace files' });
+    }
+
+    const data = await listRes.json();
+    res.json({ files: data.files || [], containerId: container.resourceId });
+  } catch (error) {
+    log.agents.error({ err: error }, 'Error listing session files');
+    res.status(500).json({ error: 'Failed to list files' });
+  }
+});
+
+// GET /agents/sessions/:sid/files/* - download a file from workspace
+router.get('/sessions/:sid/files/*', authenticateToken, async (req: Request, res: Response) => {
+  try {
+    if (!req.user?.id) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    // Extract file path from wildcard
+    const filePath = req.params[0];
+    if (!filePath) {
+      return res.status(400).json({ error: 'File path is required' });
+    }
+
+    const session = await AgentSession.findOne({
+      _id: req.params.sid,
+      userId: req.user.id,
+    })
+      .select('resources')
+      .lean();
+
+    if (!session) {
+      return res.status(404).json({ error: 'Session not found' });
+    }
+
+    const container = session.resources?.find(
+      (r: any) => r.type === 'container' && r.status === 'active'
+    );
+
+    if (!container) {
+      return res.status(404).json({ error: 'No active workspace container' });
+    }
+
+    const dockerHostUrl = process.env.DOCKER_HOST_URL;
+    const dockerHostSecret = process.env.DOCKER_HOST_SECRET;
+    if (!dockerHostUrl || !dockerHostSecret) {
+      return res.status(503).json({ error: 'Docker host not configured' });
+    }
+
+    const fileRes = await fetch(
+      `${dockerHostUrl}/containers/${container.resourceId}/files/download?path=${encodeURIComponent('/workspace/' + filePath)}`,
+      { headers: { Authorization: `Bearer ${dockerHostSecret}` } },
+    );
+
+    if (!fileRes.ok) {
+      return res.status(fileRes.status).json({ error: 'Failed to download file' });
+    }
+
+    // Stream the file back
+    const contentType = fileRes.headers.get('content-type') || 'application/octet-stream';
+    res.setHeader('Content-Type', contentType);
+    res.setHeader('Content-Disposition', `attachment; filename="${filePath.split('/').pop()}"`);
+
+    const buffer = Buffer.from(await fileRes.arrayBuffer());
+    res.send(buffer);
+  } catch (error) {
+    log.agents.error({ err: error }, 'Error downloading session file');
+    res.status(500).json({ error: 'Failed to download file' });
+  }
+});
+
+// GET /agents/sessions/active - list all active sessions for the current user
+router.get('/sessions/active', authenticateToken, async (req: Request, res: Response) => {
+  try {
+    if (!req.user?.id) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const sessions = await AgentSession.find({
+      userId: req.user.id,
+      status: { $in: ['queued', 'running'] },
+    })
+      .populate('agentId', 'name handle avatar')
+      .sort({ createdAt: -1 })
+      .limit(20)
+      .select('agentId status task plan stats createdAt')
+      .lean();
+
+    res.json({ sessions });
+  } catch (error) {
+    log.agents.error({ err: error }, 'Error listing active sessions');
+    res.status(500).json({ error: 'Failed to list active sessions' });
+  }
+});
+
+// GET /agents/sessions/history - list completed/failed sessions for the current user
+router.get('/sessions/history', authenticateToken, async (req: Request, res: Response) => {
+  try {
+    if (!req.user?.id) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const { page = '1', limit = '20' } = req.query;
+    const pageNum = Math.max(1, parseInt(page as string, 10) || 1);
+    const limitNum = Math.min(50, Math.max(1, parseInt(limit as string, 10) || 20));
+
+    const [sessions, total] = await Promise.all([
+      AgentSession.find({
+        userId: req.user.id,
+        status: { $in: ['completed', 'failed', 'cancelled'] },
+      })
+        .populate('agentId', 'name handle avatar')
+        .sort({ 'stats.completedAt': -1, createdAt: -1 })
+        .skip((pageNum - 1) * limitNum)
+        .limit(limitNum)
+        .select('agentId status task result plan stats createdAt')
+        .lean(),
+      AgentSession.countDocuments({
+        userId: req.user.id,
+        status: { $in: ['completed', 'failed', 'cancelled'] },
+      }),
+    ]);
+
+    res.json({ sessions, total, page: pageNum, limit: limitNum });
+  } catch (error) {
+    log.agents.error({ err: error }, 'Error listing session history');
+    res.status(500).json({ error: 'Failed to list session history' });
   }
 });
 

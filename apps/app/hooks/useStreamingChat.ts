@@ -104,6 +104,7 @@ Use this role to guide your responses, maintaining the specified tone, style, an
       abortControllerRef.current = new AbortController();
 
       const agentMode = useStore.getState().agentMode;
+      const deepResearchMode = useStore.getState().deepResearchMode;
 
       const response = await expoFetch(apiUrl, {
         method: 'POST',
@@ -117,6 +118,7 @@ Use this role to guide your responses, maintaining the specified tone, style, an
           ...(skillId && { skillId }),
           ...(agentId && { agentId }),
           ...(agentMode && { agentMode: true }),
+          ...(deepResearchMode && { deepResearch: true }),
         }),
         signal: abortControllerRef.current.signal,
       });
@@ -257,6 +259,53 @@ Use this role to guide your responses, maintaining the specified tone, style, an
                 }
                 reader.cancel();
                 return;
+              }
+
+              // Handle deep research progress events
+              if (parsed.type === 'research_progress') {
+                setMessages((prev) => {
+                  const updated = [...prev];
+                  const lastMessage = updated[updated.length - 1];
+                  if (lastMessage?.role === 'assistant') {
+                    updated[updated.length - 1] = {
+                      ...lastMessage,
+                      researchProgress: {
+                        phase: parsed.phase,
+                        message: parsed.message,
+                        subQuestions: parsed.subQuestions || (lastMessage as any).researchProgress?.subQuestions,
+                        sourcesFound: parsed.sourcesFound,
+                        currentQuery: parsed.currentQuery,
+                        iteration: parsed.iteration,
+                      },
+                    } as any;
+                  }
+                  return updated;
+                });
+                continue;
+              }
+
+              // Handle deep research completion (sources metadata)
+              if (parsed.type === 'research_complete') {
+                setMessages((prev) => {
+                  const updated = [...prev];
+                  const lastMessage = updated[updated.length - 1];
+                  if (lastMessage?.role === 'assistant') {
+                    updated[updated.length - 1] = {
+                      ...lastMessage,
+                      researchProgress: {
+                        ...(lastMessage as any).researchProgress,
+                        phase: 'complete',
+                        message: 'Research complete',
+                        isComplete: true,
+                        sources: parsed.sources,
+                        totalSearches: parsed.totalSearches,
+                        subQuestions: parsed.subQuestions || (lastMessage as any).researchProgress?.subQuestions,
+                      },
+                    } as any;
+                  }
+                  return updated;
+                });
+                continue;
               }
 
               // Handle OpenAI-compatible format

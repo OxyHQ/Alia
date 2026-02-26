@@ -19,6 +19,7 @@ import { Readability } from '@mozilla/readability';
 import { validateUrl } from '../tools/sandbox.js';
 import { withRetry } from '../retry.js';
 import { log } from '../logger.js';
+import { emitAgentActivity } from '../../socket.js';
 
 const MAX_CONTENT_CHARS = 12_000;
 const SCREENSHOT_DIR = '/workspace/.alia/screenshots';
@@ -43,11 +44,23 @@ export interface BrowserParams {
   query?: string;
 }
 
+export interface BrowserSessionOpts {
+  agentId?: string;
+  sessionId?: string;
+}
+
 export class BrowserSession {
   private stagehand: Stagehand | null = null;
   private page: Page | null = null;
   private currentUrl = '';
   private screenshotSeq = 0;
+  private agentId?: string;
+  private sessionId?: string;
+
+  constructor(opts?: BrowserSessionOpts) {
+    this.agentId = opts?.agentId;
+    this.sessionId = opts?.sessionId;
+  }
 
   /**
    * Execute a browser action. Initializes the browser lazily on first interactive action.
@@ -186,7 +199,20 @@ export class BrowserSession {
     const base64 = buffer.toString('base64');
     this.screenshotSeq++;
 
-    return `[Screenshot captured (${Math.round(buffer.length / 1024)}KB). Current URL: ${this.page.url()}]`;
+    const pageUrl = this.page.url();
+
+    // Stream screenshot to frontend via Socket.IO
+    if (this.agentId && this.sessionId) {
+      emitAgentActivity(this.agentId, {
+        type: 'screenshot',
+        content: `Screenshot of ${pageUrl}`,
+        timestamp: Date.now(),
+        sessionId: this.sessionId,
+        data: { base64, url: pageUrl },
+      });
+    }
+
+    return `[Screenshot captured (${Math.round(buffer.length / 1024)}KB). Current URL: ${pageUrl}]`;
   }
 
   /** Click an element described by selector or natural language */
@@ -196,10 +222,42 @@ export class BrowserSession {
     await this.ensureBrowser();
     if (!this.page) return 'No page loaded. Use goto first.';
 
-    await this.stagehand!.act(`Click on "${target}"`);
-    await this.page.waitForTimeout(1000);
+    // Try Stagehand NL action first, fall back to JS injection
+    try {
+      await this.stagehand!.act(`Click on "${target}"`);
+      await this.page.waitForTimeout(1000);
+      return `Clicked: "${target}". Current URL: ${this.page.url()}`;
+    } catch (nlErr: any) {
+      log.agents.warn({ err: nlErr, target }, 'Browser: Stagehand click failed, trying JS fallback');
+      try {
+        // Fallback: find element by text content, aria-label, or CSS selector
+        const clicked = await this.page.evaluate((t: string) => {
+          // Try as CSS selector first
+          try {
+            const el = document.querySelector(t) as HTMLElement;
+            if (el) { el.click(); return true; }
+          } catch { /* not a valid selector */ }
+          // Try finding by text content
+          const allElements = document.querySelectorAll('a, button, [role="button"], input[type="submit"], [onclick]');
+          for (const el of allElements) {
+            const text = (el as HTMLElement).innerText?.trim() || el.getAttribute('aria-label') || '';
+            if (text.toLowerCase().includes(t.toLowerCase())) {
+              (el as HTMLElement).click();
+              return true;
+            }
+          }
+          return false;
+        }, target);
 
-    return `Clicked: "${target}". Current URL: ${this.page.url()}`;
+        if (clicked) {
+          await this.page.waitForTimeout(1000);
+          return `Clicked (JS fallback): "${target}". Current URL: ${this.page.url()}`;
+        }
+        return `Failed to click "${target}": element not found (tried Stagehand NL + JS fallback)`;
+      } catch (jsErr: any) {
+        return `Browser error clicking "${target}": ${nlErr.message || 'NL action failed'}, JS fallback also failed: ${jsErr.message}`;
+      }
+    }
   }
 
   /** Type text into a form field */
@@ -209,13 +267,60 @@ export class BrowserSession {
     await this.ensureBrowser();
     if (!this.page) return 'No page loaded. Use goto first.';
 
-    if (selector) {
-      await this.stagehand!.act(`Type "${text}" into the ${selector} field`);
-    } else {
-      await this.stagehand!.act(`Type "${text}" into the focused input`);
-    }
+    // Try Stagehand NL action first, fall back to JS injection
+    try {
+      if (selector) {
+        await this.stagehand!.act(`Type "${text}" into the ${selector} field`);
+      } else {
+        await this.stagehand!.act(`Type "${text}" into the focused input`);
+      }
+      return `Typed: "${text}"`;
+    } catch (nlErr: any) {
+      log.agents.warn({ err: nlErr, selector, text: text.slice(0, 50) }, 'Browser: Stagehand type failed, trying JS fallback');
+      try {
+        // Fallback: find input by selector, placeholder, or label
+        const typed = await this.page.evaluate(({ sel, val }: { sel: string; val: string }) => {
+          let input: HTMLElement | null = null;
+          // Try CSS selector
+          if (sel) {
+            try { input = document.querySelector(sel) as HTMLElement; } catch { /* not valid */ }
+          }
+          // Try by placeholder or aria-label
+          if (!input && sel) {
+            const inputs = document.querySelectorAll('input, textarea, [contenteditable]');
+            for (const el of inputs) {
+              const placeholder = el.getAttribute('placeholder') || '';
+              const label = el.getAttribute('aria-label') || '';
+              if (placeholder.toLowerCase().includes(sel.toLowerCase()) || label.toLowerCase().includes(sel.toLowerCase())) {
+                input = el as HTMLElement;
+                break;
+              }
+            }
+          }
+          // Fallback to currently focused element
+          if (!input) input = document.activeElement as HTMLElement;
+          if (!input) return false;
 
-    return `Typed: "${text}"`;
+          if ('value' in input) {
+            (input as HTMLInputElement).value = val;
+            input.dispatchEvent(new Event('input', { bubbles: true }));
+            input.dispatchEvent(new Event('change', { bubbles: true }));
+            return true;
+          }
+          if (input.isContentEditable) {
+            input.textContent = val;
+            input.dispatchEvent(new Event('input', { bubbles: true }));
+            return true;
+          }
+          return false;
+        }, { sel: selector, val: text });
+
+        if (typed) return `Typed (JS fallback): "${text}"`;
+        return `Failed to type "${text}": no suitable input found`;
+      } catch (jsErr: any) {
+        return `Browser error typing "${text}": ${nlErr.message || 'NL action failed'}, JS fallback also failed: ${jsErr.message}`;
+      }
+    }
   }
 
   /** Scroll the page */

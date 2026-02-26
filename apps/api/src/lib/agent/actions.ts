@@ -28,6 +28,7 @@ import { buildIntegrationTools } from '../tools/integrations.js';
 import { log } from '../logger.js';
 import type { IAgent } from '../../models/agent.js';
 import type { IAgentSession } from '../../models/agent-session.js';
+import type { EventStream } from './event-stream.js';
 
 export interface ActionContext {
   agent: IAgent;
@@ -38,6 +39,7 @@ export interface ActionContext {
   workspaceMemory: WorkspaceMemory;
   terminalSession: TerminalSession;
   browserSession: BrowserSession;
+  eventStream?: EventStream;
 }
 
 /**
@@ -49,6 +51,7 @@ export async function buildActions(ctx: ActionContext) {
     session, onComplete, onHireAgent,
     todoManager, workspaceMemory,
     terminalSession, browserSession,
+    eventStream,
   } = ctx;
 
   const userId = session.userId.toString();
@@ -169,6 +172,20 @@ export async function buildActions(ctx: ActionContext) {
 
         // Sync to workspace filesystem
         await workspaceMemory.syncTodo(todoManager.serialize());
+
+        // Emit plan progress to frontend via Socket.IO
+        if (eventStream) {
+          const planData = todoManager.toJSON();
+          const planItems = planData.items || [];
+          const completed = planItems.filter((i: any) => i.status === 'completed').length;
+          eventStream.append('plan_progress', todoManager.serialize(), undefined, {
+            plan: {
+              items: planItems.map((i: any) => ({ id: i.id, text: i.text, status: i.status })),
+              completed,
+              total: planItems.length,
+            },
+          });
+        }
 
         return todoManager.serialize();
       }

@@ -24,7 +24,7 @@ import { EventStream } from './agent/event-stream.js';
 import { AgentStateMachine } from './agent/state-machine.js';
 import { TodoManager } from './agent/todo-manager.js';
 import { WorkspaceMemory } from './agent/workspace-memory.js';
-import { TerminalSession } from './agent/terminal-session.js';
+import { TerminalSession, inferImage } from './agent/terminal-session.js';
 import { BrowserSession } from './agent/browser-session.js';
 import { buildActions } from './agent/actions.js';
 import { classifyError } from './errors/failover-error.js';
@@ -89,6 +89,7 @@ function selectModelForStep(
   task: string,
   stepNumber: number,
   lastStepHadToolCalls: boolean,
+  errorCount: number = 0,
 ): string {
   if (allowedModels.length === 0) return getDefaultAliaModel();
   if (allowedModels.length === 1) return allowedModels[0];
@@ -112,6 +113,9 @@ function selectModelForStep(
   const cheapest = sorted[0];
   const mid = sorted[Math.floor(sorted.length / 2)];
   const best = sorted[sorted.length - 1];
+
+  // Escalate to best model when too many tool errors (self-correction)
+  if (errorCount >= 3) return best;
 
   if (lastStepHadToolCalls && stepNumber > 1) return cheapest;
 
@@ -214,8 +218,9 @@ export async function runAgentSession(sessionId: string): Promise<void> {
     agentId,
     userId,
     workspaceMemory,
+    image: inferImage(session.task, agent.preferredImage),
   });
-  const browserSession = new BrowserSession();
+  const browserSession = new BrowserSession({ agentId, sessionId });
 
   // Restore from persisted event stream if resuming
   await eventStream.loadFromDB();
@@ -296,6 +301,7 @@ export async function runAgentSession(sessionId: string): Promise<void> {
     workspaceMemory,
     terminalSession,
     browserSession,
+    eventStream,
   });
 
   // Build system prompt (stable prefix — never changes between iterations)
@@ -310,6 +316,11 @@ export async function runAgentSession(sessionId: string): Promise<void> {
   const failedKeyIds = new Set<string>();
   let lastStepHadToolCalls = false;
   let iteration = 0;
+
+  // ── Error loop detection (Phase 2: Self-Correction) ──
+  const toolErrorTracker = new Map<string, { count: number; errors: string[] }>();
+  let consecutiveErrors = 0;
+  let totalToolErrors = 0;
 
   try {
     // ── Orchestrator mode check ──
@@ -359,8 +370,8 @@ export async function runAgentSession(sessionId: string): Promise<void> {
         break;
       }
 
-      // Select model
-      const modelId = selectModelForStep(allowedModels, session.task, totalSteps, lastStepHadToolCalls);
+      // Select model (escalates to best on repeated errors)
+      const modelId = selectModelForStep(allowedModels, session.task, totalSteps, lastStepHadToolCalls, totalToolErrors);
 
       eventStream.append('thinking', `Step ${totalSteps + 1}: Using model ${modelId} in state ${stateMachine.current()}`);
 
@@ -432,7 +443,7 @@ export async function runAgentSession(sessionId: string): Promise<void> {
               }
             }
 
-            // Record tool results — with workspace memory offloading
+            // Record tool results — with workspace memory offloading + error loop detection
             if ((step as any).toolResults?.length) {
               for (const tr of (step as any).toolResults) {
                 const resultStr = typeof tr.result === 'string'
@@ -445,6 +456,39 @@ export async function runAgentSession(sessionId: string): Promise<void> {
                   toolName: tr.toolName,
                   durationMs: Date.now() - startMs,
                 });
+
+                // ── Error loop detection ──
+                const isToolError = resultStr.startsWith('Error:') || resultStr.startsWith('Browser error:') || resultStr.startsWith('MCP tool error:');
+                if (isToolError) {
+                  consecutiveErrors++;
+                  totalToolErrors++;
+                  const key = tr.toolName || 'unknown';
+                  const existing = toolErrorTracker.get(key) || { count: 0, errors: [] };
+                  existing.count++;
+                  existing.errors.push(resultStr.slice(0, 200));
+                  toolErrorTracker.set(key, existing);
+
+                  // Inject error loop warning after 2 failures of the same tool
+                  if (existing.count >= 2) {
+                    eventStream.append('system_message',
+                      `CRITICAL: "${key}" has failed ${existing.count} times. Do NOT retry the same approach. ` +
+                      `Try a fundamentally different strategy. Previous errors: ${existing.errors.slice(-2).join('; ')}`
+                    );
+                  }
+
+                  // Circuit breaker: 5 consecutive errors → force partial completion
+                  if (consecutiveErrors >= 5) {
+                    eventStream.append('system_message',
+                      'Too many consecutive errors. Stopping execution and returning partial results.'
+                    );
+                    taskCompleted = true;
+                    taskResult = 'Task stopped after 5 consecutive errors. Partial progress:\n' +
+                      todoManager.serialize();
+                    break;
+                  }
+                } else {
+                  consecutiveErrors = 0; // Reset on success
+                }
 
                 if (stateMachine.canTransition('observation_received')) {
                   stateMachine.transition('observation_received');
@@ -540,10 +584,10 @@ export async function runAgentSession(sessionId: string): Promise<void> {
 
     // ── Session Complete ──
 
-    // Cleanup resources
-    await terminalSession.destroy();
+    // Mark container as idle (persistent for 24h) instead of destroying,
+    // so users can browse workspace files after completion.
+    await terminalSession.idle(24);
     await browserSession.close();
-    await cleanupSessionResources(session);
 
     if (taskCompleted) {
       session.status = 'completed';

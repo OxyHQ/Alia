@@ -21,6 +21,7 @@ import { incrementDailyCost, isApproachingDailyCap, getDailyCostCap } from '../l
 import { log } from '../lib/logger.js';
 import { writeSSE, TextBatcher, setupSSEHeaders } from '../lib/streaming-helpers.js';
 import { recordEvent } from '../lib/observability/index.js';
+import { runDeepResearch, type ResearchProgress } from '../lib/research/research-engine.js';
 import { MAX_CHAT_RETRIES } from '../lib/constants.js';
 import {
   buildChatSystemPrompt,
@@ -54,13 +55,14 @@ router.post('/', optionalAuth, async (req, res) => {
   const requestStartTime = Date.now();
 
   try {
-    const { messages, conversationId, model: requestedModel, thinkingMode, skillId, agentId } = req.body as {
+    const { messages, conversationId, model: requestedModel, thinkingMode, skillId, agentId, deepResearch } = req.body as {
       messages: any[];
       conversationId?: string;
       model?: string;
       thinkingMode?: boolean;
       skillId?: string;
       agentId?: string;
+      deepResearch?: boolean;
     };
 
     if (!messages || !messages.length) {
@@ -129,6 +131,91 @@ router.post('/', optionalAuth, async (req, res) => {
     // Load skill/agent prompts via service
     const skillPrompt = skillId ? await loadSkillPrompt(skillId) : null;
     const agentPrompt = agentId ? await loadAgentPrompt(agentId) : null;
+
+    // ── Deep Research Mode ──
+    // When activated, route to the specialized research engine that does
+    // multi-query web search, source tracking, and citation synthesis.
+    if (deepResearch && req.user?.id) {
+      const userQuery = processedMessages.filter(m => m.role === 'user').pop()?.content || '';
+      if (userQuery) {
+        setupSSEHeaders(res);
+
+        try {
+          const result = await runDeepResearch(userQuery, processedMessages, {
+            userId: req.user.id,
+            signal: req.socket.destroyed ? AbortSignal.abort() : undefined,
+            onProgress: (progress: ResearchProgress) => {
+              // Stream progress events as SSE
+              writeSSE(res, `data: ${JSON.stringify({
+                type: 'research_progress',
+                phase: progress.phase,
+                message: progress.message,
+                subQuestions: progress.subQuestions,
+                sourcesFound: progress.sourcesFound,
+                currentQuery: progress.currentQuery,
+                iteration: progress.iteration,
+              })}\n\n`);
+            },
+          });
+
+          // Stream the final report as content deltas
+          const reportChunks = chunkString(result.report, 100);
+          for (const chunk of reportChunks) {
+            writeSSE(res, `data: ${JSON.stringify({
+              choices: [{ delta: { content: chunk } }],
+            })}\n\n`);
+          }
+
+          // Send sources metadata
+          writeSSE(res, `data: ${JSON.stringify({
+            type: 'research_complete',
+            sources: result.sources,
+            totalSearches: result.totalSearches,
+            subQuestions: result.subQuestions,
+          })}\n\n`);
+
+          writeSSE(res, 'data: [DONE]\n\n');
+          res.end();
+
+          // Save conversation
+          if (conversationId && req.user?.id) {
+            await saveConversation({
+              userId: req.user.id,
+              conversationId,
+              messages: processedMessages,
+              assistantResponse: result.report,
+            }).catch(err =>
+              log.chat.warn({ err }, 'Failed to save research conversation')
+            );
+          }
+
+          // Finalize credits
+          const promptTokenEstimate = processedMessages.reduce(
+            (sum, m) => sum + estimateMessageTokens(m.role, typeof m.content === 'string' ? m.content : ''), 0
+          );
+          const completionTokens = Math.ceil(result.report.length / 4);
+          await finalizeCredits(creditReservation, {
+            promptTokens: promptTokenEstimate,
+            completionTokens,
+            totalTokens: promptTokenEstimate + completionTokens,
+            systemPromptTokens: 0,
+          }).catch(() => {});
+        } catch (err: any) {
+          log.chat.error({ err }, 'Deep research failed');
+          if (!res.headersSent) {
+            res.status(500).json({ error: 'Deep research failed' });
+          } else {
+            writeSSE(res, `data: ${JSON.stringify({ type: 'error', error: err.message || 'Research failed' })}\n\n`);
+            writeSSE(res, 'data: [DONE]\n\n');
+            res.end();
+          }
+          await safeRefund(creditReservation, 'research error');
+        }
+
+        clearTimeout(requestTimeout);
+        return;
+      }
+    }
 
     // ── Provider retry loop ──
     // When a provider fails (billing, auth, etc.), mark the key as exhausted
@@ -703,5 +790,14 @@ router.get('/', async (req, res) => {
     }
   });
 });
+
+/** Split a string into chunks of a given size. */
+function chunkString(str: string, size: number): string[] {
+  const chunks: string[] = [];
+  for (let i = 0; i < str.length; i += size) {
+    chunks.push(str.slice(i, i + size));
+  }
+  return chunks;
+}
 
 export default router;

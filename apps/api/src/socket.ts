@@ -40,6 +40,11 @@ export function initSocket(server: http.Server) {
       socket.join(`agent:${agentId}`);
     });
 
+    socket.on('subscribe-agent-session', (sessionId: string) => {
+      if (typeof sessionId !== 'string' || sessionId.length > 256) return;
+      socket.join(`agent-session:${sessionId}`);
+    });
+
     socket.on('subscribe-notifications', (userId: string) => {
       if (typeof userId !== 'string' || userId.length > 256) return;
       socket.join(`user:${userId}`);
@@ -71,15 +76,27 @@ export function emitWorkflowProgress(executionId: string, data: any) {
 }
 
 export interface AgentActivityEvent {
-  type: 'system' | 'thinking' | 'response' | 'tool_call' | 'tool_result' | 'error' | 'complete';
+  type: 'system' | 'thinking' | 'response' | 'tool_call' | 'tool_result' | 'error' | 'complete' | 'screenshot' | 'plan_progress' | 'file_change';
   content: string;
   timestamp: number;
   sessionId: string;
   metadata?: { toolName?: string; args?: any; duration?: number };
+  data?: {
+    base64?: string;
+    url?: string;
+    plan?: { items: Array<{ id: number; text: string; status: string }>; completed: number; total: number };
+    files?: string[];
+    currentStep?: number;
+    maxSteps?: number;
+  };
 }
 
 export function emitAgentActivity(agentId: string, data: AgentActivityEvent) {
   if (io) {
     io.to(`agent:${agentId}`).emit('agent-activity', { agentId, ...data });
+    // Also emit to session-specific room for task card subscribers
+    if (data.sessionId) {
+      io.to(`agent-session:${data.sessionId}`).emit('agent-activity', { agentId, ...data });
+    }
   }
 }

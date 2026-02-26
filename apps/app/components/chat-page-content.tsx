@@ -29,6 +29,9 @@ import { useRouter } from "expo-router";
 import { useTranslation } from "@/hooks/useTranslation";
 import type { useVoiceMode } from "@/lib/hooks/use-voice-mode";
 import { useTTS } from "@/lib/hooks/use-tts";
+import type { AgentActivityState } from "@/lib/hooks/use-agent-activity";
+import { AgentTerminal } from "@/components/agent-terminal";
+import { Terminal as TerminalIcon, ChevronDown, ChevronUp } from "lucide-react-native";
 
 type Mode = 'search' | 'agent' | 'ghost' | 'deepResearch' | 'shoppingResearch' | 'study';
 
@@ -69,6 +72,9 @@ interface ChatPageContentProps {
   disabled?: boolean;
   voice?: VoiceState;
   onVoiceStart?: () => void;
+  agentActivity?: AgentActivityState | null;
+  agentId?: string | null;
+  agentSessionId?: string | null;
 }
 
 
@@ -103,6 +109,9 @@ export const ChatPageContent = ({
   disabled = false,
   voice,
   onVoiceStart,
+  agentActivity,
+  agentId,
+  agentSessionId,
 }: ChatPageContentProps) => {
   const attachments = useStore((state) => state.attachments);
   const addAttachment = useStore((state) => state.addAttachment);
@@ -131,6 +140,7 @@ export const ChatPageContent = ({
   const [inputValue, setInputValue] = useState("");
   const [showCanvas, setShowCanvas] = useState(false);
   const [canvasComponents, setCanvasComponents] = useState<any[]>([]);
+  const [showTerminal, setShowTerminal] = useState(false);
   const { colors } = useColorScheme();
 
   const [bottomBarHeight, setBottomBarHeight] = useState(160);
@@ -167,6 +177,9 @@ export const ChatPageContent = ({
       }
       if (mode === 'agent') {
         useStore.getState().setAgentMode(next.has('agent'));
+      }
+      if (mode === 'deepResearch') {
+        useStore.getState().setDeepResearchMode(next.has('deepResearch'));
       }
       return next;
     });
@@ -288,6 +301,8 @@ export const ChatPageContent = ({
           isVoiceActive={isVoiceActive}
           voiceAgentState={voice?.agentState}
           onAtBottomChange={setIsAtBottom}
+          agentActivity={agentActivity}
+          agentSessionId={agentSessionId}
         />
 
         {/* Voice wave overlay — renders on top of messages at low opacity */}
@@ -526,6 +541,34 @@ export const ChatPageContent = ({
           </LinearGradient>
         )}
       </View>
+
+      {/* Agent Terminal Panel — collapsible at the bottom */}
+      {agentId && showTerminal && (
+        <View className="border-t border-border" style={{ height: 280 }}>
+          <View className="flex-row items-center justify-between px-3 py-1.5 bg-[#0d0d0d]">
+            <View className="flex-row items-center gap-2">
+              <TerminalIcon size={12} color="#808080" />
+              <Text className="text-xs text-[#808080]">Agent Terminal</Text>
+            </View>
+            <Pressable onPress={() => setShowTerminal(false)} className="p-1">
+              <ChevronDown size={14} color="#808080" />
+            </Pressable>
+          </View>
+          <AgentTerminal agentId={agentId} />
+        </View>
+      )}
+
+      {/* Terminal toggle button — shows when agent mode is active */}
+      {agentId && !showTerminal && activeModes.has('agent') && (
+        <Pressable
+          onPress={() => setShowTerminal(true)}
+          className="absolute bottom-32 right-4 z-20 bg-[#0d0d0d] rounded-lg px-3 py-2 flex-row items-center gap-2 border border-border shadow-lg"
+        >
+          <TerminalIcon size={14} color="#808080" />
+          <Text className="text-xs text-[#808080]">Terminal</Text>
+          <ChevronUp size={12} color="#808080" />
+        </Pressable>
+      )}
 
       <CanvasPanel visible={showCanvas} onClose={() => setShowCanvas(false)} components={canvasComponents} />
     </View>
