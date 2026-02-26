@@ -56,6 +56,7 @@ npm run ios
 - [Production Deployment Guide](docs/deployment.md)
 - [Developer Portal](docs/developers-portal.md)
 - [Memory System](docs/memory-system.md)
+- [Proactive Intelligence](docs/proactive-intelligence.md)
 - [OxyHQ Authentication Guide](docs/oxyhq-auth.md)
 
 ### App READMEs
