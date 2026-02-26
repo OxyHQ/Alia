@@ -1,5 +1,5 @@
-import React, { useState, useMemo } from 'react';
-import { View, ScrollView, Pressable, TextInput } from 'react-native';
+import React, { useState, useMemo, useCallback } from 'react';
+import { View, ScrollView, Pressable, TextInput, RefreshControl } from 'react-native';
 import { Text } from '@/components/ui/text';
 import { Search, Star, X } from 'lucide-react-native';
 import { useFavoritesStore } from '@/lib/stores/favorites-store';
@@ -7,14 +7,22 @@ import { useConversations } from '@/lib/hooks/use-conversations';
 import { useRouter } from 'expo-router';
 import { useColorScheme } from '@/lib/useColorScheme';
 import { cn } from '@/lib/utils';
+import { Skeleton } from '@/components/ui/skeleton';
 
 export default function FavoritesScreen() {
   const { colors } = useColorScheme();
   const router = useRouter();
   const favoriteIds = useFavoritesStore((state) => state.favoriteConversationIds);
   const toggleFavorite = useFavoritesStore((state) => state.toggleFavorite);
-  const { data } = useConversations();
+  const { data, isLoading, refetch } = useConversations();
   const [searchQuery, setSearchQuery] = useState('');
+
+  const [refreshing, setRefreshing] = useState(false);
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await refetch();
+    setRefreshing(false);
+  }, [refetch]);
 
   const allConversations = useMemo(() => {
     return data?.pages.flatMap(page => page.conversations) || [];
@@ -55,7 +63,11 @@ export default function FavoritesScreen() {
 
   return (
     <View className="flex-1 bg-background">
-      <ScrollView className="flex-1" showsVerticalScrollIndicator={false}>
+      <ScrollView
+        className="flex-1"
+        showsVerticalScrollIndicator={false}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+      >
         {/* Header */}
         <View className="px-5 pt-6 pb-1">
           <Text className="text-2xl font-bold text-foreground">
@@ -89,6 +101,20 @@ export default function FavoritesScreen() {
 
         {/* List */}
         <View className="px-5 pb-6">
+          {isLoading && allConversations.length === 0 ? (
+            <View className="gap-0.5">
+              {Array.from({ length: 4 }).map((_, i) => (
+                <View key={i} className="flex-row items-center py-2.5 gap-3">
+                  <View className="flex-1 gap-1.5">
+                    <Skeleton style={{ width: '55%', height: 14, borderRadius: 8 }} />
+                    <Skeleton style={{ width: '30%', height: 10, borderRadius: 6 }} />
+                  </View>
+                  <Skeleton style={{ width: 28, height: 28, borderRadius: 14 }} />
+                </View>
+              ))}
+            </View>
+          ) : (
+            <>
           {favoriteConversations.map((conv) => (
             <Pressable
               key={conv.id}
@@ -124,6 +150,8 @@ export default function FavoritesScreen() {
                 {searchQuery ? 'Try a different search' : 'Star conversations to save them here'}
               </Text>
             </View>
+          )}
+            </>
           )}
         </View>
       </ScrollView>

@@ -1,5 +1,5 @@
-import React, { useEffect, useState, useMemo } from 'react';
-import { View, ScrollView, Pressable, TextInput } from 'react-native';
+import React, { useEffect, useState, useMemo, useCallback } from 'react';
+import { View, ScrollView, Pressable, TextInput, RefreshControl } from 'react-native';
 import { KeyboardAwareScrollView } from '@/lib/keyboard';
 import { Text } from '@/components/ui/text';
 import { Button } from '@/components/ui/button';
@@ -17,11 +17,13 @@ import { useTranslation } from '@/hooks/useTranslation';
 import { toast } from '@/components/sonner';
 import { cn } from '@/lib/utils';
 import { useColorScheme } from '@/lib/useColorScheme';
+import { Skeleton } from '@/components/ui/skeleton';
 
 export default function RolesScreen() {
   const { t } = useTranslation();
   const roles = useRolesStore((state) => state.roles);
   const loadRoles = useRolesStore((state) => state.loadRoles);
+  const isInitialLoad = roles.length === 0;
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const router = useRouter();
@@ -29,6 +31,13 @@ export default function RolesScreen() {
 
   useEffect(() => {
     loadRoles();
+  }, [loadRoles]);
+
+  const [refreshing, setRefreshing] = useState(false);
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await loadRoles();
+    setRefreshing(false);
   }, [loadRoles]);
 
   const handleSelectRole = (roleId: string) => {
@@ -65,7 +74,11 @@ export default function RolesScreen() {
 
   return (
     <View className="flex-1 bg-background">
-      <KeyboardAwareScrollView className="flex-1" showsVerticalScrollIndicator={false}>
+      <KeyboardAwareScrollView
+        className="flex-1"
+        showsVerticalScrollIndicator={false}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+      >
         {/* Header */}
         <View className="px-5 pt-6 pb-1">
           <View className="flex-row items-center justify-between">
@@ -161,13 +174,28 @@ export default function RolesScreen() {
               </Text>
             </View>
           )}
-          <View>
-            {filteredRoles.map((role) => (
-              <RoleListItem key={role.id} role={role} onPress={handleSelectRole} />
-            ))}
-          </View>
+          {isInitialLoad ? (
+            <View className="gap-0.5">
+              {Array.from({ length: 5 }).map((_, i) => (
+                <View key={i} className="flex-row items-center py-2.5 gap-3">
+                  <Skeleton style={{ width: 36, height: 36, borderRadius: 18 }} />
+                  <View className="flex-1 gap-1.5">
+                    <Skeleton style={{ width: '50%', height: 14, borderRadius: 8 }} />
+                    <Skeleton style={{ width: '70%', height: 10, borderRadius: 6 }} />
+                  </View>
+                  <Skeleton style={{ width: 30, height: 12, borderRadius: 6 }} />
+                </View>
+              ))}
+            </View>
+          ) : (
+            <View>
+              {filteredRoles.map((role) => (
+                <RoleListItem key={role.id} role={role} onPress={handleSelectRole} />
+              ))}
+            </View>
+          )}
 
-          {filteredRoles.length === 0 && (
+          {filteredRoles.length === 0 && !isInitialLoad && (
             <View className="items-center justify-center py-16">
               <Text className="text-sm font-medium text-foreground">
                 {t('roles.noRoles')}
