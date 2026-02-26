@@ -70,6 +70,7 @@ interface ChatPageContentProps {
   activeRole?: { id: string; name: string };
   onRemoveRole?: () => void;
   disabled?: boolean;
+  conversationLoading?: boolean;
   voice?: VoiceState;
   onVoiceStart?: () => void;
   agentActivity?: AgentActivityState | null;
@@ -107,6 +108,7 @@ export const ChatPageContent = ({
   activeRole,
   onRemoveRole,
   disabled = false,
+  conversationLoading,
   voice,
   onVoiceStart,
   agentActivity,
@@ -295,6 +297,7 @@ export const ChatPageContent = ({
           messages={messages}
           scrollViewRef={scrollViewRef}
           isLoading={isLoading}
+          conversationLoading={conversationLoading}
           onSuggestionPress={handleSuggestionPress}
           onEditMessage={onEditMessage}
           bottomPadding={bottomBarHeight}

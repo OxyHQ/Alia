@@ -24,6 +24,7 @@ const ChatConversationPage = () => {
   const {
     messages,
     isLoading,
+    conversationLoading,
     error,
     scrollViewRef,
     sendMessage,
@@ -72,6 +73,7 @@ const ChatConversationPage = () => {
         messages={messages}
         scrollViewRef={scrollViewRef}
         isLoading={isLoading}
+        conversationLoading={conversationLoading}
         onSubmit={sendMessage}
         onSuggestionPress={sendMessage}
         onEditMessage={editMessage}

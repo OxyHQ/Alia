@@ -28,7 +28,7 @@ export function useChatConversation({ conversationId, activeRole, thinkingMode, 
   const wasLoadingRef = useRef(false);
 
   const pendingInitialMessage = useStore((state) => state.pendingInitialMessage);
-  const { data: conversation, isLoading: conversationLoading } = useConversation(conversationId || "");
+  const { data: conversation, isLoading: conversationQueryLoading, isFetching: conversationFetching } = useConversation(conversationId || "");
   const createConversationMutation = useCreateConversation();
 
   const {
@@ -50,24 +50,32 @@ export function useChatConversation({ conversationId, activeRole, thinkingMode, 
     wasLoadingRef.current = isLoading;
   }, [isLoading, conversationId, queryClient]);
 
-  // Sync chatId and load messages when conversation changes
+  // Sync chatId and load messages when conversation changes or when
+  // seeded cache data upgrades to full data (messages go from empty to populated).
   useEffect(() => {
     useStore.getState().setChatId(conversationId ? { id: conversationId, from: "url" } : null);
 
-    if (!conversationId || conversationLoading) return;
-    if (lastConversationId.current === conversationId) return;
+    if (!conversationId || conversationQueryLoading) return;
 
-    lastConversationId.current = conversationId;
-    hasSentPendingMessage.current = false;
+    const incomingMessages = conversation?.messages || [];
+    const isNewConversation = lastConversationId.current !== conversationId;
+    const isDataUpgrade = !isNewConversation && incomingMessages.length > 0 && messages.length === 0;
 
-    const validMessages = (conversation?.messages || [])
+    if (!isNewConversation && !isDataUpgrade) return;
+
+    if (isNewConversation) {
+      lastConversationId.current = conversationId;
+      hasSentPendingMessage.current = false;
+    }
+
+    const validMessages = incomingMessages
       .filter(msg => msg?.role && msg?.content !== undefined)
       .map((msg, index) => ({
         ...msg,
         id: msg.id || `db-${conversationId}-${index}`,
       }));
     setMessages(validMessages);
-  }, [conversationId, conversation, conversationLoading, setMessages]);
+  }, [conversationId, conversation, conversationQueryLoading, setMessages, messages.length]);
 
   // Send pending initial message for new conversations
   useEffect(() => {
@@ -135,11 +143,16 @@ export function useChatConversation({ conversationId, activeRole, thinkingMode, 
     setMessages([]);
   }, [setMessages]);
 
+  // True while loading conversation messages (initial fetch or seeded→full upgrade)
+  const conversationLoading = conversationQueryLoading ||
+    (conversationFetching && (!conversation?.messages || conversation.messages.length === 0));
+
   return {
     // State
     conversationId,
     messages,
     isLoading,
+    conversationLoading,
     error,
     scrollViewRef,
 

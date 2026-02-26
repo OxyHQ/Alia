@@ -36,6 +36,7 @@ interface FolderSectionProps {
   onMoveToProject: (convId: string, projectId: string | null, e: any) => void;
   onMoveToFolder: (convId: string, folderId: string | null, e: any) => void;
   onDeleteConversation: (id: string, e: any) => void;
+  onPrefetchConversation?: (id: string) => void;
   getConversationProject: (id: string) => Project | undefined;
   getConversationFolder: (id: string) => Folder | undefined;
 }
@@ -58,6 +59,7 @@ export const FolderSection = React.memo<FolderSectionProps>(({
   onMoveToProject,
   onMoveToFolder,
   onDeleteConversation,
+  onPrefetchConversation,
   getConversationProject,
   getConversationFolder,
 }) => {
@@ -137,6 +139,7 @@ export const FolderSection = React.memo<FolderSectionProps>(({
             onMoveToProject={onMoveToProject}
             onMoveToFolder={onMoveToFolder}
             onDelete={onDeleteConversation}
+            onPrefetch={onPrefetchConversation}
             compact
             indented
           />

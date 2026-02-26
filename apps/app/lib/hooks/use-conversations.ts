@@ -1,4 +1,4 @@
-import { useQuery, useMutation, useQueryClient, useInfiniteQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient, useInfiniteQuery, type QueryClient } from '@tanstack/react-query';
 import { useOxy } from '@oxyhq/services';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { toast } from '@/components/sonner';
@@ -146,8 +146,17 @@ export function useConversation(id: string) {
     queryKey: queryKeys.conversations.detail(id),
     queryFn: () => fetchConversation(id),
     enabled: isAuthenticated && !!id,
-    staleTime: 1000 * 60 * 2, // 2 minutes
+    staleTime: 1000 * 60 * 5, // 5 minutes
     retry: 1,
+  });
+}
+
+// Prefetch a conversation detail (call from sidebar on press-in / hover)
+export function prefetchConversation(queryClient: QueryClient, id: string) {
+  queryClient.prefetchQuery({
+    queryKey: queryKeys.conversations.detail(id),
+    queryFn: () => fetchConversation(id),
+    staleTime: 1000 * 60 * 5,
   });
 }
 

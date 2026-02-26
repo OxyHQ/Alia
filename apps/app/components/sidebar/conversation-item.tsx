@@ -22,6 +22,7 @@ interface ConversationItemProps {
   onMoveToProject: (convId: string, projectId: string | null, e: any) => void;
   onMoveToFolder: (convId: string, folderId: string | null, e: any) => void;
   onDelete: (id: string, e: any) => void;
+  onPrefetch?: (id: string) => void;
   compact?: boolean;
   indented?: boolean;
 }
@@ -41,9 +42,14 @@ export const ConversationItem = React.memo<ConversationItemProps>(({
   onMoveToProject,
   onMoveToFolder,
   onDelete,
+  onPrefetch,
   compact = false,
   indented = false,
 }) => {
+  const handlePrefetch = React.useCallback(() => {
+    onPrefetch?.(conversation.id);
+  }, [onPrefetch, conversation.id]);
+
   return (
     <View
       className={cn(
@@ -54,6 +60,9 @@ export const ConversationItem = React.memo<ConversationItemProps>(({
     >
       <Pressable
         onPress={() => onSelect(conversation.id)}
+        onPressIn={handlePrefetch}
+        // @ts-ignore web-only prop
+        onHoverIn={handlePrefetch}
         className={cn(
           "flex-1 flex-row items-center gap-2",
           compact ? "py-1.5 pl-2.5 pr-1" : "py-2.5 md:py-2 pl-3 md:pl-2.5 pr-1",

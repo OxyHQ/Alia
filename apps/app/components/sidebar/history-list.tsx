@@ -21,6 +21,7 @@ interface HistoryListProps {
   onMoveToProject: (convId: string, projectId: string | null, e: any) => void;
   onMoveToFolder: (convId: string, folderId: string | null, e: any) => void;
   onDelete: (id: string, e: any) => void;
+  onPrefetch?: (id: string) => void;
   getConversationProject: (id: string) => Project | undefined;
   getConversationFolder: (id: string) => Folder | undefined;
 }
@@ -39,6 +40,7 @@ export const HistoryList = React.memo<HistoryListProps>(({
   onMoveToProject,
   onMoveToFolder,
   onDelete,
+  onPrefetch,
   getConversationProject,
   getConversationFolder,
 }) => {
@@ -64,6 +66,9 @@ export const HistoryList = React.memo<HistoryListProps>(({
           >
             <Pressable
               onPress={() => onSelect(conv.id)}
+              onPressIn={() => onPrefetch?.(conv.id)}
+              // @ts-ignore web-only prop
+              onHoverIn={() => onPrefetch?.(conv.id)}
               className={cn(
                 "flex-1 flex-row items-center gap-2 py-1.5 pl-2.5 pr-1",
                 !isActive && "active:bg-muted/50 rounded-full"
