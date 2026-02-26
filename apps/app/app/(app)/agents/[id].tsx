@@ -23,6 +23,7 @@ import { toast } from "@/components/sonner";
 import { SectionLabel, PillList, ActivityGrid } from "@/components/detail";
 import { AgentTerminal } from "@/components/agent-terminal";
 import apiClient from "@/lib/api/client";
+import { useColorScheme } from "@/lib/useColorScheme";
 import { cn } from "@/lib/utils";
 import { useCreateConversation } from "@/lib/hooks/use-conversations";
 import { useAgentFavoritesStore } from "@/lib/stores/agent-favorites-store";
@@ -66,6 +67,7 @@ export default function AgentDetailScreen() {
   const router = useRouter();
   const { t } = useTranslation();
   const { user } = useOxy();
+  const { colors } = useColorScheme();
   const { width } = useWindowDimensions();
   const isLargeScreen = width >= 768;
   const [agent, setAgent] = useState<Agent | null>(null);
@@ -119,7 +121,7 @@ export default function AgentDetailScreen() {
           setReviewRating(res.data.userReview.rating);
           setReviewComment(res.data.userReview.comment || "");
         }
-      }).catch(() => {});
+      }).catch((err) => console.error('Failed to load reviews:', err));
     }
   }, [id]);
 
@@ -510,7 +512,7 @@ export default function AgentDetailScreen() {
                   value={taskInput}
                   onChangeText={setTaskInput}
                   placeholder={t("agents.taskPlaceholder")}
-                  placeholderTextColor="#888"
+                  placeholderTextColor={colors.mutedForeground}
                   editable={!hiring}
                   multiline
                   numberOfLines={3}
@@ -607,7 +609,7 @@ export default function AgentDetailScreen() {
                     value={reviewComment}
                     onChangeText={setReviewComment}
                     placeholder={t("agents.reviewPlaceholder")}
-                    placeholderTextColor="#888"
+                    placeholderTextColor={colors.mutedForeground}
                     multiline
                     numberOfLines={3}
                     style={{

@@ -150,7 +150,6 @@ export default function AutomationsScreen() {
   const [expanded, setExpanded] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [name, setName] = useState('');
-  const [workspace, setWorkspace] = useState('');
   const [prompt, setPrompt] = useState('');
   const [scheduleType, setScheduleType] = useState('daily');
   const [time, setTime] = useState('06:00 PM');
@@ -500,16 +499,6 @@ export default function AutomationsScreen() {
               />
             </View>
 
-            {/* Workspaces Field */}
-            <View className="gap-2">
-              <Label>{t('automations.workspaces')}</Label>
-              <Input
-                value={workspace}
-                onChangeText={setWorkspace}
-                placeholder={t('automations.workspacesPlaceholder')}
-                placeholderTextColor={colors.mutedForeground}
-              />
-            </View>
 
             {/* Prompt Field */}
             <View className="gap-2">

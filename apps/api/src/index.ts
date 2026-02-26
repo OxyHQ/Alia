@@ -12,7 +12,7 @@ import { isAbortError, isFatalError, isTransientNetworkError } from './lib/error
 import healthRouter from './routes/health.js';
 import authRouter from './routes/auth.js';
 import conversationsRouter from './routes/conversations.js';
-import foldersRouter from './routes/folders.js';
+// folders route removed — was unimplemented (501 stubs)
 import chatRouter from './routes/chat.js';
 import memoryRouter from './routes/memory.js';
 import creditsRouter from './routes/credits.js';
@@ -195,7 +195,7 @@ app.use('/alia/chat', (_req, res, next) => {
 app.use('/health', healthRouter);
 app.use('/auth', authRouter);
 app.use('/conversations', conversationsRouter);
-app.use('/folders', foldersRouter);
+
 app.use('/memory', memoryRouter);
 app.use('/credits', creditsRouter);
 app.use('/alia/chat', chatRouter);
@@ -238,7 +238,6 @@ app.get('/', (_req, res) => {
       '/health',
       '/auth',
       '/conversations',
-      '/folders',
       '/memory',
       '/credits',
       '/alia/chat',

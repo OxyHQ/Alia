@@ -148,6 +148,10 @@ Owners configure which models each agent can use via the `allowedModels` field. 
 | `snapshotContainer` | Save container state as an image |
 | `destroyContainer` | Tear down a container |
 | `completeTask` | Mark the task as done with a summary |
+| `createTrigger` | Create scheduled/webhook triggers via natural language |
+| `listTriggers` | List user's active triggers and routines |
+| `updateTrigger` | Update trigger schedule, prompt, or enable/disable |
+| `deleteTrigger` | Delete a trigger |
 
 ### Agent-to-Agent Delegation
 
@@ -164,6 +168,61 @@ Agent owners can:
 - **Set system prompt** — Custom instructions for the agent
 - **Cancel sessions** — Stop a running session at any time
 - **View sessions** — Browse session history with stats (tokens, steps, duration)
+
+---
+
+## Proactive Intelligence
+
+Alia doesn't just respond to messages — it can proactively reach out, monitor things, and run tasks on autopilot. This is powered by three interconnected systems.
+
+### Triggers (Scheduled AI Tasks)
+
+Triggers are automated AI tasks that run on a schedule, on webhook, or on integration events. When a trigger fires, Alia executes an AI prompt with full tool access (web search, integrations, etc.) and delivers the result as a notification.
+
+**Types:**
+- **Schedule** — Cron expressions, daily at a specific time, or interval-based (every N minutes)
+- **Webhook** — External services POST to a unique URL, Alia processes the payload with AI
+- **Integration Event** — Fires when connected services emit events (GitHub push, Linear issue created, etc.)
+
+**Creating triggers conversationally:**
+
+Users can create triggers directly in chat using natural language:
+
+```
+"Every morning at 8am, check my GitHub PRs and summarize them on Telegram"
+"Every Friday, search for news about AI agents and send me a digest"
+"Set a reminder to review my monthly budget on the 1st of each month"
+```
+
+Alia parses these into structured trigger configs using the `createTrigger` tool.
+
+### Notifications (Multi-Channel Delivery)
+
+When a trigger completes, results are delivered as notifications across the user's connected channels:
+
+- **In-app** — Real-time via Socket.io, shown in the notification feed
+- **Telegram** — Sent to linked Telegram account
+- **Discord / WhatsApp / Slack** — Sent to connected accounts
+
+Notification types: `trigger_result`, `proactive_insight`, `daily_briefing`, `price_alert`, `integration_event`, `reminder`
+
+### Proactive Insights (After-Chat Analysis)
+
+After conversations, Alia analyzes whether it should proactively suggest:
+- A **reminder** for mentioned future events or deadlines
+- A **monitoring trigger** for things that change over time
+- A **routine** for recurring needs
+
+These appear as personalized suggestions in the user's next session.
+
+### Daily Briefing
+
+A personalized morning summary assembled from:
+- User interests and occupation (from memory)
+- Connected integrations (calendar events, GitHub PRs, etc.)
+- Web-searched news relevant to the user
+
+Created as a schedule trigger, delivered via notifications at the user's preferred time.
 
 ---
 

@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import mongoose from 'mongoose';
 import { getAllProviderHealth, type HealthMetrics } from '../lib/providers-client.js';
+import { log } from '../lib/logger.js';
 
 const router = Router();
 
@@ -59,7 +60,8 @@ router.get('/', async (_req, res) => {
     const snapshot = await getHealthSnapshot();
     const statusCode = snapshot.status === 'healthy' ? 200 : 503;
     res.status(statusCode).json(snapshot);
-  } catch {
+  } catch (error) {
+    log.general.error({ err: error }, 'Health check failed');
     res.status(503).json({
       status: 'error',
       timestamp: new Date().toISOString(),

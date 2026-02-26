@@ -17,6 +17,9 @@ Standalone API for Alia built with Express and TypeScript.
 - **Event Stream** — append-only persistent log of all agent actions and observations
 - **Structured Planning** — todo-based task tracking with attention-optimized context injection
 - **Workspace Memory** — file-system-as-extended-context in containers
+- **Proactive Intelligence** — triggers, notifications, daily briefings, after-chat analysis
+- **Multi-Channel Notifications** — in-app (Socket.io), Telegram, Discord, WhatsApp, Slack delivery
+- **Natural Language Automation** — create triggers and routines conversationally via chat tools
 
 ## Architecture
 
@@ -332,6 +335,26 @@ NEXTAUTH_URL='http://localhost:3001'
 - `DELETE /automations/:id` - Delete automation
 - `POST /automations/:id/execute` - Execute automation
 
+### Triggers
+
+- `GET /triggers` - List user's triggers (filterable by type)
+- `POST /triggers` - Create a trigger (schedule, webhook, or integration_event)
+- `GET /triggers/:id` - Get trigger details
+- `PATCH /triggers/:id` - Update a trigger
+- `DELETE /triggers/:id` - Delete a trigger
+- `POST /triggers/:id/run` - Manually execute a trigger
+- `GET /triggers/:id/executions` - Get trigger execution history
+- `POST /triggers/:id/regenerate-token` - Regenerate webhook token
+- `POST /triggers/webhook/:token` - Receive webhook payload (public, token-based auth)
+
+### Notifications
+
+- `GET /notifications` - List notifications (paginated, filterable by status/type)
+- `GET /notifications/unread-count` - Get unread notification count
+- `PATCH /notifications/:id/read` - Mark notification as read
+- `POST /notifications/read-all` - Mark all notifications as read
+- `PATCH /notifications/:id/dismiss` - Dismiss a notification
+
 ### Analytics
 
 - `GET /analytics/usage` - Usage analytics
@@ -506,6 +529,27 @@ src/
 │   │   ├── workspace-memory.ts # File-system-as-extended-context in containers
 │   │   └── index.ts           # Barrel exports
 │   ├── container-manager.ts # Docker container lifecycle management
+│   ├── notification-service.ts  # Multi-channel notification delivery
+│   ├── trigger-engine.ts        # Cron scheduler + AI trigger execution
+│   ├── daily-briefing.ts        # Personalized morning briefing generator
+│   ├── hooks/                   # Chat lifecycle hooks
+│   │   ├── index.ts             # Hook registration
+│   │   ├── hook-runner.ts       # Hook execution engine
+│   │   └── built-in/
+│   │       ├── proactive-hook.ts    # After-chat proactive analysis
+│   │       └── style-learning-hook.ts # Writing style adaptation
+│   ├── tools/
+│   │   ├── trigger-management.ts # NL trigger CRUD tools for chat
+│   │   └── ...
+├── models/
+│   ├── notification.ts    # Notification documents
+│   ├── trigger.ts         # Trigger configuration
+│   ├── trigger-execution.ts # Trigger execution history
+│   └── ...
+├── routes/
+│   ├── triggers.ts        # Trigger CRUD + webhook ingestion
+│   ├── notifications.ts   # Notification management
+│   └── ...
 └── internal/             # INTERNAL MODULES - NOT PUBLIC
     └── providers/        # Provider management (admin only, HMAC auth)
 ```

@@ -91,7 +91,7 @@ export default function TeamDetailScreen() {
   useEffect(() => {
     apiClient.get(API_ROUTES.skills.list).then((res) => {
       setAllSkills(res.data.skills || []);
-    }).catch(() => {});
+    }).catch((err) => console.error('Failed to load skills:', err));
     loadLibraryFiles();
   }, [loadLibraryFiles]);
 
