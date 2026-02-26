@@ -153,8 +153,19 @@ export const ChatInterface = React.memo(function ChatInterface({ messages, scrol
       !((m as any).source === 'voice' && (m as any).speaker === 'cohost')
         ? i : acc, -1);
 
-    // Update expression based on the latest alia message state
+    // Update expression based on voice state or text chat state
     useEffect(() => {
+      // Voice state takes priority when active
+      if (isVoiceActive && voiceAgentState) {
+        switch (voiceAgentState) {
+          case 'thinking': setFaceExpression("Thinking"); return;
+          case 'speaking': setFaceExpression("Writing E"); return;
+          case 'listening': setFaceExpression("Interesting"); return;
+          default: setFaceExpression("Idle A"); return;
+        }
+      }
+
+      // Text chat state
       if (lastAliaIndex < 0) return;
       const m = filteredMessages[lastAliaIndex];
       const text = getMessageText(m);
@@ -165,7 +176,7 @@ export const ChatInterface = React.memo(function ChatInterface({ messages, scrol
       else if (isLoading && !text) setFaceExpression("Thinking");
       else if (isLoading && text.length > 0) setFaceExpression("Writing E");
       else setFaceExpression("Idle A");
-    }, [messages, isLoading]);
+    }, [messages, isLoading, voiceAgentState, isVoiceActive]);
 
     const faceAnimatedStyle = useAnimatedStyle(() => ({
       position: 'absolute' as const,
