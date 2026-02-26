@@ -4,6 +4,7 @@ import { getMemoryLimit } from "../../models/user-memory.js";
 import { Subscription } from "../../models/subscription.js";
 import { getOrCreateUserMemory } from "../memory/user-memory-service.js";
 import { log } from '../logger.js';
+import { PERSONALITY_STYLES, isPersonalityStyle, type PersonalityStyleId } from '../personality-styles.js';
 
 /**
  * Tool to save user memories
@@ -114,16 +115,25 @@ export const updateUserPreferencesTool = (oxyUserId: string) => tool({
 
       await memory.save();
 
+      if (tone && isPersonalityStyle(tone)) {
+        const style = PERSONALITY_STYLES[tone as PersonalityStyleId];
+        return {
+          success: true,
+          message: `Switched to ${style.name} mode — ${style.tagline}`,
+          preferences: memory.preferences,
+        };
+      }
+
       return {
         success: true,
-        message: 'Preferencias actualizadas exitosamente',
-        preferences: memory.preferences
+        message: 'Preferences updated successfully',
+        preferences: memory.preferences,
       };
     } catch (error: any) {
-      log.tools.error({ err: error }, 'Error');
+      log.tools.error({ err: error }, 'Error updating preferences');
       return {
         success: false,
-        message: `Error al actualizar preferencias: ${error.message}`
+        message: `Failed to update preferences: ${error.message}`,
       };
     }
   },

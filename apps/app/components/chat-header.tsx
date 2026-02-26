@@ -12,6 +12,8 @@ import { toast } from "@/components/sonner";
 import { ConfirmationDialog } from "@/components/ui/confirmation-dialog";
 import { useState } from "react";
 import { useTranslation } from "@/hooks/useTranslation";
+import { useUserDataStore } from "@/lib/stores/user-data-store";
+import { PERSONALITY_STYLE_MAP, type PersonalityStyleId } from "@/lib/personality-styles";
 
 interface ChatHeaderProps {
   title: string;
@@ -43,6 +45,8 @@ export function ChatHeader({
   const router = useRouter();
   const isLargeScreen = dimensions.width >= 768;
   const [showClearDialog, setShowClearDialog] = useState(false);
+  const tone = useUserDataStore(s => s.memory?.preferences?.tone);
+  const activeStyle = tone && tone !== 'alia' ? PERSONALITY_STYLE_MAP[tone as PersonalityStyleId] : null;
 
   const handleDrawerToggle = () => {
     navigation.toggleDrawer();
@@ -93,6 +97,12 @@ export function ChatHeader({
           selectedModel={selectedModel}
           onModelChange={onModelChange}
         />
+        {activeStyle && (
+          <View className="h-6 rounded-full px-2 flex-row items-center gap-1" style={{ backgroundColor: `${activeStyle.gradient[1]}20` }}>
+            <Text style={{ fontSize: 11 }}>{activeStyle.emoji}</Text>
+            <Text className="text-[11px] font-medium" style={{ color: activeStyle.gradient[1] }}>{activeStyle.name}</Text>
+          </View>
+        )}
         {isVoiceActive && (
           <View className="h-6 rounded-full px-2 flex-row items-center gap-1" style={{ backgroundColor: 'rgba(56, 189, 248, 0.15)' }}>
             <Mic size={12} color="#38bdf8" />

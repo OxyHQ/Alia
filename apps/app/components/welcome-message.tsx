@@ -8,6 +8,8 @@ import { useWelcomeSuggestions, useRecordSuggestionUsage } from "@/lib/hooks/use
 import Animated, { FadeIn } from "react-native-reanimated";
 import { View } from "react-native";
 import { AliaFace } from "@/components/alia-face";
+import { useUserDataStore } from "@/lib/stores/user-data-store";
+import { PERSONALITY_STYLE_MAP } from "@/lib/personality-styles";
 
 type TimeOfDay = "morning" | "afternoon" | "evening";
 
@@ -30,12 +32,17 @@ export const WelcomeMessage = ({ onSuggestionPress }: WelcomeMessageProps) => {
   const { data: apiSuggestions } = useWelcomeSuggestions();
   const recordUsage = useRecordSuggestionUsage();
 
+  const tone = useUserDataStore(s => s.memory?.preferences?.tone);
+  const activeStyle = tone && tone !== 'alia' ? PERSONALITY_STYLE_MAP[tone as keyof typeof PERSONALITY_STYLE_MAP] : null;
+
   const timeOfDay = useMemo(() => getTimeOfDay(), []);
   const pairIndex = useMemo(() => Math.floor(Math.random() * PAIRS_COUNT), []);
 
   const userName = user?.name?.first || user?.username || user?.email?.split('@')[0] || "there";
   const greeting = t(`welcome.${timeOfDay}Greetings.${pairIndex}`, { name: userName });
-  const subtitle = t(`welcome.${timeOfDay}Subtitles.${pairIndex}`);
+  const subtitle = activeStyle
+    ? `${activeStyle.emoji} ${activeStyle.tagline}`
+    : t(`welcome.${timeOfDay}Subtitles.${pairIndex}`);
 
   const suggestions = (apiSuggestions || []).map(s => ({
     suggestionId: s.suggestionId,
