@@ -132,3 +132,107 @@ export function buildSteps(
 
   return steps;
 }
+
+/**
+ * Entry in the action audit timeline.
+ */
+export interface AuditEntry {
+  id: string;
+  type: 'tool_call' | 'research_phase' | 'agent_delegation' | 'plan_approved' | 'artifact_generated';
+  label: string;
+  description: string;
+  status: 'in_progress' | 'complete';
+  toolName?: string;
+  messageId: string;
+}
+
+/**
+ * Build a chronological audit timeline from all conversation messages.
+ */
+export function buildAuditTimeline(
+  messages: Array<{ id: string; role: string; content?: any; toolInvocations?: ToolInvocation[]; agentInfo?: any; [key: string]: any }>
+): AuditEntry[] {
+  const entries: AuditEntry[] = [];
+
+  for (const msg of messages) {
+    if (msg.role !== 'assistant') continue;
+
+    // Agent delegation
+    if (msg.agentInfo) {
+      entries.push({
+        id: `agent-${msg.id}`,
+        type: 'agent_delegation',
+        label: `Agent: ${msg.agentInfo.name}`,
+        description: typeof msg.content === 'string' ? msg.content.slice(0, 80) : '',
+        status: 'complete',
+        messageId: msg.id,
+      });
+    }
+
+    // Plan approved
+    if (msg.pendingPlan?.approved) {
+      entries.push({
+        id: `plan-${msg.id}`,
+        type: 'plan_approved',
+        label: 'Plan approved',
+        description: `${msg.pendingPlan.steps?.length || 0} steps`,
+        status: 'complete',
+        messageId: msg.id,
+      });
+    }
+
+    // Tool invocations
+    if (msg.toolInvocations) {
+      for (const inv of msg.toolInvocations) {
+        const isDone = inv.state === 'result';
+        const toolLabel = getToolLabel(inv.toolName);
+
+        let description = '';
+        if (inv.args?.query) {
+          const q = String(inv.args.query);
+          description = q.length > 50 ? q.slice(0, 50) + '...' : q;
+        } else if (inv.args?.url) {
+          const u = String(inv.args.url);
+          description = u.length > 50 ? u.slice(0, 50) + '...' : u;
+        }
+
+        entries.push({
+          id: inv.toolCallId || `tool-${msg.id}-${inv.toolName}`,
+          type: 'tool_call',
+          label: toolLabel,
+          description,
+          status: isDone ? 'complete' : 'in_progress',
+          toolName: inv.toolName,
+          messageId: msg.id,
+        });
+
+        // Artifact generated from generateFile
+        if (inv.toolName === 'generateFile' && isDone && inv.result) {
+          entries.push({
+            id: `artifact-${inv.toolCallId}`,
+            type: 'artifact_generated',
+            label: 'File generated',
+            description: inv.result.filename || inv.result.title || '',
+            status: 'complete',
+            messageId: msg.id,
+          });
+        }
+      }
+    }
+
+    // Research phases
+    if (msg.researchProgress) {
+      const rp = msg.researchProgress;
+      entries.push({
+        id: `research-${msg.id}`,
+        type: 'research_phase',
+        label: rp.isComplete ? 'Research complete' : `Research: ${rp.phase || 'in progress'}`,
+        description: rp.message || '',
+        status: rp.isComplete ? 'complete' : 'in_progress',
+        messageId: msg.id,
+      });
+    }
+  }
+
+  return entries;
+}

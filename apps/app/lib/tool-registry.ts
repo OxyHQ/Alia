@@ -51,4 +51,11 @@ export function getToolLabel(toolName: string) {
   return TOOL_REGISTRY[toolName]?.label || toolName;
 }
 
+/** Returns a context-aware status string like "Searching the web..." for use in ThinkingIndicator. */
+export function getToolActiveLabel(toolName: string): string | undefined {
+  const label = TOOL_REGISTRY[toolName]?.label;
+  if (!label) return undefined;
+  return label + "...";
+}
+
 export { TOOL_REGISTRY };

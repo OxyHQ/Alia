@@ -32,7 +32,7 @@ const workingPhrases = [
   "Doing the thing...",
 ];
 
-export function ThinkingIndicator({ isWorking = false }: { isWorking?: boolean }) {
+export function ThinkingIndicator({ isWorking = false, statusText }: { isWorking?: boolean; statusText?: string }) {
   const phrases = isWorking ? workingPhrases : thinkingPhrases;
   const [phraseIndex, setPhraseIndex] = useState(() =>
     Math.floor(Math.random() * phrases.length)
@@ -74,8 +74,9 @@ export function ThinkingIndicator({ isWorking = false }: { isWorking?: boolean }
     opacity: cursorOpacity.value,
   }));
 
-  // Typewriter effect
+  // Typewriter effect — skipped when statusText is provided (real-time status shown directly)
   useEffect(() => {
+    if (statusText) return;
     const phrase = phrases[phraseIndex % phrases.length];
     let charIndex = 0;
     setIsTyping(true);
@@ -97,7 +98,9 @@ export function ThinkingIndicator({ isWorking = false }: { isWorking?: boolean }
     }, 40);
 
     return () => clearInterval(typeInterval);
-  }, [phraseIndex, phrases]);
+  }, [phraseIndex, phrases, statusText]);
+
+  const shownText = statusText || displayText;
 
   return (
     <View className="flex-row items-center gap-2 py-2">
@@ -105,8 +108,8 @@ export function ThinkingIndicator({ isWorking = false }: { isWorking?: boolean }
         <Text className="text-base text-muted-foreground">✱</Text>
       </Animated.View>
       <View className="flex-row items-center">
-        <Text className="text-base text-muted-foreground">{displayText}</Text>
-        {isTyping && (
+        <Text className="text-base text-muted-foreground">{shownText}</Text>
+        {(statusText || isTyping) && (
           <Animated.View style={cursorStyle}>
             <Text className="text-base text-muted-foreground">|</Text>
           </Animated.View>
