@@ -4,7 +4,7 @@ import mongoose from 'mongoose';
 import { Bot } from '../../models/bot.js';
 import { BotUser } from '../../models/bot-user.js';
 import { log } from '../logger.js';
-import { markdownToTelegramHtml } from '../channels/telegram-format.js';
+import { markdownToTelegramHtml, stripMarkdown } from '../channels/telegram-format.js';
 
 /**
  * Create sendTelegramMessage tool for a specific user.
@@ -67,7 +67,7 @@ export function createSendTelegramTool(userId: string) {
             const fallback = await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ chat_id: botUser.chatId, text: message }),
+              body: JSON.stringify({ chat_id: botUser.chatId, text: stripMarkdown(message) }),
             });
 
             if (fallback.ok) {

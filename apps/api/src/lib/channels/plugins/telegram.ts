@@ -1,7 +1,8 @@
 import crypto from 'crypto';
 import type { ChannelPlugin, OutboundContext, OutboundResult, ChannelInboundMessage } from '../types.js';
 import type { Request } from 'express';
-import { markdownToTelegramHtml } from '../telegram-format.js';
+import { markdownToTelegramHtml, stripMarkdown } from '../telegram-format.js';
+import { log } from '../../logger.js';
 
 export const telegramPlugin: ChannelPlugin = {
   id: 'telegram',
@@ -57,13 +58,19 @@ export const telegramPlugin: ChannelPlugin = {
           return { channel: 'telegram', ok: true, messageId: String(data.result?.message_id) };
         }
 
-        // If HTML parsing failed, retry as plain text
+        // HTML rejected — log the error and fall back to clean plain text
         const body = await res.text();
+        log.general.warn(
+          { status: res.status, error: body.slice(0, 200), htmlPreview: htmlText.slice(0, 200) },
+          'Telegram rejected HTML, falling back to plain text',
+        );
+
         if (res.status === 400) {
+          const plainText = stripMarkdown(ctx.text);
           const fallbackRes = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ chat_id: ctx.to, text: ctx.text, ...replyParams }),
+            body: JSON.stringify({ chat_id: ctx.to, text: plainText, ...replyParams }),
           });
 
           if (fallbackRes.ok) {
