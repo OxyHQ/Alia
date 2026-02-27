@@ -144,14 +144,14 @@ export function ActivityGrid({ agentId, weeks: weeksProp }: ActivityGridProps) {
 
   const handleCellPress = (cell: GridCell) => {
     toast(
-      `${cell.count} session${cell.count !== 1 ? "s" : ""} on ${formatDisplayDate(cell.date)}`
+      `${cell.count} interaction${cell.count !== 1 ? "s" : ""} on ${formatDisplayDate(cell.date)}`
     );
   };
 
   return (
     <View>
       <Text className="text-[11px] text-muted-foreground mb-1.5">
-        {totalSessions} session{totalSessions !== 1 ? "s" : ""} in the last{" "}
+        {totalSessions} interaction{totalSessions !== 1 ? "s" : ""} in the last{" "}
         {weeks} weeks
       </Text>
 

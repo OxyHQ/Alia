@@ -3,6 +3,7 @@ import { generateText } from 'ai';
 import { Agent } from '../models/agent.js';
 import { AgentSession } from '../models/agent-session.js';
 import { AgentReview } from '../models/agent-review.js';
+import { Conversation } from '../models/conversation.js';
 import { authenticateToken, optionalAuth } from '../middleware/auth.js';
 import { runAgentSession, getRecentActivity } from '../lib/agent-runner.js';
 import { cleanupSessionResources } from '../lib/agent-tools.js';
@@ -425,25 +426,26 @@ router.get('/:id/activity-grid', optionalAuth, async (req: Request, res: Respons
     const startDate = new Date();
     startDate.setDate(startDate.getDate() - weeks * 7);
 
-    const result = await AgentSession.aggregate([
-      {
-        $match: {
-          agentId: agent._id,
-          createdAt: { $gte: startDate },
-        },
-      },
-      {
-        $group: {
-          _id: { $dateToString: { format: '%Y-%m-%d', date: '$createdAt' } },
-          count: { $sum: 1 },
-        },
-      },
-      { $sort: { _id: 1 } },
+    const [sessionResult, conversationResult] = await Promise.all([
+      AgentSession.aggregate([
+        { $match: { agentId: agent._id, createdAt: { $gte: startDate } } },
+        { $group: { _id: { $dateToString: { format: '%Y-%m-%d', date: '$createdAt' } }, count: { $sum: 1 } } },
+      ]),
+      Conversation.aggregate([
+        { $match: { agentId: agent._id, createdAt: { $gte: startDate } } },
+        { $group: { _id: { $dateToString: { format: '%Y-%m-%d', date: '$createdAt' } }, count: { $sum: 1 } } },
+      ]),
     ]);
 
-    const grid = result.map((r: any) => ({ date: r._id, count: r.count }));
-    const totalSessions = grid.reduce((s: number, d: any) => s + d.count, 0);
-    const maxCount = grid.reduce((m: number, d: any) => Math.max(m, d.count), 0);
+    const countMap = new Map<string, number>();
+    for (const r of sessionResult) countMap.set(r._id, (countMap.get(r._id) || 0) + r.count);
+    for (const r of conversationResult) countMap.set(r._id, (countMap.get(r._id) || 0) + r.count);
+
+    const grid = Array.from(countMap.entries())
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([date, count]) => ({ date, count }));
+    const totalSessions = grid.reduce((s, d) => s + d.count, 0);
+    const maxCount = grid.reduce((m, d) => Math.max(m, d.count), 0);
 
     res.json({ grid, totalSessions, maxCount });
   } catch (error) {
