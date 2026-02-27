@@ -237,11 +237,10 @@ export class EventStream {
   }
 
   /**
-   * Load entries from persisted data (embedded array — legacy support).
-   * Used for backward compatibility with sessions that still have
-   * embedded eventStream arrays.
+   * Replace in-memory entries. Used by context compaction to swap
+   * the full stream with a summarized + hot window.
    */
-  loadFromPersisted(entries: EventStreamEntry[]): void {
+  replaceEntries(entries: EventStreamEntry[]): void {
     this.entries = entries;
     this.seq = entries.length > 0 ? entries[entries.length - 1].seq + 1 : 0;
   }
@@ -265,7 +264,7 @@ export class EventStream {
     }
   }
 
-  /** Export entries for persistence to MongoDB (legacy — embedded in session) */
+  /** Export entries for persistence to MongoDB (embedded in session) */
   toJSON(): EventStreamEntry[] {
     return this.entries.map(e => ({ ...e }));
   }

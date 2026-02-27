@@ -65,12 +65,6 @@ async function getOrCreateStripeCustomer(userId: string, userCredits: IUserCredi
   return customer.id;
 }
 
-// Legacy plan ID mapping for existing Stripe subscriptions
-const LEGACY_PLAN_MAP: Record<string, string> = {
-  basic: 'go',
-  standard: 'pro',
-};
-
 router.get('/packages', async (_req: Request, res: Response) => {
   try {
     const packages = await getCreditPackages(true);
@@ -482,7 +476,7 @@ router.post('/subscription/change-plan', authenticateToken, async (req: Request,
     }
 
     // If pending cancellation, undo it first
-    if ((stripeSubscription as unknown as { cancel_at_period_end?: boolean }).cancel_at_period_end) {
+    if (stripeSubscription.cancel_at_period_end) {
       await getStripe().subscriptions.update(subscription.stripeSubscriptionId, {
         cancel_at_period_end: false,
       });
@@ -703,22 +697,20 @@ async function handleSubscriptionUpdate(stripeSubscription: Stripe.Subscription)
   }
 
   // Match plan by metadata (set via subscription_data.metadata in checkout)
-  const resolvedPlanId = LEGACY_PLAN_MAP[metadata?.planId || ''] || metadata?.planId;
-  const resolvedPlans = await getPlans({ planId: resolvedPlanId });
+  const planId = metadata?.planId;
+  const resolvedPlans = await getPlans({ planId });
   const plan = resolvedPlans[0];
   if (!plan) {
-    throw new Error(`Plan not found for subscription ${stripeSubscription.id}, planId: ${resolvedPlanId}`);
+    throw new Error(`Plan not found for subscription ${stripeSubscription.id}, planId: ${planId}`);
   }
 
   const isAnnual = metadata?.billingPeriod === 'annual';
   const price = isAnnual ? plan.annualPrice : plan.monthlyPrice;
-  type StripeLegacyFields = { cancel_at_period_end?: boolean; current_period_start?: number; current_period_end?: number };
-  const sub = stripeSubscription as unknown as StripeLegacyFields;
 
-  // Stripe API 2025+ moved current_period_start/end to subscription items
-  const item = stripeSubscription.items.data[0] as unknown as StripeLegacyFields | undefined;
-  const periodStart = item?.current_period_start ?? sub.current_period_start;
-  const periodEnd = item?.current_period_end ?? sub.current_period_end;
+  // Stripe API 2025+: period fields are on subscription items
+  const item = stripeSubscription.items.data[0];
+  const periodStart = item?.current_period_start;
+  const periodEnd = item?.current_period_end;
 
   await Subscription.findOneAndUpdate(
     { stripeSubscriptionId: stripeSubscription.id },
@@ -730,7 +722,7 @@ async function handleSubscriptionUpdate(stripeSubscription: Stripe.Subscription)
       status: stripeSubscription.status,
       currentPeriodStart: periodStart ? new Date(periodStart * 1000) : new Date(),
       currentPeriodEnd: periodEnd ? new Date(periodEnd * 1000) : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
-      cancelAtPeriodEnd: sub.cancel_at_period_end,
+      cancelAtPeriodEnd: stripeSubscription.cancel_at_period_end,
       planId: plan.planId,
       billingPeriod: isAnnual ? 'annual' : 'monthly',
       plan: { planId: plan.planId, name: plan.name, product: plan.product, creditsPerMonth: plan.creditsPerMonth, price, currency: plan.currency, billingPeriod: isAnnual ? 'annual' : 'monthly' },

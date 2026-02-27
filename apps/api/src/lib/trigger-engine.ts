@@ -507,61 +507,6 @@ export async function processWebhookTrigger(
 }
 
 /**
- * Migrate existing Automation documents to Trigger documents.
- * Safe to run multiple times — skips automations that already have a matching trigger.
- */
-export async function migrateAutomationsToTriggers(): Promise<{ migrated: number; skipped: number }> {
-  const { Automation } = await import('../models/automation.js');
-
-  const automations = await Automation.find({});
-  let migrated = 0;
-  let skipped = 0;
-
-  for (const automation of automations) {
-    // Check if already migrated (match by name + user)
-    const existing = await Trigger.findOne({
-      oxyUserId: automation.oxyUserId,
-      name: automation.name,
-      type: 'schedule',
-    });
-
-    if (existing) {
-      skipped++;
-      continue;
-    }
-
-    await Trigger.create({
-      oxyUserId: automation.oxyUserId,
-      name: automation.name,
-      description: `Migrated from automation`,
-      type: 'schedule',
-      enabled: automation.enabled,
-      action: {
-        prompt: automation.prompt,
-        roleId: automation.roleId,
-        useTools: false,
-        notify: false,
-      },
-      schedule: {
-        type: automation.schedule.type,
-        time: automation.schedule.time,
-        days: automation.schedule.days,
-        intervalMinutes: automation.schedule.intervalMinutes,
-      },
-      lastTriggeredAt: automation.lastRunAt,
-      triggerCount: automation.runCount,
-      lastStatus: automation.lastRunStatus as any,
-      lastResult: automation.lastRunResult,
-    });
-
-    migrated++;
-  }
-
-  log.triggers.info({ migrated, skipped }, 'Automation migration complete');
-  return { migrated, skipped };
-}
-
-/**
  * Process integration events by finding matching triggers and executing them.
  */
 export async function processIntegrationEvent(

@@ -63,55 +63,40 @@ describe('crypto-utils', () => {
     });
   });
 
-  describe('isEncrypted', () => {
-    it('identifies encrypted values', async () => {
-      process.env.TOKEN_ENCRYPTION_KEY = VALID_KEY;
-      const { encrypt, isEncrypted } = await import('../crypto-utils.js');
-
-      const encrypted = encrypt('test');
-      expect(isEncrypted(encrypted)).toBe(true);
-    });
-
-    it('identifies plaintext values', async () => {
-      process.env.TOKEN_ENCRYPTION_KEY = VALID_KEY;
-      const { isEncrypted } = await import('../crypto-utils.js');
-
-      expect(isEncrypted('just-a-plain-token')).toBe(false);
-      expect(isEncrypted('')).toBe(false);
-    });
-  });
-
   describe('without encryption key', () => {
-    it('returns plaintext as-is from encrypt()', async () => {
+    it('throws on encrypt when key is missing', async () => {
       delete process.env.TOKEN_ENCRYPTION_KEY;
       const { encrypt } = await import('../crypto-utils.js');
 
-      const plaintext = 'my-token';
-      expect(encrypt(plaintext)).toBe(plaintext);
+      expect(() => encrypt('test')).toThrow('TOKEN_ENCRYPTION_KEY is required');
     });
 
-    it('returns plaintext as-is from decrypt()', async () => {
+    it('throws on decrypt when key is missing', async () => {
       delete process.env.TOKEN_ENCRYPTION_KEY;
       const { decrypt } = await import('../crypto-utils.js');
 
-      const plaintext = 'my-token';
-      expect(decrypt(plaintext)).toBe(plaintext);
+      expect(() => decrypt('aa:bb:cc')).toThrow('TOKEN_ENCRYPTION_KEY is required');
     });
   });
 
   describe('tampered ciphertext', () => {
-    it('falls back to returning input on tampered auth tag', async () => {
+    it('throws on tampered auth tag', async () => {
       process.env.TOKEN_ENCRYPTION_KEY = VALID_KEY;
       const { encrypt, decrypt } = await import('../crypto-utils.js');
 
       const encrypted = encrypt('secret');
       const parts = encrypted.split(':');
-      // Corrupt the auth tag
       parts[1] = 'ff'.repeat(16);
       const tampered = parts.join(':');
 
-      // Should return the tampered string as-is (fallback), not throw
-      expect(decrypt(tampered)).toBe(tampered);
+      expect(() => decrypt(tampered)).toThrow();
+    });
+
+    it('throws on invalid format', async () => {
+      process.env.TOKEN_ENCRYPTION_KEY = VALID_KEY;
+      const { decrypt } = await import('../crypto-utils.js');
+
+      expect(() => decrypt('not-encrypted')).toThrow('Invalid encrypted value format');
     });
   });
 
