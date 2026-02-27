@@ -55,14 +55,15 @@ router.get('/models', async (req: Request, res: Response) => {
       { $sort: { count: -1 } },
     ]);
 
-    const models = await Promise.all(raw.map(async (m) => {
+    const models = (await Promise.all(raw.map(async (m) => {
       const aliaModel = await getAliaModel(m._id);
+      if (!aliaModel) return null;
       return {
         ...m,
-        name: aliaModel?.name ?? m._id,
-        emoji: aliaModel?.emoji,
+        name: aliaModel.name,
+        emoji: aliaModel.emoji,
       };
-    }));
+    }))).filter(Boolean);
 
     res.json({ models, period: days });
   } catch (error: any) {

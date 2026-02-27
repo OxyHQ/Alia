@@ -189,7 +189,7 @@ export const META_PRESETS = {
 
   developers: {
     title: 'API Documentation - Alia',
-    description: 'Build with Alia. OpenAI-compatible API, comprehensive docs, and code examples to integrate AI into your applications.',
+    description: 'Build with Alia. Industry-standard API, comprehensive docs, and code examples to integrate AI into your applications.',
     keywords: ['chatbot api', 'ai api', 'openai compatible', 'developer api'],
     canonicalUrl: `${SITE_URL}/developers/documentation`,
   },

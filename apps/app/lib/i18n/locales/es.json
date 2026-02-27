@@ -950,6 +950,20 @@
     "websites": "Sitios web",
     "viewDetails": "Ver detalles"
   },
+  "landing": {
+    "tagline": "Tu asistente de IA inteligente",
+    "capabilitiesTitle": "Lo que Alia puede hacer",
+    "cap1Title": "Chat con IA y Memoria",
+    "cap1Desc": "Conversaciones que recuerdan tus preferencias y contexto entre sesiones.",
+    "cap2Title": "Visión, Voz y Multimodal",
+    "cap2Desc": "Analiza imágenes, habla de forma natural y trabaja con múltiples formatos.",
+    "cap3Title": "Agentes IA y Automatizaciones",
+    "cap3Desc": "Crea agentes autónomos y automatiza tareas repetitivas.",
+    "cap4Title": "Generación de Código y Razonamiento",
+    "cap4Desc": "Escribe, depura y razona problemas complejos paso a paso.",
+    "ctaTitle": "¿Listo para empezar?",
+    "ctaSubtitle": "Gratis. Sin tarjeta de crédito."
+  },
   "keyboardShortcuts": {
     "title": "Atajos de teclado",
     "navigation": "Navegación",

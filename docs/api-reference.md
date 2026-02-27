@@ -336,7 +336,7 @@ data: [DONE]
 If an error occurs mid-stream, it's sent as a data line before the stream closes:
 
 ```
-data: {"error":{"message":"All providers exhausted","code":"SERVICE_UNAVAILABLE"}}
+data: {"error":{"message":"Service temporarily unavailable","code":"SERVICE_UNAVAILABLE"}}
 
 data: [DONE]
 ```

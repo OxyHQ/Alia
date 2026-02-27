@@ -21,7 +21,7 @@ export function generateOrganizationSchema() {
     'url': SITE_URL,
     'logo': LOGO_URL,
     'foundingDate': '2024',
-    'description': 'Advanced AI chat assistant with contextual memory and multilingual support. Free ChatGPT alternative.',
+    'description': 'Advanced AI chat assistant with contextual memory and multilingual support.',
     'sameAs': [
       'https://twitter.com/AliaByOxy',
       'https://github.com/oxy',
@@ -45,7 +45,7 @@ export function generateWebApplicationSchema() {
     '@type': 'WebApplication',
     'name': SITE_NAME,
     'url': SITE_URL,
-    'description': 'Alia is an advanced AI chat assistant with contextual memory, multiple AI models, and multilingual support. Free alternative to ChatGPT.',
+    'description': 'Alia is an advanced AI chat assistant with contextual memory, multiple AI models, and multilingual support.',
     'applicationCategory': 'UtilityApplication',
     'operatingSystem': 'Web, iOS, Android',
     'offers': {
@@ -68,7 +68,7 @@ export function generateWebApplicationSchema() {
     'screenshot': `${SITE_URL}/screenshots/chat-interface.png`,
     'featureList': [
       'Advanced AI chat with memory',
-      'Multiple AI models (GPT-4, Claude, Gemini)',
+      'Multiple AI models for every task',
       'Custom roles and personas',
       'Developer API',
       'Multilingual support (50+ languages)',
@@ -294,9 +294,9 @@ export const STRUCTURED_DATA_PRESETS = {
     generateWebApplicationSchema(),
     generateFAQSchema([
       {
-        question: 'What makes Alia different from ChatGPT?',
+        question: 'What makes Alia different from other AI assistants?',
         answer:
-          'Alia offers enhanced contextual memory, multiple AI models in one platform, custom roles, developer API access, and native multilingual support across 50+ languages.',
+          'Alia offers enhanced contextual memory, multiple specialized AI models in one platform, custom roles, developer API access, and native multilingual support across 50+ languages.',
       },
       {
         question: 'Is Alia free to use?',
@@ -306,7 +306,7 @@ export const STRUCTURED_DATA_PRESETS = {
       {
         question: 'Which AI models does Alia support?',
         answer:
-          'Alia supports multiple leading AI models including GPT-4, Claude 3, Google Gemini, and more. You can switch between models seamlessly.',
+          'Alia supports multiple specialized AI models including Alia V1, Alia Pro, Alia Thinking, and more. You can switch between models seamlessly.',
       },
       {
         question: 'Can I use Alia for coding?',

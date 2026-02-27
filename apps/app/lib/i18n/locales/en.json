@@ -960,6 +960,20 @@
     "websites": "Websites",
     "viewDetails": "View details"
   },
+  "landing": {
+    "tagline": "Your intelligent AI assistant",
+    "capabilitiesTitle": "What Alia can do",
+    "cap1Title": "AI Chat with Memory",
+    "cap1Desc": "Conversations that remember your preferences and context across sessions.",
+    "cap2Title": "Vision, Voice & Multimodal",
+    "cap2Desc": "Analyze images, talk naturally, and work with multiple formats.",
+    "cap3Title": "AI Agents & Automations",
+    "cap3Desc": "Build autonomous agents and automate repetitive tasks.",
+    "cap4Title": "Code Generation & Thinking",
+    "cap4Desc": "Write, debug, and reason through complex problems step by step.",
+    "ctaTitle": "Ready to get started?",
+    "ctaSubtitle": "Free to use. No credit card required."
+  },
   "keyboardShortcuts": {
     "title": "Keyboard Shortcuts",
     "navigation": "Navigation",
