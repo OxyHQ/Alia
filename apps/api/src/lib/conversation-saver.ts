@@ -19,13 +19,13 @@ export function extractConversationTitle(response: string, messages: any[]): str
   const m = response.match(TITLE_EXTRACT_RE);
   if (m) return (m[2] || m[4]).trim();
 
+  // Prefer the first user message (most descriptive of conversation topic)
+  const firstUserMsg = messages.find((msg: any) => msg.role === 'user')?.content;
+  if (typeof firstUserMsg === 'string' && firstUserMsg.length > 0) return firstUserMsg.slice(0, 60);
+
   // Fallback: first ~6 words of cleaned response
   const cleaned = response.replace(/\[.*?\]|<.*?>|[#*_`]/g, '').trim();
   if (cleaned.length >= 10) return cleaned.split(/\s+/).slice(0, 6).join(' ');
-
-  // Final fallback: first user message or default
-  const firstUserMsg = messages.find((msg: any) => msg.role === 'user')?.content;
-  if (typeof firstUserMsg === 'string' && firstUserMsg.length > 0) return firstUserMsg.slice(0, 50);
 
   return 'New chat';
 }
@@ -78,7 +78,6 @@ export async function saveConversation(params: SaveConversationParams): Promise<
     { oxyUserId: userId, conversationId },
     {
       $set: {
-        title,
         lastMessage: stripTitleTags(assistantResponse).slice(0, 100),
         messages: allMessages,
         updatedAt: new Date(),
@@ -86,6 +85,7 @@ export async function saveConversation(params: SaveConversationParams): Promise<
       $setOnInsert: {
         oxyUserId: userId,
         conversationId,
+        title,
         source: source || 'app',
         ...(agentId && { agentId }),
         createdAt: new Date(),
