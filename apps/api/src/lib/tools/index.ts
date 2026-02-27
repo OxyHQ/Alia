@@ -223,6 +223,12 @@ export { createSearchAgentsTool } from './agent-search.js';
 export { createDelegateToAgentTool, type AgentDelegationResult } from './agent-delegate.js';
 export { createTriggerTool, listTriggersTool, updateTriggerTool, deleteTriggerTool } from './trigger-management.js';
 
+// Deep research tool (AI-callable)
+export { createDeepResearchTool } from './deep-research.js';
+
+// Model switching tool (AI-callable)
+export { createSwitchModelTool } from './switch-model.js';
+
 // MCP tools
 export { buildMcpTools } from './mcp.js';
 

@@ -9,6 +9,7 @@ import { collectDeviceInfo } from '@/lib/device-info';
 import { UsageLimitError } from '@/lib/errors/usage-limit-error';
 import { queryKeys } from '@/lib/hooks/query-keys';
 import { useStore } from '@/lib/globalStore';
+import { useModelStore } from '@/lib/stores/model-store';
 import { toast } from '@/components/sonner';
 
 import type { ToolInvocation } from '@/lib/types/messages';
@@ -305,6 +306,12 @@ Use this role to guide your responses, maintaining the specified tone, style, an
                   }
                   return updated;
                 });
+                continue;
+              }
+
+              // Handle AI-initiated model switch
+              if (parsed.type === 'model_switch' && parsed.model) {
+                useModelStore.getState().setSelectedModel(parsed.model);
                 continue;
               }
 

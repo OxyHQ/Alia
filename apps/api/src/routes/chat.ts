@@ -133,8 +133,8 @@ router.post('/', optionalAuth, async (req, res) => {
     const agentPrompt = agentId ? await loadAgentPrompt(agentId) : null;
 
     // ── Deep Research Mode ──
-    // When activated, route to the specialized research engine that does
-    // multi-query web search, source tracking, and citation synthesis.
+    // When activated via toggle, route to the specialized research engine
+    // with multi-query web search, source tracking, and citation synthesis.
     if (deepResearch && req.user?.id) {
       const userQuery = processedMessages.filter(m => m.role === 'user').pop()?.content || '';
       if (userQuery) {

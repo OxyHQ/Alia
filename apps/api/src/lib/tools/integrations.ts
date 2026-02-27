@@ -37,6 +37,30 @@ const UUID_RE = /^[0-9a-f]{8}-?[0-9a-f]{4}-?[0-9a-f]{4}-?[0-9a-f]{4}-?[0-9a-f]{1
 /** Google Drive file IDs — alphanumeric, hyphens, underscores */
 const DRIVE_FILE_ID_RE = /^[a-zA-Z0-9_-]+$/;
 
+/**
+ * Normalize a GitHub repo identifier. Accepts both:
+ *   - "owner/repo" (pass-through)
+ *   - Full GitHub URLs like "https://github.com/owner/repo/tree/main/..."
+ * Returns the "owner/repo" portion.
+ */
+function normalizeGitHubRepo(input: string): string {
+  if (GITHUB_REPO_RE.test(input)) return input;
+
+  try {
+    const url = new URL(input);
+    if (url.hostname === 'github.com' || url.hostname === 'www.github.com') {
+      const parts = url.pathname.split('/').filter(Boolean);
+      if (parts.length >= 2) {
+        return `${parts[0]}/${parts[1]}`;
+      }
+    }
+  } catch {
+    // Not a valid URL — fall through
+  }
+
+  return input;
+}
+
 function assertGitHubRepo(repo: string): void {
   if (!GITHUB_REPO_RE.test(repo)) {
     throw new Error('Invalid repository format — expected "owner/repo"');
@@ -237,9 +261,10 @@ function buildGitHubTools(userId: string): ToolSet {
     getGitHubRepo: tool({
       description: '[GitHub] Get full details about a specific repository including stats, topics, and default branch.',
       parameters: z.object({
-        repo: z.string().describe('Repository in "owner/repo" format'),
+        repo: z.string().describe('Repository in "owner/repo" format or GitHub URL'),
       }),
-      execute: async ({ repo }) => safeExecute('GitHub', async () => {
+      execute: async ({ repo: rawRepo }) => safeExecute('GitHub', async () => {
+        const repo = normalizeGitHubRepo(rawRepo);
         assertGitHubRepo(repo);
         const data = await authedFetch(userId, 'github', `${GH}/repos/${repo}`, {
           headers: GH_HEADERS,
@@ -287,10 +312,11 @@ function buildGitHubTools(userId: string): ToolSet {
     getGitHubFileTree: tool({
       description: '[GitHub] Get the file/directory structure of a repository. Use to browse or understand project layout.',
       parameters: z.object({
-        repo: z.string().describe('Repository in "owner/repo" format'),
+        repo: z.string().describe('Repository in "owner/repo" format or GitHub URL'),
         branch: z.string().optional().describe('Branch name (defaults to repo default branch)'),
       }),
-      execute: async ({ repo, branch }) => safeExecute('GitHub', async () => {
+      execute: async ({ repo: rawRepo, branch }) => safeExecute('GitHub', async () => {
+        const repo = normalizeGitHubRepo(rawRepo);
         assertGitHubRepo(repo);
         if (branch) assertGitHubBranch(branch);
         // Resolve default branch if not specified
@@ -311,11 +337,12 @@ function buildGitHubTools(userId: string): ToolSet {
     getGitHubFileContent: tool({
       description: '[GitHub] Read the content of a file from a repository. Use to view, analyze, or review code.',
       parameters: z.object({
-        repo: z.string().describe('Repository in "owner/repo" format'),
+        repo: z.string().describe('Repository in "owner/repo" format or GitHub URL'),
         path: z.string().describe('File path within the repository (e.g. "src/index.ts")'),
         branch: z.string().optional().describe('Branch name (defaults to repo default branch)'),
       }),
-      execute: async ({ repo, path, branch }) => safeExecute('GitHub', async () => {
+      execute: async ({ repo: rawRepo, path, branch }) => safeExecute('GitHub', async () => {
+        const repo = normalizeGitHubRepo(rawRepo);
         assertGitHubRepo(repo);
         assertGitHubPath(path);
         if (branch) assertGitHubBranch(branch);
@@ -352,9 +379,10 @@ function buildGitHubTools(userId: string): ToolSet {
       description: '[GitHub] Search for code across repositories. Use to find specific functions, patterns, or code snippets.',
       parameters: z.object({
         query: z.string().describe('Code search query'),
-        repo: z.string().optional().describe('Limit search to a specific "owner/repo"'),
+        repo: z.string().optional().describe('Limit search to a specific "owner/repo" or GitHub URL'),
       }),
-      execute: async ({ query, repo }) => safeExecute('GitHub', async () => {
+      execute: async ({ query, repo: rawRepo }) => safeExecute('GitHub', async () => {
+        const repo = rawRepo ? normalizeGitHubRepo(rawRepo) : undefined;
         if (repo) assertGitHubRepo(repo);
         const q = repo ? `${query}+repo:${repo}` : query;
         const data = await authedFetch(userId, 'github', `${GH}/search/code?q=${encodeURIComponent(q)}&per_page=10`, {
@@ -374,10 +402,11 @@ function buildGitHubTools(userId: string): ToolSet {
     getGitHubIssues: tool({
       description: '[GitHub] List issues for a repository.',
       parameters: z.object({
-        repo: z.string().describe('Repository in "owner/repo" format'),
+        repo: z.string().describe('Repository in "owner/repo" format or GitHub URL'),
         state: z.enum(['open', 'closed', 'all']).default('open').describe('Issue state filter'),
       }),
-      execute: async ({ repo, state }) => safeExecute('GitHub', async () => {
+      execute: async ({ repo: rawRepo, state }) => safeExecute('GitHub', async () => {
+        const repo = normalizeGitHubRepo(rawRepo);
         assertGitHubRepo(repo);
         const data = await authedFetch(userId, 'github', `${GH}/repos/${repo}/issues?state=${state}&per_page=15`, {
           headers: GH_HEADERS,
@@ -397,12 +426,13 @@ function buildGitHubTools(userId: string): ToolSet {
     createGitHubIssue: tool({
       description: '[GitHub] Create a new issue in a repository.',
       parameters: z.object({
-        repo: z.string().describe('Repository in "owner/repo" format'),
+        repo: z.string().describe('Repository in "owner/repo" format or GitHub URL'),
         title: z.string().describe('Issue title'),
         body: z.string().optional().describe('Issue body (markdown)'),
         labels: z.array(z.string()).optional().describe('Labels to apply'),
       }),
-      execute: async ({ repo, title, body, labels }) => safeExecute('GitHub', async () => {
+      execute: async ({ repo: rawRepo, title, body, labels }) => safeExecute('GitHub', async () => {
+        const repo = normalizeGitHubRepo(rawRepo);
         assertGitHubRepo(repo);
         const payload: any = { title };
         if (body) payload.body = body;
@@ -419,11 +449,12 @@ function buildGitHubTools(userId: string): ToolSet {
     commentOnGitHubIssue: tool({
       description: '[GitHub] Add a comment to an issue or pull request.',
       parameters: z.object({
-        repo: z.string().describe('Repository in "owner/repo" format'),
+        repo: z.string().describe('Repository in "owner/repo" format or GitHub URL'),
         issueNumber: z.number().describe('Issue or PR number'),
         body: z.string().describe('Comment body (markdown)'),
       }),
-      execute: async ({ repo, issueNumber, body }) => safeExecute('GitHub', async () => {
+      execute: async ({ repo: rawRepo, issueNumber, body }) => safeExecute('GitHub', async () => {
+        const repo = normalizeGitHubRepo(rawRepo);
         assertGitHubRepo(repo);
         const data = await authedFetch(userId, 'github', `${GH}/repos/${repo}/issues/${issueNumber}/comments`, {
           method: 'POST',
@@ -439,10 +470,11 @@ function buildGitHubTools(userId: string): ToolSet {
     getGitHubPullRequests: tool({
       description: '[GitHub] List pull requests for a repository.',
       parameters: z.object({
-        repo: z.string().describe('Repository in "owner/repo" format'),
+        repo: z.string().describe('Repository in "owner/repo" format or GitHub URL'),
         state: z.enum(['open', 'closed', 'all']).default('open').describe('PR state filter'),
       }),
-      execute: async ({ repo, state }) => safeExecute('GitHub', async () => {
+      execute: async ({ repo: rawRepo, state }) => safeExecute('GitHub', async () => {
+        const repo = normalizeGitHubRepo(rawRepo);
         assertGitHubRepo(repo);
         const data = await authedFetch(userId, 'github', `${GH}/repos/${repo}/pulls?state=${state}&per_page=15`, {
           headers: GH_HEADERS,
@@ -464,10 +496,11 @@ function buildGitHubTools(userId: string): ToolSet {
     getGitHubPullRequestDiff: tool({
       description: '[GitHub] Get the changed files and diff for a pull request. Use to review code changes.',
       parameters: z.object({
-        repo: z.string().describe('Repository in "owner/repo" format'),
+        repo: z.string().describe('Repository in "owner/repo" format or GitHub URL'),
         pullNumber: z.number().describe('Pull request number'),
       }),
-      execute: async ({ repo, pullNumber }) => safeExecute('GitHub', async () => {
+      execute: async ({ repo: rawRepo, pullNumber }) => safeExecute('GitHub', async () => {
+        const repo = normalizeGitHubRepo(rawRepo);
         assertGitHubRepo(repo);
         const data = await authedFetch(userId, 'github', `${GH}/repos/${repo}/pulls/${pullNumber}/files?per_page=30`, {
           headers: GH_HEADERS,
@@ -485,13 +518,14 @@ function buildGitHubTools(userId: string): ToolSet {
     createGitHubPullRequest: tool({
       description: '[GitHub] Create a new pull request.',
       parameters: z.object({
-        repo: z.string().describe('Repository in "owner/repo" format'),
+        repo: z.string().describe('Repository in "owner/repo" format or GitHub URL'),
         title: z.string().describe('PR title'),
         body: z.string().optional().describe('PR description (markdown)'),
         head: z.string().describe('Branch with changes (source branch)'),
         base: z.string().optional().describe('Target branch (defaults to repo default branch)'),
       }),
-      execute: async ({ repo, title, body, head, base }) => safeExecute('GitHub', async () => {
+      execute: async ({ repo: rawRepo, title, body, head, base }) => safeExecute('GitHub', async () => {
+        const repo = normalizeGitHubRepo(rawRepo);
         assertGitHubRepo(repo);
         assertGitHubBranch(head);
         if (base) assertGitHubBranch(base);
@@ -516,12 +550,13 @@ function buildGitHubTools(userId: string): ToolSet {
     mergeGitHubPullRequest: tool({
       description: '[GitHub] Merge a pull request.',
       parameters: z.object({
-        repo: z.string().describe('Repository in "owner/repo" format'),
+        repo: z.string().describe('Repository in "owner/repo" format or GitHub URL'),
         pullNumber: z.number().describe('Pull request number'),
         method: z.enum(['squash', 'merge', 'rebase']).default('squash').describe('Merge method'),
         commitMessage: z.string().optional().describe('Custom commit message'),
       }),
-      execute: async ({ repo, pullNumber, method, commitMessage }) => safeExecute('GitHub', async () => {
+      execute: async ({ repo: rawRepo, pullNumber, method, commitMessage }) => safeExecute('GitHub', async () => {
+        const repo = normalizeGitHubRepo(rawRepo);
         assertGitHubRepo(repo);
         const payload: any = { merge_method: method };
         if (commitMessage) payload.commit_message = commitMessage;
@@ -539,14 +574,15 @@ function buildGitHubTools(userId: string): ToolSet {
     createOrUpdateGitHubFile: tool({
       description: '[GitHub] Create or update a file in a repository. This creates a commit automatically. To update an existing file, provide the current sha.',
       parameters: z.object({
-        repo: z.string().describe('Repository in "owner/repo" format'),
+        repo: z.string().describe('Repository in "owner/repo" format or GitHub URL'),
         path: z.string().describe('File path (e.g. "src/index.ts")'),
         content: z.string().describe('File content (plain text)'),
         message: z.string().describe('Commit message'),
         branch: z.string().optional().describe('Target branch (defaults to repo default branch)'),
         sha: z.string().optional().describe('Current file SHA (required for updates — get from getGitHubFileContent)'),
       }),
-      execute: async ({ repo, path, content, message, branch, sha }) => safeExecute('GitHub', async () => {
+      execute: async ({ repo: rawRepo, path, content, message, branch, sha }) => safeExecute('GitHub', async () => {
+        const repo = normalizeGitHubRepo(rawRepo);
         assertGitHubRepo(repo);
         assertGitHubPath(path);
         if (branch) assertGitHubBranch(branch);
@@ -573,12 +609,13 @@ function buildGitHubTools(userId: string): ToolSet {
     deleteGitHubFile: tool({
       description: '[GitHub] Delete a file from a repository. This creates a commit automatically.',
       parameters: z.object({
-        repo: z.string().describe('Repository in "owner/repo" format'),
+        repo: z.string().describe('Repository in "owner/repo" format or GitHub URL'),
         path: z.string().describe('File path to delete'),
         message: z.string().describe('Commit message'),
         branch: z.string().optional().describe('Target branch (defaults to repo default branch)'),
       }),
-      execute: async ({ repo, path, message, branch }) => safeExecute('GitHub', async () => {
+      execute: async ({ repo: rawRepo, path, message, branch }) => safeExecute('GitHub', async () => {
+        const repo = normalizeGitHubRepo(rawRepo);
         assertGitHubRepo(repo);
         assertGitHubPath(path);
         if (branch) assertGitHubBranch(branch);
@@ -601,11 +638,12 @@ function buildGitHubTools(userId: string): ToolSet {
     createGitHubBranch: tool({
       description: '[GitHub] Create a new branch in a repository.',
       parameters: z.object({
-        repo: z.string().describe('Repository in "owner/repo" format'),
+        repo: z.string().describe('Repository in "owner/repo" format or GitHub URL'),
         branch: z.string().describe('New branch name'),
         fromBranch: z.string().optional().describe('Source branch (defaults to repo default branch)'),
       }),
-      execute: async ({ repo, branch, fromBranch }) => safeExecute('GitHub', async () => {
+      execute: async ({ repo: rawRepo, branch, fromBranch }) => safeExecute('GitHub', async () => {
+        const repo = normalizeGitHubRepo(rawRepo);
         assertGitHubRepo(repo);
         assertGitHubBranch(branch);
         if (fromBranch) assertGitHubBranch(fromBranch);
@@ -628,9 +666,10 @@ function buildGitHubTools(userId: string): ToolSet {
     listGitHubBranches: tool({
       description: '[GitHub] List branches in a repository.',
       parameters: z.object({
-        repo: z.string().describe('Repository in "owner/repo" format'),
+        repo: z.string().describe('Repository in "owner/repo" format or GitHub URL'),
       }),
-      execute: async ({ repo }) => safeExecute('GitHub', async () => {
+      execute: async ({ repo: rawRepo }) => safeExecute('GitHub', async () => {
+        const repo = normalizeGitHubRepo(rawRepo);
         assertGitHubRepo(repo);
         const data = await authedFetch(userId, 'github', `${GH}/repos/${repo}/branches?per_page=30`, {
           headers: GH_HEADERS,
