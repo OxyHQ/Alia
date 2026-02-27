@@ -10,6 +10,7 @@ import { Telegraf, Markup } from 'telegraf';
 import { v4 as uuidv4 } from 'uuid';
 import type { BotAdapter } from '../types';
 import { APIClient } from '../../shared/api-client';
+import { markdownToTelegramHtml, stripMarkdown } from '../../shared/telegram-format';
 import {
   handleStart,
   handleLogout,
@@ -222,14 +223,14 @@ Be concise and friendly. Use these Telegram features when appropriate.`,
 
         // Show first chunk immediately for instant feedback
         if (!currentMessage && fullResponse.length > 5) {
-          currentMessage = await ctx.reply(fullResponse + '...').catch(() => null);
+          currentMessage = await ctx.reply(stripMarkdown(fullResponse) + '...').catch(() => null);
           lastUpdateTime = now;
         }
         // Update every 700ms (balance between responsiveness and rate limits)
         else if (now - lastUpdateTime > 700) {
           if (currentMessage) {
             await ctx.telegram
-              .editMessageText(ctx.chat!.id, currentMessage.message_id, undefined, fullResponse + '...')
+              .editMessageText(ctx.chat!.id, currentMessage.message_id, undefined, stripMarkdown(fullResponse) + '...')
               .catch(() => {});
           }
           lastUpdateTime = now;
@@ -259,14 +260,27 @@ Be concise and friendly. Use these Telegram features when appropriate.`,
       fullResponse = fullResponse.replace(/\[(?:ALIA_)?TGDOC[^\]]*\]\s*/g, '');
       fullResponse = fullResponse.trim();
 
-      // Final message update
+      // Final message update — convert Markdown to Telegram HTML
       if (fullResponse) {
-        if (currentMessage) {
-          await ctx.telegram
-            .editMessageText(ctx.chat!.id, currentMessage.message_id, undefined, fullResponse)
-            .catch(() => {});
-        } else {
-          await ctx.reply(fullResponse).catch(() => {});
+        const htmlText = markdownToTelegramHtml(fullResponse);
+        try {
+          if (currentMessage) {
+            await ctx.telegram.editMessageText(
+              ctx.chat!.id, currentMessage.message_id, undefined, htmlText, { parse_mode: 'HTML' },
+            );
+          } else {
+            await ctx.reply(htmlText, { parse_mode: 'HTML' });
+          }
+        } catch {
+          // HTML rejected — fall back to clean plain text
+          const plainText = stripMarkdown(fullResponse);
+          if (currentMessage) {
+            await ctx.telegram
+              .editMessageText(ctx.chat!.id, currentMessage.message_id, undefined, plainText)
+              .catch(() => {});
+          } else {
+            await ctx.reply(plainText).catch(() => {});
+          }
         }
       }
 
