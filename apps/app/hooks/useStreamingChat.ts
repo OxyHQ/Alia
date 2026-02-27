@@ -10,6 +10,7 @@ import { UsageLimitError } from '@/lib/errors/usage-limit-error';
 import { queryKeys } from '@/lib/hooks/query-keys';
 import { useStore } from '@/lib/globalStore';
 import { useModelStore } from '@/lib/stores/model-store';
+import { useUIStore } from '@/lib/stores/ui-store';
 import { toast } from '@/components/sonner';
 
 import type { ToolInvocation } from '@/lib/types/messages';
@@ -315,6 +316,27 @@ Use this role to guide your responses, maintaining the specified tone, style, an
                 continue;
               }
 
+              // Handle plan preview (intent preview before executing tools)
+              if (parsed.type === 'plan_preview') {
+                setMessages((prev) => {
+                  const updated = [...prev];
+                  const lastMessage = updated[updated.length - 1];
+                  if (lastMessage?.role === 'assistant') {
+                    updated[updated.length - 1] = {
+                      ...lastMessage,
+                      pendingPlan: {
+                        planId: parsed.planId,
+                        steps: parsed.steps || [],
+                        approved: false,
+                        rejected: false,
+                      },
+                    } as any;
+                  }
+                  return updated;
+                });
+                continue;
+              }
+
               // Handle OpenAI-compatible format
               const choice = parsed.choices?.[0];
               if (!choice) continue;
@@ -442,6 +464,31 @@ Use this role to guide your responses, maintaining the specified tone, style, an
                     }
                     return updated;
                   });
+
+                  // Detect artifact-like results and push to canvas panel
+                  if (name === 'generateFile' && output && typeof output === 'object') {
+                    const artifactType = output.language ? 'code' : 'markdown';
+                    useUIStore.getState().addCanvasArtifact({
+                      id: tool_call_id,
+                      type: artifactType,
+                      content: artifactType === 'code'
+                        ? { language: output.language, code: output.content }
+                        : { content: output.content },
+                      title: output.filename || output.title || 'Generated file',
+                      timestamp: Date.now(),
+                    });
+                    useUIStore.getState().setRightPanel('canvas');
+                  } else if (output?.artifact) {
+                    const a = output.artifact;
+                    useUIStore.getState().addCanvasArtifact({
+                      id: tool_call_id,
+                      type: a.type || 'markdown',
+                      content: a.data || a.content || a,
+                      title: a.title || name || 'Artifact',
+                      timestamp: Date.now(),
+                    });
+                    useUIStore.getState().setRightPanel('canvas');
+                  }
                 }
               }
 
@@ -567,6 +614,30 @@ Use this role to guide your responses, maintaining the specified tone, style, an
 
   const clearError = useCallback(() => setError(null), []);
 
+  const approvePlan = useCallback((planId: string) => {
+    setMessages((prev) => {
+      const updated = [...prev];
+      const msg = updated.find((m) => (m as any).pendingPlan?.planId === planId);
+      if (msg) {
+        (msg as any).pendingPlan = { ...(msg as any).pendingPlan, approved: true };
+      }
+      return [...updated];
+    });
+    // Backend integration: POST plan approval (follow-up task)
+  }, []);
+
+  const rejectPlan = useCallback((planId: string) => {
+    setMessages((prev) => {
+      const updated = [...prev];
+      const msg = updated.find((m) => (m as any).pendingPlan?.planId === planId);
+      if (msg) {
+        (msg as any).pendingPlan = { ...(msg as any).pendingPlan, rejected: true };
+      }
+      return [...updated];
+    });
+    stop();
+  }, [stop]);
+
   return {
     messages,
     isLoading,
@@ -576,5 +647,7 @@ Use this role to guide your responses, maintaining the specified tone, style, an
     setMessages,
     conversationTitle,
     clearError,
+    approvePlan,
+    rejectPlan,
   };
 }

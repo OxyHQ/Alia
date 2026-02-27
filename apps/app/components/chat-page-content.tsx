@@ -4,6 +4,7 @@ import { useColorScheme } from "@/lib/useColorScheme";
 import { LinearGradient } from "expo-linear-gradient";
 import type { ScrollView as GHScrollView } from "react-native-gesture-handler";
 import { useStore } from "@/lib/globalStore";
+import { useUIStore } from "@/lib/stores/ui-store";
 import { Globe, MoreHorizontal, X, Ghost, Sparkles, Brain, Bot, Search, ShoppingBag, BookOpen } from "lucide-react-native";
 import Entypo from "@expo/vector-icons/Entypo";
 import * as DropdownMenu from "@/components/ui/dropdown-menu";
@@ -18,7 +19,6 @@ import type { Message } from "@/types/chat";
 import { toast } from "@/components/sonner";
 import { VoiceOverlay } from "@/components/voice-overlay";
 import { VoiceControls } from "@/components/voice-controls";
-import { CanvasPanel } from "@/components/canvas-panel";
 import { AlertTriangle } from "lucide-react-native";
 import { CreditWarningBanner } from "@/components/credit-warning-banner";
 import { getThinkingModelId, isThinkingModel } from "@/components/model-selector";
@@ -76,6 +76,8 @@ interface ChatPageContentProps {
   agentActivity?: AgentActivityState | null;
   agentId?: string | null;
   agentSessionId?: string | null;
+  onApprovePlan?: (planId: string) => void;
+  onRejectPlan?: (planId: string) => void;
 }
 
 
@@ -114,6 +116,8 @@ export const ChatPageContent = ({
   agentActivity,
   agentId,
   agentSessionId,
+  onApprovePlan,
+  onRejectPlan,
 }: ChatPageContentProps) => {
   const attachments = useStore((state) => state.attachments);
   const addAttachment = useStore((state) => state.addAttachment);
@@ -140,8 +144,6 @@ export const ChatPageContent = ({
   }, [selectedModel, setBaseModel]);
 
   const [inputValue, setInputValue] = useState("");
-  const [showCanvas, setShowCanvas] = useState(false);
-  const [canvasComponents, setCanvasComponents] = useState<any[]>([]);
   const [showTerminal, setShowTerminal] = useState(false);
   const { colors } = useColorScheme();
 
@@ -237,7 +239,7 @@ export const ChatPageContent = ({
   }, [addAttachment]);
 
   const handleCanvas = () => {
-    setShowCanvas(true);
+    useUIStore.getState().setRightPanel('canvas');
   };
 
   const handleVoiceActivate = useCallback(() => {
@@ -306,6 +308,8 @@ export const ChatPageContent = ({
           onAtBottomChange={setIsAtBottom}
           agentActivity={agentActivity}
           agentSessionId={agentSessionId}
+          onApprovePlan={onApprovePlan}
+          onRejectPlan={onRejectPlan}
         />
 
         {/* Voice wave overlay — renders on top of messages at low opacity */}
@@ -573,7 +577,6 @@ export const ChatPageContent = ({
         </Pressable>
       )}
 
-      <CanvasPanel visible={showCanvas} onClose={() => setShowCanvas(false)} components={canvasComponents} />
     </View>
   );
 };

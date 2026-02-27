@@ -33,6 +33,8 @@ const ChatConversationPage = () => {
     clearConversation,
     clearError,
     setMessages,
+    approvePlan,
+    rejectPlan,
   } = useChatConversation({ conversationId: id, activeRole, thinkingMode, selectedModel, skillId: activeSkillId, agentId });
 
   const saveConversation = useSaveConversation();
@@ -86,6 +88,8 @@ const ChatConversationPage = () => {
         disabled={!!usageLimitError}
         voice={voice}
         agentId={agentId}
+        onApprovePlan={approvePlan}
+        onRejectPlan={rejectPlan}
       />
       <UsageLimitDialog error={usageLimitError} onDismiss={clearError} />
     </>

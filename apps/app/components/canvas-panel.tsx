@@ -1,46 +1,45 @@
-import { View, ScrollView, Pressable, Modal } from 'react-native';
+import { View, ScrollView } from 'react-native';
 import { Text } from '@/components/ui/text';
-import { X } from 'lucide-react-native';
+import { Layers } from 'lucide-react-native';
 import { CanvasComponent } from './canvas/canvas-component';
+import { useUIStore } from '@/lib/stores/ui-store';
 
-interface CanvasPanelProps {
-  visible: boolean;
-  onClose: () => void;
-  components: any[];
-  onFormSubmit?: (formData: Record<string, any>) => void;
-}
+export function CanvasPanel() {
+  const artifacts = useUIStore((s) => s.canvasArtifacts);
 
-export function CanvasPanel({ visible, onClose, components, onFormSubmit }: CanvasPanelProps) {
-  return (
-    <Modal visible={visible} transparent animationType="fade">
-      <View className="flex-1 bg-black/80">
-        <View className="flex-1 mt-12 mx-3 mb-3 bg-background rounded-2xl overflow-hidden">
-          <View className="flex-row items-center justify-between px-4 py-3 border-b border-border">
-            <Text className="text-lg font-semibold text-foreground">Canvas</Text>
-            <Pressable onPress={onClose} className="p-1 active:opacity-70">
-              <X size={20} className="text-muted-foreground" />
-            </Pressable>
-          </View>
-
-          {components.length === 0 ? (
-            <View className="flex-1 items-center justify-center px-6">
-              <Text className="text-muted-foreground text-center text-sm">
-                No canvas components yet. The AI will create visual components here during your conversation.
-              </Text>
-            </View>
-          ) : (
-            <ScrollView className="flex-1 p-4" contentContainerStyle={{ gap: 16, paddingBottom: 24 }}>
-              {components.map((component) => (
-                <CanvasComponent
-                  key={component.id}
-                  component={component}
-                  onFormSubmit={onFormSubmit}
-                />
-              ))}
-            </ScrollView>
-          )}
-        </View>
+  if (artifacts.length === 0) {
+    return (
+      <View className="flex-1 items-center justify-center px-6 gap-3">
+        <Layers size={32} className="text-muted-foreground/30" />
+        <Text className="text-sm font-medium text-foreground">No artifacts yet</Text>
+        <Text className="text-xs text-muted-foreground text-center">
+          Generated files and content will appear here during your conversation.
+        </Text>
       </View>
-    </Modal>
+    );
+  }
+
+  return (
+    <View className="flex-1">
+      <View className="px-4 py-3 border-b border-border">
+        <Text className="text-sm font-semibold text-foreground">Canvas</Text>
+        <Text className="text-[11px] text-muted-foreground">
+          {artifacts.length} {artifacts.length === 1 ? 'artifact' : 'artifacts'}
+        </Text>
+      </View>
+      <ScrollView className="flex-1 p-4" contentContainerStyle={{ gap: 16, paddingBottom: 24 }}>
+        {artifacts.map((artifact) => (
+          <CanvasComponent
+            key={artifact.id}
+            component={{
+              id: artifact.id,
+              type: artifact.type,
+              title: artifact.title || artifact.type,
+              data: artifact.content,
+            }}
+          />
+        ))}
+      </ScrollView>
+    </View>
   );
 }

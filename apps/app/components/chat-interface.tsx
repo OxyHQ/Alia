@@ -26,7 +26,7 @@ import Animated, {
 } from "react-native-reanimated";
 import * as Clipboard from "expo-clipboard";
 import { Reasoning, ReasoningTrigger } from "@/components/ui/reasoning";
-import { getToolLabel } from "@/lib/tool-registry";
+import { getToolLabel, getToolActiveLabel } from "@/lib/tool-registry";
 import { getTextFromContent, getImagesFromContent } from "@/lib/attachment-utils";
 import { useUIStore } from "@/lib/stores/ui-store";
 import { useStore } from "@/lib/globalStore";
@@ -35,6 +35,7 @@ import { useScrollToBottom } from "@/hooks/use-scroll-to-bottom";
 import { AgentTaskCard } from "@/components/agent-task-card";
 import { AgentResultCard } from "@/components/agent-result-card";
 import { ResearchProgressCard, type ResearchProgressData } from "@/components/research-progress-card";
+import { PlanPreviewCard } from "@/components/plan-preview-card";
 import type { AgentActivityState } from "@/lib/hooks/use-agent-activity";
 import { Skeleton } from "@/components/ui/skeleton";
 
@@ -79,6 +80,8 @@ type ChatInterfaceProps = {
   onAtBottomChange?: (isAtBottom: boolean) => void;
   agentActivity?: AgentActivityState | null;
   agentSessionId?: string | null;
+  onApprovePlan?: (planId: string) => void;
+  onRejectPlan?: (planId: string) => void;
 };
 
 // Helper function to extract and process text content for the app
@@ -108,6 +111,16 @@ function getMessageImages(message: Message): string[] {
   return [];
 }
 
+/** Map research progress phases to human-readable status text. */
+const RESEARCH_PHASE_LABELS: Record<string, string> = {
+  decomposing: "Decomposing query...",
+  searching: "Searching sources...",
+  reading: "Reading articles...",
+  synthesizing: "Synthesizing findings...",
+  follow_up: "Following up...",
+  finalizing: "Finalizing research...",
+};
+
 /** Pulsing colored bullet for tool execution status (alia-codea style). */
 function ToolBullet({ isRunning }: { isRunning: boolean }) {
   const opacity = useSharedValue(1);
@@ -136,7 +149,7 @@ function ToolBullet({ isRunning }: { isRunning: boolean }) {
   );
 }
 
-export const ChatInterface = React.memo(function ChatInterface({ messages, scrollViewRef, isLoading, conversationLoading, onSuggestionPress, onEditMessage, onCopyMessage, bottomPadding = 160, isVoiceActive = false, voiceAgentState, onAtBottomChange, agentActivity, agentSessionId }: ChatInterfaceProps) {
+export const ChatInterface = React.memo(function ChatInterface({ messages, scrollViewRef, isLoading, conversationLoading, onSuggestionPress, onEditMessage, onCopyMessage, bottomPadding = 160, isVoiceActive = false, voiceAgentState, onAtBottomChange, agentActivity, agentSessionId, onApprovePlan, onRejectPlan }: ChatInterfaceProps) {
     const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
     const [editedContent, setEditedContent] = useState("");
     const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
@@ -302,6 +315,17 @@ export const ChatInterface = React.memo(function ChatInterface({ messages, scrol
                     }
                   }}
                 >
+                  {/* Plan Preview — shown before tool execution */}
+                  {(m as any).pendingPlan && (
+                    <PlanPreviewCard
+                      steps={(m as any).pendingPlan.steps}
+                      approved={(m as any).pendingPlan.approved}
+                      rejected={(m as any).pendingPlan.rejected}
+                      onApprove={() => onApprovePlan?.((m as any).pendingPlan.planId)}
+                      onReject={() => onRejectPlan?.((m as any).pendingPlan.planId)}
+                    />
+                  )}
+
                   {/* Tool Invocations — alia-codea bullet style */}
                   {m.toolInvocations?.map((t, ti) => {
                     const key = t.toolCallId || `tool-${m.id}-${ti}`;
@@ -511,13 +535,25 @@ export const ChatInterface = React.memo(function ChatInterface({ messages, scrol
                   {(isLoading || voiceAgentState === 'thinking') &&
                     m.role === "assistant" &&
                     m === messages[messages.length - 1] &&
-                    !getMessageText(m) && (
-                      <ThinkingIndicator
-                        isWorking={
-                          (m.toolInvocations?.length ?? 0) > 0
-                        }
-                      />
-                    )}
+                    !getMessageText(m) && (() => {
+                      // Derive context-aware status from active state
+                      const activeTool = m.toolInvocations?.find(t => t.state === 'call' || t.state === 'partial-call');
+                      const rp = (m as any).researchProgress;
+                      let activeStatus: string | undefined;
+                      if (activeTool) {
+                        activeStatus = getToolActiveLabel(activeTool.toolName);
+                      } else if (rp?.currentPhase && rp.currentPhase !== 'complete') {
+                        activeStatus = RESEARCH_PHASE_LABELS[rp.currentPhase];
+                      } else if ((m as any).thinking) {
+                        activeStatus = "Reasoning...";
+                      }
+                      return (
+                        <ThinkingIndicator
+                          isWorking={(m.toolInvocations?.length ?? 0) > 0}
+                          statusText={activeStatus}
+                        />
+                      );
+                    })()}
                 </Animated.View>
               );
             })}

@@ -39,6 +39,8 @@ export function useChatConversation({ conversationId, activeRole, thinkingMode, 
     clearError,
     setMessages,
     stop,
+    approvePlan,
+    rejectPlan,
   } = useStreamingChat(generateAPIUrl('/v1/chat/completions'), activeRole, conversationId, thinkingMode, selectedModel, skillId, agentId);
 
   // Refresh sidebar when streaming finishes (backend auto-saves with AI-generated title)
@@ -164,5 +166,7 @@ export function useChatConversation({ conversationId, activeRole, thinkingMode, 
     clearConversation,
     clearError,
     setMessages,
+    approvePlan,
+    rejectPlan,
   };
 }
