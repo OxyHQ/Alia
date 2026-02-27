@@ -12,7 +12,7 @@ services:
       branch: main
       deploy_on_push: true
 
-    build_command: npm ci -w @alia/api && npm run build:api
+    build_command: ELECTRON_SKIP_BINARY_DOWNLOAD=1 npm ci -w @alia/api && npm run build:api
     run_command: npm run start:api
     source_dir: /
     environment_slug: node-js
@@ -77,7 +77,7 @@ services:
       branch: main
       deploy_on_push: true
 
-    build_command: npm ci -w @alia/providers-api --include=dev && npm run build:providers-api
+    build_command: ELECTRON_SKIP_BINARY_DOWNLOAD=1 npm ci -w @alia/providers-api --include=dev && npm run build:providers-api
     run_command: npm run start:providers-api
     source_dir: /
     environment_slug: node-js
@@ -147,7 +147,7 @@ services:
       repo: Alia-onl/Alia
       branch: main
       deploy_on_push: true
-    build_command: npm ci -w alia-canvas && npm run build:canvas
+    build_command: ELECTRON_SKIP_BINARY_DOWNLOAD=1 npm ci -w alia-canvas && npm run build:canvas
     run_command: npm run start:canvas
     source_dir: /
     environment_slug: node-js
@@ -161,7 +161,7 @@ static_sites:
       repo: Alia-onl/Alia
       branch: main
       deploy_on_push: true
-    build_command: npm ci -w @alia/app && npm run build --workspace=@alia/app
+    build_command: ELECTRON_SKIP_BINARY_DOWNLOAD=1 npm ci -w @alia/app && npm run build --workspace=@alia/app
     source_dir: /
     environment_slug: node-js
     output_dir: apps/app/dist
