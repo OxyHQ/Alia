@@ -10,7 +10,7 @@ import { recordUsage } from '../../middleware/api-key-rate-limit.js';
 import { detectCreditAnomaly } from '../../lib/credit-anomaly.js';
 import { getUserEntitlements } from '../../lib/plan-access.js';
 import { convertOpenAIToolsToToolSet } from '../../lib/tool-converter.js';
-import { getCurrentDateTool, webSearchTool, browseTool, saveUserMemoryTool, updateUserPreferencesTool, updateUserContextTool, createSendTelegramTool, createGetWhatsAppChatsTool, createGetWhatsAppMessagesTool, createSendWhatsAppMessageTool, createProvidersAdminTool, webScraperTool, generateFileTool, createSearchAgentsTool, createDelegateToAgentTool } from '../../lib/tools/index.js';
+import { getCurrentDateTool, webSearchTool, browseTool, saveUserMemoryTool, updateUserPreferencesTool, updateUserContextTool, createSendTelegramTool, createGetWhatsAppChatsTool, createGetWhatsAppMessagesTool, createSendWhatsAppMessageTool, createProvidersAdminTool, webScraperTool, generateFileTool, createSearchAgentsTool, createDelegateToAgentTool, createDeepResearchTool, createSwitchModelTool } from '../../lib/tools/index.js';
 import { buildMcpTools } from '../../lib/tools/mcp.js';
 import { buildIntegrationTools } from '../../lib/tools/integrations.js';
 import { oxyClient } from '../../middleware/auth.js';
@@ -25,6 +25,7 @@ import { log } from '../../lib/logger.js';
 import { recordEvent } from '../../lib/observability/index.js';
 import { classifyError, getRetryAfterHeader } from '../../lib/errors/index.js';
 import type { FailoverReason } from '../../lib/errors/error-codes.js';
+import { runDeepResearch, type ResearchProgress } from '../../lib/research/research-engine.js';
 
 const router = Router();
 
@@ -252,8 +253,9 @@ router.post('/', async (req: Request, res: Response) => {
     const conversationId = body.conversationId as string | undefined;
     const thinkingMode = body.thinkingMode as boolean | undefined;
     const agentMode = body.agentMode as boolean | undefined;
+    const deepResearch = body.deepResearch as boolean | undefined;
 
-    log.v1.info({ messageCount: messages.length, conversationId, thinkingMode, agentMode }, 'Processing messages');
+    log.v1.info({ messageCount: messages.length, conversationId, thinkingMode, agentMode, deepResearch }, 'Processing messages');
 
     // Determine if this is a direct user session (not API key)
     // API key requests should be neutral and not include creator's personal info
@@ -406,6 +408,107 @@ router.post('/', async (req: Request, res: Response) => {
       }
     }
 
+    // ── Deep Research Mode ──
+    // When activated via the app's deep research toggle, route to the specialized
+    // research engine with multi-query web search, source tracking, and citations.
+    if (deepResearch && req.user?.id) {
+      const userQuery = messages.filter((m: any) => m.role === 'user').pop()?.content || '';
+      const queryText = typeof userQuery === 'string' ? userQuery : '';
+      if (queryText.trim()) {
+        log.v1.info({ conversationId, autoDetected: !deepResearch }, 'Deep research mode activated');
+
+        try {
+          const result = await runDeepResearch(queryText, messages, {
+            userId: req.user.id,
+            signal: req.socket.destroyed ? AbortSignal.abort() : undefined,
+            onProgress: (progress: ResearchProgress) => {
+              if (!res.writableEnded) {
+                res.write(`data: ${JSON.stringify({
+                  type: 'research_progress',
+                  phase: progress.phase,
+                  message: progress.message,
+                  subQuestions: progress.subQuestions,
+                  sourcesFound: progress.sourcesFound,
+                  currentQuery: progress.currentQuery,
+                  iteration: progress.iteration,
+                })}\n\n`);
+              }
+            },
+          });
+
+          // Stream the final report as content deltas (OpenAI SSE format)
+          const CHUNK_SIZE = 100;
+          for (let i = 0; i < result.report.length; i += CHUNK_SIZE) {
+            const chunk = result.report.slice(i, i + CHUNK_SIZE);
+            res.write(`data: ${JSON.stringify({
+              id: `chatcmpl-${Date.now()}`,
+              object: 'chat.completion.chunk',
+              choices: [{ index: 0, delta: { content: chunk }, finish_reason: null }],
+            })}\n\n`);
+          }
+
+          // Send sources metadata
+          res.write(`data: ${JSON.stringify({
+            type: 'research_complete',
+            sources: result.sources,
+            totalSearches: result.totalSearches,
+            subQuestions: result.subQuestions,
+          })}\n\n`);
+
+          // Send final chunk with finish_reason
+          res.write(`data: ${JSON.stringify({
+            id: `chatcmpl-${Date.now()}`,
+            object: 'chat.completion.chunk',
+            choices: [{ index: 0, delta: {}, finish_reason: 'stop' }],
+          })}\n\n`);
+          res.write('data: [DONE]\n\n');
+          res.end();
+
+          // Save conversation
+          if (conversationId && req.user?.id) {
+            saveConversation({
+              userId: req.user.id,
+              conversationId,
+              messages,
+              assistantResponse: result.report,
+            }).catch(err => log.v1.warn({ err }, 'Failed to save research conversation'));
+          }
+
+          // Finalize credits
+          if (creditReservation) {
+            const promptTokenEstimate = messages.reduce(
+              (sum: number, m: any) => sum + estimateMessageTokens(m.role, typeof m.content === 'string' ? m.content : ''), 0
+            );
+            const completionTokens = Math.ceil(result.report.length / 4);
+            finalizeCredits(creditReservation, {
+              promptTokens: promptTokenEstimate,
+              completionTokens,
+              totalTokens: promptTokenEstimate + completionTokens,
+              systemPromptTokens: 0,
+            }).catch(() => {});
+          }
+
+          clearTimeout(globalTimer);
+          return;
+        } catch (err: any) {
+          log.v1.error({ err }, 'Deep research failed');
+          if (creditReservation) {
+            refundReservation(creditReservation).catch(() => {});
+          }
+          if (!res.writableEnded) {
+            res.write(`data: ${JSON.stringify({
+              type: 'error',
+              error: err.message || 'Research failed',
+            })}\n\n`);
+            res.write('data: [DONE]\n\n');
+            res.end();
+          }
+          clearTimeout(globalTimer);
+          return;
+        }
+      }
+    }
+
     // Build system prompt (depends on aliasModelId from model resolution)
     const baseSystemPrompt = await buildSystemPrompt(aliasModelId, clientContext);
 
@@ -441,6 +544,11 @@ router.post('/', async (req: Request, res: Response) => {
         saveUserMemory: saveUserMemoryTool(req.user!.id),
         updateUserPreferences: updateUserPreferencesTool(req.user!.id),
         updateUserContext: updateUserContextTool(req.user!.id),
+        deepResearch: createDeepResearchTool(req.user!.id),
+        switchModel: createSwitchModelTool((modelId, modelName) => {
+          ensureSSEHeaders();
+          res.write(`data: ${JSON.stringify({ type: 'model_switch', model: modelId, modelName })}\n\n`);
+        }),
       } : {}),
     };
 

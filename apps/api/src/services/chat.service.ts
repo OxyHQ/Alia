@@ -12,8 +12,9 @@
 import { type ToolSet } from 'ai';
 import { resolveModel, getAIModel, getDefaultAliaModel, reportModelUsage } from '../lib/chat-core.js';
 import { markKeyCreditExhausted, getAliaModel, getModelMappingsForTier } from '../lib/providers-client.js';
-import { getCurrentDateTool, webSearchTool, browseTool, saveUserMemoryTool, updateUserPreferencesTool, updateUserContextTool, createGetDeviceInfoTool, createSendTelegramTool, createProvidersAdminTool, webScraperTool, generateFileTool, canvasTool, createTriggerTool, listTriggersTool, updateTriggerTool, deleteTriggerTool, type DeviceInfo } from '../lib/tools/index.js';
+import { getCurrentDateTool, webSearchTool, browseTool, saveUserMemoryTool, updateUserPreferencesTool, updateUserContextTool, createGetDeviceInfoTool, createSendTelegramTool, createProvidersAdminTool, webScraperTool, generateFileTool, canvasTool, createTriggerTool, listTriggersTool, updateTriggerTool, deleteTriggerTool, createDeepResearchTool, type DeviceInfo } from '../lib/tools/index.js';
 import { buildMcpTools } from '../lib/tools/mcp.js';
+import { buildIntegrationTools } from '../lib/tools/integrations.js';
 import { oxyClient } from '../middleware/auth.js';
 import type { User as OxyUser } from '@oxyhq/core';
 import { getOrCreateUserCredits } from '../lib/user-credits-helpers.js';
@@ -234,6 +235,7 @@ export async function buildChatTools(opts: BuildToolsOptions): Promise<ToolSet> 
       listTriggers: listTriggersTool(opts.userId),
       updateTrigger: updateTriggerTool(opts.userId),
       deleteTrigger: deleteTriggerTool(opts.userId),
+      deepResearch: createDeepResearchTool(opts.userId),
     } : {}),
   };
 
@@ -243,10 +245,13 @@ export async function buildChatTools(opts: BuildToolsOptions): Promise<ToolSet> 
 
   if (opts.userId) {
     try {
-      const mcpTools = await buildMcpTools(opts.userId);
-      Object.assign(tools, mcpTools);
+      const [mcpTools, integrationTools] = await Promise.all([
+        buildMcpTools(opts.userId),
+        buildIntegrationTools(opts.userId),
+      ]);
+      Object.assign(tools, mcpTools, integrationTools);
     } catch (err) {
-      log.chat.warn({ err }, 'Failed to load MCP tools');
+      log.chat.warn({ err }, 'Failed to load MCP/integration tools');
     }
   }
 
