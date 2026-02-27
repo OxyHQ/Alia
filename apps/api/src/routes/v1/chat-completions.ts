@@ -485,7 +485,7 @@ router.post('/', async (req: Request, res: Response) => {
               completionTokens,
               totalTokens: promptTokenEstimate + completionTokens,
               systemPromptTokens: 0,
-            }).catch(() => {});
+            }).catch((err: any) => log.v1.error({ err, reservationId: creditReservation?.id }, 'finalizeCredits failed after deep research'));
           }
 
           clearTimeout(globalTimer);
@@ -493,7 +493,7 @@ router.post('/', async (req: Request, res: Response) => {
         } catch (err: any) {
           log.v1.error({ err }, 'Deep research failed');
           if (creditReservation) {
-            refundReservation(creditReservation).catch(() => {});
+            refundReservation(creditReservation).catch((err: any) => log.v1.error({ err, reservationId: creditReservation?.id }, 'refundReservation failed after deep research error'));
           }
           if (!res.writableEnded) {
             res.write(`data: ${JSON.stringify({
@@ -1559,7 +1559,7 @@ router.post('/', async (req: Request, res: Response) => {
 
     // Refund credit reservation for synthetic responses
     if (creditReservation) {
-      refundReservation(creditReservation).catch(() => {});
+      refundReservation(creditReservation).catch((err: any) => log.v1.error({ err, reservationId: creditReservation?.id }, 'refundReservation failed for synthetic response'));
       creditReservation = null;
     }
 

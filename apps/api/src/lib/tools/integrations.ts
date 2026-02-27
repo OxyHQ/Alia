@@ -190,7 +190,7 @@ async function authedFetch(
   Integration.updateOne(
     { oxyUserId: new mongoose.Types.ObjectId(userId), service, enabled: true },
     { lastUsedAt: new Date() },
-  ).catch(() => {});
+  ).catch((err) => log.general.warn({ err, service }, 'Failed to update integration lastUsedAt'));
 
   return response.json();
 }
@@ -220,7 +220,7 @@ async function authedFetchText(
   Integration.updateOne(
     { oxyUserId: new mongoose.Types.ObjectId(userId), service, enabled: true },
     { lastUsedAt: new Date() },
-  ).catch(() => {});
+  ).catch((err) => log.general.warn({ err, service }, 'Failed to update integration lastUsedAt'));
 
   return response.text();
 }

@@ -136,6 +136,91 @@ export async function reserveCredits(
 }
 
 /**
+ * Shared credit adjustment logic used by both finalizeCredits and finalizeVoiceCredits.
+ * Handles refund-if-over or charge-if-under relative to the initial reservation.
+ */
+async function _adjustReservation(
+  reservation: CreditReservation,
+  actualCreditsNeeded: number,
+  label: string,
+): Promise<{ creditsCharged: number; creditsRemaining: number }> {
+  const creditAdjustment = reservation.creditsReserved - actualCreditsNeeded;
+  log.credits.info({ userId: reservation.userId, reserved: reservation.creditsReserved, actualNeeded: actualCreditsNeeded, creditAdjustment }, `Finalizing ${label}`);
+
+  let updatedCredits = await UserCredits.findById(reservation.userId);
+
+  if (!updatedCredits) {
+    throw new Error('User credits not found');
+  }
+
+  if (creditAdjustment !== 0) {
+    if (creditAdjustment > 0) {
+      updatedCredits = await UserCredits.findByIdAndUpdate(
+        reservation.userId,
+        { $inc: { 'credits.free': creditAdjustment } },
+        { returnDocument: 'after', runValidators: false }
+      );
+      log.credits.info({ refunded: creditAdjustment }, `Refunded ${label} credits`);
+    } else {
+      const additionalCredits = Math.abs(creditAdjustment);
+
+      updatedCredits = await UserCredits.findOneAndUpdate(
+        {
+          _id: reservation.userId,
+          $expr: {
+            $gte: [{ $add: ['$credits.free', '$credits.paid'] }, additionalCredits]
+          }
+        },
+        [
+          {
+            $set: {
+              'credits.free': {
+                $cond: {
+                  if: { $gte: ['$credits.free', additionalCredits] },
+                  then: { $subtract: ['$credits.free', additionalCredits] },
+                  else: 0
+                }
+              },
+              'credits.paid': {
+                $cond: {
+                  if: { $gte: ['$credits.free', additionalCredits] },
+                  then: '$credits.paid',
+                  else: { $subtract: ['$credits.paid', { $subtract: [additionalCredits, '$credits.free'] }] }
+                }
+              }
+            }
+          }
+        ],
+        { returnDocument: 'after', runValidators: false, updatePipeline: true }
+      );
+
+      if (!updatedCredits) {
+        updatedCredits = await UserCredits.findByIdAndUpdate(
+          reservation.userId,
+          { $set: { 'credits.free': 0, 'credits.paid': 0 } },
+          { returnDocument: 'after' }
+        );
+        log.credits.warn(`Insufficient credits for additional ${label} charge, set to 0`);
+      } else {
+        log.credits.info({ additionalCredits }, `Charged additional ${label} credits`);
+      }
+    }
+  }
+
+  if (!updatedCredits) {
+    throw new Error('Failed to update credits');
+  }
+
+  const totalRemaining = updatedCredits.credits.free + updatedCredits.credits.paid;
+  log.credits.info({ free: updatedCredits.credits.free, paid: updatedCredits.credits.paid, total: totalRemaining }, `Final ${label} credits`);
+
+  return {
+    creditsCharged: actualCreditsNeeded,
+    creditsRemaining: totalRemaining,
+  };
+}
+
+/**
  * Adjust credits based on actual token usage and model tier
  * If actual usage > reserved: deduct more
  * If actual usage < reserved: refund difference
@@ -151,88 +236,8 @@ export async function finalizeCredits(
       aliasModelId,
       usage.systemPromptTokens
     );
-    const creditAdjustment = reservation.creditsReserved - actualCreditsNeeded;
-
-    log.credits.info({ userId: reservation.userId, reserved: reservation.creditsReserved, actualNeeded: actualCreditsNeeded }, 'Finalizing credits');
-    log.credits.info({ totalTokens: usage.totalTokens, promptTokens: usage.promptTokens, completionTokens: usage.completionTokens, systemTokens: usage.systemPromptTokens || 0 }, 'Tokens used');
-    log.credits.info({ creditAdjustment }, 'Credit adjustment');
-
-    let updatedCredits = await UserCredits.findById(reservation.userId);
-
-    if (!updatedCredits) {
-      throw new Error('User credits not found');
-    }
-
-    // If we need to adjust (either refund or charge more)
-    if (creditAdjustment !== 0) {
-      if (creditAdjustment > 0) {
-        // Refund: we reserved more than needed
-        updatedCredits = await UserCredits.findByIdAndUpdate(
-          reservation.userId,
-          { $inc: { 'credits.free': creditAdjustment } },
-          { returnDocument: 'after', runValidators: false }
-        );
-        log.credits.info({ refunded: creditAdjustment }, 'Refunded credits');
-      } else {
-        // Charge more: actual usage exceeded reservation
-        const additionalCredits = Math.abs(creditAdjustment);
-
-        // Try to deduct additional credits
-        updatedCredits = await UserCredits.findOneAndUpdate(
-          {
-            _id: reservation.userId,
-            $expr: {
-              $gte: [{ $add: ['$credits.free', '$credits.paid'] }, additionalCredits]
-            }
-          },
-          [
-            {
-              $set: {
-                'credits.free': {
-                  $cond: {
-                    if: { $gte: ['$credits.free', additionalCredits] },
-                    then: { $subtract: ['$credits.free', additionalCredits] },
-                    else: 0
-                  }
-                },
-                'credits.paid': {
-                  $cond: {
-                    if: { $gte: ['$credits.free', additionalCredits] },
-                    then: '$credits.paid',
-                    else: { $subtract: ['$credits.paid', { $subtract: [additionalCredits, '$credits.free'] }] }
-                  }
-                }
-              }
-            }
-          ],
-          { returnDocument: 'after', runValidators: false, updatePipeline: true }
-        );
-
-        if (!updatedCredits) {
-          // Insufficient credits for additional charge - set to 0
-          updatedCredits = await UserCredits.findByIdAndUpdate(
-            reservation.userId,
-            { $set: { 'credits.free': 0, 'credits.paid': 0 } },
-            { returnDocument: 'after' }
-          );
-          log.credits.warn('Insufficient credits for additional charge, set to 0');
-        } else {
-          log.credits.info({ additionalCredits }, 'Charged additional credits');
-        }
-      }
-    }
-
-    if (!updatedCredits) {
-      throw new Error('Failed to update credits');
-    }
-
-    const totalRemaining = updatedCredits.credits.free + updatedCredits.credits.paid;
-    log.credits.info({ free: updatedCredits.credits.free, paid: updatedCredits.credits.paid, total: totalRemaining }, 'Final credits');
-
-    return {
-      creditsCharged: actualCreditsNeeded,
-      creditsRemaining: totalRemaining,
-    };
+    log.credits.info({ totalTokens: usage.totalTokens, promptTokens: usage.promptTokens, completionTokens: usage.completionTokens, systemTokens: usage.systemPromptTokens || 0 }, 'Token usage');
+    return await _adjustReservation(reservation, actualCreditsNeeded, 'chat');
   } catch (error) {
     log.credits.error({ err: error }, 'Error finalizing credits');
     throw error;
@@ -372,88 +377,8 @@ export async function finalizeVoiceCredits(
       aliasModelId,
       costPerMinute
     );
-    const creditAdjustment = reservation.creditsReserved - actualCreditsNeeded;
-
-    log.credits.info({ userId: reservation.userId, reserved: reservation.creditsReserved, actualNeeded: actualCreditsNeeded }, 'Finalizing voice credits');
     log.credits.info({ duration: actualMinutes.toFixed(2), costPerMinute }, 'Voice call duration');
-    log.credits.info({ creditAdjustment }, 'Voice credit adjustment');
-
-    let updatedCredits = await UserCredits.findById(reservation.userId);
-
-    if (!updatedCredits) {
-      throw new Error('User credits not found');
-    }
-
-    // If we need to adjust (either refund or charge more)
-    if (creditAdjustment !== 0) {
-      if (creditAdjustment > 0) {
-        // Refund: we reserved more than needed
-        updatedCredits = await UserCredits.findByIdAndUpdate(
-          reservation.userId,
-          { $inc: { 'credits.free': creditAdjustment } },
-          { returnDocument: 'after', runValidators: false }
-        );
-        log.credits.info({ refunded: creditAdjustment }, 'Refunded credits');
-      } else {
-        // Charge more: actual usage exceeded reservation
-        const additionalCredits = Math.abs(creditAdjustment);
-
-        // Try to deduct additional credits
-        updatedCredits = await UserCredits.findOneAndUpdate(
-          {
-            _id: reservation.userId,
-            $expr: {
-              $gte: [{ $add: ['$credits.free', '$credits.paid'] }, additionalCredits]
-            }
-          },
-          [
-            {
-              $set: {
-                'credits.free': {
-                  $cond: {
-                    if: { $gte: ['$credits.free', additionalCredits] },
-                    then: { $subtract: ['$credits.free', additionalCredits] },
-                    else: 0
-                  }
-                },
-                'credits.paid': {
-                  $cond: {
-                    if: { $gte: ['$credits.free', additionalCredits] },
-                    then: '$credits.paid',
-                    else: { $subtract: ['$credits.paid', { $subtract: [additionalCredits, '$credits.free'] }] }
-                  }
-                }
-              }
-            }
-          ],
-          { returnDocument: 'after', runValidators: false, updatePipeline: true }
-        );
-
-        if (!updatedCredits) {
-          // Insufficient credits for additional charge - set to 0
-          updatedCredits = await UserCredits.findByIdAndUpdate(
-            reservation.userId,
-            { $set: { 'credits.free': 0, 'credits.paid': 0 } },
-            { returnDocument: 'after' }
-          );
-          log.credits.warn('Insufficient credits for additional charge, set to 0');
-        } else {
-          log.credits.info({ additionalCredits }, 'Charged additional credits');
-        }
-      }
-    }
-
-    if (!updatedCredits) {
-      throw new Error('Failed to update credits');
-    }
-
-    const totalRemaining = updatedCredits.credits.free + updatedCredits.credits.paid;
-    log.credits.info({ free: updatedCredits.credits.free, paid: updatedCredits.credits.paid, total: totalRemaining }, 'Final voice credits');
-
-    return {
-      creditsCharged: actualCreditsNeeded,
-      creditsRemaining: totalRemaining,
-    };
+    return await _adjustReservation(reservation, actualCreditsNeeded, 'voice');
   } catch (error) {
     log.credits.error({ err: error }, 'Error finalizing voice credits');
     throw error;

@@ -328,7 +328,7 @@ router.post('/:platform/connect', ...authed, async (req, res) => {
   } catch (error) {
     log.channels.error({ err: error, platform }, 'Connect account error');
     if (account?._id) {
-      await ConnectedAccount.deleteOne({ _id: account._id }).catch(() => {});
+      await ConnectedAccount.deleteOne({ _id: account._id }).catch((err: any) => log.channels.warn({ err, accountId: account._id }, 'Failed to clean up ConnectedAccount after connect error'));
     }
     res.status(502).json({ error: `Failed to connect ${platform}` });
   }

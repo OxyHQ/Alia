@@ -1,4 +1,5 @@
 import mongoose, { Schema, Model, Document } from 'mongoose';
+import { encrypt, decrypt } from '../lib/crypto-utils.js';
 
 export interface IConnectedAccount extends Document {
   oxyUserId: mongoose.Types.ObjectId;
@@ -74,12 +75,12 @@ const ConnectedAccountSchema = new Schema<IConnectedAccount>(
     oauthTokens: {
       type: new Schema(
         {
-          accessToken: { type: String, required: true },
-          refreshToken: { type: String, required: true },
+          accessToken: { type: String, required: true, set: encrypt, get: decrypt },
+          refreshToken: { type: String, required: true, set: encrypt, get: decrypt },
           expiresAt: { type: Date, required: true },
           scope: { type: String, required: true },
         },
-        { _id: false },
+        { _id: false, toJSON: { getters: true }, toObject: { getters: true } },
       ),
     },
     metadata: {

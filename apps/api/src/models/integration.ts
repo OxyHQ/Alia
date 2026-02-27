@@ -1,4 +1,5 @@
 import mongoose, { Schema, Model, Document } from 'mongoose';
+import { encrypt, decrypt } from '../lib/crypto-utils.js';
 
 export interface IIntegration extends Document {
   oxyUserId: mongoose.Types.ObjectId;
@@ -39,13 +40,13 @@ const IntegrationSchema = new Schema<IIntegration>(
     oauthTokens: {
       type: new Schema(
         {
-          accessToken: { type: String, required: true },
-          refreshToken: String,
+          accessToken: { type: String, required: true, set: encrypt, get: decrypt },
+          refreshToken: { type: String, set: (v: string | undefined) => v ? encrypt(v) : v, get: (v: string | undefined) => v ? decrypt(v) : v },
           expiresAt: Date,
           scope: { type: String, required: true },
           tokenType: { type: String, required: true },
         },
-        { _id: false },
+        { _id: false, toJSON: { getters: true }, toObject: { getters: true } },
       ),
       required: true,
     },
