@@ -149,7 +149,7 @@ export async function compactContext(
   compactedEntries.push(...hotEntries);
 
   // Replace in-memory entries
-  eventStream.loadFromPersisted(compactedEntries);
+  eventStream.replaceEntries(compactedEntries);
 
   const tokensAfter = eventStream.estimateTokens();
 

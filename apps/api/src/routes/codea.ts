@@ -30,9 +30,6 @@ function mapPlanToAliaPlan(planName: string | undefined): string {
   if (name.includes('max')) return 'alia_max';
   if (name.includes('pro')) return 'alia_pro';
   if (name.includes('go')) return 'alia_go';
-  // Legacy backward compat
-  if (name.includes('standard')) return 'alia_pro';
-  if (name.includes('basic')) return 'alia_go';
   return 'alia_free';
 }
 

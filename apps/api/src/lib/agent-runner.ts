@@ -219,11 +219,8 @@ export async function runAgentSession(sessionId: string): Promise<void> {
   });
   const browserSession = new BrowserSession({ agentId, sessionId });
 
-  // Restore from persisted event stream if resuming
+  // Restore event stream and plan if resuming
   await eventStream.loadFromDB();
-  if (eventStream.length() === 0 && session.eventStream?.length > 0) {
-    eventStream.loadFromPersisted(session.eventStream as any);
-  }
   if (session.plan) {
     todoManager.loadFromPersisted(session.plan as any);
   }
