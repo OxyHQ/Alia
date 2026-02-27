@@ -175,14 +175,13 @@ export function useSaveConversation() {
       messages: Message[];
       title?: string;
     }) => {
-      const conversationTitle = title || messages.find((m) => m.role === "user")?.content?.slice(0, 50) || "New chat";
       const lastMessage = messages[messages.length - 1]?.content?.slice(0, 100);
 
       try {
         const response = await apiClient.post('/conversations', {
           conversationId: id,
-          title: conversationTitle,
-          messages
+          messages,
+          ...(title && { title }),
         });
 
         const data = response.data;
@@ -201,9 +200,10 @@ export function useSaveConversation() {
           const conversations = await fetchConversations();
           const existingIndex = conversations.findIndex((c) => c.id === id);
 
+          const offlineTitle = title || messages.find((m) => m.role === "user")?.content?.slice(0, 50) || "New chat";
           const conversation: Conversation = {
             id,
-            title: conversationTitle,
+            title: offlineTitle,
             lastMessage,
             createdAt: existingIndex >= 0 ? conversations[existingIndex].createdAt : new Date(),
             updatedAt: new Date(),

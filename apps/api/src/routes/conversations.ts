@@ -156,16 +156,24 @@ router.post('/', authenticateTokenOrApiKey, async (req: Request, res: Response) 
 
     // Build update object
     const updateData: Record<string, any> = {
-      title: title || validMessages.find((m: any) => m.role === 'user')?.content?.slice(0, 50) || 'New chat',
       lastMessage,
       messages: validMessages,
       updatedAt: new Date()
     };
 
+    // Only overwrite title if explicitly provided (e.g. user rename)
+    if (title) {
+      updateData.title = title;
+    }
+
     // Only set source on insert (don't change source of existing conversations)
     const setOnInsert: Record<string, any> = {};
     if (source) {
       setOnInsert.source = source;
+    }
+    // Fallback title only on first insert when no explicit title given
+    if (!title) {
+      setOnInsert.title = validMessages.find((m: any) => m.role === 'user')?.content?.slice(0, 50) || 'New chat';
     }
 
     // Find and update or create new conversation
