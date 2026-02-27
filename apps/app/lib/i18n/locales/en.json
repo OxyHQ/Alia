@@ -972,7 +972,12 @@
     "cap4Title": "Code Generation & Thinking",
     "cap4Desc": "Write, debug, and reason through complex problems step by step.",
     "ctaTitle": "Ready to get started?",
-    "ctaSubtitle": "Free to use. No credit card required."
+    "ctaSubtitle": "Free to use. No credit card required.",
+    "demo1": "Write a poem about the northern lights...",
+    "demo2": "Explain quantum computing in simple terms...",
+    "demo3": "Help me plan a trip to Tokyo...",
+    "demo4": "Debug this Python function...",
+    "demo5": "Create a workout plan for beginners..."
   },
   "keyboardShortcuts": {
     "title": "Keyboard Shortcuts",

@@ -962,7 +962,12 @@
     "cap4Title": "Generación de Código y Razonamiento",
     "cap4Desc": "Escribe, depura y razona problemas complejos paso a paso.",
     "ctaTitle": "¿Listo para empezar?",
-    "ctaSubtitle": "Gratis. Sin tarjeta de crédito."
+    "ctaSubtitle": "Gratis. Sin tarjeta de crédito.",
+    "demo1": "Escribe un poema sobre las auroras boreales...",
+    "demo2": "Explica la computación cuántica de forma simple...",
+    "demo3": "Ayúdame a planificar un viaje a Tokio...",
+    "demo4": "Depura esta función de Python...",
+    "demo5": "Crea un plan de ejercicios para principiantes..."
   },
   "keyboardShortcuts": {
     "title": "Atajos de teclado",
