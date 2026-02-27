@@ -77,241 +77,83 @@ export async function getUserTier(userId: string): Promise<string> {
   return 'pro';
 }
 
-/**
- * Check rate limits for session-based users
- */
-async function checkUserRateLimits(
-  userId: string,
-  rateLimit: IRateLimitConfig
-): Promise<RateLimitStatus> {
+// ── In-memory sliding window for API key rate limiting ──
+// Replaces per-request MongoDB countDocuments with O(1) in-memory checks.
+// Same approach as session-based rate limiting (sliding-window-limiter.ts).
+
+interface ApiKeyWindow {
+  timestamps: number[];
+  dailyRequests: number;
+  lastResetDay: number;
+}
+
+const apiKeyWindows = new Map<string, ApiKeyWindow>();
+
+function getDayOfYear(): number {
   const now = new Date();
-  const oneMinuteAgo = new Date(now.getTime() - 60 * 1000);
-  const oneDayAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+  const start = new Date(now.getFullYear(), 0, 0);
+  return Math.floor((now.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
+}
 
-  // Check requests per minute
-  if (rateLimit.requestsPerMinute !== null) {
-    const requestsLastMinute = await ApiKeyUsage.countDocuments({
-      oxyUserId: userId,
-      authType: 'session',
-      timestamp: { $gte: oneMinuteAgo },
-    });
-
-    if (requestsLastMinute >= rateLimit.requestsPerMinute) {
-      return {
-        limited: true,
-        limitType: 'requestsPerMinute',
-        current: requestsLastMinute,
-        limit: rateLimit.requestsPerMinute,
-        resetInSeconds: 60,
-      };
-    }
+function getOrCreateApiKeyWindow(apiKeyId: string): ApiKeyWindow {
+  let state = apiKeyWindows.get(apiKeyId);
+  if (!state) {
+    state = { timestamps: [], dailyRequests: 0, lastResetDay: getDayOfYear() };
+    apiKeyWindows.set(apiKeyId, state);
   }
-
-  // Check requests per day
-  if (rateLimit.requestsPerDay !== null) {
-    const requestsLastDay = await ApiKeyUsage.countDocuments({
-      oxyUserId: userId,
-      authType: 'session',
-      timestamp: { $gte: oneDayAgo },
-    });
-
-    if (requestsLastDay >= rateLimit.requestsPerDay) {
-      const endOfWindow = new Date(oneDayAgo.getTime() + 24 * 60 * 60 * 1000);
-      const resetInSeconds = Math.ceil((endOfWindow.getTime() - now.getTime()) / 1000);
-
-      return {
-        limited: true,
-        limitType: 'requestsPerDay',
-        current: requestsLastDay,
-        limit: rateLimit.requestsPerDay,
-        resetInSeconds: Math.max(resetInSeconds, 60),
-      };
-    }
+  const today = getDayOfYear();
+  if (state.lastResetDay !== today) {
+    state.dailyRequests = 0;
+    state.lastResetDay = today;
   }
-
-  // Check tokens per minute
-  if (rateLimit.tokensPerMinute !== null) {
-    const tokensResult = await ApiKeyUsage.aggregate([
-      {
-        $match: {
-          oxyUserId: userId,
-          authType: 'session',
-          timestamp: { $gte: oneMinuteAgo },
-        },
-      },
-      {
-        $group: {
-          _id: null,
-          totalTokens: { $sum: '$tokensUsed' },
-        },
-      },
-    ]);
-
-    const tokensLastMinute = tokensResult[0]?.totalTokens || 0;
-
-    if (tokensLastMinute >= rateLimit.tokensPerMinute) {
-      return {
-        limited: true,
-        limitType: 'tokensPerMinute',
-        current: tokensLastMinute,
-        limit: rateLimit.tokensPerMinute,
-        resetInSeconds: 60,
-      };
-    }
-  }
-
-  // Check tokens per day
-  if (rateLimit.tokensPerDay !== null) {
-    const tokensResult = await ApiKeyUsage.aggregate([
-      {
-        $match: {
-          oxyUserId: userId,
-          authType: 'session',
-          timestamp: { $gte: oneDayAgo },
-        },
-      },
-      {
-        $group: {
-          _id: null,
-          totalTokens: { $sum: '$tokensUsed' },
-        },
-      },
-    ]);
-
-    const tokensLastDay = tokensResult[0]?.totalTokens || 0;
-
-    if (tokensLastDay >= rateLimit.tokensPerDay) {
-      const endOfWindow = new Date(oneDayAgo.getTime() + 24 * 60 * 60 * 1000);
-      const resetInSeconds = Math.ceil((endOfWindow.getTime() - now.getTime()) / 1000);
-
-      return {
-        limited: true,
-        limitType: 'tokensPerDay',
-        current: tokensLastDay,
-        limit: rateLimit.tokensPerDay,
-        resetInSeconds: Math.max(resetInSeconds, 60),
-      };
-    }
-  }
-
-  return { limited: false };
+  return state;
 }
 
 /**
- * Check if an API key has exceeded its rate limits
+ * Check if an API key has exceeded its rate limits (in-memory, sub-microsecond).
+ * Replaces the previous MongoDB countDocuments approach that ran O(n) DB queries per request.
  */
-async function checkApiKeyRateLimits(
+function checkApiKeyRateLimits(
   apiKeyId: string,
   rateLimit: IRateLimitConfig
-): Promise<RateLimitStatus> {
-  const now = new Date();
-  const oneMinuteAgo = new Date(now.getTime() - 60 * 1000);
-  const oneDayAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+): RateLimitStatus {
+  const state = getOrCreateApiKeyWindow(apiKeyId);
+  const now = Date.now();
+  const windowMs = 60_000;
 
-  const keyObjectId = new mongoose.Types.ObjectId(apiKeyId);
+  // Prune timestamps older than 1 minute
+  state.timestamps = state.timestamps.filter(t => now - t < windowMs);
 
   // Check requests per minute
-  if (rateLimit.requestsPerMinute !== null) {
-    const requestsLastMinute = await ApiKeyUsage.countDocuments({
-      apiKeyId: keyObjectId,
-      timestamp: { $gte: oneMinuteAgo },
-    });
-
-    if (requestsLastMinute >= rateLimit.requestsPerMinute) {
-      return {
-        limited: true,
-        limitType: 'requestsPerMinute',
-        current: requestsLastMinute,
-        limit: rateLimit.requestsPerMinute,
-        resetInSeconds: 60,
-      };
-    }
+  if (rateLimit.requestsPerMinute !== null && state.timestamps.length >= rateLimit.requestsPerMinute) {
+    const oldestInWindow = state.timestamps[0];
+    const resetInSeconds = Math.ceil((oldestInWindow + windowMs - now) / 1000);
+    return {
+      limited: true,
+      limitType: 'requestsPerMinute',
+      current: state.timestamps.length,
+      limit: rateLimit.requestsPerMinute,
+      resetInSeconds: Math.max(resetInSeconds, 1),
+    };
   }
 
   // Check requests per day
-  if (rateLimit.requestsPerDay !== null) {
-    const requestsLastDay = await ApiKeyUsage.countDocuments({
-      apiKeyId: keyObjectId,
-      timestamp: { $gte: oneDayAgo },
-    });
-
-    if (requestsLastDay >= rateLimit.requestsPerDay) {
-      // Calculate seconds until reset (next day boundary)
-      const endOfWindow = new Date(oneDayAgo.getTime() + 24 * 60 * 60 * 1000);
-      const resetInSeconds = Math.ceil((endOfWindow.getTime() - now.getTime()) / 1000);
-
-      return {
-        limited: true,
-        limitType: 'requestsPerDay',
-        current: requestsLastDay,
-        limit: rateLimit.requestsPerDay,
-        resetInSeconds: Math.max(resetInSeconds, 60),
-      };
-    }
+  if (rateLimit.requestsPerDay !== null && state.dailyRequests >= rateLimit.requestsPerDay) {
+    const now_ = new Date();
+    const midnight = new Date(now_.getFullYear(), now_.getMonth(), now_.getDate() + 1);
+    const resetInSeconds = Math.ceil((midnight.getTime() - now_.getTime()) / 1000);
+    return {
+      limited: true,
+      limitType: 'requestsPerDay',
+      current: state.dailyRequests,
+      limit: rateLimit.requestsPerDay,
+      resetInSeconds: Math.max(resetInSeconds, 60),
+    };
   }
 
-  // Check tokens per minute
-  if (rateLimit.tokensPerMinute !== null) {
-    const tokensResult = await ApiKeyUsage.aggregate([
-      {
-        $match: {
-          apiKeyId: keyObjectId,
-          timestamp: { $gte: oneMinuteAgo },
-        },
-      },
-      {
-        $group: {
-          _id: null,
-          totalTokens: { $sum: '$tokensUsed' },
-        },
-      },
-    ]);
-
-    const tokensLastMinute = tokensResult[0]?.totalTokens || 0;
-
-    if (tokensLastMinute >= rateLimit.tokensPerMinute) {
-      return {
-        limited: true,
-        limitType: 'tokensPerMinute',
-        current: tokensLastMinute,
-        limit: rateLimit.tokensPerMinute,
-        resetInSeconds: 60,
-      };
-    }
-  }
-
-  // Check tokens per day
-  if (rateLimit.tokensPerDay !== null) {
-    const tokensResult = await ApiKeyUsage.aggregate([
-      {
-        $match: {
-          apiKeyId: keyObjectId,
-          timestamp: { $gte: oneDayAgo },
-        },
-      },
-      {
-        $group: {
-          _id: null,
-          totalTokens: { $sum: '$tokensUsed' },
-        },
-      },
-    ]);
-
-    const tokensLastDay = tokensResult[0]?.totalTokens || 0;
-
-    if (tokensLastDay >= rateLimit.tokensPerDay) {
-      const endOfWindow = new Date(oneDayAgo.getTime() + 24 * 60 * 60 * 1000);
-      const resetInSeconds = Math.ceil((endOfWindow.getTime() - now.getTime()) / 1000);
-
-      return {
-        limited: true,
-        limitType: 'tokensPerDay',
-        current: tokensLastDay,
-        limit: rateLimit.tokensPerDay,
-        resetInSeconds: Math.max(resetInSeconds, 60),
-      };
-    }
-  }
+  // Record the request
+  state.timestamps.push(now);
+  state.dailyRequests++;
 
   return { limited: false };
 }
@@ -347,7 +189,7 @@ export async function apiKeyRateLimit(
         tokensPerDay: null,
       };
 
-      const status = await checkApiKeyRateLimits(req.apiKey.id, rateLimit);
+      const status = checkApiKeyRateLimits(req.apiKey.id, rateLimit);
 
       if (status.limited) {
         return sendRateLimitResponse(res, status);

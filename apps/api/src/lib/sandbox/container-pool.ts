@@ -95,7 +95,7 @@ export class ContainerPool {
       log.agents.info({ containerId: available.info.id, image }, 'ContainerPool: claimed from pool (instant)');
 
       // Replenish in background
-      this.replenish(image).catch(() => {});
+      this.replenish(image).catch((err) => log.agents.warn({ err, image }, 'ContainerPool: background replenish failed'));
 
       return available.info;
     }
@@ -173,7 +173,7 @@ export class ContainerPool {
 
     const sandbox = getSandboxProvider();
     await Promise.allSettled(
-      this.pool.map(c => sandbox.destroy(c.info.id).catch(() => {})),
+      this.pool.map(c => sandbox.destroy(c.info.id).catch((err) => log.agents.warn({ err, sandboxId: c.info.id }, 'ContainerPool: destroy failed during shutdown'))),
     );
     this.pool = [];
 
@@ -232,7 +232,7 @@ export class ContainerPool {
       if (!c.claimed && now - c.lastUsedAt > this.config.maxIdleMs) {
         log.agents.info({ sandboxId: c.info.id }, 'ContainerPool: evicting idle container');
         this.pool.splice(i, 1);
-        sandbox.destroy(c.info.id).catch(() => {});
+        sandbox.destroy(c.info.id).catch((err) => log.agents.warn({ err, sandboxId: c.info.id }, 'ContainerPool: destroy failed for idle container'));
         continue;
       }
 
@@ -243,11 +243,11 @@ export class ContainerPool {
           if (!status.running) {
             log.agents.warn({ sandboxId: c.info.id }, 'ContainerPool: unhealthy container removed');
             this.pool.splice(i, 1);
-            sandbox.destroy(c.info.id).catch(() => {});
+            sandbox.destroy(c.info.id).catch((err) => log.agents.warn({ err, sandboxId: c.info.id }, 'ContainerPool: destroy failed for unhealthy container'));
           }
         } catch {
           this.pool.splice(i, 1);
-          sandbox.destroy(c.info.id).catch(() => {});
+          sandbox.destroy(c.info.id).catch((err) => log.agents.warn({ err, sandboxId: c.info.id }, 'ContainerPool: destroy failed during health check cleanup'));
         }
       }
     }

@@ -327,8 +327,8 @@ export class VoiceSessionManager {
       }
 
       // Disconnect LiveKit bridges
-      await session.agentBridge?.disconnect().catch(() => {});
-      await session.cohostBridge?.disconnect().catch(() => {});
+      await session.agentBridge?.disconnect().catch((err: any) => log.providers.warn({ err, sessionId }, 'agentBridge disconnect failed'));
+      await session.cohostBridge?.disconnect().catch((err: any) => log.providers.warn({ err, sessionId }, 'cohostBridge disconnect failed'));
 
       // Delete LiveKit room
       await deleteVoiceRoom(session.roomName);
@@ -745,7 +745,7 @@ export class VoiceSessionManager {
     }
 
     // Disconnect cohost bridge
-    await session.cohostBridge?.disconnect().catch(() => {});
+    await session.cohostBridge?.disconnect().catch((err: any) => log.providers.warn({ err, sessionId }, 'cohostBridge disconnect failed'));
 
     // Finalize cohost credits
     if (session.cohostCreditReservation) {
@@ -778,7 +778,7 @@ export class VoiceSessionManager {
     this.enablePrimaryVad(session);
 
     // Notify client
-    await session.agentBridge?.publishData({ type: 'cohost.disabled' } satisfies AgentDataMessage).catch(() => {});
+    await session.agentBridge?.publishData({ type: 'cohost.disabled' } satisfies AgentDataMessage).catch((err: any) => log.providers.warn({ err, sessionId }, 'publishData cohost.disabled failed'));
 
     log.providers.info({ sessionId }, 'Cohost disabled');
   }
@@ -841,7 +841,7 @@ export class VoiceSessionManager {
       session.agentBridge?.publishData({
         type: 'cohost.round_complete',
         turns: session.cohostState.turnsInCurrentRound,
-      } satisfies AgentDataMessage).catch(() => {});
+      } satisfies AgentDataMessage).catch((err: any) => log.providers.warn({ err }, 'publishData cohost.round_complete failed'));
       return;
     }
 
@@ -907,7 +907,7 @@ export class VoiceSessionManager {
         session.cohostState.turnState = nextRole === 'primary' ? 'primary_speaking' : 'cohost_speaking';
         session.agentBridge?.publishData({
           type: 'cohost.turn_changed', speaker: nextRole,
-        } satisfies AgentDataMessage).catch(() => {});
+        } satisfies AgentDataMessage).catch((err: any) => log.providers.warn({ err }, 'publishData cohost.turn_changed failed'));
         if (nextRole === 'cohost') {
           // Keep primary VAD disabled during cohost's turn
           // Cohost already heard primary's audio via input buffer — commit and trigger
@@ -995,7 +995,7 @@ export class VoiceSessionManager {
     this.enablePrimaryVad(session);
     session.agentBridge?.publishData({
       type: 'cohost.turn_changed', speaker: 'user',
-    } satisfies AgentDataMessage).catch(() => {});
+    } satisfies AgentDataMessage).catch((err: any) => log.providers.warn({ err }, 'publishData cohost.turn_changed user failed'));
   }
 
   private continueCohostRound(sessionId: string): void {
@@ -1015,7 +1015,7 @@ export class VoiceSessionManager {
     session.cohostState.turnState = 'cohost_speaking';
     session.agentBridge?.publishData({
       type: 'cohost.turn_changed', speaker: 'cohost',
-    } satisfies AgentDataMessage).catch(() => {});
+    } satisfies AgentDataMessage).catch((err: any) => log.providers.warn({ err }, 'publishData cohost.turn_changed cohost failed'));
     this.commitAudioAndTrigger(session);
   }
 
