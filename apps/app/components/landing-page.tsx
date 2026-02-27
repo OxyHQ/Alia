@@ -1,15 +1,19 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import {
   View,
   ScrollView,
   Pressable,
   useWindowDimensions,
+  type LayoutChangeEvent,
+  type NativeSyntheticEvent,
+  type NativeScrollEvent,
 } from "react-native";
 import { useRouter } from "expo-router";
 import * as Linking from "expo-linking";
 import Animated, {
   FadeIn,
   FadeInUp,
+  FadeOutDown,
   useSharedValue,
   useAnimatedStyle,
   withRepeat,
@@ -23,6 +27,7 @@ import {
   Bot,
   Code,
   ChevronDown,
+  ArrowUp,
 } from "lucide-react-native";
 import { OxySignInButton, useAuth } from "@oxyhq/services";
 import { Text } from "@/components/ui/text";
@@ -93,6 +98,58 @@ function FloatingOrb({
         animStyle,
       ]}
     />
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Blinking cursor
+// ---------------------------------------------------------------------------
+function BlinkingCursor() {
+  const opacity = useSharedValue(1);
+
+  useEffect(() => {
+    opacity.value = withRepeat(
+      withSequence(
+        withTiming(0, { duration: 530, easing: Easing.inOut(Easing.ease) }),
+        withTiming(1, { duration: 530, easing: Easing.inOut(Easing.ease) })
+      ),
+      -1,
+      true
+    );
+  }, []);
+
+  const animStyle = useAnimatedStyle(() => ({
+    opacity: opacity.value,
+  }));
+
+  return (
+    <Animated.View style={[{ display: "inline-flex" as any }, animStyle]}>
+      <Text className="text-base text-primary font-light">|</Text>
+    </Animated.View>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Demo prompt input — decorative, matches real PromptInput styling
+// ---------------------------------------------------------------------------
+function DemoPromptInput({ typedText }: { typedText: string }) {
+  return (
+    <View className="w-full">
+      <View className="rounded-[24px] border border-border bg-card flex-row items-center px-4 py-3">
+        <View className="flex-1 flex-row items-center">
+          <Text
+            className="text-base text-muted-foreground"
+            numberOfLines={1}
+          >
+            {typedText}
+          </Text>
+          <BlinkingCursor />
+        </View>
+        <View className="h-8 w-8 rounded-full bg-primary items-center justify-center ml-2">
+          <ArrowUp size={16} color="white" />
+        </View>
+      </View>
+    </View>
   );
 }
 
@@ -184,6 +241,14 @@ const HERO_EXPRESSIONS: AliaExpression[] = [
   "Searching F",
 ];
 
+const DEMO_KEYS = [
+  "landing.demo1",
+  "landing.demo2",
+  "landing.demo3",
+  "landing.demo4",
+  "landing.demo5",
+] as const;
+
 // ---------------------------------------------------------------------------
 // Main component
 // ---------------------------------------------------------------------------
@@ -212,6 +277,64 @@ export function LandingPage({ returnTo }: LandingPageProps) {
     return () => clearInterval(interval);
   }, []);
 
+  // Typewriter effect
+  const [typedText, setTypedText] = useState("");
+  const typewriterRef = useRef({ promptIdx: 0, charIdx: 0, phase: "typing" as "typing" | "pausing" | "clearing" });
+
+  useEffect(() => {
+    const prompts = DEMO_KEYS.map((k) => t(k));
+    let timer: ReturnType<typeof setTimeout>;
+
+    const tick = () => {
+      const { promptIdx, charIdx, phase } = typewriterRef.current;
+      const currentPrompt = prompts[promptIdx];
+
+      if (phase === "typing") {
+        if (charIdx < currentPrompt.length) {
+          typewriterRef.current.charIdx = charIdx + 1;
+          setTypedText(currentPrompt.slice(0, charIdx + 1));
+          timer = setTimeout(tick, 50);
+        } else {
+          typewriterRef.current.phase = "pausing";
+          timer = setTimeout(tick, 2000);
+        }
+      } else if (phase === "pausing") {
+        typewriterRef.current.phase = "clearing";
+        setTypedText("");
+        typewriterRef.current.charIdx = 0;
+        typewriterRef.current.promptIdx = (promptIdx + 1) % prompts.length;
+        timer = setTimeout(tick, 400);
+      } else {
+        typewriterRef.current.phase = "typing";
+        timer = setTimeout(tick, 50);
+      }
+    };
+
+    timer = setTimeout(tick, 800);
+    return () => clearTimeout(timer);
+  }, [t]);
+
+  // Scroll-based fixed input
+  const [showFixedInput, setShowFixedInput] = useState(false);
+  const inputYRef = useRef(0);
+  const showFixedRef = useRef(false);
+
+  const handleInputLayout = useCallback((e: LayoutChangeEvent) => {
+    inputYRef.current = e.nativeEvent.layout.y + e.nativeEvent.layout.height;
+  }, []);
+
+  const handleScroll = useCallback(
+    (e: NativeSyntheticEvent<NativeScrollEvent>) => {
+      const scrollY = e.nativeEvent.contentOffset.y;
+      const shouldShow = scrollY > inputYRef.current - 100;
+      if (shouldShow !== showFixedRef.current) {
+        showFixedRef.current = shouldShow;
+        setShowFixedInput(shouldShow);
+      }
+    },
+    []
+  );
+
   if (isLoading) {
     return (
       <View className="flex-1 bg-background items-center justify-center">
@@ -225,144 +348,178 @@ export function LandingPage({ returnTo }: LandingPageProps) {
   const faceSize = isLargeScreen ? 200 : 140;
 
   return (
-    <ScrollView
-      className="flex-1 bg-background"
-      showsVerticalScrollIndicator={false}
-    >
-      <View className="w-full max-w-[1200px] mx-auto">
-        {/* ==================== HERO ==================== */}
-        <View
-          style={{ minHeight: height, overflow: "hidden" }}
-          className="items-center justify-center px-6 relative"
-        >
-          {/* Floating orbs */}
+    <View className="flex-1">
+      <ScrollView
+        className="flex-1 bg-background"
+        showsVerticalScrollIndicator={false}
+        onScroll={handleScroll}
+        scrollEventThrottle={16}
+      >
+        <View className="w-full max-w-[1200px] mx-auto">
+          {/* ==================== HERO ==================== */}
           <View
-            pointerEvents="none"
-            style={{
-              position: "absolute",
-              top: 0,
-              left: 0,
-              right: 0,
-              bottom: 0,
-              overflow: "hidden",
-            }}
+            style={{ minHeight: height, overflow: "hidden" }}
+            className="items-center justify-center px-6 relative"
           >
-            <FloatingOrb
-              size={260}
-              color="#ca52e9"
-              style={{ top: "10%", left: "-10%" }}
-            />
-            <FloatingOrb
-              size={180}
-              color="#8b5cf6"
-              style={{ bottom: "15%", right: "-5%" }}
-            />
-            <FloatingOrb
-              size={120}
-              color="#3b82f6"
-              style={{ top: "40%", left: "70%" }}
-            />
+            {/* Floating orbs */}
+            <View
+              pointerEvents="none"
+              style={{
+                position: "absolute",
+                top: 0,
+                left: 0,
+                right: 0,
+                bottom: 0,
+                overflow: "hidden",
+              }}
+            >
+              <FloatingOrb
+                size={260}
+                color="#ca52e9"
+                style={{ top: "10%", left: "-10%" }}
+              />
+              <FloatingOrb
+                size={180}
+                color="#8b5cf6"
+                style={{ bottom: "15%", right: "-5%" }}
+              />
+              <FloatingOrb
+                size={120}
+                color="#3b82f6"
+                style={{ top: "40%", left: "70%" }}
+              />
+            </View>
+
+            {/* Content */}
+            <Animated.View
+              entering={FadeIn.duration(800)}
+              className="items-center w-full max-w-lg"
+            >
+              <AliaFace expression={expression} size={faceSize} />
+              <View className="mt-6 mb-2">
+                <TextShimmer
+                  duration={6}
+                  spread={30}
+                  className={`font-bold text-center ${isLargeScreen ? "text-6xl" : "text-5xl"}`}
+                >
+                  Alia
+                </TextShimmer>
+              </View>
+              <Text
+                className={`text-muted-foreground text-center mb-8 ${isLargeScreen ? "text-xl" : "text-lg"}`}
+              >
+                {t("landing.tagline")}
+              </Text>
+
+              {/* Demo prompt input */}
+              <View
+                className="w-full max-w-[500px] mb-6"
+                onLayout={handleInputLayout}
+              >
+                <DemoPromptInput typedText={typedText} />
+              </View>
+
+              <OxySignInButton />
+
+              <ScrollIndicator />
+            </Animated.View>
           </View>
 
-          {/* Content */}
-          <Animated.View
-            entering={FadeIn.duration(800)}
-            className="items-center w-full max-w-lg"
+          {/* ==================== CAPABILITIES ==================== */}
+          <View
+            className={`px-6 ${isLargeScreen ? "py-24" : "py-16"}`}
+            style={{ maxWidth: 900, alignSelf: "center", width: "100%" }}
           >
-            <AliaFace expression={expression} size={faceSize} />
-            <View className="mt-6 mb-2">
-              <TextShimmer
-                duration={6}
-                spread={30}
-                className={`font-bold text-center ${isLargeScreen ? "text-6xl" : "text-5xl"}`}
-              >
-                Alia
-              </TextShimmer>
-            </View>
-            <Text
-              className={`text-muted-foreground text-center mb-10 ${isLargeScreen ? "text-xl" : "text-lg"}`}
+            <Animated.View
+              entering={FadeInUp.delay(200).duration(700).springify()}
             >
-              {t("landing.tagline")}
+              <Text
+                className={`font-bold text-foreground text-center mb-10 ${isLargeScreen ? "text-3xl" : "text-2xl"}`}
+              >
+                {t("landing.capabilitiesTitle")}
+              </Text>
+            </Animated.View>
+
+            <View
+              className={`gap-4 ${isLargeScreen ? "flex-row flex-wrap justify-between" : ""}`}
+            >
+              {CAPABILITIES.map((cap, idx) => (
+                <CapabilityCard
+                  key={cap.titleKey}
+                  icon={cap.icon}
+                  title={t(cap.titleKey)}
+                  description={t(cap.descKey)}
+                  index={idx}
+                  isLargeScreen={isLargeScreen}
+                />
+              ))}
+            </View>
+          </View>
+
+          {/* ==================== BOTTOM CTA ==================== */}
+          <Animated.View
+            entering={FadeInUp.delay(200).duration(700)}
+            className={`items-center px-6 pb-8 ${isLargeScreen ? "py-24" : "py-16"}`}
+          >
+            <Text
+              className={`font-bold text-foreground text-center mb-2 ${isLargeScreen ? "text-3xl" : "text-2xl"}`}
+            >
+              {t("landing.ctaTitle")}
+            </Text>
+            <Text className="text-base text-muted-foreground text-center mb-8">
+              {t("landing.ctaSubtitle")}
             </Text>
 
             <OxySignInButton />
 
-            <ScrollIndicator />
+            {/* Terms */}
+            <View className="mt-6 flex-row flex-wrap justify-center px-4 gap-1">
+              <Text className="text-xs text-muted-foreground">
+                {t("login.termsPrefix")}
+              </Text>
+              <Pressable
+                onPress={() => Linking.openURL("https://alia.onl/terms")}
+              >
+                <Text className="text-xs text-primary">
+                  {t("login.termsOfService")}
+                </Text>
+              </Pressable>
+              <Text className="text-xs text-muted-foreground">
+                {t("login.termsAnd")}
+              </Text>
+              <Pressable
+                onPress={() => Linking.openURL("https://alia.onl/privacy")}
+              >
+                <Text className="text-xs text-primary">
+                  {t("login.privacyPolicy")}
+                </Text>
+              </Pressable>
+            </View>
           </Animated.View>
         </View>
+      </ScrollView>
 
-        {/* ==================== CAPABILITIES ==================== */}
-        <View
-          className={`px-6 ${isLargeScreen ? "py-24" : "py-16"}`}
-          style={{ maxWidth: 900, alignSelf: "center", width: "100%" }}
-        >
-          <Animated.View
-            entering={FadeInUp.delay(200).duration(700).springify()}
-          >
-            <Text
-              className={`font-bold text-foreground text-center mb-10 ${isLargeScreen ? "text-3xl" : "text-2xl"}`}
-            >
-              {t("landing.capabilitiesTitle")}
-            </Text>
-          </Animated.View>
-
-          <View
-            className={`gap-4 ${isLargeScreen ? "flex-row flex-wrap justify-between" : ""}`}
-          >
-            {CAPABILITIES.map((cap, idx) => (
-              <CapabilityCard
-                key={cap.titleKey}
-                icon={cap.icon}
-                title={t(cap.titleKey)}
-                description={t(cap.descKey)}
-                index={idx}
-                isLargeScreen={isLargeScreen}
-              />
-            ))}
-          </View>
-        </View>
-
-        {/* ==================== BOTTOM CTA ==================== */}
+      {/* Fixed bottom demo input — appears when scrolled past the inline one */}
+      {showFixedInput && (
         <Animated.View
-          entering={FadeInUp.delay(200).duration(700)}
-          className={`items-center px-6 pb-8 ${isLargeScreen ? "py-24" : "py-16"}`}
+          entering={FadeInUp.duration(300)}
+          exiting={FadeOutDown.duration(200)}
+          pointerEvents="box-none"
+          style={{
+            position: "absolute",
+            bottom: 24,
+            left: 0,
+            right: 0,
+            paddingHorizontal: 24,
+          }}
         >
-          <Text
-            className={`font-bold text-foreground text-center mb-2 ${isLargeScreen ? "text-3xl" : "text-2xl"}`}
+          <View
+            style={{ maxWidth: 600, alignSelf: "center", width: "100%" }}
           >
-            {t("landing.ctaTitle")}
-          </Text>
-          <Text className="text-base text-muted-foreground text-center mb-8">
-            {t("landing.ctaSubtitle")}
-          </Text>
-
-          <OxySignInButton />
-
-          {/* Terms */}
-          <View className="mt-6 flex-row flex-wrap justify-center px-4 gap-1">
-            <Text className="text-xs text-muted-foreground">
-              {t("login.termsPrefix")}
-            </Text>
-            <Pressable
-              onPress={() => Linking.openURL("https://alia.onl/terms")}
-            >
-              <Text className="text-xs text-primary">
-                {t("login.termsOfService")}
-              </Text>
-            </Pressable>
-            <Text className="text-xs text-muted-foreground">
-              {t("login.termsAnd")}
-            </Text>
-            <Pressable
-              onPress={() => Linking.openURL("https://alia.onl/privacy")}
-            >
-              <Text className="text-xs text-primary">
-                {t("login.privacyPolicy")}
-              </Text>
-            </Pressable>
+            <DemoPromptInput typedText={typedText} />
           </View>
         </Animated.View>
-      </View>
-    </ScrollView>
+      )}
+    </View>
   );
 }
