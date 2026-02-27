@@ -7,7 +7,7 @@ import { getOrCreateUserCredits } from '../../lib/user-credits-helpers.js';
 import { saveConversation, generateConversationTitle } from '../../lib/conversation-saver.js';
 import { reserveCredits, finalizeCredits, refundReservation, type CreditReservation, type CreditUsage } from '../../lib/credits-manager.js';
 import { recordUsage } from '../../middleware/api-key-rate-limit.js';
-import { detectCreditAnomaly } from '../../lib/credit-anomaly.js';
+import { detectCreditAnomaly, type CreditWarning } from '../../lib/credit-anomaly.js';
 import { getUserEntitlements } from '../../lib/plan-access.js';
 import { convertOpenAIToolsToToolSet } from '../../lib/tool-converter.js';
 import { getCurrentDateTool, webSearchTool, browseTool, saveUserMemoryTool, updateUserPreferencesTool, updateUserContextTool, createSendTelegramTool, createGetWhatsAppChatsTool, createGetWhatsAppMessagesTool, createSendWhatsAppMessageTool, createProvidersAdminTool, webScraperTool, generateFileTool, createSearchAgentsTool, createDelegateToAgentTool, createDeepResearchTool, createSwitchModelTool } from '../../lib/tools/index.js';
@@ -29,6 +29,19 @@ import { runDeepResearch, type ResearchProgress } from '../../lib/research/resea
 
 const router = Router();
 
+/** Minimal type for OpenAI-format chat messages from request body */
+interface ChatMessage {
+  role: string;
+  content?: string | Array<{ type: string; text?: string; image_url?: { url: string } }>;
+  name?: string;
+  tool_call_id?: string;
+  tool_calls?: Array<{ id: string; type: string; function: { name: string; arguments: string } }>;
+  toolInvocations?: Array<{ toolCallId: string; toolName: string; state: string; args?: unknown; result?: unknown }>;
+}
+
+/** Extended stream chunk types not yet exported by AI SDK */
+type ExtendedChunk = { type: string; text?: string; thoughtDelta?: string; reasoningDelta?: string; toolName?: string; error?: Error & { message: string }; [key: string]: unknown };
+
 /** Errors that should NOT be retried on a different provider (model-level issues, not provider-level) */
 const NON_RETRYABLE_STREAM: Set<FailoverReason> = new Set(['format', 'content_filter']);
 
@@ -36,7 +49,8 @@ const NON_RETRYABLE_STREAM: Set<FailoverReason> = new Set(['format', 'content_fi
  * Convert OpenAI-format messages to AI SDK ModelMessage format.
  * Handles tool result messages which have role "tool" in OpenAI format.
  */
-function convertToAISDKMessages(messages: any[], toolNameMapping: Map<string, string>): any[] {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- AI SDK ModelMessage types are complex/dynamic
+function convertToAISDKMessages(messages: ChatMessage[], toolNameMapping: Map<string, string>): any[] {
   const result: any[] = [];
   const toolCallsMap = new Map<string, { name: string; index: number }>();
 
@@ -53,7 +67,7 @@ function convertToAISDKMessages(messages: any[], toolNameMapping: Map<string, st
         // Multi-part content (text + images): convert OpenAI image_url format to AI SDK image format
         result.push({
           role: 'user',
-          content: msg.content.map((part: any) => {
+          content: (msg.content as Array<{ type: string; image_url?: { url: string } }>).map(part => {
             if (part.type === 'image_url' && part.image_url?.url) {
               return { type: 'image', image: part.image_url.url };
             }
@@ -72,7 +86,7 @@ function convertToAISDKMessages(messages: any[], toolNameMapping: Map<string, st
       // - toolInvocations: Alia app format (from mobile/web app)
       let toolCalls = msg.tool_calls;
       if (!toolCalls && msg.toolInvocations && Array.isArray(msg.toolInvocations) && msg.toolInvocations.length > 0) {
-        toolCalls = msg.toolInvocations.map((inv: any) => ({
+        toolCalls = msg.toolInvocations!.map(inv => ({
           id: inv.toolCallId,
           type: 'function',
           function: {
@@ -95,7 +109,7 @@ function convertToAISDKMessages(messages: any[], toolNameMapping: Map<string, st
         result.push({
           role: 'assistant',
           content: msg.content || '',
-          toolCalls: toolCalls.map((tc: any) => {
+          toolCalls: toolCalls.map((tc: { id: string; function?: { name: string; arguments: string } }) => {
             const sanitizedName = Array.from(toolNameMapping.entries())
               .find(([_, orig]: [string, string]) => orig === tc.function?.name)?.[0] || tc.function?.name || 'unknown';
 
@@ -147,7 +161,7 @@ function convertToAISDKMessages(messages: any[], toolNameMapping: Map<string, st
         for (let j = i - 1; j >= 0; j--) {
           const prevMsg = messages[j];
           if (prevMsg.role === 'assistant' && prevMsg.tool_calls) {
-            const matchingCall = prevMsg.tool_calls.find((tc: any) => tc.id === toolCallId);
+            const matchingCall = prevMsg.tool_calls!.find(tc => tc.id === toolCallId);
             if (matchingCall) {
               toolName = matchingCall.function?.name || 'unknown';
               break;
@@ -330,7 +344,7 @@ router.post('/', async (req: Request, res: Response) => {
       // User profile from Oxy (HTTP call - add 5s timeout to prevent hanging)
       isDirectUserSession
         ? Promise.race([
-            (oxyClient.getUserById(req.user!.id) as Promise<any>),
+            (oxyClient.getUserById(req.user!.id) as Promise<unknown>),
             new Promise(resolve => setTimeout(() => resolve(null), 5000))
           ]).catch(() => null)
         : Promise.resolve(null),
@@ -412,7 +426,7 @@ router.post('/', async (req: Request, res: Response) => {
     // When activated via the app's deep research toggle, route to the specialized
     // research engine with multi-query web search, source tracking, and citations.
     if (deepResearch && req.user?.id) {
-      const userQuery = messages.filter((m: any) => m.role === 'user').pop()?.content || '';
+      const userQuery = messages.filter((m: ChatMessage) => m.role === 'user').pop()?.content || '';
       const queryText = typeof userQuery === 'string' ? userQuery : '';
       if (queryText.trim()) {
         log.v1.info({ conversationId, autoDetected: !deepResearch }, 'Deep research mode activated');
@@ -477,7 +491,7 @@ router.post('/', async (req: Request, res: Response) => {
           // Finalize credits
           if (creditReservation) {
             const promptTokenEstimate = messages.reduce(
-              (sum: number, m: any) => sum + estimateMessageTokens(m.role, typeof m.content === 'string' ? m.content : ''), 0
+              (sum: number, m: ChatMessage) => sum + estimateMessageTokens(m.role, typeof m.content === 'string' ? m.content : ''), 0
             );
             const completionTokens = Math.ceil(result.report.length / 4);
             finalizeCredits(creditReservation, {
@@ -485,20 +499,20 @@ router.post('/', async (req: Request, res: Response) => {
               completionTokens,
               totalTokens: promptTokenEstimate + completionTokens,
               systemPromptTokens: 0,
-            }).catch((err: any) => log.v1.error({ err, reservationId: creditReservation?.id }, 'finalizeCredits failed after deep research'));
+            }).catch((err: unknown) => log.v1.error({ err, reservationId: creditReservation?.userId }, 'finalizeCredits failed after deep research'));
           }
 
           clearTimeout(globalTimer);
           return;
-        } catch (err: any) {
+        } catch (err: unknown) {
           log.v1.error({ err }, 'Deep research failed');
           if (creditReservation) {
-            refundReservation(creditReservation).catch((err: any) => log.v1.error({ err, reservationId: creditReservation?.id }, 'refundReservation failed after deep research error'));
+            refundReservation(creditReservation).catch((err2: unknown) => log.v1.error({ err: err2, reservationId: creditReservation?.userId }, 'refundReservation failed after deep research error'));
           }
           if (!res.writableEnded) {
             res.write(`data: ${JSON.stringify({
               type: 'error',
-              error: err.message || 'Research failed',
+              error: (err as Error).message || 'Research failed',
             })}\n\n`);
             res.write('data: [DONE]\n\n');
             res.end();
@@ -641,9 +655,10 @@ router.post('/', async (req: Request, res: Response) => {
     }
 
     // Inject skill system prompt if skillId provided (already loaded in parallel)
-    if (skill && (skill as any).systemPrompt && isDirectUserSession) {
-      systemMessage = `# ACTIVE SKILL: ${(skill as any).title}\n\n${(skill as any).systemPrompt}\n\n---\n\n${systemMessage}`;
-      log.v1.info({ skillTitle: (skill as any).title }, 'Skill activated');
+    const skillDoc = skill as { systemPrompt?: string; title?: string } | null;
+    if (skillDoc?.systemPrompt && isDirectUserSession) {
+      systemMessage = `# ACTIVE SKILL: ${skillDoc.title}\n\n${skillDoc.systemPrompt}\n\n---\n\n${systemMessage}`;
+      log.v1.info({ skillTitle: skillDoc.title }, 'Skill activated');
     }
 
     // Title generation is handled asynchronously via generateConversationTitle()
@@ -679,7 +694,7 @@ router.post('/', async (req: Request, res: Response) => {
     // Wrap tools with truncation to cap large results (saves tokens)
     const aliaModelInfo = await getAliaModel(aliasModelId);
     const tierMappings = aliaModelInfo ? await getModelMappingsForTier(aliaModelInfo.tier) : [];
-    const modelContextTokens = tierMappings[0]?.capabilities?.maxContextTokens || 128000;
+    const modelContextTokens = (tierMappings[0]?.capabilities?.maxContextTokens as number) || 128000;
     const truncatedTools = wrapToolsWithTruncation(allTools, getToolResultBudget(modelContextTokens));
     log.v1.info({ toolNames: Object.keys(truncatedTools), toolCount: Object.keys(truncatedTools).length }, 'Tools passed to model');
 
@@ -707,7 +722,7 @@ router.post('/', async (req: Request, res: Response) => {
     const KEY_LEVEL_REASONS: Set<FailoverReason> = new Set(['auth', 'rate_limit']);
 
     // Detect user language for graceful error messages
-    const lastUserMsg = messages.slice().reverse().find((m: any) => m.role === 'user');
+    const lastUserMsg = messages.slice().reverse().find((m: ChatMessage) => m.role === 'user');
     const lastUserText = typeof lastUserMsg?.content === 'string' ? lastUserMsg.content : '';
     const isSpanish = /[áéíóúñ¿¡]/.test(lastUserText) || /\b(hola|por favor|gracias|cómo|qué|dime|puedes)\b/i.test(lastUserText);
 
@@ -746,6 +761,7 @@ router.post('/', async (req: Request, res: Response) => {
     const model = getAIModel(resolved!.keyConfig);
 
     // Build common config for both streaming and non-streaming
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- AI SDK config is dynamically extended; strict SDK param types don't support this pattern
     const baseConfig: any = {
       model,
       messages: convertedMessages,
@@ -755,7 +771,7 @@ router.post('/', async (req: Request, res: Response) => {
       // AI SDK v6: stopWhen replaces maxSteps. Without this, the SDK defaults to
       // stepCountIs(1) which stops after tool calls without generating a text response.
       stopWhen: stepCountIs(5),
-      onFinish: async (result: any) => {
+      onFinish: async (result: { usage?: { inputTokens?: number; outputTokens?: number; totalTokens?: number } }) => {
         // Capture token usage from AI SDK
         if (result.usage) {
           tokenUsage = {
@@ -780,7 +796,7 @@ router.post('/', async (req: Request, res: Response) => {
     }
 
     // Configure provider-specific features for reasoning
-    const providerMetadata: any = {};
+    const providerMetadata: Record<string, Record<string, unknown>> = {};
 
     if (resolved!.provider === 'google') {
       // Enable thought summaries for Gemini
@@ -839,6 +855,7 @@ router.post('/', async (req: Request, res: Response) => {
       const assistantResponse = result.text || '';
 
       // Build tool invocations from generateText result
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- SDK TypedToolCall shape varies per tool config
       const nonStreamToolInvocations = (result.toolCalls || []).map((tc: any) => {
         const toolResult = (result.toolResults || []).find((tr: any) => tr.toolCallId === tc.toolCallId);
         return {
@@ -863,11 +880,11 @@ router.post('/', async (req: Request, res: Response) => {
           log.v1.info({ conversationId }, 'Conversation saved');
 
           // Generate title asynchronously (fire-and-forget)
-          const firstUserMsgRaw = messages.find((m: any) => m.role === 'user')?.content;
+          const firstUserMsgRaw = messages.find((m: ChatMessage) => m.role === 'user')?.content;
           const firstUserMsg = typeof firstUserMsgRaw === 'string'
             ? firstUserMsgRaw
             : Array.isArray(firstUserMsgRaw)
-              ? (firstUserMsgRaw.find((p: any) => p.type === 'text')?.text ?? '')
+              ? (firstUserMsgRaw.find((p: { type: string; text?: string }) => p.type === 'text')?.text ?? '')
               : '';
           if (firstUserMsg) {
             generateConversationTitle(req.user.id, conversationId, firstUserMsg, assistantResponse)
@@ -912,7 +929,7 @@ router.post('/', async (req: Request, res: Response) => {
       }).catch(err => log.v1.error({ err }, 'Error in afterChat hooks'));
 
       // Build tool_calls array if there were any tool calls
-      const toolCalls = result.toolCalls?.map((tc: any, index: number) => {
+      const toolCalls = result.toolCalls?.map((tc: { toolCallId?: string; toolName: string; args?: unknown }, index: number) => {
         const originalToolName = toolNameMapping.get(tc.toolName) || tc.toolName;
         return {
           id: tc.toolCallId || `call_${Date.now()}_${index}`,
@@ -947,7 +964,7 @@ router.post('/', async (req: Request, res: Response) => {
           billable_tokens: Math.max(0, tokenUsage.totalTokens - (tokenUsage.systemPromptTokens || 0)),
           credits_charged: creditsCharged,
           credits_remaining: creditsRemaining,
-          credit_warning: null as any,
+          credit_warning: null as CreditWarning | null,
         }
       };
 
@@ -982,7 +999,7 @@ router.post('/', async (req: Request, res: Response) => {
     log.v1.info('Starting to process AI SDK stream');
     let chunkCount = 0;
     let assistantResponse = ''; // Track assistant's response for conversation save
-    const toolInvocations: Array<{ toolCallId: string; toolName: string; state: 'call' | 'result'; args?: any; result?: any }> = [];
+    const toolInvocations: Array<{ toolCallId: string; toolName: string; state: 'call' | 'result'; args?: unknown; result?: unknown }> = [];
     for await (const chunk of result.fullStream) {
       chunkCount++;
       // Clear first-byte timer on first chunk (provider responded)
@@ -1040,12 +1057,12 @@ router.post('/', async (req: Request, res: Response) => {
           };
           res.write(`data: ${JSON.stringify(openAIChunk)}\n\n`);
         }
-      } else if ((chunk as any).type === 'thought-delta' || (chunk as any).type === 'reasoning-delta') {
+      } else if ((chunk as ExtendedChunk).type === 'thought-delta' || (chunk as ExtendedChunk).type === 'reasoning-delta') {
         ensureSSEHeaders();
         hasStreamedContent = true;
 
         // Handle Gemini thought summaries and other reasoning tokens
-        const reasoningText = (chunk as any).text || (chunk as any).thoughtDelta || (chunk as any).reasoningDelta;
+        const reasoningText = (chunk as ExtendedChunk).text || (chunk as ExtendedChunk).thoughtDelta || (chunk as ExtendedChunk).reasoningDelta;
         if (reasoningText && typeof reasoningText === 'string' && reasoningText.trim()) {
           const reasoningChunk = {
             id: `chatcmpl-${Date.now()}`,
@@ -1197,11 +1214,11 @@ router.post('/', async (req: Request, res: Response) => {
         ensureSSEHeaders();
         hasStreamedContent = true;
 
-        const originalToolName = toolNameMapping.get((chunk as any).toolName) || (chunk as any).toolName;
-        log.v1.error({ err: (chunk as any).error, toolName: originalToolName }, 'Tool error');
+        const originalToolName = toolNameMapping.get((chunk as ExtendedChunk).toolName) || (chunk as ExtendedChunk).toolName;
+        log.v1.error({ err: (chunk as ExtendedChunk).error, toolName: originalToolName }, 'Tool error');
 
         // Send tool error as text content so the user sees what happened
-        const errorMessage = (chunk as any).error?.message || 'Tool execution failed';
+        const errorMessage = (chunk as ExtendedChunk).error?.message || 'Tool execution failed';
         const errorChunk = {
           id: `chatcmpl-${Date.now()}`,
           object: 'chat.completion.chunk',
@@ -1228,15 +1245,15 @@ router.post('/', async (req: Request, res: Response) => {
       } else if (chunk.type === 'finish-step') {
         log.v1.debug('Step finished');
       } else if (chunk.type === 'error') {
-        log.v1.error({ err: (chunk as any).error }, 'Error chunk received');
+        log.v1.error({ err: (chunk as ExtendedChunk).error }, 'Error chunk received');
 
         // Record failure for circuit breaker - classify error for accurate reporting
-        const streamErrorReason = classifyError((chunk as any).error);
-        const streamRetryAfterSec = getRetryAfterHeader((chunk as any).error);
+        const streamErrorReason = classifyError((chunk as ExtendedChunk).error);
+        const streamRetryAfterSec = getRetryAfterHeader((chunk as ExtendedChunk).error);
         const streamRetryAfterMs = streamRetryAfterSec ? streamRetryAfterSec * 1000 : undefined;
         await reportModelUsage(resolved!.keyConfig?.keyId, resolved!.provider, resolved!.modelId, false, 0, streamErrorReason, streamRetryAfterMs);
 
-        const rawError = (chunk as any).error;
+        const rawError = (chunk as ExtendedChunk).error;
 
         // If no content streamed yet, throw to trigger provider fallback
         if (!hasStreamedContent) {
@@ -1313,7 +1330,7 @@ router.post('/', async (req: Request, res: Response) => {
             continue;
           }
 
-          let args: any;
+          let args: unknown;
           try {
             args = JSON.parse(match[2]);
           } catch {
@@ -1402,11 +1419,11 @@ router.post('/', async (req: Request, res: Response) => {
         log.v1.info({ conversationId }, 'Conversation saved');
 
         // Generate title asynchronously (fire-and-forget)
-        const firstUserMsgRaw = messages.find((m: any) => m.role === 'user')?.content;
+        const firstUserMsgRaw = messages.find((m: ChatMessage) => m.role === 'user')?.content;
         const firstUserMsg = typeof firstUserMsgRaw === 'string'
           ? firstUserMsgRaw
           : Array.isArray(firstUserMsgRaw)
-            ? (firstUserMsgRaw.find((p: any) => p.type === 'text')?.text ?? '')
+            ? (firstUserMsgRaw.find((p: { type: string; text?: string }) => p.type === 'text')?.text ?? '')
             : '';
         if (firstUserMsg) {
           generateConversationTitle(req.user.id, conversationId, firstUserMsg, assistantResponse)
@@ -1432,7 +1449,7 @@ router.post('/', async (req: Request, res: Response) => {
         );
 
         // Detect spending anomalies for proactive warnings
-        let creditWarning: any = null;
+        let creditWarning: CreditWarning | null = null;
         if (req.user?.id) {
           try {
             creditWarning = await detectCreditAnomaly(req.user.id);
@@ -1559,7 +1576,7 @@ router.post('/', async (req: Request, res: Response) => {
 
     // Refund credit reservation for synthetic responses
     if (creditReservation) {
-      refundReservation(creditReservation).catch((err: any) => log.v1.error({ err, reservationId: creditReservation?.id }, 'refundReservation failed for synthetic response'));
+      refundReservation(creditReservation).catch((err: unknown) => log.v1.error({ err, reservationId: creditReservation?.userId }, 'refundReservation failed for synthetic response'));
       creditReservation = null;
     }
 
