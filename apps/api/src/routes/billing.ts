@@ -1,10 +1,10 @@
 import { Router, Request, Response } from 'express';
 import Stripe from 'stripe';
 import { authenticateToken, oxyClient } from '../middleware/auth.js';
-import { UserCredits } from '../models/user-credits.js';
+import { UserCredits, type IUserCredits } from '../models/user-credits.js';
 import { Subscription } from '../models/subscription.js';
 import { Transaction } from '../models/transaction.js';
-import { getPlans, getCreditPackages, getFeatures, getPlanFeatures, getAllAliaModels } from '../lib/providers-client.js';
+import { getPlans, getCreditPackages, getFeatures, getPlanFeatures, getAllAliaModels, type PlanFeatureData } from '../lib/providers-client.js';
 import { ensureStripePriceId } from '../lib/stripe-prices.js';
 import { getOrCreateUserCredits } from '../lib/user-credits-helpers.js';
 import { getUserEntitlements, invalidateEntitlementsCache } from '../lib/plan-access.js';
@@ -32,7 +32,7 @@ function getWebhookSecret(): string {
 }
 
 // Helper to get or create Stripe customer
-async function getOrCreateStripeCustomer(userId: string, userCredits: any): Promise<string> {
+async function getOrCreateStripeCustomer(userId: string, userCredits: IUserCredits): Promise<string> {
   let customerId = userCredits.stripeCustomerId;
 
   if (customerId) {
@@ -75,7 +75,7 @@ router.get('/packages', async (_req: Request, res: Response) => {
   try {
     const packages = await getCreditPackages(true);
     res.json({
-      packages: packages.map((p: any) => ({
+      packages: packages.map(p => ({
         id: p.packageId,
         name: p.name,
         credits: p.credits,
@@ -83,9 +83,9 @@ router.get('/packages', async (_req: Request, res: Response) => {
         currency: p.currency,
       })),
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     log.credits.error({ err: error }, 'Error fetching packages');
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ error: (error as Error).message });
   }
 });
 
@@ -101,7 +101,7 @@ router.post('/checkout/credits', authenticateToken, async (req: Request, res: Re
     const userId = req.user!.id;
 
     const allPackages = await getCreditPackages(true);
-    const pkg = allPackages.find((p: any) => p.packageId === packageId);
+    const pkg = allPackages.find(p => p.packageId === packageId);
     if (!pkg) {
       return res.status(400).json({ error: 'Invalid package ID' });
     }
@@ -132,12 +132,12 @@ router.post('/checkout/credits', authenticateToken, async (req: Request, res: Re
     });
 
     res.json({ sessionId: session.id, url: session.url });
-  } catch (error: any) {
+  } catch (error: unknown) {
     if (error instanceof z.ZodError) {
       return res.status(400).json({ error: 'Invalid input', details: error.errors });
     }
     log.credits.error({ err: error }, 'Error creating checkout session');
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ error: (error as Error).message });
   }
 });
 
@@ -191,12 +191,12 @@ router.post('/checkout/custom-credits', authenticateToken, async (req: Request, 
     });
 
     res.json({ sessionId: session.id, url: session.url });
-  } catch (error: any) {
+  } catch (error: unknown) {
     if (error instanceof z.ZodError) {
       return res.status(400).json({ error: 'Invalid input', details: error.errors });
     }
     log.credits.error({ err: error }, 'Error creating custom credits checkout');
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ error: (error as Error).message });
   }
 });
 
@@ -206,18 +206,18 @@ router.get('/credit-price', async (_req: Request, res: Response) => {
     let pricePerCredit = CREDIT_PRICE_PER_1K_CENTS / 1000;
     const creditPricePackages = await getCreditPackages(true);
     if (creditPricePackages.length > 0) {
-      pricePerCredit = Math.min(...creditPricePackages.map((p: any) => p.price / p.credits));
+      pricePerCredit = Math.min(...creditPricePackages.map(p => p.price / p.credits));
     }
     res.json({ pricePerCreditCents: pricePerCredit, minCredits: MIN_CUSTOM_CREDITS, maxCredits: MAX_CUSTOM_CREDITS });
-  } catch (error: any) {
-    res.status(500).json({ error: error.message });
+  } catch (error: unknown) {
+    res.status(500).json({ error: (error as Error).message });
   }
 });
 
 router.get('/plans', async (req: Request, res: Response) => {
   try {
     const product = req.query.product as string | undefined;
-    const planFilter: any = { isActive: true };
+    const planFilter: Record<string, unknown> = { isActive: true };
     if (product) planFilter.product = product;
 
     const [dbPlans, rawFeatures, rawPlanFeatures] = await Promise.all([
@@ -226,11 +226,11 @@ router.get('/plans', async (req: Request, res: Response) => {
       getPlanFeatures(),
     ]);
     // Filter features/plan-features client-side (API may return all)
-    const allFeatures = rawFeatures.filter((f: any) => f.isActive !== false && f.isVisibleOnPricing !== false);
-    const allPlanFeatures = rawPlanFeatures.filter((pf: any) => pf.enabled !== false);
+    const allFeatures = rawFeatures.filter(f => f.isActive !== false && f.isVisibleOnPricing !== false);
+    const allPlanFeatures = rawPlanFeatures.filter(pf => pf.enabled !== false);
 
     // Build lookup: planId -> featureId -> PlanFeature mapping
-    const pfMap: Record<string, Record<string, any>> = {};
+    const pfMap: Record<string, Record<string, PlanFeatureData>> = {};
     for (const pf of allPlanFeatures) {
       if (!pfMap[pf.planId]) pfMap[pf.planId] = {};
       pfMap[pf.planId][pf.featureId] = pf;
@@ -246,7 +246,7 @@ router.get('/plans', async (req: Request, res: Response) => {
     } catch { /* ignore */ }
 
     const plans = dbPlans.map(p => {
-      const planId = (p as any).planId;
+      const planId = p.planId;
       const planMappings = pfMap[planId] || {};
 
       // Build feature groups from Feature + PlanFeature collections
@@ -278,7 +278,7 @@ router.get('/plans', async (req: Request, res: Response) => {
       }
 
       // Insert "Models" group from modelIds (after Credits if present, else at start)
-      const modelIds: string[] = (p as any).modelIds || [];
+      const modelIds: string[] = p.modelIds || [];
       if (modelIds.length > 0) {
         const modelItems = modelIds
           .map(id => modelMap[id])
@@ -308,9 +308,9 @@ router.get('/plans', async (req: Request, res: Response) => {
       };
     });
     res.json({ plans });
-  } catch (error: any) {
+  } catch (error: unknown) {
     log.credits.error({ err: error }, 'Error fetching plans');
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ error: (error as Error).message });
   }
 });
 
@@ -352,7 +352,7 @@ router.post('/checkout/subscription', authenticateToken, async (req: Request, re
     let stripePriceId: string;
     try {
       stripePriceId = await ensureStripePriceId(getStripe, plan.planId, billingPeriod);
-    } catch (err: any) {
+    } catch (err: unknown) {
       log.credits.error({ err, planId: plan.planId, billingPeriod }, 'Failed to ensure Stripe price for checkout');
       return res.status(500).json({ error: 'Failed to configure plan pricing' });
     }
@@ -372,19 +372,19 @@ router.post('/checkout/subscription', authenticateToken, async (req: Request, re
     });
 
     res.json({ sessionId: session.id, url: session.url });
-  } catch (error: any) {
+  } catch (error: unknown) {
     if (error instanceof z.ZodError) {
       return res.status(400).json({ error: 'Invalid input', details: error.errors });
     }
     log.credits.error({ err: error }, 'Error creating subscription checkout');
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ error: (error as Error).message });
   }
 });
 
 router.get('/subscription', authenticateToken, async (req: Request, res: Response) => {
   try {
     const product = req.query.product as string | undefined;
-    const query: any = {
+    const query: Record<string, unknown> = {
       oxyUserId: req.user!.id,
       status: { $in: ['active', 'trialing'] },
     };
@@ -393,9 +393,9 @@ router.get('/subscription', authenticateToken, async (req: Request, res: Respons
     }
     const subscription = await Subscription.findOne(query).lean();
     res.json({ subscription });
-  } catch (error: any) {
+  } catch (error: unknown) {
     log.credits.error({ err: error }, 'Error fetching subscription');
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ error: (error as Error).message });
   }
 });
 
@@ -418,9 +418,9 @@ router.post('/subscription/cancel', authenticateToken, async (req: Request, res:
     await subscription.save();
 
     res.json({ message: 'Subscription will be canceled at end of billing period', subscription });
-  } catch (error: any) {
+  } catch (error: unknown) {
     log.credits.error({ err: error }, 'Error canceling subscription');
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ error: (error as Error).message });
   }
 });
 
@@ -469,7 +469,7 @@ router.post('/subscription/change-plan', authenticateToken, async (req: Request,
     let targetPriceId: string;
     try {
       targetPriceId = await ensureStripePriceId(getStripe, targetPlan.planId, billingPeriod);
-    } catch (err: any) {
+    } catch (err: unknown) {
       log.credits.error({ err, planId: targetPlan.planId, billingPeriod }, 'Failed to ensure Stripe price');
       return res.status(500).json({ error: 'Failed to configure plan pricing' });
     }
@@ -482,7 +482,7 @@ router.post('/subscription/change-plan', authenticateToken, async (req: Request,
     }
 
     // If pending cancellation, undo it first
-    if ((stripeSubscription as any).cancel_at_period_end) {
+    if ((stripeSubscription as unknown as { cancel_at_period_end?: boolean }).cancel_at_period_end) {
       await getStripe().subscriptions.update(subscription.stripeSubscriptionId, {
         cancel_at_period_end: false,
       });
@@ -522,12 +522,12 @@ router.post('/subscription/change-plan', authenticateToken, async (req: Request,
     const direction = isUpgrade ? 'upgrade' : 'downgrade';
     log.credits.info({ userId, from: currentPlan.planId, to: targetPlan.planId, direction, billingPeriod }, 'Plan changed');
     res.json({ message: 'Plan changed successfully', subscription, direction });
-  } catch (error: any) {
+  } catch (error: unknown) {
     if (error instanceof z.ZodError) {
       return res.status(400).json({ error: 'Invalid input', details: error.errors });
     }
     log.credits.error({ err: error }, 'Error changing plan');
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ error: (error as Error).message });
   }
 });
 
@@ -541,9 +541,9 @@ router.get('/transactions', authenticateToken, async (req: Request, res: Respons
       .lean();
     const total = await Transaction.countDocuments({ oxyUserId: req.user!.id });
     res.json({ transactions, total });
-  } catch (error: any) {
+  } catch (error: unknown) {
     log.credits.error({ err: error }, 'Error fetching transactions');
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ error: (error as Error).message });
   }
 });
 
@@ -561,9 +561,9 @@ router.post('/portal', authenticateToken, async (req: Request, res: Response) =>
     });
 
     res.json({ url: session.url });
-  } catch (error: any) {
+  } catch (error: unknown) {
     log.credits.error({ err: error }, 'Error creating portal session');
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ error: (error as Error).message });
   }
 });
 
@@ -572,9 +572,9 @@ router.get('/entitlements', authenticateToken, async (req: Request, res: Respons
   try {
     const entitlements = await getUserEntitlements(req.user!.id);
     res.json(entitlements);
-  } catch (error: any) {
+  } catch (error: unknown) {
     log.credits.error({ err: error }, 'Error fetching entitlements');
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ error: (error as Error).message });
   }
 });
 
@@ -593,9 +593,9 @@ router.get('/voice-usage', authenticateToken, async (req: Request, res: Response
 
     const usage = await getVoiceUsageSummary(req.user!.id, voiceMinutesLimit);
     res.json(usage);
-  } catch (error: any) {
+  } catch (error: unknown) {
     log.credits.error({ err: error }, 'Error fetching voice usage');
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ error: (error as Error).message });
   }
 });
 
@@ -609,9 +609,9 @@ router.post('/webhook', async (req: Request, res: Response) => {
   let event: Stripe.Event;
   try {
     event = getStripe().webhooks.constructEvent(req.body, sig, webhookSecret);
-  } catch (err: any) {
+  } catch (err: unknown) {
     log.credits.error({ err }, 'Webhook verification failed');
-    return res.status(400).send(`Webhook Error: ${err.message}`);
+    return res.status(400).send(`Webhook Error: ${(err as Error).message}`);
   }
 
   try {
@@ -634,9 +634,9 @@ router.post('/webhook', async (req: Request, res: Response) => {
         break;
     }
     res.json({ received: true });
-  } catch (error: any) {
+  } catch (error: unknown) {
     log.credits.error({ err: error }, 'Error handling webhook');
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ error: (error as Error).message });
   }
 });
 
@@ -665,8 +665,8 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
         status: 'completed',
         description: `Purchased ${credits.toLocaleString()} credits`,
       });
-    } catch (err: any) {
-      if (err.code === 11000) {
+    } catch (err: unknown) {
+      if ((err as { code?: number }).code === 11000) {
         log.credits.warn({ paymentIntent: session.payment_intent }, 'Duplicate checkout event, skipping');
         return;
       }
@@ -712,10 +712,11 @@ async function handleSubscriptionUpdate(stripeSubscription: Stripe.Subscription)
 
   const isAnnual = metadata?.billingPeriod === 'annual';
   const price = isAnnual ? plan.annualPrice : plan.monthlyPrice;
-  const sub = stripeSubscription as any;
+  type StripeLegacyFields = { cancel_at_period_end?: boolean; current_period_start?: number; current_period_end?: number };
+  const sub = stripeSubscription as unknown as StripeLegacyFields;
 
   // Stripe API 2025+ moved current_period_start/end to subscription items
-  const item = stripeSubscription.items.data[0] as any;
+  const item = stripeSubscription.items.data[0] as unknown as StripeLegacyFields | undefined;
   const periodStart = item?.current_period_start ?? sub.current_period_start;
   const periodEnd = item?.current_period_end ?? sub.current_period_end;
 
@@ -755,8 +756,8 @@ async function handleSubscriptionUpdate(stripeSubscription: Stripe.Subscription)
       });
       await userCredits.addCredits(plan.creditsPerMonth, 'paid');
       log.credits.info({ credits: plan.creditsPerMonth, subscriptionId: stripeSubscription.id, periodStart }, 'Added subscription credits');
-    } catch (err: any) {
-      if (err.code === 11000) {
+    } catch (err: unknown) {
+      if ((err as { code?: number }).code === 11000) {
         log.credits.warn({ dedupKey }, 'Duplicate subscription credit event, skipping');
         return;
       }

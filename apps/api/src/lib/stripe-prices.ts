@@ -7,7 +7,7 @@
  */
 
 import type Stripe from 'stripe';
-import { getPlans, updatePlan } from './providers-client.js';
+import { getPlans, updatePlan, type PlanData } from './providers-client.js';
 import { log } from './logger.js';
 
 type StripeFn = () => Stripe;
@@ -16,7 +16,7 @@ type StripeFn = () => Stripe;
  * Ensure a Stripe Product exists for the given plan.
  * Creates one if stripeProductId is missing.
  */
-async function ensureStripeProduct(getStripe: StripeFn, plan: any): Promise<string> {
+async function ensureStripeProduct(getStripe: StripeFn, plan: PlanData): Promise<string> {
   if (plan.stripeProductId) {
     return plan.stripeProductId;
   }

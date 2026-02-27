@@ -280,15 +280,16 @@ router.get('/gmail/callback', async (req, res) => {
 
 // Initiate connection (returns QR code or OAuth URL)
 router.post('/:platform/connect', ...authed, async (req, res) => {
+  const platform = req.params.platform as string;
+  let account: InstanceType<typeof ConnectedAccount> | null = null;
   try {
-    const platform = req.params.platform as string;
     const servicePath = PLATFORM_PATHS[platform];
     if (!servicePath) {
       return res.status(400).json({ error: `Unsupported platform: ${platform}` });
     }
 
     // Create ConnectedAccount record
-    const account = new ConnectedAccount({
+    account = new ConnectedAccount({
       oxyUserId: new mongoose.Types.ObjectId(req.userId),
       platform,
       accountId: 'pending',
@@ -328,7 +329,7 @@ router.post('/:platform/connect', ...authed, async (req, res) => {
   } catch (error) {
     log.channels.error({ err: error, platform }, 'Connect account error');
     if (account?._id) {
-      await ConnectedAccount.deleteOne({ _id: account._id }).catch((err: any) => log.channels.warn({ err, accountId: account._id }, 'Failed to clean up ConnectedAccount after connect error'));
+      await ConnectedAccount.deleteOne({ _id: account._id }).catch((err: unknown) => log.channels.warn({ err, accountId: account!._id }, 'Failed to clean up ConnectedAccount after connect error'));
     }
     res.status(502).json({ error: `Failed to connect ${platform}` });
   }

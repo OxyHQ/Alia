@@ -37,24 +37,23 @@ export async function getUserEntitlements(userId: string): Promise<Entitlements>
     getPlans(),
     Promise.all(planIds.map(id => getPlanFeatures(id))).then(results => results.flat()),
   ]);
-  const plans = allPlans.filter((p: any) => planIds.includes(p.planId));
-  const planFeatures = allPlanFeatures.filter((pf: any) => pf.enabled !== false);
+  const plans = allPlans.filter(p => planIds.includes(p.planId));
+  const planFeatures = allPlanFeatures.filter(pf => pf.enabled !== false);
 
   const modelIds = new Set(FREE_MODEL_IDS);
   for (const plan of plans) {
-    (plan as any).modelIds?.forEach((id: string) => modelIds.add(id));
+    plan.modelIds?.forEach(id => modelIds.add(id));
   }
 
   const features: Record<string, boolean | number> = {};
   for (const pf of planFeatures) {
-    const pfAny = pf as any;
-    if (pfAny.limitValue != null) {
-      features[pfAny.featureId] = Math.max(
-        (features[pfAny.featureId] as number) || 0,
-        pfAny.limitValue,
+    if (pf.limitValue != null) {
+      features[pf.featureId] = Math.max(
+        (features[pf.featureId] as number) || 0,
+        pf.limitValue,
       );
     } else {
-      features[pfAny.featureId] = true;
+      features[pf.featureId] = true;
     }
   }
 

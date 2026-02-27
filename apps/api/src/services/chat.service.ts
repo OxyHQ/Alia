@@ -333,7 +333,7 @@ export async function getModelContextWindow(aliasModelId: string): Promise<numbe
   const aliaModel = await getAliaModel(aliasModelId);
   if (!aliaModel) return 128_000;
   const tierMappings = await getModelMappingsForTier(aliaModel.tier);
-  return tierMappings[0]?.capabilities?.maxContextTokens || 128_000;
+  return (tierMappings[0]?.capabilities?.maxContextTokens as number) || 128_000;
 }
 
 // ── Before-Chat Hooks ──

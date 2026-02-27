@@ -40,7 +40,7 @@ function generateAuthHeaders(): Record<string, string> {
   };
 }
 
-async function apiGet<T = any>(path: string): Promise<T> {
+async function apiGet<T = unknown>(path: string): Promise<T> {
   const res = await fetch(`${PROVIDERS_API_URL}${path}`, {
     headers: generateAuthHeaders(),
   });
@@ -48,11 +48,11 @@ async function apiGet<T = any>(path: string): Promise<T> {
     const body = await res.text();
     throw new Error(`Providers API GET ${path} failed (${res.status}): ${body}`);
   }
-  const json = await res.json() as any;
-  return json.data ?? json;
+  const json = await res.json() as Record<string, unknown>;
+  return (json.data ?? json) as T;
 }
 
-async function apiPost<T = any>(path: string, body: any): Promise<T> {
+async function apiPost<T = unknown>(path: string, body: unknown): Promise<T> {
   const res = await fetch(`${PROVIDERS_API_URL}${path}`, {
     method: 'POST',
     headers: generateAuthHeaders(),
@@ -60,18 +60,18 @@ async function apiPost<T = any>(path: string, body: any): Promise<T> {
   });
   if (!res.ok) {
     const text = await res.text();
-    let parsed: any;
+    let parsed: { error?: string; reason?: string };
     try { parsed = JSON.parse(text); } catch { parsed = { error: text }; }
-    const error: any = new Error(parsed.error || `Providers API POST ${path} failed (${res.status})`);
+    const error = new Error(parsed.error || `Providers API POST ${path} failed (${res.status})`) as Error & { reason?: string; status?: number };
     error.reason = parsed.reason;
     error.status = res.status;
     throw error;
   }
-  const json = await res.json() as any;
-  return json.data ?? json;
+  const json = await res.json() as Record<string, unknown>;
+  return (json.data ?? json) as T;
 }
 
-async function apiPatch<T = any>(path: string, body: any): Promise<T> {
+async function apiPatch<T = unknown>(path: string, body: unknown): Promise<T> {
   const res = await fetch(`${PROVIDERS_API_URL}${path}`, {
     method: 'PATCH',
     headers: generateAuthHeaders(),
@@ -79,14 +79,14 @@ async function apiPatch<T = any>(path: string, body: any): Promise<T> {
   });
   if (!res.ok) {
     const text = await res.text();
-    let parsed: any;
+    let parsed: { error?: string };
     try { parsed = JSON.parse(text); } catch { parsed = { error: text }; }
-    const error: any = new Error(parsed.error || `Providers API PATCH ${path} failed (${res.status})`);
+    const error = new Error(parsed.error || `Providers API PATCH ${path} failed (${res.status})`) as Error & { status?: number };
     error.status = res.status;
     throw error;
   }
-  const json = await res.json() as any;
-  return json.data ?? json;
+  const json = await res.json() as Record<string, unknown>;
+  return (json.data ?? json) as T;
 }
 
 // ============== TYPES ==============
@@ -131,7 +131,7 @@ export interface ModelMapping {
   costPer1MOutput?: number;
   costPerMinute?: number;
   averageLatencyMs?: number;
-  capabilities: any;
+  capabilities: Record<string, unknown>;
 }
 
 export interface ResolvedModel {
@@ -168,6 +168,62 @@ export type AliaTier = string;
 export type ModelCategory = string;
 export type PricingTier = string;
 
+// Plain (non-Document) interfaces for billing data returned by API or .lean()
+export interface PlanData {
+  planId: string;
+  name: string;
+  product: 'alia' | 'codea';
+  creditsPerMonth: number;
+  dailyFreeCredits: number;
+  monthlyPrice: number;
+  annualPrice: number;
+  currency: string;
+  subtitle: string;
+  creditsLabel: string;
+  isFeatured: boolean;
+  sortOrder: number;
+  modelIds: string[];
+  isActive: boolean;
+  isFree: boolean;
+  stripeProductId?: string;
+  stripeMonthlyPriceId?: string;
+  stripeAnnualPriceId?: string;
+  description?: string;
+}
+
+export interface CreditPackageData {
+  packageId: string;
+  name: string;
+  credits: number;
+  price: number;
+  currency: string;
+  stripePriceId?: string;
+  sortOrder: number;
+  isActive: boolean;
+  description?: string;
+}
+
+export interface FeatureData {
+  featureId: string;
+  label: string;
+  description?: string;
+  icon?: string;
+  category: string;
+  featureType: 'boolean' | 'limit';
+  sortOrder: number;
+  isVisibleOnPricing: boolean;
+  isActive: boolean;
+}
+
+export interface PlanFeatureData {
+  planId: string;
+  featureId: string;
+  enabled: boolean;
+  limitValue?: number;
+  displayLabel?: string;
+  displayDescription?: string;
+}
+
 // ============== IN-MEMORY CACHE (HTTP mode only) ==============
 
 interface CacheEntry<T> {
@@ -203,8 +259,8 @@ export async function resolveAliaModel(
         skipProviders: [...skipProviders],
         skipKeyIds: skipKeyIds ? [...skipKeyIds] : [],
       });
-    } catch (error: any) {
-      if (error.status === 503) return null;
+    } catch (error: unknown) {
+      if ((error as { status?: number }).status === 503) return null;
       throw error;
     }
   }
@@ -220,7 +276,7 @@ export interface ProviderCallOptions {
   provider: string;
   modelId: string;
   endpoint: string;
-  body?: any;
+  body?: Record<string, unknown>;
   audio?: { base64: string; mimeType: string; filename: string };
   extraFormFields?: Record<string, string>;
   maxAttempts?: number;
@@ -232,7 +288,7 @@ export interface ProviderCallOptions {
  * Non-streaming provider API call with key rotation and retries.
  * Used for images, embeddings, transcription.
  */
-export async function callProviderAPI<T = any>(options: ProviderCallOptions): Promise<T> {
+export async function callProviderAPI<T = unknown>(options: ProviderCallOptions): Promise<T> {
   if (PROVIDERS_API_ENABLED) {
     return apiPost<T>('/api/call', options);
   }
@@ -284,7 +340,7 @@ export function reportModelUsage(
       modelId,
       success,
       ...opts,
-    }).catch((err: any) => {
+    }).catch((err: unknown) => {
       log.general.warn({ err }, 'Failed to report model usage');
     });
     return;
@@ -367,7 +423,7 @@ export function getAliaModelSync(modelId: string): AliaModel | null {
   // Since this is sync, we can't use await — fall back to null if not cached
   try {
     // The module is likely already loaded from a prior async call
-    const mod = (globalThis as any).__aliaModelsCache;
+    const mod = (globalThis as unknown as Record<string, { getAliaModel: (id: string) => AliaModel | null }>).__aliaModelsCache;
     if (mod) return mod.getAliaModel(modelId);
   } catch { /* ignore */ }
   return null;
@@ -396,7 +452,7 @@ export async function getAliaModelsByCategory(category: string): Promise<AliaMod
   }
 
   const { getAliaModelsByCategory: localGetByCategory } = await import('../internal/providers/lib/alia-models.js');
-  return localGetByCategory(category as any);
+  return localGetByCategory(category as never);
 }
 
 /**
@@ -410,7 +466,7 @@ export async function getDefaultModelForCategory(category: string): Promise<Alia
   }
 
   const { getDefaultModelForCategory: localGetDefault } = await import('../internal/providers/lib/alia-models.js');
-  return localGetDefault(category as any);
+  return localGetDefault(category as never);
 }
 
 /**
@@ -440,7 +496,7 @@ export async function getTierMappings(): Promise<Record<string, ModelMapping[]>>
   }
 
   const { TIER_MODEL_MAPPINGS } = await import('../internal/providers/lib/alia-models.js');
-  return TIER_MODEL_MAPPINGS as Record<string, ModelMapping[]>;
+  return TIER_MODEL_MAPPINGS as unknown as Record<string, ModelMapping[]>;
 }
 
 /**
@@ -453,7 +509,7 @@ export async function getModelMappingsForTier(tier: string): Promise<ModelMappin
   }
 
   const { getModelMappingsForTier: localGetMappings } = await import('../internal/providers/lib/alia-models.js');
-  return localGetMappings(tier as any);
+  return localGetMappings(tier as never) as unknown as ModelMapping[];
 }
 
 // ============== PROVIDER HEALTH ==============
@@ -487,67 +543,67 @@ export async function getProviderHealth(provider: string, modelId: string): Prom
 /**
  * Get plans.
  */
-export async function getPlans(filter?: Record<string, any>): Promise<any[]> {
+export async function getPlans(filter?: Record<string, unknown>): Promise<PlanData[]> {
   if (PROVIDERS_API_ENABLED) {
-    const data = await apiGet<{ plans: any[] }>('/api/billing?type=plans');
+    const data = await apiGet<{ plans: PlanData[] }>('/api/billing?type=plans');
     const plans = data.plans ?? [];
     if (!filter) return plans;
-    return plans.filter((p: any) => Object.entries(filter).every(([k, v]) => p[k] === v));
+    return plans.filter(p => Object.entries(filter).every(([k, v]) => (p as unknown as Record<string, unknown>)[k] === v));
   }
 
   const { Plan } = await import('../internal/providers/models/plan.js');
-  return Plan.find(filter || {}).lean();
+  return Plan.find(filter || {}).lean() as unknown as PlanData[];
 }
 
 /**
  * Get credit packages.
  */
-export async function getCreditPackages(active?: boolean): Promise<any[]> {
+export async function getCreditPackages(active?: boolean): Promise<CreditPackageData[]> {
   if (PROVIDERS_API_ENABLED) {
     const query = active !== undefined ? `&active=${active}` : '';
-    const data = await apiGet<{ packages: any[] }>(`/api/billing?type=packages${query}`);
+    const data = await apiGet<{ packages: CreditPackageData[] }>(`/api/billing?type=packages${query}`);
     return data.packages ?? [];
   }
 
   const { CreditPackage } = await import('../internal/providers/models/credit-package.js');
-  const query: any = {};
-  if (active !== undefined) query.isActive = active;
-  return CreditPackage.find(query).lean();
+  const filter: Record<string, boolean> = {};
+  if (active !== undefined) filter.isActive = active;
+  return CreditPackage.find(filter).lean() as unknown as CreditPackageData[];
 }
 
 /**
  * Get features.
  */
-export async function getFeatures(): Promise<any[]> {
+export async function getFeatures(): Promise<FeatureData[]> {
   if (PROVIDERS_API_ENABLED) {
-    const data = await apiGet<{ features: any[] }>('/api/billing?type=features');
+    const data = await apiGet<{ features: FeatureData[] }>('/api/billing?type=features');
     return data.features ?? [];
   }
 
   const { Feature } = await import('../internal/providers/models/feature.js');
-  return Feature.find({}).lean();
+  return Feature.find({}).lean() as unknown as FeatureData[];
 }
 
 /**
  * Get plan features.
  */
-export async function getPlanFeatures(planId?: string): Promise<any[]> {
+export async function getPlanFeatures(planId?: string): Promise<PlanFeatureData[]> {
   if (PROVIDERS_API_ENABLED) {
     const query = planId ? `&planId=${encodeURIComponent(planId)}` : '';
-    const data = await apiGet<{ planFeatures: any[] }>(`/api/billing?type=plan-features${query}`);
+    const data = await apiGet<{ planFeatures: PlanFeatureData[] }>(`/api/billing?type=plan-features${query}`);
     return data.planFeatures ?? [];
   }
 
   const { PlanFeature } = await import('../internal/providers/models/plan-feature.js');
-  const query: any = {};
-  if (planId) query.planId = planId;
-  return PlanFeature.find(query).lean();
+  const filter: Record<string, string> = {};
+  if (planId) filter.planId = planId;
+  return PlanFeature.find(filter).lean() as unknown as PlanFeatureData[];
 }
 
 /**
  * Update a plan (e.g. to persist auto-created Stripe price IDs).
  */
-export async function updatePlan(planId: string, updates: Record<string, any>): Promise<any> {
+export async function updatePlan(planId: string, updates: Record<string, unknown>): Promise<PlanData | null> {
   if (PROVIDERS_API_ENABLED) {
     return apiPatch(`/v1/plans/${planId}`, updates);
   }
@@ -586,7 +642,7 @@ export async function warmupProvidersClient(): Promise<void> {
   try {
     await getTierMappings();
     log.general.info('Providers client cache warmed up');
-  } catch (error: any) {
+  } catch (error: unknown) {
     log.general.warn({ err: error }, 'Failed to warm up providers client cache (providers API may not be ready)');
   }
 }
