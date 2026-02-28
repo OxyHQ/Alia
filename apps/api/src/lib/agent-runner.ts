@@ -32,6 +32,7 @@ import { finalizeCredits, safeRefund, type CreditReservation } from './credits-m
 import { MAX_DELEGATION_DEPTH, EVENT_STREAM_BUDGET } from './constants.js';
 import { orchestrate, shouldOrchestrate } from './agent/orchestrator.js';
 import { compactContext } from './agent/context-compaction.js';
+import { redactSecrets } from './agent/secret-scanner.js';
 
 /** Continuation prompts — varied to prevent brittle pattern mimicry */
 const CONTINUATION_PROMPTS = [
@@ -443,7 +444,15 @@ export async function runAgentSession(sessionId: string): Promise<void> {
 
                 const offloaded = await workspaceMemory.maybeOffload(resultStr, eventStream.currentSeq());
 
-                eventStream.append('observation', (offloaded.content || '').slice(0, 2000), {
+                // Secret scanning — redact API keys, tokens, passwords before logging
+                const { redacted: safeContent, matches: secretMatches } = redactSecrets(offloaded.content || '');
+                if (secretMatches.length > 0) {
+                  eventStream.append('system_message',
+                    `SECRET DETECTED: ${secretMatches.length} secret(s) redacted. Types: ${secretMatches.map(m => m.type).join(', ')}`,
+                  );
+                }
+
+                eventStream.append('observation', safeContent.slice(0, 2000), {
                   toolName: tr.toolName,
                   durationMs: Date.now() - startMs,
                 });
@@ -493,9 +502,10 @@ export async function runAgentSession(sessionId: string): Promise<void> {
         const usageTokens = result.usage?.totalTokens || 0;
         totalTokens += usageTokens;
 
-        // Record text response
+        // Record text response (with secret redaction)
         if (result.text) {
-          eventStream.append('response', result.text);
+          const { redacted: safeText } = redactSecrets(result.text);
+          eventStream.append('response', safeText);
         }
 
         // State transitions

@@ -45,6 +45,7 @@ import libraryRouter from './routes/library.js';
 import suggestionsRouter from './routes/suggestions.js';
 import writingStyleRouter from './routes/writing-style.js';
 import notificationsRouter from './routes/notifications.js';
+import auditRouter from './routes/audit.js';
 
 // Register hooks (side-effect import)
 import './lib/hooks/index.js';
@@ -229,6 +230,7 @@ app.use('/library', libraryRouter);
 app.use('/suggestions', suggestionsRouter);
 app.use('/writing-style', writingStyleRouter);
 app.use('/notifications', notificationsRouter);
+app.use('/audit', auditRouter);
 app.use('/internal', internalRouter);
 
 // Root route

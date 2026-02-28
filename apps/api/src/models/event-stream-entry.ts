@@ -37,7 +37,7 @@ const EventStreamEntrySchema = new Schema<IEventStreamEntry>({
   timestamp: { type: Number, required: true },
   type: {
     type: String,
-    enum: ['user_message', 'system_message', 'action', 'observation', 'error', 'plan_update', 'thinking', 'response', 'complete'],
+    enum: ['user_message', 'system_message', 'action', 'observation', 'error', 'plan_update', 'thinking', 'response', 'complete', 'screenshot', 'plan_progress', 'file_change', 'source_found', 'threat_detected'],
     required: true,
   },
   content: { type: String, required: true },
@@ -54,6 +54,9 @@ EventStreamEntrySchema.index({ sessionId: 1, seq: 1 }, { unique: true });
 
 // Compaction query: find non-archived entries older than a threshold
 EventStreamEntrySchema.index({ sessionId: 1, archived: 1, seq: 1 });
+
+// Audit query: filter by type and timestamp for compliance exports
+EventStreamEntrySchema.index({ sessionId: 1, type: 1, timestamp: 1 });
 
 export const EventStreamEntry: Model<IEventStreamEntry> =
   mongoose.models.EventStreamEntry || mongoose.model<IEventStreamEntry>('EventStreamEntry', EventStreamEntrySchema);

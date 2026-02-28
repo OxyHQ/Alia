@@ -124,7 +124,7 @@ const AgentSessionSchema = new Schema<IAgentSession>({
     timestamp: { type: Number, required: true },
     type: {
       type: String,
-      enum: ['user_message', 'system_message', 'action', 'observation', 'error', 'plan_update', 'thinking', 'response', 'complete'],
+      enum: ['user_message', 'system_message', 'action', 'observation', 'error', 'plan_update', 'thinking', 'response', 'complete', 'threat_detected'],
       required: true,
     },
     content: { type: String, required: true },

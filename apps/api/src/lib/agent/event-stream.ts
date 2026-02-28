@@ -30,7 +30,8 @@ export type EventType =
   | 'screenshot'
   | 'plan_progress'
   | 'file_change'
-  | 'source_found';
+  | 'source_found'
+  | 'threat_detected';
 
 export interface EventStreamEntry {
   seq: number;
@@ -297,6 +298,7 @@ function entryPrefix(type: EventType): string {
     case 'screenshot':     return '## Screenshot';
     case 'plan_progress':  return '## Plan Progress';
     case 'file_change':    return '## File Change';
+    case 'threat_detected': return '## Threat Detected';
   }
 }
 
@@ -315,5 +317,6 @@ function mapEventTypeToActivity(type: EventType): AgentActivityEvent['type'] {
     case 'plan_progress':  return 'plan_progress';
     case 'file_change':    return 'file_change';
     case 'source_found':   return 'source_found' as any;
+    case 'threat_detected': return 'threat' as any;
   }
 }

@@ -26,6 +26,7 @@ import { WorkspaceMemory } from './workspace-memory.js';
 import { buildMcpTools } from '../tools/mcp.js';
 import { buildIntegrationTools } from '../tools/integrations.js';
 import { log } from '../logger.js';
+import { analyzeThreat, formatThreatSummary } from './threat-detector.js';
 import type { IAgent } from '../../models/agent.js';
 import type { IAgentSession } from '../../models/agent-session.js';
 import type { EventStream } from './event-stream.js';
@@ -240,6 +241,36 @@ export async function buildActions(ctx: ActionContext) {
     });
   }
 
+  // ── Agent Permission Enforcement ──
+  // If the agent has explicit permissions set, replace disabled tools with stubs.
+  // undefined permissions = all allowed (backward compatible with existing agents).
+  const perms = ctx.agent.permissions;
+  if (perms) {
+    const denyStub = (toolName: string, capability: string) =>
+      async () => `Error: ${capability} access is disabled for this agent. Contact the agent creator to enable it.`;
+
+    if (perms.shell === false && actions.shell) {
+      const origDesc = (actions.shell as any).description;
+      const origParams = (actions.shell as any).parameters;
+      actions.shell = tool({ description: origDesc, parameters: origParams, execute: denyStub('shell', 'Shell') });
+    }
+    if (perms.network === false && actions.browser) {
+      const origDesc = (actions.browser as any).description;
+      const origParams = (actions.browser as any).parameters;
+      actions.browser = tool({ description: origDesc, parameters: origParams, execute: denyStub('browser', 'Browser/network') });
+    }
+    if (perms.filesystem === false && actions.file_edit) {
+      const origDesc = (actions.file_edit as any).description;
+      const origParams = (actions.file_edit as any).parameters;
+      actions.file_edit = tool({ description: origDesc, parameters: origParams, execute: denyStub('file_edit', 'Filesystem') });
+    }
+    if (perms.delegation === false && actions.delegate) {
+      const origDesc = (actions.delegate as any).description;
+      const origParams = (actions.delegate as any).parameters;
+      actions.delegate = tool({ description: origDesc, parameters: origParams, execute: denyStub('delegate', 'Agent delegation') });
+    }
+  }
+
   // ── MCP + Integration tools (keep as-is — already well-designed) ──
 
   try {
@@ -248,27 +279,62 @@ export async function buildActions(ctx: ActionContext) {
       buildMcpTools(userId),
     ]);
 
-    Object.assign(actions, integrationTools);
+    // Skip integration tools if communications disabled
+    if (!perms || perms.communications !== false) {
+      Object.assign(actions, integrationTools);
+    }
 
-    for (const [name, mcpTool] of Object.entries(mcpTools)) {
-      if ((mcpTool as any).execute) {
-        const originalExecute = (mcpTool as any).execute;
-        actions[name] = {
-          ...mcpTool,
-          execute: async (...args: any[]) => {
-            try {
-              return await (originalExecute as Function)(...args);
-            } catch (err: any) {
-              return `MCP tool error: ${err.message?.slice(0, 150) || 'unknown'}`;
-            }
-          },
-        };
-      } else {
-        actions[name] = mcpTool;
+    // Add MCP tools (skip if mcp_servers disabled)
+    if (perms?.mcp_servers !== false) {
+      for (const [name, mcpTool] of Object.entries(mcpTools)) {
+        if ((mcpTool as any).execute) {
+          const originalExecute = (mcpTool as any).execute;
+          actions[name] = {
+            ...mcpTool,
+            execute: async (...args: any[]) => {
+              try {
+                return await (originalExecute as Function)(...args);
+              } catch (err: any) {
+                return `MCP tool error: ${err.message?.slice(0, 150) || 'unknown'}`;
+              }
+            },
+          };
+        } else {
+          actions[name] = mcpTool;
+        }
       }
     }
   } catch (err) {
     log.agents.warn({ err, userId }, 'Failed to load integration/MCP tools');
+  }
+
+  // ── Threat Detection Wrapper ──
+  // Wraps all tool execute functions with pre-execution threat analysis.
+  // Blocked actions return an error string; warnings/criticals are logged.
+  for (const [name, action] of Object.entries(actions)) {
+    if (!(action as any)?.execute) continue;
+    // Skip plan tool — always safe
+    if (name === 'plan') continue;
+
+    const originalExecute = (action as any).execute;
+    (action as any).execute = async (args: any) => {
+      const threat = analyzeThreat(name, args || {});
+
+      if (threat.shouldBlock) {
+        const summary = formatThreatSummary(threat);
+        eventStream?.append('system_message', `THREAT BLOCKED: ${summary}`);
+        log.agents.warn({ toolName: name, threat: summary, sessionId: session._id.toString() }, 'Agent action blocked by threat detector');
+        return `Error: Action blocked by security policy — ${threat.threats[0]?.pattern.description || 'security violation'}`;
+      }
+
+      if (threat.shouldApprove) {
+        const summary = formatThreatSummary(threat);
+        eventStream?.append('system_message', `THREAT WARNING: ${summary}. Action allowed but flagged.`);
+        log.agents.info({ toolName: name, threat: summary, sessionId: session._id.toString() }, 'Agent action flagged by threat detector');
+      }
+
+      return originalExecute(args);
+    };
   }
 
   return actions;

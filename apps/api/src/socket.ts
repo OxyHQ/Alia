@@ -49,6 +49,17 @@ export function initSocket(server: http.Server) {
       if (typeof userId !== 'string' || userId.length > 256) return;
       socket.join(`user:${userId}`);
     });
+
+    // Agent action approval response from user
+    socket.on('agent-approval-response', (data: { requestId: string; sessionId: string; approved: boolean; alwaysAllow?: boolean }) => {
+      if (!data?.requestId || typeof data.sessionId !== 'string') return;
+      // Forward to the session-specific room so the approval handler can pick it up
+      io!.to(`agent-session:${data.sessionId}`).emit('agent-approval-decision', {
+        requestId: data.requestId,
+        approved: data.approved,
+        alwaysAllow: data.alwaysAllow || false,
+      });
+    });
   });
   return io;
 }
@@ -76,11 +87,11 @@ export function emitWorkflowProgress(executionId: string, data: any) {
 }
 
 export interface AgentActivityEvent {
-  type: 'system' | 'thinking' | 'response' | 'tool_call' | 'tool_result' | 'error' | 'complete' | 'screenshot' | 'plan_progress' | 'file_change' | 'source_found';
+  type: 'system' | 'thinking' | 'response' | 'tool_call' | 'tool_result' | 'error' | 'complete' | 'screenshot' | 'plan_progress' | 'file_change' | 'source_found' | 'threat' | 'approval_request';
   content: string;
   timestamp: number;
   sessionId: string;
-  metadata?: { toolName?: string; args?: any; duration?: number; url?: string; title?: string; domain?: string };
+  metadata?: { toolName?: string; args?: any; duration?: number; url?: string; title?: string; domain?: string; threatSeverity?: string; threatCategory?: string };
   data?: {
     base64?: string;
     url?: string;
@@ -88,7 +99,22 @@ export interface AgentActivityEvent {
     files?: string[];
     currentStep?: number;
     maxSteps?: number;
+    approval?: { requestId: string; toolName: string; args: any; description: string; severity: string; timeout: number };
   };
+}
+
+export function emitApprovalRequest(sessionId: string, data: {
+  requestId: string;
+  agentId: string;
+  toolName: string;
+  args: any;
+  description: string;
+  severity: string;
+  timeout: number;
+}) {
+  if (io) {
+    io.to(`agent-session:${sessionId}`).emit('agent-approval-request', data);
+  }
 }
 
 export function emitAgentActivity(agentId: string, data: AgentActivityEvent) {
