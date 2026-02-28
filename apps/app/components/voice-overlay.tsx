@@ -28,15 +28,16 @@ export function VoiceOverlay({ waveAmplitude, agentState, isConnected }: VoiceOv
         right: 0,
         height: 350,
         zIndex: 5,
-        opacity: 0.35,
         pointerEvents: 'none',
       }}
     >
-      <AudioWaveVisualizer
-        waveAmplitude={waveAmplitude}
-        agentState={agentState}
-        isConnected={isConnected}
-      />
+      <View style={{ opacity: 0.35 }}>
+        <AudioWaveVisualizer
+          waveAmplitude={waveAmplitude}
+          agentState={agentState}
+          isConnected={isConnected}
+        />
+      </View>
     </Animated.View>
   );
 }
