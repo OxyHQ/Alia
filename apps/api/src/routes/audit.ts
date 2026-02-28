@@ -162,4 +162,74 @@ router.get('/summary', authenticateToken, async (req: Request, res: Response) =>
   }
 });
 
+// GET /audit/threats — Recent threat detections for settings threat log
+router.get('/threats', authenticateToken, async (req: Request, res: Response) => {
+  try {
+    if (!req.user?.id) return res.status(401).json({ error: 'Unauthorized' });
+
+    const { limit = '20' } = req.query;
+    const limitNum = Math.min(100, Math.max(1, parseInt(limit as string, 10) || 20));
+
+    // Find user's sessions
+    const sessions = await AgentSession.find({ userId: req.user.id })
+      .select('_id agentId task')
+      .lean();
+
+    if (sessions.length === 0) {
+      return res.json({ threats: [], total: 0 });
+    }
+
+    const sessionIds = sessions.map(s => s._id);
+    const sessionMap = new Map(sessions.map(s => [s._id.toString(), s]));
+
+    // Find threat/warning events
+    const entries = await EventStreamEntry
+      .find({
+        sessionId: { $in: sessionIds },
+        $or: [
+          { type: 'threat_detected' },
+          { type: 'system_message', content: { $regex: /THREAT/ } },
+        ],
+      })
+      .sort({ timestamp: -1 })
+      .limit(limitNum)
+      .lean();
+
+    const total = await EventStreamEntry.countDocuments({
+      sessionId: { $in: sessionIds },
+      $or: [
+        { type: 'threat_detected' },
+        { type: 'system_message', content: { $regex: /THREAT/ } },
+      ],
+    });
+
+    // Look up agent names
+    const agentIds = [...new Set(sessions.map(s => s.agentId?.toString()).filter(Boolean))];
+    const agents = agentIds.length > 0
+      ? await Agent.find({ _id: { $in: agentIds } }).select('name handle').lean()
+      : [];
+    const agentMap = new Map(agents.map(a => [a._id.toString(), a]));
+
+    const threats = entries.map(entry => {
+      const session = sessionMap.get(entry.sessionId.toString());
+      const agent = session?.agentId ? agentMap.get(session.agentId.toString()) : undefined;
+      const isBlocked = entry.content?.includes('BLOCKED');
+      return {
+        id: entry._id,
+        timestamp: new Date(entry.timestamp).toISOString(),
+        severity: isBlocked ? 'critical' : entry.content?.includes('WARNING') ? 'warning' : 'info',
+        agentName: (agent as any)?.name || (agent as any)?.handle || 'Unknown',
+        description: entry.content,
+        sessionId: entry.sessionId,
+        type: entry.type,
+      };
+    });
+
+    res.json({ threats, total });
+  } catch (error) {
+    log.agents.error({ err: error }, 'Error fetching threat log');
+    res.status(500).json({ error: 'Failed to fetch threat log' });
+  }
+});
+
 export default router;
