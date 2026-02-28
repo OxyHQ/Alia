@@ -128,6 +128,7 @@ class ProvidersAPIClient {
     isPaid?: boolean;
     tier?: string;
     priority?: number;
+    creditLimitUSD?: number;
     rateLimitResetMs?: number;
     rateLimit?: {
       rps?: number;
@@ -155,6 +156,7 @@ class ProvidersAPIClient {
       isPaid: boolean;
       tier: string;
       priority: number;
+      creditLimitUSD: number | null;
       rateLimit: unknown;
       rateLimitResetMs: number | null;
     }>
@@ -440,6 +442,122 @@ class ProvidersAPIClient {
   async getUsageCosts(period: string = '7d') {
     return this.request(`/v1/usage/costs?period=${period}`);
   }
+
+  // ============ LOGS ============
+
+  async getLogs(filters?: {
+    provider?: string;
+    model?: string;
+    status?: string;
+    hours?: number;
+    page?: number;
+    limit?: number;
+  }) {
+    const params = new URLSearchParams();
+    if (filters?.provider && filters.provider !== 'all') params.set('provider', filters.provider);
+    if (filters?.model) params.set('model', filters.model);
+    if (filters?.status && filters.status !== 'all') params.set('status', filters.status);
+    if (filters?.hours) params.set('hours', filters.hours.toString());
+    if (filters?.page) params.set('page', filters.page.toString());
+    if (filters?.limit) params.set('limit', filters.limit.toString());
+
+    return this.request(`/v1/logs?${params}`);
+  }
+
+  async getLogStats(hours: number = 24) {
+    return this.request(`/v1/logs/stats?hours=${hours}`);
+  }
+
+  async getLogProviders() {
+    return this.request('/v1/logs/providers');
+  }
+
+  // ============ DASHBOARD ============
+
+  async getDashboardStats() {
+    return this.request<{
+      success: boolean;
+      data: DashboardStats;
+    }>('/v1/dashboard-stats');
+  }
+
+  async getKeyDiagnostics() {
+    return this.request<{
+      success: boolean;
+      data: {
+        totalKeys: number;
+        keysWithValues: number;
+        activeKeys: number;
+        issues: string[];
+        keys: Array<{
+          name: string;
+          provider: string;
+          keyPrefix: string;
+          isActive: boolean;
+          hasKeyValue: boolean;
+          isPaid: boolean;
+          totalRequests: number;
+          successCount: number;
+          totalFailures: number;
+          lastFailureReason: string | null;
+          creditLimitUSD: number | null;
+          spentUSD: number;
+          creditExhausted: boolean;
+        }>;
+      };
+    }>('/v1/keys/diagnostics');
+  }
+}
+
+export interface DashboardStats {
+  requestsTimeline: Array<{ time: string; requests: number; tokens: number }>;
+  topModels: Array<{ modelId: string; requests: number; tokens: number }>;
+  costsByProvider: {
+    daily: Array<{ provider: string; requests: number; tokens: number }>;
+    weekly: Array<{ provider: string; requests: number; tokens: number }>;
+    monthly: Array<{ provider: string; requests: number; tokens: number }>;
+  };
+  spendByProvider: Array<{
+    provider: string;
+    spentUSD: number;
+    creditLimitUSD: number | null;
+    keyCount: number;
+  }>;
+  alerts: {
+    failingKeys: Array<{
+      id: string;
+      name: string;
+      provider: string;
+      keyPrefix: string;
+      consecutiveFailures: number;
+    }>;
+    openCircuitBreakers: Array<{
+      provider: string;
+      modelId: string;
+      successRate: number;
+      consecutiveFailures: number;
+    }>;
+    nearCreditLimitKeys: Array<{
+      id: string;
+      name: string;
+      provider: string;
+      keyPrefix: string;
+      spentUSD: number;
+      creditLimitUSD: number;
+      percentUsed: number;
+    }>;
+  };
+  avgLatencyPerProvider: Array<{
+    provider: string;
+    averageLatencyMs: number;
+    modelCount: number;
+  }>;
+  creditsOverview: {
+    totalUsers: number;
+    totalBalance: number;
+    totalEarned: number;
+    totalSpent: number;
+  };
 }
 
 export const apiClient = new ProvidersAPIClient();

@@ -35,6 +35,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
+import { Switch } from '@/components/ui/switch';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import {
   Plus,
@@ -48,6 +49,7 @@ import {
   Trash2,
   AlertTriangle,
   Loader2,
+  DollarSign,
 } from 'lucide-react';
 import { PROVIDERS, type ProviderKey } from '@/types';
 
@@ -58,18 +60,28 @@ type KeyFormData = {
   isPaid: boolean;
   tier: string;
   priority: number;
+  creditLimitUSD?: number;
+  errorStrategy: 'fixed' | 'exponential';
   rateLimitResetMs?: number;
-  rateLimit: {
-    rps?: number;
-    rpm?: number;
-    rph?: number;
-    rpd?: number;
-    tps?: number;
-    tpm?: number;
-    tph?: number;
-    tpd?: number;
-  };
 };
+
+// Preset cooldown options for Fixed Cooldown strategy
+const COOLDOWN_PRESETS = [
+  { label: '5s', ms: 5000 },
+  { label: '15s', ms: 15000 },
+  { label: '30s', ms: 30000 },
+  { label: '1m', ms: 60000 },
+  { label: '5m', ms: 300000 },
+  { label: '15m', ms: 900000 },
+  { label: '1h', ms: 3600000 },
+] as const;
+
+function formatMs(ms: number): string {
+  if (ms >= 3600000) return `${(ms / 3600000).toFixed(ms % 3600000 === 0 ? 0 : 1)}h`;
+  if (ms >= 60000) return `${(ms / 60000).toFixed(ms % 60000 === 0 ? 0 : 1)}m`;
+  if (ms >= 1000) return `${(ms / 1000).toFixed(ms % 1000 === 0 ? 0 : 1)}s`;
+  return `${ms}ms`;
+}
 
 export function KeysPage() {
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
@@ -88,7 +100,9 @@ export function KeysPage() {
     isPaid: false,
     tier: 'free',
     priority: 1,
-    rateLimit: {},
+    creditLimitUSD: undefined,
+    errorStrategy: 'exponential',
+    rateLimitResetMs: undefined,
   });
 
   const [rotateKeyValue, setRotateKeyValue] = useState('');
@@ -125,7 +139,10 @@ export function KeysPage() {
 
   // Create mutation
   const createMutation = useMutation({
-    mutationFn: (data: KeyFormData) => apiClient.createKey(data),
+    mutationFn: (data: KeyFormData) => {
+      const { errorStrategy, ...rest } = data;
+      return apiClient.createKey(rest);
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['keys'] });
       setIsAddDialogOpen(false);
@@ -135,8 +152,10 @@ export function KeysPage() {
 
   // Update mutation
   const updateMutation = useMutation({
-    mutationFn: ({ keyId, data }: { keyId: string; data: Partial<KeyFormData> }) =>
-      apiClient.updateKey(keyId, data),
+    mutationFn: ({ keyId, data }: { keyId: string; data: Partial<KeyFormData> }) => {
+      const { errorStrategy, ...rest } = data;
+      return apiClient.updateKey(keyId, rest);
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['keys'] });
       setIsEditDialogOpen(false);
@@ -194,13 +213,15 @@ export function KeysPage() {
       isPaid: false,
       tier: 'free',
       priority: 1,
+      creditLimitUSD: undefined,
+      errorStrategy: 'exponential',
       rateLimitResetMs: undefined,
-      rateLimit: {},
     });
   };
 
   const handleEdit = (key: ProviderKey) => {
     setSelectedKey(key);
+    const hasFixedCooldown = key.rateLimitResetMs != null && key.rateLimitResetMs > 0;
     setFormData({
       name: key.name,
       provider: key.provider,
@@ -208,8 +229,9 @@ export function KeysPage() {
       isPaid: key.isPaid,
       tier: key.tier || 'free',
       priority: key.originalPriority,
+      creditLimitUSD: key.creditLimitUSD ?? undefined,
+      errorStrategy: hasFixedCooldown ? 'fixed' : 'exponential',
       rateLimitResetMs: key.rateLimitResetMs || undefined,
-      rateLimit: key.rateLimit || {},
     });
     setIsEditDialogOpen(true);
   };
@@ -226,25 +248,24 @@ export function KeysPage() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    // Remove empty rate limit values before sending
-    const cleanRateLimit = Object.fromEntries(
-      Object.entries(formData.rateLimit).filter(([_, v]) => v != null && v > 0)
-    );
     if (isEditDialogOpen && selectedKey) {
       const updateData: Record<string, unknown> = {
         name: formData.name,
         isPaid: formData.isPaid,
         tier: formData.tier,
         priority: formData.priority,
-        rateLimit: cleanRateLimit,
-        rateLimitResetMs: formData.rateLimitResetMs || null,
+        creditLimitUSD: formData.creditLimitUSD ?? null,
+        rateLimitResetMs: formData.errorStrategy === 'fixed' ? (formData.rateLimitResetMs || null) : null,
       };
       if (formData.apiKey) {
         updateData.apiKey = formData.apiKey;
       }
       updateMutation.mutate({ keyId: selectedKey._id, data: updateData });
     } else {
-      createMutation.mutate({ ...formData, rateLimit: cleanRateLimit });
+      createMutation.mutate({
+        ...formData,
+        rateLimitResetMs: formData.errorStrategy === 'fixed' ? (formData.rateLimitResetMs || undefined) : undefined,
+      });
     }
   };
 
@@ -258,6 +279,200 @@ export function KeysPage() {
   const handleToggleActive = (key: ProviderKey) => {
     toggleActiveMutation.mutate({ keyId: key._id, isActive: !key.isActive });
   };
+
+  // Shared form fields component to avoid duplication between Add and Edit dialogs
+  const renderFormFields = (isEdit: boolean) => (
+    <div className="grid gap-6 py-4">
+      {/* Basic Info */}
+      <div className="grid gap-4">
+        <div className="grid gap-2">
+          <Label htmlFor={isEdit ? 'edit-name' : 'name'}>Name</Label>
+          <Input
+            id={isEdit ? 'edit-name' : 'name'}
+            value={formData.name}
+            onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+            placeholder="e.g. OpenAI Production Key 1"
+            required
+          />
+        </div>
+
+        <div className="grid grid-cols-2 gap-4">
+          <div className="grid gap-2">
+            <Label htmlFor={isEdit ? 'edit-provider' : 'provider'}>Provider</Label>
+            {isEdit ? (
+              <Input value={formData.provider} disabled className="bg-muted" />
+            ) : (
+              <Select
+                value={formData.provider}
+                onValueChange={(value) => setFormData({ ...formData, provider: value })}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {PROVIDERS.map((p) => (
+                    <SelectItem key={p} value={p}>
+                      {p.charAt(0).toUpperCase() + p.slice(1)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+          </div>
+          <div className="grid gap-2">
+            <Label htmlFor={isEdit ? 'edit-tier' : 'tier'}>Tier</Label>
+            <Select
+              value={formData.tier}
+              onValueChange={(value) => setFormData({ ...formData, tier: value })}
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="free">Free</SelectItem>
+                <SelectItem value="freemium">Freemium</SelectItem>
+                <SelectItem value="paid">Paid</SelectItem>
+                <SelectItem value="enterprise">Enterprise</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+
+        <div className="grid gap-2">
+          <Label htmlFor={isEdit ? 'edit-apiKey' : 'apiKey'}>
+            API Key {isEdit && <span className="text-muted-foreground font-normal">(leave empty to keep current)</span>}
+          </Label>
+          <Textarea
+            id={isEdit ? 'edit-apiKey' : 'apiKey'}
+            value={formData.apiKey}
+            onChange={(e) => setFormData({ ...formData, apiKey: e.target.value })}
+            placeholder={isEdit ? 'Leave empty to keep current key' : 'sk-...'}
+            required={!isEdit}
+            rows={2}
+            className="font-mono text-sm"
+          />
+        </div>
+      </div>
+
+      {/* Priority & Limits */}
+      <div className="grid grid-cols-2 gap-4">
+        <div className="grid gap-2">
+          <Label htmlFor={isEdit ? 'edit-priority' : 'priority'}>Priority</Label>
+          <Input
+            id={isEdit ? 'edit-priority' : 'priority'}
+            type="number"
+            min="1"
+            value={formData.priority}
+            onChange={(e) =>
+              setFormData({ ...formData, priority: parseInt(e.target.value) || 1 })
+            }
+          />
+          <p className="text-xs text-muted-foreground">
+            Lower number = higher priority in rotation
+          </p>
+        </div>
+        <div className="grid gap-2">
+          <Label htmlFor={isEdit ? 'edit-creditLimitUSD' : 'creditLimitUSD'}>
+            Credit Limit USD
+          </Label>
+          <div className="relative">
+            <DollarSign className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+            <Input
+              id={isEdit ? 'edit-creditLimitUSD' : 'creditLimitUSD'}
+              type="number"
+              min="0"
+              step="0.01"
+              className="pl-8"
+              value={formData.creditLimitUSD ?? ''}
+              onChange={(e) =>
+                setFormData({
+                  ...formData,
+                  creditLimitUSD: e.target.value ? parseFloat(e.target.value) : undefined,
+                })
+              }
+              placeholder="No limit"
+            />
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Optional spend cap for this key
+          </p>
+        </div>
+      </div>
+
+      {/* Error Strategy */}
+      <div className="rounded-lg border p-4 space-y-4">
+        <div className="flex items-center justify-between">
+          <div className="space-y-0.5">
+            <Label className="text-sm font-medium">Error Recovery Strategy</Label>
+            <p className="text-xs text-muted-foreground">
+              How the key recovers after a rate limit or error
+            </p>
+          </div>
+          <div className="flex items-center gap-3">
+            <span className={`text-xs font-medium ${formData.errorStrategy === 'exponential' ? 'text-foreground' : 'text-muted-foreground'}`}>
+              Exponential Backoff
+            </span>
+            <Switch
+              checked={formData.errorStrategy === 'fixed'}
+              onCheckedChange={(checked) =>
+                setFormData({
+                  ...formData,
+                  errorStrategy: checked ? 'fixed' : 'exponential',
+                  rateLimitResetMs: checked ? (formData.rateLimitResetMs || 60000) : undefined,
+                })
+              }
+            />
+            <span className={`text-xs font-medium ${formData.errorStrategy === 'fixed' ? 'text-foreground' : 'text-muted-foreground'}`}>
+              Fixed Cooldown
+            </span>
+          </div>
+        </div>
+
+        {formData.errorStrategy === 'fixed' && (
+          <div className="space-y-3 pt-2 border-t">
+            <Label className="text-xs text-muted-foreground">Cooldown Duration</Label>
+            <div className="flex flex-wrap gap-2">
+              {COOLDOWN_PRESETS.map((preset) => (
+                <Button
+                  key={preset.ms}
+                  type="button"
+                  variant={formData.rateLimitResetMs === preset.ms ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => setFormData({ ...formData, rateLimitResetMs: preset.ms })}
+                >
+                  {preset.label}
+                </Button>
+              ))}
+            </div>
+            <div className="flex items-center gap-2">
+              <Input
+                type="number"
+                min="1000"
+                step="1000"
+                value={formData.rateLimitResetMs || ''}
+                onChange={(e) =>
+                  setFormData({ ...formData, rateLimitResetMs: parseInt(e.target.value) || undefined })
+                }
+                placeholder="Custom (ms)"
+                className="w-40"
+              />
+              {formData.rateLimitResetMs && (
+                <span className="text-xs text-muted-foreground">
+                  = {formatMs(formData.rateLimitResetMs)}
+                </span>
+              )}
+            </div>
+          </div>
+        )}
+
+        {formData.errorStrategy === 'exponential' && (
+          <p className="text-xs text-muted-foreground pt-2 border-t">
+            Delays increase exponentially after each consecutive failure, then reset on success.
+          </p>
+        )}
+      </div>
+    </div>
+  );
 
   return (
     <div className="space-y-6">
@@ -289,170 +504,25 @@ export function KeysPage() {
                 Add Key
               </Button>
             </DialogTrigger>
-          <DialogContent className="max-w-2xl">
-            <form onSubmit={handleSubmit}>
-              <DialogHeader>
-                <DialogTitle>Add New API Key</DialogTitle>
-                <DialogDescription>
-                  Add a new provider API key to the rotation pool
-                </DialogDescription>
-              </DialogHeader>
-              <div className="grid gap-4 py-4">
-                <div className="grid gap-2">
-                  <Label htmlFor="name">Name</Label>
-                  <Input
-                    id="name"
-                    value={formData.name}
-                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                    placeholder="OpenAI Key 1"
-                    required
-                  />
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="grid gap-2">
-                    <Label htmlFor="provider">Provider</Label>
-                    <Select
-                      value={formData.provider}
-                      onValueChange={(value) => setFormData({ ...formData, provider: value })}
-                    >
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {PROVIDERS.map((p) => (
-                          <SelectItem key={p} value={p}>
-                            {p.charAt(0).toUpperCase() + p.slice(1)}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="grid gap-2">
-                    <Label htmlFor="priority">Priority</Label>
-                    <Input
-                      id="priority"
-                      type="number"
-                      min="1"
-                      value={formData.priority}
-                      onChange={(e) =>
-                        setFormData({ ...formData, priority: parseInt(e.target.value) })
-                      }
-                    />
-                  </div>
-                </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="apiKey">API Key</Label>
-                  <Textarea
-                    id="apiKey"
-                    value={formData.apiKey}
-                    onChange={(e) => setFormData({ ...formData, apiKey: e.target.value })}
-                    placeholder="sk-..."
-                    required
-                    rows={3}
-                  />
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="checkbox"
-                      id="isPaid"
-                      checked={formData.isPaid}
-                      onChange={(e) => setFormData({ ...formData, isPaid: e.target.checked })}
-                      className="h-4 w-4"
-                    />
-                    <Label htmlFor="isPaid">Paid (fallback after free keys)</Label>
-                  </div>
-                  <div className="grid gap-2">
-                    <Label htmlFor="tier">Tier</Label>
-                    <Select
-                      value={formData.tier}
-                      onValueChange={(value) => setFormData({ ...formData, tier: value })}
-                    >
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="free">Free</SelectItem>
-                        <SelectItem value="freemium">Freemium</SelectItem>
-                        <SelectItem value="paid">Paid</SelectItem>
-                        <SelectItem value="enterprise">Enterprise</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-                <div className="space-y-3">
-                  <Label className="text-sm font-semibold">Request Limits</Label>
-                  <div className="grid grid-cols-4 gap-3">
-                    {([['rps', '/sec'], ['rpm', '/min'], ['rph', '/hour'], ['rpd', '/day']] as const).map(([field, label]) => (
-                      <div key={field} className="grid gap-1">
-                        <Label htmlFor={`add-${field}`} className="text-xs text-muted-foreground">{label}</Label>
-                        <Input
-                          id={`add-${field}`}
-                          type="number"
-                          min="0"
-                          placeholder="--"
-                          value={formData.rateLimit[field] ?? ''}
-                          onChange={(e) =>
-                            setFormData({
-                              ...formData,
-                              rateLimit: { ...formData.rateLimit, [field]: parseInt(e.target.value) || undefined },
-                            })
-                          }
-                        />
-                      </div>
-                    ))}
-                  </div>
-                </div>
-                <div className="space-y-3">
-                  <Label className="text-sm font-semibold">Token Limits</Label>
-                  <div className="grid grid-cols-4 gap-3">
-                    {([['tps', '/sec'], ['tpm', '/min'], ['tph', '/hour'], ['tpd', '/day']] as const).map(([field, label]) => (
-                      <div key={field} className="grid gap-1">
-                        <Label htmlFor={`add-${field}`} className="text-xs text-muted-foreground">{label}</Label>
-                        <Input
-                          id={`add-${field}`}
-                          type="number"
-                          min="0"
-                          placeholder="--"
-                          value={formData.rateLimit[field] ?? ''}
-                          onChange={(e) =>
-                            setFormData({
-                              ...formData,
-                              rateLimit: { ...formData.rateLimit, [field]: parseInt(e.target.value) || undefined },
-                            })
-                          }
-                        />
-                      </div>
-                    ))}
-                  </div>
-                </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="rateLimitResetMs">Rate Limit Reset (ms)</Label>
-                  <Input
-                    id="rateLimitResetMs"
-                    type="number"
-                    min="0"
-                    value={formData.rateLimitResetMs || ''}
-                    onChange={(e) =>
-                      setFormData({ ...formData, rateLimitResetMs: parseInt(e.target.value) || undefined })
-                    }
-                    placeholder="e.g. 60000 for 1 min"
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    Fixed cooldown after rate limit errors. Leave empty for exponential backoff.
-                  </p>
-                </div>
-              </div>
-              <DialogFooter>
-                <Button type="button" variant="outline" onClick={() => setIsAddDialogOpen(false)}>
-                  Cancel
-                </Button>
-                <Button type="submit" disabled={createMutation.isPending}>
-                  {createMutation.isPending ? 'Creating...' : 'Create Key'}
-                </Button>
-              </DialogFooter>
-            </form>
-          </DialogContent>
+            <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+              <form onSubmit={handleSubmit}>
+                <DialogHeader>
+                  <DialogTitle>Add New API Key</DialogTitle>
+                  <DialogDescription>
+                    Add a new provider API key to the rotation pool
+                  </DialogDescription>
+                </DialogHeader>
+                {renderFormFields(false)}
+                <DialogFooter>
+                  <Button type="button" variant="outline" onClick={() => setIsAddDialogOpen(false)}>
+                    Cancel
+                  </Button>
+                  <Button type="submit" disabled={createMutation.isPending}>
+                    {createMutation.isPending ? 'Creating...' : 'Create Key'}
+                  </Button>
+                </DialogFooter>
+              </form>
+            </DialogContent>
           </Dialog>
         </div>
       </div>
@@ -526,8 +596,8 @@ export function KeysPage() {
                   <TableHead>Name</TableHead>
                   <TableHead>Provider</TableHead>
                   <TableHead>Key Prefix</TableHead>
+                  <TableHead>Tier</TableHead>
                   <TableHead>Priority</TableHead>
-                  <TableHead>Type</TableHead>
                   <TableHead>Success Rate</TableHead>
                   <TableHead>Requests</TableHead>
                   <TableHead>Failures</TableHead>
@@ -560,6 +630,11 @@ export function KeysPage() {
                         <code className="text-xs">{key.keyPrefix}</code>
                       </TableCell>
                       <TableCell>
+                        <Badge variant={key.tier === 'free' ? 'outline' : 'default'}>
+                          {key.tier ? key.tier.charAt(0).toUpperCase() + key.tier.slice(1) : (key.isPaid ? 'Paid' : 'Free')}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
                         <div className="flex flex-col gap-1">
                           <span className="text-sm font-medium">{key.currentPriority}</span>
                           {key.currentPriority !== key.originalPriority && (
@@ -568,11 +643,6 @@ export function KeysPage() {
                             </span>
                           )}
                         </div>
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant={key.tier === 'free' ? 'outline' : 'default'}>
-                          {key.tier ? key.tier.charAt(0).toUpperCase() + key.tier.slice(1) : (key.isPaid ? 'Paid' : 'Free')}
-                        </Badge>
                       </TableCell>
                       <TableCell>
                         <span className={successRate === '0.0' || parseFloat(successRate) < 80 ? 'text-red-500' : 'text-green-500'}>
@@ -646,144 +716,15 @@ export function KeysPage() {
 
       {/* Edit Dialog */}
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <form onSubmit={handleSubmit}>
             <DialogHeader>
               <DialogTitle>Edit API Key</DialogTitle>
               <DialogDescription>
-                Update key configuration (leave API key empty to keep current)
+                Update key configuration for <strong>{selectedKey?.name}</strong>
               </DialogDescription>
             </DialogHeader>
-            <div className="grid gap-4 py-4">
-              <div className="grid gap-2">
-                <Label htmlFor="edit-name">Name</Label>
-                <Input
-                  id="edit-name"
-                  value={formData.name}
-                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  required
-                />
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="grid gap-2">
-                  <Label>Provider</Label>
-                  <Input value={formData.provider} disabled />
-                </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="edit-priority">Priority</Label>
-                  <Input
-                    id="edit-priority"
-                    type="number"
-                    min="1"
-                    value={formData.priority}
-                    onChange={(e) =>
-                      setFormData({ ...formData, priority: parseInt(e.target.value) })
-                    }
-                  />
-                </div>
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="edit-apiKey">API Key (optional)</Label>
-                <Textarea
-                  id="edit-apiKey"
-                  value={formData.apiKey}
-                  onChange={(e) => setFormData({ ...formData, apiKey: e.target.value })}
-                  placeholder="Leave empty to keep current key"
-                  rows={3}
-                />
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="flex items-center gap-2">
-                  <input
-                    type="checkbox"
-                    id="edit-isPaid"
-                    checked={formData.isPaid}
-                    onChange={(e) => setFormData({ ...formData, isPaid: e.target.checked })}
-                    className="h-4 w-4"
-                  />
-                  <Label htmlFor="edit-isPaid">Paid (fallback after free keys)</Label>
-                </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="edit-tier">Tier</Label>
-                  <Select
-                    value={formData.tier}
-                    onValueChange={(value) => setFormData({ ...formData, tier: value })}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="free">Free</SelectItem>
-                      <SelectItem value="freemium">Freemium</SelectItem>
-                      <SelectItem value="paid">Paid</SelectItem>
-                      <SelectItem value="enterprise">Enterprise</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-              <div className="space-y-3">
-                <Label className="text-sm font-semibold">Request Limits</Label>
-                <div className="grid grid-cols-4 gap-3">
-                  {([['rps', '/sec'], ['rpm', '/min'], ['rph', '/hour'], ['rpd', '/day']] as const).map(([field, label]) => (
-                    <div key={field} className="grid gap-1">
-                      <Label htmlFor={`edit-${field}`} className="text-xs text-muted-foreground">{label}</Label>
-                      <Input
-                        id={`edit-${field}`}
-                        type="number"
-                        min="0"
-                        placeholder="--"
-                        value={formData.rateLimit[field] ?? ''}
-                        onChange={(e) =>
-                          setFormData({
-                            ...formData,
-                            rateLimit: { ...formData.rateLimit, [field]: parseInt(e.target.value) || undefined },
-                          })
-                        }
-                      />
-                    </div>
-                  ))}
-                </div>
-              </div>
-              <div className="space-y-3">
-                <Label className="text-sm font-semibold">Token Limits</Label>
-                <div className="grid grid-cols-4 gap-3">
-                  {([['tps', '/sec'], ['tpm', '/min'], ['tph', '/hour'], ['tpd', '/day']] as const).map(([field, label]) => (
-                    <div key={field} className="grid gap-1">
-                      <Label htmlFor={`edit-${field}`} className="text-xs text-muted-foreground">{label}</Label>
-                      <Input
-                        id={`edit-${field}`}
-                        type="number"
-                        min="0"
-                        placeholder="--"
-                        value={formData.rateLimit[field] ?? ''}
-                        onChange={(e) =>
-                          setFormData({
-                            ...formData,
-                            rateLimit: { ...formData.rateLimit, [field]: parseInt(e.target.value) || undefined },
-                          })
-                        }
-                      />
-                    </div>
-                  ))}
-                </div>
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="edit-rateLimitResetMs">Rate Limit Reset (ms)</Label>
-                <Input
-                  id="edit-rateLimitResetMs"
-                  type="number"
-                  min="0"
-                  value={formData.rateLimitResetMs || ''}
-                  onChange={(e) =>
-                    setFormData({ ...formData, rateLimitResetMs: parseInt(e.target.value) || undefined })
-                  }
-                  placeholder="e.g. 60000 for 1 min"
-                />
-                <p className="text-xs text-muted-foreground">
-                  Fixed cooldown after rate limit errors. Leave empty for exponential backoff.
-                </p>
-              </div>
-            </div>
+            {renderFormFields(true)}
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => setIsEditDialogOpen(false)}>
                 Cancel
@@ -822,6 +763,7 @@ export function KeysPage() {
                   placeholder="sk-..."
                   required
                   rows={3}
+                  className="font-mono text-sm"
                 />
               </div>
             </div>

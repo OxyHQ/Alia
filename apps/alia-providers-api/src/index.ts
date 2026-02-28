@@ -2,6 +2,7 @@ import 'dotenv/config';
 import express from 'express';
 import helmet from 'helmet';
 import cors from 'cors';
+import rateLimit from 'express-rate-limit';
 import mongoose from 'mongoose';
 import { OxyServices } from '@oxyhq/core';
 import { connectDB } from './lib/db';
@@ -54,26 +55,39 @@ app.use(helmet());
 app.use(cors({ origin: allowedOrigins, credentials: true }));
 app.use(express.json({ limit: '10mb' }));
 
-// Health check — reports actual service state
-app.get('/health', (_req, res) => {
-  const mongoState = mongoose.connection.readyState;
-  const isHealthy = mongoState === 1;
-  const mem = process.memoryUsage();
+// Mark as internal service
+app.use((_req, res, next) => {
+  res.setHeader('X-Service-Type', 'internal');
+  next();
+});
 
+// Rate limiting — prevent brute-force on auth endpoints
+const globalLimiter = rateLimit({
+  windowMs: 60_000,
+  max: 100,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: { message: 'Too many requests', type: 'rate_limit_error', param: null, code: 'rate_limit_exceeded' } },
+});
+app.use(globalLimiter);
+
+// Stricter rate limit for unauthenticated requests (auth failures)
+const authFailureLimiter = rateLimit({
+  windowMs: 60_000,
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  skipSuccessfulRequests: true,
+  message: { error: { message: 'Too many failed requests, try again later', type: 'rate_limit_error', param: null, code: 'rate_limit_exceeded' } },
+});
+app.use('/providers', authFailureLimiter);
+app.use('/api', authFailureLimiter);
+
+// Health check — minimal info (public endpoint, no sensitive data)
+app.get('/health', (_req, res) => {
+  const isHealthy = mongoose.connection.readyState === 1;
   res.status(isHealthy ? 200 : 503).json({
-    success: isHealthy,
-    service: 'alia-providers-api',
     status: isHealthy ? 'healthy' : 'degraded',
-    mongodb: mongoState === 1 ? 'connected'
-      : mongoState === 2 ? 'connecting'
-      : mongoState === 3 ? 'disconnecting'
-      : 'disconnected',
-    uptime: Math.round(process.uptime()),
-    memory: {
-      rss: Math.round(mem.rss / 1024 / 1024),
-      heapUsed: Math.round(mem.heapUsed / 1024 / 1024),
-      heapTotal: Math.round(mem.heapTotal / 1024 / 1024),
-    },
   });
 });
 
@@ -86,7 +100,7 @@ app.get('/health/live', (_req, res) => {
 app.get('/health/ready', (_req, res) => {
   const mongoReady = mongoose.connection.readyState === 1;
   if (!mongoReady) {
-    return res.status(503).json({ status: 'not_ready', reason: 'database_unavailable' });
+    return res.status(503).json({ status: 'not_ready' });
   }
   res.status(200).json({ status: 'ready' });
 });

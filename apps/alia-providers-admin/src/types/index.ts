@@ -22,6 +22,7 @@ export interface ProviderKey {
   isArchived: boolean;
   archivedAt?: string;
   archivedReason?: string;
+  creditLimitUSD?: number | null;
   rateLimitResetMs?: number | null;
   rateLimit: {
     rps?: number;

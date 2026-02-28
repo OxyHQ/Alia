@@ -7,6 +7,7 @@
 
 import { PROVIDER_NAMES as REGISTERED_PROVIDERS } from '../../internal/providers/lib/provider-names.js';
 import type { AliaError } from './error-codes.js';
+import { AliaErrorCode } from './error-codes.js';
 
 // Combine registered provider names with model-name patterns for sanitization
 const PROVIDER_PATTERNS: string[] = [
@@ -55,16 +56,43 @@ export function sanitizeError(error: any): any {
 }
 
 /**
+ * Map AliaErrorCode to OpenAI-compatible error type strings.
+ */
+export function getOpenAIErrorType(code: string): string {
+  switch (code) {
+    case AliaErrorCode.RATE_LIMITED:
+      return 'rate_limit_error';
+    case AliaErrorCode.CREDITS_INSUFFICIENT:
+    case AliaErrorCode.INVALID_REQUEST:
+    case AliaErrorCode.CONTEXT_TOO_LONG:
+    case AliaErrorCode.CONTENT_FILTERED:
+      return 'invalid_request_error';
+    case AliaErrorCode.AUTH_FAILED:
+      return 'authentication_error';
+    case AliaErrorCode.QUOTA_EXCEEDED:
+      return 'invalid_request_error';
+    case AliaErrorCode.PROVIDER_UNAVAILABLE:
+    case AliaErrorCode.MODEL_UNAVAILABLE:
+    case AliaErrorCode.FALLBACK_EXHAUSTED:
+    case AliaErrorCode.TIMEOUT:
+      return 'server_error';
+    default:
+      return 'server_error';
+  }
+}
+
+/**
  * Format an AliaError for API response (user-facing).
+ * Returns OpenAI-compatible error format.
  * NEVER includes provider information.
  */
 export function formatErrorResponse(error: AliaError) {
   return {
     error: {
-      code: error.code,
       message: error.userMessage,
-      retryable: error.retryable,
-      retryAfter: error.retryAfter,
+      type: getOpenAIErrorType(error.code),
+      param: null,
+      code: error.code,
     }
   };
 }
