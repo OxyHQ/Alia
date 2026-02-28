@@ -1,15 +1,20 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import {
   View,
   ScrollView,
   Pressable,
   useWindowDimensions,
+  type LayoutChangeEvent,
+  type NativeSyntheticEvent,
+  type NativeScrollEvent,
 } from "react-native";
 import { useRouter } from "expo-router";
 import * as Linking from "expo-linking";
 import Animated, {
   FadeIn,
   FadeInUp,
+  interpolate,
+  Extrapolation,
   useSharedValue,
   useAnimatedStyle,
   withRepeat,
@@ -305,36 +310,94 @@ export function LandingPage({ returnTo }: LandingPageProps) {
 
   useEffect(() => {
     const prompts = DEMO_KEYS.map((k) => t(k));
-    let timer: ReturnType<typeof setTimeout>;
+    let rafId: number;
+    let lastTime = 0;
+    let pauseUntil = performance.now() + 600;
 
-    const tick = () => {
+    const tick = (now: number) => {
       const { promptIdx, charIdx, phase } = typewriterRef.current;
       const currentPrompt = prompts[promptIdx];
 
+      if (now < pauseUntil) {
+        rafId = requestAnimationFrame(tick);
+        return;
+      }
+
       if (phase === "typing") {
-        if (charIdx < currentPrompt.length) {
-          typewriterRef.current.charIdx = charIdx + 1;
-          setTypedText(currentPrompt.slice(0, charIdx + 1));
-          timer = setTimeout(tick, 18);
-        } else {
-          typewriterRef.current.phase = "pausing";
-          timer = setTimeout(tick, 1500);
+        // Type 2 chars per frame for snappy feel
+        if (now - lastTime >= 12) {
+          lastTime = now;
+          const next = Math.min(charIdx + 2, currentPrompt.length);
+          typewriterRef.current.charIdx = next;
+          setTypedText(currentPrompt.slice(0, next));
+          if (next >= currentPrompt.length) {
+            typewriterRef.current.phase = "pausing";
+            pauseUntil = now + 1200;
+          }
         }
       } else if (phase === "pausing") {
         typewriterRef.current.phase = "clearing";
         setTypedText("");
         typewriterRef.current.charIdx = 0;
         typewriterRef.current.promptIdx = (promptIdx + 1) % prompts.length;
-        timer = setTimeout(tick, 300);
+        pauseUntil = now + 200;
       } else {
         typewriterRef.current.phase = "typing";
-        timer = setTimeout(tick, 18);
       }
+
+      rafId = requestAnimationFrame(tick);
     };
 
-    timer = setTimeout(tick, 800);
-    return () => clearTimeout(timer);
+    rafId = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(rafId);
   }, [t]);
+
+  // Scroll-driven input transition: inline → fixed bottom
+  const scrollY = useSharedValue(0);
+  const inputThreshold = useSharedValue(0);
+
+  const handleScroll = useCallback(
+    (e: NativeSyntheticEvent<NativeScrollEvent>) => {
+      scrollY.value = e.nativeEvent.contentOffset.y;
+    },
+    []
+  );
+
+  const handleInputLayout = useCallback(
+    (e: LayoutChangeEvent) => {
+      // The point where the inline input leaves the viewport
+      inputThreshold.value =
+        e.nativeEvent.layout.y + e.nativeEvent.layout.height - height + 120;
+    },
+    [height]
+  );
+
+  // Inline input: visible when not scrolled past, fades out
+  const inlineInputStyle = useAnimatedStyle(() => {
+    const opacity = interpolate(
+      scrollY.value,
+      [inputThreshold.value - 50, inputThreshold.value + 100],
+      [1, 0],
+      Extrapolation.CLAMP
+    );
+    return { opacity };
+  });
+
+  // Fixed bottom input: hidden initially, fades in as inline scrolls away
+  const fixedInputStyle = useAnimatedStyle(() => {
+    const progress = interpolate(
+      scrollY.value,
+      [inputThreshold.value, inputThreshold.value + 150],
+      [0, 1],
+      Extrapolation.CLAMP
+    );
+    return {
+      opacity: progress,
+      transform: [
+        { translateY: interpolate(progress, [0, 1], [30, 0]) },
+      ],
+    };
+  });
 
   if (isLoading) {
     return (
@@ -353,6 +416,8 @@ export function LandingPage({ returnTo }: LandingPageProps) {
       <ScrollView
         className="flex-1 bg-background"
         showsVerticalScrollIndicator={false}
+        onScroll={handleScroll}
+        scrollEventThrottle={16}
       >
         {/* ==================== HERO (full-bleed) ==================== */}
         <View
@@ -426,6 +491,15 @@ export function LandingPage({ returnTo }: LandingPageProps) {
             >
               {t("landing.tagline")}
             </Text>
+
+            {/* Inline demo prompt input — fades out on scroll */}
+            <Animated.View
+              style={[{ width: "100%" }, inlineInputStyle]}
+              className="mb-8"
+              onLayout={handleInputLayout}
+            >
+              <DemoPromptInput typedText={typedText} />
+            </Animated.View>
 
             <OxySignInButton />
 
@@ -523,16 +597,18 @@ export function LandingPage({ returnTo }: LandingPageProps) {
         </View>
       </ScrollView>
 
-      {/* Fixed bottom demo input — always visible */}
+      {/* Fixed bottom demo input — fades in as inline scrolls away */}
       <Animated.View
-        entering={FadeInUp.delay(600).duration(500)}
         pointerEvents="box-none"
-        style={{
-          position: "absolute",
-          bottom: 0,
-          left: 0,
-          right: 0,
-        }}
+        style={[
+          {
+            position: "absolute",
+            bottom: 0,
+            left: 0,
+            right: 0,
+          },
+          fixedInputStyle,
+        ]}
       >
         <LinearGradient
           colors={["transparent", colors.background]}
@@ -545,7 +621,7 @@ export function LandingPage({ returnTo }: LandingPageProps) {
           pointerEvents="box-none"
         >
           <View
-            style={{ maxWidth: 620, alignSelf: "center", width: "100%" }}
+            style={{ maxWidth: 672, alignSelf: "center", width: "100%" }}
             pointerEvents="box-none"
           >
             <DemoPromptInput typedText={typedText} />
