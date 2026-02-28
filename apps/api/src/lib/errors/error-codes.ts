@@ -147,9 +147,8 @@ export function isAliaError(err: unknown): err is AliaError {
  */
 export function toSSEError(error: AliaError): SSEError {
   return {
-    code: error.code,
     message: error.userMessage,
-    retryable: error.retryable,
-    retryAfter: error.retryAfter,
+    type: error.code,
+    code: error.code,
   };
 }

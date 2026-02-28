@@ -18,6 +18,7 @@ const pageTitles: Record<string, string> = {
   '/keys': 'API Keys',
   '/models': 'Models',
   '/monitoring': 'Monitoring',
+  '/logs': 'Logs',
 };
 
 export function DashboardLayout() {

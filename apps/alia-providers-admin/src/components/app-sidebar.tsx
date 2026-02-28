@@ -9,6 +9,7 @@ import {
   Receipt,
   Server,
   Sparkles,
+  ScrollText,
 } from 'lucide-react';
 import { NavMain } from '@/components/nav-main';
 import { NavUser } from '@/components/nav-user';
@@ -34,6 +35,7 @@ const navItems = [
   { title: 'Billing', url: '/billing', icon: Receipt },
   { title: 'Monitoring', url: '/monitoring', icon: Activity },
   { title: 'Usage', url: '/usage', icon: BarChart3 },
+  { title: 'Logs', url: '/logs', icon: ScrollText },
 ];
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {

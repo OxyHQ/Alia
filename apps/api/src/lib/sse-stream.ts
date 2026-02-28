@@ -49,10 +49,9 @@ export interface SSECost {
 }
 
 export interface SSEError {
-  code: string;
   message: string;            // User-safe message (no provider names!)
-  retryable: boolean;
-  retryAfter?: number;
+  type: string;               // OpenAI error type
+  code: string;
 }
 
 // ============== SSE STREAM CLASS ==============

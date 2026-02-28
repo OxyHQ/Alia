@@ -87,7 +87,14 @@ router.get('/', async (req, res) => {
     });
   } catch (e: any) {
     log.v1.error({ err: e }, 'Error');
-    res.status(500).json({ error: e.message });
+    res.status(500).json({
+      error: {
+        message: 'An internal error occurred while listing models.',
+        type: 'server_error',
+        param: null,
+        code: null,
+      }
+    });
   }
 });
 
@@ -100,14 +107,28 @@ router.get('/:modelId', async (req, res) => {
     const model = await getAliaModel(req.params.modelId);
 
     if (!model) {
-      res.status(404).json({ error: 'Model not found' });
+      res.status(404).json({
+        error: {
+          message: `The model '${req.params.modelId}' does not exist.`,
+          type: 'invalid_request_error',
+          param: 'model',
+          code: 'model_not_found',
+        }
+      });
       return;
     }
 
     res.json(serializeModel({ ...model, isAvailable: true, isLegacy: false }));
   } catch (e: any) {
     log.v1.error({ err: e }, 'Error');
-    res.status(500).json({ error: e.message });
+    res.status(500).json({
+      error: {
+        message: 'An internal error occurred while retrieving the model.',
+        type: 'server_error',
+        param: null,
+        code: null,
+      }
+    });
   }
 });
 

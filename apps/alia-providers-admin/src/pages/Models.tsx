@@ -49,6 +49,7 @@ import {
   X,
 } from 'lucide-react';
 import type { ModelConfig, AliaModel } from '@/types';
+import { FallbackChain, FallbackChainEditable } from '@/components/models/FallbackChain';
 
 export function ModelsPage() {
   const [activeTab, setActiveTab] = useState('provider-models');
@@ -814,6 +815,20 @@ export function ModelsPage() {
                         Add Mapping
                       </Button>
                     </div>
+
+                    {/* Visual fallback chain preview */}
+                    {aliaModelForm.providerMappings.length > 0 && (
+                      <div className="rounded-lg border bg-muted/30 p-3">
+                        <p className="text-xs text-muted-foreground mb-2">Fallback chain preview (drag to reorder)</p>
+                        <FallbackChainEditable
+                          mappings={aliaModelForm.providerMappings}
+                          onMappingsChange={(newMappings) =>
+                            setAliaModelForm({ ...aliaModelForm, providerMappings: newMappings })
+                          }
+                        />
+                      </div>
+                    )}
+
                     {aliaModelForm.providerMappings.length === 0 ? (
                       <p className="text-sm text-muted-foreground text-center py-2">
                         No provider mappings yet. Add mappings to route requests to provider models.
@@ -905,99 +920,87 @@ export function ModelsPage() {
             </Dialog>
           </div>
 
-          <Card>
-            <CardHeader>
-              <CardTitle>Alia Virtual Models ({aliaModels.length})</CardTitle>
-              <CardDescription>
-                Virtual Alia models with provider mappings and priorities
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              {aliaModelsLoading ? (
+          {aliaModelsLoading ? (
+            <Card>
+              <CardContent>
                 <div className="text-center py-8 text-muted-foreground">Loading...</div>
-              ) : aliaModels.length === 0 ? (
+              </CardContent>
+            </Card>
+          ) : aliaModels.length === 0 ? (
+            <Card>
+              <CardContent>
                 <div className="text-center py-8 text-muted-foreground">
                   No Alia models configured. Add your first virtual model to get started.
                 </div>
-              ) : (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Model ID</TableHead>
-                      <TableHead>Display Name</TableHead>
-                      <TableHead>Tier</TableHead>
-                      <TableHead>Credit Multiplier</TableHead>
-                      <TableHead>Provider Mappings</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead>Actions</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {aliaModels.map((model) => (
-                      <TableRow key={model._id}>
-                        <TableCell>
-                          <code className="text-xs">{model.aliasModelId}</code>
-                        </TableCell>
-                        <TableCell className="font-medium">{model.displayName}</TableCell>
-                        <TableCell>
-                          <Badge variant="outline">{model.tier}</Badge>
-                        </TableCell>
-                        <TableCell>{model.creditMultiplier}x</TableCell>
-                        <TableCell>
-                          <div className="flex flex-wrap gap-1">
-                            {model.providerMappings.length === 0 ? (
-                              <span className="text-xs text-muted-foreground">None</span>
-                            ) : (
-                              model.providerMappings
-                                .sort((a, b) => a.priority - b.priority)
-                                .map((m, i) => (
-                                  <Badge
-                                    key={i}
-                                    variant={m.isActive ? 'default' : 'secondary'}
-                                    className="text-xs"
-                                  >
-                                    {m.provider}/{m.modelId} (P{m.priority})
-                                  </Badge>
-                                ))
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="space-y-4">
+              {aliaModels.map((model) => (
+                <Card key={model._id}>
+                  <CardHeader className="pb-3">
+                    <div className="flex items-start justify-between">
+                      <div className="flex items-center gap-3">
+                        <div>
+                          <CardTitle className="text-base flex items-center gap-2">
+                            <code className="text-sm font-mono">{model.aliasModelId}</code>
+                            <Badge variant={model.isActive ? 'default' : 'secondary'} className="text-xs">
+                              {model.isActive ? 'Active' : 'Inactive'}
+                            </Badge>
+                            {model.isFreeTier && (
+                              <Badge variant="outline" className="text-xs">
+                                Free
+                              </Badge>
                             )}
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant={model.isActive ? 'default' : 'secondary'}>
-                            {model.isActive ? 'Active' : 'Inactive'}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button variant="ghost" size="sm">
-                                <MoreVertical className="h-4 w-4" />
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
-                              <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                              <DropdownMenuItem onClick={() => handleEditAliaModel(model)}>
-                                <Edit className="mr-2 h-4 w-4" />
-                                Edit
-                              </DropdownMenuItem>
-                              <DropdownMenuSeparator />
-                              <DropdownMenuItem
-                                onClick={() => handleDeleteAliaModel(model)}
-                                className="text-red-600"
-                              >
-                                <Trash2 className="mr-2 h-4 w-4" />
-                                Delete
-                              </DropdownMenuItem>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              )}
-            </CardContent>
-          </Card>
+                          </CardTitle>
+                          <CardDescription className="mt-1">
+                            {model.displayName}
+                            {model.description && (
+                              <span className="ml-2 text-xs">— {model.description}</span>
+                            )}
+                          </CardDescription>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Badge variant="outline">{model.tier}</Badge>
+                        <Badge variant="outline" className="font-mono text-xs">
+                          {model.creditMultiplier}x credits
+                        </Badge>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="sm">
+                              <MoreVertical className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                            <DropdownMenuItem onClick={() => handleEditAliaModel(model)}>
+                              <Edit className="mr-2 h-4 w-4" />
+                              Edit
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem
+                              onClick={() => handleDeleteAliaModel(model)}
+                              className="text-red-600"
+                            >
+                              <Trash2 className="mr-2 h-4 w-4" />
+                              Delete
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </div>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="pt-0">
+                    <div className="text-xs font-medium text-muted-foreground mb-2">
+                      Fallback Chain ({model.providerMappings.length} provider{model.providerMappings.length !== 1 ? 's' : ''})
+                    </div>
+                    <FallbackChain model={model} editable />
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )}
         </TabsContent>
       </Tabs>
 
@@ -1367,6 +1370,20 @@ export function ModelsPage() {
                   Add Mapping
                 </Button>
               </div>
+
+              {/* Visual fallback chain preview */}
+              {aliaModelForm.providerMappings.length > 0 && (
+                <div className="rounded-lg border bg-muted/30 p-3">
+                  <p className="text-xs text-muted-foreground mb-2">Fallback chain preview (drag to reorder, toggle to enable/disable)</p>
+                  <FallbackChainEditable
+                    mappings={aliaModelForm.providerMappings}
+                    onMappingsChange={(newMappings) =>
+                      setAliaModelForm({ ...aliaModelForm, providerMappings: newMappings })
+                    }
+                  />
+                </div>
+              )}
+
               {aliaModelForm.providerMappings.length === 0 ? (
                 <p className="text-sm text-muted-foreground text-center py-2">
                   No provider mappings yet.
