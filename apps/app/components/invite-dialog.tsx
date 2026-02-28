@@ -1,6 +1,6 @@
 import React from "react";
-import { View, Pressable, ScrollView, Linking, Share } from "react-native";
-import { HeartHandshake, Copy, Send } from "lucide-react-native";
+import { View, Pressable, ScrollView, Linking, Share, TextInput, ActivityIndicator } from "react-native";
+import { HeartHandshake, Copy, Send, Check, AlertCircle } from "lucide-react-native";
 import Fontisto from "@expo/vector-icons/Fontisto";
 import * as Clipboard from "expo-clipboard";
 import { Text } from "@/components/ui/text";
@@ -12,7 +12,7 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog";
-import { useReferralInfo } from "@/lib/hooks/use-referrals";
+import { useReferralInfo, useRedeemInviteCode, useReferralHistory } from "@/lib/hooks/use-referrals";
 
 const SHARE_TEXT = "Check out Alia — sign up with my link and we both get 500 credits!";
 
@@ -41,8 +41,36 @@ const SocialButton = React.memo(function SocialButton({
 export function InviteDialog({ open, onOpenChange }: InviteDialogProps) {
   const { data: referralInfo } = useReferralInfo();
   const [copied, setCopied] = React.useState(false);
+  const [activeSection, setActiveSection] = React.useState<'redeem' | 'history' | null>(null);
+  const [redeemCode, setRedeemCode] = React.useState('');
+  const [redeemResult, setRedeemResult] = React.useState<{ success: boolean; message: string } | null>(null);
+  const redeemMutation = useRedeemInviteCode();
+  const { data: historyData, isLoading: historyLoading } = useReferralHistory();
 
   const inviteUrl = referralInfo?.inviteUrl || "";
+
+  // Reset state when dialog closes
+  React.useEffect(() => {
+    if (!open) {
+      setActiveSection(null);
+      setRedeemCode('');
+      setRedeemResult(null);
+    }
+  }, [open]);
+
+  const handleRedeem = React.useCallback(() => {
+    if (!redeemCode.trim()) return;
+    setRedeemResult(null);
+    redeemMutation.mutate(redeemCode.trim(), {
+      onSuccess: (data) => {
+        setRedeemResult({ success: true, message: `You got ${data.creditsAwarded} credits!` });
+        setRedeemCode('');
+      },
+      onError: (err: any) => {
+        setRedeemResult({ success: false, message: err?.response?.data?.error || 'Invalid invite code' });
+      },
+    });
+  }, [redeemCode, redeemMutation]);
 
   const handleCopy = React.useCallback(async () => {
     if (!inviteUrl) return;
@@ -185,17 +213,98 @@ export function InviteDialog({ open, onOpenChange }: InviteDialogProps) {
           </View>
 
           {/* Footer Links */}
-          <View className="flex-row items-center justify-center gap-4">
-            <Pressable className="active:opacity-70">
-              <Text className="text-sm text-muted-foreground">Redeem</Text>
+          <View className="flex-row items-center justify-center gap-4 mb-4">
+            <Pressable
+              className="active:opacity-70"
+              onPress={() => setActiveSection(activeSection === 'redeem' ? null : 'redeem')}
+            >
+              <Text className={`text-sm ${activeSection === 'redeem' ? 'text-primary font-medium' : 'text-muted-foreground'}`}>
+                Redeem
+              </Text>
             </Pressable>
             <View className="h-4 w-px bg-border" />
-            <Pressable className="active:opacity-70">
-              <Text className="text-sm text-muted-foreground">
+            <Pressable
+              className="active:opacity-70"
+              onPress={() => setActiveSection(activeSection === 'history' ? null : 'history')}
+            >
+              <Text className={`text-sm ${activeSection === 'history' ? 'text-primary font-medium' : 'text-muted-foreground'}`}>
                 Invitation history
               </Text>
             </Pressable>
           </View>
+
+          {/* Redeem Section */}
+          {activeSection === 'redeem' && (
+            <View className="gap-3 rounded-xl border border-border bg-muted/30 p-4">
+              <Text className="text-sm font-medium text-foreground">Redeem invite code</Text>
+              <View className="flex-row items-center gap-2">
+                <TextInput
+                  value={redeemCode}
+                  onChangeText={setRedeemCode}
+                  placeholder="Enter invite code"
+                  placeholderTextColor="#9ca3af"
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  className="flex-1 h-11 rounded-full border border-input bg-background px-4 text-sm text-foreground"
+                />
+                <Button
+                  onPress={handleRedeem}
+                  disabled={redeemMutation.isPending || !redeemCode.trim()}
+                  className="h-11 rounded-full px-5"
+                >
+                  <Text className="text-sm font-medium text-primary-foreground">
+                    {redeemMutation.isPending ? 'Redeeming...' : 'Redeem'}
+                  </Text>
+                </Button>
+              </View>
+              {redeemResult && (
+                <View className={`flex-row items-center gap-2 rounded-lg p-3 ${redeemResult.success ? 'bg-green-500/10' : 'bg-destructive/10'}`}>
+                  {redeemResult.success ? (
+                    <Check size={16} className="text-green-600" />
+                  ) : (
+                    <AlertCircle size={16} className="text-destructive" />
+                  )}
+                  <Text className={`text-sm ${redeemResult.success ? 'text-green-600' : 'text-destructive'}`}>
+                    {redeemResult.message}
+                  </Text>
+                </View>
+              )}
+            </View>
+          )}
+
+          {/* History Section */}
+          {activeSection === 'history' && (
+            <View className="gap-3 rounded-xl border border-border bg-muted/30 p-4">
+              <Text className="text-sm font-medium text-foreground">Invitation history</Text>
+              {historyLoading ? (
+                <View className="items-center py-4">
+                  <ActivityIndicator size="small" />
+                </View>
+              ) : !historyData?.referrals?.length ? (
+                <Text className="text-sm text-muted-foreground text-center py-4">
+                  No referrals yet
+                </Text>
+              ) : (
+                <View className="gap-2">
+                  {historyData.referrals.map((referral, index) => (
+                    <View key={index} className="flex-row items-center justify-between rounded-lg bg-background/50 p-3">
+                      <View className="flex-1">
+                        <Text className="text-sm text-foreground" numberOfLines={1}>
+                          {referral.email || 'User'}
+                        </Text>
+                        <Text className="text-xs text-muted-foreground">
+                          {new Date(referral.creditedAt).toLocaleDateString()}
+                        </Text>
+                      </View>
+                      <Text className="text-sm font-medium text-primary">
+                        +{referral.creditsAwarded}
+                      </Text>
+                    </View>
+                  ))}
+                </View>
+              )}
+            </View>
+          )}
         </ScrollView>
       </DialogContent>
     </Dialog>
