@@ -80,7 +80,6 @@ export async function saveConversation(params: SaveConversationParams): Promise<
       $set: {
         lastMessage: stripTitleTags(assistantResponse).slice(0, 100),
         messages: allMessages,
-        updatedAt: new Date(),
       },
       $setOnInsert: {
         oxyUserId: userId,
@@ -88,7 +87,6 @@ export async function saveConversation(params: SaveConversationParams): Promise<
         title,
         source: source || 'app',
         ...(agentId && { agentId }),
-        createdAt: new Date(),
       },
     },
     { upsert: true, returnDocument: 'after' },

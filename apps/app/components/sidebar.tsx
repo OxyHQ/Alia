@@ -107,9 +107,10 @@ const ChatSidebar = React.memo(function ChatSidebar() {
   } = useConversations();
   const deleteConversationMutation = useDeleteConversation();
 
-  // Flatten all pages into a single array
+  // Flatten all pages into a single array, sorted by most recently updated
   const allConversations = React.useMemo(() => {
-    return data?.pages.flatMap(page => page.conversations) || [];
+    const all = data?.pages.flatMap(page => page.conversations) || [];
+    return all.sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime());
   }, [data]);
   const { user, isAuthenticated, logout, showBottomSheet } = useOxy();
   const setShortcutsDialogOpen = useUIStore((s) => s.setShortcutsDialogOpen);

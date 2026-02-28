@@ -240,8 +240,7 @@ export function useSaveConversation() {
         const newPages = [...oldData.pages];
         const conversationMetadata = { ...data, messages: [] };
 
-        // Check if conversation exists in any page
-        let found = false;
+        // Remove conversation from its current position (if it exists in any page)
         for (let i = 0; i < newPages.length; i++) {
           const existingIndex = newPages[i].conversations.findIndex((c: Conversation) => c.id === data.id);
           if (existingIndex >= 0) {
@@ -249,17 +248,15 @@ export function useSaveConversation() {
               ...newPages[i],
               conversations: [
                 ...newPages[i].conversations.slice(0, existingIndex),
-                conversationMetadata,
                 ...newPages[i].conversations.slice(existingIndex + 1),
               ],
             };
-            found = true;
             break;
           }
         }
 
-        // If not found, add to first page
-        if (!found && newPages[0]) {
+        // Always add to top of first page (most recently updated first)
+        if (newPages[0]) {
           newPages[0] = {
             ...newPages[0],
             conversations: [conversationMetadata, ...newPages[0].conversations],

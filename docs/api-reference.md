@@ -923,9 +923,9 @@ GET /organizations/:id
 
 Returns organization info with members list. Requires membership.
 
-#### Invite Member
+#### Create Invite Link
 
-Send an email invitation to join an organization. Requires `owner` or `admin` role.
+Generate a shareable invite link. Requires `owner` or `admin` role.
 
 ```
 POST /organizations/:id/members
@@ -934,7 +934,6 @@ POST /organizations/:id/members
 **Request Body:**
 ```json
 {
-  "email": "colleague@example.com",
   "role": "member"
 }
 ```
@@ -944,16 +943,41 @@ POST /organizations/:id/members
 {
   "invite": {
     "_id": "invite_123",
-    "email": "colleague@example.com",
     "role": "member",
     "status": "pending",
-    "expiresAt": "2026-03-07T00:00:00.000Z"
-  },
-  "emailSent": true
+    "token": "abc123...",
+    "inviteUrl": "https://alia.onl/org-invite/abc123...",
+    "expiresAt": "2026-03-07T00:00:00.000Z",
+    "createdAt": "2026-02-28T00:00:00.000Z"
+  }
 }
 ```
 
-Invitations expire after 7 days. The recipient receives an email with an accept link (via Resend). Set `RESEND_API_KEY` to enable email delivery; without it, invitations are created but emails are logged to console.
+Share the `inviteUrl` via copy-to-clipboard or native Share sheet. Links expire after 7 days.
+
+#### Get Invite Info
+
+Preview an invitation before accepting. Shows organization name and role.
+
+```
+GET /organizations/invites/:token/info
+```
+
+**Response:**
+```json
+{
+  "invite": {
+    "role": "member",
+    "expiresAt": "2026-03-07T00:00:00.000Z",
+    "organization": {
+      "_id": "org_123",
+      "name": "Acme Corp",
+      "slug": "acme-corp",
+      "image": "https://..."
+    }
+  }
+}
+```
 
 #### Accept Invitation
 
@@ -968,14 +992,6 @@ Adds the authenticated user as a member with the invited role.
 ```
 POST /organizations/invites/:token/decline
 ```
-
-#### Get My Pending Invitations
-
-```
-GET /organizations/invites/mine
-```
-
-Returns all pending invitations for the authenticated user's email across all organizations.
 
 #### List Org Invitations (Admin)
 

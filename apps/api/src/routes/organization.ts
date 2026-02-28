@@ -1,14 +1,13 @@
 import crypto from 'crypto';
 import { Router, Request, Response } from 'express';
 import multer from 'multer';
-import { authenticateToken, oxyClient } from '../middleware/auth';
+import { authenticateToken } from '../middleware/auth';
 import { Organization } from '../models/organization';
 import { OrganizationMember } from '../models/organization-member';
 import { OrganizationAgent } from '../models/organization-agent';
 import { OrganizationInvite } from '../models/organization-invite';
 import { Agent } from '../models/agent';
 import { uploadToS3, deleteFromS3 } from '../lib/s3';
-import { sendEmail, buildInviteEmailHtml } from '../lib/email';
 import { z } from 'zod';
 import { log } from '../lib/logger.js';
 
@@ -30,36 +29,33 @@ router.use(authenticateToken);
 // INVITE ROUTES (must be before /:id to avoid param conflicts)
 // ===========================================
 
-// Get pending invitations for the current user (across all orgs)
-router.get('/invites/mine', async (req: Request, res: Response) => {
+const BASE_URL = process.env.WEB_URL || 'https://alia.onl';
+
+// Get invite info by token (for accept page preview)
+router.get('/invites/:token/info', async (req: Request, res: Response) => {
   try {
-    const userId = req.user!.id;
+    const { token } = req.params;
 
-    // Get user's email from Oxy
-    let userEmail: string | undefined;
-    try {
-      const oxyUser = await oxyClient.getUserById(userId);
-      userEmail = oxyUser?.email;
-    } catch {
-      return res.status(500).json({ error: 'Could not determine your email address' });
-    }
-
-    if (!userEmail) {
-      return res.json({ invites: [] });
-    }
-
-    const invites = await OrganizationInvite.find({
-      email: userEmail.toLowerCase(),
+    const invite = await OrganizationInvite.findOne({
+      token,
       status: 'pending',
       expiresAt: { $gt: new Date() },
-    })
-      .populate('organizationId', 'name slug image')
-      .sort({ createdAt: -1 });
+    }).populate('organizationId', 'name slug image');
 
-    res.json({ invites });
+    if (!invite) {
+      return res.status(404).json({ error: 'Invitation not found, expired, or already used' });
+    }
+
+    res.json({
+      invite: {
+        role: invite.role,
+        expiresAt: invite.expiresAt,
+        organization: invite.organizationId,
+      },
+    });
   } catch (error) {
-    log.organization.error({ err: error }, 'Error fetching user invitations');
-    res.status(500).json({ error: 'Failed to fetch invitations' });
+    log.organization.error({ err: error }, 'Error fetching invite info');
+    res.status(500).json({ error: 'Failed to fetch invite info' });
   }
 });
 
@@ -447,9 +443,8 @@ router.get('/:id/members', async (req: Request, res: Response) => {
   }
 });
 
-// Invite member to organization
+// Create invite link for organization
 const inviteMemberSchema = z.object({
-  email: z.string().email(),
   role: z.enum(['admin', 'member']),
 });
 
@@ -471,7 +466,7 @@ router.post('/:id/members', async (req: Request, res: Response) => {
       return res.status(403).json({ error: 'Insufficient permissions' });
     }
 
-    const { email, role } = inviteMemberSchema.parse(req.body);
+    const { role } = inviteMemberSchema.parse(req.body);
 
     // Verify the organization exists
     const organization = await Organization.findById(id);
@@ -479,56 +474,12 @@ router.post('/:id/members', async (req: Request, res: Response) => {
       return res.status(404).json({ error: 'Organization not found' });
     }
 
-    // Check if user with this email is already a member (search Oxy profiles)
-    try {
-      const searchResult = await oxyClient.searchProfiles(email);
-      const profiles = (searchResult as any)?.users || (searchResult as any)?.profiles || [];
-      const matchedUser = profiles.find((p: any) =>
-        p.email?.toLowerCase() === email.toLowerCase()
-      );
-
-      if (matchedUser) {
-        const existingMember = await OrganizationMember.findOne({
-          organizationId: id,
-          oxyUserId: matchedUser._id || matchedUser.id,
-        });
-
-        if (existingMember) {
-          return res.status(400).json({ error: 'User is already a member of this organization' });
-        }
-      }
-    } catch {
-      // Oxy profile search is best-effort; continue with the invite
-    }
-
-    // Check for existing pending invite for this email + org
-    const existingInvite = await OrganizationInvite.findOne({
-      organizationId: id,
-      email: email.toLowerCase(),
-      status: 'pending',
-      expiresAt: { $gt: new Date() },
-    });
-
-    if (existingInvite) {
-      return res.status(400).json({
-        error: 'A pending invitation already exists for this email',
-        invite: {
-          _id: existingInvite._id,
-          email: existingInvite.email,
-          role: existingInvite.role,
-          expiresAt: existingInvite.expiresAt,
-        },
-      });
-    }
-
     // Generate secure invite token
     const token = crypto.randomBytes(32).toString('base64url');
     const expiresAt = new Date(Date.now() + INVITE_EXPIRY_DAYS * 24 * 60 * 60 * 1000);
 
-    // Create the invite record
     const invite = await OrganizationInvite.create({
       organizationId: id,
-      email: email.toLowerCase(),
       role,
       token,
       invitedBy: userId,
@@ -536,54 +487,30 @@ router.post('/:id/members', async (req: Request, res: Response) => {
       expiresAt,
     });
 
-    // Get inviter name for the email
-    let inviterName = 'A team member';
-    try {
-      const inviterUser = await oxyClient.getUserById(userId);
-      inviterName = inviterUser?.name?.full || inviterUser?.name?.first || inviterUser?.username || 'A team member';
-    } catch {
-      // Use default name
-    }
-
-    // Build accept URL
-    const appUrl = process.env.APP_URL || process.env.WEB_URL || 'http://localhost:3000';
-    const acceptUrl = `${appUrl}/invite/${token}`;
-
-    // Send the invitation email
-    const emailSent = await sendEmail({
-      to: email,
-      subject: `You've been invited to join ${organization.name} on Alia`,
-      html: buildInviteEmailHtml({
-        organizationName: organization.name,
-        inviterName,
-        role,
-        acceptUrl,
-      }),
-      text: `${inviterName} has invited you to join ${organization.name} as a ${role} on Alia. Accept the invitation: ${acceptUrl}`,
-    });
+    const inviteUrl = `${BASE_URL}/org-invite/${token}`;
 
     log.organization.info(
-      { organizationId: id, email, role, emailSent, inviteId: invite._id },
-      'Organization invitation created'
+      { organizationId: id, role, inviteId: invite._id },
+      'Organization invite link created'
     );
 
     res.status(201).json({
       invite: {
         _id: invite._id,
-        email: invite.email,
         role: invite.role,
         status: invite.status,
+        token: invite.token,
+        inviteUrl,
         expiresAt: invite.expiresAt,
         createdAt: invite.createdAt,
       },
-      emailSent,
     });
   } catch (error) {
     if (error instanceof z.ZodError) {
       return res.status(400).json({ error: 'Invalid input', details: error.errors });
     }
-    log.organization.error({ err: error }, 'Error inviting member');
-    res.status(500).json({ error: 'Failed to invite member' });
+    log.organization.error({ err: error }, 'Error creating invite link');
+    res.status(500).json({ error: 'Failed to create invite link' });
   }
 });
 

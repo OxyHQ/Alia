@@ -86,12 +86,10 @@ const ConversationSchema = new Schema<IConversation>({
     type: Schema.Types.ObjectId,
     ref: 'User',
     required: true,
-    index: true
   },
   conversationId: {
     type: String,
     required: true,
-    index: true
   },
   title: { type: String, required: true, default: 'New chat' },
   isManualTitle: { type: Boolean, default: false },
@@ -118,6 +116,8 @@ const ConversationSchema = new Schema<IConversation>({
 
 // Compound index for userId + conversationId (unique per user)
 ConversationSchema.index({ oxyUserId: 1, conversationId: 1 }, { unique: true });
+// Covers GET /conversations sorted pagination: find({ oxyUserId }).sort({ updatedAt: -1 })
+ConversationSchema.index({ oxyUserId: 1, updatedAt: -1 });
 ConversationSchema.index({ oxyUserId: 1, agentId: 1 });
 
 // Evitar recompilación del modelo en hot-reload
