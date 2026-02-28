@@ -1,7 +1,6 @@
 import React from 'react';
 import { View, Pressable, ScrollView, Platform } from 'react-native';
 import { Text } from '@/components/ui/text';
-import * as Sentry from '@sentry/react-native';
 
 interface ErrorBoundaryProps {
   children: React.ReactNode;
@@ -33,13 +32,19 @@ export class AppErrorBoundary extends React.Component<
   }
 
   componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
-    Sentry.captureException(error, {
-      contexts: {
-        react: {
-          componentStack: errorInfo.componentStack ?? undefined,
+    // If Sentry is configured, report the error
+    try {
+      const Sentry = require('@sentry/react-native');
+      Sentry.captureException(error, {
+        contexts: {
+          react: {
+            componentStack: errorInfo.componentStack ?? undefined,
+          },
         },
-      },
-    });
+      });
+    } catch {
+      // Sentry not installed — skip
+    }
 
     if (__DEV__) {
       console.error('AppErrorBoundary caught an error:', error, errorInfo);

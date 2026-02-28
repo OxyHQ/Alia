@@ -1,5 +1,4 @@
 import FontAwesome from '@expo/vector-icons/FontAwesome';
-import * as Sentry from '@sentry/react-native';
 import { useFonts } from 'expo-font';
 import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
@@ -18,25 +17,6 @@ import { setTokenGetter } from '@/lib/api/client';
 import 'react-native-reanimated';
 import '../global.css';
 import '@/lib/i18n';
-
-const SENTRY_DSN = process.env.EXPO_PUBLIC_SENTRY_DSN;
-
-Sentry.init({
-  dsn: SENTRY_DSN,
-  // Disable Sentry in development unless a DSN is explicitly provided
-  enabled: !!SENTRY_DSN,
-  // Set tracesSampleRate to 1.0 to capture 100% of transactions for tracing.
-  // Adjust in production to a lower value to reduce volume.
-  tracesSampleRate: __DEV__ ? 1.0 : 0.2,
-  // Capture 100% of error events
-  sampleRate: 1.0,
-  // Only send replays on error in production
-  _experiments: {
-    replaysSessionSampleRate: 0,
-    replaysOnErrorSampleRate: __DEV__ ? 0 : 1.0,
-  },
-  debug: __DEV__,
-});
 
 export { ErrorBoundary } from 'expo-router';
 
@@ -126,4 +106,4 @@ function RootLayout() {
   );
 }
 
-export default Sentry.wrap(RootLayout);
+export default RootLayout;

@@ -759,7 +759,7 @@ GET /notifications?status={status}&type={type}&limit={limit}&offset={offset}
       "body": "You have 3 open PRs...",
       "status": "sent",
       "priority": "normal",
-      "channels": ["in_app", "telegram"],
+      "channels": ["in_app", "push", "telegram"],
       "triggerId": "trigger_123",
       "createdAt": "2026-02-25T13:00:05.000Z"
     }
@@ -808,6 +808,60 @@ POST /notifications/read-all
 PATCH /notifications/:id/dismiss
 ```
 
+#### Register Push Token
+
+Register an Expo push token for the current device. Tokens are used to deliver push notifications to the user's mobile devices.
+
+```
+POST /notifications/push-token
+```
+
+**Request Body:**
+```json
+{
+  "token": "ExponentPushToken[xxxxxxxxxxxxxxxxxxxxxx]",
+  "deviceId": "optional-device-identifier",
+  "platform": "ios"
+}
+```
+
+**Parameters:**
+- `token` (required): A valid Expo push token (format: `ExponentPushToken[...]`)
+- `deviceId` (optional): Device identifier for tracking
+- `platform` (optional): `ios`, `android`, or `web`
+
+**Response:**
+```json
+{
+  "success": true,
+  "id": "push_token_object_id"
+}
+```
+
+If the token already exists for this user, it is reactivated.
+
+#### Deactivate Push Token
+
+Soft-deactivate a push token (e.g., on logout or app uninstall).
+
+```
+DELETE /notifications/push-token
+```
+
+**Request Body:**
+```json
+{
+  "token": "ExponentPushToken[xxxxxxxxxxxxxxxxxxxxxx]"
+}
+```
+
+**Response:**
+```json
+{
+  "success": true
+}
+```
+
 #### Real-time Notifications (Socket.IO)
 
 Subscribe to live notification events:
@@ -820,6 +874,154 @@ socket.on('notification', (notification) => {
   // { id, type, title, body, priority, data, createdAt }
 });
 ```
+
+### 9. Organizations
+
+Manage organizations, members, invitations, and organization agents.
+
+#### List User's Organizations
+
+```
+GET /organizations
+```
+
+**Response:**
+```json
+{
+  "organizations": [
+    {
+      "_id": "org_123",
+      "name": "Acme Corp",
+      "slug": "acme-corp",
+      "role": "owner",
+      "memberCount": 5
+    }
+  ]
+}
+```
+
+#### Create Organization
+
+```
+POST /organizations
+```
+
+**Request Body:**
+```json
+{
+  "name": "Acme Corp",
+  "slug": "acme-corp",
+  "description": "Our team workspace"
+}
+```
+
+#### Get Organization Details
+
+```
+GET /organizations/:id
+```
+
+Returns organization info with members list. Requires membership.
+
+#### Invite Member
+
+Send an email invitation to join an organization. Requires `owner` or `admin` role.
+
+```
+POST /organizations/:id/members
+```
+
+**Request Body:**
+```json
+{
+  "email": "colleague@example.com",
+  "role": "member"
+}
+```
+
+**Response:**
+```json
+{
+  "invite": {
+    "_id": "invite_123",
+    "email": "colleague@example.com",
+    "role": "member",
+    "status": "pending",
+    "expiresAt": "2026-03-07T00:00:00.000Z"
+  },
+  "emailSent": true
+}
+```
+
+Invitations expire after 7 days. The recipient receives an email with an accept link (via Resend). Set `RESEND_API_KEY` to enable email delivery; without it, invitations are created but emails are logged to console.
+
+#### Accept Invitation
+
+```
+POST /organizations/invites/:token/accept
+```
+
+Adds the authenticated user as a member with the invited role.
+
+#### Decline Invitation
+
+```
+POST /organizations/invites/:token/decline
+```
+
+#### Get My Pending Invitations
+
+```
+GET /organizations/invites/mine
+```
+
+Returns all pending invitations for the authenticated user's email across all organizations.
+
+#### List Org Invitations (Admin)
+
+```
+GET /organizations/:id/invites
+```
+
+Returns pending invitations for the organization. Requires `owner` or `admin` role.
+
+#### Revoke Invitation (Admin)
+
+```
+DELETE /organizations/:id/invites/:inviteId
+```
+
+### 10. Health Check
+
+```
+GET /health
+```
+
+**Response:**
+```json
+{
+  "status": "healthy",
+  "timestamp": "2026-02-28T10:00:00.000Z",
+  "uptime": 86400,
+  "mongodb": "connected",
+  "redis": "connected",
+  "providers": {
+    "total": 8,
+    "healthy": 7,
+    "unhealthy": 1,
+    "openCircuits": 0
+  },
+  "memory": {
+    "rss": 256,
+    "heapUsed": 128,
+    "heapTotal": 192
+  }
+}
+```
+
+**Additional probes:**
+- `GET /health/live` — Liveness probe (process is running)
+- `GET /health/ready` — Readiness probe (MongoDB connected + at least 1 provider healthy)
 
 ---
 
@@ -1037,6 +1239,6 @@ See our [GitHub repository](https://github.com/alia-ai/examples) for complete ex
 
 ---
 
-**Last Updated:** February 17, 2026
+**Last Updated:** February 28, 2026
 **API Version:** v1
 **Status:** Production Ready

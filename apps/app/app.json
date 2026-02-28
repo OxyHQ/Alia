@@ -47,14 +47,7 @@
       "expo-font",
       "expo-image",
       "expo-secure-store",
-      "expo-web-browser",
-      [
-        "@sentry/react-native/expo",
-        {
-          "organization": "oxyhq",
-          "project": "alia-app"
-        }
-      ]
+      "expo-web-browser"
     ],
     "experiments": {
       "typedRoutes": true

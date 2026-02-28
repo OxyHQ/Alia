@@ -177,7 +177,7 @@ Alia doesn't just respond to messages — it can proactively reach out, monitor 
 
 ### Triggers (Scheduled AI Tasks)
 
-Triggers are automated AI tasks that run on a schedule, on webhook, or on integration events. When a trigger fires, Alia executes an AI prompt with full tool access (web search, integrations, etc.) and delivers the result as a notification.
+Triggers are automated AI tasks that run on a schedule, on webhook, or on integration events. When a trigger fires, Alia executes an AI prompt with full tool access (web search, integrations, etc.) and delivers the result as a notification via push, in-app, Telegram, or other connected channels.
 
 **Types:**
 - **Schedule** — Cron expressions, daily at a specific time, or interval-based (every N minutes)
@@ -201,6 +201,7 @@ Alia parses these into structured trigger configs using the `createTrigger` tool
 When a trigger completes, results are delivered as notifications across the user's connected channels:
 
 - **In-app** — Real-time via Socket.io, shown in the notification feed
+- **Push** — Expo push notifications to registered mobile devices (iOS/Android)
 - **Telegram** — Sent to linked Telegram account
 - **Discord / WhatsApp / Slack** — Sent to connected accounts
 
