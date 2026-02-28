@@ -4,7 +4,8 @@ import { resolveModel, getAIModel, getDefaultAliaModel, reportModelUsage } from 
 import { getAliaModel, getModelMappingsForTier } from '../../lib/providers-client.js';
 import { UserMemory } from '../../models/user-memory.js';
 import { getOrCreateUserCredits } from '../../lib/user-credits-helpers.js';
-import { saveConversation, generateConversationTitle } from '../../lib/conversation-saver.js';
+import { saveConversation, generateConversationTitle, generateTitle } from '../../lib/conversation-saver.js';
+import { Conversation } from '../../models/conversation.js';
 import { reserveCredits, finalizeCredits, refundReservation, type CreditReservation, type CreditUsage } from '../../lib/credits-manager.js';
 import { recordUsage } from '../../middleware/api-key-rate-limit.js';
 import { detectCreditAnomaly, type CreditWarning } from '../../lib/credit-anomaly.js';
@@ -478,7 +479,7 @@ router.post('/', async (req: Request, res: Response) => {
           res.write('data: [DONE]\n\n');
           res.end();
 
-          // Save conversation
+          // Save conversation and generate title
           if (conversationId && req.user?.id) {
             saveConversation({
               userId: req.user.id,
@@ -486,6 +487,12 @@ router.post('/', async (req: Request, res: Response) => {
               messages,
               assistantResponse: result.report,
             }).catch(err => log.v1.warn({ err }, 'Failed to save research conversation'));
+
+            const firstUserMsg = typeof messages[0]?.content === 'string' ? messages[0].content : '';
+            if (firstUserMsg) {
+              generateConversationTitle(req.user.id, conversationId, firstUserMsg)
+                .catch(err => log.v1.error({ err }, 'Research title generation failed'));
+            }
           }
 
           // Finalize credits
@@ -879,7 +886,7 @@ router.post('/', async (req: Request, res: Response) => {
           });
           log.v1.info({ conversationId }, 'Conversation saved');
 
-          // Generate title asynchronously (fire-and-forget)
+          // Generate title asynchronously (fire-and-forget, non-streaming fallback)
           const firstUserMsgRaw = messages.find((m: ChatMessage) => m.role === 'user')?.content;
           const firstUserMsg = typeof firstUserMsgRaw === 'string'
             ? firstUserMsgRaw
@@ -887,7 +894,7 @@ router.post('/', async (req: Request, res: Response) => {
               ? (firstUserMsgRaw.find((p: { type: string; text?: string }) => p.type === 'text')?.text ?? '')
               : '';
           if (firstUserMsg) {
-            generateConversationTitle(req.user.id, conversationId, firstUserMsg, assistantResponse)
+            generateConversationTitle(req.user.id, conversationId, firstUserMsg)
               .catch(err => log.v1.error({ err }, 'Background title generation failed'));
           }
         } catch (error) {
@@ -982,6 +989,26 @@ router.post('/', async (req: Request, res: Response) => {
       res.json(response);
       clearTimeout(globalTimer);
       return;
+    }
+
+    // Start title generation in parallel for new conversations (runs during streaming)
+    let titlePromise: Promise<string | null> | null = null;
+    if (conversationId && typeof conversationId === 'string' && conversationId.trim() && req.user) {
+      const existing = await Conversation.findOne(
+        { oxyUserId: req.user.id, conversationId },
+        { messages: 1 }
+      ).lean();
+      if (!existing || !existing.messages?.length) {
+        const firstUserMsgRaw = messages.find((m: ChatMessage) => m.role === 'user')?.content;
+        const firstUserMsg = typeof firstUserMsgRaw === 'string'
+          ? firstUserMsgRaw
+          : Array.isArray(firstUserMsgRaw)
+            ? (firstUserMsgRaw.find((p: { type: string; text?: string }) => p.type === 'text')?.text ?? '')
+            : '';
+        if (firstUserMsg) {
+          titlePromise = generateTitle(firstUserMsg);
+        }
+      }
     }
 
     // Streaming request
@@ -1417,20 +1444,25 @@ router.post('/', async (req: Request, res: Response) => {
           agentMessages: agentMessages.length > 0 ? agentMessages : undefined,
         });
         log.v1.info({ conversationId }, 'Conversation saved');
-
-        // Generate title asynchronously (fire-and-forget)
-        const firstUserMsgRaw = messages.find((m: ChatMessage) => m.role === 'user')?.content;
-        const firstUserMsg = typeof firstUserMsgRaw === 'string'
-          ? firstUserMsgRaw
-          : Array.isArray(firstUserMsgRaw)
-            ? (firstUserMsgRaw.find((p: { type: string; text?: string }) => p.type === 'text')?.text ?? '')
-            : '';
-        if (firstUserMsg) {
-          generateConversationTitle(req.user.id, conversationId, firstUserMsg, assistantResponse)
-            .catch(err => log.v1.error({ err }, 'Background title generation failed'));
-        }
       } catch (error) {
         log.v1.error({ err: error }, 'Error saving conversation');
+      }
+    }
+
+    // Send AI-generated title via SSE (generated in parallel with streaming)
+    if (titlePromise && conversationId && req.user) {
+      try {
+        const title = await titlePromise;
+        if (title) {
+          res.write(`data: ${JSON.stringify({ type: 'title_update', title, conversationId })}\n\n`);
+          await Conversation.updateOne(
+            { oxyUserId: req.user.id, conversationId },
+            { $set: { title } },
+          );
+          log.v1.info({ conversationId, title }, 'Auto-generated conversation title');
+        }
+      } catch (err) {
+        log.v1.error({ err }, 'Failed to send inline title');
       }
     }
 

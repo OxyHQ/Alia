@@ -316,6 +316,33 @@ Use this role to guide your responses, maintaining the specified tone, style, an
                 continue;
               }
 
+              // Handle title update (AI-generated conversation title)
+              if (parsed.type === 'title_update' && parsed.title && parsed.conversationId) {
+                // Update conversation detail cache
+                queryClient.setQueryData(
+                  queryKeys.conversations.detail(parsed.conversationId),
+                  (old: any) => old ? { ...old, title: parsed.title } : old
+                );
+                // Update conversation in the list cache (infinite query pages)
+                queryClient.setQueriesData(
+                  { queryKey: queryKeys.conversations.all },
+                  (old: any) => {
+                    if (!old?.pages) return old;
+                    return {
+                      ...old,
+                      pages: old.pages.map((page: any) => ({
+                        ...page,
+                        conversations: page.conversations.map((c: any) =>
+                          c.id === parsed.conversationId ? { ...c, title: parsed.title } : c
+                        ),
+                      })),
+                    };
+                  }
+                );
+                setConversationTitle(parsed.title);
+                continue;
+              }
+
               // Handle plan preview (intent preview before executing tools)
               if (parsed.type === 'plan_preview') {
                 setMessages((prev) => {

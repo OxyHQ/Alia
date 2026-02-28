@@ -96,43 +96,60 @@ export async function saveConversation(params: SaveConversationParams): Promise<
 }
 
 /**
- * Generate a conversation title asynchronously using a cheap model.
+ * Generate a conversation title using a cheap model.
+ * Returns the title string (or null on failure). Does NOT write to DB.
+ * Can be called in parallel with the main LLM response since it only needs the user message.
+ */
+export async function generateTitle(userMessage: string): Promise<string | null> {
+  const resolved = await resolveModel('alia-lite');
+  if (!resolved) {
+    log.chat.warn('Title generation skipped: no model available for alia-lite');
+    return null;
+  }
+
+  try {
+    const model = getAIModel(resolved.keyConfig);
+    const result = await generateText({
+      model,
+      messages: [
+        { role: 'system', content: 'Generate a concise conversation title (max 6 words) in the same language as the user message. Return ONLY the title, no quotes or trailing punctuation.' },
+        { role: 'user', content: userMessage },
+      ],
+      maxTokens: 30,
+    });
+
+    const title = result.text.trim().replace(/^["']|["']$/g, '').replace(/\.+$/, '');
+    return (title.length > 0 && title.length < 100) ? title : null;
+  } catch (err) {
+    log.chat.error({ err }, 'Title generation LLM call failed');
+    return null;
+  }
+}
+
+/**
+ * Generate a conversation title asynchronously and save it to DB.
  * Skips if the conversation already has a meaningful title or was manually titled.
- * Designed to be called fire-and-forget after saveConversation().
+ * Used as fire-and-forget fallback for non-streaming paths.
  */
 export async function generateConversationTitle(
   userId: string,
   conversationId: string,
   userMessage: string,
-  assistantResponse: string,
 ): Promise<void> {
-  const conv = await Conversation.findOne({ oxyUserId: userId, conversationId });
-  if (!conv || conv.isManualTitle) return;
-  // Only generate on the first exchange (≤3 messages: system + user + assistant).
-  // After that, the title from the first generation is kept.
-  if (conv.messages && conv.messages.length > 3) return;
+  try {
+    const conv = await Conversation.findOne({ oxyUserId: userId, conversationId });
+    if (!conv || conv.isManualTitle) return;
+    if (conv.messages && conv.messages.length > 3) return;
 
-  const resolved = await resolveModel('alia-lite');
-  if (!resolved) return;
-
-  const model = getAIModel(resolved.keyConfig);
-  const result = await generateText({
-    model,
-    messages: [
-      { role: 'system', content: 'Generate a concise conversation title (max 6 words) in the same language as the user message. Return ONLY the title text, nothing else. No quotes, no punctuation at the end.' },
-      { role: 'user', content: userMessage },
-      { role: 'assistant', content: assistantResponse.slice(0, 500) },
-      { role: 'user', content: 'Title:' },
-    ],
-    maxTokens: 30,
-  });
-
-  const title = result.text.trim().replace(/^["']|["']$/g, '').replace(/\.+$/, '');
-  if (title.length > 0 && title.length < 100) {
-    await Conversation.updateOne(
-      { oxyUserId: userId, conversationId },
-      { $set: { title } },
-    );
-    log.chat.info({ conversationId, title }, 'Auto-generated conversation title');
+    const title = await generateTitle(userMessage);
+    if (title) {
+      await Conversation.updateOne(
+        { oxyUserId: userId, conversationId },
+        { $set: { title } },
+      );
+      log.chat.info({ conversationId, title }, 'Auto-generated conversation title');
+    }
+  } catch (err) {
+    log.chat.error({ err, conversationId }, 'generateConversationTitle failed');
   }
 }

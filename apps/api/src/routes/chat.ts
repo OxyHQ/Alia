@@ -10,7 +10,8 @@ import { processMessagesForPlatform } from '../lib/message-processor.js';
 import type { RecalledMemory } from '../lib/memory/recall.js';
 import { compactHistory } from '../lib/history-compaction.js';
 import { optionalAuth } from '../middleware/auth.js';
-import { saveConversation, extractConversationTitle, generateConversationTitle } from '../lib/conversation-saver.js';
+import { saveConversation, extractConversationTitle, generateConversationTitle, generateTitle } from '../lib/conversation-saver.js';
+import { Conversation } from '../models/conversation.js';
 import { CanvasSession } from '../models/canvas-session.js';
 import { finalizeCredits, safeRefund, type CreditReservation, type CreditUsage } from '../lib/credits-manager.js';
 import { estimateMessageTokens } from '../lib/token-counter.js';
@@ -177,7 +178,7 @@ router.post('/', optionalAuth, async (req, res) => {
           writeSSE(res, 'data: [DONE]\n\n');
           res.end();
 
-          // Save conversation
+          // Save conversation and generate title
           if (conversationId && req.user?.id) {
             await saveConversation({
               userId: req.user.id,
@@ -187,6 +188,12 @@ router.post('/', optionalAuth, async (req, res) => {
             }).catch(err =>
               log.chat.warn({ err }, 'Failed to save research conversation')
             );
+
+            const firstUserMsg = typeof processedMessages[0]?.content === 'string' ? processedMessages[0].content : '';
+            if (firstUserMsg) {
+              generateConversationTitle(req.user.id, conversationId, firstUserMsg)
+                .catch(err => log.chat.error({ err }, 'Research title generation failed'));
+            }
           }
 
           // Finalize credits
@@ -227,6 +234,7 @@ router.post('/', optionalAuth, async (req, res) => {
     let toolCallCount = 0;
     let streamSuccess = false;
     const failedKeyIds = new Set<string>(); // Track failed key IDs for skip on retry
+    let titlePromise: Promise<string | null> | null = null;
 
     for (let attempt = 0; attempt < MAX_CHAT_RETRIES; attempt++) {
       // ── Resolve model (picks a healthy provider/key) ──
@@ -394,6 +402,25 @@ router.post('/', optionalAuth, async (req, res) => {
       if (thinkingMode && resolved.provider === 'anthropic') {
         log.chat.info('Configuring Anthropic extended thinking mode');
         streamConfig.experimental_thinking = true;
+      }
+
+      // Start title generation in parallel for new conversations (first attempt only)
+      if (attempt === 0 && !titlePromise && conversationId && typeof conversationId === 'string' && conversationId.trim() && req.user) {
+        const existing = await Conversation.findOne(
+          { oxyUserId: req.user.id, conversationId },
+          { messages: 1 }
+        ).lean();
+        if (!existing || !existing.messages?.length) {
+          const firstUserMsgRaw = messages.find((m: any) => m.role === 'user')?.content;
+          const firstUserMsg = typeof firstUserMsgRaw === 'string'
+            ? firstUserMsgRaw
+            : Array.isArray(firstUserMsgRaw)
+              ? ((firstUserMsgRaw as any[]).find((p: any) => p.type === 'text')?.text ?? '')
+              : '';
+          if (firstUserMsg) {
+            titlePromise = generateTitle(firstUserMsg);
+          }
+        }
       }
 
       const result = streamText(streamConfig);
@@ -735,23 +762,28 @@ router.post('/', optionalAuth, async (req, res) => {
           agentId,
         });
         log.chat.info({ conversationId }, 'Conversation saved successfully');
-
-        // Generate title asynchronously (fire-and-forget)
-        const firstUserMsgRaw = messages.find((m: any) => m.role === 'user')?.content;
-        const firstUserMsg = typeof firstUserMsgRaw === 'string'
-          ? firstUserMsgRaw
-          : Array.isArray(firstUserMsgRaw)
-            ? (firstUserMsgRaw.find((p: any) => p.type === 'text')?.text ?? '')
-            : '';
-        if (firstUserMsg) {
-          generateConversationTitle(req.user.id, conversationId, firstUserMsg, assistantResponse)
-            .catch(err => log.chat.error({ err }, 'Background title generation failed'));
-        }
       } catch (error) {
         log.chat.error({ err: error, conversationId }, 'Error saving conversation');
       }
     } else if (!conversationId && req.user) {
       log.chat.warn('ConversationId not provided - conversation will not be saved');
+    }
+
+    // Send AI-generated title via SSE (generated in parallel with streaming)
+    if (titlePromise && conversationId && req.user) {
+      try {
+        const title = await titlePromise;
+        if (title) {
+          writeSSE(res, `data: ${JSON.stringify({ type: 'title_update', title, conversationId })}\n\n`);
+          await Conversation.updateOne(
+            { oxyUserId: req.user.id, conversationId },
+            { $set: { title } },
+          );
+          log.chat.info({ conversationId, title }, 'Auto-generated conversation title');
+        }
+      } catch (err) {
+        log.chat.error({ err }, 'Failed to send inline title');
+      }
     }
 
     // Send completion marker
