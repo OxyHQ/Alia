@@ -46,8 +46,16 @@ export function useChatConversation({ conversationId, activeRole, thinkingMode, 
   // Refresh sidebar when streaming finishes (backend auto-saves with AI-generated title)
   useEffect(() => {
     if (wasLoadingRef.current && !isLoading && conversationId) {
+      // Immediate refetch (gets saved conversation data)
       queryClient.invalidateQueries({ queryKey: queryKeys.conversations.all });
       queryClient.invalidateQueries({ queryKey: queryKeys.conversations.detail(conversationId) });
+      // Delayed refetch as fallback for async title generation (non-streaming paths, deep research)
+      const timer = setTimeout(() => {
+        queryClient.invalidateQueries({ queryKey: queryKeys.conversations.all });
+        queryClient.invalidateQueries({ queryKey: queryKeys.conversations.detail(conversationId) });
+      }, 5000);
+      wasLoadingRef.current = isLoading;
+      return () => clearTimeout(timer);
     }
     wasLoadingRef.current = isLoading;
   }, [isLoading, conversationId, queryClient]);
