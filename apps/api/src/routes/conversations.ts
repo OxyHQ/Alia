@@ -24,8 +24,6 @@ router.post('/new', authenticateToken, async (req: Request, res: Response) => {
       messages: [],
       source,
       ...(agentId && { agentId }),
-      createdAt: new Date(),
-      updatedAt: new Date()
     });
 
     res.json({
@@ -158,7 +156,6 @@ router.post('/', authenticateTokenOrApiKey, async (req: Request, res: Response) 
     const updateData: Record<string, any> = {
       lastMessage,
       messages: validMessages,
-      updatedAt: new Date()
     };
 
     // Only overwrite title if explicitly provided (e.g. user rename)

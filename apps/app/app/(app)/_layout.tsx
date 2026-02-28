@@ -253,6 +253,13 @@ export default function AppLayout() {
                 title: i18n.t('nav.invite'),
               }}
             />
+            <Drawer.Screen
+              name="org-invite/[token]"
+              options={{
+                drawerItemStyle: { display: 'none' },
+                title: 'Organization Invite',
+              }}
+            />
           </Drawer>
         </View>
         {/* Right Panel - flex on desktop, modal on mobile */}

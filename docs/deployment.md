@@ -88,10 +88,6 @@ TELEGRAM_BOT_SECRET=<generate-with-openssl>     # Telegram bot <-> API auth
 INTEGRATIONS_SECRET=<generate-with-openssl>     # Internal gateway auth
 INTEGRATIONS_SERVICE_URL=http://integrations:3005  # Internal URL (VPC)
 
-# Email (Resend) — for organization invitations
-RESEND_API_KEY=re_...                           # Resend API key
-RESEND_FROM_EMAIL=Alia <noreply@alia.space>     # Optional sender address
-
 # Redis / BullMQ (optional — graceful degradation if unavailable)
 REDIS_URL=redis://localhost:6379               # Redis connection URL
 ```
@@ -187,7 +183,6 @@ Before deploying, verify:
 - [ ] LiveKit server is deployed and accessible (if using voice mode)
 - [ ] Docker host is deployed and accessible (if using agent containers)
 - [ ] Channel bot tokens are configured (for each enabled channel)
-- [ ] `RESEND_API_KEY` configured (for org email invitations)
 - [ ] CI pipeline passes (lint, test, build)
 - [ ] Build completes successfully locally
 - [ ] Tests pass (`npm test -w @alia/api`)

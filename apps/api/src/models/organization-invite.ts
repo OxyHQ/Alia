@@ -4,7 +4,7 @@ export type InviteStatus = 'pending' | 'accepted' | 'declined' | 'expired';
 
 export interface IOrganizationInvite extends Document {
   organizationId: mongoose.Types.ObjectId;
-  email: string;
+  email?: string;
   role: 'admin' | 'member';
   token: string;
   invitedBy: mongoose.Types.ObjectId;
@@ -24,7 +24,6 @@ const OrganizationInviteSchema = new Schema<IOrganizationInvite>({
   },
   email: {
     type: String,
-    required: true,
     lowercase: true,
     trim: true,
   },
@@ -64,9 +63,9 @@ const OrganizationInviteSchema = new Schema<IOrganizationInvite>({
 });
 
 // Indexes
-OrganizationInviteSchema.index({ organizationId: 1, email: 1 });
+OrganizationInviteSchema.index({ organizationId: 1, email: 1 }, { sparse: true });
 OrganizationInviteSchema.index({ token: 1 }, { unique: true });
-OrganizationInviteSchema.index({ email: 1, status: 1 });
+OrganizationInviteSchema.index({ email: 1, status: 1 }, { sparse: true });
 // TTL: auto-delete expired invites after 30 days past their expiry
 OrganizationInviteSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 30 * 24 * 60 * 60 });
 
