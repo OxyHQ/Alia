@@ -220,37 +220,203 @@ Use this role to guide your responses, maintaining the specified tone, style, an
         const chunk = decoder.decode(value, { stream: true });
         buffer += chunk;
 
-        // Process complete lines
+        // Process complete lines (supports named SSE events: event: X\ndata: Y)
         const lines = buffer.split('\n');
         buffer = lines.pop() || ''; // Keep incomplete line in buffer
 
+        let currentEventType = '';
         for (const line of lines) {
+          // Track named SSE event type
+          if (line.startsWith('event: ')) {
+            currentEventType = line.slice(7).trim();
+            continue;
+          }
+
+          // Reset event type on empty line (SSE event boundary)
+          if (line === '') {
+            currentEventType = '';
+            continue;
+          }
+
           if (line.startsWith('data: ')) {
             const data = line.slice(6).trim();
 
             // Skip [DONE] marker
-            if (data === '[DONE]') continue;
+            if (data === '[DONE]') { currentEventType = ''; continue; }
 
             try {
               const parsed = JSON.parse(data);
 
-              // Handle structured error events sent via SSE (when headers were sent before validation)
-              if (parsed.error?.status) {
+              // ── Named SSE events (Alia extensions) ──
+              if (currentEventType) {
+                switch (currentEventType) {
+                  case 'alia.reasoning': {
+                    const content = parsed.content;
+                    if (content) {
+                      setMessages((prev) => {
+                        const updated = [...prev];
+                        const lastMessage = updated[updated.length - 1];
+                        if (lastMessage?.role === 'assistant') {
+                          const currentThinking = (lastMessage as any).thinking || '';
+                          updated[updated.length - 1] = {
+                            ...lastMessage,
+                            thinking: currentThinking + content,
+                          } as any;
+                        }
+                        return updated;
+                      });
+                    }
+                    currentEventType = '';
+                    continue;
+                  }
+                  case 'alia.tool_result': {
+                    const { tool_call_id, name, output } = parsed;
+                    if (tool_call_id) {
+                      setMessages((prev) => {
+                        const updated = [...prev];
+                        const lastMessage = updated[updated.length - 1];
+                        if (lastMessage?.role === 'assistant') {
+                          const invocations = [...(lastMessage.toolInvocations || [])];
+                          const idx = invocations.findIndex((t) => t.toolCallId === tool_call_id);
+                          if (idx >= 0) {
+                            invocations[idx] = { ...invocations[idx], state: 'result', result: output };
+                          } else {
+                            invocations.push({ toolCallId: tool_call_id, toolName: name || 'unknown', state: 'result', result: output });
+                          }
+                          updated[updated.length - 1] = { ...lastMessage, toolInvocations: invocations };
+                        }
+                        return updated;
+                      });
+                      // Detect artifact-like results
+                      if (name === 'generateFile' && output && typeof output === 'object') {
+                        const artifactType = output.language ? 'code' : 'markdown';
+                        useUIStore.getState().addCanvasArtifact({
+                          id: tool_call_id,
+                          type: artifactType,
+                          content: artifactType === 'code'
+                            ? { language: output.language, code: output.content }
+                            : { content: output.content },
+                          title: output.filename || output.title || 'Generated file',
+                          timestamp: Date.now(),
+                        });
+                        useUIStore.getState().setRightPanel('canvas');
+                      } else if (output?.artifact) {
+                        const a = output.artifact;
+                        useUIStore.getState().addCanvasArtifact({
+                          id: tool_call_id,
+                          type: a.type || 'markdown',
+                          content: a.data || a.content || a,
+                          title: a.title || name || 'Artifact',
+                          timestamp: Date.now(),
+                        });
+                        useUIStore.getState().setRightPanel('canvas');
+                      }
+                    }
+                    currentEventType = '';
+                    continue;
+                  }
+                  case 'alia.agent': {
+                    const am = parsed;
+                    setMessages((prev) => {
+                      const updated = [...prev];
+                      const agentMsg: Message = {
+                        id: `agent-${Date.now()}-${am.agentId}`,
+                        role: 'assistant',
+                        content: am.content,
+                        agentInfo: {
+                          id: am.agentId,
+                          name: am.agentName,
+                          avatar: am.agentAvatar,
+                          handle: am.agentHandle,
+                        },
+                      };
+                      const lastIdx = updated.length - 1;
+                      updated.splice(lastIdx, 0, agentMsg);
+                      return updated;
+                    });
+                    currentEventType = '';
+                    continue;
+                  }
+                  case 'alia.title': {
+                    if (parsed.title && parsed.conversationId) {
+                      queryClient.setQueryData(
+                        queryKeys.conversations.detail(parsed.conversationId),
+                        (old: any) => old ? { ...old, title: parsed.title } : old
+                      );
+                      queryClient.setQueriesData(
+                        { queryKey: queryKeys.conversations.all },
+                        (old: any) => {
+                          if (!old?.pages) return old;
+                          return {
+                            ...old,
+                            pages: old.pages.map((page: any) => ({
+                              ...page,
+                              conversations: page.conversations.map((c: any) =>
+                                c.id === parsed.conversationId ? { ...c, title: parsed.title } : c
+                              ),
+                            })),
+                          };
+                        }
+                      );
+                      setConversationTitle(parsed.title);
+                    }
+                    currentEventType = '';
+                    continue;
+                  }
+                  case 'alia.research_progress': {
+                    setMessages((prev) => {
+                      const updated = [...prev];
+                      const lastMessage = updated[updated.length - 1];
+                      if (lastMessage?.role === 'assistant') {
+                        updated[updated.length - 1] = {
+                          ...lastMessage,
+                          researchProgress: {
+                            phase: parsed.phase,
+                            message: parsed.message,
+                            subQuestions: parsed.subQuestions || (lastMessage as any).researchProgress?.subQuestions,
+                            sourcesFound: parsed.sourcesFound,
+                            currentQuery: parsed.currentQuery,
+                            iteration: parsed.iteration,
+                          },
+                        } as any;
+                      }
+                      return updated;
+                    });
+                    currentEventType = '';
+                    continue;
+                  }
+                  case 'alia.model_switch': {
+                    if (parsed.model) {
+                      useModelStore.getState().setSelectedModel(parsed.model);
+                    }
+                    currentEventType = '';
+                    continue;
+                  }
+                  default:
+                    // Unknown named event — skip
+                    currentEventType = '';
+                    continue;
+                }
+              }
+
+              // ── Standard OpenAI data events ──
+
+              // Handle structured error events sent via SSE
+              if (parsed.error) {
                 const err = parsed.error;
-                if ([429, 402, 403].includes(err.status)) {
+                // Check for usage limit errors (rate limit, credits, model access)
+                if (err.code === 'MODEL_NOT_IN_PLAN' || err.code === 'INSUFFICIENT_CREDITS' || err.type === 'rate_limit_error') {
                   throw new UsageLimitError({
                     type: err.code === 'MODEL_NOT_IN_PLAN' ? 'model_access' : err.code === 'INSUFFICIENT_CREDITS' ? 'credits' : 'rate_limit',
                     code: err.code,
                     message: err.message,
-                    retryable: err.retryable ?? false,
-                    suggestedAction: err.suggestedAction || 'upgrade',
+                    retryable: false,
+                    suggestedAction: 'upgrade',
                   });
                 }
-              }
 
-              // Generic SSE error (503 NO_MODELS, 500, etc.) — show toast and stop
-              if (parsed.error) {
-                const msg = parsed.error.message || 'Something went wrong. Please try again.';
+                // Generic SSE error — show toast and stop
+                const msg = err.message || 'Something went wrong. Please try again.';
                 toast.error(msg);
                 setError(new Error(msg));
                 setIsLoading(false);
@@ -263,7 +429,7 @@ Use this role to guide your responses, maintaining the specified tone, style, an
                 return;
               }
 
-              // Handle deep research progress events
+              // Handle deep research progress events (legacy format fallback)
               if (parsed.type === 'research_progress') {
                 setMessages((prev) => {
                   const updated = [...prev];
@@ -307,6 +473,13 @@ Use this role to guide your responses, maintaining the specified tone, style, an
                   }
                   return updated;
                 });
+                continue;
+              }
+
+              // Handle agent session creation from chat (agent escalation)
+              if (parsed.type === 'agent_session' && parsed.sessionId) {
+                const { useUIStore } = await import('@/lib/stores/ui-store');
+                useUIStore.getState().openAgentPanel(parsed.sessionId, parsed.agentId || '');
                 continue;
               }
 
@@ -412,16 +585,18 @@ Use this role to guide your responses, maintaining the specified tone, style, an
               }
 
               // Handle usage/credits info (comes at the end of stream)
-              if (parsed.usage && parsed.usage.credits_remaining !== undefined) {
+              // New format: alia_usage (separate from OpenAI usage), fallback to legacy usage
+              const aliaUsage = parsed.alia_usage || parsed.usage;
+              if (aliaUsage && aliaUsage.credits_remaining !== undefined) {
                 queryClient.setQueryData<CreditsInfo>(queryKeys.credits.info, (old) => {
                   if (!old) return old;
-                  return { ...old, credits: parsed.usage.credits_remaining };
+                  return { ...old, credits: aliaUsage.credits_remaining };
                 });
                 queryClient.invalidateQueries({ queryKey: queryKeys.credits.usage() });
 
                 // Proactive warning when spending anomaly detected
-                if (parsed.usage.credit_warning) {
-                  const w = parsed.usage.credit_warning;
+                if (aliaUsage.credit_warning) {
+                  const w = aliaUsage.credit_warning;
                   queryClient.setQueryData(queryKeys.credits.usageWarning, {
                     level: w.level,
                     daysRemaining: w.daysRemaining,

@@ -18,6 +18,7 @@ import {
   ChevronUp,
   FolderTree,
   AlertTriangle,
+  Coins,
 } from 'lucide-react-native';
 import { useColorScheme } from '@/lib/useColorScheme';
 import { WorkspaceBrowser } from '@/components/workspace-browser';
@@ -126,6 +127,12 @@ export const AgentResultCard = React.memo(function AgentResultCard({
           <Text className="text-xs text-muted-foreground">
             {plan.completed}/{plan.total} plan items
           </Text>
+        )}
+        {(activity as any).creditsCharged != null && (
+          <View className="flex-row items-center gap-1">
+            <Coins size={12} color={colors.mutedForeground} />
+            <Text className="text-xs text-muted-foreground">{(activity as any).creditsCharged} credits</Text>
+          </View>
         )}
       </View>
 

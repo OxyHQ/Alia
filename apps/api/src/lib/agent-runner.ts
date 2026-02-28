@@ -28,6 +28,7 @@ import { TerminalSession, inferImage } from './agent/terminal-session.js';
 import { BrowserSession } from './agent/browser-session.js';
 import { buildActions } from './agent/actions.js';
 import { classifyError } from './errors/failover-error.js';
+import { finalizeCredits, safeRefund, type CreditReservation } from './credits-manager.js';
 import { MAX_DELEGATION_DEPTH, EVENT_STREAM_BUDGET } from './constants.js';
 import { orchestrate, shouldOrchestrate } from './agent/orchestrator.js';
 import { compactContext } from './agent/context-compaction.js';
@@ -593,6 +594,20 @@ export async function runAgentSession(sessionId: string): Promise<void> {
       eventStream.append('system_message', 'Token budget exhausted — session ending');
     }
 
+    // Finalize credits based on actual token usage (Manus-style billing)
+    if (session.creditReservation) {
+      try {
+        const { creditsCharged } = await finalizeCredits(
+          session.creditReservation as CreditReservation,
+          { totalTokens, promptTokens: 0, completionTokens: 0 },
+        );
+        session.stats.creditsCharged = creditsCharged;
+        eventStream.append('system_message', `Credits charged: ${creditsCharged}`);
+      } catch (creditErr: any) {
+        log.agents.warn({ creditErr, sessionId }, 'Failed to finalize credits');
+      }
+    }
+
     await eventStream.flush();
     session.eventStream = eventStream.toJSON() as any;
     session.stats.completedAt = new Date();
@@ -609,6 +624,11 @@ export async function runAgentSession(sessionId: string): Promise<void> {
     await terminalSession.destroy().catch(() => {});
     await browserSession.close().catch(() => {});
     await cleanupSessionResources(session);
+
+    // Refund credits on failure
+    if (session.creditReservation) {
+      await safeRefund(session.creditReservation as CreditReservation, 'session failed');
+    }
 
     eventStream.append('error', `Session failed: ${err.message || 'Unknown error'}`);
 
@@ -687,6 +707,7 @@ function mapEventTypeToActivity(type: string): string {
     case 'complete':       return 'complete';
     case 'screenshot':     return 'screenshot';
     case 'file_change':    return 'file_change';
+    case 'source_found':   return 'source_found';
     default:               return 'system';
   }
 }

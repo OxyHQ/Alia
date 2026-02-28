@@ -85,7 +85,7 @@ const AgentSchema = new Schema<IAgent>({
   preferredImage: { type: String },
   allowedModels: {
     type: [String],
-    default: ['alia-lite', 'alia-v1'],
+    default: ['alia-v1', 'alia-v1-pro'],
   },
   scheduleInterval: { type: Number },
   lastScheduledCheck: { type: Date },

@@ -3,9 +3,11 @@ import { useUIStore } from "@/lib/stores/ui-store";
 import { CreditsPanel } from "./credits-panel";
 import { ThoughtPanel } from "./thought-panel";
 import { CanvasPanel } from "./canvas-panel";
+import { AgentPanel } from "./agent-panel";
 import { Panel } from "./ui/panel";
 
 const PANEL_WIDTH = 320;
+const AGENT_PANEL_WIDTH = 420;
 
 export function RightPanel() {
   const { width } = useWindowDimensions();
@@ -14,6 +16,7 @@ export function RightPanel() {
   const setRightPanel = useUIStore((state) => state.setRightPanel);
 
   const isOpen = rightPanel !== null;
+  const panelWidth = rightPanel === "agent" ? AGENT_PANEL_WIDTH : PANEL_WIDTH;
 
   const handleClose = () => {
     setRightPanel(null);
@@ -27,6 +30,8 @@ export function RightPanel() {
         return <ThoughtPanel />;
       case "canvas":
         return <CanvasPanel />;
+      case "agent":
+        return <AgentPanel />;
       default:
         return null;
     }
@@ -37,7 +42,7 @@ export function RightPanel() {
       open={isOpen}
       onClose={handleClose}
       side="right"
-      width={PANEL_WIDTH}
+      width={panelWidth}
     >
       {renderPanelContent()}
     </Panel>

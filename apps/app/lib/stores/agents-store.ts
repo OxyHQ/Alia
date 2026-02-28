@@ -118,9 +118,17 @@ export const useAgentsStore = create<AgentsStoreState>((set, get) => ({
     try {
       const res = await apiClient.post(API_ROUTES.agents.hire(id), { task });
       return res.data.sessionId || null;
-    } catch (error) {
+    } catch (error: any) {
+      const status = error?.response?.status;
+      const data = error?.response?.data;
+      if (status === 402) {
+        throw new Error(`Insufficient credits. You need ${data?.creditsNeeded || 'more'} credits to hire this agent.`);
+      }
+      if (status === 503) {
+        throw new Error('Agent execution infrastructure is currently unavailable. Please try again later.');
+      }
       console.error('Error hiring agent:', error);
-      return null;
+      throw new Error(data?.error || 'Failed to hire agent');
     }
   },
 }));

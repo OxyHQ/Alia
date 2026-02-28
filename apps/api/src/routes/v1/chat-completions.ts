@@ -1,3 +1,4 @@
+import crypto from 'crypto';
 import { Router, Request, Response } from 'express';
 import { streamText, generateText, stepCountIs, type ToolSet } from 'ai';
 import { resolveModel, getAIModel, getDefaultAliaModel, reportModelUsage } from '../../lib/chat-core.js';
@@ -202,6 +203,7 @@ router.post('/', async (req: Request, res: Response) => {
   let resolved: Awaited<ReturnType<typeof resolveModel>> = null;
   let aliasModelId: string = 'alia-v1';
   const requestStartTime = Date.now();
+  const requestId = `chatcmpl-${crypto.randomUUID()}`;
 
   // Global request timeout guard — send a proper error BEFORE DO's gateway timeout (~120s)
   const GLOBAL_TIMEOUT_MS = 80_000;
@@ -212,29 +214,40 @@ router.post('/', async (req: Request, res: Response) => {
     if (!res.headersSent) {
       // Return synthetic response instead of raw error
       res.json({
-        id: `chatcmpl-${Date.now()}`,
+        id: requestId,
         object: 'chat.completion',
         created: Math.floor(Date.now() / 1000),
         model: aliasModelId,
+        system_fingerprint: 'fp_alia',
+        service_tier: 'default',
         choices: [{
           index: 0,
-          message: { role: 'assistant', content: "I'm sorry, the request took too long. Please try again." },
+          message: { role: 'assistant', content: "I'm sorry, the request took too long. Please try again.", refusal: null },
+          logprobs: null,
           finish_reason: 'stop',
         }],
-        usage: { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 },
+        usage: {
+          prompt_tokens: 0,
+          completion_tokens: 0,
+          total_tokens: 0,
+          prompt_tokens_details: { cached_tokens: 0, audio_tokens: 0 },
+          completion_tokens_details: { reasoning_tokens: 0, audio_tokens: 0, accepted_prediction_tokens: 0, rejected_prediction_tokens: 0 },
+        },
         alia_meta: { synthetic: true, retryable: true },
       });
     } else if (!res.writableEnded) {
       // Mid-stream timeout: send graceful finish
       const timeoutChunk = {
-        id: `chatcmpl-${Date.now()}`,
+        id: requestId,
         object: 'chat.completion.chunk',
         created: Math.floor(Date.now() / 1000),
         model: aliasModelId,
-        choices: [{ index: 0, delta: { content: '\n\nI encountered a brief interruption. Please send your message again.' }, finish_reason: null }],
+        system_fingerprint: 'fp_alia',
+        service_tier: 'default',
+        choices: [{ index: 0, delta: { content: '\n\nI encountered a brief interruption. Please send your message again.' }, logprobs: null, finish_reason: null }],
       };
       res.write(`data: ${JSON.stringify(timeoutChunk)}\n\n`);
-      res.write(`data: ${JSON.stringify({ id: `chatcmpl-${Date.now()}`, object: 'chat.completion.chunk', created: Math.floor(Date.now() / 1000), model: aliasModelId, choices: [{ index: 0, delta: {}, finish_reason: 'stop' }] })}\n\n`);
+      res.write(`data: ${JSON.stringify({ id: requestId, object: 'chat.completion.chunk', created: Math.floor(Date.now() / 1000), model: aliasModelId, system_fingerprint: 'fp_alia', service_tier: 'default', choices: [{ index: 0, delta: {}, logprobs: null, finish_reason: 'stop' }] })}\n\n`);
       res.write('data: [DONE]\n\n');
       res.end();
     }
@@ -247,8 +260,12 @@ router.post('/', async (req: Request, res: Response) => {
     // Validate request body
     if (!body || typeof body !== 'object') {
       res.status(400).json({
-        error: 'Invalid request body',
-        details: 'Request body must be a JSON object'
+        error: {
+          message: 'Request body must be a JSON object.',
+          type: 'invalid_request_error',
+          param: null,
+          code: 'invalid_request_body',
+        }
       });
       return;
     }
@@ -258,8 +275,12 @@ router.post('/', async (req: Request, res: Response) => {
 
     if (!messages || !Array.isArray(messages) || messages.length === 0) {
       res.status(400).json({
-        error: 'Invalid messages',
-        details: 'Request body must include a "messages" array with at least one message'
+        error: {
+          message: 'Request body must include a "messages" array with at least one message.',
+          type: 'invalid_request_error',
+          param: 'messages',
+          code: 'invalid_messages',
+        }
       });
       return;
     }
@@ -269,6 +290,8 @@ router.post('/', async (req: Request, res: Response) => {
     const thinkingMode = body.thinkingMode as boolean | undefined;
     const agentMode = body.agentMode as boolean | undefined;
     const deepResearch = body.deepResearch as boolean | undefined;
+    const streamOptions = body.stream_options as { include_usage?: boolean } | undefined;
+    const includeUsage = streamOptions?.include_usage === true;
 
     log.v1.info({ messageCount: messages.length, conversationId, thinkingMode, agentMode, deepResearch }, 'Processing messages');
 
@@ -302,15 +325,15 @@ router.post('/', async (req: Request, res: Response) => {
 
     /** Send an error over the SSE stream and end the response (used when headers already sent). */
     function sendSSEError(errorPayload: Record<string, any>) {
-      const chunk = {
-        id: `chatcmpl-${Date.now()}`,
-        object: 'chat.completion.chunk',
-        created: Math.floor(Date.now() / 1000),
-        model: aliasModelId,
-        choices: [{ index: 0, delta: {}, finish_reason: 'error' }],
-        error: errorPayload,
+      const openAIError = {
+        error: {
+          message: errorPayload.message || 'An error occurred.',
+          type: errorPayload.type || 'server_error',
+          param: errorPayload.param || null,
+          code: errorPayload.code || null,
+        },
       };
-      res.write(`data: ${JSON.stringify(chunk)}\n\n`);
+      res.write(`data: ${JSON.stringify(openAIError)}\n\n`);
       res.write('data: [DONE]\n\n');
       res.end();
     }
@@ -370,12 +393,10 @@ router.post('/', async (req: Request, res: Response) => {
     if (req.user && !req.serviceApp && !creditReservation && !creditResult.error) {
       clearTimeout(globalTimer);
       const creditError = {
-        code: 'INSUFFICIENT_CREDITS',
         message: "You've run out of credits. Add more or upgrade your plan to continue.",
-        retryable: false,
-        suggestedAction: 'upgrade',
-        status: 402,
-        details: { limitType: 'credits' },
+        type: 'invalid_request_error',
+        param: null,
+        code: 'INSUFFICIENT_CREDITS',
       };
       if (earlySSE) {
         sendSSEError(creditError);
@@ -389,10 +410,16 @@ router.post('/', async (req: Request, res: Response) => {
     resolved = resolvedResult;
     if (!resolved) {
       clearTimeout(globalTimer);
+      const noModelsError = {
+        message: 'No models available. Please try again.',
+        type: 'server_error',
+        param: 'model',
+        code: 'model_not_available',
+      };
       if (earlySSE) {
-        sendSSEError({ code: 'NO_MODELS', message: 'No models available. Please try again.', status: 503 });
+        sendSSEError(noModelsError);
       } else {
-        res.status(503).json({ error: 'No models available', requested_model: requestedModel });
+        res.status(503).json({ error: noModelsError });
       }
       return;
     }
@@ -407,12 +434,10 @@ router.post('/', async (req: Request, res: Response) => {
         if (creditReservation) await refundReservation(creditReservation);
         clearTimeout(globalTimer);
         const modelError = {
-          code: 'MODEL_NOT_IN_PLAN',
           message: 'Upgrade your plan to use this model.',
-          retryable: false,
-          suggestedAction: 'upgrade',
-          status: 403,
-          details: { model: aliasModelId },
+          type: 'invalid_request_error',
+          param: 'model',
+          code: 'MODEL_NOT_IN_PLAN',
         };
         if (earlySSE) {
           sendSSEError(modelError);
@@ -438,8 +463,7 @@ router.post('/', async (req: Request, res: Response) => {
             signal: req.socket.destroyed ? AbortSignal.abort() : undefined,
             onProgress: (progress: ResearchProgress) => {
               if (!res.writableEnded) {
-                res.write(`data: ${JSON.stringify({
-                  type: 'research_progress',
+                res.write(`event: alia.research_progress\ndata: ${JSON.stringify({
                   phase: progress.phase,
                   message: progress.message,
                   subQuestions: progress.subQuestions,
@@ -456,15 +480,19 @@ router.post('/', async (req: Request, res: Response) => {
           for (let i = 0; i < result.report.length; i += CHUNK_SIZE) {
             const chunk = result.report.slice(i, i + CHUNK_SIZE);
             res.write(`data: ${JSON.stringify({
-              id: `chatcmpl-${Date.now()}`,
+              id: requestId,
               object: 'chat.completion.chunk',
-              choices: [{ index: 0, delta: { content: chunk }, finish_reason: null }],
+              created: Math.floor(Date.now() / 1000),
+              model: aliasModelId,
+              system_fingerprint: 'fp_alia',
+              service_tier: 'default',
+              choices: [{ index: 0, delta: { content: chunk }, logprobs: null, finish_reason: null }],
             })}\n\n`);
           }
 
-          // Send sources metadata
-          res.write(`data: ${JSON.stringify({
-            type: 'research_complete',
+          // Send sources metadata as named event
+          res.write(`event: alia.research_progress\ndata: ${JSON.stringify({
+            phase: 'complete',
             sources: result.sources,
             totalSearches: result.totalSearches,
             subQuestions: result.subQuestions,
@@ -472,9 +500,13 @@ router.post('/', async (req: Request, res: Response) => {
 
           // Send final chunk with finish_reason
           res.write(`data: ${JSON.stringify({
-            id: `chatcmpl-${Date.now()}`,
+            id: requestId,
             object: 'chat.completion.chunk',
-            choices: [{ index: 0, delta: {}, finish_reason: 'stop' }],
+            created: Math.floor(Date.now() / 1000),
+            model: aliasModelId,
+            system_fingerprint: 'fp_alia',
+            service_tier: 'default',
+            choices: [{ index: 0, delta: {}, logprobs: null, finish_reason: 'stop' }],
           })}\n\n`);
           res.write('data: [DONE]\n\n');
           res.end();
@@ -518,8 +550,12 @@ router.post('/', async (req: Request, res: Response) => {
           }
           if (!res.writableEnded) {
             res.write(`data: ${JSON.stringify({
-              type: 'error',
-              error: (err as Error).message || 'Research failed',
+              error: {
+                message: (err as Error).message || 'Research failed.',
+                type: 'server_error',
+                param: null,
+                code: 'research_failed',
+              },
             })}\n\n`);
             res.write('data: [DONE]\n\n');
             res.end();
@@ -568,7 +604,7 @@ router.post('/', async (req: Request, res: Response) => {
         deepResearch: createDeepResearchTool(req.user!.id),
         switchModel: createSwitchModelTool((modelId, modelName) => {
           ensureSSEHeaders();
-          res.write(`data: ${JSON.stringify({ type: 'model_switch', model: modelId, modelName })}\n\n`);
+          res.write(`event: alia.model_switch\ndata: ${JSON.stringify({ model: modelId, modelName })}\n\n`);
         }),
       } : {}),
     };
@@ -588,11 +624,76 @@ router.post('/', async (req: Request, res: Response) => {
 
     const allTools = { ...aliaTools, ...editorTools };
 
-    // Agent mode: add search & delegation tools
+    // Agent mode: add search & delegation tools + full agent escalation
     const agentMessages: Array<{ role: 'assistant'; content: string; agentInfo: { id: string; name: string; avatar: string | null; handle: string } }> = [];
     if (agentMode && isDirectUserSession) {
       allTools.searchAgents = createSearchAgentsTool();
       allTools.delegateToAgent = createDelegateToAgentTool();
+
+      // Check if this conversation is linked to a specific agent — enable full agent execution
+      if (conversationId && req.user?.id) {
+        try {
+          const conv = await Conversation.findById(conversationId).select('agentId').lean();
+          if (conv?.agentId) {
+            const { Agent } = await import('../../models/agent.js');
+            const { AgentSession } = await import('../../models/agent-session.js');
+            const { enqueueAgentSession } = await import('../../lib/task-queue.js');
+            const { reserveCredits: reserveAgentCredits } = await import('../../lib/credits-manager.js');
+
+            const linkedAgent = await Agent.findById(conv.agentId).lean();
+            if (linkedAgent && linkedAgent.isPublished && linkedAgent.status === 'active') {
+              // Get the user's latest message as the task
+              const lastUserMsg = [...messages].reverse().find(m => m.role === 'user');
+              const taskText = typeof lastUserMsg?.content === 'string'
+                ? lastUserMsg.content
+                : Array.isArray(lastUserMsg?.content)
+                  ? lastUserMsg.content.filter((p: any) => p.type === 'text').map((p: any) => p.text).join(' ')
+                  : 'Execute task';
+
+              // Reserve credits for agent execution
+              const baseCredits = linkedAgent.price || 15;
+              const agentReservation = await reserveAgentCredits(req.user.id, baseCredits);
+
+              if (agentReservation) {
+                // Create agent session
+                const session = await AgentSession.create({
+                  agentId: linkedAgent._id,
+                  userId: req.user.id,
+                  task: taskText.slice(0, 2000),
+                  status: 'queued',
+                  depth: 0,
+                  creditReservation: agentReservation,
+                });
+
+                // Enqueue for async execution
+                await enqueueAgentSession({
+                  sessionId: session._id.toString(),
+                  userId: req.user.id,
+                  agentId: linkedAgent._id.toString(),
+                  agentName: linkedAgent.name,
+                });
+
+                // Increment counters
+                await Agent.updateOne({ _id: linkedAgent._id }, { $inc: { hireCount: 1, usageCount: 1 } });
+
+                // Emit agent session event via SSE so frontend can subscribe
+                if (body.stream) {
+                  res.write(`data: ${JSON.stringify({
+                    type: 'agent_session',
+                    sessionId: session._id.toString(),
+                    agentId: linkedAgent._id.toString(),
+                    agentName: linkedAgent.name,
+                  })}\n\n`);
+                }
+
+                log.v1.info({ sessionId: session._id, agentId: linkedAgent._id }, 'Agent session created from chat');
+              }
+            }
+          }
+        } catch (agentErr) {
+          log.v1.warn({ err: agentErr }, 'Failed to check/create agent session from chat');
+        }
+      }
     }
 
     // Log tool schemas for debugging
@@ -948,43 +1049,51 @@ router.post('/', async (req: Request, res: Response) => {
         };
       });
 
+      // Detect spending anomalies for proactive warnings
+      let creditWarning: CreditWarning | null = null;
+      if (req.user?.id) {
+        try {
+          creditWarning = await detectCreditAnomaly(req.user.id);
+          if (creditWarning) {
+            creditWarning.currentModelMultiplier = (await getAliaModel(aliasModelId))?.creditMultiplier || 1;
+          }
+        } catch {}
+      }
+
       // Return OpenAI-compatible non-streaming response
       const response = {
-        id: `chatcmpl-${Date.now()}`,
+        id: requestId,
         object: 'chat.completion',
         created: Math.floor(Date.now() / 1000),
         model: aliasModelId,
+        system_fingerprint: 'fp_alia',
+        service_tier: 'default',
         choices: [{
           index: 0,
           message: {
             role: 'assistant',
             content: assistantResponse,
+            refusal: null,
             ...(toolCalls && toolCalls.length > 0 && { tool_calls: toolCalls })
           },
+          logprobs: null,
           finish_reason: result.finishReason || 'stop'
         }],
         usage: {
           prompt_tokens: tokenUsage.promptTokens,
           completion_tokens: tokenUsage.completionTokens,
           total_tokens: tokenUsage.totalTokens,
+          prompt_tokens_details: { cached_tokens: 0, audio_tokens: 0 },
+          completion_tokens_details: { reasoning_tokens: 0, audio_tokens: 0, accepted_prediction_tokens: 0, rejected_prediction_tokens: 0 },
+        },
+        alia_usage: {
           system_prompt_tokens: tokenUsage.systemPromptTokens || 0,
           billable_tokens: Math.max(0, tokenUsage.totalTokens - (tokenUsage.systemPromptTokens || 0)),
           credits_charged: creditsCharged,
           credits_remaining: creditsRemaining,
-          credit_warning: null as CreditWarning | null,
-        }
+          credit_warning: creditWarning,
+        },
       };
-
-      // Detect spending anomalies for proactive warnings
-      if (req.user?.id) {
-        try {
-          const warning = await detectCreditAnomaly(req.user.id);
-          if (warning) {
-            warning.currentModelMultiplier = (await getAliaModel(aliasModelId))?.creditMultiplier || 1;
-          }
-          response.usage.credit_warning = warning;
-        } catch {}
-      }
 
       res.json(response);
       clearTimeout(globalTimer);
@@ -1043,25 +1152,11 @@ router.post('/', async (req: Request, res: Response) => {
         // Extract <thinking> tags for chain-of-thought (Anthropic, DeepSeek, etc.)
         const thinkingMatch = chunk.text.match(/<thinking>([\s\S]*?)<\/thinking>/g);
         if (thinkingMatch) {
-          // Send thinking content as reasoning chunk
+          // Send thinking content as named SSE event (non-standard, Alia extension)
           thinkingMatch.forEach(match => {
             const content = match.replace(/<\/?thinking>/g, '').trim();
             if (content) {
-              const reasoningChunk = {
-                id: `chatcmpl-${Date.now()}`,
-                object: 'chat.completion.chunk',
-                created: Math.floor(Date.now() / 1000),
-                model: aliasModelId,
-                choices: [{
-                  index: 0,
-                  delta: {
-                    reasoning: content,
-                    role: 'assistant'
-                  },
-                  finish_reason: null
-                }]
-              };
-              res.write(`data: ${JSON.stringify(reasoningChunk)}\n\n`);
+              res.write(`event: alia.reasoning\ndata: ${JSON.stringify({ content })}\n\n`);
               log.v1.debug({ reasoning: content.slice(0, 100) }, 'Reasoning chunk (thinking tag)');
             }
           });
@@ -1072,13 +1167,16 @@ router.post('/', async (req: Request, res: Response) => {
         if (filtered) {
           assistantResponse += filtered; // Accumulate response for conversation save
           const openAIChunk = {
-            id: `chatcmpl-${Date.now()}`,
+            id: requestId,
             object: 'chat.completion.chunk',
             created: Math.floor(Date.now() / 1000),
             model: aliasModelId,
+            system_fingerprint: 'fp_alia',
+            service_tier: 'default',
             choices: [{
               index: 0,
               delta: { content: filtered },
+              logprobs: null,
               finish_reason: null
             }]
           };
@@ -1091,21 +1189,7 @@ router.post('/', async (req: Request, res: Response) => {
         // Handle Gemini thought summaries and other reasoning tokens
         const reasoningText = (chunk as ExtendedChunk).text || (chunk as ExtendedChunk).thoughtDelta || (chunk as ExtendedChunk).reasoningDelta;
         if (reasoningText && typeof reasoningText === 'string' && reasoningText.trim()) {
-          const reasoningChunk = {
-            id: `chatcmpl-${Date.now()}`,
-            object: 'chat.completion.chunk',
-            created: Math.floor(Date.now() / 1000),
-            model: aliasModelId,
-            choices: [{
-              index: 0,
-              delta: {
-                reasoning: reasoningText.trim(),
-                role: 'assistant'
-              },
-              finish_reason: null
-            }]
-          };
-          res.write(`data: ${JSON.stringify(reasoningChunk)}\n\n`);
+          res.write(`event: alia.reasoning\ndata: ${JSON.stringify({ content: reasoningText.trim() })}\n\n`);
           log.v1.debug({ reasoning: reasoningText.slice(0, 100) }, 'Reasoning chunk (provider)');
         }
       } else if (chunk.type === 'tool-call') {
@@ -1119,10 +1203,12 @@ router.post('/', async (req: Request, res: Response) => {
         log.v1.info({ toolName: originalToolName, args: chunk.input }, 'Streaming tool call');
 
         const toolCallChunk = {
-          id: `chatcmpl-${Date.now()}`,
+          id: requestId,
           object: 'chat.completion.chunk',
           created: Math.floor(Date.now() / 1000),
           model: aliasModelId,
+          system_fingerprint: 'fp_alia',
+          service_tier: 'default',
           choices: [{
             index: 0,
             delta: {
@@ -1136,6 +1222,7 @@ router.post('/', async (req: Request, res: Response) => {
                 }
               }]
             },
+            logprobs: null,
             finish_reason: null
           }]
         };
@@ -1173,25 +1260,12 @@ router.post('/', async (req: Request, res: Response) => {
           toolTimers.delete(chunk.toolCallId);
         }
 
-        // Stream tool result to the client
-        const toolResultChunk = {
-          id: `chatcmpl-${Date.now()}`,
-          object: 'chat.completion.chunk',
-          created: Math.floor(Date.now() / 1000),
-          model: aliasModelId,
-          choices: [{
-            index: 0,
-            delta: {
-              tool_result: {
-                tool_call_id: chunk.toolCallId,
-                name: originalToolName,
-                output: chunk.output,
-              }
-            },
-            finish_reason: null
-          }]
-        };
-        res.write(`data: ${JSON.stringify(toolResultChunk)}\n\n`);
+        // Stream tool result as named SSE event (non-standard, Alia extension)
+        res.write(`event: alia.tool_result\ndata: ${JSON.stringify({
+          tool_call_id: chunk.toolCallId,
+          name: originalToolName,
+          output: chunk.output,
+        })}\n\n`);
 
         // Update tool invocation state for conversation save
         const existingIdx = toolInvocations.findIndex(t => t.toolCallId === chunk.toolCallId);
@@ -1207,29 +1281,16 @@ router.post('/', async (req: Request, res: Response) => {
           });
         }
 
-        // Emit agent_message SSE event when delegateToAgent returns successfully
+        // Emit agent message as named SSE event (non-standard, Alia extension)
         if (originalToolName === 'delegateToAgent' && chunk.output && !chunk.output.error) {
           const ar = chunk.output;
-          const agentChunk = {
-            id: `chatcmpl-${Date.now()}`,
-            object: 'chat.completion.chunk',
-            created: Math.floor(Date.now() / 1000),
-            model: aliasModelId,
-            choices: [{
-              index: 0,
-              delta: {
-                agent_message: {
-                  agentId: ar.agentId,
-                  agentName: ar.agentName,
-                  agentHandle: ar.agentHandle,
-                  agentAvatar: ar.agentAvatar,
-                  content: ar.response,
-                },
-              },
-              finish_reason: null,
-            }],
-          };
-          res.write(`data: ${JSON.stringify(agentChunk)}\n\n`);
+          res.write(`event: alia.agent\ndata: ${JSON.stringify({
+            agentId: ar.agentId,
+            agentName: ar.agentName,
+            agentHandle: ar.agentHandle,
+            agentAvatar: ar.agentAvatar,
+            content: ar.response,
+          })}\n\n`);
           agentMessages.push({
             role: 'assistant',
             content: ar.response,
@@ -1247,18 +1308,21 @@ router.post('/', async (req: Request, res: Response) => {
         // Send tool error as text content so the user sees what happened
         const errorMessage = (chunk as ExtendedChunk).error?.message || 'Tool execution failed';
         const errorChunk = {
-          id: `chatcmpl-${Date.now()}`,
+          id: requestId,
           object: 'chat.completion.chunk',
           created: Math.floor(Date.now() / 1000),
           model: aliasModelId,
+          system_fingerprint: 'fp_alia',
+          service_tier: 'default',
           choices: [{
             index: 0,
-            delta: { content: `\n\n⚠️ Tool error (${originalToolName}): ${errorMessage}` },
+            delta: { content: `\n\nTool error (${originalToolName}): ${errorMessage}` },
+            logprobs: null,
             finish_reason: null
           }]
         };
         res.write(`data: ${JSON.stringify(errorChunk)}\n\n`);
-        assistantResponse += `\n\n⚠️ Tool error (${originalToolName}): ${errorMessage}`;
+        assistantResponse += `\n\nTool error (${originalToolName}): ${errorMessage}`;
       } else if (chunk.type === 'start') {
         log.v1.debug('Stream started');
       } else if (chunk.type === 'start-step') {
@@ -1296,13 +1360,16 @@ router.post('/', async (req: Request, res: Response) => {
           : '\n\nI encountered a brief interruption. Please send your message again and I\'ll complete my response.';
 
         const recoveryChunk = {
-          id: `chatcmpl-${Date.now()}`,
+          id: requestId,
           object: 'chat.completion.chunk',
           created: Math.floor(Date.now() / 1000),
           model: aliasModelId,
+          system_fingerprint: 'fp_alia',
+          service_tier: 'default',
           choices: [{
             index: 0,
             delta: { content: midStreamMsg },
+            logprobs: null,
             finish_reason: null,
           }]
         };
@@ -1310,24 +1377,29 @@ router.post('/', async (req: Request, res: Response) => {
 
         // Send clean stop (not 'error') so client sees a normal finish
         const stopChunk = {
-          id: `chatcmpl-${Date.now()}`,
+          id: requestId,
           object: 'chat.completion.chunk',
           created: Math.floor(Date.now() / 1000),
           model: aliasModelId,
-          choices: [{ index: 0, delta: {}, finish_reason: 'stop' }],
+          system_fingerprint: 'fp_alia',
+          service_tier: 'default',
+          choices: [{ index: 0, delta: {}, logprobs: null, finish_reason: 'stop' }],
         };
         res.write(`data: ${JSON.stringify(stopChunk)}\n\n`);
       } else if (chunk.type === 'finish') {
         log.v1.debug('Finish chunk received');
         ensureSSEHeaders();
         const finishChunk = {
-          id: `chatcmpl-${Date.now()}`,
+          id: requestId,
           object: 'chat.completion.chunk',
           created: Math.floor(Date.now() / 1000),
           model: aliasModelId,
+          system_fingerprint: 'fp_alia',
+          service_tier: 'default',
           choices: [{
             index: 0,
             delta: {},
+            logprobs: null,
             finish_reason: chunk.finishReason || 'stop'
           }]
         };
@@ -1369,11 +1441,13 @@ router.post('/', async (req: Request, res: Response) => {
 
           // Emit tool-call event to client
           const toolCallChunk = {
-            id: `chatcmpl-${Date.now()}`,
+            id: requestId,
             object: 'chat.completion.chunk',
             created: Math.floor(Date.now() / 1000),
             model: aliasModelId,
-            choices: [{ index: 0, delta: { tool_calls: [{ index: 0, id: toolCallId, type: 'function', function: { name: toolName, arguments: JSON.stringify(args) } }] }, finish_reason: null }],
+            system_fingerprint: 'fp_alia',
+            service_tier: 'default',
+            choices: [{ index: 0, delta: { tool_calls: [{ index: 0, id: toolCallId, type: 'function', function: { name: toolName, arguments: JSON.stringify(args) } }] }, logprobs: null, finish_reason: null }],
           };
           res.write(`data: ${JSON.stringify(toolCallChunk)}\n\n`);
 
@@ -1381,15 +1455,12 @@ router.post('/', async (req: Request, res: Response) => {
           try {
             const toolOutput = await (toolFn.execute as Function)(args);
 
-            // Emit tool-result event to client
-            const toolResultChunk = {
-              id: `chatcmpl-${Date.now()}`,
-              object: 'chat.completion.chunk',
-              created: Math.floor(Date.now() / 1000),
-              model: aliasModelId,
-              choices: [{ index: 0, delta: { tool_result: { tool_call_id: toolCallId, name: toolName, output: toolOutput } }, finish_reason: null }],
-            };
-            res.write(`data: ${JSON.stringify(toolResultChunk)}\n\n`);
+            // Emit tool-result as named SSE event (non-standard, Alia extension)
+            res.write(`event: alia.tool_result\ndata: ${JSON.stringify({
+              tool_call_id: toolCallId,
+              name: toolName,
+              output: toolOutput,
+            })}\n\n`);
 
             toolInvocations.push({ toolCallId, toolName, state: 'result', args, result: toolOutput });
 
@@ -1408,11 +1479,13 @@ router.post('/', async (req: Request, res: Response) => {
                   if (followUpText) {
                     assistantResponse = followUpText; // Replace the text-based tool call text
                     const textChunk = {
-                      id: `chatcmpl-${Date.now()}`,
+                      id: requestId,
                       object: 'chat.completion.chunk',
                       created: Math.floor(Date.now() / 1000),
                       model: aliasModelId,
-                      choices: [{ index: 0, delta: { content: followUpText }, finish_reason: null }],
+                      system_fingerprint: 'fp_alia',
+                      service_tier: 'default',
+                      choices: [{ index: 0, delta: { content: followUpText }, logprobs: null, finish_reason: null }],
                     };
                     res.write(`data: ${JSON.stringify(textChunk)}\n\n`);
                   }
@@ -1454,7 +1527,7 @@ router.post('/', async (req: Request, res: Response) => {
       try {
         const title = await titlePromise;
         if (title) {
-          res.write(`data: ${JSON.stringify({ type: 'title_update', title, conversationId })}\n\n`);
+          res.write(`event: alia.title\ndata: ${JSON.stringify({ title, conversationId })}\n\n`);
           await Conversation.updateOne(
             { oxyUserId: req.user.id, conversationId },
             { $set: { title } },
@@ -1491,29 +1564,33 @@ router.post('/', async (req: Request, res: Response) => {
           } catch {}
         }
 
-        // Send usage info as metadata chunk (must include choices array for SDK compatibility)
-        const usageChunk = {
-          id: `chatcmpl-${Date.now()}`,
-          object: 'chat.completion.chunk',
-          created: Math.floor(Date.now() / 1000),
-          model: aliasModelId,
-          choices: [{
-            index: 0,
-            delta: {},
-            finish_reason: null
-          }],
-          usage: {
-            prompt_tokens: tokenUsage.promptTokens,
-            completion_tokens: tokenUsage.completionTokens,
-            total_tokens: tokenUsage.totalTokens,
-            system_prompt_tokens: tokenUsage.systemPromptTokens || 0,
-            billable_tokens: Math.max(0, tokenUsage.totalTokens - (tokenUsage.systemPromptTokens || 0)),
-            credits_charged: creditsCharged,
-            credits_remaining: creditsRemaining,
-            credit_warning: creditWarning,
-          }
-        };
-        res.write(`data: ${JSON.stringify(usageChunk)}\n\n`);
+        // Send usage chunk only when stream_options.include_usage is true (OpenAI spec)
+        if (includeUsage) {
+          const usageChunk = {
+            id: requestId,
+            object: 'chat.completion.chunk',
+            created: Math.floor(Date.now() / 1000),
+            model: aliasModelId,
+            system_fingerprint: 'fp_alia',
+            service_tier: 'default',
+            choices: [],
+            usage: {
+              prompt_tokens: tokenUsage.promptTokens,
+              completion_tokens: tokenUsage.completionTokens,
+              total_tokens: tokenUsage.totalTokens,
+              prompt_tokens_details: { cached_tokens: 0, audio_tokens: 0 },
+              completion_tokens_details: { reasoning_tokens: 0, audio_tokens: 0, accepted_prediction_tokens: 0, rejected_prediction_tokens: 0 },
+            },
+            alia_usage: {
+              system_prompt_tokens: tokenUsage.systemPromptTokens || 0,
+              billable_tokens: Math.max(0, tokenUsage.totalTokens - (tokenUsage.systemPromptTokens || 0)),
+              credits_charged: creditsCharged,
+              credits_remaining: creditsRemaining,
+              credit_warning: creditWarning,
+            },
+          };
+          res.write(`data: ${JSON.stringify(usageChunk)}\n\n`);
+        }
       } catch (error) {
         log.v1.error({ err: error }, 'Error finalizing credits');
       }
@@ -1617,36 +1694,49 @@ router.post('/', async (req: Request, res: Response) => {
     if (!sseHeadersSent && !res.headersSent) {
       // Non-streaming: return standard JSON response
       res.json({
-        id: `chatcmpl-${Date.now()}`,
+        id: requestId,
         object: 'chat.completion',
         created: Math.floor(Date.now() / 1000),
         model: aliasModelId,
+        system_fingerprint: 'fp_alia',
+        service_tier: 'default',
         choices: [{
           index: 0,
-          message: { role: 'assistant', content: syntheticMessage },
+          message: { role: 'assistant', content: syntheticMessage, refusal: null },
+          logprobs: null,
           finish_reason: 'stop',
         }],
-        usage: { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 },
+        usage: {
+          prompt_tokens: 0,
+          completion_tokens: 0,
+          total_tokens: 0,
+          prompt_tokens_details: { cached_tokens: 0, audio_tokens: 0 },
+          completion_tokens_details: { reasoning_tokens: 0, audio_tokens: 0, accepted_prediction_tokens: 0, rejected_prediction_tokens: 0 },
+        },
         alia_meta: { synthetic: true, retryable: true },
       });
     } else {
       // Streaming: send synthetic message as normal SSE chunks
       ensureSSEHeaders();
       const contentChunk = {
-        id: `chatcmpl-${Date.now()}`,
+        id: requestId,
         object: 'chat.completion.chunk',
         created: Math.floor(Date.now() / 1000),
         model: aliasModelId,
-        choices: [{ index: 0, delta: { content: syntheticMessage }, finish_reason: null }],
+        system_fingerprint: 'fp_alia',
+        service_tier: 'default',
+        choices: [{ index: 0, delta: { content: syntheticMessage }, logprobs: null, finish_reason: null }],
         alia_meta: { synthetic: true, retryable: true },
       };
       res.write(`data: ${JSON.stringify(contentChunk)}\n\n`);
       const finishChunk = {
-        id: `chatcmpl-${Date.now()}`,
+        id: requestId,
         object: 'chat.completion.chunk',
         created: Math.floor(Date.now() / 1000),
         model: aliasModelId,
-        choices: [{ index: 0, delta: {}, finish_reason: 'stop' }],
+        system_fingerprint: 'fp_alia',
+        service_tier: 'default',
+        choices: [{ index: 0, delta: {}, logprobs: null, finish_reason: 'stop' }],
       };
       res.write(`data: ${JSON.stringify(finishChunk)}\n\n`);
       res.write('data: [DONE]\n\n');
@@ -1676,23 +1766,28 @@ router.post('/', async (req: Request, res: Response) => {
       // Headers already sent (streaming started) — send graceful recovery message
       const outerMidStreamMsg = '\n\nI encountered a brief interruption. Please send your message again and I\'ll complete my response.';
       const recoveryChunk = {
-        id: `chatcmpl-${Date.now()}`,
+        id: requestId,
         object: 'chat.completion.chunk',
         created: Math.floor(Date.now() / 1000),
         model: aliasModelId,
+        system_fingerprint: 'fp_alia',
+        service_tier: 'default',
         choices: [{
           index: 0,
           delta: { content: outerMidStreamMsg },
+          logprobs: null,
           finish_reason: null,
         }]
       };
       res.write(`data: ${JSON.stringify(recoveryChunk)}\n\n`);
       const stopChunk = {
-        id: `chatcmpl-${Date.now()}`,
+        id: requestId,
         object: 'chat.completion.chunk',
         created: Math.floor(Date.now() / 1000),
         model: aliasModelId,
-        choices: [{ index: 0, delta: {}, finish_reason: 'stop' }],
+        system_fingerprint: 'fp_alia',
+        service_tier: 'default',
+        choices: [{ index: 0, delta: {}, logprobs: null, finish_reason: 'stop' }],
       };
       res.write(`data: ${JSON.stringify(stopChunk)}\n\n`);
       res.write('data: [DONE]\n\n');

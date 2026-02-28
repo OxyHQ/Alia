@@ -40,6 +40,13 @@ export interface IStructuredPlan {
   items: ITodoItem[];
 }
 
+export interface ICreditReservation {
+  userId: string;
+  creditsReserved: number;
+  initialFreeCredits: number;
+  initialPaidCredits: number;
+}
+
 export interface IAgentSession extends Document {
   agentId: mongoose.Types.ObjectId;
   userId: mongoose.Types.ObjectId;
@@ -51,9 +58,11 @@ export interface IAgentSession extends Document {
   messages: IAgentSessionMessage[];
   eventStream: IEventStreamEntry[];
   resources: IAgentSessionResource[];
+  creditReservation?: ICreditReservation;
   stats: {
     totalTokens: number;
     totalSteps: number;
+    creditsCharged?: number;
     startedAt: Date;
     completedAt?: Date;
     lastActivityAt: Date;
@@ -132,9 +141,19 @@ const AgentSessionSchema = new Schema<IAgentSession>({
     status: { type: String, enum: ['active', 'destroyed'], default: 'active' },
     createdAt: { type: Date, default: Date.now },
   }],
+  creditReservation: {
+    type: {
+      userId: { type: String },
+      creditsReserved: { type: Number },
+      initialFreeCredits: { type: Number },
+      initialPaidCredits: { type: Number },
+    },
+    default: undefined,
+  },
   stats: {
     totalTokens: { type: Number, default: 0 },
     totalSteps: { type: Number, default: 0 },
+    creditsCharged: { type: Number },
     startedAt: { type: Date },
     completedAt: { type: Date },
     lastActivityAt: { type: Date, default: Date.now },

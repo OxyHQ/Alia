@@ -9,7 +9,9 @@ import { runAgentSession, getRecentActivity } from '../lib/agent-runner.js';
 import { cleanupSessionResources } from '../lib/agent-tools.js';
 import { resolveModel, getAIModel, getDefaultAliaModel } from '../lib/chat-core.js';
 import { enqueueAgentSession, getJobStatus, cancelJob } from '../lib/task-queue.js';
+import { reserveCredits, safeRefund } from '../lib/credits-manager.js';
 import { EventStreamEntry as EventStreamEntryModel } from '../models/event-stream-entry.js';
+import { getAgentCapabilities } from '../lib/agent/health.js';
 import { log } from '../lib/logger.js';
 import type { Request, Response } from 'express';
 
@@ -358,13 +360,33 @@ router.post('/:id/hire', authenticateToken, async (req: Request, res: Response) 
       return res.status(400).json({ error: 'Agent is not currently active' });
     }
 
-    // Create session
+    // Check infrastructure capabilities
+    const capabilities = await getAgentCapabilities();
+    if (!capabilities.shell && !capabilities.browser) {
+      return res.status(503).json({
+        error: 'Agent execution infrastructure unavailable',
+        capabilities,
+      });
+    }
+
+    // Reserve credits (Manus-style: token + VM resource based)
+    const baseCredits = agent.price || 15;
+    const creditReservation = await reserveCredits(req.user.id, baseCredits);
+    if (!creditReservation) {
+      return res.status(402).json({
+        error: 'Insufficient credits',
+        creditsNeeded: baseCredits,
+      });
+    }
+
+    // Create session with credit reservation
     const session = await AgentSession.create({
       agentId: agent._id,
       userId: req.user.id,
       task,
       status: 'queued',
       depth: 0,
+      creditReservation,
     });
 
     // Increment counters
@@ -884,6 +906,54 @@ router.delete('/:id/reviews', authenticateToken, async (req: Request, res: Respo
   } catch (error) {
     log.agents.error({ err: error }, 'Error deleting review');
     res.status(500).json({ error: 'Failed to delete review' });
+  }
+});
+
+// GET /agents/health - infrastructure status
+router.get('/health', async (_req: Request, res: Response) => {
+  try {
+    const capabilities = await getAgentCapabilities();
+    res.json({ capabilities });
+  } catch (error) {
+    log.agents.error({ err: error }, 'Error checking agent health');
+    res.status(500).json({ error: 'Failed to check health' });
+  }
+});
+
+// GET /agents/sessions/:sid/sources - get sources found during a session
+router.get('/sessions/:sid/sources', authenticateToken, async (req: Request, res: Response) => {
+  try {
+    if (!req.user?.id) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const session = await AgentSession.findOne({
+      _id: req.params.sid,
+      userId: req.user.id,
+    }).select('_id').lean();
+
+    if (!session) {
+      return res.status(404).json({ error: 'Session not found' });
+    }
+
+    // Query event stream for source_found events
+    const sourceEvents = await EventStreamEntryModel
+      .find({ sessionId: req.params.sid, type: 'source_found' })
+      .sort({ seq: 1 })
+      .lean();
+
+    const sources = sourceEvents.map((entry: any) => ({
+      url: entry.metadata?.url || '',
+      title: entry.metadata?.title || '',
+      domain: entry.metadata?.domain || '',
+      snippet: entry.content?.slice(0, 200) || '',
+      timestamp: entry.timestamp,
+    }));
+
+    res.json({ sources });
+  } catch (error) {
+    log.agents.error({ err: error }, 'Error getting session sources');
+    res.status(500).json({ error: 'Failed to get sources' });
   }
 });
 

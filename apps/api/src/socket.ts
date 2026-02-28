@@ -76,11 +76,11 @@ export function emitWorkflowProgress(executionId: string, data: any) {
 }
 
 export interface AgentActivityEvent {
-  type: 'system' | 'thinking' | 'response' | 'tool_call' | 'tool_result' | 'error' | 'complete' | 'screenshot' | 'plan_progress' | 'file_change';
+  type: 'system' | 'thinking' | 'response' | 'tool_call' | 'tool_result' | 'error' | 'complete' | 'screenshot' | 'plan_progress' | 'file_change' | 'source_found';
   content: string;
   timestamp: number;
   sessionId: string;
-  metadata?: { toolName?: string; args?: any; duration?: number };
+  metadata?: { toolName?: string; args?: any; duration?: number; url?: string; title?: string; domain?: string };
   data?: {
     base64?: string;
     url?: string;

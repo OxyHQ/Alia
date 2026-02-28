@@ -95,7 +95,7 @@ function ScreenshotThumbnail({ screenshot }: { screenshot: AgentScreenshot }) {
 }
 
 export const AgentTaskCard = React.memo(function AgentTaskCard({ activity }: AgentTaskCardProps) {
-  const { plan, screenshots, currentAction, isComplete, hasError, lastError, eventCount, startedAt } = activity;
+  const { plan, screenshots, currentAction, isComplete, hasError, lastError, eventCount, startedAt, latestResponse } = activity as any;
   const [showPlan, setShowPlan] = useState(true);
   const [elapsed, setElapsed] = useState('');
 
@@ -187,6 +187,15 @@ export const AgentTaskCard = React.memo(function AgentTaskCard({ activity }: Age
             {currentAction.content.length > 80
               ? currentAction.content.slice(0, 80) + '...'
               : currentAction.content}
+          </Text>
+        </View>
+      )}
+
+      {/* Agent response */}
+      {latestResponse && !isComplete && (
+        <View className="px-3 py-2 border-t border-border">
+          <Text className="text-xs text-muted-foreground" numberOfLines={4}>
+            {latestResponse.length > 200 ? latestResponse.slice(0, 200) + '...' : latestResponse}
           </Text>
         </View>
       )}
