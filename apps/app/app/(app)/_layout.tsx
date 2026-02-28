@@ -1,6 +1,7 @@
 import { Drawer } from 'expo-router/drawer';
 import { Sidebar } from '@/components/sidebar';
 import { RightPanel } from '@/components/right-panel';
+import { AppErrorBoundary } from '@/components/error-boundary';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { View, useWindowDimensions } from 'react-native';
 import { useProjectsStore } from '@/lib/stores/projects-store';
@@ -43,7 +44,8 @@ export default function AppLayout() {
   }, [loadProjects, loadRoles, loadAgents, loadFolders, loadFavorites, loadPinned]);
 
   return (
-    <GestureHandlerRootView style={{ flex: 1 }}>
+    <AppErrorBoundary>
+      <GestureHandlerRootView style={{ flex: 1 }}>
       <View style={{ flex: 1, flexDirection: isLargeScreen ? 'row' : 'column' }}>
         <View style={{ flex: 1 }}>
           <Drawer
@@ -260,6 +262,7 @@ export default function AppLayout() {
       {!isLargeScreen && <RightPanel />}
       <CommandPalette />
       <KeyboardShortcutsDialog />
-    </GestureHandlerRootView>
+      </GestureHandlerRootView>
+    </AppErrorBoundary>
   );
 }

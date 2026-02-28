@@ -1,11 +1,14 @@
+import crypto from 'crypto';
 import { Router, Request, Response } from 'express';
 import multer from 'multer';
-import { authenticateToken } from '../middleware/auth';
+import { authenticateToken, oxyClient } from '../middleware/auth';
 import { Organization } from '../models/organization';
 import { OrganizationMember } from '../models/organization-member';
 import { OrganizationAgent } from '../models/organization-agent';
+import { OrganizationInvite } from '../models/organization-invite';
 import { Agent } from '../models/agent';
 import { uploadToS3, deleteFromS3 } from '../lib/s3';
+import { sendEmail, buildInviteEmailHtml } from '../lib/email';
 import { z } from 'zod';
 import { log } from '../lib/logger.js';
 
@@ -22,6 +25,145 @@ const router = Router();
 
 // All routes require authentication
 router.use(authenticateToken);
+
+// ===========================================
+// INVITE ROUTES (must be before /:id to avoid param conflicts)
+// ===========================================
+
+// Get pending invitations for the current user (across all orgs)
+router.get('/invites/mine', async (req: Request, res: Response) => {
+  try {
+    const userId = req.user!.id;
+
+    // Get user's email from Oxy
+    let userEmail: string | undefined;
+    try {
+      const oxyUser = await oxyClient.getUserById(userId);
+      userEmail = oxyUser?.email;
+    } catch {
+      return res.status(500).json({ error: 'Could not determine your email address' });
+    }
+
+    if (!userEmail) {
+      return res.json({ invites: [] });
+    }
+
+    const invites = await OrganizationInvite.find({
+      email: userEmail.toLowerCase(),
+      status: 'pending',
+      expiresAt: { $gt: new Date() },
+    })
+      .populate('organizationId', 'name slug image')
+      .sort({ createdAt: -1 });
+
+    res.json({ invites });
+  } catch (error) {
+    log.organization.error({ err: error }, 'Error fetching user invitations');
+    res.status(500).json({ error: 'Failed to fetch invitations' });
+  }
+});
+
+// Accept an invitation (by token)
+router.post('/invites/:token/accept', async (req: Request, res: Response) => {
+  try {
+    const userId = req.user!.id;
+    const { token } = req.params;
+
+    const invite = await OrganizationInvite.findOne({
+      token,
+      status: 'pending',
+      expiresAt: { $gt: new Date() },
+    });
+
+    if (!invite) {
+      return res.status(404).json({ error: 'Invitation not found, expired, or already used' });
+    }
+
+    // Check if user is already a member
+    const existingMember = await OrganizationMember.findOne({
+      organizationId: invite.organizationId,
+      oxyUserId: userId,
+    });
+
+    if (existingMember) {
+      // Mark invite as accepted even if already a member
+      invite.status = 'accepted';
+      invite.acceptedAt = new Date();
+      invite.acceptedBy = userId as any;
+      await invite.save();
+
+      return res.status(400).json({ error: 'You are already a member of this organization' });
+    }
+
+    // Add user as a member with the invited role
+    await OrganizationMember.create({
+      organizationId: invite.organizationId,
+      oxyUserId: userId,
+      role: invite.role,
+      permissions: [],
+    });
+
+    // Mark invite as accepted
+    invite.status = 'accepted';
+    invite.acceptedAt = new Date();
+    invite.acceptedBy = userId as any;
+    await invite.save();
+
+    // Fetch the organization to return
+    const organization = await Organization.findById(invite.organizationId);
+
+    log.organization.info(
+      { organizationId: invite.organizationId, userId, inviteId: invite._id },
+      'Invitation accepted'
+    );
+
+    res.json({
+      message: 'Invitation accepted successfully',
+      organization: organization ? {
+        _id: organization._id,
+        name: organization.name,
+        slug: organization.slug,
+        image: organization.image,
+      } : null,
+      role: invite.role,
+    });
+  } catch (error) {
+    log.organization.error({ err: error }, 'Error accepting invitation');
+    res.status(500).json({ error: 'Failed to accept invitation' });
+  }
+});
+
+// Decline an invitation (by token)
+router.post('/invites/:token/decline', async (req: Request, res: Response) => {
+  try {
+    const userId = req.user!.id;
+    const { token } = req.params;
+
+    const invite = await OrganizationInvite.findOneAndUpdate(
+      {
+        token,
+        status: 'pending',
+        expiresAt: { $gt: new Date() },
+      },
+      { status: 'declined' },
+      { returnDocument: 'after' }
+    );
+
+    if (!invite) {
+      return res.status(404).json({ error: 'Invitation not found, expired, or already used' });
+    }
+
+    log.organization.info(
+      { organizationId: invite.organizationId, userId, inviteId: invite._id },
+      'Invitation declined'
+    );
+
+    res.json({ message: 'Invitation declined' });
+  } catch (error) {
+    log.organization.error({ err: error }, 'Error declining invitation');
+    res.status(500).json({ error: 'Failed to decline invitation' });
+  }
+});
 
 // ===========================================
 // ORGANIZATION ROUTES
@@ -311,6 +453,8 @@ const inviteMemberSchema = z.object({
   role: z.enum(['admin', 'member']),
 });
 
+const INVITE_EXPIRY_DAYS = 7;
+
 router.post('/:id/members', async (req: Request, res: Response) => {
   try {
     const userId = req.user!.id;
@@ -329,12 +473,110 @@ router.post('/:id/members', async (req: Request, res: Response) => {
 
     const { email, role } = inviteMemberSchema.parse(req.body);
 
-    // TODO: Implement email invitation system
-    // For now, just return a message
-    res.json({
-      message: 'Invitation feature coming soon',
-      email,
+    // Verify the organization exists
+    const organization = await Organization.findById(id);
+    if (!organization) {
+      return res.status(404).json({ error: 'Organization not found' });
+    }
+
+    // Check if user with this email is already a member (search Oxy profiles)
+    try {
+      const searchResult = await oxyClient.searchProfiles(email);
+      const profiles = (searchResult as any)?.users || (searchResult as any)?.profiles || [];
+      const matchedUser = profiles.find((p: any) =>
+        p.email?.toLowerCase() === email.toLowerCase()
+      );
+
+      if (matchedUser) {
+        const existingMember = await OrganizationMember.findOne({
+          organizationId: id,
+          oxyUserId: matchedUser._id || matchedUser.id,
+        });
+
+        if (existingMember) {
+          return res.status(400).json({ error: 'User is already a member of this organization' });
+        }
+      }
+    } catch {
+      // Oxy profile search is best-effort; continue with the invite
+    }
+
+    // Check for existing pending invite for this email + org
+    const existingInvite = await OrganizationInvite.findOne({
+      organizationId: id,
+      email: email.toLowerCase(),
+      status: 'pending',
+      expiresAt: { $gt: new Date() },
+    });
+
+    if (existingInvite) {
+      return res.status(400).json({
+        error: 'A pending invitation already exists for this email',
+        invite: {
+          _id: existingInvite._id,
+          email: existingInvite.email,
+          role: existingInvite.role,
+          expiresAt: existingInvite.expiresAt,
+        },
+      });
+    }
+
+    // Generate secure invite token
+    const token = crypto.randomBytes(32).toString('base64url');
+    const expiresAt = new Date(Date.now() + INVITE_EXPIRY_DAYS * 24 * 60 * 60 * 1000);
+
+    // Create the invite record
+    const invite = await OrganizationInvite.create({
+      organizationId: id,
+      email: email.toLowerCase(),
       role,
+      token,
+      invitedBy: userId,
+      status: 'pending',
+      expiresAt,
+    });
+
+    // Get inviter name for the email
+    let inviterName = 'A team member';
+    try {
+      const inviterUser = await oxyClient.getUserById(userId);
+      inviterName = inviterUser?.name?.full || inviterUser?.name?.first || inviterUser?.username || 'A team member';
+    } catch {
+      // Use default name
+    }
+
+    // Build accept URL
+    const appUrl = process.env.APP_URL || process.env.WEB_URL || 'http://localhost:3000';
+    const acceptUrl = `${appUrl}/invite/${token}`;
+
+    // Send the invitation email
+    const emailSent = await sendEmail({
+      to: email,
+      subject: `You've been invited to join ${organization.name} on Alia`,
+      html: buildInviteEmailHtml({
+        organizationName: organization.name,
+        inviterName,
+        role,
+        acceptUrl,
+      }),
+      text: `${inviterName} has invited you to join ${organization.name} as a ${role} on Alia. Accept the invitation: ${acceptUrl}`,
+    });
+
+    log.organization.info(
+      { organizationId: id, email, role, emailSent, inviteId: invite._id },
+      'Organization invitation created'
+    );
+
+    res.status(201).json({
+      invite: {
+        _id: invite._id,
+        email: invite.email,
+        role: invite.role,
+        status: invite.status,
+        expiresAt: invite.expiresAt,
+        createdAt: invite.createdAt,
+      },
+      emailSent,
     });
   } catch (error) {
     if (error instanceof z.ZodError) {
@@ -342,6 +584,75 @@ router.post('/:id/members', async (req: Request, res: Response) => {
     }
     log.organization.error({ err: error }, 'Error inviting member');
     res.status(500).json({ error: 'Failed to invite member' });
+  }
+});
+
+// List pending invitations for an organization
+router.get('/:id/invites', async (req: Request, res: Response) => {
+  try {
+    const userId = req.user!.id;
+    const { id } = req.params;
+
+    // Check if user is admin or owner
+    const membership = await OrganizationMember.findOne({
+      organizationId: id,
+      oxyUserId: userId,
+      role: { $in: ['owner', 'admin'] },
+    });
+
+    if (!membership) {
+      return res.status(403).json({ error: 'Insufficient permissions' });
+    }
+
+    const invites = await OrganizationInvite.find({
+      organizationId: id,
+      status: 'pending',
+      expiresAt: { $gt: new Date() },
+    }).sort({ createdAt: -1 });
+
+    res.json({ invites });
+  } catch (error) {
+    log.organization.error({ err: error }, 'Error fetching invitations');
+    res.status(500).json({ error: 'Failed to fetch invitations' });
+  }
+});
+
+// Revoke (cancel) a pending invitation
+router.delete('/:id/invites/:inviteId', async (req: Request, res: Response) => {
+  try {
+    const userId = req.user!.id;
+    const { id, inviteId } = req.params;
+
+    // Check if user is admin or owner
+    const membership = await OrganizationMember.findOne({
+      organizationId: id,
+      oxyUserId: userId,
+      role: { $in: ['owner', 'admin'] },
+    });
+
+    if (!membership) {
+      return res.status(403).json({ error: 'Insufficient permissions' });
+    }
+
+    const invite = await OrganizationInvite.findOneAndUpdate(
+      {
+        _id: inviteId,
+        organizationId: id,
+        status: 'pending',
+      },
+      { status: 'expired' },
+      { returnDocument: 'after' }
+    );
+
+    if (!invite) {
+      return res.status(404).json({ error: 'Invitation not found or already processed' });
+    }
+
+    log.organization.info({ inviteId, organizationId: id }, 'Invitation revoked');
+    res.json({ message: 'Invitation revoked successfully' });
+  } catch (error) {
+    log.organization.error({ err: error }, 'Error revoking invitation');
+    res.status(500).json({ error: 'Failed to revoke invitation' });
   }
 });
 
