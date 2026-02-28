@@ -150,6 +150,32 @@
     "saving": "Saving...",
     "saveSuccess": "Preferences saved successfully",
     "saveFailed": "Failed to save preferences",
+    "security": {
+      "defaultPermissions": "Default Agent Permissions",
+      "defaultPermissionsDesc": "Default permissions applied to newly created agents",
+      "approvalPreferences": "Approval Preferences",
+      "requireApproval": "Require approval for flagged actions",
+      "requireApprovalDesc": "Pause agent execution when a potentially risky action is detected",
+      "approvalTimeout": "Approval timeout",
+      "autoDenyOnTimeout": "Auto-deny when timeout expires",
+      "autoDenyOnTimeoutDesc": "Automatically deny flagged actions if you don't respond in time",
+      "threatLog": "Threat Activity",
+      "threatLogEmpty": "No threats detected",
+      "threatLogDesc": "Recent security events from your agents",
+      "auditExport": "Audit Export",
+      "auditExportDesc": "Export agent activity logs for compliance",
+      "exportButton": "Export Logs",
+      "exporting": "Exporting...",
+      "exportSuccess": "Logs exported successfully",
+      "exportFailed": "Failed to export logs",
+      "viewAll": "View All",
+      "from": "From",
+      "to": "To",
+      "format": "Format",
+      "blocked": "Blocked",
+      "warning": "Warning",
+      "noThreats": "All clear — no threats detected yet"
+    },
     "sections": {
       "account": "Account",
       "general": "General",
@@ -162,6 +188,7 @@
       "mcp": "MCP Servers",
       "integrations": "Integrations",
       "skills": "Skills",
+      "security": "Security",
       "feedback": "Feedback",
       "writingStyle": "Writing Style"
     },
@@ -201,7 +228,8 @@
     "integrations": "Integrations",
     "notifications": "Notifications",
     "resetPassword": "Reset Password",
-    "writingStyle": "Writing Style"
+    "writingStyle": "Writing Style",
+    "security": "Security"
   },
   "sidebar": {
     "newChat": "New Chat",

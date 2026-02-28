@@ -19,6 +19,13 @@ interface UserMemory {
     voice?: string;
     responseLength?: 'short' | 'medium' | 'long';
     interests?: string[];
+    defaultAgentPermissions?: Record<string, boolean>;
+    securityPreferences?: {
+      requireApproval?: boolean;
+      approvalTimeout?: number;
+      autoDenyOnTimeout?: boolean;
+    };
+    [key: string]: unknown;
   };
   context: {
     occupation?: string;

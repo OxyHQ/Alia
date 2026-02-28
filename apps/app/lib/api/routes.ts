@@ -130,6 +130,13 @@ export const API_ROUTES = {
     use: (id: string) => `/suggestions/${id}/use`,
   },
 
+  // Audit routes
+  audit: {
+    export: '/audit/export',
+    summary: '/audit/summary',
+    threats: '/audit/threats',
+  },
+
   // Health check
   health: '/health',
 

@@ -19,6 +19,7 @@ import {
   Plug,
   Zap,
   MessageSquarePlus,
+  Shield,
   ArrowLeft,
   type LucideIcon,
 } from "lucide-react-native";
@@ -42,6 +43,7 @@ const SECTIONS: SettingsSection[] = [
   { id: "mcp", route: "/(app)/settings/mcp", icon: Blocks, labelKey: "settings.sections.mcp" },
   { id: "integrations", route: "/(app)/settings/integrations", icon: Plug, labelKey: "settings.sections.integrations" },
   { id: "skills", route: "/(app)/settings/skills", icon: Zap, labelKey: "settings.sections.skills" },
+  { id: "security", route: "/(app)/settings/security", icon: Shield, labelKey: "settings.sections.security" },
   { id: "feedback", route: "/(app)/settings/feedback", icon: MessageSquarePlus, labelKey: "settings.sections.feedback" },
 ];
 
@@ -61,6 +63,7 @@ export const SettingsSidebar = React.memo(function SettingsSidebar() {
     if (pathname.includes("/settings/mcp")) return "mcp";
     if (pathname.includes("/settings/integrations")) return "integrations";
     if (pathname.includes("/settings/skills")) return "skills";
+    if (pathname.includes("/settings/security")) return "security";
     if (pathname.includes("/settings/feedback")) return "feedback";
     return "account";
   }, [pathname]);
