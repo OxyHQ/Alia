@@ -1,19 +1,15 @@
-import { useEffect, useRef, useState, useCallback } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   View,
   ScrollView,
   Pressable,
   useWindowDimensions,
-  type LayoutChangeEvent,
-  type NativeSyntheticEvent,
-  type NativeScrollEvent,
 } from "react-native";
 import { useRouter } from "expo-router";
 import * as Linking from "expo-linking";
 import Animated, {
   FadeIn,
   FadeInUp,
-  FadeOutDown,
   useSharedValue,
   useAnimatedStyle,
   withRepeat,
@@ -319,47 +315,26 @@ export function LandingPage({ returnTo }: LandingPageProps) {
         if (charIdx < currentPrompt.length) {
           typewriterRef.current.charIdx = charIdx + 1;
           setTypedText(currentPrompt.slice(0, charIdx + 1));
-          timer = setTimeout(tick, 30);
+          timer = setTimeout(tick, 18);
         } else {
           typewriterRef.current.phase = "pausing";
-          timer = setTimeout(tick, 2000);
+          timer = setTimeout(tick, 1500);
         }
       } else if (phase === "pausing") {
         typewriterRef.current.phase = "clearing";
         setTypedText("");
         typewriterRef.current.charIdx = 0;
         typewriterRef.current.promptIdx = (promptIdx + 1) % prompts.length;
-        timer = setTimeout(tick, 400);
+        timer = setTimeout(tick, 300);
       } else {
         typewriterRef.current.phase = "typing";
-        timer = setTimeout(tick, 30);
+        timer = setTimeout(tick, 18);
       }
     };
 
     timer = setTimeout(tick, 800);
     return () => clearTimeout(timer);
   }, [t]);
-
-  // Scroll-based fixed input
-  const [showFixedInput, setShowFixedInput] = useState(false);
-  const inputYRef = useRef(0);
-  const showFixedRef = useRef(false);
-
-  const handleInputLayout = useCallback((e: LayoutChangeEvent) => {
-    inputYRef.current = e.nativeEvent.layout.y + e.nativeEvent.layout.height;
-  }, []);
-
-  const handleScroll = useCallback(
-    (e: NativeSyntheticEvent<NativeScrollEvent>) => {
-      const scrollY = e.nativeEvent.contentOffset.y;
-      const shouldShow = scrollY > inputYRef.current - 100;
-      if (shouldShow !== showFixedRef.current) {
-        showFixedRef.current = shouldShow;
-        setShowFixedInput(shouldShow);
-      }
-    },
-    []
-  );
 
   if (isLoading) {
     return (
@@ -378,8 +353,6 @@ export function LandingPage({ returnTo }: LandingPageProps) {
       <ScrollView
         className="flex-1 bg-background"
         showsVerticalScrollIndicator={false}
-        onScroll={handleScroll}
-        scrollEventThrottle={16}
       >
         {/* ==================== HERO (full-bleed) ==================== */}
         <View
@@ -453,14 +426,6 @@ export function LandingPage({ returnTo }: LandingPageProps) {
             >
               {t("landing.tagline")}
             </Text>
-
-            {/* Demo prompt input */}
-            <View
-              className="w-full max-w-[620px] mx-auto mb-8"
-              onLayout={handleInputLayout}
-            >
-              <DemoPromptInput typedText={typedText} />
-            </View>
 
             <OxySignInButton />
 
@@ -558,38 +523,35 @@ export function LandingPage({ returnTo }: LandingPageProps) {
         </View>
       </ScrollView>
 
-      {/* Fixed bottom demo input — frosted gradient backdrop */}
-      {showFixedInput && (
-        <Animated.View
-          entering={FadeInUp.duration(300)}
-          exiting={FadeOutDown.duration(200)}
-          pointerEvents="box-none"
+      {/* Fixed bottom demo input — always visible */}
+      <Animated.View
+        entering={FadeInUp.delay(600).duration(500)}
+        pointerEvents="box-none"
+        style={{
+          position: "absolute",
+          bottom: 0,
+          left: 0,
+          right: 0,
+        }}
+      >
+        <LinearGradient
+          colors={["transparent", colors.background]}
+          locations={[0, 0.4]}
           style={{
-            position: "absolute",
-            bottom: 0,
-            left: 0,
-            right: 0,
+            paddingTop: 48,
+            paddingBottom: 24,
+            paddingHorizontal: 24,
           }}
+          pointerEvents="box-none"
         >
-          <LinearGradient
-            colors={["transparent", colors.background]}
-            locations={[0, 0.4]}
-            style={{
-              paddingTop: 48,
-              paddingBottom: 24,
-              paddingHorizontal: 24,
-            }}
+          <View
+            style={{ maxWidth: 620, alignSelf: "center", width: "100%" }}
             pointerEvents="box-none"
           >
-            <View
-              style={{ maxWidth: 600, alignSelf: "center", width: "100%" }}
-              pointerEvents="box-none"
-            >
-              <DemoPromptInput typedText={typedText} />
-            </View>
-          </LinearGradient>
-        </Animated.View>
-      )}
+            <DemoPromptInput typedText={typedText} />
+          </View>
+        </LinearGradient>
+      </Animated.View>
     </View>
   );
 }
