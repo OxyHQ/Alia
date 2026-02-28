@@ -276,12 +276,15 @@ router.post('/transcribe', async (req: Request, res: Response) => {
 
     for (const mapping of audioMappings) {
       try {
+        const formData = new FormData();
+        formData.append('file', new Blob([audioBuffer], { type: mimeType }), `audio.${ext}`);
+        formData.append('model', mapping.modelId);
+
         result = await callProviderAPI<{ text: string }>({
           provider: mapping.provider,
           modelId: mapping.modelId,
           endpoint: '/v1/audio/transcriptions',
-          audio: { base64: audio, mimeType, filename: `audio.${ext}` },
-          extraFormFields: { model: mapping.modelId },
+          formData,
           timeout: 30_000,
         });
         break;

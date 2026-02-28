@@ -16,6 +16,7 @@ import { Agent } from '../../models/agent.js';
 import { resolveModel, getAIModel } from '../chat-core.js';
 import { getCurrentDateTool } from './date.js';
 import { webScraperTool } from './web-scraper.js';
+import { evolveAgentSoul } from '../agent-soul.js';
 import { log } from '../logger.js';
 
 const AGENT_TIMEOUT_MS = 45_000;
@@ -113,6 +114,11 @@ export const createDelegateToAgentTool = () => tool({
           { agentId, agentName: agent.name, tokensUsed, latencyMs: Date.now() - start },
           'Agent delegation completed',
         );
+
+        // Evolve agent soul on ~10% of interactions (fire-and-forget)
+        if (tokensUsed > 0 && result.text && Math.random() < 0.1) {
+          evolveAgentSoul(agentId, task, result.text).catch(() => {});
+        }
 
         return {
           agentId,

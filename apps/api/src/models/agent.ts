@@ -1,5 +1,14 @@
 import mongoose, { Schema, Model, Document } from 'mongoose';
 
+export interface IAgentSoul {
+  vibe: string[];
+  expertise: string[];
+  worldview: string[];
+  currentFocus: string[];
+  interactionCount: number;
+  lastEvolvedAt: Date | null;
+}
+
 export interface IAgent extends Document {
   name: string;
   handle: string;
@@ -31,6 +40,7 @@ export interface IAgent extends Document {
   allowedModels: string[];
   scheduleInterval?: number;
   lastScheduledCheck?: Date;
+  soul?: IAgentSoul;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -89,6 +99,17 @@ const AgentSchema = new Schema<IAgent>({
   },
   scheduleInterval: { type: Number },
   lastScheduledCheck: { type: Date },
+  soul: {
+    type: {
+      vibe: { type: [String], default: [] },
+      expertise: { type: [String], default: [] },
+      worldview: { type: [String], default: [] },
+      currentFocus: { type: [String], default: [] },
+      interactionCount: { type: Number, default: 0 },
+      lastEvolvedAt: { type: Date, default: null },
+    },
+    default: undefined,
+  },
 }, {
   timestamps: true,
 });
