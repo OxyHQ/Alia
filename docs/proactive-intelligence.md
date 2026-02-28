@@ -27,6 +27,7 @@ Notification Service
     |  Fan-out to all connected channels
     |
     +---> In-app (Socket.io real-time)
+    +---> Push (Expo push notifications — iOS/Android)
     +---> Telegram
     +---> Discord
     +---> WhatsApp
@@ -97,7 +98,13 @@ All schedule types support IANA timezone (e.g. `"America/New_York"`).
 The notification service resolves which channels to use:
 
 1. **Explicit channels** — If the trigger specifies a channel, use it
-2. **Auto-detection** — Otherwise, default to `in_app` + any linked messaging channels
+2. **Auto-detection** — Otherwise, default to `in_app` + any active push tokens + any linked messaging channels
+
+Supported channels:
+- **in_app** — Socket.io real-time event
+- **push** — Expo push notifications (iOS/Android), delivered via `expo-server-sdk`
+- **telegram** — Sent via linked Telegram bot account
+- **discord / whatsapp / slack** — Via connected messaging accounts
 
 Channel delivery happens in parallel via `Promise.allSettled()`. Each channel's delivery status is tracked independently (`pending`, `sent`, `failed`).
 

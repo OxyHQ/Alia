@@ -87,6 +87,13 @@ TELEGRAM_BOT_SECRET=<generate-with-openssl>     # Telegram bot <-> API auth
 # Integrations Service
 INTEGRATIONS_SECRET=<generate-with-openssl>     # Internal gateway auth
 INTEGRATIONS_SERVICE_URL=http://integrations:3005  # Internal URL (VPC)
+
+# Email (Resend) — for organization invitations
+RESEND_API_KEY=re_...                           # Resend API key
+RESEND_FROM_EMAIL=Alia <noreply@alia.space>     # Optional sender address
+
+# Redis / BullMQ (optional — graceful degradation if unavailable)
+REDIS_URL=redis://localhost:6379               # Redis connection URL
 ```
 
 #### Integrations Service (`apps/integrations`)
@@ -127,6 +134,9 @@ EXPO_PUBLIC_API_URL=https://api.your-domain.com
 
 # Environment
 EXPO_PUBLIC_ENV=production
+
+# Sentry Crash Reporting (optional — error boundary works without it)
+# EXPO_PUBLIC_SENTRY_DSN=https://xxx@sentry.io/yyy
 ```
 
 ### Generating Secrets
@@ -177,24 +187,71 @@ Before deploying, verify:
 - [ ] LiveKit server is deployed and accessible (if using voice mode)
 - [ ] Docker host is deployed and accessible (if using agent containers)
 - [ ] Channel bot tokens are configured (for each enabled channel)
+- [ ] `RESEND_API_KEY` configured (for org email invitations)
+- [ ] CI pipeline passes (lint, test, build)
 - [ ] Build completes successfully locally
-- [ ] Tests pass (if applicable)
+- [ ] Tests pass (`npm test -w @alia/api`)
+
+## CI/CD Pipeline
+
+The project includes a GitHub Actions CI pipeline (`.github/workflows/ci.yml`) that runs automatically on pushes and PRs to `main`:
+
+1. **Lint & Test** — Runs ESLint and Vitest for the API
+2. **Build API** — Verifies the API compiles successfully
+3. **Build Providers API** — Verifies the providers API compiles
+
+All three must pass before merging. DigitalOcean App Platform auto-deploys from `main` on push.
+
+## Database Migrations
+
+The API includes a lightweight migration runner (`apps/api/src/lib/migrations/runner.ts`) that runs on startup.
+
+- Migrations are tracked in a `_migrations` collection
+- An advisory lock (`_migration_lock`) prevents concurrent execution across multiple instances
+- Migrations run sequentially and stop on first failure
+- Safe to call on every startup (idempotent)
+
+To add a new migration:
+1. Create a file in `apps/api/src/lib/migrations/` (e.g., `001-add-index.ts`)
+2. Export `{ up, down, description }` following the `Migration` interface
+3. Register it in the `MIGRATIONS` array in `runner.ts`
+
+## Graceful Shutdown
+
+The API handles `SIGTERM`/`SIGINT` with a 30-second graceful shutdown:
+
+1. Stops accepting new connections
+2. Closes Socket.IO connections
+3. Drains the BullMQ task queue
+4. Closes MongoDB connection
+5. Force-exits after 30s if still running
+
+This ensures in-flight agent sessions and requests complete cleanly during deployments.
 
 ## Post-Deployment Verification
 
 ### 1. Health Check
 
 ```bash
-curl https://api.your-domain.com/api/health
+curl https://api.your-domain.com/health
 ```
 
 Expected response:
 ```json
 {
-  "status": "ok",
-  "timestamp": "2024-01-24T00:00:00.000Z"
+  "status": "healthy",
+  "timestamp": "2026-02-28T00:00:00.000Z",
+  "uptime": 3600,
+  "mongodb": "connected",
+  "redis": "connected",
+  "providers": { "total": 8, "healthy": 7, "unhealthy": 1, "openCircuits": 0 },
+  "memory": { "rss": 256, "heapUsed": 128, "heapTotal": 192 }
 }
 ```
+
+Additional probes:
+- `GET /health/live` — Liveness (process alive, always 200)
+- `GET /health/ready` — Readiness (MongoDB connected + providers healthy)
 
 ### 2. Test Memory Functionality
 
@@ -604,10 +661,13 @@ console.log('[Memory] Saved:', {
 
 ### Error Tracking
 
-Consider integrating:
-- Sentry for error tracking
-- LogRocket for session replay
-- DataDog for APM
+The app includes an `AppErrorBoundary` component that catches unhandled React errors and displays a recovery screen. To enable Sentry crash reporting:
+
+1. Install `@sentry/react-native` in `apps/app`
+2. Add the Sentry Expo plugin to `app.json`
+3. Set `EXPO_PUBLIC_SENTRY_DSN` environment variable
+
+The error boundary works without Sentry (errors are logged to console in dev mode).
 
 ## Maintenance
 
@@ -642,4 +702,4 @@ For deployment issues:
 
 ---
 
-**Last Updated:** February 17, 2026
+**Last Updated:** February 28, 2026

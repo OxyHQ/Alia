@@ -824,5 +824,5 @@ For issues or questions:
 
 ---
 
-**Last Updated:** February 13, 2026
+**Last Updated:** February 28, 2026
 **Version:** 1.1.0
