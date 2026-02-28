@@ -88,7 +88,27 @@ export async function buildActions(ctx: ActionContext) {
     execute: async ({ action, url, selector, text, query }: {
       action: string; url?: string; selector?: string; text?: string; query?: string;
     }) => {
-      return await browserSession.execute(action as any, { url, selector, text, query });
+      const result = await browserSession.execute(action as any, { url, selector, text, query });
+
+      // Track sources from browser navigation and content extraction
+      if (eventStream && (action === 'goto' || action === 'get_text') && url) {
+        try {
+          const parsedUrl = new URL(url);
+          const domain = parsedUrl.hostname;
+          const title = typeof result === 'string' ? result.split('\n')[0]?.slice(0, 100) : '';
+          const snippet = typeof result === 'string' ? result.slice(0, 200) : '';
+          eventStream.append('source_found', snippet, {
+            toolName: 'browser',
+            url,
+            title,
+            domain,
+          } as any);
+        } catch {
+          // URL parsing failed — skip source tracking
+        }
+      }
+
+      return result;
     },
   });
 

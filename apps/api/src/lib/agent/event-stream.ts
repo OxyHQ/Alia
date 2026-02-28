@@ -29,7 +29,8 @@ export type EventType =
   | 'complete'
   | 'screenshot'
   | 'plan_progress'
-  | 'file_change';
+  | 'file_change'
+  | 'source_found';
 
 export interface EventStreamEntry {
   seq: number;
@@ -98,7 +99,13 @@ export class EventStream {
         content,
         timestamp: entry.timestamp,
         sessionId: this.sessionId,
-        metadata: metadata ? { toolName: metadata.toolName, args: metadata.args, duration: metadata.durationMs } : undefined,
+        metadata: metadata ? {
+          toolName: metadata.toolName,
+          args: metadata.args,
+          duration: metadata.durationMs,
+          // Pass through source metadata for source_found events
+          ...((metadata as any).url && { url: (metadata as any).url, title: (metadata as any).title, domain: (metadata as any).domain }),
+        } : undefined,
         data: socketData,
       });
     }
@@ -307,5 +314,6 @@ function mapEventTypeToActivity(type: EventType): AgentActivityEvent['type'] {
     case 'screenshot':     return 'screenshot';
     case 'plan_progress':  return 'plan_progress';
     case 'file_change':    return 'file_change';
+    case 'source_found':   return 'source_found' as any;
   }
 }

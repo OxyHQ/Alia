@@ -28,12 +28,12 @@ export interface AgentScreenshot {
 }
 
 export interface AgentActivityEvent {
-  type: 'system' | 'thinking' | 'response' | 'tool_call' | 'tool_result' | 'error' | 'complete' | 'screenshot' | 'plan_progress' | 'file_change';
+  type: 'system' | 'thinking' | 'response' | 'tool_call' | 'tool_result' | 'error' | 'complete' | 'screenshot' | 'plan_progress' | 'file_change' | 'source_found';
   content: string;
   timestamp: number;
   sessionId: string;
   agentId?: string;
-  metadata?: { toolName?: string; args?: any; duration?: number };
+  metadata?: { toolName?: string; args?: any; duration?: number; url?: string; title?: string; domain?: string };
   data?: {
     base64?: string;
     url?: string;
@@ -42,6 +42,14 @@ export interface AgentActivityEvent {
     currentStep?: number;
     maxSteps?: number;
   };
+}
+
+export interface AgentSource {
+  url: string;
+  title: string;
+  domain: string;
+  snippet: string;
+  timestamp: number;
 }
 
 export interface AgentActivityState {
@@ -63,6 +71,12 @@ export interface AgentActivityState {
   events: AgentActivityEvent[];
   /** Start time of first event */
   startedAt: number | null;
+  /** Sources found during browsing */
+  sources: AgentSource[];
+  /** Files created/modified in workspace */
+  files: string[];
+  /** Latest text response from agent */
+  latestResponse: string | null;
 }
 
 const INITIAL_STATE: AgentActivityState = {
@@ -75,6 +89,9 @@ const INITIAL_STATE: AgentActivityState = {
   eventCount: 0,
   events: [],
   startedAt: null,
+  sources: [],
+  files: [],
+  latestResponse: null,
 };
 
 const MAX_SCREENSHOTS = 5;
@@ -136,6 +153,36 @@ export function useAgentActivity(sessionId: string | null, agentId?: string | nu
         case 'complete':
           updated.isComplete = true;
           updated.currentAction = null;
+          updated.latestResponse = null;
+          break;
+
+        case 'source_found':
+          if (event.metadata?.url) {
+            const newSource: AgentSource = {
+              url: event.metadata.url,
+              title: event.metadata.title || '',
+              domain: event.metadata.domain || new URL(event.metadata.url).hostname,
+              snippet: event.content?.slice(0, 200) || '',
+              timestamp: event.timestamp,
+            };
+            // Deduplicate by URL
+            if (!prev.sources.some(s => s.url === newSource.url)) {
+              updated.sources = [...prev.sources, newSource];
+            }
+          }
+          break;
+
+        case 'file_change':
+          if (event.data?.files) {
+            const newFiles = event.data.files.filter(f => !prev.files.includes(f));
+            if (newFiles.length > 0) {
+              updated.files = [...prev.files, ...newFiles];
+            }
+          }
+          break;
+
+        case 'response':
+          updated.latestResponse = event.content;
           break;
       }
 

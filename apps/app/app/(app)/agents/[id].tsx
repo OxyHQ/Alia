@@ -150,15 +150,32 @@ export default function AgentDetailScreen() {
     if (!agent || !taskInput.trim() || hiring) return;
     setHiring(true);
     try {
-      await apiClient.post(`/agents/${agent._id}/hire`, {
+      const res = await apiClient.post(`/agents/${agent._id}/hire`, {
         task: taskInput.trim(),
       });
       setTaskInput("");
       setShowHireInput(false);
       toast.success(t("agents.hireStarted"));
+
+      // Open agent panel if session was created
+      const sessionId = res.data?.sessionId;
+      if (sessionId) {
+        const { useUIStore } = await import("@/lib/stores/ui-store");
+        useUIStore.getState().openAgentPanel(String(sessionId), agent._id);
+      }
     } catch (err: any) {
-      const msg = err?.response?.data?.error || "Failed to hire agent";
-      toast.error(msg);
+      const status = err?.response?.status;
+      const data = err?.response?.data;
+      if (status === 402) {
+        toast.error(`Insufficient credits. You need ${data?.creditsNeeded || 'more'} credits.`);
+        // Open credits panel
+        const { useUIStore } = await import("@/lib/stores/ui-store");
+        useUIStore.getState().setRightPanel("credits");
+      } else if (status === 503) {
+        toast.error("Agent infrastructure unavailable. Try again later.");
+      } else {
+        toast.error(data?.error || "Failed to hire agent");
+      }
     } finally {
       setHiring(false);
     }
