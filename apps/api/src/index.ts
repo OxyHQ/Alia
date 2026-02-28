@@ -336,24 +336,36 @@ connectDB()
     });
 
     // Graceful shutdown handler
+    let shuttingDown = false;
     const shutdown = async (signal: string) => {
-      console.log(`\n[Shutdown] Received ${signal}. Starting graceful shutdown...`);
+      if (shuttingDown) return;
+      shuttingDown = true;
+      log.general.info(`Received ${signal}. Starting graceful shutdown...`);
 
       // Stop accepting new connections
       server.close(() => {
-        console.log('[Shutdown] HTTP server closed (no new connections)');
+        log.general.info('HTTP server closed (no new connections)');
       });
 
-      // Give in-flight requests 10 seconds to complete
+      // Give in-flight requests 30 seconds to complete (agent sessions can be long)
       const forceTimeout = setTimeout(() => {
-        console.error('[Shutdown] Force exit after 10s grace period');
+        log.general.error('Force exit after 30s grace period');
         process.exit(1);
-      }, 10000);
-      forceTimeout.unref(); // Don't keep the process alive for this timer
+      }, 30_000);
+      forceTimeout.unref();
 
       try {
-        // Close task queue
+        // Close Socket.IO connections
+        const { getIO } = await import('./socket.js');
+        const io = getIO();
+        if (io) {
+          await new Promise<void>((resolve) => io.close(() => resolve()));
+          log.general.info('Socket.IO closed');
+        }
+
+        // Close task queue (drains in-flight jobs)
         await shutdownTaskQueue();
+        log.general.info('Task queue shut down');
 
         // Close MCP relay connections
         shutdownMcpRelay();
@@ -364,10 +376,10 @@ connectDB()
         log.general.info('MongoDB connection closed');
 
         clearTimeout(forceTimeout);
-        console.log('[Shutdown] Graceful shutdown complete');
+        log.general.info('Graceful shutdown complete');
         process.exit(0);
       } catch (error) {
-        console.error('[Shutdown] Error during shutdown:', error);
+        log.general.error({ err: error }, 'Error during shutdown');
         process.exit(1);
       }
     };

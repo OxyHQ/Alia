@@ -88,6 +88,7 @@ interface ApiKeyWindow {
 }
 
 const apiKeyWindows = new Map<string, ApiKeyWindow>();
+const MAX_API_KEY_ENTRIES = 10_000;
 
 function getDayOfYear(): number {
   const now = new Date();
@@ -98,6 +99,10 @@ function getDayOfYear(): number {
 function getOrCreateApiKeyWindow(apiKeyId: string): ApiKeyWindow {
   let state = apiKeyWindows.get(apiKeyId);
   if (!state) {
+    if (apiKeyWindows.size >= MAX_API_KEY_ENTRIES) {
+      const firstKey = apiKeyWindows.keys().next().value;
+      if (firstKey !== undefined) apiKeyWindows.delete(firstKey);
+    }
     state = { timestamps: [], dailyRequests: 0, lastResetDay: getDayOfYear() };
     apiKeyWindows.set(apiKeyId, state);
   }

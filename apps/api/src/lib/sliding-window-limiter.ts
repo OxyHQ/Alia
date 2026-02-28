@@ -11,6 +11,7 @@ interface WindowState {
 }
 
 const windows = new Map<string, WindowState>();
+const MAX_WINDOW_ENTRIES = 50_000;
 
 // Cost/day caps per subscription tier (in credits)
 // All signed-in users are limited by requests/minute only.
@@ -42,6 +43,11 @@ function getDayOfYear(): number {
 function getOrCreateWindow(key: string): WindowState {
   let state = windows.get(key);
   if (!state) {
+    // Evict oldest entries if map is too large
+    if (windows.size >= MAX_WINDOW_ENTRIES) {
+      const firstKey = windows.keys().next().value;
+      if (firstKey !== undefined) windows.delete(firstKey);
+    }
     state = { timestamps: [], costToday: 0, lastResetDay: getDayOfYear() };
     windows.set(key, state);
   }

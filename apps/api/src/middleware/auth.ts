@@ -1,3 +1,4 @@
+import crypto from 'crypto';
 import { Request, Response, NextFunction } from 'express';
 import { OxyServices } from '@oxyhq/core';
 import DeveloperApiKey from '../models/developer-api-key.js';
@@ -213,7 +214,8 @@ export function authenticateTokenOrApiKey(
 
   // Internal service auth (e.g., browse tool calling Alia API as LLM)
   const serviceSecret = process.env.SERVICE_SECRET;
-  if (serviceSecret && token === serviceSecret) {
+  if (serviceSecret && token.length === serviceSecret.length &&
+      crypto.timingSafeEqual(Buffer.from(token), Buffer.from(serviceSecret))) {
     (req as any).user = { id: 'system' };
     (req as any).serviceApp = { appName: 'internal' };
     return next();

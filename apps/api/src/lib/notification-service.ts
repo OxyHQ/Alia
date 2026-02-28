@@ -10,14 +10,19 @@
  */
 
 import mongoose from 'mongoose';
+import Expo, { type ExpoPushMessage, type ExpoPushTicket, type ExpoPushReceiptId } from 'expo-server-sdk';
 import { Notification, type INotification, type NotificationType, type NotificationChannel, type NotificationPriority } from '../models/notification.js';
 import { ConnectedAccount } from '../models/connected-account.js';
+import { PushToken } from '../models/push-token.js';
 import { Bot } from '../models/bot.js';
 import { BotUser } from '../models/bot-user.js';
 import { sendChannelMessage } from './channels/outbound.js';
 import { getIO } from '../socket.js';
 import { log } from './logger.js';
 import type { ChannelId } from './channels/types.js';
+
+// ── Expo push singleton ──────────────────────────────────────────────
+const expo = new Expo();
 
 // ── Types ──────────────────────────────────────────────────────────
 
@@ -49,21 +54,36 @@ async function resolveChannels(userId: string, explicit?: NotificationChannel[])
   // Default: always in_app
   const channels: NotificationChannel[] = ['in_app'];
 
-  // Check if user has a linked Telegram account
-  try {
-    const bot = await Bot.findOne({ platform: 'telegram', status: 'active' });
-    if (bot) {
-      const botUser = await BotUser.findOne({
-        botId: bot._id,
-        oxyUserId: new mongoose.Types.ObjectId(userId),
-        isLinked: true,
-      });
-      if (botUser?.chatId) {
-        channels.push('telegram');
+  // Check in parallel: push tokens and Telegram account
+  const [hasPushTokens, telegramBotUser] = await Promise.all([
+    // Push: check if user has any active Expo push tokens
+    PushToken.exists({
+      oxyUserId: new mongoose.Types.ObjectId(userId),
+      active: true,
+    }).catch(() => null),
+
+    // Telegram: check if user has a linked Telegram bot account
+    (async () => {
+      try {
+        const bot = await Bot.findOne({ platform: 'telegram', status: 'active' });
+        if (!bot) return null;
+        return BotUser.findOne({
+          botId: bot._id,
+          oxyUserId: new mongoose.Types.ObjectId(userId),
+          isLinked: true,
+        });
+      } catch {
+        return null;
       }
-    }
-  } catch {
-    // Ignore — Telegram not available
+    })(),
+  ]);
+
+  if (hasPushTokens) {
+    channels.push('push');
+  }
+
+  if (telegramBotUser?.chatId) {
+    channels.push('telegram');
   }
 
   return channels;
@@ -121,6 +141,130 @@ async function deliverViaChannel(
   const text = formatNotificationText(notification);
   const results = await sendChannelMessage(channelId, account.accountId, text);
   return results.length > 0 && results[0].ok;
+}
+
+// ── Expo Push Notifications ─────────────────────────────────────────
+
+/**
+ * Deliver a push notification to all of a user's registered Expo push tokens.
+ * Handles chunked sending (Expo limit) and async receipt checking.
+ */
+async function deliverPush(userId: string, notification: INotification): Promise<boolean> {
+  const tokens = await PushToken.find({
+    oxyUserId: new mongoose.Types.ObjectId(userId),
+    active: true,
+  }).lean();
+
+  if (tokens.length === 0) return false;
+
+  // Build messages — one per device token
+  const messages: ExpoPushMessage[] = [];
+  for (const t of tokens) {
+    if (!Expo.isExpoPushToken(t.token)) {
+      log.general.warn({ token: t.token, userId }, 'Invalid Expo push token, deactivating');
+      await PushToken.updateOne({ _id: t._id }, { $set: { active: false } });
+      continue;
+    }
+
+    messages.push({
+      to: t.token,
+      title: notification.title,
+      body: notification.body,
+      data: {
+        notificationId: notification._id.toString(),
+        type: notification.type,
+        conversationId: notification.conversationId,
+        ...notification.data,
+      },
+      sound: 'default',
+      priority: notification.priority === 'urgent' || notification.priority === 'high' ? 'high' : 'normal',
+      channelId: 'default',
+    });
+  }
+
+  if (messages.length === 0) return false;
+
+  // Send in chunks (Expo recommends batches of ~100)
+  const chunks = expo.chunkPushNotifications(messages);
+  const receiptIds: ExpoPushReceiptId[] = [];
+  let anySucceeded = false;
+
+  for (const chunk of chunks) {
+    try {
+      const tickets = await expo.sendPushNotificationsAsync(chunk);
+
+      for (let i = 0; i < tickets.length; i++) {
+        const ticket = tickets[i];
+        if (ticket.status === 'ok') {
+          anySucceeded = true;
+          if (ticket.id) {
+            receiptIds.push(ticket.id);
+          }
+        } else {
+          // ticket.status === 'error'
+          const errorDetail = ticket as { status: 'error'; message: string; details?: { error: string } };
+          log.general.warn(
+            { userId, token: (chunk[i] as any).to, error: errorDetail.message, errorCode: errorDetail.details?.error },
+            'Expo push ticket error',
+          );
+
+          // Deactivate tokens that are permanently invalid
+          if (errorDetail.details?.error === 'DeviceNotRegistered') {
+            await PushToken.updateOne({ token: (chunk[i] as any).to }, { $set: { active: false } });
+          }
+        }
+      }
+    } catch (error) {
+      log.general.error({ err: error, userId }, 'Expo push chunk send failed');
+    }
+  }
+
+  // Fire-and-forget receipt checking (delayed)
+  if (receiptIds.length > 0) {
+    setTimeout(() => checkPushReceipts(receiptIds).catch(() => {}), 15_000);
+  }
+
+  // Update lastUsedAt for active tokens
+  if (anySucceeded) {
+    const activeTokenIds = tokens.filter(t => Expo.isExpoPushToken(t.token)).map(t => t._id);
+    await PushToken.updateMany(
+      { _id: { $in: activeTokenIds } },
+      { $set: { lastUsedAt: new Date() } },
+    );
+  }
+
+  return anySucceeded;
+}
+
+/**
+ * Check push notification receipts after a delay.
+ * Expo recommends checking ~15 seconds after sending.
+ * Deactivates tokens that received DeviceNotRegistered errors.
+ */
+async function checkPushReceipts(receiptIds: ExpoPushReceiptId[]): Promise<void> {
+  const chunks = expo.chunkPushNotificationReceiptIds(receiptIds);
+
+  for (const chunk of chunks) {
+    try {
+      const receipts = await expo.getPushNotificationReceiptsAsync(chunk);
+
+      for (const [receiptId, receipt] of Object.entries(receipts)) {
+        if (receipt.status === 'error') {
+          const { message, details } = receipt;
+          log.general.warn({ receiptId, message, error: details?.error }, 'Expo push receipt error');
+
+          // Deactivate invalid device tokens
+          if (details?.error === 'DeviceNotRegistered') {
+            // We can't directly map receiptId -> token, but Expo will stop delivering
+            // to unregistered devices. The token gets deactivated on the next send attempt.
+            log.general.info({ receiptId }, 'Device not registered — token will be deactivated on next send');
+          }
+        }
+      }
+    } catch (error) {
+      log.general.error({ err: error }, 'Failed to check Expo push receipts');
+    }
+  }
 }
 
 function formatNotificationText(notification: INotification): string {
@@ -185,8 +329,7 @@ export async function sendNotification(options: SendNotificationOptions): Promis
           success = await deliverViaChannel(channel, userId, notification);
           break;
         case 'push':
-          // TODO: Implement Expo push notifications (expo-server-sdk)
-          success = false;
+          success = await deliverPush(userId, notification);
           break;
       }
 

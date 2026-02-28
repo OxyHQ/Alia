@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import mongoose from 'mongoose';
 import { getAllProviderHealth, type HealthMetrics } from '../lib/providers-client.js';
+import { isQueueActive } from '../lib/task-queue.js';
 import { log } from '../lib/logger.js';
 
 const router = Router();
@@ -36,12 +37,14 @@ async function getHealthSnapshot() {
   }
 
   const mem = process.memoryUsage();
+  const redisStatus = isQueueActive() ? 'connected' : 'unavailable';
 
   const snapshot = {
     status: mongoState === 1 && providersSummary.healthy > 0 ? 'healthy' : 'degraded',
     timestamp: new Date().toISOString(),
     uptime: Math.round(process.uptime()),
     mongodb: mongoStatus,
+    redis: redisStatus,
     providers: providersSummary,
     memory: {
       rss: Math.round(mem.rss / 1024 / 1024),       // MB

@@ -1,14 +1,18 @@
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import {
   useAudioRecorder,
+  useAudioRecorderState,
   RecordingPresets,
   requestRecordingPermissionsAsync,
   setAudioModeAsync,
 } from 'expo-audio';
 import { useOxy } from '@oxyhq/services';
+import { useSTTStore } from '@/lib/stores/stt-store';
 import config from '../config';
 
 type STTState = 'idle' | 'recording' | 'transcribing';
+
+const METERING_PRESET = { ...RecordingPresets.HIGH_QUALITY, isMeteringEnabled: true };
 
 export function useSpeechToText() {
   const [state, setState] = useState<STTState>('idle');
@@ -16,7 +20,24 @@ export function useSpeechToText() {
   const isRecordingRef = useRef(false);
   const { oxyServices } = useOxy();
 
-  const audioRecorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
+  const audioRecorder = useAudioRecorder(METERING_PRESET);
+  const recorderState = useAudioRecorderState(audioRecorder, 100);
+
+  const sttStore = useSTTStore;
+
+  // Push metering to store while recording
+  useEffect(() => {
+    if (state === 'recording' && recorderState.metering != null) {
+      // dBFS: -160 (silence) to 0 (max). Normalize using -60 as practical floor.
+      const normalized = Math.min(1, Math.max(0, (recorderState.metering + 60) / 60));
+      sttStore.getState().setMetering(normalized);
+    }
+  }, [state, recorderState.metering]);
+
+  // Sync recording state to store
+  useEffect(() => {
+    sttStore.getState().setRecording(state === 'recording');
+  }, [state]);
 
   const startRecording = useCallback(async () => {
     try {

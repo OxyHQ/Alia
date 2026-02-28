@@ -1,4 +1,5 @@
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useMemo } from "react";
+import { useSharedValue, withTiming, Easing } from "react-native-reanimated";
 import { View, Pressable, useWindowDimensions } from "react-native";
 import { useColorScheme } from "@/lib/useColorScheme";
 import { LinearGradient } from "expo-linear-gradient";
@@ -29,6 +30,7 @@ import { useRouter } from "expo-router";
 import { useTranslation } from "@/hooks/useTranslation";
 import type { useVoiceMode } from "@/lib/hooks/use-voice-mode";
 import { useTTS } from "@/lib/hooks/use-tts";
+import { useSTTStore } from "@/lib/stores/stt-store";
 import type { AgentActivityState } from "@/lib/hooks/use-agent-activity";
 import { AgentTerminal } from "@/components/agent-terminal";
 import { Terminal as TerminalIcon, ChevronDown, ChevronUp } from "lucide-react-native";
@@ -136,6 +138,25 @@ export const ChatPageContent = ({
 
   const isVoiceActive = voice?.isVoiceActive ?? false;
   const { ttsWaveAmplitude, playbackState: ttsPlaybackState } = useTTS();
+
+  // STT mic recording wave overlay
+  const sttIsRecording = useSTTStore((s) => s.isRecording);
+  const sttMetering = useSTTStore((s) => s.metering);
+  const sttWaveAmplitude = useSharedValue(0);
+
+  useEffect(() => {
+    if (!sttIsRecording) {
+      sttWaveAmplitude.value = withTiming(0, { duration: 300 });
+      return;
+    }
+    const target = Math.max(0.08, sttMetering);
+    // Fast attack, slow decay for natural VU-meter feel
+    const duration = target > sttWaveAmplitude.value ? 60 : 200;
+    sttWaveAmplitude.value = withTiming(target, {
+      duration,
+      easing: Easing.bezier(0.33, 1, 0.68, 1),
+    });
+  }, [sttIsRecording, sttMetering]);
 
   useEffect(() => {
     if (!isThinkingModel(selectedModel)) {
@@ -324,6 +345,13 @@ export const ChatPageContent = ({
           <VoiceOverlay
             waveAmplitude={ttsWaveAmplitude}
             agentState="speaking"
+            isConnected={true}
+          />
+        )}
+        {!isVoiceActive && ttsPlaybackState !== 'playing' && sttIsRecording && (
+          <VoiceOverlay
+            waveAmplitude={sttWaveAmplitude}
+            agentState="listening"
             isConnected={true}
           />
         )}
