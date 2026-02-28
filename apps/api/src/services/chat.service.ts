@@ -197,11 +197,22 @@ export async function loadSkillPrompt(skillId: string): Promise<string | null> {
 
 export async function loadAgentPrompt(agentId: string): Promise<string | null> {
   try {
-    const agent = await Agent.findById(agentId).select('name tagline description capabilities systemPrompt').lean();
+    const agent = await Agent.findById(agentId).select('name tagline description capabilities systemPrompt soul').lean();
     if (agent) {
       log.chat.info({ agentName: agent.name }, 'Agent context activated');
-      return agent.systemPrompt
+      let prompt = agent.systemPrompt
         || `You are "${agent.name}". ${agent.tagline}\n\n${agent.description}${agent.capabilities?.length ? `\n\nCapabilities: ${agent.capabilities.join(', ')}` : ''}`;
+
+      // Append soul personality data if available
+      if (agent.soul) {
+        const { formatSoul } = await import('../lib/agent-soul.js');
+        const soulSection = formatSoul(agent.soul as any);
+        if (soulSection) {
+          prompt += soulSection;
+        }
+      }
+
+      return prompt;
     }
   } catch (e) {
     log.chat.error({ err: e }, 'Error loading agent');

@@ -24,6 +24,8 @@ import { writeSSE, TextBatcher, setupSSEHeaders } from '../lib/streaming-helpers
 import { recordEvent } from '../lib/observability/index.js';
 import { runDeepResearch, type ResearchProgress } from '../lib/research/research-engine.js';
 import { MAX_CHAT_RETRIES } from '../lib/constants.js';
+import { getAutoRoutedModel } from '../lib/query-classifier.js';
+import { calculateCostComparison } from '../lib/cost-calculator.js';
 import {
   buildChatSystemPrompt,
   loadUserContext,
@@ -239,7 +241,9 @@ router.post('/', optionalAuth, async (req, res) => {
     for (let attempt = 0; attempt < MAX_CHAT_RETRIES; attempt++) {
       // ── Resolve model (picks a healthy provider/key) ──
       try {
-        const aliasModelId = requestedModel || getDefaultAliaModel();
+        // Auto-route: classify query complexity when user hasn't explicitly chosen a model
+        const lastUserMsg = processedMessages.filter(m => m.role === 'user').pop()?.content || '';
+        const aliasModelId = getAutoRoutedModel(requestedModel, lastUserMsg, processedMessages);
         if (attempt > 0) {
           log.chat.info({ aliasModelId, attempt: attempt + 1, skipKeyIds: [...failedKeyIds] }, 'Retrying model resolution after provider failure');
         } else {
@@ -703,7 +707,16 @@ router.post('/', optionalAuth, async (req, res) => {
         // Track daily cost in sliding window limiter
         incrementDailyCost(req.user.id, creditsCharged);
 
-        const creditUpdate = {
+        // Calculate cost savings from smart routing
+        const costComparison = resolved ? calculateCostComparison(
+          resolved.aliasModelId,
+          resolved.provider,
+          resolved.modelId,
+          tokenUsage.promptTokens,
+          tokenUsage.completionTokens,
+        ) : null;
+
+        const creditUpdate: Record<string, any> = {
           type: 'credit-update',
           credits: creditsRemaining,
           creditsUsed: creditsCharged,
@@ -711,6 +724,11 @@ router.post('/', optionalAuth, async (req, res) => {
           promptTokens: tokenUsage.promptTokens,
           completionTokens: tokenUsage.completionTokens,
         };
+
+        // Include savings data when meaningful (>20%)
+        if (costComparison && costComparison.savingsPercent > 20) {
+          creditUpdate.savingsPercent = costComparison.savingsPercent;
+        }
         log.chat.info({ creditUpdate }, 'Sending credit update event');
         writeSSE(res, `data: ${JSON.stringify(creditUpdate)}\n\n`);
 
