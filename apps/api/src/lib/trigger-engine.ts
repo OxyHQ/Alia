@@ -9,7 +9,8 @@
 import crypto from 'crypto';
 import cron, { type ScheduledTask } from 'node-cron';
 import { generateText, stepCountIs, type ToolSet } from 'ai';
-import { Trigger, type ITrigger, type ITriggerSchedule } from '../models/trigger.js';
+import { Trigger, type ITrigger, type ITriggerSchedule, type TriggerType } from '../models/trigger.js';
+import { Agent, type IAgent } from '../models/agent.js';
 import { TriggerExecution } from '../models/trigger-execution.js';
 import { resolveModel, getAIModel, getDefaultAliaModel } from './chat-core.js';
 import {
@@ -338,7 +339,7 @@ function scheduleTrigger(trigger: ITrigger): void {
     scheduledTasks.delete(triggerId);
   }
 
-  if (!trigger.enabled || trigger.type !== 'schedule' || !trigger.schedule) return;
+  if (!trigger.enabled || (trigger.type !== 'schedule' && trigger.type !== 'agent_heartbeat') || !trigger.schedule) return;
 
   const cronExpression = scheduleToCron(trigger.schedule);
   if (!cronExpression) {
@@ -425,17 +426,24 @@ export async function findTriggersForIntegrationEvent(
 
 /**
  * Start the trigger scheduler. Loads all enabled schedule triggers and sets up cron jobs.
+ * Also starts the agent heartbeat scheduler.
  */
 export async function startTriggerScheduler(): Promise<void> {
   log.triggers.info('Starting trigger scheduler...');
 
   try {
-    const triggers = await Trigger.find({ type: 'schedule', enabled: true });
+    const triggers = await Trigger.find({
+      type: { $in: ['schedule', 'agent_heartbeat'] },
+      enabled: true,
+    });
     log.triggers.info({ count: triggers.length }, 'Found enabled schedule triggers');
 
     for (const trigger of triggers) {
       scheduleTrigger(trigger);
     }
+
+    // Start agent heartbeat scheduler
+    await startAgentHeartbeatScheduler();
 
     log.triggers.info('Trigger scheduler started');
   } catch (error) {
@@ -531,4 +539,82 @@ export async function processIntegrationEvent(
       })
     )
   );
+}
+
+// ── Agent Heartbeat System ───────────────────────────────────────
+
+const HEARTBEAT_PROMPT = `Quick status check. Review your responsibilities and recent activity. Report any:
+- Pending items that need the user's attention
+- Monitoring results that changed since last check
+- Upcoming scheduled tasks or deadlines
+
+Keep your response to 2-3 sentences. Say "All clear" if nothing needs attention.`;
+
+/**
+ * Auto-create heartbeat triggers for agents that have a scheduleInterval.
+ * Runs once at startup — syncs agent heartbeat triggers with their scheduleInterval.
+ */
+async function startAgentHeartbeatScheduler(): Promise<void> {
+  try {
+    // Find all agents with a scheduleInterval set
+    const agents = await Agent.find({
+      scheduleInterval: { $exists: true, $gt: 0 },
+      isPublished: true,
+    }).select('_id name author scheduleInterval systemPrompt').lean();
+
+    if (agents.length === 0) {
+      log.triggers.info('No agents with heartbeat schedules found');
+      return;
+    }
+
+    log.triggers.info({ count: agents.length }, 'Syncing agent heartbeat triggers');
+
+    for (const agent of agents) {
+      const agentId = agent._id.toString();
+
+      // Check if a heartbeat trigger already exists for this agent
+      const existing = await Trigger.findOne({
+        type: 'agent_heartbeat',
+        'action.agentId': agent._id,
+        enabled: true,
+      });
+
+      if (existing) {
+        // Ensure schedule matches agent's interval
+        const expectedCron = `*/${agent.scheduleInterval} * * * *`;
+        if (existing.schedule?.cron !== expectedCron) {
+          existing.schedule = { type: 'cron', cron: expectedCron };
+          await existing.save();
+          scheduleTrigger(existing);
+          log.triggers.info({ agentName: agent.name, interval: agent.scheduleInterval }, 'Updated heartbeat schedule');
+        }
+        continue;
+      }
+
+      // Create a new heartbeat trigger for this agent
+      const trigger = await Trigger.create({
+        oxyUserId: agent.author,
+        name: `${agent.name} Heartbeat`,
+        description: `Periodic heartbeat check for ${agent.name}`,
+        type: 'agent_heartbeat' as TriggerType,
+        enabled: true,
+        action: {
+          prompt: HEARTBEAT_PROMPT,
+          agentId: agent._id,
+          useTools: false,
+          notify: true,
+        },
+        schedule: {
+          type: 'cron',
+          cron: `*/${agent.scheduleInterval} * * * *`,
+        },
+        triggerCount: 0,
+      });
+
+      scheduleTrigger(trigger);
+      log.triggers.info({ agentName: agent.name, interval: agent.scheduleInterval }, 'Created heartbeat trigger');
+    }
+  } catch (error) {
+    log.triggers.error({ err: error }, 'Failed to sync agent heartbeat triggers');
+  }
 }

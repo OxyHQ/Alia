@@ -2,7 +2,7 @@ import mongoose, { Schema, Model, Document } from 'mongoose';
 
 // ── Trigger types ──────────────────────────────────────────────────
 
-export type TriggerType = 'schedule' | 'webhook' | 'integration_event';
+export type TriggerType = 'schedule' | 'webhook' | 'integration_event' | 'agent_heartbeat';
 
 export interface ITriggerSchedule {
   type: 'cron' | 'daily' | 'interval';
@@ -106,7 +106,7 @@ const TriggerSchema = new Schema<ITrigger>({
   type: {
     type: String,
     required: true,
-    enum: ['schedule', 'webhook', 'integration_event'],
+    enum: ['schedule', 'webhook', 'integration_event', 'agent_heartbeat'],
     index: true,
   },
   enabled: { type: Boolean, default: true },
