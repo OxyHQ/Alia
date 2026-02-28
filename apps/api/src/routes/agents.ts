@@ -958,4 +958,54 @@ router.get('/sessions/:sid/sources', authenticateToken, async (req: Request, res
   }
 });
 
+// GET /agents/:id/sessions/:sessionId/activity — Agent session activity timeline
+router.get('/:id/sessions/:sessionId/activity', authenticateToken, async (req: Request, res: Response) => {
+  try {
+    if (!req.user?.id) return res.status(401).json({ error: 'Unauthorized' });
+
+    const { sessionId } = req.params;
+    const { type, limit = '200', offset = '0' } = req.query;
+
+    // Verify session belongs to user
+    const session = await AgentSession.findById(sessionId).lean();
+    if (!session) return res.status(404).json({ error: 'Session not found' });
+    if (session.userId.toString() !== req.user.id) {
+      return res.status(403).json({ error: 'Access denied' });
+    }
+
+    const filter: any = { sessionId };
+    if (type && typeof type === 'string') {
+      filter.type = type;
+    }
+
+    const limitNum = Math.min(500, Math.max(1, parseInt(limit as string, 10) || 200));
+    const offsetNum = Math.max(0, parseInt(offset as string, 10) || 0);
+
+    const [entries, total] = await Promise.all([
+      EventStreamEntryModel
+        .find(filter)
+        .sort({ seq: 1 })
+        .skip(offsetNum)
+        .limit(limitNum)
+        .lean(),
+      EventStreamEntryModel.countDocuments(filter),
+    ]);
+
+    res.json({
+      entries,
+      total,
+      session: {
+        status: session.status,
+        task: session.task,
+        result: session.result,
+        stats: session.stats,
+        config: session.config,
+      },
+    });
+  } catch (error) {
+    log.agents.error({ err: error }, 'Error getting session activity');
+    res.status(500).json({ error: 'Failed to get activity' });
+  }
+});
+
 export default router;

@@ -56,6 +56,7 @@ import { cn } from "@/lib/utils";
 import apiClient from "@/lib/api/client";
 import { API_ROUTES } from "@/lib/api/routes";
 import { useLibraryStore, type LibraryFile } from "@/lib/stores/library-store";
+import { AgentPermissionToggles, DEFAULT_PERMISSIONS, type AgentPermissions } from "@/components/agent-permission-toggles";
 
 const TOOL_ICONS: Record<string, React.ComponentType<any>> = {
   Globe, Terminal, Search, FileDown, FolderOpen, Image, Brain, Users,
@@ -102,6 +103,7 @@ export default function EditAgentScreen() {
   const [price, setPrice] = useState("");
   const [allowHiring, setAllowHiring] = useState(false);
   const [isPublished, setIsPublished] = useState(false);
+  const [permissions, setPermissions] = useState<AgentPermissions>(DEFAULT_PERMISSIONS);
 
   // Linked skills & knowledge
   const [linkedSkills, setLinkedSkills] = useState<LinkedSkill[]>([]);
@@ -152,6 +154,7 @@ export default function EditAgentScreen() {
         setPrice(agent.price != null ? String(agent.price) : "");
         setAllowHiring(agent.allowHiring);
         setIsPublished(agent.isPublished);
+        if (agent.permissions) setPermissions({ ...DEFAULT_PERMISSIONS, ...agent.permissions });
       }
       setLoading(false);
       // Mark initial load as done after a tick
@@ -194,6 +197,7 @@ export default function EditAgentScreen() {
       knowledge: linkedKnowledge.map((k) => k._id),
       price: price.trim() ? parseFloat(price) : null,
       allowHiring,
+      permissions,
     } as any);
   }, [
     name,
@@ -207,6 +211,7 @@ export default function EditAgentScreen() {
     linkedKnowledge,
     price,
     allowHiring,
+    permissions,
     debouncedSave,
   ]);
 
@@ -481,6 +486,22 @@ export default function EditAgentScreen() {
                   })}
                 </View>
               </ScrollView>
+            </View>
+
+            {/* Permissions */}
+            <View className={cn(isLargeScreen && "flex-1")}>
+              <View className="px-4 pt-4 pb-2 flex-row items-center gap-2">
+                <Settings size={16} className="text-foreground" />
+                <Text className="text-sm font-semibold text-foreground">
+                  Permissions
+                </Text>
+              </View>
+              <View className="px-4 pb-4">
+                <AgentPermissionToggles
+                  permissions={permissions}
+                  onChange={setPermissions}
+                />
+              </View>
             </View>
 
             {/* Knowledge (Library Files) */}

@@ -1,5 +1,20 @@
 import mongoose, { Schema, Model, Document } from 'mongoose';
 
+export interface IAgentPermissions {
+  /** Allow file read/write operations in sandbox */
+  filesystem: boolean;
+  /** Allow web browsing and search */
+  network: boolean;
+  /** Allow shell command execution */
+  shell: boolean;
+  /** Allow sending messages via Telegram/WhatsApp/Email */
+  communications: boolean;
+  /** Allow access to MCP tools */
+  mcp_servers: boolean;
+  /** Allow hiring sub-agents */
+  delegation: boolean;
+}
+
 export interface IAgentSoul {
   vibe: string[];
   expertise: string[];
@@ -40,6 +55,7 @@ export interface IAgent extends Document {
   allowedModels: string[];
   scheduleInterval?: number;
   lastScheduledCheck?: Date;
+  permissions?: IAgentPermissions;
   soul?: IAgentSoul;
   createdAt: Date;
   updatedAt: Date;
@@ -99,6 +115,17 @@ const AgentSchema = new Schema<IAgent>({
   },
   scheduleInterval: { type: Number },
   lastScheduledCheck: { type: Date },
+  permissions: {
+    type: {
+      filesystem: { type: Boolean, default: true },
+      network: { type: Boolean, default: true },
+      shell: { type: Boolean, default: true },
+      communications: { type: Boolean, default: true },
+      mcp_servers: { type: Boolean, default: true },
+      delegation: { type: Boolean, default: true },
+    },
+    default: undefined,  // undefined = all allowed (backward compatible)
+  },
   soul: {
     type: {
       vibe: { type: [String], default: [] },

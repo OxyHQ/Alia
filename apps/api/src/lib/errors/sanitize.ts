@@ -6,6 +6,7 @@
  */
 
 import { PROVIDER_NAMES as REGISTERED_PROVIDERS } from '../../internal/providers/lib/provider-names.js';
+import { redactSecrets } from '../agent/secret-scanner.js';
 import type { AliaError } from './error-codes.js';
 import { AliaErrorCode } from './error-codes.js';
 
@@ -79,6 +80,14 @@ export function getOpenAIErrorType(code: string): string {
     default:
       return 'server_error';
   }
+}
+
+/**
+ * Sanitize a string to remove both provider names and secrets.
+ * Use this for user-facing content that may contain either.
+ */
+export function sanitizeFull(message: string): string {
+  return sanitizeMessage(redactSecrets(message).redacted);
 }
 
 /**
