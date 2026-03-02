@@ -7,7 +7,8 @@ export type NotificationType =
   | 'price_alert'
   | 'integration_event'
   | 'reminder'
-  | 'agent_task_complete';
+  | 'agent_task_complete'
+  | 'oxy_service';
 
 export type NotificationChannel = 'push' | 'telegram' | 'discord' | 'whatsapp' | 'slack' | 'in_app';
 export type NotificationStatus = 'pending' | 'sent' | 'read' | 'dismissed';

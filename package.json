@@ -6,6 +6,7 @@
   "workspaces": [
     "apps/api",
     "apps/app",
+    "apps/alia-chat",
     "apps/alia-canvas",
     "apps/integrations",
     "apps/alia-console",
