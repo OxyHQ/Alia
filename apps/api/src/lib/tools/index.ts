@@ -245,6 +245,9 @@ export { buildMcpTools } from './mcp.js';
 // Integration tools (OAuth-based external services)
 export { buildIntegrationTools } from './integrations.js';
 
+// Oxy service tools (first-party Oxy apps — email, etc.)
+export { buildOxyServiceTools, getOxyServiceContext, getOxyServicePromptFragment } from './oxy-services.js';
+
 // Registry API exports
 export {
   registerTool,

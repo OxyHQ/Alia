@@ -15,6 +15,7 @@ import { convertOpenAIToolsToToolSet } from '../../lib/tool-converter.js';
 import { getCurrentDateTool, webSearchTool, browseTool, saveUserMemoryTool, updateUserPreferencesTool, updateUserContextTool, createSendTelegramTool, createGetWhatsAppChatsTool, createGetWhatsAppMessagesTool, createSendWhatsAppMessageTool, createProvidersAdminTool, webScraperTool, generateFileTool, createSearchAgentsTool, createDelegateToAgentTool, createDeepResearchTool, createSwitchModelTool } from '../../lib/tools/index.js';
 import { buildMcpTools } from '../../lib/tools/mcp.js';
 import { buildIntegrationTools } from '../../lib/tools/integrations.js';
+import { buildOxyServiceTools, getOxyServicePromptFragment, getOxyServiceContext } from '../../lib/tools/oxy-services.js';
 import { oxyClient } from '../../middleware/auth.js';
 import type { KeyConfig } from '../../lib/providers-client.js';
 import type { IUserMemory } from '../../models/user-memory.js';
@@ -609,16 +610,17 @@ router.post('/', async (req: Request, res: Response) => {
       } : {}),
     };
 
-    // Add user's MCP server tools and integration tools (only for direct user sessions)
+    // Add user's MCP server tools, integration tools, and Oxy service tools (only for direct user sessions)
     if (isDirectUserSession && req.user?.id) {
       try {
-        const [mcpTools, integrationTools] = await Promise.all([
+        const [mcpTools, integrationTools, oxyServiceTools] = await Promise.all([
           buildMcpTools(req.user.id),
           buildIntegrationTools(req.user.id),
+          buildOxyServiceTools(req.user.id, req.accessToken!),
         ]);
-        Object.assign(aliaTools, mcpTools, integrationTools);
+        Object.assign(aliaTools, mcpTools, integrationTools, oxyServiceTools);
       } catch (err) {
-        log.v1.warn({ err }, 'Failed to load MCP/integration tools');
+        log.v1.warn({ err }, 'Failed to load MCP/integration/oxy-service tools');
       }
     }
 
@@ -728,6 +730,18 @@ router.post('/', async (req: Request, res: Response) => {
         allTools.providersAdmin = createProvidersAdminTool();
       }
       systemMessage += '\n\nYou have `sendTelegram` and WhatsApp tools (`getWhatsAppChats`, `getWhatsAppMessages`, `sendWhatsAppMessage`). Use them when the user asks. For WhatsApp, call getWhatsAppChats first to get chat JIDs.';
+
+      // Inject Oxy service tools description + live context (non-blocking)
+      try {
+        const [oxyServicePrompt, oxyServiceCtx] = await Promise.all([
+          getOxyServicePromptFragment(),
+          getOxyServiceContext(req.accessToken!),
+        ]);
+        if (oxyServicePrompt) systemMessage += oxyServicePrompt;
+        if (oxyServiceCtx) systemMessage += oxyServiceCtx;
+      } catch {
+        // Non-critical — don't block chat
+      }
       if (agentMode) {
         systemMessage += '\n\nAGENT MODE: You have `searchAgents` and `delegateToAgent` tools. Search for specialist agents, delegate to the best match, and briefly explain why. If no agent fits, handle it yourself.';
       }

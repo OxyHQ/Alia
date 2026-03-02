@@ -48,3 +48,40 @@ All Oxy ecosystem apps share the same MongoDB cluster on DigitalOcean. Each app 
 - **Backend**: Express, TypeScript, MongoDB/Mongoose, Socket.IO
 - **Auth**: @oxyhq/services (OxyProvider, useAuth, OxySignInButton)
 - **Routing**: expo-router (file-based)
+
+## Oxy Service Connector Protocol
+
+Alia integrates with Oxy ecosystem apps (and future third-party services) via the **Oxy Service Connector** — a manifest-driven protocol where apps register tool definitions that Alia auto-discovers and exposes to the AI.
+
+### How it works
+
+1. **Service manifests** are stored in MongoDB (`OxyService` model). Each defines the service's tools, events, and optional context endpoint.
+2. **`buildOxyServiceTools()`** reads manifests at chat time, generates AI SDK `tool()` wrappers with Zod schemas (via `jsonSchemaToZod()`), and forwards the user's OxyHQ JWT to the service API.
+3. **Events** flow from services to Alia via `POST /webhooks/oxy/:serviceId` with HMAC signature verification. Events trigger notifications, context updates, or autonomous agent sessions.
+4. **Context endpoints** (optional) provide brief user summaries injected into the system prompt at chat start.
+
+### Adding a new service
+
+Insert an `OxyService` document — zero changes to Alia's codebase needed:
+```json
+{
+  "serviceId": "oxy-notes",
+  "displayName": "Notes",
+  "tools": [{ "name": "searchNotes", "endpoint": { "method": "GET", "path": "/notes/search" }, ... }]
+}
+```
+
+### Key files
+
+- `apps/api/src/models/oxy-service.ts` - OxyService Mongoose model (manifest schema)
+- `apps/api/src/lib/tools/oxy-services.ts` - Tool builder (`buildOxyServiceTools`, `callOxyService`, `getOxyServiceContext`, `getOxyServicePromptFragment`)
+- `apps/api/src/routes/oxy-service-events.ts` - Event webhook endpoint
+- `apps/api/src/scripts/seed-oxy-services.ts` - Seed script for email service manifest
+- `apps/api/src/routes/v1/chat-completions.ts` - Integration point (~line 615)
+
+### Patterns to follow
+
+- Same `safeExecute()` + cache pattern as `integrations.ts` and `mcp.ts`
+- Same `jsonSchemaToZod()` from `mcp-schema.ts` for runtime schema conversion
+- Auth: forward `req.accessToken` (user's OxyHQ JWT) — no OAuth needed for first-party
+- Tool naming: `oxy_{serviceId}__{toolName}` (e.g., `oxy_inbox__searchEmails`)

@@ -46,6 +46,7 @@ import suggestionsRouter from './routes/suggestions.js';
 import writingStyleRouter from './routes/writing-style.js';
 import notificationsRouter from './routes/notifications.js';
 import auditRouter from './routes/audit.js';
+import oxyServiceEventsRouter from './routes/oxy-service-events.js';
 
 // Register hooks (side-effect import)
 import './lib/hooks/index.js';
@@ -221,6 +222,7 @@ app.use('/automations', automationsRouter);
 app.use('/analytics', analyticsRouter);
 app.use('/triggers', triggersRouter);
 app.use('/webhooks', webhooksRouter);
+app.use('/webhooks/oxy', oxyServiceEventsRouter);
 app.use('/referrals', referralsRouter);
 app.use('/agents/avatar', agentsAvatarRouter);
 app.use('/agents/teams', agentTeamsRouter);
