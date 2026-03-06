@@ -8,9 +8,12 @@ import DeveloperApiKey from '../models/developer-api-key.js';
 import { resolveModel } from '../lib/chat-core.js';
 import { reserveCredits, finalizeCredits, type CreditReservation } from '../lib/credits-manager.js';
 import { log } from '../lib/logger.js';
+import { sanitizeMessage } from '../lib/errors/sanitize.js';
 import * as crypto from 'crypto';
 
 const router = Router();
+const getSafeErrorMessage = (error: unknown, fallback: string): string =>
+  sanitizeMessage(error instanceof Error ? error.message : fallback);
 
 // Store active sessions for usage tracking
 const activeSessions = new Map<string, { userId: string; reservation: CreditReservation; aliaModelId: string }>();
@@ -367,9 +370,9 @@ router.post('/resolve-model', authenticateApiKey, apiKeyRateLimit, async (req: R
     }
 
     res.json(response);
-  } catch (error: any) {
+  } catch (error: unknown) {
     log.codea.error({ err: error }, 'Error resolving model');
-    res.status(500).json({ error: error.message || 'Failed to resolve model' });
+    res.status(500).json({ error: getSafeErrorMessage(error, 'Failed to resolve model') });
   }
 });
 
@@ -411,9 +414,9 @@ router.post('/report-usage', authenticateApiKey, apiKeyRateLimit, async (req: Re
       creditsCharged,
       creditsRemaining
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     log.codea.error({ err: error }, 'Error reporting usage');
-    res.status(500).json({ error: error.message || 'Failed to report usage' });
+    res.status(500).json({ error: getSafeErrorMessage(error, 'Failed to report usage') });
   }
 });
 

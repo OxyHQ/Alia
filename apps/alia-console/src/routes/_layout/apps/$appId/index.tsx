@@ -1,13 +1,14 @@
-import { createFileRoute, Link, useNavigate } from '@tanstack/react-router';
+import { Link, createFileRoute, useNavigate } from '@tanstack/react-router';
 import { useState } from 'react';
 import { HugeiconsIcon } from '@hugeicons/react';
 import {
+  Add01Icon,
   ArrowLeft01Icon,
   ArrowRight01Icon,
-  Add01Icon,
   Copy01Icon,
   Delete02Icon,
 } from '@hugeicons/core-free-icons';
+import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
@@ -30,9 +31,8 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { useApp, useApiKeys, useCreateApiKey, useDeleteApp } from '@/hooks/use-developer';
+import { useApiKeys, useApp, useCreateApiKey, useDeleteApp } from '@/hooks/use-developer';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { toast } from 'sonner';
 
 export const Route = createFileRoute('/_layout/apps/$appId/')({
   component: AppDetailPage,

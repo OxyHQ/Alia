@@ -1,6 +1,8 @@
 'use client';
 
 import * as React from 'react';
+import { HugeiconsIcon } from '@hugeicons/react';
+import { ArtificialIntelligence01Icon, Settings01Icon, SourceCodeIcon } from '@hugeicons/core-free-icons';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -9,8 +11,6 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from '@/components/ui/accordion';
-import { HugeiconsIcon } from '@hugeicons/react';
-import { ArtificialIntelligence01Icon, Settings01Icon, SourceCodeIcon } from '@hugeicons/core-free-icons';
 
 // Root component
 function Agent({ className, children, ...props }: React.ComponentProps<'div'>) {

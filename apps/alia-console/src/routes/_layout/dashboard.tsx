@@ -1,4 +1,4 @@
-import { createFileRoute, Link } from '@tanstack/react-router';
+import { Link, createFileRoute } from '@tanstack/react-router';
 import { HugeiconsIcon } from '@hugeicons/react';
 import {
   ArrowRight01Icon,
@@ -19,7 +19,7 @@ function DashboardPage() {
 
   const hasCredits = (credits?.credits ?? 0) > 0;
   const hasApiKey = (developerStats?.totalKeys ?? 0) > 0;
-  const hasRequests = (developerStats?.last30Days?.totalRequests ?? 0) > 0;
+  const hasRequests = (developerStats?.last30Days.totalRequests ?? 0) > 0;
 
   const onboardingSteps = [
     {
@@ -150,7 +150,7 @@ function DashboardPage() {
               </div>
               <div>
                 <p className="text-2xl font-semibold text-foreground">
-                  {(developerStats?.last30Days?.totalRequests ?? 0).toLocaleString()}
+                  {(developerStats?.last30Days.totalRequests ?? 0).toLocaleString()}
                 </p>
                 <p className="text-xs text-muted-foreground">Requests</p>
               </div>

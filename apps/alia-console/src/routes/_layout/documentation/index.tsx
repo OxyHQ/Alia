@@ -1,13 +1,13 @@
-import { createFileRoute, Link } from '@tanstack/react-router';
+import { Link, createFileRoute } from '@tanstack/react-router';
 import { HugeiconsIcon } from '@hugeicons/react';
 import {
   ArrowRight01Icon,
-  RocketIcon,
+  ArtificialIntelligence01Icon,
+  Book02Icon,
   Key01Icon,
   Message01Icon,
-  ArtificialIntelligence01Icon,
+  RocketIcon,
   SourceCodeIcon,
-  Book02Icon,
 } from '@hugeicons/core-free-icons';
 import { Card, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 

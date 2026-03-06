@@ -195,6 +195,12 @@ export async function runAgentSession(sessionId: string): Promise<void> {
     return;
   }
 
+  // Respect pre-cancelled or terminal sessions (e.g. cancelled while queued).
+  if (session.status === 'cancelled' || session.status === 'completed' || session.status === 'failed') {
+    log.agents.info({ sessionId, status: session.status }, 'Session is already terminal, skipping execution');
+    return;
+  }
+
   const agent = await Agent.findById(session.agentId);
   if (!agent) {
     session.status = 'failed';
@@ -218,6 +224,22 @@ export async function runAgentSession(sessionId: string): Promise<void> {
     userId,
     workspaceMemory,
     image: inferImage(session.task, agent.preferredImage),
+    onContainerCreated: async (containerId: string) => {
+      const alreadyTracked = session.resources.some((r: any) => r.type === 'container' && r.resourceId === containerId);
+      if (!alreadyTracked) {
+        session.resources.push({
+          type: 'container',
+          resourceId: containerId,
+          status: 'active',
+          createdAt: new Date(),
+        } as any);
+        try {
+          await session.save();
+        } catch (saveErr: any) {
+          log.agents.warn({ saveErr, sessionId, containerId }, 'Failed to persist container resource on session');
+        }
+      }
+    },
   });
   const browserSession = new BrowserSession({ agentId, sessionId });
 
@@ -383,7 +405,7 @@ export async function runAgentSession(sessionId: string): Promise<void> {
         session.status = 'failed';
         session.result = 'No AI models available';
         try { await session.save(); } catch { /* ignore save errors */ }
-        return;
+        throw new Error('No AI models available');
       }
 
       const model = getAIModel(activeResolved.keyConfig);
@@ -585,23 +607,30 @@ export async function runAgentSession(sessionId: string): Promise<void> {
 
     // ── Session Complete ──
 
-    // Mark container as idle (persistent for 24h) instead of destroying,
-    // so users can browse workspace files after completion.
-    await terminalSession.idle(24);
-    await browserSession.close();
+    const machineState = stateMachine.current();
+    if (machineState === 'CANCELLED') {
+      // Cancelled sessions should not keep idle workspaces around.
+      await terminalSession.destroy().catch(() => {});
+      await browserSession.close().catch(() => {});
+      session.status = 'cancelled';
+      session.result = session.result || 'Session cancelled';
+    } else {
+      await terminalSession.idle(24);
+      await browserSession.close();
 
-    if (taskCompleted) {
-      session.status = 'completed';
-      session.result = taskResult;
-      eventStream.append('complete', 'Task completed.');
-    } else if (totalSteps >= session.config.maxSteps) {
-      session.status = 'completed';
-      session.result = 'Step limit reached. Partial progress was made.';
-      eventStream.append('system_message', 'Step limit reached — session ending');
-    } else if (totalTokens >= session.config.maxTokens) {
-      session.status = 'completed';
-      session.result = 'Token budget exhausted. Partial progress was made.';
-      eventStream.append('system_message', 'Token budget exhausted — session ending');
+      if (taskCompleted) {
+        session.status = 'completed';
+        session.result = taskResult;
+        eventStream.append('complete', 'Task completed.');
+      } else if (totalSteps >= session.config.maxSteps) {
+        session.status = 'completed';
+        session.result = 'Step limit reached. Partial progress was made.';
+        eventStream.append('system_message', 'Step limit reached - session ending');
+      } else if (totalTokens >= session.config.maxTokens) {
+        session.status = 'completed';
+        session.result = 'Token budget exhausted. Partial progress was made.';
+        eventStream.append('system_message', 'Token budget exhausted - session ending');
+      }
     }
 
     // Finalize credits based on actual token usage (Manus-style billing)

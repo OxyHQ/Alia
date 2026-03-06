@@ -1,12 +1,12 @@
 'use client';
 
 import * as React from 'react';
+import { HugeiconsIcon } from '@hugeicons/react';
+import { Copy01Icon, Tick02Icon } from '@hugeicons/core-free-icons';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
-import { HugeiconsIcon } from '@hugeicons/react';
-import { Copy01Icon, Tick02Icon } from '@hugeicons/core-free-icons';
 
 // Context for visibility state
 interface EnvironmentVariablesContextValue {

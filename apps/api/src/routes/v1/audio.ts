@@ -5,9 +5,12 @@ import { getOrCreateUserCredits } from '../../lib/user-credits-helpers.js';
 import { uploadToS3 } from '../../lib/s3.js';
 import { Conversation } from '../../models/conversation.js';
 import { log } from '../../lib/logger.js';
+import { sanitizeMessage } from '../../lib/errors/sanitize.js';
 import type { Request, Response } from 'express';
 
 const router = Router();
+const getSafeErrorMessage = (error: unknown, fallback: string): string =>
+  sanitizeMessage(error instanceof Error ? error.message : fallback);
 
 /**
  * POST /v1/audio/speech
@@ -136,9 +139,9 @@ router.post('/speech', async (req: Request, res: Response) => {
     }
 
     res.json({ audioUrl });
-  } catch (error: any) {
+  } catch (error: unknown) {
     log.general.error({ err: error, userId: req.user?.id }, 'TTS synthesis failed');
-    res.status(500).json({ error: { message: error.message || 'Synthesis failed', type: 'server_error' } });
+    res.status(500).json({ error: { message: getSafeErrorMessage(error, 'Synthesis failed'), type: 'server_error' } });
   }
 });
 

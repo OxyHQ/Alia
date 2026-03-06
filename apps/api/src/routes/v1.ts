@@ -13,8 +13,11 @@ import { reserveCredits, finalizeCredits, type CreditReservation } from '../lib/
 import { listChannels } from '../lib/channels/registry.js';
 import * as crypto from 'crypto';
 import { log } from '../lib/logger.js';
+import { sanitizeMessage } from '../lib/errors/sanitize.js';
 
 const router = Router();
+const getSafeErrorMessage = (error: unknown, fallback: string): string =>
+  sanitizeMessage(error instanceof Error ? error.message : fallback);
 
 // Store active sessions for usage tracking (for direct AI SDK usage by clients)
 const activeSessions = new Map<string, { userId: string; reservation: CreditReservation; aliaModelId: string }>();
@@ -100,9 +103,9 @@ router.get('/me', async (req: Request, res: Response) => {
         total: userCredits.credits.free + userCredits.credits.paid,
       },
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     log.general.error({ err: error }, 'Failed to fetch user info');
-    res.status(500).json({ error: error.message || 'Failed to fetch user info' });
+    res.status(500).json({ error: getSafeErrorMessage(error, 'Failed to fetch user info') });
   }
 });
 
@@ -183,9 +186,9 @@ router.post('/resolve-model', async (req: Request, res: Response) => {
     }
 
     res.json(response);
-  } catch (error: any) {
+  } catch (error: unknown) {
     log.general.error({ err: error }, 'Failed to resolve model');
-    res.status(500).json({ error: error.message || 'Failed to resolve model' });
+    res.status(500).json({ error: getSafeErrorMessage(error, 'Failed to resolve model') });
   }
 });
 
@@ -230,9 +233,9 @@ router.post('/report-usage', async (req: Request, res: Response) => {
       creditsCharged,
       creditsRemaining
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     log.general.error({ err: error }, 'Failed to report usage');
-    res.status(500).json({ error: error.message || 'Failed to report usage' });
+    res.status(500).json({ error: getSafeErrorMessage(error, 'Failed to report usage') });
   }
 });
 

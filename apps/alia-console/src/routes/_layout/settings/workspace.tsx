@@ -1,13 +1,16 @@
-import { createFileRoute, Link } from '@tanstack/react-router';
+import { Link, createFileRoute } from '@tanstack/react-router';
 import { useRef, useState } from 'react';
 import { HugeiconsIcon } from '@hugeicons/react';
 import {
-  ArrowLeft01Icon,
-  Delete02Icon,
   Add01Icon,
+  ArrowLeft01Icon,
   Cancel01Icon,
+  Delete02Icon,
   ImageUpload01Icon,
 } from '@hugeicons/core-free-icons';
+import { useAuth } from '@oxyhq/auth';
+import { toast } from 'sonner';
+import type {WorkspaceMember, WorkspaceRole} from '@/hooks/use-workspace';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -41,25 +44,23 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import {
-  useWorkspaces,
+  
+  
+  canDeleteWorkspace as checkCanDelete,
+  canEditWorkspace as checkCanEdit,
+  canManageMembers as checkCanManage,
   useCurrentWorkspaceId,
-  useWorkspaceMembers,
-  useUpdateWorkspace,
   useDeleteWorkspace,
   useInviteMember,
   useRemoveMember,
   useUpdateMemberRole,
+  useUpdateWorkspace,
   useUploadWorkspaceImage,
-  canEditWorkspace as checkCanEdit,
-  canManageMembers as checkCanManage,
-  canDeleteWorkspace as checkCanDelete,
-  type WorkspaceRole,
-  type WorkspaceMember,
+  useWorkspaceMembers,
+  useWorkspaces
 } from '@/hooks/use-workspace';
-import { useAuth } from '@oxyhq/auth';
 import { WorkspaceAvatar } from '@/components/workspace-avatar';
 import config from '@/lib/config';
-import { toast } from 'sonner';
 
 export const Route = createFileRoute('/_layout/settings/workspace')({
   component: WorkspaceSettingsPage,
@@ -92,11 +93,11 @@ function WorkspaceSettingsPage() {
   const currentWorkspace = workspaces.find((w) => w.id === currentWorkspaceId) || workspaces[0] || null;
 
   const { data: members, isLoading: membersLoading } = useWorkspaceMembers(
-    currentWorkspace?.id || ''
+    currentWorkspace.id || ''
   );
 
-  const [name, setName] = useState(currentWorkspace?.name || '');
-  const [description, setDescription] = useState(currentWorkspace?.description || '');
+  const [name, setName] = useState(currentWorkspace.name || '');
+  const [description, setDescription] = useState(currentWorkspace.description || '');
 
   // Invite dialog state
   const [showInviteDialog, setShowInviteDialog] = useState(false);
@@ -106,14 +107,6 @@ function WorkspaceSettingsPage() {
   // Delete dialog state
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [deleteConfirmation, setDeleteConfirmation] = useState('');
-
-  if (!currentWorkspace) {
-    return (
-      <div className="flex-1 bg-background flex items-center justify-center">
-        <p className="text-sm text-muted-foreground">Loading...</p>
-      </div>
-    );
-  }
 
   const userId = (user?._id as string) || (user?.id as string) || '';
   const canEdit = checkCanEdit(userId, currentWorkspace);
@@ -358,7 +351,7 @@ function WorkspaceSettingsPage() {
                         />
                       )}
                       <AvatarFallback>
-                        {member.name?.[0]?.toUpperCase() || member.email[0]?.toUpperCase() || '?'}
+                        {member.name?.charAt(0).toUpperCase() || member.email.charAt(0).toUpperCase() || '?'}
                       </AvatarFallback>
                     </Avatar>
                     <div>
@@ -412,7 +405,7 @@ function WorkspaceSettingsPage() {
               {currentWorkspace.billing?.plan || 'Free'} Plan
             </p>
             <p className="text-xs text-muted-foreground">
-              {currentWorkspace.billing?.credits?.toLocaleString() || 0} credits available
+              {currentWorkspace.billing?.credits.toLocaleString() || 0} credits available
             </p>
           </div>
           <Button variant="outline" size="sm" asChild>

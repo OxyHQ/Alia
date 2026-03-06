@@ -1,17 +1,18 @@
-import { createFileRoute, Link, useNavigate } from '@tanstack/react-router';
+import { Link, createFileRoute, useNavigate } from '@tanstack/react-router';
 import { useState } from 'react';
 import { HugeiconsIcon } from '@hugeicons/react';
-import { ArrowLeft01Icon, Delete02Icon, Copy01Icon, Settings01Icon } from '@hugeicons/core-free-icons';
+import { ArrowLeft01Icon, Copy01Icon, Delete02Icon, Settings01Icon } from '@hugeicons/core-free-icons';
+import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { ButtonGroup } from '@/components/ui/button-group';
 import {
+  EnvironmentVariable,
   EnvironmentVariables,
+  EnvironmentVariablesContent,
   EnvironmentVariablesHeader,
   EnvironmentVariablesTitle,
   EnvironmentVariablesToggle,
-  EnvironmentVariablesContent,
-  EnvironmentVariable,
 } from '@/components/ui/environment-variables';
 import {
   AlertDialog,
@@ -23,9 +24,8 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { useApp, useApiKeys, useDeleteApiKey, useKeyUsage } from '@/hooks/use-developer';
+import { useApiKeys, useApp, useDeleteApiKey, useKeyUsage } from '@/hooks/use-developer';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { toast } from 'sonner';
 
 export const Route = createFileRoute('/_layout/apps/$appId/keys/$keyId')({
   component: KeyDetailPage,
@@ -42,6 +42,11 @@ function KeyDetailPage() {
   const [deleteDialog, setDeleteDialog] = useState(false);
 
   const apiKey = apiKeys.find((k) => k._id === keyId);
+  const usageSummary = usage?.summary ?? {
+    totalRequests: 0,
+    totalTokens: 0,
+    totalCredits: 0,
+  };
 
   const handleCopyKeyPrefix = () => {
     navigator.clipboard.writeText(apiKey?.keyPrefix || '');
@@ -183,19 +188,19 @@ function KeyDetailPage() {
           <div className="flex flex-row gap-12">
             <div>
               <p className="text-2xl font-semibold text-foreground">
-                {(usage?.summary?.totalRequests ?? 0).toLocaleString()}
+                {usageSummary.totalRequests.toLocaleString()}
               </p>
               <p className="text-sm text-muted-foreground mt-0.5">Requests</p>
             </div>
             <div>
               <p className="text-2xl font-semibold text-foreground">
-                {(usage?.summary?.totalTokens ?? 0).toLocaleString()}
+                {usageSummary.totalTokens.toLocaleString()}
               </p>
               <p className="text-sm text-muted-foreground mt-0.5">Tokens</p>
             </div>
             <div>
               <p className="text-2xl font-semibold text-foreground">
-                {(usage?.summary?.totalCredits ?? 0).toLocaleString()}
+                {usageSummary.totalCredits.toLocaleString()}
               </p>
               <p className="text-sm text-muted-foreground mt-0.5">Credits</p>
             </div>

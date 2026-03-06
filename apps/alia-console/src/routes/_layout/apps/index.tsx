@@ -1,15 +1,16 @@
-import { createFileRoute, Link, useNavigate } from '@tanstack/react-router';
+import { Link, createFileRoute, useNavigate } from '@tanstack/react-router';
 import { useState } from 'react';
 import { HugeiconsIcon } from '@hugeicons/react';
 import {
   Add01Icon,
-  Key01Icon,
   ArrowRight01Icon,
-  Settings01Icon,
   ChartLineData02Icon,
-  Delete02Icon,
   Copy01Icon,
+  Delete02Icon,
+  Key01Icon,
+  Settings01Icon,
 } from '@hugeicons/core-free-icons';
+import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
@@ -43,7 +44,6 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { useApps, useCreateApp, useDeleteApp } from '@/hooks/use-developer';
-import { toast } from 'sonner';
 
 export const Route = createFileRoute('/_layout/apps/')({
   component: AppsPage,

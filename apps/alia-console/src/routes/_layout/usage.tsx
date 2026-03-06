@@ -21,7 +21,7 @@ function UsagePage() {
   const summary = usage?.summary;
   const successRate =
     summary && summary.totalRequests > 0
-      ? Math.round(((summary.successfulRequests ?? 0) / summary.totalRequests) * 100)
+      ? Math.round((summary.successfulRequests / summary.totalRequests) * 100)
       : 0;
 
   return (

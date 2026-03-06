@@ -22,14 +22,14 @@ interface NavItem {
   url: string;
   icon: any;
   isActive?: boolean;
-  items?: {
+  items?: Array<{
     title: string;
     url: string;
-  }[];
+  }>;
 }
 
 interface NavMainProps {
-  items: NavItem[];
+  items: Array<NavItem>;
   label?: string;
 }
 

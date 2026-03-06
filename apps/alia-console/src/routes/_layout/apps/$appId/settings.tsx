@@ -1,13 +1,13 @@
-import { createFileRoute, Link, useNavigate } from '@tanstack/react-router';
-import { useState, useEffect } from 'react';
+import { Link, createFileRoute, useNavigate } from '@tanstack/react-router';
+import { useEffect, useState } from 'react';
 import { HugeiconsIcon } from '@hugeicons/react';
 import { ArrowLeft01Icon } from '@hugeicons/core-free-icons';
+import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { useApp, useUpdateApp } from '@/hooks/use-developer';
-import { toast } from 'sonner';
 
 export const Route = createFileRoute('/_layout/apps/$appId/settings')({
   component: AppSettingsPage,

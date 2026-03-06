@@ -1,17 +1,22 @@
 import { HugeiconsIcon } from '@hugeicons/react';
 import {
+  AiBrain01Icon,
+  ChartLineData01Icon,
+  CommandIcon,
+  Doc01Icon,
   Home09Icon,
   Key01Icon,
-  ChartLineData01Icon,
-  AiBrain01Icon,
-  SourceCodeIcon,
-  Doc01Icon,
-  Money01Icon,
   Login01Icon,
+  Money01Icon,
   Settings01Icon,
-  CommandIcon,
+  SourceCodeIcon,
 } from '@hugeicons/core-free-icons';
 import { useAuth } from '@oxyhq/auth';
+import { NavMain } from './nav-main';
+import { NavApps } from './nav-apps';
+import { NavUser } from './nav-user';
+import { SidebarHeaderBrand } from './sidebar-header';
+import { Button } from '@/components/ui/button';
 import {
   Sidebar,
   SidebarContent,
@@ -19,11 +24,6 @@ import {
   SidebarHeader,
   SidebarRail,
 } from '@/components/ui/sidebar';
-import { Button } from '@/components/ui/button';
-import { NavMain } from './nav-main';
-import { NavApps } from './nav-apps';
-import { NavUser } from './nav-user';
-import { SidebarHeaderBrand } from './sidebar-header';
 
 const mainNavItems = [
   {

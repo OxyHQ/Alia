@@ -1,18 +1,20 @@
 import { createFileRoute } from '@tanstack/react-router';
-import { useState, useRef, useCallback } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import { HugeiconsIcon } from '@hugeicons/react';
 import {
-  SentIcon,
-  StopIcon,
-  Delete02Icon,
-  Copy01Icon,
-  Settings01Icon,
-  ArrowDown01Icon,
   AiBrain01Icon,
-  SparklesIcon,
-  TextIcon,
+  ArrowDown01Icon,
+  Copy01Icon,
+  Delete02Icon,
   Mic01Icon,
+  SentIcon,
+  Settings01Icon,
+  SparklesIcon,
+  StopIcon,
+  TextIcon,
 } from '@hugeicons/core-free-icons';
+import { useAuth } from '@oxyhq/auth';
+import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -66,9 +68,7 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { useModelsStats } from '@/hooks/use-developer';
-import { useAuth } from '@oxyhq/auth';
 import config from '@/lib/config';
-import { toast } from 'sonner';
 
 export const Route = createFileRoute('/_layout/playground')({
   component: PlaygroundPage,
@@ -90,7 +90,7 @@ function PlaygroundPage() {
   const { authManager, isAuthenticated } = useAuth();
 
   // Chat state
-  const [messages, setMessages] = useState<Message[]>([]);
+  const [messages, setMessages] = useState<Array<Message>>([]);
   const [systemPrompt, setSystemPrompt] = useState(
     'You are a helpful AI assistant.'
   );
@@ -123,7 +123,7 @@ function PlaygroundPage() {
       return;
     }
 
-    const newMessages: Message[] = [
+    const newMessages: Array<Message> = [
       ...(systemPrompt ? [{ role: 'system' as const, content: systemPrompt }] : []),
       ...messages,
       { role: 'user' as const, content: userInput.trim() },
@@ -165,7 +165,7 @@ function PlaygroundPage() {
       const decoder = new TextDecoder();
       let assistantContent = '';
 
-      while (true) {
+      for (;;) {
         const { done, value } = await reader.read();
         if (done) break;
 
@@ -536,11 +536,7 @@ function PlaygroundPage() {
                           onClick={handleSend}
                           disabled={!userInput.trim()}
                         >
-                          {isStreaming ? (
-                            <Spinner className="size-4" />
-                          ) : (
-                            <HugeiconsIcon icon={SentIcon} size={16} />
-                          )}
+                          <HugeiconsIcon icon={SentIcon} size={16} />
                         </InputGroupButton>
                       </TooltipTrigger>
                       <TooltipContent className="flex items-center gap-2">

@@ -1,8 +1,8 @@
-import { useState, useCallback, useMemo } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useCallback, useMemo, useState } from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@oxyhq/auth';
-import apiClient from '@/lib/api/client';
 import { useCredits } from './use-billing';
+import apiClient from '@/lib/api/client';
 
 // ======================
 // Types
@@ -29,7 +29,7 @@ export interface Workspace {
   createdAt: string;
   updatedAt?: string;
   ownerId?: string;
-  members?: WorkspaceMember[];
+  members?: Array<WorkspaceMember>;
   memberCount?: number;
   billing?: {
     plan: 'free' | 'pro' | 'enterprise';
@@ -66,7 +66,7 @@ interface ApiOrganization {
   ownerId: string;
   role: WorkspaceRole;
   memberCount?: number;
-  members?: ApiMember[];
+  members?: Array<ApiMember>;
   credits: { paid: number };
   settings: { billingEmail?: string; apiCallLimit?: number };
   createdAt: string;
@@ -77,16 +77,16 @@ interface ApiMember {
   _id: string;
   oxyUserId: string | { _id: string; email?: string; username?: string; name?: string; image?: string };
   role: WorkspaceRole;
-  permissions: string[];
+  permissions: Array<string>;
   createdAt: string;
 }
 
-async function fetchOrganizations(): Promise<ApiOrganization[]> {
+async function fetchOrganizations(): Promise<Array<ApiOrganization>> {
   const response = await apiClient.get('/organization');
   return response.data.organizations;
 }
 
-async function fetchMembers(orgId: string): Promise<ApiMember[]> {
+async function fetchMembers(orgId: string): Promise<Array<ApiMember>> {
   const response = await apiClient.get(`/organization/${orgId}/members`);
   return response.data.members;
 }
@@ -126,9 +126,9 @@ function mapOrg(org: ApiOrganization): Workspace {
     memberCount: org.memberCount,
     billing: {
       plan: 'free',
-      credits: org.credits?.paid || 0,
+      credits: org.credits.paid || 0,
       creditsUsed: 0,
-      billingEmail: org.settings?.billingEmail,
+      billingEmail: org.settings.billingEmail,
     },
   };
 }
@@ -187,7 +187,7 @@ export function useWorkspaces() {
 
   const userId = (user?._id as string) || (user?.id as string) || 'anonymous';
 
-  const workspaces = useMemo((): Workspace[] => {
+  const workspaces = useMemo((): Array<Workspace> => {
     if (!isAuthenticated || !user) return [];
 
     const personal: Workspace = {
@@ -247,7 +247,7 @@ export function useCreateWorkspace() {
       return response.data.organization as ApiOrganization;
     },
     onSuccess: (newOrg) => {
-      queryClient.setQueryData<ApiOrganization[]>(['organizations'], (old) => {
+      queryClient.setQueryData<Array<ApiOrganization>>(['organizations'], (old) => {
         if (!old) return [newOrg];
         return [newOrg, ...old];
       });
@@ -264,7 +264,7 @@ export function useUpdateWorkspace() {
       return response.data.organization as ApiOrganization;
     },
     onSuccess: (updatedOrg) => {
-      queryClient.setQueryData<ApiOrganization[]>(['organizations'], (old) => {
+      queryClient.setQueryData<Array<ApiOrganization>>(['organizations'], (old) => {
         if (!old) return [updatedOrg];
         return old.map((org) => (org._id === updatedOrg._id ? updatedOrg : org));
       });
@@ -299,7 +299,7 @@ export function useDeleteWorkspace() {
       return id;
     },
     onSuccess: (id) => {
-      queryClient.setQueryData<ApiOrganization[]>(['organizations'], (old) => {
+      queryClient.setQueryData<Array<ApiOrganization>>(['organizations'], (old) => {
         if (!old) return [];
         return old.filter((org) => org._id !== id);
       });

@@ -1,4 +1,4 @@
-import { createFileRoute, Link } from '@tanstack/react-router';
+import { Link, createFileRoute } from '@tanstack/react-router';
 import { useState } from 'react';
 import { HugeiconsIcon } from '@hugeicons/react';
 import { ArrowLeft01Icon } from '@hugeicons/core-free-icons';
@@ -21,6 +21,12 @@ function AppUsagePage() {
   const [period, setPeriod] = useState('7d');
   const { data: app, isLoading: isLoadingApp } = useApp(appId);
   const { data: usage, isLoading: isLoadingUsage } = useAppUsage(appId, period);
+  const usageSummary = usage?.summary ?? {
+    totalRequests: 0,
+    totalTokens: 0,
+    totalCredits: 0,
+    avgResponseTime: 0,
+  };
 
   if (isLoadingApp || !app) {
     return (
@@ -75,25 +81,25 @@ function AppUsagePage() {
           <div className="flex flex-row gap-12">
             <div>
               <p className="text-2xl font-semibold text-foreground">
-                {(usage?.summary?.totalRequests ?? 0).toLocaleString()}
+                {usageSummary.totalRequests.toLocaleString()}
               </p>
               <p className="text-sm text-muted-foreground mt-0.5">Total requests</p>
             </div>
             <div>
               <p className="text-2xl font-semibold text-foreground">
-                {(usage?.summary?.totalTokens ?? 0).toLocaleString()}
+                {usageSummary.totalTokens.toLocaleString()}
               </p>
               <p className="text-sm text-muted-foreground mt-0.5">Total tokens</p>
             </div>
             <div>
               <p className="text-2xl font-semibold text-foreground">
-                {(usage?.summary?.totalCredits ?? 0).toLocaleString()}
+                {usageSummary.totalCredits.toLocaleString()}
               </p>
               <p className="text-sm text-muted-foreground mt-0.5">Credits used</p>
             </div>
             <div>
               <p className="text-2xl font-semibold text-foreground">
-                {usage?.summary?.avgResponseTime ?? 0}ms
+                {usageSummary.avgResponseTime}ms
               </p>
               <p className="text-sm text-muted-foreground mt-0.5">Avg response</p>
             </div>
