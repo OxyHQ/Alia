@@ -21,7 +21,7 @@ import { tool } from 'ai';
 import { z } from 'zod';
 import { TerminalSession } from './terminal-session.js';
 import { BrowserSession } from './browser-session.js';
-import { TodoManager, type TodoStatus } from './todo-manager.js';
+import { TodoManager } from './todo-manager.js';
 import { WorkspaceMemory } from './workspace-memory.js';
 import { buildMcpTools } from '../tools/mcp.js';
 import { buildIntegrationTools } from '../tools/integrations.js';
@@ -149,10 +149,10 @@ export async function buildActions(ctx: ActionContext) {
             if (!current.includes(old_text)) {
               return `Error: old_text not found in ${path}. Use file_edit(read) to see the current contents.`;
             }
-            const updated = current.replace(old_text, content!);
+            const replaced = current.split(old_text).length - 1;
+            const updated = current.split(old_text).join(content!);
             await terminalSession.writeFile(path, updated);
 
-            const replaced = current.split(old_text).length - 1;
             return `File edited: ${path} (${replaced} replacement${replaced !== 1 ? 's' : ''})`;
           }
 
@@ -246,28 +246,28 @@ export async function buildActions(ctx: ActionContext) {
   // undefined permissions = all allowed (backward compatible with existing agents).
   const perms = ctx.agent.permissions;
   if (perms) {
-    const denyStub = (toolName: string, capability: string) =>
+    const denyStub = (capability: string) =>
       async () => `Error: ${capability} access is disabled for this agent. Contact the agent creator to enable it.`;
 
     if (perms.shell === false && actions.shell) {
       const origDesc = (actions.shell as any).description;
       const origParams = (actions.shell as any).parameters;
-      actions.shell = tool({ description: origDesc, parameters: origParams, execute: denyStub('shell', 'Shell') });
+      actions.shell = tool({ description: origDesc, parameters: origParams, execute: denyStub('Shell') });
     }
     if (perms.network === false && actions.browser) {
       const origDesc = (actions.browser as any).description;
       const origParams = (actions.browser as any).parameters;
-      actions.browser = tool({ description: origDesc, parameters: origParams, execute: denyStub('browser', 'Browser/network') });
+      actions.browser = tool({ description: origDesc, parameters: origParams, execute: denyStub('Browser/network') });
     }
     if (perms.filesystem === false && actions.file_edit) {
       const origDesc = (actions.file_edit as any).description;
       const origParams = (actions.file_edit as any).parameters;
-      actions.file_edit = tool({ description: origDesc, parameters: origParams, execute: denyStub('file_edit', 'Filesystem') });
+      actions.file_edit = tool({ description: origDesc, parameters: origParams, execute: denyStub('Filesystem') });
     }
     if (perms.delegation === false && actions.delegate) {
       const origDesc = (actions.delegate as any).description;
       const origParams = (actions.delegate as any).parameters;
-      actions.delegate = tool({ description: origDesc, parameters: origParams, execute: denyStub('delegate', 'Agent delegation') });
+      actions.delegate = tool({ description: origDesc, parameters: origParams, execute: denyStub('Agent delegation') });
     }
   }
 
@@ -317,8 +317,9 @@ export async function buildActions(ctx: ActionContext) {
     if (name === 'plan') continue;
 
     const originalExecute = (action as any).execute;
-    (action as any).execute = async (args: any) => {
-      const threat = analyzeThreat(name, args || {});
+    (action as any).execute = async (...execArgs: any[]) => {
+      const inputArgs = execArgs[0] || {};
+      const threat = analyzeThreat(name, inputArgs);
 
       if (threat.shouldBlock) {
         const summary = formatThreatSummary(threat);
@@ -333,7 +334,7 @@ export async function buildActions(ctx: ActionContext) {
         log.agents.info({ toolName: name, threat: summary, sessionId: session._id.toString() }, 'Agent action flagged by threat detector');
       }
 
-      return originalExecute(args);
+      return originalExecute(...execArgs);
     };
   }
 

@@ -3,11 +3,14 @@ import { authenticateToken } from '../middleware/auth.js';
 import { Referral, getOrCreateReferral } from '../models/referral.js';
 import { getOrCreateUserCredits } from '../lib/user-credits-helpers.js';
 import { log } from '../lib/logger.js';
+import { sanitizeMessage } from '../lib/errors/sanitize.js';
 
 const router = Router();
 
 const REFERRAL_CREDIT_REWARD = 500;
 const BASE_URL = process.env.WEB_URL || 'https://alia.onl';
+const getSafeErrorMessage = (error: unknown, fallback: string): string =>
+  sanitizeMessage(error instanceof Error ? error.message : fallback);
 
 // Get current user's referral info (lazy-creates on first access)
 router.get('/', authenticateToken, async (req, res) => {
@@ -20,9 +23,9 @@ router.get('/', authenticateToken, async (req, res) => {
       totalCreditsEarned: referral.totalCreditsEarned,
       totalReferrals: referral.totalReferrals,
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     log.general.error({ err: error }, 'Error');
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ error: getSafeErrorMessage(error, 'Failed to fetch referrals') });
   }
 });
 
@@ -83,9 +86,9 @@ router.post('/redeem', authenticateToken, async (req, res) => {
     });
 
     res.json({ success: true, creditsAwarded: REFERRAL_CREDIT_REWARD });
-  } catch (error: any) {
+  } catch (error: unknown) {
     log.general.error({ err: error }, 'Redeem error');
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ error: getSafeErrorMessage(error, 'Failed to redeem invite code') });
   }
 });
 
@@ -109,9 +112,9 @@ router.post('/send-invite', authenticateToken, async (req, res) => {
       inviteUrl,
       mailtoUrl: `mailto:${email}?subject=${subject}&body=${body}`,
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     log.general.error({ err: error }, 'Send invite error');
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ error: getSafeErrorMessage(error, 'Failed to send invite') });
   }
 });
 
@@ -124,9 +127,9 @@ router.get('/history', authenticateToken, async (req, res) => {
       referrals: referral.referredUsers,
       total: referral.totalReferrals,
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     log.general.error({ err: error }, 'History error');
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ error: getSafeErrorMessage(error, 'Failed to fetch referral history') });
   }
 });
 

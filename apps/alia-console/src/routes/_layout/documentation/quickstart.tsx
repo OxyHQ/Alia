@@ -1,21 +1,21 @@
-import { createFileRoute, Link } from '@tanstack/react-router';
+import { Link, createFileRoute } from '@tanstack/react-router';
 import { HugeiconsIcon } from '@hugeicons/react';
 import { ArrowLeft01Icon, ArrowRight01Icon, SourceCodeIcon } from '@hugeicons/core-free-icons';
 import {
+  EnvironmentVariable,
   EnvironmentVariables,
+  EnvironmentVariablesContent,
   EnvironmentVariablesHeader,
   EnvironmentVariablesTitle,
   EnvironmentVariablesToggle,
-  EnvironmentVariablesContent,
-  EnvironmentVariable,
 } from '@/components/ui/environment-variables';
 import {
   CodeBlock,
-  CodeBlockHeader,
-  CodeBlockTitle,
-  CodeBlockFilename,
   CodeBlockActions,
   CodeBlockCopyButton,
+  CodeBlockFilename,
+  CodeBlockHeader,
+  CodeBlockTitle,
 } from '@/components/ui/code-block';
 
 export const Route = createFileRoute('/_layout/documentation/quickstart')({

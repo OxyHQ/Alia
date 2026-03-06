@@ -5,6 +5,7 @@ import {
   execInContainer,
   writeFileToContainer,
   readFileFromContainer,
+  readFileRawFromContainer,
   listFilesInContainer,
   exposeContainerPort,
   snapshotContainer,
@@ -17,8 +18,39 @@ import {
 import { log } from '../index.js';
 
 const PREVIEW_DOMAIN = process.env.PREVIEW_DOMAIN || 'preview.alia.onl';
+const MIME_BY_EXT: Record<string, string> = {
+  '.txt': 'text/plain; charset=utf-8',
+  '.md': 'text/markdown; charset=utf-8',
+  '.json': 'application/json; charset=utf-8',
+  '.js': 'application/javascript; charset=utf-8',
+  '.ts': 'application/typescript; charset=utf-8',
+  '.tsx': 'application/typescript; charset=utf-8',
+  '.jsx': 'application/javascript; charset=utf-8',
+  '.html': 'text/html; charset=utf-8',
+  '.css': 'text/css; charset=utf-8',
+  '.svg': 'image/svg+xml',
+  '.png': 'image/png',
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.gif': 'image/gif',
+  '.webp': 'image/webp',
+  '.pdf': 'application/pdf',
+  '.zip': 'application/zip',
+};
 
 export const containersRouter = Router();
+
+function safeFileName(path: string): string {
+  const candidate = path.split('/').pop() || 'download';
+  return candidate.replace(/[^a-zA-Z0-9._-]/g, '_');
+}
+
+function guessMimeType(path: string): string {
+  const dot = path.lastIndexOf('.');
+  if (dot < 0) return 'application/octet-stream';
+  const ext = path.slice(dot).toLowerCase();
+  return MIME_BY_EXT[ext] || 'application/octet-stream';
+}
 
 // ── List all managed containers ──
 
@@ -134,6 +166,33 @@ containersRouter.get('/:id/files/read', async (req, res) => {
     res.json({ content, path });
   } catch (err: any) {
     res.status(err.message?.includes('not found') ? 404 : 500).json({ error: err.message });
+  }
+});
+
+// â”€â”€ Download file (binary-safe) â”€â”€
+
+containersRouter.get('/:id/files/download', async (req, res) => {
+  try {
+    const path = req.query.path as string;
+    if (!path) {
+      res.status(400).json({ error: 'Missing path query parameter' });
+      return;
+    }
+
+    const content = await readFileRawFromContainer(req.params.id, path);
+    res.setHeader('Content-Type', guessMimeType(path));
+    res.setHeader('Content-Disposition', `attachment; filename="${safeFileName(path)}"`);
+    res.send(content);
+  } catch (err: any) {
+    if (err.message?.includes('not found')) {
+      res.status(404).json({ error: err.message });
+      return;
+    }
+    if (err.message?.includes('too large')) {
+      res.status(413).json({ error: err.message });
+      return;
+    }
+    res.status(500).json({ error: err.message });
   }
 });
 

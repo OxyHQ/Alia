@@ -1,7 +1,7 @@
+import type { Workspace } from '@/hooks/use-workspace';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import config from '@/lib/config';
 import { cn } from '@/lib/utils';
-import type { Workspace } from '@/hooks/use-workspace';
 
 function resolveImageUrl(path: string): string {
   if (path.startsWith('http')) return path;
@@ -39,7 +39,7 @@ export function WorkspaceAvatar({ workspace, user, size = 'md', className }: Wor
   }
 
   const imageUrl = workspace.icon ? resolveImageUrl(workspace.icon) : undefined;
-  const letter = workspace.name[0]?.toUpperCase() || 'W';
+  const letter = workspace.name.charAt(0).toUpperCase() || 'W';
 
   return (
     <Avatar className={cn(sizeClass, className)}>

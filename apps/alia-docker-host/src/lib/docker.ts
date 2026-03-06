@@ -5,6 +5,55 @@ import { log } from '../index.js';
 export const docker = new Dockerode({ socketPath: '/var/run/docker.sock' });
 
 const NETWORK_NAME = 'alia-containers';
+const WORKSPACE_ROOT = '/workspace';
+const MAX_BASE64_FILE_SIZE = 10 * 1024 * 1024; // 10MB
+const MAX_BASE64_OUTPUT_CHARS = 15 * 1024 * 1024; // >10MB base64 payload
+const DEFAULT_EXEC_OUTPUT_CHARS = 50_000;
+const runtimeLastActivity = new Map<string, number>();
+
+function shortId(containerId: string): string {
+  return containerId.slice(0, 12);
+}
+
+export function touchContainerActivity(containerId: string): void {
+  runtimeLastActivity.set(shortId(containerId), Date.now());
+}
+
+export function getContainerLastActivity(containerId: string): number | undefined {
+  return runtimeLastActivity.get(shortId(containerId));
+}
+
+export function forgetContainerActivity(containerId: string): void {
+  runtimeLastActivity.delete(shortId(containerId));
+}
+
+function shellEscape(value: string): string {
+  return `'${value.replace(/'/g, `'\\''`)}'`;
+}
+
+function normalizeWorkspacePath(inputPath: string): string {
+  let normalized = inputPath.replace(/\\/g, '/').trim();
+  if (!normalized || normalized.includes('\0')) {
+    throw new Error('Invalid path');
+  }
+
+  if (normalized.startsWith('/')) normalized = normalized.slice(1);
+  if (normalized.startsWith('workspace/')) {
+    normalized = normalized.slice('workspace/'.length);
+  } else if (normalized === 'workspace') {
+    return WORKSPACE_ROOT;
+  }
+
+  const segments: string[] = [];
+  for (const segment of normalized.split('/')) {
+    if (!segment || segment === '.') continue;
+    if (segment === '..') throw new Error('Path traversal is not allowed');
+    segments.push(segment);
+  }
+
+  if (segments.length === 0) return WORKSPACE_ROOT;
+  return `${WORKSPACE_ROOT}/${segments.join('/')}`;
+}
 
 export interface SizePreset {
   cpus: number;
@@ -113,6 +162,7 @@ export async function createContainer(opts: CreateContainerOpts): Promise<Contai
   await exec.start({ Detach: true });
 
   const info = await container.inspect();
+  touchContainerActivity(info.Id);
   return {
     containerId: info.Id.slice(0, 12),
     name,
@@ -125,14 +175,10 @@ export async function execInContainer(
   containerId: string,
   command: string,
   timeout = 30,
+  maxOutputChars = DEFAULT_EXEC_OUTPUT_CHARS,
 ): Promise<{ stdout: string; stderr: string; exitCode: number }> {
   const container = docker.getContainer(containerId);
-
-  // Update last activity
-  const info = await container.inspect();
-  const labels = { ...info.Config.Labels, 'alia.lastActivity': new Date().toISOString() };
-  // Note: Docker doesn't support updating labels on a running container directly,
-  // but we track it in the label on creation and use the exec timestamp for cleanup.
+  touchContainerActivity(containerId);
 
   const exec = await container.exec({
     Cmd: ['bash', '-c', command],
@@ -179,18 +225,19 @@ export async function execInContainer(
             stdout += data;
           }
 
-          // Cap output
-          if (stdout.length > 50000) {
-            stdout = stdout.slice(0, 50000) + '\n... [truncated]';
+          // Cap output to avoid unbounded memory growth on noisy commands.
+          if (maxOutputChars > 0 && stdout.length > maxOutputChars) {
+            stdout = stdout.slice(0, maxOutputChars) + '\n... [truncated]';
           }
-          if (stderr.length > 50000) {
-            stderr = stderr.slice(0, 50000) + '\n... [truncated]';
+          if (maxOutputChars > 0 && stderr.length > maxOutputChars) {
+            stderr = stderr.slice(0, maxOutputChars) + '\n... [truncated]';
           }
         }
       });
 
       stream.on('end', async () => {
         clearTimeout(timer);
+        touchContainerActivity(containerId);
         try {
           const inspectResult = await exec.inspect();
           resolve({ stdout, stderr, exitCode: inspectResult.ExitCode ?? 0 });
@@ -213,11 +260,11 @@ export async function writeFileToContainer(
   content: string,
 ): Promise<void> {
   const container = docker.getContainer(containerId);
+  const safePath = normalizeWorkspacePath(path);
 
   // Use exec with heredoc to write file
-  const dir = path.substring(0, path.lastIndexOf('/'));
-  const escapedContent = content.replace(/\\/g, '\\\\').replace(/'/g, "'\\''");
-  const cmd = `mkdir -p '${dir}' && cat > '${path}' << 'ALIA_EOF'\n${content}\nALIA_EOF`;
+  const dir = safePath.substring(0, safePath.lastIndexOf('/'));
+  const cmd = `mkdir -p ${shellEscape(dir || WORKSPACE_ROOT)} && cat > ${shellEscape(safePath)} << 'ALIA_EOF'\n${content}\nALIA_EOF`;
 
   const exec = await container.exec({
     Cmd: ['bash', '-c', cmd],
@@ -228,7 +275,10 @@ export async function writeFileToContainer(
   return new Promise((resolve, reject) => {
     exec.start({}, (err, stream) => {
       if (err) return reject(err);
-      stream?.on('end', () => resolve());
+      stream?.on('end', () => {
+        touchContainerActivity(containerId);
+        resolve();
+      });
       stream?.on('error', reject);
       stream?.resume(); // drain the stream
     });
@@ -239,20 +289,48 @@ export async function readFileFromContainer(
   containerId: string,
   path: string,
 ): Promise<string> {
-  const result = await execInContainer(containerId, `cat '${path}'`, 10);
+  const safePath = normalizeWorkspacePath(path);
+  const result = await execInContainer(containerId, `cat -- ${shellEscape(safePath)}`, 10);
   if (result.exitCode !== 0) {
     throw new Error(result.stderr || 'File not found');
   }
   return result.stdout;
 }
 
+export async function readFileRawFromContainer(
+  containerId: string,
+  path: string,
+): Promise<Buffer> {
+  const safePath = normalizeWorkspacePath(path);
+  const result = await execInContainer(
+    containerId,
+    `if [ ! -f ${shellEscape(safePath)} ]; then echo "File not found" >&2; exit 1; fi; ` +
+    `size=$(wc -c < ${shellEscape(safePath)}); ` +
+    `if [ "$size" -gt ${MAX_BASE64_FILE_SIZE} ]; then echo "File too large" >&2; exit 2; fi; ` +
+    `base64 -w 0 -- ${shellEscape(safePath)}`,
+    20,
+    MAX_BASE64_OUTPUT_CHARS,
+  );
+
+  if (result.exitCode === 2) {
+    throw new Error('File too large to download');
+  }
+  if (result.exitCode !== 0) {
+    throw new Error(result.stderr || 'File not found');
+  }
+
+  const encoded = result.stdout.trim();
+  return Buffer.from(encoded, 'base64');
+}
+
 export async function listFilesInContainer(
   containerId: string,
   dir = '/workspace',
 ): Promise<Array<{ name: string; type: 'file' | 'directory' }>> {
+  const safeDir = normalizeWorkspacePath(dir);
   const result = await execInContainer(
     containerId,
-    `ls -1pA '${dir}' 2>/dev/null || echo ''`,
+    `ls -1pA -- ${shellEscape(safeDir)} 2>/dev/null || echo ''`,
     10,
   );
 
@@ -321,6 +399,7 @@ export async function exposeContainerPort(
     JSON.stringify(config, null, 2),
   );
 
+  touchContainerActivity(containerId);
   return `https://${host}`;
 }
 
@@ -350,6 +429,7 @@ export async function snapshotContainer(
     comment: `Snapshot created at ${new Date().toISOString()}`,
   });
 
+  touchContainerActivity(containerId);
   return `alia-snapshot:${tag}`;
 }
 
@@ -359,8 +439,12 @@ export async function destroyContainer(containerId: string): Promise<void> {
     await removePortExposure(containerId);
     await container.stop({ t: 5 }).catch(() => {});
     await container.remove({ force: true });
+    forgetContainerActivity(containerId);
   } catch (err: any) {
-    if (err.statusCode === 404) return; // already gone
+    if (err.statusCode === 404) {
+      forgetContainerActivity(containerId);
+      return; // already gone
+    }
     throw err;
   }
 }
@@ -374,6 +458,7 @@ export async function getContainerStatus(containerId: string): Promise<{
 }> {
   const container = docker.getContainer(containerId);
   const info = await container.inspect();
+  touchContainerActivity(containerId);
   return {
     status: info.State.Status,
     running: info.State.Running,

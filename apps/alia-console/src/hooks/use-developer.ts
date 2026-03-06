@@ -1,7 +1,7 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@oxyhq/auth';
-import apiClient from '@/lib/api/client';
 import { useCurrentWorkspaceId } from './use-workspace';
+import apiClient from '@/lib/api/client';
 
 export interface DeveloperApp {
   _id: string;
@@ -9,7 +9,7 @@ export interface DeveloperApp {
   name: string;
   description?: string;
   websiteUrl?: string;
-  redirectUrls: string[];
+  redirectUrls: Array<string>;
   icon?: string;
   isActive: boolean;
   createdAt: string;
@@ -22,7 +22,7 @@ export interface DeveloperApiKey {
   appId: string;
   name: string;
   keyPrefix: string;
-  scopes: string[];
+  scopes: Array<string>;
   expiresAt?: string;
   lastUsedAt?: string;
   isActive: boolean;
@@ -55,8 +55,8 @@ export interface UsageByEndpoint {
 
 export interface AppUsageStats {
   summary: UsageSummary;
-  byDay: UsageByDay[];
-  byEndpoint: UsageByEndpoint[];
+  byDay: Array<UsageByDay>;
+  byEndpoint: Array<UsageByEndpoint>;
 }
 
 export interface DeveloperStats {
@@ -89,7 +89,7 @@ export function useApps() {
     queryKey: ['developer-apps', workspaceId],
     queryFn: async () => {
       const response = await apiClient.get('/developer/apps');
-      return response.data.apps as DeveloperApp[];
+      return response.data.apps as Array<DeveloperApp>;
     },
     staleTime: 1000 * 60 * 5,
     retry: 2,
@@ -122,7 +122,7 @@ export function useCreateApp() {
       return response.data.app as DeveloperApp;
     },
     onSuccess: (newApp) => {
-      queryClient.setQueryData<DeveloperApp[]>(['developer-apps', workspaceId], (old) => {
+      queryClient.setQueryData<Array<DeveloperApp>>(['developer-apps', workspaceId], (old) => {
         if (!old) return [newApp];
         return [newApp, ...old];
       });
@@ -142,7 +142,7 @@ export function useUpdateApp() {
       return response.data.app as DeveloperApp;
     },
     onSuccess: (updatedApp) => {
-      queryClient.setQueryData<DeveloperApp[]>(['developer-apps', workspaceId], (old) => {
+      queryClient.setQueryData<Array<DeveloperApp>>(['developer-apps', workspaceId], (old) => {
         if (!old) return [updatedApp];
         return old.map((app) => (app._id === updatedApp._id ? updatedApp : app));
       });
@@ -179,7 +179,7 @@ export function useApiKeys(appId: string) {
     queryKey: ['developer-keys', appId],
     queryFn: async () => {
       const response = await apiClient.get(`/developer/apps/${appId}/keys`);
-      return response.data.keys as DeveloperApiKey[];
+      return response.data.keys as Array<DeveloperApiKey>;
     },
     enabled: isReady && isAuthenticated && !!appId,
     staleTime: 1000 * 60 * 2,
@@ -196,13 +196,13 @@ export function useCreateApiKey() {
       data,
     }: {
       appId: string;
-      data: { name: string; scopes: string[]; expiresAt?: string };
+      data: { name: string; scopes: Array<string>; expiresAt?: string };
     }) => {
       const response = await apiClient.post(`/developer/apps/${appId}/keys`, data);
       return { appId, apiKey: response.data.apiKey, warning: response.data.warning };
     },
     onSuccess: ({ appId, apiKey }) => {
-      queryClient.setQueryData<DeveloperApiKey[]>(['developer-keys', appId], (old) => {
+      queryClient.setQueryData<Array<DeveloperApiKey>>(['developer-keys', appId], (old) => {
         if (!old) return [apiKey];
         return [apiKey, ...old];
       });
@@ -228,7 +228,7 @@ export function useUpdateApiKey() {
       return { appId, apiKey: response.data.apiKey };
     },
     onSuccess: ({ appId, apiKey }) => {
-      queryClient.setQueryData<DeveloperApiKey[]>(['developer-keys', appId], (old) => {
+      queryClient.setQueryData<Array<DeveloperApiKey>>(['developer-keys', appId], (old) => {
         if (!old) return [apiKey];
         return old.map((key) => (key._id === apiKey._id ? apiKey : key));
       });
@@ -245,7 +245,7 @@ export function useDeleteApiKey() {
       return { appId, keyId };
     },
     onSuccess: ({ appId, keyId }) => {
-      queryClient.setQueryData<DeveloperApiKey[]>(['developer-keys', appId], (old) => {
+      queryClient.setQueryData<Array<DeveloperApiKey>>(['developer-keys', appId], (old) => {
         if (!old) return [];
         return old.filter((key) => key._id !== keyId);
       });
@@ -342,7 +342,7 @@ export interface ModelStats {
 }
 
 export interface ModelsStatsResponse {
-  models: ModelStats[];
+  models: Array<ModelStats>;
   count: number;
   timestamp: string;
 }

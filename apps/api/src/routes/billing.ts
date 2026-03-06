@@ -10,8 +10,11 @@ import { getOrCreateUserCredits } from '../lib/user-credits-helpers.js';
 import { getUserEntitlements, invalidateEntitlementsCache } from '../lib/plan-access.js';
 import { z } from 'zod';
 import { log } from '../lib/logger.js';
+import { sanitizeMessage } from '../lib/errors/sanitize.js';
 
 const router = Router();
+const getSafeErrorMessage = (error: unknown, fallback: string): string =>
+  sanitizeMessage(error instanceof Error ? error.message : fallback);
 
 let stripeInstance: Stripe | null = null;
 
@@ -79,7 +82,7 @@ router.get('/packages', async (_req: Request, res: Response) => {
     });
   } catch (error: unknown) {
     log.credits.error({ err: error }, 'Error fetching packages');
-    res.status(500).json({ error: (error as Error).message });
+    res.status(500).json({ error: getSafeErrorMessage(error, 'Failed to fetch credit packages') });
   }
 });
 
@@ -131,7 +134,7 @@ router.post('/checkout/credits', authenticateToken, async (req: Request, res: Re
       return res.status(400).json({ error: 'Invalid input', details: error.errors });
     }
     log.credits.error({ err: error }, 'Error creating checkout session');
-    res.status(500).json({ error: (error as Error).message });
+    res.status(500).json({ error: getSafeErrorMessage(error, 'Failed to create checkout session') });
   }
 });
 
@@ -190,7 +193,7 @@ router.post('/checkout/custom-credits', authenticateToken, async (req: Request, 
       return res.status(400).json({ error: 'Invalid input', details: error.errors });
     }
     log.credits.error({ err: error }, 'Error creating custom credits checkout');
-    res.status(500).json({ error: (error as Error).message });
+    res.status(500).json({ error: getSafeErrorMessage(error, 'Failed to create custom credits checkout') });
   }
 });
 
@@ -204,7 +207,7 @@ router.get('/credit-price', async (_req: Request, res: Response) => {
     }
     res.json({ pricePerCreditCents: pricePerCredit, minCredits: MIN_CUSTOM_CREDITS, maxCredits: MAX_CUSTOM_CREDITS });
   } catch (error: unknown) {
-    res.status(500).json({ error: (error as Error).message });
+    res.status(500).json({ error: getSafeErrorMessage(error, 'Failed to fetch credit price') });
   }
 });
 
@@ -304,7 +307,7 @@ router.get('/plans', async (req: Request, res: Response) => {
     res.json({ plans });
   } catch (error: unknown) {
     log.credits.error({ err: error }, 'Error fetching plans');
-    res.status(500).json({ error: (error as Error).message });
+    res.status(500).json({ error: getSafeErrorMessage(error, 'Failed to fetch plans') });
   }
 });
 
@@ -371,7 +374,7 @@ router.post('/checkout/subscription', authenticateToken, async (req: Request, re
       return res.status(400).json({ error: 'Invalid input', details: error.errors });
     }
     log.credits.error({ err: error }, 'Error creating subscription checkout');
-    res.status(500).json({ error: (error as Error).message });
+    res.status(500).json({ error: getSafeErrorMessage(error, 'Failed to create subscription checkout') });
   }
 });
 
@@ -389,7 +392,7 @@ router.get('/subscription', authenticateToken, async (req: Request, res: Respons
     res.json({ subscription });
   } catch (error: unknown) {
     log.credits.error({ err: error }, 'Error fetching subscription');
-    res.status(500).json({ error: (error as Error).message });
+    res.status(500).json({ error: getSafeErrorMessage(error, 'Failed to fetch subscription') });
   }
 });
 
@@ -414,7 +417,7 @@ router.post('/subscription/cancel', authenticateToken, async (req: Request, res:
     res.json({ message: 'Subscription will be canceled at end of billing period', subscription });
   } catch (error: unknown) {
     log.credits.error({ err: error }, 'Error canceling subscription');
-    res.status(500).json({ error: (error as Error).message });
+    res.status(500).json({ error: getSafeErrorMessage(error, 'Failed to cancel subscription') });
   }
 });
 
@@ -521,7 +524,7 @@ router.post('/subscription/change-plan', authenticateToken, async (req: Request,
       return res.status(400).json({ error: 'Invalid input', details: error.errors });
     }
     log.credits.error({ err: error }, 'Error changing plan');
-    res.status(500).json({ error: (error as Error).message });
+    res.status(500).json({ error: getSafeErrorMessage(error, 'Failed to change plan') });
   }
 });
 
@@ -537,7 +540,7 @@ router.get('/transactions', authenticateToken, async (req: Request, res: Respons
     res.json({ transactions, total });
   } catch (error: unknown) {
     log.credits.error({ err: error }, 'Error fetching transactions');
-    res.status(500).json({ error: (error as Error).message });
+    res.status(500).json({ error: getSafeErrorMessage(error, 'Failed to fetch transactions') });
   }
 });
 
@@ -557,7 +560,7 @@ router.post('/portal', authenticateToken, async (req: Request, res: Response) =>
     res.json({ url: session.url });
   } catch (error: unknown) {
     log.credits.error({ err: error }, 'Error creating portal session');
-    res.status(500).json({ error: (error as Error).message });
+    res.status(500).json({ error: getSafeErrorMessage(error, 'Failed to create billing portal session') });
   }
 });
 
@@ -568,7 +571,7 @@ router.get('/entitlements', authenticateToken, async (req: Request, res: Respons
     res.json(entitlements);
   } catch (error: unknown) {
     log.credits.error({ err: error }, 'Error fetching entitlements');
-    res.status(500).json({ error: (error as Error).message });
+    res.status(500).json({ error: getSafeErrorMessage(error, 'Failed to fetch entitlements') });
   }
 });
 
@@ -589,7 +592,7 @@ router.get('/voice-usage', authenticateToken, async (req: Request, res: Response
     res.json(usage);
   } catch (error: unknown) {
     log.credits.error({ err: error }, 'Error fetching voice usage');
-    res.status(500).json({ error: (error as Error).message });
+    res.status(500).json({ error: getSafeErrorMessage(error, 'Failed to fetch voice usage') });
   }
 });
 
@@ -605,7 +608,7 @@ router.post('/webhook', async (req: Request, res: Response) => {
     event = getStripe().webhooks.constructEvent(req.body, sig, webhookSecret);
   } catch (err: unknown) {
     log.credits.error({ err }, 'Webhook verification failed');
-    return res.status(400).send(`Webhook Error: ${(err as Error).message}`);
+    return res.status(400).send(`Webhook Error: ${getSafeErrorMessage(err, 'Invalid webhook payload')}`);
   }
 
   try {
@@ -630,7 +633,7 @@ router.post('/webhook', async (req: Request, res: Response) => {
     res.json({ received: true });
   } catch (error: unknown) {
     log.credits.error({ err: error }, 'Error handling webhook');
-    res.status(500).json({ error: (error as Error).message });
+    res.status(500).json({ error: getSafeErrorMessage(error, 'Failed to process webhook') });
   }
 });
 

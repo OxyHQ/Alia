@@ -8,7 +8,7 @@ export interface IContainer extends Document {
   userId: mongoose.Types.ObjectId;
   image: string;
   size: 'small' | 'medium' | 'large';
-  status: 'creating' | 'running' | 'stopped' | 'destroyed';
+  status: 'creating' | 'running' | 'idle' | 'stopped' | 'destroyed';
   persistent: boolean;
   previewUrl?: string;
   exposedPorts: number[];
@@ -46,7 +46,7 @@ const ContainerSchema = new Schema<IContainer>({
   },
   status: {
     type: String,
-    enum: ['creating', 'running', 'stopped', 'destroyed'],
+    enum: ['creating', 'running', 'idle', 'stopped', 'destroyed'],
     default: 'creating',
     index: true,
   },

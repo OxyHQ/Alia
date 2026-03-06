@@ -298,6 +298,7 @@ function entryPrefix(type: EventType): string {
     case 'screenshot':     return '## Screenshot';
     case 'plan_progress':  return '## Plan Progress';
     case 'file_change':    return '## File Change';
+    case 'source_found':   return '## Source';
     case 'threat_detected': return '## Threat Detected';
   }
 }

@@ -4,18 +4,73 @@ import { Agent } from '../models/agent.js';
 import { AgentSession } from '../models/agent-session.js';
 import { AgentReview } from '../models/agent-review.js';
 import { Conversation } from '../models/conversation.js';
+import { Container } from '../models/container.js';
 import { authenticateToken, optionalAuth } from '../middleware/auth.js';
-import { runAgentSession, getRecentActivity } from '../lib/agent-runner.js';
+import { getRecentActivity } from '../lib/agent-runner.js';
 import { cleanupSessionResources } from '../lib/agent-tools.js';
 import { resolveModel, getAIModel, getDefaultAliaModel } from '../lib/chat-core.js';
 import { enqueueAgentSession, getJobStatus, cancelJob } from '../lib/task-queue.js';
-import { reserveCredits, safeRefund } from '../lib/credits-manager.js';
+import { reserveCredits } from '../lib/credits-manager.js';
 import { EventStreamEntry as EventStreamEntryModel } from '../models/event-stream-entry.js';
 import { getAgentCapabilities } from '../lib/agent/health.js';
 import { log } from '../lib/logger.js';
 import type { Request, Response } from 'express';
 
 const router = Router();
+
+type SessionResourceLike = {
+  type: string;
+  resourceId: string;
+  status: string;
+};
+
+function resolveWorkspaceFilePath(inputPath: string): string | null {
+  let normalized = inputPath.replace(/\\/g, '/').trim();
+  if (!normalized || normalized.includes('\0')) return null;
+
+  if (normalized.startsWith('/')) {
+    normalized = normalized.slice(1);
+  }
+  if (normalized.startsWith('workspace/')) {
+    normalized = normalized.slice('workspace/'.length);
+  } else if (normalized === 'workspace') {
+    return null;
+  }
+
+  const safeSegments: string[] = [];
+  for (const segment of normalized.split('/')) {
+    if (!segment || segment === '.') continue;
+    if (segment === '..') return null;
+    safeSegments.push(segment);
+  }
+
+  if (safeSegments.length === 0) return null;
+  return `/workspace/${safeSegments.join('/')}`;
+}
+
+function safeDownloadName(filePath: string): string {
+  const fileName = filePath.split('/').pop() || 'download.txt';
+  return fileName.replace(/[^a-zA-Z0-9._-]/g, '_');
+}
+
+async function resolveSessionContainerId(
+  sessionId: string,
+  userId: string,
+  resources: SessionResourceLike[] | undefined,
+): Promise<string | null> {
+  const resourceContainer = resources?.find(
+    r => r.type === 'container' && (r.status === 'active' || r.status === 'idle'),
+  );
+  if (resourceContainer?.resourceId) return resourceContainer.resourceId;
+
+  const containerDoc = await Container.findOne({
+    sessionId: sessionId as any,
+    userId: userId as any,
+    status: { $in: ['running', 'idle'] },
+  }).sort({ createdAt: -1 }).lean();
+
+  return containerDoc?.containerId || null;
+}
 
 // GET /agents - list published agents (public, optional auth)
 router.get('/', optionalAuth, async (req: Request, res: Response) => {
@@ -198,6 +253,17 @@ router.get('/me', authenticateToken, async (req: Request, res: Response) => {
   } catch (error) {
     log.agents.error({ err: error }, 'Error listing user agents');
     res.status(500).json({ error: 'Failed to list your agents' });
+  }
+});
+
+// GET /agents/health - infrastructure status
+router.get('/health', async (_req: Request, res: Response) => {
+  try {
+    const capabilities = await getAgentCapabilities();
+    res.json({ capabilities });
+  } catch (error) {
+    log.agents.error({ err: error }, 'Error checking agent health');
+    res.status(500).json({ error: 'Failed to check health' });
   }
 });
 
@@ -534,6 +600,7 @@ router.patch('/:id/status', authenticateToken, async (req: Request, res: Respons
       for (const session of runningSessions) {
         session.status = 'cancelled';
         session.stats.completedAt = new Date();
+        await cancelJob(session._id.toString()).catch(() => false);
         await cleanupSessionResources(session);
         await session.save();
       }
@@ -567,6 +634,7 @@ router.post('/:id/sessions/:sid/cancel', authenticateToken, async (req: Request,
       return res.status(400).json({ error: 'Session is not running' });
     }
 
+    await cancelJob(session._id.toString()).catch(() => false);
     session.status = 'cancelled';
     session.stats.completedAt = new Date();
     await cleanupSessionResources(session);
@@ -637,13 +705,14 @@ router.get('/sessions/:sid/files', authenticateToken, async (req: Request, res: 
       return res.status(404).json({ error: 'Session not found' });
     }
 
-    // Find active container resource
-    const container = session.resources?.find(
-      (r: any) => r.type === 'container' && r.status === 'active'
+    const containerId = await resolveSessionContainerId(
+      String(req.params.sid),
+      String(req.user.id),
+      session.resources as SessionResourceLike[] | undefined,
     );
 
-    if (!container) {
-      return res.json({ files: [], message: 'No active workspace container' });
+    if (!containerId) {
+      return res.json({ files: [], message: 'No workspace container found' });
     }
 
     // List files via Docker host
@@ -653,7 +722,7 @@ router.get('/sessions/:sid/files', authenticateToken, async (req: Request, res: 
       return res.json({ files: [], message: 'Docker host not configured' });
     }
 
-    const listRes = await fetch(`${dockerHostUrl}/containers/${container.resourceId}/files?path=/workspace`, {
+    const listRes = await fetch(`${dockerHostUrl}/containers/${containerId}/files/list?dir=${encodeURIComponent('/workspace')}`, {
       headers: { Authorization: `Bearer ${dockerHostSecret}` },
     });
 
@@ -662,7 +731,7 @@ router.get('/sessions/:sid/files', authenticateToken, async (req: Request, res: 
     }
 
     const data = await listRes.json();
-    res.json({ files: data.files || [], containerId: container.resourceId });
+    res.json({ files: data.files || [], containerId });
   } catch (error) {
     log.agents.error({ err: error }, 'Error listing session files');
     res.status(500).json({ error: 'Failed to list files' });
@@ -693,12 +762,14 @@ router.get('/sessions/:sid/files/*', authenticateToken, async (req: Request, res
       return res.status(404).json({ error: 'Session not found' });
     }
 
-    const container = session.resources?.find(
-      (r: any) => r.type === 'container' && r.status === 'active'
+    const containerId = await resolveSessionContainerId(
+      String(req.params.sid),
+      String(req.user.id),
+      session.resources as SessionResourceLike[] | undefined,
     );
 
-    if (!container) {
-      return res.status(404).json({ error: 'No active workspace container' });
+    if (!containerId) {
+      return res.status(404).json({ error: 'No workspace container found' });
     }
 
     const dockerHostUrl = process.env.DOCKER_HOST_URL;
@@ -707,21 +778,32 @@ router.get('/sessions/:sid/files/*', authenticateToken, async (req: Request, res
       return res.status(503).json({ error: 'Docker host not configured' });
     }
 
+    const absolutePath = resolveWorkspaceFilePath(filePath);
+    if (!absolutePath) {
+      return res.status(400).json({ error: 'Invalid file path' });
+    }
     const fileRes = await fetch(
-      `${dockerHostUrl}/containers/${container.resourceId}/files/download?path=${encodeURIComponent('/workspace/' + filePath)}`,
+      `${dockerHostUrl}/containers/${containerId}/files/download?path=${encodeURIComponent(absolutePath)}`,
       { headers: { Authorization: `Bearer ${dockerHostSecret}` } },
     );
 
     if (!fileRes.ok) {
-      return res.status(fileRes.status).json({ error: 'Failed to download file' });
+      let message = 'Failed to download file';
+      try {
+        const errPayload = await fileRes.json();
+        if (typeof errPayload?.error === 'string' && errPayload.error.trim()) {
+          message = errPayload.error.slice(0, 200);
+        }
+      } catch {
+        // Keep generic message if docker host response is not JSON.
+      }
+      return res.status(fileRes.status).json({ error: message });
     }
 
-    // Stream the file back
     const contentType = fileRes.headers.get('content-type') || 'application/octet-stream';
-    res.setHeader('Content-Type', contentType);
-    res.setHeader('Content-Disposition', `attachment; filename="${filePath.split('/').pop()}"`);
-
     const buffer = Buffer.from(await fileRes.arrayBuffer());
+    res.setHeader('Content-Type', contentType);
+    res.setHeader('Content-Disposition', `attachment; filename="${safeDownloadName(filePath)}"`);
     res.send(buffer);
   } catch (error) {
     log.agents.error({ err: error }, 'Error downloading session file');
@@ -907,17 +989,6 @@ router.delete('/:id/reviews', authenticateToken, async (req: Request, res: Respo
   } catch (error) {
     log.agents.error({ err: error }, 'Error deleting review');
     res.status(500).json({ error: 'Failed to delete review' });
-  }
-});
-
-// GET /agents/health - infrastructure status
-router.get('/health', async (_req: Request, res: Response) => {
-  try {
-    const capabilities = await getAgentCapabilities();
-    res.json({ capabilities });
-  } catch (error) {
-    log.agents.error({ err: error }, 'Error checking agent health');
-    res.status(500).json({ error: 'Failed to check health' });
   }
 });
 

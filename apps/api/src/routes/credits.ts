@@ -3,8 +3,11 @@ import { authenticateToken } from '../middleware/auth.js';
 import { getOrCreateUserCredits } from '../lib/user-credits-helpers.js';
 import ApiKeyUsage from '../models/api-key-usage.js';
 import { log } from '../lib/logger.js';
+import { sanitizeMessage } from '../lib/errors/sanitize.js';
 
 const router = Router();
+const getSafeErrorMessage = (error: unknown, fallback: string): string =>
+  sanitizeMessage(error instanceof Error ? error.message : fallback);
 
 router.get('/', authenticateToken, async (req, res) => {
   try {
@@ -19,9 +22,9 @@ router.get('/', authenticateToken, async (req, res) => {
       dailyRefresh: userCredits.credits.dailyRefresh,
       lastRefresh: userCredits.credits.lastRefresh,
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     log.credits.error({ err: error }, 'Error');
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ error: getSafeErrorMessage(error, 'Failed to fetch credits') });
   }
 });
 
@@ -76,9 +79,9 @@ router.get('/usage', authenticateToken, async (req, res) => {
     }
 
     res.json(result);
-  } catch (error: any) {
+  } catch (error: unknown) {
     log.credits.error({ err: error }, 'Usage error');
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ error: getSafeErrorMessage(error, 'Failed to fetch credit usage') });
   }
 });
 

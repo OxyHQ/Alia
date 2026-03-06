@@ -48,6 +48,7 @@ export class TerminalSession {
   private userId: string;
   private image: string;
   private workspaceMemory: WorkspaceMemory;
+  private onContainerCreated?: (containerId: string) => Promise<void> | void;
 
   constructor(opts: {
     sessionId: string;
@@ -55,6 +56,7 @@ export class TerminalSession {
     userId: string;
     workspaceMemory: WorkspaceMemory;
     image?: string;
+    onContainerCreated?: (containerId: string) => Promise<void> | void;
   }) {
     this.sandbox = getSandboxProvider();
     this.sessionId = opts.sessionId;
@@ -62,6 +64,7 @@ export class TerminalSession {
     this.userId = opts.userId;
     this.image = opts.image || DEFAULT_IMAGE;
     this.workspaceMemory = opts.workspaceMemory;
+    this.onContainerCreated = opts.onContainerCreated;
   }
 
   /** Get or create the container (lazy provisioning from pool) */
@@ -72,6 +75,8 @@ export class TerminalSession {
     const info = await pool.claim({
       image: this.image,
       size: 'small',
+      // Keep agent workspaces available for post-run browsing.
+      persistent: true,
       labels: {
         'alia.session': this.sessionId,
         'alia.agent': this.agentId,
@@ -91,11 +96,19 @@ export class TerminalSession {
       image: this.image,
       size: 'small',
       status: 'running',
-      persistent: false,
+      persistent: true,
     });
 
     // Provision workspace memory structure
     await this.workspaceMemory.provision(info.id);
+
+    if (this.onContainerCreated) {
+      try {
+        await this.onContainerCreated(info.id);
+      } catch (err) {
+        log.agents.warn({ err, containerId: info.id, sessionId: this.sessionId }, 'Terminal: failed to run onContainerCreated hook');
+      }
+    }
 
     log.agents.info({ containerId: info.id, sessionId: this.sessionId }, 'Terminal: container created');
 

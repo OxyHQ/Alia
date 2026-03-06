@@ -1,11 +1,11 @@
 import { HeadContent, Outlet, Scripts, createRootRoute } from '@tanstack/react-router';
-import { lazy, Suspense } from 'react';
+import { Suspense, lazy } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { WebOxyProvider } from '@oxyhq/auth';
+import appCss from '../styles.css?url';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { Toaster } from '@/components/ui/sonner';
 
-import appCss from '../styles.css?url';
 import config from '@/lib/config';
 
 // Optimized QueryClient with better caching for performance

@@ -2,11 +2,14 @@ import * as React from 'react';
 import { Link } from '@tanstack/react-router';
 import { HugeiconsIcon } from '@hugeicons/react';
 import {
-  ArrowDown01Icon,
   Add01Icon,
-  Tick02Icon,
+  ArrowDown01Icon,
   Settings01Icon,
+  Tick02Icon,
 } from '@hugeicons/core-free-icons';
+import { useAuth } from '@oxyhq/auth';
+import { toast } from 'sonner';
+import type {Workspace} from '@/hooks/use-workspace';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -33,10 +36,8 @@ import {
   SidebarMenuItem,
   useSidebar,
 } from '@/components/ui/sidebar';
-import { useWorkspaces, useCurrentWorkspaceId, useCreateWorkspace, type Workspace } from '@/hooks/use-workspace';
-import { useAuth } from '@oxyhq/auth';
+import {  useCreateWorkspace, useCurrentWorkspaceId, useWorkspaces } from '@/hooks/use-workspace';
 import { WorkspaceAvatar } from '@/components/workspace-avatar';
-import { toast } from 'sonner';
 
 export function SidebarHeaderBrand() {
   const { isMobile } = useSidebar();
@@ -77,7 +78,7 @@ export function SidebarHeaderBrand() {
     toast.success(`Switched to ${workspace.name}`);
   };
 
-  if (isLoading || !currentWorkspace) {
+  if (isLoading) {
     return (
       <SidebarMenu>
         <SidebarMenuItem>

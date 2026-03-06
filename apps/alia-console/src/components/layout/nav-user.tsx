@@ -1,11 +1,13 @@
 import { HugeiconsIcon } from '@hugeicons/react';
 import {
-  Logout03Icon,
-  Setting06Icon,
-  Money01Icon,
   ArrowUp01Icon,
+  Logout03Icon,
+  Money01Icon,
   Notification01Icon,
+  Setting06Icon,
 } from '@hugeicons/core-free-icons';
+import { useAuth } from '@oxyhq/auth';
+import { Link } from '@tanstack/react-router';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import {
   DropdownMenu,
@@ -22,13 +24,15 @@ import {
   SidebarMenuItem,
   useSidebar,
 } from '@/components/ui/sidebar';
-import { useAuth } from '@oxyhq/auth';
 import config from '@/lib/config';
-import { Link } from '@tanstack/react-router';
 
 export function NavUser() {
   const { isMobile } = useSidebar();
   const { user, signOut } = useAuth();
+
+  if (!user) {
+    return null;
+  }
 
   const handleSignOut = async () => {
     await signOut();
@@ -36,32 +40,27 @@ export function NavUser() {
   };
 
   const getUserInitials = () => {
-    if (!user?.name) return user?.username?.[0]?.toUpperCase() || 'U';
+    if (!user.name) return (user.username.charAt(0) || 'U').toUpperCase();
     const name = user.name as { first?: string; last?: string };
     if (name.first && name.last) {
       return `${name.first[0]}${name.last[0]}`.toUpperCase();
     }
-    return (name.first?.[0] || user?.username?.[0] || 'U').toUpperCase();
+    return (name.first?.charAt(0) || user.username.charAt(0) || 'U').toUpperCase();
   };
 
   const getAvatarUrl = () => {
-    if (!user?.avatar) return undefined;
+    if (!user.avatar) return undefined;
     if (user.avatar.startsWith('http')) return user.avatar;
     return `${config.oxyUrl}/media/${user.avatar}`;
   };
 
   const getUserDisplayName = () => {
-    if (!user) return 'User';
     const name = user.name as { first?: string; last?: string } | undefined;
     if (name?.first) {
       return name.last ? `${name.first} ${name.last}` : name.first;
     }
     return user.username || 'User';
   };
-
-  if (!user) {
-    return null;
-  }
 
   return (
     <SidebarMenu>

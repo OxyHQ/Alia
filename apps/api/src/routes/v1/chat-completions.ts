@@ -26,7 +26,7 @@ import { buildSystemPrompt } from '../../lib/prompt-loader.js';
 import { wrapToolsWithTruncation, getToolResultBudget } from '../../lib/tools/result-truncation.js';
 import { log } from '../../lib/logger.js';
 import { recordEvent } from '../../lib/observability/index.js';
-import { classifyError, getRetryAfterHeader } from '../../lib/errors/index.js';
+import { classifyError, getRetryAfterHeader, sanitizeMessage } from '../../lib/errors/index.js';
 import type { FailoverReason } from '../../lib/errors/error-codes.js';
 import { runDeepResearch, type ResearchProgress } from '../../lib/research/research-engine.js';
 
@@ -551,12 +551,12 @@ router.post('/', async (req: Request, res: Response) => {
           }
           if (!res.writableEnded) {
             res.write(`data: ${JSON.stringify({
-              error: {
-                message: (err as Error).message || 'Research failed.',
-                type: 'server_error',
-                param: null,
-                code: 'research_failed',
-              },
+                error: {
+                  message: sanitizeMessage((err as Error)?.message || 'Research failed.'),
+                  type: 'server_error',
+                  param: null,
+                  code: 'research_failed',
+                },
             })}\n\n`);
             res.write('data: [DONE]\n\n');
             res.end();

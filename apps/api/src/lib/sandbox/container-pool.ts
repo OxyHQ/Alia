@@ -85,9 +85,13 @@ export class ContainerPool {
    */
   async claim(opts?: CreateSandboxOptions): Promise<SandboxInfo> {
     const image = opts?.image || this.config.defaultImage;
+    const needsPersistent = !!opts?.persistent;
 
-    // Try to find an unclaimed container with the right image
-    const available = this.pool.find(c => !c.claimed && c.image === image);
+    // Try to find an unclaimed container with the right image.
+    // Persistent sessions bypass warm containers because they are created with short TTL.
+    const available = needsPersistent
+      ? undefined
+      : this.pool.find(c => !c.claimed && c.image === image);
     if (available) {
       available.claimed = true;
       available.lastUsedAt = Date.now();

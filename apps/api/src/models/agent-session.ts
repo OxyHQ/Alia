@@ -18,7 +18,21 @@ export interface IAgentSessionResource {
 export interface IEventStreamEntry {
   seq: number;
   timestamp: number;
-  type: 'user_message' | 'system_message' | 'action' | 'observation' | 'error' | 'plan_update' | 'thinking' | 'response' | 'complete';
+  type:
+    | 'user_message'
+    | 'system_message'
+    | 'action'
+    | 'observation'
+    | 'error'
+    | 'plan_update'
+    | 'thinking'
+    | 'response'
+    | 'complete'
+    | 'screenshot'
+    | 'plan_progress'
+    | 'file_change'
+    | 'source_found'
+    | 'threat_detected';
   content: string;
   metadata?: {
     toolName?: string;
@@ -124,7 +138,22 @@ const AgentSessionSchema = new Schema<IAgentSession>({
     timestamp: { type: Number, required: true },
     type: {
       type: String,
-      enum: ['user_message', 'system_message', 'action', 'observation', 'error', 'plan_update', 'thinking', 'response', 'complete', 'threat_detected'],
+      enum: [
+        'user_message',
+        'system_message',
+        'action',
+        'observation',
+        'error',
+        'plan_update',
+        'thinking',
+        'response',
+        'complete',
+        'screenshot',
+        'plan_progress',
+        'file_change',
+        'source_found',
+        'threat_detected',
+      ],
       required: true,
     },
     content: { type: String, required: true },

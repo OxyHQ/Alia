@@ -10,10 +10,13 @@ import { buildUserContext } from '../../lib/user-context.js';
 import { log } from '../../lib/logger.js';
 import { getUserEntitlements } from '../../lib/plan-access.js';
 import { getVoiceUsageSummary } from '../../lib/voice-usage.js';
+import { sanitizeMessage } from '../../lib/errors/sanitize.js';
 import type { Request, Response } from 'express';
 import type { OpenAITool } from '../../internal/providers/lib/types.js';
 
 const router = Router();
+const getSafeErrorMessage = (error: unknown, fallback: string): string =>
+  sanitizeMessage(error instanceof Error ? error.message : fallback);
 
 /**
  * POST /v1/voice/token
@@ -206,14 +209,15 @@ router.post('/token', async (req: Request, res: Response) => {
       sessionId: session.sessionId,
     });
 
-  } catch (error: any) {
+  } catch (error: unknown) {
     log.general.error({ err: error, userId: req.user?.id }, 'Voice session creation failed');
+    const rawMessage = error instanceof Error ? error.message : '';
 
-    const code = error.message?.includes('Insufficient credits')
+    const code = rawMessage.includes('Insufficient credits')
       ? 'INSUFFICIENT_CREDITS'
-      : error.message?.includes('Maximum concurrent sessions')
+      : rawMessage.includes('Maximum concurrent sessions')
         ? 'RATE_LIMIT_EXCEEDED'
-        : error.message?.includes('resolve model')
+        : rawMessage.includes('resolve model')
           ? 'INVALID_MODEL'
           : 'INTERNAL_ERROR';
 
@@ -225,7 +229,7 @@ router.post('/token', async (req: Request, res: Response) => {
     res.status(status).json({
       error: {
         code,
-        message: error.message || 'Failed to create voice session',
+        message: getSafeErrorMessage(error, 'Failed to create voice session'),
         retryable: false,
       },
     });
@@ -265,8 +269,7 @@ router.post('/transcribe', async (req: Request, res: Response) => {
       });
     }
 
-    // Convert base64 to buffer
-    const audioBuffer = Buffer.from(audio, 'base64');
+    // Prepare audio metadata for provider transcription call
     const mimeType = format || 'audio/m4a';
     const ext = mimeType.split('/')[1] || 'm4a';
 
@@ -276,15 +279,18 @@ router.post('/transcribe', async (req: Request, res: Response) => {
 
     for (const mapping of audioMappings) {
       try {
-        const formData = new FormData();
-        formData.append('file', new Blob([audioBuffer], { type: mimeType }), `audio.${ext}`);
-        formData.append('model', mapping.modelId);
-
         result = await callProviderAPI<{ text: string }>({
           provider: mapping.provider,
           modelId: mapping.modelId,
           endpoint: '/v1/audio/transcriptions',
-          formData,
+          audio: {
+            base64: audio,
+            mimeType,
+            filename: `audio.${ext}`,
+          },
+          extraFormFields: {
+            model: mapping.modelId,
+          },
           timeout: 30_000,
         });
         break;
@@ -307,9 +313,9 @@ router.post('/transcribe', async (req: Request, res: Response) => {
     });
 
     res.json({ text: result.text });
-  } catch (error: any) {
+  } catch (error: unknown) {
     log.general.error({ err: error, userId: req.user?.id }, 'Voice transcription failed');
-    res.status(500).json({ error: error.message || 'Transcription failed' });
+    res.status(500).json({ error: getSafeErrorMessage(error, 'Transcription failed') });
   }
 });
 

@@ -1,6 +1,8 @@
 import * as React from "react"
 import { Command as CommandPrimitive } from "cmdk"
 
+import { HugeiconsIcon } from "@hugeicons/react"
+import { SearchIcon, Tick02Icon } from "@hugeicons/core-free-icons"
 import { cn } from "@/lib/utils"
 import {
   Dialog,
@@ -13,8 +15,6 @@ import {
   InputGroup,
   InputGroupAddon,
 } from "@/components/ui/input-group"
-import { HugeiconsIcon } from "@hugeicons/react"
-import { SearchIcon, Tick02Icon } from "@hugeicons/core-free-icons"
 
 function Command({
   className,

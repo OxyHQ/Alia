@@ -1,4 +1,9 @@
-import { docker, removePortExposure } from './docker.js';
+import {
+  docker,
+  removePortExposure,
+  getContainerLastActivity,
+  forgetContainerActivity,
+} from './docker.js';
 import { log } from '../index.js';
 
 const CLEANUP_INTERVAL_MS = 60_000; // Check every minute
@@ -22,9 +27,10 @@ async function cleanupIdleContainers(): Promise<void> {
 
       const labels = containerInfo.Labels || {};
       const timeoutMinutes = parseInt(labels['alia.timeout'] || '30', 10);
-      const lastActivity = labels['alia.lastActivity']
+      const lastActivity = getContainerLastActivity(containerInfo.Id)
+        ?? (labels['alia.lastActivity']
         ? new Date(labels['alia.lastActivity']).getTime()
-        : containerInfo.Created * 1000;
+        : containerInfo.Created * 1000);
 
       const idleMs = now - lastActivity;
       const timeoutMs = timeoutMinutes * 60 * 1000;
@@ -44,6 +50,7 @@ async function cleanupIdleContainers(): Promise<void> {
           await removePortExposure(containerId);
           await container.stop({ t: 5 }).catch(() => {});
           await container.remove({ force: true });
+          forgetContainerActivity(containerId);
         } catch (err) {
           log.warn({ err, containerId }, 'Failed to cleanup idle container');
         }

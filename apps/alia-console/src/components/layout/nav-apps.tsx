@@ -1,10 +1,10 @@
 import { Link } from '@tanstack/react-router';
 import { HugeiconsIcon } from '@hugeicons/react';
 import {
+  ChartLineData02Icon,
   Key01Icon,
   MoreHorizontalSquare01Icon,
   Settings01Icon,
-  ChartLineData02Icon,
 } from '@hugeicons/core-free-icons';
 import {
   DropdownMenu,

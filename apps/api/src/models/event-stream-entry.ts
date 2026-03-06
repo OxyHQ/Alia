@@ -14,7 +14,21 @@ export interface IEventStreamEntry extends Document {
   sessionId: mongoose.Types.ObjectId;
   seq: number;
   timestamp: number;
-  type: 'user_message' | 'system_message' | 'action' | 'observation' | 'error' | 'plan_update' | 'thinking' | 'response' | 'complete';
+  type:
+    | 'user_message'
+    | 'system_message'
+    | 'action'
+    | 'observation'
+    | 'error'
+    | 'plan_update'
+    | 'thinking'
+    | 'response'
+    | 'complete'
+    | 'screenshot'
+    | 'plan_progress'
+    | 'file_change'
+    | 'source_found'
+    | 'threat_detected';
   content: string;
   metadata?: {
     toolName?: string;

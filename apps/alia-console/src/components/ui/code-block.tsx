@@ -1,7 +1,10 @@
 'use client';
 
 import * as React from 'react';
-import { codeToHtml, type BundledLanguage } from 'shiki';
+import {  codeToHtml } from 'shiki';
+import { HugeiconsIcon } from '@hugeicons/react';
+import { Copy01Icon, Tick02Icon } from '@hugeicons/core-free-icons';
+import type {BundledLanguage} from 'shiki';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import {
@@ -11,8 +14,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { HugeiconsIcon } from '@hugeicons/react';
-import { Copy01Icon, Tick02Icon } from '@hugeicons/core-free-icons';
 
 // Context for sharing code between components
 interface CodeBlockContextValue {

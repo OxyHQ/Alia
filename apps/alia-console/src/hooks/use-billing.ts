@@ -1,4 +1,4 @@
-import { useQuery, useMutation } from '@tanstack/react-query';
+import { useMutation, useQuery } from '@tanstack/react-query';
 import { useAuth } from '@oxyhq/auth';
 import apiClient from '@/lib/api/client';
 
@@ -17,7 +17,7 @@ export interface PlanFeatureItem {
 
 export interface PlanFeatureGroup {
   category: string;
-  items: PlanFeatureItem[];
+  items: Array<PlanFeatureItem>;
 }
 
 export interface SubscriptionPlan {
@@ -28,7 +28,7 @@ export interface SubscriptionPlan {
   monthlyPrice: number;
   annualPrice: number;
   currency: string;
-  features?: PlanFeatureGroup[];
+  features?: Array<PlanFeatureGroup>;
   subtitle?: string;
   creditsLabel?: string;
   isFeatured?: boolean;
@@ -105,7 +105,7 @@ export function useCredits() {
 // Credit Packages
 // ======================
 
-async function fetchPackages(): Promise<CreditPackage[]> {
+async function fetchPackages(): Promise<Array<CreditPackage>> {
   const response = await apiClient.get('/billing/packages');
   return response.data.packages;
 }
@@ -126,7 +126,7 @@ export function useCreditPackages() {
 // Subscription Plans
 // ======================
 
-async function fetchPlans(product?: 'alia' | 'codea'): Promise<SubscriptionPlan[]> {
+async function fetchPlans(product?: 'alia' | 'codea'): Promise<Array<SubscriptionPlan>> {
   const params = product ? `?product=${product}` : '';
   const response = await apiClient.get(`/billing/plans${params}`);
   return response.data.plans;
@@ -173,7 +173,7 @@ export function useSubscription(product?: 'alia' | 'codea') {
 async function fetchTransactions(
   limit: number = 20,
   offset: number = 0
-): Promise<{ transactions: Transaction[]; total: number }> {
+): Promise<{ transactions: Array<Transaction>; total: number }> {
   const response = await apiClient.get(`/billing/transactions?limit=${limit}&offset=${offset}`);
   return response.data;
 }

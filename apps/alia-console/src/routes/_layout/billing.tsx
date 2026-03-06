@@ -1,5 +1,6 @@
 import { createFileRoute } from '@tanstack/react-router';
 import { useState } from 'react';
+import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -12,15 +13,14 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import {
-  useCredits,
-  useCreditPackages,
-  useSubscription,
-  useSubscriptionPlans,
   useCreateCheckout,
   useCreateSubscriptionCheckout,
+  useCreditPackages,
+  useCredits,
+  useSubscription,
+  useSubscriptionPlans,
   useTransactions,
 } from '@/hooks/use-billing';
-import { toast } from 'sonner';
 
 export const Route = createFileRoute('/_layout/billing')({
   component: BillingPage,
@@ -128,7 +128,7 @@ function BillingPage() {
         <div className="flex items-center justify-between">
           <div>
             <p className="text-lg font-semibold text-foreground">
-              {subscription?.plan?.name || 'Free Plan'}
+              {subscription?.plan.name || 'Free Plan'}
             </p>
             <p className="text-sm text-muted-foreground">
               {subscription
@@ -264,7 +264,7 @@ function BillingPage() {
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 py-4">
             {plans.filter(p => !p.isFree).map((plan) => {
-              const isCurrentPlan = subscription?.plan?.planId === plan.id && subscription?.status === 'active';
+              const isCurrentPlan = subscription?.plan.planId === plan.id && subscription.status === 'active';
               const isPopular = plan.isFeatured ?? false;
               const displayPrice = billingPeriod === 'annual'
                 ? Math.round(plan.annualPrice / 12)
