@@ -20,7 +20,7 @@ export async function resolveWorkspace(
 
   const userId = req.user?.id;
   if (!userId) {
-    res.status(401).json({ error: 'Authentication required' });
+    res.status(401).json({ error: 'Authentication required', code: 'MISSING_AUTH', message: 'Authentication required' });
     return;
   }
 

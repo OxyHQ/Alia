@@ -1,5 +1,4 @@
 import { Router, Request, Response } from 'express';
-import { authenticateToken } from '../middleware/auth';
 import DeveloperApp from '../models/developer-app';
 import DeveloperApiKey from '../models/developer-api-key';
 import ApiKeyUsage from '../models/api-key-usage';
@@ -14,8 +13,6 @@ function orgFilter(req: Request): { organizationId: string | null } {
   return { organizationId: req.workspace?.id ?? null };
 }
 
-// All routes require authentication
-router.use(authenticateToken);
 
 // ============================================
 // DEVELOPER APPS ROUTES

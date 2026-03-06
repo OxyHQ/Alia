@@ -50,7 +50,7 @@ import oxyServiceEventsRouter from './routes/oxy-service-events.js';
 
 // Register hooks (side-effect import)
 import './lib/hooks/index.js';
-import { oxyClient } from './middleware/auth.js';
+import { authenticateToken, oxyClient } from './middleware/auth.js';
 import { resolveWorkspace } from './middleware/workspace.js';
 import { syncZeroEval } from './scripts/sync-zeroeval.js';
 import { seedSkills } from './lib/seed-skills.js';
@@ -209,7 +209,7 @@ app.use('/bots', botsRouter);
 app.use('/mcp', mcpRouter);
 app.use('/integrations', integrationsOauthRouter);
 app.use('/tools', toolsProxyRouter);
-app.use('/developer', resolveWorkspace, developerRouter);
+app.use('/developer', authenticateToken, resolveWorkspace, developerRouter);
 app.use('/billing', billingRouter);
 app.use('/organization', organizationRouter);
 app.use('/feedback', feedbackRouter);
