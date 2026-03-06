@@ -67,8 +67,8 @@ interface ApiOrganization {
   role: WorkspaceRole;
   memberCount?: number;
   members?: Array<ApiMember>;
-  credits: { paid: number };
-  settings: { billingEmail?: string; apiCallLimit?: number };
+  credits?: { paid?: number };
+  settings?: { billingEmail?: string; apiCallLimit?: number };
   createdAt: string;
   updatedAt: string;
 }
@@ -126,9 +126,9 @@ function mapOrg(org: ApiOrganization): Workspace {
     memberCount: org.memberCount,
     billing: {
       plan: 'free',
-      credits: org.credits.paid || 0,
+      credits: org.credits?.paid ?? 0,
       creditsUsed: 0,
-      billingEmail: org.settings.billingEmail,
+      billingEmail: org.settings?.billingEmail,
     },
   };
 }
