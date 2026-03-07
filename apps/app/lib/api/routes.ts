@@ -65,13 +65,13 @@ export const API_ROUTES = {
     generate: '/skills/generate',
   },
 
-  // Automations routes
-  automations: {
-    list: '/automations',
-    create: '/automations',
-    update: (id: string) => `/automations/${id}`,
-    delete: (id: string) => `/automations/${id}`,
-    run: (id: string) => `/automations/${id}/run`,
+  // Trigger routes
+  triggers: {
+    list: '/triggers',
+    create: '/triggers',
+    update: (id: string) => `/triggers/${id}`,
+    delete: (id: string) => `/triggers/${id}`,
+    run: (id: string) => `/triggers/${id}/run`,
   },
 
   // Analytics routes

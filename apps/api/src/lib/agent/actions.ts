@@ -27,6 +27,10 @@ import { buildMcpTools } from '../tools/mcp.js';
 import { buildIntegrationTools } from '../tools/integrations.js';
 import { log } from '../logger.js';
 import { analyzeThreat, formatThreatSummary } from './threat-detector.js';
+import type { ThreatResult } from './threat-detector.js';
+import { requestApproval } from './action-approval.js';
+import { classifyActionRisk, createRollbackRecord } from './governance.js';
+import { autonomyFlags } from '../autonomy/flags.js';
 import type { IAgent } from '../../models/agent.js';
 import type { IAgentSession } from '../../models/agent-session.js';
 import type { EventStream } from './event-stream.js';
@@ -319,6 +323,47 @@ export async function buildActions(ctx: ActionContext) {
     const originalExecute = (action as any).execute;
     (action as any).execute = async (...execArgs: any[]) => {
       const inputArgs = execArgs[0] || {};
+      const risk = classifyActionRisk(name, inputArgs);
+
+      if (risk.riskLevel === 'R3') {
+        eventStream?.append('system_message', `POLICY BLOCKED [R3]: ${risk.reason}`);
+        log.agents.warn({ toolName: name, risk: risk.riskLevel, reason: risk.reason, sessionId: session._id.toString() }, 'Agent action blocked by governance policy');
+        return `Error: Action blocked by policy — ${risk.reason}`;
+      }
+
+      if (risk.riskLevel === 'R2' && autonomyFlags.approvalsEnabled) {
+        const syntheticThreat: ThreatResult = {
+          threats: [{
+            pattern: {
+              id: `risk-${risk.riskLevel.toLowerCase()}`,
+              category: 'prompt_injection',
+              severity: 'critical',
+              description: risk.reason,
+              pattern: /.*/,
+              tools: [name],
+            },
+            match: name,
+          }],
+          maxSeverity: 'critical',
+          shouldBlock: false,
+          shouldApprove: true,
+        };
+
+        const approval = await requestApproval({
+          sessionId: session._id.toString(),
+          agentId: session.agentId.toString(),
+          toolName: name,
+          args: inputArgs,
+          threat: syntheticThreat,
+          timeout: Number(process.env.AUTONOMY_APPROVAL_TIMEOUT_MS || 60_000),
+        });
+
+        if (approval !== 'approved') {
+          eventStream?.append('system_message', `APPROVAL ${approval.toUpperCase()}: ${name}`);
+          return `Error: Action requires approval (${approval}).`;
+        }
+      }
+
       const threat = analyzeThreat(name, inputArgs);
 
       if (threat.shouldBlock) {
@@ -330,11 +375,43 @@ export async function buildActions(ctx: ActionContext) {
 
       if (threat.shouldApprove) {
         const summary = formatThreatSummary(threat);
-        eventStream?.append('system_message', `THREAT WARNING: ${summary}. Action allowed but flagged.`);
-        log.agents.info({ toolName: name, threat: summary, sessionId: session._id.toString() }, 'Agent action flagged by threat detector');
+        if (autonomyFlags.approvalsEnabled) {
+          const approval = await requestApproval({
+            sessionId: session._id.toString(),
+            agentId: session.agentId.toString(),
+            toolName: name,
+            args: inputArgs,
+            threat,
+            timeout: Number(process.env.AUTONOMY_APPROVAL_TIMEOUT_MS || 60_000),
+          });
+
+          if (approval !== 'approved') {
+            eventStream?.append('system_message', `THREAT APPROVAL ${approval.toUpperCase()}: ${summary}`);
+            return `Error: Action denied (${approval}) — ${threat.threats[0]?.pattern.description || 'security policy'}`;
+          }
+        } else {
+          eventStream?.append('system_message', `THREAT WARNING: ${summary}. Action allowed but flagged.`);
+          log.agents.info({ toolName: name, threat: summary, sessionId: session._id.toString() }, 'Agent action flagged by threat detector');
+        }
       }
 
-      return originalExecute(...execArgs);
+      const result = await originalExecute(...execArgs);
+
+      if (risk.riskLevel === 'R1' && autonomyFlags.rollbackEnabled) {
+        await createRollbackRecord({
+          userId,
+          sessionId: session._id.toString(),
+          toolName: name,
+          args: inputArgs,
+          afterState: { resultPreview: typeof result === 'string' ? result.slice(0, 600) : result },
+          diff: typeof result === 'string' ? result.slice(0, 1000) : undefined,
+          rollbackAction: { hint: 'Re-run tool with inverse arguments if available' },
+        }).catch(() => {});
+
+        eventStream?.append('system_message', `ROLLBACK WINDOW OPEN [R1]: ${name}`);
+      }
+
+      return result;
     };
   }
 

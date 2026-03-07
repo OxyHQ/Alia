@@ -17,11 +17,9 @@ import { buildMcpTools } from '../../lib/tools/mcp.js';
 import { buildIntegrationTools } from '../../lib/tools/integrations.js';
 import { buildOxyServiceTools, getOxyServicePromptFragment, getOxyServiceContext } from '../../lib/tools/oxy-services.js';
 import { oxyClient } from '../../middleware/auth.js';
-import type { KeyConfig } from '../../lib/providers-client.js';
-import type { IUserMemory } from '../../models/user-memory.js';
 import { Skill } from '../../models/skill.js';
 import { estimateMessageTokens } from '../../lib/token-counter.js';
-import { runAfterChatHooks } from '../../lib/hooks/index.js';
+import { runBeforeChatHooks, runAfterChatHooks } from '../../lib/hooks/index.js';
 import { buildSystemPrompt } from '../../lib/prompt-loader.js';
 import { wrapToolsWithTruncation, getToolResultBudget } from '../../lib/tools/result-truncation.js';
 import { log } from '../../lib/logger.js';
@@ -29,6 +27,12 @@ import { recordEvent } from '../../lib/observability/index.js';
 import { classifyError, getRetryAfterHeader, sanitizeMessage } from '../../lib/errors/index.js';
 import type { FailoverReason } from '../../lib/errors/error-codes.js';
 import { runDeepResearch, type ResearchProgress } from '../../lib/research/research-engine.js';
+import {
+  runAutonomyBeforeChat,
+  runAutonomyAfterChat,
+  buildAutonomyPromptFragment,
+  type AutonomyRuntimeContext,
+} from '../../lib/autonomy/runtime.js';
 
 const router = Router();
 
@@ -199,12 +203,14 @@ function convertToAISDKMessages(messages: ChatMessage[], toolNameMapping: Map<st
  * POST /v1/chat/completions
  * OpenAI-compatible chat completions endpoint with streaming support
  */
-router.post('/', async (req: Request, res: Response) => {
+export const handleChatCompletions = async (req: Request, res: Response) => {
   let creditReservation: CreditReservation | null = null;
   let resolved: Awaited<ReturnType<typeof resolveModel>> = null;
   let aliasModelId: string = 'alia-v1';
   const requestStartTime = Date.now();
   const requestId = `chatcmpl-${crypto.randomUUID()}`;
+  let autonomyRuntime: AutonomyRuntimeContext | null = null;
+  let recalledMemories: Array<{ key: string; value: string }> | undefined;
 
   // Global request timeout guard — send a proper error BEFORE DO's gateway timeout (~120s)
   const GLOBAL_TIMEOUT_MS = 80_000;
@@ -295,6 +301,13 @@ router.post('/', async (req: Request, res: Response) => {
     const includeUsage = streamOptions?.include_usage === true;
 
     log.v1.info({ messageCount: messages.length, conversationId, thinkingMode, agentMode, deepResearch }, 'Processing messages');
+
+    if (req.user?.id) {
+      autonomyRuntime = await runAutonomyBeforeChat({
+        userId: req.user.id,
+        messages,
+      }).catch(() => null);
+    }
 
     // Determine if this is a direct user session (not API key)
     // API key requests should be neutral and not include creator's personal info
@@ -449,6 +462,19 @@ router.post('/', async (req: Request, res: Response) => {
       }
     }
 
+    if (req.user?.id) {
+      const hookResult = await runBeforeChatHooks({
+        userId: req.user.id,
+        conversationId,
+        messages,
+        model: aliasModelId,
+        skillId: body.skillId,
+        platform: req.apiKey ? 'telegram' as const : 'app' as const,
+        metadata: {},
+      }).catch(() => null);
+      recalledMemories = hookResult?.metadata?.recalledMemories as Array<{ key: string; value: string }> | undefined;
+    }
+
     // ── Deep Research Mode ──
     // When activated via the app's deep research toggle, route to the specialized
     // research engine with multi-query web search, source tracking, and citations.
@@ -465,6 +491,7 @@ router.post('/', async (req: Request, res: Response) => {
             onProgress: (progress: ResearchProgress) => {
               if (!res.writableEnded) {
                 res.write(`event: alia.research_progress\ndata: ${JSON.stringify({
+                  eventVersion: 1,
                   phase: progress.phase,
                   message: progress.message,
                   subQuestions: progress.subQuestions,
@@ -493,6 +520,7 @@ router.post('/', async (req: Request, res: Response) => {
 
           // Send sources metadata as named event
           res.write(`event: alia.research_progress\ndata: ${JSON.stringify({
+            eventVersion: 1,
             phase: 'complete',
             sources: result.sources,
             totalSearches: result.totalSearches,
@@ -541,6 +569,14 @@ router.post('/', async (req: Request, res: Response) => {
               systemPromptTokens: 0,
             }).catch((err: unknown) => log.v1.error({ err, reservationId: creditReservation?.userId }, 'finalizeCredits failed after deep research'));
           }
+
+          runAutonomyAfterChat({
+            userId: req.user?.id,
+            runtimeContext: autonomyRuntime,
+            messages,
+            assistantResponse: result.report,
+            latencyMs: Date.now() - requestStartTime,
+          }).catch(err => log.v1.warn({ err }, 'Autonomy after-chat learn failed'));
 
           clearTimeout(globalTimer);
           return;
@@ -605,7 +641,7 @@ router.post('/', async (req: Request, res: Response) => {
         deepResearch: createDeepResearchTool(req.user!.id),
         switchModel: createSwitchModelTool((modelId, modelName) => {
           ensureSSEHeaders();
-          res.write(`event: alia.model_switch\ndata: ${JSON.stringify({ model: modelId, modelName })}\n\n`);
+          res.write(`event: alia.model_switch\ndata: ${JSON.stringify({ eventVersion: 1, model: modelId, modelName })}\n\n`);
         }),
       } : {}),
     };
@@ -680,8 +716,8 @@ router.post('/', async (req: Request, res: Response) => {
 
                 // Emit agent session event via SSE so frontend can subscribe
                 if (body.stream) {
-                  res.write(`data: ${JSON.stringify({
-                    type: 'agent_session',
+                  res.write(`event: alia.agent_session\ndata: ${JSON.stringify({
+                    eventVersion: 1,
                     sessionId: session._id.toString(),
                     agentId: linkedAgent._id.toString(),
                     agentName: linkedAgent.name,
@@ -709,6 +745,13 @@ router.post('/', async (req: Request, res: Response) => {
     let systemMessage = baseSystemPrompt;
     if (userLanguagePreference) {
       systemMessage += `\n\nThe user's default language is ${userLanguagePreference}, but ONLY use this when the language of their message is truly ambiguous or impossible to detect. If the user writes in any identifiable language, always respond in that language.`;
+    }
+    if (autonomyRuntime) {
+      systemMessage += buildAutonomyPromptFragment(autonomyRuntime);
+    }
+    if (recalledMemories?.length) {
+      const memoryLines = recalledMemories.slice(0, 12).map((m) => `- ${m.key}: ${m.value}`).join('\n');
+      systemMessage += `\n\n## Recalled Memories\n${memoryLines}`;
     }
 
     // Inject current model identity so Alia knows which tier it's running as
@@ -856,6 +899,17 @@ router.post('/', async (req: Request, res: Response) => {
         res.setHeader('Connection', 'keep-alive');
         sseHeadersSent = true;
       }
+    }
+
+    if (body.stream === true && autonomyRuntime?.recall?.planPreview?.length) {
+      ensureSSEHeaders();
+      res.write(`event: alia.plan_preview\ndata: ${JSON.stringify({
+        eventVersion: 1,
+        planId: `plan-${requestId}`,
+        intent: autonomyRuntime.classification.intent,
+        confidence: autonomyRuntime.classification.confidence,
+        steps: autonomyRuntime.recall.planPreview,
+      })}\n\n`);
     }
 
     for (let providerAttempt = 0; providerAttempt < MAX_PROVIDER_RETRIES; providerAttempt++) {
@@ -1043,12 +1097,20 @@ router.post('/', async (req: Request, res: Response) => {
         model: aliasModelId,
         skillId: body.skillId,
         platform: req.apiKey ? 'telegram' as const : 'app' as const,
-        metadata: { provider: resolved?.provider || 'unknown' },
+        metadata: { model: aliasModelId },
         response: assistantResponse,
         tokenUsage,
-        modelUsed: resolved?.keyConfig?.modelId || aliasModelId,
+        modelUsed: aliasModelId,
         latencyMs: Date.now() - requestStartTime,
       }).catch(err => log.v1.error({ err }, 'Error in afterChat hooks'));
+
+      runAutonomyAfterChat({
+        userId: req.user?.id,
+        runtimeContext: autonomyRuntime,
+        messages,
+        assistantResponse,
+        latencyMs: Date.now() - requestStartTime,
+      }).catch(err => log.v1.warn({ err }, 'Autonomy after-chat learn failed'));
 
       // Build tool_calls array if there were any tool calls
       const toolCalls = result.toolCalls?.map((tc: { toolCallId?: string; toolName: string; args?: unknown }, index: number) => {
@@ -1170,7 +1232,7 @@ router.post('/', async (req: Request, res: Response) => {
           thinkingMatch.forEach(match => {
             const content = match.replace(/<\/?thinking>/g, '').trim();
             if (content) {
-              res.write(`event: alia.reasoning\ndata: ${JSON.stringify({ content })}\n\n`);
+              res.write(`event: alia.reasoning\ndata: ${JSON.stringify({ eventVersion: 1, content })}\n\n`);
               log.v1.debug({ reasoning: content.slice(0, 100) }, 'Reasoning chunk (thinking tag)');
             }
           });
@@ -1203,7 +1265,7 @@ router.post('/', async (req: Request, res: Response) => {
         // Handle Gemini thought summaries and other reasoning tokens
         const reasoningText = (chunk as ExtendedChunk).text || (chunk as ExtendedChunk).thoughtDelta || (chunk as ExtendedChunk).reasoningDelta;
         if (reasoningText && typeof reasoningText === 'string' && reasoningText.trim()) {
-          res.write(`event: alia.reasoning\ndata: ${JSON.stringify({ content: reasoningText.trim() })}\n\n`);
+          res.write(`event: alia.reasoning\ndata: ${JSON.stringify({ eventVersion: 1, content: reasoningText.trim() })}\n\n`);
           log.v1.debug({ reasoning: reasoningText.slice(0, 100) }, 'Reasoning chunk (provider)');
         }
       } else if (chunk.type === 'tool-call') {
@@ -1276,6 +1338,7 @@ router.post('/', async (req: Request, res: Response) => {
 
         // Stream tool result as named SSE event (non-standard, Alia extension)
         res.write(`event: alia.tool_result\ndata: ${JSON.stringify({
+          eventVersion: 1,
           tool_call_id: chunk.toolCallId,
           name: originalToolName,
           output: chunk.output,
@@ -1299,6 +1362,7 @@ router.post('/', async (req: Request, res: Response) => {
         if (originalToolName === 'delegateToAgent' && chunk.output && !chunk.output.error) {
           const ar = chunk.output;
           res.write(`event: alia.agent\ndata: ${JSON.stringify({
+            eventVersion: 1,
             agentId: ar.agentId,
             agentName: ar.agentName,
             agentHandle: ar.agentHandle,
@@ -1471,6 +1535,7 @@ router.post('/', async (req: Request, res: Response) => {
 
             // Emit tool-result as named SSE event (non-standard, Alia extension)
             res.write(`event: alia.tool_result\ndata: ${JSON.stringify({
+              eventVersion: 1,
               tool_call_id: toolCallId,
               name: toolName,
               output: toolOutput,
@@ -1541,7 +1606,7 @@ router.post('/', async (req: Request, res: Response) => {
       try {
         const title = await titlePromise;
         if (title) {
-          res.write(`event: alia.title\ndata: ${JSON.stringify({ title, conversationId })}\n\n`);
+          res.write(`event: alia.title\ndata: ${JSON.stringify({ eventVersion: 1, title, conversationId })}\n\n`);
           await Conversation.updateOne(
             { oxyUserId: req.user.id, conversationId },
             { $set: { title } },
@@ -1618,12 +1683,20 @@ router.post('/', async (req: Request, res: Response) => {
       model: aliasModelId,
       skillId: body.skillId,
       platform: req.apiKey ? 'telegram' as const : 'app' as const,
-      metadata: { provider: resolved?.provider || 'unknown' },
+      metadata: { model: aliasModelId },
       response: assistantResponse,
       tokenUsage,
-      modelUsed: resolved?.keyConfig?.modelId || aliasModelId,
+      modelUsed: aliasModelId,
       latencyMs: Date.now() - requestStartTime,
     }).catch(err => log.v1.error({ err }, 'Error in afterChat hooks'));
+
+    runAutonomyAfterChat({
+      userId: req.user?.id,
+      runtimeContext: autonomyRuntime,
+      messages,
+      assistantResponse,
+      latencyMs: Date.now() - requestStartTime,
+    }).catch(err => log.v1.warn({ err }, 'Autonomy after-chat learn failed'));
 
     // Record agent.end for observability (success path)
     recordEvent({
@@ -1808,7 +1881,9 @@ router.post('/', async (req: Request, res: Response) => {
       res.end();
     }
   }
-});
+};
+
+router.post('/', handleChatCompletions);
 
 /**
  * GET /v1/chat/completions

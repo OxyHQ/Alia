@@ -32,7 +32,6 @@ import modelsStatsRouter from './routes/models-stats.js';
 import externalModelsRouter from './routes/external-models.js';
 import internalRouter from './routes/internal.js';
 import skillsRouter from './routes/skills.js';
-import automationsRouter from './routes/automations.js';
 import analyticsRouter from './routes/analytics.js';
 import webhooksRouter from './routes/webhooks.js';
 import referralsRouter from './routes/referrals.js';
@@ -56,7 +55,6 @@ import { syncZeroEval } from './scripts/sync-zeroeval.js';
 import { seedSkills } from './lib/seed-skills.js';
 import { seedSuggestions } from './lib/seed-suggestions.js';
 import { seedBots } from './lib/seed-bots.js';
-import { startScheduler } from './lib/automation-scheduler.js';
 import { startTriggerScheduler } from './lib/trigger-engine.js';
 import { warmupProviders } from './lib/provider-warmup.js';
 import { warmupProvidersClient } from './lib/providers-client.js';
@@ -218,7 +216,6 @@ app.use('/codea', codeaRouter);
 app.use('/models', modelsStatsRouter);
 app.use('/external-models', externalModelsRouter);
 app.use('/skills', skillsRouter);
-app.use('/automations', automationsRouter);
 app.use('/analytics', analyticsRouter);
 app.use('/triggers', triggersRouter);
 app.use('/webhooks', webhooksRouter);
@@ -261,7 +258,6 @@ app.get('/', (_req, res) => {
       '/models',
       '/external-models',
       '/skills',
-      '/automations',
       '/triggers',
       '/analytics',
       '/webhooks',
@@ -327,8 +323,6 @@ connectDB()
       seedBots().catch((err) => console.error('[Bots] Seed error:', err));
       // Sync external models in background (non-blocking)
       syncZeroEval().catch((err) => console.error('[ZeroEval] Background sync error:', err));
-      // Start automation scheduler (non-blocking)
-      startScheduler().catch((err) => console.error('[Scheduler] Startup error:', err));
       // Start trigger scheduler (non-blocking)
       startTriggerScheduler().catch((err) => console.error('[Triggers] Scheduler startup error:', err));
       // Pre-warm TLS connections to AI providers (non-blocking)

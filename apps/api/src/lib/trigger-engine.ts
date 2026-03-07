@@ -7,6 +7,7 @@
  */
 
 import crypto from 'crypto';
+import mongoose from 'mongoose';
 import cron, { type ScheduledTask } from 'node-cron';
 import { generateText, stepCountIs, type ToolSet } from 'ai';
 import { Trigger, type ITrigger, type ITriggerSchedule, type TriggerType } from '../models/trigger.js';
@@ -34,6 +35,7 @@ import type { User as OxyUser } from '@oxyhq/core';
 // ── Scheduled task registry ────────────────────────────────────────
 
 const scheduledTasks = new Map<string, ScheduledTask>();
+let legacyMigrationDone = false;
 
 // ── Cron helpers ───────────────────────────────────────────────────
 
@@ -432,6 +434,8 @@ export async function startTriggerScheduler(): Promise<void> {
   log.triggers.info('Starting trigger scheduler...');
 
   try {
+    await migrateLegacyAutomations();
+
     const triggers = await Trigger.find({
       type: { $in: ['schedule', 'agent_heartbeat'] },
       enabled: true,
@@ -449,6 +453,74 @@ export async function startTriggerScheduler(): Promise<void> {
   } catch (error) {
     log.triggers.error({ err: error }, 'Failed to start trigger scheduler');
   }
+}
+
+async function migrateLegacyAutomations(): Promise<void> {
+  if (legacyMigrationDone) return;
+  legacyMigrationDone = true;
+
+  const db = mongoose.connection.db;
+  if (!db) return;
+
+  const legacy = db.collection('automations');
+  const count = await legacy.countDocuments().catch(() => 0);
+  if (!count) return;
+
+  const docs = await legacy.find({}).toArray();
+  let migrated = 0;
+
+  for (const doc of docs) {
+    const oxyUserId = doc.oxyUserId;
+    const name = String(doc.name || '').trim();
+    const prompt = String(doc.prompt || '').trim();
+    if (!oxyUserId || !name || !prompt) continue;
+
+    const schedule: ITriggerSchedule = {
+      type: doc.schedule?.type === 'interval' ? 'interval' : 'daily',
+      ...(doc.schedule?.type === 'interval'
+        ? { intervalMinutes: Math.max(1, Number(doc.schedule?.intervalMinutes || 60)) }
+        : {
+            time: typeof doc.schedule?.time === 'string' ? doc.schedule.time : '09:00',
+            days: Array.isArray(doc.schedule?.days) ? doc.schedule.days : undefined,
+          }),
+    };
+
+    const exists = await Trigger.findOne({
+      oxyUserId,
+      name,
+      type: 'schedule',
+      'action.prompt': prompt,
+    }).select('_id').lean();
+    if (exists) continue;
+
+    await Trigger.create({
+      oxyUserId,
+      name,
+      description: 'Migrated from legacy automations',
+      type: 'schedule',
+      enabled: doc.enabled !== false,
+      action: {
+        prompt,
+        roleId: doc.roleId,
+        useTools: true,
+        notify: false,
+      },
+      schedule,
+      lastTriggeredAt: doc.lastRunAt,
+      triggerCount: Number(doc.runCount || 0),
+      lastStatus: doc.lastRunStatus,
+      lastResult: doc.lastRunResult,
+      createdAt: doc.createdAt,
+      updatedAt: doc.updatedAt,
+    }).catch(() => {});
+
+    migrated++;
+  }
+
+  // Hard cut: remove legacy rows once migrated.
+  await legacy.deleteMany({}).catch(() => {});
+
+  log.triggers.info({ migrated, scanned: docs.length }, 'Legacy automations migrated to triggers');
 }
 
 /**

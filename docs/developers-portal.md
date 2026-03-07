@@ -139,7 +139,7 @@ A comprehensive developer portal that allows users to create applications and ge
 
 **Hybrid Authentication** (`authenticateTokenOrApiKey`)
 - Accepts both JWT tokens and API keys
-- Applied to `/v1/*` endpoints for backward compatibility
+- Applied to `/v1/*` endpoints for unified auth (session token or API key)
 - Automatically detects token type
 
 **Scope Validation** (`requireScope`)

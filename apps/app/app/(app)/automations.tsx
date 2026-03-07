@@ -21,20 +21,38 @@ import { useTranslation } from '@/hooks/useTranslation';
 import apiClient from '@/lib/api/client';
 import { API_ROUTES } from '@/lib/api/routes';
 
-interface Automation {
+interface TriggerRecord {
   _id: string;
   name: string;
-  prompt: string;
-  roleId?: string;
+  action: {
+    prompt: string;
+    roleId?: string;
+    useTools?: boolean;
+    notify?: boolean;
+  };
   schedule: {
-    type: 'daily' | 'interval';
+    type: 'cron' | 'daily' | 'interval';
+    cron?: string;
     time?: string;
     days?: string[];
     intervalMinutes?: number;
   };
   enabled: boolean;
+  lastTriggeredAt?: string;
+  triggerCount: number;
+  lastResult?: string;
+  lastStatus?: 'success' | 'failed' | 'running';
+  createdAt: string;
+  updatedAt: string;
+}
+
+interface TriggerView {
+  _id: string;
+  name: string;
+  prompt: string;
+  schedule: TriggerRecord['schedule'];
+  enabled: boolean;
   lastRunAt?: string;
-  nextRunAt?: string;
   runCount: number;
   lastRunResult?: string;
   lastRunStatus?: 'success' | 'failed' | 'running';
@@ -135,13 +153,32 @@ function to24Hour(time12: string): string {
 /**
  * Format schedule for display.
  */
-function formatSchedule(schedule: Automation['schedule']): string {
+function formatSchedule(schedule: TriggerRecord['schedule']): string {
+  if (schedule.type === 'cron') {
+    return schedule.cron || 'Cron';
+  }
   if (schedule.type === 'interval') {
     return `Every ${schedule.intervalMinutes} min`;
   }
   const days = schedule.days || [];
   const dayLabels = days.map((d) => d.charAt(0).toUpperCase() + d.slice(1, 3)).join(', ');
   return `${schedule.time || '09:00'} ${days.length === 7 ? 'Every day' : dayLabels}`;
+}
+
+function toTriggerView(trigger: TriggerRecord): TriggerView {
+  return {
+    _id: trigger._id,
+    name: trigger.name,
+    prompt: trigger.action?.prompt || '',
+    schedule: trigger.schedule || { type: 'daily', time: '09:00', days: ['monday'] },
+    enabled: trigger.enabled,
+    lastRunAt: trigger.lastTriggeredAt,
+    runCount: trigger.triggerCount || 0,
+    lastRunResult: trigger.lastResult,
+    lastRunStatus: trigger.lastStatus,
+    createdAt: trigger.createdAt,
+    updatedAt: trigger.updatedAt,
+  };
 }
 
 export default function AutomationsScreen() {
@@ -164,7 +201,7 @@ export default function AutomationsScreen() {
   ]);
 
   // Automations state
-  const [automations, setAutomations] = useState<Automation[]>([]);
+  const [automations, setAutomations] = useState<TriggerView[]>([]);
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
   const [runningIds, setRunningIds] = useState<Set<string>>(new Set());
@@ -172,8 +209,9 @@ export default function AutomationsScreen() {
   // Load automations on mount
   const loadAutomations = useCallback(async () => {
     try {
-      const response = await apiClient.get(API_ROUTES.automations.list);
-      setAutomations(response.data.automations || []);
+      const response = await apiClient.get(API_ROUTES.triggers.list);
+      const rows: TriggerRecord[] = response.data.triggers || [];
+      setAutomations(rows.map(toTriggerView));
     } catch (error) {
       console.error('Failed to load automations:', error);
     } finally {
@@ -216,15 +254,21 @@ export default function AutomationsScreen() {
         schedule.intervalMinutes = 60; // Default interval
       }
 
-      const response = await apiClient.post(API_ROUTES.automations.create, {
+      const response = await apiClient.post(API_ROUTES.triggers.create, {
         name: name.trim(),
-        prompt: prompt.trim(),
+        type: 'schedule',
+        action: {
+          prompt: prompt.trim(),
+          useTools: true,
+        },
         schedule,
       });
 
-      setAutomations((prev) => [response.data.automation, ...prev]);
+      if (response.data.trigger) {
+        setAutomations((prev) => [toTriggerView(response.data.trigger as TriggerRecord), ...prev]);
+      }
       setDialogOpen(false);
-      toast.success('Automation created');
+      toast.success('Trigger created');
     } catch (error: any) {
       console.error('Failed to create automation:', error);
       toast.error(error.response?.data?.error || 'Failed to create automation');
@@ -233,7 +277,7 @@ export default function AutomationsScreen() {
     }
   };
 
-  const handleToggleEnabled = async (automation: Automation) => {
+  const handleToggleEnabled = async (automation: TriggerView) => {
     const newEnabled = !automation.enabled;
 
     // Optimistic update
@@ -242,7 +286,7 @@ export default function AutomationsScreen() {
     );
 
     try {
-      await apiClient.patch(API_ROUTES.automations.update(automation._id), {
+      await apiClient.patch(API_ROUTES.triggers.update(automation._id), {
         enabled: newEnabled,
       });
     } catch (error) {
@@ -254,13 +298,13 @@ export default function AutomationsScreen() {
     }
   };
 
-  const handleDelete = async (automation: Automation) => {
+  const handleDelete = async (automation: TriggerView) => {
     // Optimistic removal
     setAutomations((prev) => prev.filter((a) => a._id !== automation._id));
 
     try {
-      await apiClient.delete(API_ROUTES.automations.delete(automation._id));
-      toast.success('Automation deleted');
+      await apiClient.delete(API_ROUTES.triggers.delete(automation._id));
+      toast.success('Trigger deleted');
     } catch (error) {
       // Revert on failure
       setAutomations((prev) => [...prev, automation].sort(
@@ -270,21 +314,21 @@ export default function AutomationsScreen() {
     }
   };
 
-  const handleRunNow = async (automation: Automation) => {
+  const handleRunNow = async (automation: TriggerView) => {
     setRunningIds((prev) => new Set(prev).add(automation._id));
 
     try {
-      const response = await apiClient.post(API_ROUTES.automations.run(automation._id));
+      const response = await apiClient.post(API_ROUTES.triggers.run(automation._id));
       const result = response.data.result;
 
       // Update the automation in the list with the new run data
-      if (response.data.automation) {
+      if (response.data.trigger) {
         setAutomations((prev) =>
-          prev.map((a) => (a._id === automation._id ? response.data.automation : a))
+          prev.map((a) => (a._id === automation._id ? toTriggerView(response.data.trigger as TriggerRecord) : a))
         );
       }
 
-      toast.success(result ? result.slice(0, 120) : 'Automation completed');
+      toast.success(result ? result.slice(0, 120) : 'Trigger completed');
     } catch (error: any) {
       toast.error(error.response?.data?.error || 'Automation run failed');
     } finally {
