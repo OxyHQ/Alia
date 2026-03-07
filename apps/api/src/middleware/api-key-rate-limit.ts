@@ -4,6 +4,7 @@ import DeveloperApiKey, { IRateLimitConfig } from '../models/developer-api-key';
 import { Subscription } from '../models/subscription';
 import mongoose from 'mongoose';
 import { checkLimit } from '../lib/sliding-window-limiter.js';
+import { getRedisClient } from '../lib/redis.js';
 import { log } from '../lib/logger.js';
 
 interface RateLimitStatus {
@@ -77,90 +78,82 @@ export async function getUserTier(userId: string): Promise<string> {
   return 'pro';
 }
 
-// ── In-memory sliding window for API key rate limiting ──
-// Replaces per-request MongoDB countDocuments with O(1) in-memory checks.
-// Same approach as session-based rate limiting (sliding-window-limiter.ts).
-
-interface ApiKeyWindow {
-  timestamps: number[];
-  dailyRequests: number;
-  lastResetDay: number;
-}
-
-const apiKeyWindows = new Map<string, ApiKeyWindow>();
-const MAX_API_KEY_ENTRIES = 10_000;
-
-function getDayOfYear(): number {
-  const now = new Date();
-  const start = new Date(now.getFullYear(), 0, 0);
-  return Math.floor((now.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
-}
-
-function getOrCreateApiKeyWindow(apiKeyId: string): ApiKeyWindow {
-  let state = apiKeyWindows.get(apiKeyId);
-  if (!state) {
-    if (apiKeyWindows.size >= MAX_API_KEY_ENTRIES) {
-      const firstKey = apiKeyWindows.keys().next().value;
-      if (firstKey !== undefined) apiKeyWindows.delete(firstKey);
-    }
-    state = { timestamps: [], dailyRequests: 0, lastResetDay: getDayOfYear() };
-    apiKeyWindows.set(apiKeyId, state);
-  }
-  const today = getDayOfYear();
-  if (state.lastResetDay !== today) {
-    state.dailyRequests = 0;
-    state.lastResetDay = today;
-  }
-  return state;
-}
-
 /**
- * Check if an API key has exceeded its rate limits (in-memory, sub-microsecond).
- * Replaces the previous MongoDB countDocuments approach that ran O(n) DB queries per request.
+ * Check if an API key has exceeded its rate limits using Redis sorted sets.
+ * Falls back to allowing requests if Redis is unavailable.
  */
-function checkApiKeyRateLimits(
+async function checkApiKeyRateLimits(
   apiKeyId: string,
   rateLimit: IRateLimitConfig
-): RateLimitStatus {
-  const state = getOrCreateApiKeyWindow(apiKeyId);
+): Promise<RateLimitStatus> {
+  const redis = getRedisClient();
+  if (!redis) return { limited: false }; // Fail-open
+
   const now = Date.now();
   const windowMs = 60_000;
+  const windowStart = now - windowMs;
 
-  // Prune timestamps older than 1 minute
-  state.timestamps = state.timestamps.filter(t => now - t < windowMs);
+  try {
+    // Check requests per minute
+    if (rateLimit.requestsPerMinute !== null) {
+      const key = `rl:apikey:${apiKeyId}:rpm`;
+      const pipeline = redis.pipeline();
+      pipeline.zremrangebyscore(key, 0, windowStart);
+      pipeline.zcard(key);
+      pipeline.zadd(key, now, `${now}:${Math.random().toString(36).slice(2, 8)}`);
+      pipeline.expire(key, 120);
 
-  // Check requests per minute
-  if (rateLimit.requestsPerMinute !== null && state.timestamps.length >= rateLimit.requestsPerMinute) {
-    const oldestInWindow = state.timestamps[0];
-    const resetInSeconds = Math.ceil((oldestInWindow + windowMs - now) / 1000);
-    return {
-      limited: true,
-      limitType: 'requestsPerMinute',
-      current: state.timestamps.length,
-      limit: rateLimit.requestsPerMinute,
-      resetInSeconds: Math.max(resetInSeconds, 1),
-    };
+      const results = await pipeline.exec();
+      const currentCount = (results?.[1]?.[1] as number) || 0;
+
+      if (currentCount >= rateLimit.requestsPerMinute) {
+        await redis.zremrangebyscore(key, now, now);
+        const oldest = await redis.zrange(key, 0, 0, 'WITHSCORES');
+        const oldestTs = oldest.length >= 2 ? parseInt(oldest[1]) : now;
+        const resetInSeconds = Math.max(Math.ceil((oldestTs + windowMs - now) / 1000), 1);
+        return {
+          limited: true,
+          limitType: 'requestsPerMinute',
+          current: currentCount,
+          limit: rateLimit.requestsPerMinute,
+          resetInSeconds,
+        };
+      }
+    }
+
+    // Check requests per day
+    if (rateLimit.requestsPerDay !== null) {
+      const dailyKey = `rl:apikey:${apiKeyId}:daily`;
+      const dailyCount = parseInt(await redis.get(dailyKey) || '0');
+
+      if (dailyCount >= rateLimit.requestsPerDay) {
+        const now_ = new Date();
+        const midnight = new Date(now_.getFullYear(), now_.getMonth(), now_.getDate() + 1);
+        const resetInSeconds = Math.ceil((midnight.getTime() - now_.getTime()) / 1000);
+        return {
+          limited: true,
+          limitType: 'requestsPerDay',
+          current: dailyCount,
+          limit: rateLimit.requestsPerDay,
+          resetInSeconds: Math.max(resetInSeconds, 60),
+        };
+      }
+
+      // Increment daily counter with midnight expiry
+      const pipeline = redis.pipeline();
+      pipeline.incr(dailyKey);
+      const now_ = new Date();
+      const midnight = new Date(now_.getFullYear(), now_.getMonth(), now_.getDate() + 1);
+      const ttl = Math.ceil((midnight.getTime() - now_.getTime()) / 1000);
+      pipeline.expire(dailyKey, ttl);
+      await pipeline.exec();
+    }
+
+    return { limited: false };
+  } catch (err) {
+    log.rateLimit.error({ err }, 'Redis API key rate limit check failed, allowing request');
+    return { limited: false }; // Fail-open
   }
-
-  // Check requests per day
-  if (rateLimit.requestsPerDay !== null && state.dailyRequests >= rateLimit.requestsPerDay) {
-    const now_ = new Date();
-    const midnight = new Date(now_.getFullYear(), now_.getMonth(), now_.getDate() + 1);
-    const resetInSeconds = Math.ceil((midnight.getTime() - now_.getTime()) / 1000);
-    return {
-      limited: true,
-      limitType: 'requestsPerDay',
-      current: state.dailyRequests,
-      limit: rateLimit.requestsPerDay,
-      resetInSeconds: Math.max(resetInSeconds, 60),
-    };
-  }
-
-  // Record the request
-  state.timestamps.push(now);
-  state.dailyRequests++;
-
-  return { limited: false };
 }
 
 /**
@@ -194,7 +187,7 @@ export async function apiKeyRateLimit(
         tokensPerDay: null,
       };
 
-      const status = checkApiKeyRateLimits(req.apiKey.id, rateLimit);
+      const status = await checkApiKeyRateLimits(req.apiKey.id, rateLimit);
 
       if (status.limited) {
         return sendRateLimitResponse(res, status);
@@ -207,11 +200,11 @@ export async function apiKeyRateLimit(
     }
   }
 
-  // Handle session-based user rate limiting (in-memory sliding window)
+  // Handle session-based user rate limiting (Redis-backed sliding window)
   if (req.user?.id && !req.apiKey) {
     try {
       const tier = await getUserTier(req.user.id);
-      const result = checkLimit(req.user.id, tier);
+      const result = await checkLimit(req.user.id, tier);
 
       if (!result.allowed) {
         return sendRateLimitResponse(res, {

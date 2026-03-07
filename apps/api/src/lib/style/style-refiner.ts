@@ -8,7 +8,7 @@ import { generateText } from 'ai';
 import { resolveModel, getAIModel } from '../chat-core.js';
 import { log } from '../logger.js';
 import type { IWritingStyleProfile } from '../../models/user-memory.js';
-import { Conversation } from '../../models/conversation.js';
+import { Message } from '../../models/message.js';
 
 /**
  * Refine the writing style profile using an LLM.
@@ -23,17 +23,17 @@ export async function refineStyleWithLLM(
     // If no recent messages provided, fetch from conversation history
     let messages = recentMessages;
     if (messages.length === 0) {
-      const conversations = await Conversation.find({ oxyUserId: userId })
-        .sort({ updatedAt: -1 })
-        .limit(5)
-        .select('messages')
+      const recentUserMsgs = await Message.find({
+        oxyUserId: userId,
+        role: 'user',
+        content: { $type: 'string' },
+      })
+        .sort({ createdAt: -1 })
+        .limit(30)
+        .select('content')
         .lean();
 
-      messages = conversations
-        .flatMap(c => (c.messages || []))
-        .filter((m: any) => m.role === 'user' && typeof m.content === 'string')
-        .map((m: any) => m.content)
-        .slice(-30);
+      messages = recentUserMsgs.reverse().map((m: any) => m.content);
     }
 
     if (messages.length < 5) {

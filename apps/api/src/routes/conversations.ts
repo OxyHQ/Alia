@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { randomUUID } from 'crypto';
 import { Conversation } from '../models/conversation.js';
+import { Message } from '../models/message.js';
 import { authenticateToken, authenticateTokenOrApiKey } from '../middleware/auth.js';
 import type { Request, Response } from 'express';
 import { log } from '../lib/logger.js';
@@ -21,7 +22,6 @@ router.post('/new', authenticateToken, async (req: Request, res: Response) => {
       oxyUserId: req.user.id,
       conversationId,
       title: 'New chat',
-      messages: [],
       source,
       ...(agentId && { agentId }),
     });
@@ -108,10 +108,13 @@ router.get('/:id', authenticateTokenOrApiKey, async (req: Request, res: Response
       return res.status(404).json({ error: 'Conversation not found' });
     }
 
-    // Filter out any invalid messages
-    const validMessages = (conversation.messages || []).filter(msg =>
-      msg != null && msg.role && msg.content !== undefined
-    );
+    // Load messages from separate collection
+    const messages = await Message.find({
+      conversationId: req.params.id,
+      oxyUserId: req.user.id,
+    })
+      .sort({ createdAt: 1 })
+      .lean();
 
     res.json({
       id: conversation.conversationId,
@@ -119,7 +122,7 @@ router.get('/:id', authenticateTokenOrApiKey, async (req: Request, res: Response
       lastMessage: conversation.lastMessage,
       source: conversation.source || 'app',
       agentId: conversation.agentId,
-      messages: validMessages,
+      messages,
       createdAt: conversation.createdAt,
       updatedAt: conversation.updatedAt
     });
@@ -143,7 +146,7 @@ router.post('/', authenticateTokenOrApiKey, async (req: Request, res: Response) 
     }
 
     // Filter out any invalid messages before saving
-    const validMessages = messages.filter(msg =>
+    const validMessages = messages.filter((msg: any) =>
       msg != null && msg.role && msg.content !== undefined
     );
 
@@ -152,11 +155,8 @@ router.post('/', authenticateTokenOrApiKey, async (req: Request, res: Response) 
       ? validMessages[validMessages.length - 1].content?.slice(0, 100)
       : undefined;
 
-    // Build update object
-    const updateData: Record<string, any> = {
-      lastMessage,
-      messages: validMessages,
-    };
+    // Build update object for conversation metadata
+    const updateData: Record<string, any> = { lastMessage };
 
     // Only overwrite title if explicitly provided (e.g. user rename)
     if (title) {
@@ -173,22 +173,34 @@ router.post('/', authenticateTokenOrApiKey, async (req: Request, res: Response) 
       setOnInsert.title = validMessages.find((m: any) => m.role === 'user')?.content?.slice(0, 50) || 'New chat';
     }
 
-    // Find and update or create new conversation
-    const conversation = await Conversation.findOneAndUpdate(
-      {
-        oxyUserId: req.user.id,
-        conversationId
-      },
-      {
-        $set: updateData,
-        $setOnInsert: setOnInsert
-      },
-      {
-        upsert: true,
-        returnDocument: 'after',
-        setDefaultsOnInsert: true
-      }
-    );
+    // Update conversation metadata and replace messages atomically
+    const [conversation] = await Promise.all([
+      Conversation.findOneAndUpdate(
+        { oxyUserId: req.user.id, conversationId },
+        { $set: updateData, $setOnInsert: setOnInsert },
+        { upsert: true, returnDocument: 'after', setDefaultsOnInsert: true }
+      ),
+      // Replace all messages for this conversation
+      Message.deleteMany({ conversationId, oxyUserId: req.user.id }).then(() =>
+        validMessages.length > 0
+          ? Message.insertMany(
+              validMessages.map((m: any) => ({
+                conversationId,
+                oxyUserId: req.user!.id,
+                id: m.id,
+                role: m.role,
+                content: m.content,
+                vote: m.vote,
+                toolInvocations: m.toolInvocations,
+                agentInfo: m.agentInfo,
+                audioUrl: m.audioUrl,
+                createdAt: m.createdAt || new Date(),
+              })),
+              { ordered: false }
+            )
+          : Promise.resolve()
+      ),
+    ]);
 
     res.json({
       id: conversation.conversationId,
@@ -211,10 +223,16 @@ router.delete('/:id', authenticateToken, async (req: Request, res: Response) => 
       return res.status(401).json({ error: 'Unauthorized' });
     }
 
-    const result = await Conversation.deleteOne({
-      oxyUserId: req.user.id,
-      conversationId: req.params.id
-    });
+    const [result] = await Promise.all([
+      Conversation.deleteOne({
+        oxyUserId: req.user.id,
+        conversationId: req.params.id
+      }),
+      Message.deleteMany({
+        oxyUserId: req.user.id,
+        conversationId: req.params.id
+      }),
+    ]);
 
     if (result.deletedCount === 0) {
       return res.status(404).json({ error: 'Conversation not found' });

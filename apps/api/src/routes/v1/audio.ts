@@ -4,6 +4,7 @@ import { reserveCredits, finalizeCredits } from '../../lib/credits-manager.js';
 import { getOrCreateUserCredits } from '../../lib/user-credits-helpers.js';
 import { uploadToS3 } from '../../lib/s3.js';
 import { Conversation } from '../../models/conversation.js';
+import { Message } from '../../models/message.js';
 import { log } from '../../lib/logger.js';
 import { sanitizeMessage } from '../../lib/errors/sanitize.js';
 import type { Request, Response } from 'express';
@@ -42,13 +43,12 @@ router.post('/speech', async (req: Request, res: Response) => {
 
     // Check for cached audio on the message
     if (conversationId && messageId) {
-      const conversation = await Conversation.findOne(
-        { conversationId, oxyUserId: userId, 'messages.id': messageId },
-        { 'messages.$': 1 }
-      );
-      const existingUrl = conversation?.messages?.[0]?.audioUrl;
-      if (existingUrl) {
-        return res.json({ audioUrl: existingUrl });
+      const existingMsg = await Message.findOne(
+        { conversationId, oxyUserId: userId, id: messageId },
+        { audioUrl: 1 }
+      ).lean();
+      if (existingMsg?.audioUrl) {
+        return res.json({ audioUrl: existingMsg.audioUrl });
       }
     }
 
@@ -130,9 +130,9 @@ router.post('/speech', async (req: Request, res: Response) => {
 
     // Link to message (fire-and-forget, don't block response)
     if (conversationId && messageId) {
-      Conversation.updateOne(
-        { conversationId, oxyUserId: userId, 'messages.id': messageId },
-        { $set: { 'messages.$.audioUrl': audioUrl } }
+      Message.updateOne(
+        { conversationId, oxyUserId: userId, id: messageId },
+        { $set: { audioUrl } }
       ).catch((err: any) => {
         log.general.warn({ err, conversationId, messageId }, 'Failed to link audioUrl to message');
       });

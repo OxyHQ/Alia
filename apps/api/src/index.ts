@@ -365,6 +365,11 @@ connectDB()
         await shutdownTaskQueue();
         log.general.info('Task queue shut down');
 
+        // Close Redis connections
+        const { closeRedis } = await import('./lib/redis.js');
+        await closeRedis();
+        log.general.info('Redis connections closed');
+
         // Close MCP relay connections
         shutdownMcpRelay();
 

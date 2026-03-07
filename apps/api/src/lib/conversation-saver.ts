@@ -6,6 +6,7 @@
 
 import { generateText } from 'ai';
 import { Conversation, type ConversationSource } from '../models/conversation.js';
+import { Message } from '../models/message.js';
 import { resolveModel, getAIModel } from './chat-core.js';
 import { log } from './logger.js';
 
@@ -74,12 +75,12 @@ export async function saveConversation(params: SaveConversationParams): Promise<
 
   const title = extractConversationTitle(assistantResponse, messages);
 
+  // Update conversation metadata
   await Conversation.findOneAndUpdate(
     { oxyUserId: userId, conversationId },
     {
       $set: {
         lastMessage: stripTitleTags(assistantResponse).slice(0, 100),
-        messages: allMessages,
       },
       $setOnInsert: {
         oxyUserId: userId,
@@ -89,8 +90,25 @@ export async function saveConversation(params: SaveConversationParams): Promise<
         ...(agentId && { agentId }),
       },
     },
-    { upsert: true, returnDocument: 'after' },
+    { upsert: true },
   );
+
+  // Replace messages in separate collection
+  await Message.deleteMany({ conversationId, oxyUserId: userId });
+  if (allMessages.length > 0) {
+    await Message.insertMany(
+      allMessages.map(m => ({
+        conversationId,
+        oxyUserId: userId,
+        role: m.role,
+        content: m.content,
+        toolInvocations: m.toolInvocations,
+        agentInfo: m.agentInfo,
+        createdAt: new Date(),
+      })),
+      { ordered: false },
+    );
+  }
 }
 
 /**
@@ -137,7 +155,8 @@ export async function generateConversationTitle(
   try {
     const conv = await Conversation.findOne({ oxyUserId: userId, conversationId });
     if (!conv || conv.isManualTitle) return;
-    if (conv.messages && conv.messages.length > 3) return;
+    const messageCount = await Message.countDocuments({ conversationId });
+    if (messageCount > 3) return;
 
     const title = await generateTitle(userMessage);
     if (title) {

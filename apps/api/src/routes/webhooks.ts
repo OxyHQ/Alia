@@ -8,6 +8,7 @@ import { loadPrompt } from '../lib/prompt-loader.js';
 import { BotUser } from '../models/bot-user.js';
 import { Bot } from '../models/bot.js';
 import { Conversation } from '../models/conversation.js';
+import { Message } from '../models/message.js';
 import { getOrCreateUserCredits } from '../lib/user-credits-helpers.js';
 import { reserveCredits, finalizeCredits, type CreditReservation, type CreditUsage } from '../lib/credits-manager.js';
 import type { ChannelId, ChannelInboundMessage } from '../lib/channels/types.js';
@@ -111,15 +112,19 @@ async function processChannelMessage(
       await botUser.save();
     }
 
-    // Load conversation history
+    // Load conversation history from messages collection
     let messages: Array<{ role: string; content: string }> = [];
     try {
-      const conversation = await Conversation.findOne({
+      const recentMessages = await Message.find({
         oxyUserId: botUser.oxyUserId,
         conversationId,
-      });
-      if (conversation?.messages?.length) {
-        messages = conversation.messages.slice(-20).map((m: any) => ({
+      })
+        .sort({ createdAt: -1 })
+        .limit(20)
+        .lean();
+
+      if (recentMessages.length > 0) {
+        messages = recentMessages.reverse().map((m: any) => ({
           role: m.role,
           content: m.content,
         }));
@@ -190,14 +195,12 @@ async function processChannelMessage(
       latencyMs
     );
 
-    // Save conversation
+    // Save conversation metadata + append messages
     if (fullResponse) {
-      messages.push({ role: 'assistant', content: fullResponse });
       await Conversation.findOneAndUpdate(
         { oxyUserId: botUser.oxyUserId, conversationId },
         {
           $set: {
-            messages,
             lastMessage: fullResponse.slice(0, 100),
             updatedAt: new Date(),
           },
@@ -211,6 +214,12 @@ async function processChannelMessage(
         },
         { upsert: true }
       );
+
+      // Append user + assistant messages
+      await Message.insertMany([
+        { conversationId, oxyUserId: botUser.oxyUserId, role: 'user', content: message.text, createdAt: new Date() },
+        { conversationId, oxyUserId: botUser.oxyUserId, role: 'assistant', content: fullResponse, createdAt: new Date() },
+      ], { ordered: false });
     }
   } catch (error) {
     log.webhook.error({ err: error, channelType }, 'Chat processing error');
