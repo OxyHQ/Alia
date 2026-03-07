@@ -464,6 +464,32 @@ export function AgentPanel() {
         </View>
       )}
 
+      {/* Approval request */}
+      {activity.approvalRequest && (
+        <View className="mx-4 mt-3 mb-1 rounded-xl border border-yellow-500/40 bg-yellow-500/10 p-3">
+          <Text className="text-xs font-semibold text-yellow-600 mb-1">
+            Approval required
+          </Text>
+          <Text className="text-xs text-foreground mb-2">
+            {activity.approvalRequest.toolName}: {activity.approvalRequest.description}
+          </Text>
+          <View className="flex-row gap-2">
+            <Pressable
+              onPress={() => activity.respondApproval(activity.approvalRequest!.requestId, false)}
+              className="px-3 py-1.5 rounded-lg border border-border bg-background"
+            >
+              <Text className="text-xs text-foreground">Deny</Text>
+            </Pressable>
+            <Pressable
+              onPress={() => activity.respondApproval(activity.approvalRequest!.requestId, true)}
+              className="px-3 py-1.5 rounded-lg bg-yellow-600"
+            >
+              <Text className="text-xs text-white">Approve</Text>
+            </Pressable>
+          </View>
+        </View>
+      )}
+
       {/* Tab Toggle */}
       <View className="px-4 py-3">
         <TabToggle

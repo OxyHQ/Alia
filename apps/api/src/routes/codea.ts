@@ -3,26 +3,16 @@ import { authenticateApiKey } from '../middleware/auth.js';
 import { apiKeyRateLimit } from '../middleware/api-key-rate-limit.js';
 import { Subscription } from '../models/subscription.js';
 import { UserCredits } from '../models/user-credits.js';
-import { getOrCreateUserCredits } from '../lib/user-credits-helpers.js';
 import DeveloperApiKey from '../models/developer-api-key.js';
-import { resolveModel } from '../lib/chat-core.js';
-import { reserveCredits, finalizeCredits, type CreditReservation } from '../lib/credits-manager.js';
 import { log } from '../lib/logger.js';
-import { sanitizeMessage } from '../lib/errors/sanitize.js';
-import * as crypto from 'crypto';
 
 const router = Router();
-const getSafeErrorMessage = (error: unknown, fallback: string): string =>
-  sanitizeMessage(error instanceof Error ? error.message : fallback);
-
-// Store active sessions for usage tracking
-const activeSessions = new Map<string, { userId: string; reservation: CreditReservation; aliaModelId: string }>();
 
 /**
  * Map subscription plan name to Alia plan type
  */
 function mapPlanToAliaPlan(planName: string | undefined): string {
-  if (!planName) return 'free';
+  if (!planName) return 'alia_free';
 
   const name = planName.toLowerCase();
   // Codea-specific plans
@@ -87,8 +77,7 @@ router.get('/user', authenticateApiKey, apiKeyRateLimit, async (req: Request, re
     resetDate.setDate(resetDate.getDate() + 1); // Next day for daily refresh
 
     // Determine highest plan across all active subscriptions
-    const hasActiveSubscription = subscriptions.length > 0;
-    const planHierarchy = ['free', 'alia_go', 'alia_pro', 'alia_max', 'alia_ultra'];
+    const planHierarchy = ['alia_free', 'alia_go', 'alia_pro', 'alia_max', 'alia_ultra'];
     let aliaPlan = 'alia_free';
     for (const sub of subscriptions) {
       const mapped = mapPlanToAliaPlan(sub.plan?.name);
@@ -96,41 +85,18 @@ router.get('/user', authenticateApiKey, apiKeyRateLimit, async (req: Request, re
         aliaPlan = mapped;
       }
     }
-    const planName = subscription?.plan?.name;
 
-    // Build entitlement response in the format Codea Studio Code expects
+    // Build entitlement response with Alia-native fields only (no legacy compatibility payloads)
     const entitlementData = {
-      // Alia-specific fields (primary)
       alia_plan: aliaPlan,
       plan: aliaPlan.replace('alia_', ''),
       sku: aliaPlan,
-      has_access: true, // User has API key, so they have access
+      has_access: true,
       active: true,
-
-      // GitHub Copilot-compatible fields (for backwards compatibility)
-      access_type_sku: hasActiveSubscription ? aliaPlan : 'alia_free',
-      copilot_plan: aliaPlan.replace('alia_', ''),
-      can_signup_for_limited: !hasActiveSubscription,
       assigned_date: subscription?.createdAt?.toISOString() || new Date().toISOString(),
-      organization_login_list: [],
-      analytics_tracking_id: userId,
 
-      // Quota information
       quota_reset_date: subscription?.currentPeriodEnd?.toISOString(),
       quota_reset_date_utc: resetDate.toISOString(),
-      limited_user_reset_date: resetDate.toISOString(),
-
-      // Legacy quota format
-      limited_user_quotas: {
-        chat: userCredits.credits.free,
-        completions: userCredits.credits.free,
-      },
-      monthly_quotas: {
-        chat: userCredits.credits.freeLimit + (subscription?.plan?.creditsPerMonth || 0),
-        completions: userCredits.credits.freeLimit + (subscription?.plan?.creditsPerMonth || 0),
-      },
-
-      // New quota snapshot format
       quota_snapshots: {
         chat: {
           entitlement: totalCredits,
@@ -158,9 +124,8 @@ router.get('/user', authenticateApiKey, apiKeyRateLimit, async (req: Request, re
         },
       },
 
-      // User info
       username: (apiKey?.appId as any)?.name || 'Alia User',
-      email: undefined, // Privacy: don't expose email via API
+      email: undefined,
       name: 'Alia User',
     };
 
@@ -304,120 +269,25 @@ router.get('/me', authenticateApiKey, apiKeyRateLimit, async (req: Request, res:
 });
 
 /**
- * POST /resolve-model - Resolve Alia model to provider model and get provider key
- *
- * Request body: { model: string }
- * Response: { provider: string, modelId: string, providerKey: string, sessionId: string }
+ * POST /resolve-model
+ * Removed: direct provider resolution is internal-only.
  */
-router.post('/resolve-model', authenticateApiKey, apiKeyRateLimit, async (req: Request, res: Response) => {
-  try {
-    const userId = req.userId;
-    if (!userId) {
-      return res.status(401).json({ error: 'User not found' });
-    }
-
-    const { model } = req.body;
-    if (!model) {
-      return res.status(400).json({ error: 'Model is required' });
-    }
-
-    log.codea.info({ model, userId }, 'Resolving model');
-
-    // Reserve credits
-    await getOrCreateUserCredits(userId);
-
-    const reservation = await reserveCredits(userId);
-    if (!reservation) {
-      return res.status(402).json({
-        error: {
-          code: 'INSUFFICIENT_CREDITS',
-          message: "You've run out of credits. Add more or upgrade your plan to continue.",
-          retryable: false,
-          suggestedAction: 'upgrade',
-          details: { limitType: 'credits' },
-        },
-      });
-    }
-
-    // Resolve model
-    const resolved = await resolveModel(model);
-
-    if (!resolved) {
-      return res.status(503).json({ error: 'No models available', requested_model: model });
-    }
-
-    // Generate session ID for usage tracking
-    const sessionId = crypto.randomBytes(16).toString('hex');
-
-    // Store session for later usage reporting
-    activeSessions.set(sessionId, {
-      userId,
-      reservation,
-      aliaModelId: resolved.aliasModelId
-    });
-
-    log.codea.info({ provider: resolved.provider, modelId: resolved.modelId, sessionId }, 'Resolved model');
-
-    // Only return provider key to trusted services (telegram bot)
-    const isTrustedService = !!req.headers['x-telegram-bot-secret'];
-    const response: Record<string, any> = {
-      provider: resolved.provider,
-      modelId: resolved.modelId,
-      sessionId
-    };
-    if (isTrustedService) {
-      response.providerKey = resolved.keyConfig.key;
-    }
-
-    res.json(response);
-  } catch (error: unknown) {
-    log.codea.error({ err: error }, 'Error resolving model');
-    res.status(500).json({ error: getSafeErrorMessage(error, 'Failed to resolve model') });
-  }
+router.post('/resolve-model', authenticateApiKey, apiKeyRateLimit, async (_req: Request, res: Response) => {
+  res.status(410).json({
+    error: 'Endpoint removed',
+    message: 'Use /v1/chat/completions with Alia model IDs. Direct model resolution is internal-only.',
+  });
 });
 
 /**
- * POST /report-usage - Report token usage for credit tracking
- *
- * Request body: { sessionId: string, usage: { promptTokens, completionTokens, totalTokens } }
+ * POST /report-usage
+ * Removed: usage is tracked automatically by runtime.
  */
-router.post('/report-usage', authenticateApiKey, apiKeyRateLimit, async (req: Request, res: Response) => {
-  try {
-    const { sessionId, usage } = req.body;
-
-    if (!sessionId || !usage) {
-      return res.status(400).json({ error: 'sessionId and usage are required' });
-    }
-
-    const session = activeSessions.get(sessionId);
-    if (!session) {
-      log.codea.warn({ sessionId }, 'Session not found for usage reporting');
-      return res.status(404).json({ error: 'Session not found' });
-    }
-
-    log.codea.info({ sessionId, totalTokens: usage.totalTokens }, 'Reporting usage for session');
-
-    // Finalize credits
-    const { creditsCharged, creditsRemaining } = await finalizeCredits(
-      session.reservation,
-      usage,
-      session.aliaModelId
-    );
-
-    // Clean up session
-    activeSessions.delete(sessionId);
-
-    log.codea.info({ creditsCharged, creditsRemaining }, 'Credits charged');
-
-    res.json({
-      success: true,
-      creditsCharged,
-      creditsRemaining
-    });
-  } catch (error: unknown) {
-    log.codea.error({ err: error }, 'Error reporting usage');
-    res.status(500).json({ error: getSafeErrorMessage(error, 'Failed to report usage') });
-  }
+router.post('/report-usage', authenticateApiKey, apiKeyRateLimit, async (_req: Request, res: Response) => {
+  res.status(410).json({
+    error: 'Endpoint removed',
+    message: 'Usage is tracked automatically by Alia runtime.',
+  });
 });
 
 export default router;

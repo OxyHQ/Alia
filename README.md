@@ -1,77 +1,57 @@
 # Alia
 
-Alia is an advanced AI agent platform designed to boost productivity through specialized experts.
+Alia is a multi-surface context-agent platform focused on autonomous execution with policy controls.
 
-**Domain:** [alia.onl](https://alia.onl)
+## Current Architecture (2026-03)
 
-## Agents
+- **Unified chat runtime** for app, Codea, and Cowork (`/alia/chat` and `/v1/chat/completions` share one handler).
+- **Autonomy loop**: `classify -> recall -> retrieve -> act -> learn`.
+- **Persistent context graph** in MongoDB (`ContextNode`, `ContextEdge`, `ContextSource`, `RetrievalStrategy`, `LearningRule`).
+- **Risk governance** with `R0/R1/R2/R3` and rollback records for reversible writes.
+- **Trigger engine only** (`/triggers`) for scheduled, webhook, integration, and heartbeat executions.
+- **Strict model abstraction**: public APIs only expose Alia model IDs.
 
-Four specialized agents are available:
+## Monorepo
 
-| Agent | Focus |
-|-------|-------|
-| **Alia** | General-purpose intelligent assistant |
-| **Alia Developer** | Software architecture, debugging, development |
-| **Alia Social Manager** | Content strategy and social media |
-| **Alia Business** | Market analysis and business strategy |
-
-## Monorepo Structure
-
-| App | Stack | Description |
-|-----|-------|-------------|
-| `apps/app` | Expo | Main Alia app (web + iOS + Android) |
-| `apps/api` | Express + TypeScript | API server |
-| `apps/alia-codea` | VS Code Extension | AI-assisted coding in VS Code |
-| `apps/alia-cowork` | Electron | Desktop AI assistant |
+| App | Stack | Purpose |
+| --- | --- | --- |
+| `apps/app` | Expo | Main app (web + iOS + Android) |
+| `apps/api` | Express + TypeScript | Core API runtime |
+| `apps/alia-codea` | VS Code extension | Coding assistant surface |
+| `apps/alia-cowork` | Electron | Desktop assistant surface |
 | `apps/alia-console` | TanStack Start + React | Admin console |
-| `apps/alia-providers-admin` | Vite + React | Provider management panel |
-| `apps/alia-canvas` | Next.js | Web canvas app |
-| `apps/alia-codea-cli` | CLI | Terminal AI coding assistant |
-| `apps/alia-docker-host` | Express + TypeScript | Docker container host for agent sandboxed execution |
-| `apps/integrations` | Express + TypeScript | Unified messaging service (Telegram, Discord, WhatsApp, Signal) |
+| `apps/alia-canvas` | Next.js | Canvas app |
+| `apps/alia-providers-admin` | Vite + React | Internal model-routing admin |
+| `apps/alia-codea-cli` | CLI | Terminal coding assistant |
+| `apps/alia-docker-host` | Express + TypeScript | Sandboxed container host |
+| `apps/integrations` | Express + TypeScript | Messaging and channel integrations |
 
 ## Quick Start
 
 ```bash
 npm install
-npm run dev        # All apps in parallel
-npm run dev:app    # Main app (Expo)
-npm run dev:api    # API server
+npm run dev
 ```
 
-Platform commands for the main app:
+Focused commands:
 
 ```bash
-npm run web
-npm run android
-npm run ios
+npm run dev:api
+npm run dev:app
 ```
 
-## Documentation
+## Docs
 
-### Technical Docs
+- [Agents and autonomy](docs/agents.md)
+- [API reference](docs/api-reference.md)
+- [Deployment](docs/deployment.md)
+- [Proactive intelligence](docs/proactive-intelligence.md)
+- [Memory and context graph](docs/memory-system.md)
+- [Oxy auth](docs/oxyhq-auth.md)
+- [Developer portal](docs/developers-portal.md)
 
-- [Alia Agents](docs/agents.md)
-- [Developer API Reference](docs/api-reference.md)
-- [Production Deployment Guide](docs/deployment.md)
-- [Developer Portal](docs/developers-portal.md)
-- [Memory System](docs/memory-system.md)
-- [Proactive Intelligence](docs/proactive-intelligence.md)
-- [OxyHQ Authentication Guide](docs/oxyhq-auth.md)
+## Non-Goals
 
-### App READMEs
-
-- [apps/app](apps/app/README.md)
-- [apps/api](apps/api/README.md)
-- [apps/alia-codea](apps/alia-codea/README.md)
-- [apps/alia-cowork](apps/alia-cowork/README.md)
-- [apps/alia-console](apps/alia-console/README.md)
-- [apps/alia-providers-admin](apps/alia-providers-admin/README.md)
-- [apps/alia-canvas](apps/alia-canvas/README.md)
-- [apps/alia-codea-cli](apps/alia-codea-cli/README.md)
-- [apps/alia-docker-host](apps/alia-docker-host/README.md)
-- [apps/integrations](apps/integrations/README.md)
-
----
-
-2026 Alia
+- `Triggers` are the only scheduling API.
+- No public model provider metadata.
+- No backward-compat model-resolution endpoints.

@@ -1,6 +1,5 @@
 import { Server } from 'socket.io';
 import http from 'http';
-import { log } from './lib/logger.js';
 
 const ALLOWED_ORIGINS = [
   process.env.WEB_URL || 'http://localhost:3000',
@@ -51,9 +50,17 @@ export function initSocket(server: http.Server) {
     });
 
     // Agent action approval response from user
-    socket.on('agent-approval-response', (data: { requestId: string; sessionId: string; approved: boolean; alwaysAllow?: boolean }) => {
+    socket.on('agent-approval-response', async (data: { requestId: string; sessionId: string; approved: boolean; alwaysAllow?: boolean }) => {
       if (!data?.requestId || typeof data.sessionId !== 'string') return;
-      // Forward to the session-specific room so the approval handler can pick it up
+      // Resolve pending approval in-memory and broadcast the decision.
+      const { resolveApprovalDecision } = await import('./lib/agent/action-approval.js');
+      resolveApprovalDecision({
+        requestId: data.requestId,
+        approved: !!data.approved,
+        alwaysAllow: data.alwaysAllow || false,
+      });
+
+      // Also mirror to the session room for real-time client updates.
       io!.to(`agent-session:${data.sessionId}`).emit('agent-approval-decision', {
         requestId: data.requestId,
         approved: data.approved,
@@ -104,6 +111,7 @@ export interface AgentActivityEvent {
 }
 
 export function emitApprovalRequest(sessionId: string, data: {
+  eventVersion?: number;
   requestId: string;
   agentId: string;
   toolName: string;
@@ -113,7 +121,27 @@ export function emitApprovalRequest(sessionId: string, data: {
   timeout: number;
 }) {
   if (io) {
-    io.to(`agent-session:${sessionId}`).emit('agent-approval-request', data);
+    const payload = {
+      eventVersion: data.eventVersion ?? 1,
+      ...data,
+    };
+    io.to(`agent-session:${sessionId}`).emit('agent-approval-request', payload);
+    io.to(`agent-session:${sessionId}`).emit('alia.approval_request', payload);
+  }
+}
+
+export function emitApprovalResult(sessionId: string, data: {
+  eventVersion?: number;
+  requestId: string;
+  decision: 'approved' | 'denied' | 'timeout';
+}) {
+  if (io) {
+    const payload = {
+      eventVersion: data.eventVersion ?? 1,
+      ...data,
+    };
+    io.to(`agent-session:${sessionId}`).emit('agent-approval-result', payload);
+    io.to(`agent-session:${sessionId}`).emit('alia.approval_result', payload);
   }
 }
 

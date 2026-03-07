@@ -28,12 +28,21 @@ export interface AgentScreenshot {
 }
 
 export interface AgentActivityEvent {
-  type: 'system' | 'thinking' | 'response' | 'tool_call' | 'tool_result' | 'error' | 'complete' | 'screenshot' | 'plan_progress' | 'file_change' | 'source_found';
+  type: 'system' | 'thinking' | 'response' | 'tool_call' | 'tool_result' | 'error' | 'complete' | 'screenshot' | 'plan_progress' | 'file_change' | 'source_found' | 'approval_request' | 'approval_result';
   content: string;
   timestamp: number;
   sessionId: string;
   agentId?: string;
-  metadata?: { toolName?: string; args?: any; duration?: number; url?: string; title?: string; domain?: string };
+  metadata?: {
+    toolName?: string;
+    args?: any;
+    duration?: number;
+    url?: string;
+    title?: string;
+    domain?: string;
+    requestId?: string;
+    decision?: 'approved' | 'denied' | 'timeout';
+  };
   data?: {
     base64?: string;
     url?: string;
@@ -41,6 +50,14 @@ export interface AgentActivityEvent {
     files?: string[];
     currentStep?: number;
     maxSteps?: number;
+    approval?: {
+      requestId: string;
+      toolName: string;
+      args: Record<string, unknown>;
+      description: string;
+      severity: string;
+      timeout: number;
+    };
   };
 }
 
@@ -77,6 +94,24 @@ export interface AgentActivityState {
   files: string[];
   /** Latest text response from agent */
   latestResponse: string | null;
+  /** Pending approval request for this session */
+  approvalRequest: {
+    requestId: string;
+    toolName: string;
+    description: string;
+    severity: string;
+    timeout: number;
+    args?: Record<string, unknown>;
+  } | null;
+  /** Last approval decision */
+  approvalResult: {
+    requestId: string;
+    decision: 'approved' | 'denied' | 'timeout';
+  } | null;
+}
+
+export interface UseAgentActivityResult extends AgentActivityState {
+  respondApproval: (requestId: string, approved: boolean, alwaysAllow?: boolean) => void;
 }
 
 const INITIAL_STATE: AgentActivityState = {
@@ -92,6 +127,8 @@ const INITIAL_STATE: AgentActivityState = {
   sources: [],
   files: [],
   latestResponse: null,
+  approvalRequest: null,
+  approvalResult: null,
 };
 
 const MAX_SCREENSHOTS = 5;
@@ -103,7 +140,7 @@ const MAX_EVENTS = 50;
  * @param sessionId - The agent session ID to subscribe to (null to disable)
  * @param agentId - Optional agent ID for backward-compat subscription
  */
-export function useAgentActivity(sessionId: string | null, agentId?: string | null): AgentActivityState {
+export function useAgentActivity(sessionId: string | null, agentId?: string | null): UseAgentActivityResult {
   const [state, setState] = useState<AgentActivityState>(INITIAL_STATE);
   const socketRef = useRef<Socket | null>(null);
 
@@ -184,6 +221,29 @@ export function useAgentActivity(sessionId: string | null, agentId?: string | nu
         case 'response':
           updated.latestResponse = event.content;
           break;
+
+        case 'approval_request':
+          if (event.data?.approval) {
+            updated.approvalRequest = {
+              requestId: event.data.approval.requestId,
+              toolName: event.data.approval.toolName,
+              description: event.data.approval.description,
+              severity: event.data.approval.severity,
+              timeout: event.data.approval.timeout,
+              args: event.data.approval.args,
+            };
+          }
+          break;
+
+        case 'approval_result':
+          if (event.metadata?.requestId && event.metadata?.decision) {
+            updated.approvalResult = {
+              requestId: event.metadata.requestId as string,
+              decision: event.metadata.decision as 'approved' | 'denied' | 'timeout',
+            };
+          }
+          updated.approvalRequest = null;
+          break;
       }
 
       return updated;
@@ -220,11 +280,63 @@ export function useAgentActivity(sessionId: string | null, agentId?: string | nu
       }
     });
 
+    socket.on('alia.approval_request', (payload: any) => {
+      handleEvent({
+        type: 'approval_request',
+        content: payload.description || 'Approval required',
+        timestamp: Date.now(),
+        sessionId,
+        data: {
+          approval: {
+            requestId: payload.requestId,
+            toolName: payload.toolName,
+            args: payload.args,
+            description: payload.description,
+            severity: payload.severity,
+            timeout: payload.timeout,
+          },
+        },
+      } as AgentActivityEvent);
+    });
+
+    socket.on('alia.approval_result', (payload: any) => {
+      handleEvent({
+        type: 'approval_result',
+        content: payload.decision || 'unknown',
+        timestamp: Date.now(),
+        sessionId,
+        metadata: {
+          requestId: payload.requestId,
+          decision: payload.decision,
+        } as any,
+      } as AgentActivityEvent);
+    });
+
     return () => {
       socket.disconnect();
       socketRef.current = null;
     };
   }, [sessionId, agentId, handleEvent]);
 
-  return state;
+  const respondApproval = useCallback((requestId: string, approved: boolean, alwaysAllow = false) => {
+    if (!sessionId || !socketRef.current) return;
+    socketRef.current.emit('agent-approval-response', {
+      requestId,
+      sessionId,
+      approved,
+      alwaysAllow,
+    });
+
+    // Optimistic local update while server confirms.
+    setState(prev => ({
+      ...prev,
+      approvalRequest: null,
+      approvalResult: { requestId, decision: approved ? 'approved' : 'denied' },
+    }));
+  }, [sessionId]);
+
+  return {
+    ...state,
+    respondApproval,
+  };
 }

@@ -385,9 +385,79 @@ Use this role to guide your responses, maintaining the specified tone, style, an
                     currentEventType = '';
                     continue;
                   }
+                  case 'alia.plan_preview': {
+                    setMessages((prev) => {
+                      const updated = [...prev];
+                      const lastMessage = updated[updated.length - 1];
+                      if (lastMessage?.role === 'assistant') {
+                        updated[updated.length - 1] = {
+                          ...lastMessage,
+                          pendingPlan: {
+                            planId: parsed.planId,
+                            intent: parsed.intent,
+                            confidence: parsed.confidence,
+                            steps: parsed.steps || [],
+                            approved: false,
+                            rejected: false,
+                          },
+                        } as any;
+                      }
+                      return updated;
+                    });
+                    currentEventType = '';
+                    continue;
+                  }
+                  case 'alia.approval_request': {
+                    setMessages((prev) => {
+                      const updated = [...prev];
+                      const lastMessage = updated[updated.length - 1];
+                      if (lastMessage?.role === 'assistant') {
+                        updated[updated.length - 1] = {
+                          ...lastMessage,
+                          pendingApproval: {
+                            requestId: parsed.requestId,
+                            toolName: parsed.toolName,
+                            description: parsed.description,
+                            severity: parsed.severity,
+                            timeout: parsed.timeout,
+                            args: parsed.args,
+                          },
+                        } as any;
+                      }
+                      return updated;
+                    });
+                    currentEventType = '';
+                    continue;
+                  }
+                  case 'alia.approval_result': {
+                    setMessages((prev) => {
+                      const updated = [...prev];
+                      const lastMessage = updated[updated.length - 1];
+                      if (lastMessage?.role === 'assistant') {
+                        updated[updated.length - 1] = {
+                          ...lastMessage,
+                          pendingApprovalResult: {
+                            requestId: parsed.requestId,
+                            decision: parsed.decision,
+                          },
+                        } as any;
+                      }
+                      return updated;
+                    });
+                    currentEventType = '';
+                    continue;
+                  }
                   case 'alia.model_switch': {
                     if (parsed.model) {
                       useModelStore.getState().setSelectedModel(parsed.model);
+                    }
+                    currentEventType = '';
+                    continue;
+                  }
+                  case 'alia.agent_session': {
+                    if (parsed.sessionId) {
+                      const { useUIStore } = await import('@/lib/stores/ui-store');
+                      useUIStore.getState().openAgentPanel(parsed.sessionId, parsed.agentId || '');
                     }
                     currentEventType = '';
                     continue;
@@ -427,114 +497,6 @@ Use this role to guide your responses, maintaining the specified tone, style, an
                 }
                 reader.cancel();
                 return;
-              }
-
-              // Handle deep research progress events (legacy format fallback)
-              if (parsed.type === 'research_progress') {
-                setMessages((prev) => {
-                  const updated = [...prev];
-                  const lastMessage = updated[updated.length - 1];
-                  if (lastMessage?.role === 'assistant') {
-                    updated[updated.length - 1] = {
-                      ...lastMessage,
-                      researchProgress: {
-                        phase: parsed.phase,
-                        message: parsed.message,
-                        subQuestions: parsed.subQuestions || (lastMessage as any).researchProgress?.subQuestions,
-                        sourcesFound: parsed.sourcesFound,
-                        currentQuery: parsed.currentQuery,
-                        iteration: parsed.iteration,
-                      },
-                    } as any;
-                  }
-                  return updated;
-                });
-                continue;
-              }
-
-              // Handle deep research completion (sources metadata)
-              if (parsed.type === 'research_complete') {
-                setMessages((prev) => {
-                  const updated = [...prev];
-                  const lastMessage = updated[updated.length - 1];
-                  if (lastMessage?.role === 'assistant') {
-                    updated[updated.length - 1] = {
-                      ...lastMessage,
-                      researchProgress: {
-                        ...(lastMessage as any).researchProgress,
-                        phase: 'complete',
-                        message: 'Research complete',
-                        isComplete: true,
-                        sources: parsed.sources,
-                        totalSearches: parsed.totalSearches,
-                        subQuestions: parsed.subQuestions || (lastMessage as any).researchProgress?.subQuestions,
-                      },
-                    } as any;
-                  }
-                  return updated;
-                });
-                continue;
-              }
-
-              // Handle agent session creation from chat (agent escalation)
-              if (parsed.type === 'agent_session' && parsed.sessionId) {
-                const { useUIStore } = await import('@/lib/stores/ui-store');
-                useUIStore.getState().openAgentPanel(parsed.sessionId, parsed.agentId || '');
-                continue;
-              }
-
-              // Handle AI-initiated model switch
-              if (parsed.type === 'model_switch' && parsed.model) {
-                useModelStore.getState().setSelectedModel(parsed.model);
-                continue;
-              }
-
-              // Handle title update (AI-generated conversation title)
-              if (parsed.type === 'title_update' && parsed.title && parsed.conversationId) {
-                // Update conversation detail cache
-                queryClient.setQueryData(
-                  queryKeys.conversations.detail(parsed.conversationId),
-                  (old: any) => old ? { ...old, title: parsed.title } : old
-                );
-                // Update conversation in the list cache (infinite query pages)
-                queryClient.setQueriesData(
-                  { queryKey: queryKeys.conversations.all },
-                  (old: any) => {
-                    if (!old?.pages) return old;
-                    return {
-                      ...old,
-                      pages: old.pages.map((page: any) => ({
-                        ...page,
-                        conversations: page.conversations.map((c: any) =>
-                          c.id === parsed.conversationId ? { ...c, title: parsed.title } : c
-                        ),
-                      })),
-                    };
-                  }
-                );
-                setConversationTitle(parsed.title);
-                continue;
-              }
-
-              // Handle plan preview (intent preview before executing tools)
-              if (parsed.type === 'plan_preview') {
-                setMessages((prev) => {
-                  const updated = [...prev];
-                  const lastMessage = updated[updated.length - 1];
-                  if (lastMessage?.role === 'assistant') {
-                    updated[updated.length - 1] = {
-                      ...lastMessage,
-                      pendingPlan: {
-                        planId: parsed.planId,
-                        steps: parsed.steps || [],
-                        approved: false,
-                        rejected: false,
-                      },
-                    } as any;
-                  }
-                  return updated;
-                });
-                continue;
               }
 
               // Handle OpenAI-compatible format

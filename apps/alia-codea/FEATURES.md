@@ -120,11 +120,16 @@ webview-ui/                     # React app for custom UI
 
 ### API Integration
 
-All providers use the Alia API:
+All extension surfaces use the Alia API:
 - **Endpoint**: `https://api.alia.onl/v1/chat/completions`
 - **Authentication**: Bearer token (API key)
 - **Streaming**: Supported for chat responses
 - **Models**: Multiple model options
+
+Unified runtime notes:
+- Uses the same autonomy runtime as app and Cowork.
+- Consumes standardized named events with `eventVersion: 1`.
+- Does not use removed compatibility endpoints.
 
 ### Browser Support
 
