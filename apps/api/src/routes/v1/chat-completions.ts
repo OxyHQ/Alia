@@ -1181,9 +1181,12 @@ export const handleChatCompletions = async (req: Request, res: Response) => {
     if (conversationId && typeof conversationId === 'string' && conversationId.trim() && req.user) {
       const existing = await Conversation.findOne(
         { oxyUserId: req.user.id, conversationId },
-        { messages: 1 }
+        { _id: 1 }
       ).lean();
-      if (!existing || !existing.messages?.length) {
+      const hasMessages = existing
+        ? await (await import('../../models/message.js')).Message.exists({ conversationId })
+        : false;
+      if (!existing || !hasMessages) {
         const firstUserMsgRaw = messages.find((m: ChatMessage) => m.role === 'user')?.content;
         const firstUserMsg = typeof firstUserMsgRaw === 'string'
           ? firstUserMsgRaw

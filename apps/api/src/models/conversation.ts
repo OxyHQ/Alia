@@ -35,7 +35,6 @@ export interface IConversation extends Document {
   title: string;
   isManualTitle?: boolean;
   lastMessage?: string;
-  messages: IMessage[];
 
   // Source tracking - which app/platform the conversation came from
   source?: ConversationSource;
@@ -52,35 +51,6 @@ export interface IConversation extends Document {
   updatedAt: Date;
 }
 
-const ToolInvocationSchema = new Schema<IToolInvocation>({
-  toolCallId: String,
-  toolName: String,
-  state: {
-    type: String,
-    enum: ['partial-call', 'call', 'result']
-  },
-  args: Schema.Types.Mixed,
-  result: Schema.Types.Mixed
-}, { _id: false });
-
-const AgentInfoSchema = new Schema({
-  id: String,
-  name: String,
-  avatar: { type: String, default: null },
-  handle: String,
-}, { _id: false });
-
-const MessageSchema = new Schema<IMessage>({
-  id: String,
-  role: { type: String, required: true, enum: ['user', 'assistant', 'system'] },
-  content: { type: Schema.Types.Mixed, required: true },
-  vote: { type: String, enum: ['up', 'down'], required: false },
-  toolInvocations: [ToolInvocationSchema],
-  agentInfo: { type: AgentInfoSchema, required: false },
-  audioUrl: { type: String, required: false },
-  createdAt: { type: Date, default: Date.now }
-}, { _id: false });
-
 const ConversationSchema = new Schema<IConversation>({
   oxyUserId: {
     type: Schema.Types.ObjectId,
@@ -94,7 +64,6 @@ const ConversationSchema = new Schema<IConversation>({
   title: { type: String, required: true, default: 'New chat' },
   isManualTitle: { type: Boolean, default: false },
   lastMessage: String,
-  messages: [MessageSchema],
 
   // Source tracking - which app/platform the conversation came from
   source: {

@@ -1,5 +1,8 @@
 import { Server } from 'socket.io';
+import { createAdapter } from '@socket.io/redis-adapter';
 import http from 'http';
+import { getRedisClient, getRedisSubClient } from './lib/redis.js';
+import { log } from './lib/logger.js';
 
 const ALLOWED_ORIGINS = [
   process.env.WEB_URL || 'http://localhost:3000',
@@ -18,6 +21,20 @@ export function initSocket(server: http.Server) {
       credentials: true,
     }
   });
+
+  // Attach Redis adapter for horizontal scaling
+  const pubClient = getRedisClient();
+  const subClient = getRedisSubClient();
+  if (pubClient && subClient) {
+    Promise.all([pubClient.connect(), subClient.connect()])
+      .then(() => {
+        io!.adapter(createAdapter(pubClient, subClient));
+        log.general.info('Socket.IO Redis adapter attached');
+      })
+      .catch((err) => {
+        log.general.warn({ err }, 'Socket.IO Redis adapter failed — using in-memory');
+      });
+  }
   io.on('connection', (socket) => {
     socket.on('subscribe-telegram-token', (token: string) => {
       if (typeof token !== 'string' || token.length > 256) return;

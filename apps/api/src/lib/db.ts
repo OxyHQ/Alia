@@ -60,7 +60,7 @@ export async function connectDB() {
   const opts = {
     dbName,
     bufferCommands: false,
-    maxPoolSize: 10,
+    maxPoolSize: 50,
     serverSelectionTimeoutMS: 10000, // Increased from 5s to 10s for production
     socketTimeoutMS: 45000,
     heartbeatFrequencyMS: 10000, // Check connection health every 10s

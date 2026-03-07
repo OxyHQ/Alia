@@ -17,7 +17,7 @@ services:
     source_dir: /
     environment_slug: node-js
     instance_size_slug: apps-s-2vcpu-4gb
-    instance_count: 1
+    instance_count: 2
 
     health_check:
       http_path: /health
@@ -34,6 +34,8 @@ services:
         value: "${db-oxy.DATABASE_URL}"
       - key: CA_CERT
         value: "${db-oxy.CA_CERT}"
+      - key: REDIS_URL
+        type: SECRET
       - key: SERVICE_SECRET
         type: SECRET
       - key: PROVIDERS_API_URL

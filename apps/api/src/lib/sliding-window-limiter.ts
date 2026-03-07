@@ -1,30 +1,13 @@
 /**
- * Sliding Window Rate Limiter (in-memory)
- * Replaces MongoDB-based rate limiting with sub-microsecond in-memory checks.
- * Also tracks daily cost to prevent runaway spending.
+ * Sliding Window Rate Limiter (Redis-backed)
+ * Uses Redis sorted sets for distributed rate limiting across multiple instances.
+ * Falls back to allowing requests if Redis is unavailable (fail-open).
  */
 
-interface WindowState {
-  timestamps: number[];   // Request timestamps within window
-  costToday: number;      // Credits consumed today
-  lastResetDay: number;   // Day-of-year when costToday was last reset
-}
+import { getRedisClient } from './redis.js';
+import { log } from './logger.js';
 
-const windows = new Map<string, WindowState>();
-const MAX_WINDOW_ENTRIES = 50_000;
-
-// Cost/day caps per subscription tier (in credits)
-// All signed-in users are limited by requests/minute only.
-// Daily limits are not applied — credits are the sole usage gate.
-const COST_DAY_CAPS: Record<string, number> = {
-  free: -1,
-  pro: -1,
-  pro_plus: -1,
-  business: -1,
-  enterprise: -1,
-};
-
-// Requests/minute limits per tier (same as existing TIER_RATE_LIMITS)
+// Requests/minute limits per tier
 const RPM_LIMITS: Record<string, number> = {
   free: 20,
   pro: 60,
@@ -33,34 +16,15 @@ const RPM_LIMITS: Record<string, number> = {
   enterprise: -1, // unlimited
 };
 
-function getDayOfYear(): number {
-  const now = new Date();
-  const start = new Date(now.getFullYear(), 0, 0);
-  const diff = now.getTime() - start.getTime();
-  return Math.floor(diff / (1000 * 60 * 60 * 24));
-}
-
-function getOrCreateWindow(key: string): WindowState {
-  let state = windows.get(key);
-  if (!state) {
-    // Evict oldest entries if map is too large
-    if (windows.size >= MAX_WINDOW_ENTRIES) {
-      const firstKey = windows.keys().next().value;
-      if (firstKey !== undefined) windows.delete(firstKey);
-    }
-    state = { timestamps: [], costToday: 0, lastResetDay: getDayOfYear() };
-    windows.set(key, state);
-  }
-
-  // Reset daily cost if new day
-  const today = getDayOfYear();
-  if (state.lastResetDay !== today) {
-    state.costToday = 0;
-    state.lastResetDay = today;
-  }
-
-  return state;
-}
+// Cost/day caps per subscription tier (in credits)
+// All tiers unlimited — credits are the sole usage gate.
+const COST_DAY_CAPS: Record<string, number> = {
+  free: -1,
+  pro: -1,
+  pro_plus: -1,
+  business: -1,
+  enterprise: -1,
+};
 
 export interface LimitCheckResult {
   allowed: boolean;
@@ -72,70 +36,120 @@ export interface LimitCheckResult {
 
 /**
  * Check if a request should be allowed under the sliding window.
- * Sub-microsecond — no I/O, no async.
+ * Uses Redis sorted sets for distributed state.
  */
-export function checkLimit(userId: string, tier: string): LimitCheckResult {
-  const state = getOrCreateWindow(userId);
-  const now = Date.now();
-  const windowMs = 60_000; // 1 minute
+export async function checkLimit(userId: string, tier: string): Promise<LimitCheckResult> {
+  const redis = getRedisClient();
+  if (!redis) return { allowed: true }; // Fail-open if no Redis
 
-  // Prune timestamps older than the window
-  state.timestamps = state.timestamps.filter(t => now - t < windowMs);
-
-  // Check requests per minute
   const rpmLimit = RPM_LIMITS[tier] ?? RPM_LIMITS.free;
-  if (rpmLimit > 0 && state.timestamps.length >= rpmLimit) {
-    const oldestInWindow = state.timestamps[0];
-    const resetInSeconds = Math.ceil((oldestInWindow + windowMs - now) / 1000);
-    return {
-      allowed: false,
-      limitType: 'rpm',
-      current: state.timestamps.length,
-      limit: rpmLimit,
-      resetInSeconds: Math.max(resetInSeconds, 1),
-    };
+  if (rpmLimit <= 0) return { allowed: true }; // Unlimited tier
+
+  const key = `rl:user:${userId}:rpm`;
+  const now = Date.now();
+  const windowMs = 60_000;
+  const windowStart = now - windowMs;
+
+  try {
+    const pipeline = redis.pipeline();
+    // Remove expired entries
+    pipeline.zremrangebyscore(key, 0, windowStart);
+    // Count current entries
+    pipeline.zcard(key);
+    // Add current request (optimistic — will check count after)
+    pipeline.zadd(key, now, `${now}:${Math.random().toString(36).slice(2, 8)}`);
+    // Set TTL so keys don't leak
+    pipeline.expire(key, 120);
+
+    const results = await pipeline.exec();
+    if (!results) return { allowed: true };
+
+    const currentCount = (results[1]?.[1] as number) || 0;
+
+    if (currentCount >= rpmLimit) {
+      // Over limit — remove the optimistic add
+      const addedMember = results[2];
+      if (addedMember) {
+        // Remove the last added member
+        await redis.zremrangebyscore(key, now, now);
+      }
+
+      // Calculate reset time from oldest entry in window
+      const oldest = await redis.zrange(key, 0, 0, 'WITHSCORES');
+      const oldestTs = oldest.length >= 2 ? parseInt(oldest[1]) : now;
+      const resetInSeconds = Math.max(Math.ceil((oldestTs + windowMs - now) / 1000), 1);
+
+      return {
+        allowed: false,
+        limitType: 'rpm',
+        current: currentCount,
+        limit: rpmLimit,
+        resetInSeconds,
+      };
+    }
+
+    // Check daily cost cap
+    const costCap = COST_DAY_CAPS[tier] ?? COST_DAY_CAPS.free;
+    if (costCap > 0) {
+      const costKey = `rl:user:${userId}:cost`;
+      const costStr = await redis.get(costKey);
+      const costToday = parseFloat(costStr || '0');
+
+      if (costToday >= costCap) {
+        const now_ = new Date();
+        const midnight = new Date(now_.getFullYear(), now_.getMonth(), now_.getDate() + 1);
+        const resetInSeconds = Math.ceil((midnight.getTime() - now_.getTime()) / 1000);
+        return {
+          allowed: false,
+          limitType: 'daily_cost',
+          current: costToday,
+          limit: costCap,
+          resetInSeconds,
+        };
+      }
+    }
+
+    return { allowed: true };
+  } catch (err) {
+    log.rateLimit.error({ err }, 'Redis rate limit check failed, allowing request');
+    return { allowed: true }; // Fail-open
   }
-
-  // Check daily cost cap
-  const costCap = COST_DAY_CAPS[tier] ?? COST_DAY_CAPS.free;
-  if (costCap > 0 && state.costToday >= costCap) {
-    // Reset at midnight
-    const now_ = new Date();
-    const midnight = new Date(now_.getFullYear(), now_.getMonth(), now_.getDate() + 1);
-    const resetInSeconds = Math.ceil((midnight.getTime() - now_.getTime()) / 1000);
-    return {
-      allowed: false,
-      limitType: 'daily_cost',
-      current: state.costToday,
-      limit: costCap,
-      resetInSeconds,
-    };
-  }
-
-  // Record the request timestamp
-  state.timestamps.push(now);
-
-  return { allowed: true };
 }
 
 /**
  * Increment the daily cost counter for a user.
  * Called from finalizeCredits after a request completes.
  */
-export function incrementDailyCost(userId: string, credits: number): void {
-  const state = getOrCreateWindow(userId);
-  state.costToday += credits;
+export async function incrementDailyCost(userId: string, credits: number): Promise<void> {
+  const redis = getRedisClient();
+  if (!redis) return;
+
+  try {
+    const key = `rl:user:${userId}:cost`;
+    await redis.incrbyfloat(key, credits);
+    // Expire at midnight — set TTL to max 24 hours
+    const now = new Date();
+    const midnight = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+    const ttl = Math.ceil((midnight.getTime() - now.getTime()) / 1000);
+    await redis.expire(key, ttl);
+  } catch (err) {
+    log.rateLimit.error({ err }, 'Failed to increment daily cost in Redis');
+  }
 }
 
 /**
  * Get current daily cost for spending alerts.
  */
-export function getDailyCost(userId: string): { costToday: number; cap: number } {
-  const state = windows.get(userId);
-  return {
-    costToday: state?.costToday || 0,
-    cap: 0, // caller should look up the tier-specific cap
-  };
+export async function getDailyCost(userId: string): Promise<{ costToday: number; cap: number }> {
+  const redis = getRedisClient();
+  if (!redis) return { costToday: 0, cap: 0 };
+
+  try {
+    const costStr = await redis.get(`rl:user:${userId}:cost`);
+    return { costToday: parseFloat(costStr || '0'), cap: 0 };
+  } catch {
+    return { costToday: 0, cap: 0 };
+  }
 }
 
 /**
@@ -148,10 +162,10 @@ export function getDailyCostCap(tier: string): number {
 /**
  * Check if user is approaching their daily cost cap (>80%).
  */
-export function isApproachingDailyCap(userId: string, tier: string): boolean {
-  const state = windows.get(userId);
-  if (!state) return false;
+export async function isApproachingDailyCap(userId: string, tier: string): Promise<boolean> {
   const cap = COST_DAY_CAPS[tier] ?? COST_DAY_CAPS.free;
-  if (cap <= 0) return false; // unlimited
-  return state.costToday >= cap * 0.8;
+  if (cap <= 0) return false;
+
+  const { costToday } = await getDailyCost(userId);
+  return costToday >= cap * 0.8;
 }
