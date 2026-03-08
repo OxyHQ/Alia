@@ -7,6 +7,14 @@
 import { getRedisClient } from './redis.js';
 import { log } from './logger.js';
 
+const REDIS_TIMEOUT_MS = 3000;
+function withTimeout<T>(promise: Promise<T>, ms = REDIS_TIMEOUT_MS): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<T>((_, reject) => setTimeout(() => reject(new Error('Redis timeout')), ms)),
+  ]);
+}
+
 // Requests/minute limits per tier
 const RPM_LIMITS: Record<string, number> = {
   free: 20,
@@ -61,7 +69,7 @@ export async function checkLimit(userId: string, tier: string): Promise<LimitChe
     // Set TTL so keys don't leak
     pipeline.expire(key, 120);
 
-    const results = await pipeline.exec();
+    const results = await withTimeout(pipeline.exec());
     if (!results) return { allowed: true };
 
     const currentCount = (results[1]?.[1] as number) || 0;
