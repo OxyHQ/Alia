@@ -40,7 +40,10 @@ export function getRedisClient(): Redis | null {
 
   client = new Redis({
     ...config,
-    maxRetriesPerRequest: null, // Required for BullMQ compatibility
+    maxRetriesPerRequest: 3,
+    connectTimeout: 5000,
+    commandTimeout: 5000,
+    retryStrategy: (times) => Math.min(times * 200, 3000),
     lazyConnect: true,
   });
 
@@ -67,7 +70,10 @@ export function getRedisSubClient(): Redis | null {
 
   subClient = new Redis({
     ...config,
-    maxRetriesPerRequest: null,
+    maxRetriesPerRequest: 3,
+    connectTimeout: 5000,
+    commandTimeout: 5000,
+    retryStrategy: (times) => Math.min(times * 200, 3000),
     lazyConnect: true,
   });
 
@@ -80,9 +86,12 @@ export function getRedisSubClient(): Redis | null {
 
 /**
  * Get BullMQ-compatible connection config (not an ioredis instance).
+ * BullMQ requires maxRetriesPerRequest: null.
  */
-export function getRedisConnection(): ReturnType<typeof parseRedisUrl> {
-  return parseRedisUrl();
+export function getRedisConnection(): (ReturnType<typeof parseRedisUrl> & { maxRetriesPerRequest: null }) | null {
+  const config = parseRedisUrl();
+  if (!config) return null;
+  return { ...config, maxRetriesPerRequest: null };
 }
 
 /**

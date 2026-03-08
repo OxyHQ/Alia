@@ -7,6 +7,14 @@ import { checkLimit } from '../lib/sliding-window-limiter.js';
 import { getRedisClient } from '../lib/redis.js';
 import { log } from '../lib/logger.js';
 
+const REDIS_TIMEOUT_MS = 3000;
+function withTimeout<T>(promise: Promise<T>, ms = REDIS_TIMEOUT_MS): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<T>((_, reject) => setTimeout(() => reject(new Error('Redis timeout')), ms)),
+  ]);
+}
+
 interface RateLimitStatus {
   limited: boolean;
   limitType?: 'requestsPerMinute' | 'requestsPerDay' | 'tokensPerMinute' | 'tokensPerDay';
@@ -103,12 +111,12 @@ async function checkApiKeyRateLimits(
       pipeline.zadd(key, now, `${now}:${Math.random().toString(36).slice(2, 8)}`);
       pipeline.expire(key, 120);
 
-      const results = await pipeline.exec();
+      const results = await withTimeout(pipeline.exec());
       const currentCount = (results?.[1]?.[1] as number) || 0;
 
       if (currentCount >= rateLimit.requestsPerMinute) {
-        await redis.zremrangebyscore(key, now, now);
-        const oldest = await redis.zrange(key, 0, 0, 'WITHSCORES');
+        await withTimeout(redis.zremrangebyscore(key, now, now));
+        const oldest = await withTimeout(redis.zrange(key, 0, 0, 'WITHSCORES'));
         const oldestTs = oldest.length >= 2 ? parseInt(oldest[1]) : now;
         const resetInSeconds = Math.max(Math.ceil((oldestTs + windowMs - now) / 1000), 1);
         return {
@@ -124,7 +132,7 @@ async function checkApiKeyRateLimits(
     // Check requests per day
     if (rateLimit.requestsPerDay !== null) {
       const dailyKey = `rl:apikey:${apiKeyId}:daily`;
-      const dailyCount = parseInt(await redis.get(dailyKey) || '0');
+      const dailyCount = parseInt(await withTimeout(redis.get(dailyKey)) || '0');
 
       if (dailyCount >= rateLimit.requestsPerDay) {
         const now_ = new Date();
@@ -146,7 +154,7 @@ async function checkApiKeyRateLimits(
       const midnight = new Date(now_.getFullYear(), now_.getMonth(), now_.getDate() + 1);
       const ttl = Math.ceil((midnight.getTime() - now_.getTime()) / 1000);
       pipeline.expire(dailyKey, ttl);
-      await pipeline.exec();
+      await withTimeout(pipeline.exec());
     }
 
     return { limited: false };
