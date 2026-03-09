@@ -41,10 +41,9 @@ export function getRedisClient(): Redis | null {
   client = new Redis({
     ...config,
     maxRetriesPerRequest: 3,
-    connectTimeout: 5000,
-    commandTimeout: 5000,
+    connectTimeout: 3000,
+    commandTimeout: 2000,
     retryStrategy: (times) => Math.min(times * 200, 3000),
-    lazyConnect: true,
   });
 
   client.on('error', (err) => {
@@ -71,10 +70,9 @@ export function getRedisSubClient(): Redis | null {
   subClient = new Redis({
     ...config,
     maxRetriesPerRequest: 3,
-    connectTimeout: 5000,
-    commandTimeout: 5000,
+    connectTimeout: 3000,
+    commandTimeout: 2000,
     retryStrategy: (times) => Math.min(times * 200, 3000),
-    lazyConnect: true,
   });
 
   subClient.on('error', (err) => {

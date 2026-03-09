@@ -5,7 +5,7 @@ import { Image } from "expo-image";
 import { CustomMarkdown } from "@/components/ui/markdown";
 import { Text } from "@/components/ui/text";
 import { WelcomeMessage } from "@/components/welcome-message";
-import React, { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useState, useCallback, useRef } from "react";
 import type { ScrollView as GHScrollView } from "react-native-gesture-handler";
 import { processMessage } from "@/lib/message-processor";
 import { cn } from "@/lib/utils";
@@ -164,6 +164,12 @@ export const ChatInterface = React.memo(function ChatInterface({ messages, scrol
       onAtBottomChange?.(isAtBottom);
     }, [isAtBottom, onAtBottomChange]);
 
+    // Track previous message count — only animate newly added messages
+    const prevMessageCountRef = useRef(0);
+    useEffect(() => {
+      prevMessageCountRef.current = messages.length;
+    }, [messages.length]);
+
     // ── Flying AliaFace ──
     const faceY = useSharedValue(0);
     const [faceExpression, setFaceExpression] = useState<AliaExpression>("Idle A");
@@ -209,32 +215,30 @@ export const ChatInterface = React.memo(function ChatInterface({ messages, scrol
       setThoughtMessages(messages as any);
     }, [messages, setThoughtMessages]);
 
-    const handleCopyMessage = async (messageId: string, content: string) => {
+    const handleCopyMessage = useCallback(async (messageId: string, content: string) => {
       await Clipboard.setStringAsync(content);
       setCopiedMessageId(messageId);
       setTimeout(() => setCopiedMessageId(null), 2000);
-      if (onCopyMessage) {
-        onCopyMessage(content);
-      }
-    };
+      onCopyMessage?.(content);
+    }, [onCopyMessage]);
 
-    const handleStartEdit = (messageId: string, content: string) => {
+    const handleStartEdit = useCallback((messageId: string, content: string) => {
       setEditingMessageId(messageId);
       setEditedContent(content);
-    };
+    }, []);
 
-    const handleSaveEdit = (messageId: string) => {
+    const handleSaveEdit = useCallback((messageId: string) => {
       if (onEditMessage && editedContent.trim()) {
         onEditMessage(messageId, editedContent);
       }
       setEditingMessageId(null);
       setEditedContent("");
-    };
+    }, [onEditMessage, editedContent]);
 
-    const handleCancelEdit = () => {
+    const handleCancelEdit = useCallback(() => {
       setEditingMessageId(null);
       setEditedContent("");
-    };
+    }, []);
     // Auto-scroll to bottom when messages change or during streaming
     useEffect(() => {
       // Scroll whenever messages change or loading state changes
@@ -300,20 +304,20 @@ export const ChatInterface = React.memo(function ChatInterface({ messages, scrol
               const messageImages = getMessageImages(m);
               const isAliaMessage = m.role === 'assistant' && !m.agentInfo &&
                 !((m as any).source === 'voice' && (m as any).speaker === 'cohost');
+              // Only animate newly added messages (not all on initial load)
+              const isNewMessage = index >= prevMessageCountRef.current;
 
               return (
                 <Animated.View
                   key={m.id || `msg-${index}`}
-                  entering={FadeInUp.delay(index * 50).springify()}
+                  entering={isNewMessage ? FadeInUp.springify() : undefined}
                   style={isAliaMessage && index === lastAliaIndex ? { paddingTop: 36 } : undefined}
-                  onLayout={(e) => {
-                    if (isAliaMessage && index === lastAliaIndex) {
-                      faceY.value = withTiming(e.nativeEvent.layout.y, {
-                        duration: 500,
-                        easing: Easing.bezier(0.4, 0, 0.2, 1),
-                      });
-                    }
-                  }}
+                  onLayout={isAliaMessage && index === lastAliaIndex ? (e) => {
+                    faceY.value = withTiming(e.nativeEvent.layout.y, {
+                      duration: 500,
+                      easing: Easing.bezier(0.4, 0, 0.2, 1),
+                    });
+                  } : undefined}
                 >
                   {/* Plan Preview — shown before tool execution */}
                   {(m as any).pendingPlan && (

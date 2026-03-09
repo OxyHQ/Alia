@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import { fetch as expoFetch } from 'expo/fetch';
 import * as Haptics from 'expo-haptics';
 import { useOxy } from '@oxyhq/services';
@@ -25,6 +25,50 @@ export function useStreamingChat(apiUrl: string, activeRole?: any, conversationI
   const { oxyServices } = useOxy();
   const queryClient = useQueryClient();
   const abortControllerRef = useRef<AbortController | null>(null);
+
+  // Batching refs: accumulate streaming text and flush at ~20fps instead of per-chunk
+  const pendingContentRef = useRef('');
+  const pendingReasoningRef = useRef('');
+  const flushTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const flushPendingUpdates = useCallback(() => {
+    const content = pendingContentRef.current;
+    const reasoning = pendingReasoningRef.current;
+    if (!content && !reasoning) return;
+
+    pendingContentRef.current = '';
+    pendingReasoningRef.current = '';
+
+    setMessages((prev) => {
+      const updated = [...prev];
+      const lastMessage = updated[updated.length - 1];
+      if (lastMessage?.role === 'assistant') {
+        const changes: Partial<Message> = {};
+        if (content) changes.content = lastMessage.content + content;
+        if (reasoning) (changes as any).thinking = ((lastMessage as any).thinking || '') + reasoning;
+        updated[updated.length - 1] = { ...lastMessage, ...changes };
+      }
+      return updated;
+    });
+  }, []);
+
+  const scheduleFlush = useCallback(() => {
+    if (flushTimerRef.current) return;
+    flushTimerRef.current = setTimeout(() => {
+      flushTimerRef.current = null;
+      flushPendingUpdates();
+    }, 50);
+  }, [flushPendingUpdates]);
+
+  // Cleanup flush timer on unmount
+  useEffect(() => {
+    return () => {
+      if (flushTimerRef.current) {
+        clearTimeout(flushTimerRef.current);
+        flushTimerRef.current = null;
+      }
+    };
+  }, []);
 
   const append = useCallback(async (message: Message) => {
     setIsLoading(true);
@@ -197,6 +241,9 @@ Use this role to guide your responses, maintaining the specified tone, style, an
         const { done, value } = await reader.read();
 
         if (done) {
+          // Flush any remaining batched content before checking
+          flushPendingUpdates();
+
           // Check if we received any content
           if (!fullContent && !error && !hasToolInvocations) {
             console.error('[useStreamingChat] Stream ended without content');
@@ -253,18 +300,8 @@ Use this role to guide your responses, maintaining the specified tone, style, an
                   case 'alia.reasoning': {
                     const content = parsed.content;
                     if (content) {
-                      setMessages((prev) => {
-                        const updated = [...prev];
-                        const lastMessage = updated[updated.length - 1];
-                        if (lastMessage?.role === 'assistant') {
-                          const currentThinking = (lastMessage as any).thinking || '';
-                          updated[updated.length - 1] = {
-                            ...lastMessage,
-                            thinking: currentThinking + content,
-                          } as any;
-                        }
-                        return updated;
-                      });
+                      pendingReasoningRef.current += content;
+                      scheduleFlush();
                     }
                     currentEventType = '';
                     continue;
@@ -506,23 +543,13 @@ Use this role to guide your responses, maintaining the specified tone, style, an
               const delta = choice.delta;
               if (!delta) continue;
 
-              // Handle reasoning/thinking content (thinking mode)
+              // Handle reasoning/thinking content (batched for performance)
               if (delta.reasoning) {
-                setMessages((prev) => {
-                  const updated = [...prev];
-                  const lastMessage = updated[updated.length - 1];
-                  if (lastMessage?.role === 'assistant') {
-                    const currentThinking = (lastMessage as any).thinking || '';
-                    updated[updated.length - 1] = {
-                      ...lastMessage,
-                      thinking: currentThinking + delta.reasoning,
-                    } as any;
-                  }
-                  return updated;
-                });
+                pendingReasoningRef.current += delta.reasoning;
+                scheduleFlush();
               }
 
-              // Handle text content
+              // Handle text content (batched for performance)
               if (delta.content) {
                 fullContent += delta.content;
 
@@ -533,17 +560,8 @@ Use this role to guide your responses, maintaining the specified tone, style, an
                   Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
                 }
 
-                setMessages((prev) => {
-                  const updated = [...prev];
-                  const lastMessage = updated[updated.length - 1];
-                  if (lastMessage?.role === 'assistant') {
-                    updated[updated.length - 1] = {
-                      ...lastMessage,
-                      content: lastMessage.content + delta.content,
-                    };
-                  }
-                  return updated;
-                });
+                pendingContentRef.current += delta.content;
+                scheduleFlush();
               }
 
               // Handle usage/credits info (comes at the end of stream)
@@ -763,10 +781,16 @@ Use this role to guide your responses, maintaining the specified tone, style, an
       // Remove the empty assistant message on error
       setMessages((prev) => prev.filter((m) => m.id !== assistantMessageId));
     } finally {
+      // Flush any remaining batched content
+      flushPendingUpdates();
+      if (flushTimerRef.current) {
+        clearTimeout(flushTimerRef.current);
+        flushTimerRef.current = null;
+      }
       abortControllerRef.current = null;
       setIsLoading(false);
     }
-  }, [apiUrl, messages, oxyServices, activeRole, queryClient, thinkingMode, selectedModel, skillId, agentId]);
+  }, [apiUrl, messages, oxyServices, activeRole, queryClient, thinkingMode, selectedModel, skillId, agentId, scheduleFlush, flushPendingUpdates]);
 
   const stop = useCallback(() => {
     if (abortControllerRef.current) {

@@ -7,7 +7,7 @@
 import { getRedisClient } from './redis.js';
 import { log } from './logger.js';
 
-const REDIS_TIMEOUT_MS = 3000;
+const REDIS_TIMEOUT_MS = 1000;
 function withTimeout<T>(promise: Promise<T>, ms = REDIS_TIMEOUT_MS): Promise<T> {
   return Promise.race([
     promise,

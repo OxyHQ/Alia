@@ -331,6 +331,17 @@ connectDB()
       initTaskQueue()
         .then(() => startWorker())
         .catch((err) => console.error('[TaskQueue] Startup error:', err));
+      // Verify Redis connectivity (non-blocking)
+      import('./lib/redis.js').then(({ getRedisClient }) => {
+        const redis = getRedisClient();
+        if (redis) {
+          redis.ping()
+            .then(() => log.general.info('Redis readiness check passed'))
+            .catch((err) => log.general.warn({ err }, 'Redis readiness check failed — rate limiting will fail-open'));
+        } else {
+          log.general.info('Redis not configured (REDIS_URL not set) — rate limiting disabled');
+        }
+      });
     });
 
     // Graceful shutdown handler
