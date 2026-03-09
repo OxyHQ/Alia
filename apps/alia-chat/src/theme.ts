@@ -24,9 +24,12 @@ const COLORS = {
   },
 } as const;
 
-export type AliaColors = (typeof COLORS)['light'];
+export type AliaColors = (typeof COLORS)['light'] & { isDark: boolean };
 
 export function useAliaColors(): AliaColors {
   const scheme = useColorScheme();
-  return useMemo(() => COLORS[scheme ?? 'light'], [scheme]);
+  return useMemo(() => ({
+    ...COLORS[scheme ?? 'light'],
+    isDark: scheme === 'dark',
+  }), [scheme]);
 }

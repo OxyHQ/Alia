@@ -1,11 +1,11 @@
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
 import { useOxy } from '@oxyhq/services';
 import type { ChatMessage, ToolInvocation } from '../types';
 
 const API_URL = process.env.EXPO_PUBLIC_ALIA_API_URL ?? 'https://api.alia.onl';
 
 export interface UseAliaChatOptions {
-  /** Alia API base URL (default: EXPO_PUBLIC_API_URL) */
+  /** Alia API base URL (default: EXPO_PUBLIC_ALIA_API_URL or https://api.alia.onl) */
   apiUrl?: string;
   /** Alia model to use (default: 'alia-v1') */
   model?: string;
@@ -23,9 +23,11 @@ export interface UseAliaChatReturn {
   error: string | null;
 }
 
-let nextId = 0;
 function generateId(): string {
-  return `msg-${Date.now()}-${nextId++}`;
+  if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+    return `msg-${crypto.randomUUID()}`;
+  }
+  return `msg-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
 }
 
 /**
@@ -47,6 +49,55 @@ export function useAliaChat(options: UseAliaChatOptions = {}): UseAliaChatReturn
   const [isStreaming, setIsStreaming] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
+
+  // Use a ref to read current messages without putting it in send's dep array
+  const messagesRef = useRef<ChatMessage[]>([]);
+  useEffect(() => { messagesRef.current = messages; }, [messages]);
+
+  // Batching: accumulate streaming content and flush at ~20fps
+  const pendingContentRef = useRef('');
+  const toolInvocationsRef = useRef<ToolInvocation[]>([]);
+  const flushTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const flushPendingUpdates = useCallback(() => {
+    const content = pendingContentRef.current;
+    const tools = toolInvocationsRef.current;
+    if (!content && tools.length === 0) return;
+
+    pendingContentRef.current = '';
+
+    setMessages((prev) => {
+      const updated = [...prev];
+      const last = updated[updated.length - 1];
+      if (last?.role === 'assistant') {
+        updated[updated.length - 1] = {
+          ...last,
+          content: last.content + content,
+          toolInvocations: tools.length > 0 ? [...tools] : last.toolInvocations,
+        };
+      }
+      return updated;
+    });
+  }, []);
+
+  const scheduleFlush = useCallback(() => {
+    if (flushTimerRef.current) return;
+    flushTimerRef.current = setTimeout(() => {
+      flushTimerRef.current = null;
+      flushPendingUpdates();
+    }, 50);
+  }, [flushPendingUpdates]);
+
+  // Cleanup flush timer on unmount
+  useEffect(() => {
+    return () => {
+      flushPendingUpdates();
+      if (flushTimerRef.current) {
+        clearTimeout(flushTimerRef.current);
+        flushTimerRef.current = null;
+      }
+    };
+  }, [flushPendingUpdates]);
 
   const getToken = useCallback((): string | null => {
     if (accessTokenProp) return accessTokenProp;
@@ -86,25 +137,38 @@ export function useAliaChat(options: UseAliaChatOptions = {}): UseAliaChatReturn
       setMessages((prev) => [...prev, userMsg, assistantMsg]);
       setIsStreaming(true);
 
-      // Build messages payload for the API
+      // Build messages payload for the API (read from ref, not closure)
       const apiMessages: Array<{ role: string; content: string }> = [];
 
-      // System context (tells Alia which app the user is in)
       if (clientContext) {
         apiMessages.push({ role: 'system', content: clientContext });
       }
 
-      // Previous conversation history
-      for (const msg of messages) {
+      // Include full conversation history with tool context
+      for (const msg of messagesRef.current) {
         if (msg.role === 'system') continue;
         apiMessages.push({ role: msg.role, content: msg.content });
+        // Include tool results so the AI has full context
+        if (msg.toolInvocations?.length) {
+          for (const tool of msg.toolInvocations) {
+            if (tool.state === 'result' && tool.result != null) {
+              apiMessages.push({
+                role: 'system',
+                content: `[Tool result from ${tool.toolName}: ${JSON.stringify(tool.result).slice(0, 500)}]`,
+              });
+            }
+          }
+        }
       }
 
-      // New user message
       apiMessages.push({ role: 'user', content: trimmed });
 
       const controller = new AbortController();
       abortRef.current = controller;
+
+      // Reset batching state
+      pendingContentRef.current = '';
+      toolInvocationsRef.current = [];
 
       try {
         const response = await fetch(`${apiUrl}/v1/chat/completions`, {
@@ -145,8 +209,6 @@ export function useAliaChat(options: UseAliaChatOptions = {}): UseAliaChatReturn
         const reader = response.body.getReader();
         const decoder = new TextDecoder();
         let buffer = '';
-        let accumulatedContent = '';
-        const toolInvocations: ToolInvocation[] = [];
 
         try {
           while (true) {
@@ -166,64 +228,35 @@ export function useAliaChat(options: UseAliaChatOptions = {}): UseAliaChatReturn
               try {
                 const parsed = JSON.parse(data);
 
-                // Standard content delta
+                // Standard content delta — batch it
                 const delta = parsed.choices?.[0]?.delta?.content;
                 if (delta) {
-                  accumulatedContent += delta;
-                  setMessages((prev) => {
-                    const updated = [...prev];
-                    const last = updated[updated.length - 1];
-                    if (last?.role === 'assistant') {
-                      updated[updated.length - 1] = {
-                        ...last,
-                        content: accumulatedContent,
-                        toolInvocations: toolInvocations.length > 0 ? [...toolInvocations] : undefined,
-                      };
-                    }
-                    return updated;
-                  });
+                  pendingContentRef.current += delta;
+                  scheduleFlush();
                 }
 
-                // Alia tool call event
+                // Alia tool call event — update immediately (infrequent)
                 if (parsed.type === 'alia.tool_call') {
-                  toolInvocations.push({
-                    toolName: parsed.tool || 'unknown',
-                    state: 'call',
-                    args: parsed.args,
-                  });
-                  setMessages((prev) => {
-                    const updated = [...prev];
-                    const last = updated[updated.length - 1];
-                    if (last?.role === 'assistant') {
-                      updated[updated.length - 1] = {
-                        ...last,
-                        toolInvocations: [...toolInvocations],
-                      };
-                    }
-                    return updated;
-                  });
+                  toolInvocationsRef.current = [
+                    ...toolInvocationsRef.current,
+                    {
+                      toolName: parsed.tool || 'unknown',
+                      state: 'call',
+                      args: parsed.args,
+                    },
+                  ];
+                  // Flush immediately so UI shows tool status
+                  flushPendingUpdates();
                 }
 
-                // Alia tool result event
+                // Alia tool result event — immutable update
                 if (parsed.type === 'alia.tool_result') {
-                  const existing = toolInvocations.find(
-                    (t) => t.toolName === parsed.tool && t.state === 'call',
+                  toolInvocationsRef.current = toolInvocationsRef.current.map((t) =>
+                    t.toolName === parsed.tool && t.state === 'call'
+                      ? { ...t, state: 'result' as const, result: parsed.result }
+                      : t,
                   );
-                  if (existing) {
-                    existing.state = 'result';
-                    existing.result = parsed.result;
-                  }
-                  setMessages((prev) => {
-                    const updated = [...prev];
-                    const last = updated[updated.length - 1];
-                    if (last?.role === 'assistant') {
-                      updated[updated.length - 1] = {
-                        ...last,
-                        toolInvocations: [...toolInvocations],
-                      };
-                    }
-                    return updated;
-                  });
+                  flushPendingUpdates();
                 }
               } catch {
                 // Skip malformed chunks
@@ -249,11 +282,17 @@ export function useAliaChat(options: UseAliaChatOptions = {}): UseAliaChatReturn
           return updated;
         });
       } finally {
+        // Flush any remaining batched content
+        flushPendingUpdates();
+        if (flushTimerRef.current) {
+          clearTimeout(flushTimerRef.current);
+          flushTimerRef.current = null;
+        }
         setIsStreaming(false);
         abortRef.current = null;
       }
     },
-    [isStreaming, messages, getToken, apiUrl, model, clientContext],
+    [isStreaming, getToken, apiUrl, model, clientContext, scheduleFlush, flushPendingUpdates],
   );
 
   const clear = useCallback(() => {
@@ -264,6 +303,8 @@ export function useAliaChat(options: UseAliaChatOptions = {}): UseAliaChatReturn
     setMessages([]);
     setIsStreaming(false);
     setError(null);
+    pendingContentRef.current = '';
+    toolInvocationsRef.current = [];
   }, []);
 
   return { messages, send, isStreaming, clear, error };

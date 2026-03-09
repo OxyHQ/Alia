@@ -5,7 +5,7 @@ import { Image } from "expo-image";
 import { CustomMarkdown } from "@/components/ui/markdown";
 import { Text } from "@/components/ui/text";
 import { WelcomeMessage } from "@/components/welcome-message";
-import React, { useEffect, useState, useCallback, useRef } from "react";
+import React, { useEffect, useState, useCallback, useRef, useMemo } from "react";
 import type { ScrollView as GHScrollView } from "react-native-gesture-handler";
 import { processMessage } from "@/lib/message-processor";
 import { cn } from "@/lib/utils";
@@ -165,7 +165,7 @@ export const ChatInterface = React.memo(function ChatInterface({ messages, scrol
     }, [isAtBottom, onAtBottomChange]);
 
     // Track previous message count — only animate newly added messages
-    const prevMessageCountRef = useRef(0);
+    const prevMessageCountRef = useRef(messages.length);
     useEffect(() => {
       prevMessageCountRef.current = messages.length;
     }, [messages.length]);
@@ -174,11 +174,11 @@ export const ChatInterface = React.memo(function ChatInterface({ messages, scrol
     const faceY = useSharedValue(0);
     const [faceExpression, setFaceExpression] = useState<AliaExpression>("Idle A");
 
-    const filteredMessages = messages.filter(m => m != null && m.role);
-    const lastAliaIndex = filteredMessages.reduce((acc, m, i) =>
+    const filteredMessages = useMemo(() => messages.filter(m => m != null && m.role), [messages]);
+    const lastAliaIndex = useMemo(() => filteredMessages.reduce((acc, m, i) =>
       m.role === 'assistant' && !m.agentInfo &&
       !((m as any).source === 'voice' && (m as any).speaker === 'cohost')
-        ? i : acc, -1);
+        ? i : acc, -1), [filteredMessages]);
 
     // Update expression based on voice state or text chat state
     useEffect(() => {
@@ -210,6 +210,13 @@ export const ChatInterface = React.memo(function ChatInterface({ messages, scrol
       zIndex: 10,
     }));
 
+    const handleFaceLayout = useCallback((e: any) => {
+      faceY.value = withTiming(e.nativeEvent.layout.y, {
+        duration: 500,
+        easing: Easing.bezier(0.4, 0, 0.2, 1),
+      });
+    }, [faceY]);
+
     // Sync messages to the UI store so ThoughtPanel (a sibling in the layout tree) can access them
     useEffect(() => {
       setThoughtMessages(messages as any);
@@ -227,28 +234,28 @@ export const ChatInterface = React.memo(function ChatInterface({ messages, scrol
       setEditedContent(content);
     }, []);
 
+    const editedContentRef = useRef(editedContent);
+    editedContentRef.current = editedContent;
+
     const handleSaveEdit = useCallback((messageId: string) => {
-      if (onEditMessage && editedContent.trim()) {
-        onEditMessage(messageId, editedContent);
+      if (onEditMessage && editedContentRef.current.trim()) {
+        onEditMessage(messageId, editedContentRef.current);
       }
       setEditingMessageId(null);
       setEditedContent("");
-    }, [onEditMessage, editedContent]);
+    }, [onEditMessage]);
 
     const handleCancelEdit = useCallback(() => {
       setEditingMessageId(null);
       setEditedContent("");
     }, []);
-    // Auto-scroll to bottom when messages change or during streaming
+    // Auto-scroll to bottom when new messages arrive or loading starts
     useEffect(() => {
-      // Scroll whenever messages change or loading state changes
       const timer = setTimeout(() => {
-        if (scrollViewRef && scrollViewRef.current) {
-          scrollViewRef.current.scrollToEnd({ animated: true });
-        }
+        scrollViewRef.current?.scrollToEnd({ animated: true });
       }, 100);
       return () => clearTimeout(timer);
-    }, [messages, isLoading, scrollViewRef, bottomPadding]);
+    }, [messages.length, isLoading, scrollViewRef]);
 
     const containerClassName = cn(
       "max-w-3xl mx-auto w-full",
@@ -312,12 +319,7 @@ export const ChatInterface = React.memo(function ChatInterface({ messages, scrol
                   key={m.id || `msg-${index}`}
                   entering={isNewMessage ? FadeInUp.springify() : undefined}
                   style={isAliaMessage && index === lastAliaIndex ? { paddingTop: 36 } : undefined}
-                  onLayout={isAliaMessage && index === lastAliaIndex ? (e) => {
-                    faceY.value = withTiming(e.nativeEvent.layout.y, {
-                      duration: 500,
-                      easing: Easing.bezier(0.4, 0, 0.2, 1),
-                    });
-                  } : undefined}
+                  onLayout={isAliaMessage && index === lastAliaIndex ? handleFaceLayout : undefined}
                 >
                   {/* Plan Preview — shown before tool execution */}
                   {(m as any).pendingPlan && (

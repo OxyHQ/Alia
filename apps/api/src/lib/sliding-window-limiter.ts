@@ -4,16 +4,8 @@
  * Falls back to allowing requests if Redis is unavailable (fail-open).
  */
 
-import { getRedisClient } from './redis.js';
+import { getRedisClient, withRedisTimeout as withTimeout } from './redis.js';
 import { log } from './logger.js';
-
-const REDIS_TIMEOUT_MS = 1000;
-function withTimeout<T>(promise: Promise<T>, ms = REDIS_TIMEOUT_MS): Promise<T> {
-  return Promise.race([
-    promise,
-    new Promise<T>((_, reject) => setTimeout(() => reject(new Error('Redis timeout')), ms)),
-  ]);
-}
 
 // Requests/minute limits per tier
 const RPM_LIMITS: Record<string, number> = {
