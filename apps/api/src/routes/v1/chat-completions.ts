@@ -12,7 +12,7 @@ import { recordUsage } from '../../middleware/api-key-rate-limit.js';
 import { detectCreditAnomaly, type CreditWarning } from '../../lib/credit-anomaly.js';
 import { getUserEntitlements } from '../../lib/plan-access.js';
 import { convertOpenAIToolsToToolSet } from '../../lib/tool-converter.js';
-import { getCurrentDateTool, webSearchTool, browseTool, saveUserMemoryTool, updateUserPreferencesTool, updateUserContextTool, createSendTelegramTool, createGetWhatsAppChatsTool, createGetWhatsAppMessagesTool, createSendWhatsAppMessageTool, createProvidersAdminTool, webScraperTool, generateFileTool, createSearchAgentsTool, createDelegateToAgentTool, createDeepResearchTool, createSwitchModelTool } from '../../lib/tools/index.js';
+import { getCurrentDateTool, webSearchTool, browseTool, saveUserMemoryTool, updateUserPreferencesTool, updateUserContextTool, createSendTelegramTool, createGetWhatsAppChatsTool, createGetWhatsAppMessagesTool, createSendWhatsAppMessageTool, createProvidersAdminTool, webScraperTool, generateFileTool, createSearchAgentsTool, createDelegateToAgentTool, createDeepResearchTool, createSwitchModelTool, createAgentTool } from '../../lib/tools/index.js';
 import { buildMcpTools } from '../../lib/tools/mcp.js';
 import { buildIntegrationTools } from '../../lib/tools/integrations.js';
 import { buildOxyServiceTools, getOxyServicePromptFragment, getOxyServiceContext } from '../../lib/tools/oxy-services.js';
@@ -638,6 +638,7 @@ export const handleChatCompletions = async (req: Request, res: Response) => {
         saveUserMemory: saveUserMemoryTool(req.user!.id),
         updateUserPreferences: updateUserPreferencesTool(req.user!.id),
         updateUserContext: updateUserContextTool(req.user!.id),
+        createAgent: createAgentTool(req.user!.id, (oxyUser as any)?.username),
         deepResearch: createDeepResearchTool(req.user!.id),
         switchModel: createSwitchModelTool((modelId, modelName) => {
           ensureSSEHeaders();

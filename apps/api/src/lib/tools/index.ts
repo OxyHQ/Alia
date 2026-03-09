@@ -18,6 +18,7 @@ import { delegateSubtaskTool } from './delegate.js';
 import { createSearchAgentsTool } from './agent-search.js';
 import { createDelegateToAgentTool } from './agent-delegate.js';
 import { createOrchestrateAgentsTool } from './agent-orchestrator.js';
+import { createAgentTool } from './agent-create.js';
 import { createTriggerTool, listTriggersTool, updateTriggerTool, deleteTriggerTool } from './trigger-management.js';
 
 // ---------------------------------------------------------------------------
@@ -86,6 +87,14 @@ registerTool({
   description: 'Orchestrate multiple agents to collaborate on a complex task with dependency ordering',
   tool: createOrchestrateAgentsTool, // factory: () => Tool
   enabledByDefault: false,
+  category: 'agent',
+});
+
+registerTool({
+  name: 'createAgent',
+  description: 'Create a new AI agent from a description',
+  tool: createAgentTool,             // factory: (userId, username?) => Tool
+  enabledByDefault: true,
   category: 'agent',
 });
 
@@ -231,6 +240,7 @@ export { delegateSubtaskTool, type SubtaskResult } from './delegate.js';
 export { createSearchAgentsTool } from './agent-search.js';
 export { createDelegateToAgentTool, type AgentDelegationResult } from './agent-delegate.js';
 export { createOrchestrateAgentsTool, type OrchestrationResult } from './agent-orchestrator.js';
+export { createAgentTool } from './agent-create.js';
 export { createTriggerTool, listTriggersTool, updateTriggerTool, deleteTriggerTool } from './trigger-management.js';
 
 // Deep research tool (AI-callable)
