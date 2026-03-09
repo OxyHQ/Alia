@@ -6,37 +6,44 @@ import { validateUrl } from './sandbox.js';
 import { withRetry } from '../retry.js';
 import { log } from '../logger.js';
 
-// ── LRU Cache (100 entries, 10-min TTL) ──
+// ── Types ──
+
+interface LinkEntry {
+  text: string;
+  url: string;
+}
 
 interface CacheEntry {
-  result: { title: string; content: string; url: string; length: number } | { error: string };
+  result: { title: string; content: string; url: string; length: number; links?: LinkEntry[] } | { error: string };
   fetchedAt: number;
 }
+
+// ── LRU Cache (100 entries, 10-min TTL) ──
 
 const CACHE_MAX = 100;
 const CACHE_TTL_MS = 10 * 60 * 1000; // 10 minutes
 const cache = new Map<string, CacheEntry>();
 
-function getCached(url: string): CacheEntry['result'] | null {
-  const entry = cache.get(url);
+function getCached(cacheKey: string): CacheEntry['result'] | null {
+  const entry = cache.get(cacheKey);
   if (!entry) return null;
   if (Date.now() - entry.fetchedAt > CACHE_TTL_MS) {
-    cache.delete(url);
+    cache.delete(cacheKey);
     return null;
   }
   // Move to end (LRU refresh)
-  cache.delete(url);
-  cache.set(url, entry);
+  cache.delete(cacheKey);
+  cache.set(cacheKey, entry);
   return entry.result;
 }
 
-function setCache(url: string, result: CacheEntry['result']): void {
+function setCache(cacheKey: string, result: CacheEntry['result']): void {
   // Evict oldest if at capacity
   if (cache.size >= CACHE_MAX) {
     const oldest = cache.keys().next().value;
     if (oldest) cache.delete(oldest);
   }
-  cache.set(url, { result, fetchedAt: Date.now() });
+  cache.set(cacheKey, { result, fetchedAt: Date.now() });
 }
 
 // ── GitHub API Fallback ──
@@ -170,21 +177,74 @@ function extractWithRegex(html: string, url: string): { title: string; content: 
   return { title: titleMatch ? titleMatch[1].trim() : url, content: text };
 }
 
+// ── Link Extraction ──
+
+function extractLinksFromHtml(html: string, baseUrl: string, maxLinks = 50): LinkEntry[] {
+  try {
+    const parsedBase = new URL(baseUrl);
+    const dom = new JSDOM(html, { url: baseUrl });
+    const doc = dom.window.document;
+    const anchors = doc.querySelectorAll('a[href]');
+
+    const seen = new Set<string>();
+    const links: LinkEntry[] = [];
+
+    for (const anchor of anchors) {
+      if (links.length >= maxLinks) break;
+
+      const href = anchor.getAttribute('href');
+      if (!href) continue;
+
+      let absoluteUrl: string;
+      try {
+        absoluteUrl = new URL(href, baseUrl).toString();
+      } catch {
+        continue;
+      }
+
+      const parsed = new URL(absoluteUrl);
+
+      // Same domain only, HTTP(S) only
+      if (parsed.hostname !== parsedBase.hostname) continue;
+      if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') continue;
+
+      // Normalize: remove fragment and trailing slash for dedup
+      parsed.hash = '';
+      const normalized = parsed.toString().replace(/\/$/, '');
+      if (seen.has(normalized)) continue;
+      if (normalized === baseUrl.replace(/\/$/, '')) continue; // skip self-link
+      seen.add(normalized);
+
+      const text = (anchor.textContent || '').trim().slice(0, 100) || parsed.pathname;
+      links.push({ text, url: normalized });
+    }
+
+    return links;
+  } catch {
+    return [];
+  }
+}
+
 // ── Tool ──
 
 export const webScraperTool = tool({
-  description: 'Read and extract the main content from a web page URL. Use this when users share links or ask you to read a webpage.',
+  description: 'Read and extract the main content from a web page URL. Use this when users share links or ask you to read a webpage. Set extractLinks=true to also get a list of same-domain links found on the page, useful for crawling a website.',
   inputSchema: z.object({
     url: z.string().url().describe('The URL of the web page to read'),
+    extractLinks: z.boolean().optional().default(false).describe(
+      'When true, also return internal links found on the page. Use this to discover and crawl other pages on the same website.'
+    ),
   }),
-  execute: async ({ url }) => {
+  execute: async ({ url, extractLinks }) => {
     const urlCheck = validateUrl(url);
     if (!urlCheck.valid) {
       return { error: `URL blocked: ${urlCheck.reason}` };
     }
 
+    const cacheKey = extractLinks ? `${url}::links` : url;
+
     // Check cache first
-    const cached = getCached(url);
+    const cached = getCached(cacheKey);
     if (cached) {
       log.general.info({ url }, 'Web scraper cache hit');
       return cached;
@@ -195,7 +255,7 @@ export const webScraperTool = tool({
     const ghResult = await tryGitHubApiFallback(url);
     if (ghResult) {
       log.general.info({ url }, 'Web scraper: GitHub API fallback used');
-      setCache(url, ghResult);
+      setCache(cacheKey, ghResult);
       return ghResult;
     }
 
@@ -235,12 +295,19 @@ export const webScraperTool = tool({
         ? extracted.content.slice(0, maxLength) + '...'
         : extracted.content;
 
-      const result = { title: extracted.title, content, url, length: extracted.content.length };
-      setCache(url, result);
+      const result: { title: string; content: string; url: string; length: number; links?: LinkEntry[] } = {
+        title: extracted.title, content, url, length: extracted.content.length,
+      };
+
+      if (extractLinks) {
+        result.links = extractLinksFromHtml(html, url);
+      }
+
+      setCache(cacheKey, result);
       return result;
     } catch (error: any) {
       const errorResult = { error: `Failed to read page: ${error.message}` };
-      setCache(url, errorResult); // Cache errors too to avoid retrying broken URLs
+      setCache(cacheKey, errorResult); // Cache errors too to avoid retrying broken URLs
       return errorResult;
     }
   },
