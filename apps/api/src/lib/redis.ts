@@ -93,6 +93,21 @@ export function getRedisConnection(): (ReturnType<typeof parseRedisUrl> & { maxR
 }
 
 /**
+ * Race a promise against a timeout. Used by rate limiters to fail-open
+ * if Redis is slow. Exported so callers don't duplicate this helper.
+ */
+export const REDIS_TIMEOUT_MS = 1_000;
+
+export function withRedisTimeout<T>(promise: Promise<T>, ms = REDIS_TIMEOUT_MS): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<T>((_, reject) =>
+      setTimeout(() => reject(new Error('Redis timeout')), ms),
+    ),
+  ]);
+}
+
+/**
  * Close all Redis connections. Call during graceful shutdown.
  */
 export async function closeRedis(): Promise<void> {

@@ -60,15 +60,20 @@ export function useStreamingChat(apiUrl: string, activeRole?: any, conversationI
     }, 50);
   }, [flushPendingUpdates]);
 
-  // Cleanup flush timer on unmount
+  // Cleanup: flush remaining content and clear timer on unmount
   useEffect(() => {
     return () => {
+      flushPendingUpdates();
       if (flushTimerRef.current) {
         clearTimeout(flushTimerRef.current);
         flushTimerRef.current = null;
       }
     };
-  }, []);
+  }, [flushPendingUpdates]);
+
+  // Ref to avoid messages in append's dep array (avoids recreation every 50ms during streaming)
+  const messagesRef = useRef<Message[]>([]);
+  useEffect(() => { messagesRef.current = messages; }, [messages]);
 
   const append = useCallback(async (message: Message) => {
     setIsLoading(true);
@@ -119,7 +124,7 @@ Use this role to guide your responses, maintaining the specified tone, style, an
 
       // Build messages array with system message if present
       // Include tool invocations for proper conversation context
-      const conversationMessages = [...messages, userMessage];
+      const conversationMessages = [...messagesRef.current, userMessage];
 
       const formatMessage = (m: Message | { role: string; content: string }) => {
         const msg: any = {
@@ -790,7 +795,7 @@ Use this role to guide your responses, maintaining the specified tone, style, an
       abortControllerRef.current = null;
       setIsLoading(false);
     }
-  }, [apiUrl, messages, oxyServices, activeRole, queryClient, thinkingMode, selectedModel, skillId, agentId, scheduleFlush, flushPendingUpdates]);
+  }, [apiUrl, oxyServices, activeRole, queryClient, thinkingMode, selectedModel, skillId, agentId, scheduleFlush, flushPendingUpdates]);
 
   const stop = useCallback(() => {
     if (abortControllerRef.current) {

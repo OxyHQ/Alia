@@ -61,7 +61,7 @@ export interface AliaChatSheetRef {
 export const AliaChatSheet = forwardRef<AliaChatSheetRef, AliaChatSheetProps>(
   ({ clientContext, suggestions = [], model, apiUrl }, ref) => {
     const colors = useAliaColors();
-    const isDark = colors.background === '#000000';
+    const isDark = colors.isDark;
     const insets = useSafeAreaInsets();
 
     // Chat
@@ -147,7 +147,7 @@ export const AliaChatSheet = forwardRef<AliaChatSheetRef, AliaChatSheetProps>(
     // Pan gesture for swipe-to-dismiss
     const nativeGesture = useMemo(() => Gesture.Native(), []);
 
-    const panGesture = Gesture.Pan()
+    const panGesture = useMemo(() => Gesture.Pan()
       .simultaneousWithExternalGesture(nativeGesture)
       .onStart(() => {
         'worklet';
@@ -181,7 +181,7 @@ export const AliaChatSheet = forwardRef<AliaChatSheetRef, AliaChatSheetProps>(
         } else {
           translateY.value = withSpring(0, { ...SPRING_CONFIG, velocity });
         }
-      });
+      }), [nativeGesture, finishDismiss]);
 
     // Animated styles
     const backdropAnimStyle = useAnimatedStyle(() => ({

@@ -4,16 +4,8 @@ import DeveloperApiKey, { IRateLimitConfig } from '../models/developer-api-key';
 import { Subscription } from '../models/subscription';
 import mongoose from 'mongoose';
 import { checkLimit } from '../lib/sliding-window-limiter.js';
-import { getRedisClient } from '../lib/redis.js';
+import { getRedisClient, withRedisTimeout as withTimeout } from '../lib/redis.js';
 import { log } from '../lib/logger.js';
-
-const REDIS_TIMEOUT_MS = 1000;
-function withTimeout<T>(promise: Promise<T>, ms = REDIS_TIMEOUT_MS): Promise<T> {
-  return Promise.race([
-    promise,
-    new Promise<T>((_, reject) => setTimeout(() => reject(new Error('Redis timeout')), ms)),
-  ]);
-}
 
 interface RateLimitStatus {
   limited: boolean;
