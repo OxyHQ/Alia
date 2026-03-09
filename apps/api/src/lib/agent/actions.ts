@@ -172,7 +172,7 @@ export async function buildActions(ctx: ActionContext) {
   // ── 4. plan — Todo management + completion ──
 
   actions.plan = tool({
-    description: 'Manage your task plan or signal completion. Use "update" to create/modify your checklist. Use "complete" when you are done with the task. Always create a plan at the start.',
+    description: 'Manage your task plan or signal completion. Use "update" to create/modify your checklist. Use "complete" when you are done with the task. Create a plan for multi-step tasks.',
     parameters: z.object({
       action: z.enum(['update', 'complete']),
       objective: z.string().optional().describe('Overall objective of the task (update action)'),

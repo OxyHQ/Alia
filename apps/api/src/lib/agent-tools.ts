@@ -107,7 +107,7 @@ export async function buildAgentTools(ctx: BuildToolsContext) {
   // ── Plan tools ──
 
   tools.plan_update_todo = tool({
-    description: 'Create or update your task plan. Provide the overall objective and a list of items with their status. Call this at the start to create a plan, and update it as you complete steps.',
+    description: 'Create or update your task plan. Provide the overall objective and a list of items with their status. Call this at the start of multi-step tasks, and update it as you complete steps.',
     parameters: z.object({
       objective: z.string().describe('The overall objective of the task'),
       items: z.array(z.object({

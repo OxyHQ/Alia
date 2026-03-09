@@ -63,6 +63,7 @@ function rankSources(input: Array<{ sourceKey: string; freshnessScore: number; p
 }
 
 function buildPlanPreview(intent: AutonomyIntent, sources: RankedSource[]): string[] {
+  if (intent === 'general') return [];
   const steps = sources.slice(0, 5).map((s) => `Check ${s.sourceKey}`);
   if (steps.length > 0) return steps;
 
