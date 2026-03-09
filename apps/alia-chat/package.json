@@ -1,6 +1,6 @@
 {
   "name": "@alia.onl/sdk",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Alia AI chat SDK — reusable bottom sheet chat component for Oxy apps",
   "main": "src/index.ts",
   "react-native": "src/index.ts",
