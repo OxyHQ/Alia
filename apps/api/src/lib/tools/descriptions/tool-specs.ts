@@ -107,7 +107,7 @@ export const AGENT_TOOL_SPECS: Record<string, ToolSpec> = {
   plan_update_todo: {
     description: 'Create or update the structured task plan.',
     whenToUse: [
-      'At the start of every task — create your plan first',
+      'At the start of multi-step tasks — create your plan first',
       'After completing a step — mark it done',
       'When discovering new subtasks',
     ],

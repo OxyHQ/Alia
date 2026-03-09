@@ -42,8 +42,10 @@ export function buildAutonomyPromptFragment(context: AutonomyRuntimeContext): st
   fragment += `Intent: ${context.classification.intent} (confidence ${context.classification.confidence.toFixed(2)}).\n`;
   if (sourceLine) fragment += `Preferred sources by rank: ${sourceLine}.\n`;
   if (rules) fragment += `\nPriority learnings:\n${rules}\n`;
-  if (plan) fragment += `\nExecution plan:\n${plan}\n`;
-  fragment += 'Follow this plan before asking the user where to look. If a source fails, use the next fallback source.';
+  if (plan) {
+    fragment += `\nExecution plan:\n${plan}\n`;
+    fragment += 'Follow this plan before asking the user where to look. If a source fails, use the next fallback source.';
+  }
 
   return fragment;
 }

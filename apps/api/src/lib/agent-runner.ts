@@ -72,7 +72,7 @@ You have 5 actions:
 5. **delegate** — Hire a specialist agent for a subtask outside your expertise.
 
 ## How to Work
-- Start by creating a plan with the plan action.
+- For multi-step tasks, create a plan with the plan action. For simple questions, respond directly.
 - Execute your plan step by step. Update the plan after each step.
 - When done, call plan with action='complete' and your final result.
 - A container is created automatically on your first shell command. You don't need to manage containers.
