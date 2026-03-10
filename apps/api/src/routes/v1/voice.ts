@@ -239,17 +239,25 @@ router.post('/token', async (req: Request, res: Response) => {
 /**
  * POST /v1/voice/transcribe
  * Speech-to-text transcription using OpenAI Whisper or Groq Whisper API
- * Timeout: 30 seconds per request (returns 504 if provider hangs)
+ * Global timeout: 55s (well under DO's ~120s gateway limit)
+ * Per-provider timeout: 25s, 1 attempt each (fail fast → try next provider)
  */
+const TRANSCRIBE_TIMEOUT_MS = 55_000;
+
 router.post('/transcribe', async (req: Request, res: Response) => {
+  const abortController = new AbortController();
+  const globalTimer = setTimeout(() => abortController.abort(), TRANSCRIBE_TIMEOUT_MS);
+
   try {
     const userId = req.user?.id;
     if (!userId) {
+      clearTimeout(globalTimer);
       return res.status(401).json({ error: 'Authentication required' });
     }
 
     const { audio, format } = req.body as { audio?: string; format?: string };
     if (!audio) {
+      clearTimeout(globalTimer);
       return res.status(400).json({ error: 'Audio data is required (base64 encoded)' });
     }
 
@@ -258,6 +266,7 @@ router.post('/transcribe', async (req: Request, res: Response) => {
 
     const reservation = await reserveCredits(userId);
     if (!reservation) {
+      clearTimeout(globalTimer);
       return res.status(402).json({
         error: {
           code: 'INSUFFICIENT_CREDITS',
@@ -273,11 +282,12 @@ router.post('/transcribe', async (req: Request, res: Response) => {
     const mimeType = format || 'audio/m4a';
     const ext = mimeType.split('/')[1] || 'm4a';
 
-    // Try each audio provider until one succeeds
+    // Try each audio provider until one succeeds (1 attempt each, fail fast)
     const audioMappings = await getModelMappingsForTier('v1-audio');
     let result: { text: string } | null = null;
 
     for (const mapping of audioMappings) {
+      if (abortController.signal.aborted) break;
       try {
         result = await callProviderAPI<{ text: string }>({
           provider: mapping.provider,
@@ -291,13 +301,28 @@ router.post('/transcribe', async (req: Request, res: Response) => {
           extraFormFields: {
             model: mapping.modelId,
           },
-          timeout: 30_000,
+          timeout: 25_000,
+          maxAttempts: 1,
+          signal: abortController.signal,
         });
         break;
       } catch (err: any) {
         log.general.warn({ err, provider: mapping.provider, model: mapping.modelId }, 'Transcription provider failed, trying next');
         continue;
       }
+    }
+
+    clearTimeout(globalTimer);
+
+    if (abortController.signal.aborted && !result) {
+      await finalizeCredits(reservation, { promptTokens: 0, completionTokens: 0, totalTokens: 0 });
+      return res.status(504).json({
+        error: {
+          code: 'TIMEOUT',
+          message: 'Transcription timed out. Please try again with a shorter audio clip.',
+          retryable: true,
+        },
+      });
     }
 
     if (!result) {
@@ -314,6 +339,7 @@ router.post('/transcribe', async (req: Request, res: Response) => {
 
     res.json({ text: result.text });
   } catch (error: unknown) {
+    clearTimeout(globalTimer);
     log.general.error({ err: error, userId: req.user?.id }, 'Voice transcription failed');
     res.status(500).json({ error: getSafeErrorMessage(error, 'Transcription failed') });
   }

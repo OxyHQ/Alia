@@ -31,6 +31,7 @@ export interface ProviderAPIOptions {
   maxAttempts?: number;     // Default: 3
   timeout?: number;         // Per-attempt timeout in ms (e.g. 30000 for Whisper)
   responseType?: 'json' | 'arrayBuffer'; // Default: 'json'. Use 'arrayBuffer' for binary responses (TTS audio)
+  signal?: AbortSignal;     // External abort signal (e.g. global request timeout)
 }
 
 /**
@@ -43,7 +44,7 @@ export interface ProviderAPIOptions {
  * @throws Error if all keys are exhausted or the error is non-retryable.
  */
 export async function callProviderAPI<T = any>(options: ProviderAPIOptions): Promise<T> {
-  const { provider, modelId, endpoint, body, formData, maxAttempts = 3, timeout } = options;
+  const { provider, modelId, endpoint, body, formData, maxAttempts = 3, timeout, signal: externalSignal } = options;
 
   const baseUrl = PROVIDER_BASES[provider];
   if (!baseUrl) {
@@ -55,14 +56,23 @@ export async function callProviderAPI<T = any>(options: ProviderAPIOptions): Pro
   let lastMessage = '';
 
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    if (externalSignal?.aborted) {
+      lastReason = 'timeout';
+      lastMessage = 'Request aborted by caller';
+      break;
+    }
+
     const keyConfig = await getBestKeyForModel(provider, modelId);
     if (!keyConfig) {
       log.keys.warn({ provider, modelId, attempt }, 'No keys available');
       break;
     }
 
-    const controller = timeout ? new AbortController() : undefined;
-    const timer = controller ? setTimeout(() => controller.abort(), timeout) : undefined;
+    const controller = new AbortController();
+    const timer = timeout ? setTimeout(() => controller.abort(), timeout) : undefined;
+    // If external signal fires, also abort this attempt
+    const onExternalAbort = () => controller.abort();
+    externalSignal?.addEventListener('abort', onExternalAbort, { once: true });
 
     try {
       const headers: Record<string, string> = {
@@ -81,10 +91,11 @@ export async function callProviderAPI<T = any>(options: ProviderAPIOptions): Pro
         method: 'POST',
         headers,
         body: fetchBody,
-        signal: controller?.signal,
+        signal: controller.signal,
       });
 
       if (timer) clearTimeout(timer);
+      externalSignal?.removeEventListener('abort', onExternalAbort);
 
       if (!response.ok) {
         let errBody = '';
@@ -127,6 +138,7 @@ export async function callProviderAPI<T = any>(options: ProviderAPIOptions): Pro
 
     } catch (fetchErr: any) {
       if (timer) clearTimeout(timer);
+      externalSignal?.removeEventListener('abort', onExternalAbort);
       const isTimeout = fetchErr?.name === 'AbortError';
       log.keys.warn({ attempt, provider, modelId, err: fetchErr, isTimeout }, 'Provider API fetch error');
       await recordKeyFailure(keyConfig.keyId, `${modelId} ${isTimeout ? 'timeout' : 'fetch'}: ${fetchErr?.message?.slice(0, 200)}`);
