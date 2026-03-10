@@ -6,6 +6,8 @@ module.exports = {
     "./components/**/*.{js,jsx,ts,tsx}",
     "./lib/**/*.{js,jsx,ts,tsx}",
     "./hooks/**/*.{js,jsx,ts,tsx}",
+    // SDK components using NativeWind classes
+    "../alia-chat/src/**/*.{ts,tsx}",
   ],
   presets: [require("nativewind/preset")],
   theme: {

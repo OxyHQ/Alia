@@ -1,6 +1,6 @@
 {
   "name": "@alia.onl/sdk",
-  "version": "2.0.0",
+  "version": "3.0.0",
   "description": "Alia AI chat SDK — reusable chat UI, voice, and streaming components for Oxy apps",
   "main": "src/index.ts",
   "react-native": "src/index.ts",
@@ -25,12 +25,34 @@
     "react-native-keyboard-controller": ">=1",
     "react-native-svg": ">=13",
     "livekit-client": ">=2.0.0",
-    "expo-audio": ">=0.1.0"
+    "expo-audio": ">=0.1.0",
+    "nativewind": ">=4",
+    "clsx": ">=2",
+    "tailwind-merge": ">=2",
+    "class-variance-authority": ">=0.7",
+    "zeego": ">=3",
+    "expo-image": ">=1",
+    "expo-image-picker": ">=15",
+    "expo-document-picker": ">=12",
+    "expo-clipboard": ">=6",
+    "lucide-react-native": ">=0.300",
+    "@radix-ui/react-dropdown-menu": ">=2"
   },
   "peerDependenciesMeta": {
     "livekit-client": { "optional": true },
     "expo-audio": { "optional": true },
-    "react-native-svg": { "optional": true }
+    "react-native-svg": { "optional": true },
+    "nativewind": { "optional": true },
+    "clsx": { "optional": true },
+    "tailwind-merge": { "optional": true },
+    "class-variance-authority": { "optional": true },
+    "zeego": { "optional": true },
+    "expo-image": { "optional": true },
+    "expo-image-picker": { "optional": true },
+    "expo-document-picker": { "optional": true },
+    "expo-clipboard": { "optional": true },
+    "lucide-react-native": { "optional": true },
+    "@radix-ui/react-dropdown-menu": { "optional": true }
   },
   "devDependencies": {
     "typescript": "^5.9.3"

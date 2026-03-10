@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback, useEffect } from 'react';
+import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { useOxy } from '@oxyhq/services';
 import type { ChatMessage, ToolInvocation } from '../types';
 
@@ -17,8 +17,10 @@ export interface UseAliaChatOptions {
 
 export interface UseAliaChatReturn {
   messages: ChatMessage[];
+  setMessages: React.Dispatch<React.SetStateAction<ChatMessage[]>>;
   send: (text: string) => void;
   isStreaming: boolean;
+  stop: () => void;
   clear: () => void;
   error: string | null;
 }
@@ -429,18 +431,27 @@ export function useAliaChat(options: UseAliaChatOptions = {}): UseAliaChatReturn
     [isStreaming, getToken, apiUrl, model, clientContext, scheduleFlush, flushPendingUpdates, updateAssistant, applyToolResult],
   );
 
-  const clear = useCallback(() => {
+  const stop = useCallback(() => {
     if (abortRef.current) {
       abortRef.current.abort();
       abortRef.current = null;
     }
-    setMessages([]);
+    flushPendingUpdates();
+    if (flushTimerRef.current) {
+      clearTimeout(flushTimerRef.current);
+      flushTimerRef.current = null;
+    }
     setIsStreaming(false);
+  }, [flushPendingUpdates]);
+
+  const clear = useCallback(() => {
+    stop();
+    setMessages([]);
     setError(null);
     pendingContentRef.current = '';
     pendingReasoningRef.current = '';
     toolInvocationsRef.current = [];
-  }, []);
+  }, [stop]);
 
-  return { messages, send, isStreaming, clear, error };
+  return { messages, setMessages, send, isStreaming, stop, clear, error };
 }

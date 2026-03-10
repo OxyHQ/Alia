@@ -1,6 +1,13 @@
+// NativeWind types — extends RN components with className prop
+/// <reference types="nativewind/types" />
+
 // Type declarations for optional peer dependencies.
 // These prevent TypeScript errors when the deps aren't installed.
 // At runtime, the host app provides the actual packages.
+//
+// NOTE: Only declare modules for packages NOT installed in the monorepo.
+// Installed packages (lucide-react-native, zeego, expo-image, etc.)
+// have their own real types — ambient declarations here would shadow them.
 
 declare module 'livekit-client' {
   export class Room {
@@ -66,4 +73,14 @@ declare module 'expo-audio' {
     stop(): Promise<void>;
     uri: string | null;
   }
+}
+
+declare module 'expo-clipboard' {
+  export function setStringAsync(text: string): Promise<boolean>;
+  export function getStringAsync(): Promise<string>;
+}
+
+declare module 'expo-image-picker' {
+  export function launchImageLibraryAsync(options?: any): Promise<any>;
+  export const MediaTypeOptions: { Images: string; Videos: string; All: string };
 }
