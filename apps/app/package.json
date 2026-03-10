@@ -16,6 +16,7 @@
     "build:ios": "eas build --platform ios"
   },
   "dependencies": {
+    "@alia.onl/sdk": "*",
     "@ai-sdk/react": "^1.2.12",
     "@expo/html-elements": "^0.13.8",
     "@expo/vector-icons": "^15.0.3",
