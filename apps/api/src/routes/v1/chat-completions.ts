@@ -12,7 +12,7 @@ import { recordUsage } from '../../middleware/api-key-rate-limit.js';
 import { detectCreditAnomaly, type CreditWarning } from '../../lib/credit-anomaly.js';
 import { getUserEntitlements } from '../../lib/plan-access.js';
 import { convertOpenAIToolsToToolSet } from '../../lib/tool-converter.js';
-import { getCurrentDateTool, webSearchTool, browseTool, saveUserMemoryTool, updateUserPreferencesTool, updateUserContextTool, createSendTelegramTool, createGetWhatsAppChatsTool, createGetWhatsAppMessagesTool, createSendWhatsAppMessageTool, createProvidersAdminTool, webScraperTool, generateFileTool, createSearchAgentsTool, createDelegateToAgentTool, createDeepResearchTool, createSwitchModelTool, createAgentTool } from '../../lib/tools/index.js';
+import { getCurrentDateTool, webSearchTool, browseTool, saveUserMemoryTool, updateUserPreferencesTool, updateUserContextTool, createSendTelegramTool, createGetWhatsAppChatsTool, createGetWhatsAppMessagesTool, createSendWhatsAppMessageTool, createProvidersAdminTool, webScraperTool, generateFileTool, createSearchAgentsTool, createDelegateToAgentTool, createDeepResearchTool, createSwitchModelTool, createAgentTool, createPlanPreviewTool } from '../../lib/tools/index.js';
 import { buildMcpTools } from '../../lib/tools/mcp.js';
 import { buildIntegrationTools } from '../../lib/tools/integrations.js';
 import { buildOxyServiceTools, getOxyServicePromptFragment, getOxyServiceContext } from '../../lib/tools/oxy-services.js';
@@ -644,6 +644,10 @@ export const handleChatCompletions = async (req: Request, res: Response) => {
           ensureSSEHeaders();
           res.write(`event: alia.model_switch\ndata: ${JSON.stringify({ eventVersion: 1, model: modelId, modelName })}\n\n`);
         }),
+        planPreview: createPlanPreviewTool((steps) => {
+          ensureSSEHeaders();
+          res.write(`event: alia.plan_preview\ndata: ${JSON.stringify({ eventVersion: 1, planId: `plan-${requestId}`, steps })}\n\n`);
+        }),
       } : {}),
     };
 
@@ -902,16 +906,7 @@ export const handleChatCompletions = async (req: Request, res: Response) => {
       }
     }
 
-    if (body.stream === true && autonomyRuntime?.recall?.planPreview?.length) {
-      ensureSSEHeaders();
-      res.write(`event: alia.plan_preview\ndata: ${JSON.stringify({
-        eventVersion: 1,
-        planId: `plan-${requestId}`,
-        intent: autonomyRuntime.classification.intent,
-        confidence: autonomyRuntime.classification.confidence,
-        steps: autonomyRuntime.recall.planPreview,
-      })}\n\n`);
-    }
+    // Plan previews are now AI-generated via the planPreview tool (not autonomy runtime)
 
     for (let providerAttempt = 0; providerAttempt < MAX_PROVIDER_RETRIES; providerAttempt++) {
     // Check global timeout before each provider attempt

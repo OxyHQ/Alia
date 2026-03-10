@@ -19,6 +19,7 @@ import { createSearchAgentsTool } from './agent-search.js';
 import { createDelegateToAgentTool } from './agent-delegate.js';
 import { createOrchestrateAgentsTool } from './agent-orchestrator.js';
 import { createAgentTool } from './agent-create.js';
+import { createPlanPreviewTool } from './plan-preview.js';
 import { createTriggerTool, listTriggersTool, updateTriggerTool, deleteTriggerTool } from './trigger-management.js';
 
 // ---------------------------------------------------------------------------
@@ -248,6 +249,9 @@ export { createDeepResearchTool } from './deep-research.js';
 
 // Model switching tool (AI-callable)
 export { createSwitchModelTool } from './switch-model.js';
+
+// Plan preview tool (AI-callable)
+export { createPlanPreviewTool } from './plan-preview.js';
 
 // MCP tools
 export { buildMcpTools } from './mcp.js';
