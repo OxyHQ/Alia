@@ -329,7 +329,8 @@ export async function getOxyServicePromptFragment(): Promise<string> {
     if (services.length === 0) return '';
 
     const lines = services.map((svc) => {
-      const toolNames = svc.tools.map((t) => t.name).join(', ');
+      const prefix = `oxy_${sanitizeName(svc.serviceId)}`;
+      const toolNames = svc.tools.map((t) => `${prefix}__${sanitizeName(t.name)}`).join(', ');
       const hasConfirm = svc.tools.some((t) => t.confirmBeforeExecute);
       let line = `- **${svc.displayName}**: ${svc.description}. Tools: ${toolNames}.`;
       if (hasConfirm) {
