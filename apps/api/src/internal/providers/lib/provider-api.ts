@@ -70,9 +70,10 @@ export async function callProviderAPI<T = any>(options: ProviderAPIOptions): Pro
 
     const controller = new AbortController();
     const timer = timeout ? setTimeout(() => controller.abort(), timeout) : undefined;
-    // If external signal fires, also abort this attempt
-    const onExternalAbort = () => controller.abort();
-    externalSignal?.addEventListener('abort', onExternalAbort, { once: true });
+    // Combine per-attempt timeout with caller's external signal
+    const combinedSignal = externalSignal
+      ? AbortSignal.any([controller.signal, externalSignal])
+      : controller.signal;
 
     try {
       const headers: Record<string, string> = {
@@ -91,11 +92,10 @@ export async function callProviderAPI<T = any>(options: ProviderAPIOptions): Pro
         method: 'POST',
         headers,
         body: fetchBody,
-        signal: controller.signal,
+        signal: combinedSignal,
       });
 
       if (timer) clearTimeout(timer);
-      externalSignal?.removeEventListener('abort', onExternalAbort);
 
       if (!response.ok) {
         let errBody = '';
@@ -138,7 +138,6 @@ export async function callProviderAPI<T = any>(options: ProviderAPIOptions): Pro
 
     } catch (fetchErr: any) {
       if (timer) clearTimeout(timer);
-      externalSignal?.removeEventListener('abort', onExternalAbort);
       const isTimeout = fetchErr?.name === 'AbortError';
       log.keys.warn({ attempt, provider, modelId, err: fetchErr, isTimeout }, 'Provider API fetch error');
       await recordKeyFailure(keyConfig.keyId, `${modelId} ${isTimeout ? 'timeout' : 'fetch'}: ${fetchErr?.message?.slice(0, 200)}`);
