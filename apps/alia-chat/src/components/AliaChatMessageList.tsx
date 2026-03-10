@@ -3,20 +3,37 @@ import {
   View,
   Text,
   StyleSheet,
-  Platform,
 } from 'react-native';
 import { BlurView } from 'expo-blur';
-import Animated, { useAnimatedScrollHandler, useSharedValue } from 'react-native-reanimated';
+import Animated, {
+  useAnimatedScrollHandler,
+  useSharedValue,
+  useAnimatedStyle,
+  withRepeat,
+  withTiming,
+  withSequence,
+  cancelAnimation,
+  Easing,
+  FadeInUp,
+  type SharedValue,
+} from 'react-native-reanimated';
 import { useAliaColors } from '../theme';
+import { AliaMarkdown } from './Markdown';
+import { ThinkingIndicator } from './ThinkingIndicator';
+import { Reasoning, ReasoningTrigger, ReasoningContent } from './Reasoning';
 import type { ChatMessage, ToolInvocation } from '../types';
+
+const ENTER_ANIMATION = FadeInUp.duration(200);
 
 interface AliaChatMessageListProps {
   messages: ChatMessage[];
   isStreaming: boolean;
-  scrollOffsetY: Animated.SharedValue<number>;
+  scrollOffsetY: SharedValue<number>;
 }
 
-function ToolStatus({ invocation }: { invocation: ToolInvocation }) {
+// ── Tool Bullet ──
+
+function ToolBullet({ invocation }: { invocation: ToolInvocation }) {
   const colors = useAliaColors();
 
   // Clean up tool name for display: "oxy_inbox__searchEmails" → "Searching emails"
@@ -26,27 +43,47 @@ function ToolStatus({ invocation }: { invocation: ToolInvocation }) {
     .replace(/^./, (s) => s.toUpperCase())
     .trim();
 
-  const label =
-    invocation.state === 'call'
-      ? `${displayName}...`
-      : displayName;
+  const isActive = invocation.state === 'call' || invocation.state === 'partial-call';
+  const label = isActive ? `${displayName}...` : displayName;
 
   return (
     <View style={styles.toolStatus}>
-      {invocation.state === 'call' && (
-        <View style={[styles.toolDot, { backgroundColor: colors.tint }]} />
-      )}
-      {invocation.state === 'result' && (
-        <Text style={[styles.toolCheckmark, { color: colors.tint }]}>{'✓'}</Text>
+      {isActive ? (
+        <PulsingDot color={colors.tint} />
+      ) : (
+        <Text style={[styles.toolCheckmark, { color: colors.tint }]}>{'\u2713'}</Text>
       )}
       <Text style={[styles.toolLabel, { color: colors.secondaryText }]}>{label}</Text>
     </View>
   );
 }
 
+function PulsingDot({ color }: { color: string }) {
+  const opacity = useSharedValue(1);
+
+  useEffect(() => {
+    opacity.value = withRepeat(
+      withSequence(
+        withTiming(0.3, { duration: 600, easing: Easing.inOut(Easing.sin) }),
+        withTiming(1, { duration: 600, easing: Easing.inOut(Easing.sin) }),
+      ),
+      -1,
+    );
+    return () => cancelAnimation(opacity);
+  }, []);
+
+  const animStyle = useAnimatedStyle(() => ({ opacity: opacity.value }));
+
+  return (
+    <Animated.View style={[styles.toolDot, { backgroundColor: color }, animStyle]} />
+  );
+}
+
+// ── User Bubble ──
+
 function UserBubble({ content }: { content: string }) {
   const colors = useAliaColors();
-  const isDark = colors.background === '#000000';
+  const isDark = colors.isDark;
 
   return (
     <View style={styles.userMessage}>
@@ -62,33 +99,55 @@ function UserBubble({ content }: { content: string }) {
   );
 }
 
+// ── Assistant Message ──
+
 function AssistantMessage({
   message,
-  isFirst,
   isStreamingThis,
 }: {
   message: ChatMessage;
-  isFirst: boolean;
   isStreamingThis: boolean;
 }) {
   const colors = useAliaColors();
+  const hasContent = !!message.content;
+  const hasThinking = !!message.thinking;
+  const showThinkingIndicator = isStreamingThis && !hasContent && !message.toolInvocations?.length && !hasThinking;
 
   return (
-    <View style={styles.assistantMessage}>
+    <Animated.View
+      entering={ENTER_ANIMATION}
+      style={styles.assistantMessage}
+    >
+      {/* Extended thinking / reasoning */}
+      {hasThinking && (
+        <Reasoning isStreaming={isStreamingThis && !hasContent}>
+          <ReasoningTrigger />
+          <ReasoningContent>{message.thinking!}</ReasoningContent>
+        </Reasoning>
+      )}
+
       {/* Tool invocations */}
       {message.toolInvocations?.map((tool, i) => (
-        <ToolStatus key={`${tool.toolName}-${i}`} invocation={tool} />
+        <ToolBullet key={`${tool.toolCallId || tool.toolName}-${i}`} invocation={tool} />
       ))}
 
-      {/* Text content */}
-      {(message.content || isStreamingThis) && (
-        <Text style={[styles.assistantText, { color: colors.text }]}>
-          {message.content || (isStreamingThis ? '\u2758' : '')}
-        </Text>
+      {/* Thinking indicator (no content yet) */}
+      {showThinkingIndicator && <ThinkingIndicator />}
+
+      {/* Text content — rendered as markdown */}
+      {hasContent && (
+        <AliaMarkdown content={message.content} />
       )}
-    </View>
+
+      {/* Streaming cursor */}
+      {isStreamingThis && hasContent && (
+        <Text style={[styles.cursor, { color: colors.secondaryText }]}>{'\u2758'}</Text>
+      )}
+    </Animated.View>
   );
 }
+
+// ── List ──
 
 export function AliaChatMessageList({
   messages,
@@ -130,14 +189,12 @@ export function AliaChatMessageList({
             return <UserBubble key={msg.id} content={msg.content} />;
           }
 
-          const isFirstInGroup = i === 0 || arr[i - 1]?.role === 'user';
           const isStreamingThis = isStreaming && i === arr.length - 1;
 
           return (
             <AssistantMessage
               key={msg.id}
               message={msg}
-              isFirst={isFirstInGroup}
               isStreamingThis={isStreamingThis}
             />
           );
@@ -179,9 +236,9 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
     marginBottom: 12,
   },
-  assistantText: {
+  cursor: {
     fontSize: 15,
-    lineHeight: 24,
+    marginTop: -4,
   },
 
   // Tool status
@@ -196,10 +253,6 @@ const styles = StyleSheet.create({
     width: 8,
     height: 8,
     borderRadius: 4,
-    ...Platform.select({
-      web: {} as any,
-      default: {},
-    }),
   },
   toolCheckmark: {
     fontSize: 14,
