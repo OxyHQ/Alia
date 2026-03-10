@@ -196,7 +196,7 @@ vi.mock('../../../lib/tools/integrations.js', () => ({
 
 vi.mock('../../../lib/tools/oxy-services.js', () => ({
   buildOxyServiceTools: vi.fn().mockResolvedValue({}),
-  getOxyServicePromptFragment: vi.fn().mockResolvedValue(''),
+  getOxyServicePromptFragment: vi.fn().mockReturnValue(''),
   getOxyServiceContext: vi.fn().mockResolvedValue(''),
 }));
 

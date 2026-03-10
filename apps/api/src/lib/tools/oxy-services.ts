@@ -36,7 +36,15 @@ async function safeExecute(service: string, fn: () => Promise<any>): Promise<any
 // Short-lived cache (same pattern as MCP & integration tools)
 // ---------------------------------------------------------------------------
 
-const cache = new Map<string, { tools: ToolSet; services: Array<{ serviceId: string; displayName: string; description: string; contextEndpoint?: string }>; expiresAt: number }>();
+interface CachedServiceMeta {
+  serviceId: string;
+  displayName: string;
+  description: string;
+  contextEndpoint?: string;
+  toolNames: string[];
+  hasConfirm: boolean;
+}
+const cache = new Map<string, { tools: ToolSet; services: CachedServiceMeta[]; expiresAt: number }>();
 const CACHE_TTL_MS = 30_000;
 
 // ---------------------------------------------------------------------------
@@ -219,19 +227,15 @@ export async function buildOxyServiceTools(
       return tools;
     }
 
-    const serviceMeta: typeof cached extends undefined ? never : NonNullable<typeof cached>['services'] = [];
+    const serviceMeta: CachedServiceMeta[] = [];
 
     for (const svc of services) {
       const prefix = `oxy_${sanitizeName(svc.serviceId)}`;
-      serviceMeta.push({
-        serviceId: svc.serviceId,
-        displayName: svc.displayName,
-        description: svc.description,
-        contextEndpoint: svc.contextEndpoint,
-      });
+      const svcToolNames: string[] = [];
 
       for (const svcTool of svc.tools) {
         const toolName = `${prefix}__${sanitizeName(svcTool.name)}`;
+        svcToolNames.push(toolName);
 
         tools[toolName] = tool({
           description: `[${svc.displayName}] ${svcTool.description}`,
@@ -240,6 +244,15 @@ export async function buildOxyServiceTools(
             safeExecute(svc.displayName, () => callOxyService(svcTool, args as Record<string, any>, accessToken)),
         } as any);
       }
+
+      serviceMeta.push({
+        serviceId: svc.serviceId,
+        displayName: svc.displayName,
+        description: svc.description,
+        contextEndpoint: svc.contextEndpoint,
+        toolNames: svcToolNames,
+        hasConfirm: svc.tools.some((t) => t.confirmBeforeExecute),
+      });
     }
 
     cache.set(cacheKey, { tools, services: serviceMeta, expiresAt: Date.now() + CACHE_TTL_MS });
@@ -320,27 +333,17 @@ export async function getOxyServiceContext(
 // Prompt helper — builds a system prompt fragment for connected services
 // ---------------------------------------------------------------------------
 
-export async function getOxyServicePromptFragment(): Promise<string> {
-  try {
-    const services = await OxyService.find({ status: 'active' })
-      .select('serviceId displayName description tools')
-      .lean();
+export function getOxyServicePromptFragment(oxyUserId: string): string {
+  const cached = cache.get(oxyUserId);
+  if (!cached || cached.services.length === 0) return '';
 
-    if (services.length === 0) return '';
+  const lines = cached.services.map((svc) => {
+    let line = `- **${svc.displayName}**: ${svc.description}. Tools: ${svc.toolNames.join(', ')}.`;
+    if (svc.hasConfirm) {
+      line += ' ALWAYS confirm with the user before performing write actions.';
+    }
+    return line;
+  });
 
-    const lines = services.map((svc) => {
-      const prefix = `oxy_${sanitizeName(svc.serviceId)}`;
-      const toolNames = svc.tools.map((t) => `${prefix}__${sanitizeName(t.name)}`).join(', ');
-      const hasConfirm = svc.tools.some((t) => t.confirmBeforeExecute);
-      let line = `- **${svc.displayName}**: ${svc.description}. Tools: ${toolNames}.`;
-      if (hasConfirm) {
-        line += ' ALWAYS confirm with the user before performing write actions.';
-      }
-      return line;
-    });
-
-    return '\n\n## Connected Oxy Services\nYou have access to the user\'s Oxy apps through tools prefixed with `oxy_`.\n' + lines.join('\n');
-  } catch {
-    return '';
-  }
+  return '\n\n## Connected Oxy Services\nYou have access to the user\'s Oxy apps through tools prefixed with `oxy_`.\n' + lines.join('\n');
 }

@@ -782,9 +782,9 @@ export const handleChatCompletions = async (req: Request, res: Response) => {
       // Inject Oxy service tools description + live context (non-blocking)
       try {
         const [oxyServicePrompt, oxyServiceCtx] = await Promise.all([
-          getOxyServicePromptFragment(),
+          getOxyServicePromptFragment(req.user.id),
           getOxyServiceContext(req.accessToken!),
-        ]);
+        ] as const);
         if (oxyServicePrompt) systemMessage += oxyServicePrompt;
         if (oxyServiceCtx) systemMessage += oxyServiceCtx;
       } catch {
