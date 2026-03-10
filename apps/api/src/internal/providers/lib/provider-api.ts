@@ -17,6 +17,7 @@ import type { FailoverReason } from '../../../lib/errors/error-codes.js';
 const PROVIDER_BASES: Record<string, string> = {
   openai: 'https://api.openai.com',
   groq: 'https://api.groq.com/openai',
+  openrouter: 'https://openrouter.ai/api',
 };
 
 // Non-retryable error reasons (a different key won't help)
