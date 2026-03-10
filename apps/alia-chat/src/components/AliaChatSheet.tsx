@@ -27,10 +27,7 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useAliaChat, type UseAliaChatOptions } from '../hooks/useAliaChat';
-import { AliaChatMessageList } from './AliaChatMessageList';
-import { AliaChatInput } from './AliaChatInput';
-import { AliaChatSuggestions } from './AliaChatSuggestions';
+import { AliaChatContent, type AliaChatContentRef } from './AliaChatContent';
 import { AliaFace, type AliaExpression } from './AliaFace';
 import { useAliaColors } from '../theme';
 import type { AliaChatSuggestion } from '../types';
@@ -65,14 +62,27 @@ export const AliaChatSheet = forwardRef<AliaChatSheetRef, AliaChatSheetProps>(
     const isDark = colors.isDark;
     const insets = useSafeAreaInsets();
 
-    // Chat
-    const chatOptions: UseAliaChatOptions = { apiUrl, model, clientContext };
-    const { messages, send, isStreaming, clear } = useAliaChat(chatOptions);
+    // Content ref for reading state
+    const contentRef = useRef<AliaChatContentRef>(null);
+    const [faceExpression, setFaceExpression] = useState<AliaExpression>('Idle A');
+    const [hasMessages, setHasMessages] = useState(false);
 
     // Sheet visibility
     const [rendered, setRendered] = useState(false);
     const hasClosedRef = useRef(false);
     const closeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+    // Poll content ref for header state (lightweight, only when rendered)
+    useEffect(() => {
+      if (!rendered) return;
+      const interval = setInterval(() => {
+        if (contentRef.current) {
+          setFaceExpression(contentRef.current.faceExpression);
+          setHasMessages(contentRef.current.messages.length > 0);
+        }
+      }, 200);
+      return () => clearInterval(interval);
+    }, [rendered]);
 
     // Reanimated shared values
     const translateY = useSharedValue(SCREEN_HEIGHT);
@@ -200,16 +210,9 @@ export const AliaChatSheet = forwardRef<AliaChatSheetRef, AliaChatSheetProps>(
       [insets.top],
     );
 
-    // Derive AliaFace expression from chat state
-    const faceExpression = useMemo<AliaExpression>(() => {
-      if (!isStreaming) return 'Idle A';
-      const lastMsg = messages[messages.length - 1];
-      if (lastMsg?.role === 'assistant' && lastMsg.toolInvocations?.some(t => t.state === 'call')) return 'Searching A';
-      if (lastMsg?.thinking) return 'Thinking';
-      return 'Writing E';
-    }, [messages, isStreaming]);
-
-    const showSuggestions = messages.length === 0 && suggestions.length > 0;
+    const handleClear = useCallback(() => {
+      contentRef.current?.clear();
+    }, []);
 
     if (!rendered) return null;
 
@@ -256,8 +259,8 @@ export const AliaChatSheet = forwardRef<AliaChatSheetRef, AliaChatSheetProps>(
                   </Text>
                 </View>
                 <View style={styles.headerRight}>
-                  {messages.length > 0 && (
-                    <TouchableOpacity onPress={clear} style={styles.clearButton}>
+                  {hasMessages && (
+                    <TouchableOpacity onPress={handleClear} style={styles.clearButton}>
                       <Text
                         style={[
                           styles.clearText,
@@ -286,26 +289,17 @@ export const AliaChatSheet = forwardRef<AliaChatSheetRef, AliaChatSheetProps>(
                 </View>
               </View>
 
-              {/* Suggestions or Messages */}
+              {/* Chat content */}
               <GestureDetector gesture={nativeGesture}>
-                <View style={styles.chatArea}>
-                  {showSuggestions ? (
-                    <AliaChatSuggestions
-                      suggestions={suggestions}
-                      onSelect={send}
-                    />
-                  ) : (
-                    <AliaChatMessageList
-                      messages={messages}
-                      isStreaming={isStreaming}
-                      scrollOffsetY={scrollOffsetY}
-                    />
-                  )}
-                </View>
+                <AliaChatContent
+                  ref={contentRef}
+                  clientContext={clientContext}
+                  suggestions={suggestions}
+                  model={model}
+                  apiUrl={apiUrl}
+                  scrollOffsetY={scrollOffsetY}
+                />
               </GestureDetector>
-
-              {/* Input */}
-              <AliaChatInput onSend={send} isStreaming={isStreaming} />
             </Animated.View>
           </GestureDetector>
         </GestureHandlerRootView>
@@ -383,8 +377,5 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderRadius: 16,
-  },
-  chatArea: {
-    flex: 1,
   },
 });

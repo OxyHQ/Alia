@@ -25,6 +25,7 @@ import { wrapToolsWithTruncation, getToolResultBudget } from '../../lib/tools/re
 import { log } from '../../lib/logger.js';
 import { recordEvent } from '../../lib/observability/index.js';
 import { classifyError, getRetryAfterHeader, sanitizeMessage } from '../../lib/errors/index.js';
+import { setupSSEHeaders, writeTextChunk, writeStopChunk, writeContentChunk, filterThinking, makeChunk } from '../../lib/streaming-helpers.js';
 import type { FailoverReason } from '../../lib/errors/error-codes.js';
 import { runDeepResearch, type ResearchProgress } from '../../lib/research/research-engine.js';
 import {
@@ -244,17 +245,8 @@ export const handleChatCompletions = async (req: Request, res: Response) => {
       });
     } else if (!res.writableEnded) {
       // Mid-stream timeout: send graceful finish
-      const timeoutChunk = {
-        id: requestId,
-        object: 'chat.completion.chunk',
-        created: Math.floor(Date.now() / 1000),
-        model: aliasModelId,
-        system_fingerprint: 'fp_alia',
-        service_tier: 'default',
-        choices: [{ index: 0, delta: { content: '\n\nI encountered a brief interruption. Please send your message again.' }, logprobs: null, finish_reason: null }],
-      };
-      res.write(`data: ${JSON.stringify(timeoutChunk)}\n\n`);
-      res.write(`data: ${JSON.stringify({ id: requestId, object: 'chat.completion.chunk', created: Math.floor(Date.now() / 1000), model: aliasModelId, system_fingerprint: 'fp_alia', service_tier: 'default', choices: [{ index: 0, delta: {}, logprobs: null, finish_reason: 'stop' }] })}\n\n`);
+      writeContentChunk(res, requestId, aliasModelId, '\n\nI encountered a brief interruption. Please send your message again.');
+      writeStopChunk(res, requestId, aliasModelId);
       res.write('data: [DONE]\n\n');
       res.end();
     }
@@ -506,16 +498,7 @@ export const handleChatCompletions = async (req: Request, res: Response) => {
           // Stream the final report as content deltas (OpenAI SSE format)
           const CHUNK_SIZE = 100;
           for (let i = 0; i < result.report.length; i += CHUNK_SIZE) {
-            const chunk = result.report.slice(i, i + CHUNK_SIZE);
-            res.write(`data: ${JSON.stringify({
-              id: requestId,
-              object: 'chat.completion.chunk',
-              created: Math.floor(Date.now() / 1000),
-              model: aliasModelId,
-              system_fingerprint: 'fp_alia',
-              service_tier: 'default',
-              choices: [{ index: 0, delta: { content: chunk }, logprobs: null, finish_reason: null }],
-            })}\n\n`);
+            writeContentChunk(res, requestId, aliasModelId, result.report.slice(i, i + CHUNK_SIZE));
           }
 
           // Send sources metadata as named event
@@ -528,15 +511,7 @@ export const handleChatCompletions = async (req: Request, res: Response) => {
           })}\n\n`);
 
           // Send final chunk with finish_reason
-          res.write(`data: ${JSON.stringify({
-            id: requestId,
-            object: 'chat.completion.chunk',
-            created: Math.floor(Date.now() / 1000),
-            model: aliasModelId,
-            system_fingerprint: 'fp_alia',
-            service_tier: 'default',
-            choices: [{ index: 0, delta: {}, logprobs: null, finish_reason: 'stop' }],
-          })}\n\n`);
+          writeStopChunk(res, requestId, aliasModelId);
           res.write('data: [DONE]\n\n');
           res.end();
 
@@ -901,9 +876,7 @@ export const handleChatCompletions = async (req: Request, res: Response) => {
     /** Set SSE headers if not already sent (idempotent). */
     function ensureSSEHeaders() {
       if (!sseHeadersSent) {
-        res.setHeader('Content-Type', 'text/event-stream');
-        res.setHeader('Cache-Control', 'no-cache');
-        res.setHeader('Connection', 'keep-alive');
+        setupSSEHeaders(res);
         sseHeadersSent = true;
       }
     }
@@ -1212,6 +1185,7 @@ export const handleChatCompletions = async (req: Request, res: Response) => {
     log.v1.info('Starting to process AI SDK stream');
     let chunkCount = 0;
     let assistantResponse = ''; // Track assistant's response for conversation save
+    let hasStreamedText = false; // Track whether actual text (not just tool calls) was streamed
     const toolInvocations: Array<{ toolCallId: string; toolName: string; state: 'call' | 'result'; args?: unknown; result?: unknown }> = [];
     for await (const chunk of result.fullStream) {
       chunkCount++;
@@ -1225,6 +1199,7 @@ export const handleChatCompletions = async (req: Request, res: Response) => {
       if (chunk.type === 'text-delta' && chunk.text) {
         ensureSSEHeaders();
         hasStreamedContent = true;
+        hasStreamedText = true;
 
         // Extract <thinking> tags for chain-of-thought (Anthropic, DeepSeek, etc.)
         const thinkingMatch = chunk.text.match(/<thinking>([\s\S]*?)<\/thinking>/g);
@@ -1239,25 +1214,10 @@ export const handleChatCompletions = async (req: Request, res: Response) => {
           });
         }
 
-        // Filter out thinking tags from the main message
-        const filtered = chunk.text.replace(/<thinking>[\s\S]*?<\/thinking>/g, '');
+        // Filter out thinking tags and stream as OpenAI-compatible chunk
+        const filtered = writeTextChunk(res, requestId, aliasModelId, chunk.text);
         if (filtered) {
-          assistantResponse += filtered; // Accumulate response for conversation save
-          const openAIChunk = {
-            id: requestId,
-            object: 'chat.completion.chunk',
-            created: Math.floor(Date.now() / 1000),
-            model: aliasModelId,
-            system_fingerprint: 'fp_alia',
-            service_tier: 'default',
-            choices: [{
-              index: 0,
-              delta: { content: filtered },
-              logprobs: null,
-              finish_reason: null
-            }]
-          };
-          res.write(`data: ${JSON.stringify(openAIChunk)}\n\n`);
+          assistantResponse += filtered;
         }
       } else if ((chunk as ExtendedChunk).type === 'thought-delta' || (chunk as ExtendedChunk).type === 'reasoning-delta') {
         ensureSSEHeaders();
@@ -1279,31 +1239,11 @@ export const handleChatCompletions = async (req: Request, res: Response) => {
         // Log the tool call arguments being sent to the client
         log.v1.info({ toolName: originalToolName, args: chunk.input }, 'Streaming tool call');
 
-        const toolCallChunk = {
-          id: requestId,
-          object: 'chat.completion.chunk',
-          created: Math.floor(Date.now() / 1000),
-          model: aliasModelId,
-          system_fingerprint: 'fp_alia',
-          service_tier: 'default',
-          choices: [{
-            index: 0,
-            delta: {
-              tool_calls: [{
-                index: 0,
-                id: chunk.toolCallId,
-                type: 'function',
-                function: {
-                  name: originalToolName,
-                  arguments: JSON.stringify(chunk.input || {})
-                }
-              }]
-            },
-            logprobs: null,
-            finish_reason: null
-          }]
-        };
-        res.write(`data: ${JSON.stringify(toolCallChunk)}\n\n`);
+        res.write(`data: ${JSON.stringify(makeChunk(requestId, aliasModelId, [{
+          index: 0,
+          delta: { tool_calls: [{ index: 0, id: chunk.toolCallId, type: 'function', function: { name: originalToolName, arguments: JSON.stringify(chunk.input || {}) } }] },
+          finish_reason: null,
+        }]))}\n\n`);
 
         // Track tool invocation for conversation save
         toolInvocations.push({
@@ -1386,22 +1326,9 @@ export const handleChatCompletions = async (req: Request, res: Response) => {
 
         // Send tool error as text content so the user sees what happened
         const errorMessage = (chunk as ExtendedChunk).error?.message || 'Tool execution failed';
-        const errorChunk = {
-          id: requestId,
-          object: 'chat.completion.chunk',
-          created: Math.floor(Date.now() / 1000),
-          model: aliasModelId,
-          system_fingerprint: 'fp_alia',
-          service_tier: 'default',
-          choices: [{
-            index: 0,
-            delta: { content: `\n\nTool error (${originalToolName}): ${errorMessage}` },
-            logprobs: null,
-            finish_reason: null
-          }]
-        };
-        res.write(`data: ${JSON.stringify(errorChunk)}\n\n`);
-        assistantResponse += `\n\nTool error (${originalToolName}): ${errorMessage}`;
+        const toolErrorContent = `\n\nTool error (${originalToolName}): ${errorMessage}`;
+        writeContentChunk(res, requestId, aliasModelId, toolErrorContent);
+        assistantResponse += toolErrorContent;
       } else if (chunk.type === 'start') {
         log.v1.debug('Stream started');
       } else if (chunk.type === 'start-step') {
@@ -1431,58 +1358,63 @@ export const handleChatCompletions = async (req: Request, res: Response) => {
           throw rawError;
         }
 
+        // If only tool content was streamed (no text), retry synthesis with collected tool results
+        if (!hasStreamedText && toolInvocations.some(t => t.state === 'result')) {
+          log.v1.info({ provider: resolved!.provider, modelId: resolved!.modelId }, 'Synthesis failed after tool results, retrying without tools');
+          try {
+            const followUpMessages = [
+              ...convertedMessages,
+              ...toolInvocations
+                .filter(t => t.state === 'result')
+                .flatMap(t => [
+                  { role: 'assistant' as const, content: '', toolCalls: [{ toolCallId: t.toolCallId, toolName: t.toolName, args: t.args }] },
+                  { role: 'tool' as const, content: [{ type: 'tool-result' as const, toolCallId: t.toolCallId, toolName: t.toolName, output: { type: 'text' as const, value: typeof t.result === 'string' ? t.result : JSON.stringify(t.result) } }] },
+                ]),
+            ];
+
+            // Fresh abort controller — the original may already be aborted
+            const retryAbort = new AbortController();
+            const retryTimer = setTimeout(() => retryAbort.abort(), 30_000);
+
+            try {
+              const retryResult = streamText({ ...baseConfig, abortSignal: retryAbort.signal, messages: followUpMessages, tools: undefined, stopWhen: undefined });
+
+              for await (const retryChunk of retryResult.fullStream) {
+                if (res.writableEnded) break;
+                if (retryChunk.type === 'text-delta' && retryChunk.text) {
+                  const filtered = writeTextChunk(res, requestId, aliasModelId, retryChunk.text);
+                  if (filtered) {
+                    hasStreamedText = true;
+                    assistantResponse += filtered;
+                  }
+                }
+              }
+            } finally {
+              clearTimeout(retryTimer);
+            }
+
+            if (hasStreamedText && !res.writableEnded) {
+              writeStopChunk(res, requestId, aliasModelId);
+              break; // Exit main stream loop — synthesis retry succeeded
+            }
+          } catch (retryErr) {
+            log.v1.error({ err: retryErr }, 'Synthesis retry also failed');
+          }
+        }
+
         // Mid-stream graceful recovery: send a friendly message instead of raw error
-        ensureSSEHeaders();
-
-        const midStreamMsg = isSpanish
-          ? '\n\nHubo una breve interrupción. Por favor, envía tu mensaje de nuevo y completaré mi respuesta.'
-          : '\n\nI encountered a brief interruption. Please send your message again and I\'ll complete my response.';
-
-        const recoveryChunk = {
-          id: requestId,
-          object: 'chat.completion.chunk',
-          created: Math.floor(Date.now() / 1000),
-          model: aliasModelId,
-          system_fingerprint: 'fp_alia',
-          service_tier: 'default',
-          choices: [{
-            index: 0,
-            delta: { content: midStreamMsg },
-            logprobs: null,
-            finish_reason: null,
-          }]
-        };
-        res.write(`data: ${JSON.stringify(recoveryChunk)}\n\n`);
-
-        // Send clean stop (not 'error') so client sees a normal finish
-        const stopChunk = {
-          id: requestId,
-          object: 'chat.completion.chunk',
-          created: Math.floor(Date.now() / 1000),
-          model: aliasModelId,
-          system_fingerprint: 'fp_alia',
-          service_tier: 'default',
-          choices: [{ index: 0, delta: {}, logprobs: null, finish_reason: 'stop' }],
-        };
-        res.write(`data: ${JSON.stringify(stopChunk)}\n\n`);
+        if (!hasStreamedText && !res.writableEnded) {
+          ensureSSEHeaders();
+          const midStreamMsg = isSpanish
+            ? '\n\nHubo una breve interrupción. Por favor, envía tu mensaje de nuevo y completaré mi respuesta.'
+            : '\n\nI encountered a brief interruption. Please send your message again and I\'ll complete my response.';
+          writeContentChunk(res, requestId, aliasModelId, midStreamMsg);
+          writeStopChunk(res, requestId, aliasModelId);
+        }
       } else if (chunk.type === 'finish') {
         log.v1.debug('Finish chunk received');
         ensureSSEHeaders();
-        const finishChunk = {
-          id: requestId,
-          object: 'chat.completion.chunk',
-          created: Math.floor(Date.now() / 1000),
-          model: aliasModelId,
-          system_fingerprint: 'fp_alia',
-          service_tier: 'default',
-          choices: [{
-            index: 0,
-            delta: {},
-            logprobs: null,
-            finish_reason: chunk.finishReason || 'stop'
-          }]
-        };
-        res.write(`data: ${JSON.stringify(finishChunk)}\n\n`);
+        writeStopChunk(res, requestId, aliasModelId, chunk.finishReason || 'stop');
       } else {
         log.v1.warn({ chunkType: chunk.type, chunk }, 'Unhandled chunk type');
       }
@@ -1506,15 +1438,11 @@ export const handleChatCompletions = async (req: Request, res: Response) => {
       const toolCallId = `text-fallback-${Date.now()}-${textToolCallIdx++}-${toolName}`;
 
       // Emit tool-call event to client
-      res.write(`data: ${JSON.stringify({
-        id: requestId,
-        object: 'chat.completion.chunk',
-        created: Math.floor(Date.now() / 1000),
-        model: aliasModelId,
-        system_fingerprint: 'fp_alia',
-        service_tier: 'default',
-        choices: [{ index: 0, delta: { tool_calls: [{ index: 0, id: toolCallId, type: 'function', function: { name: toolName, arguments: JSON.stringify(args) } }] }, logprobs: null, finish_reason: null }],
-      })}\n\n`);
+      res.write(`data: ${JSON.stringify(makeChunk(requestId, aliasModelId, [{
+        index: 0,
+        delta: { tool_calls: [{ index: 0, id: toolCallId, type: 'function', function: { name: toolName, arguments: JSON.stringify(args) } }] },
+        finish_reason: null,
+      }]))}\n\n`);
 
       try {
         const toolOutput = await (toolFn.execute as Function)(args);
@@ -1539,18 +1467,9 @@ export const handleChatCompletions = async (req: Request, res: Response) => {
 
           for await (const followUpChunk of followUpResult.fullStream) {
             if (followUpChunk.type === 'text-delta' && followUpChunk.text) {
-              const followUpText = followUpChunk.text.replace(/<thinking>[\s\S]*?<\/thinking>/g, '');
+              const followUpText = writeTextChunk(res, requestId, aliasModelId, followUpChunk.text);
               if (followUpText) {
                 assistantResponse = followUpText;
-                res.write(`data: ${JSON.stringify({
-                  id: requestId,
-                  object: 'chat.completion.chunk',
-                  created: Math.floor(Date.now() / 1000),
-                  model: aliasModelId,
-                  system_fingerprint: 'fp_alia',
-                  service_tier: 'default',
-                  choices: [{ index: 0, delta: { content: followUpText }, logprobs: null, finish_reason: null }],
-                })}\n\n`);
               }
             }
           }
@@ -1814,27 +1733,9 @@ export const handleChatCompletions = async (req: Request, res: Response) => {
     } else {
       // Streaming: send synthetic message as normal SSE chunks
       ensureSSEHeaders();
-      const contentChunk = {
-        id: requestId,
-        object: 'chat.completion.chunk',
-        created: Math.floor(Date.now() / 1000),
-        model: aliasModelId,
-        system_fingerprint: 'fp_alia',
-        service_tier: 'default',
-        choices: [{ index: 0, delta: { content: syntheticMessage }, logprobs: null, finish_reason: null }],
-        alia_meta: { synthetic: true, retryable: true },
-      };
-      res.write(`data: ${JSON.stringify(contentChunk)}\n\n`);
-      const finishChunk = {
-        id: requestId,
-        object: 'chat.completion.chunk',
-        created: Math.floor(Date.now() / 1000),
-        model: aliasModelId,
-        system_fingerprint: 'fp_alia',
-        service_tier: 'default',
-        choices: [{ index: 0, delta: {}, logprobs: null, finish_reason: 'stop' }],
-      };
-      res.write(`data: ${JSON.stringify(finishChunk)}\n\n`);
+      const syntheticChunk = { ...makeChunk(requestId, aliasModelId, [{ index: 0, delta: { content: syntheticMessage }, finish_reason: null }]), alia_meta: { synthetic: true, retryable: true } };
+      res.write(`data: ${JSON.stringify(syntheticChunk)}\n\n`);
+      writeStopChunk(res, requestId, aliasModelId);
       res.write('data: [DONE]\n\n');
       res.end();
     }
@@ -1860,32 +1761,8 @@ export const handleChatCompletions = async (req: Request, res: Response) => {
       res.status(aliaError.retryable ? 503 : 500).json(formatErrorResponse(aliaError));
     } else if (!res.writableEnded) {
       // Headers already sent (streaming started) — send graceful recovery message
-      const outerMidStreamMsg = '\n\nI encountered a brief interruption. Please send your message again and I\'ll complete my response.';
-      const recoveryChunk = {
-        id: requestId,
-        object: 'chat.completion.chunk',
-        created: Math.floor(Date.now() / 1000),
-        model: aliasModelId,
-        system_fingerprint: 'fp_alia',
-        service_tier: 'default',
-        choices: [{
-          index: 0,
-          delta: { content: outerMidStreamMsg },
-          logprobs: null,
-          finish_reason: null,
-        }]
-      };
-      res.write(`data: ${JSON.stringify(recoveryChunk)}\n\n`);
-      const stopChunk = {
-        id: requestId,
-        object: 'chat.completion.chunk',
-        created: Math.floor(Date.now() / 1000),
-        model: aliasModelId,
-        system_fingerprint: 'fp_alia',
-        service_tier: 'default',
-        choices: [{ index: 0, delta: {}, logprobs: null, finish_reason: 'stop' }],
-      };
-      res.write(`data: ${JSON.stringify(stopChunk)}\n\n`);
+      writeContentChunk(res, requestId, aliasModelId, '\n\nI encountered a brief interruption. Please send your message again and I\'ll complete my response.');
+      writeStopChunk(res, requestId, aliasModelId);
       res.write('data: [DONE]\n\n');
       res.end();
     }

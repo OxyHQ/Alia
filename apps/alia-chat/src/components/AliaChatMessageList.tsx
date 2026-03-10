@@ -1,8 +1,10 @@
-import React, { useRef, useEffect } from 'react';
+import React, { useRef, useEffect, useState, useCallback } from 'react';
 import {
   View,
   Text,
+  Pressable,
   StyleSheet,
+  Platform,
 } from 'react-native';
 import { BlurView } from 'expo-blur';
 import Animated, {
@@ -25,10 +27,15 @@ import type { ChatMessage, ToolInvocation } from '../types';
 
 const ENTER_ANIMATION = FadeInUp.duration(200);
 
-interface AliaChatMessageListProps {
+type PlaybackState = 'idle' | 'loading' | 'playing' | 'paused' | 'error';
+
+export interface AliaChatMessageListProps {
   messages: ChatMessage[];
   isStreaming: boolean;
   scrollOffsetY: SharedValue<number>;
+  onReadAloud?: (messageId: string, text: string) => void;
+  ttsActiveMessageId?: string | null;
+  ttsPlaybackState?: PlaybackState;
 }
 
 // ── Tool Bullet ──
@@ -36,7 +43,6 @@ interface AliaChatMessageListProps {
 function ToolBullet({ invocation }: { invocation: ToolInvocation }) {
   const colors = useAliaColors();
 
-  // Clean up tool name for display: "oxy_inbox__searchEmails" → "Searching emails"
   const displayName = invocation.toolName
     .replace(/^oxy_\w+__/, '')
     .replace(/([A-Z])/g, ' $1')
@@ -99,14 +105,107 @@ function UserBubble({ content }: { content: string }) {
   );
 }
 
+// ── Message Actions ──
+
+function MessageActions({
+  message,
+  onReadAloud,
+  ttsActiveMessageId,
+  ttsPlaybackState,
+}: {
+  message: ChatMessage;
+  onReadAloud?: (messageId: string, text: string) => void;
+  ttsActiveMessageId?: string | null;
+  ttsPlaybackState?: PlaybackState;
+}) {
+  const colors = useAliaColors();
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = useCallback(async () => {
+    try {
+      if (Platform.OS === 'web') {
+        await navigator.clipboard.writeText(message.content);
+      } else {
+        const Clipboard = await import('expo-clipboard');
+        await Clipboard.setStringAsync(message.content);
+      }
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {}
+  }, [message.content]);
+
+  const isThisPlaying = ttsActiveMessageId === message.id && ttsPlaybackState === 'playing';
+  const isThisLoading = ttsActiveMessageId === message.id && ttsPlaybackState === 'loading';
+
+  if (!message.content) return null;
+
+  return (
+    <View style={styles.actionsRow}>
+      {/* Copy */}
+      <Pressable onPress={handleCopy} style={styles.actionBtn} hitSlop={8}>
+        {copied ? (
+          <Text style={[styles.actionIcon, { color: colors.tint }]}>{'\u2713'}</Text>
+        ) : (
+          <CopyIcon color={colors.secondaryText} />
+        )}
+      </Pressable>
+
+      {/* Read aloud */}
+      {onReadAloud && (
+        <Pressable
+          onPress={() => onReadAloud(message.id, message.content)}
+          style={styles.actionBtn}
+          hitSlop={8}
+        >
+          {isThisLoading ? (
+            <Text style={[styles.actionIcon, { color: colors.secondaryText }]}>{'\u2026'}</Text>
+          ) : (
+            <VolumeIcon color={isThisPlaying ? colors.tint : colors.secondaryText} />
+          )}
+        </Pressable>
+      )}
+    </View>
+  );
+}
+
+function CopyIcon({ color }: { color: string }) {
+  if (Platform.OS === 'web') {
+    return (
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+        <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+      </svg>
+    );
+  }
+  return <Text style={[styles.actionIcon, { color }]}>{'\u2398'}</Text>;
+}
+
+function VolumeIcon({ color }: { color: string }) {
+  if (Platform.OS === 'web') {
+    return (
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M11 5L6 9H2v6h4l5 4V5z" />
+        <path d="M15.54 8.46a5 5 0 0 1 0 7.07" />
+      </svg>
+    );
+  }
+  return <Text style={[styles.actionIcon, { color }]}>{'\u{1F50A}'}</Text>;
+}
+
 // ── Assistant Message ──
 
 function AssistantMessage({
   message,
   isStreamingThis,
+  onReadAloud,
+  ttsActiveMessageId,
+  ttsPlaybackState,
 }: {
   message: ChatMessage;
   isStreamingThis: boolean;
+  onReadAloud?: (messageId: string, text: string) => void;
+  ttsActiveMessageId?: string | null;
+  ttsPlaybackState?: PlaybackState;
 }) {
   const colors = useAliaColors();
   const hasContent = !!message.content;
@@ -143,6 +242,16 @@ function AssistantMessage({
       {isStreamingThis && hasContent && (
         <Text style={[styles.cursor, { color: colors.secondaryText }]}>{'\u2758'}</Text>
       )}
+
+      {/* Message actions (copy, read aloud) — shown when not streaming */}
+      {!isStreamingThis && hasContent && (
+        <MessageActions
+          message={message}
+          onReadAloud={onReadAloud}
+          ttsActiveMessageId={ttsActiveMessageId}
+          ttsPlaybackState={ttsPlaybackState}
+        />
+      )}
     </Animated.View>
   );
 }
@@ -153,6 +262,9 @@ export function AliaChatMessageList({
   messages,
   isStreaming,
   scrollOffsetY,
+  onReadAloud,
+  ttsActiveMessageId,
+  ttsPlaybackState,
 }: AliaChatMessageListProps) {
   const scrollRef = useRef<Animated.ScrollView>(null);
 
@@ -196,6 +308,9 @@ export function AliaChatMessageList({
               key={msg.id}
               message={msg}
               isStreamingThis={isStreamingThis}
+              onReadAloud={onReadAloud}
+              ttsActiveMessageId={ttsActiveMessageId}
+              ttsPlaybackState={ttsPlaybackState}
             />
           );
         })}
@@ -260,5 +375,23 @@ const styles = StyleSheet.create({
   },
   toolLabel: {
     fontSize: 13,
+  },
+
+  // Message actions
+  actionsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    marginTop: 6,
+    opacity: 0.7,
+  },
+  actionBtn: {
+    width: 28,
+    height: 28,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  actionIcon: {
+    fontSize: 14,
   },
 });

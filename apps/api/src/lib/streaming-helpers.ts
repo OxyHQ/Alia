@@ -132,3 +132,48 @@ export function sendSSEEvent(res: Response, event: any): void {
   const serialized = JSON.stringify(event);
   writeSSE(res, `data: ${serialized}\n\n`);
 }
+
+// ── OpenAI-compatible chunk helpers ──
+
+const THINKING_RE = /<thinking>[\s\S]*?<\/thinking>/g;
+
+/** Strip <thinking> tags, return null if nothing remains. */
+export function filterThinking(text: string): string | null {
+  const f = text.replace(THINKING_RE, '');
+  return f || null;
+}
+
+/** Build an OpenAI-compatible chat.completion.chunk object. */
+export function makeChunk(
+  id: string,
+  model: string,
+  choices: Array<{ index: number; delta: Record<string, unknown>; finish_reason: string | null }>,
+): Record<string, unknown> {
+  return {
+    id,
+    object: 'chat.completion.chunk',
+    created: Math.floor(Date.now() / 1000),
+    model,
+    system_fingerprint: 'fp_alia',
+    service_tier: 'default',
+    choices: choices.map(c => ({ ...c, logprobs: null })),
+  };
+}
+
+/** Write a text-delta SSE chunk with thinking-tag filter. Returns filtered text or null. */
+export function writeTextChunk(res: Response, id: string, model: string, text: string): string | null {
+  const filtered = filterThinking(text);
+  if (!filtered) return null;
+  res.write(`data: ${JSON.stringify(makeChunk(id, model, [{ index: 0, delta: { content: filtered }, finish_reason: null }]))}\n\n`);
+  return filtered;
+}
+
+/** Write a stop/finish SSE chunk. */
+export function writeStopChunk(res: Response, id: string, model: string, reason = 'stop'): void {
+  res.write(`data: ${JSON.stringify(makeChunk(id, model, [{ index: 0, delta: {}, finish_reason: reason }]))}\n\n`);
+}
+
+/** Write a content delta SSE chunk (no thinking filter). */
+export function writeContentChunk(res: Response, id: string, model: string, content: string): void {
+  res.write(`data: ${JSON.stringify(makeChunk(id, model, [{ index: 0, delta: { content }, finish_reason: null }]))}\n\n`);
+}
