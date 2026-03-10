@@ -66,10 +66,10 @@ export async function buildActions(ctx: ActionContext) {
 
   actions.shell = tool({
     description: 'Run a bash command in a persistent terminal session. Working directory, environment variables, and installed packages persist between calls. A container is created automatically on first use.',
-    parameters: z.object({
+    inputSchema: z.object({
       command: z.string().describe('Bash command to execute'),
       timeout: z.number().optional().describe('Timeout in seconds (default 30, max 300)'),
-    }).passthrough(),
+    }),
     execute: async ({ command, timeout }: { command: string; timeout?: number }) => {
       try {
         return await terminalSession.run(command, timeout);
@@ -83,13 +83,13 @@ export async function buildActions(ctx: ActionContext) {
 
   actions.browser = tool({
     description: 'Interact with a web browser. Use for web research, reading pages, and interactive browsing. Actions: search (web search), goto (navigate to URL), get_text (extract page text), screenshot (capture page), click (click element), type (fill input), scroll_down, scroll_up, back, wait.',
-    parameters: z.object({
+    inputSchema: z.object({
       action: z.enum(['goto', 'click', 'type', 'scroll_down', 'scroll_up', 'screenshot', 'get_text', 'search', 'back', 'wait']),
       url: z.string().optional().describe('URL for goto action'),
       selector: z.string().optional().describe('Element selector or description for click/type'),
       text: z.string().optional().describe('Text to type (type action)'),
       query: z.string().optional().describe('Search query (search action)'),
-    }).passthrough(),
+    }),
     execute: async ({ action, url, selector, text, query }: {
       action: string; url?: string; selector?: string; text?: string; query?: string;
     }) => {
@@ -120,15 +120,15 @@ export async function buildActions(ctx: ActionContext) {
   // ── 3. file_edit — Read/write/edit files ──
 
   actions.file_edit = tool({
-    description: 'Read, write, or edit files in the workspace. Use "read" to view file contents, "write" to create/overwrite a file, "edit" to find and replace text in a file. More precise than shell commands for file modifications.',
-    parameters: z.object({
-      action: z.enum(['read', 'write', 'edit']),
-      path: z.string().describe('File path (relative to /workspace or absolute)'),
+    description: 'Read, write, edit, or list files in the workspace. Use "read" to view file contents, "write" to create/overwrite a file, "edit" to find and replace text in a file, "list" to list files in a directory. More precise than shell commands for file modifications.',
+    inputSchema: z.object({
+      action: z.enum(['read', 'write', 'edit', 'list']),
+      path: z.string().describe('File path (relative to /workspace or absolute). For "list", this is the directory path.'),
       content: z.string().optional().describe('File content for write, or new text for edit'),
       old_text: z.string().optional().describe('Text to find and replace (edit action only)'),
-    }).passthrough(),
+    }),
     execute: async ({ action, path, content, old_text }: {
-      action: 'read' | 'write' | 'edit'; path: string; content?: string; old_text?: string;
+      action: 'read' | 'write' | 'edit' | 'list'; path: string; content?: string; old_text?: string;
     }) => {
       try {
         switch (action) {
@@ -140,24 +140,29 @@ export async function buildActions(ctx: ActionContext) {
           }
 
           case 'write': {
-            if (!content && content !== '') return 'Error: content is required for write action';
-            await terminalSession.writeFile(path, content!);
-            return `File written: ${path} (${content!.length} chars)`;
+            if (content == null) return 'Error: content is required for write action';
+            await terminalSession.writeFile(path, content);
+            return `File written: ${path} (${content.length} chars)`;
           }
 
           case 'edit': {
             if (!old_text) return 'Error: old_text is required for edit action';
-            if (!content && content !== '') return 'Error: content (new text) is required for edit action';
+            if (content == null) return 'Error: content (new text) is required for edit action';
 
             const current = await terminalSession.readFile(path);
             if (!current.includes(old_text)) {
               return `Error: old_text not found in ${path}. Use file_edit(read) to see the current contents.`;
             }
             const replaced = current.split(old_text).length - 1;
-            const updated = current.split(old_text).join(content!);
+            const updated = current.split(old_text).join(content);
             await terminalSession.writeFile(path, updated);
 
             return `File edited: ${path} (${replaced} replacement${replaced !== 1 ? 's' : ''})`;
+          }
+
+          case 'list': {
+            const result = await terminalSession.run(`ls -la ${path.includes(' ') ? `'${path}'` : path} 2>&1`);
+            return result;
           }
 
           default:
@@ -173,7 +178,7 @@ export async function buildActions(ctx: ActionContext) {
 
   actions.plan = tool({
     description: 'Manage your task plan or signal completion. Use "update" to create/modify your checklist. Use "complete" when you are done with the task. Create a plan for multi-step tasks.',
-    parameters: z.object({
+    inputSchema: z.object({
       action: z.enum(['update', 'complete']),
       objective: z.string().optional().describe('Overall objective of the task (update action)'),
       items: z.array(z.string()).optional().describe('List of task steps as strings (update action)'),
@@ -241,10 +246,10 @@ export async function buildActions(ctx: ActionContext) {
   if (onHireAgent) {
     actions.delegate = tool({
       description: 'Hire a specialist agent for a subtask. The agent works autonomously and returns the result. Use for tasks outside your expertise or to parallelize work.',
-      parameters: z.object({
+      inputSchema: z.object({
         agent: z.string().describe('Agent handle (e.g. @researcher, @coder)'),
         task: z.string().describe('Task description for the hired agent'),
-      }).passthrough(),
+      }),
       execute: async ({ agent, task }: { agent: string; task: string }) => {
         try {
           const handle = agent.replace(/^@/, '');
@@ -267,23 +272,23 @@ export async function buildActions(ctx: ActionContext) {
 
     if (perms.shell === false && actions.shell) {
       const origDesc = (actions.shell as any).description;
-      const origParams = (actions.shell as any).parameters;
-      actions.shell = tool({ description: origDesc, parameters: origParams, execute: denyStub('Shell') });
+      const origSchema = (actions.shell as any).inputSchema;
+      actions.shell = tool({ description: origDesc, inputSchema: origSchema, execute: denyStub('Shell') });
     }
     if (perms.network === false && actions.browser) {
       const origDesc = (actions.browser as any).description;
-      const origParams = (actions.browser as any).parameters;
-      actions.browser = tool({ description: origDesc, parameters: origParams, execute: denyStub('Browser/network') });
+      const origSchema = (actions.browser as any).inputSchema;
+      actions.browser = tool({ description: origDesc, inputSchema: origSchema, execute: denyStub('Browser/network') });
     }
     if (perms.filesystem === false && actions.file_edit) {
       const origDesc = (actions.file_edit as any).description;
-      const origParams = (actions.file_edit as any).parameters;
-      actions.file_edit = tool({ description: origDesc, parameters: origParams, execute: denyStub('Filesystem') });
+      const origSchema = (actions.file_edit as any).inputSchema;
+      actions.file_edit = tool({ description: origDesc, inputSchema: origSchema, execute: denyStub('Filesystem') });
     }
     if (perms.delegation === false && actions.delegate) {
       const origDesc = (actions.delegate as any).description;
-      const origParams = (actions.delegate as any).parameters;
-      actions.delegate = tool({ description: origDesc, parameters: origParams, execute: denyStub('Agent delegation') });
+      const origSchema = (actions.delegate as any).inputSchema;
+      actions.delegate = tool({ description: origDesc, inputSchema: origSchema, execute: denyStub('Agent delegation') });
     }
   }
 
@@ -316,7 +321,7 @@ export async function buildActions(ctx: ActionContext) {
             },
           };
         } else {
-          actions[name] = mcpTool;
+          log.agents.warn({ toolName: name }, 'MCP tool has no execute function, skipping');
         }
       }
     }

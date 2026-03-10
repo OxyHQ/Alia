@@ -72,11 +72,12 @@ export class TerminalSession {
     if (this.containerId) return this.containerId;
 
     const pool = getContainerPool();
+    // Claim from pool WITHOUT persistent flag so we can reuse warm containers.
+    // The container is marked persistent in the DB record below, which controls
+    // TTL/cleanup behavior without bypassing the warm pool.
     const info = await pool.claim({
       image: this.image,
       size: 'small',
-      // Keep agent workspaces available for post-run browsing.
-      persistent: true,
       labels: {
         'alia.session': this.sessionId,
         'alia.agent': this.agentId,

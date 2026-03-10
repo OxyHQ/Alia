@@ -34,6 +34,9 @@ import { orchestrate, shouldOrchestrate } from './agent/orchestrator.js';
 import { compactContext } from './agent/context-compaction.js';
 import { redactSecrets } from './agent/secret-scanner.js';
 
+/** Regex to detect browser-related tasks for pre-initialization */
+const BROWSER_HINT_RE = /\b(browse|browser|website|web page|screenshot|http|https|www\.|\.com|\.org|url|navigate|click|open site)\b/i;
+
 /** Continuation prompts — varied to prevent brittle pattern mimicry */
 const CONTINUATION_PROMPTS = [
   'Continue working on the task.',
@@ -65,7 +68,7 @@ You have 5 actions:
 
 2. **browser** — Interact with a web browser. Navigate to URLs, search the web, click elements, fill forms, take screenshots. Use for web research and testing.
 
-3. **file_edit** — Read, write, or edit files directly. More precise than shell for file modifications. Use search-replace for targeted edits.
+3. **file_edit** — Read, write, edit, or list files directly. More precise than shell for file modifications. Use search-replace for targeted edits. Use action='list' to see directory contents.
 
 4. **plan** — Create and update your task plan, or signal completion. Your plan persists as a checklist. Update it as you make progress. Call plan(action='complete', result='...') when done.
 
@@ -280,8 +283,7 @@ export async function runAgentSession(sessionId: string): Promise<void> {
   const browserSession = new BrowserSession({ agentId, sessionId });
 
   // Pre-initialize browser if the task likely needs it (saves 5-15s cold start)
-  const browserHint = /\b(browse|browser|website|web page|screenshot|http|https|www\.|\.com|\.org|url|navigate|click|open site)\b/i;
-  if (browserHint.test(session.task)) {
+  if (BROWSER_HINT_RE.test(session.task)) {
     browserSession.preInit();
   }
 
@@ -386,7 +388,7 @@ export async function runAgentSession(sessionId: string): Promise<void> {
 
   // ── Session time limit ──
   const sessionStartMs = Date.now();
-  const maxDurationMs = 10 * 60 * 1000; // 10 minutes
+  const maxDurationMs = parseInt(process.env.AGENT_MAX_DURATION_MS || '600000', 10); // default 10 min
 
   try {
     // ── Orchestrator mode check ──
@@ -498,10 +500,8 @@ export async function runAgentSession(sessionId: string): Promise<void> {
       // Build context (stable prefix + event stream + todo/state tail + browser screenshot)
       const messages = buildContextMessages(
         systemPrompt, eventStream, todoManager, stateMachine, iteration,
-        browserSession.lastScreenshotBase64,
+        browserSession.consumeLastScreenshot(),
       );
-      // Clear screenshot after injecting so it doesn't persist across non-browser steps
-      browserSession.lastScreenshotBase64 = null;
 
       try {
         // One action per iteration (Manus principle)
@@ -607,11 +607,7 @@ export async function runAgentSession(sessionId: string): Promise<void> {
                   const successKey = tr.toolName || 'unknown';
                   if (toolErrorTracker.has(successKey)) {
                     toolErrorTracker.delete(successKey);
-                    // Recalculate consecutive errors: reset only if the tool that was
-                    // causing the consecutive errors just succeeded
                     consecutiveErrors = Math.max(0, consecutiveErrors - 1);
-                  } else {
-                    // Success on a tool that hasn't been failing — don't touch the counter
                   }
                 }
 
