@@ -63,6 +63,7 @@ vi.mock('../../../internal/providers/lib/alia-models.js', () => ({
 vi.mock('../../../lib/credits-manager.js', () => ({
   reserveCredits: (...args: any[]) => mockReserveCredits(...args),
   finalizeCredits: (...args: any[]) => mockFinalizeCredits(...args),
+  refundReservation: vi.fn().mockResolvedValue(undefined),
 }));
 
 vi.mock('../../../lib/user-credits-helpers.js', () => ({
@@ -178,7 +179,11 @@ vi.mock('../../../lib/conversation-saver.js', () => ({
 }));
 
 vi.mock('../../../lib/plan-access.js', () => ({
-  getUserEntitlements: vi.fn().mockResolvedValue({ tier: 'free', features: {} }),
+  getUserEntitlements: vi.fn().mockResolvedValue({
+    tier: 'free',
+    features: {},
+    allowedModelIds: ['alia-v1', 'alia-lite', 'alia-v1-pro', 'alia-v1-thinking'],
+  }),
 }));
 
 vi.mock('../../../lib/tools/mcp.js', () => ({
@@ -418,7 +423,9 @@ describe('504 timeout fixes - /v1/chat/completions', () => {
   it('returns 402 JSON and clears timer when credits insufficient', async () => {
     mockReserveCredits.mockResolvedValue(null);
 
-    const req = createMockReq();
+    const req = createMockReq({
+      body: { messages: [{ role: 'user', content: 'Hello' }], model: 'alia-v1', stream: false },
+    });
     const res = createMockRes();
 
     await handler(req, res, vi.fn());
@@ -442,7 +449,9 @@ describe('504 timeout fixes - /v1/chat/completions', () => {
   it('returns 503 JSON and clears timer when no models available', async () => {
     mockResolveModel.mockResolvedValue(null);
 
-    const req = createMockReq();
+    const req = createMockReq({
+      body: { messages: [{ role: 'user', content: 'Hello' }], model: 'alia-v1', stream: false },
+    });
     const res = createMockRes();
 
     await handler(req, res, vi.fn());
@@ -450,7 +459,9 @@ describe('504 timeout fixes - /v1/chat/completions', () => {
     // 503 with "No models available"
     expect(res.status).toHaveBeenCalledWith(503);
     expect(res.json).toHaveBeenCalledWith(
-      expect.objectContaining({ error: 'No models available' })
+      expect.objectContaining({
+        error: expect.objectContaining({ message: 'No models available. Please try again.' }),
+      })
     );
 
     // status called only once
@@ -488,7 +499,9 @@ describe('504 timeout fixes - /v1/chat/completions', () => {
   it('resolveModel .catch() prevents Promise.all crash', async () => {
     mockResolveModel.mockRejectedValue(new Error('Key manager DB error'));
 
-    const req = createMockReq();
+    const req = createMockReq({
+      body: { messages: [{ role: 'user', content: 'Hello' }], model: 'alia-v1', stream: false },
+    });
     const res = createMockRes();
 
     await handler(req, res, vi.fn());
@@ -496,7 +509,9 @@ describe('504 timeout fixes - /v1/chat/completions', () => {
     // Should get 503 (resolveModel returned null after catch)
     expect(res.status).toHaveBeenCalledWith(503);
     expect(res.json).toHaveBeenCalledWith(
-      expect.objectContaining({ error: 'No models available' })
+      expect.objectContaining({
+        error: expect.objectContaining({ message: 'No models available. Please try again.' }),
+      })
     );
 
     // Handler completed normally (no unhandled rejection)
@@ -535,7 +550,7 @@ describe('504 timeout fixes - /v1/chat/completions', () => {
 
     // SSE error chunk was sent (not a JSON 503)
     const allWrites = res.write.mock.calls.map((c: any[]) => c[0]).join('');
-    expect(allWrites).toContain('All models are currently unavailable');
+    expect(allWrites).toContain('all models are currently busy');
     expect(allWrites).toContain('data: [DONE]');
 
     // res.end was called
