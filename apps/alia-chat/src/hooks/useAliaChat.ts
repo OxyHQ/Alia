@@ -312,8 +312,6 @@ export function useAliaChat(options: UseAliaChatOptions = {}): UseAliaChatReturn
                       updateAssistant(() => ({
                         pendingPlan: {
                           planId: parsed.planId,
-                          intent: parsed.intent,
-                          confidence: parsed.confidence,
                           steps: parsed.steps || [],
                           approved: false,
                           rejected: false,

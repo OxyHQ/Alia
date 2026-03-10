@@ -20,7 +20,6 @@ export interface RecallResult {
   confidence: number;
   rules: Array<{ id: string; priority: number; text: string; type: string }>;
   rankedSources: RankedSource[];
-  planPreview: string[];
 }
 
 const DEFAULT_SOURCE_PATHS: Record<AutonomyIntent, string[]> = {
@@ -60,11 +59,6 @@ function rankSources(input: Array<{ sourceKey: string; freshnessScore: number; p
       };
     })
     .sort((a, b) => b.score - a.score);
-}
-
-// Plan previews are now AI-generated via the planPreview tool, not the autonomy runtime.
-function buildPlanPreview(_intent: AutonomyIntent, _sources: RankedSource[]): string[] {
-  return [];
 }
 
 async function ensureSources(oxyUserId: mongoose.Types.ObjectId, intent: AutonomyIntent): Promise<Array<{ sourceKey: string; freshnessScore: number; precisionScore: number; costScore: number }>> {
@@ -139,7 +133,6 @@ export async function recallContextForIntent(params: {
       confidence: params.confidence,
       rules: [],
       rankedSources: defaults,
-      planPreview: buildPlanPreview(params.intent, defaults),
     };
   }
 
@@ -161,7 +154,6 @@ export async function recallContextForIntent(params: {
     confidence: params.confidence,
     rules: ruleRows.map((r) => ({ id: String(r._id), priority: r.priority, text: r.ruleText, type: r.ruleType })),
     rankedSources,
-    planPreview: buildPlanPreview(params.intent, rankedSources),
   };
 }
 

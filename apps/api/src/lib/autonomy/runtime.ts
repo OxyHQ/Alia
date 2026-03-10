@@ -36,16 +36,11 @@ export function buildAutonomyPromptFragment(context: AutonomyRuntimeContext): st
 
   const sourceLine = context.recall.rankedSources.slice(0, 4).map((s) => `${s.sourceKey}(${s.score.toFixed(2)})`).join(', ');
   const rules = context.recall.rules.slice(0, 5).map((r) => `- [${r.type}] ${r.text}`).join('\n');
-  const plan = context.recall.planPreview.slice(0, 6).map((step, idx) => `${idx + 1}. ${step}`).join('\n');
 
   let fragment = '\n\n# AUTONOMY RUNTIME\n';
   fragment += `Intent: ${context.classification.intent} (confidence ${context.classification.confidence.toFixed(2)}).\n`;
   if (sourceLine) fragment += `Preferred sources by rank: ${sourceLine}.\n`;
   if (rules) fragment += `\nPriority learnings:\n${rules}\n`;
-  if (plan) {
-    fragment += `\nExecution plan:\n${plan}\n`;
-    fragment += 'Follow this plan before asking the user where to look. If a source fails, use the next fallback source.';
-  }
 
   return fragment;
 }
