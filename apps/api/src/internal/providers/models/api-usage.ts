@@ -19,4 +19,4 @@ const ApiUsageSchema = new Schema<IApiUsage>({
 // Índice compuesto para búsquedas rápidas por rango de tiempo y key
 ApiUsageSchema.index({ keyId: 1, timestamp: -1 });
 
-export const ApiUsage: Model<IApiUsage> = mongoose.models.ApiUsage || mongoose.model<IApiUsage>('ApiUsage', ApiUsageSchema);
+export const ApiUsage = (mongoose.models.ApiUsage || mongoose.model<IApiUsage>('ApiUsage', ApiUsageSchema)) as Model<IApiUsage>;

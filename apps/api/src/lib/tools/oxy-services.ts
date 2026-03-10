@@ -235,7 +235,7 @@ export async function buildOxyServiceTools(
 
         tools[toolName] = tool({
           description: `[${svc.displayName}] ${svcTool.description}`,
-          parameters: jsonSchemaToZod(svcTool.inputSchema),
+          inputSchema: jsonSchemaToZod(svcTool.inputSchema),
           execute: async (args: Record<string, unknown>) =>
             safeExecute(svc.displayName, () => callOxyService(svcTool, args as Record<string, any>, accessToken)),
         } as any);

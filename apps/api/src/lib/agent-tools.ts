@@ -108,7 +108,7 @@ export async function buildAgentTools(ctx: BuildToolsContext) {
 
   tools.plan_update_todo = tool({
     description: 'Create or update your task plan. Provide the overall objective and a list of items with their status. Call this at the start of multi-step tasks, and update it as you complete steps.',
-    parameters: z.object({
+    inputSchema: z.object({
       objective: z.string().describe('The overall objective of the task'),
       items: z.array(z.object({
         text: z.string().describe('Description of this step'),
@@ -131,7 +131,7 @@ export async function buildAgentTools(ctx: BuildToolsContext) {
 
   tools.plan_complete = tool({
     description: 'Signal that the current task is complete. Call this when you have finished working and have a final result.',
-    parameters: z.object({
+    inputSchema: z.object({
       result: z.string().describe('The final result or summary of what was accomplished'),
     }),
     execute: async ({ result }: { result: string }) => {
@@ -145,7 +145,7 @@ export async function buildAgentTools(ctx: BuildToolsContext) {
   if (onHireAgent) {
     tools.agent_hire = tool({
       description: 'Hire another agent for a subtask. The agent will work autonomously and return the result.',
-      parameters: z.object({
+      inputSchema: z.object({
         agentHandle: z.string().describe('The handle of the agent to hire (e.g. @researcher)'),
         task: z.string().describe('Description of the task for the hired agent'),
       }),
@@ -162,7 +162,7 @@ export async function buildAgentTools(ctx: BuildToolsContext) {
 
     tools.agent_parallel = tool({
       description: 'Run multiple research tasks in parallel. Each task is executed by a separate agent concurrently. Use for tasks like "analyze these 5 repos" or "research these competitors". Max 10 tasks.',
-      parameters: z.object({
+      inputSchema: z.object({
         tasks: z.array(z.object({
           agentHandle: z.string().describe('Agent handle (e.g. @researcher)'),
           task: z.string().describe('Task description for this agent'),
@@ -200,7 +200,7 @@ export async function buildAgentTools(ctx: BuildToolsContext) {
   if (isSandboxAvailable()) {
     tools.shell_create_container = tool({
       description: 'Create a Docker container for code execution. Choose the right image for the project type. The container starts with a /workspace directory.',
-      parameters: z.object({
+      inputSchema: z.object({
         image: z.enum(['node:22', 'node:20', 'node:18', 'python:3.12', 'python:3.11', 'ubuntu:24.04', 'ubuntu:22.04', 'golang:1.22', 'ruby:3.3', 'rust:1.77'])
           .default('ubuntu:22.04')
           .describe('Base image. Use node:22 for JS/TS, python:3.12 for Python, ubuntu for general use'),
@@ -262,7 +262,7 @@ export async function buildAgentTools(ctx: BuildToolsContext) {
 
     tools.shell_exec = tool({
       description: 'Execute a shell command in a container. Returns stdout, stderr, and exit code. Working directory is /workspace.',
-      parameters: z.object({
+      inputSchema: z.object({
         containerId: z.string().describe('The container ID returned by shell_create_container'),
         command: z.string().describe('The shell command to execute'),
         timeout: z.number().optional().default(30).describe('Timeout in seconds (max 300)'),
@@ -285,7 +285,7 @@ export async function buildAgentTools(ctx: BuildToolsContext) {
 
     tools.file_write = tool({
       description: 'Write content to a file inside a container. Creates parent directories automatically.',
-      parameters: z.object({
+      inputSchema: z.object({
         containerId: z.string().describe('The container ID'),
         path: z.string().describe('Absolute file path (e.g. /workspace/app/index.js)'),
         content: z.string().describe('File content to write'),
@@ -305,7 +305,7 @@ export async function buildAgentTools(ctx: BuildToolsContext) {
 
     tools.file_read = tool({
       description: 'Read a file from a container.',
-      parameters: z.object({
+      inputSchema: z.object({
         containerId: z.string().describe('The container ID'),
         path: z.string().describe('Absolute file path to read'),
       }),
@@ -324,7 +324,7 @@ export async function buildAgentTools(ctx: BuildToolsContext) {
 
     tools.file_list = tool({
       description: 'List files and directories in a container path.',
-      parameters: z.object({
+      inputSchema: z.object({
         containerId: z.string().describe('The container ID'),
         dir: z.string().optional().default('/workspace').describe('Directory to list'),
       }),
@@ -343,7 +343,7 @@ export async function buildAgentTools(ctx: BuildToolsContext) {
 
     tools.port_expose = tool({
       description: 'Make a port accessible via a public HTTPS preview URL. Use this when developing web apps so the user can see the running application.',
-      parameters: z.object({
+      inputSchema: z.object({
         containerId: z.string().describe('The container ID'),
         port: z.number().describe('The port the app is listening on (e.g. 3000, 8080)'),
       }),
@@ -368,7 +368,7 @@ export async function buildAgentTools(ctx: BuildToolsContext) {
 
     tools.snapshot_create = tool({
       description: 'Save the current container state as a reusable template/snapshot. Useful for preserving a configured environment.',
-      parameters: z.object({
+      inputSchema: z.object({
         containerId: z.string().describe('The container ID'),
         name: z.string().describe('Name for the snapshot (alphanumeric, dashes, dots, underscores)'),
         description: z.string().optional().describe('Description of what the snapshot contains'),
@@ -398,7 +398,7 @@ export async function buildAgentTools(ctx: BuildToolsContext) {
 
     tools.shell_destroy_container = tool({
       description: 'Destroy a container and free its resources. Always destroy containers when you are done with them.',
-      parameters: z.object({
+      inputSchema: z.object({
         containerId: z.string().describe('The container ID to destroy'),
       }),
       execute: async ({ containerId }) => {
@@ -429,7 +429,7 @@ export async function buildAgentTools(ctx: BuildToolsContext) {
 
 When to use: For any multi-step operation, data transformation, conditional logic, or when you need the full power of a programming language.
 When NOT to use: For simple web searches or file reads — use the dedicated tools instead.`,
-      parameters: z.object({
+      inputSchema: z.object({
         containerId: z.string().describe('Container ID to execute in'),
         code: z.string().describe('Python code to execute'),
         description: z.string().describe('Brief description of what this code does'),

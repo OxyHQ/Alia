@@ -49,4 +49,4 @@ FallbackEventSchema.index({ timestamp: 1 }, { expireAfterSeconds: 30 * 24 * 60 *
 FallbackEventSchema.index({ aliasModel: 1, timestamp: -1 });
 FallbackEventSchema.index({ success: 1, timestamp: -1 });
 
-export const FallbackEvent = mongoose.models.FallbackEvent || mongoose.model<IFallbackEvent>('FallbackEvent', FallbackEventSchema);
+export const FallbackEvent = (mongoose.models.FallbackEvent || mongoose.model<IFallbackEvent>('FallbackEvent', FallbackEventSchema)) as mongoose.Model<IFallbackEvent>;

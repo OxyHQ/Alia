@@ -181,25 +181,25 @@ router.post('/', authenticateTokenOrApiKey, async (req: Request, res: Response) 
         { upsert: true, returnDocument: 'after', setDefaultsOnInsert: true }
       ),
       // Replace all messages for this conversation
-      Message.deleteMany({ conversationId, oxyUserId: req.user.id }).then(() =>
-        validMessages.length > 0
-          ? Message.insertMany(
-              validMessages.map((m: any) => ({
-                conversationId,
-                oxyUserId: req.user!.id,
-                id: m.id,
-                role: m.role,
-                content: m.content,
-                vote: m.vote,
-                toolInvocations: m.toolInvocations,
-                agentInfo: m.agentInfo,
-                audioUrl: m.audioUrl,
-                createdAt: m.createdAt || new Date(),
-              })),
-              { ordered: false }
-            )
-          : Promise.resolve()
-      ),
+      Message.deleteMany({ conversationId, oxyUserId: req.user.id }).then(async () => {
+        if (validMessages.length > 0) {
+          await Message.insertMany(
+            validMessages.map((m: any) => ({
+              conversationId,
+              oxyUserId: req.user!.id,
+              id: m.id,
+              role: m.role,
+              content: m.content,
+              vote: m.vote,
+              toolInvocations: m.toolInvocations,
+              agentInfo: m.agentInfo,
+              audioUrl: m.audioUrl,
+              createdAt: m.createdAt || new Date(),
+            })),
+            { ordered: false }
+          );
+        }
+      }),
     ]);
 
     res.json({

@@ -96,4 +96,4 @@ const ExternalModelSchema = new Schema<IExternalModel>(
 ExternalModelSchema.index({ organizationId: 1, modelId: 1 });
 ExternalModelSchema.index({ source: 1 });
 
-export const ExternalModel = mongoose.models.ExternalModel || mongoose.model<IExternalModel>('ExternalModel', ExternalModelSchema);
+export const ExternalModel = (mongoose.models.ExternalModel || mongoose.model<IExternalModel>('ExternalModel', ExternalModelSchema)) as mongoose.Model<IExternalModel>;

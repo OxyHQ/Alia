@@ -87,7 +87,7 @@ export const browseTool = tool({
       const page = stagehand.context.pages()[0];
 
       if (action === 'search') {
-        await page.goto('https://www.google.com', { waitUntil: 'domcontentloaded', timeout: 15000 });
+        await page.goto('https://www.google.com', { waitUntil: 'domcontentloaded', timeoutMs: 15000 });
         await stagehand.act(`Type "${query}" into the search box and press Enter`);
 
         // Wait briefly for results
@@ -106,13 +106,17 @@ export const browseTool = tool({
           })
         );
 
-        const results = (data.results || []).slice(0, 8);
+        const results: BrowseSearchResult[] = (data.results || []).slice(0, 8).map(r => ({
+          title: r.title ?? '',
+          url: r.url ?? '',
+          snippet: r.snippet ?? '',
+        }));
         log.tools.info({ query, count: results.length }, 'Browse search completed');
         return { action: 'search', results, count: results.length };
       }
 
       if (action === 'read') {
-        await page.goto(url!, { waitUntil: 'domcontentloaded', timeout: 15000 });
+        await page.goto(url!, { waitUntil: 'domcontentloaded', timeoutMs: 15000 });
 
         const data = await stagehand.extract(
           'Extract the page title and the main text content of this page.',

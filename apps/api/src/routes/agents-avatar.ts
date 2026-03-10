@@ -48,7 +48,7 @@ async function getReferenceDescription(): Promise<string> {
 
     const result = await generateText({
       model,
-      maxTokens: 300,
+      maxOutputTokens: 300,
       messages: [
         {
           role: 'user',

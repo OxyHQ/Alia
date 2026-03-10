@@ -349,4 +349,4 @@ ProviderKeySchema.statics.getKeyPrefix = function (key: string): string {
   return key.substring(0, Math.min(8, key.length)) + '...';
 };
 
-export const ProviderKey = mongoose.models.ProviderKey || mongoose.model<IProviderKey>('ProviderKey', ProviderKeySchema);
+export const ProviderKey = (mongoose.models.ProviderKey || mongoose.model<IProviderKey>('ProviderKey', ProviderKeySchema)) as mongoose.Model<IProviderKey>;

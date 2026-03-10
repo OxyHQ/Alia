@@ -240,7 +240,7 @@ export async function seedAliaModels(): Promise<{ seeded: number; skipped: numbe
 export async function resetAllCircuitBreakers(): Promise<number> {
   await connectDB();
 
-  const ProviderHealth = mongoose.models.ProviderHealth;
+  const ProviderHealth = mongoose.models.ProviderHealth as mongoose.Model<any> | undefined;
   if (!ProviderHealth) {
     log.seed.info('ProviderHealth model not loaded yet, skipping circuit breaker reset');
     return 0;

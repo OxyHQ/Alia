@@ -235,7 +235,7 @@ function buildGitHubTools(userId: string): ToolSet {
 
     listMyGitHubRepos: tool({
       description: '[GitHub] List the authenticated user\'s repositories. Use when user asks to see their repos, projects, or repositories.',
-      parameters: z.object({
+      inputSchema: z.object({
         sort: z.enum(['updated', 'created', 'pushed', 'full_name']).default('updated').describe('Sort order'),
         type: z.enum(['all', 'owner', 'member']).default('all').describe('Filter by ownership'),
       }),
@@ -260,7 +260,7 @@ function buildGitHubTools(userId: string): ToolSet {
 
     getGitHubRepo: tool({
       description: '[GitHub] Get full details about a specific repository including stats, topics, and default branch.',
-      parameters: z.object({
+      inputSchema: z.object({
         repo: z.string().describe('Repository in "owner/repo" format or GitHub URL'),
       }),
       execute: async ({ repo: rawRepo }) => safeExecute('GitHub', async () => {
@@ -291,7 +291,7 @@ function buildGitHubTools(userId: string): ToolSet {
 
     searchGitHubRepos: tool({
       description: '[GitHub] Search repositories on GitHub by keyword. For listing the user\'s own repos, use listMyGitHubRepos instead.',
-      parameters: z.object({
+      inputSchema: z.object({
         query: z.string().describe('Search query (e.g. repo name, topic, language)'),
       }),
       execute: async ({ query }) => safeExecute('GitHub', async () => {
@@ -311,7 +311,7 @@ function buildGitHubTools(userId: string): ToolSet {
 
     getGitHubFileTree: tool({
       description: '[GitHub] Get the file/directory structure of a repository. Use to browse or understand project layout.',
-      parameters: z.object({
+      inputSchema: z.object({
         repo: z.string().describe('Repository in "owner/repo" format or GitHub URL'),
         branch: z.string().optional().describe('Branch name (defaults to repo default branch)'),
       }),
@@ -336,7 +336,7 @@ function buildGitHubTools(userId: string): ToolSet {
 
     getGitHubFileContent: tool({
       description: '[GitHub] Read the content of a file from a repository. Use to view, analyze, or review code.',
-      parameters: z.object({
+      inputSchema: z.object({
         repo: z.string().describe('Repository in "owner/repo" format or GitHub URL'),
         path: z.string().describe('File path within the repository (e.g. "src/index.ts")'),
         branch: z.string().optional().describe('Branch name (defaults to repo default branch)'),
@@ -377,7 +377,7 @@ function buildGitHubTools(userId: string): ToolSet {
 
     searchGitHubCode: tool({
       description: '[GitHub] Search for code across repositories. Use to find specific functions, patterns, or code snippets.',
-      parameters: z.object({
+      inputSchema: z.object({
         query: z.string().describe('Code search query'),
         repo: z.string().optional().describe('Limit search to a specific "owner/repo" or GitHub URL'),
       }),
@@ -401,7 +401,7 @@ function buildGitHubTools(userId: string): ToolSet {
 
     getGitHubIssues: tool({
       description: '[GitHub] List issues for a repository.',
-      parameters: z.object({
+      inputSchema: z.object({
         repo: z.string().describe('Repository in "owner/repo" format or GitHub URL'),
         state: z.enum(['open', 'closed', 'all']).default('open').describe('Issue state filter'),
       }),
@@ -425,7 +425,7 @@ function buildGitHubTools(userId: string): ToolSet {
 
     createGitHubIssue: tool({
       description: '[GitHub] Create a new issue in a repository.',
-      parameters: z.object({
+      inputSchema: z.object({
         repo: z.string().describe('Repository in "owner/repo" format or GitHub URL'),
         title: z.string().describe('Issue title'),
         body: z.string().optional().describe('Issue body (markdown)'),
@@ -448,7 +448,7 @@ function buildGitHubTools(userId: string): ToolSet {
 
     commentOnGitHubIssue: tool({
       description: '[GitHub] Add a comment to an issue or pull request.',
-      parameters: z.object({
+      inputSchema: z.object({
         repo: z.string().describe('Repository in "owner/repo" format or GitHub URL'),
         issueNumber: z.number().describe('Issue or PR number'),
         body: z.string().describe('Comment body (markdown)'),
@@ -469,7 +469,7 @@ function buildGitHubTools(userId: string): ToolSet {
 
     getGitHubPullRequests: tool({
       description: '[GitHub] List pull requests for a repository.',
-      parameters: z.object({
+      inputSchema: z.object({
         repo: z.string().describe('Repository in "owner/repo" format or GitHub URL'),
         state: z.enum(['open', 'closed', 'all']).default('open').describe('PR state filter'),
       }),
@@ -495,7 +495,7 @@ function buildGitHubTools(userId: string): ToolSet {
 
     getGitHubPullRequestDiff: tool({
       description: '[GitHub] Get the changed files and diff for a pull request. Use to review code changes.',
-      parameters: z.object({
+      inputSchema: z.object({
         repo: z.string().describe('Repository in "owner/repo" format or GitHub URL'),
         pullNumber: z.number().describe('Pull request number'),
       }),
@@ -517,7 +517,7 @@ function buildGitHubTools(userId: string): ToolSet {
 
     createGitHubPullRequest: tool({
       description: '[GitHub] Create a new pull request.',
-      parameters: z.object({
+      inputSchema: z.object({
         repo: z.string().describe('Repository in "owner/repo" format or GitHub URL'),
         title: z.string().describe('PR title'),
         body: z.string().optional().describe('PR description (markdown)'),
@@ -549,7 +549,7 @@ function buildGitHubTools(userId: string): ToolSet {
 
     mergeGitHubPullRequest: tool({
       description: '[GitHub] Merge a pull request.',
-      parameters: z.object({
+      inputSchema: z.object({
         repo: z.string().describe('Repository in "owner/repo" format or GitHub URL'),
         pullNumber: z.number().describe('Pull request number'),
         method: z.enum(['squash', 'merge', 'rebase']).default('squash').describe('Merge method'),
@@ -573,7 +573,7 @@ function buildGitHubTools(userId: string): ToolSet {
 
     createOrUpdateGitHubFile: tool({
       description: '[GitHub] Create or update a file in a repository. This creates a commit automatically. To update an existing file, provide the current sha.',
-      parameters: z.object({
+      inputSchema: z.object({
         repo: z.string().describe('Repository in "owner/repo" format or GitHub URL'),
         path: z.string().describe('File path (e.g. "src/index.ts")'),
         content: z.string().describe('File content (plain text)'),
@@ -608,7 +608,7 @@ function buildGitHubTools(userId: string): ToolSet {
 
     deleteGitHubFile: tool({
       description: '[GitHub] Delete a file from a repository. This creates a commit automatically.',
-      parameters: z.object({
+      inputSchema: z.object({
         repo: z.string().describe('Repository in "owner/repo" format or GitHub URL'),
         path: z.string().describe('File path to delete'),
         message: z.string().describe('Commit message'),
@@ -637,7 +637,7 @@ function buildGitHubTools(userId: string): ToolSet {
 
     createGitHubBranch: tool({
       description: '[GitHub] Create a new branch in a repository.',
-      parameters: z.object({
+      inputSchema: z.object({
         repo: z.string().describe('Repository in "owner/repo" format or GitHub URL'),
         branch: z.string().describe('New branch name'),
         fromBranch: z.string().optional().describe('Source branch (defaults to repo default branch)'),
@@ -665,7 +665,7 @@ function buildGitHubTools(userId: string): ToolSet {
 
     listGitHubBranches: tool({
       description: '[GitHub] List branches in a repository.',
-      parameters: z.object({
+      inputSchema: z.object({
         repo: z.string().describe('Repository in "owner/repo" format or GitHub URL'),
       }),
       execute: async ({ repo: rawRepo }) => safeExecute('GitHub', async () => {
@@ -694,7 +694,7 @@ function buildNotionTools(userId: string): ToolSet {
   return {
     searchNotionPages: tool({
       description: '[Notion] Search pages and databases in the user\'s workspace.',
-      parameters: z.object({
+      inputSchema: z.object({
         query: z.string().describe('Search query'),
       }),
       execute: async ({ query }) => safeExecute('Notion', async () => {
@@ -718,7 +718,7 @@ function buildNotionTools(userId: string): ToolSet {
 
     getNotionPage: tool({
       description: '[Notion] Get the content of a specific Notion page by ID.',
-      parameters: z.object({
+      inputSchema: z.object({
         pageId: z.string().describe('The Notion page ID'),
       }),
       execute: async ({ pageId }) => safeExecute('Notion', async () => {
@@ -761,7 +761,7 @@ function buildGoogleCalendarTools(userId: string): ToolSet {
   return {
     listCalendarEvents: tool({
       description: '[Google Calendar] List upcoming calendar events. Use when user asks about their schedule, meetings, or appointments.',
-      parameters: z.object({
+      inputSchema: z.object({
         timeMin: z.string().optional().describe('Start time in ISO 8601 format (defaults to now)'),
         timeMax: z.string().optional().describe('End time in ISO 8601 format (defaults to 7 days from now)'),
       }),
@@ -792,7 +792,7 @@ function buildGoogleCalendarTools(userId: string): ToolSet {
 
     createCalendarEvent: tool({
       description: '[Google Calendar] Create a new calendar event. Use when user wants to schedule something.',
-      parameters: z.object({
+      inputSchema: z.object({
         summary: z.string().describe('Event title'),
         start: z.string().describe('Start time in ISO 8601 format'),
         end: z.string().describe('End time in ISO 8601 format'),
@@ -841,7 +841,7 @@ function buildLinearTools(userId: string): ToolSet {
   return {
     searchLinearIssues: tool({
       description: '[Linear] Search issues in the user\'s Linear workspace.',
-      parameters: z.object({
+      inputSchema: z.object({
         query: z.string().describe('Search query for issues'),
       }),
       execute: async ({ query }) => safeExecute('Linear', async () => {
@@ -869,7 +869,7 @@ function buildLinearTools(userId: string): ToolSet {
 
     createLinearIssue: tool({
       description: '[Linear] Create a new issue in the user\'s Linear workspace.',
-      parameters: z.object({
+      inputSchema: z.object({
         title: z.string().describe('Issue title'),
         description: z.string().optional().describe('Issue description (markdown)'),
         teamId: z.string().optional().describe('Team ID (uses first team if not specified)'),
@@ -920,7 +920,7 @@ function buildGoogleDriveTools(userId: string): ToolSet {
   return {
     searchDriveFiles: tool({
       description: '[Google Drive] Search files in the user\'s Google Drive.',
-      parameters: z.object({
+      inputSchema: z.object({
         query: z.string().describe('Search query (file name, content keywords)'),
       }),
       execute: async ({ query }) => safeExecute('Google Drive', async () => {
@@ -945,7 +945,7 @@ function buildGoogleDriveTools(userId: string): ToolSet {
 
     getDriveFileContent: tool({
       description: '[Google Drive] Get the text content of a file from Google Drive (works for Google Docs, Sheets, and text files).',
-      parameters: z.object({
+      inputSchema: z.object({
         fileId: z.string().describe('The Drive file ID'),
       }),
       execute: async ({ fileId }) => safeExecute('Google Drive', async () => {

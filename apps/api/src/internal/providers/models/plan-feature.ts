@@ -49,4 +49,4 @@ const PlanFeatureSchema = new Schema<IPlanFeature>(
 PlanFeatureSchema.index({ planId: 1, featureId: 1 }, { unique: true });
 PlanFeatureSchema.index({ featureId: 1 });
 
-export const PlanFeature = mongoose.models.PlanFeature || mongoose.model<IPlanFeature>('PlanFeature', PlanFeatureSchema);
+export const PlanFeature = (mongoose.models.PlanFeature || mongoose.model<IPlanFeature>('PlanFeature', PlanFeatureSchema)) as mongoose.Model<IPlanFeature>;

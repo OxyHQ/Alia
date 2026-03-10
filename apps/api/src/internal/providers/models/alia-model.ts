@@ -228,4 +228,4 @@ AliaModelSchema.methods.getNextProvider = async function (
   return null;
 };
 
-export const AliaModel = mongoose.models.AliaModel || mongoose.model<IAliaModel>('AliaModel', AliaModelSchema);
+export const AliaModel = (mongoose.models.AliaModel || mongoose.model<IAliaModel>('AliaModel', AliaModelSchema)) as mongoose.Model<IAliaModel>;

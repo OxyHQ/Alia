@@ -116,7 +116,7 @@ function createServerTool(
 
   return tool({
     description: `[${displayName}] ${mcpTool.description || mcpTool.name}`,
-    parameters: inputSchema,
+    inputSchema,
     execute: async (args: Record<string, unknown>) => {
       return callServerTool(serverId, mcpTool.name, args as Record<string, any>);
     },
@@ -138,7 +138,7 @@ function createLocalTool(
 
   return tool({
     description: `[${serverName}] ${mcpTool.description || mcpTool.name}`,
-    parameters: inputSchema,
+    inputSchema,
     execute: async (args: Record<string, unknown>) => {
       return callLocalTool(userId, serverId, mcpTool.name, args as Record<string, any>);
     },
