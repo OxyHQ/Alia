@@ -180,7 +180,7 @@ const WELCOME_SUGGESTIONS = [
   },
 ];
 
-// Convert prompt-completions.ts static dictionary to seed data
+// Autocomplete suggestions built from trigger-word dictionary
 const AUTOCOMPLETE_SUGGESTIONS: Array<{
   suggestionId: string;
   title: string;

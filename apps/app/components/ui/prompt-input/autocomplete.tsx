@@ -10,8 +10,6 @@ interface Completion {
   matchStart: number;
   matchEnd: number;
   suggestionId?: string;
-  isTemplate?: boolean;
-  templateVariables?: string[];
 }
 
 export type PromptInputAutocompleteProps = {
@@ -71,8 +69,6 @@ export function PromptInputAutocomplete({
         matchStart: idx !== -1 ? idx : 0,
         matchEnd: idx !== -1 ? idx + trimmed.length : 0,
         suggestionId: s.suggestionId,
-        isTemplate: s.isTemplate,
-        templateVariables: s.templateVariables,
       });
     }
 
