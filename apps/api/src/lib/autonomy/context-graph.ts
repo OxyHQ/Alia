@@ -62,12 +62,9 @@ function rankSources(input: Array<{ sourceKey: string; freshnessScore: number; p
     .sort((a, b) => b.score - a.score);
 }
 
-function buildPlanPreview(intent: AutonomyIntent, sources: RankedSource[]): string[] {
-  if (intent === 'general') return [];
-  const steps = sources.slice(0, 5).map((s) => `Check ${s.sourceKey}`);
-  if (steps.length > 0) return steps;
-
-  return (DEFAULT_SOURCE_PATHS[intent] || DEFAULT_SOURCE_PATHS.general).map((sourceKey) => `Check ${sourceKey}`);
+// Plan previews are now AI-generated via the planPreview tool, not the autonomy runtime.
+function buildPlanPreview(_intent: AutonomyIntent, _sources: RankedSource[]): string[] {
+  return [];
 }
 
 async function ensureSources(oxyUserId: mongoose.Types.ObjectId, intent: AutonomyIntent): Promise<Array<{ sourceKey: string; freshnessScore: number; precisionScore: number; costScore: number }>> {

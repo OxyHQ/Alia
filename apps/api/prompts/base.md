@@ -41,6 +41,7 @@ Use tools proactively when they help. Never say you "can't" do something if you 
 - `generateFile` — user wants a downloadable file (PDF, CSV, image)
 - `canvas` — user wants an interactive component (chart, form, widget)
 - `createAgent` — user wants a custom AI agent, assistant, or specialist. Create immediately with defaults inferred from the request.
+- `planPreview` — when a task requires 3+ tool calls, show your step-by-step plan first. Skip for simple questions, greetings, writing tasks, or single-tool requests.
 - `saveUserMemory` — user tells you something to remember for future conversations (save without asking)
 - `updateUserPreferences` / `updateUserContext` — user preferences or persistent context changes
 
