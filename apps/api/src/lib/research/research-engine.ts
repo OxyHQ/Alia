@@ -83,40 +83,58 @@ export async function runDeepResearch(
 
   if (signal?.aborted) throw new Error('Research aborted');
 
-  // ── Phase 2: Search for each sub-question ──
+  // ── Phase 2: Search for each sub-question (parallelized with concurrency limit) ──
 
-  const allFindings: string[] = [];
+  const allFindings: string[] = new Array(subQuestions.length).fill('');
+  const SEARCH_CONCURRENCY = 3;
 
-  for (let i = 0; i < subQuestions.length; i++) {
-    const sq = subQuestions[i];
+  // Process sub-questions in batches for parallelism
+  for (let batch = 0; batch < subQuestions.length; batch += SEARCH_CONCURRENCY) {
     if (signal?.aborted) throw new Error('Research aborted');
+
+    const batchQuestions = subQuestions.slice(batch, batch + SEARCH_CONCURRENCY);
 
     onProgress({
       phase: 'searching',
-      message: `Searching: ${sq}`,
-      currentQuery: sq,
+      message: `Searching ${batchQuestions.length} questions in parallel...`,
       sourcesFound: sourceTracker.count(),
     });
 
-    // Search with the sub-question and a reformulated variant
-    const queries = [sq, reformulateQuery(sq)];
-    for (const q of queries) {
-      totalSearches++;
-      try {
-        const searchResult = await webSearchTool.execute({ query: q }, { messages: [], toolCallId: `research-${totalSearches}`, abortSignal: signal });
-        if ('results' in searchResult && searchResult.results) {
-          for (const result of searchResult.results.slice(0, MAX_SOURCES_PER_QUERY)) {
-            sourceTracker.add(result.url, result.title, result.snippet, q);
+    const batchResults = await Promise.allSettled(
+      batchQuestions.map(async (sq, batchIdx) => {
+        const globalIdx = batch + batchIdx;
+
+        // Search with the sub-question and a reformulated variant
+        const queries = [sq, reformulateQuery(sq)];
+        for (const q of queries) {
+          totalSearches++;
+          try {
+            const searchResult = await webSearchTool.execute(
+              { query: q },
+              { messages: [], toolCallId: `research-${totalSearches}`, abortSignal: signal },
+            );
+            if ('results' in searchResult && searchResult.results) {
+              for (const result of searchResult.results.slice(0, MAX_SOURCES_PER_QUERY)) {
+                sourceTracker.add(result.url, result.title, result.snippet, q);
+              }
+            }
+          } catch (err) {
+            log.general.warn({ err, query: q }, 'Research: search failed');
           }
         }
-      } catch (err) {
-        log.general.warn({ err, query: q }, 'Research: search failed');
+
+        // Extract findings for this sub-question
+        const findings = await extractFindings(sq, sourceTracker.getAll(), userId);
+        allFindings[globalIdx] = findings;
+      }),
+    );
+
+    // Log any failures
+    for (const result of batchResults) {
+      if (result.status === 'rejected') {
+        log.general.warn({ err: result.reason }, 'Research: batch search failed');
       }
     }
-
-    // Extract findings from search results for this sub-question
-    const findings = await extractFindings(sq, sourceTracker.getAll(), userId);
-    allFindings.push(findings);
   }
 
   if (signal?.aborted) throw new Error('Research aborted');

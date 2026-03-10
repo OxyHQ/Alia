@@ -106,7 +106,7 @@ export const grokVoiceProvider: VoiceProvider = {
               if (event.type === 'error') {
                 log.providers.error({ event, model }, '[Voice] Grok rejected session config');
               }
-            } catch {}
+            } catch { /* best-effort parse */ }
           });
 
           resolve(ws);

@@ -37,7 +37,7 @@ interface PooledContainer {
 }
 
 const DEFAULT_CONFIG: PoolConfig = {
-  poolSize: 2,
+  poolSize: parseInt(process.env.CONTAINER_POOL_SIZE || '4', 10),
   defaultImage: 'python:3.12',
   healthCheckIntervalMs: 60_000,
   maxIdleMs: 15 * 60_000, // 15 minutes

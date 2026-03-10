@@ -32,7 +32,7 @@ export async function buildUserContext(userId: string): Promise<UserContext> {
     if (userName) {
       contextString += `\nThe user's name is ${userName}.`;
     }
-  } catch {}
+  } catch { /* user lookup optional */ }
 
   // Load user memory
   try {

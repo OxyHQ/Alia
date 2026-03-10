@@ -1,22 +1,32 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
-// ── Shared mock state ──────────────────────────────────────────────────────
+// ── Shared mock state (hoisted alongside vi.mock calls) ─────────────────────
 
-const mockResolveModel = vi.fn();
-const mockGetAIModel = vi.fn(() => 'mock-ai-model');
-const mockReportModelUsage = vi.fn().mockResolvedValue(undefined);
-const mockGetDefaultAliaModel = vi.fn(() => 'alia-v1');
-
-const mockReserveCredits = vi.fn();
-const mockFinalizeCredits = vi.fn().mockResolvedValue({ creditsCharged: 1, creditsRemaining: 99 });
-const mockGetOrCreateUserCredits = vi.fn().mockResolvedValue({});
-
-const mockStreamText = vi.fn();
-const mockGenerateText = vi.fn();
-
-const mockGetUserById = vi.fn().mockResolvedValue(null);
-
-const mockBuildSystemPrompt = vi.fn().mockResolvedValue('You are Alia, a helpful AI assistant.');
+const {
+  mockResolveModel,
+  mockGetAIModel,
+  mockReportModelUsage,
+  mockGetDefaultAliaModel,
+  mockReserveCredits,
+  mockFinalizeCredits,
+  mockGetOrCreateUserCredits,
+  mockStreamText,
+  mockGenerateText,
+  mockGetUserById,
+  mockBuildSystemPrompt,
+} = vi.hoisted(() => ({
+  mockResolveModel: vi.fn(),
+  mockGetAIModel: vi.fn(() => 'mock-ai-model'),
+  mockReportModelUsage: vi.fn().mockResolvedValue(undefined),
+  mockGetDefaultAliaModel: vi.fn(() => 'alia-v1'),
+  mockReserveCredits: vi.fn(),
+  mockFinalizeCredits: vi.fn().mockResolvedValue({ creditsCharged: 1, creditsRemaining: 99 }),
+  mockGetOrCreateUserCredits: vi.fn().mockResolvedValue({}),
+  mockStreamText: vi.fn(),
+  mockGenerateText: vi.fn(),
+  mockGetUserById: vi.fn().mockResolvedValue(null),
+  mockBuildSystemPrompt: vi.fn().mockResolvedValue('You are Alia, a helpful AI assistant.'),
+}));
 
 // ── Module mocks ───────────────────────────────────────────────────────────
 
@@ -24,6 +34,7 @@ vi.mock('ai', () => ({
   streamText: (...args: any[]) => mockStreamText(...args),
   generateText: (...args: any[]) => mockGenerateText(...args),
   stepCountIs: vi.fn(() => 'mock-stop-condition'),
+  tool: vi.fn((def: any) => def),
 }));
 
 vi.mock('../../../lib/chat-core.js', () => ({
@@ -97,6 +108,8 @@ vi.mock('../../../lib/tool-converter.js', () => ({
 
 vi.mock('../../../lib/tools/index.js', () => ({
   getCurrentDateTool: { execute: vi.fn() },
+  webSearchTool: { execute: vi.fn() },
+  browseTool: { execute: vi.fn() },
   saveUserMemoryTool: vi.fn(() => ({ execute: vi.fn() })),
   updateUserPreferencesTool: vi.fn(() => ({ execute: vi.fn() })),
   updateUserContextTool: vi.fn(() => ({ execute: vi.fn() })),
@@ -107,6 +120,12 @@ vi.mock('../../../lib/tools/index.js', () => ({
   createProvidersAdminTool: vi.fn(() => ({ execute: vi.fn() })),
   webScraperTool: { execute: vi.fn() },
   generateFileTool: { execute: vi.fn() },
+  createSearchAgentsTool: vi.fn(() => ({ execute: vi.fn() })),
+  createDelegateToAgentTool: vi.fn(() => ({ execute: vi.fn() })),
+  createDeepResearchTool: vi.fn(() => ({ execute: vi.fn() })),
+  createSwitchModelTool: vi.fn(() => ({ execute: vi.fn() })),
+  createAgentTool: vi.fn(() => ({ execute: vi.fn() })),
+  createPlanPreviewTool: vi.fn(() => ({ execute: vi.fn() })),
 }));
 
 vi.mock('../../../middleware/api-key-rate-limit.js', () => ({
@@ -118,6 +137,7 @@ vi.mock('../../../lib/credit-anomaly.js', () => ({
 }));
 
 vi.mock('../../../lib/hooks/index.js', () => ({
+  runBeforeChatHooks: vi.fn().mockResolvedValue({}),
   runAfterChatHooks: vi.fn().mockResolvedValue(undefined),
 }));
 
@@ -144,6 +164,66 @@ vi.mock('../../../lib/errors/index.js', () => ({
   toSSEError: vi.fn((e: any) => ({ code: e.code, message: e.userMessage })),
   isTimeoutError: vi.fn(() => false),
   getRetryAfterHeader: vi.fn(() => undefined),
+}));
+
+vi.mock('../../../lib/providers-client.js', () => ({
+  getAliaModel: vi.fn(() => ({ name: 'Alia V1', creditMultiplier: 1 })),
+  getModelMappingsForTier: vi.fn(() => []),
+}));
+
+vi.mock('../../../lib/conversation-saver.js', () => ({
+  saveConversation: vi.fn().mockResolvedValue(undefined),
+  generateConversationTitle: vi.fn().mockResolvedValue('Test Conversation'),
+  generateTitle: vi.fn().mockResolvedValue('Test Title'),
+}));
+
+vi.mock('../../../lib/plan-access.js', () => ({
+  getUserEntitlements: vi.fn().mockResolvedValue({ tier: 'free', features: {} }),
+}));
+
+vi.mock('../../../lib/tools/mcp.js', () => ({
+  buildMcpTools: vi.fn().mockResolvedValue({}),
+}));
+
+vi.mock('../../../lib/tools/integrations.js', () => ({
+  buildIntegrationTools: vi.fn().mockResolvedValue({}),
+}));
+
+vi.mock('../../../lib/tools/oxy-services.js', () => ({
+  buildOxyServiceTools: vi.fn().mockResolvedValue({}),
+  getOxyServicePromptFragment: vi.fn().mockResolvedValue(''),
+  getOxyServiceContext: vi.fn().mockResolvedValue(''),
+}));
+
+vi.mock('../../../lib/tools/result-truncation.js', () => ({
+  wrapToolsWithTruncation: vi.fn((tools: any) => tools),
+  getToolResultBudget: vi.fn(() => 4000),
+}));
+
+vi.mock('../../../lib/logger.js', () => {
+  const child = { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() };
+  return {
+    log: {
+      v1: child,
+      chat: child,
+      general: child,
+      providers: child,
+    },
+  };
+});
+
+vi.mock('../../../lib/observability/index.js', () => ({
+  recordEvent: vi.fn(),
+}));
+
+vi.mock('../../../lib/research/research-engine.js', () => ({
+  runDeepResearch: vi.fn(),
+}));
+
+vi.mock('../../../lib/autonomy/runtime.js', () => ({
+  runAutonomyBeforeChat: vi.fn().mockResolvedValue(null),
+  runAutonomyAfterChat: vi.fn().mockResolvedValue(undefined),
+  buildAutonomyPromptFragment: vi.fn().mockResolvedValue(''),
 }));
 
 // ── Import router after mocks are set up ───────────────────────────────────
@@ -438,6 +518,7 @@ describe('504 timeout fixes - /v1/chat/completions', () => {
     (retryableError as any).status = 429;
     mockStreamText.mockImplementation(() => {
       return {
+        // eslint-disable-next-line require-yield -- simulates immediate provider failure
         fullStream: (async function* () {
           throw retryableError;
         })(),

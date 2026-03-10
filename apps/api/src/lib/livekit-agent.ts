@@ -276,21 +276,21 @@ export class LiveKitAgentBridge implements LiveKitAgentBridgeRef {
     this.publishChain = Promise.resolve();
 
     if (this.audioStreamReader) {
-      try { this.audioStreamReader.cancel(); } catch {}
+      try { this.audioStreamReader.cancel(); } catch { /* already closed */ }
       this.audioStreamReader = null;
     }
 
     if (this.audioTrack) {
-      try { await this.audioTrack.close(); } catch {}
+      try { await this.audioTrack.close(); } catch { /* already closed */ }
       this.audioTrack = null;
     }
 
     if (this.audioSource) {
-      try { await this.audioSource.close(); } catch {}
+      try { await this.audioSource.close(); } catch { /* already closed */ }
       this.audioSource = null;
     }
 
-    try { await this.room.disconnect(); } catch {}
+    try { await this.room.disconnect(); } catch { /* already disconnected */ }
 
     log.providers.info({ identity: this.identity }, 'LiveKit agent disconnected');
   }
