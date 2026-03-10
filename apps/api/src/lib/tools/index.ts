@@ -19,7 +19,6 @@ import { createSearchAgentsTool } from './agent-search.js';
 import { createDelegateToAgentTool } from './agent-delegate.js';
 import { createOrchestrateAgentsTool } from './agent-orchestrator.js';
 import { createAgentTool } from './agent-create.js';
-import { createPlanPreviewTool } from './plan-preview.js';
 import { createTriggerTool, listTriggersTool, updateTriggerTool, deleteTriggerTool } from './trigger-management.js';
 
 // ---------------------------------------------------------------------------

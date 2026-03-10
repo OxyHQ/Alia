@@ -9,11 +9,15 @@ export interface ResearchProgress {
   iteration?: number;
 }
 
+export interface PlanStep {
+  action: string;
+  description: string;
+  toolName?: string;
+}
+
 export interface PendingPlan {
   planId: string;
-  intent: string;
-  confidence?: number;
-  steps: string[];
+  steps: PlanStep[];
   approved: boolean;
   rejected: boolean;
 }

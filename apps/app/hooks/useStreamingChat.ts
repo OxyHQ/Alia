@@ -436,8 +436,6 @@ Use this role to guide your responses, maintaining the specified tone, style, an
                           ...lastMessage,
                           pendingPlan: {
                             planId: parsed.planId,
-                            intent: parsed.intent,
-                            confidence: parsed.confidence,
                             steps: parsed.steps || [],
                             approved: false,
                             rejected: false,
