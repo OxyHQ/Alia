@@ -103,12 +103,7 @@ router.post('/token', async (req: Request, res: Response) => {
     const userContext = await buildUserContext(userId);
     voiceInstructions += userContext.contextString;
     if (userContext.language) {
-      voiceInstructions += `\n\nCRITICAL LANGUAGE RULE: You MUST respond in the SAME language the user is currently speaking.
-- If the user speaks English, respond in English.
-- If the user speaks Spanish, respond in Spanish.
-- If the user switches languages mid-conversation, switch with them immediately.
-- The language preference "${userContext.language}" is ONLY your default for the first message or when the user's language is ambiguous.
-- NEVER tell the user you're responding in a language because of their "preferences" — always match their actual spoken language.`;
+      voiceInstructions += `\n\nMatch the language the user speaks. If their language is undetectable, default to ${userContext.language}.`;
     }
 
     // Allow client to override instructions entirely

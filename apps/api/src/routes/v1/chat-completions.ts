@@ -749,7 +749,7 @@ export const handleChatCompletions = async (req: Request, res: Response) => {
     const userLanguagePreference = isDirectUserSession ? userMemory?.preferences?.language : undefined;
     let systemMessage = baseSystemPrompt;
     if (userLanguagePreference) {
-      systemMessage += `\n\nThe user's default language is ${userLanguagePreference}, but ONLY use this when the language of their message is truly ambiguous or impossible to detect. If the user writes in any identifiable language, always respond in that language.`;
+      systemMessage += `\n\nIf the user's message language is undetectable (emoji, numbers, single word), default to ${userLanguagePreference}.`;
     }
     if (autonomyRuntime) {
       systemMessage += buildAutonomyPromptFragment(autonomyRuntime);
@@ -834,8 +834,6 @@ export const handleChatCompletions = async (req: Request, res: Response) => {
     // Title generation is handled asynchronously via generateConversationTitle()
     // after conversation save — no in-response tags needed.
 
-    // Brief language reminder at the end (recency effect)
-    systemMessage += '\n\nRemember: respond in the same language the user writes to you.';
 
     // Replace or inject system message
     const rawMessages = [...messages];
