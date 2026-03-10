@@ -1574,14 +1574,22 @@ export const handleChatCompletions = async (req: Request, res: Response) => {
         const braceIdx = text.indexOf('{', searchFrom);
         if (braceIdx === -1) break;
         // Quick check: does this object contain the marker nearby?
-        const snippet = text.slice(braceIdx, braceIdx + 80);
+        const snippet = text.slice(braceIdx, braceIdx + 200);
         if (!marker.test(snippet)) { searchFrom = braceIdx + 1; continue; }
-        // Bracket-count to find matching closing brace
+        // Bracket-count to find matching closing brace (skip braces inside strings)
         let depth = 0;
         let end = -1;
+        let inString = false;
         for (let i = braceIdx; i < text.length; i++) {
-          if (text[i] === '{') depth++;
-          else if (text[i] === '}') { depth--; if (depth === 0) { end = i; break; } }
+          const ch = text[i];
+          if (inString) {
+            if (ch === '\\') { i++; continue; } // skip escaped char
+            if (ch === '"') inString = false;
+            continue;
+          }
+          if (ch === '"') { inString = true; continue; }
+          if (ch === '{') depth++;
+          else if (ch === '}') { depth--; if (depth === 0) { end = i; break; } }
         }
         if (end === -1) break;
         const raw = text.slice(braceIdx, end + 1);
