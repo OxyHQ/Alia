@@ -1493,6 +1493,7 @@ export const handleChatCompletions = async (req: Request, res: Response) => {
     // Some models (Gemini 3 preview, Minimax, etc.) output tool calls as text
     // instead of using the native tool calling API. Detect and execute them.
 
+    let textToolCallIdx = 0;
     async function executeTextToolCall(toolName: string, args: unknown): Promise<boolean> {
       const toolFn = truncatedTools[toolName];
       if (!toolFn?.execute) {
@@ -1500,7 +1501,7 @@ export const handleChatCompletions = async (req: Request, res: Response) => {
         return false;
       }
 
-      const toolCallId = `text-fallback-${Date.now()}-${toolName}`;
+      const toolCallId = `text-fallback-${Date.now()}-${textToolCallIdx++}-${toolName}`;
 
       // Emit tool-call event to client
       res.write(`data: ${JSON.stringify({
@@ -1532,7 +1533,7 @@ export const handleChatCompletions = async (req: Request, res: Response) => {
             { role: 'assistant', content: '', toolCalls: [{ toolCallId, toolName, args }] },
             { role: 'tool', content: [{ type: 'tool-result', toolCallId, toolName, output: { type: 'text', value: typeof toolOutput === 'string' ? toolOutput : JSON.stringify(toolOutput) } }] },
           ];
-          const followUpResult = streamText({ ...baseConfig, messages: followUpMessages, tools: undefined, stopWhen: undefined });
+          const followUpResult = streamText({ ...baseConfig, messages: followUpMessages, tools: undefined, stopWhen: undefined, onFinish: undefined });
 
           for await (const followUpChunk of followUpResult.fullStream) {
             if (followUpChunk.type === 'text-delta' && followUpChunk.text) {
@@ -1562,8 +1563,38 @@ export const handleChatCompletions = async (req: Request, res: Response) => {
     }
 
     const TEXT_TOOL_CALL_RE = /<function\((\w+)\)>\s*<?\s*(\{[\s\S]*?\})\s*>?\s*<\/function>/g;
-    // OpenAI-format: {"type":"function","name":"toolName","parameters":{...}}
-    const OPENAI_TOOL_CALL_RE = /\{\s*"type"\s*:\s*"function"\s*,\s*"name"\s*:\s*"(\w+)"\s*,\s*"parameters"\s*:\s*(\{[\s\S]*?\})\s*\}/g;
+
+    // Extract OpenAI-format tool calls using JSON.parse (handles nested objects correctly)
+    function extractOpenAIToolCalls(text: string): Array<{ name: string; parameters: unknown; raw: string }> {
+      const results: Array<{ name: string; parameters: unknown; raw: string }> = [];
+      // Find potential JSON objects starting with {"type":"function"
+      const marker = /"type"\s*:\s*"function"/;
+      let searchFrom = 0;
+      while (searchFrom < text.length) {
+        const braceIdx = text.indexOf('{', searchFrom);
+        if (braceIdx === -1) break;
+        // Quick check: does this object contain the marker nearby?
+        const snippet = text.slice(braceIdx, braceIdx + 80);
+        if (!marker.test(snippet)) { searchFrom = braceIdx + 1; continue; }
+        // Bracket-count to find matching closing brace
+        let depth = 0;
+        let end = -1;
+        for (let i = braceIdx; i < text.length; i++) {
+          if (text[i] === '{') depth++;
+          else if (text[i] === '}') { depth--; if (depth === 0) { end = i; break; } }
+        }
+        if (end === -1) break;
+        const raw = text.slice(braceIdx, end + 1);
+        try {
+          const parsed = JSON.parse(raw);
+          if (parsed?.type === 'function' && typeof parsed.name === 'string' && parsed.parameters) {
+            results.push({ name: parsed.name, parameters: parsed.parameters, raw });
+          }
+        } catch { /* not valid JSON, skip */ }
+        searchFrom = end + 1;
+      }
+      return results;
+    }
 
     if (assistantResponse && toolInvocations.length === 0) {
       // Format 1: <function(name)>{json}</function>
@@ -1578,17 +1609,16 @@ export const handleChatCompletions = async (req: Request, res: Response) => {
         assistantResponse = assistantResponse.replace(TEXT_TOOL_CALL_RE, '').trim();
       }
 
-      // Format 2: {"type":"function","name":"...","parameters":{...}}
+      // Format 2: {"type":"function","name":"...","parameters":{...}} (JSON-aware, handles nested objects)
       if (toolInvocations.length === 0) {
-        const openaiMatches = [...assistantResponse.matchAll(OPENAI_TOOL_CALL_RE)];
-        if (openaiMatches.length > 0) {
-          log.v1.warn({ matchCount: openaiMatches.length, format: 'openai', provider: resolved!.provider, modelId: resolved!.modelId }, 'Detected OpenAI-format text tool calls — executing fallback');
-          for (const match of openaiMatches) {
-            let args: unknown;
-            try { args = JSON.parse(match[2]); } catch { continue; }
-            await executeTextToolCall(match[1], args);
+        const openaiCalls = extractOpenAIToolCalls(assistantResponse);
+        if (openaiCalls.length > 0) {
+          log.v1.warn({ matchCount: openaiCalls.length, format: 'openai', provider: resolved!.provider, modelId: resolved!.modelId }, 'Detected OpenAI-format text tool calls — executing fallback');
+          for (const call of openaiCalls) {
+            await executeTextToolCall(call.name, call.parameters);
+            assistantResponse = assistantResponse.replace(call.raw, '');
           }
-          assistantResponse = assistantResponse.replace(OPENAI_TOOL_CALL_RE, '').trim();
+          assistantResponse = assistantResponse.trim();
         }
       }
     }
