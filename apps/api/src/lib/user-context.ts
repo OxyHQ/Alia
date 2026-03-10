@@ -43,7 +43,7 @@ export async function buildUserContext(userId: string): Promise<UserContext> {
       }
       if (userMemory.preferences && Object.keys(userMemory.preferences).length > 0) {
         const prefs = Object.entries(userMemory.preferences)
-          .filter(([_, v]) => v !== undefined && v !== null)
+          .filter(([k, v]) => v !== undefined && v !== null && k !== 'language')
           .map(([k, v]) => `- ${k}: ${Array.isArray(v) ? v.join(', ') : v}`);
         if (prefs.length > 0) {
           contextString += '\n\n## Preferences:\n' + prefs.join('\n');
