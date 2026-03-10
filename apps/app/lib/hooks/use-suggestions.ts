@@ -40,21 +40,6 @@ export function useWelcomeSuggestions() {
 }
 
 /**
- * Fetch all autocomplete suggestions (cached locally for instant client-side search)
- */
-export function useAutocompleteSuggestions() {
-  return useQuery<Suggestion[]>({
-    queryKey: queryKeys.suggestions.autocomplete,
-    queryFn: async () => {
-      const res = await apiClient.post(API_ROUTES.suggestions.list, { type: 'autocomplete', limit: 500 });
-      return res.data.suggestions;
-    },
-    staleTime: 1000 * 60 * 30, // 30 minutes
-    retry: 1,
-  });
-}
-
-/**
  * Record suggestion usage (fire-and-forget mutation)
  */
 export function useRecordSuggestionUsage() {
@@ -94,7 +79,6 @@ export function useGenerateSuggestions() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.suggestions.welcome });
-      queryClient.invalidateQueries({ queryKey: queryKeys.suggestions.autocomplete });
       queryClient.invalidateQueries({ queryKey: queryKeys.suggestions.me });
     },
   });

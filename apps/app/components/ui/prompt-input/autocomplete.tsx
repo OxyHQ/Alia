@@ -2,12 +2,17 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from "react"
 import { View, Pressable } from "react-native";
 import { Text } from "@/components/ui/text";
 import { cn } from "@/lib/utils";
-import {
-  getCompletions,
-  type PromptCompletion,
-} from "@/lib/prompt-completions";
 import { usePromptInput } from "./context";
 import { useSearchSuggestions, useRecordSuggestionUsage } from "@/lib/hooks/use-suggestions";
+
+interface Completion {
+  text: string;
+  matchStart: number;
+  matchEnd: number;
+  suggestionId?: string;
+  isTemplate?: boolean;
+  templateVariables?: string[];
+}
 
 export type PromptInputAutocompleteProps = {
   enabled?: boolean;
@@ -23,7 +28,7 @@ export function PromptInputAutocomplete({
   const { value, setValue, setHandleCompletionKey } = usePromptInput();
   const [selectedIndex, setSelectedIndex] = useState(-1);
   const selectedIndexRef = useRef(-1);
-  const completionsRef = useRef<PromptCompletion[]>([]);
+  const completionsRef = useRef<Completion[]>([]);
   const [debouncedQuery, setDebouncedQuery] = useState('');
   const { mutate: recordUsage } = useRecordSuggestionUsage();
 
@@ -45,56 +50,34 @@ export function PromptInputAutocomplete({
   // API search results (fires when debouncedQuery changes)
   const { data: apiResults } = useSearchSuggestions(debouncedQuery);
 
-  // Instant local results (no delay)
-  const localResults = useMemo<PromptCompletion[]>(() => {
-    if (!enabled) return [];
+  // Map API results to completions with match highlighting
+  const completions = useMemo<Completion[]>(() => {
     const trimmed = value.trim();
-    if (!trimmed || trimmed.length < 2) return [];
-    return getCompletions(trimmed, 4);
-  }, [value, enabled]);
+    if (!trimmed || trimmed.length < 2 || !apiResults?.length) return [];
 
-  // Merge: API results first, fill from local, dedupe
-  const completions = useMemo<PromptCompletion[]>(() => {
-    const trimmed = value.trim();
-    if (!trimmed || trimmed.length < 2) return [];
-
-    if (!apiResults?.length) return localResults;
-
-    const results: PromptCompletion[] = [];
-    const seen = new Set<string>();
     const lower = trimmed.toLowerCase();
+    const results: Completion[] = [];
+    const seen = new Set<string>();
 
-    // API results first
     for (const s of apiResults) {
       if (results.length >= 6) break;
-      const idx = s.text.toLowerCase().indexOf(lower);
-      const matchStart = idx !== -1 ? idx : 0;
-      const matchEnd = idx !== -1 ? idx + trimmed.length : 0;
       const textLower = s.text.toLowerCase();
-      if (!seen.has(textLower)) {
-        seen.add(textLower);
-        results.push({
-          text: s.text,
-          matchStart,
-          matchEnd,
-          suggestionId: s.suggestionId,
-          isTemplate: s.isTemplate,
-          templateVariables: s.templateVariables,
-        });
-      }
-    }
+      if (seen.has(textLower)) continue;
+      seen.add(textLower);
 
-    // Fill from local
-    for (const r of localResults) {
-      if (results.length >= 6) break;
-      if (!seen.has(r.text.toLowerCase())) {
-        seen.add(r.text.toLowerCase());
-        results.push(r);
-      }
+      const idx = textLower.indexOf(lower);
+      results.push({
+        text: s.text,
+        matchStart: idx !== -1 ? idx : 0,
+        matchEnd: idx !== -1 ? idx + trimmed.length : 0,
+        suggestionId: s.suggestionId,
+        isTemplate: s.isTemplate,
+        templateVariables: s.templateVariables,
+      });
     }
 
     return results;
-  }, [apiResults, localResults, value]);
+  }, [apiResults, value]);
 
   // Keep refs in sync
   useEffect(() => {
