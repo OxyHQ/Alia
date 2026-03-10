@@ -132,6 +132,7 @@ export const GENERATED_TIER_MAPPINGS: Record<AliaTier, ModelMapping[]> = {
   'v1-tts': [
     createMapping('openai', 'tts-1', 1, 90),
     createMapping('openai', 'tts-1-hd', 2, 95),
+    createMapping('openrouter', 'openai/tts-1', 3, 88),
   ],
   'v1-multimodal': [
     createMapping('google', 'gemini-3-pro-preview', 1, 99),

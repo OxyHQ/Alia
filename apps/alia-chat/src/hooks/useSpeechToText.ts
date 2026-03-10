@@ -60,18 +60,32 @@ export function useSpeechToText(options: UseSTTOptions = {}) {
     return oxyServices.httpService.getAccessToken();
   }, [options.accessToken, oxyServices]);
 
-  // Push metering to store while recording
+  // Push metering to store while recording (with epsilon guard to avoid thrashing subscribers)
+  const lastMeteringRef = useRef(0);
   useEffect(() => {
-    if (state === 'recording' && recorderState.metering != null) {
-      // dBFS: -160 (silence) to 0 (max). Normalize using -60 as practical floor.
-      const normalized = Math.min(1, Math.max(0, (recorderState.metering + 60) / 60));
-      sttStore.getState().setMetering(normalized);
+    if (state === 'recording') {
+      let target: number;
+      if (recorderState.metering != null) {
+        // dBFS: -160 (silence) to 0 (max). Normalize using -60 as practical floor.
+        target = Math.min(1, Math.max(0, (recorderState.metering + 60) / 60));
+      } else {
+        // Metering unavailable — simulate gentle activity
+        target = 0.12 + Math.random() * 0.18;
+      }
+      if (Math.abs(target - lastMeteringRef.current) >= 0.02) {
+        lastMeteringRef.current = target;
+        sttStore.getState().setMetering(target);
+      }
     }
-  }, [state, recorderState.metering]);
+  }, [state, recorderState.metering, recorderState.durationMillis]);
 
-  // Sync recording state to store
+  // Sync recording state to store + reset metering on stop
   useEffect(() => {
     sttStore.getState().setRecording(state === 'recording');
+    if (state !== 'recording') {
+      lastMeteringRef.current = 0;
+      sttStore.getState().setMetering(0);
+    }
   }, [state]);
 
   const startRecording = useCallback(async () => {

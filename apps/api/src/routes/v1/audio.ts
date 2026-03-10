@@ -3,7 +3,6 @@ import { getModelMappingsForTier, callProviderAPI } from '../../lib/providers-cl
 import { reserveCredits, finalizeCredits } from '../../lib/credits-manager.js';
 import { getOrCreateUserCredits } from '../../lib/user-credits-helpers.js';
 import { uploadToS3 } from '../../lib/s3.js';
-import { Conversation } from '../../models/conversation.js';
 import { Message } from '../../models/message.js';
 import { log } from '../../lib/logger.js';
 import { sanitizeMessage } from '../../lib/errors/sanitize.js';
@@ -25,6 +24,10 @@ const getSafeErrorMessage = (error: unknown, fallback: string): string =>
  * return the cached URL without regenerating.
  */
 router.post('/speech', async (req: Request, res: Response) => {
+  const TTS_TIMEOUT_MS = 55_000;
+  const abortController = new AbortController();
+  const globalTimer = setTimeout(() => abortController.abort('TTS global timeout'), TTS_TIMEOUT_MS);
+
   try {
     const userId = req.user?.id;
     if (!userId) {
@@ -81,14 +84,13 @@ router.post('/speech', async (req: Request, res: Response) => {
       });
     }
 
-    // Resolve TTS provider via tier mappings (use first available, no serial retry —
-    // both mappings are OpenAI so retrying wastes time against the 60s DO gateway limit)
+    // Resolve TTS provider via tier mappings — try each in priority order (fail fast, move to next)
     const ttsMappings = await getModelMappingsForTier('v1-tts');
     const ttsVoice = voice || 'nova';
     let audioBuffer: Buffer | null = null;
 
-    if (ttsMappings.length > 0) {
-      const mapping = ttsMappings[0];
+    for (const mapping of ttsMappings) {
+      if (abortController.signal.aborted) break;
       try {
         audioBuffer = await callProviderAPI<Buffer>({
           provider: mapping.provider,
@@ -104,29 +106,41 @@ router.post('/speech', async (req: Request, res: Response) => {
           responseType: 'arrayBuffer',
           maxAttempts: 1,
           timeout: 15_000,
+          signal: abortController.signal,
         });
+        break; // success
       } catch (err: any) {
-        log.general.warn({ err, provider: mapping.provider, model: mapping.modelId }, 'TTS provider failed');
+        log.general.warn({ err, provider: mapping.provider, model: mapping.modelId }, 'TTS provider failed, trying next');
+        continue;
       }
     }
 
     if (!audioBuffer) {
       await finalizeCredits(reservation, { promptTokens: 0, completionTokens: 0, totalTokens: 0 });
-      return res.status(503).json({ error: { message: 'TTS generation failed — please try again', type: 'server_error' } });
+      const status = abortController.signal.aborted ? 504 : 503;
+      return res.status(status).json({ error: { message: 'TTS generation failed — please try again', type: 'server_error' } });
     }
 
     // Charge credits based on character count (~1 credit per 200 chars)
     const charCredits = Math.max(1, Math.ceil(input.length / 200));
 
-    // Upload to S3 and finalize credits concurrently
-    const [audioUrl] = await Promise.all([
-      uploadToS3(audioBuffer, `audio.${format}`, `tts/${userId}`, 'speech'),
-      finalizeCredits(reservation, {
-        promptTokens: charCredits * 50,
-        completionTokens: 0,
-        totalTokens: charCredits * 50,
+    // Upload to S3 and finalize credits concurrently (with 15s safety timeout)
+    let uploadTimer: NodeJS.Timeout;
+    const uploadResult = await Promise.race([
+      Promise.all([
+        uploadToS3(audioBuffer, `audio.${format}`, `tts/${userId}`, 'speech'),
+        finalizeCredits(reservation, {
+          promptTokens: charCredits * 50,
+          completionTokens: 0,
+          totalTokens: charCredits * 50,
+        }),
+      ]).then(result => { clearTimeout(uploadTimer); return result; }),
+      new Promise<never>((_, reject) => {
+        uploadTimer = setTimeout(() => reject(new Error('S3 upload timeout')), 15_000);
       }),
     ]);
+
+    const audioUrl = uploadResult[0];
 
     // Link to message (fire-and-forget, don't block response)
     if (conversationId && messageId) {
@@ -140,8 +154,12 @@ router.post('/speech', async (req: Request, res: Response) => {
 
     res.json({ audioUrl });
   } catch (error: unknown) {
-    log.general.error({ err: error, userId: req.user?.id }, 'TTS synthesis failed');
-    res.status(500).json({ error: { message: getSafeErrorMessage(error, 'Synthesis failed'), type: 'server_error' } });
+    const timedOut = abortController.signal.aborted;
+    log.general.error({ err: error, userId: req.user?.id, timedOut }, 'TTS synthesis failed');
+    const status = timedOut ? 504 : 500;
+    res.status(status).json({ error: { message: getSafeErrorMessage(error, 'Synthesis failed'), type: 'server_error' } });
+  } finally {
+    clearTimeout(globalTimer);
   }
 });
 

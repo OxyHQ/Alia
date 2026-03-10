@@ -137,6 +137,11 @@ export const MODEL_CAPABILITIES: Record<string, ModelCapabilities> = {
   // Audio
   'whisper-1': createCapabilities({ audio: true, tools: false, functionCalling: false, maxContextTokens: 4096, maxOutputTokens: 4096 }),
 
+  // TTS
+  'tts-1': createCapabilities({ audio: true, tools: false, functionCalling: false, maxContextTokens: 4096, maxOutputTokens: 4096 }),
+  'tts-1-hd': createCapabilities({ audio: true, tools: false, functionCalling: false, maxContextTokens: 4096, maxOutputTokens: 4096 }),
+  'openai/tts-1': createCapabilities({ audio: true, tools: false, functionCalling: false, maxContextTokens: 4096, maxOutputTokens: 4096 }),
+
   // ============== ANTHROPIC CLAUDE ==============
   'claude-instant-1': createCapabilities({ maxContextTokens: 100000, maxOutputTokens: 8192 }),
   'claude-instant-1.2': createCapabilities({ maxContextTokens: 100000, maxOutputTokens: 8192 }),
@@ -440,6 +445,11 @@ export const MODEL_PRICING: Record<string, ModelPricing> = {
 
   // Audio
   'whisper-1': { tier: 'paid', costPer1MInput: 6.00, costPer1MOutput: 6.00, averageLatencyMs: 1000 },
+
+  // TTS
+  'tts-1': { tier: 'paid', costPer1MInput: 15.00, costPer1MOutput: 0, averageLatencyMs: 800 },
+  'tts-1-hd': { tier: 'paid', costPer1MInput: 30.00, costPer1MOutput: 0, averageLatencyMs: 1200 },
+  'openai/tts-1': { tier: 'paid', costPer1MInput: 15.00, costPer1MOutput: 0, averageLatencyMs: 1000 },
 
   // ============== ANTHROPIC CLAUDE ==============
   'claude-instant-1': { tier: 'paid', costPer1MInput: 1.63, costPer1MOutput: 55.10 },
