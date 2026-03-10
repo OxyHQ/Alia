@@ -245,19 +245,14 @@ router.post('/token', async (req: Request, res: Response) => {
 const TRANSCRIBE_TIMEOUT_MS = 55_000;
 
 router.post('/transcribe', async (req: Request, res: Response) => {
-  const abortController = new AbortController();
-  const globalTimer = setTimeout(() => abortController.abort(), TRANSCRIBE_TIMEOUT_MS);
-
   try {
     const userId = req.user?.id;
     if (!userId) {
-      clearTimeout(globalTimer);
       return res.status(401).json({ error: 'Authentication required' });
     }
 
     const { audio, format } = req.body as { audio?: string; format?: string };
     if (!audio) {
-      clearTimeout(globalTimer);
       return res.status(400).json({ error: 'Audio data is required (base64 encoded)' });
     }
 
@@ -266,7 +261,6 @@ router.post('/transcribe', async (req: Request, res: Response) => {
 
     const reservation = await reserveCredits(userId);
     if (!reservation) {
-      clearTimeout(globalTimer);
       return res.status(402).json({
         error: {
           code: 'INSUFFICIENT_CREDITS',
@@ -282,64 +276,69 @@ router.post('/transcribe', async (req: Request, res: Response) => {
     const mimeType = format || 'audio/m4a';
     const ext = mimeType.split('/')[1] || 'm4a';
 
-    // Try each audio provider until one succeeds (1 attempt each, fail fast)
-    const audioMappings = await getModelMappingsForTier('v1-audio');
-    let result: { text: string } | null = null;
+    // Global timeout — respond before DO's ~120s gateway limit
+    const abortController = new AbortController();
+    const globalTimer = setTimeout(() => abortController.abort(), TRANSCRIBE_TIMEOUT_MS);
 
-    for (const mapping of audioMappings) {
-      if (abortController.signal.aborted) break;
-      try {
-        result = await callProviderAPI<{ text: string }>({
-          provider: mapping.provider,
-          modelId: mapping.modelId,
-          endpoint: '/v1/audio/transcriptions',
-          audio: {
-            base64: audio,
-            mimeType,
-            filename: `audio.${ext}`,
-          },
-          extraFormFields: {
-            model: mapping.modelId,
-          },
-          timeout: 25_000,
-          maxAttempts: 1,
-          signal: abortController.signal,
-        });
-        break;
-      } catch (err: any) {
-        log.general.warn({ err, provider: mapping.provider, model: mapping.modelId }, 'Transcription provider failed, trying next');
-        continue;
+    try {
+      // Try each audio provider until one succeeds (1 attempt each, fail fast)
+      const audioMappings = await getModelMappingsForTier('v1-audio');
+      let result: { text: string } | null = null;
+
+      for (const mapping of audioMappings) {
+        if (abortController.signal.aborted) break;
+        try {
+          result = await callProviderAPI<{ text: string }>({
+            provider: mapping.provider,
+            modelId: mapping.modelId,
+            endpoint: '/v1/audio/transcriptions',
+            audio: {
+              base64: audio,
+              mimeType,
+              filename: `audio.${ext}`,
+            },
+            extraFormFields: {
+              model: mapping.modelId,
+            },
+            timeout: 25_000,
+            maxAttempts: 1,
+            signal: abortController.signal,
+          });
+          break;
+        } catch (err: any) {
+          log.general.warn({ err, provider: mapping.provider, model: mapping.modelId }, 'Transcription provider failed, trying next');
+          continue;
+        }
       }
-    }
 
-    clearTimeout(globalTimer);
+      if (abortController.signal.aborted && !result) {
+        await finalizeCredits(reservation, { promptTokens: 0, completionTokens: 0, totalTokens: 0 });
+        return res.status(504).json({
+          error: {
+            code: 'TIMEOUT',
+            message: 'Transcription timed out. Please try again with a shorter audio clip.',
+            retryable: true,
+          },
+        });
+      }
 
-    if (abortController.signal.aborted && !result) {
-      await finalizeCredits(reservation, { promptTokens: 0, completionTokens: 0, totalTokens: 0 });
-      return res.status(504).json({
-        error: {
-          code: 'TIMEOUT',
-          message: 'Transcription timed out. Please try again with a shorter audio clip.',
-          retryable: true,
-        },
+      if (!result) {
+        await finalizeCredits(reservation, { promptTokens: 0, completionTokens: 0, totalTokens: 0 });
+        return res.status(503).json({ error: 'All transcription providers exhausted' });
+      }
+
+      // Charge minimal credits for transcription (~100 tokens equivalent)
+      await finalizeCredits(reservation, {
+        promptTokens: 50,
+        completionTokens: 50,
+        totalTokens: 100,
       });
+
+      res.json({ text: result.text });
+    } finally {
+      clearTimeout(globalTimer);
     }
-
-    if (!result) {
-      await finalizeCredits(reservation, { promptTokens: 0, completionTokens: 0, totalTokens: 0 });
-      return res.status(503).json({ error: 'All transcription providers exhausted' });
-    }
-
-    // Charge minimal credits for transcription (~100 tokens equivalent)
-    await finalizeCredits(reservation, {
-      promptTokens: 50,
-      completionTokens: 50,
-      totalTokens: 100,
-    });
-
-    res.json({ text: result.text });
   } catch (error: unknown) {
-    clearTimeout(globalTimer);
     log.general.error({ err: error, userId: req.user?.id }, 'Voice transcription failed');
     res.status(500).json({ error: getSafeErrorMessage(error, 'Transcription failed') });
   }
