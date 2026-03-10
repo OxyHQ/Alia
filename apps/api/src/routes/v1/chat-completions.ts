@@ -1129,7 +1129,7 @@ export const handleChatCompletions = async (req: Request, res: Response) => {
           if (creditWarning) {
             creditWarning.currentModelMultiplier = (await getAliaModel(aliasModelId))?.creditMultiplier || 1;
           }
-        } catch {}
+        } catch { /* non-critical anomaly check */ }
       }
 
       // Return OpenAI-compatible non-streaming response
@@ -1639,7 +1639,7 @@ export const handleChatCompletions = async (req: Request, res: Response) => {
             if (creditWarning) {
               creditWarning.currentModelMultiplier = (await getAliaModel(aliasModelId))?.creditMultiplier || 1;
             }
-          } catch {}
+          } catch { /* non-critical anomaly check */ }
         }
 
         // Send usage chunk only when stream_options.include_usage is true (OpenAI spec)

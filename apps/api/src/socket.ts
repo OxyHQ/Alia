@@ -124,6 +124,16 @@ export interface AgentActivityEvent {
     currentStep?: number;
     maxSteps?: number;
     approval?: { requestId: string; toolName: string; args: any; description: string; severity: string; timeout: number };
+    taskProgress?: {
+      stepIndex: number;
+      maxSteps: number;
+      totalTokens: number;
+      state: string;
+      planCompleted: number;
+      planTotal: number;
+      elapsedMs: number;
+      lastAction: string | null;
+    };
   };
 }
 

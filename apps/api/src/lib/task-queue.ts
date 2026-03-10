@@ -142,10 +142,10 @@ export async function startWorker(): Promise<void> {
     },
     {
       connection,
-      concurrency: 3, // Up to 3 agent sessions in parallel
+      concurrency: 5, // Up to 5 agent sessions in parallel
       limiter: {
-        max: 10,
-        duration: 60_000, // Max 10 jobs per minute
+        max: 30,
+        duration: 60_000, // Max 30 jobs per minute
       },
     },
   );

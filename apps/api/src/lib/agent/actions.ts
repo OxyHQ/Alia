@@ -216,7 +216,19 @@ export async function buildActions(ctx: ActionContext) {
       }
 
       if (action === 'complete') {
-        onComplete(result || 'Task completed.');
+        // Scan workspace for user-created files and include download info
+        let filesNote = '';
+        try {
+          const container = terminalSession.getContainerId();
+          if (container) {
+            const apiUrl = process.env.ALIA_API_URL || 'http://localhost:3001';
+            filesNote = `\n\nWorkspace files are available for download at: ${apiUrl}/agents/sessions/${session._id}/files`;
+          }
+        } catch {
+          // No container — no files to include
+        }
+
+        onComplete((result || 'Task completed.') + filesNote);
         return 'Task marked as complete.';
       }
 

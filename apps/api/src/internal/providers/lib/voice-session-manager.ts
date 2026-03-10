@@ -297,7 +297,7 @@ export class VoiceSessionManager {
       // Notify client before disconnecting
       try {
         await session.agentBridge?.publishData({ type: 'session.ended', reason: reason || 'session_closed' } satisfies AgentDataMessage);
-      } catch {}
+      } catch { /* best-effort notify */ }
 
       // Finalize primary credits
       const endTime = new Date();
@@ -740,7 +740,7 @@ export class VoiceSessionManager {
     if (session.cohostProviderSocket?.readyState === WebSocket.OPEN) {
       try {
         session.cohostProviderSocket.send(JSON.stringify({ type: 'response.cancel' }));
-      } catch {}
+      } catch { /* best-effort cancel */ }
       session.cohostProviderSocket.close(1000, 'Cohost disabled');
     }
 

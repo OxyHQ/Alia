@@ -29,7 +29,7 @@ const GH_HEADERS = { Accept: 'application/vnd.github.v3+json' };
 const GITHUB_REPO_RE = /^[a-zA-Z0-9._-]+\/[a-zA-Z0-9._-]+$/;
 
 /** GitHub branch names — alphanumeric, dots, hyphens, underscores, slashes */
-const GITHUB_BRANCH_RE = /^[a-zA-Z0-9._\/-]+$/;
+const GITHUB_BRANCH_RE = /^[a-zA-Z0-9._/-]+$/;
 
 /** Notion/Linear IDs — UUID v4 with or without dashes */
 const UUID_RE = /^[0-9a-f]{8}-?[0-9a-f]{4}-?[0-9a-f]{4}-?[0-9a-f]{4}-?[0-9a-f]{12}$/i;

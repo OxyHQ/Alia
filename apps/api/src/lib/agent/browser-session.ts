@@ -63,16 +63,32 @@ export class BrowserSession {
   }
 
   /**
+   * Pre-initialize the browser in the background.
+   * Call this early when the task likely needs browser interaction.
+   * Safe to call multiple times — only the first call initializes.
+   */
+  preInit(): void {
+    this.ensureBrowser().catch(err =>
+      log.agents.warn({ err }, 'Browser pre-init failed (will retry on first use)'),
+    );
+  }
+
+  /**
    * Execute a browser action. Initializes the browser lazily on first interactive action.
    */
   async execute(action: BrowserAction, params: BrowserParams): Promise<string> {
+    // Actions that should auto-capture a screenshot for model vision
+    const interactiveActions = new Set<BrowserAction>(['click', 'type', 'scroll_down', 'scroll_up', 'back', 'goto']);
+
     try {
+      let result: string;
       switch (action) {
         case 'search':
           return await this.search(params.query || '');
 
         case 'goto':
-          return await this.goto(params.url || '');
+          result = await this.goto(params.url || '');
+          break;
 
         case 'get_text':
           return await this.getText();
@@ -81,19 +97,24 @@ export class BrowserSession {
           return await this.screenshot();
 
         case 'click':
-          return await this.click(params.selector || params.text || '');
+          result = await this.click(params.selector || params.text || '');
+          break;
 
         case 'type':
-          return await this.type(params.selector || '', params.text || '');
+          result = await this.type(params.selector || '', params.text || '');
+          break;
 
         case 'scroll_down':
-          return await this.scroll('down');
+          result = await this.scroll('down');
+          break;
 
         case 'scroll_up':
-          return await this.scroll('up');
+          result = await this.scroll('up');
+          break;
 
         case 'back':
-          return await this.back();
+          result = await this.back();
+          break;
 
         case 'wait':
           await new Promise(r => setTimeout(r, 2000));
@@ -102,6 +123,18 @@ export class BrowserSession {
         default:
           return `Unknown browser action: ${action}`;
       }
+
+      // Auto-screenshot after interactive actions so the model can see the result
+      if (interactiveActions.has(action) && this.page && !result.startsWith('Error')) {
+        try {
+          await this.screenshot();
+          result += '\n[Auto-screenshot captured — visible in your next message as an image.]';
+        } catch {
+          // Non-critical — continue without screenshot
+        }
+      }
+
+      return result;
     } catch (err: any) {
       log.agents.error({ err, action, params }, 'Browser session error');
       return `Browser error: ${err.message || 'Unknown error'}`;
@@ -187,6 +220,9 @@ export class BrowserSession {
     return await this.extractPageText();
   }
 
+  /** The most recent screenshot base64 — available for vision model injection */
+  lastScreenshotBase64: string | null = null;
+
   /** Take a screenshot of the current page (base64) */
   private async screenshot(): Promise<string> {
     if (!this.page && this.currentUrl) {
@@ -198,6 +234,7 @@ export class BrowserSession {
     const buffer = await this.page.screenshot({ fullPage: false });
     const base64 = buffer.toString('base64');
     this.screenshotSeq++;
+    this.lastScreenshotBase64 = base64;
 
     const pageUrl = this.page.url();
 
@@ -212,7 +249,7 @@ export class BrowserSession {
       });
     }
 
-    return `[Screenshot captured (${Math.round(buffer.length / 1024)}KB). Current URL: ${pageUrl}]`;
+    return `[Screenshot captured (${Math.round(buffer.length / 1024)}KB). Current URL: ${pageUrl}]. The screenshot is included in your next message as an image.`;
   }
 
   /** Click an element described by selector or natural language */

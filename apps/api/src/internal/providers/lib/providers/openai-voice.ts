@@ -98,7 +98,7 @@ export const openaiVoiceProvider: VoiceProvider = {
               if (event.type === 'error') {
                 log.providers.error({ event, model }, '[Voice] OpenAI rejected session config');
               }
-            } catch {}
+            } catch { /* best-effort parse */ }
           });
 
           resolve(ws);

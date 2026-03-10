@@ -86,13 +86,19 @@ You have 5 actions:
 
 // ── Model Selection ──
 
-function selectModelForStep(
-  allowedModels: string[],
-  task: string,
-  stepNumber: number,
-  lastStepHadToolCalls: boolean,
-  errorCount: number = 0,
-): string {
+interface StepContext {
+  allowedModels: string[];
+  task: string;
+  stepNumber: number;
+  maxSteps: number;
+  errorCount: number;
+  currentState: string;
+  recentToolNames: string[];
+}
+
+function selectModelForStep(ctx: StepContext): string {
+  const { allowedModels, task, stepNumber, maxSteps, errorCount, currentState, recentToolNames } = ctx;
+
   if (allowedModels.length === 0) return getDefaultAliaModel();
   if (allowedModels.length === 1) return allowedModels[0];
 
@@ -119,31 +125,47 @@ function selectModelForStep(
   // Escalate to best model when too many tool errors (self-correction)
   if (errorCount >= 3) return best;
 
-  if (lastStepHadToolCalls && stepNumber > 1) return cheapest;
+  // Escalate when running out of step budget (>70% used)
+  if (stepNumber > maxSteps * 0.7) return best;
 
-  const complexIndicators = [
-    /\b(analyze|architect|design|implement|debug|refactor|optimize)\b/i,
-    /\b(code|script|program|function|algorithm|API)\b/i,
-    /\b(complex|difficult|advanced|detailed|comprehensive)\b/i,
-    /\b(multiple|several|various|many)\b/i,
-    /\b(compare|evaluate|assess|review)\b/i,
-  ];
+  // Escalate in REFLECTING state (after errors — needs stronger reasoning)
+  if (currentState === 'REFLECTING') return mid;
 
-  const simpleIndicators = [
-    /\b(what|when|where|who|how much)\b/i,
-    /\b(search|find|look up|check|tell me)\b/i,
-    /\b(simple|quick|brief|short)\b/i,
-  ];
+  // Use mid-tier for shell-heavy work (code execution needs good reasoning)
+  const shellCount = recentToolNames.filter(n => n === 'shell').length;
+  if (shellCount >= 2) return mid;
 
-  const complexScore = complexIndicators.filter(r => r.test(task)).length;
-  const simpleScore = simpleIndicators.filter(r => r.test(task)).length;
+  // Use mid-tier for browser work (navigation decisions need reasoning)
+  const browserCount = recentToolNames.filter(n => n === 'browser').length;
+  if (browserCount >= 1) return mid;
 
-  if (stepNumber === 0 && complexScore >= 2) return best;
-  if (simpleScore > complexScore) return cheapest;
+  // First step: classify task complexity from the prompt
+  if (stepNumber === 0) {
+    const complexIndicators = [
+      /\b(analyze|architect|design|implement|debug|refactor|optimize)\b/i,
+      /\b(code|script|program|function|algorithm|API)\b/i,
+      /\b(complex|difficult|advanced|detailed|comprehensive)\b/i,
+    ];
+    const simpleIndicators = [
+      /\b(what|when|where|who|how much)\b/i,
+      /\b(simple|quick|brief|short)\b/i,
+    ];
+    const complexScore = complexIndicators.filter(r => r.test(task)).length;
+    const simpleScore = simpleIndicators.filter(r => r.test(task)).length;
+
+    if (complexScore >= 2) return best;
+    if (simpleScore > complexScore) return cheapest;
+    return mid;
+  }
+
+  // Default: mid-tier (not cheapest — agents need decent reasoning throughout)
   return mid;
 }
 
 // ── Context Builder (Manus KV-cache optimization) ──
+
+type MessageContent = string | Array<{ type: 'text'; text: string } | { type: 'image'; image: string; mimeType: string }>;
+type ContextMessage = { role: 'system' | 'user' | 'assistant'; content: MessageContent };
 
 function buildContextMessages(
   systemPrompt: string,
@@ -151,8 +173,9 @@ function buildContextMessages(
   todoManager: TodoManager,
   stateMachine: AgentStateMachine,
   iteration: number,
-): Array<{ role: 'system' | 'user' | 'assistant'; content: string }> {
-  const messages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }> = [];
+  screenshotBase64?: string | null,
+): ContextMessage[] {
+  const messages: ContextMessage[] = [];
 
   // 1. Stable system prompt (never changes — KV-cache friendly)
   messages.push({ role: 'system', content: systemPrompt });
@@ -181,7 +204,20 @@ function buildContextMessages(
   // 4. Continuation prompt with diversity (includes context tail for attention manipulation)
   const continuationPrompt = CONTINUATION_PROMPTS[iteration % CONTINUATION_PROMPTS.length];
   const tailContent = tailParts.length > 0 ? tailParts.join('\n\n') + '\n\n' : '';
-  messages.push({ role: 'user', content: tailContent + continuationPrompt });
+
+  // 5. Include browser screenshot as vision content if available
+  if (screenshotBase64) {
+    messages.push({
+      role: 'user',
+      content: [
+        { type: 'text', text: tailContent + continuationPrompt },
+        { type: 'image', image: screenshotBase64, mimeType: 'image/png' },
+        { type: 'text', text: '[This is a screenshot of the current browser page. Use it to understand what you see and decide your next action.]' },
+      ],
+    });
+  } else {
+    messages.push({ role: 'user', content: tailContent + continuationPrompt });
+  }
 
   return messages;
 }
@@ -242,6 +278,12 @@ export async function runAgentSession(sessionId: string): Promise<void> {
     },
   });
   const browserSession = new BrowserSession({ agentId, sessionId });
+
+  // Pre-initialize browser if the task likely needs it (saves 5-15s cold start)
+  const browserHint = /\b(browse|browser|website|web page|screenshot|http|https|www\.|\.com|\.org|url|navigate|click|open site)\b/i;
+  if (browserHint.test(session.task)) {
+    browserSession.preInit();
+  }
 
   // Restore event stream and plan if resuming
   await eventStream.loadFromDB();
@@ -334,11 +376,17 @@ export async function runAgentSession(sessionId: string): Promise<void> {
   const failedKeyIds = new Set<string>();
   let lastStepHadToolCalls = false;
   let iteration = 0;
+  let textOnlyCount = 0;
 
   // ── Error loop detection (Phase 2: Self-Correction) ──
   const toolErrorTracker = new Map<string, { count: number; errors: string[] }>();
   let consecutiveErrors = 0;
   let totalToolErrors = 0;
+  const recentToolNames: string[] = []; // Track last N tool names for model selection
+
+  // ── Session time limit ──
+  const sessionStartMs = Date.now();
+  const maxDurationMs = 10 * 60 * 1000; // 10 minutes
 
   try {
     // ── Orchestrator mode check ──
@@ -388,8 +436,44 @@ export async function runAgentSession(sessionId: string): Promise<void> {
         break;
       }
 
-      // Select model (escalates to best on repeated errors)
-      const modelId = selectModelForStep(allowedModels, session.task, totalSteps, lastStepHadToolCalls, totalToolErrors);
+      // Global time limit — prevent runaway sessions
+      if (Date.now() - sessionStartMs > maxDurationMs) {
+        eventStream.append('system_message', 'Session time limit reached (10 minutes). Returning partial results.');
+        taskCompleted = true;
+        taskResult = 'Time limit reached. Partial progress:\n' + todoManager.serialize();
+        break;
+      }
+
+      // Emit structured task progress for frontend
+      const planData = todoManager.toJSON();
+      const completedItems = planData.items.filter(i => i.status === 'completed').length;
+      eventStream.append('plan_progress',
+        `Step ${totalSteps + 1}/${session.config.maxSteps}`,
+        undefined,
+        {
+          taskProgress: {
+            stepIndex: totalSteps,
+            maxSteps: session.config.maxSteps,
+            totalTokens,
+            state: stateMachine.current(),
+            planCompleted: completedItems,
+            planTotal: planData.items.length,
+            elapsedMs: Date.now() - sessionStartMs,
+            lastAction: recentToolNames[recentToolNames.length - 1] || null,
+          },
+        },
+      );
+
+      // Select model (runtime-aware: escalates on errors, budget pressure, and task type)
+      const modelId = selectModelForStep({
+        allowedModels,
+        task: session.task,
+        stepNumber: totalSteps,
+        maxSteps: session.config.maxSteps,
+        errorCount: totalToolErrors,
+        currentState: stateMachine.current(),
+        recentToolNames,
+      });
 
       eventStream.append('thinking', `Step ${totalSteps + 1}: Using model ${modelId} in state ${stateMachine.current()}`);
 
@@ -411,8 +495,13 @@ export async function runAgentSession(sessionId: string): Promise<void> {
       const model = getAIModel(activeResolved.keyConfig);
       const startMs = Date.now();
 
-      // Build context (stable prefix + event stream + todo/state tail)
-      const messages = buildContextMessages(systemPrompt, eventStream, todoManager, stateMachine, iteration);
+      // Build context (stable prefix + event stream + todo/state tail + browser screenshot)
+      const messages = buildContextMessages(
+        systemPrompt, eventStream, todoManager, stateMachine, iteration,
+        browserSession.lastScreenshotBase64,
+      );
+      // Clear screenshot after injecting so it doesn't persist across non-browser steps
+      browserSession.lastScreenshotBase64 = null;
 
       try {
         // One action per iteration (Manus principle)
@@ -444,7 +533,10 @@ export async function runAgentSession(sessionId: string): Promise<void> {
             // Record tool calls in event stream
             if ((step as any).toolCalls?.length) {
               lastStepHadToolCalls = true;
+              textOnlyCount = 0; // Reset when model uses actions
               for (const tc of (step as any).toolCalls) {
+                recentToolNames.push(tc.toolName);
+                if (recentToolNames.length > 5) recentToolNames.shift(); // Keep last 5
                 const argsStr = JSON.stringify(tc.args || {});
                 eventStream.append('action', `${tc.toolName}(${argsStr.slice(0, 300)})`, {
                   toolName: tc.toolName,
@@ -509,7 +601,18 @@ export async function runAgentSession(sessionId: string): Promise<void> {
                     break;
                   }
                 } else {
-                  consecutiveErrors = 0; // Reset on success
+                  // Only reset consecutive error count for the specific tool that succeeded.
+                  // A successful plan(update) between two failed shell calls should NOT
+                  // reset the counter — only a successful shell call should.
+                  const successKey = tr.toolName || 'unknown';
+                  if (toolErrorTracker.has(successKey)) {
+                    toolErrorTracker.delete(successKey);
+                    // Recalculate consecutive errors: reset only if the tool that was
+                    // causing the consecutive errors just succeeded
+                    consecutiveErrors = Math.max(0, consecutiveErrors - 1);
+                  } else {
+                    // Success on a tool that hasn't been failing — don't touch the counter
+                  }
                 }
 
                 if (stateMachine.canTransition('observation_received')) {
@@ -536,11 +639,23 @@ export async function runAgentSession(sessionId: string): Promise<void> {
             stateMachine.transition('task_completed');
           }
         } else if (!lastStepHadToolCalls && result.text) {
-          // Model finished without calling plan(complete) — treat response as result
-          taskCompleted = true;
-          taskResult = result.text;
-          if (stateMachine.canTransition('task_completed')) {
-            stateMachine.transition('task_completed');
+          // Model generated text without calling any action.
+          // Only treat as completion if: plan is finished, no plan exists and this is
+          // the second text-only response, or we've had 2+ consecutive text-only responses.
+          textOnlyCount++;
+          const planFinished = !todoManager.hasPending();
+          const noPlanYet = todoManager.getItems().length === 0;
+
+          if (planFinished || (noPlanYet && textOnlyCount >= 2) || textOnlyCount >= 3) {
+            taskCompleted = true;
+            taskResult = result.text;
+            if (stateMachine.canTransition('task_completed')) {
+              stateMachine.transition('task_completed');
+            }
+          } else {
+            // Nudge the model to continue working instead of talking
+            eventStream.append('system_message',
+              'You generated text but did not call any action. If you are done, call plan(action="complete", result="..."). Otherwise, continue with your next action.');
           }
         } else if (stateMachine.current() === 'REFLECTING') {
           if (stateMachine.canTransition('continue')) {

@@ -81,7 +81,7 @@ const CREATIVE_PATTERNS = [
 
 // Multi-part questions: numbered lists, multiple requests
 const MULTIPART_PATTERNS = [
-  /\b(first|1[\.\):])\b.*\b(second|2[\.\):]|then|also|and\s+also|additionally)\b/is,
+  /\b(first|1[.):])\b.*\b(second|2[.):]|then|also|and\s+also|additionally)\b/is,
   /\d+\.\s+\w+.*\n\d+\.\s+\w+/,              // numbered list
   /\b(and\s+also|in\s+addition|furthermore|moreover|plus)\b/i,
 ];
