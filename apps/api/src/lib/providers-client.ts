@@ -292,7 +292,8 @@ export interface ProviderCallOptions {
  */
 export async function callProviderAPI<T = unknown>(options: ProviderCallOptions): Promise<T> {
   if (PROVIDERS_API_ENABLED) {
-    return apiPost<T>('/api/call', options, options.signal);
+    const { signal, ...bodyOptions } = options;
+    return apiPost<T>('/api/call', bodyOptions, signal);
   }
 
   // Local fallback — convert audio field to FormData for the local callProviderAPI
