@@ -11,6 +11,9 @@ const COLORS = {
     secondaryText: '#8E8E93',
     icon: '#687076',
     tint: '#0a7ea4',
+    muted: '#F4F4F5',
+    mutedForeground: '#71717A',
+    primary: '#0a7ea4',
   },
   dark: {
     text: '#ECEDEE',
@@ -21,15 +24,32 @@ const COLORS = {
     secondaryText: '#8E8E93',
     icon: '#9BA1A6',
     tint: '#fff',
+    muted: '#27272A',
+    mutedForeground: '#A1A1AA',
+    primary: '#38BDF8',
   },
 } as const;
 
-export type AliaColors = (typeof COLORS)['light'] & { isDark: boolean };
+export interface AliaColors {
+  text: string;
+  background: string;
+  card: string;
+  inputBackground: string;
+  border: string;
+  secondaryText: string;
+  icon: string;
+  tint: string;
+  muted: string;
+  mutedForeground: string;
+  primary: string;
+  isDark: boolean;
+}
 
 export function useAliaColors(): AliaColors {
   const scheme = useColorScheme();
+  const key = scheme === 'dark' ? 'dark' : 'light';
   return useMemo(() => ({
-    ...COLORS[scheme ?? 'light'],
-    isDark: scheme === 'dark',
-  }), [scheme]);
+    ...COLORS[key],
+    isDark: key === 'dark',
+  }), [key]);
 }

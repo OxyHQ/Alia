@@ -10,7 +10,7 @@ interface AliaChatSuggestionsProps {
 
 export function AliaChatSuggestions({ suggestions, onSelect }: AliaChatSuggestionsProps) {
   const colors = useAliaColors();
-  const isDark = colors.background === '#000000';
+  const isDark = colors.isDark;
 
   if (suggestions.length === 0) return null;
 

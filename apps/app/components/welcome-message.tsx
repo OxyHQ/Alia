@@ -7,7 +7,7 @@ import { useTranslation } from "@/hooks/useTranslation";
 import { useWelcomeSuggestions, useRecordSuggestionUsage } from "@/lib/hooks/use-suggestions";
 import Animated, { FadeIn } from "react-native-reanimated";
 import { View } from "react-native";
-import { AliaFace } from "@/components/alia-face";
+import { AliaFace } from '@alia.onl/sdk';
 import { useUserDataStore } from "@/lib/stores/user-data-store";
 import { PERSONALITY_STYLE_MAP } from "@/lib/personality-styles";
 

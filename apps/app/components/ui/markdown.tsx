@@ -1,6 +1,7 @@
 import React from "react";
 import { View, Platform, Linking } from "react-native";
 import Markdown from "react-native-markdown-display";
+import { AliaMarkdown } from '@alia.onl/sdk';
 import { useColorScheme } from "@/lib/useColorScheme";
 import { Text } from "@/components/ui/text";
 import {
@@ -399,7 +400,7 @@ export function CustomMarkdown({ content }: { content: string }) {
     <View>
       {blocks.map((block, idx) => {
         if (block.type === 'text') {
-          return <Markdown key={idx} rules={rules} style={markdownStyles}>{block.content}</Markdown>;
+          return <AliaMarkdown key={idx} content={block.content} />;
         } else if (block.type === 'block' && block.blockType) {
           return renderBlock(block.blockType, block.data, idx);
         }
