@@ -19,7 +19,7 @@ export function AliaChatInput({ onSend, isStreaming }: AliaChatInputProps) {
   const [input, setInput] = useState('');
   const colors = useAliaColors();
   const insets = useSafeAreaInsets();
-  const isDark = colors.background === '#000000';
+  const isDark = colors.isDark;
 
   const canSend = input.trim().length > 0 && !isStreaming;
 

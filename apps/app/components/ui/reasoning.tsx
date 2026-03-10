@@ -7,7 +7,7 @@ import React, {
 } from "react";
 import { View, Pressable } from "react-native";
 import { Text } from "@/components/ui/text";
-import { CustomMarkdown } from "@/components/ui/markdown";
+import { AliaMarkdown } from '@alia.onl/sdk';
 import {
   Collapsible,
   CollapsibleTrigger,
@@ -279,7 +279,7 @@ export function ReasoningContent({ children, className }: ReasoningContentProps)
           }}
         >
           <View style={{ opacity: isStreaming ? 0.8 : 1 }}>
-            <CustomMarkdown content={children} />
+            <AliaMarkdown content={children} />
           </View>
         </View>
       </View>

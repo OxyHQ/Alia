@@ -31,6 +31,7 @@ import { useAliaChat, type UseAliaChatOptions } from '../hooks/useAliaChat';
 import { AliaChatMessageList } from './AliaChatMessageList';
 import { AliaChatInput } from './AliaChatInput';
 import { AliaChatSuggestions } from './AliaChatSuggestions';
+import { AliaFace, type AliaExpression } from './AliaFace';
 import { useAliaColors } from '../theme';
 import type { AliaChatSuggestion } from '../types';
 
@@ -199,6 +200,15 @@ export const AliaChatSheet = forwardRef<AliaChatSheetRef, AliaChatSheetProps>(
       [insets.top],
     );
 
+    // Derive AliaFace expression from chat state
+    const faceExpression = useMemo<AliaExpression>(() => {
+      if (!isStreaming) return 'Idle A';
+      const lastMsg = messages[messages.length - 1];
+      if (lastMsg?.role === 'assistant' && lastMsg.toolInvocations?.some(t => t.state === 'call')) return 'Searching A';
+      if (lastMsg?.thinking) return 'Thinking';
+      return 'Writing E';
+    }, [messages, isStreaming]);
+
     const showSuggestions = messages.length === 0 && suggestions.length > 0;
 
     if (!rendered) return null;
@@ -240,9 +250,7 @@ export const AliaChatSheet = forwardRef<AliaChatSheetRef, AliaChatSheetProps>(
               {/* Header */}
               <View style={styles.header}>
                 <View style={styles.headerLeft}>
-                  <View style={[styles.aliaAvatar, { backgroundColor: colors.tint }]}>
-                    <Text style={styles.aliaAvatarText}>A</Text>
-                  </View>
+                  <AliaFace size={28} expression={faceExpression} />
                   <Text style={[styles.headerTitle, { color: colors.text }]}>
                     Alia
                   </Text>
@@ -352,18 +360,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
-  },
-  aliaAvatar: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  aliaAvatarText: {
-    color: '#FFFFFF',
-    fontSize: 14,
-    fontWeight: '700',
   },
   headerTitle: {
     fontSize: 18,

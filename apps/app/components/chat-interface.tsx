@@ -9,10 +9,10 @@ import React, { useEffect, useState, useCallback, useRef, useMemo } from "react"
 import type { ScrollView as GHScrollView } from "react-native-gesture-handler";
 import { processMessage } from "@/lib/message-processor";
 import { cn } from "@/lib/utils";
-import { ThinkingIndicator } from "@/components/thinking-indicator";
+import { ThinkingIndicator } from '@alia.onl/sdk';
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { AgentPlaceholder } from "@/components/ui/agent-placeholder";
-import { AliaFace, type AliaExpression } from "@/components/alia-face";
+import { AliaFace, type AliaExpression } from '@alia.onl/sdk';
 import { Copy, ThumbsUp, ThumbsDown, Pencil, Check, Volume2, Square } from "lucide-react-native";
 import { useTTS } from "@/lib/hooks/use-tts";
 import Animated, {

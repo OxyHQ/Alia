@@ -1,5 +1,5 @@
 import React, { useEffect } from "react";
-import { View } from "react-native";
+import { View, Text } from "react-native";
 import Svg, { Path, Ellipse } from "react-native-svg";
 import Animated, {
   useSharedValue,
@@ -12,8 +12,7 @@ import Animated, {
   cancelAnimation,
   Easing,
 } from "react-native-reanimated";
-import { Text } from "@/components/ui/text";
-import { useColorScheme } from "@/lib/useColorScheme";
+import { useAliaColors } from "../theme";
 
 // ─── Animated SVG wrappers ──────────────────────────────────────────────────
 
@@ -131,8 +130,8 @@ export function AliaFace({
   size = 120,
   showLabel = false,
 }: AliaFaceProps) {
-  const { isDarkColorScheme, colors } = useColorScheme();
-  const strokeColor = isDarkColorScheme ? "#ffffff" : "#000000";
+  const colors = useAliaColors();
+  const strokeColor = colors.isDark ? "#ffffff" : "#000000";
   const circleBg = colors.background;
   const circleBorder = colors.border;
 
@@ -394,7 +393,7 @@ export function AliaFace({
       </View>
 
       {showLabel && (
-        <Text className="text-xs text-muted-foreground mt-2 uppercase tracking-widest font-bold">
+        <Text style={{ fontSize: 10, color: colors.mutedForeground, marginTop: 8, textTransform: 'uppercase', letterSpacing: 3, fontWeight: '700' }}>
           {expression}
         </Text>
       )}

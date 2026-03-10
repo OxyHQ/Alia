@@ -36,7 +36,7 @@ import {
 import { OxySignInButton, useAuth } from "@oxyhq/services";
 import { Text } from "@/components/ui/text";
 import { TextShimmer } from "@/components/ui/text-shimmer";
-import { AliaFace, type AliaExpression } from "@/components/alia-face";
+import { AliaFace, type AliaExpression } from '@alia.onl/sdk';
 import { useTranslation } from "@/hooks/useTranslation";
 import { useColorScheme } from "@/lib/useColorScheme";
 
