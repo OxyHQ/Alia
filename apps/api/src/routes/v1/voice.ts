@@ -295,7 +295,7 @@ router.post('/transcribe', async (req: Request, res: Response) => {
             extraFormFields: {
               model: mapping.modelId,
             },
-            timeout: 25_000,
+            timeout: 15_000,
             maxAttempts: 1,
             signal: abortController.signal,
           });
