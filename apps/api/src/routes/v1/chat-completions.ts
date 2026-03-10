@@ -1492,93 +1492,104 @@ export const handleChatCompletions = async (req: Request, res: Response) => {
     // ── Text-based tool call fallback ──
     // Some models (Gemini 3 preview, Minimax, etc.) output tool calls as text
     // instead of using the native tool calling API. Detect and execute them.
+
+    async function executeTextToolCall(toolName: string, args: unknown): Promise<boolean> {
+      const toolFn = truncatedTools[toolName];
+      if (!toolFn?.execute) {
+        log.v1.warn({ toolName }, 'Text tool call references unknown tool, skipping');
+        return false;
+      }
+
+      const toolCallId = `text-fallback-${Date.now()}-${toolName}`;
+
+      // Emit tool-call event to client
+      res.write(`data: ${JSON.stringify({
+        id: requestId,
+        object: 'chat.completion.chunk',
+        created: Math.floor(Date.now() / 1000),
+        model: aliasModelId,
+        system_fingerprint: 'fp_alia',
+        service_tier: 'default',
+        choices: [{ index: 0, delta: { tool_calls: [{ index: 0, id: toolCallId, type: 'function', function: { name: toolName, arguments: JSON.stringify(args) } }] }, logprobs: null, finish_reason: null }],
+      })}\n\n`);
+
+      try {
+        const toolOutput = await (toolFn.execute as Function)(args);
+
+        res.write(`event: alia.tool_result\ndata: ${JSON.stringify({
+          eventVersion: 1,
+          tool_call_id: toolCallId,
+          name: toolName,
+          output: toolOutput,
+        })}\n\n`);
+
+        toolInvocations.push({ toolCallId, toolName, state: 'result', args, result: toolOutput });
+
+        // Follow-up LLM call so the model generates a natural response
+        try {
+          const followUpMessages = [
+            ...convertedMessages,
+            { role: 'assistant', content: '', toolCalls: [{ toolCallId, toolName, args }] },
+            { role: 'tool', content: [{ type: 'tool-result', toolCallId, toolName, output: { type: 'text', value: typeof toolOutput === 'string' ? toolOutput : JSON.stringify(toolOutput) } }] },
+          ];
+          const followUpResult = streamText({ ...baseConfig, messages: followUpMessages, tools: undefined, stopWhen: undefined });
+
+          for await (const followUpChunk of followUpResult.fullStream) {
+            if (followUpChunk.type === 'text-delta' && followUpChunk.text) {
+              const followUpText = followUpChunk.text.replace(/<thinking>[\s\S]*?<\/thinking>/g, '');
+              if (followUpText) {
+                assistantResponse = followUpText;
+                res.write(`data: ${JSON.stringify({
+                  id: requestId,
+                  object: 'chat.completion.chunk',
+                  created: Math.floor(Date.now() / 1000),
+                  model: aliasModelId,
+                  system_fingerprint: 'fp_alia',
+                  service_tier: 'default',
+                  choices: [{ index: 0, delta: { content: followUpText }, logprobs: null, finish_reason: null }],
+                })}\n\n`);
+              }
+            }
+          }
+        } catch (followUpErr) {
+          log.v1.error({ err: followUpErr }, 'Error in text-tool-call follow-up LLM call');
+        }
+      } catch (toolErr) {
+        log.v1.error({ err: toolErr, toolName }, 'Error executing text-based tool call');
+        return false;
+      }
+      return true;
+    }
+
     const TEXT_TOOL_CALL_RE = /<function\((\w+)\)>\s*<?\s*(\{[\s\S]*?\})\s*>?\s*<\/function>/g;
+    // OpenAI-format: {"type":"function","name":"toolName","parameters":{...}}
+    const OPENAI_TOOL_CALL_RE = /\{\s*"type"\s*:\s*"function"\s*,\s*"name"\s*:\s*"(\w+)"\s*,\s*"parameters"\s*:\s*(\{[\s\S]*?\})\s*\}/g;
+
     if (assistantResponse && toolInvocations.length === 0) {
+      // Format 1: <function(name)>{json}</function>
       const textToolMatches = [...assistantResponse.matchAll(TEXT_TOOL_CALL_RE)];
       if (textToolMatches.length > 0) {
-        log.v1.warn({ matchCount: textToolMatches.length, provider: resolved!.provider, modelId: resolved!.modelId }, 'Detected text-based tool calls — executing fallback');
-
+        log.v1.warn({ matchCount: textToolMatches.length, format: 'xml', provider: resolved!.provider, modelId: resolved!.modelId }, 'Detected text-based tool calls — executing fallback');
         for (const match of textToolMatches) {
-          const toolName = match[1];
-          const toolFn = truncatedTools[toolName];
-          if (!toolFn?.execute) {
-            log.v1.warn({ toolName }, 'Text tool call references unknown tool, skipping');
-            continue;
-          }
-
           let args: unknown;
-          try {
-            args = JSON.parse(match[2]);
-          } catch {
-            log.v1.warn({ toolName, raw: match[2] }, 'Failed to parse text tool call arguments');
-            continue;
-          }
-
-          const toolCallId = `text-fallback-${Date.now()}-${toolName}`;
-
-          // Emit tool-call event to client
-          const toolCallChunk = {
-            id: requestId,
-            object: 'chat.completion.chunk',
-            created: Math.floor(Date.now() / 1000),
-            model: aliasModelId,
-            system_fingerprint: 'fp_alia',
-            service_tier: 'default',
-            choices: [{ index: 0, delta: { tool_calls: [{ index: 0, id: toolCallId, type: 'function', function: { name: toolName, arguments: JSON.stringify(args) } }] }, logprobs: null, finish_reason: null }],
-          };
-          res.write(`data: ${JSON.stringify(toolCallChunk)}\n\n`);
-
-          // Execute the tool
-          try {
-            const toolOutput = await (toolFn.execute as Function)(args);
-
-            // Emit tool-result as named SSE event (non-standard, Alia extension)
-            res.write(`event: alia.tool_result\ndata: ${JSON.stringify({
-              eventVersion: 1,
-              tool_call_id: toolCallId,
-              name: toolName,
-              output: toolOutput,
-            })}\n\n`);
-
-            toolInvocations.push({ toolCallId, toolName, state: 'result', args, result: toolOutput });
-
-            // Make a follow-up LLM call with the tool result so the model can generate a real response
-            try {
-              const followUpMessages = [
-                ...convertedMessages,
-                { role: 'assistant', content: '', toolCalls: [{ toolCallId, toolName, args }] },
-                { role: 'tool', content: [{ type: 'tool-result', toolCallId, toolName, output: { type: 'text', value: typeof toolOutput === 'string' ? toolOutput : JSON.stringify(toolOutput) } }] },
-              ];
-              const followUpResult = streamText({ ...baseConfig, messages: followUpMessages, tools: undefined, stopWhen: undefined });
-
-              for await (const followUpChunk of followUpResult.fullStream) {
-                if (followUpChunk.type === 'text-delta' && followUpChunk.text) {
-                  const followUpText = followUpChunk.text.replace(/<thinking>[\s\S]*?<\/thinking>/g, '');
-                  if (followUpText) {
-                    assistantResponse = followUpText; // Replace the text-based tool call text
-                    const textChunk = {
-                      id: requestId,
-                      object: 'chat.completion.chunk',
-                      created: Math.floor(Date.now() / 1000),
-                      model: aliasModelId,
-                      system_fingerprint: 'fp_alia',
-                      service_tier: 'default',
-                      choices: [{ index: 0, delta: { content: followUpText }, logprobs: null, finish_reason: null }],
-                    };
-                    res.write(`data: ${JSON.stringify(textChunk)}\n\n`);
-                  }
-                }
-              }
-            } catch (followUpErr) {
-              log.v1.error({ err: followUpErr }, 'Error in text-tool-call follow-up LLM call');
-            }
-          } catch (toolErr) {
-            log.v1.error({ err: toolErr, toolName }, 'Error executing text-based tool call');
-          }
+          try { args = JSON.parse(match[2]); } catch { continue; }
+          await executeTextToolCall(match[1], args);
         }
-
-        // Strip the raw text tool calls from the response for saving
         assistantResponse = assistantResponse.replace(TEXT_TOOL_CALL_RE, '').trim();
+      }
+
+      // Format 2: {"type":"function","name":"...","parameters":{...}}
+      if (toolInvocations.length === 0) {
+        const openaiMatches = [...assistantResponse.matchAll(OPENAI_TOOL_CALL_RE)];
+        if (openaiMatches.length > 0) {
+          log.v1.warn({ matchCount: openaiMatches.length, format: 'openai', provider: resolved!.provider, modelId: resolved!.modelId }, 'Detected OpenAI-format text tool calls — executing fallback');
+          for (const match of openaiMatches) {
+            let args: unknown;
+            try { args = JSON.parse(match[2]); } catch { continue; }
+            await executeTextToolCall(match[1], args);
+          }
+          assistantResponse = assistantResponse.replace(OPENAI_TOOL_CALL_RE, '').trim();
+        }
       }
     }
 
