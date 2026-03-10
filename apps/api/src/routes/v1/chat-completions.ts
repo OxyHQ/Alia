@@ -1562,46 +1562,6 @@ export const handleChatCompletions = async (req: Request, res: Response) => {
 
     const TEXT_TOOL_CALL_RE = /<function\((\w+)\)>\s*<?\s*(\{[\s\S]*?\})\s*>?\s*<\/function>/g;
 
-    // Extract OpenAI-format tool calls using JSON.parse (handles nested objects correctly)
-    function extractOpenAIToolCalls(text: string): Array<{ name: string; parameters: unknown; raw: string }> {
-      const results: Array<{ name: string; parameters: unknown; raw: string }> = [];
-      // Find potential JSON objects starting with {"type":"function"
-      const marker = /"type"\s*:\s*"function"/;
-      let searchFrom = 0;
-      while (searchFrom < text.length) {
-        const braceIdx = text.indexOf('{', searchFrom);
-        if (braceIdx === -1) break;
-        // Quick check: does this object contain the marker nearby?
-        const snippet = text.slice(braceIdx, braceIdx + 200);
-        if (!marker.test(snippet)) { searchFrom = braceIdx + 1; continue; }
-        // Bracket-count to find matching closing brace (skip braces inside strings)
-        let depth = 0;
-        let end = -1;
-        let inString = false;
-        for (let i = braceIdx; i < text.length; i++) {
-          const ch = text[i];
-          if (inString) {
-            if (ch === '\\') { i++; continue; } // skip escaped char
-            if (ch === '"') inString = false;
-            continue;
-          }
-          if (ch === '"') { inString = true; continue; }
-          if (ch === '{') depth++;
-          else if (ch === '}') { depth--; if (depth === 0) { end = i; break; } }
-        }
-        if (end === -1) break;
-        const raw = text.slice(braceIdx, end + 1);
-        try {
-          const parsed = JSON.parse(raw);
-          if (parsed?.type === 'function' && typeof parsed.name === 'string' && parsed.parameters) {
-            results.push({ name: parsed.name, parameters: parsed.parameters, raw });
-          }
-        } catch { /* not valid JSON, skip */ }
-        searchFrom = end + 1;
-      }
-      return results;
-    }
-
     if (assistantResponse && toolInvocations.length === 0) {
       // Format 1: <function(name)>{json}</function>
       const textToolMatches = [...assistantResponse.matchAll(TEXT_TOOL_CALL_RE)];
@@ -1615,17 +1575,16 @@ export const handleChatCompletions = async (req: Request, res: Response) => {
         assistantResponse = assistantResponse.replace(TEXT_TOOL_CALL_RE, '').trim();
       }
 
-      // Format 2: {"type":"function","name":"...","parameters":{...}} (JSON-aware, handles nested objects)
+      // Format 2: entire response is a JSON tool call (OpenAI format)
       if (toolInvocations.length === 0) {
-        const openaiCalls = extractOpenAIToolCalls(assistantResponse);
-        if (openaiCalls.length > 0) {
-          log.v1.warn({ matchCount: openaiCalls.length, format: 'openai', provider: resolved!.provider, modelId: resolved!.modelId }, 'Detected OpenAI-format text tool calls — executing fallback');
-          for (const call of openaiCalls) {
-            await executeTextToolCall(call.name, call.parameters);
-            assistantResponse = assistantResponse.replace(call.raw, '');
+        try {
+          const parsed = JSON.parse(assistantResponse.trim());
+          if (parsed?.type === 'function' && typeof parsed.name === 'string' && parsed.parameters) {
+            log.v1.warn({ format: 'openai-json', toolName: parsed.name, provider: resolved!.provider, modelId: resolved!.modelId }, 'Detected JSON tool call in text response — executing fallback');
+            await executeTextToolCall(parsed.name, parsed.parameters);
+            assistantResponse = '';
           }
-          assistantResponse = assistantResponse.trim();
-        }
+        } catch { /* not JSON — no action needed */ }
       }
     }
 
