@@ -52,11 +52,12 @@ async function apiGet<T = unknown>(path: string): Promise<T> {
   return (json.data ?? json) as T;
 }
 
-async function apiPost<T = unknown>(path: string, body: unknown): Promise<T> {
+async function apiPost<T = unknown>(path: string, body: unknown, signal?: AbortSignal): Promise<T> {
   const res = await fetch(`${PROVIDERS_API_URL}${path}`, {
     method: 'POST',
     headers: generateAuthHeaders(),
     body: JSON.stringify(body),
+    signal,
   });
   if (!res.ok) {
     const text = await res.text();
@@ -282,6 +283,7 @@ export interface ProviderCallOptions {
   maxAttempts?: number;
   timeout?: number;
   responseType?: 'json' | 'arrayBuffer';
+  signal?: AbortSignal;
 }
 
 /**
@@ -290,7 +292,7 @@ export interface ProviderCallOptions {
  */
 export async function callProviderAPI<T = unknown>(options: ProviderCallOptions): Promise<T> {
   if (PROVIDERS_API_ENABLED) {
-    return apiPost<T>('/api/call', options);
+    return apiPost<T>('/api/call', options, options.signal);
   }
 
   // Local fallback — convert audio field to FormData for the local callProviderAPI
@@ -318,6 +320,7 @@ export async function callProviderAPI<T = unknown>(options: ProviderCallOptions)
     maxAttempts: options.maxAttempts,
     timeout: options.timeout,
     responseType: options.responseType,
+    signal: options.signal,
   });
 }
 
