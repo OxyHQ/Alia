@@ -21,19 +21,24 @@ export interface PlanStep {
 export function createPlanPreviewTool(onPlan: (steps: PlanStep[]) => void) {
   return tool({
     description:
-      'Show the user a step-by-step plan before executing a multi-step task. ' +
-      'Use when a task requires 3 or more tool calls. ' +
-      'Do NOT use for simple questions, greetings, or single-step tasks.',
+      'Show the user a step-by-step plan ONLY when the task will require calling 3+ other tools (e.g. web search → file generation → follow-up search). ' +
+      'NEVER use for: greetings, simple questions, brainstorming, creative writing, conversations, advice, explanations, single-tool tasks, or any request you can answer directly. ' +
+      'When in doubt, do NOT show a plan — just respond.',
     inputSchema: z.object({
       steps: z.array(z.object({
-        action: z.string().describe('Short action label, e.g. "Search the web"'),
-        description: z.string().describe('One-sentence explanation of this step'),
+        action: z.string().min(1).describe('Short action label, e.g. "Search the web"'),
+        description: z.string().min(1).describe('One-sentence explanation of this step'),
         toolName: z.string().optional().describe('Tool name if applicable'),
-      })).describe('Ordered list of planned steps'),
+      })).min(2).describe('Ordered list of planned steps (minimum 2)'),
     }),
     execute: async ({ steps }) => {
-      onPlan(steps as PlanStep[]);
-      return { shown: true, stepCount: steps.length };
+      // Filter out steps with blank/whitespace-only actions
+      const valid = steps.filter((s) => s.action.trim() && s.description.trim()) as PlanStep[];
+      if (valid.length < 2) {
+        return { shown: false, reason: 'Not enough valid steps to show a plan. Just respond directly.' };
+      }
+      onPlan(valid);
+      return { shown: true, stepCount: valid.length };
     },
   });
 }
