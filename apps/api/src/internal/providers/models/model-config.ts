@@ -196,4 +196,4 @@ ModelConfigSchema.index({ provider: 1, modelId: 1 }, { unique: true });
 ModelConfigSchema.index({ aliaTier: 1, priority: 1 });
 ModelConfigSchema.index({ isActive: 1, isDeprecated: 1 });
 
-export const ModelConfig = mongoose.models.ModelConfig || mongoose.model<IModelConfig>('ModelConfig', ModelConfigSchema);
+export const ModelConfig = (mongoose.models.ModelConfig || mongoose.model<IModelConfig>('ModelConfig', ModelConfigSchema)) as mongoose.Model<IModelConfig>;

@@ -70,7 +70,7 @@ export async function buildActions(ctx: ActionContext) {
       command: z.string().describe('Bash command to execute'),
       timeout: z.number().optional().describe('Timeout in seconds (default 30, max 300)'),
     }),
-    execute: async ({ command, timeout }: { command: string; timeout?: number }) => {
+    execute: async ({ command, timeout }) => {
       try {
         return await terminalSession.run(command, timeout);
       } catch (err: any) {
@@ -90,9 +90,7 @@ export async function buildActions(ctx: ActionContext) {
       text: z.string().optional().describe('Text to type (type action)'),
       query: z.string().optional().describe('Search query (search action)'),
     }),
-    execute: async ({ action, url, selector, text, query }: {
-      action: string; url?: string; selector?: string; text?: string; query?: string;
-    }) => {
+    execute: async ({ action, url, selector, text, query }) => {
       const result = await browserSession.execute(action as any, { url, selector, text, query });
 
       // Track sources from browser navigation and content extraction
@@ -127,9 +125,7 @@ export async function buildActions(ctx: ActionContext) {
       content: z.string().optional().describe('File content for write, or new text for edit'),
       old_text: z.string().optional().describe('Text to find and replace (edit action only)'),
     }),
-    execute: async ({ action, path, content, old_text }: {
-      action: 'read' | 'write' | 'edit' | 'list'; path: string; content?: string; old_text?: string;
-    }) => {
+    execute: async ({ action, path, content, old_text }) => {
       try {
         switch (action) {
           case 'read': {
@@ -185,10 +181,7 @@ export async function buildActions(ctx: ActionContext) {
       completed_items: z.array(z.number()).optional().describe('1-based indices of completed items (update action)'),
       result: z.string().optional().describe('Final result summary (complete action)'),
     }),
-    execute: async ({ action, objective, items, completed_items, result }: {
-      action: 'update' | 'complete';
-      objective?: string; items?: string[]; completed_items?: number[]; result?: string;
-    }) => {
+    execute: async ({ action, objective, items, completed_items, result }) => {
       if (action === 'update') {
         todoManager.update(objective, items, completed_items);
 
@@ -250,7 +243,7 @@ export async function buildActions(ctx: ActionContext) {
         agent: z.string().describe('Agent handle (e.g. @researcher, @coder)'),
         task: z.string().describe('Task description for the hired agent'),
       }),
-      execute: async ({ agent, task }: { agent: string; task: string }) => {
+      execute: async ({ agent, task }) => {
         try {
           const handle = agent.replace(/^@/, '');
           const result = await onHireAgent(handle, task);

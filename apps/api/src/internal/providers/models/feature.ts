@@ -69,4 +69,4 @@ const FeatureSchema = new Schema<IFeature>(
 
 FeatureSchema.index({ category: 1, sortOrder: 1 });
 
-export const Feature = mongoose.models.Feature || mongoose.model<IFeature>('Feature', FeatureSchema);
+export const Feature = (mongoose.models.Feature || mongoose.model<IFeature>('Feature', FeatureSchema)) as mongoose.Model<IFeature>;

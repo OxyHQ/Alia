@@ -224,7 +224,7 @@ export const createOrchestrateAgentsTool = () => tool({
     })).min(2).max(5).describe('The agents to orchestrate (2-5)'),
   }),
 
-  execute: async ({ task, agents }): Promise<OrchestrationResult> => {
+  execute: async ({ task, agents }: { task: string; agents: AgentTask[] }): Promise<OrchestrationResult> => {
     const orchestrationStart = Date.now();
 
     log.general.info(

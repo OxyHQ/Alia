@@ -256,7 +256,7 @@ async function processEvent(params: {
 }
 
 router.post('/:serviceId', async (req: Request, res: Response) => {
-  const { serviceId } = req.params;
+  const serviceId = req.params.serviceId as string;
 
   try {
     const service = await OxyService.findOne({ serviceId, status: 'active' }).lean();

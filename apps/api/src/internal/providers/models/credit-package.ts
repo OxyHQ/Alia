@@ -70,4 +70,4 @@ const CreditPackageSchema = new Schema<ICreditPackage>(
 
 CreditPackageSchema.index({ isActive: 1, sortOrder: 1 });
 
-export const CreditPackage = mongoose.models.CreditPackage || mongoose.model<ICreditPackage>('CreditPackage', CreditPackageSchema);
+export const CreditPackage = (mongoose.models.CreditPackage || mongoose.model<ICreditPackage>('CreditPackage', CreditPackageSchema)) as mongoose.Model<ICreditPackage>;

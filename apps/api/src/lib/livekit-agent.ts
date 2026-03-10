@@ -65,7 +65,7 @@ export class LiveKitAgentBridge implements LiveKitAgentBridgeRef {
   async join(url: string, token: string): Promise<void> {
     log.providers.info({ identity: this.identity }, 'LiveKit agent joining room');
 
-    await this.room.connect(url, token, { autoSubscribe: true });
+    await this.room.connect(url, token, { autoSubscribe: true, dynacast: false });
     this.connected = true;
 
     log.providers.info({

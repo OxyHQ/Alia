@@ -65,7 +65,7 @@ const ProviderHealthSchema = new mongoose.Schema({
 // Compound index for unique provider+model combination
 ProviderHealthSchema.index({ provider: 1, modelId: 1 }, { unique: true });
 
-const ProviderHealth = mongoose.models.ProviderHealth || mongoose.model('ProviderHealth', ProviderHealthSchema);
+const ProviderHealth = (mongoose.models.ProviderHealth || mongoose.model('ProviderHealth', ProviderHealthSchema)) as mongoose.Model<any>;
 
 // ============== IN-MEMORY CACHE ==============
 

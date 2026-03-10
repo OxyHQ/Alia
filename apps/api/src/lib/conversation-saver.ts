@@ -102,8 +102,8 @@ export async function saveConversation(params: SaveConversationParams): Promise<
         oxyUserId: userId,
         role: m.role,
         content: m.content,
-        toolInvocations: m.toolInvocations,
-        agentInfo: m.agentInfo,
+        ...('toolInvocations' in m && m.toolInvocations ? { toolInvocations: m.toolInvocations } : {}),
+        ...('agentInfo' in m && m.agentInfo ? { agentInfo: m.agentInfo } : {}),
         createdAt: new Date(),
       })),
       { ordered: false },
@@ -131,7 +131,7 @@ export async function generateTitle(userMessage: string): Promise<string | null>
         { role: 'system', content: 'Generate a concise conversation title (max 6 words) in the same language as the user message. Return ONLY the title, no quotes or trailing punctuation.' },
         { role: 'user', content: userMessage },
       ],
-      maxTokens: 30,
+      maxOutputTokens: 30,
     });
 
     const title = result.text.trim().replace(/^["']|["']$/g, '').replace(/\.+$/, '');

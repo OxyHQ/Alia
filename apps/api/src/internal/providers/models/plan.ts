@@ -138,4 +138,4 @@ const PlanSchema = new Schema<IPlan>(
 PlanSchema.index({ product: 1, sortOrder: 1 });
 PlanSchema.index({ product: 1, isActive: 1 });
 
-export const Plan = mongoose.models.Plan || mongoose.model<IPlan>('Plan', PlanSchema);
+export const Plan = (mongoose.models.Plan || mongoose.model<IPlan>('Plan', PlanSchema)) as mongoose.Model<IPlan>;
