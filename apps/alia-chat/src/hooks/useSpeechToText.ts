@@ -27,7 +27,7 @@ interface STTStoreState {
   setMetering: (v: number) => void;
 }
 
-const useSTTStore = create<STTStoreState>((set) => ({
+export const useSTTStore = create<STTStoreState>((set) => ({
   isRecording: false,
   metering: 0,
   setRecording: (isRecording) => set({ isRecording }),
@@ -119,6 +119,8 @@ export function useSpeechToText(options: UseSTTOptions = {}) {
       // Read audio file as base64
       const response = await fetch(uri);
       const blob = await response.blob();
+      // Detect actual MIME type (web records webm, native records m4a)
+      const detectedFormat = blob.type?.split(';')[0] || 'audio/m4a';
       const base64 = await new Promise<string>((resolve, reject) => {
         const reader = new FileReader();
         reader.onload = () => {
@@ -139,7 +141,7 @@ export function useSpeechToText(options: UseSTTOptions = {}) {
         },
         body: JSON.stringify({
           audio: base64,
-          format: 'audio/m4a',
+          format: detectedFormat,
         }),
       });
 
