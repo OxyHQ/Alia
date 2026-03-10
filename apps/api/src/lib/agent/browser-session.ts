@@ -37,6 +37,9 @@ export type BrowserAction =
   | 'back'
   | 'wait';
 
+/** Actions that auto-capture a screenshot for model vision */
+const INTERACTIVE_ACTIONS: ReadonlySet<BrowserAction> = new Set(['click', 'type', 'scroll_down', 'scroll_up', 'back', 'goto']);
+
 export interface BrowserParams {
   url?: string;
   selector?: string;
@@ -77,9 +80,6 @@ export class BrowserSession {
    * Execute a browser action. Initializes the browser lazily on first interactive action.
    */
   async execute(action: BrowserAction, params: BrowserParams): Promise<string> {
-    // Actions that should auto-capture a screenshot for model vision
-    const interactiveActions = new Set<BrowserAction>(['click', 'type', 'scroll_down', 'scroll_up', 'back', 'goto']);
-
     try {
       let result: string;
       switch (action) {
@@ -125,7 +125,7 @@ export class BrowserSession {
       }
 
       // Auto-screenshot after interactive actions so the model can see the result
-      if (interactiveActions.has(action) && this.page && !result.startsWith('Error')) {
+      if (INTERACTIVE_ACTIONS.has(action) && this.page && !result.startsWith('Error')) {
         try {
           await this.screenshot();
           result += '\n[Auto-screenshot captured — visible in your next message as an image.]';
@@ -221,7 +221,14 @@ export class BrowserSession {
   }
 
   /** The most recent screenshot base64 — available for vision model injection */
-  lastScreenshotBase64: string | null = null;
+  private _lastScreenshotBase64: string | null = null;
+
+  /** Consume the last screenshot (returns it and clears the internal reference). */
+  consumeLastScreenshot(): string | null {
+    const shot = this._lastScreenshotBase64;
+    this._lastScreenshotBase64 = null;
+    return shot;
+  }
 
   /** Take a screenshot of the current page (base64) */
   private async screenshot(): Promise<string> {
@@ -234,7 +241,7 @@ export class BrowserSession {
     const buffer = await this.page.screenshot({ fullPage: false });
     const base64 = buffer.toString('base64');
     this.screenshotSeq++;
-    this.lastScreenshotBase64 = base64;
+    this._lastScreenshotBase64 = base64;
 
     const pageUrl = this.page.url();
 
@@ -390,7 +397,7 @@ export class BrowserSession {
     const serviceSecret = process.env.SERVICE_SECRET;
     const aliaApiUrl = process.env.ALIA_API_URL || 'http://localhost:3001';
 
-    this.stagehand = new Stagehand({
+    const sh = new Stagehand({
       env: 'LOCAL',
       localBrowserLaunchOptions: {
         headless: true,
@@ -405,8 +412,10 @@ export class BrowserSession {
       } : {}),
     });
 
-    await this.stagehand.init();
-    this.page = this.stagehand.context.pages()[0] as unknown as Page;
+    await sh.init();
+    // Only assign after successful init so failed attempts can be retried
+    this.stagehand = sh;
+    this.page = sh.context.pages()[0] as unknown as Page;
 
     log.agents.info('Browser session initialized');
   }

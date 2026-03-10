@@ -162,9 +162,10 @@ async function executeSubtask(
     // Execute with timeout — cancel the session in MongoDB on timeout so the
     // runner's cancellation check picks it up and stops the orphaned execution.
     const sessionPromise = runAgentSession(executorSession._id.toString());
-    const timeoutPromise = new Promise<never>((_, reject) =>
-      setTimeout(() => reject(new Error('Executor timeout')), opts.timeoutMs),
-    );
+    let timeoutHandle: ReturnType<typeof setTimeout>;
+    const timeoutPromise = new Promise<never>((_, reject) => {
+      timeoutHandle = setTimeout(() => reject(new Error('Executor timeout')), opts.timeoutMs);
+    });
 
     try {
       await Promise.race([sessionPromise, timeoutPromise]);
@@ -177,6 +178,8 @@ async function executeSubtask(
         ).catch(() => {});
       }
       throw raceErr;
+    } finally {
+      clearTimeout(timeoutHandle!);
     }
 
     // Read result
