@@ -68,7 +68,8 @@ async function ensureSources(oxyUserId: mongoose.Types.ObjectId, intent: Autonom
     .select('sourceKey freshnessScore precisionScore avgCostScore')
     .lean();
 
-  const missing = defaultSources.filter((key) => !existing.some((s) => s.sourceKey === key));
+  const existingKeys = new Set(existing.map((s) => s.sourceKey));
+  const missing = defaultSources.filter((key) => !existingKeys.has(key));
   if (missing.length > 0) {
     await ContextSource.insertMany(
       missing.map((sourceKey) => ({
@@ -84,16 +85,17 @@ async function ensureSources(oxyUserId: mongoose.Types.ObjectId, intent: Autonom
     ).catch(() => {});
   }
 
-  const merged = await ContextSource.find({ oxyUserId, sourceKey: { $in: defaultSources } })
-    .select('sourceKey freshnessScore precisionScore avgCostScore')
-    .lean();
-
-  return merged.map((s) => ({
+  // Merge existing DB rows with defaults for newly inserted sources (avoids a second query)
+  const result = existing.map((s) => ({
     sourceKey: s.sourceKey,
     freshnessScore: s.freshnessScore || 0.5,
     precisionScore: s.precisionScore || 0.5,
     costScore: s.avgCostScore || 0.5,
   }));
+  for (const key of missing) {
+    result.push({ sourceKey: key, freshnessScore: 0.5, precisionScore: 0.5, costScore: 0.5 });
+  }
+  return result;
 }
 
 async function ensureIntentStrategy(oxyUserId: mongoose.Types.ObjectId, intent: AutonomyIntent): Promise<void> {
@@ -171,8 +173,8 @@ export async function learnFromRun(params: {
   const oxyUserId = toObjectId(params.userId);
   const now = new Date();
 
-  for (const sourceKey of params.usedSources) {
-    await ContextSource.updateOne(
+  await Promise.all(params.usedSources.map((sourceKey) =>
+    ContextSource.updateOne(
       { oxyUserId, sourceKey },
       {
         $setOnInsert: {
@@ -194,8 +196,8 @@ export async function learnFromRun(params: {
         },
       },
       { upsert: true }
-    );
-  }
+    )
+  ));
 
   await RetrievalStrategy.updateOne(
     { oxyUserId, intent: params.intent, active: true },
