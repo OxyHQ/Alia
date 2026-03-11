@@ -15,6 +15,13 @@ import type { AgentState } from '../../types';
 
 const AnimatedPath = Animated.createAnimatedComponent(Path);
 
+/** Cross-platform blur: CSS string on web, RN array syntax on native */
+function blurStyle(radius: number) {
+  return Platform.OS === 'web'
+    ? ({ filter: `blur(${radius}px)`, WebkitFilter: `blur(${radius}px)` } as any)
+    : ({ filter: [{ blur: radius }] } as any);
+}
+
 const GLOW_HEIGHT = 350;
 const NUM_POINTS = 8;
 
@@ -338,14 +345,6 @@ function OceanWave({
     return { d };
   });
 
-  const webBlurStyle =
-    Platform.OS === 'web'
-      ? ({
-          filter: `blur(${layer.blur}px)`,
-          WebkitFilter: `blur(${layer.blur}px)`,
-        } as any)
-      : {};
-
   return (
     <View
       style={{
@@ -355,7 +354,7 @@ function OceanWave({
         right: 0,
         bottom: 0,
         opacity: isConnected ? 1 : 0,
-        ...webBlurStyle,
+        ...blurStyle(layer.blur),
         pointerEvents: 'none',
       }}
     >
@@ -424,13 +423,5 @@ function GlowBlob({
     };
   });
 
-  const webBlurStyle =
-    Platform.OS === 'web'
-      ? ({
-          filter: `blur(${blob.blur}px)`,
-          WebkitFilter: `blur(${blob.blur}px)`,
-        } as any)
-      : {};
-
-  return <Animated.View style={[animatedStyle, webBlurStyle]} />;
+  return <Animated.View style={[animatedStyle, blurStyle(blob.blur)]} />;
 }
