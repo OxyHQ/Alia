@@ -760,7 +760,7 @@ export async function runAgentSession(sessionId: string): Promise<void> {
         );
         session.stats.creditsCharged = creditsCharged;
         eventStream.append('system_message', `Credits charged: ${creditsCharged}`);
-      } catch (creditErr: any) {
+      } catch (creditErr: unknown) {
         log.agents.warn({ creditErr, sessionId }, 'Failed to finalize credits');
       }
     }
@@ -787,10 +787,11 @@ export async function runAgentSession(sessionId: string): Promise<void> {
       await safeRefund(session.creditReservation as CreditReservation, 'session failed');
     }
 
-    eventStream.append('error', `Session failed: ${err.message || 'Unknown error'}`);
+    const sessionErrMsg = getErrorMessage(err);
+    eventStream.append('error', `Session failed: ${sessionErrMsg}`);
 
     session.status = 'failed';
-    session.result = err.message || 'Session failed unexpectedly';
+    session.result = sessionErrMsg;
 
     // Sanitize plan before save — malformed data causes ValidationError
     if (session.plan?.items?.length) {

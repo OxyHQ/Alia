@@ -272,7 +272,7 @@ export class BrowserSession {
       await this.stagehand!.act(`Click on "${target}"`);
       await this.page.waitForTimeout(1000);
       return `Clicked: "${target}". Current URL: ${this.page.url()}`;
-    } catch (nlErr: any) {
+    } catch (nlErr: unknown) {
       log.agents.warn({ err: nlErr, target }, 'Browser: Stagehand click failed, trying JS fallback');
       try {
         // Fallback: find element by text content, aria-label, or CSS selector
@@ -299,8 +299,8 @@ export class BrowserSession {
           return `Clicked (JS fallback): "${target}". Current URL: ${this.page.url()}`;
         }
         return `Failed to click "${target}": element not found (tried Stagehand NL + JS fallback)`;
-      } catch (jsErr: any) {
-        return `Browser error clicking "${target}": ${nlErr.message || 'NL action failed'}, JS fallback also failed: ${jsErr.message}`;
+      } catch (jsErr: unknown) {
+        return `Browser error clicking "${target}": ${getErrorMessage(nlErr)}, JS fallback also failed: ${getErrorMessage(jsErr)}`;
       }
     }
   }
@@ -320,7 +320,7 @@ export class BrowserSession {
         await this.stagehand!.act(`Type "${text}" into the focused input`);
       }
       return `Typed: "${text}"`;
-    } catch (nlErr: any) {
+    } catch (nlErr: unknown) {
       log.agents.warn({ err: nlErr, selector, text: text.slice(0, 50) }, 'Browser: Stagehand type failed, trying JS fallback');
       try {
         // Fallback: find input by selector, placeholder, or label
@@ -362,8 +362,8 @@ export class BrowserSession {
 
         if (typed) return `Typed (JS fallback): "${text}"`;
         return `Failed to type "${text}": no suitable input found`;
-      } catch (jsErr: any) {
-        return `Browser error typing "${text}": ${nlErr.message || 'NL action failed'}, JS fallback also failed: ${jsErr.message}`;
+      } catch (jsErr: unknown) {
+        return `Browser error typing "${text}": ${getErrorMessage(nlErr)}, JS fallback also failed: ${getErrorMessage(jsErr)}`;
       }
     }
   }

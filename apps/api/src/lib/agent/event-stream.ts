@@ -16,6 +16,7 @@
 import { emitAgentActivity, type AgentActivityEvent } from '../../socket.js';
 import { EventStreamEntry as EventStreamEntryModel } from '../../models/event-stream-entry.js';
 import { log } from '../logger.js';
+import { isDuplicateKeyError } from '../errors/index.js';
 
 export type EventType =
   | 'user_message'
@@ -145,7 +146,7 @@ export class EventStream {
       );
     } catch (err: unknown) {
       // On duplicate key (from resume), ignore — entries are already persisted
-      if (!(err instanceof Error && 'code' in err && (err as { code: number }).code === 11000)) {
+      if (!isDuplicateKeyError(err)) {
         log.agents.warn({ err, count: toFlush.length }, 'EventStream: flush failed');
         // Re-add to pending for retry
         this.pendingFlush.unshift(...toFlush);

@@ -170,8 +170,8 @@ async function executeSubtask(
 
     try {
       await Promise.race([sessionPromise, timeoutPromise]);
-    } catch (raceErr: any) {
-      if (raceErr?.message === 'Executor timeout') {
+    } catch (raceErr: unknown) {
+      if (raceErr instanceof Error && raceErr.message === 'Executor timeout') {
         // Mark the session as cancelled so the running agent loop stops
         await AgentSession.updateOne(
           { _id: executorSession._id, status: { $nin: ['completed', 'failed'] } },

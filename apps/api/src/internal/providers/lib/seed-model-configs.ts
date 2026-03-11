@@ -13,6 +13,7 @@ import { TIER_MODEL_MAPPINGS, ALIA_MODELS, type ModelCapabilities } from './alia
 import { connectDB } from './db.js';
 import mongoose from 'mongoose';
 import { log } from '../../../lib/logger.js';
+import { isDuplicateKeyError } from '../../../lib/errors/index.js';
 
 // Human-readable display names for common models
 const MODEL_DISPLAY_NAMES: Record<string, string> = {
@@ -125,7 +126,7 @@ export async function seedModelConfigs(): Promise<{ seeded: number; skipped: num
         seen.add(uniqueKey);
       } catch (error: unknown) {
         // Handle duplicate key errors gracefully (same model in multiple tiers)
-        if (error instanceof Error && 'code' in error && (error as any).code === 11000) {
+        if (isDuplicateKeyError(error)) {
           skipped++;
         } else {
           log.seed.error({ err: error, uniqueKey }, 'Error seeding ModelConfig');
@@ -222,7 +223,7 @@ export async function seedAliaModels(): Promise<{ seeded: number; skipped: numbe
         skipped++;
       }
     } catch (error: unknown) {
-      if (error instanceof Error && 'code' in error && (error as any).code === 11000) {
+      if (isDuplicateKeyError(error)) {
         skipped++;
       } else {
         log.seed.error({ err: error, modelId }, 'Error seeding AliaModel');

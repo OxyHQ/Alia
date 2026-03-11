@@ -12,6 +12,7 @@
 
 import { Queue, Worker, type Job } from 'bullmq';
 import { log } from './logger.js';
+import { getErrorMessage } from './errors/index.js';
 
 // ── Types ──
 
@@ -117,7 +118,7 @@ export async function startWorker(): Promise<void> {
         }
 
         return { sessionId, status, result };
-      } catch (err: any) {
+      } catch (err: unknown) {
         log.agents.error({ err, sessionId }, 'Worker: agent session failed');
 
         // Send failure notification on final attempt
@@ -128,7 +129,7 @@ export async function startWorker(): Promise<void> {
               userId,
               type: 'agent_task_complete',
               title: `${agentName} failed`,
-              body: `Task failed: ${err.message?.slice(0, 200) || 'Unknown error'}`,
+              body: `Task failed: ${getErrorMessage(err).slice(0, 200)}`,
               priority: 'high',
               data: { sessionId, agentId, status: 'failed' },
             });

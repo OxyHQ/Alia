@@ -3,6 +3,7 @@ import type { ChannelPlugin, OutboundContext, OutboundResult, ChannelInboundMess
 import type { Request } from 'express';
 import { markdownToTelegramHtml, stripMarkdown } from '../telegram-format.js';
 import { log } from '../../logger.js';
+import { getErrorMessage } from '../../errors/index.js';
 
 export const telegramPlugin: ChannelPlugin = {
   id: 'telegram',
@@ -83,8 +84,8 @@ export const telegramPlugin: ChannelPlugin = {
         }
 
         return { channel: 'telegram', ok: false, error: `Telegram API ${res.status}: ${body}` };
-      } catch (err: any) {
-        return { channel: 'telegram', ok: false, error: err.message };
+      } catch (err: unknown) {
+        return { channel: 'telegram', ok: false, error: getErrorMessage(err) };
       }
     },
   },

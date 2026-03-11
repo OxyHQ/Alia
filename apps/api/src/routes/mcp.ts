@@ -4,6 +4,7 @@ import { authenticateToken } from '../middleware/auth.js';
 import { McpServer } from '../models/mcp-server.js';
 import { MCP_REGISTRY } from '../lib/mcp-registry.js';
 import { log } from '../lib/logger.js';
+import { isDuplicateKeyError } from '../lib/errors/index.js';
 
 const router = express.Router();
 
@@ -81,7 +82,7 @@ router.post('/install', authenticateToken, async (req, res) => {
     await server.save();
     res.status(201).json({ server });
   } catch (error: unknown) {
-    if (error instanceof Error && 'code' in error && (error as { code: number }).code === 11000) {
+    if (isDuplicateKeyError(error)) {
       return res.status(409).json({ error: 'MCP server with this name is already installed' });
     }
     log.general.error({ err: error }, 'Install MCP server error');

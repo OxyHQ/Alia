@@ -149,7 +149,7 @@ export const webSearchTool = tool({
           maxAttempts: 2,
           minDelay: 500,
           shouldRetry: (err) => {
-            const status = err?.status;
+            const status = err && typeof err === 'object' && 'status' in err ? (err as { status: number }).status : undefined;
             if (status && status >= 400 && status < 500 && status !== 429) return false;
             return true;
           },

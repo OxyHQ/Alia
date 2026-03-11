@@ -6,6 +6,7 @@
 import { CreditPackage } from '../models/credit-package.js';
 import { connectDB } from './db.js';
 import { log } from '../../../lib/logger.js';
+import { isDuplicateKeyError } from '../../../lib/errors/index.js';
 
 interface CreditPackageSeed {
   packageId: string;
@@ -53,7 +54,7 @@ export async function seedCreditPackages(): Promise<{ seeded: number; skipped: n
         skipped++;
       }
     } catch (error: unknown) {
-      if (error instanceof Error && 'code' in error && (error as any).code === 11000) {
+      if (isDuplicateKeyError(error)) {
         skipped++;
       } else {
         log.seed.error({ err: error, packageId: pkgData.packageId }, 'Error seeding credit package');

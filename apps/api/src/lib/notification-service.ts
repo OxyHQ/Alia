@@ -334,7 +334,7 @@ export async function sendNotification(options: SendNotificationOptions): Promis
       }
 
       notification.deliveryStatus[channel] = success ? 'sent' : 'failed';
-    } catch (error: any) {
+    } catch (error: unknown) {
       log.general.error({ err: error, channel, userId }, 'Notification delivery failed');
       notification.deliveryStatus[channel] = 'failed';
     }

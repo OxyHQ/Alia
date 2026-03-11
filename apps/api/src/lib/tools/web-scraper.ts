@@ -5,6 +5,7 @@ import { Readability } from '@mozilla/readability';
 import { validateUrl } from './sandbox.js';
 import { withRetry } from '../retry.js';
 import { log } from '../logger.js';
+import { getErrorMessage } from '../errors/index.js';
 
 // ── Types ──
 
@@ -279,7 +280,7 @@ export const webScraperTool = tool({
           maxAttempts: 3,
           minDelay: 500,
           shouldRetry: (err) => {
-            const status = err?.status;
+            const status = err && typeof err === 'object' && 'status' in err ? (err as { status: number }).status : undefined;
             // Don't retry 4xx client errors (except 429)
             if (status && status >= 400 && status < 500 && status !== 429) return false;
             return true;
@@ -305,8 +306,8 @@ export const webScraperTool = tool({
 
       setCache(cacheKey, result);
       return result;
-    } catch (error: any) {
-      const errorResult = { error: `Failed to read page: ${error.message}` };
+    } catch (error: unknown) {
+      const errorResult = { error: `Failed to read page: ${getErrorMessage(error)}` };
       setCache(cacheKey, errorResult); // Cache errors too to avoid retrying broken URLs
       return errorResult;
     }

@@ -95,6 +95,12 @@ export function getErrorMessage(err: unknown): string {
   return '';
 }
 
+/** Check if an error is a MongoDB duplicate key error (code 11000). */
+export function isDuplicateKeyError(err: unknown): boolean {
+  if (!err || typeof err !== 'object') return false;
+  return 'code' in err && (err as { code: unknown }).code === 11000;
+}
+
 export function getRetryAfterHeader(err: unknown): number | undefined {
   if (!err || typeof err !== 'object') {
     return undefined;

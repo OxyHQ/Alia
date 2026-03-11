@@ -1,5 +1,6 @@
 import { getChannel, getCachedOutbound } from './registry.js';
 import type { ChannelId, OutboundContext, OutboundResult } from './types.js';
+import { getErrorMessage } from '../errors/index.js';
 
 function defaultChunker(text: string, limit: number): string[] {
   if (text.length <= limit) return [text];
@@ -56,11 +57,11 @@ export async function sendChannelMessage(
       const result = await outbound.sendText(ctx);
       results.push(result);
       if (!result.ok) break;
-    } catch (err: any) {
+    } catch (err: unknown) {
       results.push({
         channel: channelId,
         ok: false,
-        error: err.message || 'Unknown send error',
+        error: getErrorMessage(err),
       });
       break;
     }

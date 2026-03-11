@@ -1,4 +1,5 @@
 import mongoose, { Schema, Model, Document } from 'mongoose';
+import { isDuplicateKeyError } from '../lib/errors/index.js';
 import crypto from 'crypto';
 
 export interface IReferredUser {
@@ -61,7 +62,7 @@ export async function getOrCreateReferral(userId: string): Promise<IReferral> {
       return result;
     } catch (err: unknown) {
       // Duplicate key on inviteCode — retry with new code
-      if (err && typeof err === 'object' && 'code' in err && (err as { code: number }).code === 11000 && attempt < 2) continue;
+      if (isDuplicateKeyError(err) && attempt < 2) continue;
       throw err;
     }
   }

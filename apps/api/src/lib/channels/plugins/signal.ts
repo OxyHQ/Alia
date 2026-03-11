@@ -1,5 +1,6 @@
 import type { ChannelPlugin, OutboundContext, OutboundResult, ChannelInboundMessage } from '../types.js';
 import type { Request } from 'express';
+import { getErrorMessage } from '../../errors/index.js';
 
 export const signalPlugin: ChannelPlugin = {
   id: 'signal',
@@ -53,8 +54,8 @@ export const signalPlugin: ChannelPlugin = {
 
         const data = await res.json() as any;
         return { channel: 'signal', ok: true, messageId: data.timestamp?.toString() };
-      } catch (err: any) {
-        return { channel: 'signal', ok: false, error: err.message };
+      } catch (err: unknown) {
+        return { channel: 'signal', ok: false, error: getErrorMessage(err) };
       }
     },
   },

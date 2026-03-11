@@ -152,7 +152,7 @@ export class LiveKitAgentBridge implements LiveKitAgentBridgeRef {
         this.capturedFrameCount++;
         this.onUserAudioFrame?.(base64);
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       if (this.connected) {
         log.providers.error({ err, identity: this.identity }, 'Error reading audio stream');
       }

@@ -4,6 +4,7 @@ import mongoose from 'mongoose';
 import { Bot } from '../../models/bot.js';
 import { BotUser } from '../../models/bot-user.js';
 import { log } from '../logger.js';
+import { getErrorMessage } from '../errors/index.js';
 import { markdownToTelegramHtml, stripMarkdown } from '../channels/telegram-format.js';
 
 /**
@@ -91,11 +92,11 @@ export function createSendTelegramTool(userId: string) {
           success: true,
           message: 'Telegram message sent successfully',
         };
-      } catch (error: any) {
+      } catch (error: unknown) {
         log.tools.error({ err: error }, 'Error');
         return {
           success: false,
-          message: `Error sending Telegram: ${error.message}`,
+          message: `Error sending Telegram: ${getErrorMessage(error)}`,
         };
       }
     },

@@ -1,6 +1,7 @@
 import crypto from 'crypto';
 import type { ChannelPlugin, OutboundContext, OutboundResult, ChannelInboundMessage } from '../types.js';
 import type { Request } from 'express';
+import { getErrorMessage } from '../../errors/index.js';
 
 export const slackPlugin: ChannelPlugin = {
   id: 'slack',
@@ -58,8 +59,8 @@ export const slackPlugin: ChannelPlugin = {
         }
 
         return { channel: 'slack', ok: true, messageId: data.ts };
-      } catch (err: any) {
-        return { channel: 'slack', ok: false, error: err.message };
+      } catch (err: unknown) {
+        return { channel: 'slack', ok: false, error: getErrorMessage(err) };
       }
     },
   },
