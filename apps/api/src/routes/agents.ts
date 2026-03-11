@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { generateText } from 'ai';
-import { Agent } from '../models/agent.js';
+import { Agent, AGENT_ARCHETYPES } from '../models/agent.js';
 import { AgentSession } from '../models/agent-session.js';
 import { AgentReview } from '../models/agent-review.js';
 import { Conversation } from '../models/conversation.js';
@@ -13,6 +13,9 @@ import { enqueueAgentSession, getJobStatus, cancelJob } from '../lib/task-queue.
 import { reserveCredits } from '../lib/credits-manager.js';
 import { EventStreamEntry as EventStreamEntryModel } from '../models/event-stream-entry.js';
 import { getAgentCapabilities } from '../lib/agent/health.js';
+import { Trigger } from '../models/trigger.js';
+import { reloadTrigger, generateWebhookToken } from '../lib/trigger-engine.js';
+import { TriggerExecution } from '../models/trigger-execution.js';
 import { log } from '../lib/logger.js';
 import type { Request, Response } from 'express';
 
@@ -83,6 +86,10 @@ router.get('/', optionalAuth, async (req: Request, res: Response) => {
       filter.category = category;
     }
 
+    if (req.query.archetype && typeof req.query.archetype === 'string') {
+      filter.archetype = req.query.archetype;
+    }
+
     if (featured === 'true') {
       filter.isFeatured = true;
     }
@@ -109,8 +116,7 @@ router.get('/', optionalAuth, async (req: Request, res: Response) => {
 
     const [agents, total] = await Promise.all([
       Agent.find(filter)
-        .populate('skills', 'skillId title icon color')
-        .populate('knowledge', 'name type category url')
+        .select('-systemPrompt -skills -knowledge')
         .sort({ isFeatured: -1, createdAt: -1 })
         .skip(skip)
         .limit(limitNum)
@@ -168,6 +174,7 @@ Return ONLY valid JSON with these fields:
 - "category": Exactly one of: "Assistant", "Creative", "Developer", "Research", "Business", "Education"
 - "tags": An array of 3-5 relevant lowercase tags
 - "capabilities": An array of tool IDs this agent should have enabled. Choose from: "web-browsing", "code-execution", "web-search", "web-scraping", "file-management", "image-generation", "memory", "agent-delegation". Pick only the ones relevant to the agent's purpose.
+- "archetype": Exactly one of: "general", "qa", "task_router", "status_update". Use "qa" if the agent answers questions from knowledge/data sources. Use "task_router" if the agent triages and routes tasks to people or teams. Use "status_update" if the agent gathers data and generates periodic reports or summaries. Use "general" for everything else.
 
 Do not include any text outside the JSON object.`,
             },
@@ -218,6 +225,7 @@ Do not include any text outside the JSON object.`,
       handle = `${handle}-${Date.now().toString(36).slice(-4)}`;
     }
 
+    const validArchetypes = AGENT_ARCHETYPES;
     res.json({
       name: parsed.name || 'New Agent',
       handle,
@@ -229,6 +237,7 @@ Do not include any text outside the JSON object.`,
         : 'Assistant',
       tags: Array.isArray(parsed.tags) ? parsed.tags.slice(0, 10) : [],
       capabilities: Array.isArray(parsed.capabilities) ? parsed.capabilities.slice(0, 10) : [],
+      archetype: validArchetypes.includes(parsed.archetype) ? parsed.archetype : 'general',
     });
   } catch (error) {
     log.agents.error({ err: error }, 'Error generating agent config');
@@ -303,7 +312,7 @@ router.post('/', authenticateToken, async (req: Request, res: Response) => {
       tagline, description, category, tags, price,
       capabilities, skills, knowledge,
       isPublished, creditBalance, allowHiring,
-      systemPrompt,
+      systemPrompt, archetype, archetypeConfig,
     } = req.body;
 
     if (!name || !handle || !tagline || !description || !category) {
@@ -336,6 +345,8 @@ router.post('/', authenticateToken, async (req: Request, res: Response) => {
       creditBalance: creditBalance ?? 0,
       allowHiring: allowHiring ?? false,
       ...(systemPrompt && { systemPrompt }),
+      ...(archetype && { archetype }),
+      ...(archetypeConfig && { archetypeConfig }),
     });
 
     res.status(201).json({ agent });
@@ -367,6 +378,7 @@ router.patch('/:id', authenticateToken, async (req: Request, res: Response) => {
       'skills', 'knowledge',
       'isPublished', 'status', 'creditBalance', 'allowHiring',
       'systemPrompt', 'allowedModels', 'scheduleInterval',
+      'archetype', 'archetypeConfig',
     ];
 
     for (const field of allowedFields) {
@@ -376,6 +388,14 @@ router.patch('/:id', authenticateToken, async (req: Request, res: Response) => {
     }
 
     await agent.save();
+
+    // Auto-manage linked triggers for archetype agents (non-blocking, only when relevant fields change)
+    if (req.body.archetype !== undefined || req.body.archetypeConfig !== undefined || req.body.scheduleInterval !== undefined || req.body.status !== undefined) {
+      syncArchetypeTriggers(agent._id.toString(), agent.author.toString(), agent).catch(err => {
+        log.agents.error({ err, agentId: agent._id }, 'Failed to sync archetype triggers');
+      });
+    }
+
     res.json({ agent });
   } catch (error) {
     log.agents.error({ err: error }, 'Error updating agent');
@@ -1076,6 +1096,224 @@ router.get('/:id/sessions/:sessionId/activity', authenticateToken, async (req: R
   } catch (error) {
     log.agents.error({ err: error }, 'Error getting session activity');
     res.status(500).json({ error: 'Failed to get activity' });
+  }
+});
+
+// ── Archetype Trigger Sync ──────────────────────────────────────────
+
+/**
+ * Sync triggers for archetype agents:
+ * - status_update: auto-create/update schedule trigger
+ * - task_router: auto-create webhook trigger if 'webhook' channel configured
+ */
+async function syncArchetypeTriggers(
+  agentId: string,
+  userId: string,
+  agent: { archetype?: string; archetypeConfig?: any; name?: string },
+): Promise<void> {
+  const config = agent.archetypeConfig;
+  if (!config) return;
+
+  if (agent.archetype === 'status_update' && config.schedule) {
+    const existing = await Trigger.findOne({
+      'action.agentId': agentId,
+      type: 'schedule',
+      oxyUserId: userId,
+    });
+
+    const triggerSchedule = {
+      type: config.schedule.type || 'daily',
+      ...(config.schedule.time && { time: config.schedule.time }),
+      ...(config.schedule.days && { days: config.schedule.days }),
+      ...(config.schedule.intervalMinutes && { intervalMinutes: config.schedule.intervalMinutes }),
+      ...(config.schedule.cron && { cron: config.schedule.cron }),
+    };
+
+    const reportPrompt = config.reportTemplate
+      ? `Generate a status report following this template:\n\n${config.reportTemplate}`
+      : 'Generate a comprehensive status update report from all configured data sources.';
+
+    if (existing) {
+      existing.schedule = triggerSchedule as any;
+      existing.action.prompt = reportPrompt;
+      existing.name = `${agent.name || 'Agent'} Report`;
+      await existing.save();
+      await reloadTrigger(existing._id.toString());
+    } else {
+      const trigger = await Trigger.create({
+        oxyUserId: userId,
+        name: `${agent.name || 'Agent'} Report`,
+        description: `Scheduled status report from ${agent.name || 'agent'}`,
+        type: 'schedule',
+        enabled: true,
+        action: {
+          prompt: reportPrompt,
+          agentId,
+          useTools: true,
+          notify: true,
+          ...(config.deliveryChannels?.[0] && { channelId: config.deliveryChannels[0] }),
+        },
+        schedule: triggerSchedule,
+        triggerCount: 0,
+      });
+      await reloadTrigger(trigger._id.toString());
+    }
+  }
+
+  if (agent.archetype === 'task_router' && config.inboundChannels?.includes('webhook')) {
+    const existing = await Trigger.findOne({
+      'action.agentId': agentId,
+      type: 'webhook',
+      oxyUserId: userId,
+    });
+
+    if (!existing) {
+      await Trigger.create({
+        oxyUserId: userId,
+        name: `${agent.name || 'Agent'} Webhook`,
+        description: `Inbound webhook for task routing by ${agent.name || 'agent'}`,
+        type: 'webhook',
+        enabled: true,
+        action: {
+          prompt: 'Process and route this incoming task.',
+          agentId,
+          useTools: true,
+          notify: true,
+        },
+        webhook: {
+          token: generateWebhookToken(),
+        },
+        triggerCount: 0,
+      });
+    }
+  }
+}
+
+// ── Reports Endpoint ────────────────────────────────────────────────
+
+// GET /agents/:id/reports - list report executions for a status_update agent
+router.get('/:id/reports', authenticateToken, async (req: Request, res: Response) => {
+  try {
+    if (!req.user?.id) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const agent = await Agent.findById(req.params.id).select('author archetype').lean();
+    if (!agent) {
+      return res.status(404).json({ error: 'Agent not found' });
+    }
+    if (agent.author.toString() !== req.user.id) {
+      return res.status(403).json({ error: 'Access denied' });
+    }
+
+    // Find the trigger linked to this agent
+    const trigger = await Trigger.findOne({
+      'action.agentId': req.params.id,
+      type: 'schedule',
+      oxyUserId: req.user.id,
+    }).select('_id').lean();
+
+    if (!trigger) {
+      return res.json({ reports: [], total: 0 });
+    }
+
+    const { page = '1', limit = '20' } = req.query;
+    const pageNum = Math.max(1, parseInt(page as string, 10) || 1);
+    const limitNum = Math.min(50, Math.max(1, parseInt(limit as string, 10) || 20));
+
+    const [reports, total] = await Promise.all([
+      TriggerExecution.find({ triggerId: trigger._id })
+        .sort({ startedAt: -1 })
+        .skip((pageNum - 1) * limitNum)
+        .limit(limitNum)
+        .select('status result toolCalls tokens durationMs startedAt completedAt')
+        .lean(),
+      TriggerExecution.countDocuments({ triggerId: trigger._id }),
+    ]);
+
+    res.json({ reports, total, page: pageNum, limit: limitNum });
+  } catch (error) {
+    log.agents.error({ err: error }, 'Error listing agent reports');
+    res.status(500).json({ error: 'Failed to list reports' });
+  }
+});
+
+// ── Routing Logs Endpoint ───────────────────────────────────────────
+
+// GET /agents/:id/routing-logs - list routing decisions for a task_router agent
+router.get('/:id/routing-logs', authenticateToken, async (req: Request, res: Response) => {
+  try {
+    if (!req.user?.id) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const agent = await Agent.findById(req.params.id).select('author archetype').lean();
+    if (!agent) {
+      return res.status(404).json({ error: 'Agent not found' });
+    }
+    if (agent.author.toString() !== req.user.id) {
+      return res.status(403).json({ error: 'Access denied' });
+    }
+
+    const { RoutingLog } = await import('../models/routing-log.js');
+
+    const { page = '1', limit = '20' } = req.query;
+    const pageNum = Math.max(1, parseInt(page as string, 10) || 1);
+    const limitNum = Math.min(50, Math.max(1, parseInt(limit as string, 10) || 20));
+
+    const [logs, total] = await Promise.all([
+      RoutingLog.find({ agentId: req.params.id })
+        .sort({ createdAt: -1 })
+        .skip((pageNum - 1) * limitNum)
+        .limit(limitNum)
+        .lean(),
+      RoutingLog.countDocuments({ agentId: req.params.id }),
+    ]);
+
+    res.json({ logs, total, page: pageNum, limit: limitNum });
+  } catch (error) {
+    log.agents.error({ err: error }, 'Error listing routing logs');
+    res.status(500).json({ error: 'Failed to list routing logs' });
+  }
+});
+
+// GET /agents/:id/routing-stats - aggregate routing stats for a task_router agent
+router.get('/:id/routing-stats', authenticateToken, async (req: Request, res: Response) => {
+  try {
+    if (!req.user?.id) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const agent = await Agent.findById(req.params.id).select('author archetype').lean();
+    if (!agent || agent.author.toString() !== req.user.id) {
+      return res.status(404).json({ error: 'Agent not found' });
+    }
+
+    const { RoutingLog } = await import('../models/routing-log.js');
+    const agentObjectId = agent._id;
+
+    const [result] = await RoutingLog.aggregate([
+      { $match: { agentId: agentObjectId } },
+      { $facet: {
+        byCategory: [
+          { $group: { _id: '$classification.category', count: { $sum: 1 } } },
+          { $sort: { count: -1 } },
+        ],
+        byPriority: [
+          { $group: { _id: '$classification.priority', count: { $sum: 1 } } },
+        ],
+        byStatus: [
+          { $group: { _id: '$status', count: { $sum: 1 } } },
+        ],
+        total: [{ $count: 'count' }],
+      }},
+    ]);
+
+    const { byCategory = [], byPriority = [], byStatus = [], total: totalArr = [] } = result || {};
+    res.json({ byCategory, byPriority, byStatus, total: totalArr[0]?.count || 0 });
+  } catch (error) {
+    log.agents.error({ err: error }, 'Error getting routing stats');
+    res.status(500).json({ error: 'Failed to get routing stats' });
   }
 });
 

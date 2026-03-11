@@ -30,6 +30,8 @@ import { UserMemory, type IUserMemory } from '../models/user-memory.js';
 import { oxyClient } from '../middleware/auth.js';
 import { log } from './logger.js';
 import { sendNotification } from './notification-service.js';
+import { buildArchetypeSystemPrompt } from './agent/archetype-prompts.js';
+import { handleRoutingDecision } from './agent/routing-handler.js';
 import type { User as OxyUser } from '@oxyhq/core';
 
 // ── Scheduled task registry ────────────────────────────────────────
@@ -212,10 +214,13 @@ export async function executeTrigger(
   }
 
   try {
-    // Load user context
-    const [memory, oxyUser] = await Promise.all([
+    // Load user context + linked agent (if any)
+    const [memory, oxyUser, linkedAgent] = await Promise.all([
       UserMemory.findOne({ oxyUserId: userId }).catch(() => null),
       oxyClient.getUserById(userId).catch(() => null) as Promise<OxyUser | null>,
+      trigger.action.agentId
+        ? Agent.findById(trigger.action.agentId).select('name archetype archetypeConfig systemPrompt').lean().catch(() => null)
+        : Promise.resolve(null),
     ]);
 
     // Resolve AI model
@@ -226,7 +231,15 @@ export async function executeTrigger(
 
     const model = getAIModel(resolved.keyConfig);
     const tools = await buildTriggerTools(userId, trigger.action.useTools);
-    const systemPrompt = buildTriggerSystemPrompt(trigger, oxyUser, memory, context.source);
+
+    // Use archetype system prompt if the linked agent has one
+    let systemPrompt: string;
+    if (linkedAgent?.archetype && linkedAgent.archetype !== 'general') {
+      const archetypePrompt = linkedAgent.systemPrompt || buildArchetypeSystemPrompt(linkedAgent as IAgent);
+      systemPrompt = archetypePrompt || buildTriggerSystemPrompt(trigger, oxyUser, memory, context.source);
+    } else {
+      systemPrompt = buildTriggerSystemPrompt(trigger, oxyUser, memory, context.source);
+    }
 
     // Build user message
     let userMessage = trigger.action.prompt;
@@ -235,6 +248,18 @@ export async function executeTrigger(
     }
     if (context.event) {
       userMessage += `\n\nEvent: ${context.event}`;
+    }
+
+    // Previous report comparison for status_update agents
+    if (linkedAgent?.archetype === 'status_update' && linkedAgent.archetypeConfig?.compareWithPrevious) {
+      const previousExecution = await TriggerExecution.findOne({
+        triggerId: trigger._id,
+        status: 'success',
+      }).sort({ completedAt: -1 }).select('result completedAt').lean();
+
+      if (previousExecution?.result) {
+        userMessage += `\n\n---\n## Previous Report (${previousExecution.completedAt?.toISOString() || 'unknown date'})\n\n${previousExecution.result.slice(0, 4000)}`;
+      }
     }
 
     // Execute AI
@@ -289,16 +314,31 @@ export async function executeTrigger(
 
     log.triggers.info({ name: trigger.name, triggerId, durationMs, toolCalls: toolCalls.length }, 'Trigger completed');
 
+    // Task router: process routing decision
+    if (linkedAgent?.archetype === 'task_router') {
+      try {
+        await handleRoutingDecision(linkedAgent as IAgent, resultText, trigger);
+      } catch (routingErr) {
+        log.triggers.error({ err: routingErr, triggerId }, 'Failed to process routing decision');
+      }
+    }
+
     // Deliver notification if enabled
     if (trigger.action.notify) {
+      // Multi-channel delivery for status_update agents
+      const deliveryChannels = linkedAgent?.archetype === 'status_update'
+        && linkedAgent.archetypeConfig?.deliveryChannels?.length
+        ? [...linkedAgent.archetypeConfig.deliveryChannels, 'in_app'] as any[]
+        : trigger.action.channelId
+          ? [trigger.action.channelId as any, 'in_app']
+          : undefined;
+
       sendNotification({
         userId,
         type: 'trigger_result',
         title: trigger.name,
         body: resultText.slice(0, 4000),
-        channels: trigger.action.channelId
-          ? [trigger.action.channelId as any, 'in_app']
-          : undefined,
+        channels: deliveryChannels,
         triggerId,
         data: { executionId: execution._id.toString() },
       }).catch((err) => {

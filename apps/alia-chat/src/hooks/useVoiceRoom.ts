@@ -274,6 +274,13 @@ export function useVoiceRoom(options: UseVoiceRoomOptions = {}) {
       setError(null);
       setRoomState('connecting');
 
+      // Guard: WebRTC must be available (requires registerGlobals on RN)
+      if (typeof globalThis.RTCPeerConnection === 'undefined') {
+        setError('Voice is not available on this device');
+        setRoomState('error');
+        return;
+      }
+
       const token = getToken();
       if (!token) {
         setError('Not authenticated');

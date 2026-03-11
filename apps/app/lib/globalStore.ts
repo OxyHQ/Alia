@@ -45,6 +45,9 @@ interface StoreState {
 
   deepResearchMode: boolean;
   setDeepResearchMode: (value: boolean) => void;
+
+  streamingChatId: string | null;
+  setStreamingChatId: (id: string | null) => void;
 }
 
 export const useStore = create<StoreState>((set, get) => ({
@@ -89,4 +92,7 @@ export const useStore = create<StoreState>((set, get) => ({
 
   deepResearchMode: false,
   setDeepResearchMode: (value: boolean) => set({ deepResearchMode: value }),
+
+  streamingChatId: null,
+  setStreamingChatId: (id: string | null) => set({ streamingChatId: id }),
 }));

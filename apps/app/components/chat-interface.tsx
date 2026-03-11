@@ -67,6 +67,7 @@ type Message = {
     name: string;
     avatar: string | null;
     handle: string;
+    accessories?: string[];
   };
   audioUrl?: string;
 };
@@ -425,10 +426,8 @@ export const ChatInterface = React.memo(function ChatInterface({ messages, scrol
                           {m.agentInfo ? (
                             <View className="flex-row items-center gap-2 mb-0.5">
                               <AgentPlaceholder
-                                seed={m.agentInfo.id}
                                 size={20}
-                                animated={false}
-                                avatarUrl={m.agentInfo.avatar}
+                                accessories={m.agentInfo.accessories}
                               />
                               <Text className="text-xs font-semibold" style={{ color: '#f97316' }}>
                                 {m.agentInfo.name}

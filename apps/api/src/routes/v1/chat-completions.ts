@@ -28,6 +28,8 @@ import { classifyError, getRetryAfterHeader, sanitizeMessage } from '../../lib/e
 import { setupSSEHeaders, writeTextChunk, writeStopChunk, writeContentChunk, filterThinking, makeChunk } from '../../lib/streaming-helpers.js';
 import type { FailoverReason } from '../../lib/errors/error-codes.js';
 import { runDeepResearch, type ResearchProgress } from '../../lib/research/research-engine.js';
+import { Agent as AgentModel, type IAgent } from '../../models/agent.js';
+import { buildArchetypeSystemPrompt } from '../../lib/agent/archetype-prompts.js';
 import {
   runAutonomyBeforeChat,
   runAutonomyAfterChat,
@@ -348,7 +350,7 @@ export const handleChatCompletions = async (req: Request, res: Response) => {
     // Run independent operations concurrently to reduce time-to-first-token
     const preStreamStart = Date.now();
 
-    const [creditResult, resolvedResult, userMemory, oxyUser, skill, entitlements] = await Promise.all([
+    const [creditResult, resolvedResult, userMemory, oxyUser, skill, entitlements, linkedAgent] = await Promise.all([
       // Credits: sequential pair (getOrCreate → reserve), parallel with everything else
       // Skip for internal service requests (no credits charged)
       (req.user && !req.serviceApp) ? (async () => {
@@ -387,6 +389,15 @@ export const handleChatCompletions = async (req: Request, res: Response) => {
       // User entitlements (plan-based model access) — parallelized to avoid sequential delay
       (req.user && !req.apiKey)
         ? getUserEntitlements(req.user.id).catch(() => null)
+        : Promise.resolve(null),
+
+      // Linked agent (for archetype prompt injection — Q&A agents, etc.)
+      (conversationId && isDirectUserSession)
+        ? Conversation.findById(conversationId).select('agentId').lean()
+            .then(conv => conv?.agentId
+              ? AgentModel.findById(conv.agentId).select('name archetype archetypeConfig systemPrompt knowledge').lean()
+              : null)
+            .catch(() => null) as Promise<IAgent | null>
         : Promise.resolve(null),
     ]);
 
@@ -802,6 +813,15 @@ export const handleChatCompletions = async (req: Request, res: Response) => {
     if (skillDoc?.systemPrompt && isDirectUserSession) {
       systemMessage = `# ACTIVE SKILL: ${skillDoc.title}\n\n${skillDoc.systemPrompt}\n\n---\n\n${systemMessage}`;
       log.v1.info({ skillTitle: skillDoc.title }, 'Skill activated');
+    }
+
+    // Inject agent archetype prompt for linked agents (Q&A, status_update, task_router)
+    if (linkedAgent && isDirectUserSession) {
+      const agentPrompt = linkedAgent.systemPrompt || buildArchetypeSystemPrompt(linkedAgent as IAgent);
+      if (agentPrompt) {
+        systemMessage = `# AGENT: ${linkedAgent.name}\n\n${agentPrompt}\n\n---\n\n${systemMessage}`;
+        log.v1.info({ agentName: linkedAgent.name, archetype: linkedAgent.archetype }, 'Agent prompt injected');
+      }
     }
 
     // Title generation is handled asynchronously via generateConversationTitle()
