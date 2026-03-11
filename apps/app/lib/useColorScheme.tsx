@@ -55,6 +55,7 @@ export function useColorScheme() {
       mutedForeground: hslVarToCSS(vars['--muted-foreground']),
       border: hslVarToCSS(vars['--border']),
       primary: preset.hex,
+      primaryForeground: hslVarToCSS(vars['--primary-foreground']),
     };
   }, [resolved, appColor]);
 

@@ -166,7 +166,7 @@ export const ChatPageContent = ({
 
   const [inputValue, setInputValue] = useState("");
   const [showTerminal, setShowTerminal] = useState(false);
-  const { colors } = useColorScheme();
+  const { colors, colorScheme } = useColorScheme();
 
   const [bottomBarHeight, setBottomBarHeight] = useState(160);
   const [isAtBottom, setIsAtBottom] = useState(true);
@@ -314,7 +314,7 @@ export const ChatPageContent = ({
   );
 
   return (
-    <View className="flex-1 bg-background">
+    <View className="flex-1 bg-content">
       <View className="flex-1 relative">
         <ChatInterface
           messages={messages}
@@ -339,6 +339,8 @@ export const ChatPageContent = ({
             waveAmplitude={voice.waveAmplitude}
             agentState={voice.agentState}
             isConnected={voice.isConnected}
+            primaryColor={colors.primary}
+            isDarkMode={colorScheme === 'dark'}
           />
         )}
         {!isVoiceActive && ttsPlaybackState === 'playing' && (
@@ -346,6 +348,8 @@ export const ChatPageContent = ({
             waveAmplitude={ttsWaveAmplitude}
             agentState="speaking"
             isConnected={true}
+            primaryColor={colors.primary}
+            isDarkMode={colorScheme === 'dark'}
           />
         )}
         {!isVoiceActive && ttsPlaybackState !== 'playing' && sttIsRecording && (
@@ -353,6 +357,8 @@ export const ChatPageContent = ({
             waveAmplitude={sttWaveAmplitude}
             agentState="listening"
             isConnected={true}
+            primaryColor={colors.primary}
+            isDarkMode={colorScheme === 'dark'}
           />
         )}
 
@@ -391,6 +397,7 @@ export const ChatPageContent = ({
               onDisableCohost={voice.disableCohost}
               onContinueCohost={voice.continueCohost}
               onEnd={voice.deactivateVoice}
+              primaryColor={colors.primary}
             />
           </View>
         ) : (
@@ -580,13 +587,13 @@ export const ChatPageContent = ({
       {/* Agent Terminal Panel — collapsible at the bottom */}
       {agentId && showTerminal && (
         <View className="border-t border-border" style={{ height: 280 }}>
-          <View className="flex-row items-center justify-between px-3 py-1.5 bg-[#0d0d0d]">
+          <View className="flex-row items-center justify-between px-3 py-1.5 bg-card">
             <View className="flex-row items-center gap-2">
-              <TerminalIcon size={12} color="#808080" />
-              <Text className="text-xs text-[#808080]">Agent Terminal</Text>
+              <TerminalIcon size={12} className="text-muted-foreground" />
+              <Text className="text-xs text-muted-foreground">Agent Terminal</Text>
             </View>
             <Pressable onPress={() => setShowTerminal(false)} className="p-1">
-              <ChevronDown size={14} color="#808080" />
+              <ChevronDown size={14} className="text-muted-foreground" />
             </Pressable>
           </View>
           <AgentTerminal agentId={agentId} />
@@ -597,11 +604,11 @@ export const ChatPageContent = ({
       {agentId && !showTerminal && activeModes.has('agent') && (
         <Pressable
           onPress={() => setShowTerminal(true)}
-          className="absolute bottom-32 right-4 z-20 bg-[#0d0d0d] rounded-lg px-3 py-2 flex-row items-center gap-2 border border-border shadow-lg"
+          className="absolute bottom-32 right-4 z-20 bg-card rounded-lg px-3 py-2 flex-row items-center gap-2 border border-border shadow-lg"
         >
-          <TerminalIcon size={14} color="#808080" />
-          <Text className="text-xs text-[#808080]">Terminal</Text>
-          <ChevronUp size={12} color="#808080" />
+          <TerminalIcon size={14} className="text-muted-foreground" />
+          <Text className="text-xs text-muted-foreground">Terminal</Text>
+          <ChevronUp size={12} className="text-muted-foreground" />
         </Pressable>
       )}
 

@@ -96,15 +96,13 @@ export const BaseSidebar = React.memo(function BaseSidebar({
 
         {/* Floating overlay above footer */}
         {scrollOverlay && (
-          <View style={{ position: "absolute", bottom: 0, left: 0, right: 0, zIndex: 10 }} className="items-center pb-1">
+          <View style={{ position: "absolute", bottom: 0, left: 0, right: 0, zIndex: 10 }} className="pb-1 px-3 md:px-2">
             <LinearGradient
               colors={["transparent", colors.sidebar, colors.sidebar]}
               locations={[0, 0.8, 1]}
               style={{ position: "absolute", top: -60, left: 0, right: 0, bottom: 0, pointerEvents: "none" }}
             />
-            <View style={{ width: "90%" }}>
-              {scrollOverlay}
-            </View>
+            {scrollOverlay}
           </View>
         )}
       </View>

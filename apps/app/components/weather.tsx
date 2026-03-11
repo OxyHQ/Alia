@@ -34,7 +34,7 @@ export default function WeatherCard({
         <Cloud
           size={50}
           color="gray"
-          className="absolute right-4 top-4 h-12 w-12 text-gray-400"
+          className="absolute right-4 top-4 h-12 w-12 text-muted-foreground"
         />
       );
     }
@@ -42,7 +42,7 @@ export default function WeatherCard({
       <Cloud
         color="gray"
         size={50}
-        className="absolute right-4 top-4 h-12 w-12 text-gray-400"
+        className="absolute right-4 top-4 h-12 w-12 text-muted-foreground"
       />
     );
   };
@@ -57,11 +57,11 @@ export default function WeatherCard({
         <Text className="text-4xl font-bold">{temperature}°F</Text>
         <View className="mt-4 flex-row justify-between">
           <View className="flex-row items-center gap-1 space-x-2">
-            <Droplets size={16} className="mr-1 h-4 w-4 text-gray-500" />
+            <Droplets size={16} className="mr-1 h-4 w-4 text-muted-foreground" />
             <Text className="text-sm">{humidity}% Humidity</Text>
           </View>
           <View className="flex-row items-center gap-1 space-x-2">
-            <Wind size={16} className="mr-1 h-4 w-4 text-gray-500" />
+            <Wind size={16} className="mr-1 h-4 w-4 text-muted-foreground" />
             <Text className="text-sm">{wind} mph</Text>
           </View>
         </View>

@@ -1,5 +1,6 @@
 import React from "react";
 import { View, ActivityIndicator, Pressable } from "react-native";
+import { useColorScheme } from "@/lib/useColorScheme";
 import { Text } from "@/components/ui/text";
 import { cn } from "@/lib/utils";
 import type { Conversation } from "@/lib/hooks/use-conversations";
@@ -44,6 +45,7 @@ export const HistoryList = React.memo<HistoryListProps>(({
   getConversationProject,
   getConversationFolder,
 }) => {
+  const { colors } = useColorScheme();
   if (data.length === 0) {
     return null;
   }
@@ -104,7 +106,7 @@ export const HistoryList = React.memo<HistoryListProps>(({
 
       {isFetchingNextPage && (
         <View className="py-3 items-center">
-          <ActivityIndicator size="small" />
+          <ActivityIndicator size="small" color={colors.mutedForeground} />
         </View>
       )}
     </>
