@@ -10,7 +10,7 @@ import { getOrCreateUserCredits } from '../lib/user-credits-helpers.js';
 import { getUserEntitlements, invalidateEntitlementsCache } from '../lib/plan-access.js';
 import { z } from 'zod';
 import { log } from '../lib/logger.js';
-import { sanitizeMessage } from '../lib/errors/sanitize.js';
+import { sanitizeMessage, isDuplicateKeyError } from '../lib/errors/index.js';
 
 const router = Router();
 const getSafeErrorMessage = (error: unknown, fallback: string): string =>
@@ -663,7 +663,7 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
         description: `Purchased ${credits.toLocaleString()} credits`,
       });
     } catch (err: unknown) {
-      if ((err as { code?: number }).code === 11000) {
+      if (isDuplicateKeyError(err)) {
         log.credits.warn({ paymentIntent: session.payment_intent }, 'Duplicate checkout event, skipping');
         return;
       }
@@ -752,7 +752,7 @@ async function handleSubscriptionUpdate(stripeSubscription: Stripe.Subscription)
       await userCredits.addCredits(plan.creditsPerMonth, 'paid');
       log.credits.info({ credits: plan.creditsPerMonth, subscriptionId: stripeSubscription.id, periodStart }, 'Added subscription credits');
     } catch (err: unknown) {
-      if ((err as { code?: number }).code === 11000) {
+      if (isDuplicateKeyError(err)) {
         log.credits.warn({ dedupKey }, 'Duplicate subscription credit event, skipping');
         return;
       }

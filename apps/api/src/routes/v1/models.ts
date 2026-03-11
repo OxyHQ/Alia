@@ -85,7 +85,7 @@ router.get('/', async (req, res) => {
       ...(category && { category }),
       ...(defaultModel && { default_model: defaultModel.id }),
     });
-  } catch (e: any) {
+  } catch (e: unknown) {
     log.v1.error({ err: e }, 'Error');
     res.status(500).json({
       error: {
@@ -119,7 +119,7 @@ router.get('/:modelId', async (req, res) => {
     }
 
     res.json(serializeModel({ ...model, isAvailable: true, isLegacy: false }));
-  } catch (e: any) {
+  } catch (e: unknown) {
     log.v1.error({ err: e }, 'Error');
     res.status(500).json({
       error: {

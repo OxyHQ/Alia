@@ -19,6 +19,7 @@ export {
 export {
   classifyError,
   getErrorMessage,
+  getStatusCode,
   isDuplicateKeyError,
   isTimeoutError,
   toAliaError,
