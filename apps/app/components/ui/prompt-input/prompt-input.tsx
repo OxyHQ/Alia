@@ -42,6 +42,8 @@ export type PromptInputProps = {
   onAddAttachment?: (attachment: Attachment) => void;
   onRemoveAttachment?: (id: string) => void;
   onUpdateAttachment?: (id: string, updates: Partial<Attachment>) => void;
+  /** When true, skip the inner KeyboardAvoidingView (use when an outer KeyboardStickyView already handles keyboard). */
+  disableKeyboardAvoidance?: boolean;
 } & Omit<React.ComponentProps<typeof View>, "children">;
 
 export function PromptInput({
@@ -65,6 +67,7 @@ export function PromptInput({
   onAddAttachment,
   onRemoveAttachment,
   onUpdateAttachment,
+  disableKeyboardAvoidance = false,
   ...props
 }: PromptInputProps) {
   const [internalValue, setInternalValue] = useState(value || "");
@@ -210,27 +213,33 @@ export function PromptInput({
         <PromptInputAutocomplete position="top" />
       )}
 
-      <KeyboardAvoidingView behavior="padding">
-        {leadingAddMenu ? (
-          <View className="flex-row items-end gap-2">
-            <PromptInputAddMenu
-              iconSize={20}
-              className="h-10 w-10 rounded-full border"
-            />
-            <View className="flex-1">
-              {autocomplete && autocompletePosition === "top" && (
-                <PromptInputAutocomplete position="top" />
-              )}
-              {inputBox}
-              {autocomplete && autocompletePosition === "bottom" && (
-                <PromptInputAutocomplete position="bottom" />
-              )}
-            </View>
-          </View>
-        ) : (
-          inputBox
-        )}
-      </KeyboardAvoidingView>
+      {(() => {
+        const Wrapper = disableKeyboardAvoidance ? View : KeyboardAvoidingView;
+        const wrapperProps = disableKeyboardAvoidance ? {} : { behavior: "padding" as const };
+        return (
+          <Wrapper {...wrapperProps}>
+            {leadingAddMenu ? (
+              <View className="flex-row items-end gap-2">
+                <PromptInputAddMenu
+                  iconSize={20}
+                  className="h-10 w-10 rounded-full border"
+                />
+                <View className="flex-1">
+                  {autocomplete && autocompletePosition === "top" && (
+                    <PromptInputAutocomplete position="top" />
+                  )}
+                  {inputBox}
+                  {autocomplete && autocompletePosition === "bottom" && (
+                    <PromptInputAutocomplete position="bottom" />
+                  )}
+                </View>
+              </View>
+            ) : (
+              inputBox
+            )}
+          </Wrapper>
+        );
+      })()}
 
       {autocomplete && autocompletePosition === "bottom" && !leadingAddMenu && (
         <PromptInputAutocomplete position="bottom" />

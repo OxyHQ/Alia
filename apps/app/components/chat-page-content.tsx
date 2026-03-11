@@ -2,6 +2,8 @@ import { useState, useCallback, useEffect, useMemo } from "react";
 import { useSharedValue, withTiming, Easing } from "react-native-reanimated";
 import { View, Pressable, useWindowDimensions } from "react-native";
 import { useColorScheme } from "@/lib/useColorScheme";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { KeyboardStickyView } from "@/lib/keyboard";
 import { LinearGradient } from "expo-linear-gradient";
 import type { ScrollView as GHScrollView } from "react-native-gesture-handler";
 import { useStore } from "@/lib/globalStore";
@@ -168,6 +170,7 @@ export const ChatPageContent = ({
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
   const [showTerminal, setShowTerminal] = useState(false);
   const { colors, isDarkColorScheme: isDarkMode } = useColorScheme();
+  const insets = useSafeAreaInsets();
 
   const [bottomBarHeight, setBottomBarHeight] = useState(160);
   const [isAtBottom, setIsAtBottom] = useState(true);
@@ -399,7 +402,7 @@ export const ChatPageContent = ({
         {/* Bottom area: voice controls OR text input */}
         {isVoiceActive && voice ? (
           <View
-            style={{ position: "absolute", bottom: 0, left: 0, right: 0, zIndex: 10 }}
+            style={{ position: "absolute", bottom: 0, left: 0, right: 0, zIndex: 10, paddingBottom: insets.bottom }}
             onLayout={(e) => setBottomBarHeight(e.nativeEvent.layout.height)}
           >
             <VoiceControls
@@ -418,11 +421,15 @@ export const ChatPageContent = ({
             />
           </View>
         ) : (
+          <KeyboardStickyView
+            offset={{ closed: 0, opened: 0 }}
+            style={{ position: "absolute", bottom: 0, left: 0, right: 0, zIndex: 10 }}
+            onLayout={(e) => setBottomBarHeight(e.nativeEvent.layout.height)}
+          >
           <LinearGradient
             colors={["transparent", colors.background]}
             locations={[0, 0.9]}
-            style={{ position: "absolute", bottom: 0, left: 0, right: 0, zIndex: 10, paddingTop: 24 }}
-            onLayout={(e) => setBottomBarHeight(e.nativeEvent.layout.height)}
+            style={{ paddingTop: 24, paddingBottom: insets.bottom }}
           >
             <CreditWarningBanner selectedModel={selectedModel} onSwitchModel={onModelChange} />
 
@@ -462,6 +469,7 @@ export const ChatPageContent = ({
                     onSubmit={handleSubmit}
                     isLoading={isLoading}
                     disabled={isLoading || disabled}
+                    disableKeyboardAvoidance
                     attachments={attachments}
                     onAddAttachment={addAttachment}
                     onRemoveAttachment={removeAttachment}
@@ -607,6 +615,7 @@ export const ChatPageContent = ({
               </View>
             </View>
           </LinearGradient>
+          </KeyboardStickyView>
         )}
       </View>
 
