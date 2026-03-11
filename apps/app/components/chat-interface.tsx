@@ -1,4 +1,4 @@
-import { View, Pressable, TextInput, StyleSheet, Platform } from "react-native";
+import { View, Pressable, StyleSheet, Platform } from "react-native";
 import { toast } from "@/components/sonner";
 import { BlurView } from "expo-blur";
 import { KeyboardAwareScrollView } from "@/lib/keyboard";
@@ -77,7 +77,7 @@ type ChatInterfaceProps = {
   isLoading?: boolean;
   conversationLoading?: boolean;
   onSuggestionPress?: (message: string) => void;
-  onEditMessage?: (messageId: string, newContent: string) => void;
+  onStartEdit?: (messageId: string, content: string) => void;
   onCopyMessage?: (content: string) => void;
   bottomPadding?: number;
   isVoiceActive?: boolean;
@@ -144,10 +144,8 @@ function ToolBullet({ isRunning }: { isRunning: boolean }) {
   );
 }
 
-export const ChatInterface = React.memo(function ChatInterface({ messages, scrollViewRef, isLoading, conversationLoading, onSuggestionPress, onEditMessage, onCopyMessage, bottomPadding = 160, isVoiceActive = false, voiceAgentState, onAtBottomChange, agentActivity, agentSessionId, onApprovePlan, onRejectPlan }: ChatInterfaceProps) {
+export const ChatInterface = React.memo(function ChatInterface({ messages, scrollViewRef, isLoading, conversationLoading, onSuggestionPress, onStartEdit, onCopyMessage, bottomPadding = 160, isVoiceActive = false, voiceAgentState, onAtBottomChange, agentActivity, agentSessionId, onApprovePlan, onRejectPlan }: ChatInterfaceProps) {
     const { t } = useTranslation();
-    const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
-    const [editedContent, setEditedContent] = useState("");
     const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
     const [votedMessages, setVotedMessages] = useState<Record<string, 'up' | 'down'>>({});
     const voteInFlightRef = useRef<Set<string>>(new Set());
@@ -250,26 +248,6 @@ export const ChatInterface = React.memo(function ChatInterface({ messages, scrol
         .finally(() => voteInFlightRef.current.delete(messageId));
     }, [chatId, t]);
 
-    const handleStartEdit = useCallback((messageId: string, content: string) => {
-      setEditingMessageId(messageId);
-      setEditedContent(content);
-    }, []);
-
-    const editedContentRef = useRef(editedContent);
-    editedContentRef.current = editedContent;
-
-    const handleSaveEdit = useCallback((messageId: string) => {
-      if (onEditMessage && editedContentRef.current.trim()) {
-        onEditMessage(messageId, editedContentRef.current);
-      }
-      setEditingMessageId(null);
-      setEditedContent("");
-    }, [onEditMessage]);
-
-    const handleCancelEdit = useCallback(() => {
-      setEditingMessageId(null);
-      setEditedContent("");
-    }, []);
     // Auto-scroll to bottom when new messages arrive or loading starts
     useEffect(() => {
       const timer = setTimeout(() => {
@@ -508,34 +486,6 @@ export const ChatInterface = React.memo(function ChatInterface({ messages, scrol
                         <DropdownMenu.Trigger asChild>
                         <Pressable className="group">
                         <View className="flex-col items-end gap-0.5">
-                          {editingMessageId === m.id ? (
-                            <View className="max-w-[85%] sm:max-w-[75%] rounded-[24px] overflow-hidden border border-border">
-                              <BlurView intensity={60} tint="default" style={StyleSheet.absoluteFill} />
-                              <View className="px-4 py-2">
-                                <TextInput
-                                  value={editedContent}
-                                  onChangeText={setEditedContent}
-                                  multiline
-                                  className="text-base text-foreground leading-7"
-                                  autoFocus
-                                />
-                                <View className="flex-row gap-2 mt-2">
-                                  <Pressable
-                                    className="px-3 py-1.5 rounded-lg bg-primary"
-                                    onPress={() => handleSaveEdit(m.id)}
-                                  >
-                                    <Text className="text-xs text-primary-foreground">Save</Text>
-                                  </Pressable>
-                                  <Pressable
-                                    className="px-3 py-1.5 rounded-lg bg-muted-foreground"
-                                    onPress={handleCancelEdit}
-                                  >
-                                    <Text className="text-xs text-background">Cancel</Text>
-                                  </Pressable>
-                                </View>
-                              </View>
-                            </View>
-                          ) : (
                             <View className="max-w-[85%] sm:max-w-[75%] rounded-[24px] overflow-hidden border border-border">
                               <BlurView intensity={60} tint="default" style={StyleSheet.absoluteFill} />
                               <View className="px-4 py-2">
@@ -558,9 +508,8 @@ export const ChatInterface = React.memo(function ChatInterface({ messages, scrol
                                 </Text>
                               </View>
                             </View>
-                          )}
                           {/* Action Buttons for User Messages — web hover only */}
-                          {isWeb && editingMessageId !== m.id && (
+                          {isWeb && (
                             <View className="flex-row gap-1 opacity-0 transition-opacity group-hover:opacity-100">
                               <Pressable
                                 key="copy"
@@ -576,7 +525,7 @@ export const ChatInterface = React.memo(function ChatInterface({ messages, scrol
                               <Pressable
                                 key="edit"
                                 className="p-1.5 rounded-lg hover:bg-muted active:bg-muted"
-                                onPress={() => handleStartEdit(m.id, messageText)}
+                                onPress={() => onStartEdit?.(m.id, messageText)}
                               >
                                 <Pencil size={14} className="text-muted-foreground" />
                               </Pressable>
@@ -585,13 +534,13 @@ export const ChatInterface = React.memo(function ChatInterface({ messages, scrol
                         </View>
                         </Pressable>
                         </DropdownMenu.Trigger>
-                        {!isWeb && editingMessageId !== m.id && (
+                        {!isWeb && (
                         <DropdownMenu.Content>
                           <DropdownMenu.Item key="copy" onSelect={() => handleCopyMessage(m.id, messageText)}>
                             <DropdownMenu.ItemIcon ios={{ name: "doc.on.doc" }} />
                             <DropdownMenu.ItemTitle>Copy</DropdownMenu.ItemTitle>
                           </DropdownMenu.Item>
-                          <DropdownMenu.Item key="edit" onSelect={() => handleStartEdit(m.id, messageText)}>
+                          <DropdownMenu.Item key="edit" onSelect={() => onStartEdit?.(m.id, messageText)}>
                             <DropdownMenu.ItemIcon ios={{ name: "pencil" }} />
                             <DropdownMenu.ItemTitle>Edit</DropdownMenu.ItemTitle>
                           </DropdownMenu.Item>

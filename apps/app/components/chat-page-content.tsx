@@ -20,7 +20,7 @@ import type { Message } from "@/types/chat";
 import { toast } from "@/components/sonner";
 import { VoiceOverlay } from "@/components/voice-overlay";
 import { VoiceControls } from "@/components/voice-controls";
-import { AlertTriangle } from "lucide-react-native";
+import { AlertTriangle, Pencil } from "lucide-react-native";
 import { CreditWarningBanner } from "@/components/credit-warning-banner";
 import { getThinkingModelId, isThinkingModel } from "@/components/model-selector";
 import { useModelStore } from "@/lib/stores/model-store";
@@ -165,6 +165,7 @@ export const ChatPageContent = ({
   }, [selectedModel, setBaseModel]);
 
   const [inputValue, setInputValue] = useState("");
+  const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
   const [showTerminal, setShowTerminal] = useState(false);
   const { colors, isDarkColorScheme: isDarkMode } = useColorScheme();
 
@@ -210,8 +211,24 @@ export const ChatPageContent = ({
     });
   }, [entitlements, t, router]);
 
+  const handleStartEdit = useCallback((messageId: string, content: string) => {
+    setEditingMessageId(messageId);
+    setInputValue(content);
+  }, []);
+
+  const handleCancelEdit = useCallback(() => {
+    setEditingMessageId(null);
+    setInputValue("");
+  }, []);
+
   const handleSubmit = () => {
     if (!inputValue.trim() || isLoading || disabled) return;
+    if (editingMessageId) {
+      onEditMessage(editingMessageId, inputValue);
+      setEditingMessageId(null);
+      setInputValue("");
+      return;
+    }
     onSubmit(inputValue, attachments.length > 0 ? attachments : undefined);
     setInputValue("");
     useStore.getState().clearAttachments();
@@ -322,7 +339,7 @@ export const ChatPageContent = ({
           isLoading={isLoading}
           conversationLoading={conversationLoading}
           onSuggestionPress={handleSuggestionPress}
-          onEditMessage={onEditMessage}
+          onStartEdit={handleStartEdit}
           bottomPadding={bottomBarHeight}
           isVoiceActive={isVoiceActive}
           voiceAgentState={voice?.agentState}
@@ -428,6 +445,15 @@ export const ChatPageContent = ({
                         isAtBottom={isAtBottom}
                         onScrollToBottom={handleScrollToBottom}
                       />
+                    </View>
+                  )}
+                  {editingMessageId && (
+                    <View className="flex-row items-center gap-2 mb-2 px-1">
+                      <Pencil size={14} className="text-primary" />
+                      <Text className="text-xs text-muted-foreground flex-1">Editing message</Text>
+                      <Pressable onPress={handleCancelEdit} className="active:opacity-70">
+                        <X size={14} className="text-muted-foreground" />
+                      </Pressable>
                     </View>
                   )}
                   <PromptInput
