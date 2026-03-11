@@ -14,7 +14,7 @@ export interface StatusConfig {
   color: string;
 }
 
-export function getStatusConfig(status: TaskSession['status'], colors: any): StatusConfig {
+export function getStatusConfig(status: TaskSession['status'], colors: { mutedForeground: string }): StatusConfig {
   switch (status) {
     case 'queued':
       return {
