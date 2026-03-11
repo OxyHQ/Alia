@@ -1,4 +1,4 @@
-import { View, Pressable, TextInput, StyleSheet } from "react-native";
+import { View, Pressable, TextInput, StyleSheet, Platform } from "react-native";
 import { BlurView } from "expo-blur";
 import { KeyboardAwareScrollView } from "@/lib/keyboard";
 import { Image } from "expo-image";
@@ -14,6 +14,7 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { AgentPlaceholder } from "@/components/ui/agent-placeholder";
 import { AliaFace, type AliaExpression } from '@alia.onl/sdk';
 import { Copy, ThumbsUp, ThumbsDown, Pencil, Check, Volume2, Square } from "lucide-react-native";
+import * as DropdownMenu from "@/components/ui/dropdown-menu";
 import { useTTS } from "@/lib/hooks/use-tts";
 import Animated, {
   FadeInUp,
@@ -142,6 +143,8 @@ export const ChatInterface = React.memo(function ChatInterface({ messages, scrol
     const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
     const [editedContent, setEditedContent] = useState("");
     const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
+    const [hoveredMessageId, setHoveredMessageId] = useState<string | null>(null);
+    const isWeb = Platform.OS === 'web';
     const openThoughtPanel = useUIStore((s) => s.openThoughtPanel);
     const setThoughtMessages = useUIStore((s) => s.setThoughtMessages);
     const { readAloud, activeMessageId: ttsActiveMessageId, playbackState: ttsPlaybackState } = useTTS();
@@ -385,6 +388,12 @@ export const ChatInterface = React.memo(function ChatInterface({ messages, scrol
                     <View key="message-content" className="w-full">
                       {m.role === "assistant" ? (
                         // Assistant message: text below (flying face handles avatar)
+                        <DropdownMenu.Root>
+                        <DropdownMenu.Trigger asChild>
+                        <Pressable
+                          onHoverIn={isWeb ? () => setHoveredMessageId(m.id) : undefined}
+                          onHoverOut={isWeb ? () => setHoveredMessageId(null) : undefined}
+                        >
                         <View className="flex-col items-start gap-0.5">
                           {/* Agent identity or cohost label (Alia face is floating) */}
                           {m.agentInfo ? (
@@ -412,8 +421,9 @@ export const ChatInterface = React.memo(function ChatInterface({ messages, scrol
                               <CustomMarkdown content={messageText} />
                             )}
                           </View>
-                          {/* Action Buttons for Assistant Messages */}
-                          <View className="flex-row gap-1">
+                          {/* Action Buttons for Assistant Messages — web hover only */}
+                          {isWeb && (
+                          <View className={cn("flex-row gap-1 transition-opacity", hoveredMessageId === m.id ? "opacity-100" : "opacity-0")}>
                             <Pressable
                               key="read-aloud"
                               className="p-1.5 rounded-lg hover:bg-muted active:bg-muted"
@@ -443,9 +453,39 @@ export const ChatInterface = React.memo(function ChatInterface({ messages, scrol
                               <ThumbsDown size={14} className="text-muted-foreground" />
                             </Pressable>
                           </View>
+                          )}
                         </View>
+                        </Pressable>
+                        </DropdownMenu.Trigger>
+                        {!isWeb && (
+                        <DropdownMenu.Content>
+                          <DropdownMenu.Item key="read-aloud" onSelect={() => readAloud(m.id, messageText, chatId?.id, m.audioUrl)}>
+                            <DropdownMenu.ItemIcon ios={{ name: "speaker.wave.2" }} />
+                            <DropdownMenu.ItemTitle>Read Aloud</DropdownMenu.ItemTitle>
+                          </DropdownMenu.Item>
+                          <DropdownMenu.Item key="copy" onSelect={() => handleCopyMessage(m.id, messageText)}>
+                            <DropdownMenu.ItemIcon ios={{ name: "doc.on.doc" }} />
+                            <DropdownMenu.ItemTitle>Copy</DropdownMenu.ItemTitle>
+                          </DropdownMenu.Item>
+                          <DropdownMenu.Item key="thumbs-up" onSelect={() => {}}>
+                            <DropdownMenu.ItemIcon ios={{ name: "hand.thumbsup" }} />
+                            <DropdownMenu.ItemTitle>Like</DropdownMenu.ItemTitle>
+                          </DropdownMenu.Item>
+                          <DropdownMenu.Item key="thumbs-down" onSelect={() => {}}>
+                            <DropdownMenu.ItemIcon ios={{ name: "hand.thumbsdown" }} />
+                            <DropdownMenu.ItemTitle>Dislike</DropdownMenu.ItemTitle>
+                          </DropdownMenu.Item>
+                        </DropdownMenu.Content>
+                        )}
+                        </DropdownMenu.Root>
                       ) : (
                         // User message: bubble only
+                        <DropdownMenu.Root>
+                        <DropdownMenu.Trigger asChild>
+                        <Pressable
+                          onHoverIn={isWeb ? () => setHoveredMessageId(m.id) : undefined}
+                          onHoverOut={isWeb ? () => setHoveredMessageId(null) : undefined}
+                        >
                         <View className="flex-col items-end gap-0.5">
                           {editingMessageId === m.id ? (
                             <View className="max-w-[85%] sm:max-w-[75%] rounded-[24px] overflow-hidden border border-border">
@@ -498,9 +538,9 @@ export const ChatInterface = React.memo(function ChatInterface({ messages, scrol
                               </View>
                             </View>
                           )}
-                          {/* Action Buttons for User Messages */}
-                          {editingMessageId !== m.id && (
-                            <View className="flex-row gap-1">
+                          {/* Action Buttons for User Messages — web hover only */}
+                          {isWeb && editingMessageId !== m.id && (
+                            <View className={cn("flex-row gap-1 transition-opacity", hoveredMessageId === m.id ? "opacity-100" : "opacity-0")}>
                               <Pressable
                                 key="copy"
                                 className="p-1.5 rounded-lg hover:bg-muted active:bg-muted"
@@ -522,6 +562,21 @@ export const ChatInterface = React.memo(function ChatInterface({ messages, scrol
                             </View>
                           )}
                         </View>
+                        </Pressable>
+                        </DropdownMenu.Trigger>
+                        {!isWeb && editingMessageId !== m.id && (
+                        <DropdownMenu.Content>
+                          <DropdownMenu.Item key="copy" onSelect={() => handleCopyMessage(m.id, messageText)}>
+                            <DropdownMenu.ItemIcon ios={{ name: "doc.on.doc" }} />
+                            <DropdownMenu.ItemTitle>Copy</DropdownMenu.ItemTitle>
+                          </DropdownMenu.Item>
+                          <DropdownMenu.Item key="edit" onSelect={() => handleStartEdit(m.id, messageText)}>
+                            <DropdownMenu.ItemIcon ios={{ name: "pencil" }} />
+                            <DropdownMenu.ItemTitle>Edit</DropdownMenu.ItemTitle>
+                          </DropdownMenu.Item>
+                        </DropdownMenu.Content>
+                        )}
+                        </DropdownMenu.Root>
                       )}
                     </View>
                   )}
