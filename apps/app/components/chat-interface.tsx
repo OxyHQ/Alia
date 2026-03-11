@@ -150,6 +150,7 @@ export const ChatInterface = React.memo(function ChatInterface({ messages, scrol
     const [editedContent, setEditedContent] = useState("");
     const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
     const [votedMessages, setVotedMessages] = useState<Record<string, 'up' | 'down'>>({});
+    const voteInFlightRef = useRef<Set<string>>(new Set());
     const openThoughtPanel = useUIStore((s) => s.openThoughtPanel);
     const setThoughtMessages = useUIStore((s) => s.setThoughtMessages);
     const { readAloud, activeMessageId: ttsActiveMessageId, playbackState: ttsPlaybackState } = useTTS();
@@ -227,20 +228,27 @@ export const ChatInterface = React.memo(function ChatInterface({ messages, scrol
       onCopyMessage?.(content);
     }, [onCopyMessage, t]);
 
-    const handleVote = useCallback(async (messageId: string, vote: 'up' | 'down') => {
-      const currentVote = votedMessages[messageId];
-      const newVote = currentVote === vote ? null : vote;
+    const handleVote = useCallback((messageId: string, vote: 'up' | 'down') => {
+      if (voteInFlightRef.current.has(messageId)) return;
+      let newVote: 'up' | 'down' | null = null;
       setVotedMessages(prev => {
-        const next = { ...prev };
-        if (newVote) next[messageId] = newVote;
-        else delete next[messageId];
-        return next;
+        newVote = prev[messageId] === vote ? null : vote;
+        if (newVote) return { ...prev, [messageId]: newVote };
+        const { [messageId]: _, ...rest } = prev;
+        return rest;
       });
-      toast.success(t('chat.thanksFeedback'));
-      if (chatId?.id) {
-        apiClient.patch(`/conversations/${chatId.id}/messages/${messageId}/vote`, { vote: newVote }).catch(() => {});
-      }
-    }, [votedMessages, chatId, t]);
+      if (!chatId?.id) return;
+      voteInFlightRef.current.add(messageId);
+      apiClient.patch(`/conversations/${chatId.id}/messages/${messageId}/vote`, { vote: newVote })
+        .then(() => toast.success(t('chat.thanksFeedback')))
+        .catch(() => {
+          setVotedMessages(prev => {
+            const { [messageId]: _, ...rest } = prev;
+            return rest;
+          });
+        })
+        .finally(() => voteInFlightRef.current.delete(messageId));
+    }, [chatId, t]);
 
     const handleStartEdit = useCallback((messageId: string, content: string) => {
       setEditingMessageId(messageId);

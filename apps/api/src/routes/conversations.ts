@@ -234,7 +234,7 @@ router.patch('/:id/messages/:messageId/vote', authenticateToken, async (req: Req
         id: req.params.messageId,
         oxyUserId: req.user.id,
       },
-      { $set: { vote: vote || undefined } },
+      vote ? { $set: { vote } } : { $unset: { vote: 1 } },
       { new: true }
     );
 
