@@ -720,16 +720,10 @@ export const handleChatCompletions = async (req: Request, res: Response) => {
     }
 
     // Build system message from base prompt (which includes language + identity + tool boundaries)
-    // Only add a language preference fallback if the user has one saved
-    const userLanguagePreference = isDirectUserSession ? userMemory?.preferences?.language : undefined;
     let systemMessage = baseSystemPrompt;
 
     // Inject current date so the AI always knows "today" without a tool call
     systemMessage += `\n\nToday is ${new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}.`;
-
-    if (userLanguagePreference) {
-      systemMessage += `\n\nIf the user's message language is undetectable (emoji, numbers, single word), default to ${userLanguagePreference}.`;
-    }
     if (autonomyRuntime) {
       systemMessage += buildAutonomyPromptFragment(autonomyRuntime);
     }
