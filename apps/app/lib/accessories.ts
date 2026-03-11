@@ -63,6 +63,84 @@ export const ACCESSORIES: Record<string, Accessory> = {
     image: require('@/assets/accessories/neck-bowtie.png'),
     position: { top: 0, left: 0, width: 1, height: 1 },
   },
+  'head-apple': {
+    slot: 'head',
+    layer: 'front',
+    image: require('@/assets/accessories/head-apple.png'),
+    position: { top: 0, left: 0, width: 1, height: 1 },
+  },
+  'neck-scarf': {
+    slot: 'neck',
+    layer: 'front',
+    image: require('@/assets/accessories/neck-scarf.png'),
+    position: { top: 0, left: 0, width: 1, height: 1 },
+  },
+  'head-firefighter-helmet': {
+    slot: 'head',
+    layer: 'front',
+    image: require('@/assets/accessories/head-firefighter-helmet.png'),
+    position: { top: 0, left: 0, width: 1, height: 1 },
+  },
+  'head-cat': {
+    slot: 'head',
+    layer: 'front',
+    image: require('@/assets/accessories/head-cat.png'),
+    position: { top: 0, left: 0, width: 1, height: 1 },
+  },
+  'head-blue-crown': {
+    slot: 'head',
+    layer: 'front',
+    image: require('@/assets/accessories/head-blue-crown.png'),
+    position: { top: 0, left: 0, width: 1, height: 1 },
+  },
+  'head-duck': {
+    slot: 'head',
+    layer: 'front',
+    image: require('@/assets/accessories/head-duck.png'),
+    position: { top: 0, left: 0, width: 1, height: 1 },
+  },
+  'head-flower': {
+    slot: 'head',
+    layer: 'front',
+    image: require('@/assets/accessories/head-flower.png'),
+    position: { top: 0, left: 0, width: 1, height: 1 },
+  },
+  'head-propeller-hat': {
+    slot: 'head',
+    layer: 'front',
+    image: require('@/assets/accessories/head-propeller-hat.png'),
+    position: { top: 0, left: 0, width: 1, height: 1 },
+  },
+  'head-cowboy-hat': {
+    slot: 'head',
+    layer: 'front',
+    image: require('@/assets/accessories/head-cowboy-hat.png'),
+    position: { top: 0, left: 0, width: 1, height: 1 },
+  },
+  'head-leaf': {
+    slot: 'head',
+    layer: 'front',
+    image: require('@/assets/accessories/head-leaf.png'),
+    position: { top: 0, left: 0, width: 1, height: 1 },
+  },
+  'head-ribbon': {
+    slot: 'head',
+    layer: 'front',
+    image: require('@/assets/accessories/head-ribbon.png'),
+    position: { top: 0, left: 0, width: 1, height: 1 },
+  },
+  'head-pencil': {
+    slot: 'head',
+    layer: 'front',
+    image: require('@/assets/accessories/head-pencil.png'),
+    position: { top: 0, left: 0, width: 1, height: 1 },
+  },
+  'head-pepper': {
+    slot: 'head',
+    layer: 'front',
+    image: require('@/assets/accessories/head-pepper.png'),
+    position: { top: 0, left: 0, width: 1, height: 1 },
+  },
 };
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
