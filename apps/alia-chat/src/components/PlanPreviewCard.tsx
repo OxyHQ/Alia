@@ -1,15 +1,9 @@
 import { View, Pressable } from 'react-native';
-import { Text } from '@/components/ui/text';
-import { Button } from '@/components/ui/button';
+import { Text } from './ui/text';
+import { Button } from './ui/button';
 import { Check, X, ListChecks } from 'lucide-react-native';
-import { getToolIcon } from '@/lib/tool-registry';
 import Animated, { FadeInUp } from 'react-native-reanimated';
-
-export interface PlanStep {
-  action: string;
-  description: string;
-  toolName?: string;
-}
+import type { PlanStep } from '../types';
 
 interface PlanPreviewCardProps {
   steps: PlanStep[];
@@ -47,22 +41,19 @@ export function PlanPreviewCard({ steps, onApprove, onReject, approved, rejected
         </View>
 
         <View className="gap-2">
-          {steps.map((step, i) => {
-            const Icon = step.toolName ? getToolIcon(step.toolName) : null;
-            return (
-              <View key={i} className="flex-row items-start gap-2.5">
-                <View className="w-5 h-5 rounded-full bg-muted items-center justify-center mt-0.5">
-                  <Text className="text-[10px] font-bold text-muted-foreground">{i + 1}</Text>
-                </View>
-                <View className="flex-1">
-                  <Text className="text-[13px] font-medium text-foreground">{step.action}</Text>
-                  {step.description ? (
-                    <Text className="text-xs text-muted-foreground">{step.description}</Text>
-                  ) : null}
-                </View>
+          {steps.map((step, i) => (
+            <View key={i} className="flex-row items-start gap-2.5">
+              <View className="w-5 h-5 rounded-full bg-muted items-center justify-center mt-0.5">
+                <Text className="text-[10px] font-bold text-muted-foreground">{i + 1}</Text>
               </View>
-            );
-          })}
+              <View className="flex-1">
+                <Text className="text-[13px] font-medium text-foreground">{step.action}</Text>
+                {step.description ? (
+                  <Text className="text-xs text-muted-foreground">{step.description}</Text>
+                ) : null}
+              </View>
+            </View>
+          ))}
         </View>
 
         <View className="flex-row gap-2 pt-1">

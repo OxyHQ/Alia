@@ -30,7 +30,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AliaChatContent, type AliaChatContentRef } from './AliaChatContent';
 import { AliaFace, type AliaExpression } from './AliaFace';
 import { useAliaColors } from '../theme';
-import type { AliaChatSuggestion } from '../types';
+import type { WelcomeSuggestion } from './AliaWelcomeMessage';
 
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -43,12 +43,16 @@ const SPRING_CONFIG = {
 export interface AliaChatSheetProps {
   /** App context injected into system prompt */
   clientContext?: string;
-  /** Quick action suggestions shown when chat is empty */
-  suggestions?: AliaChatSuggestion[];
   /** Alia model (default: 'alia-v1') */
   model?: string;
   /** API URL override */
   apiUrl?: string;
+  /** Welcome screen greeting */
+  welcomeGreeting?: string;
+  /** Welcome screen subtitle */
+  welcomeSubtitle?: string;
+  /** Welcome screen suggestions */
+  welcomeSuggestions?: WelcomeSuggestion[];
 }
 
 export interface AliaChatSheetRef {
@@ -57,7 +61,7 @@ export interface AliaChatSheetRef {
 }
 
 export const AliaChatSheet = forwardRef<AliaChatSheetRef, AliaChatSheetProps>(
-  ({ clientContext, suggestions = [], model, apiUrl }, ref) => {
+  ({ clientContext, model, apiUrl, welcomeGreeting, welcomeSubtitle, welcomeSuggestions }, ref) => {
     const colors = useAliaColors();
     const isDark = colors.isDark;
     const insets = useSafeAreaInsets();
@@ -294,10 +298,12 @@ export const AliaChatSheet = forwardRef<AliaChatSheetRef, AliaChatSheetProps>(
                 <AliaChatContent
                   ref={contentRef}
                   clientContext={clientContext}
-                  suggestions={suggestions}
                   model={model}
                   apiUrl={apiUrl}
                   scrollOffsetY={scrollOffsetY}
+                  welcomeGreeting={welcomeGreeting}
+                  welcomeSubtitle={welcomeSubtitle}
+                  welcomeSuggestions={welcomeSuggestions}
                 />
               </GestureDetector>
             </Animated.View>

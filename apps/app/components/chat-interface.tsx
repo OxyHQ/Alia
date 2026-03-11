@@ -26,16 +26,15 @@ import Animated, {
 } from "react-native-reanimated";
 import * as Clipboard from "expo-clipboard";
 import { Reasoning, ReasoningTrigger } from "@/components/ui/reasoning";
-import { getToolLabel, getToolActiveLabel } from "@/lib/tool-registry";
-import { getTextFromContent, getImagesFromContent } from "@/lib/attachment-utils";
+import { getToolLabel, getToolActiveLabel, getTextFromContent, getImagesFromContent } from '@alia.onl/sdk';
 import { useUIStore } from "@/lib/stores/ui-store";
 import { useStore } from "@/lib/globalStore";
 import type { ToolInvocation } from "@/lib/types/messages";
 import { useScrollToBottom } from "@/hooks/use-scroll-to-bottom";
 import { AgentTaskCard } from "@/components/agent-task-card";
 import { AgentResultCard } from "@/components/agent-result-card";
-import { ResearchProgressCard, type ResearchProgressData } from "@/components/research-progress-card";
-import { PlanPreviewCard } from "@/components/plan-preview-card";
+import { ResearchProgressCard, PlanPreviewCard } from '@alia.onl/sdk';
+import type { ResearchProgress as ResearchProgressData } from '@alia.onl/sdk';
 import type { AgentActivityState } from "@/lib/hooks/use-agent-activity";
 import { Skeleton } from "@/components/ui/skeleton";
 

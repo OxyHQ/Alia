@@ -14,7 +14,7 @@ import React, {
   useMemo,
   useRef,
 } from 'react';
-import { View, Pressable, StyleSheet } from 'react-native';
+import { View, StyleSheet } from 'react-native';
 import { useSharedValue, withTiming, Easing } from 'react-native-reanimated';
 import type { SharedValue } from 'react-native-reanimated';
 import { Volume2 } from 'lucide-react-native';
@@ -27,17 +27,15 @@ import { useSTTStore } from '../hooks/useSpeechToText';
 import { VoiceOverlay } from './voice/VoiceOverlay';
 import { VoiceControls } from './voice/VoiceControls';
 import { AliaChatMessageList } from './AliaChatMessageList';
+import { AliaWelcomeMessage, type WelcomeSuggestion } from './AliaWelcomeMessage';
 import { PromptInput } from './ui/prompt-input/prompt-input';
 import { Button } from './ui/button';
-import { AliaChatSuggestions } from './AliaChatSuggestions';
 import type { AliaExpression } from './AliaFace';
-import type { AliaChatSuggestion } from '../types';
 import type { ChatMessage } from '../types';
 import type { Completion } from './ui/prompt-input/context';
 
 export interface AliaChatContentProps {
   clientContext?: string;
-  suggestions?: AliaChatSuggestion[];
   model?: string;
   apiUrl?: string;
   /** Shared value for scroll offset (used by sheet for pan-to-dismiss) */
@@ -48,6 +46,19 @@ export interface AliaChatContentProps {
   onSuggestionUsed?: (suggestionId: string) => void;
   /** Error handler (e.g. toast) */
   onError?: (message: string) => void;
+  // Welcome message
+  welcomeGreeting?: string;
+  welcomeSubtitle?: string;
+  welcomeSuggestions?: WelcomeSuggestion[];
+  // Message action callbacks
+  onEditMessage?: (messageId: string, newContent: string) => void;
+  onThumbsUp?: (messageId: string) => void;
+  onThumbsDown?: (messageId: string) => void;
+  onApprovePlan?: (planId: string) => void;
+  onRejectPlan?: (planId: string) => void;
+  onToolResultPress?: (messageId: string) => void;
+  /** Override markdown renderer (app passes CustomMarkdown) */
+  renderMarkdown?: (content: string) => React.ReactNode;
 }
 
 export interface AliaChatContentRef {
@@ -72,7 +83,25 @@ function adaptVoiceMessage(vm: any): ChatMessage {
 }
 
 export const AliaChatContent = forwardRef<AliaChatContentRef, AliaChatContentProps>(
-  ({ clientContext, suggestions = [], model, apiUrl, scrollOffsetY: externalScrollOffsetY, useSuggestions, onSuggestionUsed, onError }, ref) => {
+  ({
+    clientContext,
+    model,
+    apiUrl,
+    scrollOffsetY: externalScrollOffsetY,
+    useSuggestions,
+    onSuggestionUsed,
+    onError,
+    welcomeGreeting,
+    welcomeSubtitle,
+    welcomeSuggestions,
+    onEditMessage,
+    onThumbsUp,
+    onThumbsDown,
+    onApprovePlan,
+    onRejectPlan,
+    onToolResultPress,
+    renderMarkdown,
+  }, ref) => {
     // ── Chat ──
     const chatOptions: UseAliaChatOptions = { apiUrl, model, clientContext };
     const { messages, setMessages, send, isStreaming, stop, clear } = useAliaChat(chatOptions);
@@ -187,7 +216,19 @@ export const AliaChatContent = forwardRef<AliaChatContentRef, AliaChatContentPro
       return 'Writing E';
     }, [messages, isStreaming, isVoiceActive, voiceRoom.agentState]);
 
-    const showSuggestions = messages.length === 0 && suggestions.length > 0;
+    const showWelcome = messages.length === 0 && !!welcomeGreeting;
+
+    const welcomeComponent = useMemo(() => {
+      if (!welcomeGreeting) return undefined;
+      return (
+        <AliaWelcomeMessage
+          greeting={welcomeGreeting}
+          subtitle={welcomeSubtitle ?? ''}
+          suggestions={welcomeSuggestions}
+          onSuggestionPress={send}
+        />
+      );
+    }, [welcomeGreeting, welcomeSubtitle, welcomeSuggestions, send]);
 
     // ── Overlay state ──
     const showVoiceOverlay = isVoiceActive;
@@ -246,19 +287,23 @@ export const AliaChatContent = forwardRef<AliaChatContentRef, AliaChatContentPro
           />
         )}
 
-        {/* Suggestions or Messages */}
-        {showSuggestions ? (
-          <AliaChatSuggestions suggestions={suggestions} onSelect={send} />
-        ) : (
-          <AliaChatMessageList
-            messages={messages}
-            isStreaming={isStreaming}
-            scrollOffsetY={scrollOffsetY}
-            onReadAloud={handleReadAloud}
-            ttsActiveMessageId={tts.activeMessageId}
-            ttsPlaybackState={tts.playbackState}
-          />
-        )}
+        {/* Welcome or Messages */}
+        <AliaChatMessageList
+          messages={messages}
+          isStreaming={isStreaming}
+          scrollOffsetY={scrollOffsetY}
+          onReadAloud={handleReadAloud}
+          ttsActiveMessageId={tts.activeMessageId}
+          ttsPlaybackState={tts.playbackState}
+          onEditMessage={onEditMessage}
+          onThumbsUp={onThumbsUp}
+          onThumbsDown={onThumbsDown}
+          onApprovePlan={onApprovePlan}
+          onRejectPlan={onRejectPlan}
+          onToolResultPress={onToolResultPress}
+          renderMarkdown={renderMarkdown}
+          welcomeComponent={showWelcome ? welcomeComponent : undefined}
+        />
 
         {/* Input or Voice Controls */}
         {isVoiceActive ? (

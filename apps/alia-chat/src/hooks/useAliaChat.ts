@@ -1,6 +1,7 @@
 import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { useOxy } from '@oxyhq/services';
 import type { ChatMessage, ToolInvocation } from '../types';
+import { getTextFromContent } from '../lib/content-utils';
 
 const API_URL = process.env.EXPO_PUBLIC_ALIA_API_URL ?? 'https://api.alia.onl';
 
@@ -188,7 +189,7 @@ export function useAliaChat(options: UseAliaChatOptions = {}): UseAliaChatReturn
       // Include full conversation history with tool context
       for (const msg of messagesRef.current) {
         if (msg.role === 'system') continue;
-        apiMessages.push({ role: msg.role, content: msg.content });
+        apiMessages.push({ role: msg.role, content: getTextFromContent(msg.content) });
         // Include tool results so the AI has full context
         if (msg.toolInvocations?.length) {
           for (const tool of msg.toolInvocations) {
