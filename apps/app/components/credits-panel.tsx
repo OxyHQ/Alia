@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useCallback } from "react";
 import { View, Pressable, ScrollView } from "react-native";
 import * as Linking from "expo-linking";
 import { Text } from "@/components/ui/text";
@@ -204,12 +204,12 @@ export function CreditsPanel() {
   const dailyRefresh = data?.dailyRefresh ?? 0;
   const isSubscribed = subscription?.status === 'active';
 
-  const navigate = (path: string) => {
+  const navigate = useCallback((path: string) => {
     setRightPanel(null);
     router.push(path as any);
-  };
+  }, [setRightPanel, router]);
 
-  const handlePurchaseCredits = async (packageId: string) => {
+  const handlePurchaseCredits = useCallback(async (packageId: string) => {
     try {
       const { url } = await createCheckoutMutation.mutateAsync({
         packageId,
@@ -222,12 +222,12 @@ export function CreditsPanel() {
     } catch (error: any) {
       toast.error(error.message || t('billing.failedCheckout'));
     }
-  };
+  }, [createCheckoutMutation, t]);
 
   return (
     <View className="flex-1 bg-background">
       {/* Header */}
-      <View className="flex-row items-center justify-between px-4 py-3 border-b border-border">
+      <View className="flex-row items-center justify-between px-4 py-3 bg-surface">
         <Text className="text-base font-semibold text-foreground">
           {t('credits.title')}
         </Text>
@@ -238,15 +238,13 @@ export function CreditsPanel() {
 
       <ScrollView className="flex-1" showsVerticalScrollIndicator={false}>
         {/* Plan Badge & Upgrade */}
-        <View className="flex-row items-center justify-between px-4 py-3 border-b border-border">
-          <View className="flex-row items-center gap-2">
-            <View className={`px-2 py-0.5 rounded-full ${isSubscribed ? 'bg-primary/10' : 'bg-muted'}`}>
-              {isSubscribed ? (
-                <Text className="text-xs font-medium text-primary">{subscription.plan.name}</Text>
-              ) : (
-                <Text className="text-xs font-medium text-muted-foreground">{t('credits.free')}</Text>
-              )}
-            </View>
+        <View className="flex-row items-center justify-between px-4 py-3">
+          <View className={`px-2 py-0.5 rounded-full ${isSubscribed ? 'bg-primary/10' : 'bg-muted'}`}>
+            {isSubscribed ? (
+              <Text className="text-xs font-medium text-primary">{subscription.plan.name}</Text>
+            ) : (
+              <Text className="text-xs font-medium text-muted-foreground">{t('credits.free')}</Text>
+            )}
           </View>
           <Button onPress={() => navigate(isSubscribed ? "/(app)/settings/usage" : "/(biglayout)/subscribe")} className="h-8 px-4 rounded-full">
             <Text className="text-sm font-medium text-primary-foreground">
@@ -256,11 +254,11 @@ export function CreditsPanel() {
         </View>
 
         {/* Credits Section */}
-        <View className="p-4">
+        <View className="px-4 py-3">
           {creditsLoading ? (
             <CreditsSkeleton />
           ) : (
-            <View className="gap-5">
+            <View className="gap-4">
               <View className="gap-2">
                 <View className="flex-row items-center gap-2">
                   <Sparkles size={18} className="text-foreground" />
@@ -323,7 +321,7 @@ export function CreditsPanel() {
         </View>
 
         {/* Usage Chart */}
-        <View className="px-4 pb-3 border-b border-border">
+        <View className="px-4 py-3">
           <View className="flex-row items-center justify-between mb-2">
             <Text className="text-xs font-medium text-muted-foreground">{t('credits.creditUsage')}</Text>
             <PeriodToggle value={period} onChange={setPeriod} />
@@ -333,42 +331,40 @@ export function CreditsPanel() {
 
         {/* Buy Credits */}
         {packages.length > 0 && (
-          <View className="px-4 pb-4">
-            <View className="border border-border rounded-xl p-3">
-              <View className="flex-row items-center gap-2 mb-2">
-                <ShoppingCart size={14} className="text-muted-foreground" />
-                <Text className="text-xs font-medium text-muted-foreground">{t('credits.buyCredits')}</Text>
-              </View>
-              <View className="gap-2">
-                {packages.map((pkg) => (
-                  <Pressable
-                    key={pkg.id}
-                    onPress={() => handlePurchaseCredits(pkg.id)}
-                    disabled={createCheckoutMutation.isPending}
-                    className="flex-row items-center justify-between py-2 px-3 rounded-lg border border-border bg-background active:bg-muted"
-                  >
-                    <View>
-                      <Text className="text-sm font-medium text-foreground">{pkg.name}</Text>
-                      <Text className="text-[10px] text-muted-foreground">
-                        {t('credits.perThousand', { price: `$${((pkg.price / pkg.credits) * 1000 / 100).toFixed(2)}` })}
-                      </Text>
-                    </View>
-                    <Text className="text-sm font-semibold text-foreground">
-                      ${(pkg.price / 100).toFixed(2)}
+          <View className="px-4 py-3">
+            <View className="flex-row items-center gap-2 mb-2">
+              <ShoppingCart size={14} className="text-muted-foreground" />
+              <Text className="text-xs font-medium text-muted-foreground">{t('credits.buyCredits')}</Text>
+            </View>
+            <View className="gap-1.5">
+              {packages.map((pkg) => (
+                <Pressable
+                  key={pkg.id}
+                  onPress={() => handlePurchaseCredits(pkg.id)}
+                  disabled={createCheckoutMutation.isPending}
+                  className="flex-row items-center justify-between py-2 px-3 rounded-lg active:bg-muted"
+                >
+                  <View>
+                    <Text className="text-sm font-medium text-foreground">{pkg.name}</Text>
+                    <Text className="text-[10px] text-muted-foreground">
+                      {t('credits.perThousand', { price: `$${((pkg.price / pkg.credits) * 1000 / 100).toFixed(2)}` })}
                     </Text>
-                  </Pressable>
-                ))}
-              </View>
+                  </View>
+                  <Text className="text-sm font-semibold text-foreground">
+                    ${(pkg.price / 100).toFixed(2)}
+                  </Text>
+                </Pressable>
+              ))}
             </View>
           </View>
         )}
 
         {/* Activity & Models */}
-        <View className="p-4">
+        <View className="px-4 py-3">
           {analyticsLoading ? (
             <ActivitySkeleton />
           ) : (
-            <View className="gap-5">
+            <View className="gap-4">
               <View className="gap-2">
                 <View className="flex-row items-center gap-2">
                   <MessageSquare size={18} className="text-foreground" />
@@ -413,7 +409,7 @@ export function CreditsPanel() {
         </View>
 
         {/* Footer Links */}
-        <View className="px-4 pb-4 gap-2">
+        <View className="px-4 pb-3 gap-2">
           <Pressable onPress={() => navigate("/(app)/settings/usage")} className="flex-row items-center gap-1 active:opacity-70">
             <Text className="text-sm font-medium text-primary">{t('credits.manageBilling')}</Text>
             <Text className="text-sm text-primary">&rsaquo;</Text>
