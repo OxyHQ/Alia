@@ -1,3 +1,4 @@
+import React from "react";
 import { View, Pressable } from "react-native";
 import { vars } from "nativewind";
 import { Text } from "@/components/ui/text";
@@ -9,7 +10,7 @@ import { APP_COLOR_PRESETS, APP_COLOR_NAMES, type AppColorPreset } from "@/lib/a
 import { cn } from "@/lib/utils";
 
 /** Miniature app layout using real theme tokens via NativeWind vars() */
-function AppMiniature({ variant, preset }: { variant: "light" | "dark"; preset: AppColorPreset }) {
+const AppMiniature = React.memo(function AppMiniature({ variant, preset }: { variant: "light" | "dark"; preset: AppColorPreset }) {
   const themeVars = vars(variant === "light" ? preset.light : preset.dark);
 
   return (
@@ -62,7 +63,7 @@ function AppMiniature({ variant, preset }: { variant: "light" | "dark"; preset: 
       </View>
     </View>
   );
-}
+});
 
 export function GeneralSection() {
   const { mode, setColorScheme } = useColorScheme();
