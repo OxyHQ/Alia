@@ -257,6 +257,7 @@ export function useAgentActivity(sessionId: string | null, agentId?: string | nu
     setState(INITIAL_STATE);
 
     const socket = socketIO(config.apiUrl, {
+      transports: ['websocket'],
       reconnection: true,
       reconnectionAttempts: Infinity,
       reconnectionDelay: 1000,

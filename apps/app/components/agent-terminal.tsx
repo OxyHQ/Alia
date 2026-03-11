@@ -212,6 +212,7 @@ function WebTerminal({ agentId }: AgentTerminalProps) {
     // Connect Socket.IO
     let wasConnected = false;
     const socket = socketIO(config.apiUrl, {
+      transports: ['websocket'],
       reconnection: true,
       reconnectionAttempts: Infinity,
       reconnectionDelay: 1000,
@@ -437,6 +438,7 @@ function NativeTerminal({ agentId }: AgentTerminalProps) {
     // Connect Socket.IO
     let wasConnected = false;
     const socket = socketIO(config.apiUrl, {
+      transports: ['websocket'],
       reconnection: true,
       reconnectionAttempts: Infinity,
       reconnectionDelay: 1000,

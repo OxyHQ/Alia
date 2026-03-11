@@ -19,7 +19,8 @@ export function initSocket(server: http.Server) {
       origin: ALLOWED_ORIGINS,
       methods: ['GET', 'POST'],
       credentials: true,
-    }
+    },
+    transports: ['websocket'],
   });
 
   // Attach Redis adapter for horizontal scaling
