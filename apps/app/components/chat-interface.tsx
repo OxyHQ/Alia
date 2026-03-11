@@ -26,7 +26,7 @@ import Animated, {
 } from "react-native-reanimated";
 import * as Clipboard from "expo-clipboard";
 import { Reasoning, ReasoningTrigger } from "@/components/ui/reasoning";
-import { getToolLabel, getToolActiveLabel, getTextFromContent, getImagesFromContent } from '@alia.onl/sdk';
+import { getToolLabel, getToolActiveLabel, getResearchActiveLabel, getTextFromContent, getImagesFromContent } from '@alia.onl/sdk';
 import { useUIStore } from "@/lib/stores/ui-store";
 import { useStore } from "@/lib/globalStore";
 import type { ToolInvocation } from "@/lib/types/messages";
@@ -109,16 +109,6 @@ function getMessageImages(message: Message): string[] {
   }
   return [];
 }
-
-/** Map research progress phases to human-readable status text. */
-const RESEARCH_PHASE_LABELS: Record<string, string> = {
-  decomposing: "Decomposing query...",
-  searching: "Searching sources...",
-  reading: "Reading articles...",
-  synthesizing: "Synthesizing findings...",
-  follow_up: "Following up...",
-  finalizing: "Finalizing research...",
-};
 
 /** Pulsing colored bullet for tool execution status (alia-codea style). */
 function ToolBullet({ isRunning }: { isRunning: boolean }) {
@@ -547,8 +537,8 @@ export const ChatInterface = React.memo(function ChatInterface({ messages, scrol
                       let activeStatus: string | undefined;
                       if (activeTool) {
                         activeStatus = getToolActiveLabel(activeTool.toolName);
-                      } else if (rp?.currentPhase && rp.currentPhase !== 'complete') {
-                        activeStatus = RESEARCH_PHASE_LABELS[rp.currentPhase];
+                      } else if (rp?.phase && rp.phase !== 'complete') {
+                        activeStatus = getResearchActiveLabel(rp.phase);
                       } else if ((m as any).thinking) {
                         activeStatus = "Reasoning...";
                       }

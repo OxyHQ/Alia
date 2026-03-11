@@ -1,3 +1,11 @@
+// ── Welcome / Suggestion Types ──
+
+export interface WelcomeSuggestion {
+  id: string;
+  title: string;
+  description: string;
+}
+
 // ── Chat Message Types ──
 
 export interface ResearchSource {
@@ -62,12 +70,6 @@ export interface ToolInvocation {
   result?: any;
   /** OpenAI-format tool call ID for matching calls to results */
   toolCallId?: string;
-}
-
-export interface AliaChatSuggestion {
-  label: string;
-  icon?: string;
-  prompt: string;
 }
 
 // ── Voice Types ──

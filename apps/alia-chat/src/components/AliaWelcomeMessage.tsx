@@ -1,19 +1,15 @@
-import { Pressable, StyleSheet } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
 import { BlurView } from 'expo-blur';
 import { Text } from './ui/text';
-import { View } from 'react-native';
 import Animated, { FadeIn } from 'react-native-reanimated';
 import { AliaFace } from './AliaFace';
+import type { WelcomeSuggestion } from '../types';
 
-export interface WelcomeSuggestion {
-  id: string;
-  title: string;
-  description: string;
-}
+export type { WelcomeSuggestion };
 
 export interface AliaWelcomeMessageProps {
   greeting: string;
-  subtitle: string;
+  subtitle?: string;
   suggestions?: WelcomeSuggestion[];
   onSuggestionPress?: (text: string) => void;
   faceSize?: number;
@@ -38,9 +34,11 @@ export function AliaWelcomeMessage({
             <Text className="text-3xl font-bold tracking-tight text-foreground">
               {greeting}
             </Text>
-            <Text className="text-xl font-medium text-muted-foreground">
-              {subtitle}
-            </Text>
+            {subtitle ? (
+              <Text className="text-xl font-medium text-muted-foreground">
+                {subtitle}
+              </Text>
+            ) : null}
           </View>
         </View>
 

@@ -15,7 +15,6 @@ export { ThinkingIndicator } from './components/ThinkingIndicator';
 export { AliaMarkdown } from './components/Markdown';
 export { Reasoning, ReasoningTrigger, ReasoningContent } from './components/Reasoning';
 export { AliaWelcomeMessage } from './components/AliaWelcomeMessage';
-export type { WelcomeSuggestion } from './components/AliaWelcomeMessage';
 export { ResearchProgressCard } from './components/ResearchProgressCard';
 export { PlanPreviewCard } from './components/PlanPreviewCard';
 
@@ -43,7 +42,7 @@ export type { SoundName, SoundSources } from './hooks/useSoundEffects';
 export type {
   ChatMessage,
   ToolInvocation,
-  AliaChatSuggestion,
+  WelcomeSuggestion,
   ResearchProgress,
   ResearchSource,
   PendingPlan,
@@ -60,7 +59,7 @@ export type { ButtonProps } from './components/ui/button';
 export { Text, TextClassContext } from './components/ui/text';
 export { ChatTextInput } from './components/ui/chat-text-input';
 export { cn, formatFileSize } from './lib/utils';
-export { getToolLabel, getToolActiveLabel } from './lib/tool-registry';
+export { getToolLabel, getToolActiveLabel, getResearchActiveLabel } from './lib/tool-registry';
 export { getTextFromContent, getImagesFromContent } from './lib/content-utils';
 
 // ── PromptInput ──

@@ -216,19 +216,17 @@ export const AliaChatContent = forwardRef<AliaChatContentRef, AliaChatContentPro
       return 'Writing E';
     }, [messages, isStreaming, isVoiceActive, voiceRoom.agentState]);
 
-    const showWelcome = messages.length === 0 && !!welcomeGreeting;
-
     const welcomeComponent = useMemo(() => {
-      if (!welcomeGreeting) return undefined;
+      if (!welcomeGreeting || messages.length > 0) return undefined;
       return (
         <AliaWelcomeMessage
           greeting={welcomeGreeting}
-          subtitle={welcomeSubtitle ?? ''}
+          subtitle={welcomeSubtitle}
           suggestions={welcomeSuggestions}
           onSuggestionPress={send}
         />
       );
-    }, [welcomeGreeting, welcomeSubtitle, welcomeSuggestions, send]);
+    }, [welcomeGreeting, welcomeSubtitle, welcomeSuggestions, send, messages.length]);
 
     // ── Overlay state ──
     const showVoiceOverlay = isVoiceActive;
@@ -302,7 +300,7 @@ export const AliaChatContent = forwardRef<AliaChatContentRef, AliaChatContentPro
           onRejectPlan={onRejectPlan}
           onToolResultPress={onToolResultPress}
           renderMarkdown={renderMarkdown}
-          welcomeComponent={showWelcome ? welcomeComponent : undefined}
+          welcomeComponent={welcomeComponent}
         />
 
         {/* Input or Voice Controls */}

@@ -1,4 +1,4 @@
-import React, { useRef, useEffect, useState, useCallback } from 'react';
+import React, { useRef, useEffect, useState, useCallback, useMemo } from 'react';
 import { View, Pressable, TextInput, StyleSheet, Platform } from 'react-native';
 import { BlurView } from 'expo-blur';
 import Animated, {
@@ -28,20 +28,15 @@ import { ThinkingIndicator } from './ThinkingIndicator';
 import { Reasoning, ReasoningTrigger, ReasoningContent } from './Reasoning';
 import { ResearchProgressCard } from './ResearchProgressCard';
 import { PlanPreviewCard } from './PlanPreviewCard';
-import { getToolLabel, getToolActiveLabel } from '../lib/tool-registry';
+import { getToolLabel, getToolActiveLabel, getResearchActiveLabel } from '../lib/tool-registry';
 import { getTextFromContent, getImagesFromContent } from '../lib/content-utils';
 import type { ChatMessage, ToolInvocation } from '../types';
 
-type PlaybackState = 'idle' | 'loading' | 'playing' | 'paused' | 'error';
+// Resolve expo-image once at module load (optional peer dep)
+let ExpoImage: any = null;
+try { ExpoImage = require('expo-image').Image; } catch {}
 
-const RESEARCH_PHASE_LABELS: Record<string, string> = {
-  decomposing: 'Decomposing query...',
-  searching: 'Searching sources...',
-  reading: 'Reading articles...',
-  synthesizing: 'Synthesizing findings...',
-  follow_up: 'Following up...',
-  finalizing: 'Finalizing research...',
-};
+type PlaybackState = 'idle' | 'loading' | 'playing' | 'paused' | 'error';
 
 export interface AliaChatMessageListProps {
   messages: ChatMessage[];
@@ -96,6 +91,7 @@ function ToolBullet({ isRunning }: { isRunning: boolean }) {
 
 function UserBubble({
   message,
+  text,
   isEditing,
   editedContent,
   onEditedContentChange,
@@ -107,6 +103,7 @@ function UserBubble({
   showEditButton,
 }: {
   message: ChatMessage;
+  text: string;
   isEditing: boolean;
   editedContent: string;
   onEditedContentChange: (text: string) => void;
@@ -117,7 +114,6 @@ function UserBubble({
   copiedMessageId: string | null;
   showEditButton: boolean;
 }) {
-  const text = getTextFromContent(message.content);
   const images = getImagesFromContent(message.content);
 
   return (
@@ -157,12 +153,10 @@ function UserBubble({
             {images.length > 0 && (
               <View className="flex-row flex-wrap gap-2 mb-2">
                 {images.map((imgUrl, imgIdx) => {
-                  let ImageComponent: any;
-                  try { ImageComponent = require('expo-image').Image; } catch { ImageComponent = null; }
-                  if (!ImageComponent) return null;
+                  if (!ExpoImage) return null;
                   return (
                     <View key={`img-${imgIdx}`} className="rounded-xl overflow-hidden" style={{ width: 120, height: 120 }}>
-                      <ImageComponent
+                      <ExpoImage
                         source={{ uri: imgUrl }}
                         className="w-full h-full"
                         contentFit="cover"
@@ -207,6 +201,7 @@ function UserBubble({
 
 function AssistantMessage({
   message,
+  messageText,
   isStreamingThis,
   isLastMessage,
   isLoading,
@@ -223,6 +218,7 @@ function AssistantMessage({
   renderMarkdown,
 }: {
   message: ChatMessage;
+  messageText: string;
   isStreamingThis: boolean;
   isLastMessage: boolean;
   isLoading: boolean;
@@ -238,13 +234,35 @@ function AssistantMessage({
   onToolResultPress?: (messageId: string) => void;
   renderMarkdown?: (content: string) => React.ReactNode;
 }) {
-  const messageText = getTextFromContent(message.content);
   const hasContent = messageText.length > 0;
   const hasThinking = !!message.thinking;
 
   const isThisPlaying = ttsActiveMessageId === message.id && ttsPlaybackState === 'playing';
   const isThisPaused = ttsActiveMessageId === message.id && ttsPlaybackState === 'paused';
   const isThisLoading = ttsActiveMessageId === message.id && ttsPlaybackState === 'loading';
+
+  // ThinkingIndicator — context-aware status
+  let thinkingIndicator: React.ReactNode = null;
+  if (isLoading && isLastMessage && !hasContent) {
+    const activeTool = message.toolInvocations?.find(
+      t => t.state === 'call' || t.state === 'partial-call',
+    );
+    const rp = message.researchProgress;
+    let activeStatus: string | undefined;
+    if (activeTool) {
+      activeStatus = getToolActiveLabel(activeTool.toolName);
+    } else if (rp?.phase && rp.phase !== 'complete') {
+      activeStatus = getResearchActiveLabel(rp.phase);
+    } else if (message.thinking) {
+      activeStatus = 'Reasoning...';
+    }
+    thinkingIndicator = (
+      <ThinkingIndicator
+        isWorking={(message.toolInvocations?.length ?? 0) > 0}
+        statusText={activeStatus}
+      />
+    );
+  }
 
   return (
     <View className="w-full">
@@ -378,27 +396,7 @@ function AssistantMessage({
         </View>
       )}
 
-      {/* ThinkingIndicator — context-aware status */}
-      {isLoading && isLastMessage && !hasContent && (() => {
-        const activeTool = message.toolInvocations?.find(
-          t => t.state === 'call' || t.state === 'partial-call',
-        );
-        const rp = message.researchProgress;
-        let activeStatus: string | undefined;
-        if (activeTool) {
-          activeStatus = getToolActiveLabel(activeTool.toolName);
-        } else if (rp?.phase && rp.phase !== 'complete') {
-          activeStatus = RESEARCH_PHASE_LABELS[rp.phase];
-        } else if (message.thinking) {
-          activeStatus = 'Reasoning...';
-        }
-        return (
-          <ThinkingIndicator
-            isWorking={(message.toolInvocations?.length ?? 0) > 0}
-            statusText={activeStatus}
-          />
-        );
-      })()}
+      {thinkingIndicator}
     </View>
   );
 }
@@ -482,7 +480,7 @@ export function AliaChatMessageList({
     setEditedContent('');
   }, []);
 
-  const filteredMessages = messages.filter(m => m.role !== 'system');
+  const filteredMessages = useMemo(() => messages.filter(m => m.role !== 'system'), [messages]);
 
   return (
     <Animated.ScrollView
@@ -516,6 +514,7 @@ export function AliaChatMessageList({
                 {msg.role === 'user' ? (
                   <UserBubble
                     message={msg}
+                    text={messageText}
                     isEditing={editingMessageId === msg.id}
                     editedContent={editedContent}
                     onEditedContentChange={setEditedContent}
@@ -529,6 +528,7 @@ export function AliaChatMessageList({
                 ) : (
                   <AssistantMessage
                     message={msg}
+                    messageText={messageText}
                     isStreamingThis={isStreamingThis}
                     isLastMessage={isLast}
                     isLoading={isStreaming}
