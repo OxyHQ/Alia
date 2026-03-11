@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   View,
   Pressable,
@@ -134,10 +134,12 @@ export function PromptInput({
   const showExpandIcon = currentHeight > 100;
   const isSimpleMode = !children;
 
-  const contextValue = {
+  const currentValue = value ?? internalValue;
+  const currentSetValue = onValueChange ?? handleChange;
+  const contextValue = useMemo(() => ({
     isLoading,
-    value: value ?? internalValue,
-    setValue: onValueChange ?? handleChange,
+    value: currentValue,
+    setValue: currentSetValue,
     maxHeight,
     onSubmit: handleSubmit,
     disabled,
@@ -152,7 +154,12 @@ export function PromptInput({
     updateAttachment,
     handleCompletionKey,
     setHandleCompletionKey,
-  };
+  }), [
+    isLoading, currentValue, currentSetValue, maxHeight, handleSubmit,
+    disabled, currentHeight, showFullscreen, onImagePaste,
+    attachments, addAttachment, removeAttachment, updateAttachment,
+    handleCompletionKey, setHandleCompletionKey,
+  ]);
 
   const content = isSimpleMode ? (
     <>

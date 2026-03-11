@@ -6,6 +6,7 @@ const THRESHOLD = 50;
 
 export function useScrollToBottom(scrollRef: React.RefObject<ScrollView | null>) {
   const [isAtBottom, setIsAtBottom] = useState(true);
+  const isAtBottomRef = useRef(true);
   const contentHeightRef = useRef(0);
   const scrollHeightRef = useRef(0);
 
@@ -13,7 +14,11 @@ export function useScrollToBottom(scrollRef: React.RefObject<ScrollView | null>)
     const { contentOffset, contentSize, layoutMeasurement } = e.nativeEvent;
     const distanceFromBottom =
       contentSize.height - layoutMeasurement.height - contentOffset.y;
-    setIsAtBottom(distanceFromBottom <= THRESHOLD);
+    const atBottom = distanceFromBottom <= THRESHOLD;
+    if (atBottom !== isAtBottomRef.current) {
+      isAtBottomRef.current = atBottom;
+      setIsAtBottom(atBottom);
+    }
     contentHeightRef.current = contentSize.height;
     scrollHeightRef.current = layoutMeasurement.height;
   }, []);
@@ -22,7 +27,8 @@ export function useScrollToBottom(scrollRef: React.RefObject<ScrollView | null>)
     (_w: number, h: number) => {
       contentHeightRef.current = h;
       const distanceFromBottom = h - scrollHeightRef.current;
-      if (distanceFromBottom <= THRESHOLD) {
+      if (distanceFromBottom <= THRESHOLD && !isAtBottomRef.current) {
+        isAtBottomRef.current = true;
         setIsAtBottom(true);
       }
     },

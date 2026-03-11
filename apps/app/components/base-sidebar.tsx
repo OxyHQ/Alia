@@ -1,6 +1,7 @@
 import React, { useState, useCallback } from "react";
 import { View, ScrollView, NativeSyntheticEvent, NativeScrollEvent } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useColorScheme } from "@/lib/useColorScheme";
 
 interface BaseSidebarProps {
@@ -39,6 +40,7 @@ export const BaseSidebar = React.memo(function BaseSidebar({
   showScrollIndicator = false,
 }: BaseSidebarProps) {
   const { colors } = useColorScheme();
+  const insets = useSafeAreaInsets();
   const [showTopGradient, setShowTopGradient] = useState(false);
   const [showBottomGradient, setShowBottomGradient] = useState(true);
 
@@ -58,7 +60,7 @@ export const BaseSidebar = React.memo(function BaseSidebar({
   return (
     <View className={`flex-1 ${backgroundColor} border-r border-sidebar-border`}>
       {/* Header */}
-      <View className="p-4 md:p-3">
+      <View className="p-4 md:p-3" style={{ paddingTop: insets.top + 16 }}>
         {header}
       </View>
 
@@ -114,7 +116,7 @@ export const BaseSidebar = React.memo(function BaseSidebar({
       </View>
 
       {/* Footer */}
-      <View className="p-3 md:p-2">
+      <View className="p-3 md:p-2" style={{ paddingBottom: insets.bottom + 12 }}>
         {footer}
       </View>
     </View>

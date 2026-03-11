@@ -4,6 +4,7 @@ import {
   View,
   Pressable,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { X } from 'lucide-react-native';
 import { cn } from '@/lib/utils';
 import { Text } from './text';
@@ -62,6 +63,7 @@ const DialogContent = React.forwardRef<
 >(({ className, overlayClassName, showCloseButton, closeButton, children, ...props }, ref) => {
   const { open, onOpenChange } = React.useContext(DialogContext);
   const shouldShowClose = showCloseButton ?? closeButton ?? true;
+  const insets = useSafeAreaInsets();
 
   return (
     <Modal
@@ -76,6 +78,7 @@ const DialogContent = React.forwardRef<
           'flex-1 items-center justify-center bg-black/50 px-4 sm:px-0',
           overlayClassName
         )}
+        style={{ paddingTop: insets.top, paddingBottom: insets.bottom }}
         onPress={() => onOpenChange?.(false)}
       >
         <Pressable

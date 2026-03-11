@@ -8,6 +8,7 @@ import {
   useWindowDimensions,
   StyleSheet,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { X } from "lucide-react-native";
 import { cn } from "@/lib/utils";
 import { Text } from "./text";
@@ -64,6 +65,7 @@ const SheetContent = React.forwardRef<
 >(({ className, overlayClassName, side = "right", children, ...props }, ref) => {
   const { open, onOpenChange } = React.useContext(SheetContext);
   const { width } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
 
   // Responsive: full width (fixed) on mobile, flex on desktop
   const isMobile = width < 640;
@@ -152,7 +154,10 @@ const SheetContent = React.forwardRef<
               !isMobile && "border-l border-border rounded-l-2xl",
               className
             )}
-            style={!isMobile ? styles.sheetInner : undefined}
+            style={[
+              { paddingTop: insets.top },
+              !isMobile ? styles.sheetInner : undefined,
+            ]}
             {...props}
           >
             {children}
