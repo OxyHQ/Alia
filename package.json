@@ -75,19 +75,21 @@
     "react-native-gesture-handler": "2.30.0",
     "react-native-reanimated": "4.2.1",
     "react-native-keyboard-controller": "1.20.7",
-    "expo": "55.0.2",
+    "expo": "55.0.5",
     "expo-blur": "55.0.8",
     "expo-constants": "55.0.7",
-    "expo-file-system": "55.0.9",
+    "expo-file-system": "55.0.10",
     "expo-font": "55.0.4",
+    "expo-image": "55.0.6",
     "@react-native-menu/menu": "2.0.0"
   },
   "dependencies": {
     "@oxyhq/auth": "^2.0.1",
     "@oxyhq/core": "^1.7.0",
-    "@oxyhq/services": "^6.5.0",
+    "@oxyhq/services": "^6.6.0",
+    "@react-native-menu/menu": "2.0.0",
     "@types/ws": "^8.18.1",
-    "expo-router": "~55.0.2",
+    "expo-router": "~55.0.4",
     "ws": "^8.19.0"
   }
 }
