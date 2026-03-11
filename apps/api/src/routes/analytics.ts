@@ -29,7 +29,7 @@ router.get('/usage', async (req: Request, res: Response) => {
     ]);
 
     res.json({ usage, period: days });
-  } catch (error: any) {
+  } catch (error: unknown) {
     log.general.error({ err: error }, 'Analytics query failed');
     res.status(500).json({ error: 'Failed to fetch usage analytics' });
   }
@@ -66,7 +66,7 @@ router.get('/models', async (req: Request, res: Response) => {
     }))).filter(Boolean);
 
     res.json({ models, period: days });
-  } catch (error: any) {
+  } catch (error: unknown) {
     log.general.error({ err: error }, 'Analytics query failed');
     res.status(500).json({ error: 'Failed to fetch model analytics' });
   }
@@ -92,7 +92,7 @@ router.get('/credits', async (req: Request, res: Response) => {
     ]);
 
     res.json({ credits, period: days });
-  } catch (error: any) {
+  } catch (error: unknown) {
     log.general.error({ err: error }, 'Analytics query failed');
     res.status(500).json({ error: 'Failed to fetch credit analytics' });
   }

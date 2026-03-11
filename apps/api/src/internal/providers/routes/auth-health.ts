@@ -34,7 +34,7 @@ router.get('/', async (req: Request, res: Response) => {
         methods: stats,
       },
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     log.providers.error({ err: error }, 'Error getting auth health stats');
     res.status(500).json({
       success: false,

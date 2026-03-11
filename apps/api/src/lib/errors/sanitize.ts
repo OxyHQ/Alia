@@ -38,19 +38,21 @@ export function sanitizeMessage(message: string): string {
  * Sanitize an entire error object for user display.
  * Strips provider names from message and error fields.
  */
-export function sanitizeError(error: any): any {
+export function sanitizeError<T>(error: T): T {
   if (!error) return error;
 
   if (typeof error === 'string') {
-    return sanitizeMessage(error);
+    return sanitizeMessage(error) as T;
   }
 
-  if (error.message) {
-    error.message = sanitizeMessage(error.message);
-  }
+  if (typeof error === 'object' && error !== null) {
+    if ('message' in error && typeof (error as Record<string, unknown>).message === 'string') {
+      (error as Record<string, unknown>).message = sanitizeMessage((error as Record<string, unknown>).message as string);
+    }
 
-  if (error.error && typeof error.error === 'string') {
-    error.error = sanitizeMessage(error.error);
+    if ('error' in error && typeof (error as Record<string, unknown>).error === 'string') {
+      (error as Record<string, unknown>).error = sanitizeMessage((error as Record<string, unknown>).error as string);
+    }
   }
 
   return error;

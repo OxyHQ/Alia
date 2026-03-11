@@ -149,7 +149,7 @@ router.post('/trigger', oxyServiceAuth, async (req, res) => {
     let memory: IUserMemory | null = null;
     try {
       memory = await UserMemory.findOne({ oxyUserId: userId });
-    } catch (error) {
+    } catch (error: unknown) {
       log.general.error({ err: error }, 'Error loading user memory');
     }
 
@@ -157,7 +157,7 @@ router.post('/trigger', oxyServiceAuth, async (req, res) => {
     let oxyUser: OxyUser | null = null;
     try {
       oxyUser = await oxyClient.getUserById(userId) as OxyUser;
-    } catch (error) {
+    } catch (error: unknown) {
       log.general.info({ err: error }, 'Could not fetch Oxy user profile');
     }
 
@@ -231,7 +231,7 @@ router.post('/trigger', oxyServiceAuth, async (req, res) => {
         responseTime,
         0 // no credits charged for internal
       );
-    } catch (error) {
+    } catch (error: unknown) {
       log.general.error({ err: error }, 'Error recording usage');
     }
 
@@ -252,7 +252,7 @@ router.post('/trigger', oxyServiceAuth, async (req, res) => {
       usage: tokenUsage,
       responseTime,
     });
-  } catch (error) {
+  } catch (error: unknown) {
     const responseTime = Date.now() - startTime;
     log.general.error({ err: error }, 'Trigger processing failed');
 

@@ -16,6 +16,14 @@ const s3Client = new S3Client({
 
 const BUCKET_NAME = process.env.AWS_S3_BUCKET || '';
 
+function buildS3Url(key: string): string {
+  if (process.env.AWS_ENDPOINT_URL) {
+    const endpoint = process.env.AWS_ENDPOINT_URL.replace('https://', '');
+    return `https://${BUCKET_NAME}.${endpoint}/${key}`;
+  }
+  return `https://${BUCKET_NAME}.s3.${process.env.AWS_REGION || 'us-east-1'}.amazonaws.com/${key}`;
+}
+
 /**
  * Upload a file to S3
  * @param file - File buffer
@@ -50,15 +58,37 @@ export async function uploadToS3(
 
   await upload.done();
 
-  // Return the public URL
-  // For DigitalOcean Spaces or custom endpoints, construct URL differently
-  if (process.env.AWS_ENDPOINT_URL) {
-    const endpoint = process.env.AWS_ENDPOINT_URL.replace('https://', '');
-    return `https://${BUCKET_NAME}.${endpoint}/${uniqueFilename}`;
-  }
+  return buildS3Url(uniqueFilename);
+}
 
-  // For standard AWS S3
-  return `https://${BUCKET_NAME}.s3.${process.env.AWS_REGION || 'us-east-1'}.amazonaws.com/${uniqueFilename}`;
+/**
+ * Upload a file to S3 with a deterministic (fixed) key.
+ * Overwrites on re-upload — ideal for seeded/static assets.
+ *
+ * @param file - File buffer
+ * @param key - Full S3 key (e.g., 'production/accessories/head-tophat.png')
+ * @param contentType - MIME type
+ * @returns Public URL
+ */
+export async function uploadToS3Deterministic(
+  file: Buffer,
+  key: string,
+  contentType: string,
+): Promise<string> {
+  const upload = new Upload({
+    client: s3Client,
+    params: {
+      Bucket: BUCKET_NAME,
+      Key: key,
+      Body: file,
+      ContentType: contentType,
+      ACL: 'public-read',
+    },
+  });
+
+  await upload.done();
+
+  return buildS3Url(key);
 }
 
 /**

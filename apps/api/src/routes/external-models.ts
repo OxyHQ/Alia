@@ -38,7 +38,7 @@ router.get('/', async (req: Request, res: Response) => {
       count: models.length,
       timestamp: new Date().toISOString(),
     });
-  } catch (error) {
+  } catch (error: unknown) {
     log.models.error({ err: error }, 'Error');
     res.status(500).json({ error: 'Failed to fetch external models' });
   }
@@ -63,7 +63,7 @@ router.get('/organizations', async (_req: Request, res: Response) => {
     ]);
 
     res.json({ organizations: orgs });
-  } catch (error) {
+  } catch (error: unknown) {
     log.models.error({ err: error }, 'Error');
     res.status(500).json({ error: 'Failed to fetch organizations' });
   }
@@ -80,7 +80,7 @@ router.get('/:modelId', async (req: Request, res: Response) => {
       return res.status(404).json({ error: 'Model not found' });
     }
     res.json({ model });
-  } catch (error) {
+  } catch (error: unknown) {
     log.models.error({ err: error }, 'Error');
     res.status(500).json({ error: 'Failed to fetch model' });
   }

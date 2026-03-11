@@ -105,7 +105,7 @@ A score of ${minScore}+ means "passed". Be fair but thorough.`,
     );
 
     return verification;
-  } catch (err: any) {
+  } catch (err: unknown) {
     log.agents.error({ err }, 'Verifier: failed');
     // On verification failure, pass if majority of executors succeeded
     const successRate = executorResults.filter(r => r.success).length / executorResults.length;

@@ -53,7 +53,7 @@ router.get('/', authenticateToken, async (req, res) => {
       .select('-oauthTokens')
       .sort({ createdAt: -1 });
     res.json({ integrations });
-  } catch (error) {
+  } catch (error: unknown) {
     log.general.error({ err: error }, 'List integrations error');
     res.status(500).json({ error: 'Internal server error' });
   }
@@ -180,7 +180,7 @@ router.get('/:service/callback', async (req, res) => {
           const raw = await profileResponse.json();
           profileData = entry.profile.mapResponse(raw);
         }
-      } catch (profileErr) {
+      } catch (profileErr: unknown) {
         log.general.warn({ err: profileErr, service }, 'Profile fetch failed (non-blocking)');
       }
     }
@@ -211,7 +211,7 @@ router.get('/:service/callback', async (req, res) => {
     // Redirect to frontend
     const appUrl = process.env.APP_URL || process.env.WEB_URL || 'http://localhost:3000';
     res.redirect(`${appUrl}/settings/integrations?connected=${service}`);
-  } catch (error) {
+  } catch (error: unknown) {
     log.general.error({ err: error }, 'OAuth callback error');
     res.status(500).json({ error: 'Internal server error' });
   }
@@ -230,7 +230,7 @@ router.delete('/:id', authenticateToken, async (req, res) => {
     }
 
     res.json({ success: true });
-  } catch (error) {
+  } catch (error: unknown) {
     log.general.error({ err: error }, 'Disconnect integration error');
     res.status(500).json({ error: 'Internal server error' });
   }
@@ -255,7 +255,7 @@ router.get('/:id/status', authenticateToken, async (req, res) => {
       connectedAt: integration.connectedAt,
       lastUsedAt: integration.lastUsedAt,
     });
-  } catch (error) {
+  } catch (error: unknown) {
     log.general.error({ err: error }, 'Integration status error');
     res.status(500).json({ error: 'Internal server error' });
   }

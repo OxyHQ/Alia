@@ -47,7 +47,7 @@ router.get('/stats', async (req, res) => {
       hasPreferences: Object.keys(memory.preferences || {}).length > 0,
       hasContext: Object.keys(memory.context || {}).length > 0
     });
-  } catch (error) {
+  } catch (error: unknown) {
     log.memory.error({ err: error }, 'Error fetching memory stats');
     res.status(500).json({ error: 'Failed to fetch memory stats' });
   }
@@ -62,7 +62,7 @@ router.get('/', async (req, res) => {
     const memory = await getOrCreateUserMemory(req.user!.id);
 
     res.json(memory);
-  } catch (error) {
+  } catch (error: unknown) {
     log.memory.error({ err: error }, 'Error fetching memory');
     res.status(500).json({ error: 'Failed to fetch memory' });
   }
@@ -86,7 +86,7 @@ router.put('/context', async (req, res) => {
     );
 
     res.json(memory);
-  } catch (error) {
+  } catch (error: unknown) {
     log.memory.error({ err: error }, 'Error updating context');
     res.status(500).json({ error: 'Failed to update context' });
   }
@@ -110,7 +110,7 @@ router.put('/preferences', async (req, res) => {
     );
 
     res.json(memory);
-  } catch (error) {
+  } catch (error: unknown) {
     log.memory.error({ err: error }, 'Error updating preferences');
     res.status(500).json({ error: 'Failed to update preferences' });
   }
@@ -178,7 +178,7 @@ router.post('/add', async (req, res) => {
 
     await userMemory.save();
     res.json(userMemory);
-  } catch (error) {
+  } catch (error: unknown) {
     log.memory.error({ err: error }, 'Error adding memory');
     res.status(500).json({ error: 'Failed to add memory' });
   }
@@ -246,7 +246,7 @@ router.get('/semantic-search', async (req, res) => {
       method: queryEmbedding ? 'hybrid' : 'text',
       totalMemories: memory.memories.length,
     });
-  } catch (error) {
+  } catch (error: unknown) {
     log.memory.error({ err: error }, 'Semantic search error');
     res.status(500).json({ error: 'Search failed' });
   }
@@ -287,7 +287,7 @@ router.put('/:memoryId', async (req, res) => {
     }
 
     res.json(memory);
-  } catch (error) {
+  } catch (error: unknown) {
     log.memory.error({ err: error }, 'Error updating memory');
     res.status(500).json({ error: 'Failed to update memory' });
   }
@@ -315,7 +315,7 @@ router.delete('/:memoryId', async (req, res) => {
     }
 
     res.json(memory);
-  } catch (error) {
+  } catch (error: unknown) {
     log.memory.error({ err: error }, 'Error deleting memory');
     res.status(500).json({ error: 'Failed to delete memory' });
   }
@@ -373,7 +373,7 @@ router.get('/search', async (req, res) => {
       limit: limitNum,
       offset: offsetNum
     });
-  } catch (error) {
+  } catch (error: unknown) {
     log.memory.error({ err: error }, 'Search error');
     res.status(500).json({ error: 'Search failed' });
   }
@@ -409,7 +409,7 @@ router.get('/duplicates', async (req, res) => {
     }
 
     res.json({ duplicates, count: duplicates.length });
-  } catch (error) {
+  } catch (error: unknown) {
     log.memory.error({ err: error }, 'Duplicate detection error');
     res.status(500).json({ error: 'Failed to detect duplicates' });
   }
@@ -465,7 +465,7 @@ router.get('/export/preview', async (req, res) => {
       oldestMemory,
       newestMemory,
     });
-  } catch (error) {
+  } catch (error: unknown) {
     log.memory.error({ err: error }, 'Export preview error');
     res.status(500).json({ error: 'Failed to generate preview' });
   }
@@ -504,7 +504,7 @@ router.get('/export/json', async (req, res) => {
     res.setHeader('Content-Disposition', `attachment; filename="alia-memories-${Date.now()}.json"`);
 
     res.json(exportData);
-  } catch (error) {
+  } catch (error: unknown) {
     log.memory.error({ err: error }, 'Export JSON error');
     res.status(500).json({ error: 'Failed to export memories' });
   }
@@ -555,7 +555,7 @@ router.get('/export/csv', async (req, res) => {
     res.setHeader('Content-Disposition', `attachment; filename="alia-memories-${Date.now()}.csv"`);
 
     res.send(csv);
-  } catch (error) {
+  } catch (error: unknown) {
     log.memory.error({ err: error }, 'Export CSV error');
     res.status(500).json({ error: 'Failed to export memories' });
   }
@@ -638,7 +638,7 @@ router.post('/import/validate', async (req, res) => {
       },
     });
 
-  } catch (error) {
+  } catch (error: unknown) {
     log.memory.error({ err: error }, 'Validation error');
     res.status(500).json({ error: 'Validation failed' });
   }
@@ -788,7 +788,7 @@ router.post('/import', async (req, res) => {
       totalMemories: memory.memories.length,
     });
 
-  } catch (error) {
+  } catch (error: unknown) {
     log.memory.error({ err: error }, 'Import error');
     res.status(500).json({ error: 'Failed to import memories' });
   }

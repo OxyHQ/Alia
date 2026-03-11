@@ -18,6 +18,7 @@ import { getCurrentDateTool } from './date.js';
 import { webScraperTool } from './web-scraper.js';
 import { evolveAgentSoul } from '../agent-soul.js';
 import { log } from '../logger.js';
+import { getErrorMessage } from '../errors/index.js';
 
 const AGENT_TIMEOUT_MS = 45_000;
 const AGENT_MAX_STEPS = 5;
@@ -131,7 +132,7 @@ export const createDelegateToAgentTool = () => tool({
       } finally {
         clearTimeout(timeout);
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       log.general.error({ err: error, agentId }, 'Agent delegation failed');
       return {
         agentId,
@@ -140,9 +141,9 @@ export const createDelegateToAgentTool = () => tool({
         agentAvatar: null,
         response: '',
         tokensUsed: 0,
-        error: error.name === 'AbortError'
+        error: error instanceof Error && error.name === 'AbortError'
           ? 'Agent timed out (45s)'
-          : (error.message || 'Agent execution failed'),
+          : getErrorMessage(error),
       };
     }
   },

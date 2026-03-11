@@ -37,7 +37,7 @@ router.get('/transactions', async (req: Request, res: Response) => {
       total,
       data: transactions,
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     log.providers.error({ err: error }, 'Error listing transactions');
     res.status(500).json({
       success: false,
@@ -73,7 +73,7 @@ router.get('/subscriptions', async (req: Request, res: Response) => {
       total,
       data: subscriptions,
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     log.providers.error({ err: error }, 'Error listing subscriptions');
     res.status(500).json({
       success: false,
@@ -105,7 +105,7 @@ router.get('/user/:userId', async (req: Request, res: Response) => {
         transactions,
       },
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     log.providers.error({ err: error }, 'Error getting user billing summary');
     res.status(500).json({
       success: false,

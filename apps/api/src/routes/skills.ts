@@ -15,7 +15,7 @@ const router = Router();
 router.get('/', async (req: Request, res: Response) => {
   try {
     const { language, category } = req.query;
-    const filter: any = {
+    const filter: Record<string, unknown> = {
       $or: [{ isPublished: true }, { isBuiltIn: true }],
     };
 
@@ -31,7 +31,7 @@ router.get('/', async (req: Request, res: Response) => {
       .sort({ category: 1, title: 1 })
       .lean();
     res.json({ skills });
-  } catch (error: any) {
+  } catch (error: unknown) {
     log.skills.error({ err: error }, 'Error listing skills');
     res.status(500).json({ error: 'Failed to list skills' });
   }
@@ -51,7 +51,7 @@ router.get('/me', authenticateToken, async (req: Request, res: Response) => {
       .sort({ createdAt: -1 })
       .lean();
     res.json({ skills });
-  } catch (error: any) {
+  } catch (error: unknown) {
     log.skills.error({ err: error }, 'Error listing user skills');
     res.status(500).json({ error: 'Failed to list your skills' });
   }
@@ -130,7 +130,7 @@ Do not include any text outside the JSON object.`,
           maxRetries: 0,
         });
         break;
-      } catch (providerError: any) {
+      } catch (providerError: unknown) {
         log.skills.error({ err: providerError, provider: resolved.provider, attempt }, 'Provider failed for skill generation');
         skipProviders.add(resolved.provider);
         if (attempt >= MAX_PROVIDER_RETRIES - 1) throw providerError;
@@ -184,7 +184,7 @@ Do not include any text outside the JSON object.`,
       goodAt: Array.isArray(parsed.goodAt) ? parsed.goodAt.slice(0, 10) : [],
       notGoodAt: Array.isArray(parsed.notGoodAt) ? parsed.notGoodAt.slice(0, 10) : [],
     });
-  } catch (error) {
+  } catch (error: unknown) {
     log.skills.error({ err: error }, 'Error generating skill config');
     res.status(500).json({ error: 'Failed to generate skill configuration' });
   }
@@ -210,7 +210,7 @@ router.get('/:skillId', optionalAuth, async (req: Request, res: Response) => {
       }
     }
     res.json({ skill });
-  } catch (error: any) {
+  } catch (error: unknown) {
     log.skills.error({ err: error }, 'Error getting skill');
     res.status(500).json({ error: 'Failed to get skill' });
   }
@@ -229,7 +229,7 @@ router.get('/:skillId/prompt', authenticateToken, async (req: Request, res: Resp
       return res.status(404).json({ error: 'Skill not found' });
     }
     res.json({ skillId: skill.skillId, title: skill.title, systemPrompt: skill.systemPrompt });
-  } catch (error: any) {
+  } catch (error: unknown) {
     log.skills.error({ err: error }, 'Error getting skill prompt');
     res.status(500).json({ error: 'Failed to get skill prompt' });
   }
@@ -305,7 +305,7 @@ router.post('/', authenticateToken, async (req: Request, res: Response) => {
     const result = skill.toObject();
     delete (result as any).systemPrompt;
     res.status(201).json({ skill: result });
-  } catch (error: any) {
+  } catch (error: unknown) {
     log.skills.error({ err: error }, 'Error creating skill');
     res.status(500).json({ error: 'Failed to create skill' });
   }
@@ -349,7 +349,7 @@ router.patch('/:skillId', authenticateToken, async (req: Request, res: Response)
     const result = skill.toObject();
     delete (result as any).systemPrompt;
     res.json({ skill: result });
-  } catch (error: any) {
+  } catch (error: unknown) {
     log.skills.error({ err: error }, 'Error updating skill');
     res.status(500).json({ error: 'Failed to update skill' });
   }
@@ -376,7 +376,7 @@ router.delete('/:skillId', authenticateToken, async (req: Request, res: Response
     }
 
     res.json({ success: true });
-  } catch (error: any) {
+  } catch (error: unknown) {
     log.skills.error({ err: error }, 'Error deleting skill');
     res.status(500).json({ error: 'Failed to delete skill' });
   }

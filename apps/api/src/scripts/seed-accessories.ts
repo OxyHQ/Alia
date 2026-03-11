@@ -1,18 +1,30 @@
 /**
- * Seed script: Register default accessories in the catalog
+ * Seed script: Register default accessories in the catalog and upload PNGs to S3
  *
  * Usage: npx tsx src/scripts/seed-accessories.ts
  *
- * Upserts accessory documents by slug so all users have the default set.
- * Safe to run multiple times — uses upsert by slug.
+ * - Reads PNGs from the app's assets/accessories/ directory
+ * - Uploads each to S3 under {env}/accessories/{slug}.png (deterministic key)
+ * - Upserts accessory documents by slug with the S3 URL
+ * - Safe to run multiple times — deterministic keys overwrite, upsert by slug
  */
 
 import mongoose from 'mongoose';
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
 import { Accessory } from '../models/accessory.js';
+import { uploadToS3Deterministic } from '../lib/s3.js';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const MONGODB_URI = process.env.MONGODB_URI!;
 const NODE_ENV = process.env.NODE_ENV || 'development';
 const DB_NAME = `alia-${NODE_ENV}`;
+
+/** Path to bundled accessory PNGs */
+const ASSETS_DIR = path.resolve(__dirname, '../../../app/assets/accessories');
 
 type AccessorySlot = 'head' | 'face' | 'neck';
 type AccessoryLayer = 'front' | 'behind';
@@ -23,229 +35,81 @@ interface SeedAccessory {
   slug: string;
   slot: AccessorySlot;
   layer: AccessoryLayer;
-  imageUrl: string;
+  /** Filename in assets/accessories/ (also used as S3 key suffix) */
+  filename: string;
   price: number;
   rarity: AccessoryRarity;
   isDefault: boolean;
 }
 
-// Default accessories — free for all users
-// imageUrl references the bundled asset name (used by the app's local registry)
 const DEFAULT_ACCESSORIES: SeedAccessory[] = [
-  {
-    name: 'Top Hat',
-    slug: 'head-tophat',
-    slot: 'head',
-    layer: 'front',
-    imageUrl: 'head-tophat.png',
-    price: 0,
-    rarity: 'common',
-    isDefault: true,
-  },
-  {
-    name: 'Headphones',
-    slug: 'head-headphones',
-    slot: 'head',
-    layer: 'behind',
-    imageUrl: 'head-headphones.png',
-    price: 0,
-    rarity: 'common',
-    isDefault: true,
-  },
-  {
-    name: 'Crown',
-    slug: 'head-crown',
-    slot: 'head',
-    layer: 'front',
-    imageUrl: 'head-crown.png',
-    price: 0,
-    rarity: 'uncommon',
-    isDefault: true,
-  },
-  {
-    name: 'Glasses',
-    slug: 'face-glasses',
-    slot: 'face',
-    layer: 'front',
-    imageUrl: 'face-glasses.png',
-    price: 0,
-    rarity: 'common',
-    isDefault: true,
-  },
-  {
-    name: 'Sunglasses',
-    slug: 'face-sunglasses',
-    slot: 'face',
-    layer: 'front',
-    imageUrl: 'face-sunglasses.png',
-    price: 0,
-    rarity: 'common',
-    isDefault: true,
-  },
-  {
-    name: 'Tie',
-    slug: 'neck-tie',
-    slot: 'neck',
-    layer: 'front',
-    imageUrl: 'neck-tie.png',
-    price: 0,
-    rarity: 'common',
-    isDefault: true,
-  },
-  {
-    name: 'Bow Tie',
-    slug: 'neck-bowtie',
-    slot: 'neck',
-    layer: 'front',
-    imageUrl: 'neck-bowtie.png',
-    price: 0,
-    rarity: 'common',
-    isDefault: true,
-  },
-  {
-    name: 'Apple',
-    slug: 'head-apple',
-    slot: 'head',
-    layer: 'front',
-    imageUrl: 'head-apple.png',
-    price: 0,
-    rarity: 'common',
-    isDefault: true,
-  },
-  {
-    name: 'Scarf',
-    slug: 'neck-scarf',
-    slot: 'neck',
-    layer: 'front',
-    imageUrl: 'neck-scarf.png',
-    price: 0,
-    rarity: 'common',
-    isDefault: true,
-  },
-  {
-    name: 'Firefighter Helmet',
-    slug: 'head-firefighter-helmet',
-    slot: 'head',
-    layer: 'front',
-    imageUrl: 'head-firefighter-helmet.png',
-    price: 0,
-    rarity: 'uncommon',
-    isDefault: true,
-  },
-  {
-    name: 'Cat',
-    slug: 'head-cat',
-    slot: 'head',
-    layer: 'front',
-    imageUrl: 'head-cat.png',
-    price: 0,
-    rarity: 'common',
-    isDefault: true,
-  },
-  {
-    name: 'Blue Crown',
-    slug: 'head-blue-crown',
-    slot: 'head',
-    layer: 'front',
-    imageUrl: 'head-blue-crown.png',
-    price: 0,
-    rarity: 'uncommon',
-    isDefault: true,
-  },
-  {
-    name: 'Rubber Duck',
-    slug: 'head-duck',
-    slot: 'head',
-    layer: 'front',
-    imageUrl: 'head-duck.png',
-    price: 0,
-    rarity: 'common',
-    isDefault: true,
-  },
-  {
-    name: 'Flower',
-    slug: 'head-flower',
-    slot: 'head',
-    layer: 'front',
-    imageUrl: 'head-flower.png',
-    price: 0,
-    rarity: 'common',
-    isDefault: true,
-  },
-  {
-    name: 'Propeller Hat',
-    slug: 'head-propeller-hat',
-    slot: 'head',
-    layer: 'front',
-    imageUrl: 'head-propeller-hat.png',
-    price: 0,
-    rarity: 'uncommon',
-    isDefault: true,
-  },
-  {
-    name: 'Cowboy Hat',
-    slug: 'head-cowboy-hat',
-    slot: 'head',
-    layer: 'front',
-    imageUrl: 'head-cowboy-hat.png',
-    price: 0,
-    rarity: 'common',
-    isDefault: true,
-  },
-  {
-    name: 'Leaf',
-    slug: 'head-leaf',
-    slot: 'head',
-    layer: 'front',
-    imageUrl: 'head-leaf.png',
-    price: 0,
-    rarity: 'common',
-    isDefault: true,
-  },
-  {
-    name: 'Ribbon',
-    slug: 'head-ribbon',
-    slot: 'head',
-    layer: 'front',
-    imageUrl: 'head-ribbon.png',
-    price: 0,
-    rarity: 'common',
-    isDefault: true,
-  },
-  {
-    name: 'Pencil',
-    slug: 'head-pencil',
-    slot: 'head',
-    layer: 'front',
-    imageUrl: 'head-pencil.png',
-    price: 0,
-    rarity: 'common',
-    isDefault: true,
-  },
-  {
-    name: 'Pepper',
-    slug: 'head-pepper',
-    slot: 'head',
-    layer: 'front',
-    imageUrl: 'head-pepper.png',
-    price: 0,
-    rarity: 'uncommon',
-    isDefault: true,
-  },
+  { name: 'Top Hat', slug: 'head-tophat', slot: 'head', layer: 'front', filename: 'head-tophat.png', price: 0, rarity: 'common', isDefault: true },
+  { name: 'Headphones', slug: 'head-headphones', slot: 'head', layer: 'behind', filename: 'head-headphones.png', price: 0, rarity: 'common', isDefault: true },
+  { name: 'Crown', slug: 'head-crown', slot: 'head', layer: 'front', filename: 'head-crown.png', price: 0, rarity: 'uncommon', isDefault: true },
+  { name: 'Glasses', slug: 'face-glasses', slot: 'face', layer: 'front', filename: 'face-glasses.png', price: 0, rarity: 'common', isDefault: true },
+  { name: 'Sunglasses', slug: 'face-sunglasses', slot: 'face', layer: 'front', filename: 'face-sunglasses.png', price: 0, rarity: 'common', isDefault: true },
+  { name: 'Tie', slug: 'neck-tie', slot: 'neck', layer: 'front', filename: 'neck-tie.png', price: 0, rarity: 'common', isDefault: true },
+  { name: 'Bow Tie', slug: 'neck-bowtie', slot: 'neck', layer: 'front', filename: 'neck-bowtie.png', price: 0, rarity: 'common', isDefault: true },
+  { name: 'Apple', slug: 'head-apple', slot: 'head', layer: 'front', filename: 'head-apple.png', price: 0, rarity: 'common', isDefault: true },
+  { name: 'Scarf', slug: 'neck-scarf', slot: 'neck', layer: 'front', filename: 'neck-scarf.png', price: 0, rarity: 'common', isDefault: true },
+  { name: 'Firefighter Helmet', slug: 'head-firefighter-helmet', slot: 'head', layer: 'front', filename: 'head-firefighter-helmet.png', price: 0, rarity: 'uncommon', isDefault: true },
+  { name: 'Cat', slug: 'head-cat', slot: 'head', layer: 'front', filename: 'head-cat.png', price: 0, rarity: 'common', isDefault: true },
+  { name: 'Blue Crown', slug: 'head-blue-crown', slot: 'head', layer: 'front', filename: 'head-blue-crown.png', price: 0, rarity: 'uncommon', isDefault: true },
+  { name: 'Rubber Duck', slug: 'head-duck', slot: 'head', layer: 'front', filename: 'head-duck.png', price: 0, rarity: 'common', isDefault: true },
+  { name: 'Flower', slug: 'head-flower', slot: 'head', layer: 'front', filename: 'head-flower.png', price: 0, rarity: 'common', isDefault: true },
+  { name: 'Propeller Hat', slug: 'head-propeller-hat', slot: 'head', layer: 'front', filename: 'head-propeller-hat.png', price: 0, rarity: 'uncommon', isDefault: true },
+  { name: 'Cowboy Hat', slug: 'head-cowboy-hat', slot: 'head', layer: 'front', filename: 'head-cowboy-hat.png', price: 0, rarity: 'common', isDefault: true },
+  { name: 'Leaf', slug: 'head-leaf', slot: 'head', layer: 'front', filename: 'head-leaf.png', price: 0, rarity: 'common', isDefault: true },
+  { name: 'Ribbon', slug: 'head-ribbon', slot: 'head', layer: 'front', filename: 'head-ribbon.png', price: 0, rarity: 'common', isDefault: true },
+  { name: 'Pencil', slug: 'head-pencil', slot: 'head', layer: 'front', filename: 'head-pencil.png', price: 0, rarity: 'common', isDefault: true },
+  { name: 'Pepper', slug: 'head-pepper', slot: 'head', layer: 'front', filename: 'head-pepper.png', price: 0, rarity: 'uncommon', isDefault: true },
 ];
 
 async function main() {
   console.log(`Connecting to ${DB_NAME}...`);
   await mongoose.connect(MONGODB_URI, { dbName: DB_NAME });
-  console.log('Connected.');
+  console.log('Connected.\n');
 
-  for (const acc of DEFAULT_ACCESSORIES) {
+  console.log(`Reading PNGs from ${ASSETS_DIR}`);
+  console.log(`Uploading to S3 under ${NODE_ENV}/accessories/\n`);
+
+  // Upload all PNGs to S3 in parallel
+  const imageUrls = await Promise.all(
+    DEFAULT_ACCESSORIES.map(async (acc) => {
+      const filePath = path.join(ASSETS_DIR, acc.filename);
+      if (fs.existsSync(filePath)) {
+        const buffer = fs.readFileSync(filePath);
+        const key = `${NODE_ENV}/accessories/${acc.slug}.png`;
+        const url = await uploadToS3Deterministic(buffer, key, 'image/png');
+        console.log(`  ↑ S3: ${key}`);
+        return url;
+      }
+      console.warn(`  ⚠ PNG not found: ${filePath} — using filename as fallback`);
+      return acc.filename;
+    })
+  );
+
+  // Upsert catalog entries with S3 URLs
+  for (let i = 0; i < DEFAULT_ACCESSORIES.length; i++) {
+    const acc = DEFAULT_ACCESSORIES[i];
     const result = await Accessory.findOneAndUpdate(
       { slug: acc.slug },
-      { $set: { ...acc, isPublished: true } },
+      {
+        $set: {
+          name: acc.name,
+          slug: acc.slug,
+          slot: acc.slot,
+          layer: acc.layer,
+          imageUrl: imageUrls[i],
+          price: acc.price,
+          rarity: acc.rarity,
+          isDefault: acc.isDefault,
+          isPublished: true,
+        },
+      },
       { upsert: true, returnDocument: 'after' }
     );
-    console.log(`  ✓ ${result!.slug} (${result!._id}) — ${result!.name}`);
+    console.log(`  ✓ ${result!.slug} — ${result!.name}`);
   }
 
   console.log(`\nSeeded ${DEFAULT_ACCESSORIES.length} accessories.`);

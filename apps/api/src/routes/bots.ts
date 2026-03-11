@@ -23,7 +23,7 @@ router.get('/', authenticateToken, async (_req, res) => {
   try {
     const bots = await Bot.find({ status: { $ne: 'inactive' } }).select('-platformConfig');
     res.json({ bots });
-  } catch (error) {
+  } catch (error: unknown) {
     log.channels.error({ err: error }, 'List bots error');
     res.status(500).json({ error: 'Internal server error' });
   }
@@ -37,7 +37,7 @@ router.get('/:id', authenticateToken, async (req, res) => {
       return res.status(404).json({ error: 'Bot not found' });
     }
     res.json({ bot });
-  } catch (error) {
+  } catch (error: unknown) {
     log.channels.error({ err: error }, 'Get bot error');
     res.status(500).json({ error: 'Internal server error' });
   }
@@ -67,7 +67,7 @@ router.get('/:id/link-status', authenticateToken, async (req, res) => {
       displayName: botUser.displayName,
       linkedAt: botUser.linkedAt,
     });
-  } catch (error) {
+  } catch (error: unknown) {
     log.channels.error({ err: error }, 'Link status error');
     res.status(500).json({ error: 'Internal server error' });
   }
@@ -107,7 +107,7 @@ router.post('/:id/link', authenticateToken, async (req, res) => {
     await botUser.save();
 
     res.json({ success: true });
-  } catch (error) {
+  } catch (error: unknown) {
     log.channels.error({ err: error }, 'Link error');
     res.status(500).json({ error: 'Internal server error' });
   }
@@ -138,7 +138,7 @@ router.post('/:id/unlink', authenticateToken, async (req, res) => {
     await botUser.save();
 
     res.json({ success: true });
-  } catch (error) {
+  } catch (error: unknown) {
     log.channels.error({ err: error }, 'Unlink error');
     res.status(500).json({ error: 'Internal server error' });
   }
@@ -179,7 +179,7 @@ router.post('/platform/:platform/link', authenticateToken, async (req, res) => {
     await botUser.save();
 
     res.json({ success: true });
-  } catch (error) {
+  } catch (error: unknown) {
     log.channels.error({ err: error }, 'Platform link error');
     res.status(500).json({ error: 'Internal server error' });
   }
@@ -242,7 +242,7 @@ router.post('/internal/:platform/users', botAuth, async (req, res) => {
       preferredModel: botUser.preferredModel,
       oxyUserId: botUser.oxyUserId,
     });
-  } catch (error) {
+  } catch (error: unknown) {
     log.channels.error({ err: error }, 'Create/update bot user error');
     res.status(500).json({ error: 'Internal server error' });
   }
@@ -275,7 +275,7 @@ router.get('/internal/:platform/users/:platformUserId', botAuth, async (req, res
       linkedAt: botUser.linkedAt,
       preferredModel: botUser.preferredModel,
     });
-  } catch (error) {
+  } catch (error: unknown) {
     log.channels.error({ err: error }, 'Get bot user error');
     res.status(500).json({ error: 'Internal server error' });
   }
@@ -313,7 +313,7 @@ router.post('/internal/:platform/auth-request', botAuth, async (req, res) => {
       authUrl,
       expiresAt: botUser.authTokenExpiry,
     });
-  } catch (error) {
+  } catch (error: unknown) {
     log.channels.error({ err: error }, 'Auth request error');
     res.status(500).json({ error: 'Internal server error' });
   }
@@ -347,7 +347,7 @@ router.get('/internal/:platform/verify', async (req, res) => {
     const appUrl = process.env.APP_URL || process.env.WEB_URL || 'http://localhost:3000';
     const redirectUrl = `${appUrl}/channel-auth?token=${token}&channel=${platform}`;
     res.redirect(redirectUrl);
-  } catch (error) {
+  } catch (error: unknown) {
     log.channels.error({ err: error }, 'Verify error');
     res.status(500).json({ error: 'Internal server error' });
   }
@@ -379,7 +379,7 @@ router.get('/internal/:platform/users/token/:token', async (req, res) => {
       isLinked: botUser.isLinked,
       displayName: botUser.displayName || botUser.username || '',
     });
-  } catch (error) {
+  } catch (error: unknown) {
     log.channels.error({ err: error }, 'Token info error');
     res.status(500).json({ error: 'Internal server error' });
   }
@@ -406,7 +406,7 @@ router.get('/internal/:platform/check-token/:token', async (req, res) => {
     }
 
     res.json({ valid: true, expiresAt: botUser.authTokenExpiry });
-  } catch (error) {
+  } catch (error: unknown) {
     log.channels.error({ err: error }, 'Check token error');
     res.status(500).json({ error: 'Internal server error' });
   }
@@ -432,7 +432,7 @@ router.post('/internal/:platform/users/:platformUserId/conversation', botAuth, a
     await botUser.save();
 
     res.json({ success: true, conversationId });
-  } catch (error) {
+  } catch (error: unknown) {
     log.channels.error({ err: error }, 'Update conversation error');
     res.status(500).json({ error: 'Internal server error' });
   }
@@ -462,7 +462,7 @@ router.post('/internal/:platform/users/:platformUserId/model', botAuth, async (r
     await botUser.save();
 
     res.json({ success: true, model });
-  } catch (error) {
+  } catch (error: unknown) {
     log.channels.error({ err: error }, 'Update model error');
     res.status(500).json({ error: 'Internal server error' });
   }
@@ -489,7 +489,7 @@ router.post('/internal/:platform/users/:platformUserId/logout', botAuth, async (
     await botUser.save();
 
     res.json({ success: true, message: 'Logged out successfully' });
-  } catch (error) {
+  } catch (error: unknown) {
     log.channels.error({ err: error }, 'Logout error');
     res.status(500).json({ error: 'Internal server error' });
   }

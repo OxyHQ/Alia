@@ -21,6 +21,7 @@ import { getCurrentDateTool } from './date.js';
 import { webScraperTool } from './web-scraper.js';
 import { formatSoul, type AgentSoul } from '../agent-soul.js';
 import { log } from '../logger.js';
+import { getErrorMessage } from '../errors/index.js';
 
 const ORCHESTRATOR_TIMEOUT_MS = 120_000; // 2 minutes total
 const AGENT_STEP_TIMEOUT_MS = 45_000;    // 45s per agent
@@ -148,7 +149,7 @@ async function executeAgent(
     } finally {
       clearTimeout(timeout);
     }
-  } catch (error: any) {
+  } catch (error: unknown) {
     log.general.error({ err: error, agentId: agentTask.agentId, role: agentTask.role }, 'Orchestrated agent failed');
     return {
       role: agentTask.role,
@@ -156,9 +157,9 @@ async function executeAgent(
       agentName: 'Unknown',
       response: '',
       tokensUsed: 0,
-      error: error.name === 'AbortError'
+      error: error instanceof Error && error.name === 'AbortError'
         ? 'Agent timed out (45s)'
-        : (error.message || 'Agent execution failed'),
+        : getErrorMessage(error),
     };
   }
 }

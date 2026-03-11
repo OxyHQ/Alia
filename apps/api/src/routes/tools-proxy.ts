@@ -51,7 +51,7 @@ async function proxyToIntegrations(
 
       res.status(response.status).json(data);
       return;
-    } catch (error) {
+    } catch (error: unknown) {
       log.channels.error({ err: error, label, attempt: attempt + 1 }, 'Tools proxy error');
       if (attempt < MAX_ATTEMPTS - 1) {
         await new Promise(r => setTimeout(r, BACKOFF_MS[attempt]));

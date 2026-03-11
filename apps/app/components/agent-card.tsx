@@ -1,7 +1,7 @@
 import React from "react";
 import { View, Pressable } from "react-native";
 import { Text } from "@/components/ui/text";
-import { AgentPlaceholder } from "@/components/ui/agent-placeholder";
+import { AliaFace } from "@/components/ui/alia-face";
 import { Button } from "@/components/ui/button";
 import { BadgeCheck, Zap } from "lucide-react-native";
 import { cn } from "@/lib/utils";
@@ -50,7 +50,7 @@ export const AgentCard = React.memo(function AgentCard({
         {/* Top row: Avatar (left) + Chat button (right) — like Twitter avatar + Follow */}
         <View className="flex-row items-start justify-between">
           <View className="relative">
-            <AgentPlaceholder
+            <AliaFace
               size={isFeatured ? 64 : 56}
               accessories={agent.accessories}
             />

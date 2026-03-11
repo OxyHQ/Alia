@@ -69,7 +69,7 @@ router.get('/stats', async (req: Request, res: Response) => {
             totalSuccessRate += health.successRate * health.totalRequests;
             totalRequests += health.totalRequests;
           }
-        } catch (error) {
+        } catch (error: unknown) {
           log.models.error({ err: error, provider: mapping.provider }, 'Error getting health for provider');
         }
       }
@@ -110,7 +110,7 @@ router.get('/stats', async (req: Request, res: Response) => {
       count: modelStats.length,
       timestamp: new Date().toISOString()
     });
-  } catch (error) {
+  } catch (error: unknown) {
     log.models.error({ err: error }, 'Error fetching model stats');
     res.status(500).json({
       error: {
@@ -173,7 +173,7 @@ router.get('/stats/:modelId', async (req: Request, res: Response) => {
         if (health.lastFailure && (!lastFailure || health.lastFailure > lastFailure)) {
           lastFailure = health.lastFailure;
         }
-      } catch (error) {
+      } catch (error: unknown) {
         log.models.error({ err: error, provider: mapping.provider }, 'Error getting health for provider');
       }
     }
@@ -207,7 +207,7 @@ router.get('/stats/:modelId', async (req: Request, res: Response) => {
       },
       timestamp: new Date().toISOString()
     });
-  } catch (error) {
+  } catch (error: unknown) {
     log.models.error({ err: error }, 'Error fetching model stats');
     res.status(500).json({
       error: {

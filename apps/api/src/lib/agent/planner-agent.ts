@@ -118,7 +118,7 @@ ${context?.agentDescription ? `\nAgent description: ${context.agentDescription}`
     );
 
     return plan;
-  } catch (err: any) {
+  } catch (err: unknown) {
     log.agents.error({ err }, 'Planner: failed to generate plan');
     // Fallback: single subtask = the original task
     return {

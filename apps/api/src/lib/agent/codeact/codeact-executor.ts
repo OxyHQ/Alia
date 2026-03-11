@@ -12,6 +12,7 @@
 
 import { getSandboxProvider } from '../../sandbox/index.js';
 import { log } from '../../logger.js';
+import { getErrorMessage } from '../../errors/index.js';
 import { checkCodeSafety, MAX_CODE_LENGTH, DEFAULT_EXEC_TIMEOUT } from './codeact-sandbox.js';
 
 export interface CodeActResult {
@@ -91,11 +92,11 @@ export async function executeCode(opts: CodeActOptions): Promise<CodeActResult> 
   // ── 4. Write code to file ──
   try {
     await sandbox.writeFile(containerId, filePath, code);
-  } catch (err: any) {
+  } catch (err: unknown) {
     return {
       success: false,
       stdout: '',
-      stderr: `Failed to write script: ${err.message}`,
+      stderr: `Failed to write script: ${getErrorMessage(err)}`,
       exitCode: 1,
       filePath,
       executionTimeMs: Date.now() - startMs,
@@ -127,18 +128,19 @@ export async function executeCode(opts: CodeActOptions): Promise<CodeActResult> 
       executionTimeMs,
       safetyWarnings: safetyCheck.warnings,
     };
-  } catch (err: any) {
+  } catch (err: unknown) {
     const executionTimeMs = Date.now() - startMs;
-    const isTimeout = err.message?.includes('timeout') || executionTimeMs >= timeout;
+    const errMsg = getErrorMessage(err);
+    const isTimeout = errMsg.includes('timeout') || executionTimeMs >= timeout;
 
-    log.agents.error({ containerId, seq, err: err.message, executionTimeMs }, 'CodeAct: execution error');
+    log.agents.error({ containerId, seq, err: errMsg, executionTimeMs }, 'CodeAct: execution error');
 
     return {
       success: false,
       stdout: '',
       stderr: isTimeout
         ? `Execution timed out after ${Math.round(timeout / 1000)}s. Consider breaking the task into smaller steps.`
-        : `Execution error: ${err.message}`,
+        : `Execution error: ${errMsg}`,
       exitCode: isTimeout ? 124 : 1,
       filePath,
       executionTimeMs,

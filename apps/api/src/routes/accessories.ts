@@ -14,7 +14,7 @@ router.get('/', async (_req: Request, res: Response) => {
       .sort({ slot: 1, rarity: 1, name: 1 })
       .lean();
     res.json({ accessories });
-  } catch (error) {
+  } catch (error: unknown) {
     log.general.error({ err: error }, 'Error listing accessories');
     res.status(500).json({ error: 'Failed to list accessories' });
   }
@@ -31,7 +31,7 @@ router.get('/me', authenticateToken, async (req: Request, res: Response) => {
     // Client already knows which accessories are isDefault from the catalog.
     // Return only the user's explicitly purchased accessories.
     res.json({ owned: userAcc?.ownedAccessories ?? [] });
-  } catch (error) {
+  } catch (error: unknown) {
     log.general.error({ err: error }, 'Error getting user accessories');
     res.status(500).json({ error: 'Failed to get owned accessories' });
   }
@@ -88,7 +88,7 @@ router.post('/:id/purchase', authenticateToken, async (req: Request, res: Respon
     }
 
     res.json({ owned: claimed.ownedAccessories, purchased: accessoryIdStr });
-  } catch (error) {
+  } catch (error: unknown) {
     log.general.error({ err: error }, 'Error purchasing accessory');
     res.status(500).json({ error: 'Failed to purchase accessory' });
   }

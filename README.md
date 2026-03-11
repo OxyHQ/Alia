@@ -42,6 +42,8 @@ npm run dev:app
 
 ## Docs
 
+- [Onboarding guide](docs/onboarding.md) — **start here if you're new**
+- [Contributing](CONTRIBUTING.md)
 - [Agents and autonomy](docs/agents.md)
 - [API reference](docs/api-reference.md)
 - [Deployment](docs/deployment.md)

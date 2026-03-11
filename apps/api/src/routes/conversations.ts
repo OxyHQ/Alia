@@ -34,7 +34,7 @@ router.post('/new', authenticateToken, async (req: Request, res: Response) => {
       createdAt: conversation.createdAt,
       updatedAt: conversation.updatedAt
     });
-  } catch (error) {
+  } catch (error: unknown) {
     log.chat.error({ err: error }, 'Error creating conversation');
     res.status(500).json({ error: 'Failed to create conversation' });
   }
@@ -86,7 +86,7 @@ router.get('/', authenticateTokenOrApiKey, async (req: Request, res: Response) =
       nextCursor,
       hasMore
     });
-  } catch (error) {
+  } catch (error: unknown) {
     log.chat.error({ err: error }, 'Error fetching conversations');
     res.status(500).json({ error: 'Failed to fetch conversations' });
   }
@@ -126,7 +126,7 @@ router.get('/:id', authenticateTokenOrApiKey, async (req: Request, res: Response
       createdAt: conversation.createdAt,
       updatedAt: conversation.updatedAt
     });
-  } catch (error) {
+  } catch (error: unknown) {
     log.chat.error({ err: error }, 'Error fetching conversation');
     res.status(500).json({ error: 'Failed to fetch conversation' });
   }
@@ -210,7 +210,7 @@ router.post('/', authenticateTokenOrApiKey, async (req: Request, res: Response) 
       createdAt: conversation.createdAt,
       updatedAt: conversation.updatedAt
     });
-  } catch (error) {
+  } catch (error: unknown) {
     log.chat.error({ err: error }, 'Error saving conversation');
     res.status(500).json({ error: 'Failed to save conversation' });
   }
@@ -243,7 +243,7 @@ router.patch('/:id/messages/:messageId/vote', authenticateToken, async (req: Req
     }
 
     res.json({ success: true, vote: result.vote ?? null });
-  } catch (error) {
+  } catch (error: unknown) {
     log.chat.error({ err: error }, 'Error voting on message');
     res.status(500).json({ error: 'Failed to vote on message' });
   }
@@ -272,7 +272,7 @@ router.delete('/:id', authenticateToken, async (req: Request, res: Response) => 
     }
 
     res.json({ success: true });
-  } catch (error) {
+  } catch (error: unknown) {
     log.chat.error({ err: error }, 'Error deleting conversation');
     res.status(500).json({ error: 'Failed to delete conversation' });
   }

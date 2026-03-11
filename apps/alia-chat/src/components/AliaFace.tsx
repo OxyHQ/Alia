@@ -46,6 +46,10 @@ export interface AliaFaceProps {
   showLabel?: boolean;
   /** Accessory overlays rendered on/around the face circle */
   accessories?: AliaAccessory[];
+  /** Override the circle background color (defaults to theme background) */
+  backgroundColor?: string;
+  /** Override the circle border color (defaults to theme border) */
+  borderColor?: string;
 }
 
 // ─── Expression data (numeric decomposition of SVG paths) ───────────────────
@@ -139,11 +143,13 @@ export function AliaFace({
   size = 120,
   showLabel = false,
   accessories,
+  backgroundColor,
+  borderColor,
 }: AliaFaceProps) {
   const colors = useAliaColors();
   const strokeColor = colors.isDark ? "#ffffff" : "#000000";
-  const circleBg = colors.background;
-  const circleBorder = colors.border;
+  const circleBg = backgroundColor ?? colors.background;
+  const circleBorder = borderColor ?? colors.border;
 
   const initial = EXPRESSIONS[DEFAULT_EXPRESSION];
 

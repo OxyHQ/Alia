@@ -103,7 +103,7 @@ router.get('/', async (req: Request, res: Response) => {
         byEndpoint,
       },
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     log.providers.error({ err: error }, 'Error getting usage stats');
     res.status(500).json({
       success: false,
@@ -128,7 +128,7 @@ router.get('/costs', async (req: Request, res: Response) => {
       success: true,
       data: stats,
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     log.providers.error({ err: error }, 'Error getting cost stats');
     res.status(500).json({
       success: false,

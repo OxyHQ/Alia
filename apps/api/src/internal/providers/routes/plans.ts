@@ -30,7 +30,7 @@ router.get('/', async (req: Request, res: Response) => {
       count: plans.length,
       data: plans,
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     log.providers.error({ err: error }, 'Error listing plans');
     res.status(500).json({
       success: false,
@@ -61,7 +61,7 @@ router.get('/:planId', async (req: Request, res: Response) => {
       success: true,
       data: plan,
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     log.providers.error({ err: error }, 'Error getting plan');
     res.status(500).json({
       success: false,
@@ -144,7 +144,7 @@ router.post('/', async (req: Request, res: Response) => {
     });
 
     broadcastPlansUpdate();
-  } catch (error: any) {
+  } catch (error: unknown) {
     log.providers.error({ err: error }, 'Error creating plan');
     res.status(500).json({
       success: false,
@@ -217,7 +217,7 @@ router.patch('/:planId', async (req: Request, res: Response) => {
     });
 
     broadcastPlansUpdate();
-  } catch (error: any) {
+  } catch (error: unknown) {
     log.providers.error({ err: error }, 'Error updating plan');
     res.status(500).json({
       success: false,
@@ -251,7 +251,7 @@ router.delete('/:planId', async (req: Request, res: Response) => {
     });
 
     broadcastPlansUpdate();
-  } catch (error: any) {
+  } catch (error: unknown) {
     log.providers.error({ err: error }, 'Error deleting plan');
     res.status(500).json({
       success: false,

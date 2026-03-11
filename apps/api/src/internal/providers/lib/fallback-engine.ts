@@ -29,6 +29,7 @@ import {
 import { getBestKeyForModel, markKeyCreditExhausted } from './key-manager';
 import { isProviderAvailable } from './provider-health';
 import { FallbackEvent } from '../models/fallback-event';
+import { getErrorMessage } from '../../../lib/errors/index.js';
 import { log } from '../../../lib/logger.js';
 
 // ============== TYPES ==============
@@ -337,13 +338,13 @@ async function tryResolveWithKey(
       attempt: null,
       failedKeyId: null,
     };
-  } catch (error: any) {
+  } catch (error: unknown) {
     return {
       resolved: null,
       attempt: {
         provider: mapping.provider,
         model: mapping.modelId,
-        error: error?.message || String(error),
+        error: getErrorMessage(error),
         reason: 'unknown',
         latencyMs: Date.now() - attemptStart,
       },

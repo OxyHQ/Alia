@@ -13,6 +13,7 @@ import { tool, generateText } from 'ai';
 import { z } from 'zod';
 import { resolveModel, getAIModel } from '../chat-core.js';
 import { log } from '../logger.js';
+import { getErrorMessage } from '../errors/index.js';
 
 const MAX_CONCURRENT_SUBTASKS = 3;
 const SUBTASK_TIMEOUT_MS = 30000;
@@ -78,12 +79,12 @@ async function runSubtask(
     } finally {
       clearTimeout(timeout);
     }
-  } catch (error: any) {
+  } catch (error: unknown) {
     return {
       task,
       model: aliasModelId,
       result: null,
-      error: error.name === 'AbortError' ? 'Subtask timed out (30s)' : (error.message || 'Unknown error'),
+      error: error instanceof Error && error.name === 'AbortError' ? 'Subtask timed out (30s)' : getErrorMessage(error),
       latencyMs: Date.now() - start,
       tokensUsed: 0,
     };

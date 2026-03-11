@@ -17,7 +17,7 @@ import {
 } from '../lib/provider-health';
 import mongoose from 'mongoose';
 import { getBestKeyForModel, recordKeyUsage, recordKeySpend } from '../lib/key-manager';
-import { sanitizeError } from '../../../lib/errors/index.js';
+import { sanitizeError, getErrorMessage } from '../../../lib/errors/index.js';
 import { broadcastHealthUpdate } from '../lib/broadcast-helpers';
 import { calculateCost } from '../../../lib/cost-tracker.js';
 import { log } from '../../../lib/logger.js';
@@ -73,11 +73,11 @@ router.post('/resolve', async (req: Request, res: Response) => {
         },
       },
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     log.providers.error({ err: error }, 'Error resolving model');
     res.status(500).json({
       success: false,
-      error: sanitizeError(error.message),
+      error: sanitizeError(getErrorMessage(error)),
       code: 'INTERNAL_ERROR',
     });
   }
@@ -170,18 +170,18 @@ router.post('/:provider/proxy', async (req: Request, res: Response) => {
       }
 
       res.end();
-    } catch (streamError: any) {
+    } catch (streamError: unknown) {
       success = false;
       log.providers.error({ err: streamError }, 'Stream error');
 
       // Record failure
-      await recordFailure(provider, modelId, streamError.message);
+      await recordFailure(provider, modelId, getErrorMessage(streamError));
 
       // Send error to client if response not ended
       if (!res.headersSent) {
         res.status(500).json({
           success: false,
-          error: sanitizeError(streamError.message),
+          error: sanitizeError(getErrorMessage(streamError)),
           code: 'STREAMING_ERROR',
         });
       }
@@ -204,13 +204,13 @@ router.post('/:provider/proxy', async (req: Request, res: Response) => {
       recordKeySpend(keyConfig.keyId, costUSD);
     }
 
-  } catch (error: any) {
+  } catch (error: unknown) {
     log.providers.error({ err: error }, 'Error proxying request');
 
     if (!res.headersSent) {
       res.status(500).json({
         success: false,
-        error: sanitizeError(error.message),
+        error: sanitizeError(getErrorMessage(error)),
         code: 'INTERNAL_ERROR',
       });
     }
@@ -241,11 +241,11 @@ router.get('/health', async (req: Request, res: Response) => {
         data: allHealth,
       });
     }
-  } catch (error: any) {
+  } catch (error: unknown) {
     log.providers.error({ err: error }, 'Error getting health');
     res.status(500).json({
       success: false,
-      error: error.message,
+      error: getErrorMessage(error),
       code: 'INTERNAL_ERROR',
     });
   }
@@ -286,11 +286,11 @@ router.post('/health/record', async (req: Request, res: Response) => {
     });
 
     broadcastHealthUpdate(provider, modelId);
-  } catch (error: any) {
+  } catch (error: unknown) {
     log.providers.error({ err: error }, 'Error recording health');
     res.status(500).json({
       success: false,
-      error: error.message,
+      error: getErrorMessage(error),
       code: 'INTERNAL_ERROR',
     });
   }
@@ -323,11 +323,11 @@ router.get('/available', async (req: Request, res: Response) => {
         available,
       },
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     log.providers.error({ err: error }, 'Error checking availability');
     res.status(500).json({
       success: false,
-      error: error.message,
+      error: getErrorMessage(error),
       code: 'INTERNAL_ERROR',
     });
   }
@@ -374,11 +374,11 @@ router.post('/health/reset-all', async (req: Request, res: Response) => {
         message: 'All provider health records reset to healthy state',
       },
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     log.providers.error({ err: error }, 'Error resetting all health');
     res.status(500).json({
       success: false,
-      error: error.message,
+      error: getErrorMessage(error),
       code: 'INTERNAL_ERROR',
     });
   }
@@ -407,11 +407,11 @@ router.post('/health/reset', async (req: Request, res: Response) => {
       success: true,
       data: health,
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     log.providers.error({ err: error }, 'Error resetting health');
     res.status(500).json({
       success: false,
-      error: error.message,
+      error: getErrorMessage(error),
       code: 'INTERNAL_ERROR',
     });
   }

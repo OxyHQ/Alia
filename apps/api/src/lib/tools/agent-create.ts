@@ -2,6 +2,7 @@ import { tool } from 'ai';
 import { z } from 'zod';
 import { Agent } from '../../models/agent.js';
 import { log } from '../logger.js';
+import { getErrorMessage } from '../errors/index.js';
 
 /**
  * Factory tool for creating AI agents during conversation.
@@ -76,9 +77,9 @@ export const createAgentTool = (userId: string, username?: string) => tool({
         },
         message: `Agent "${name}" created successfully! Handle: @${handle}`,
       };
-    } catch (error: any) {
+    } catch (error: unknown) {
       log.general.error({ err: error }, 'Agent creation via tool failed');
-      return { success: false, error: error.message || 'Failed to create agent' };
+      return { success: false, error: getErrorMessage(error) };
     }
   },
 });

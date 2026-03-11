@@ -80,7 +80,7 @@ router.get('/', optionalAuth, async (req: Request, res: Response) => {
   try {
     const { category, search, featured, trending, page = '1', limit = '50' } = req.query;
 
-    const filter: any = { isPublished: true };
+    const filter: Record<string, unknown> = { isPublished: true };
 
     if (category && category !== 'all') {
       filter.category = category;
@@ -125,7 +125,7 @@ router.get('/', optionalAuth, async (req: Request, res: Response) => {
     ]);
 
     res.json({ agents, total, page: pageNum, limit: limitNum });
-  } catch (error) {
+  } catch (error: unknown) {
     log.agents.error({ err: error }, 'Error listing agents');
     res.status(500).json({ error: 'Failed to list agents' });
   }
@@ -187,7 +187,7 @@ Do not include any text outside the JSON object.`,
           maxRetries: 0,
         });
         break; // Success — exit retry loop
-      } catch (providerError: any) {
+      } catch (providerError: unknown) {
         log.agents.error({ err: providerError, provider: resolved.provider, attempt }, 'Provider failed for agent generation');
         skipProviders.add(resolved.provider);
         if (attempt >= MAX_PROVIDER_RETRIES - 1) throw providerError;
@@ -239,7 +239,7 @@ Do not include any text outside the JSON object.`,
       capabilities: Array.isArray(parsed.capabilities) ? parsed.capabilities.slice(0, 10) : [],
       archetype: validArchetypes.includes(parsed.archetype) ? parsed.archetype : 'general',
     });
-  } catch (error) {
+  } catch (error: unknown) {
     log.agents.error({ err: error }, 'Error generating agent config');
     res.status(500).json({ error: 'Failed to generate agent configuration' });
   }
@@ -259,7 +259,7 @@ router.get('/me', authenticateToken, async (req: Request, res: Response) => {
       .lean();
 
     res.json({ agents });
-  } catch (error) {
+  } catch (error: unknown) {
     log.agents.error({ err: error }, 'Error listing user agents');
     res.status(500).json({ error: 'Failed to list your agents' });
   }
@@ -270,7 +270,7 @@ router.get('/health', async (_req: Request, res: Response) => {
   try {
     const capabilities = await getAgentCapabilities();
     res.json({ capabilities });
-  } catch (error) {
+  } catch (error: unknown) {
     log.agents.error({ err: error }, 'Error checking agent health');
     res.status(500).json({ error: 'Failed to check health' });
   }
@@ -294,7 +294,7 @@ router.get('/:id', optionalAuth, async (req: Request, res: Response) => {
     }
 
     res.json({ agent });
-  } catch (error) {
+  } catch (error: unknown) {
     log.agents.error({ err: error }, 'Error getting agent');
     res.status(500).json({ error: 'Failed to get agent' });
   }
@@ -350,7 +350,7 @@ router.post('/', authenticateToken, async (req: Request, res: Response) => {
     });
 
     res.status(201).json({ agent });
-  } catch (error) {
+  } catch (error: unknown) {
     log.agents.error({ err: error }, 'Error creating agent');
     res.status(500).json({ error: 'Failed to create agent' });
   }
@@ -397,7 +397,7 @@ router.patch('/:id', authenticateToken, async (req: Request, res: Response) => {
     }
 
     res.json({ agent });
-  } catch (error) {
+  } catch (error: unknown) {
     log.agents.error({ err: error }, 'Error updating agent');
     res.status(500).json({ error: 'Failed to update agent' });
   }
@@ -420,7 +420,7 @@ router.delete('/:id', authenticateToken, async (req: Request, res: Response) => 
     }
 
     res.json({ success: true });
-  } catch (error) {
+  } catch (error: unknown) {
     log.agents.error({ err: error }, 'Error deleting agent');
     res.status(500).json({ error: 'Failed to delete agent' });
   }
@@ -490,7 +490,7 @@ router.post('/:id/hire', authenticateToken, async (req: Request, res: Response) 
     });
 
     res.json({ sessionId: session._id, hired: true, queued, jobId });
-  } catch (error) {
+  } catch (error: unknown) {
     log.agents.error({ err: error }, 'Error hiring agent');
     res.status(500).json({ error: 'Failed to hire agent' });
   }
@@ -517,7 +517,7 @@ router.get('/:id/activity', optionalAuth, async (req: Request, res: Response) =>
 
     const activity = await getRecentActivity(latestSession._id.toString());
     res.json({ activity });
-  } catch (error) {
+  } catch (error: unknown) {
     log.agents.error({ err: error }, 'Error getting agent activity');
     res.status(500).json({ error: 'Failed to get activity' });
   }
@@ -557,7 +557,7 @@ router.get('/:id/activity-grid', optionalAuth, async (req: Request, res: Respons
     const maxCount = grid.reduce((m, d) => Math.max(m, d.count), 0);
 
     res.json({ grid, totalSessions, maxCount });
-  } catch (error) {
+  } catch (error: unknown) {
     log.agents.error({ err: error }, 'Error getting activity grid');
     res.status(500).json({ error: 'Failed to get activity grid' });
   }
@@ -580,7 +580,7 @@ router.get('/:id/sessions', authenticateToken, async (req: Request, res: Respons
       .lean();
 
     res.json({ sessions });
-  } catch (error) {
+  } catch (error: unknown) {
     log.agents.error({ err: error }, 'Error listing sessions');
     res.status(500).json({ error: 'Failed to list sessions' });
   }
@@ -627,7 +627,7 @@ router.patch('/:id/status', authenticateToken, async (req: Request, res: Respons
     }
 
     res.json({ agent, cancelledSessions: status !== 'active' ? true : false });
-  } catch (error) {
+  } catch (error: unknown) {
     log.agents.error({ err: error }, 'Error updating agent status');
     res.status(500).json({ error: 'Failed to update status' });
   }
@@ -661,7 +661,7 @@ router.post('/:id/sessions/:sid/cancel', authenticateToken, async (req: Request,
     await session.save();
 
     res.json({ cancelled: true });
-  } catch (error) {
+  } catch (error: unknown) {
     log.agents.error({ err: error }, 'Error cancelling session');
     res.status(500).json({ error: 'Failed to cancel session' });
   }
@@ -701,7 +701,7 @@ router.get('/sessions/:sid/status', authenticateToken, async (req: Request, res:
       recentEvents: recentEvents.reverse(),
       jobStatus,
     });
-  } catch (error) {
+  } catch (error: unknown) {
     log.agents.error({ err: error }, 'Error getting session status');
     res.status(500).json({ error: 'Failed to get session status' });
   }
@@ -752,7 +752,7 @@ router.get('/sessions/:sid/files', authenticateToken, async (req: Request, res: 
 
     const data = await listRes.json();
     res.json({ files: data.files || [], containerId });
-  } catch (error) {
+  } catch (error: unknown) {
     log.agents.error({ err: error }, 'Error listing session files');
     res.status(500).json({ error: 'Failed to list files' });
   }
@@ -825,7 +825,7 @@ router.get('/sessions/:sid/files/*', authenticateToken, async (req: Request, res
     res.setHeader('Content-Type', contentType);
     res.setHeader('Content-Disposition', `attachment; filename="${safeDownloadName(filePath)}"`);
     res.send(buffer);
-  } catch (error) {
+  } catch (error: unknown) {
     log.agents.error({ err: error }, 'Error downloading session file');
     res.status(500).json({ error: 'Failed to download file' });
   }
@@ -849,7 +849,7 @@ router.get('/sessions/active', authenticateToken, async (req: Request, res: Resp
       .lean();
 
     res.json({ sessions });
-  } catch (error) {
+  } catch (error: unknown) {
     log.agents.error({ err: error }, 'Error listing active sessions');
     res.status(500).json({ error: 'Failed to list active sessions' });
   }
@@ -884,7 +884,7 @@ router.get('/sessions/history', authenticateToken, async (req: Request, res: Res
     ]);
 
     res.json({ sessions, total, page: pageNum, limit: limitNum });
-  } catch (error) {
+  } catch (error: unknown) {
     log.agents.error({ err: error }, 'Error listing session history');
     res.status(500).json({ error: 'Failed to list session history' });
   }
@@ -916,7 +916,7 @@ router.get('/:id/reviews', optionalAuth, async (req: Request, res: Response) => 
     }
 
     res.json({ reviews, total, userReview });
-  } catch (error) {
+  } catch (error: unknown) {
     log.agents.error({ err: error }, 'Error listing reviews');
     res.status(500).json({ error: 'Failed to list reviews' });
   }
@@ -965,7 +965,7 @@ router.post('/:id/reviews', authenticateToken, async (req: Request, res: Respons
     }
 
     res.json({ review, rating: agent.rating, reviewCount: agent.reviewCount });
-  } catch (error) {
+  } catch (error: unknown) {
     log.agents.error({ err: error }, 'Error creating review');
     res.status(500).json({ error: 'Failed to create review' });
   }
@@ -1006,7 +1006,7 @@ router.delete('/:id/reviews', authenticateToken, async (req: Request, res: Respo
     }
 
     res.json({ deleted: true });
-  } catch (error) {
+  } catch (error: unknown) {
     log.agents.error({ err: error }, 'Error deleting review');
     res.status(500).json({ error: 'Failed to delete review' });
   }
@@ -1043,7 +1043,7 @@ router.get('/sessions/:sid/sources', authenticateToken, async (req: Request, res
     }));
 
     res.json({ sources });
-  } catch (error) {
+  } catch (error: unknown) {
     log.agents.error({ err: error }, 'Error getting session sources');
     res.status(500).json({ error: 'Failed to get sources' });
   }
@@ -1064,7 +1064,7 @@ router.get('/:id/sessions/:sessionId/activity', authenticateToken, async (req: R
       return res.status(403).json({ error: 'Access denied' });
     }
 
-    const filter: any = { sessionId };
+    const filter: Record<string, unknown> = { sessionId };
     if (type && typeof type === 'string') {
       filter.type = type;
     }
@@ -1093,7 +1093,7 @@ router.get('/:id/sessions/:sessionId/activity', authenticateToken, async (req: R
         config: session.config,
       },
     });
-  } catch (error) {
+  } catch (error: unknown) {
     log.agents.error({ err: error }, 'Error getting session activity');
     res.status(500).json({ error: 'Failed to get activity' });
   }
@@ -1232,7 +1232,7 @@ router.get('/:id/reports', authenticateToken, async (req: Request, res: Response
     ]);
 
     res.json({ reports, total, page: pageNum, limit: limitNum });
-  } catch (error) {
+  } catch (error: unknown) {
     log.agents.error({ err: error }, 'Error listing agent reports');
     res.status(500).json({ error: 'Failed to list reports' });
   }
@@ -1271,7 +1271,7 @@ router.get('/:id/routing-logs', authenticateToken, async (req: Request, res: Res
     ]);
 
     res.json({ logs, total, page: pageNum, limit: limitNum });
-  } catch (error) {
+  } catch (error: unknown) {
     log.agents.error({ err: error }, 'Error listing routing logs');
     res.status(500).json({ error: 'Failed to list routing logs' });
   }
@@ -1311,7 +1311,7 @@ router.get('/:id/routing-stats', authenticateToken, async (req: Request, res: Re
 
     const { byCategory = [], byPriority = [], byStatus = [], total: totalArr = [] } = result || {};
     res.json({ byCategory, byPriority, byStatus, total: totalArr[0]?.count || 0 });
-  } catch (error) {
+  } catch (error: unknown) {
     log.agents.error({ err: error }, 'Error getting routing stats');
     res.status(500).json({ error: 'Failed to get routing stats' });
   }

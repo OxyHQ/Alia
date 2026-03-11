@@ -13,6 +13,7 @@ import { TriggerExecution } from '../../models/trigger-execution.js';
 import { reloadTrigger } from '../trigger-engine.js';
 import { generateWebhookToken } from '../trigger-engine.js';
 import { log } from '../logger.js';
+import { getErrorMessage } from '../errors/index.js';
 
 export function createTriggerTool(userId: string) {
   return tool({
@@ -91,9 +92,9 @@ export function createTriggerTool(userId: string) {
         }
 
         return summary;
-      } catch (error: any) {
+      } catch (error: unknown) {
         log.triggers.error({ err: error }, 'Failed to create trigger via tool');
-        return { success: false, error: error.message };
+        return { success: false, error: getErrorMessage(error) };
       }
     },
   });
@@ -132,8 +133,8 @@ export function listTriggersTool(userId: string) {
             triggerCount: t.triggerCount,
           })),
         };
-      } catch (error: any) {
-        return { success: false, error: error.message };
+      } catch (error: unknown) {
+        return { success: false, error: getErrorMessage(error) };
       }
     },
   });
@@ -187,8 +188,8 @@ export function updateTriggerTool(userId: string) {
           name: trigger.name,
           enabled: trigger.enabled,
         };
-      } catch (error: any) {
-        return { success: false, error: error.message };
+      } catch (error: unknown) {
+        return { success: false, error: getErrorMessage(error) };
       }
     },
   });
@@ -218,8 +219,8 @@ export function deleteTriggerTool(userId: string) {
           success: true,
           message: `Trigger "${result.name}" deleted`,
         };
-      } catch (error: any) {
-        return { success: false, error: error.message };
+      } catch (error: unknown) {
+        return { success: false, error: getErrorMessage(error) };
       }
     },
   });

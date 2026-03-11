@@ -16,6 +16,7 @@ import mongoose from 'mongoose';
 import { Integration } from '../../models/integration.js';
 import { getValidToken } from '../integration-token.js';
 import { log } from '../logger.js';
+import { getErrorMessage } from '../errors/index.js';
 
 const TOOL_TIMEOUT_MS = 15_000;
 const GH = 'https://api.github.com';
@@ -98,9 +99,9 @@ function assertDriveFileId(id: string): void {
 async function safeExecute(service: string, fn: () => Promise<any>): Promise<any> {
   try {
     return await fn();
-  } catch (err: any) {
+  } catch (err: unknown) {
     log.general.warn({ err, service }, 'Integration tool error');
-    return { error: `Could not access ${service}: ${err.message?.slice(0, 150) || 'unknown error'}` };
+    return { error: `Could not access ${service}: ${getErrorMessage(err).slice(0, 150)}` };
   }
 }
 

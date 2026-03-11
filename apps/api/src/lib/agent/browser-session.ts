@@ -19,6 +19,7 @@ import { Readability } from '@mozilla/readability';
 import { validateUrl } from '../tools/sandbox.js';
 import { withRetry } from '../retry.js';
 import { log } from '../logger.js';
+import { getErrorMessage } from '../errors/index.js';
 import { emitAgentActivity } from '../../socket.js';
 
 const MAX_CONTENT_CHARS = 12_000;
@@ -135,9 +136,9 @@ export class BrowserSession {
       }
 
       return result;
-    } catch (err: any) {
+    } catch (err: unknown) {
       log.agents.error({ err, action, params }, 'Browser session error');
-      return `Browser error: ${err.message || 'Unknown error'}`;
+      return `Browser error: ${getErrorMessage(err)}`;
     }
   }
 

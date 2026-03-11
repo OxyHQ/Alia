@@ -10,8 +10,8 @@ import { useTranslation } from "@/hooks/useTranslation";
 import { useColorScheme } from "@/lib/useColorScheme";
 import { toast } from "@/components/sonner";
 import { cn } from "@/lib/utils";
-import { AliaFace } from "@alia.onl/sdk";
-import { getAccessory } from "@/lib/accessories";
+import { AliaFace } from "@/components/ui/alia-face";
+import { getAccessoryImage } from "@/lib/accessories";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import Animated, {
   useSharedValue,
@@ -340,7 +340,7 @@ const DraggableAccessory = React.memo(function DraggableAccessory({
   onSelect,
   onPositionChange,
 }: DraggableAccessoryProps) {
-  const accData = getAccessory(entry.accessoryId);
+  const accImage = getAccessoryImage(entry.accessoryId, entry.catalog.imageUrl);
   const accSize = canvasSize * entry.position.scale;
 
   const offsetX = useSharedValue((entry.position.x - 0.5) * canvasSize);
@@ -392,7 +392,7 @@ const DraggableAccessory = React.memo(function DraggableAccessory({
     ],
   }));
 
-  if (!accData) return null;
+  if (!accImage) return null;
 
   return (
     <GestureDetector gesture={composed}>
@@ -410,7 +410,7 @@ const DraggableAccessory = React.memo(function DraggableAccessory({
         ]}
       >
         <Image
-          source={accData.image}
+          source={accImage}
           style={{ width: accSize, height: accSize }}
           resizeMode="contain"
         />
@@ -451,7 +451,7 @@ const AccessoryPickerItem = React.memo(function AccessoryPickerItem({
   placeholderColor,
   onPress,
 }: AccessoryPickerItemProps) {
-  const accData = getAccessory(accessory.slug);
+  const accImage = getAccessoryImage(accessory.slug, accessory.imageUrl);
 
   return (
     <Pressable
@@ -465,9 +465,9 @@ const AccessoryPickerItem = React.memo(function AccessoryPickerItem({
           isEquipped ? "border-primary bg-primary/10" : "border-transparent bg-muted/50"
         )}
       >
-        {accData ? (
+        {accImage ? (
           <Image
-            source={accData.image}
+            source={accImage}
             style={{ width: 56, height: 56 }}
             resizeMode="contain"
           />

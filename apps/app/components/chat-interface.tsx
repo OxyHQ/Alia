@@ -12,8 +12,7 @@ import { processMessage } from "@/lib/message-processor";
 import { cn } from "@/lib/utils";
 import { ThinkingIndicator } from '@alia.onl/sdk';
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { AgentPlaceholder } from "@/components/ui/agent-placeholder";
-import { AliaFace, type AliaExpression } from '@alia.onl/sdk';
+import { AliaFace, type AliaExpression } from "@/components/ui/alia-face";
 import { Copy, ThumbsUp, ThumbsDown, Pencil, Check, Volume2, Square } from "lucide-react-native";
 import * as DropdownMenu from "@/components/ui/dropdown-menu";
 import { useTTS } from "@/lib/hooks/use-tts";
@@ -425,7 +424,7 @@ export const ChatInterface = React.memo(function ChatInterface({ messages, scrol
                           {/* Agent identity or cohost label (Alia face is floating) */}
                           {m.agentInfo ? (
                             <View className="flex-row items-center gap-2 mb-0.5">
-                              <AgentPlaceholder
+                              <AliaFace
                                 size={20}
                                 accessories={m.agentInfo.accessories}
                               />

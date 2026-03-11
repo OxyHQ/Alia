@@ -53,7 +53,7 @@ router.get('/invites/:token/info', async (req: Request, res: Response) => {
         organization: invite.organizationId,
       },
     });
-  } catch (error) {
+  } catch (error: unknown) {
     log.organization.error({ err: error }, 'Error fetching invite info');
     res.status(500).json({ error: 'Failed to fetch invite info' });
   }
@@ -123,7 +123,7 @@ router.post('/invites/:token/accept', async (req: Request, res: Response) => {
       } : null,
       role: invite.role,
     });
-  } catch (error) {
+  } catch (error: unknown) {
     log.organization.error({ err: error }, 'Error accepting invitation');
     res.status(500).json({ error: 'Failed to accept invitation' });
   }
@@ -155,7 +155,7 @@ router.post('/invites/:token/decline', async (req: Request, res: Response) => {
     );
 
     res.json({ message: 'Invitation declined' });
-  } catch (error) {
+  } catch (error: unknown) {
     log.organization.error({ err: error }, 'Error declining invitation');
     res.status(500).json({ error: 'Failed to decline invitation' });
   }
@@ -195,7 +195,7 @@ router.get('/', async (req: Request, res: Response) => {
     });
 
     res.json({ organizations: orgsWithRole });
-  } catch (error) {
+  } catch (error: unknown) {
     log.organization.error({ err: error }, 'Error fetching organizations');
     res.status(500).json({ error: 'Failed to fetch organizations' });
   }
@@ -241,7 +241,7 @@ router.get('/:id', async (req: Request, res: Response) => {
         })),
       },
     });
-  } catch (error) {
+  } catch (error: unknown) {
     log.organization.error({ err: error }, 'Error fetching organization');
     res.status(500).json({ error: 'Failed to fetch organization' });
   }
@@ -281,7 +281,7 @@ router.post('/', async (req: Request, res: Response) => {
     });
 
     res.status(201).json({ organization });
-  } catch (error) {
+  } catch (error: unknown) {
     if (error instanceof z.ZodError) {
       return res.status(400).json({ error: 'Invalid input', details: error.errors });
     }
@@ -330,7 +330,7 @@ router.patch('/:id', async (req: Request, res: Response) => {
     }
 
     res.json({ organization });
-  } catch (error) {
+  } catch (error: unknown) {
     if (error instanceof z.ZodError) {
       return res.status(400).json({ error: 'Invalid input', details: error.errors });
     }
@@ -379,7 +379,7 @@ router.post('/:id/image', upload.single('file'), async (req: Request, res: Respo
     }
 
     res.json({ image: imageUrl });
-  } catch (error) {
+  } catch (error: unknown) {
     log.organization.error({ err: error }, 'Error uploading organization image');
     res.status(500).json({ error: 'Failed to upload image' });
   }
@@ -406,7 +406,7 @@ router.delete('/:id', async (req: Request, res: Response) => {
     await OrganizationMember.deleteMany({ organizationId: id });
 
     res.json({ message: 'Organization deleted successfully' });
-  } catch (error) {
+  } catch (error: unknown) {
     log.organization.error({ err: error }, 'Error deleting organization');
     res.status(500).json({ error: 'Failed to delete organization' });
   }
@@ -437,7 +437,7 @@ router.get('/:id/members', async (req: Request, res: Response) => {
       .sort({ createdAt: -1 });
 
     res.json({ members });
-  } catch (error) {
+  } catch (error: unknown) {
     log.organization.error({ err: error }, 'Error fetching members');
     res.status(500).json({ error: 'Failed to fetch members' });
   }
@@ -505,7 +505,7 @@ router.post('/:id/members', async (req: Request, res: Response) => {
         createdAt: invite.createdAt,
       },
     });
-  } catch (error) {
+  } catch (error: unknown) {
     if (error instanceof z.ZodError) {
       return res.status(400).json({ error: 'Invalid input', details: error.errors });
     }
@@ -538,7 +538,7 @@ router.get('/:id/invites', async (req: Request, res: Response) => {
     }).sort({ createdAt: -1 });
 
     res.json({ invites });
-  } catch (error) {
+  } catch (error: unknown) {
     log.organization.error({ err: error }, 'Error fetching invitations');
     res.status(500).json({ error: 'Failed to fetch invitations' });
   }
@@ -577,7 +577,7 @@ router.delete('/:id/invites/:inviteId', async (req: Request, res: Response) => {
 
     log.organization.info({ inviteId, organizationId: id }, 'Invitation revoked');
     res.json({ message: 'Invitation revoked successfully' });
-  } catch (error) {
+  } catch (error: unknown) {
     log.organization.error({ err: error }, 'Error revoking invitation');
     res.status(500).json({ error: 'Failed to revoke invitation' });
   }
@@ -617,7 +617,7 @@ router.patch('/:id/members/:memberId', async (req: Request, res: Response) => {
     }
 
     res.json({ member });
-  } catch (error) {
+  } catch (error: unknown) {
     if (error instanceof z.ZodError) {
       return res.status(400).json({ error: 'Invalid input', details: error.errors });
     }
@@ -657,7 +657,7 @@ router.delete('/:id/members/:memberId', async (req: Request, res: Response) => {
     await OrganizationMember.findByIdAndDelete(memberId);
 
     res.json({ message: 'Member removed successfully' });
-  } catch (error) {
+  } catch (error: unknown) {
     log.organization.error({ err: error }, 'Error removing member');
     res.status(500).json({ error: 'Failed to remove member' });
   }
@@ -703,7 +703,7 @@ router.post('/:id/agents', async (req: Request, res: Response) => {
     );
 
     res.json({ added: true });
-  } catch (error) {
+  } catch (error: unknown) {
     log.organization.error({ err: error }, 'Error adding agent to organization');
     res.status(500).json({ error: 'Failed to add agent' });
   }
@@ -734,7 +734,7 @@ router.get('/:id/agents', async (req: Request, res: Response) => {
       .map(oa => oa.agentId);
 
     res.json({ agents });
-  } catch (error) {
+  } catch (error: unknown) {
     log.organization.error({ err: error }, 'Error fetching organization agents');
     res.status(500).json({ error: 'Failed to fetch agents' });
   }
@@ -764,7 +764,7 @@ router.delete('/:id/agents/:agentId', async (req: Request, res: Response) => {
     }
 
     res.json({ removed: true });
-  } catch (error) {
+  } catch (error: unknown) {
     log.organization.error({ err: error }, 'Error removing agent from organization');
     res.status(500).json({ error: 'Failed to remove agent' });
   }

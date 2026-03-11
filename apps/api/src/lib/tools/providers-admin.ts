@@ -2,6 +2,7 @@ import { tool } from 'ai';
 import { z } from 'zod';
 import crypto from 'crypto';
 import { log } from '../logger.js';
+import { getErrorMessage } from '../errors/index.js';
 
 const PROVIDERS_API_URL = process.env.PROVIDERS_API_URL || 'http://localhost:9091';
 const SERVICE_SECRET = process.env.SERVICE_SECRET;
@@ -109,9 +110,9 @@ export function createProvidersAdminTool() {
           default:
             return { success: false, message: `Unknown action: ${action}` };
         }
-      } catch (error: any) {
+      } catch (error: unknown) {
         log.tools.error({ err: error }, 'Admin tool error');
-        return { success: false, message: error.message };
+        return { success: false, message: getErrorMessage(error) };
       }
     },
   });

@@ -18,6 +18,7 @@ export {
 // Failover classification and conversion
 export {
   classifyError,
+  getErrorMessage,
   isTimeoutError,
   toAliaError,
   getRetryAfterHeader,

@@ -31,7 +31,7 @@ authRouter.get('/', async (req: Request, res: Response) => {
 
     const triggers = await Trigger.find(filter).sort({ createdAt: -1 });
     res.json({ triggers });
-  } catch (error) {
+  } catch (error: unknown) {
     log.triggers.error({ err: error }, 'Error listing triggers');
     res.status(500).json({ error: 'Failed to list triggers' });
   }
@@ -46,7 +46,7 @@ authRouter.get('/:id', async (req: Request, res: Response) => {
     if (!trigger) return res.status(404).json({ error: 'Trigger not found' });
 
     res.json({ trigger });
-  } catch (error) {
+  } catch (error: unknown) {
     log.triggers.error({ err: error }, 'Error getting trigger');
     res.status(500).json({ error: 'Failed to get trigger' });
   }
@@ -132,7 +132,7 @@ authRouter.post('/', async (req: Request, res: Response) => {
     }
 
     res.status(201).json({ trigger: triggerResponse });
-  } catch (error) {
+  } catch (error: unknown) {
     log.triggers.error({ err: error }, 'Error creating trigger');
     res.status(500).json({ error: 'Failed to create trigger' });
   }
@@ -163,7 +163,7 @@ authRouter.patch('/:id', async (req: Request, res: Response) => {
     );
 
     res.json({ trigger });
-  } catch (error) {
+  } catch (error: unknown) {
     log.triggers.error({ err: error }, 'Error updating trigger');
     res.status(500).json({ error: 'Failed to update trigger' });
   }
@@ -182,7 +182,7 @@ authRouter.delete('/:id', async (req: Request, res: Response) => {
     );
 
     res.json({ success: true });
-  } catch (error) {
+  } catch (error: unknown) {
     log.triggers.error({ err: error }, 'Error deleting trigger');
     res.status(500).json({ error: 'Failed to delete trigger' });
   }
@@ -202,7 +202,7 @@ authRouter.post('/:id/run', async (req: Request, res: Response) => {
     });
 
     res.json({ success, result, executionId, trigger });
-  } catch (error) {
+  } catch (error: unknown) {
     log.triggers.error({ err: error }, 'Error running trigger');
     res.status(500).json({ error: 'Failed to run trigger' });
   }
@@ -228,7 +228,7 @@ authRouter.get('/:id/executions', async (req: Request, res: Response) => {
     const total = await TriggerExecution.countDocuments({ triggerId: trigger._id });
 
     res.json({ executions, total, limit, offset });
-  } catch (error) {
+  } catch (error: unknown) {
     log.triggers.error({ err: error }, 'Error listing executions');
     res.status(500).json({ error: 'Failed to list executions' });
   }
@@ -252,7 +252,7 @@ authRouter.post('/:id/regenerate-token', async (req: Request, res: Response) => 
       trigger,
       webhookUrl: `${baseUrl}/triggers/webhook/${newToken}`,
     });
-  } catch (error) {
+  } catch (error: unknown) {
     log.triggers.error({ err: error }, 'Error regenerating token');
     res.status(500).json({ error: 'Failed to regenerate token' });
   }
@@ -286,7 +286,7 @@ router.post('/webhook/:token', async (req: Request, res: Response) => {
     }
 
     res.json({ success, result, triggerId, executionId });
-  } catch (error) {
+  } catch (error: unknown) {
     log.triggers.error({ err: error }, 'Error processing webhook');
     res.status(500).json({ error: 'Webhook processing failed' });
   }

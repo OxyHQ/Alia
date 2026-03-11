@@ -23,7 +23,7 @@ router.get('/', async (req: Request, res: Response) => {
     const userId = req.user!.id;
     const { category } = req.query;
 
-    const filter: any = { owner: userId };
+    const filter: Record<string, unknown> = { owner: userId };
     if (category && ['documents', 'images', 'other'].includes(category as string)) {
       filter.category = category;
     }
@@ -33,7 +33,7 @@ router.get('/', async (req: Request, res: Response) => {
       .lean();
 
     res.json({ files });
-  } catch (error: any) {
+  } catch (error: unknown) {
     log.general.error({ err: error }, 'Error listing library files');
     res.status(500).json({ error: 'Failed to list files' });
   }
@@ -51,7 +51,7 @@ router.get('/:id', async (req: Request, res: Response) => {
       return res.status(404).json({ error: 'File not found' });
     }
     res.json({ file });
-  } catch (error: any) {
+  } catch (error: unknown) {
     log.general.error({ err: error }, 'Error getting library file');
     res.status(500).json({ error: 'Failed to get file' });
   }
@@ -110,7 +110,7 @@ router.post('/upload', upload.single('file'), async (req: Request, res: Response
     });
 
     res.status(201).json({ file: libraryFile });
-  } catch (error: any) {
+  } catch (error: unknown) {
     log.general.error({ err: error }, 'Error uploading library file');
     res.status(500).json({ error: 'Failed to upload file' });
   }
@@ -139,7 +139,7 @@ router.delete('/:id', async (req: Request, res: Response) => {
     await file.deleteOne();
 
     res.json({ success: true });
-  } catch (error: any) {
+  } catch (error: unknown) {
     log.general.error({ err: error }, 'Error deleting library file');
     res.status(500).json({ error: 'Failed to delete file' });
   }

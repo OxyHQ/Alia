@@ -188,7 +188,7 @@ router.get('/', async (req: Request, res: Response) => {
         })),
       },
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     log.providers.error({ err: error }, 'Error getting fallback stats');
     res.status(500).json({
       success: false,

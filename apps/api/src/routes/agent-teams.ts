@@ -22,7 +22,7 @@ router.get('/', async (req: Request, res: Response) => {
       .sort({ createdAt: -1 });
 
     res.json({ teams });
-  } catch (error) {
+  } catch (error: unknown) {
     log.agents.error({ err: error }, 'Error fetching agent teams');
     res.status(500).json({ error: 'Failed to fetch agent teams' });
   }
@@ -44,7 +44,7 @@ router.get('/:id', async (req: Request, res: Response) => {
     }
 
     res.json({ team });
-  } catch (error) {
+  } catch (error: unknown) {
     log.agents.error({ err: error }, 'Error fetching agent team');
     res.status(500).json({ error: 'Failed to fetch agent team' });
   }
@@ -77,7 +77,7 @@ router.post('/', async (req: Request, res: Response) => {
     await team.populate('agents', 'name handle avatar tagline status');
 
     res.status(201).json({ team });
-  } catch (error) {
+  } catch (error: unknown) {
     if (error instanceof z.ZodError) {
       return res.status(400).json({ error: 'Invalid input', details: error.errors });
     }
@@ -111,7 +111,7 @@ router.patch('/:id', async (req: Request, res: Response) => {
     }
 
     res.json({ team });
-  } catch (error) {
+  } catch (error: unknown) {
     if (error instanceof z.ZodError) {
       return res.status(400).json({ error: 'Invalid input', details: error.errors });
     }
@@ -133,7 +133,7 @@ router.delete('/:id', async (req: Request, res: Response) => {
     }
 
     res.json({ deleted: true });
-  } catch (error) {
+  } catch (error: unknown) {
     log.agents.error({ err: error }, 'Error deleting agent team');
     res.status(500).json({ error: 'Failed to delete agent team' });
   }
@@ -167,7 +167,7 @@ router.post('/:id/agents', async (req: Request, res: Response) => {
     }
 
     res.json({ team });
-  } catch (error) {
+  } catch (error: unknown) {
     log.agents.error({ err: error }, 'Error adding agent to team');
     res.status(500).json({ error: 'Failed to add agent to team' });
   }
@@ -190,7 +190,7 @@ router.delete('/:id/agents/:agentId', async (req: Request, res: Response) => {
     }
 
     res.json({ team });
-  } catch (error) {
+  } catch (error: unknown) {
     log.agents.error({ err: error }, 'Error removing agent from team');
     res.status(500).json({ error: 'Failed to remove agent from team' });
   }
