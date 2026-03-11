@@ -2,12 +2,14 @@ import React, {
   createContext,
   useContext,
   useEffect,
+  useMemo,
   useRef,
   useState,
 } from "react";
 import { View, Pressable } from "react-native";
 import { Text } from "@/components/ui/text";
 import { AliaMarkdown } from '@alia.onl/sdk';
+import { useColorScheme } from "@/lib/useColorScheme";
 import {
   Collapsible,
   CollapsibleTrigger,
@@ -261,6 +263,15 @@ export function ReasoningTrigger({
  */
 export function ReasoningContent({ children, className }: ReasoningContentProps) {
   const { isStreaming } = useReasoning();
+  const { colors } = useColorScheme();
+
+  const aliaColors = useMemo(() => ({
+    text: colors.foreground,
+    border: colors.border,
+    muted: colors.muted,
+    mutedForeground: colors.mutedForeground,
+    primary: colors.primary,
+  }), [colors.foreground, colors.border, colors.muted, colors.mutedForeground, colors.primary]);
 
   return (
     <CollapsibleContent>
@@ -279,7 +290,7 @@ export function ReasoningContent({ children, className }: ReasoningContentProps)
           }}
         >
           <View style={{ opacity: isStreaming ? 0.8 : 1 }}>
-            <AliaMarkdown content={children} />
+            <AliaMarkdown content={children} colors={aliaColors} />
           </View>
         </View>
       </View>

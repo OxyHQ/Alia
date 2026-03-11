@@ -49,6 +49,7 @@ export function useColorScheme() {
     const vars = resolved === 'light' ? preset.light : preset.dark;
     return {
       background: hslVarToCSS(vars['--background']),
+      foreground: hslVarToCSS(vars['--foreground']),
       sidebar: hslVarToCSS(vars['--sidebar']),
       surface: hslVarToCSS(vars['--surface']),
       muted: hslVarToCSS(vars['--muted']),

@@ -1,14 +1,16 @@
 import React, { useMemo } from 'react';
 import { View, Text, Platform, Linking } from 'react-native';
 import Markdown from 'react-native-markdown-display';
-import { useAliaColors } from '../theme';
+import { useAliaColors, type AliaColors } from '../theme';
 
 const BODY_TEXT = { fontSize: 16, lineHeight: 28 } as const;
 const HEADING_TEXT = { fontSize: 16, lineHeight: 22 } as const;
 const SANS_FONT = Platform.select({ ios: 'Inter', android: 'Inter', default: 'Inter, sans-serif' })!;
 const MONO_FONT = Platform.select({ ios: 'Courier', android: 'monospace', default: 'monospace' })!;
 
-function createRules(isDark: boolean, textColor: string) {
+function createRules(colors: AliaColors) {
+  const { text: textColor, muted, border, primary, mutedForeground } = colors;
+
   return {
     heading1: (node: any, children: any) => (
       <Text
@@ -66,9 +68,9 @@ function createRules(isDark: boolean, textColor: string) {
             marginVertical: 8,
             overflow: 'hidden',
             borderRadius: 6,
-            backgroundColor: isDark ? '#18181b' : '#f4f4f5',
+            backgroundColor: muted,
             borderWidth: 1,
-            borderColor: isDark ? '#3f3f46' : '#e4e4e7',
+            borderColor: border,
             padding: 12,
           }}
         >
@@ -78,7 +80,7 @@ function createRules(isDark: boolean, textColor: string) {
         <Text
           key={node.key}
           style={{
-            backgroundColor: isDark ? '#27272a' : '#f4f4f5',
+            backgroundColor: muted,
             paddingHorizontal: 4,
             paddingVertical: 1,
             fontSize: 13,
@@ -98,7 +100,7 @@ function createRules(isDark: boolean, textColor: string) {
 
       return (
         <View key={node.key} style={{ flexDirection: 'row', paddingVertical: 2, paddingLeft: 16 }}>
-          <Text style={{ marginRight: 8, minWidth: 14, ...BODY_TEXT, color: '#71717A' }}>{bullet}</Text>
+          <Text style={{ marginRight: 8, minWidth: 14, ...BODY_TEXT, color: mutedForeground }}>{bullet}</Text>
           <Text style={{ flex: 1, ...BODY_TEXT, color: textColor }}>{children}</Text>
         </View>
       );
@@ -115,7 +117,7 @@ function createRules(isDark: boolean, textColor: string) {
     link: (node: any, children: any) => (
       <Text
         key={node.key}
-        style={{ color: isDark ? '#60a5fa' : '#2563eb', textDecorationLine: 'underline', ...BODY_TEXT }}
+        style={{ color: primary, textDecorationLine: 'underline', ...BODY_TEXT }}
         onPress={() => {
           if (node.attributes?.href) Linking.openURL(node.attributes.href);
         }}
@@ -132,8 +134,8 @@ function createRules(isDark: boolean, textColor: string) {
         style={{
           marginVertical: 8,
           borderLeftWidth: 4,
-          borderLeftColor: isDark ? '#52525b' : '#d4d4d8',
-          backgroundColor: isDark ? 'rgba(39,39,42,0.5)' : 'rgba(244,244,245,0.5)',
+          borderLeftColor: border,
+          backgroundColor: muted,
           paddingHorizontal: 12,
           paddingVertical: 4,
           borderTopRightRadius: 6,
@@ -149,20 +151,19 @@ function createRules(isDark: boolean, textColor: string) {
         style={{
           marginVertical: 16,
           height: 1,
-          backgroundColor: isDark ? '#3f3f46' : '#d4d4d8',
+          backgroundColor: border,
         }}
       />
     ),
-    text: (node: any) => {
-      return node.content;
-    },
     body: (node: any, children: any) => {
       return <View key={node.key}>{children}</View>;
     },
   };
 }
 
-function createStyles(isDark: boolean, textColor: string, borderColor: string, mutedBg: string) {
+function createStyles(colors: AliaColors) {
+  const { text: textColor, muted, border, primary, mutedForeground } = colors;
+
   return {
     body: { ...BODY_TEXT, color: textColor, fontFamily: SANS_FONT },
     text: { ...BODY_TEXT, color: textColor, fontFamily: SANS_FONT },
@@ -170,14 +171,14 @@ function createStyles(isDark: boolean, textColor: string, borderColor: string, m
     strong: { fontWeight: '600' as const },
     em: { fontStyle: 'italic' as const },
     s: { textDecorationLine: 'line-through' as const },
-    bullet_list_icon: { marginLeft: 0, marginRight: 8, ...BODY_TEXT },
-    ordered_list_icon: { marginLeft: 0, marginRight: 8, ...BODY_TEXT },
+    bullet_list_icon: { marginLeft: 0, marginRight: 8, ...BODY_TEXT, color: mutedForeground },
+    ordered_list_icon: { marginLeft: 0, marginRight: 8, ...BODY_TEXT, color: mutedForeground },
     bullet_list_content: { flex: 1 },
     ordered_list_content: { flex: 1 },
     code_inline: {
       fontSize: 13,
       fontFamily: MONO_FONT,
-      backgroundColor: isDark ? '#27272a' : '#f4f4f5',
+      backgroundColor: muted,
       borderWidth: 0,
       borderRadius: 3,
       paddingHorizontal: 4,
@@ -186,28 +187,28 @@ function createStyles(isDark: boolean, textColor: string, borderColor: string, m
     code_block: {
       fontSize: 13,
       fontFamily: MONO_FONT,
-      backgroundColor: isDark ? '#18181b' : '#f4f4f5',
+      backgroundColor: muted,
       borderWidth: 1,
-      borderColor: isDark ? '#3f3f46' : '#e4e4e7',
+      borderColor: border,
       borderRadius: 6,
       padding: 12,
     },
     fence: {
       fontSize: 13,
       fontFamily: MONO_FONT,
-      backgroundColor: isDark ? '#18181b' : '#f4f4f5',
+      backgroundColor: muted,
       borderWidth: 1,
-      borderColor: isDark ? '#3f3f46' : '#e4e4e7',
+      borderColor: border,
       borderRadius: 6,
       padding: 12,
     },
-    table: { borderWidth: 1, borderColor, borderRadius: 6, marginVertical: 8 },
-    thead: { backgroundColor: mutedBg },
-    th: { flex: 1, padding: 8, fontWeight: '600' as const, ...BODY_TEXT },
-    td: { flex: 1, padding: 8, ...BODY_TEXT },
-    tr: { borderBottomWidth: 1, borderColor, flexDirection: 'row' as const },
-    link: { textDecorationLine: 'underline' as const, color: isDark ? '#60a5fa' : '#2563eb', ...BODY_TEXT },
-    hr: { backgroundColor: isDark ? '#3f3f46' : '#d4d4d8', height: 1, marginVertical: 16 },
+    table: { borderWidth: 1, borderColor: border, borderRadius: 12, marginVertical: 8, overflow: 'hidden' as const },
+    thead: { backgroundColor: muted },
+    th: { flex: 1, padding: 8, fontWeight: '600' as const, ...BODY_TEXT, color: textColor },
+    td: { flex: 1, padding: 8, ...BODY_TEXT, color: textColor },
+    tr: { borderBottomWidth: 1, borderColor: border, flexDirection: 'row' as const },
+    link: { textDecorationLine: 'underline' as const, color: primary, ...BODY_TEXT },
+    hr: { backgroundColor: border, height: 1, marginVertical: 16 },
     heading1: { fontSize: 18, fontWeight: '600' as const },
     heading2: { ...HEADING_TEXT, fontWeight: '600' as const },
     heading3: { ...HEADING_TEXT, fontWeight: '600' as const },
@@ -217,16 +218,17 @@ function createStyles(isDark: boolean, textColor: string, borderColor: string, m
   };
 }
 
-export function AliaMarkdown({ content }: { content: string }) {
-  const colors = useAliaColors();
-  const isDark = colors.isDark;
-  const textColor = isDark ? '#ffffff' : '#0a0a0a';
+export interface AliaMarkdownProps {
+  content: string;
+  colors?: Partial<AliaColors>;
+}
 
-  const customRules = useMemo(() => createRules(isDark, textColor), [isDark]);
-  const markdownStyles = useMemo(
-    () => createStyles(isDark, textColor, colors.border, colors.muted),
-    [isDark, colors.border, colors.muted],
-  );
+export function AliaMarkdown({ content, colors: colorOverrides }: AliaMarkdownProps) {
+  const defaultColors = useAliaColors();
+  const colors = colorOverrides ? { ...defaultColors, ...colorOverrides } : defaultColors;
+
+  const customRules = useMemo(() => createRules(colors), [colors.text, colors.muted, colors.border, colors.primary, colors.mutedForeground]);
+  const markdownStyles = useMemo(() => createStyles(colors), [colors.text, colors.muted, colors.border, colors.primary, colors.mutedForeground]);
 
   return <Markdown rules={customRules} style={markdownStyles}>{content}</Markdown>;
 }

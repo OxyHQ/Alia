@@ -13,6 +13,7 @@ export { AliaFace } from './components/AliaFace';
 export type { AliaExpression, AliaFaceProps } from './components/AliaFace';
 export { ThinkingIndicator } from './components/ThinkingIndicator';
 export { AliaMarkdown } from './components/Markdown';
+export type { AliaMarkdownProps } from './components/Markdown';
 export { Reasoning, ReasoningTrigger, ReasoningContent } from './components/Reasoning';
 export { AliaWelcomeMessage } from './components/AliaWelcomeMessage';
 export { ResearchProgressCard } from './components/ResearchProgressCard';
