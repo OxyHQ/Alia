@@ -28,6 +28,7 @@ import { classifyError, getRetryAfterHeader, sanitizeMessage } from '../../lib/e
 import { setupSSEHeaders, writeTextChunk, writeStopChunk, writeContentChunk, filterThinking, makeChunk } from '../../lib/streaming-helpers.js';
 import type { FailoverReason } from '../../lib/errors/error-codes.js';
 import { runDeepResearch, type ResearchProgress } from '../../lib/research/research-engine.js';
+import { sendNotification } from '../../lib/notification-service.js';
 import { Agent as AgentModel, type IAgent } from '../../models/agent.js';
 import { buildArchetypeSystemPrompt } from '../../lib/agent/archetype-prompts.js';
 import {
@@ -1197,7 +1198,8 @@ export const handleChatCompletions = async (req: Request, res: Response) => {
 
     // Track client disconnect so we can send a push notification if the response completes after they leave
     let clientDisconnected = false;
-    req.on('close', () => { clientDisconnected = true; });
+    const onClientClose = () => { clientDisconnected = true; };
+    req.on('close', onClientClose);
 
     // Stream OpenAI-compatible chunks
     log.v1.info('Starting to process AI SDK stream');
@@ -1655,21 +1657,20 @@ export const handleChatCompletions = async (req: Request, res: Response) => {
     });
 
     if (keepAliveTimer) clearInterval(keepAliveTimer);
+    req.off('close', onClientClose);
     res.write('data: [DONE]\n\n');
     res.end();
     clearTimeout(globalTimer);
 
     // If the client disconnected before the stream finished, send a push notification
     if (clientDisconnected && assistantResponse.length > 0 && req.user?.id && body.conversationId) {
-      import('../../lib/notification-service.js').then(({ sendNotification }) => {
-        sendNotification({
-          userId: req.user!.id as string,
-          type: 'agent_task_complete',
-          title: 'Alia has responded',
-          body: assistantResponse.slice(0, 200) + (assistantResponse.length > 200 ? '...' : ''),
-          conversationId: body.conversationId,
-        }).catch(err => log.v1.warn({ err }, 'Failed to send disconnect notification'));
-      }).catch(() => {});
+      sendNotification({
+        userId: req.user!.id as string,
+        type: 'chat_response_ready',
+        title: 'Alia has responded',
+        body: assistantResponse.slice(0, 200) + (assistantResponse.length > 200 ? '...' : ''),
+        conversationId: body.conversationId,
+      }).catch(err => log.v1.warn({ err }, 'Failed to send disconnect notification'));
     }
 
     return; // Success - exit the route handler
