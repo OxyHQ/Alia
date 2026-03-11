@@ -13,6 +13,7 @@ import { usePinnedStore } from '@/lib/stores/pinned-store';
 import { useUIStore } from '@/lib/stores/ui-store';
 import { useEffect } from 'react';
 import { useColorScheme } from '@/lib/useColorScheme';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { CommandPalette } from '@/components/command-palette';
 import { KeyboardShortcutsDialog } from '@/components/keyboard-shortcuts-dialog';
 import i18n from '@/lib/i18n';
@@ -23,6 +24,7 @@ export default function AppLayout() {
   const dimensions = useWindowDimensions();
   const isLargeScreen = dimensions.width >= 768;
   const { colorScheme, colors } = useColorScheme();
+  const insets = useSafeAreaInsets();
   const loadProjects = useProjectsStore((state) => state.loadProjects);
   const loadRoles = useRolesStore((state) => state.loadRoles);
   const loadAgents = useAgentsStore((state) => state.loadAgents);
@@ -55,18 +57,29 @@ export default function AppLayout() {
         <View style={{ flex: 1 }}>
           <Drawer
             drawerContent={() => <Sidebar />}
-            screenOptions={{
-              headerShown: false,
-              drawerStyle: {
-                width: 255,
-                backgroundColor: colors.background,
-                borderRightWidth: 0,
-                boxShadow: 'none',
-                elevation: 0,
-              },
-              drawerType: isLargeScreen ? 'permanent' : 'front',
-              swipeEnabled: !isLargeScreen,
-              overlayColor: isLargeScreen ? 'transparent' : 'rgba(0, 0, 0, 0.5)',
+            screenOptions={({ route }) => {
+              // Screens that handle their own top safe area insets
+              const handlesOwnInsets =
+                route.name === 'index' ||
+                route.name === 'c/[id]/index' ||
+                route.name.startsWith('settings/') ||
+                route.name === 'settings';
+              return {
+                headerShown: false,
+                sceneContainerStyle: {
+                  paddingTop: handlesOwnInsets ? 0 : insets.top,
+                },
+                drawerStyle: {
+                  width: 255,
+                  backgroundColor: colors.background,
+                  borderRightWidth: 0,
+                  boxShadow: 'none',
+                  elevation: 0,
+                },
+                drawerType: isLargeScreen ? 'permanent' : 'front',
+                swipeEnabled: !isLargeScreen,
+                overlayColor: isLargeScreen ? 'transparent' : 'rgba(0, 0, 0, 0.5)',
+              };
             }}
           >
             <Drawer.Screen
