@@ -38,6 +38,10 @@ import {
   getLiveKitInternalUrl,
 } from '../../../lib/livekit-token.js';
 
+/** Max consecutive tool-only response rounds before forcing a speech response.
+ *  Lower than text mode's stepCountIs(5) to avoid voice latency build-up. */
+const VOICE_MAX_TOOL_ROUNDS = 3;
+
 // ============== TOOL EXECUTORS ==============
 
 function buildVoiceToolExecutors(userId: string): Map<string, (args: any) => Promise<any>> {
@@ -184,6 +188,8 @@ export class VoiceSessionManager {
       cohostToolExecutors: undefined,
       cohostInactivityTimer: null,
       recentTranscripts: [],
+      toolRoundsCount: 0,
+      cohostToolRoundsCount: 0,
       originalVadConfig: {
         type: 'server_vad',
         threshold: 0.5,
@@ -443,6 +449,9 @@ export class VoiceSessionManager {
         if (event.type === 'input_audio_buffer.speech_started' && role === 'primary') {
           session.lastUserSpeechTime = new Date();
           session.lastActivityTime = new Date();
+          // Reset primary tool round counter — new user turn
+          // (cohostToolRoundsCount is reset by the cohost's own response.done path)
+          session.toolRoundsCount = 0;
           // Clear silence timer
           if (session.userSilenceTimer) {
             clearTimeout(session.userSilenceTimer);
@@ -485,6 +494,13 @@ export class VoiceSessionManager {
           const hasFunctionCalls = await this.handleFunctionCalls(session, event, role);
 
           if (!hasFunctionCalls) {
+            // Model produced speech — reset tool round counter
+            if (role === 'primary') {
+              session.toolRoundsCount = 0;
+            } else {
+              session.cohostToolRoundsCount = 0;
+            }
+
             await bridge.publishData({
               type: 'agent.state', state: 'listening', speaker: role,
             } satisfies AgentDataMessage);
@@ -543,6 +559,24 @@ export class VoiceSessionManager {
     const providerSocket = role === 'primary' ? session.providerSocket : session.cohostProviderSocket;
     const executors = role === 'primary' ? session.toolExecutors : session.cohostToolExecutors;
     if (!providerSocket || providerSocket.readyState !== WebSocket.OPEN) return false;
+
+    // Prevent infinite tool-call loops — increment after socket check so a closed
+    // socket doesn't inflate the counter across retries.
+    if (role === 'primary') {
+      session.toolRoundsCount++;
+    } else {
+      session.cohostToolRoundsCount++;
+    }
+    const rounds = role === 'primary' ? session.toolRoundsCount : session.cohostToolRoundsCount;
+
+    if (rounds > VOICE_MAX_TOOL_ROUNDS) {
+      log.providers.warn(
+        { sessionId: session.sessionId, role, rounds },
+        '[Voice] Max tool rounds exceeded, forcing speech response',
+      );
+      // Counter reset is handled by the !hasFunctionCalls branch on the forced speech response
+      return false;
+    }
 
     const bridge = role === 'primary' ? session.agentBridge : session.cohostBridge;
 

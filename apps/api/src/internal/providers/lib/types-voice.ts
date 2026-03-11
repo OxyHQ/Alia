@@ -77,6 +77,10 @@ export interface VoiceSession {
 
   /** Stored VAD config from initial session setup, used for toggling VAD on/off during cohost turns */
   originalVadConfig: object | null;
+
+  // Tool call loop prevention — consecutive tool-only response rounds
+  toolRoundsCount: number;
+  cohostToolRoundsCount: number;
 }
 
 /** Opaque reference to LiveKitAgentBridge to avoid circular deps */
