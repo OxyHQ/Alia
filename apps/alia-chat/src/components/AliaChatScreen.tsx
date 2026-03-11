@@ -14,11 +14,10 @@
  */
 
 import React, { useRef, useState, useEffect, useCallback } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, Text, TouchableOpacity } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AliaChatContent, type AliaChatContentRef } from './AliaChatContent';
 import { AliaFace, type AliaExpression } from './AliaFace';
-import { useAliaColors } from '../theme';
 import type { WelcomeSuggestion } from './AliaWelcomeMessage';
 
 export interface AliaChatScreenProps {
@@ -50,7 +49,6 @@ export function AliaChatScreen({
   welcomeSubtitle,
   welcomeSuggestions,
 }: AliaChatScreenProps) {
-  const colors = useAliaColors();
   const insets = useSafeAreaInsets();
   const contentRef = useRef<AliaChatContentRef>(null);
 
@@ -73,18 +71,18 @@ export function AliaChatScreen({
   }, []);
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.background, paddingTop: insets.top }]}>
+    <View className="flex-1 bg-background" style={{ paddingTop: insets.top }}>
       {/* Header */}
-      <View style={styles.header}>
-        <View style={styles.headerLeft}>
+      <View className="flex-row items-center justify-between px-4 py-3">
+        <View className="flex-row items-center gap-2.5">
           {headerLeft}
           <AliaFace size={28} expression={faceExpression} />
-          <Text style={[styles.headerTitle, { color: colors.text }]}>Alia</Text>
+          <Text className="text-lg font-semibold text-foreground">Alia</Text>
         </View>
-        <View style={styles.headerRight}>
+        <View className="flex-row items-center gap-2">
           {hasMessages && (
-            <TouchableOpacity onPress={handleClear} style={styles.clearButton}>
-              <Text style={[styles.clearText, { color: colors.secondaryText }]}>Clear</Text>
+            <TouchableOpacity onPress={handleClear} className="px-2.5 py-1.5">
+              <Text className="text-sm text-muted-foreground">Clear</Text>
             </TouchableOpacity>
           )}
           {headerRight}
@@ -105,36 +103,3 @@ export function AliaChatScreen({
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-  },
-  headerLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-  },
-  headerTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-  },
-  headerRight: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  clearButton: {
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-  },
-  clearText: {
-    fontSize: 14,
-  },
-});

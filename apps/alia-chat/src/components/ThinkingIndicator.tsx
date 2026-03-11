@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { View, Text, StyleSheet } from "react-native";
+import { View, Text } from "react-native";
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -8,7 +8,6 @@ import Animated, {
   withSequence,
   Easing,
 } from "react-native-reanimated";
-import { useAliaColors } from "../theme";
 
 const thinkingPhrases = [
   "Thinking...",
@@ -33,7 +32,6 @@ const workingPhrases = [
 ];
 
 export function ThinkingIndicator({ isWorking = false, statusText }: { isWorking?: boolean; statusText?: string }) {
-  const colors = useAliaColors();
   const phrases = isWorking ? workingPhrases : thinkingPhrases;
   const [phraseIndex, setPhraseIndex] = useState(() =>
     Math.floor(Math.random() * phrases.length)
@@ -104,31 +102,18 @@ export function ThinkingIndicator({ isWorking = false, statusText }: { isWorking
   const shownText = statusText || displayText;
 
   return (
-    <View style={styles.container}>
+    <View className="flex-row items-center gap-2 py-2">
       <Animated.View style={spinStyle}>
-        <Text style={{ fontSize: 16, color: colors.mutedForeground }}>✱</Text>
+        <Text className="text-base text-muted-foreground">✱</Text>
       </Animated.View>
-      <View style={styles.textRow}>
-        <Text style={{ fontSize: 16, color: colors.mutedForeground }}>{shownText}</Text>
+      <View className="flex-row items-center">
+        <Text className="text-base text-muted-foreground">{shownText}</Text>
         {(statusText || isTyping) && (
           <Animated.View style={cursorStyle}>
-            <Text style={{ fontSize: 16, color: colors.mutedForeground }}>|</Text>
+            <Text className="text-base text-muted-foreground">|</Text>
           </Animated.View>
         )}
       </View>
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    paddingVertical: 8,
-  },
-  textRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-});
