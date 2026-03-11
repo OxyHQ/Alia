@@ -137,11 +137,14 @@ function ReportCard({ item }: { item: ReportItem }) {
 
 interface RoutingLogItem {
   _id: string;
-  priority?: "urgent" | "high" | "medium" | "low" | string;
-  category?: string;
-  summary?: string;
-  routedTo?: string;
-  routedToName?: string;
+  classification?: {
+    category?: string;
+    priority?: "urgent" | "high" | "medium" | "low" | string;
+    confidence?: number;
+  };
+  inboundSummary?: string;
+  routedTo?: { type?: string; id?: string; name?: string } | null;
+  reasoning?: string;
   status?: string;
   createdAt: string;
 }
@@ -161,7 +164,8 @@ const PRIORITY_TEXT_COLORS: Record<string, string> = {
 };
 
 function RoutingLogCard({ item }: { item: RoutingLogItem }) {
-  const priority = item.priority ?? "medium";
+  const priority = item.classification?.priority ?? "medium";
+  const category = item.classification?.category;
   const dotColor = PRIORITY_COLORS[priority] ?? "bg-gray-400";
   const textColor = PRIORITY_TEXT_COLORS[priority] ?? "text-gray-400";
   return (
@@ -169,9 +173,9 @@ function RoutingLogCard({ item }: { item: RoutingLogItem }) {
       <View className="flex-row items-center justify-between mb-1.5">
         <View className="flex-row items-center gap-2">
           <View className={cn("w-2 h-2 rounded-full", dotColor)} />
-          {item.category ? (
+          {category ? (
             <Text className="text-[12px] font-medium text-foreground">
-              {item.category}
+              {category}
             </Text>
           ) : null}
           <Text className={cn("text-[11px] font-semibold capitalize", textColor)}>
@@ -182,15 +186,15 @@ function RoutingLogCard({ item }: { item: RoutingLogItem }) {
           {formatRelativeTime(item.createdAt)}
         </Text>
       </View>
-      {item.summary ? (
+      {item.inboundSummary ? (
         <Text className="text-[13px] text-foreground/80 leading-[18px] mb-1.5">
-          {item.summary}
+          {item.inboundSummary}
         </Text>
       ) : null}
       <View className="flex-row items-center gap-2">
-        {item.routedToName ? (
+        {item.routedTo?.name ? (
           <Text className="text-[12px] text-muted-foreground">
-            → {item.routedToName}
+            → {item.routedTo.name}
           </Text>
         ) : null}
         {item.status ? (
