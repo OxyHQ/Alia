@@ -158,7 +158,7 @@ export function PromptInput({
         placeholder={placeholder}
         className="min-h-[44px] text-base py-3"
       />
-      <PromptInputActions className="flex-row items-center justify-between gap-2 mt-2 mb-1 px-3">
+      <PromptInputActions className="flex-row items-center justify-between gap-2 mt-1.5 mb-3 px-3">
         <View className="flex-row items-center gap-1.5">
           {actionsLeft ?? <PromptInputAddMenu />}
         </View>
