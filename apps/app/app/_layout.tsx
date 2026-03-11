@@ -9,6 +9,7 @@ import { Platform, View } from 'react-native';
 import { vars } from 'nativewind';
 
 import { AppErrorBoundary } from '@/components/error-boundary';
+import { Toaster } from '@/components/sonner';
 import { KeyboardProvider } from '@/lib/keyboard';
 import { useColorScheme } from '@/lib/useColorScheme';
 import { useThemeStore } from '@/lib/stores/theme-store';
@@ -71,6 +72,7 @@ function AppContent() {
     <AuthSetup>
       <View style={[{ flex: 1 }, colorVars]}>
         <KeyboardProvider>{stack}</KeyboardProvider>
+        <Toaster />
       </View>
     </AuthSetup>
   );

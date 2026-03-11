@@ -24,6 +24,37 @@ export interface IAgentSoul {
   lastEvolvedAt: Date | null;
 }
 
+export const AGENT_ARCHETYPES = ['general', 'qa', 'task_router', 'status_update'] as const;
+export type AgentArchetype = (typeof AGENT_ARCHETYPES)[number];
+
+export interface IArchetypeConfig {
+  // Q&A
+  knowledgeSources?: { integrations?: string[]; mcpServers?: string[]; oxyServices?: string[] };
+  citeSources?: boolean;
+  // Task Router
+  inboundChannels?: string[];
+  routingRules?: Array<{
+    condition: string;
+    priority: 'low' | 'medium' | 'high' | 'urgent';
+    assignTo: { type: 'agent' | 'team' | 'user'; id: string; name?: string };
+  }>;
+  defaultAssignee?: { type: 'agent' | 'team' | 'user'; id: string; name?: string };
+  escalationTimeoutMinutes?: number;
+  // Status Update
+  dataSources?: { integrations?: string[]; mcpServers?: string[]; oxyServices?: string[] };
+  reportTemplate?: string;
+  reportFormat?: 'markdown' | 'html' | 'plain';
+  deliveryChannels?: string[];
+  schedule?: {
+    type: 'daily' | 'interval' | 'cron';
+    time?: string;
+    days?: string[];
+    intervalMinutes?: number;
+    cron?: string;
+  };
+  compareWithPrevious?: boolean;
+}
+
 export interface IAgent extends Document {
   name: string;
   handle: string;
@@ -55,8 +86,11 @@ export interface IAgent extends Document {
   allowedModels: string[];
   scheduleInterval?: number;
   lastScheduledCheck?: Date;
+  accessories: string[];
   permissions?: IAgentPermissions;
   soul?: IAgentSoul;
+  archetype: AgentArchetype;
+  archetypeConfig?: IArchetypeConfig;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -107,6 +141,7 @@ const AgentSchema = new Schema<IAgent>({
   },
   creditBalance: { type: Number, default: 0 },
   allowHiring: { type: Boolean, default: false },
+  accessories: [{ type: String }],
   systemPrompt: { type: String },
   preferredImage: { type: String },
   allowedModels: {
@@ -137,6 +172,13 @@ const AgentSchema = new Schema<IAgent>({
     },
     default: undefined,
   },
+  archetype: {
+    type: String,
+    enum: AGENT_ARCHETYPES,
+    default: 'general',
+    index: true,
+  },
+  archetypeConfig: { type: Schema.Types.Mixed, default: undefined },
 }, {
   timestamps: true,
 });

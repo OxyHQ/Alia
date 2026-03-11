@@ -28,9 +28,28 @@ export interface Agent {
   isPublished: boolean;
   status: 'active' | 'idle' | 'offline';
   creditBalance: number;
+  accessories: string[];
   allowHiring: boolean;
   systemPrompt?: string;
   allowedModels?: string[];
+  archetype?: 'general' | 'qa' | 'task_router' | 'status_update';
+  archetypeConfig?: {
+    // Q&A
+    knowledgeSources?: { integrations?: string[]; mcpServers?: string[]; oxyServices?: string[] };
+    citeSources?: boolean;
+    // Task Router
+    inboundChannels?: string[];
+    routingRules?: Array<{ condition: string; priority: 'low' | 'medium' | 'high' | 'urgent'; assignTo: { type: 'agent' | 'team' | 'user'; id: string; name?: string } }>;
+    defaultAssignee?: { type: 'agent' | 'team' | 'user'; id: string; name?: string };
+    escalationTimeoutMinutes?: number;
+    // Status Update
+    dataSources?: { integrations?: string[]; mcpServers?: string[]; oxyServices?: string[] };
+    reportTemplate?: string;
+    reportFormat?: 'markdown' | 'html' | 'plain';
+    deliveryChannels?: string[];
+    schedule?: { type: 'daily' | 'interval' | 'cron'; time?: string; days?: string[]; intervalMinutes?: number; cron?: string };
+    compareWithPrevious?: boolean;
+  };
   createdAt: string;
   updatedAt: string;
 }

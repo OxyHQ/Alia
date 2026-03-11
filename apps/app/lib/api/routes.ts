@@ -96,6 +96,9 @@ export const API_ROUTES = {
     status: (id: string) => `/agents/${id}/status`,
     cancelSession: (id: string, sid: string) => `/agents/${id}/sessions/${sid}/cancel`,
     reviews: (id: string) => `/agents/${id}/reviews`,
+    reports: (id: string) => `/agents/${id}/reports`,
+    routingLogs: (id: string) => `/agents/${id}/routing-logs`,
+    routingStats: (id: string) => `/agents/${id}/routing-stats`,
     generateAvatar: '/agents/avatar/generate',
     generate: '/agents/generate',
     teams: {

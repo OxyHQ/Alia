@@ -36,7 +36,6 @@ export const AgentCard = React.memo(function AgentCard({
 }: AgentCardProps) {
   const { t } = useTranslation();
   const isFeatured = variant === "featured";
-  const avatarSize = isFeatured ? "h-16 w-16" : "h-14 w-14";
   const statusDotSize = isFeatured
     ? "w-3.5 h-3.5 border-[2.5px]"
     : "w-3 h-3 border-2";
@@ -52,9 +51,8 @@ export const AgentCard = React.memo(function AgentCard({
         <View className="flex-row items-start justify-between">
           <View className="relative">
             <AgentPlaceholder
-              seed={agent._id}
               size={isFeatured ? 64 : 56}
-              avatarUrl={agent.avatar}
+              accessories={agent.accessories}
             />
             <View
               className={cn(

@@ -37,21 +37,17 @@ export default function AgentsScreen() {
     setRefreshing(false);
   }, [loadAgents]);
 
-  const handleSelectAgent = (agentId: string) => {
+  const handleSelectAgent = useCallback((agentId: string) => {
     router.push(`/(app)/agents/${agentId}`);
-  };
+  }, [router]);
 
-  const handleChat = (agentId: string) => {
-    router.push(`/(app)/agents/${agentId}`);
-  };
-
-  const handleHire = (_agentId: string) => {
+  const handleHire = useCallback((_agentId: string) => {
     toast.info(t("agents.hireComingSoon"));
-  };
+  }, [t]);
 
-  const handleCreateAgent = () => {
+  const handleCreateAgent = useCallback(() => {
     router.push("/(app)/agents/create");
-  };
+  }, [router]);
 
   const categories = useMemo(() => {
     const cats = new Set(agents.map((a) => a.category));
@@ -89,164 +85,180 @@ export default function AgentsScreen() {
         agent={agent}
         variant="grid"
         onPress={handleSelectAgent}
-        onChat={handleChat}
+        onChat={handleSelectAgent}
         onHire={handleHire}
       />
     </View>
-  ), [handleSelectAgent, handleChat, handleHire]);
+  ), [handleSelectAgent, handleHire]);
 
-  const listHeader = useMemo(() => (
-    <>
-      {/* Header */}
-      <View className="px-5 pt-6 pb-1">
-        <View className="flex-row items-center justify-between">
-          <Text className="text-2xl font-bold text-foreground">
-            {t("agents.title")}
-          </Text>
-          <Button
-            onPress={handleCreateAgent}
-            size="icon"
-            className="rounded-full h-8 w-8"
-          >
-            <Plus size={16} className="text-primary-foreground" />
-          </Button>
-        </View>
-        <Text className="text-[13px] text-muted-foreground mt-0.5">
-          {t("agents.subtitle")}
+  // ── Split header into smaller memos to avoid re-rendering everything ──
+
+  const headerTop = useMemo(() => (
+    <View className="px-5 pt-6 pb-1">
+      <View className="flex-row items-center justify-between">
+        <Text className="text-2xl font-bold text-foreground">
+          {t("agents.title")}
         </Text>
+        <Button
+          onPress={handleCreateAgent}
+          size="icon"
+          className="rounded-full h-8 w-8"
+        >
+          <Plus size={16} className="text-primary-foreground" />
+        </Button>
       </View>
+      <Text className="text-[13px] text-muted-foreground mt-0.5">
+        {t("agents.subtitle")}
+      </Text>
+    </View>
+  ), [t, handleCreateAgent]);
 
-      {/* Search */}
-      <View className="px-5 pt-3 pb-2">
-        <View className="flex-row items-center gap-2 bg-muted/70 rounded-lg px-3 py-2">
-          <Search size={15} className="text-muted-foreground" />
-          <TextInput
-            value={searchQuery}
-            onChangeText={setSearchQuery}
-            placeholder={t("agents.searchPlaceholder")}
-            placeholderTextColor={colors.mutedForeground}
-            className="flex-1 text-[13px] text-foreground"
-          />
+  const searchBar = (
+    <View className="px-5 pt-3 pb-2">
+      <View className="flex-row items-center gap-2 bg-muted/70 rounded-lg px-3 py-2">
+        <Search size={15} className="text-muted-foreground" />
+        <TextInput
+          value={searchQuery}
+          onChangeText={setSearchQuery}
+          placeholder={t("agents.searchPlaceholder")}
+          placeholderTextColor={colors.mutedForeground}
+          className="flex-1 text-[13px] text-foreground"
+        />
+      </View>
+    </View>
+  );
+
+  const categoryChips = useMemo(() => (
+    <View className="py-2">
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={{ paddingHorizontal: 20 }}
+      >
+        <View className="flex-row gap-1.5">
+          {categories.map((category) => {
+            const isActive =
+              selectedCategory === category ||
+              (!selectedCategory && category === t("common.all"));
+            return (
+              <Pressable
+                key={category}
+                onPress={() =>
+                  setSelectedCategory(
+                    category === t("common.all") ? null : category
+                  )
+                }
+                className="active:opacity-70"
+              >
+                <View
+                  className={cn(
+                    "px-3 py-1 rounded-full",
+                    isActive ? "bg-foreground" : "bg-muted/70"
+                  )}
+                >
+                  <Text
+                    className={cn(
+                      "text-xs font-medium",
+                      isActive
+                        ? "text-background"
+                        : "text-muted-foreground"
+                    )}
+                  >
+                    {category}
+                  </Text>
+                </View>
+              </Pressable>
+            );
+          })}
         </View>
-      </View>
+      </ScrollView>
+    </View>
+  ), [categories, selectedCategory, t]);
 
-      {/* Category Chips */}
-      <View className="py-2">
+  const featuredSection = useMemo(() => {
+    if (searchQuery || selectedCategory || featuredAgents.length === 0) return null;
+    return (
+      <View className="mt-2 mb-4">
+        <View className="px-5 mb-2">
+          <Text className="text-[11px] font-semibold text-muted-foreground tracking-wider uppercase">
+            {t("agents.featured")}
+          </Text>
+        </View>
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
-          contentContainerStyle={{ paddingHorizontal: 20 }}
+          contentContainerStyle={{ paddingHorizontal: 20, gap: 10 }}
         >
-          <View className="flex-row gap-1.5">
-            {categories.map((category) => {
-              const isActive =
-                selectedCategory === category ||
-                (!selectedCategory && category === t("common.all"));
-              return (
-                <Pressable
-                  key={category}
-                  onPress={() =>
-                    setSelectedCategory(
-                      category === t("common.all") ? null : category
-                    )
-                  }
-                  className="active:opacity-70"
-                >
-                  <View
-                    className={cn(
-                      "px-3 py-1 rounded-full",
-                      isActive ? "bg-foreground" : "bg-muted/70"
-                    )}
-                  >
-                    <Text
-                      className={cn(
-                        "text-xs font-medium",
-                        isActive
-                          ? "text-background"
-                          : "text-muted-foreground"
-                      )}
-                    >
-                      {category}
-                    </Text>
-                  </View>
-                </Pressable>
-              );
-            })}
-          </View>
+          {featuredAgents.map((agent) => (
+            <AgentCard
+              key={agent._id}
+              agent={agent}
+              variant="featured"
+              onPress={handleSelectAgent}
+              onChat={handleSelectAgent}
+              onHire={handleHire}
+            />
+          ))}
         </ScrollView>
       </View>
+    );
+  }, [searchQuery, selectedCategory, featuredAgents, t, handleSelectAgent, handleHire]);
 
-      {/* Featured Section */}
-      {!searchQuery && !selectedCategory && featuredAgents.length > 0 && (
-        <View className="mt-2 mb-4">
-          <View className="px-5 mb-2">
-            <Text className="text-[11px] font-semibold text-muted-foreground tracking-wider uppercase">
-              {t("agents.featured")}
-            </Text>
-          </View>
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={{ paddingHorizontal: 20, gap: 10 }}
-          >
-            {featuredAgents.map((agent) => (
-              <AgentCard
-                key={agent._id}
-                agent={agent}
-                variant="featured"
-                onPress={handleSelectAgent}
-                onChat={handleChat}
-                onHire={handleHire}
-              />
-            ))}
-          </ScrollView>
+  const sectionTitle = useMemo(() => (
+    <View className="px-5">
+      {(searchQuery || selectedCategory) ? (
+        <View className="mb-2">
+          <Text className="text-[11px] font-semibold text-muted-foreground tracking-wider uppercase">
+            {filteredAgents.length}{" "}
+            {filteredAgents.length === 1 ? "agent" : "agents"}
+          </Text>
+        </View>
+      ) : (
+        <View className="mb-2">
+          <Text className="text-[11px] font-semibold text-muted-foreground tracking-wider uppercase">
+            {t("common.all")}
+          </Text>
         </View>
       )}
+    </View>
+  ), [searchQuery, selectedCategory, filteredAgents.length, t]);
 
-      {/* Section Title */}
+  const loadingSkeleton = useMemo(() => {
+    if (!loading || agents.length > 0) return null;
+    return (
       <View className="px-5">
-        {(searchQuery || selectedCategory) && (
-          <View className="mb-2">
-            <Text className="text-[11px] font-semibold text-muted-foreground tracking-wider uppercase">
-              {filteredAgents.length}{" "}
-              {filteredAgents.length === 1 ? "agent" : "agents"}
-            </Text>
-          </View>
-        )}
-        {!searchQuery && !selectedCategory && (
-          <View className="mb-2">
-            <Text className="text-[11px] font-semibold text-muted-foreground tracking-wider uppercase">
-              {t("common.all")}
-            </Text>
-          </View>
-        )}
-      </View>
-
-      {/* Skeleton when loading */}
-      {loading && agents.length === 0 && (
-        <View className="px-5">
-          <View className="flex-row flex-wrap" style={{ margin: -6 }}>
-            {Array.from({ length: 6 }).map((_, i) => (
-              <View
-                key={i}
-                style={{
-                  width: isLargeScreen ? "33.33%" : "50%",
-                  padding: 6,
-                }}
-              >
-                <View className="bg-muted/50 rounded-xl p-3 gap-2.5">
-                  <Skeleton style={{ width: 40, height: 40, borderRadius: 20 }} />
-                  <Skeleton style={{ width: '70%', height: 14, borderRadius: 8 }} />
-                  <Skeleton style={{ width: '90%', height: 10, borderRadius: 6 }} />
-                  <Skeleton style={{ width: '50%', height: 10, borderRadius: 6 }} />
-                </View>
+        <View className="flex-row flex-wrap" style={{ margin: -6 }}>
+          {Array.from({ length: 6 }).map((_, i) => (
+            <View
+              key={i}
+              style={{
+                width: isLargeScreen ? "33.33%" : "50%",
+                padding: 6,
+              }}
+            >
+              <View className="bg-muted/50 rounded-xl p-3 gap-2.5">
+                <Skeleton style={{ width: 40, height: 40, borderRadius: 20 }} />
+                <Skeleton style={{ width: '70%', height: 14, borderRadius: 8 }} />
+                <Skeleton style={{ width: '90%', height: 10, borderRadius: 6 }} />
+                <Skeleton style={{ width: '50%', height: 10, borderRadius: 6 }} />
               </View>
-            ))}
-          </View>
+            </View>
+          ))}
         </View>
-      )}
+      </View>
+    );
+  }, [loading, agents.length, isLargeScreen]);
+
+  const listHeader = (
+    <>
+      {headerTop}
+      {searchBar}
+      {categoryChips}
+      {featuredSection}
+      {sectionTitle}
+      {loadingSkeleton}
     </>
-  ), [t, searchQuery, selectedCategory, categories, featuredAgents, filteredAgents, loading, agents, isLargeScreen, colors, handleCreateAgent, handleSelectAgent, handleChat, handleHire]);
+  );
 
   const listEmpty = useMemo(() => {
     if (loading) return null;

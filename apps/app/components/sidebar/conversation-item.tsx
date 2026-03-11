@@ -1,10 +1,12 @@
 import React from "react";
-import { View, Pressable } from "react-native";
+import { View, Pressable, ActivityIndicator } from "react-native";
 import { Text } from "@/components/ui/text";
 import { cn } from "@/lib/utils";
+import { useColorScheme } from "@/lib/useColorScheme";
 import type { Conversation } from "@/lib/hooks/use-conversations";
 import type { Project } from "@/lib/stores/projects-store";
 import type { Folder } from "@/lib/stores/folders-store";
+import { useStore } from "@/lib/globalStore";
 import { ConversationMenu } from "./conversation-menu";
 
 interface ConversationItemProps {
@@ -46,6 +48,9 @@ export const ConversationItem = React.memo<ConversationItemProps>(({
   compact = false,
   indented = false,
 }) => {
+  const { colors } = useColorScheme();
+  const isStreaming = useStore((s) => s.streamingChatId === conversation.id);
+
   const handlePrefetch = React.useCallback(() => {
     onPrefetch?.(conversation.id);
   }, [onPrefetch, conversation.id]);
@@ -69,6 +74,9 @@ export const ConversationItem = React.memo<ConversationItemProps>(({
           !isActive && "active:bg-muted/50 rounded-full"
         )}
       >
+        {isStreaming && (
+          <ActivityIndicator size={16} color={colors.mutedForeground} />
+        )}
         <Text
           className={cn(
             "flex-1 text-foreground",

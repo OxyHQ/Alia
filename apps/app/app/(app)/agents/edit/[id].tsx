@@ -104,6 +104,8 @@ export default function EditAgentScreen() {
   const [allowHiring, setAllowHiring] = useState(false);
   const [isPublished, setIsPublished] = useState(false);
   const [permissions, setPermissions] = useState<AgentPermissions>(DEFAULT_PERMISSIONS);
+  const [archetype, setArchetype] = useState<string>('general');
+  const [archetypeConfig, setArchetypeConfig] = useState<any>({});
 
   // Linked skills & knowledge
   const [linkedSkills, setLinkedSkills] = useState<LinkedSkill[]>([]);
@@ -155,6 +157,8 @@ export default function EditAgentScreen() {
         setAllowHiring(agent.allowHiring);
         setIsPublished(agent.isPublished);
         if (agent.permissions) setPermissions({ ...DEFAULT_PERMISSIONS, ...agent.permissions });
+        setArchetype(agent.archetype || 'general');
+        setArchetypeConfig(agent.archetypeConfig || {});
       }
       setLoading(false);
       // Mark initial load as done after a tick
@@ -198,6 +202,8 @@ export default function EditAgentScreen() {
       price: price.trim() ? parseFloat(price) : null,
       allowHiring,
       permissions,
+      archetype,
+      archetypeConfig,
     } as any);
   }, [
     name,
@@ -212,6 +218,8 @@ export default function EditAgentScreen() {
     price,
     allowHiring,
     permissions,
+    archetype,
+    archetypeConfig,
     debouncedSave,
   ]);
 
@@ -695,6 +703,13 @@ export default function EditAgentScreen() {
                 {isPublished ? t("agents.published") : t("agents.draft")}
               </Text>
             </View>
+            {archetype !== 'general' && (
+              <View className="px-2 py-0.5 rounded-full bg-blue-500/15">
+                <Text className="text-xs font-medium text-blue-500 capitalize">
+                  {archetype.replace('_', ' ')}
+                </Text>
+              </View>
+            )}
             {saving && (
               <Text className="text-xs text-muted-foreground ml-2">
                 {t("agents.saving")}
@@ -776,6 +791,266 @@ export default function EditAgentScreen() {
             placeholderTextColor={colors.mutedForeground}
             style={{ fontSize: 15, lineHeight: 22, minHeight: 300 }}
           />
+
+          {/* Archetype-specific configuration */}
+          {archetype === 'status_update' && (
+            <View className="mt-6 gap-4">
+              <Text className="text-lg font-semibold text-foreground">Report Configuration</Text>
+
+              {/* Report Template */}
+              <View className="gap-1.5">
+                <Label>Report Template</Label>
+                <Textarea
+                  value={archetypeConfig.reportTemplate || ''}
+                  onChangeText={(text) => setArchetypeConfig((prev: any) => ({ ...prev, reportTemplate: text }))}
+                  placeholder="## Daily Standup\n### What happened\n### Key metrics\n### Action items"
+                  placeholderTextColor={colors.mutedForeground}
+                  style={{ minHeight: 120 }}
+                />
+              </View>
+
+              {/* Schedule */}
+              <View className="gap-1.5">
+                <Label>Schedule</Label>
+                <View className="flex-row gap-2">
+                  <ToggleGroup
+                    type="single"
+                    value={archetypeConfig.schedule?.type || 'daily'}
+                    onValueChange={(val) => setArchetypeConfig((prev: any) => ({
+                      ...prev,
+                      schedule: { ...prev.schedule, type: val || 'daily' }
+                    }))}
+                  >
+                    <ToggleGroupItem value="daily">Daily</ToggleGroupItem>
+                    <ToggleGroupItem value="interval">Interval</ToggleGroupItem>
+                  </ToggleGroup>
+                </View>
+                {(archetypeConfig.schedule?.type || 'daily') === 'daily' && (
+                  <Input
+                    value={archetypeConfig.schedule?.time || '09:00'}
+                    onChangeText={(text) => setArchetypeConfig((prev: any) => ({
+                      ...prev,
+                      schedule: { ...prev.schedule, time: text }
+                    }))}
+                    placeholder="09:00"
+                    placeholderTextColor={colors.mutedForeground}
+                  />
+                )}
+              </View>
+
+              {/* Delivery Channels */}
+              <View className="gap-1.5">
+                <Label>Delivery Channels</Label>
+                <View className="flex-row flex-wrap gap-2">
+                  {['in_app', 'telegram', 'discord', 'slack', 'email'].map((channel) => {
+                    const channels = archetypeConfig.deliveryChannels || [];
+                    const isActive = channels.includes(channel);
+                    return (
+                      <Pressable
+                        key={channel}
+                        onPress={() => {
+                          setArchetypeConfig((prev: any) => ({
+                            ...prev,
+                            deliveryChannels: isActive
+                              ? channels.filter((c: string) => c !== channel)
+                              : [...channels, channel]
+                          }));
+                        }}
+                        className={cn(
+                          "px-3 py-1.5 rounded-full border",
+                          isActive ? "bg-primary/10 border-primary" : "border-border"
+                        )}
+                      >
+                        <Text className={cn("text-xs font-medium capitalize", isActive ? "text-primary" : "text-muted-foreground")}>
+                          {channel.replace('_', ' ')}
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+              </View>
+
+              {/* Compare with Previous */}
+              <View className="flex-row items-center justify-between">
+                <Label>Compare with previous report</Label>
+                <Switch
+                  value={archetypeConfig.compareWithPrevious || false}
+                  onValueChange={(val) => setArchetypeConfig((prev: any) => ({ ...prev, compareWithPrevious: val }))}
+                />
+              </View>
+            </View>
+          )}
+
+          {archetype === 'qa' && (
+            <View className="mt-6 gap-4">
+              <Text className="text-lg font-semibold text-foreground">Q&A Configuration</Text>
+
+              {/* Knowledge Sources - integrations */}
+              <View className="gap-1.5">
+                <Label>Knowledge Sources</Label>
+                <View className="flex-row flex-wrap gap-2">
+                  {['github', 'notion', 'linear', 'google_calendar'].map((integration) => {
+                    const integrations = archetypeConfig.knowledgeSources?.integrations || [];
+                    const isActive = integrations.includes(integration);
+                    return (
+                      <Pressable
+                        key={integration}
+                        onPress={() => {
+                          const current = archetypeConfig.knowledgeSources?.integrations || [];
+                          setArchetypeConfig((prev: any) => ({
+                            ...prev,
+                            knowledgeSources: {
+                              ...prev.knowledgeSources,
+                              integrations: isActive
+                                ? current.filter((i: string) => i !== integration)
+                                : [...current, integration]
+                            }
+                          }));
+                        }}
+                        className={cn(
+                          "px-3 py-1.5 rounded-full border",
+                          isActive ? "bg-primary/10 border-primary" : "border-border"
+                        )}
+                      >
+                        <Text className={cn("text-xs font-medium capitalize", isActive ? "text-primary" : "text-muted-foreground")}>
+                          {integration.replace('_', ' ')}
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+              </View>
+
+              {/* Cite Sources */}
+              <View className="flex-row items-center justify-between">
+                <Label>Cite sources in answers</Label>
+                <Switch
+                  value={archetypeConfig.citeSources !== false}
+                  onValueChange={(val) => setArchetypeConfig((prev: any) => ({ ...prev, citeSources: val }))}
+                />
+              </View>
+            </View>
+          )}
+
+          {archetype === 'task_router' && (
+            <View className="mt-6 gap-4">
+              <Text className="text-lg font-semibold text-foreground">Routing Configuration</Text>
+
+              {/* Inbound Channels */}
+              <View className="gap-1.5">
+                <Label>Inbound Channels</Label>
+                <View className="flex-row flex-wrap gap-2">
+                  {['email', 'slack', 'discord', 'webhook', 'github', 'linear'].map((channel) => {
+                    const channels = archetypeConfig.inboundChannels || [];
+                    const isActive = channels.includes(channel);
+                    return (
+                      <Pressable
+                        key={channel}
+                        onPress={() => {
+                          setArchetypeConfig((prev: any) => ({
+                            ...prev,
+                            inboundChannels: isActive
+                              ? channels.filter((c: string) => c !== channel)
+                              : [...channels, channel]
+                          }));
+                        }}
+                        className={cn(
+                          "px-3 py-1.5 rounded-full border",
+                          isActive ? "bg-primary/10 border-primary" : "border-border"
+                        )}
+                      >
+                        <Text className={cn("text-xs font-medium capitalize", isActive ? "text-primary" : "text-muted-foreground")}>
+                          {channel}
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+              </View>
+
+              {/* Routing Rules */}
+              <View className="gap-2">
+                <View className="flex-row items-center justify-between">
+                  <Label>Routing Rules</Label>
+                  <Pressable
+                    onPress={() => {
+                      setArchetypeConfig((prev: any) => ({
+                        ...prev,
+                        routingRules: [...(prev.routingRules || []), { condition: '', priority: 'medium', assignTo: { type: 'user', id: '', name: '' } }]
+                      }));
+                    }}
+                    className="active:opacity-70"
+                  >
+                    <Plus size={16} className="text-muted-foreground" />
+                  </Pressable>
+                </View>
+                {(archetypeConfig.routingRules || []).map((rule: any, index: number) => (
+                  <View key={index} className="rounded-xl bg-muted p-3 gap-2">
+                    <Input
+                      value={rule.condition}
+                      onChangeText={(text) => {
+                        const rules = [...(archetypeConfig.routingRules || [])];
+                        rules[index] = { ...rules[index], condition: text };
+                        setArchetypeConfig((prev: any) => ({ ...prev, routingRules: rules }));
+                      }}
+                      placeholder="When the task is about..."
+                      placeholderTextColor={colors.mutedForeground}
+                    />
+                    <View className="flex-row gap-2 items-center">
+                      <ToggleGroup
+                        type="single"
+                        value={rule.priority}
+                        onValueChange={(val) => {
+                          const rules = [...(archetypeConfig.routingRules || [])];
+                          rules[index] = { ...rules[index], priority: val || 'medium' };
+                          setArchetypeConfig((prev: any) => ({ ...prev, routingRules: rules }));
+                        }}
+                      >
+                        <ToggleGroupItem value="low">Low</ToggleGroupItem>
+                        <ToggleGroupItem value="medium">Med</ToggleGroupItem>
+                        <ToggleGroupItem value="high">High</ToggleGroupItem>
+                        <ToggleGroupItem value="urgent">Urgent</ToggleGroupItem>
+                      </ToggleGroup>
+                      <Pressable
+                        onPress={() => {
+                          const rules = (archetypeConfig.routingRules || []).filter((_: any, i: number) => i !== index);
+                          setArchetypeConfig((prev: any) => ({ ...prev, routingRules: rules }));
+                        }}
+                        className="active:opacity-70 ml-auto"
+                      >
+                        <X size={14} className="text-muted-foreground" />
+                      </Pressable>
+                    </View>
+                    <Input
+                      value={rule.assignTo?.name || ''}
+                      onChangeText={(text) => {
+                        const rules = [...(archetypeConfig.routingRules || [])];
+                        rules[index] = { ...rules[index], assignTo: { ...rules[index].assignTo, name: text } };
+                        setArchetypeConfig((prev: any) => ({ ...prev, routingRules: rules }));
+                      }}
+                      placeholder="Route to (name)"
+                      placeholderTextColor={colors.mutedForeground}
+                    />
+                  </View>
+                ))}
+              </View>
+
+              {/* Escalation Timeout */}
+              <View className="gap-1.5">
+                <Label>Escalation Timeout (minutes)</Label>
+                <Input
+                  value={String(archetypeConfig.escalationTimeoutMinutes || '')}
+                  onChangeText={(text) => {
+                    const num = parseInt(text, 10);
+                    setArchetypeConfig((prev: any) => ({ ...prev, escalationTimeoutMinutes: isNaN(num) ? undefined : num }));
+                  }}
+                  placeholder="60"
+                  placeholderTextColor={colors.mutedForeground}
+                  keyboardType="number-pad"
+                />
+              </View>
+            </View>
+          )}
         </ScrollView>
       </View>
 

@@ -10,7 +10,7 @@ export type { AliaChatScreenProps } from './components/AliaChatScreen';
 
 // ── Chat UI components ──
 export { AliaFace } from './components/AliaFace';
-export type { AliaExpression, AliaFaceProps } from './components/AliaFace';
+export type { AliaAccessory, AliaExpression, AliaFaceProps } from './components/AliaFace';
 export { ThinkingIndicator } from './components/ThinkingIndicator';
 export { AliaMarkdown } from './components/Markdown';
 export type { AliaMarkdownProps } from './components/Markdown';

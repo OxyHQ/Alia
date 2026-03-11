@@ -43,6 +43,17 @@ export function useChatConversation({ conversationId, activeRole, thinkingMode, 
     rejectPlan,
   } = useStreamingChat(generateAPIUrl('/v1/chat/completions'), activeRole, conversationId, thinkingMode, selectedModel, skillId, agentId);
 
+  // Expose streaming state globally so sidebar can show a spinner
+  const setStreamingChatId = useStore((s) => s.setStreamingChatId);
+  useEffect(() => {
+    setStreamingChatId(isLoading && conversationId ? conversationId : null);
+    return () => {
+      if (useStore.getState().streamingChatId === conversationId) {
+        setStreamingChatId(null);
+      }
+    };
+  }, [isLoading, conversationId, setStreamingChatId]);
+
   // Refresh sidebar when streaming finishes (backend auto-saves with AI-generated title)
   useEffect(() => {
     if (wasLoadingRef.current && !isLoading && conversationId) {

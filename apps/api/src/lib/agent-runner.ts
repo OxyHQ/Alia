@@ -27,6 +27,7 @@ import { WorkspaceMemory } from './agent/workspace-memory.js';
 import { TerminalSession, inferImage } from './agent/terminal-session.js';
 import { BrowserSession } from './agent/browser-session.js';
 import { buildActions } from './agent/actions.js';
+import { buildArchetypeSystemPrompt } from './agent/archetype-prompts.js';
 import { classifyError } from './errors/failover-error.js';
 import { finalizeCredits, safeRefund, type CreditReservation } from './credits-manager.js';
 import { MAX_DELEGATION_DEPTH, EVENT_STREAM_BUDGET } from './constants.js';
@@ -50,6 +51,12 @@ const CONTINUATION_PROMPTS = [
 function buildSystemPrompt(agent: IAgent, config: IAgentSession['config']): string {
   if (agent.systemPrompt) {
     return agent.systemPrompt;
+  }
+
+  // Use archetype-specific prompt if available
+  if (agent.archetype && agent.archetype !== 'general') {
+    const archetypePrompt = buildArchetypeSystemPrompt(agent);
+    if (archetypePrompt) return archetypePrompt;
   }
 
   const capabilities = agent.capabilities.length > 0

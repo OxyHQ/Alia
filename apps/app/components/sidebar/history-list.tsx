@@ -1,12 +1,10 @@
 import React from "react";
-import { View, ActivityIndicator, Pressable } from "react-native";
+import { View, ActivityIndicator } from "react-native";
 import { useColorScheme } from "@/lib/useColorScheme";
-import { Text } from "@/components/ui/text";
-import { cn } from "@/lib/utils";
 import type { Conversation } from "@/lib/hooks/use-conversations";
 import type { Project } from "@/lib/stores/projects-store";
 import type { Folder } from "@/lib/stores/folders-store";
-import { ConversationMenu } from "./conversation-menu";
+import { ConversationItem } from "./conversation-item";
 
 interface HistoryListProps {
   data: Conversation[];
@@ -52,57 +50,27 @@ export const HistoryList = React.memo<HistoryListProps>(({
 
   return (
     <>
-      {data.map((conv) => {
-        const convProject = getConversationProject(conv.id);
-        const convFolder = getConversationFolder(conv.id);
-        const isConvFavorite = favoriteIds.includes(conv.id);
-        const isActive = currentChatId === conv.id;
-
-        return (
-          <View
-            key={conv.id}
-            className={cn(
-              "flex-row items-center gap-1 rounded-full group",
-              isActive && "bg-muted border border-border"
-            )}
-          >
-            <Pressable
-              onPress={() => onSelect(conv.id)}
-              onPressIn={() => onPrefetch?.(conv.id)}
-              // @ts-ignore web-only prop
-              onHoverIn={() => onPrefetch?.(conv.id)}
-              className={cn(
-                "flex-1 flex-row items-center gap-2 py-1.5 pl-2.5 pr-1",
-                !isActive && "active:bg-muted/50 rounded-full"
-              )}
-            >
-              <Text
-                className={cn(
-                  "flex-1 text-xs text-foreground",
-                  isActive && "font-medium"
-                )}
-                numberOfLines={1}
-              >
-                {conv.title || "New conversation"}
-              </Text>
-            </Pressable>
-            <ConversationMenu
-              conversation={conv}
-              currentProject={convProject}
-              currentFolder={convFolder}
-              isFavorite={isConvFavorite}
-              isPinned={pinnedIds.includes(conv.id)}
-              projects={projects}
-              folders={folders}
-              onToggleFavorite={onToggleFavorite}
-              onTogglePin={onTogglePin}
-              onMoveToProject={onMoveToProject}
-              onMoveToFolder={onMoveToFolder}
-              onDelete={onDelete}
-            />
-          </View>
-        );
-      })}
+      {data.map((conv) => (
+        <ConversationItem
+          key={conv.id}
+          conversation={conv}
+          isActive={currentChatId === conv.id}
+          isFavorite={favoriteIds.includes(conv.id)}
+          isPinned={pinnedIds.includes(conv.id)}
+          currentProject={getConversationProject(conv.id)}
+          currentFolder={getConversationFolder(conv.id)}
+          projects={projects}
+          folders={folders}
+          onSelect={onSelect}
+          onToggleFavorite={onToggleFavorite}
+          onTogglePin={onTogglePin}
+          onMoveToProject={onMoveToProject}
+          onMoveToFolder={onMoveToFolder}
+          onDelete={onDelete}
+          onPrefetch={onPrefetch}
+          compact
+        />
+      ))}
 
       {isFetchingNextPage && (
         <View className="py-3 items-center">

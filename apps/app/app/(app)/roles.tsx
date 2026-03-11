@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useMemo, useCallback, memo } from 'react';
-import { View, ScrollView, Pressable, TextInput, RefreshControl, FlatList } from 'react-native';
+import { View, ScrollView, Pressable, TextInput, RefreshControl } from 'react-native';
 import { Text } from '@/components/ui/text';
 import { Button } from '@/components/ui/button';
 import {
@@ -16,8 +16,6 @@ import { toast } from '@/components/sonner';
 import { cn } from '@/lib/utils';
 import { useColorScheme } from '@/lib/useColorScheme';
 import { Skeleton } from '@/components/ui/skeleton';
-
-const keyExtractor = (item: any) => item.id;
 
 export default function RolesScreen() {
   const { t } = useTranslation();
@@ -71,10 +69,6 @@ export default function RolesScreen() {
   }, [roles, searchQuery, selectedCategory]);
 
   const featuredRoles = useMemo(() => roles.filter(r => r.isFeatured), [roles]);
-
-  const renderRoleItem = useCallback(({ item }: { item: any }) => (
-    <RoleListItem role={item} onPress={handleSelectRole} />
-  ), [handleSelectRole]);
 
   return (
     <View className="flex-1 bg-background">
@@ -193,12 +187,11 @@ export default function RolesScreen() {
               ))}
             </View>
           ) : (
-            <FlatList
-              data={filteredRoles}
-              keyExtractor={keyExtractor}
-              renderItem={renderRoleItem}
-              scrollEnabled={false}
-            />
+            <View>
+              {filteredRoles.map((role) => (
+                <RoleListItem key={role.id} role={role} onPress={handleSelectRole} />
+              ))}
+            </View>
           )}
 
           {filteredRoles.length === 0 && !isInitialLoad && (

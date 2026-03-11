@@ -1,5 +1,5 @@
-import React, { useEffect } from "react";
-import { View, Text } from "react-native";
+import React, { useEffect, useMemo } from "react";
+import { View, Text, Image, ImageSourcePropType } from "react-native";
 import Svg, { Path, Ellipse } from "react-native-svg";
 import Animated, {
   useSharedValue,
@@ -33,10 +33,17 @@ export type AliaExpression =
   | "Searching F"
   | "Looking Down";
 
+export interface AliaAccessory {
+  layer: 'front' | 'behind';
+  image: ImageSourcePropType;
+}
+
 export interface AliaFaceProps {
   expression?: AliaExpression;
   size?: number;
   showLabel?: boolean;
+  /** Accessory overlays rendered on/around the face circle */
+  accessories?: AliaAccessory[];
 }
 
 // ─── Expression data (numeric decomposition of SVG paths) ───────────────────
@@ -129,6 +136,7 @@ export function AliaFace({
   expression = DEFAULT_EXPRESSION,
   size = 120,
   showLabel = false,
+  accessories,
 }: AliaFaceProps) {
   const colors = useAliaColors();
   const strokeColor = colors.isDark ? "#ffffff" : "#000000";
@@ -336,60 +344,91 @@ export function AliaFace({
     transform: [{ translateY: breatheY.value }],
   }));
 
+  // ── Accessories ──
+
+  const { behind, front } = useMemo(() => {
+    if (!accessories?.length) return { behind: [] as AliaAccessory[], front: [] as AliaAccessory[] };
+    const b: AliaAccessory[] = [];
+    const f: AliaAccessory[] = [];
+    for (const acc of accessories) {
+      if (acc.layer === 'behind') b.push(acc);
+      else f.push(acc);
+    }
+    return { behind: b, front: f };
+  }, [accessories]);
+
+  const accessoryStyle = useMemo(
+    () => ({ position: 'absolute' as const, width: size, height: size, top: 0, left: 0 }),
+    [size],
+  );
+
   // ── Render ──
 
   return (
     <View style={{ alignItems: "center" }}>
-      <View
-        style={{
-          width: size,
-          height: size,
-          borderRadius: size / 2,
-          backgroundColor: circleBg,
-          alignItems: "center",
-          justifyContent: "center",
-          borderWidth: 1,
-          borderColor: circleBorder,
-        }}
-      >
-        <Animated.View style={breatheStyle}>
-          <Svg
-            width={size * 0.95}
-            height={size * 0.95}
-            viewBox="35 35 250 250"
-          >
-            {/* Left brow */}
-            <AnimatedPath
-              animatedProps={leftBrowProps}
-              stroke={strokeColor}
-              strokeWidth={15}
-              strokeLinecap="round"
-              fill="none"
-            />
+      <View style={{ width: size, height: size, overflow: 'visible' as const }}>
+        {/* Behind-layer accessories (e.g. headphones) */}
+        {behind.map((acc, i) => (
+          <Image key={`behind-${i}`} source={acc.image} style={accessoryStyle} />
+        ))}
 
-            {/* Left eye */}
-            <AnimatedEllipse
-              animatedProps={leftEyeProps}
-              fill={strokeColor}
-            />
+        {/* Face circle */}
+        <View
+          style={{
+            width: size,
+            height: size,
+            borderRadius: size / 2,
+            backgroundColor: circleBg,
+            alignItems: "center",
+            justifyContent: "center",
+            borderWidth: 1,
+            borderColor: circleBorder,
+          }}
+        >
+          <Animated.View style={breatheStyle}>
+            <Svg
+              width={size * 0.95}
+              height={size * 0.95}
+              viewBox="35 35 250 250"
+            >
+              {/* Left brow */}
+              <AnimatedPath
+                animatedProps={leftBrowProps}
+                stroke={strokeColor}
+                strokeWidth={15}
+                strokeLinecap="round"
+                fill="none"
+              />
 
-            {/* Right eye */}
-            <AnimatedEllipse
-              animatedProps={rightEyeProps}
-              fill={strokeColor}
-            />
+              {/* Left eye */}
+              <AnimatedEllipse
+                animatedProps={leftEyeProps}
+                fill={strokeColor}
+              />
 
-            {/* Nose + right brow */}
-            <AnimatedPath
-              animatedProps={noseBrowProps}
-              stroke={strokeColor}
-              strokeWidth={15}
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              fill="none"
-            />
-          </Svg>
-        </Animated.View>
+              {/* Right eye */}
+              <AnimatedEllipse
+                animatedProps={rightEyeProps}
+                fill={strokeColor}
+              />
+
+              {/* Nose + right brow */}
+              <AnimatedPath
+                animatedProps={noseBrowProps}
+                stroke={strokeColor}
+                strokeWidth={15}
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                fill="none"
+              />
+            </Svg>
+          </Animated.View>
+        </View>
+
+        {/* Front-layer accessories (e.g. hat, glasses, tie) */}
+        {front.map((acc, i) => (
+          <Image key={`front-${i}`} source={acc.image} style={accessoryStyle} />
+        ))}
       </View>
 
       {showLabel && (
