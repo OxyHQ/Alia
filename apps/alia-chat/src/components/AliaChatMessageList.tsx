@@ -21,7 +21,6 @@ import {
   ThumbsDown,
   Pencil,
 } from 'lucide-react-native';
-import { useAliaColors } from '../theme';
 import { Text } from './ui/text';
 import { AliaMarkdown } from './Markdown';
 import { ThinkingIndicator } from './ThinkingIndicator';

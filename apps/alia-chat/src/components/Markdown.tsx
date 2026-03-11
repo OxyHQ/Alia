@@ -156,7 +156,7 @@ function createRules(colors: AliaColors) {
       />
     ),
     body: (node: any, children: any) => {
-      return <View key={node.key}>{children}</View>;
+      return <View key={node.key} style={{ marginBottom: -8 }}>{children}</View>;
     },
   };
 }

@@ -43,13 +43,18 @@ export default function AccessoriesEditorScreen() {
   const [equipped, setEquipped] = useState<EditorAccessory[]>([]);
   const [selectedIdx, setSelectedIdx] = useState<number | null>(null);
   const [saving, setSaving] = useState(false);
-  const [activeSlot, setActiveSlot] = useState<string>("head");
+  const [activeSlot, setActiveSlot] = useState<CatalogAccessory['slot']>("head");
 
   // Load catalog + owned
   useEffect(() => {
     loadCatalog();
     loadOwned();
   }, [loadCatalog, loadOwned]);
+
+  const catalogBySlug = useMemo(
+    () => new Map(catalog.map((c) => [c.slug, c])),
+    [catalog]
+  );
 
   // Load agent's current accessories
   useEffect(() => {
@@ -58,24 +63,29 @@ export default function AccessoriesEditorScreen() {
       if (!agent) return;
       const items: EditorAccessory[] = [];
       for (const acc of agent.accessories ?? []) {
-        // accessoryId is a slug — match against catalog slug
-        const catItem = catalog.find((c) => c.slug === acc.accessoryId);
+        const catItem = catalogBySlug.get(acc.accessoryId);
         if (catItem) {
           items.push({ accessoryId: acc.accessoryId, position: acc.position, catalog: catItem });
         }
       }
       setEquipped(items);
     });
-  }, [agentId, getAgent, catalog]);
+  }, [agentId, getAgent, catalog, catalogBySlug]);
 
-  const slots = useMemo(() => {
-    const s = new Set(catalog.map((a) => a.slot));
-    return Array.from(s);
-  }, [catalog]);
+  const SLOT_ORDER: CatalogAccessory['slot'][] = ['head', 'face', 'neck'];
+  const slots = useMemo(
+    () => SLOT_ORDER.filter((s) => catalog.some((a) => a.slot === s)),
+    [catalog]
+  );
 
   const slotAccessories = useMemo(
     () => catalog.filter((a) => a.slot === activeSlot),
     [catalog, activeSlot]
+  );
+
+  const equippedSlugs = useMemo(
+    () => new Set(equipped.map((e) => e.accessoryId)),
+    [equipped]
   );
 
   // Indexed list preserving original indices through layer filtering
@@ -307,7 +317,7 @@ export default function AccessoriesEditorScreen() {
             <AccessoryPickerItem
               key={accessory._id}
               accessory={accessory}
-              isEquipped={equipped.some((e) => e.accessoryId === accessory.slug)}
+              isEquipped={equippedSlugs.has(accessory.slug)}
               isOwned={isOwned(accessory._id)}
               onPress={() => handleToggleAccessory(accessory)}
               placeholderColor={colors.muted}

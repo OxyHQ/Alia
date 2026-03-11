@@ -1,7 +1,6 @@
 import React, { useEffect, useMemo } from 'react';
-import { View, Platform, useWindowDimensions } from 'react-native';
+import { View, Platform, useWindowDimensions, useColorScheme } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
-import { useAliaColors } from '../../theme';
 import Animated, {
   useSharedValue,
   useAnimatedProps,
@@ -228,8 +227,8 @@ export function AudioWaveVisualizer({
   isDarkMode,
 }: AudioWaveVisualizerProps) {
   const { width: screenWidth } = useWindowDimensions();
-  const aliaColors = useAliaColors();
-  const effectiveIsDark = isDarkMode ?? aliaColors.isDark;
+  const scheme = useColorScheme();
+  const effectiveIsDark = isDarkMode ?? (scheme === 'dark');
   const state = WAVE_COLORS[agentState] ? agentState : 'idle';
 
   // Use theme-derived palette for idle/listening, keep hardcoded for thinking/speaking

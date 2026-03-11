@@ -12,7 +12,6 @@ import Animated, {
   cancelAnimation,
   Easing,
 } from "react-native-reanimated";
-import { useAliaColors } from "../theme";
 
 // ─── Animated SVG wrappers ──────────────────────────────────────────────────
 
@@ -46,10 +45,6 @@ export interface AliaFaceProps {
   showLabel?: boolean;
   /** Accessory overlays rendered on/around the face circle */
   accessories?: AliaAccessory[];
-  /** Override the circle background color (defaults to theme background) */
-  backgroundColor?: string;
-  /** Override the circle border color (defaults to theme border) */
-  borderColor?: string;
 }
 
 // ─── Expression data (numeric decomposition of SVG paths) ───────────────────
@@ -143,13 +138,8 @@ export function AliaFace({
   size = 120,
   showLabel = false,
   accessories,
-  backgroundColor,
-  borderColor,
 }: AliaFaceProps) {
-  const colors = useAliaColors();
-  const strokeColor = colors.isDark ? "#ffffff" : "#000000";
-  const circleBg = backgroundColor ?? colors.background;
-  const circleBorder = borderColor ?? colors.border;
+  const strokeColor = 'currentColor';
 
   const initial = EXPRESSIONS[DEFAULT_EXPRESSION];
 
@@ -389,15 +379,14 @@ export function AliaFace({
 
         {/* Face circle */}
         <View
+          className="bg-background border-primary/20 text-foreground"
           style={{
             width: size,
             height: size,
             borderRadius: size / 2,
-            backgroundColor: circleBg,
             alignItems: "center",
             justifyContent: "center",
             borderWidth: 1,
-            borderColor: circleBorder,
           }}
         >
           <Animated.View style={breatheStyle}>
@@ -454,7 +443,7 @@ export function AliaFace({
       </View>
 
       {showLabel && (
-        <Text style={{ fontSize: 10, color: colors.mutedForeground, marginTop: 8, textTransform: 'uppercase', letterSpacing: 3, fontWeight: '700' }}>
+        <Text className="text-muted-foreground" style={{ fontSize: 10, marginTop: 8, textTransform: 'uppercase', letterSpacing: 3, fontWeight: '700' }}>
           {expression}
         </Text>
       )}

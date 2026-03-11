@@ -8,7 +8,7 @@ import Animated, {
   withSequence,
   cancelAnimation,
 } from 'react-native-reanimated';
-import { useAliaColors } from '../theme';
+
 
 // Context
 type ReasoningContextType = {
@@ -80,7 +80,6 @@ export function Reasoning({ isStreaming = false, defaultOpen = true, duration: e
 // Trigger — shows "Thinking for Xs..." label with pulsing icon
 export function ReasoningTrigger({ onPress }: ReasoningTriggerProps) {
   const { isStreaming, isOpen, setIsOpen, duration } = useReasoning();
-  const colors = useAliaColors();
   const pulseOpacity = useSharedValue(1);
 
   useEffect(() => {
@@ -114,7 +113,6 @@ export function ReasoningTrigger({ onPress }: ReasoningTriggerProps) {
 // Content — renders thinking text (collapsible)
 export function ReasoningContent({ children }: ReasoningContentProps) {
   const { isOpen, isStreaming } = useReasoning();
-  const colors = useAliaColors();
 
   if (!isOpen) return null;
 

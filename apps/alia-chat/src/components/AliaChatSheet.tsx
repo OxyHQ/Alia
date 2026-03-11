@@ -16,6 +16,7 @@ import {
   Pressable,
   Dimensions,
   Platform,
+  useColorScheme,
 } from 'react-native';
 import { Gesture, GestureDetector, GestureHandlerRootView } from 'react-native-gesture-handler';
 import { useKeyboardHandler } from 'react-native-keyboard-controller';
@@ -29,7 +30,6 @@ import Animated, {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AliaChatContent, type AliaChatContentRef } from './AliaChatContent';
 import { AliaFace, type AliaExpression } from './AliaFace';
-import { useAliaColors } from '../theme';
 import type { WelcomeSuggestion } from './AliaWelcomeMessage';
 
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
@@ -62,8 +62,8 @@ export interface AliaChatSheetRef {
 
 export const AliaChatSheet = forwardRef<AliaChatSheetRef, AliaChatSheetProps>(
   ({ clientContext, model, apiUrl, welcomeGreeting, welcomeSubtitle, welcomeSuggestions }, ref) => {
-    const colors = useAliaColors();
-    const isDark = colors.isDark;
+    const scheme = useColorScheme();
+    const isDark = scheme === 'dark';
     const insets = useSafeAreaInsets();
 
     // Content ref for reading state
@@ -237,9 +237,9 @@ export const AliaChatSheet = forwardRef<AliaChatSheetRef, AliaChatSheetProps>(
           {/* Sheet */}
           <GestureDetector gesture={panGesture}>
             <Animated.View
+              className="bg-background"
               style={[
                 styles.sheet,
-                { backgroundColor: colors.background },
                 sheetAnimStyle,
                 sheetMaxHeightStyle,
               ]}
@@ -258,19 +258,14 @@ export const AliaChatSheet = forwardRef<AliaChatSheetRef, AliaChatSheetProps>(
               <View style={styles.header}>
                 <View style={styles.headerLeft}>
                   <AliaFace size={28} expression={faceExpression} />
-                  <Text style={[styles.headerTitle, { color: colors.text }]}>
+                  <Text className="text-lg font-semibold text-foreground">
                     Alia
                   </Text>
                 </View>
                 <View style={styles.headerRight}>
                   {hasMessages && (
                     <TouchableOpacity onPress={handleClear} style={styles.clearButton}>
-                      <Text
-                        style={[
-                          styles.clearText,
-                          { color: colors.secondaryText },
-                        ]}
-                      >
+                      <Text className="text-sm text-muted-foreground">
                         Clear
                       </Text>
                     </TouchableOpacity>
@@ -280,13 +275,7 @@ export const AliaChatSheet = forwardRef<AliaChatSheetRef, AliaChatSheetProps>(
                     style={styles.closeButton}
                     hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                   >
-                    <Text
-                      style={{
-                        fontSize: 18,
-                        fontWeight: '600',
-                        color: colors.icon,
-                      }}
-                    >
+                    <Text className="text-lg font-semibold text-muted-foreground">
                       {'\u2715'}
                     </Text>
                   </TouchableOpacity>
@@ -361,10 +350,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 10,
   },
-  headerTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-  },
   headerRight: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -373,9 +358,6 @@ const styles = StyleSheet.create({
   clearButton: {
     paddingHorizontal: 10,
     paddingVertical: 6,
-  },
-  clearText: {
-    fontSize: 14,
   },
   closeButton: {
     width: 32,

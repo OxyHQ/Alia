@@ -1,6 +1,6 @@
 import React from "react";
 import { View, Pressable, Platform, NativeSyntheticEvent, NativeScrollEvent, Linking } from "react-native";
-import { Image } from "expo-image";
+import { AliaLogo } from "@/components/ui/alia-logo";
 import { Text } from "@/components/ui/text";
 import { Button } from "@/components/ui/button";
 import { BaseSidebar } from "@/components/base-sidebar";
@@ -472,11 +472,7 @@ const ChatSidebar = React.memo(function ChatSidebar() {
   // Header component
   const header = (
     <Pressable onPress={handleLogoPress} style={({ pressed }) => ({ opacity: pressed ? 0.7 : 1 })}>
-      <Image
-        source={require("@/assets/images/logo.png")}
-        style={{ width: "100%", height: 48 }}
-        contentFit="contain"
-      />
+      <AliaLogo height={48} />
     </Pressable>
   );
 

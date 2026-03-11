@@ -319,7 +319,7 @@ export const ChatInterface = React.memo(function ChatInterface({ messages, scrol
             )
           )}
 
-          <View className="gap-2" style={{ position: 'relative' }}>
+          <View style={{ position: 'relative' }}>
             {/* Single flying AliaFace */}
             {lastAliaIndex >= 0 && (
               <Animated.View style={faceAnimatedStyle}>
@@ -414,13 +414,13 @@ export const ChatInterface = React.memo(function ChatInterface({ messages, scrol
 
                   {/* Message Content */}
                   {(messageText.length > 0 || messageImages.length > 0 || (m as any).isStreaming) && (
-                    <View key="message-content" className="w-full">
+                    <View key="message-content" className={`w-full ${m.role === "user" ? "mt-2" : ""}`}>
                       {m.role === "assistant" ? (
                         // Assistant message: text below (flying face handles avatar)
                         <DropdownMenu.Root>
                         <DropdownMenu.Trigger asChild>
                         <Pressable className="group">
-                        <View className="flex-col items-start gap-0.5">
+                        <View className="flex-col items-start">
                           {/* Agent identity or cohost label (Alia face is floating) */}
                           {m.agentInfo ? (
                             <View className="flex-row items-center gap-2 mb-0.5">

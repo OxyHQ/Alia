@@ -9,7 +9,6 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useSpeechToText } from '../hooks/useSpeechToText';
-import { useAliaColors } from '../theme';
 
 interface AliaChatInputProps {
   onSend: (text: string) => void;
@@ -27,9 +26,7 @@ export function AliaChatInput({
   apiUrl,
 }: AliaChatInputProps) {
   const [input, setInput] = useState('');
-  const colors = useAliaColors();
   const insets = useSafeAreaInsets();
-  const isDark = colors.isDark;
   const stt = useSpeechToText({ apiUrl });
 
   const hasText = input.trim().length > 0;
@@ -54,26 +51,16 @@ export function AliaChatInput({
 
   return (
     <View
-      style={[
-        styles.container,
-        {
-          borderTopColor: colors.border,
-          paddingBottom: Math.max(insets.bottom, 12),
-        },
-      ]}
+      className="flex-row items-end px-3 pt-2 gap-2 border-t border-border"
+      style={{ paddingBottom: Math.max(insets.bottom, 12) }}
     >
       <TextInput
-        style={[
-          styles.input,
-          {
-            color: colors.text,
-            backgroundColor: isDark ? colors.inputBackground : colors.card,
-          },
-        ]}
+        className="flex-1 text-[15px] px-3.5 py-2.5 rounded-[20px] text-foreground bg-input dark:bg-input"
+        style={{ maxHeight: 100 }}
         value={input}
         onChangeText={setInput}
         placeholder="Ask Alia..."
-        placeholderTextColor={colors.secondaryText}
+        placeholderTextColor="hsl(var(--muted-foreground))"
         multiline
         maxLength={2000}
         onSubmitEditing={handleSend}
@@ -91,25 +78,22 @@ export function AliaChatInput({
         ) : stt.isRecording ? (
           <MicOffIcon />
         ) : (
-          <MicIcon color={colors.secondaryText} />
+          <MicIcon color="hsl(var(--muted-foreground))" />
         )}
       </Pressable>
 
       {/* Three-state submit button */}
       {isStreaming ? (
         <Pressable
-          style={[styles.actionButton, { backgroundColor: colors.tint }]}
+          className="w-10 h-10 rounded-[20px] items-center justify-center bg-primary"
           onPress={onStop}
         >
           <StopIcon />
         </Pressable>
       ) : hasText ? (
         <Pressable
-          style={[
-            styles.actionButton,
-            { backgroundColor: colors.tint },
-            !canSend && { opacity: 0.4 },
-          ]}
+          className="w-10 h-10 rounded-[20px] items-center justify-center bg-primary"
+          style={!canSend ? { opacity: 0.4 } : undefined}
           onPress={handleSend}
           disabled={!canSend}
         >
@@ -117,7 +101,7 @@ export function AliaChatInput({
         </Pressable>
       ) : (
         <Pressable
-          style={[styles.actionButton, { backgroundColor: colors.tint }]}
+          className="w-10 h-10 rounded-[20px] items-center justify-center bg-primary"
           onPress={onVoiceActivate}
         >
           <SoundIcon />
@@ -215,32 +199,9 @@ function MicOffIcon() {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-    paddingHorizontal: 12,
-    paddingTop: 8,
-    gap: 8,
-    borderTopWidth: StyleSheet.hairlineWidth,
-  },
-  input: {
-    flex: 1,
-    fontSize: 15,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    borderRadius: 20,
-    maxHeight: 100,
-  },
   micButton: {
     width: 32,
     height: 40,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  actionButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
     alignItems: 'center',
     justifyContent: 'center',
   },

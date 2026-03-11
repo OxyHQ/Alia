@@ -68,7 +68,7 @@ export function VoiceControls({
   return (
     <View style={styles.container}>
       {statusText ? (
-        <Text style={[styles.statusText, { color: colors.text }]}>
+        <Text className="text-lg font-medium mb-4 text-foreground">
           {statusText}
         </Text>
       ) : null}
@@ -89,7 +89,7 @@ export function VoiceControls({
               onPress={onToggleMute}
               style={[
                 styles.button,
-                { backgroundColor: isMuted ? '#ef4444' : colors.muted },
+                { backgroundColor: isMuted ? '#ef4444' : 'hsl(var(--muted))' },
               ]}
             >
               {isMuted ? (
@@ -98,7 +98,7 @@ export function VoiceControls({
                 <Mic size={24} color="white" />
               )}
             </Pressable>
-            <Text style={[styles.buttonLabel, { color: colors.mutedForeground }]}>
+            <Text className="text-xs text-muted-foreground">
               {isMuted ? 'Unmute' : 'Mute'}
             </Text>
           </View>
@@ -108,12 +108,12 @@ export function VoiceControls({
               onPress={cohostActive ? onDisableCohost : onEnableCohost}
               style={[
                 styles.button,
-                { backgroundColor: cohostActive ? colors.primary : colors.muted },
+                { backgroundColor: cohostActive ? colors.primary : 'hsl(var(--muted))' },
               ]}
             >
               <Users size={24} color="white" />
             </Pressable>
-            <Text style={[styles.buttonLabel, { color: colors.mutedForeground }]}>
+            <Text className="text-xs text-muted-foreground">
               {cohostActive ? 'Solo' : 'Cohost'}
             </Text>
           </View>
@@ -125,13 +125,13 @@ export function VoiceControls({
             >
               <PhoneOff size={24} color="white" />
             </Pressable>
-            <Text style={[styles.buttonLabel, { color: colors.mutedForeground }]}>End</Text>
+            <Text className="text-xs text-muted-foreground">End</Text>
           </View>
         </View>
       )}
 
       {roomState === 'connecting' && (
-        <ActivityIndicator size="large" color={colors.mutedForeground} />
+        <ActivityIndicator size="large" color="hsl(var(--muted-foreground))" />
       )}
     </View>
   );
@@ -142,11 +142,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingBottom: 24,
     paddingTop: 16,
-  },
-  statusText: {
-    fontSize: 18,
-    fontWeight: '500',
-    marginBottom: 16,
   },
   buttonRow: {
     flexDirection: 'row',
@@ -163,9 +158,6 @@ const styles = StyleSheet.create({
     borderRadius: 28,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  buttonLabel: {
-    fontSize: 12,
   },
   continueButton: {
     marginBottom: 16,

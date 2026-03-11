@@ -3,7 +3,6 @@ import { AliaFace as AliaFaceBase, type AliaAccessory, type AliaExpression } fro
 import { getAccessory, getAccessoryImage } from "@/lib/accessories";
 import type { AgentAccessory } from "@/lib/stores/agents-store";
 import { useAccessoriesStore } from "@/lib/stores/accessories-store";
-import { useColorScheme } from "@/lib/useColorScheme";
 
 export type { AliaExpression };
 
@@ -19,7 +18,6 @@ export function AliaFace({
   expression,
 }: AliaFaceProps) {
   const catalog = useAccessoriesStore((s) => s.catalog);
-  const { colors } = useColorScheme();
 
   const resolvedAccessories = useMemo<AliaAccessory[] | undefined>(() => {
     if (!accessories?.length) return undefined;
@@ -54,8 +52,6 @@ export function AliaFace({
       size={size}
       expression={expression}
       accessories={resolvedAccessories}
-      backgroundColor={colors.background}
-      borderColor={colors.border}
     />
   );
 }

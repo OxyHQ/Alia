@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { View, Pressable, Linking, Platform } from 'react-native';
-import { Image } from 'expo-image';
+import { AliaLogo } from '@/components/ui/alia-logo';
 import { useRouter } from 'expo-router';
 import Head from 'expo-router/head';
 import QRCode from 'react-native-qrcode-svg';
@@ -44,11 +44,7 @@ export default function DownloadScreen() {
       <View className="flex-1 bg-background items-center justify-center p-6">
         <View className="w-full max-w-xs items-center gap-4">
           {/* Logo */}
-          <Image
-            source={require('@/assets/images/logo.png')}
-            style={{ width: 100, height: 40 }}
-            contentFit="contain"
-          />
+          <AliaLogo width={100} />
 
           {/* Headline */}
           <View className="items-center gap-1">
