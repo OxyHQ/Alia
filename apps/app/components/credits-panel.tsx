@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo } from "react";
 import { View, Pressable, ScrollView } from "react-native";
 import * as Linking from "expo-linking";
 import { Text } from "@/components/ui/text";
@@ -204,12 +204,12 @@ export function CreditsPanel() {
   const dailyRefresh = data?.dailyRefresh ?? 0;
   const isSubscribed = subscription?.status === 'active';
 
-  const navigate = useCallback((path: string) => {
+  const navigate = (path: string) => {
     setRightPanel(null);
     router.push(path as any);
-  }, [setRightPanel, router]);
+  };
 
-  const handlePurchaseCredits = useCallback(async (packageId: string) => {
+  const handlePurchaseCredits = async (packageId: string) => {
     try {
       const { url } = await createCheckoutMutation.mutateAsync({
         packageId,
@@ -222,7 +222,7 @@ export function CreditsPanel() {
     } catch (error: any) {
       toast.error(error.message || t('billing.failedCheckout'));
     }
-  }, [createCheckoutMutation, t]);
+  };
 
   return (
     <View className="flex-1 bg-background">
