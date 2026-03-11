@@ -147,6 +147,14 @@ router.post('/welcome', optionalAuth, async (req: Request, res: Response) => {
       .limit(requestedCount * 5)
       .lean();
 
+    // Fallback to en-US if no suggestions found for user's language
+    if (pool.length === 0 && language !== 'en-US') {
+      pool = await Suggestion.find({ ...filter, language: 'en-US' })
+        .sort({ priority: -1 })
+        .limit(requestedCount * 5)
+        .lean();
+    }
+
     // If authenticated, try to personalize scoring
     if (req.user?.id && pool.length > 0) {
       try {
