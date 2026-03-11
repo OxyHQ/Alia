@@ -2,7 +2,7 @@ import { View, ScrollView, Pressable, Platform } from "react-native";
 import { Switch } from "@/components/ui/switch";
 import { Text } from "@/components/ui/text";
 import { useRouter } from "expo-router";
-import { ArrowLeft, Bell, BellOff, CheckCheck, Zap, Clock, Eye, AlertTriangle, X } from "lucide-react-native";
+import { ArrowLeft, Bell, BellOff, CheckCheck, Zap, Clock, Eye, AlertTriangle, MessageSquare, X } from "lucide-react-native";
 import { useState, useEffect, useCallback } from "react";
 import { useAuth } from "@oxyhq/services";
 import * as ExpoNotifications from "expo-notifications";
@@ -22,6 +22,8 @@ const TYPE_ICONS: Record<string, typeof Zap> = {
   daily_briefing: Clock,
   price_alert: AlertTriangle,
   reminder: Bell,
+  chat_response_ready: MessageSquare,
+  agent_task_complete: Zap,
 };
 
 const PRIORITY_COLORS: Record<string, string> = {

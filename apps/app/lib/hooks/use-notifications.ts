@@ -47,8 +47,8 @@ export function useUnreadCount() {
       const res = await apiClient.get('/notifications/unread-count');
       return res.data;
     },
-    staleTime: 1000 * 15, // 15 seconds
-    refetchInterval: 1000 * 30, // Refresh every 30 seconds
+    staleTime: 1000 * 60 * 5, // 5 minutes — socket invalidates on real events
+    refetchInterval: false, // rely on socket-driven invalidation
     retry: 1,
     enabled: isAuthenticated,
   });
