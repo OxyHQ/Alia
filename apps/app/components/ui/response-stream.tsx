@@ -74,10 +74,10 @@ function useTextStream({
     }
     const normalizedSpeed = Math.min(100, Math.max(1, speedRef.current));
     if (modeRef.current === "typewriter") {
-      if (normalizedSpeed < 25) return 1;
-      return Math.max(1, Math.round((normalizedSpeed - 25) / 10));
+      if (normalizedSpeed < 25) return 2;
+      return Math.max(2, Math.round((normalizedSpeed - 25) / 8));
     }
-    return 1;
+    return 2;
   }, []);
 
   const getProcessingDelay = useCallback(() => {

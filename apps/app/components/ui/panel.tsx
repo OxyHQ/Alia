@@ -8,6 +8,7 @@ import {
   StyleSheet,
   Platform,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { cn } from "@/lib/utils";
 
 const USE_NATIVE_DRIVER = Platform.OS !== "web";
@@ -43,6 +44,7 @@ export function Panel({
 }: PanelProps) {
   const { width: screenWidth } = useWindowDimensions();
   const isLargeScreen = screenWidth >= 768;
+  const insets = useSafeAreaInsets();
 
   // Animation values for mobile
   const slideAnim = React.useRef(new Animated.Value(screenWidth)).current;
@@ -94,7 +96,7 @@ export function Panel({
 
     return (
       <View
-        style={{ width }}
+        style={{ width, paddingTop: insets.top }}
         className={cn(
           "bg-background",
           side === "right" ? "border-l border-border" : "border-r border-border",
@@ -146,6 +148,7 @@ export function Panel({
               side === "right" ? "border-l border-border" : "border-r border-border",
               className
             )}
+            style={{ paddingTop: insets.top }}
           >
             {children}
           </View>

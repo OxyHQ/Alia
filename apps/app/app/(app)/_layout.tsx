@@ -20,6 +20,23 @@ import i18n from '@/lib/i18n';
 import { useWelcomeSuggestions, useSessionSuggestionGeneration } from '@/lib/hooks/use-suggestions';
 import { useNotificationSetup } from '@/lib/hooks/use-notification-setup';
 
+// Routes visible in the drawer sidebar
+const VISIBLE_ROUTES = new Set(['c/[id]/index', 'settings/index']);
+
+// Routes that handle their own top safe area insets
+const SELF_INSET_ROUTES = new Set([
+  'index',
+  'c/[id]/index',
+  'settings',
+  'settings/index',
+  'settings/memory',
+  'settings/writing-style',
+  'settings/general',
+  'settings/usage',
+  'settings/personalization',
+  'settings/feedback',
+]);
+
 export default function AppLayout() {
   const dimensions = useWindowDimensions();
   const isLargeScreen = dimensions.width >= 768;
@@ -57,30 +74,23 @@ export default function AppLayout() {
         <View style={{ flex: 1 }}>
           <Drawer
             drawerContent={() => <Sidebar />}
-            screenOptions={({ route }) => {
-              // Screens that handle their own top safe area insets
-              const handlesOwnInsets =
-                route.name === 'index' ||
-                route.name === 'c/[id]/index' ||
-                route.name.startsWith('settings/') ||
-                route.name === 'settings';
-              return {
-                headerShown: false,
-                sceneContainerStyle: {
-                  paddingTop: handlesOwnInsets ? 0 : insets.top,
-                },
-                drawerStyle: {
-                  width: 255,
-                  backgroundColor: colors.background,
-                  borderRightWidth: 0,
-                  boxShadow: 'none',
-                  elevation: 0,
-                },
-                drawerType: isLargeScreen ? 'permanent' : 'front',
-                swipeEnabled: !isLargeScreen,
-                overlayColor: isLargeScreen ? 'transparent' : 'rgba(0, 0, 0, 0.5)',
-              };
-            }}
+            screenOptions={({ route }) => ({
+              headerShown: false,
+              sceneContainerStyle: {
+                paddingTop: SELF_INSET_ROUTES.has(route.name) || route.name.startsWith('settings/') ? 0 : insets.top,
+              },
+              drawerStyle: {
+                width: 255,
+                backgroundColor: colors.background,
+                borderRightWidth: 0,
+                boxShadow: 'none',
+                elevation: 0,
+              },
+              drawerType: isLargeScreen ? 'permanent' : 'front',
+              swipeEnabled: !isLargeScreen,
+              overlayColor: isLargeScreen ? 'transparent' : 'rgba(0, 0, 0, 0.5)',
+              drawerItemStyle: VISIBLE_ROUTES.has(route.name) ? undefined : { display: 'none' },
+            })}
           >
             <Drawer.Screen
               name="c/[id]/index"
@@ -94,188 +104,6 @@ export default function AppLayout() {
               options={{
                 drawerLabel: i18n.t('nav.settings'),
                 title: i18n.t('nav.settings'),
-              }}
-            />
-            <Drawer.Screen
-              name="settings/memory"
-              options={{
-                drawerItemStyle: { display: 'none' },
-                title: i18n.t('nav.memory'),
-              }}
-            />
-            <Drawer.Screen
-              name="settings/writing-style"
-              options={{
-                drawerItemStyle: { display: 'none' },
-                title: i18n.t('nav.writingStyle'),
-              }}
-            />
-            <Drawer.Screen
-              name="settings/general"
-              options={{
-                drawerItemStyle: { display: 'none' },
-                title: i18n.t('nav.general'),
-              }}
-            />
-            <Drawer.Screen
-              name="settings/usage"
-              options={{
-                drawerItemStyle: { display: 'none' },
-                title: i18n.t('nav.billing'),
-              }}
-            />
-            <Drawer.Screen
-              name="settings/personalization"
-              options={{
-                drawerItemStyle: { display: 'none' },
-                title: i18n.t('nav.personalization'),
-              }}
-            />
-            <Drawer.Screen
-              name="settings/feedback"
-              options={{
-                drawerItemStyle: { display: 'none' },
-                title: i18n.t('nav.feedback'),
-              }}
-            />
-            <Drawer.Screen
-              name="forgot-password"
-              options={{
-                drawerItemStyle: { display: 'none' },
-                title: i18n.t('nav.forgotPassword'),
-              }}
-            />
-            <Drawer.Screen
-              name="favorites"
-              options={{
-                drawerItemStyle: { display: 'none' },
-                title: 'Favorites',
-              }}
-            />
-            <Drawer.Screen
-              name="library"
-              options={{
-                drawerItemStyle: { display: 'none' },
-                title: i18n.t('nav.library'),
-              }}
-            />
-            <Drawer.Screen
-              name="roles"
-              options={{
-                drawerItemStyle: { display: 'none' },
-                title: i18n.t('nav.roles'),
-              }}
-            />
-            <Drawer.Screen
-              name="tasks"
-              options={{
-                drawerItemStyle: { display: 'none' },
-                title: 'Tasks',
-              }}
-            />
-            <Drawer.Screen
-              name="automations"
-              options={{
-                drawerItemStyle: { display: 'none' },
-                title: i18n.t('nav.automations'),
-              }}
-            />
-            <Drawer.Screen
-              name="skills"
-              options={{
-                drawerItemStyle: { display: 'none' },
-                title: i18n.t('nav.skills'),
-              }}
-            />
-            <Drawer.Screen
-              name="agents"
-              options={{
-                drawerItemStyle: { display: 'none' },
-                title: i18n.t('nav.agents'),
-              }}
-            />
-            <Drawer.Screen
-              name="skills/[id]"
-              options={{
-                drawerItemStyle: { display: 'none' },
-                title: i18n.t('nav.skillDetail'),
-              }}
-            />
-            <Drawer.Screen
-              name="skills/create"
-              options={{
-                drawerItemStyle: { display: 'none' },
-                title: i18n.t('skills.createSkill'),
-              }}
-            />
-            <Drawer.Screen
-              name="skills/edit/[id]"
-              options={{
-                drawerItemStyle: { display: 'none' },
-                title: i18n.t('skills.editSkill'),
-              }}
-            />
-            <Drawer.Screen
-              name="roles/[id]"
-              options={{
-                drawerItemStyle: { display: 'none' },
-                title: i18n.t('nav.roleDetail'),
-              }}
-            />
-            <Drawer.Screen
-              name="agents/create"
-              options={{
-                drawerItemStyle: { display: 'none' },
-                title: i18n.t('nav.createAgent'),
-              }}
-            />
-            <Drawer.Screen
-              name="agents/[id]"
-              options={{
-                drawerItemStyle: { display: 'none' },
-                title: i18n.t('nav.agentDetail'),
-              }}
-            />
-            <Drawer.Screen
-              name="agents/edit/[id]"
-              options={{
-                drawerItemStyle: { display: 'none' },
-                title: 'Edit Agent',
-              }}
-            />
-            <Drawer.Screen
-              name="agents/teams"
-              options={{
-                drawerItemStyle: { display: 'none' },
-                title: 'Teams',
-              }}
-            />
-            <Drawer.Screen
-              name="agents/teams/create"
-              options={{
-                drawerItemStyle: { display: 'none' },
-                title: 'Create Team',
-              }}
-            />
-            <Drawer.Screen
-              name="agents/teams/[id]"
-              options={{
-                drawerItemStyle: { display: 'none' },
-                title: 'Team Detail',
-              }}
-            />
-            <Drawer.Screen
-              name="invite/[code]"
-              options={{
-                drawerItemStyle: { display: 'none' },
-                title: i18n.t('nav.invite'),
-              }}
-            />
-            <Drawer.Screen
-              name="org-invite/[token]"
-              options={{
-                drawerItemStyle: { display: 'none' },
-                title: 'Organization Invite',
               }}
             />
           </Drawer>
