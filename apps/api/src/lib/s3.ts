@@ -16,65 +16,17 @@ const s3Client = new S3Client({
 
 const BUCKET_NAME = process.env.AWS_S3_BUCKET || '';
 
-function buildS3Url(key: string): string {
+/** Compute base URL once at module load */
+const S3_BASE_URL = (() => {
   if (process.env.AWS_ENDPOINT_URL) {
-    const endpoint = process.env.AWS_ENDPOINT_URL.replace('https://', '');
-    return `https://${BUCKET_NAME}.${endpoint}/${key}`;
+    const host = new URL(process.env.AWS_ENDPOINT_URL).host;
+    return `https://${BUCKET_NAME}.${host}`;
   }
-  return `https://${BUCKET_NAME}.s3.${process.env.AWS_REGION || 'us-east-1'}.amazonaws.com/${key}`;
-}
+  return `https://${BUCKET_NAME}.s3.${process.env.AWS_REGION || 'us-east-1'}.amazonaws.com`;
+})();
 
-/**
- * Upload a file to S3
- * @param file - File buffer
- * @param filename - Original filename
- * @param folder - Entity path in S3 (e.g., 'organizations/{id}')
- * @param descriptor - File purpose label (e.g., 'logo', 'avatar', 'icon')
- * @returns S3 file URL
- *
- * Key format: {NODE_ENV}/{folder}/{descriptor}-{uuid}.{ext}
- * Example:    production/organizations/6831abc/logo-a1b2c3d4.png
- */
-export async function uploadToS3(
-  file: Buffer,
-  filename: string,
-  folder: string = 'uploads',
-  descriptor: string = 'file'
-): Promise<string> {
-  const env = process.env.NODE_ENV || 'development';
-  const fileExtension = filename.split('.').pop();
-  const uniqueFilename = `${env}/${folder}/${descriptor}-${crypto.randomUUID()}.${fileExtension}`;
-
-  const upload = new Upload({
-    client: s3Client,
-    params: {
-      Bucket: BUCKET_NAME,
-      Key: uniqueFilename,
-      Body: file,
-      ContentType: getContentType(fileExtension || ''),
-      ACL: 'public-read', // Make file publicly accessible
-    },
-  });
-
-  await upload.done();
-
-  return buildS3Url(uniqueFilename);
-}
-
-/**
- * Upload a file to S3 with a deterministic (fixed) key.
- * Overwrites on re-upload — ideal for seeded/static assets.
- *
- * @param file - File buffer
- * @param key - Full S3 key (e.g., 'production/accessories/head-tophat.png')
- * @param contentType - MIME type
- * @returns Public URL
- */
-export async function uploadToS3Deterministic(
-  file: Buffer,
-  key: string,
-  contentType: string,
-): Promise<string> {
+/** Upload a buffer to S3 with the given key and content type. Returns the public URL. */
+async function executeUpload(key: string, file: Buffer, contentType: string): Promise<string> {
   const upload = new Upload({
     client: s3Client,
     params: {
@@ -88,7 +40,38 @@ export async function uploadToS3Deterministic(
 
   await upload.done();
 
-  return buildS3Url(key);
+  return `${S3_BASE_URL}/${key}`;
+}
+
+/**
+ * Upload a file to S3 with a unique (UUID-based) key.
+ *
+ * Key format: {NODE_ENV}/{folder}/{descriptor}-{uuid}.{ext}
+ * Example:    production/organizations/6831abc/logo-a1b2c3d4.png
+ */
+export async function uploadToS3(
+  file: Buffer,
+  filename: string,
+  folder: string = 'uploads',
+  descriptor: string = 'file'
+): Promise<string> {
+  const env = process.env.NODE_ENV || 'development';
+  const ext = filename.split('.').pop() || '';
+  const key = `${env}/${folder}/${descriptor}-${crypto.randomUUID()}.${ext}`;
+
+  return executeUpload(key, file, getContentType(ext));
+}
+
+/**
+ * Upload a file to S3 with a deterministic (fixed) key.
+ * Overwrites on re-upload — ideal for seeded/static assets.
+ */
+export async function uploadToS3Deterministic(
+  file: Buffer,
+  key: string,
+  contentType: string,
+): Promise<string> {
+  return executeUpload(key, file, contentType);
 }
 
 /**

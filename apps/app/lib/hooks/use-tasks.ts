@@ -29,6 +29,12 @@ export interface TaskSession {
     lastActivityAt: string;
   };
   createdAt: string;
+  childAgents?: Array<{
+    _id: string;
+    name: string;
+    handle: string;
+    avatar?: string;
+  }>;
 }
 
 export function useActiveTasks() {

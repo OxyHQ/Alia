@@ -1,14 +1,28 @@
 import { useState, useCallback } from 'react';
-import { View, ScrollView, ActivityIndicator, RefreshControl } from 'react-native';
+import { View, FlatList, RefreshControl } from 'react-native';
 import { Text } from '@/components/ui/text';
 import { Button } from '@/components/ui/button';
 import { ListTodo, Inbox } from 'lucide-react-native';
 import { useColorScheme } from '@/lib/useColorScheme';
 import { useActiveTasks, useTaskHistory, type TaskSession } from '@/lib/hooks/use-tasks';
-import { TaskListItem } from '@/components/task-list-item';
+import { useAgentActivity } from '@/lib/hooks/use-agent-activity';
+import { TaskCard } from '@/components/tasks/task-card';
 import { useRouter } from 'expo-router';
 
 type Tab = 'active' | 'history';
+
+/** Wrapper that subscribes to real-time activity for a single active task */
+function ActiveTaskCard({ task, onPress }: { task: TaskSession; onPress: () => void }) {
+  const activity = useAgentActivity(
+    task.status === 'running' ? task._id : null,
+    task.agentId?._id ?? null,
+  );
+  return <TaskCard task={task} activity={activity} onPress={onPress} />;
+}
+
+function TaskSeparator() {
+  return <View className="h-px bg-border my-6" />;
+}
 
 export default function TasksPage() {
   const { colors } = useColorScheme();
@@ -26,12 +40,11 @@ export default function TasksPage() {
     setRefreshing(false);
   }, [activeTasks, taskHistory]);
 
-  const handleTaskPress = (task: TaskSession) => {
-    // Navigate to the agent session detail (could link to chat or a dedicated view)
+  const handleTaskPress = useCallback((task: TaskSession) => {
     if (task.agentId?._id) {
       router.push(`/(app)/agents/${task.agentId._id}` as any);
     }
-  };
+  }, [router]);
 
   const activeCount = activeTasks.data?.sessions?.length ?? 0;
   const sessions = tab === 'active'
@@ -39,10 +52,46 @@ export default function TasksPage() {
     : (taskHistory.data?.sessions ?? []);
   const isLoading = tab === 'active' ? activeTasks.isLoading : taskHistory.isLoading;
 
+  const renderActiveItem = useCallback(({ item }: { item: TaskSession }) => (
+    <ActiveTaskCard task={item} onPress={() => handleTaskPress(item)} />
+  ), [handleTaskPress]);
+
+  const renderHistoryItem = useCallback(({ item }: { item: TaskSession }) => (
+    <TaskCard task={item} onPress={() => handleTaskPress(item)} />
+  ), [handleTaskPress]);
+
+  const keyExtractor = useCallback((item: TaskSession) => item._id, []);
+
+  const ListEmpty = isLoading ? null : (
+    <View className="items-center justify-center py-16 gap-3">
+      <Inbox size={40} color={colors.mutedForeground} />
+      <Text className="text-sm text-muted-foreground">
+        {tab === 'active' ? 'No active tasks' : 'No completed tasks yet'}
+      </Text>
+      {tab === 'active' && (
+        <Text className="text-xs text-muted-foreground text-center px-8">
+          Hire an agent from the Agents page to start a task. Tasks run in the background and you can track their progress here.
+        </Text>
+      )}
+    </View>
+  );
+
+  const ListFooter = tab === 'history' && taskHistory.data && taskHistory.data.total > historyPage * 20 ? (
+    <View className="items-center py-6">
+      <Button
+        variant="ghost"
+        size="sm"
+        onPress={() => setHistoryPage(p => p + 1)}
+      >
+        <Text className="text-xs text-foreground">Load more</Text>
+      </Button>
+    </View>
+  ) : null;
+
   return (
     <View className="flex-1 bg-background">
       {/* Header */}
-      <View className="px-4 pt-4 pb-2 border-b border-border">
+      <View className="px-5 pt-4 pb-2 border-b border-border">
         <View className="flex-row items-center gap-2 mb-3">
           <ListTodo size={20} color={colors.foreground} />
           <Text className="text-lg font-semibold text-foreground">Tasks</Text>
@@ -80,54 +129,19 @@ export default function TasksPage() {
         </View>
       </View>
 
-      {/* Task List */}
-      <ScrollView
-        className="flex-1"
+      {/* Task Timeline */}
+      <FlatList
+        data={sessions}
+        keyExtractor={keyExtractor}
+        renderItem={tab === 'active' ? renderActiveItem : renderHistoryItem}
+        ItemSeparatorComponent={TaskSeparator}
+        contentContainerStyle={{ paddingHorizontal: 20, paddingVertical: 24 }}
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
         }
-      >
-        {isLoading ? (
-          <View className="items-center justify-center py-12">
-            <ActivityIndicator size="small" color={colors.foreground} />
-          </View>
-        ) : sessions.length === 0 ? (
-          <View className="items-center justify-center py-16 gap-3">
-            <Inbox size={40} color={colors.mutedForeground} />
-            <Text className="text-sm text-muted-foreground">
-              {tab === 'active' ? 'No active tasks' : 'No completed tasks yet'}
-            </Text>
-            {tab === 'active' && (
-              <Text className="text-xs text-muted-foreground text-center px-8">
-                Hire an agent from the Agents page to start a task. Tasks run in the background and you can track their progress here.
-              </Text>
-            )}
-          </View>
-        ) : (
-          <>
-            {sessions.map((task) => (
-              <TaskListItem
-                key={task._id}
-                task={task}
-                onPress={() => handleTaskPress(task)}
-              />
-            ))}
-
-            {/* Pagination for history */}
-            {tab === 'history' && taskHistory.data && taskHistory.data.total > historyPage * 20 && (
-              <View className="items-center py-4">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onPress={() => setHistoryPage(p => p + 1)}
-                >
-                  <Text className="text-xs text-foreground">Load more</Text>
-                </Button>
-              </View>
-            )}
-          </>
-        )}
-      </ScrollView>
+        ListEmptyComponent={ListEmpty}
+        ListFooterComponent={ListFooter}
+      />
     </View>
   );
 }
