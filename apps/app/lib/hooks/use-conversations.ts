@@ -119,8 +119,8 @@ async function fetchConversation(id: string): Promise<Conversation> {
       updatedAt: new Date(data.updatedAt),
     };
   } catch (error: any) {
-    // If unauthorized, fall back to local storage
-    if (error.response?.status === 401) {
+    // If unauthorized or not found on server, fall back to local storage
+    if (error.response?.status === 401 || error.response?.status === 404) {
       const stored = await AsyncStorage.getItem(CONVERSATIONS_STORAGE_KEY);
       if (stored) {
         const parsed = JSON.parse(stored);

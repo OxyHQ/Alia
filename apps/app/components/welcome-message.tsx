@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useCallback } from "react";
 import { useAuth } from "@oxyhq/services";
 import { useTranslation } from "@/hooks/useTranslation";
 import { useWelcomeSuggestions, useRecordSuggestionUsage } from "@/lib/hooks/use-suggestions";
@@ -55,14 +55,12 @@ export const WelcomeMessage = ({ onSuggestionPress }: WelcomeMessageProps) => {
     [apiSuggestions]
   );
 
-  const handleSuggestionPress = useMemo(() => {
-    if (!onSuggestionPress) return undefined;
-    return (text: string) => {
-      const match = suggestions.find(s => s.description === text);
-      if (match) recordUsage.mutate(match.id);
-      onSuggestionPress(text);
-    };
-  }, [onSuggestionPress, suggestions, recordUsage]);
+  const recordUsageMutate = recordUsage.mutate;
+  const handleSuggestionPress = useCallback((text: string) => {
+    const match = suggestions.find(s => s.description === text);
+    if (match) recordUsageMutate(match.id);
+    onSuggestionPress?.(text);
+  }, [onSuggestionPress, suggestions, recordUsageMutate]);
 
   return (
     <AliaWelcomeMessage

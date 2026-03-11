@@ -131,11 +131,15 @@ export function useChatConversation({ conversationId, activeRole, thinkingMode, 
       useStore.getState().setPendingInitialMessage(initialMessage);
     }
 
-    // Create conversation on backend and get the ID
-    const newConversation = await createConversationMutation.mutateAsync({ agentId });
+    try {
+      // Create conversation on backend and get the ID
+      const newConversation = await createConversationMutation.mutateAsync({ agentId });
 
-    // Navigate to the new conversation
-    router.replace(`/(app)/c/${newConversation.id}` as any);
+      // Navigate to the new conversation
+      router.replace(`/(app)/c/${newConversation.id}` as any);
+    } catch {
+      // onError handler in useCreateConversation already shows a toast
+    }
   }, [router, createConversationMutation]);
 
   const editMessage = useCallback((messageId: string, newContent: string) => {
