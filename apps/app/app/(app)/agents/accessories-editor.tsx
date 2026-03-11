@@ -58,7 +58,8 @@ export default function AccessoriesEditorScreen() {
       if (!agent) return;
       const items: EditorAccessory[] = [];
       for (const acc of agent.accessories ?? []) {
-        const catItem = catalog.find((c) => c._id === acc.accessoryId);
+        // accessoryId is a slug — match against catalog slug
+        const catItem = catalog.find((c) => c.slug === acc.accessoryId);
         if (catItem) {
           items.push({ accessoryId: acc.accessoryId, position: acc.position, catalog: catItem });
         }
@@ -89,7 +90,8 @@ export default function AccessoriesEditorScreen() {
 
   const addAccessory = useCallback((accessory: CatalogAccessory) => {
     const newEntry: EditorAccessory = {
-      accessoryId: accessory._id,
+      // Store slug as the stable accessoryId — registry and rendering use slug
+      accessoryId: accessory.slug,
       position: { x: 0.5, y: 0.5, scale: 1, rotation: 0 },
       catalog: accessory,
     };
@@ -101,7 +103,7 @@ export default function AccessoriesEditorScreen() {
 
   const handleToggleAccessory = useCallback(
     async (accessory: CatalogAccessory) => {
-      const existingIdx = equipped.findIndex((e) => e.accessoryId === accessory._id);
+      const existingIdx = equipped.findIndex((e) => e.accessoryId === accessory.slug);
       if (existingIdx >= 0) {
         setEquipped((prev) => prev.filter((_, i) => i !== existingIdx));
         setSelectedIdx(null);
@@ -305,7 +307,7 @@ export default function AccessoriesEditorScreen() {
             <AccessoryPickerItem
               key={accessory._id}
               accessory={accessory}
-              isEquipped={equipped.some((e) => e.accessoryId === accessory._id)}
+              isEquipped={equipped.some((e) => e.accessoryId === accessory.slug)}
               isOwned={isOwned(accessory._id)}
               onPress={() => handleToggleAccessory(accessory)}
               placeholderColor={colors.muted}
@@ -449,7 +451,7 @@ const AccessoryPickerItem = React.memo(function AccessoryPickerItem({
   placeholderColor,
   onPress,
 }: AccessoryPickerItemProps) {
-  const accData = getAccessory(accessory._id);
+  const accData = getAccessory(accessory.slug);
 
   return (
     <Pressable

@@ -4,8 +4,7 @@ export type AccessorySlot = 'head' | 'face' | 'neck';
 export type AccessoryLayer = 'front' | 'behind';
 export type AccessoryRarity = 'common' | 'uncommon' | 'rare' | 'legendary';
 
-export interface IAccessory extends Document<string> {
-  _id: string;
+export interface IAccessory extends Document {
   name: string;
   slug: string;
   slot: AccessorySlot;
@@ -21,9 +20,8 @@ export interface IAccessory extends Document<string> {
 }
 
 const AccessorySchema = new Schema<IAccessory>({
-  _id: { type: String, required: true },
   name: { type: String, required: true },
-  slug: { type: String, required: true, unique: true },
+  slug: { type: String, required: true, unique: true, index: true },
   slot: { type: String, enum: ['head', 'face', 'neck'], required: true },
   layer: { type: String, enum: ['front', 'behind'], required: true },
   imageUrl: { type: String, required: true },

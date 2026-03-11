@@ -53,14 +53,16 @@ router.post('/:id/purchase', authenticateToken, async (req: Request, res: Respon
       return res.status(400).json({ error: 'This accessory is already free for all users' });
     }
 
+    const accessoryIdStr = accessory._id.toString();
+
     // Atomically claim ownership — fails if already owned (no double-charge)
     const claimed = await UserAccessories.findOneAndUpdate(
-      { _id: req.user.id, ownedAccessories: { $ne: accessory._id } },
-      { $addToSet: { ownedAccessories: accessory._id } },
+      { _id: req.user.id, ownedAccessories: { $ne: accessoryIdStr } },
+      { $addToSet: { ownedAccessories: accessoryIdStr } },
       { upsert: true, returnDocument: 'after' }
     );
 
-    if (!claimed || !claimed.ownedAccessories.includes(accessory._id)) {
+    if (!claimed || !claimed.ownedAccessories.includes(accessoryIdStr)) {
       return res.status(400).json({ error: 'You already own this accessory' });
     }
 
@@ -70,7 +72,7 @@ router.post('/:id/purchase', authenticateToken, async (req: Request, res: Respon
       if (!userCredits) {
         // Roll back ownership
         await UserAccessories.findByIdAndUpdate(req.user.id, {
-          $pull: { ownedAccessories: accessory._id },
+          $pull: { ownedAccessories: accessoryIdStr },
         });
         return res.status(402).json({ error: 'No credit balance found', creditsNeeded: accessory.price });
       }
@@ -79,13 +81,13 @@ router.post('/:id/purchase', authenticateToken, async (req: Request, res: Respon
       if (!success) {
         // Roll back ownership
         await UserAccessories.findByIdAndUpdate(req.user.id, {
-          $pull: { ownedAccessories: accessory._id },
+          $pull: { ownedAccessories: accessoryIdStr },
         });
         return res.status(402).json({ error: 'Insufficient credits', creditsNeeded: accessory.price });
       }
     }
 
-    res.json({ owned: claimed.ownedAccessories, purchased: accessory._id });
+    res.json({ owned: claimed.ownedAccessories, purchased: accessoryIdStr });
   } catch (error) {
     log.general.error({ err: error }, 'Error purchasing accessory');
     res.status(500).json({ error: 'Failed to purchase accessory' });
