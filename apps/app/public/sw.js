@@ -20,12 +20,13 @@ self.addEventListener('notificationclick', (event) => {
   const url = data?.conversationId ? `/c/${data.conversationId}` : '/';
   event.waitUntil(
     clients.matchAll({ type: 'window', includeUncontrolled: true }).then((windowClients) => {
-      // Focus an existing tab if possible
-      for (const client of windowClients) {
-        if (client.url.includes(self.location.origin) && 'focus' in client) {
-          client.navigate(url);
-          return client.focus();
-        }
+      // Prefer a focused/visible tab, then any matching tab
+      const sorted = windowClients
+        .filter((c) => c.url.includes(self.location.origin))
+        .sort((a, b) => (b.focused ? 1 : 0) - (a.focused ? 1 : 0) || (b.visibilityState === 'visible' ? 1 : 0) - (a.visibilityState === 'visible' ? 1 : 0));
+      if (sorted.length > 0 && 'focus' in sorted[0]) {
+        sorted[0].navigate(url);
+        return sorted[0].focus();
       }
       // Otherwise open a new window
       return clients.openWindow(url);

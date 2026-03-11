@@ -11,7 +11,7 @@ import { useFoldersStore } from '@/lib/stores/folders-store';
 import { useFavoritesStore } from '@/lib/stores/favorites-store';
 import { usePinnedStore } from '@/lib/stores/pinned-store';
 import { useUIStore } from '@/lib/stores/ui-store';
-import { useEffect } from 'react';
+import { useCallback, useEffect } from 'react';
 import { useColorScheme } from '@/lib/useColorScheme';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { CommandPalette } from '@/components/command-palette';
@@ -24,18 +24,8 @@ import { useNotificationSetup } from '@/lib/hooks/use-notification-setup';
 const VISIBLE_ROUTES = new Set(['c/[id]/index', 'settings/index']);
 
 // Routes that handle their own top safe area insets
-const SELF_INSET_ROUTES = new Set([
-  'index',
-  'c/[id]/index',
-  'settings',
-  'settings/index',
-  'settings/memory',
-  'settings/writing-style',
-  'settings/general',
-  'settings/usage',
-  'settings/personalization',
-  'settings/feedback',
-]);
+// All settings/* routes are covered by the startsWith('settings/') check in screenOptions
+const SELF_INSET_ROUTES = new Set(['index', 'c/[id]/index', 'settings']);
 
 export default function AppLayout() {
   const dimensions = useWindowDimensions();
@@ -67,30 +57,34 @@ export default function AppLayout() {
     loadPinned();
   }, [loadProjects, loadRoles, loadAgents, loadFolders, loadFavorites, loadPinned]);
 
+  const renderDrawerContent = useCallback(() => <Sidebar />, []);
+
+  const screenOptions = useCallback(({ route }: { route: { name: string } }) => ({
+    headerShown: false,
+    sceneContainerStyle: {
+      paddingTop: SELF_INSET_ROUTES.has(route.name) || route.name.startsWith('settings/') ? 0 : insets.top,
+    },
+    drawerStyle: {
+      width: 255,
+      backgroundColor: colors.background,
+      borderRightWidth: 0,
+      boxShadow: 'none' as const,
+      elevation: 0,
+    },
+    drawerType: isLargeScreen ? ('permanent' as const) : ('front' as const),
+    swipeEnabled: !isLargeScreen,
+    overlayColor: isLargeScreen ? 'transparent' : 'rgba(0, 0, 0, 0.5)',
+    drawerItemStyle: VISIBLE_ROUTES.has(route.name) ? undefined : { display: 'none' as const },
+  }), [insets.top, colors.background, isLargeScreen]);
+
   return (
     <AppErrorBoundary>
       <GestureHandlerRootView style={{ flex: 1 }}>
       <View style={{ flex: 1, flexDirection: isLargeScreen ? 'row' : 'column' }}>
         <View style={{ flex: 1 }}>
           <Drawer
-            drawerContent={() => <Sidebar />}
-            screenOptions={({ route }) => ({
-              headerShown: false,
-              sceneContainerStyle: {
-                paddingTop: SELF_INSET_ROUTES.has(route.name) || route.name.startsWith('settings/') ? 0 : insets.top,
-              },
-              drawerStyle: {
-                width: 255,
-                backgroundColor: colors.background,
-                borderRightWidth: 0,
-                boxShadow: 'none',
-                elevation: 0,
-              },
-              drawerType: isLargeScreen ? 'permanent' : 'front',
-              swipeEnabled: !isLargeScreen,
-              overlayColor: isLargeScreen ? 'transparent' : 'rgba(0, 0, 0, 0.5)',
-              drawerItemStyle: VISIBLE_ROUTES.has(route.name) ? undefined : { display: 'none' },
-            })}
+            drawerContent={renderDrawerContent}
+            screenOptions={screenOptions}
           >
             <Drawer.Screen
               name="c/[id]/index"
