@@ -420,7 +420,7 @@ export const ChatPageContent = ({
               </View>
             )}
 
-            <View className="p-4">
+            <View className="px-4 py-3">
               <View className="mx-auto w-full max-w-3xl relative">
                   {messages.length > 0 && (
                     <View style={{ position: "absolute", top: -48, right: 0, zIndex: -1 }}>
