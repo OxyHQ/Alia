@@ -56,19 +56,23 @@ async function resolveChannels(userId: string, explicit?: NotificationChannel[])
   // Default: always in_app
   const channels: NotificationChannel[] = ['in_app'];
 
+  const userObjectId = new mongoose.Types.ObjectId(userId);
+
   // Check in parallel: push tokens, web push subscriptions, and Telegram account
   const [hasPushTokens, hasWebPushSubs, telegramBotUser] = await Promise.all([
     // Push: check if user has any active Expo push tokens
     PushToken.exists({
-      oxyUserId: new mongoose.Types.ObjectId(userId),
+      oxyUserId: userObjectId,
       active: true,
     }).catch(() => null),
 
-    // Web push: check if user has any active browser push subscriptions
-    WebPushSubscription.exists({
-      oxyUserId: new mongoose.Types.ObjectId(userId),
-      active: true,
-    }).catch(() => null),
+    // Web push: check if user has any active browser push subscriptions (only if VAPID configured)
+    VAPID_PUBLIC_KEY
+      ? WebPushSubscription.exists({
+          oxyUserId: userObjectId,
+          active: true,
+        }).catch(() => null)
+      : null,
 
     // Telegram: check if user has a linked Telegram bot account
     (async () => {
@@ -77,7 +81,7 @@ async function resolveChannels(userId: string, explicit?: NotificationChannel[])
         if (!bot) return null;
         return BotUser.findOne({
           botId: bot._id,
-          oxyUserId: new mongoose.Types.ObjectId(userId),
+          oxyUserId: userObjectId,
           isLinked: true,
         });
       } catch {
@@ -300,16 +304,13 @@ async function deliverWebPush(userId: string, notification: INotification): Prom
     ...notification.data,
   });
 
-  let anySucceeded = false;
-
-  await Promise.allSettled(
+  const results = await Promise.allSettled(
     subscriptions.map(async (sub) => {
       try {
         await webPush.sendNotification(
           { endpoint: sub.endpoint, keys: sub.keys },
           payload,
         );
-        anySucceeded = true;
       } catch (error: any) {
         if (error?.statusCode === 410 || error?.statusCode === 404) {
           // Subscription expired or invalid — deactivate
@@ -318,11 +319,12 @@ async function deliverWebPush(userId: string, notification: INotification): Prom
         } else {
           log.general.warn({ err: error, userId, endpoint: sub.endpoint }, 'Web push delivery failed');
         }
+        throw error; // Re-throw so Promise.allSettled marks as rejected
       }
     }),
   );
 
-  return anySucceeded;
+  return results.some(r => r.status === 'fulfilled');
 }
 
 function formatNotificationText(notification: INotification): string {

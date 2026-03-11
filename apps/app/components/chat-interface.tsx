@@ -23,6 +23,7 @@ import Animated, {
   withRepeat,
   withSequence,
   withTiming,
+  cancelAnimation,
   Easing,
 } from "react-native-reanimated";
 import * as Clipboard from "expo-clipboard";
@@ -89,6 +90,15 @@ type ChatInterfaceProps = {
   onRejectPlan?: (planId: string) => void;
 };
 
+/** True for Alia's own assistant messages (excludes delegated agents and voice cohosts). */
+function isAliaOwnedMessage(m: Message): boolean {
+  return (
+    m.role === 'assistant' &&
+    !m.agentInfo &&
+    !(m.source === 'voice' && m.speaker === 'cohost')
+  );
+}
+
 // Helper function to extract and process text content for the app
 function getMessageText(message: Message): string {
   let rawText = '';
@@ -129,8 +139,9 @@ const ToolBullet = React.memo(function ToolBullet({ isRunning }: { isRunning: bo
         -1
       );
     } else {
-      opacity.value = 1;
+      opacity.value = withTiming(1, { duration: 150 });
     }
+    return () => cancelAnimation(opacity);
   }, [isRunning, opacity]);
   const style = useAnimatedStyle(() => ({ opacity: opacity.value }));
   return (
@@ -152,8 +163,8 @@ type MessageRowProps = {
   isLastAlia: boolean;
   isLoading?: boolean;
   isLastMessage: boolean;
-  copiedMessageId: string | null;
-  votedMessages: Record<string, 'up' | 'down'>;
+  isCopied: boolean;
+  myVote: 'up' | 'down' | null;
   ttsActiveMessageId: string | null | undefined;
   ttsPlaybackState: string;
   chatId: any;
@@ -170,7 +181,7 @@ type MessageRowProps = {
 
 const MessageRow = React.memo(function MessageRow({
   m, index, isNewMessage, isAliaMessage, isLastAlia,
-  isLoading, isLastMessage, copiedMessageId, votedMessages,
+  isLoading, isLastMessage, isCopied, myVote,
   ttsActiveMessageId, ttsPlaybackState, chatId, voiceAgentState,
   handleFaceLayout, handleCopyMessage, handleVote, readAloud,
   openThoughtPanel, onStartEdit, onApprovePlan, onRejectPlan,
@@ -307,17 +318,17 @@ const MessageRow = React.memo(function MessageRow({
                   className="p-1.5 rounded-lg hover:bg-muted active:bg-muted"
                   onPress={() => handleCopyMessage(m.id, messageText)}
                 >
-                  {copiedMessageId === m.id ? (
+                  {isCopied ? (
                     <Check size={14} className="text-green-500" />
                   ) : (
                     <Copy size={14} className="text-muted-foreground" />
                   )}
                 </Pressable>
                 <Pressable key="thumbs-up" className="p-1.5 rounded-lg hover:bg-muted active:bg-muted" onPress={() => handleVote(m.id, 'up')}>
-                  <ThumbsUp size={14} className={votedMessages[m.id] === 'up' ? "text-primary" : "text-muted-foreground"} />
+                  <ThumbsUp size={14} className={myVote === 'up' ? "text-primary" : "text-muted-foreground"} />
                 </Pressable>
                 <Pressable key="thumbs-down" className="p-1.5 rounded-lg hover:bg-muted active:bg-muted" onPress={() => handleVote(m.id, 'down')}>
-                  <ThumbsDown size={14} className={votedMessages[m.id] === 'down' ? "text-primary" : "text-muted-foreground"} />
+                  <ThumbsDown size={14} className={myVote === 'down' ? "text-primary" : "text-muted-foreground"} />
                 </Pressable>
               </View>
               )}
@@ -381,7 +392,7 @@ const MessageRow = React.memo(function MessageRow({
                     className="p-1.5 rounded-lg hover:bg-muted active:bg-muted"
                     onPress={() => handleCopyMessage(m.id, messageText)}
                   >
-                    {copiedMessageId === m.id ? (
+                    {isCopied ? (
                       <Check size={14} className="text-green-500" />
                     ) : (
                       <Copy size={14} className="text-muted-foreground" />
@@ -473,9 +484,7 @@ export const ChatInterface = React.memo(function ChatInterface({ messages, scrol
 
     const filteredMessages = useMemo(() => messages.filter(m => m != null && m.role), [messages]);
     const lastAliaIndex = useMemo(() => filteredMessages.reduce((acc, m, i) =>
-      m.role === 'assistant' && !m.agentInfo &&
-      !((m as any).source === 'voice' && (m as any).speaker === 'cohost')
-        ? i : acc, -1), [filteredMessages]);
+      isAliaOwnedMessage(m) ? i : acc, -1), [filteredMessages]);
 
     // Update expression based on voice state or text chat state
     useEffect(() => {
@@ -615,8 +624,7 @@ export const ChatInterface = React.memo(function ChatInterface({ messages, scrol
             )}
 
             {filteredMessages.map((m, index) => {
-              const isAliaMessage = m.role === 'assistant' && !m.agentInfo &&
-                !((m as any).source === 'voice' && (m as any).speaker === 'cohost');
+              const isAliaMessage = isAliaOwnedMessage(m);
               const isNewMessage = index >= prevMessageCountRef.current;
 
               return (
@@ -629,8 +637,8 @@ export const ChatInterface = React.memo(function ChatInterface({ messages, scrol
                   isLastAlia={index === lastAliaIndex}
                   isLoading={isLoading}
                   isLastMessage={index === filteredMessages.length - 1}
-                  copiedMessageId={copiedMessageId}
-                  votedMessages={votedMessages}
+                  isCopied={copiedMessageId === m.id}
+                  myVote={votedMessages[m.id] ?? null}
                   ttsActiveMessageId={ttsActiveMessageId}
                   ttsPlaybackState={ttsPlaybackState}
                   chatId={chatId}

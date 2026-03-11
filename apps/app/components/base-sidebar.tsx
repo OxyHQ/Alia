@@ -60,7 +60,7 @@ export const BaseSidebar = React.memo(function BaseSidebar({
   return (
     <View className={`flex-1 ${backgroundColor} border-r border-sidebar-border`}>
       {/* Header */}
-      <View className="p-4 md:p-3" style={{ paddingTop: insets.top + 16 }}>
+      <View className="px-4 pb-4 md:px-3 md:pb-3" style={{ paddingTop: insets.top + 16 }}>
         {header}
       </View>
 
@@ -116,7 +116,7 @@ export const BaseSidebar = React.memo(function BaseSidebar({
       </View>
 
       {/* Footer */}
-      <View className="p-3 md:p-2" style={{ paddingBottom: insets.bottom + 12 }}>
+      <View className="px-3 pt-3 md:px-2 md:pt-2" style={{ paddingBottom: insets.bottom + 12 }}>
         {footer}
       </View>
     </View>

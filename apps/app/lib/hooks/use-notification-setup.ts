@@ -25,6 +25,7 @@ export function useNotificationSetup() {
   const router = useRouter();
   const queryClient = useQueryClient();
   const tokenRef = useRef<string | null>(null);
+  const webPushRegisteredRef = useRef(false);
 
   // ── Foreground notification display (once, native only) ────────
   useEffect(() => {
@@ -105,6 +106,7 @@ export function useNotificationSetup() {
   useEffect(() => {
     if (Platform.OS !== 'web' || !isAuthenticated || !user?.id) return;
     if (!('serviceWorker' in navigator) || !('PushManager' in window)) return;
+    if (webPushRegisteredRef.current) return;
 
     let cancelled = false;
 
@@ -144,6 +146,8 @@ export function useNotificationSetup() {
           endpoint: subJson.endpoint,
           keys: subJson.keys,
         });
+
+        if (!cancelled) webPushRegisteredRef.current = true;
       } catch {
         // Non-critical — web push not available in all browsers/contexts
       }
