@@ -4,6 +4,7 @@
  */
 
 import { log } from './logger.js';
+import { getErrorMessage } from './errors/index.js';
 
 export interface RetryOptions {
   maxAttempts?: number;     // Default 3
@@ -34,7 +35,7 @@ export async function withRetry<T>(
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     try {
       return await fn();
-    } catch (error: any) {
+    } catch (error: unknown) {
       lastError = error;
 
       if (attempt >= maxAttempts || !shouldRetry(error)) {
@@ -47,10 +48,10 @@ export async function withRetry<T>(
       const delay = Math.max(0, Math.round(baseDelay + jitter));
 
       // Respect Retry-After header if present
-      const retryAfter = error?.headers?.get?.('retry-after');
+      const retryAfter = (error as any)?.headers?.get?.('retry-after');
       const finalDelay = retryAfter ? Math.max(delay, parseInt(retryAfter, 10) * 1000) : delay;
 
-      log.general.warn({ attempt, maxAttempts, delay: finalDelay, error: error.message }, 'Retrying after transient failure');
+      log.general.warn({ attempt, maxAttempts, delay: finalDelay, error: getErrorMessage(error) }, 'Retrying after transient failure');
       await new Promise(resolve => setTimeout(resolve, finalDelay));
     }
   }

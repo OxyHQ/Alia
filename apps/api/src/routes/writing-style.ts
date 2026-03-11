@@ -25,7 +25,7 @@ router.get('/', async (req, res) => {
     // Return profile without _raw data (it's internal)
     const { _raw, ...publicProfile } = memory.writingStyle;
     res.json({ writingStyle: { ...publicProfile, messagesAnalyzed: _raw?.totalMessages || publicProfile.messagesAnalyzed } });
-  } catch (error) {
+  } catch (error: unknown) {
     log.chat.error({ err: error }, 'Error fetching writing style');
     res.status(500).json({ error: 'Failed to fetch writing style profile' });
   }
@@ -56,7 +56,7 @@ router.put('/', async (req, res) => {
 
     const { _raw, ...publicProfile } = memory.writingStyle;
     res.json({ writingStyle: publicProfile });
-  } catch (error) {
+  } catch (error: unknown) {
     log.chat.error({ err: error }, 'Error updating writing style');
     res.status(500).json({ error: 'Failed to update writing style profile' });
   }
@@ -74,7 +74,7 @@ router.delete('/', async (req, res) => {
     await memory.save();
 
     res.json({ success: true, message: 'Writing style profile reset' });
-  } catch (error) {
+  } catch (error: unknown) {
     log.chat.error({ err: error }, 'Error resetting writing style');
     res.status(500).json({ error: 'Failed to reset writing style profile' });
   }
@@ -111,7 +111,7 @@ router.post('/refresh', async (req, res) => {
 
     const { _raw, ...publicProfile } = memory.writingStyle;
     res.json({ writingStyle: publicProfile, message: 'Style profile refreshed with AI analysis' });
-  } catch (error) {
+  } catch (error: unknown) {
     log.chat.error({ err: error }, 'Error refreshing writing style');
     res.status(500).json({ error: 'Failed to refresh writing style profile' });
   }

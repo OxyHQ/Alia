@@ -232,7 +232,7 @@ export async function recordKeySuccess(keyId: string): Promise<void> {
       // Invalidate cache to pick up priority changes
       invalidateKeyCache(key.provider);
     }
-  } catch (error: any) {
+  } catch (error: unknown) {
     log.keys.error({ err: error }, 'Failed to record key success');
   }
 }
@@ -290,7 +290,7 @@ export async function recordKeyFailure(keyId: string, reason: string, retryAfter
 
     // Invalidate cache to pick up priority changes
     invalidateKeyCache(key.provider);
-  } catch (error: any) {
+  } catch (error: unknown) {
     log.keys.error({ err: error }, 'Failed to record key failure');
   }
 }

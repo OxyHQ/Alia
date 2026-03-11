@@ -149,3 +149,18 @@ export function getAccessory(id: string): Accessory | undefined {
   return ACCESSORIES[id];
 }
 
+/**
+ * Resolve an accessory image source by slug, with optional remote URL fallback.
+ * - Bundled accessories resolve instantly (no network)
+ * - Unknown slugs fall back to the S3 URL from the catalog
+ */
+export function getAccessoryImage(
+  slug: string,
+  remoteUrl?: string,
+): ImageSourcePropType | undefined {
+  const local = ACCESSORIES[slug];
+  if (local) return local.image;
+  if (remoteUrl) return { uri: remoteUrl };
+  return undefined;
+}
+

@@ -194,8 +194,8 @@ export async function seedPlans(): Promise<{ seeded: number; skipped: number }> 
       } else {
         skipped++;
       }
-    } catch (error: any) {
-      if (error.code === 11000) {
+    } catch (error: unknown) {
+      if (error instanceof Error && 'code' in error && (error as any).code === 11000) {
         skipped++;
       } else {
         log.seed.error({ err: error, planId: planData.planId }, 'Error seeding plan');

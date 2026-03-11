@@ -8,6 +8,7 @@ import { resolveModel, getAIModel, reportModelUsage } from '../lib/chat-core.js'
 import { callProviderAPI } from '../lib/providers-client.js';
 import { uploadToS3 } from '../lib/s3.js';
 import { log } from '../lib/logger.js';
+import { getErrorMessage } from '../lib/errors/index.js';
 import type { Request, Response } from 'express';
 
 const router = Router();
@@ -78,14 +79,14 @@ async function getReferenceDescription(): Promise<string> {
     cachedReferenceDescription = result.text || '';
     log.agents.info({ provider: resolved.provider, model: resolved.modelId }, 'Cached reference image description');
     return cachedReferenceDescription;
-  } catch (err: any) {
+  } catch (err: unknown) {
     await reportModelUsage(
       resolved.keyConfig.keyId,
       resolved.provider,
       resolved.modelId,
       false,
       0,
-      err?.message
+      getErrorMessage(err)
     );
     log.agents.warn({ err }, 'Failed to describe reference image');
     return '';
@@ -163,14 +164,14 @@ router.post('/generate', authenticateToken, async (req: Request, res: Response) 
       );
 
       return res.json({ avatarUrl });
-    } catch (genErr: any) {
-      if (genErr.reason === 'content_filter') {
+    } catch (genErr: unknown) {
+      if (genErr instanceof Error && 'reason' in genErr && (genErr as { reason: string }).reason === 'content_filter') {
         return res.status(400).json({ error: 'Image generation request was rejected by content policy. Try a different description.' });
       }
       log.agents.error({ err: genErr }, 'Avatar generation failed');
       return res.status(502).json({ error: 'Image generation failed' });
     }
-  } catch (error) {
+  } catch (error: unknown) {
     log.agents.error({ err: error }, 'Error generating agent avatar');
     res.status(500).json({ error: 'Failed to generate avatar' });
   }

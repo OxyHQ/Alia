@@ -300,7 +300,7 @@ router.post('/transcribe', async (req: Request, res: Response) => {
             signal: abortController.signal,
           });
           break;
-        } catch (err: any) {
+        } catch (err: unknown) {
           log.general.warn({ err, provider: mapping.provider, model: mapping.modelId }, 'Transcription provider failed, trying next');
           continue;
         }

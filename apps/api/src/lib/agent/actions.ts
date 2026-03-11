@@ -26,6 +26,7 @@ import { WorkspaceMemory } from './workspace-memory.js';
 import { buildMcpTools } from '../tools/mcp.js';
 import { buildIntegrationTools } from '../tools/integrations.js';
 import { log } from '../logger.js';
+import { getErrorMessage } from '../errors/index.js';
 import { analyzeThreat, formatThreatSummary } from './threat-detector.js';
 import type { ThreatResult } from './threat-detector.js';
 import { requestApproval } from './action-approval.js';
@@ -73,8 +74,8 @@ export async function buildActions(ctx: ActionContext) {
     execute: async ({ command, timeout }) => {
       try {
         return await terminalSession.run(command, timeout);
-      } catch (err: any) {
-        return `Error: ${err.message || 'Command failed'}`;
+      } catch (err: unknown) {
+        return `Error: ${getErrorMessage(err)}`;
       }
     },
   });
@@ -164,8 +165,8 @@ export async function buildActions(ctx: ActionContext) {
           default:
             return `Error: unknown action "${action}"`;
         }
-      } catch (err: any) {
-        return `Error: ${err.message || 'File operation failed'}`;
+      } catch (err: unknown) {
+        return `Error: ${getErrorMessage(err)}`;
       }
     },
   });
@@ -189,7 +190,7 @@ export async function buildActions(ctx: ActionContext) {
         session.plan = todoManager.toJSON();
         try {
           await session.save();
-        } catch (saveErr: any) {
+        } catch (saveErr: unknown) {
           log.agents.warn({ saveErr }, 'Failed to save plan to session');
         }
 
@@ -248,8 +249,8 @@ export async function buildActions(ctx: ActionContext) {
           const handle = agent.replace(/^@/, '');
           const result = await onHireAgent(handle, task);
           return `Agent @${handle} completed:\n${result}`;
-        } catch (err: any) {
-          return `Error hiring agent: ${err.message || 'Failed'}`;
+        } catch (err: unknown) {
+          return `Error hiring agent: ${getErrorMessage(err)}`;
         }
       },
     });
@@ -308,8 +309,8 @@ export async function buildActions(ctx: ActionContext) {
             execute: async (...args: any[]) => {
               try {
                 return await (originalExecute as Function)(...args);
-              } catch (err: any) {
-                return `MCP tool error: ${err.message?.slice(0, 150) || 'unknown'}`;
+              } catch (err: unknown) {
+                return `MCP tool error: ${getErrorMessage(err).slice(0, 150)}`;
               }
             },
           };

@@ -29,6 +29,7 @@ import { buildMcpTools } from './tools/mcp.js';
 import { UserMemory, type IUserMemory } from '../models/user-memory.js';
 import { oxyClient } from '../middleware/auth.js';
 import { log } from './logger.js';
+import { getErrorMessage } from './errors/index.js';
 import { sendNotification } from './notification-service.js';
 import { buildArchetypeSystemPrompt } from './agent/archetype-prompts.js';
 import { handleRoutingDecision } from './agent/routing-handler.js';
@@ -347,12 +348,13 @@ export async function executeTrigger(
     }
 
     return { success: true, result: resultText, executionId: execution._id.toString() };
-  } catch (error: any) {
+  } catch (error: unknown) {
     const durationMs = Date.now() - startTime;
+    const errMsg = getErrorMessage(error);
     log.triggers.error({ err: error, name: trigger.name, triggerId }, 'Trigger execution failed');
 
     execution.status = 'failed';
-    execution.result = error.message || 'Execution failed';
+    execution.result = errMsg;
     execution.durationMs = durationMs;
     execution.completedAt = new Date();
     await execution.save();
@@ -360,12 +362,12 @@ export async function executeTrigger(
     await Trigger.findByIdAndUpdate(triggerId, {
       $set: {
         lastStatus: 'failed',
-        lastResult: error.message || 'Execution failed',
+        lastResult: errMsg,
         lastTriggeredAt: new Date(),
       },
     });
 
-    return { success: false, result: error.message, executionId: execution._id.toString() };
+    return { success: false, result: errMsg, executionId: execution._id.toString() };
   }
 }
 

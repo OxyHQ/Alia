@@ -130,7 +130,7 @@ router.get('/user', authenticateApiKey, apiKeyRateLimit, async (req: Request, re
     };
 
     res.json(entitlementData);
-  } catch (error) {
+  } catch (error: unknown) {
     log.codea.error({ err: error }, 'Error fetching user entitlements');
     res.status(500).json({ error: 'Failed to fetch entitlements' });
   }
@@ -181,7 +181,7 @@ router.get('/token', authenticateApiKey, apiKeyRateLimit, async (req: Request, r
         code_actions: true,
       },
     });
-  } catch (error) {
+  } catch (error: unknown) {
     log.codea.error({ err: error }, 'Error fetching token info');
     res.status(500).json({ error: 'Failed to fetch token info' });
   }
@@ -205,7 +205,7 @@ router.get('/mcp_registry', authenticateApiKey, apiKeyRateLimit, async (_req: Re
         mcpAccess: 'allow_all',
       },
     });
-  } catch (error) {
+  } catch (error: unknown) {
     log.codea.error({ err: error }, 'Error fetching MCP registry');
     res.status(500).json({ error: 'Failed to fetch MCP registry' });
   }
@@ -262,7 +262,7 @@ router.get('/me', authenticateApiKey, apiKeyRateLimit, async (req: Request, res:
         total: userCredits.credits.free + userCredits.credits.paid,
       }
     });
-  } catch (error) {
+  } catch (error: unknown) {
     log.codea.error({ err: error }, 'Error fetching user info');
     res.status(500).json({ error: 'Failed to fetch user info' });
   }

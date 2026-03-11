@@ -38,7 +38,7 @@ router.get('/', async (req: Request, res: Response) => {
     ]);
 
     res.json({ notifications, total, unreadCount });
-  } catch (error) {
+  } catch (error: unknown) {
     log.general.error({ err: error }, 'Error listing notifications');
     res.status(500).json({ error: 'Failed to list notifications' });
   }
@@ -50,7 +50,7 @@ router.get('/unread-count', async (req: Request, res: Response) => {
     if (!req.user?.id) return res.status(401).json({ error: 'Unauthorized' });
     const count = await getUnreadCount(req.user.id as string);
     res.json({ count });
-  } catch (error) {
+  } catch (error: unknown) {
     log.general.error({ err: error }, 'Error getting unread count');
     res.status(500).json({ error: 'Failed to get unread count' });
   }
@@ -64,7 +64,7 @@ router.patch('/:id/read', async (req: Request, res: Response) => {
     const success = await markAsRead(req.params.id as string, userId);
     if (!success) return res.status(404).json({ error: 'Notification not found' });
     res.json({ success: true });
-  } catch (error) {
+  } catch (error: unknown) {
     log.general.error({ err: error }, 'Error marking notification as read');
     res.status(500).json({ error: 'Failed to mark as read' });
   }
@@ -77,7 +77,7 @@ router.post('/read-all', async (req: Request, res: Response) => {
     const userId = req.user.id as string;
     const count = await markAllAsRead(userId);
     res.json({ success: true, count });
-  } catch (error) {
+  } catch (error: unknown) {
     log.general.error({ err: error }, 'Error marking all as read');
     res.status(500).json({ error: 'Failed to mark all as read' });
   }
@@ -91,7 +91,7 @@ router.patch('/:id/dismiss', async (req: Request, res: Response) => {
     const success = await dismissNotification(req.params.id as string, userId);
     if (!success) return res.status(404).json({ error: 'Notification not found' });
     res.json({ success: true });
-  } catch (error) {
+  } catch (error: unknown) {
     log.general.error({ err: error }, 'Error dismissing notification');
     res.status(500).json({ error: 'Failed to dismiss notification' });
   }
@@ -140,7 +140,7 @@ router.post('/push-token', async (req: Request, res: Response) => {
 
     log.general.info({ userId, tokenId: pushToken._id }, 'Push token registered');
     res.json({ success: true, id: pushToken._id });
-  } catch (error) {
+  } catch (error: unknown) {
     log.general.error({ err: error }, 'Error registering push token');
     res.status(500).json({ error: 'Failed to register push token' });
   }
@@ -171,7 +171,7 @@ router.delete('/push-token', async (req: Request, res: Response) => {
 
     log.general.info({ userId }, 'Push token deactivated');
     res.json({ success: true });
-  } catch (error) {
+  } catch (error: unknown) {
     log.general.error({ err: error }, 'Error deactivating push token');
     res.status(500).json({ error: 'Failed to deactivate push token' });
   }

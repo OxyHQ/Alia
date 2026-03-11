@@ -53,7 +53,7 @@ router.post('/', async (req, res) => {
         createdAt: feedback.createdAt
       }
     });
-  } catch (error) {
+  } catch (error: unknown) {
     log.general.error({ err: error }, 'Error submitting feedback');
     res.status(500).json({ error: 'Failed to submit feedback' });
   }
@@ -70,7 +70,7 @@ router.get('/', async (req, res) => {
       .limit(50);
 
     res.json(feedback);
-  } catch (error) {
+  } catch (error: unknown) {
     log.general.error({ err: error }, 'Error fetching feedback');
     res.status(500).json({ error: 'Failed to fetch feedback' });
   }
@@ -93,7 +93,7 @@ router.get('/:id', async (req, res) => {
     }
 
     res.json(feedback);
-  } catch (error) {
+  } catch (error: unknown) {
     log.general.error({ err: error }, 'Error fetching feedback');
     res.status(500).json({ error: 'Failed to fetch feedback' });
   }

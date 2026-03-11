@@ -69,7 +69,7 @@ router.post('/reload', async (req: Request, res: Response) => {
       cooldownsReset,
       reloadedAt: new Date().toISOString(),
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     log.keys.error({ err: error }, 'Error');
     res.status(500).json({ success: false, error: 'Failed to reload configuration' });
   }
@@ -101,7 +101,7 @@ router.get('/', async (req: Request, res: Response) => {
       count: keys.length,
       data: keys,
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     log.keys.error({ err: error }, 'Error listing keys');
     res.status(500).json({
       success: false,
@@ -159,7 +159,7 @@ router.get('/diagnostics', async (req: Request, res: Response) => {
         keys: diagnostics,
       },
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     log.keys.error({ err: error }, 'Error running key diagnostics');
     res.status(500).json({
       success: false,
@@ -191,7 +191,7 @@ router.get('/:keyId', async (req: Request, res: Response) => {
       success: true,
       data: key,
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     log.keys.error({ err: error }, 'Error getting key');
     res.status(500).json({
       success: false,
@@ -308,7 +308,7 @@ router.post('/', async (req: Request, res: Response) => {
     });
 
     broadcastKeysUpdate(provider);
-  } catch (error: any) {
+  } catch (error: unknown) {
     log.keys.error({ err: error }, 'Error adding key');
     res.status(500).json({
       success: false,
@@ -366,7 +366,7 @@ router.patch('/:keyId', async (req: Request, res: Response) => {
     });
 
     broadcastKeysUpdate(key.provider);
-  } catch (error: any) {
+  } catch (error: unknown) {
     log.keys.error({ err: error }, 'Error updating key');
     res.status(500).json({
       success: false,
@@ -403,7 +403,7 @@ router.delete('/:keyId', async (req: Request, res: Response) => {
     });
 
     broadcastKeysUpdate(key.provider);
-  } catch (error: any) {
+  } catch (error: unknown) {
     log.keys.error({ err: error }, 'Error deleting key');
     res.status(500).json({
       success: false,
@@ -474,7 +474,7 @@ router.post('/:keyId/rotate', async (req: Request, res: Response) => {
     });
 
     broadcastKeysUpdate(key.provider);
-  } catch (error: any) {
+  } catch (error: unknown) {
     log.keys.error({ err: error }, 'Error rotating key');
     res.status(500).json({
       success: false,
@@ -516,7 +516,7 @@ router.post('/:keyId/reset-spend', async (req: Request, res: Response) => {
     });
 
     broadcastKeysUpdate(key.provider);
-  } catch (error: any) {
+  } catch (error: unknown) {
     log.keys.error({ err: error }, 'Error resetting key spend');
     res.status(500).json({
       success: false,
@@ -558,7 +558,7 @@ router.post('/:keyId/deactivate', async (req: Request, res: Response) => {
     });
 
     broadcastKeysUpdate(key.provider);
-  } catch (error: any) {
+  } catch (error: unknown) {
     log.keys.error({ err: error }, 'Error deactivating key');
     res.status(500).json({
       success: false,
@@ -600,7 +600,7 @@ router.post('/:keyId/activate', async (req: Request, res: Response) => {
     });
 
     broadcastKeysUpdate(key.provider);
-  } catch (error: any) {
+  } catch (error: unknown) {
     log.keys.error({ err: error }, 'Error activating key');
     res.status(500).json({
       success: false,

@@ -85,7 +85,7 @@ router.post('/list', optionalAuth, async (req: Request, res: Response) => {
     const { type, category, limit = 200, offset = 0 } = req.body || {};
     const language = await getUserLanguage(req.user?.id);
 
-    const filter: any = {
+    const filter: Record<string, unknown> = {
       language,
       $and: [
         notExpiredFilter(),
@@ -110,7 +110,7 @@ router.post('/list', optionalAuth, async (req: Request, res: Response) => {
       .lean();
 
     res.json({ suggestions });
-  } catch (error: any) {
+  } catch (error: unknown) {
     log.general.error({ err: error }, 'Error listing suggestions');
     res.status(500).json({ error: 'Failed to list suggestions' });
   }
@@ -127,7 +127,7 @@ router.post('/welcome', optionalAuth, async (req: Request, res: Response) => {
     const language = await getUserLanguage(req.user?.id);
 
     // Base query: global welcome suggestions in user's language (exclude expired)
-    const filter: any = {
+    const filter: Record<string, unknown> = {
       type: 'welcome',
       language,
       $and: [
@@ -193,7 +193,7 @@ router.post('/welcome', optionalAuth, async (req: Request, res: Response) => {
     const suggestions = pool.slice(0, requestedCount);
 
     res.json({ suggestions });
-  } catch (error: any) {
+  } catch (error: unknown) {
     log.general.error({ err: error }, 'Error getting welcome suggestions');
     res.status(500).json({ error: 'Failed to get welcome suggestions' });
   }
@@ -212,7 +212,7 @@ router.post('/me', authenticateToken, async (req: Request, res: Response) => {
       .sort({ createdAt: -1 })
       .lean();
     res.json({ suggestions });
-  } catch (error: any) {
+  } catch (error: unknown) {
     log.general.error({ err: error }, 'Error listing user suggestions');
     res.status(500).json({ error: 'Failed to list your suggestions' });
   }
@@ -255,7 +255,7 @@ router.post('/create', authenticateToken, async (req: Request, res: Response) =>
     });
 
     res.status(201).json({ suggestion });
-  } catch (error: any) {
+  } catch (error: unknown) {
     log.general.error({ err: error }, 'Error creating suggestion');
     res.status(500).json({ error: 'Failed to create suggestion' });
   }
@@ -341,7 +341,7 @@ Return ONLY a valid JSON array, no other text.`,
           maxRetries: 0,
         });
         break;
-      } catch (providerError: any) {
+      } catch (providerError: unknown) {
         log.general.error({ err: providerError, provider: resolved.provider, attempt }, 'Provider failed for suggestion generation');
         skipProviders.add(resolved.provider);
         if (attempt >= MAX_PROVIDER_RETRIES - 1) throw providerError;
@@ -404,13 +404,13 @@ Return ONLY a valid JSON array, no other text.`,
           oxyUserId: req.user!.id,
         });
         created.push(suggestion);
-      } catch (err) {
+      } catch (err: unknown) {
         log.general.error({ err, suggestionId }, 'Failed to create AI suggestion');
       }
     }
 
     res.json({ suggestions: created, generated: created.length });
-  } catch (error: any) {
+  } catch (error: unknown) {
     log.general.error({ err: error }, 'Error generating suggestions');
     res.status(500).json({ error: 'Failed to generate suggestions' });
   }
@@ -453,7 +453,7 @@ router.patch('/:id', authenticateToken, async (req: Request, res: Response) => {
 
     await suggestion.save();
     res.json({ suggestion });
-  } catch (error: any) {
+  } catch (error: unknown) {
     log.general.error({ err: error }, 'Error updating suggestion');
     res.status(500).json({ error: 'Failed to update suggestion' });
   }
@@ -480,7 +480,7 @@ router.delete('/:id', authenticateToken, async (req: Request, res: Response) => 
     }
 
     res.json({ success: true });
-  } catch (error: any) {
+  } catch (error: unknown) {
     log.general.error({ err: error }, 'Error deleting suggestion');
     res.status(500).json({ error: 'Failed to delete suggestion' });
   }
@@ -556,7 +556,7 @@ router.post('/search', optionalAuth, async (req: Request, res: Response) => {
     const suggestions = candidates.slice(0, limitNum);
 
     res.json({ suggestions });
-  } catch (error: any) {
+  } catch (error: unknown) {
     log.general.error({ err: error }, 'Error searching suggestions');
     res.status(500).json({ error: 'Failed to search suggestions' });
   }
@@ -573,7 +573,7 @@ router.post('/:id/use', optionalAuth, async (req: Request, res: Response) => {
       { $inc: { usageCount: 1 } }
     );
     res.json({ success: true });
-  } catch (error: any) {
+  } catch (error: unknown) {
     log.general.error({ err: error }, 'Error recording suggestion usage');
     res.status(500).json({ error: 'Failed to record usage' });
   }

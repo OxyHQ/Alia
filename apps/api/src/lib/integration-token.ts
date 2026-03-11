@@ -13,6 +13,7 @@ import mongoose from 'mongoose';
 import { Integration, type IIntegration } from '../models/integration.js';
 import { INTEGRATION_REGISTRY } from './integration-registry.js';
 import { log } from './logger.js';
+import { getErrorMessage } from './errors/index.js';
 
 const TOKEN_EXPIRY_BUFFER_MS = 5 * 60 * 1000; // refresh 5 minutes before expiry
 
@@ -140,10 +141,11 @@ async function refreshAndPersist(integration: IIntegration): Promise<string> {
 
     log.general.info({ service: integration.service }, 'Token refreshed successfully');
     return data.access_token;
-  } catch (err: any) {
-    if (err.message?.includes('please reconnect')) throw err;
+  } catch (err: unknown) {
+    const errMsg = getErrorMessage(err);
+    if (errMsg.includes('please reconnect')) throw err;
     log.general.error({ err, service: integration.service }, 'Token refresh error');
     await Integration.updateOne({ _id: integration._id }, { status: 'error' });
-    throw new Error(`Error refreshing ${integration.service} token: ${err.message}`);
+    throw new Error(`Error refreshing ${integration.service} token: ${errMsg}`);
   }
 }

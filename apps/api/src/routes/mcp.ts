@@ -31,7 +31,7 @@ router.get('/installed', authenticateToken, async (req, res) => {
       oxyUserId: new mongoose.Types.ObjectId(req.userId),
     }).sort({ createdAt: -1 });
     res.json({ servers });
-  } catch (error) {
+  } catch (error: unknown) {
     log.general.error({ err: error }, 'List MCP servers error');
     res.status(500).json({ error: 'Internal server error' });
   }
@@ -80,8 +80,8 @@ router.post('/install', authenticateToken, async (req, res) => {
 
     await server.save();
     res.status(201).json({ server });
-  } catch (error: any) {
-    if (error.code === 11000) {
+  } catch (error: unknown) {
+    if (error instanceof Error && 'code' in error && (error as { code: number }).code === 11000) {
       return res.status(409).json({ error: 'MCP server with this name is already installed' });
     }
     log.general.error({ err: error }, 'Install MCP server error');
@@ -115,7 +115,7 @@ router.delete('/:id', authenticateToken, async (req, res) => {
     }
 
     res.json({ success: true });
-  } catch (error) {
+  } catch (error: unknown) {
     log.general.error({ err: error }, 'Uninstall MCP server error');
     res.status(500).json({ error: 'Internal server error' });
   }
@@ -140,7 +140,7 @@ router.patch('/:id', authenticateToken, async (req, res) => {
 
     await server.save();
     res.json({ server });
-  } catch (error) {
+  } catch (error: unknown) {
     log.general.error({ err: error }, 'Update MCP server error');
     res.status(500).json({ error: 'Internal server error' });
   }
@@ -194,7 +194,7 @@ router.post('/:id/start', authenticateToken, async (req, res) => {
     }
 
     res.status(response.status).json({ server, ...data });
-  } catch (error) {
+  } catch (error: unknown) {
     log.general.error({ err: error }, 'Start MCP server error');
     res.status(500).json({ error: 'Internal server error' });
   }
@@ -232,7 +232,7 @@ router.post('/:id/stop', authenticateToken, async (req, res) => {
     await server.save();
 
     res.json({ server });
-  } catch (error) {
+  } catch (error: unknown) {
     log.general.error({ err: error }, 'Stop MCP server error');
     res.status(500).json({ error: 'Internal server error' });
   }
@@ -251,7 +251,7 @@ router.get('/:id/tools', authenticateToken, async (req, res) => {
     }
 
     res.json({ tools: server.tools, resources: server.resources });
-  } catch (error) {
+  } catch (error: unknown) {
     log.general.error({ err: error }, 'List MCP tools error');
     res.status(500).json({ error: 'Internal server error' });
   }
@@ -276,7 +276,7 @@ router.get('/:id/status', authenticateToken, async (req, res) => {
       enabled: server.enabled,
       toolCount: server.tools.length,
     });
-  } catch (error) {
+  } catch (error: unknown) {
     log.general.error({ err: error }, 'MCP status error');
     res.status(500).json({ error: 'Internal server error' });
   }

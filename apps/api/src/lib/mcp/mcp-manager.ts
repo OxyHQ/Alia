@@ -14,6 +14,7 @@ import { buildMcpTools } from '../tools/mcp.js';
 import { checkToolPermission, recordToolCall, type ToolPermission } from './mcp-permissions.js';
 import { recordSuccess, recordError, isServerHealthy, getAllHealth, type ServerHealth } from './mcp-health.js';
 import { log } from '../logger.js';
+import { getErrorMessage } from '../errors/index.js';
 
 /** Cache TTL — how long to cache MCP tools before re-querying */
 const CACHE_TTL_MS = 60_000; // 1 minute (was 30s)
@@ -131,10 +132,11 @@ export class McpManager {
             recordToolCall(userId, name);
             recordSuccess(serverName, serverName, Date.now() - startMs);
             return result;
-          } catch (err: any) {
-            recordError(serverName, serverName, err.message);
+          } catch (err: unknown) {
+            const errMsg = getErrorMessage(err);
+            recordError(serverName, serverName, errMsg);
             log.general.warn({ err, toolName: name, userId }, 'McpManager: tool call failed');
-            return { error: `MCP tool failed: ${err.message?.slice(0, 200) || 'unknown error'}` };
+            return { error: `MCP tool failed: ${errMsg.slice(0, 200)}` };
           }
         },
       } as any;

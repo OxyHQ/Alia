@@ -28,7 +28,7 @@ import { TerminalSession, inferImage } from './agent/terminal-session.js';
 import { BrowserSession } from './agent/browser-session.js';
 import { buildActions } from './agent/actions.js';
 import { buildArchetypeSystemPrompt } from './agent/archetype-prompts.js';
-import { classifyError } from './errors/failover-error.js';
+import { classifyError, getErrorMessage } from './errors/failover-error.js';
 import { finalizeCredits, safeRefund, type CreditReservation } from './credits-manager.js';
 import { MAX_DELEGATION_DEPTH, EVENT_STREAM_BUDGET } from './constants.js';
 import { orchestrate, shouldOrchestrate } from './agent/orchestrator.js';
@@ -281,7 +281,7 @@ export async function runAgentSession(sessionId: string): Promise<void> {
         } as any);
         try {
           await session.save();
-        } catch (saveErr: any) {
+        } catch (saveErr: unknown) {
           log.agents.warn({ saveErr, sessionId, containerId }, 'Failed to persist container resource on session');
         }
       }
@@ -676,7 +676,7 @@ export async function runAgentSession(sessionId: string): Promise<void> {
         session.stats.totalSteps = totalSteps;
         session.stats.totalTokens = totalTokens;
         session.stats.lastActivityAt = new Date();
-        try { await session.save(); } catch (saveErr: any) {
+        try { await session.save(); } catch (saveErr: unknown) {
           log.agents.warn({ saveErr, sessionId }, 'Failed to save session mid-loop');
         }
 
@@ -686,9 +686,9 @@ export async function runAgentSession(sessionId: string): Promise<void> {
         iteration++;
         if (taskCompleted) break;
 
-      } catch (err: any) {
+      } catch (err: unknown) {
         const latency = Date.now() - startMs;
-        const errMsg = String(err?.message || 'Unknown error');
+        const errMsg = getErrorMessage(err);
 
         // Classify error to determine retry strategy
         const reason = classifyError(err);
@@ -770,11 +770,11 @@ export async function runAgentSession(sessionId: string): Promise<void> {
     session.stats.completedAt = new Date();
     session.stats.totalSteps = totalSteps;
     session.stats.totalTokens = totalTokens;
-    try { await session.save(); } catch (saveErr: any) {
+    try { await session.save(); } catch (saveErr: unknown) {
       log.agents.warn({ saveErr, sessionId }, 'Failed to save session on completion');
     }
 
-  } catch (err: any) {
+  } catch (err: unknown) {
     log.agents.error({ err, sessionId }, 'Agent session failed');
 
     // Cleanup resources
@@ -805,7 +805,7 @@ export async function runAgentSession(sessionId: string): Promise<void> {
       session.eventStream = eventStream.toJSON() as any;
       session.stats.completedAt = new Date();
       await session.save();
-    } catch (saveErr: any) {
+    } catch (saveErr: unknown) {
       log.agents.error({ saveErr, sessionId }, 'Failed to save session in outer catch');
     }
   }

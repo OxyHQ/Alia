@@ -5,25 +5,55 @@ import DeveloperApp from '../models/developer-app.js';
 import DeveloperApiKey from '../models/developer-api-key.js';
 import crypto from 'crypto';
 import { log } from '../lib/logger.js';
+import { getRedisClient } from '../lib/redis.js';
 
 const router = Router();
 
-// In-memory store for PKCE authorization codes (in production, use Redis or similar)
-// Map of code -> { userId, codeChallenge, appId, expiresAt }
-const authorizationCodes = new Map<
-  string,
-  { userId: string; codeChallenge: string; appId: string; expiresAt: number }
->();
+const AUTH_CODE_PREFIX = 'pkce:';
+const AUTH_CODE_TTL = 300; // 5 minutes
 
-// Clean up expired codes periodically
-setInterval(() => {
-  const now = Date.now();
-  for (const [code, data] of authorizationCodes) {
-    if (data.expiresAt < now) {
-      authorizationCodes.delete(code);
+interface AuthCodeData {
+  userId: string;
+  codeChallenge: string;
+  appId: string;
+}
+
+// In-memory fallback when Redis is unavailable (dev environments)
+const memoryFallback = new Map<string, AuthCodeData & { expiresAt: number }>();
+
+async function storeAuthCode(code: string, data: AuthCodeData): Promise<void> {
+  const redis = getRedisClient();
+  if (redis) {
+    try {
+      await redis.set(AUTH_CODE_PREFIX + code, JSON.stringify(data), 'EX', AUTH_CODE_TTL);
+      return;
+    } catch (err: unknown) {
+      log.auth.warn({ err }, 'Redis storeAuthCode failed, using memory fallback');
     }
   }
-}, 60000); // Clean every minute
+  memoryFallback.set(code, { ...data, expiresAt: Date.now() + AUTH_CODE_TTL * 1000 });
+}
+
+/**
+ * Atomically get and delete an auth code (one-time use).
+ * Uses GETDEL on Redis to prevent TOCTOU race conditions.
+ */
+async function consumeAuthCode(code: string): Promise<AuthCodeData | null> {
+  const redis = getRedisClient();
+  if (redis) {
+    try {
+      const raw = await redis.getdel(AUTH_CODE_PREFIX + code);
+      return raw ? JSON.parse(raw) : null;
+    } catch (err: unknown) {
+      log.auth.warn({ err }, 'Redis consumeAuthCode failed, trying memory fallback');
+    }
+  }
+  const entry = memoryFallback.get(code);
+  memoryFallback.delete(code);
+  if (!entry) return null;
+  if (entry.expiresAt < Date.now()) return null;
+  return { userId: entry.userId, codeChallenge: entry.codeChallenge, appId: entry.appId };
+}
 
 // Initialize Oxy client
 const OXY_API_URL = process.env.OXY_API_URL || 'https://api.oxy.so';
@@ -54,7 +84,7 @@ router.get('/me', authenticateToken, async (req, res) => {
         avatar: user.avatar,
       },
     });
-  } catch (error) {
+  } catch (error: unknown) {
     log.auth.error({ err: error }, 'Get user error');
     res.status(500).json({ error: 'Failed to get user' });
   }
@@ -114,19 +144,18 @@ router.post('/authorize/codea', authenticateToken, async (req, res) => {
     // Generate authorization code
     const authCode = crypto.randomBytes(32).toString('base64url');
 
-    // Store the code with challenge (expires in 5 minutes)
-    authorizationCodes.set(authCode, {
+    // Store the code with challenge in Redis (TTL-based expiry)
+    await storeAuthCode(authCode, {
       userId,
       codeChallenge: code_challenge,
       appId: app._id.toString(),
-      expiresAt: Date.now() + 5 * 60 * 1000,
     });
 
     res.json({
       code: authCode,
       appId: app._id,
     });
-  } catch (error) {
+  } catch (error: unknown) {
     log.auth.error({ err: error }, 'Authorize Codea error');
     res.status(500).json({ error: 'Failed to authorize' });
   }
@@ -178,19 +207,18 @@ router.post('/authorize/cowork', authenticateToken, async (req, res) => {
     // Generate authorization code
     const authCode = crypto.randomBytes(32).toString('base64url');
 
-    // Store the code with challenge (expires in 5 minutes)
-    authorizationCodes.set(authCode, {
+    // Store the code with challenge in Redis (TTL-based expiry)
+    await storeAuthCode(authCode, {
       userId,
       codeChallenge: code_challenge,
       appId: app._id.toString(),
-      expiresAt: Date.now() + 5 * 60 * 1000,
     });
 
     res.json({
       code: authCode,
       appId: app._id,
     });
-  } catch (error) {
+  } catch (error: unknown) {
     log.auth.error({ err: error }, 'Authorize Cowork error');
     res.status(500).json({ error: 'Failed to authorize' });
   }
@@ -221,17 +249,10 @@ router.post('/token', async (req, res) => {
       return;
     }
 
-    // Get and validate authorization code
-    const authData = authorizationCodes.get(code);
+    // Atomically get and delete authorization code (one-time use)
+    const authData = await consumeAuthCode(code);
     if (!authData) {
       res.status(400).json({ error: 'Invalid or expired authorization code' });
-      return;
-    }
-
-    // Check expiration
-    if (authData.expiresAt < Date.now()) {
-      authorizationCodes.delete(code);
-      res.status(400).json({ error: 'Authorization code has expired' });
       return;
     }
 
@@ -245,9 +266,6 @@ router.post('/token', async (req, res) => {
       res.status(400).json({ error: 'Invalid code_verifier' });
       return;
     }
-
-    // Code is valid, delete it (one-time use)
-    authorizationCodes.delete(code);
 
     // Now create or regenerate the API key
     const userId = authData.userId;
@@ -293,7 +311,7 @@ router.post('/token', async (req, res) => {
       token: plainKey,
       token_type: 'Bearer',
     });
-  } catch (error) {
+  } catch (error: unknown) {
     log.auth.error({ err: error }, 'Token exchange error');
     res.status(500).json({ error: 'Failed to exchange token' });
   }

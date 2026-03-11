@@ -129,7 +129,7 @@ async function processChannelMessage(
           content: m.content,
         }));
       }
-    } catch (error) {
+    } catch (error: unknown) {
       log.webhook.error({ err: error, channelType }, 'Failed to load conversation history');
     }
 
@@ -174,7 +174,7 @@ async function processChannelMessage(
 
     try {
       await finalizeCredits(creditReservation, tokenUsage, aliasModelId);
-    } catch (error) {
+    } catch (error: unknown) {
       log.webhook.error({ err: error, channelType }, 'Error finalizing credits');
     }
 
@@ -221,7 +221,7 @@ async function processChannelMessage(
         { conversationId, oxyUserId: botUser.oxyUserId, role: 'assistant', content: fullResponse, createdAt: new Date() },
       ], { ordered: false });
     }
-  } catch (error) {
+  } catch (error: unknown) {
     log.webhook.error({ err: error, channelType }, 'Chat processing error');
     try {
       await sendChannelMessage(channelType, message.chatId, 'Sorry, an error occurred. Please try again.', {
@@ -349,10 +349,10 @@ router.post('/:type', async (req, res) => {
     res.sendStatus(200);
 
     // Process message asynchronously
-    processChannelMessage(channelType, botUser, message).catch(error => {
+    processChannelMessage(channelType, botUser, message).catch((error: unknown) => {
       log.webhook.error({ err: error, channelType }, 'Async processing error');
     });
-  } catch (error) {
+  } catch (error: unknown) {
     log.webhook.error({ err: error, channelType }, 'Error processing webhook message');
     res.sendStatus(200);
   }

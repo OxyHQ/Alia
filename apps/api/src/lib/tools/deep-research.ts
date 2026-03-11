@@ -10,6 +10,7 @@ import { tool } from 'ai';
 import { z } from 'zod';
 import { runDeepResearch } from '../research/research-engine.js';
 import { log } from '../logger.js';
+import { getErrorMessage } from '../errors/index.js';
 
 /**
  * Create a deep research tool bound to a specific user ID.
@@ -39,9 +40,9 @@ export function createDeepResearchTool(userId: string) {
           subQuestions: result.subQuestions,
           totalSearches: result.totalSearches,
         };
-      } catch (err: any) {
+      } catch (err: unknown) {
         log.tools.error({ err, query }, 'Deep research tool failed');
-        return { error: `Research failed: ${err.message}` };
+        return { error: `Research failed: ${getErrorMessage(err)}` };
       }
     },
   });

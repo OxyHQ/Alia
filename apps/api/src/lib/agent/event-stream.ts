@@ -143,9 +143,9 @@ export class EventStream {
         })),
         { ordered: false },
       );
-    } catch (err: any) {
+    } catch (err: unknown) {
       // On duplicate key (from resume), ignore — entries are already persisted
-      if (err.code !== 11000) {
+      if (!(err instanceof Error && 'code' in err && (err as { code: number }).code === 11000)) {
         log.agents.warn({ err, count: toFlush.length }, 'EventStream: flush failed');
         // Re-add to pending for retry
         this.pendingFlush.unshift(...toFlush);

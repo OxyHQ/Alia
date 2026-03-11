@@ -113,7 +113,7 @@ router.get('/export', authenticateToken, async (req: Request, res: Response) => 
       total,
       exportedAt: new Date().toISOString(),
     });
-  } catch (error) {
+  } catch (error: unknown) {
     log.agents.error({ err: error }, 'Error exporting audit logs');
     res.status(500).json({ error: 'Failed to export audit logs' });
   }
@@ -156,7 +156,7 @@ router.get('/summary', authenticateToken, async (req: Request, res: Response) =>
       eventsByType: typeMap,
       threatDetections: typeMap.threat_detected || 0,
     });
-  } catch (error) {
+  } catch (error: unknown) {
     log.agents.error({ err: error }, 'Error generating audit summary');
     res.status(500).json({ error: 'Failed to generate summary' });
   }
@@ -226,7 +226,7 @@ router.get('/threats', authenticateToken, async (req: Request, res: Response) =>
     });
 
     res.json({ threats, total });
-  } catch (error) {
+  } catch (error: unknown) {
     log.agents.error({ err: error }, 'Error fetching threat log');
     res.status(500).json({ error: 'Failed to fetch threat log' });
   }

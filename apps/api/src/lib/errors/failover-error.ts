@@ -73,7 +73,7 @@ function getErrorCode(err: unknown): string | undefined {
   return trimmed || undefined;
 }
 
-function getErrorMessage(err: unknown): string {
+export function getErrorMessage(err: unknown): string {
   if (err instanceof Error) {
     return err.message;
   }

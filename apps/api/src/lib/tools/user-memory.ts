@@ -4,6 +4,7 @@ import { getMemoryLimit } from "../../models/user-memory.js";
 import { Subscription } from "../../models/subscription.js";
 import { getOrCreateUserMemory } from "../memory/user-memory-service.js";
 import { log } from '../logger.js';
+import { getErrorMessage } from '../errors/index.js';
 import { PERSONALITY_STYLES, isPersonalityStyle, type PersonalityStyleId } from '../personality-styles.js';
 
 /**

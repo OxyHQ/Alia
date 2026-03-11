@@ -52,8 +52,8 @@ export async function seedCreditPackages(): Promise<{ seeded: number; skipped: n
       } else {
         skipped++;
       }
-    } catch (error: any) {
-      if (error.code === 11000) {
+    } catch (error: unknown) {
+      if (error instanceof Error && 'code' in error && (error as any).code === 11000) {
         skipped++;
       } else {
         log.seed.error({ err: error, packageId: pkgData.packageId }, 'Error seeding credit package');

@@ -59,9 +59,9 @@ export async function getOrCreateReferral(userId: string): Promise<IReferral> {
         { upsert: true, returnDocument: 'after' }
       );
       return result;
-    } catch (err: any) {
+    } catch (err: unknown) {
       // Duplicate key on inviteCode — retry with new code
-      if (err.code === 11000 && attempt < 2) continue;
+      if (err && typeof err === 'object' && 'code' in err && (err as { code: number }).code === 11000 && attempt < 2) continue;
       throw err;
     }
   }

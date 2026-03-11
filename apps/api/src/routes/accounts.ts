@@ -54,7 +54,7 @@ async function proxyToIntegrations(
 
       res.status(response.status).json(data);
       return;
-    } catch (error) {
+    } catch (error: unknown) {
       log.channels.error({ err: error, label, attempt: attempt + 1, maxAttempts: MAX_ATTEMPTS }, 'Integrations proxy error');
       if (attempt < MAX_ATTEMPTS - 1) {
         await new Promise(r => setTimeout(r, BACKOFF_MS[attempt]));
@@ -100,7 +100,7 @@ router.get('/', authenticateToken, async (req, res) => {
       oxyUserId: new mongoose.Types.ObjectId(req.userId),
     }).sort({ createdAt: -1 });
     res.json({ accounts });
-  } catch (error) {
+  } catch (error: unknown) {
     log.channels.error({ err: error }, 'List accounts error');
     res.status(500).json({ error: 'Internal server error' });
   }
@@ -115,7 +115,7 @@ router.get('/:platform', authenticateToken, async (req, res) => {
       platform,
     }).sort({ createdAt: -1 });
     res.json({ accounts });
-  } catch (error) {
+  } catch (error: unknown) {
     log.channels.error({ err: error }, 'List platform accounts error');
     res.status(500).json({ error: 'Internal server error' });
   }
@@ -138,7 +138,7 @@ router.post('/gmail/connect', authenticateToken, (req, res) => {
     status: 'connecting',
     capabilities: ['read_messages', 'send_messages'],
   });
-  account.save().catch((err: any) => log.channels.error({ err }, 'Gmail account save error'));
+  account.save().catch((err: unknown) => log.channels.error({ err }, 'Gmail account save error'));
 
   const state = crypto.randomBytes(32).toString('hex');
   gmailOAuthStates.set(state, {
@@ -263,7 +263,7 @@ router.get('/gmail/callback', async (req, res) => {
             account.sessionId = sessionData.sessionId;
             await account.save();
           }
-        } catch (err) {
+        } catch (err: unknown) {
           log.channels.warn({ err }, 'Failed to create Gmail session in integrations');
         }
       }
@@ -272,7 +272,7 @@ router.get('/gmail/callback', async (req, res) => {
     // Redirect to frontend
     const appUrl = process.env.APP_URL || process.env.WEB_URL || 'http://localhost:3000';
     res.redirect(`${appUrl}/settings/accounts?connected=gmail`);
-  } catch (error) {
+  } catch (error: unknown) {
     log.channels.error({ err: error }, 'Gmail callback error');
     res.status(500).json({ error: 'Internal server error' });
   }
@@ -326,7 +326,7 @@ router.post('/:platform/connect', ...authed, async (req, res) => {
       accountId: account._id,
       ...data,
     });
-  } catch (error) {
+  } catch (error: unknown) {
     log.channels.error({ err: error, platform }, 'Connect account error');
     if (account?._id) {
       await ConnectedAccount.deleteOne({ _id: account._id }).catch((err: unknown) => log.channels.warn({ err, accountId: account!._id }, 'Failed to clean up ConnectedAccount after connect error'));
@@ -381,7 +381,7 @@ router.get('/:id/status', authenticateToken, async (req, res) => {
     }
 
     res.json({ account });
-  } catch (error) {
+  } catch (error: unknown) {
     log.channels.error({ err: error }, 'Account status error');
     res.status(500).json({ error: 'Internal server error' });
   }
@@ -410,7 +410,7 @@ router.get('/:id/qr', ...authed, async (req, res) => {
       undefined,
       `${account.platform} QR`,
     );
-  } catch (error) {
+  } catch (error: unknown) {
     log.channels.error({ err: error }, 'QR error');
     res.status(500).json({ error: 'Internal server error' });
   }
@@ -448,7 +448,7 @@ router.post('/:id/disconnect', ...authed, async (req, res) => {
     await account.save();
 
     res.json({ success: true });
-  } catch (error) {
+  } catch (error: unknown) {
     log.channels.error({ err: error }, 'Disconnect error');
     res.status(500).json({ error: 'Internal server error' });
   }
@@ -477,7 +477,7 @@ router.get('/:id/chats', ...authed, async (req, res) => {
       undefined,
       `${account.platform} chats`,
     );
-  } catch (error) {
+  } catch (error: unknown) {
     log.channels.error({ err: error }, 'List chats error');
     res.status(500).json({ error: 'Internal server error' });
   }
@@ -507,7 +507,7 @@ router.get('/:id/chats/:chatId/messages', ...authed, async (req, res) => {
       undefined,
       `${account.platform} messages`,
     );
-  } catch (error) {
+  } catch (error: unknown) {
     log.channels.error({ err: error }, 'Get messages error');
     res.status(500).json({ error: 'Internal server error' });
   }
@@ -540,7 +540,7 @@ router.post('/:id/send', ...authed, async (req, res) => {
       },
       `${account.platform} send`,
     );
-  } catch (error) {
+  } catch (error: unknown) {
     log.channels.error({ err: error }, 'Send message error');
     res.status(500).json({ error: 'Internal server error' });
   }
@@ -584,7 +584,7 @@ router.patch('/:id/settings', authenticateToken, async (req, res) => {
 
     await account.save();
     res.json({ account });
-  } catch (error) {
+  } catch (error: unknown) {
     log.channels.error({ err: error }, 'Update settings error');
     res.status(500).json({ error: 'Internal server error' });
   }
@@ -619,7 +619,7 @@ router.delete('/:id', authenticateToken, async (req, res) => {
     }
 
     res.json({ success: true });
-  } catch (error) {
+  } catch (error: unknown) {
     log.channels.error({ err: error }, 'Delete account error');
     res.status(500).json({ error: 'Internal server error' });
   }

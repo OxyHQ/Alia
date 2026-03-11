@@ -27,6 +27,7 @@ import { createSendTelegramTool } from './tools/telegram.js';
 import { buildIntegrationTools } from './tools/integrations.js';
 import { buildMcpTools } from './tools/mcp.js';
 import { log } from './logger.js';
+import { getErrorMessage } from './errors/index.js';
 import * as containerManager from './container-manager.js';
 import { getSandboxProvider, isSandboxAvailable } from './sandbox/index.js';
 import { executeCode } from './agent/codeact/index.js';
@@ -90,9 +91,9 @@ export async function buildAgentTools(ctx: BuildToolsContext) {
           execute: async (...args: any[]) => {
             try {
               return await (originalExecute as Function)(...args);
-            } catch (err: any) {
+            } catch (err: unknown) {
               log.agents.warn({ err, toolName: name }, 'MCP tool error in agent');
-              return { error: `MCP tool failed: ${err.message?.slice(0, 150) || 'unknown error'}` };
+              return { error: `MCP tool failed: ${getErrorMessage(err).slice(0, 150)}` };
             }
           },
         };
@@ -154,8 +155,8 @@ export async function buildAgentTools(ctx: BuildToolsContext) {
           const handle = agentHandle.replace(/^@/, '');
           const result = await onHireAgent(handle, task);
           return { success: true, agentHandle: handle, result };
-        } catch (err: any) {
-          return { success: false, error: err.message || 'Failed to hire agent' };
+        } catch (err: unknown) {
+          return { success: false, error: getErrorMessage(err) };
         }
       },
     });
@@ -177,8 +178,8 @@ export async function buildAgentTools(ctx: BuildToolsContext) {
             const handle = agentHandle.replace(/^@/, '');
             const result = await onHireAgent(handle, task);
             return { agentHandle: handle, task: task.slice(0, 100), result, success: true };
-          } catch (err: any) {
-            return { agentHandle, task: task.slice(0, 100), error: err.message || 'Agent failed', success: false };
+          } catch (err: unknown) {
+            return { agentHandle, task: task.slice(0, 100), error: getErrorMessage(err), success: false };
           }
         });
 
@@ -253,9 +254,9 @@ export async function buildAgentTools(ctx: BuildToolsContext) {
           await workspaceMemory.provision(info.containerId);
 
           return { containerId: info.containerId, name: info.name, image };
-        } catch (err: any) {
+        } catch (err: unknown) {
           log.agents.error({ err }, 'Container creation error');
-          return { error: err.message || 'Container creation failed' };
+          return { error: getErrorMessage(err) };
         }
       },
     });
@@ -277,8 +278,8 @@ export async function buildAgentTools(ctx: BuildToolsContext) {
           const result = await containerManager.execInContainer(containerId, command, Math.min(timeout || 30, 300));
           await Container.updateOne({ containerId }, { lastActivityAt: new Date() });
           return result;
-        } catch (err: any) {
-          return { error: err.message || 'Command execution failed' };
+        } catch (err: unknown) {
+          return { error: getErrorMessage(err) };
         }
       },
     });
@@ -297,8 +298,8 @@ export async function buildAgentTools(ctx: BuildToolsContext) {
         try {
           await containerManager.writeFileToContainer(containerId, path, content);
           return { success: true, path };
-        } catch (err: any) {
-          return { error: err.message };
+        } catch (err: unknown) {
+          return { error: getErrorMessage(err) };
         }
       },
     });
@@ -316,8 +317,8 @@ export async function buildAgentTools(ctx: BuildToolsContext) {
         try {
           const content = await containerManager.readFileFromContainer(containerId, path);
           return { content, path };
-        } catch (err: any) {
-          return { error: err.message };
+        } catch (err: unknown) {
+          return { error: getErrorMessage(err) };
         }
       },
     });
@@ -335,8 +336,8 @@ export async function buildAgentTools(ctx: BuildToolsContext) {
         try {
           const files = await containerManager.listFilesInContainer(containerId, dir);
           return { files, dir };
-        } catch (err: any) {
-          return { error: err.message };
+        } catch (err: unknown) {
+          return { error: getErrorMessage(err) };
         }
       },
     });
@@ -360,8 +361,8 @@ export async function buildAgentTools(ctx: BuildToolsContext) {
           (resource as any).previewUrl = previewUrl;
           await session.save();
           return { previewUrl, port };
-        } catch (err: any) {
-          return { error: err.message };
+        } catch (err: unknown) {
+          return { error: getErrorMessage(err) };
         }
       },
     });
@@ -390,8 +391,8 @@ export async function buildAgentTools(ctx: BuildToolsContext) {
             agentId: session.agentId,
           });
           return { templateId: template._id.toString(), name, imageTag };
-        } catch (err: any) {
-          return { error: err.message };
+        } catch (err: unknown) {
+          return { error: getErrorMessage(err) };
         }
       },
     });
@@ -414,8 +415,8 @@ export async function buildAgentTools(ctx: BuildToolsContext) {
             { status: 'destroyed', destroyedAt: new Date() },
           );
           return { destroyed: true, containerId };
-        } catch (err: any) {
-          return { error: err.message };
+        } catch (err: unknown) {
+          return { error: getErrorMessage(err) };
         }
       },
     });

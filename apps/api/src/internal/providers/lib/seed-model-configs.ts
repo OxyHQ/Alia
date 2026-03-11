@@ -123,9 +123,9 @@ export async function seedModelConfigs(): Promise<{ seeded: number; skipped: num
         }
 
         seen.add(uniqueKey);
-      } catch (error: any) {
+      } catch (error: unknown) {
         // Handle duplicate key errors gracefully (same model in multiple tiers)
-        if (error.code === 11000) {
+        if (error instanceof Error && 'code' in error && (error as any).code === 11000) {
           skipped++;
         } else {
           log.seed.error({ err: error, uniqueKey }, 'Error seeding ModelConfig');
@@ -221,8 +221,8 @@ export async function seedAliaModels(): Promise<{ seeded: number; skipped: numbe
       } else {
         skipped++;
       }
-    } catch (error: any) {
-      if (error.code === 11000) {
+    } catch (error: unknown) {
+      if (error instanceof Error && 'code' in error && (error as any).code === 11000) {
         skipped++;
       } else {
         log.seed.error({ err: error, modelId }, 'Error seeding AliaModel');

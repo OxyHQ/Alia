@@ -33,7 +33,7 @@ router.get('/', async (req, res) => {
     }).sort({ createdAt: -1 }).lean();
 
     res.json({ containers });
-  } catch (err: any) {
+  } catch (err: unknown) {
     log.general.error({ err }, 'Failed to list containers');
     res.status(500).json({ error: 'Failed to list containers' });
   }
@@ -55,7 +55,7 @@ router.get('/:id', async (req, res) => {
     }
 
     res.json({ container });
-  } catch (err: any) {
+  } catch (err: unknown) {
     res.status(500).json({ error: 'Failed to get container' });
   }
 });
@@ -83,7 +83,7 @@ router.delete('/:id', async (req, res) => {
     }
 
     res.json({ destroyed: true });
-  } catch (err: any) {
+  } catch (err: unknown) {
     log.general.error({ err }, 'Failed to destroy container');
     res.status(500).json({ error: 'Failed to destroy container' });
   }
@@ -96,7 +96,7 @@ router.get('/templates/list', async (req, res) => {
     const userId = (req as any).user?.id;
     const templates = await ContainerTemplate.find({ userId }).sort({ createdAt: -1 }).lean();
     res.json({ templates });
-  } catch (err: any) {
+  } catch (err: unknown) {
     res.status(500).json({ error: 'Failed to list templates' });
   }
 });
@@ -117,7 +117,7 @@ router.delete('/templates/:id', async (req, res) => {
     }
 
     res.json({ deleted: true });
-  } catch (err: any) {
+  } catch (err: unknown) {
     res.status(500).json({ error: 'Failed to delete template' });
   }
 });

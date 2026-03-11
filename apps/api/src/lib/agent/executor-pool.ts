@@ -9,6 +9,7 @@ import { AgentSession } from '../../models/agent-session.js';
 import { Agent } from '../../models/agent.js';
 import { runAgentSession } from '../agent-runner.js';
 import { log } from '../logger.js';
+import { getErrorMessage } from '../errors/index.js';
 import type { Subtask } from './planner-agent.js';
 
 export interface ExecutorResult {
@@ -195,11 +196,11 @@ async function executeSubtask(
       sessionId: executorSession._id.toString(),
       durationMs: Date.now() - startMs,
     };
-  } catch (err: any) {
+  } catch (err: unknown) {
     return {
       subtaskId: subtask.id,
       subtask: subtask.description,
-      result: `Executor failed: ${err.message || 'Unknown error'}`,
+      result: `Executor failed: ${getErrorMessage(err)}`,
       success: false,
       sessionId: '',
       durationMs: Date.now() - startMs,
