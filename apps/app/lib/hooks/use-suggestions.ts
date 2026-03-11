@@ -37,6 +37,7 @@ export function useWelcomeSuggestions() {
       return res.data.suggestions;
     },
     staleTime: 1000 * 60 * 15, // 15 minutes
+    placeholderData: (prev: Suggestion[] | undefined) => prev,
     retry: 1,
   });
 }
@@ -93,11 +94,13 @@ export function useGenerateSuggestions() {
 export function useSessionSuggestionGeneration() {
   const { isAuthenticated } = useAuth();
   const { mutate } = useGenerateSuggestions();
+  const mutateRef = useRef(mutate);
+  mutateRef.current = mutate;
   const hasGenerated = useRef(false);
 
   useEffect(() => {
     if (!isAuthenticated || hasGenerated.current) return;
     hasGenerated.current = true;
-    mutate({ count: 8, types: ['welcome', 'autocomplete'] });
-  }, [isAuthenticated, mutate]);
+    mutateRef.current({ count: 8, types: ['welcome', 'autocomplete'] });
+  }, [isAuthenticated]);
 }
