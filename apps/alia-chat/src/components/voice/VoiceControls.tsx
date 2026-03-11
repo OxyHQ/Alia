@@ -3,11 +3,9 @@
  * Contains status text, mute/cohost/end buttons, and "Continue" for cohost rounds.
  */
 
-import { useMemo } from 'react';
 import { View, Text, Pressable, ActivityIndicator, StyleSheet } from 'react-native';
 import { Mic, MicOff, PhoneOff, Users } from 'lucide-react-native';
 import type { RoomState, AgentState } from '../../types';
-import { useAliaColors } from '../../theme';
 
 interface VoiceControlsProps {
   roomState: RoomState;
@@ -21,7 +19,7 @@ interface VoiceControlsProps {
   onDisableCohost: () => void;
   onContinueCohost: () => void;
   onEnd: () => void;
-  /** Override theme primary color */
+  /** Override theme primary color (resolved hex/hsl value, not CSS var) */
   primaryColor?: string;
 }
 
@@ -58,11 +56,6 @@ export function VoiceControls({
   onEnd,
   primaryColor,
 }: VoiceControlsProps) {
-  const aliaColors = useAliaColors();
-  const colors = useMemo(
-    () => (primaryColor ? { ...aliaColors, primary: primaryColor } : aliaColors),
-    [primaryColor, aliaColors],
-  );
   const statusText = getStatusText(roomState, agentState, isMuted, cohostActive, currentSpeaker);
 
   return (
@@ -76,9 +69,12 @@ export function VoiceControls({
       {roundComplete && (
         <Pressable
           onPress={onContinueCohost}
-          style={[styles.continueButton, { backgroundColor: colors.primary + '4D' }]}
+          className="bg-primary/30"
+          style={[styles.continueButton, primaryColor ? { backgroundColor: primaryColor + '4D' } : undefined]}
         >
-          <Text style={[styles.continueText, { color: colors.primary }]}>Continue conversation</Text>
+          <Text className="text-sm font-medium text-primary" style={primaryColor ? { color: primaryColor } : undefined}>
+            Continue conversation
+          </Text>
         </Pressable>
       )}
 
@@ -87,10 +83,8 @@ export function VoiceControls({
           <View style={styles.buttonWrapper}>
             <Pressable
               onPress={onToggleMute}
-              style={[
-                styles.button,
-                { backgroundColor: isMuted ? '#ef4444' : 'hsl(var(--muted))' },
-              ]}
+              className={isMuted ? undefined : 'bg-muted'}
+              style={[styles.button, isMuted ? { backgroundColor: '#ef4444' } : undefined]}
             >
               {isMuted ? (
                 <MicOff size={24} color="white" />
@@ -106,9 +100,10 @@ export function VoiceControls({
           <View style={styles.buttonWrapper}>
             <Pressable
               onPress={cohostActive ? onDisableCohost : onEnableCohost}
+              className={cohostActive ? 'bg-primary' : 'bg-muted'}
               style={[
                 styles.button,
-                { backgroundColor: cohostActive ? colors.primary : 'hsl(var(--muted))' },
+                cohostActive && primaryColor ? { backgroundColor: primaryColor } : undefined,
               ]}
             >
               <Users size={24} color="white" />
@@ -131,7 +126,7 @@ export function VoiceControls({
       )}
 
       {roomState === 'connecting' && (
-        <ActivityIndicator size="large" color="hsl(var(--muted-foreground))" />
+        <ActivityIndicator size="large" className="text-muted-foreground" />
       )}
     </View>
   );
@@ -164,9 +159,5 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingVertical: 8,
     borderRadius: 24,
-  },
-  continueText: {
-    fontSize: 14,
-    fontWeight: '500',
   },
 });

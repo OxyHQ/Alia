@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { View, Pressable } from 'react-native';
 import { Text } from './ui/text';
+import { cn } from '../lib/utils';
 import {
   Search,
   BookOpen,
@@ -41,7 +42,7 @@ export function ResearchProgressCard({ progress }: ResearchProgressCardProps) {
       <View className="flex-row items-center gap-2">
         <View className="w-8 h-8 rounded-full bg-primary/10 items-center justify-center">
           {isComplete ? (
-            <CheckCircle size={16} color="#22c55e" />
+            <CheckCircle size={16} className="text-green-500" />
           ) : (
             <Search size={16} className="text-primary" />
           )}
@@ -68,12 +69,12 @@ export function ResearchProgressCard({ progress }: ResearchProgressCardProps) {
         {PHASE_ORDER.map((phase, i) => (
           <View
             key={phase}
-            className="flex-1 h-1 rounded-full"
-            style={{
-              backgroundColor: i <= phaseIndex
-                ? (isComplete ? '#22c55e' : 'hsl(var(--primary))')
-                : 'hsl(var(--muted))',
-            }}
+            className={cn(
+              'flex-1 h-1 rounded-full',
+              i <= phaseIndex
+                ? (isComplete ? 'bg-green-500' : 'bg-primary')
+                : 'bg-muted',
+            )}
           />
         ))}
       </View>
