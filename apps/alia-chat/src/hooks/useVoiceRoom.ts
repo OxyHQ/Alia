@@ -21,6 +21,10 @@ import type { RoomState, AgentState, VoiceMessage, VoiceToolInvocation } from '.
 
 const API_URL = process.env.EXPO_PUBLIC_ALIA_API_URL ?? 'https://api.alia.onl';
 
+/** On web, audio tracks must be attached to a DOM element to play.
+ *  On native (React Native), the WebRTC layer plays them automatically. */
+const hasDOM = typeof document !== 'undefined';
+
 // ============== OPTIONS ==============
 
 export interface UseVoiceRoomOptions {
@@ -106,12 +110,14 @@ export function useVoiceRoom(options: UseVoiceRoomOptions = {}) {
 
   const cleanup = useCallback(() => {
     if (roomRef.current) {
-      // Detach all remote audio tracks before disconnecting
-      roomRef.current.remoteParticipants.forEach((p) => {
-        p.trackPublications.forEach((pub) => {
-          pub.track?.detach();
+      // On web, detach all remote audio tracks before disconnecting
+      if (hasDOM) {
+        roomRef.current.remoteParticipants.forEach((p) => {
+          p.trackPublications.forEach((pub) => {
+            pub.track?.detach();
+          });
         });
-      });
+      }
       roomRef.current.disconnect();
       roomRef.current = null;
     }
@@ -316,15 +322,18 @@ export function useVoiceRoom(options: UseVoiceRoomOptions = {}) {
       const room = new Room();
       roomRef.current = room;
 
-      // Event: remote audio tracks (agent speaking) — must attach to play
+      // Event: remote audio tracks (agent speaking)
+      // On web, must attach to a DOM element to play. On native, WebRTC plays audio automatically.
       room.on(RoomEvent.TrackSubscribed, (track, publication, participant) => {
-        if (track.kind === Track.Kind.Audio) {
+        if (track.kind === Track.Kind.Audio && hasDOM) {
           track.attach();
         }
       });
 
       room.on(RoomEvent.TrackUnsubscribed, (track) => {
-        track.detach();
+        if (hasDOM && track.kind === Track.Kind.Audio) {
+          track.detach();
+        }
       });
 
       // Event: data messages from agent
