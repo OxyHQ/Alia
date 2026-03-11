@@ -1,5 +1,11 @@
 // ── Chat Message Types ──
 
+export interface ResearchSource {
+  id: number;
+  url: string;
+  title: string;
+}
+
 export interface ResearchProgress {
   phase?: string;
   message?: string;
@@ -7,6 +13,9 @@ export interface ResearchProgress {
   sourcesFound?: number;
   currentQuery?: string;
   iteration?: number;
+  isComplete?: boolean;
+  sources?: ResearchSource[];
+  totalSearches?: number;
 }
 
 export interface PlanStep {
@@ -25,7 +34,7 @@ export interface PendingPlan {
 export interface ChatMessage {
   id: string;
   role: 'user' | 'assistant' | 'system';
-  content: string;
+  content: string | Array<{ type: string; [key: string]: any }>;
   toolInvocations?: ToolInvocation[];
   createdAt: number;
   /** Extended thinking / reasoning content */
@@ -42,6 +51,8 @@ export interface ChatMessage {
   isStreaming?: boolean;
   /** Cached TTS audio URL for read-aloud */
   audioUrl?: string;
+  /** Delegated agent identity */
+  agentInfo?: { id: string; name: string; avatar: string | null };
 }
 
 export interface ToolInvocation {

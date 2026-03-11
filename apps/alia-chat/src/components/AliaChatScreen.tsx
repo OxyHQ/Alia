@@ -19,13 +19,11 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AliaChatContent, type AliaChatContentRef } from './AliaChatContent';
 import { AliaFace, type AliaExpression } from './AliaFace';
 import { useAliaColors } from '../theme';
-import type { AliaChatSuggestion } from '../types';
+import type { WelcomeSuggestion } from './AliaWelcomeMessage';
 
 export interface AliaChatScreenProps {
   /** App context injected into system prompt */
   clientContext?: string;
-  /** Quick action suggestions shown when chat is empty */
-  suggestions?: AliaChatSuggestion[];
   /** Alia model (default: 'alia-v1') */
   model?: string;
   /** API URL override */
@@ -34,15 +32,23 @@ export interface AliaChatScreenProps {
   headerLeft?: React.ReactNode;
   /** Optional header right action (e.g., settings button) */
   headerRight?: React.ReactNode;
+  /** Welcome screen greeting */
+  welcomeGreeting?: string;
+  /** Welcome screen subtitle */
+  welcomeSubtitle?: string;
+  /** Welcome screen suggestions */
+  welcomeSuggestions?: WelcomeSuggestion[];
 }
 
 export function AliaChatScreen({
   clientContext,
-  suggestions = [],
   model,
   apiUrl,
   headerLeft,
   headerRight,
+  welcomeGreeting,
+  welcomeSubtitle,
+  welcomeSuggestions,
 }: AliaChatScreenProps) {
   const colors = useAliaColors();
   const insets = useSafeAreaInsets();
@@ -89,9 +95,11 @@ export function AliaChatScreen({
       <AliaChatContent
         ref={contentRef}
         clientContext={clientContext}
-        suggestions={suggestions}
         model={model}
         apiUrl={apiUrl}
+        welcomeGreeting={welcomeGreeting}
+        welcomeSubtitle={welcomeSubtitle}
+        welcomeSuggestions={welcomeSuggestions}
       />
     </View>
   );

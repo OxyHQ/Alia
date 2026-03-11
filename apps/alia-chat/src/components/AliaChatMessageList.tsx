@@ -1,11 +1,5 @@
 import React, { useRef, useEffect, useState, useCallback } from 'react';
-import {
-  View,
-  Text,
-  Pressable,
-  StyleSheet,
-  Platform,
-} from 'react-native';
+import { View, Pressable, TextInput, StyleSheet, Platform } from 'react-native';
 import { BlurView } from 'expo-blur';
 import Animated, {
   useAnimatedScrollHandler,
@@ -15,19 +9,39 @@ import Animated, {
   withTiming,
   withSequence,
   cancelAnimation,
-  Easing,
   FadeInUp,
   type SharedValue,
 } from 'react-native-reanimated';
+import {
+  Copy,
+  Check,
+  Volume2,
+  Square,
+  ThumbsUp,
+  ThumbsDown,
+  Pencil,
+} from 'lucide-react-native';
 import { useAliaColors } from '../theme';
+import { Text } from './ui/text';
 import { AliaMarkdown } from './Markdown';
 import { ThinkingIndicator } from './ThinkingIndicator';
 import { Reasoning, ReasoningTrigger, ReasoningContent } from './Reasoning';
+import { ResearchProgressCard } from './ResearchProgressCard';
+import { PlanPreviewCard } from './PlanPreviewCard';
+import { getToolLabel, getToolActiveLabel } from '../lib/tool-registry';
+import { getTextFromContent, getImagesFromContent } from '../lib/content-utils';
 import type { ChatMessage, ToolInvocation } from '../types';
 
-const ENTER_ANIMATION = FadeInUp.duration(200);
-
 type PlaybackState = 'idle' | 'loading' | 'playing' | 'paused' | 'error';
+
+const RESEARCH_PHASE_LABELS: Record<string, string> = {
+  decomposing: 'Decomposing query...',
+  searching: 'Searching sources...',
+  reading: 'Reading articles...',
+  synthesizing: 'Synthesizing findings...',
+  follow_up: 'Following up...',
+  finalizing: 'Finalizing research...',
+};
 
 export interface AliaChatMessageListProps {
   messages: ChatMessage[];
@@ -36,160 +50,157 @@ export interface AliaChatMessageListProps {
   onReadAloud?: (messageId: string, text: string) => void;
   ttsActiveMessageId?: string | null;
   ttsPlaybackState?: PlaybackState;
+  // Injectable callbacks
+  onEditMessage?: (messageId: string, newContent: string) => void;
+  onThumbsUp?: (messageId: string) => void;
+  onThumbsDown?: (messageId: string) => void;
+  onApprovePlan?: (planId: string) => void;
+  onRejectPlan?: (planId: string) => void;
+  onToolResultPress?: (messageId: string) => void;
+  // Welcome
+  welcomeComponent?: React.ReactNode;
+  conversationLoading?: boolean;
+  // Markdown renderer override (app passes CustomMarkdown, SDK uses AliaMarkdown)
+  renderMarkdown?: (content: string) => React.ReactNode;
 }
 
 // ── Tool Bullet ──
 
-function ToolBullet({ invocation }: { invocation: ToolInvocation }) {
-  const colors = useAliaColors();
-
-  const displayName = invocation.toolName
-    .replace(/^oxy_\w+__/, '')
-    .replace(/([A-Z])/g, ' $1')
-    .replace(/^./, (s) => s.toUpperCase())
-    .trim();
-
-  const isActive = invocation.state === 'call' || invocation.state === 'partial-call';
-  const label = isActive ? `${displayName}...` : displayName;
-
-  return (
-    <View style={styles.toolStatus}>
-      {isActive ? (
-        <PulsingDot color={colors.tint} />
-      ) : (
-        <Text style={[styles.toolCheckmark, { color: colors.tint }]}>{'\u2713'}</Text>
-      )}
-      <Text style={[styles.toolLabel, { color: colors.secondaryText }]}>{label}</Text>
-    </View>
-  );
-}
-
-function PulsingDot({ color }: { color: string }) {
+function ToolBullet({ isRunning }: { isRunning: boolean }) {
   const opacity = useSharedValue(1);
-
   useEffect(() => {
-    opacity.value = withRepeat(
-      withSequence(
-        withTiming(0.3, { duration: 600, easing: Easing.inOut(Easing.sin) }),
-        withTiming(1, { duration: 600, easing: Easing.inOut(Easing.sin) }),
-      ),
-      -1,
-    );
+    if (isRunning) {
+      opacity.value = withRepeat(
+        withSequence(
+          withTiming(0.3, { duration: 500 }),
+          withTiming(1, { duration: 500 }),
+        ),
+        -1,
+      );
+    } else {
+      opacity.value = 1;
+    }
     return () => cancelAnimation(opacity);
-  }, []);
-
-  const animStyle = useAnimatedStyle(() => ({ opacity: opacity.value }));
-
+  }, [isRunning]);
+  const style = useAnimatedStyle(() => ({ opacity: opacity.value }));
   return (
-    <Animated.View style={[styles.toolDot, { backgroundColor: color }, animStyle]} />
+    <Animated.View style={style}>
+      <Text style={{ color: isRunning ? '#eab308' : '#22c55e', fontSize: 10 }}>
+        {'\u25CF'}
+      </Text>
+    </Animated.View>
   );
 }
 
 // ── User Bubble ──
 
-function UserBubble({ content }: { content: string }) {
-  const colors = useAliaColors();
-  const isDark = colors.isDark;
-
-  return (
-    <View style={styles.userMessage}>
-      <View style={[styles.userBubble, { borderColor: colors.border }]}>
-        <BlurView
-          intensity={60}
-          tint={isDark ? 'dark' : 'light'}
-          style={StyleSheet.absoluteFill}
-        />
-        <Text style={[styles.userText, { color: colors.text }]}>{content}</Text>
-      </View>
-    </View>
-  );
-}
-
-// ── Message Actions ──
-
-function MessageActions({
+function UserBubble({
   message,
-  onReadAloud,
-  ttsActiveMessageId,
-  ttsPlaybackState,
+  isEditing,
+  editedContent,
+  onEditedContentChange,
+  onSaveEdit,
+  onCancelEdit,
+  onStartEdit,
+  onCopy,
+  copiedMessageId,
+  showEditButton,
 }: {
   message: ChatMessage;
-  onReadAloud?: (messageId: string, text: string) => void;
-  ttsActiveMessageId?: string | null;
-  ttsPlaybackState?: PlaybackState;
+  isEditing: boolean;
+  editedContent: string;
+  onEditedContentChange: (text: string) => void;
+  onSaveEdit: () => void;
+  onCancelEdit: () => void;
+  onStartEdit: () => void;
+  onCopy: () => void;
+  copiedMessageId: string | null;
+  showEditButton: boolean;
 }) {
-  const colors = useAliaColors();
-  const [copied, setCopied] = useState(false);
-
-  const handleCopy = useCallback(async () => {
-    try {
-      if (Platform.OS === 'web') {
-        await navigator.clipboard.writeText(message.content);
-      } else {
-        const Clipboard = await import('expo-clipboard');
-        await Clipboard.setStringAsync(message.content);
-      }
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    } catch {}
-  }, [message.content]);
-
-  const isThisPlaying = ttsActiveMessageId === message.id && ttsPlaybackState === 'playing';
-  const isThisLoading = ttsActiveMessageId === message.id && ttsPlaybackState === 'loading';
-
-  if (!message.content) return null;
+  const text = getTextFromContent(message.content);
+  const images = getImagesFromContent(message.content);
 
   return (
-    <View style={styles.actionsRow}>
-      {/* Copy */}
-      <Pressable onPress={handleCopy} style={styles.actionBtn} hitSlop={8}>
-        {copied ? (
-          <Text style={[styles.actionIcon, { color: colors.tint }]}>{'\u2713'}</Text>
-        ) : (
-          <CopyIcon color={colors.secondaryText} />
-        )}
-      </Pressable>
-
-      {/* Read aloud */}
-      {onReadAloud && (
-        <Pressable
-          onPress={() => onReadAloud(message.id, message.content)}
-          style={styles.actionBtn}
-          hitSlop={8}
-        >
-          {isThisLoading ? (
-            <Text style={[styles.actionIcon, { color: colors.secondaryText }]}>{'\u2026'}</Text>
-          ) : (
-            <VolumeIcon color={isThisPlaying ? colors.tint : colors.secondaryText} />
+    <View className="flex-col items-end gap-0.5">
+      {isEditing ? (
+        <View className="max-w-[85%] sm:max-w-[75%] rounded-[24px] overflow-hidden border border-border">
+          <BlurView intensity={60} tint="default" style={StyleSheet.absoluteFill} />
+          <View className="px-4 py-2">
+            <TextInput
+              value={editedContent}
+              onChangeText={onEditedContentChange}
+              multiline
+              className="text-base text-foreground leading-7"
+              autoFocus
+            />
+            <View className="flex-row gap-2 mt-2">
+              <Pressable
+                className="px-3 py-1.5 rounded-lg bg-primary"
+                onPress={onSaveEdit}
+              >
+                <Text className="text-xs text-primary-foreground">Save</Text>
+              </Pressable>
+              <Pressable
+                className="px-3 py-1.5 rounded-lg bg-muted-foreground"
+                onPress={onCancelEdit}
+              >
+                <Text className="text-xs text-background">Cancel</Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      ) : (
+        <View className="max-w-[85%] sm:max-w-[75%] rounded-[24px] overflow-hidden border border-border">
+          <BlurView intensity={60} tint="default" style={StyleSheet.absoluteFill} />
+          <View className="px-4 py-2">
+            {/* Inline images from multi-part content */}
+            {images.length > 0 && (
+              <View className="flex-row flex-wrap gap-2 mb-2">
+                {images.map((imgUrl, imgIdx) => {
+                  let ImageComponent: any;
+                  try { ImageComponent = require('expo-image').Image; } catch { ImageComponent = null; }
+                  if (!ImageComponent) return null;
+                  return (
+                    <View key={`img-${imgIdx}`} className="rounded-xl overflow-hidden" style={{ width: 120, height: 120 }}>
+                      <ImageComponent
+                        source={{ uri: imgUrl }}
+                        className="w-full h-full"
+                        contentFit="cover"
+                      />
+                    </View>
+                  );
+                })}
+              </View>
+            )}
+            <Text className="text-base text-foreground leading-7">{text}</Text>
+          </View>
+        </View>
+      )}
+      {/* User message actions */}
+      {!isEditing && (
+        <View className="flex-row gap-1">
+          <Pressable
+            className="p-1.5 rounded-lg active:bg-muted"
+            onPress={onCopy}
+          >
+            {copiedMessageId === message.id ? (
+              <Check size={14} className="text-green-500" />
+            ) : (
+              <Copy size={14} className="text-muted-foreground" />
+            )}
+          </Pressable>
+          {showEditButton && (
+            <Pressable
+              className="p-1.5 rounded-lg active:bg-muted"
+              onPress={onStartEdit}
+            >
+              <Pencil size={14} className="text-muted-foreground" />
+            </Pressable>
           )}
-        </Pressable>
+        </View>
       )}
     </View>
   );
-}
-
-function CopyIcon({ color }: { color: string }) {
-  if (Platform.OS === 'web') {
-    return (
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
-        <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
-      </svg>
-    );
-  }
-  return <Text style={[styles.actionIcon, { color }]}>{'\u2398'}</Text>;
-}
-
-function VolumeIcon({ color }: { color: string }) {
-  if (Platform.OS === 'web') {
-    return (
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M11 5L6 9H2v6h4l5 4V5z" />
-        <path d="M15.54 8.46a5 5 0 0 1 0 7.07" />
-      </svg>
-    );
-  }
-  return <Text style={[styles.actionIcon, { color }]}>{'\u{1F50A}'}</Text>;
 }
 
 // ── Assistant Message ──
@@ -197,62 +208,198 @@ function VolumeIcon({ color }: { color: string }) {
 function AssistantMessage({
   message,
   isStreamingThis,
+  isLastMessage,
+  isLoading,
   onReadAloud,
   ttsActiveMessageId,
   ttsPlaybackState,
+  onCopy,
+  copiedMessageId,
+  onThumbsUp,
+  onThumbsDown,
+  onApprovePlan,
+  onRejectPlan,
+  onToolResultPress,
+  renderMarkdown,
 }: {
   message: ChatMessage;
   isStreamingThis: boolean;
+  isLastMessage: boolean;
+  isLoading: boolean;
   onReadAloud?: (messageId: string, text: string) => void;
   ttsActiveMessageId?: string | null;
   ttsPlaybackState?: PlaybackState;
+  onCopy: () => void;
+  copiedMessageId: string | null;
+  onThumbsUp?: (messageId: string) => void;
+  onThumbsDown?: (messageId: string) => void;
+  onApprovePlan?: (planId: string) => void;
+  onRejectPlan?: (planId: string) => void;
+  onToolResultPress?: (messageId: string) => void;
+  renderMarkdown?: (content: string) => React.ReactNode;
 }) {
-  const colors = useAliaColors();
-  const hasContent = !!message.content;
+  const messageText = getTextFromContent(message.content);
+  const hasContent = messageText.length > 0;
   const hasThinking = !!message.thinking;
-  const showThinkingIndicator = isStreamingThis && !hasContent && !message.toolInvocations?.length && !hasThinking;
+
+  const isThisPlaying = ttsActiveMessageId === message.id && ttsPlaybackState === 'playing';
+  const isThisPaused = ttsActiveMessageId === message.id && ttsPlaybackState === 'paused';
+  const isThisLoading = ttsActiveMessageId === message.id && ttsPlaybackState === 'loading';
 
   return (
-    <Animated.View
-      entering={ENTER_ANIMATION}
-      style={styles.assistantMessage}
-    >
-      {/* Extended thinking / reasoning */}
-      {hasThinking && (
-        <Reasoning isStreaming={isStreamingThis && !hasContent}>
-          <ReasoningTrigger />
-          <ReasoningContent>{message.thinking!}</ReasoningContent>
-        </Reasoning>
-      )}
-
-      {/* Tool invocations */}
-      {message.toolInvocations?.map((tool, i) => (
-        <ToolBullet key={`${tool.toolCallId || tool.toolName}-${i}`} invocation={tool} />
-      ))}
-
-      {/* Thinking indicator (no content yet) */}
-      {showThinkingIndicator && <ThinkingIndicator />}
-
-      {/* Text content — rendered as markdown */}
-      {hasContent && (
-        <AliaMarkdown content={message.content} />
-      )}
-
-      {/* Streaming cursor */}
-      {isStreamingThis && hasContent && (
-        <Text style={[styles.cursor, { color: colors.secondaryText }]}>{'\u2758'}</Text>
-      )}
-
-      {/* Message actions (copy, read aloud) — shown when not streaming */}
-      {!isStreamingThis && hasContent && (
-        <MessageActions
-          message={message}
-          onReadAloud={onReadAloud}
-          ttsActiveMessageId={ttsActiveMessageId}
-          ttsPlaybackState={ttsPlaybackState}
+    <View className="w-full">
+      {/* Plan Preview */}
+      {message.pendingPlan && onApprovePlan && onRejectPlan && (
+        <PlanPreviewCard
+          steps={message.pendingPlan.steps}
+          approved={message.pendingPlan.approved}
+          rejected={message.pendingPlan.rejected}
+          onApprove={() => onApprovePlan(message.pendingPlan!.planId)}
+          onReject={() => onRejectPlan(message.pendingPlan!.planId)}
         />
       )}
-    </Animated.View>
+
+      {/* Tool Invocations */}
+      {message.toolInvocations?.map((t, ti) => {
+        const key = t.toolCallId || `tool-${message.id}-${ti}`;
+        const toolLabel = getToolLabel(t.toolName);
+        const isRunning = t.state === 'call' || t.state === 'partial-call';
+        const isDone = t.state === 'result';
+
+        let description = '';
+        if (t.args?.url) {
+          const url = String(t.args.url);
+          description = url.length > 40 ? url.substring(0, 40) + '...' : url;
+        } else if (t.args?.query) {
+          const q = String(t.args.query);
+          description = `"${q.length > 30 ? q.substring(0, 30) + '...' : q}"`;
+        }
+
+        return (
+          <Pressable
+            key={key}
+            className="flex-row items-center gap-2 py-1 active:opacity-70"
+            onPress={isDone && onToolResultPress ? () => onToolResultPress(message.id) : undefined}
+            disabled={!isDone || !onToolResultPress}
+          >
+            <ToolBullet isRunning={isRunning} />
+            <Text className="text-sm text-foreground flex-1 flex-shrink">
+              <Text className="font-bold">{toolLabel}</Text>
+              {description ? (
+                <Text className="text-muted-foreground"> {description}</Text>
+              ) : null}
+            </Text>
+          </Pressable>
+        );
+      })}
+
+      {/* Research Progress */}
+      {message.researchProgress && (
+        <ResearchProgressCard progress={message.researchProgress} />
+      )}
+
+      {/* Extended Thinking */}
+      {hasThinking && (
+        <View className="mb-3 w-full">
+          <Reasoning isStreaming={isStreamingThis && !hasContent}>
+            <ReasoningTrigger />
+            <ReasoningContent>{message.thinking!}</ReasoningContent>
+          </Reasoning>
+        </View>
+      )}
+
+      {/* Message Content */}
+      {(hasContent || message.isStreaming) && (
+        <View className="flex-col items-start gap-0.5">
+          {/* Voice cohost label */}
+          {message.source === 'voice' && message.speaker === 'cohost' && (
+            <Text className="text-xs text-indigo-400 mb-0.5">Cohost</Text>
+          )}
+          {/* Agent identity */}
+          {message.agentInfo && (
+            <View className="flex-row items-center gap-2 mb-0.5">
+              <View className="w-5 h-5 rounded-full bg-orange-500/20 items-center justify-center">
+                <Text style={{ fontSize: 8, color: '#f97316' }}>{'\u25CF'}</Text>
+              </View>
+              <Text className="text-xs font-semibold" style={{ color: '#f97316' }}>
+                {message.agentInfo.name}
+              </Text>
+            </View>
+          )}
+          <View className="w-full">
+            {message.source === 'voice' ? (
+              <Text className="text-base text-foreground leading-7">
+                {messageText}
+                {message.isStreaming ? '\u258C' : ''}
+              </Text>
+            ) : renderMarkdown ? (
+              renderMarkdown(messageText)
+            ) : (
+              <AliaMarkdown content={messageText} />
+            )}
+          </View>
+          {/* Action buttons */}
+          {!isStreamingThis && hasContent && (
+            <View className="flex-row gap-1">
+              {onReadAloud && (
+                <Pressable
+                  className="p-1.5 rounded-lg active:bg-muted"
+                  onPress={() => onReadAloud(message.id, messageText)}
+                >
+                  {isThisPlaying || isThisPaused ? (
+                    <Square size={14} className={isThisPlaying ? 'text-primary' : 'text-muted-foreground'} />
+                  ) : (
+                    <Volume2 size={14} className={isThisLoading ? 'text-primary opacity-50' : 'text-muted-foreground'} />
+                  )}
+                </Pressable>
+              )}
+              <Pressable
+                className="p-1.5 rounded-lg active:bg-muted"
+                onPress={onCopy}
+              >
+                {copiedMessageId === message.id ? (
+                  <Check size={14} className="text-green-500" />
+                ) : (
+                  <Copy size={14} className="text-muted-foreground" />
+                )}
+              </Pressable>
+              {onThumbsUp && (
+                <Pressable className="p-1.5 rounded-lg active:bg-muted" onPress={() => onThumbsUp(message.id)}>
+                  <ThumbsUp size={14} className="text-muted-foreground" />
+                </Pressable>
+              )}
+              {onThumbsDown && (
+                <Pressable className="p-1.5 rounded-lg active:bg-muted" onPress={() => onThumbsDown(message.id)}>
+                  <ThumbsDown size={14} className="text-muted-foreground" />
+                </Pressable>
+              )}
+            </View>
+          )}
+        </View>
+      )}
+
+      {/* ThinkingIndicator — context-aware status */}
+      {isLoading && isLastMessage && !hasContent && (() => {
+        const activeTool = message.toolInvocations?.find(
+          t => t.state === 'call' || t.state === 'partial-call',
+        );
+        const rp = message.researchProgress;
+        let activeStatus: string | undefined;
+        if (activeTool) {
+          activeStatus = getToolActiveLabel(activeTool.toolName);
+        } else if (rp?.phase && rp.phase !== 'complete') {
+          activeStatus = RESEARCH_PHASE_LABELS[rp.phase];
+        } else if (message.thinking) {
+          activeStatus = 'Reasoning...';
+        }
+        return (
+          <ThinkingIndicator
+            isWorking={(message.toolInvocations?.length ?? 0) > 0}
+            statusText={activeStatus}
+          />
+        );
+      })()}
+    </View>
   );
 }
 
@@ -265,10 +412,27 @@ export function AliaChatMessageList({
   onReadAloud,
   ttsActiveMessageId,
   ttsPlaybackState,
+  onEditMessage,
+  onThumbsUp,
+  onThumbsDown,
+  onApprovePlan,
+  onRejectPlan,
+  onToolResultPress,
+  welcomeComponent,
+  conversationLoading,
+  renderMarkdown,
 }: AliaChatMessageListProps) {
   const scrollRef = useRef<Animated.ScrollView>(null);
+  const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
+  const [editedContent, setEditedContent] = useState('');
+  const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
+  const prevMessageCountRef = useRef(messages.length);
 
-  // Auto-scroll to bottom on new messages
+  useEffect(() => {
+    prevMessageCountRef.current = messages.length;
+  }, [messages.length]);
+
+  // Auto-scroll
   useEffect(() => {
     if (messages.length > 0) {
       const timer = setTimeout(() => {
@@ -276,7 +440,7 @@ export function AliaChatMessageList({
       }, 100);
       return () => clearTimeout(timer);
     }
-  }, [messages]);
+  }, [messages.length, isStreaming]);
 
   const scrollHandler = useAnimatedScrollHandler({
     onScroll: (event) => {
@@ -284,114 +448,108 @@ export function AliaChatMessageList({
     },
   });
 
+  const handleCopy = useCallback(async (content: string, messageId: string) => {
+    try {
+      if (Platform.OS === 'web') {
+        await navigator.clipboard.writeText(content);
+      } else {
+        const Clipboard = await import('expo-clipboard');
+        await Clipboard.setStringAsync(content);
+      }
+      setCopiedMessageId(messageId);
+      setTimeout(() => setCopiedMessageId(null), 2000);
+    } catch {}
+  }, []);
+
+  const handleStartEdit = useCallback((messageId: string, content: string) => {
+    setEditingMessageId(messageId);
+    setEditedContent(content);
+  }, []);
+
+  const editedContentRef = useRef(editedContent);
+  editedContentRef.current = editedContent;
+
+  const handleSaveEdit = useCallback((messageId: string) => {
+    if (onEditMessage && editedContentRef.current.trim()) {
+      onEditMessage(messageId, editedContentRef.current);
+    }
+    setEditingMessageId(null);
+    setEditedContent('');
+  }, [onEditMessage]);
+
+  const handleCancelEdit = useCallback(() => {
+    setEditingMessageId(null);
+    setEditedContent('');
+  }, []);
+
+  const filteredMessages = messages.filter(m => m.role !== 'system');
+
   return (
     <Animated.ScrollView
       ref={scrollRef}
-      style={styles.scrollView}
-      contentContainerStyle={styles.content}
+      className="flex-1 bg-background px-4 py-4"
+      contentContainerStyle={{ flexGrow: 1, paddingTop: 4, paddingBottom: 16 }}
       showsVerticalScrollIndicator={false}
       keyboardShouldPersistTaps="handled"
       onScroll={scrollHandler}
       scrollEventThrottle={16}
     >
-      {messages
-        .filter((m) => m.role !== 'system')
-        .map((msg, i, arr) => {
-          if (msg.role === 'user') {
-            return <UserBubble key={msg.id} content={msg.content} />;
-          }
+      <View className="max-w-3xl mx-auto w-full" style={!filteredMessages.length ? { flex: 1, justifyContent: 'center' } : undefined}>
+        {/* Welcome or loading */}
+        {!filteredMessages.length && (
+          welcomeComponent || null
+        )}
 
-          const isStreamingThis = isStreaming && i === arr.length - 1;
+        {/* Messages */}
+        <View className="gap-2">
+          {filteredMessages.map((msg, i) => {
+            const isNewMessage = i >= prevMessageCountRef.current;
+            const isLast = i === filteredMessages.length - 1;
+            const isStreamingThis = isStreaming && isLast;
+            const messageText = getTextFromContent(msg.content);
 
-          return (
-            <AssistantMessage
-              key={msg.id}
-              message={msg}
-              isStreamingThis={isStreamingThis}
-              onReadAloud={onReadAloud}
-              ttsActiveMessageId={ttsActiveMessageId}
-              ttsPlaybackState={ttsPlaybackState}
-            />
-          );
-        })}
+            return (
+              <Animated.View
+                key={msg.id}
+                entering={isNewMessage ? FadeInUp.springify() : undefined}
+              >
+                {msg.role === 'user' ? (
+                  <UserBubble
+                    message={msg}
+                    isEditing={editingMessageId === msg.id}
+                    editedContent={editedContent}
+                    onEditedContentChange={setEditedContent}
+                    onSaveEdit={() => handleSaveEdit(msg.id)}
+                    onCancelEdit={handleCancelEdit}
+                    onStartEdit={() => handleStartEdit(msg.id, messageText)}
+                    onCopy={() => handleCopy(messageText, msg.id)}
+                    copiedMessageId={copiedMessageId}
+                    showEditButton={!!onEditMessage}
+                  />
+                ) : (
+                  <AssistantMessage
+                    message={msg}
+                    isStreamingThis={isStreamingThis}
+                    isLastMessage={isLast}
+                    isLoading={isStreaming}
+                    onReadAloud={onReadAloud}
+                    ttsActiveMessageId={ttsActiveMessageId}
+                    ttsPlaybackState={ttsPlaybackState}
+                    onCopy={() => handleCopy(messageText, msg.id)}
+                    copiedMessageId={copiedMessageId}
+                    onThumbsUp={onThumbsUp}
+                    onThumbsDown={onThumbsDown}
+                    onApprovePlan={onApprovePlan}
+                    onRejectPlan={onRejectPlan}
+                    onToolResultPress={onToolResultPress}
+                    renderMarkdown={renderMarkdown}
+                  />
+                )}
+              </Animated.View>
+            );
+          })}
+        </View>
+      </View>
     </Animated.ScrollView>
   );
 }
-
-const styles = StyleSheet.create({
-  scrollView: {
-    flex: 1,
-  },
-  content: {
-    padding: 16,
-    paddingTop: 4,
-    flexGrow: 1,
-  },
-
-  // User bubble — frosted glass
-  userMessage: {
-    alignItems: 'flex-end',
-    marginBottom: 12,
-  },
-  userBubble: {
-    maxWidth: '85%',
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 24,
-    borderWidth: StyleSheet.hairlineWidth,
-    overflow: 'hidden',
-  },
-  userText: {
-    fontSize: 15,
-    lineHeight: 22,
-  },
-
-  // Assistant message — no bubble
-  assistantMessage: {
-    alignItems: 'flex-start',
-    marginBottom: 12,
-  },
-  cursor: {
-    fontSize: 15,
-    marginTop: -4,
-  },
-
-  // Tool status
-  toolStatus: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    marginBottom: 6,
-    paddingVertical: 2,
-  },
-  toolDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-  },
-  toolCheckmark: {
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  toolLabel: {
-    fontSize: 13,
-  },
-
-  // Message actions
-  actionsRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    marginTop: 6,
-    opacity: 0.7,
-  },
-  actionBtn: {
-    width: 28,
-    height: 28,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  actionIcon: {
-    fontSize: 14,
-  },
-});

@@ -14,6 +14,10 @@ export type { AliaExpression, AliaFaceProps } from './components/AliaFace';
 export { ThinkingIndicator } from './components/ThinkingIndicator';
 export { AliaMarkdown } from './components/Markdown';
 export { Reasoning, ReasoningTrigger, ReasoningContent } from './components/Reasoning';
+export { AliaWelcomeMessage } from './components/AliaWelcomeMessage';
+export type { WelcomeSuggestion } from './components/AliaWelcomeMessage';
+export { ResearchProgressCard } from './components/ResearchProgressCard';
+export { PlanPreviewCard } from './components/PlanPreviewCard';
 
 // ── Voice components ──
 export { AudioWaveVisualizer } from './components/voice/AudioWaveVisualizer';
@@ -41,7 +45,9 @@ export type {
   ToolInvocation,
   AliaChatSuggestion,
   ResearchProgress,
+  ResearchSource,
   PendingPlan,
+  PlanStep,
   RoomState,
   AgentState,
   VoiceMessage,
@@ -54,6 +60,8 @@ export type { ButtonProps } from './components/ui/button';
 export { Text, TextClassContext } from './components/ui/text';
 export { ChatTextInput } from './components/ui/chat-text-input';
 export { cn, formatFileSize } from './lib/utils';
+export { getToolLabel, getToolActiveLabel } from './lib/tool-registry';
+export { getTextFromContent, getImagesFromContent } from './lib/content-utils';
 
 // ── PromptInput ──
 export { PromptInput } from './components/ui/prompt-input/prompt-input';

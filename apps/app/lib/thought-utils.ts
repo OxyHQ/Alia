@@ -1,5 +1,5 @@
 import type { ToolInvocation } from '@/lib/types/messages';
-import { getToolLabel } from '@/lib/tool-registry';
+import { getToolLabel } from '@alia.onl/sdk';
 
 export interface Source {
   title: string;

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { View, Pressable } from 'react-native';
-import { Text } from '@/components/ui/text';
+import { Text } from './ui/text';
 import {
   Search,
   BookOpen,
@@ -10,28 +10,11 @@ import {
   ExternalLink,
   Loader2,
 } from 'lucide-react-native';
-import { useColorScheme } from '@/lib/useColorScheme';
-
-export interface ResearchSource {
-  id: number;
-  url: string;
-  title: string;
-}
-
-export interface ResearchProgressData {
-  phase: string;
-  message: string;
-  subQuestions?: string[];
-  sourcesFound?: number;
-  currentQuery?: string;
-  iteration?: number;
-  isComplete?: boolean;
-  sources?: ResearchSource[];
-  totalSearches?: number;
-}
+import { useAliaColors } from '../theme';
+import type { ResearchProgress } from '../types';
 
 interface ResearchProgressCardProps {
-  progress: ResearchProgressData;
+  progress: ResearchProgress;
 }
 
 const PHASE_LABELS: Record<string, string> = {
@@ -47,11 +30,11 @@ const PHASE_LABELS: Record<string, string> = {
 const PHASE_ORDER = ['decomposing', 'searching', 'synthesizing', 'follow_up', 'finalizing', 'complete'];
 
 export function ResearchProgressCard({ progress }: ResearchProgressCardProps) {
-  const { colors } = useColorScheme();
+  const colors = useAliaColors();
   const [showSources, setShowSources] = useState(false);
   const [showQuestions, setShowQuestions] = useState(true);
 
-  const phaseIndex = PHASE_ORDER.indexOf(progress.phase);
+  const phaseIndex = PHASE_ORDER.indexOf(progress.phase || '');
   const isComplete = progress.phase === 'complete' || progress.isComplete;
 
   return (
@@ -62,7 +45,7 @@ export function ResearchProgressCard({ progress }: ResearchProgressCardProps) {
           {isComplete ? (
             <CheckCircle size={16} color="#22c55e" />
           ) : (
-            <Search size={16} color={colors.primary} />
+            <Search size={16} color={colors.tint} />
           )}
         </View>
         <View className="flex-1">
@@ -70,7 +53,7 @@ export function ResearchProgressCard({ progress }: ResearchProgressCardProps) {
             Deep Research
           </Text>
           <Text className="text-xs text-muted-foreground">
-            {progress.message}
+            {progress.message || PHASE_LABELS[progress.phase || ''] || 'Researching...'}
           </Text>
         </View>
         {progress.sourcesFound !== undefined && (
@@ -90,7 +73,7 @@ export function ResearchProgressCard({ progress }: ResearchProgressCardProps) {
             className="flex-1 h-1 rounded-full"
             style={{
               backgroundColor: i <= phaseIndex
-                ? (isComplete ? '#22c55e' : colors.primary)
+                ? (isComplete ? '#22c55e' : colors.tint)
                 : colors.muted,
             }}
           />
@@ -104,14 +87,14 @@ export function ResearchProgressCard({ progress }: ResearchProgressCardProps) {
             onPress={() => setShowQuestions(!showQuestions)}
             className="flex-row items-center gap-1 mb-1"
           >
-            <BookOpen size={12} color={colors.mutedForeground} />
+            <BookOpen size={12} color={colors.secondaryText} />
             <Text className="text-xs font-medium text-muted-foreground">
               Research angles ({progress.subQuestions.length})
             </Text>
             {showQuestions ? (
-              <ChevronUp size={12} color={colors.mutedForeground} />
+              <ChevronUp size={12} color={colors.secondaryText} />
             ) : (
-              <ChevronDown size={12} color={colors.mutedForeground} />
+              <ChevronDown size={12} color={colors.secondaryText} />
             )}
           </Pressable>
           {showQuestions && (
@@ -129,7 +112,7 @@ export function ResearchProgressCard({ progress }: ResearchProgressCardProps) {
       {/* Current search query indicator */}
       {progress.currentQuery && !isComplete && (
         <View className="flex-row items-center gap-2 bg-muted/50 rounded-lg px-3 py-1.5">
-          <Loader2 size={12} color={colors.mutedForeground} />
+          <Loader2 size={12} color={colors.secondaryText} />
           <Text className="text-xs text-muted-foreground flex-1" numberOfLines={1}>
             {progress.currentQuery}
           </Text>
@@ -143,14 +126,14 @@ export function ResearchProgressCard({ progress }: ResearchProgressCardProps) {
             onPress={() => setShowSources(!showSources)}
             className="flex-row items-center gap-1"
           >
-            <ExternalLink size={12} color={colors.mutedForeground} />
+            <ExternalLink size={12} color={colors.secondaryText} />
             <Text className="text-xs font-medium text-muted-foreground">
               Sources ({progress.sources.length})
             </Text>
             {showSources ? (
-              <ChevronUp size={12} color={colors.mutedForeground} />
+              <ChevronUp size={12} color={colors.secondaryText} />
             ) : (
-              <ChevronDown size={12} color={colors.mutedForeground} />
+              <ChevronDown size={12} color={colors.secondaryText} />
             )}
           </Pressable>
           {showSources && (
