@@ -77,7 +77,7 @@ export function useGenerateSuggestions() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (params?: { count?: number; types?: string[] }) => {
-      const res = await apiClient.post(API_ROUTES.suggestions.generate, params || {});
+      const res = await apiClient.post(API_ROUTES.suggestions.generate, params || {}, { timeout: 60000 });
       return res.data;
     },
     onSuccess: () => {

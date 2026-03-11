@@ -49,9 +49,9 @@ export function PersonalityStylePicker({
   const handleSelect = useCallback(
     (id: PersonalityStyleId) => {
       onSelectStyle(id);
-      fetchPhrase(id);
+      // fetchPhrase is triggered by the useEffect on currentStyleId
     },
-    [onSelectStyle, fetchPhrase],
+    [onSelectStyle],
   );
 
   return (

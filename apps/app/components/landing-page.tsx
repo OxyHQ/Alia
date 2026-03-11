@@ -428,7 +428,7 @@ export function LandingPage({ returnTo }: LandingPageProps) {
           <LinearGradient
             colors={[
               "transparent",
-              "rgba(202, 82, 233, 0.03)",
+              colors.primary + "08",
               "transparent",
             ]}
             locations={[0, 0.5, 1]}
@@ -456,17 +456,17 @@ export function LandingPage({ returnTo }: LandingPageProps) {
           >
             <FloatingOrb
               size={260}
-              color="#ca52e9"
+              color={colors.primary}
               style={{ top: "10%", left: "-10%" }}
             />
             <FloatingOrb
               size={180}
-              color="#8b5cf6"
+              color={colors.primary}
               style={{ bottom: "15%", right: "-5%" }}
             />
             <FloatingOrb
               size={120}
-              color="#3b82f6"
+              color={colors.primary}
               style={{ top: "40%", left: "70%" }}
             />
           </View>
@@ -543,7 +543,7 @@ export function LandingPage({ returnTo }: LandingPageProps) {
         {/* ==================== BOTTOM CTA (gradient band) ==================== */}
         <View className="w-full relative">
           <LinearGradient
-            colors={["transparent", "rgba(202, 82, 233, 0.04)"]}
+            colors={["transparent", colors.primary + "0A"]}
             locations={[0, 1]}
             style={{
               position: "absolute",

@@ -423,11 +423,12 @@ export function SkillCover({
             style={StyleSheet.absoluteFill}
           />
           <LinearGradient
-            colors={
+            colors={[
+              "transparent",
               isDarkColorScheme
-                ? ["transparent", "rgba(0,0,0,0.7)"]
-                : ["transparent", "rgba(255,255,255,0.7)"]
-            }
+                ? "rgba(0,0,0,0.7)"
+                : "rgba(255,255,255,0.7)",
+            ]}
             style={StyleSheet.absoluteFill}
           />
           <View
