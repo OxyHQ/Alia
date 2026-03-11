@@ -24,6 +24,20 @@ export function buildArchetypeSystemPrompt(agent: IAgent): string | null {
   }
 }
 
+// ── Shared helpers ──────────────────────────────────────────────────
+
+function buildSourceLines(
+  sourceDef: { integrations?: string[]; mcpServers?: string[]; oxyServices?: string[] } | undefined,
+  templates: { integration: string; service: string; mcp: string },
+): string[] {
+  if (!sourceDef) return [];
+  const lines: string[] = [];
+  for (const name of sourceDef.integrations ?? []) lines.push(`- **${name}**: ${templates.integration}`);
+  for (const name of sourceDef.oxyServices ?? []) lines.push(`- **${name}**: ${templates.service}`);
+  for (const name of sourceDef.mcpServers ?? []) lines.push(`- **${name}**: ${templates.mcp}`);
+  return lines;
+}
+
 // ── Q&A Agent ───────────────────────────────────────────────────────
 
 function buildQAPrompt(agent: IAgent, config: IArchetypeConfig): string {
@@ -33,22 +47,11 @@ function buildQAPrompt(agent: IAgent, config: IArchetypeConfig): string {
     sources.push('- Search your **knowledge base files** first — they are your primary source of truth.');
   }
 
-  const ks = config.knowledgeSources;
-  if (ks?.integrations?.length) {
-    for (const integration of ks.integrations) {
-      sources.push(`- Use **${integration}** integration tools to search for relevant data.`);
-    }
-  }
-  if (ks?.oxyServices?.length) {
-    for (const service of ks.oxyServices) {
-      sources.push(`- Use **${service}** service tools to look up information.`);
-    }
-  }
-  if (ks?.mcpServers?.length) {
-    for (const server of ks.mcpServers) {
-      sources.push(`- Use **${server}** MCP server tools for relevant queries.`);
-    }
-  }
+  sources.push(...buildSourceLines(config.knowledgeSources, {
+    integration: 'Use integration tools to search for relevant data.',
+    service: 'Use service tools to look up information.',
+    mcp: 'Use MCP server tools for relevant queries.',
+  }));
 
   const citationInstructions = config.citeSources !== false
     ? `\n## Source Citation
@@ -139,24 +142,11 @@ ${rulesSection}${defaultSection}${channels}
 // ── Status Update Agent ─────────────────────────────────────────────
 
 function buildStatusUpdatePrompt(agent: IAgent, config: IArchetypeConfig): string {
-  const sources: string[] = [];
-
-  const ds = config.dataSources;
-  if (ds?.integrations?.length) {
-    for (const integration of ds.integrations) {
-      sources.push(`- **${integration}**: Use integration tools to gather the latest data.`);
-    }
-  }
-  if (ds?.oxyServices?.length) {
-    for (const service of ds.oxyServices) {
-      sources.push(`- **${service}**: Query this service for recent updates.`);
-    }
-  }
-  if (ds?.mcpServers?.length) {
-    for (const server of ds.mcpServers) {
-      sources.push(`- **${server}**: Use MCP tools to fetch current information.`);
-    }
-  }
+  const sources = buildSourceLines(config.dataSources, {
+    integration: 'Use integration tools to gather the latest data.',
+    service: 'Query this service for recent updates.',
+    mcp: 'Use MCP tools to fetch current information.',
+  });
 
   const templateSection = config.reportTemplate
     ? `\n## Report Template\nFollow this structure for your report:\n\n${config.reportTemplate}`
