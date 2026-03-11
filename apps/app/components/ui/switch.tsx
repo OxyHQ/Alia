@@ -13,10 +13,12 @@ interface SwitchProps {
 const TRACK = { default: { w: 44, h: 26 }, sm: { w: 36, h: 22 } } as const;
 const THUMB = { default: 22, sm: 18 } as const;
 const PADDING = 2;
+const SQUEEZE_RATIO = 0.75; // thumb height shrinks to 75% when pressed
 
 const Switch = React.forwardRef<React.ElementRef<typeof Pressable>, SwitchProps>(
   ({ value, onValueChange, disabled, className, size = "default" }, ref) => {
     const anim = React.useRef(new Animated.Value(value ? 1 : 0)).current;
+    const pressAnim = React.useRef(new Animated.Value(0)).current;
 
     React.useEffect(() => {
       Animated.spring(anim, {
@@ -26,6 +28,25 @@ const Switch = React.forwardRef<React.ElementRef<typeof Pressable>, SwitchProps>
         tension: 60,
       }).start();
     }, [value, anim]);
+
+    const onPressIn = () => {
+      if (disabled) return;
+      Animated.spring(pressAnim, {
+        toValue: 1,
+        useNativeDriver: false,
+        friction: 8,
+        tension: 100,
+      }).start();
+    };
+
+    const onPressOut = () => {
+      Animated.spring(pressAnim, {
+        toValue: 0,
+        useNativeDriver: false,
+        friction: 8,
+        tension: 60,
+      }).start();
+    };
 
     const track = TRACK[size];
     const thumb = THUMB[size];
@@ -41,6 +62,18 @@ const Switch = React.forwardRef<React.ElementRef<typeof Pressable>, SwitchProps>
       outputRange: [PADDING, PADDING + travel],
     });
 
+    const squeezedHeight = thumb * SQUEEZE_RATIO;
+
+    const thumbHeight = pressAnim.interpolate({
+      inputRange: [0, 1],
+      outputRange: [thumb, squeezedHeight],
+    });
+
+    const thumbRadius = pressAnim.interpolate({
+      inputRange: [0, 1],
+      outputRange: [thumb / 2, squeezedHeight / 2],
+    });
+
     return (
       <Pressable
         ref={ref}
@@ -48,6 +81,8 @@ const Switch = React.forwardRef<React.ElementRef<typeof Pressable>, SwitchProps>
         aria-checked={value}
         accessibilityState={{ checked: value, disabled }}
         onPress={() => !disabled && onValueChange(!value)}
+        onPressIn={onPressIn}
+        onPressOut={onPressOut}
         className={cn(disabled && "opacity-40", className)}
         hitSlop={4}
       >
@@ -58,13 +93,14 @@ const Switch = React.forwardRef<React.ElementRef<typeof Pressable>, SwitchProps>
             borderRadius: track.h / 2,
             backgroundColor: trackBg,
             justifyContent: "center",
+            alignItems: "flex-start",
           }}
         >
           <Animated.View
             style={{
               width: thumb,
-              height: thumb,
-              borderRadius: thumb / 2,
+              height: thumbHeight,
+              borderRadius: thumbRadius,
               backgroundColor: "#fff",
               transform: [{ translateX: thumbX }],
               shadowColor: "#000",
