@@ -110,31 +110,6 @@ const TOOL_PILL_LABELS: Record<string, string> = {
   codeInterpreter: 'Running code',
 };
 
-// Maps tool names to lucide icon names for pill rendering
-const TOOL_PILL_ICONS: Record<string, string> = {
-  browse: 'Globe',
-  webSearch: 'Search',
-  webScraper: 'FileText',
-  generateFile: 'FilePlus',
-  sendTelegram: 'Send',
-  sendSlack: 'Send',
-  sendDiscord: 'Send',
-  sendSignal: 'Send',
-  sendEmail: 'Mail',
-  delegateToAgent: 'Users',
-  agentSearch: 'UserSearch',
-  userMemory: 'Brain',
-  shellExec: 'Terminal',
-  fileEdit: 'FileEdit',
-  codeInterpreter: 'Code',
-};
-
-export function getToolPillIcon(toolName: string): string {
-  if (TOOL_PILL_ICONS[toolName]) return TOOL_PILL_ICONS[toolName];
-  if (toolName.startsWith('oxy_')) return 'Puzzle';
-  return 'Wrench';
-}
-
 export function getToolPillLabel(toolName: string): string {
   if (TOOL_PILL_LABELS[toolName]) return TOOL_PILL_LABELS[toolName];
 

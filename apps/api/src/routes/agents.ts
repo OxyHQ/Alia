@@ -848,32 +848,7 @@ router.get('/sessions/active', authenticateToken, async (req: Request, res: Resp
       .select('agentId status task plan stats createdAt')
       .lean();
 
-    // Attach child agent avatars for delegated tasks
-    const sessionIds = sessions.map(s => s._id);
-    if (sessionIds.length > 0) {
-      const childSessions = await AgentSession.find({
-        parentSessionId: { $in: sessionIds },
-        userId: req.user.id,
-      })
-        .populate('agentId', 'name handle avatar')
-        .select('agentId parentSessionId')
-        .lean();
-
-      const childMap = new Map<string, typeof childSessions>();
-      for (const child of childSessions) {
-        if (!child.parentSessionId || !child.agentId) continue;
-        const key = child.parentSessionId.toString();
-        if (!childMap.has(key)) childMap.set(key, []);
-        childMap.get(key)!.push(child);
-      }
-
-      for (const session of sessions as any[]) {
-        const children = childMap.get(session._id.toString());
-        if (children?.length) {
-          session.childAgents = children.map(c => c.agentId);
-        }
-      }
-    }
+    await attachChildAgents(sessions, req.user.id);
 
     res.json({ sessions });
   } catch (error: unknown) {
@@ -910,32 +885,7 @@ router.get('/sessions/history', authenticateToken, async (req: Request, res: Res
       }),
     ]);
 
-    // Attach child agent avatars for delegated tasks
-    const sessionIds = sessions.map(s => s._id);
-    if (sessionIds.length > 0) {
-      const childSessions = await AgentSession.find({
-        parentSessionId: { $in: sessionIds },
-        userId: req.user.id,
-      })
-        .populate('agentId', 'name handle avatar')
-        .select('agentId parentSessionId')
-        .lean();
-
-      const childMap = new Map<string, typeof childSessions>();
-      for (const child of childSessions) {
-        if (!child.parentSessionId || !child.agentId) continue;
-        const key = child.parentSessionId.toString();
-        if (!childMap.has(key)) childMap.set(key, []);
-        childMap.get(key)!.push(child);
-      }
-
-      for (const session of sessions as any[]) {
-        const children = childMap.get(session._id.toString());
-        if (children?.length) {
-          session.childAgents = children.map(c => c.agentId);
-        }
-      }
-    }
+    await attachChildAgents(sessions, req.user.id);
 
     res.json({ sessions, total, page: pageNum, limit: limitNum });
   } catch (error: unknown) {
