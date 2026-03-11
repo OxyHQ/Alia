@@ -169,7 +169,9 @@
       "title": "Color de la app",
       "purple": "Morado",
       "green": "Verde",
-      "blue": "Azul"
+      "blue": "Azul",
+      "yellow": "Amarillo",
+      "orange": "Naranja"
     }
   },
   "nav": {

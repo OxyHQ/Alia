@@ -314,7 +314,7 @@ export const ChatPageContent = ({
   );
 
   return (
-    <View className="flex-1 bg-content">
+    <View className="flex-1 bg-content-area">
       <View className="flex-1 relative">
         <ChatInterface
           messages={messages}

@@ -1,9 +1,9 @@
 import {
   useColorScheme as useNativeWindColorScheme,
-  colorScheme as nwColorScheme,
 } from 'nativewind';
 import { Platform } from 'react-native';
 import { useThemeStore, ThemeMode } from './stores/theme-store';
+import { setColorSchemeSafe } from './set-color-scheme-safe';
 import { useCallback, useEffect, useMemo } from 'react';
 import { APP_COLOR_PRESETS } from './app-color-presets';
 
@@ -39,7 +39,7 @@ export function useColorScheme() {
   const setColorScheme = useCallback(
     (newMode: ThemeMode) => {
       setMode(newMode);
-      nwColorScheme.set(newMode);
+      setColorSchemeSafe(newMode);
     },
     [setMode],
   );

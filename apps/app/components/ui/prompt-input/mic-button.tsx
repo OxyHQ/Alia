@@ -2,6 +2,7 @@ import React, { useEffect } from "react";
 import { Pressable, ActivityIndicator } from "react-native";
 import { Mic, MicOff } from "lucide-react-native";
 import { cn } from "@/lib/utils";
+import { useColorScheme } from "@/lib/useColorScheme";
 import { useSpeechToText } from "@/lib/hooks/use-speech-to-text";
 import { toast } from "@/components/sonner";
 import { usePromptInput } from "./context";
@@ -12,6 +13,7 @@ export type PromptInputMicButtonProps = {
 
 export function PromptInputMicButton({ className }: PromptInputMicButtonProps) {
   const { value, setValue } = usePromptInput();
+  const { colors } = useColorScheme();
   const stt = useSpeechToText();
 
   useEffect(() => {
@@ -39,7 +41,7 @@ export function PromptInputMicButton({ className }: PromptInputMicButtonProps) {
       )}
     >
       {stt.isTranscribing ? (
-        <ActivityIndicator size="small" color="#6366f1" />
+        <ActivityIndicator size="small" color={colors.primary} />
       ) : stt.isRecording ? (
         <MicOff size={16} color="#ef4444" />
       ) : (

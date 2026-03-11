@@ -16,6 +16,7 @@ import { useAuth } from '@oxyhq/services';
 import { toast } from '@/components/sonner';
 import { useTranslation } from '@/hooks/useTranslation';
 import { ConfirmationDialog } from '@/components/ui/confirmation-dialog';
+import { useColorScheme } from '@/lib/useColorScheme';
 import {
   type BillingPeriod,
   type PricingTier,
@@ -57,6 +58,7 @@ export default function CodeaSubscribeScreen() {
   const { width } = useWindowDimensions();
   const isWideLayout = width >= 600;
   const { t } = useTranslation();
+  const { colors } = useColorScheme();
 
   const [billingPeriod, setBillingPeriod] = useState<BillingPeriod>('monthly');
   const [loadingPlanId, setLoadingPlanId] = useState<string>();
@@ -269,7 +271,7 @@ export default function CodeaSubscribeScreen() {
         <View className="w-full max-w-[800px] mx-auto">
           {plansLoading && tiers.length === 0 ? (
             <View className="items-center justify-center py-16">
-              <ActivityIndicator size="large" color="#a78bfa" />
+              <ActivityIndicator size="large" color={colors.primary} />
             </View>
           ) : plansError ? (
             <View className="items-center justify-center py-16 gap-2">

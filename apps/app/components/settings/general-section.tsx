@@ -1,59 +1,64 @@
 import { View, Pressable } from "react-native";
+import { vars } from "nativewind";
 import { Text } from "@/components/ui/text";
 import { useColorScheme } from "@/lib/useColorScheme";
 import { useThemeStore } from "@/lib/stores/theme-store";
 import { useTranslation } from "@/hooks/useTranslation";
 import { LanguageSelector } from "@/components/language-selector";
-import { APP_COLOR_PRESETS, APP_COLOR_NAMES, type AppColorName } from "@/lib/app-color-presets";
+import { APP_COLOR_PRESETS, APP_COLOR_NAMES, type AppColorPreset } from "@/lib/app-color-presets";
 import { cn } from "@/lib/utils";
 
-/** Miniature app layout mimicking sidebar + main content */
-function AppMiniature({ variant, accentHex }: { variant: "light" | "dark"; accentHex: string }) {
-  const isLight = variant === "light";
-  const sidebarBg = isLight ? "#f0f0f0" : "#141829";
-  const mainBg = isLight ? "#ffffff" : "#0a0d1a";
-  const lineBg = isLight ? "#d4d4d4" : "#2a2f3d";
-  const titleBg = isLight ? "#a3a3a3" : "#4b5563";
+/** Miniature app layout using real theme tokens via NativeWind vars() */
+function AppMiniature({ variant, preset }: { variant: "light" | "dark"; preset: AppColorPreset }) {
+  const themeVars = vars(variant === "light" ? preset.light : preset.dark);
 
   return (
-    <View className="flex-row flex-1 rounded overflow-hidden">
+    <View className="flex-row flex-1 rounded overflow-hidden" style={themeVars}>
       {/* Sidebar */}
-      <View className="p-1 gap-0.5 justify-between" style={{ backgroundColor: sidebarBg, width: "27%" }}>
+      <View className="bg-sidebar p-1 gap-0.5 justify-between" style={{ width: "27%" }}>
         <View className="gap-0.5">
-          {/* New Chat button */}
-          <View className="h-1.5 rounded-sm" style={{ backgroundColor: accentHex }} />
-          {/* Nav items */}
-          <View className="h-[1px] w-3/4 rounded-full mt-0.5" style={{ backgroundColor: lineBg }} />
-          <View className="h-[1px] w-2/3 rounded-full" style={{ backgroundColor: lineBg }} />
-          <View className="h-[1px] w-3/4 rounded-full" style={{ backgroundColor: lineBg }} />
-          <View className="h-[1px] w-1/2 rounded-full" style={{ backgroundColor: lineBg }} />
+          <View className="h-1.5 rounded-sm bg-primary" />
+          <View className="h-[1px] w-3/4 rounded-full mt-0.5 bg-sidebar-border" />
+          <View className="h-[1px] w-2/3 rounded-full bg-sidebar-border" />
+          <View className="h-[1px] w-3/4 rounded-full bg-sidebar-border" />
+          <View className="h-[1px] w-1/2 rounded-full bg-sidebar-border" />
         </View>
-        {/* History items */}
         <View className="gap-0.5">
-          <View className="h-[1px] w-2/3 rounded-full" style={{ backgroundColor: lineBg }} />
-          <View className="h-[1px] w-3/4 rounded-full" style={{ backgroundColor: lineBg }} />
+          <View className="h-[1px] w-2/3 rounded-full bg-sidebar-border" />
+          <View className="h-[1px] w-3/4 rounded-full bg-sidebar-border" />
         </View>
       </View>
       {/* Main content */}
-      <View className="flex-1 p-1.5 justify-between" style={{ backgroundColor: mainBg }}>
+      <View className="flex-1 bg-background justify-between">
+        {/* Chat header */}
+        <View className="flex-row items-center justify-between px-1 py-0.5">
+          <View className="h-[2px] w-1/4 rounded-full bg-border" />
+          <View className="h-[2px] w-2 rounded-full bg-border" />
+        </View>
         {/* Greeting */}
-        <View className="items-center gap-0.5 mt-0.5">
-          <View className="h-[2px] w-3/5 rounded-full" style={{ backgroundColor: titleBg }} />
-          <View className="h-[1px] w-2/5 rounded-full" style={{ backgroundColor: lineBg }} />
+        <View className="items-center gap-0.5">
+          <View className="h-[2px] w-3/5 rounded-full bg-muted-foreground" />
+          <View className="h-[1px] w-2/5 rounded-full bg-border" />
         </View>
         {/* Suggestion cards 2x2 */}
-        <View className="gap-[2px] px-0.5">
+        <View className="gap-[2px] px-1">
           <View className="flex-row gap-[2px]">
-            <View className="flex-1 h-1.5 rounded-sm" style={{ backgroundColor: lineBg }} />
-            <View className="flex-1 h-1.5 rounded-sm" style={{ backgroundColor: lineBg }} />
+            <View className="flex-1 h-1.5 rounded-sm bg-muted" />
+            <View className="flex-1 h-1.5 rounded-sm bg-muted" />
           </View>
           <View className="flex-row gap-[2px]">
-            <View className="flex-1 h-1.5 rounded-sm" style={{ backgroundColor: lineBg }} />
-            <View className="flex-1 h-1.5 rounded-sm" style={{ backgroundColor: lineBg }} />
+            <View className="flex-1 h-1.5 rounded-sm bg-muted" />
+            <View className="flex-1 h-1.5 rounded-sm bg-muted" />
           </View>
         </View>
         {/* Input bar */}
-        <View className="h-1.5 rounded-sm" style={{ backgroundColor: lineBg }} />
+        <View className="px-1 pb-0.5 gap-[2px]">
+          <View className="flex-row gap-[2px]">
+            <View className="h-1 w-3 rounded-full bg-primary/50" />
+            <View className="h-1 w-2 rounded-full bg-border" />
+          </View>
+          <View className="h-2 rounded-sm bg-muted" />
+        </View>
       </View>
     </View>
   );
@@ -63,7 +68,7 @@ export function GeneralSection() {
   const { mode, setColorScheme } = useColorScheme();
   const appColor = useThemeStore((s) => s.appColor);
   const setAppColor = useThemeStore((s) => s.setAppColor);
-  const accentHex = APP_COLOR_PRESETS[appColor].hex;
+  const preset = APP_COLOR_PRESETS[appColor];
   const { t } = useTranslation();
 
   return (
@@ -86,7 +91,7 @@ export function GeneralSection() {
               }`}
             >
               <View className="mb-1.5 aspect-[5/3]">
-                <AppMiniature variant="light" accentHex={accentHex} />
+                <AppMiniature variant="light" preset={preset} />
               </View>
               <Text className="text-center text-xs font-medium text-foreground">
                 {t("settings.appearance.light")}
@@ -104,10 +109,10 @@ export function GeneralSection() {
               <View className="rounded overflow-hidden mb-1.5 aspect-[5/3]">
                 <View className="flex-row flex-1">
                   <View className="flex-1 overflow-hidden">
-                    <AppMiniature variant="light" accentHex={accentHex} />
+                    <AppMiniature variant="light" preset={preset} />
                   </View>
                   <View className="flex-1 overflow-hidden">
-                    <AppMiniature variant="dark" accentHex={accentHex} />
+                    <AppMiniature variant="dark" preset={preset} />
                   </View>
                 </View>
               </View>
@@ -125,7 +130,7 @@ export function GeneralSection() {
               }`}
             >
               <View className="mb-1.5 aspect-[5/3]">
-                <AppMiniature variant="dark" accentHex={accentHex} />
+                <AppMiniature variant="dark" preset={preset} />
               </View>
               <Text className="text-center text-xs font-medium text-foreground">
                 {t("settings.appearance.dark")}
@@ -143,7 +148,7 @@ export function GeneralSection() {
 
         <View className="flex-row gap-3 flex-wrap">
           {APP_COLOR_NAMES.map((key) => {
-            const preset = APP_COLOR_PRESETS[key];
+            const p = APP_COLOR_PRESETS[key];
             const isSelected = appColor === key;
             return (
               <Pressable
@@ -156,7 +161,7 @@ export function GeneralSection() {
                     "w-8 h-8 rounded-full border-2",
                     isSelected ? "border-foreground scale-110" : "border-transparent"
                   )}
-                  style={{ backgroundColor: preset.hex }}
+                  style={{ backgroundColor: p.hex }}
                 />
                 <Text
                   className={cn(
