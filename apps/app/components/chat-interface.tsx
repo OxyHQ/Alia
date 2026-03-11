@@ -1,4 +1,5 @@
 import { View, Pressable, TextInput, StyleSheet, Platform } from "react-native";
+import { toast } from "@/components/sonner";
 import { BlurView } from "expo-blur";
 import { KeyboardAwareScrollView } from "@/lib/keyboard";
 import { Image } from "expo-image";
@@ -38,6 +39,8 @@ import { ResearchProgressCard, PlanPreviewCard } from '@alia.onl/sdk';
 import type { ResearchProgress as ResearchProgressData } from '@alia.onl/sdk';
 import type { AgentActivityState } from "@/lib/hooks/use-agent-activity";
 import { Skeleton } from "@/components/ui/skeleton";
+
+const isWeb = Platform.OS === "web";
 
 type MessagePart = {
   type: string;
@@ -143,8 +146,6 @@ export const ChatInterface = React.memo(function ChatInterface({ messages, scrol
     const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
     const [editedContent, setEditedContent] = useState("");
     const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
-    const [hoveredMessageId, setHoveredMessageId] = useState<string | null>(null);
-    const isWeb = Platform.OS === 'web';
     const openThoughtPanel = useUIStore((s) => s.openThoughtPanel);
     const setThoughtMessages = useUIStore((s) => s.setThoughtMessages);
     const { readAloud, activeMessageId: ttsActiveMessageId, playbackState: ttsPlaybackState } = useTTS();
@@ -218,8 +219,17 @@ export const ChatInterface = React.memo(function ChatInterface({ messages, scrol
       await Clipboard.setStringAsync(content);
       setCopiedMessageId(messageId);
       setTimeout(() => setCopiedMessageId(null), 2000);
+      toast.success("Copied to clipboard");
       onCopyMessage?.(content);
     }, [onCopyMessage]);
+
+    const handleThumbsUp = useCallback((messageId: string) => {
+      toast.success("Thanks for your feedback!");
+    }, []);
+
+    const handleThumbsDown = useCallback((messageId: string) => {
+      toast("Thanks for your feedback");
+    }, []);
 
     const handleStartEdit = useCallback((messageId: string, content: string) => {
       setEditingMessageId(messageId);
@@ -390,10 +400,7 @@ export const ChatInterface = React.memo(function ChatInterface({ messages, scrol
                         // Assistant message: text below (flying face handles avatar)
                         <DropdownMenu.Root>
                         <DropdownMenu.Trigger asChild>
-                        <Pressable
-                          onHoverIn={isWeb ? () => setHoveredMessageId(m.id) : undefined}
-                          onHoverOut={isWeb ? () => setHoveredMessageId(null) : undefined}
-                        >
+                        <Pressable className="group">
                         <View className="flex-col items-start gap-0.5">
                           {/* Agent identity or cohost label (Alia face is floating) */}
                           {m.agentInfo ? (
@@ -423,7 +430,7 @@ export const ChatInterface = React.memo(function ChatInterface({ messages, scrol
                           </View>
                           {/* Action Buttons for Assistant Messages — web hover only */}
                           {isWeb && (
-                          <View className={cn("flex-row gap-1 transition-opacity", hoveredMessageId === m.id ? "opacity-100" : "opacity-0")}>
+                          <View className="flex-row gap-1 opacity-0 transition-opacity group-hover:opacity-100">
                             <Pressable
                               key="read-aloud"
                               className="p-1.5 rounded-lg hover:bg-muted active:bg-muted"
@@ -446,10 +453,10 @@ export const ChatInterface = React.memo(function ChatInterface({ messages, scrol
                                 <Copy size={14} className="text-muted-foreground" />
                               )}
                             </Pressable>
-                            <Pressable key="thumbs-up" className="p-1.5 rounded-lg hover:bg-muted active:bg-muted">
+                            <Pressable key="thumbs-up" className="p-1.5 rounded-lg hover:bg-muted active:bg-muted" onPress={() => handleThumbsUp(m.id)}>
                               <ThumbsUp size={14} className="text-muted-foreground" />
                             </Pressable>
-                            <Pressable key="thumbs-down" className="p-1.5 rounded-lg hover:bg-muted active:bg-muted">
+                            <Pressable key="thumbs-down" className="p-1.5 rounded-lg hover:bg-muted active:bg-muted" onPress={() => handleThumbsDown(m.id)}>
                               <ThumbsDown size={14} className="text-muted-foreground" />
                             </Pressable>
                           </View>
@@ -467,11 +474,11 @@ export const ChatInterface = React.memo(function ChatInterface({ messages, scrol
                             <DropdownMenu.ItemIcon ios={{ name: "doc.on.doc" }} />
                             <DropdownMenu.ItemTitle>Copy</DropdownMenu.ItemTitle>
                           </DropdownMenu.Item>
-                          <DropdownMenu.Item key="thumbs-up" onSelect={() => {}}>
+                          <DropdownMenu.Item key="thumbs-up" onSelect={() => handleThumbsUp(m.id)}>
                             <DropdownMenu.ItemIcon ios={{ name: "hand.thumbsup" }} />
                             <DropdownMenu.ItemTitle>Like</DropdownMenu.ItemTitle>
                           </DropdownMenu.Item>
-                          <DropdownMenu.Item key="thumbs-down" onSelect={() => {}}>
+                          <DropdownMenu.Item key="thumbs-down" onSelect={() => handleThumbsDown(m.id)}>
                             <DropdownMenu.ItemIcon ios={{ name: "hand.thumbsdown" }} />
                             <DropdownMenu.ItemTitle>Dislike</DropdownMenu.ItemTitle>
                           </DropdownMenu.Item>
@@ -482,10 +489,7 @@ export const ChatInterface = React.memo(function ChatInterface({ messages, scrol
                         // User message: bubble only
                         <DropdownMenu.Root>
                         <DropdownMenu.Trigger asChild>
-                        <Pressable
-                          onHoverIn={isWeb ? () => setHoveredMessageId(m.id) : undefined}
-                          onHoverOut={isWeb ? () => setHoveredMessageId(null) : undefined}
-                        >
+                        <Pressable className="group">
                         <View className="flex-col items-end gap-0.5">
                           {editingMessageId === m.id ? (
                             <View className="max-w-[85%] sm:max-w-[75%] rounded-[24px] overflow-hidden border border-border">
@@ -540,7 +544,7 @@ export const ChatInterface = React.memo(function ChatInterface({ messages, scrol
                           )}
                           {/* Action Buttons for User Messages — web hover only */}
                           {isWeb && editingMessageId !== m.id && (
-                            <View className={cn("flex-row gap-1 transition-opacity", hoveredMessageId === m.id ? "opacity-100" : "opacity-0")}>
+                            <View className="flex-row gap-1 opacity-0 transition-opacity group-hover:opacity-100">
                               <Pressable
                                 key="copy"
                                 className="p-1.5 rounded-lg hover:bg-muted active:bg-muted"
