@@ -315,10 +315,26 @@ router.post('/generate', authenticateToken, async (req: Request, res: Response) 
           messages: [
             {
               role: 'user',
-              content: `Generate ${count} prompt suggestions as JSON array. User: ${profileParts}
-Types: ${types.join(',')}. Language: ${language}.
-Each object: {"title":"2-4 words","text":"full prompt","description":"1 sentence","type":"welcome|autocomplete","category":"productivity|coding|creative|communication|learning","language":"BCP 47 locale code (e.g. en-US, es-ES, fr-FR)","triggerWords":["1-3 words"],"tags":["2-3"],"occupations":[],"interests":[]}
-Use {variable} placeholders where useful. Return ONLY valid JSON array.`,
+              content: `Generate ${count} unique prompt suggestions as a JSON array.
+User profile: ${profileParts}
+
+Rules:
+- Each suggestion MUST start with a different verb (Write, Help, Explain, Create, Plan, Summarize, Compare, etc.)
+- Text must be a complete, ready-to-send prompt — NO placeholders like {username} or {variable}
+- Vary categories: mix productivity, creative, coding, learning, communication
+- Language: ${language} (all text in this language)
+- Types needed: ${types.join(', ')}
+  - "welcome": short title + description shown as cards (4-8 words title)
+  - "autocomplete": longer text shown as user types (complete sentence)
+
+JSON schema per item:
+{"title":"string","text":"string","description":"string","type":"welcome|autocomplete","category":"string","language":"${language}","triggerWords":["first 1-2 words of text"],"tags":["2-3"],"occupations":[],"interests":[]}
+
+Examples:
+- {"title":"Debug Code","text":"Help me debug this error and explain what went wrong","type":"autocomplete","category":"coding","language":"en-US","triggerWords":["help"],"tags":["coding","debug"],"occupations":[],"interests":[]}
+- {"title":"Creative Writing","text":"Write a short story about an unexpected friendship","type":"welcome","category":"creative","language":"en-US","triggerWords":["write"],"tags":["writing","creative"],"occupations":[],"interests":[]}
+
+Return ONLY a valid JSON array, no other text.`,
             },
           ],
           temperature: 0.8,
@@ -503,7 +519,7 @@ router.post('/search', optionalAuth, async (req: Request, res: Response) => {
       })
         .sort({ priority: -1, usageCount: -1 })
         .limit(limitNum * 2)
-        .select('suggestionId title text language triggerWords isTemplate templateVariables')
+        .select('suggestionId title text language triggerWords')
         .lean();
       cacheSet(globalCacheKey, globalResults, SEARCH_CACHE_TTL);
     }
@@ -518,7 +534,7 @@ router.post('/search', optionalAuth, async (req: Request, res: Response) => {
       })
         .sort({ priority: -1, usageCount: -1 })
         .limit(limitNum)
-        .select('suggestionId title text language triggerWords isTemplate templateVariables')
+        .select('suggestionId title text language triggerWords')
         .lean();
     }
 
