@@ -166,7 +166,7 @@ export const ChatPageContent = ({
 
   const [inputValue, setInputValue] = useState("");
   const [showTerminal, setShowTerminal] = useState(false);
-  const { colors, colorScheme } = useColorScheme();
+  const { colors, isDarkColorScheme: isDarkMode } = useColorScheme();
 
   const [bottomBarHeight, setBottomBarHeight] = useState(160);
   const [isAtBottom, setIsAtBottom] = useState(true);
@@ -340,7 +340,7 @@ export const ChatPageContent = ({
             agentState={voice.agentState}
             isConnected={voice.isConnected}
             primaryColor={colors.primary}
-            isDarkMode={colorScheme === 'dark'}
+            isDarkMode={isDarkMode}
           />
         )}
         {!isVoiceActive && ttsPlaybackState === 'playing' && (
@@ -349,7 +349,7 @@ export const ChatPageContent = ({
             agentState="speaking"
             isConnected={true}
             primaryColor={colors.primary}
-            isDarkMode={colorScheme === 'dark'}
+            isDarkMode={isDarkMode}
           />
         )}
         {!isVoiceActive && ttsPlaybackState !== 'playing' && sttIsRecording && (
@@ -358,7 +358,7 @@ export const ChatPageContent = ({
             agentState="listening"
             isConnected={true}
             primaryColor={colors.primary}
-            isDarkMode={colorScheme === 'dark'}
+            isDarkMode={isDarkMode}
           />
         )}
 

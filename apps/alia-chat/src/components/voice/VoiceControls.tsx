@@ -3,6 +3,7 @@
  * Contains status text, mute/cohost/end buttons, and "Continue" for cohost rounds.
  */
 
+import { useMemo } from 'react';
 import { View, Text, Pressable, ActivityIndicator, StyleSheet } from 'react-native';
 import { Mic, MicOff, PhoneOff, Users } from 'lucide-react-native';
 import type { RoomState, AgentState } from '../../types';
@@ -58,7 +59,10 @@ export function VoiceControls({
   primaryColor,
 }: VoiceControlsProps) {
   const aliaColors = useAliaColors();
-  const colors = primaryColor ? { ...aliaColors, primary: primaryColor } : aliaColors;
+  const colors = useMemo(
+    () => (primaryColor ? { ...aliaColors, primary: primaryColor } : aliaColors),
+    [primaryColor, aliaColors],
+  );
   const statusText = getStatusText(roomState, agentState, isMuted, cohostActive, currentSpeaker);
 
   return (

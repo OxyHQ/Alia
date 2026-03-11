@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useMemo } from 'react';
 import { View, Platform, useWindowDimensions } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
 import { useAliaColors } from '../../theme';
@@ -233,13 +233,13 @@ export function AudioWaveVisualizer({
   const state = WAVE_COLORS[agentState] ? agentState : 'idle';
 
   // Use theme-derived palette for idle/listening, keep hardcoded for thinking/speaking
-  const themed = primaryColor ? deriveWavePalette(primaryColor, effectiveIsDark) : null;
-  const waveColors = (state === 'idle' || state === 'listening') && themed
-    ? themed.waves
-    : WAVE_COLORS[state];
-  const blobColors = (state === 'idle' || state === 'listening') && themed
-    ? themed.blobs
-    : BLOB_COLORS[state];
+  const themed = useMemo(
+    () => (primaryColor ? deriveWavePalette(primaryColor, effectiveIsDark) : null),
+    [primaryColor, effectiveIsDark],
+  );
+  const isThemed = (state === 'idle' || state === 'listening') && themed != null;
+  const waveColors = isThemed ? themed.waves : WAVE_COLORS[state];
+  const blobColors = isThemed ? themed.blobs : BLOB_COLORS[state];
 
   return (
     <View

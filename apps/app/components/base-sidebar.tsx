@@ -44,8 +44,14 @@ export const BaseSidebar = React.memo(function BaseSidebar({
 
   const handleScroll = useCallback((event: NativeSyntheticEvent<NativeScrollEvent>) => {
     const { contentOffset, contentSize, layoutMeasurement } = event.nativeEvent;
-    setShowTopGradient(contentOffset.y > 2);
-    setShowBottomGradient(contentOffset.y + layoutMeasurement.height < contentSize.height - 2);
+    setShowTopGradient(prev => {
+      const next = contentOffset.y > 2;
+      return prev === next ? prev : next;
+    });
+    setShowBottomGradient(prev => {
+      const next = contentOffset.y + layoutMeasurement.height < contentSize.height - 2;
+      return prev === next ? prev : next;
+    });
     onScroll?.(event);
   }, [onScroll]);
 
