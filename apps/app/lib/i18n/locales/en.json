@@ -117,8 +117,9 @@
       "concise": "Concise"
     },
     "personalityStyle": {
-      "title": "Personality Style",
-      "description": "Choose how Alia communicates with you"
+      "title": "Try a new personality",
+      "description": "Adjust the style and tone of how Alia responds to you. This doesn't impact capabilities.",
+      "popular": "Popular"
     },
     "occupation": {
       "title": "Occupation",
