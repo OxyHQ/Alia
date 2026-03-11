@@ -8,7 +8,7 @@ import { resolveModel, getAIModel, reportModelUsage } from '../lib/chat-core.js'
 import { callProviderAPI } from '../lib/providers-client.js';
 import { uploadToS3 } from '../lib/s3.js';
 import { log } from '../lib/logger.js';
-import { getErrorMessage } from '../lib/errors/index.js';
+import { getErrorMessage, classifyError } from '../lib/errors/index.js';
 import type { Request, Response } from 'express';
 
 const router = Router();
@@ -165,7 +165,7 @@ router.post('/generate', authenticateToken, async (req: Request, res: Response) 
 
       return res.json({ avatarUrl });
     } catch (genErr: unknown) {
-      if (genErr instanceof Error && 'reason' in genErr && (genErr as { reason: string }).reason === 'content_filter') {
+      if (classifyError(genErr) === 'content_filter') {
         return res.status(400).json({ error: 'Image generation request was rejected by content policy. Try a different description.' });
       }
       log.agents.error({ err: genErr }, 'Avatar generation failed');

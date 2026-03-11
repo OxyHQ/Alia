@@ -10,6 +10,7 @@ import { z } from 'zod';
 import { JSDOM } from 'jsdom';
 import { withRetry } from '../retry.js';
 import { log } from '../logger.js';
+import { getStatusCode } from '../errors/index.js';
 
 export interface WebSearchResult {
   title: string;
@@ -149,7 +150,7 @@ export const webSearchTool = tool({
           maxAttempts: 2,
           minDelay: 500,
           shouldRetry: (err) => {
-            const status = err && typeof err === 'object' && 'status' in err ? (err as { status: number }).status : undefined;
+            const status = getStatusCode(err);
             if (status && status >= 400 && status < 500 && status !== 429) return false;
             return true;
           },

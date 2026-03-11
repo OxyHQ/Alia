@@ -38,7 +38,7 @@ const TIMEOUT_ERROR_CODES = new Set([
 
 // ============== ERROR INTROSPECTION HELPERS ==============
 
-function getStatusCode(err: unknown): number | undefined {
+export function getStatusCode(err: unknown): number | undefined {
   if (!err || typeof err !== 'object') {
     return undefined;
   }
@@ -105,19 +105,24 @@ export function getRetryAfterHeader(err: unknown): number | undefined {
   if (!err || typeof err !== 'object') {
     return undefined;
   }
-  // Check for retry-after in response headers (common for 429 responses)
-  const headers = (err as { headers?: Record<string, unknown> }).headers;
-  if (headers && typeof headers === 'object') {
-    const retryAfter = headers['retry-after'] ?? headers['Retry-After'];
-    if (typeof retryAfter === 'string') {
-      const seconds = Number(retryAfter);
-      if (Number.isFinite(seconds) && seconds > 0) {
-        return seconds;
-      }
-    }
-    if (typeof retryAfter === 'number' && Number.isFinite(retryAfter) && retryAfter > 0) {
-      return retryAfter;
-    }
+  const headers = (err as { headers?: unknown }).headers;
+  if (!headers || typeof headers !== 'object') return undefined;
+
+  // Support both Fetch API Headers instances (.get()) and plain objects
+  let rawValue: unknown;
+  if (typeof (headers as { get?: unknown }).get === 'function') {
+    rawValue = (headers as { get: (key: string) => string | null }).get('retry-after');
+  } else {
+    rawValue = (headers as Record<string, unknown>)['retry-after']
+            ?? (headers as Record<string, unknown>)['Retry-After'];
+  }
+
+  if (typeof rawValue === 'string') {
+    const seconds = Number(rawValue);
+    if (Number.isFinite(seconds) && seconds > 0) return seconds;
+  }
+  if (typeof rawValue === 'number' && Number.isFinite(rawValue) && rawValue > 0) {
+    return rawValue;
   }
   return undefined;
 }

@@ -12,6 +12,7 @@
 
 import crypto from 'crypto';
 import { log } from './logger.js';
+import { getStatusCode } from './errors/index.js';
 
 // ============== MODE DETECTION ==============
 
@@ -261,7 +262,7 @@ export async function resolveAliaModel(
         skipKeyIds: skipKeyIds ? [...skipKeyIds] : [],
       });
     } catch (error: unknown) {
-      if ((error as { status?: number }).status === 503) return null;
+      if (getStatusCode(error) === 503) return null;
       throw error;
     }
   }
