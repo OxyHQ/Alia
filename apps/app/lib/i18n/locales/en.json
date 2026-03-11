@@ -314,7 +314,9 @@
     "sendButton": "Send",
     "failedPickDocuments": "Failed to pick documents. Please try again.",
     "failedPasteImages": "Failed to process pasted images. Please try again.",
-    "addSourcesHint": "You can add URLs, documents, or other sources for me to reference."
+    "addSourcesHint": "You can add URLs, documents, or other sources for me to reference.",
+    "copiedToClipboard": "Copied to clipboard",
+    "thanksFeedback": "Thanks for your feedback!"
   },
   "credits": {
     "title": "Credits",

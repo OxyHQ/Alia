@@ -216,6 +216,39 @@ router.post('/', authenticateTokenOrApiKey, async (req: Request, res: Response) 
   }
 });
 
+// Vote on a message (thumbs up/down)
+router.patch('/:id/messages/:messageId/vote', authenticateToken, async (req: Request, res: Response) => {
+  try {
+    if (!req.user?.id) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const { vote } = req.body;
+    if (vote !== 'up' && vote !== 'down' && vote !== null) {
+      return res.status(400).json({ error: 'vote must be "up", "down", or null' });
+    }
+
+    const result = await Message.findOneAndUpdate(
+      {
+        conversationId: req.params.id,
+        id: req.params.messageId,
+        oxyUserId: req.user.id,
+      },
+      { $set: { vote: vote || undefined } },
+      { new: true }
+    );
+
+    if (!result) {
+      return res.status(404).json({ error: 'Message not found' });
+    }
+
+    res.json({ success: true, vote: result.vote ?? null });
+  } catch (error) {
+    log.chat.error({ err: error }, 'Error voting on message');
+    res.status(500).json({ error: 'Failed to vote on message' });
+  }
+});
+
 // Delete a conversation
 router.delete('/:id', authenticateToken, async (req: Request, res: Response) => {
   try {
