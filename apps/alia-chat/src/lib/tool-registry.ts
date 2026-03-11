@@ -38,4 +38,18 @@ export function getToolActiveLabel(toolName: string): string | undefined {
   return label + '...';
 }
 
+/** Status strings for the ThinkingIndicator during research phases. */
+const RESEARCH_ACTIVE_LABELS: Record<string, string> = {
+  decomposing: 'Decomposing query...',
+  searching: 'Searching sources...',
+  reading: 'Reading articles...',
+  synthesizing: 'Synthesizing findings...',
+  follow_up: 'Following up...',
+  finalizing: 'Finalizing research...',
+};
+
+export function getResearchActiveLabel(phase: string): string | undefined {
+  return RESEARCH_ACTIVE_LABELS[phase];
+}
+
 export { TOOL_REGISTRY };
