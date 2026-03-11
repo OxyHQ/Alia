@@ -8,6 +8,7 @@ export type NotificationType =
   | 'integration_event'
   | 'reminder'
   | 'agent_task_complete'
+  | 'chat_response_ready'
   | 'oxy_service';
 
 export type NotificationChannel = 'push' | 'telegram' | 'discord' | 'whatsapp' | 'slack' | 'in_app';
