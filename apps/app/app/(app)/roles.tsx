@@ -1,6 +1,5 @@
-import React, { useEffect, useState, useMemo, useCallback } from 'react';
-import { View, ScrollView, Pressable, TextInput, RefreshControl } from 'react-native';
-import { KeyboardAwareScrollView } from '@/lib/keyboard';
+import React, { useEffect, useState, useMemo, useCallback, memo } from 'react';
+import { View, ScrollView, Pressable, TextInput, RefreshControl, FlatList } from 'react-native';
 import { Text } from '@/components/ui/text';
 import { Button } from '@/components/ui/button';
 import {
@@ -9,7 +8,6 @@ import {
   CheckCircle2,
   Search,
   ArrowRight,
-  TrendingUp
 } from 'lucide-react-native';
 import { useRolesStore } from '@/lib/stores/roles-store';
 import { useRouter } from 'expo-router';
@@ -18,6 +16,8 @@ import { toast } from '@/components/sonner';
 import { cn } from '@/lib/utils';
 import { useColorScheme } from '@/lib/useColorScheme';
 import { Skeleton } from '@/components/ui/skeleton';
+
+const keyExtractor = (item: any) => item.id;
 
 export default function RolesScreen() {
   const { t } = useTranslation();
@@ -40,9 +40,9 @@ export default function RolesScreen() {
     setRefreshing(false);
   }, [loadRoles]);
 
-  const handleSelectRole = (roleId: string) => {
+  const handleSelectRole = useCallback((roleId: string) => {
     router.push(`/(app)/roles/${roleId}`);
-  };
+  }, [router]);
 
   const handleCreateRole = () => {
     toast.info(t('roles.createComingSoon'));
@@ -72,11 +72,16 @@ export default function RolesScreen() {
 
   const featuredRoles = useMemo(() => roles.filter(r => r.isFeatured), [roles]);
 
+  const renderRoleItem = useCallback(({ item }: { item: any }) => (
+    <RoleListItem role={item} onPress={handleSelectRole} />
+  ), [handleSelectRole]);
+
   return (
     <View className="flex-1 bg-background">
-      <KeyboardAwareScrollView
+      <ScrollView
         className="flex-1"
         showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
       >
         {/* Header */}
@@ -188,11 +193,12 @@ export default function RolesScreen() {
               ))}
             </View>
           ) : (
-            <View>
-              {filteredRoles.map((role) => (
-                <RoleListItem key={role.id} role={role} onPress={handleSelectRole} />
-              ))}
-            </View>
+            <FlatList
+              data={filteredRoles}
+              keyExtractor={keyExtractor}
+              renderItem={renderRoleItem}
+              scrollEnabled={false}
+            />
           )}
 
           {filteredRoles.length === 0 && !isInitialLoad && (
@@ -206,21 +212,22 @@ export default function RolesScreen() {
             </View>
           )}
         </View>
-      </KeyboardAwareScrollView>
+      </ScrollView>
     </View>
   );
 }
 
-function FeaturedRoleCard({
+const FeaturedRoleCard = memo(function FeaturedRoleCard({
   role,
   onPress,
 }: {
   role: any;
   onPress: (id: string) => void;
 }) {
+  const handlePress = useCallback(() => onPress(role.id), [onPress, role.id]);
   return (
     <Pressable
-      onPress={() => onPress(role.id)}
+      onPress={handlePress}
       className="active:opacity-80 mr-2.5"
       style={{ width: 220 }}
     >
@@ -252,18 +259,19 @@ function FeaturedRoleCard({
       </View>
     </Pressable>
   );
-}
+});
 
-function RoleListItem({
+const RoleListItem = memo(function RoleListItem({
   role,
   onPress,
 }: {
   role: any;
   onPress: (id: string) => void;
 }) {
+  const handlePress = useCallback(() => onPress(role.id), [onPress, role.id]);
   return (
     <Pressable
-      onPress={() => onPress(role.id)}
+      onPress={handlePress}
       className="active:opacity-70"
     >
       <View className="flex-row items-center py-2.5 gap-3">
@@ -297,4 +305,4 @@ function RoleListItem({
       </View>
     </Pressable>
   );
-}
+});
