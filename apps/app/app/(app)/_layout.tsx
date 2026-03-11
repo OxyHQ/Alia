@@ -17,6 +17,7 @@ import { CommandPalette } from '@/components/command-palette';
 import { KeyboardShortcutsDialog } from '@/components/keyboard-shortcuts-dialog';
 import i18n from '@/lib/i18n';
 import { useWelcomeSuggestions, useSessionSuggestionGeneration } from '@/lib/hooks/use-suggestions';
+import { useNotificationSetup } from '@/lib/hooks/use-notification-setup';
 
 export default function AppLayout() {
   const dimensions = useWindowDimensions();
@@ -33,6 +34,9 @@ export default function AppLayout() {
   // Prefetch welcome suggestions so they're ready before any chat screen mounts
   useWelcomeSuggestions();
   useSessionSuggestionGeneration();
+
+  // Push notification registration, tap handling, and real-time subscription
+  useNotificationSetup();
 
   // Load projects, roles, folders, favorites, and pinned on mount
   useEffect(() => {

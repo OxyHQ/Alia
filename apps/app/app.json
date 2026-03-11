@@ -18,7 +18,8 @@
       "bundleIdentifier": "onl.alia.app",
       "infoPlist": {
         "UIBackgroundModes": [
-          "audio"
+          "audio",
+          "remote-notification"
         ]
       }
     },
@@ -48,7 +49,8 @@
       "expo-image",
       "expo-secure-store",
       "expo-web-browser",
-      "expo-asset"
+      "expo-asset",
+      "expo-notifications"
     ],
     "experiments": {
       "typedRoutes": true

@@ -57,6 +57,7 @@ import { InviteDialog } from "@/components/invite-dialog";
 import { AppDownloadDialog } from "@/components/app-download-dialog";
 import { FolderEditDialog } from "@/components/folder-edit-dialog";
 import { useUIStore } from "@/lib/stores/ui-store";
+import { useUnreadCount } from "@/lib/hooks/use-notifications";
 import { ConversationItem } from "@/components/sidebar/conversation-item";
 import { FolderSection } from "@/components/sidebar/folder-section";
 import { HistoryList } from "@/components/sidebar/history-list";
@@ -96,6 +97,7 @@ const ChatSidebar = React.memo(function ChatSidebar() {
   const router = useRouter();
   const queryClient = useQueryClient();
   const { t } = useTranslation();
+  const { data: unreadData } = useUnreadCount();
   // Use selectors to avoid worklet serialization issues
   const chatId = useStore((state) => state.chatId);
   const {
@@ -861,6 +863,9 @@ const ChatSidebar = React.memo(function ChatSidebar() {
                         {(user?.name?.first?.[0] || user?.username?.[0] || "U").toUpperCase()}
                       </Text>
                     </View>
+                    {(unreadData?.count ?? 0) > 0 && (
+                      <View className="absolute top-0.5 right-0.5 h-2.5 w-2.5 rounded-full bg-red-500 border border-background" />
+                    )}
                   </Pressable>
                 </DropdownMenu.Trigger>
                 <DropdownMenu.Content>
