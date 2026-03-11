@@ -179,6 +179,62 @@ Runtime behavior:
 - Creates persistent `AgentSession` before autonomous queueing.
 - Falls back to notification if autonomous execution fails.
 
+## Notifications API
+
+### `GET /notifications`
+List user notifications (paginated).
+
+Query params:
+- `status` (optional): `pending | sent | read | dismissed`
+- `type` (optional): notification type filter
+- `limit` (optional, default `30`, max `100`)
+- `offset` (optional, default `0`)
+
+### `GET /notifications/unread-count`
+Returns `{ count: number }`.
+
+### `PATCH /notifications/:id/read`
+Mark single notification as read.
+
+### `POST /notifications/read-all`
+Mark all notifications as read.
+
+### `PATCH /notifications/:id/dismiss`
+Dismiss a notification.
+
+### Push Token Management
+
+#### `POST /notifications/push-token`
+Register an Expo push token (mobile).
+
+Body: `{ token, platform?, deviceId? }`
+
+#### `DELETE /notifications/push-token`
+Deactivate an Expo push token.
+
+Body: `{ token }`
+
+### Web Push (Browser)
+
+#### `GET /notifications/vapid-public-key`
+Returns VAPID public key for browser push subscription. **No auth required.**
+
+Response: `{ publicKey: string }`
+
+#### `POST /notifications/web-push-subscription`
+Register a browser push subscription.
+
+Body: `{ endpoint, keys: { p256dh, auth } }`
+
+#### `DELETE /notifications/web-push-subscription`
+Deactivate a browser push subscription.
+
+Body: `{ endpoint }`
+
+### Real-time (Socket.IO)
+
+Connect to `config.apiUrl` via Socket.IO websocket. On connect, emit `subscribe-notifications` with userId. Listen for `notification` events to invalidate caches.
+
 ## Codea Endpoints
 
 ### `GET /codea/user`

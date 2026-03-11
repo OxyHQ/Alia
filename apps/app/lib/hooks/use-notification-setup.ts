@@ -101,6 +101,59 @@ export function useNotificationSetup() {
     return () => subscription.remove();
   }, [router, isAuthenticated]);
 
+  // ── Web push registration (browser only) ──────────────────────
+  useEffect(() => {
+    if (Platform.OS !== 'web' || !isAuthenticated || !user?.id) return;
+    if (!('serviceWorker' in navigator) || !('PushManager' in window)) return;
+
+    let cancelled = false;
+
+    (async () => {
+      try {
+        // Fetch VAPID public key from backend
+        const { data: vapidData } = await apiClient.get('/notifications/vapid-public-key');
+        if (cancelled || !vapidData?.publicKey) return;
+
+        // Register service worker
+        const registration = await navigator.serviceWorker.register('/sw.js');
+        await navigator.serviceWorker.ready;
+
+        // Check for existing subscription
+        let subscription = await registration.pushManager.getSubscription();
+
+        if (!subscription) {
+          // Request permission
+          const permission = await Notification.requestPermission();
+          if (cancelled || permission !== 'granted') return;
+
+          // Convert VAPID key from base64url to Uint8Array
+          const vapidKey = urlBase64ToUint8Array(vapidData.publicKey);
+
+          // Subscribe
+          subscription = await registration.pushManager.subscribe({
+            userVisibleOnly: true,
+            applicationServerKey: vapidKey,
+          });
+        }
+
+        if (cancelled || !subscription) return;
+
+        // Send subscription to backend
+        const subJson = subscription.toJSON();
+        await apiClient.post('/notifications/web-push-subscription', {
+          endpoint: subJson.endpoint,
+          keys: subJson.keys,
+        });
+      } catch {
+        // Non-critical — web push not available in all browsers/contexts
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isAuthenticated, user?.id]);
+
   // ── Socket.IO real-time notification subscription ──────────────
   useEffect(() => {
     if (!isAuthenticated || !user?.id) return;
@@ -126,4 +179,18 @@ export function useNotificationSetup() {
       socket.disconnect();
     };
   }, [isAuthenticated, user?.id, queryClient]);
+}
+
+// ── Helpers ──────────────────────────────────────────────────────
+
+/** Convert a base64url-encoded VAPID key to a Uint8Array for PushManager.subscribe */
+function urlBase64ToUint8Array(base64String: string): Uint8Array {
+  const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
+  const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+  const raw = atob(base64);
+  const output = new Uint8Array(raw.length);
+  for (let i = 0; i < raw.length; ++i) {
+    output[i] = raw.charCodeAt(i);
+  }
+  return output;
 }

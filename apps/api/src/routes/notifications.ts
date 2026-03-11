@@ -3,12 +3,23 @@ import mongoose from 'mongoose';
 import Expo from 'expo-server-sdk';
 import { Notification } from '../models/notification.js';
 import { PushToken } from '../models/push-token.js';
+import { WebPushSubscription } from '../models/web-push-subscription.js';
 import { authenticateToken } from '../middleware/auth.js';
 import { getUnreadCount, markAsRead, markAllAsRead, dismissNotification } from '../lib/notification-service.js';
+import { VAPID_PUBLIC_KEY } from '../lib/web-push.js';
 import { log } from '../lib/logger.js';
 import type { Request, Response } from 'express';
 
 const router = Router();
+
+// ── Public route (no auth) — VAPID public key for browser subscription ──
+router.get('/vapid-public-key', (_req: Request, res: Response) => {
+  if (!VAPID_PUBLIC_KEY) {
+    return res.status(503).json({ error: 'Web push not configured' });
+  }
+  res.json({ publicKey: VAPID_PUBLIC_KEY });
+});
+
 router.use(authenticateToken);
 
 // GET /notifications — list user's notifications (paginated)
@@ -174,6 +185,79 @@ router.delete('/push-token', async (req: Request, res: Response) => {
   } catch (error: unknown) {
     log.general.error({ err: error }, 'Error deactivating push token');
     res.status(500).json({ error: 'Failed to deactivate push token' });
+  }
+});
+
+// ── Web Push Subscription Management ─────────────────────────────
+
+// POST /notifications/web-push-subscription — save browser push subscription
+router.post('/web-push-subscription', async (req: Request, res: Response) => {
+  try {
+    if (!req.user?.id) return res.status(401).json({ error: 'Unauthorized' });
+    const userId = req.user.id as string;
+    const { endpoint, keys } = req.body;
+
+    if (!endpoint || typeof endpoint !== 'string') {
+      return res.status(400).json({ error: 'Subscription endpoint is required' });
+    }
+    if (!keys?.p256dh || !keys?.auth) {
+      return res.status(400).json({ error: 'Subscription keys (p256dh, auth) are required' });
+    }
+
+    const subscription = await WebPushSubscription.findOneAndUpdate(
+      {
+        oxyUserId: new mongoose.Types.ObjectId(userId),
+        endpoint,
+      },
+      {
+        $set: {
+          active: true,
+          keys: { p256dh: keys.p256dh, auth: keys.auth },
+        },
+        $setOnInsert: {
+          oxyUserId: new mongoose.Types.ObjectId(userId),
+          endpoint,
+        },
+      },
+      { upsert: true, new: true },
+    );
+
+    log.general.info({ userId, subscriptionId: subscription._id }, 'Web push subscription registered');
+    res.json({ success: true, id: subscription._id });
+  } catch (error: unknown) {
+    log.general.error({ err: error }, 'Error registering web push subscription');
+    res.status(500).json({ error: 'Failed to register web push subscription' });
+  }
+});
+
+// DELETE /notifications/web-push-subscription — deactivate browser push subscription
+router.delete('/web-push-subscription', async (req: Request, res: Response) => {
+  try {
+    if (!req.user?.id) return res.status(401).json({ error: 'Unauthorized' });
+    const userId = req.user.id as string;
+    const { endpoint } = req.body;
+
+    if (!endpoint || typeof endpoint !== 'string') {
+      return res.status(400).json({ error: 'Subscription endpoint is required' });
+    }
+
+    const result = await WebPushSubscription.updateOne(
+      {
+        oxyUserId: new mongoose.Types.ObjectId(userId),
+        endpoint,
+      },
+      { $set: { active: false } },
+    );
+
+    if (result.matchedCount === 0) {
+      return res.status(404).json({ error: 'Subscription not found' });
+    }
+
+    log.general.info({ userId }, 'Web push subscription deactivated');
+    res.json({ success: true });
+  } catch (error: unknown) {
+    log.general.error({ err: error }, 'Error deactivating web push subscription');
+    res.status(500).json({ error: 'Failed to deactivate web push subscription' });
   }
 });
 

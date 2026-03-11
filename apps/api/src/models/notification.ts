@@ -43,7 +43,7 @@ const NotificationSchema = new Schema<INotification>({
   type: {
     type: String,
     required: true,
-    enum: ['trigger_result', 'proactive_insight', 'daily_briefing', 'price_alert', 'integration_event', 'reminder'],
+    enum: ['trigger_result', 'proactive_insight', 'daily_briefing', 'price_alert', 'integration_event', 'reminder', 'agent_task_complete', 'chat_response_ready', 'oxy_service'],
   },
   title: { type: String, required: true },
   body: { type: String, required: true },

@@ -14,9 +14,11 @@ import Expo, { type ExpoPushMessage, type ExpoPushTicket, type ExpoPushReceiptId
 import { Notification, type INotification, type NotificationType, type NotificationChannel, type NotificationPriority } from '../models/notification.js';
 import { ConnectedAccount } from '../models/connected-account.js';
 import { PushToken } from '../models/push-token.js';
+import { WebPushSubscription } from '../models/web-push-subscription.js';
 import { Bot } from '../models/bot.js';
 import { BotUser } from '../models/bot-user.js';
 import { sendChannelMessage } from './channels/outbound.js';
+import { webPush, VAPID_PUBLIC_KEY } from './web-push.js';
 import { getIO } from '../socket.js';
 import { log } from './logger.js';
 import type { ChannelId } from './channels/types.js';
@@ -54,10 +56,16 @@ async function resolveChannels(userId: string, explicit?: NotificationChannel[])
   // Default: always in_app
   const channels: NotificationChannel[] = ['in_app'];
 
-  // Check in parallel: push tokens and Telegram account
-  const [hasPushTokens, telegramBotUser] = await Promise.all([
+  // Check in parallel: push tokens, web push subscriptions, and Telegram account
+  const [hasPushTokens, hasWebPushSubs, telegramBotUser] = await Promise.all([
     // Push: check if user has any active Expo push tokens
     PushToken.exists({
+      oxyUserId: new mongoose.Types.ObjectId(userId),
+      active: true,
+    }).catch(() => null),
+
+    // Web push: check if user has any active browser push subscriptions
+    WebPushSubscription.exists({
       oxyUserId: new mongoose.Types.ObjectId(userId),
       active: true,
     }).catch(() => null),
@@ -78,7 +86,7 @@ async function resolveChannels(userId: string, explicit?: NotificationChannel[])
     })(),
   ]);
 
-  if (hasPushTokens) {
+  if (hasPushTokens || hasWebPushSubs) {
     channels.push('push');
   }
 
@@ -267,6 +275,56 @@ async function checkPushReceipts(receiptIds: ExpoPushReceiptId[]): Promise<void>
   }
 }
 
+// ── Web Push Notifications ───────────────────────────────────────────
+
+/**
+ * Deliver a push notification to all of a user's registered web push subscriptions.
+ * Handles 410 Gone (expired subscription) by deactivating.
+ */
+async function deliverWebPush(userId: string, notification: INotification): Promise<boolean> {
+  if (!VAPID_PUBLIC_KEY) return false;
+
+  const subscriptions = await WebPushSubscription.find({
+    oxyUserId: new mongoose.Types.ObjectId(userId),
+    active: true,
+  }).lean();
+
+  if (subscriptions.length === 0) return false;
+
+  const payload = JSON.stringify({
+    title: notification.title,
+    body: notification.body,
+    notificationId: notification._id.toString(),
+    type: notification.type,
+    conversationId: notification.conversationId,
+    ...notification.data,
+  });
+
+  let anySucceeded = false;
+
+  await Promise.allSettled(
+    subscriptions.map(async (sub) => {
+      try {
+        await webPush.sendNotification(
+          { endpoint: sub.endpoint, keys: sub.keys },
+          payload,
+        );
+        anySucceeded = true;
+      } catch (error: any) {
+        if (error?.statusCode === 410 || error?.statusCode === 404) {
+          // Subscription expired or invalid — deactivate
+          await WebPushSubscription.updateOne({ _id: sub._id }, { $set: { active: false } });
+          log.general.info({ userId, endpoint: sub.endpoint }, 'Web push subscription expired, deactivated');
+        } else {
+          log.general.warn({ err: error, userId, endpoint: sub.endpoint }, 'Web push delivery failed');
+        }
+      }
+    }),
+  );
+
+  return anySucceeded;
+}
+
 function formatNotificationText(notification: INotification): string {
   const priorityEmoji = notification.priority === 'urgent' ? '\u26a0\ufe0f '
     : notification.priority === 'high' ? '\u2757 '
@@ -328,9 +386,15 @@ export async function sendNotification(options: SendNotificationOptions): Promis
         case 'slack':
           success = await deliverViaChannel(channel, userId, notification);
           break;
-        case 'push':
-          success = await deliverPush(userId, notification);
+        case 'push': {
+          // Deliver to both Expo (mobile) and web push in parallel
+          const [expoPushOk, webPushOk] = await Promise.all([
+            deliverPush(userId, notification),
+            deliverWebPush(userId, notification),
+          ]);
+          success = expoPushOk || webPushOk;
           break;
+        }
       }
 
       notification.deliveryStatus[channel] = success ? 'sent' : 'failed';
