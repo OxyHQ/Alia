@@ -1,5 +1,6 @@
 import React from 'react';
 import { View, Pressable, Share, ActivityIndicator } from 'react-native';
+import { useColorScheme } from "@/lib/useColorScheme";
 import { Copy, Send, Link2, Users } from 'lucide-react-native';
 import * as Clipboard from 'expo-clipboard';
 import { Text } from '@/components/ui/text';
@@ -21,6 +22,7 @@ interface OrgInviteDialogProps {
 }
 
 export function OrgInviteDialog({ open, onOpenChange, orgId, orgName }: OrgInviteDialogProps) {
+  const { colors } = useColorScheme();
   const [role, setRole] = React.useState<'member' | 'admin'>('member');
   const [inviteUrl, setInviteUrl] = React.useState('');
   const [copied, setCopied] = React.useState(false);
@@ -125,7 +127,7 @@ export function OrgInviteDialog({ open, onOpenChange, orgId, orgName }: OrgInvit
             >
               <View className="flex-row items-center gap-1.5">
                 {createInvite.isPending ? (
-                  <ActivityIndicator size="small" color="#fff" />
+                  <ActivityIndicator size="small" color={colors.primaryForeground} />
                 ) : (
                   <Link2 size={16} className="text-primary-foreground" />
                 )}

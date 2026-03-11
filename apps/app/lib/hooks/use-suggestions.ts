@@ -90,17 +90,14 @@ export function useGenerateSuggestions() {
  * Auto-generate personalized suggestions once per app session.
  * Call from the app layout so it fires as soon as auth is ready.
  */
-let hasGeneratedThisSession = false;
-
 export function useSessionSuggestionGeneration() {
   const { isAuthenticated } = useAuth();
   const { mutate } = useGenerateSuggestions();
-  const mutateRef = useRef(mutate);
-  mutateRef.current = mutate;
+  const hasGenerated = useRef(false);
 
   useEffect(() => {
-    if (!isAuthenticated || hasGeneratedThisSession) return;
-    hasGeneratedThisSession = true;
-    mutateRef.current({ count: 8, types: ['welcome', 'autocomplete'] });
-  }, [isAuthenticated]);
+    if (!isAuthenticated || hasGenerated.current) return;
+    hasGenerated.current = true;
+    mutate({ count: 8, types: ['welcome', 'autocomplete'] });
+  }, [isAuthenticated, mutate]);
 }

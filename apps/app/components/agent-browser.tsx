@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { View, Image, ActivityIndicator, Platform } from "react-native";
 import { Text } from "@/components/ui/text";
+import { useColorScheme } from "@/lib/useColorScheme";
 
 interface AgentBrowserProps {
   sessionId: string;
@@ -12,6 +13,7 @@ interface AgentBrowserProps {
  * Receives screenshots and status updates via WebSocket.
  */
 export function AgentBrowser({ sessionId, wsUrl }: AgentBrowserProps) {
+  const { colors } = useColorScheme();
   const wsRef = useRef<WebSocket | null>(null);
   const [screenshot, setScreenshot] = useState<string | null>(null);
   const [currentUrl, setCurrentUrl] = useState<string>("");
@@ -76,7 +78,7 @@ export function AgentBrowser({ sessionId, wsUrl }: AgentBrowserProps) {
           className={`w-2 h-2 rounded-full ${connected ? "bg-green-500" : "bg-red-500"}`}
         />
         <View className="flex-1 bg-neutral-700 rounded px-2 py-1">
-          <Text className="text-neutral-300 text-xs" numberOfLines={1}>
+          <Text className="text-muted-foreground text-xs" numberOfLines={1}>
             {currentUrl || "about:blank"}
           </Text>
         </View>
@@ -92,8 +94,8 @@ export function AgentBrowser({ sessionId, wsUrl }: AgentBrowserProps) {
           />
         ) : (
           <View className="items-center gap-2">
-            <ActivityIndicator color="#888" />
-            <Text className="text-neutral-500 text-sm">
+            <ActivityIndicator color={colors.mutedForeground} />
+            <Text className="text-muted-foreground text-sm">
               Waiting for browser activity...
             </Text>
           </View>
@@ -102,7 +104,7 @@ export function AgentBrowser({ sessionId, wsUrl }: AgentBrowserProps) {
 
       {/* Status bar */}
       <View className="px-3 py-1.5 bg-neutral-800 border-t border-neutral-700">
-        <Text className="text-neutral-400 text-xs" numberOfLines={1}>
+        <Text className="text-muted-foreground text-xs" numberOfLines={1}>
           {status}
         </Text>
       </View>
