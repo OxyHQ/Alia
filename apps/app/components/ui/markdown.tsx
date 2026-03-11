@@ -1,6 +1,7 @@
 import React, { useMemo } from "react";
 import { View } from "react-native";
 import { AliaMarkdown } from '@alia.onl/sdk';
+import { useColorScheme } from "@/lib/useColorScheme";
 import {
   CompactList,
   Banner,
@@ -179,13 +180,22 @@ function renderBlock(blockType: string, data: any, key: number) {
 }
 
 export function CustomMarkdown({ content }: { content: string }) {
+  const { colors } = useColorScheme();
   const blocks = useMemo(() => parseSpecialBlocks(content), [content]);
+
+  const aliaColors = useMemo(() => ({
+    text: colors.foreground,
+    border: colors.border,
+    muted: colors.muted,
+    mutedForeground: colors.mutedForeground,
+    primary: colors.primary,
+  }), [colors.foreground, colors.border, colors.muted, colors.mutedForeground, colors.primary]);
 
   return (
     <View>
       {blocks.map((block, idx) => {
         if (block.type === 'text') {
-          return <AliaMarkdown key={idx} content={block.content} />;
+          return <AliaMarkdown key={idx} content={block.content} colors={aliaColors} />;
         } else if (block.type === 'block' && block.blockType) {
           return renderBlock(block.blockType, block.data, idx);
         }
