@@ -145,13 +145,14 @@ export const FolderEditDialog = ({
                   key={color}
                   onPress={() => setSelectedColor(color)}
                   className={cn(
-                    "h-10 w-10 rounded-full border-2",
+                    "h-10 w-10 rounded-full border-2 overflow-hidden",
                     selectedColor === color
                       ? "border-foreground scale-110"
                       : "border-transparent"
                   )}
-                  style={{ backgroundColor: color }}
-                />
+                >
+                  <View style={{ backgroundColor: color, flex: 1 }} />
+                </Pressable>
               ))}
             </View>
           </View>

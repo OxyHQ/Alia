@@ -50,7 +50,6 @@ function AppContent() {
 
   // Native: cascade app color CSS variables via NativeWind vars()
   const colorVars = useMemo(() => {
-    if (appColor === 'purple') return undefined;
     const preset = APP_COLOR_PRESETS[appColor];
     return vars(getAppColorCSSVariables(preset, colorScheme));
   }, [appColor, colorScheme]);

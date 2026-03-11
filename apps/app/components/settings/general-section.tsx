@@ -159,11 +159,12 @@ export function GeneralSection() {
               >
                 <View
                   className={cn(
-                    "w-8 h-8 rounded-full border-2",
+                    "w-8 h-8 rounded-full border-2 overflow-hidden",
                     isSelected ? "border-foreground scale-110" : "border-transparent"
                   )}
-                  style={{ backgroundColor: p.hex }}
-                />
+                >
+                  <View style={{ backgroundColor: p.hex, flex: 1 }} />
+                </View>
                 <Text
                   className={cn(
                     "text-[10px]",
