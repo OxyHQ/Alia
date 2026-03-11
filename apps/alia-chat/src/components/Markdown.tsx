@@ -1,9 +1,14 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { View, Text, Platform, Linking } from 'react-native';
 import Markdown from 'react-native-markdown-display';
 import { useAliaColors } from '../theme';
 
-function createRules(isDark: boolean, textColor: string, monoFont: string) {
+const BODY_TEXT = { fontSize: 16, lineHeight: 28 } as const;
+const HEADING_TEXT = { fontSize: 16, lineHeight: 22 } as const;
+const SANS_FONT = Platform.select({ ios: 'Inter', android: 'Inter', default: 'Inter, sans-serif' })!;
+const MONO_FONT = Platform.select({ ios: 'Courier', android: 'monospace', default: 'monospace' })!;
+
+function createRules(isDark: boolean, textColor: string) {
   return {
     heading1: (node: any, children: any) => (
       <Text
@@ -16,7 +21,7 @@ function createRules(isDark: boolean, textColor: string, monoFont: string) {
     heading2: (node: any, children: any) => (
       <Text
         key={node.key}
-        style={{ marginBottom: 8, marginTop: 12, fontWeight: '600', lineHeight: 22, color: textColor }}
+        style={{ marginBottom: 8, marginTop: 12, ...HEADING_TEXT, fontWeight: '600', color: textColor }}
       >
         {children}
       </Text>
@@ -24,7 +29,7 @@ function createRules(isDark: boolean, textColor: string, monoFont: string) {
     heading3: (node: any, children: any) => (
       <Text
         key={node.key}
-        style={{ marginBottom: 6, marginTop: 8, fontWeight: '600', lineHeight: 22, color: textColor }}
+        style={{ marginBottom: 6, marginTop: 8, ...HEADING_TEXT, fontWeight: '600', color: textColor }}
       >
         {children}
       </Text>
@@ -32,7 +37,7 @@ function createRules(isDark: boolean, textColor: string, monoFont: string) {
     heading4: (node: any, children: any) => (
       <Text
         key={node.key}
-        style={{ marginBottom: 6, marginTop: 8, fontWeight: '500', lineHeight: 22, color: textColor }}
+        style={{ marginBottom: 6, marginTop: 8, ...HEADING_TEXT, fontWeight: '500', color: textColor }}
       >
         {children}
       </Text>
@@ -40,7 +45,7 @@ function createRules(isDark: boolean, textColor: string, monoFont: string) {
     heading5: (node: any, children: any) => (
       <Text
         key={node.key}
-        style={{ marginBottom: 4, marginTop: 8, fontWeight: '500', lineHeight: 22, color: textColor }}
+        style={{ marginBottom: 4, marginTop: 8, ...HEADING_TEXT, fontWeight: '500', color: textColor }}
       >
         {children}
       </Text>
@@ -48,7 +53,7 @@ function createRules(isDark: boolean, textColor: string, monoFont: string) {
     heading6: (node: any, children: any) => (
       <Text
         key={node.key}
-        style={{ marginBottom: 4, marginTop: 8, fontWeight: '500', lineHeight: 22, color: textColor }}
+        style={{ marginBottom: 4, marginTop: 8, ...HEADING_TEXT, fontWeight: '500', color: textColor }}
       >
         {children}
       </Text>
@@ -67,7 +72,7 @@ function createRules(isDark: boolean, textColor: string, monoFont: string) {
             padding: 12,
           }}
         >
-          <Text style={{ fontSize: 13, fontFamily: monoFont }}>{children}</Text>
+          <Text style={{ fontSize: 13, fontFamily: MONO_FONT }}>{children}</Text>
         </View>
       ) : (
         <Text
@@ -77,7 +82,7 @@ function createRules(isDark: boolean, textColor: string, monoFont: string) {
             paddingHorizontal: 4,
             paddingVertical: 1,
             fontSize: 13,
-            fontFamily: monoFont,
+            fontFamily: MONO_FONT,
             borderRadius: 3,
           }}
         >
@@ -93,8 +98,8 @@ function createRules(isDark: boolean, textColor: string, monoFont: string) {
 
       return (
         <View key={node.key} style={{ flexDirection: 'row', paddingVertical: 2, paddingLeft: 16 }}>
-          <Text style={{ marginRight: 8, minWidth: 14, color: '#71717A' }}>{bullet}</Text>
-          <Text style={{ flex: 1, color: textColor }}>{children}</Text>
+          <Text style={{ marginRight: 8, minWidth: 14, ...BODY_TEXT, color: '#71717A' }}>{bullet}</Text>
+          <Text style={{ flex: 1, ...BODY_TEXT, color: textColor }}>{children}</Text>
         </View>
       );
     },
@@ -105,12 +110,12 @@ function createRules(isDark: boolean, textColor: string, monoFont: string) {
       <View key={node.key} style={{ marginVertical: 8 }}>{children}</View>
     ),
     strong: (node: any, children: any) => (
-      <Text key={node.key} style={{ fontWeight: '600', color: textColor }}>{children}</Text>
+      <Text key={node.key} style={{ fontWeight: '600', ...BODY_TEXT, color: textColor }}>{children}</Text>
     ),
     link: (node: any, children: any) => (
       <Text
         key={node.key}
-        style={{ color: isDark ? '#60a5fa' : '#2563eb', textDecorationLine: 'underline' }}
+        style={{ color: isDark ? '#60a5fa' : '#2563eb', textDecorationLine: 'underline', ...BODY_TEXT }}
         onPress={() => {
           if (node.attributes?.href) Linking.openURL(node.attributes.href);
         }}
@@ -119,7 +124,7 @@ function createRules(isDark: boolean, textColor: string, monoFont: string) {
       </Text>
     ),
     paragraph: (node: any, children: any) => (
-      <Text key={node.key} style={{ marginBottom: 8, color: textColor }}>{children}</Text>
+      <Text key={node.key} style={{ marginBottom: 8, ...BODY_TEXT, color: textColor }}>{children}</Text>
     ),
     blockquote: (node: any, children: any) => (
       <View
@@ -157,63 +162,21 @@ function createRules(isDark: boolean, textColor: string, monoFont: string) {
   };
 }
 
-export function AliaMarkdown({ content }: { content: string }) {
-  const colors = useAliaColors();
-  const isDark = colors.isDark;
-
-  const textColor = isDark ? '#ffffff' : '#0a0a0a';
-  const sansFont = Platform.select({ ios: 'Inter', android: 'Inter', default: 'Inter, sans-serif' });
-  const monoFont = Platform.select({ ios: 'Courier', android: 'monospace', default: 'monospace' });
-
-  const customRules = createRules(isDark, textColor, monoFont);
-
-  const markdownStyles = {
-    body: {
-      color: textColor,
-      fontSize: 16,
-      lineHeight: 28,
-      fontFamily: sansFont,
-    },
-    text: {
-      color: textColor,
-      fontSize: 16,
-      lineHeight: 28,
-      fontFamily: sansFont,
-    },
-    paragraph: {
-      marginTop: 0,
-      marginBottom: 8,
-    },
-    strong: {
-      fontWeight: '600' as const,
-    },
-    em: {
-      fontStyle: 'italic' as const,
-    },
-    s: {
-      textDecorationLine: 'line-through' as const,
-    },
-    bullet_list_icon: {
-      marginLeft: 0,
-      marginRight: 8,
-      fontSize: 16,
-      lineHeight: 28,
-    },
-    ordered_list_icon: {
-      marginLeft: 0,
-      marginRight: 8,
-      fontSize: 16,
-      lineHeight: 28,
-    },
-    bullet_list_content: {
-      flex: 1,
-    },
-    ordered_list_content: {
-      flex: 1,
-    },
+function createStyles(isDark: boolean, textColor: string, borderColor: string, mutedBg: string) {
+  return {
+    body: { ...BODY_TEXT, color: textColor, fontFamily: SANS_FONT },
+    text: { ...BODY_TEXT, color: textColor, fontFamily: SANS_FONT },
+    paragraph: { marginTop: 0, marginBottom: 8 },
+    strong: { fontWeight: '600' as const },
+    em: { fontStyle: 'italic' as const },
+    s: { textDecorationLine: 'line-through' as const },
+    bullet_list_icon: { marginLeft: 0, marginRight: 8, ...BODY_TEXT },
+    ordered_list_icon: { marginLeft: 0, marginRight: 8, ...BODY_TEXT },
+    bullet_list_content: { flex: 1 },
+    ordered_list_content: { flex: 1 },
     code_inline: {
       fontSize: 13,
-      fontFamily: monoFont,
+      fontFamily: MONO_FONT,
       backgroundColor: isDark ? '#27272a' : '#f4f4f5',
       borderWidth: 0,
       borderRadius: 3,
@@ -222,7 +185,7 @@ export function AliaMarkdown({ content }: { content: string }) {
     },
     code_block: {
       fontSize: 13,
-      fontFamily: monoFont,
+      fontFamily: MONO_FONT,
       backgroundColor: isDark ? '#18181b' : '#f4f4f5',
       borderWidth: 1,
       borderColor: isDark ? '#3f3f46' : '#e4e4e7',
@@ -231,58 +194,39 @@ export function AliaMarkdown({ content }: { content: string }) {
     },
     fence: {
       fontSize: 13,
-      fontFamily: monoFont,
+      fontFamily: MONO_FONT,
       backgroundColor: isDark ? '#18181b' : '#f4f4f5',
       borderWidth: 1,
       borderColor: isDark ? '#3f3f46' : '#e4e4e7',
       borderRadius: 6,
       padding: 12,
     },
-    table: {
-      borderWidth: 1,
-      borderColor: colors.border,
-      borderRadius: 6,
-      marginVertical: 8,
-    },
-    thead: {
-      backgroundColor: colors.muted,
-    },
-    th: {
-      flex: 1,
-      padding: 8,
-      fontWeight: '600' as const,
-      fontSize: 16,
-      lineHeight: 28,
-    },
-    td: {
-      flex: 1,
-      padding: 8,
-      fontSize: 16,
-      lineHeight: 28,
-    },
-    tr: {
-      borderBottomWidth: 1,
-      borderColor: colors.border,
-      flexDirection: 'row' as const,
-    },
-    link: {
-      textDecorationLine: 'underline' as const,
-      color: isDark ? '#60a5fa' : '#2563eb',
-      fontSize: 16,
-      lineHeight: 28,
-    },
-    hr: {
-      backgroundColor: isDark ? '#3f3f46' : '#d4d4d8',
-      height: 1,
-      marginVertical: 16,
-    },
+    table: { borderWidth: 1, borderColor, borderRadius: 6, marginVertical: 8 },
+    thead: { backgroundColor: mutedBg },
+    th: { flex: 1, padding: 8, fontWeight: '600' as const, ...BODY_TEXT },
+    td: { flex: 1, padding: 8, ...BODY_TEXT },
+    tr: { borderBottomWidth: 1, borderColor, flexDirection: 'row' as const },
+    link: { textDecorationLine: 'underline' as const, color: isDark ? '#60a5fa' : '#2563eb', ...BODY_TEXT },
+    hr: { backgroundColor: isDark ? '#3f3f46' : '#d4d4d8', height: 1, marginVertical: 16 },
     heading1: { fontSize: 18, fontWeight: '600' as const },
-    heading2: { fontSize: 16, fontWeight: '600' as const },
-    heading3: { fontSize: 16, fontWeight: '600' as const },
-    heading4: { fontSize: 16, fontWeight: '500' as const },
-    heading5: { fontSize: 16, fontWeight: '500' as const },
-    heading6: { fontSize: 16, fontWeight: '500' as const },
+    heading2: { ...HEADING_TEXT, fontWeight: '600' as const },
+    heading3: { ...HEADING_TEXT, fontWeight: '600' as const },
+    heading4: { ...HEADING_TEXT, fontWeight: '500' as const },
+    heading5: { ...HEADING_TEXT, fontWeight: '500' as const },
+    heading6: { ...HEADING_TEXT, fontWeight: '500' as const },
   };
+}
+
+export function AliaMarkdown({ content }: { content: string }) {
+  const colors = useAliaColors();
+  const isDark = colors.isDark;
+  const textColor = isDark ? '#ffffff' : '#0a0a0a';
+
+  const customRules = useMemo(() => createRules(isDark, textColor), [isDark]);
+  const markdownStyles = useMemo(
+    () => createStyles(isDark, textColor, colors.border, colors.muted),
+    [isDark, colors.border, colors.muted],
+  );
 
   return <Markdown rules={customRules} style={markdownStyles}>{content}</Markdown>;
 }
