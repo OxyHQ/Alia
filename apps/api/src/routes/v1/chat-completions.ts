@@ -1195,6 +1195,10 @@ export const handleChatCompletions = async (req: Request, res: Response) => {
       if (!res.writableEnded) res.write(': keepalive\n\n');
     }, KEEPALIVE_INTERVAL_MS);
 
+    // Track client disconnect so we can send a push notification if the response completes after they leave
+    let clientDisconnected = false;
+    req.on('close', () => { clientDisconnected = true; });
+
     // Stream OpenAI-compatible chunks
     log.v1.info('Starting to process AI SDK stream');
     let chunkCount = 0;
@@ -1654,6 +1658,20 @@ export const handleChatCompletions = async (req: Request, res: Response) => {
     res.write('data: [DONE]\n\n');
     res.end();
     clearTimeout(globalTimer);
+
+    // If the client disconnected before the stream finished, send a push notification
+    if (clientDisconnected && assistantResponse.length > 0 && req.user?.id && body.conversationId) {
+      import('../../lib/notification-service.js').then(({ sendNotification }) => {
+        sendNotification({
+          userId: req.user!.id as string,
+          type: 'agent_task_complete',
+          title: 'Alia has responded',
+          body: assistantResponse.slice(0, 200) + (assistantResponse.length > 200 ? '...' : ''),
+          conversationId: body.conversationId,
+        }).catch(err => log.v1.warn({ err }, 'Failed to send disconnect notification'));
+      }).catch(() => {});
+    }
+
     return; // Success - exit the route handler
 
     } catch (providerError: unknown) {
