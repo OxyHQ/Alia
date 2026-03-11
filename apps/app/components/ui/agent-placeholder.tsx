@@ -1,10 +1,11 @@
 import React, { useMemo } from "react";
 import { AliaFace, type AliaAccessory, type AliaExpression } from '@alia.onl/sdk';
 import { getAccessory } from "@/lib/accessories";
+import type { AgentAccessory } from "@/lib/stores/agents-store";
 
 export interface AgentPlaceholderProps {
   size?: number;
-  accessories?: string[];
+  accessories?: AgentAccessory[];
   expression?: AliaExpression;
 }
 
@@ -15,10 +16,17 @@ export function AgentPlaceholder({
 }: AgentPlaceholderProps) {
   const resolvedAccessories = useMemo<AliaAccessory[] | undefined>(() => {
     if (!accessories?.length) return undefined;
+
     const resolved: AliaAccessory[] = [];
-    for (const id of accessories) {
-      const acc = getAccessory(id);
-      if (acc) resolved.push({ layer: acc.layer, image: acc.image });
+    for (const entry of accessories) {
+      const acc = getAccessory(entry.accessoryId);
+      if (acc) {
+        resolved.push({
+          layer: acc.layer,
+          image: acc.image,
+          position: entry.position,
+        });
+      }
     }
     return resolved.length > 0 ? resolved : undefined;
   }, [accessories]);

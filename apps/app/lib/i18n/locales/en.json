@@ -761,6 +761,17 @@
     "agents": "Agents",
     "addAgentToTeam": "Add agent"
   },
+  "accessories": {
+    "editor": "Accessories",
+    "customize": "Customize Accessories",
+    "purchase": "Purchase Accessory",
+    "credits": "credits",
+    "buy": "Buy",
+    "purchased": "Accessory purchased!",
+    "head": "Head",
+    "face": "Face",
+    "neck": "Neck"
+  },
   "authorize": {
     "sendMessages": "Send messages to AI models",
     "useCredits": "Use your credits for API calls",

@@ -378,7 +378,7 @@ router.patch('/:id', authenticateToken, async (req: Request, res: Response) => {
       'skills', 'knowledge',
       'isPublished', 'status', 'creditBalance', 'allowHiring',
       'systemPrompt', 'allowedModels', 'scheduleInterval',
-      'archetype', 'archetypeConfig',
+      'archetype', 'archetypeConfig', 'accessories',
     ];
 
     for (const field of allowedFields) {

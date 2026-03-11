@@ -67,7 +67,7 @@ type Message = {
     name: string;
     avatar: string | null;
     handle: string;
-    accessories?: string[];
+    accessories?: Array<{ accessoryId: string; position: { x: number; y: number; scale: number; rotation: number } }>;
   };
   audioUrl?: string;
 };
