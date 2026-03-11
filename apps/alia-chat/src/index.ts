@@ -86,5 +86,4 @@ export type { DocumentPickerResult } from './hooks/useDocumentPicker';
 export { KeyboardAwareScrollView, KeyboardAvoidingView, KeyboardProvider } from './lib/keyboard';
 
 // ── Theme ──
-export { useAliaColors } from './theme';
 export type { AliaColors } from './theme';

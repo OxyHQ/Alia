@@ -1,7 +1,24 @@
 import React, { useMemo } from 'react';
-import { View, Text, Platform, Linking } from 'react-native';
+import { View, Text, Platform, Linking, useColorScheme } from 'react-native';
 import Markdown from 'react-native-markdown-display';
-import { useAliaColors, type AliaColors } from '../theme';
+import type { AliaColors } from '../theme';
+
+// Hardcoded fallback colors for standalone SDK usage (when no color override is passed).
+// The main app always passes resolved colors via the `colors` prop.
+const FALLBACK_LIGHT: Pick<AliaColors, 'text' | 'muted' | 'border' | 'primary' | 'mutedForeground'> = {
+  text: '#11181C',
+  muted: '#F4F4F5',
+  border: '#E5E5EA',
+  primary: '#7C3AED',
+  mutedForeground: '#71717A',
+};
+const FALLBACK_DARK: typeof FALLBACK_LIGHT = {
+  text: '#ECEDEE',
+  muted: '#27272A',
+  border: '#2C2C2E',
+  primary: '#A78BFA',
+  mutedForeground: '#A1A1AA',
+};
 
 const BODY_TEXT = { fontSize: 16, lineHeight: 28 } as const;
 const HEADING_TEXT = { fontSize: 16, lineHeight: 22 } as const;
@@ -224,8 +241,9 @@ export interface AliaMarkdownProps {
 }
 
 export function AliaMarkdown({ content, colors: colorOverrides }: AliaMarkdownProps) {
-  const defaultColors = useAliaColors();
-  const colors = colorOverrides ? { ...defaultColors, ...colorOverrides } : defaultColors;
+  const scheme = useColorScheme();
+  const fallback = scheme === 'dark' ? FALLBACK_DARK : FALLBACK_LIGHT;
+  const colors = { ...fallback, ...colorOverrides } as AliaColors;
 
   const customRules = useMemo(() => createRules(colors), [colors.text, colors.muted, colors.border, colors.primary, colors.mutedForeground]);
   const markdownStyles = useMemo(() => createStyles(colors), [colors.text, colors.muted, colors.border, colors.primary, colors.mutedForeground]);

@@ -73,8 +73,25 @@ export function useStreamingChat(apiUrl: string, activeRole?: any, conversationI
   }, [flushPendingUpdates]);
 
   // Ref to avoid messages in append's dep array (avoids recreation every 50ms during streaming)
+  // Synced both via useEffect (for streaming updates) and eagerly in setMessagesAndRef
+  // so that setMessages + append in the same tick see the correct history.
   const messagesRef = useRef<Message[]>([]);
   useEffect(() => { messagesRef.current = messages; }, [messages]);
+
+  // Wrapper that eagerly syncs messagesRef before React re-renders,
+  // so append() called in the same tick reads truncated history (e.g. editMessage).
+  const setMessagesAndRef = useCallback((update: Message[] | ((prev: Message[]) => Message[])) => {
+    if (typeof update === 'function') {
+      setMessages(prev => {
+        const next = update(prev);
+        messagesRef.current = next;
+        return next;
+      });
+    } else {
+      messagesRef.current = update;
+      setMessages(update);
+    }
+  }, []);
 
   const append = useCallback(async (message: Message) => {
     setIsLoading(true);
@@ -837,7 +854,7 @@ Use this role to guide your responses, maintaining the specified tone, style, an
     error,
     append,
     stop,
-    setMessages,
+    setMessages: setMessagesAndRef,
     conversationTitle,
     clearError,
     approvePlan,

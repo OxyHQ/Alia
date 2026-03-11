@@ -154,11 +154,14 @@ export function useChatConversation({ conversationId, activeRole, thinkingMode, 
   }, [router, createConversationMutation]);
 
   const editMessage = useCallback((messageId: string, newContent: string) => {
-    const updatedMessages = messages.map(msg =>
-      msg.id === messageId ? { ...msg, content: newContent } : msg
-    );
-    setMessages(updatedMessages);
-  }, [messages, setMessages]);
+    // Truncate to messages before the edited one, then re-send.
+    // setMessages eagerly syncs messagesRef so append reads truncated history.
+    setMessages(prev => {
+      const idx = prev.findIndex(msg => msg.id === messageId);
+      return idx < 0 ? prev : prev.slice(0, idx);
+    });
+    append({ role: 'user', content: newContent });
+  }, [setMessages, append]);
 
   const stopGeneration = useCallback(() => {
     stop();
