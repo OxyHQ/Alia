@@ -20,6 +20,7 @@ export function usePersonalitySamplePhrase() {
   const [isStreaming, setIsStreaming] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const cacheRef = useRef<Map<PersonalityStyleId, string>>(new Map());
 
   // Cleanup on unmount
   useEffect(() => {
@@ -33,6 +34,13 @@ export function usePersonalitySamplePhrase() {
     (styleId: PersonalityStyleId) => {
       const style = PERSONALITY_STYLE_MAP[styleId];
       if (!style) return;
+
+      // Return cached phrase if available
+      const cached = cacheRef.current.get(styleId);
+      if (cached) {
+        setPhrase(cached);
+        return;
+      }
 
       // Show static greeting immediately as placeholder
       setPhrase(style.sampleGreeting);
@@ -117,6 +125,8 @@ export function usePersonalitySamplePhrase() {
 
           if (!accumulated && !controller.signal.aborted) {
             setPhrase(style.sampleGreeting);
+          } else if (accumulated && !controller.signal.aborted) {
+            cacheRef.current.set(styleId, accumulated);
           }
         } catch (err: any) {
           if (err.name === 'AbortError') return;

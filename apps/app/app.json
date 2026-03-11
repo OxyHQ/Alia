@@ -26,7 +26,7 @@
       "adaptiveIcon": {
         "foregroundImage": "./assets/icon-512-maskable.png",
         "monochromeImage": "./assets/adaptive-icon-monochrome.png",
-        "backgroundColor": "#ca52e9"
+        "backgroundColor": "#FFFFFF"
       },
       "package": "onl.alia.app",
       "predictiveBackGestureEnabled": false,
