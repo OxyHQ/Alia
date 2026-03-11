@@ -73,43 +73,47 @@ async function main() {
   console.log(`Reading PNGs from ${ASSETS_DIR}`);
   console.log(`Uploading to S3 under ${NODE_ENV}/accessories/\n`);
 
-  // Upload all PNGs to S3 in parallel
-  const imageUrls = await Promise.all(
+  // Upload all PNGs to S3 in parallel, returning { acc, imageUrl } tuples
+  const uploads = await Promise.all(
     DEFAULT_ACCESSORIES.map(async (acc) => {
       const filePath = path.join(ASSETS_DIR, acc.filename);
-      if (fs.existsSync(filePath)) {
-        const buffer = fs.readFileSync(filePath);
+      try {
+        const buffer = await fs.promises.readFile(filePath);
         const key = `${NODE_ENV}/accessories/${acc.slug}.png`;
-        const url = await uploadToS3Deterministic(buffer, key, 'image/png');
+        const imageUrl = await uploadToS3Deterministic(buffer, key, 'image/png');
         console.log(`  ↑ S3: ${key}`);
-        return url;
+        return { acc, imageUrl };
+      } catch {
+        console.warn(`  ⚠ PNG not found: ${filePath} — using filename as fallback`);
+        return { acc, imageUrl: acc.filename };
       }
-      console.warn(`  ⚠ PNG not found: ${filePath} — using filename as fallback`);
-      return acc.filename;
     })
   );
 
-  // Upsert catalog entries with S3 URLs
-  for (let i = 0; i < DEFAULT_ACCESSORIES.length; i++) {
-    const acc = DEFAULT_ACCESSORIES[i];
-    const result = await Accessory.findOneAndUpdate(
-      { slug: acc.slug },
-      {
+  // Upsert all catalog entries in a single bulkWrite
+  const ops = uploads.map(({ acc, imageUrl }) => ({
+    updateOne: {
+      filter: { slug: acc.slug },
+      update: {
         $set: {
           name: acc.name,
           slug: acc.slug,
           slot: acc.slot,
           layer: acc.layer,
-          imageUrl: imageUrls[i],
+          imageUrl,
           price: acc.price,
           rarity: acc.rarity,
           isDefault: acc.isDefault,
           isPublished: true,
         },
       },
-      { upsert: true, returnDocument: 'after' }
-    );
-    console.log(`  ✓ ${result!.slug} — ${result!.name}`);
+      upsert: true,
+    },
+  }));
+  await Accessory.bulkWrite(ops);
+
+  for (const { acc } of uploads) {
+    console.log(`  ✓ ${acc.slug} — ${acc.name}`);
   }
 
   console.log(`\nSeeded ${DEFAULT_ACCESSORIES.length} accessories.`);
