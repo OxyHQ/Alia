@@ -29,6 +29,7 @@
         "monochromeImage": "./assets/adaptive-icon-monochrome.png",
         "backgroundColor": "#FFFFFF"
       },
+      "googleServicesFile": "./google-services.json",
       "package": "onl.alia.app",
       "predictiveBackGestureEnabled": false,
       "permissions": [

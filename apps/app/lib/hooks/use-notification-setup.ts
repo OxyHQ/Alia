@@ -49,7 +49,6 @@ export function useNotificationSetup() {
           await Notifications.setNotificationChannelAsync('default', {
             name: 'Default',
             importance: Notifications.AndroidImportance.HIGH,
-            sound: 'default',
           });
         }
 
@@ -75,9 +74,8 @@ export function useNotificationSetup() {
           token,
           platform: Platform.OS,
         });
-      } catch (err) {
-        // Non-critical — don't crash the app
-        console.warn('Push token registration failed:', err);
+      } catch {
+        // Non-critical — expected to fail in dev without FCM credentials
       }
     })();
 
