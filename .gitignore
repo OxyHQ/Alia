@@ -37,6 +37,8 @@ dist/
 # misc
 .DS_Store
 *.pem
+google-services.json
+GoogleService-Info.plist
 
 # debug
 npm-debug.log*
