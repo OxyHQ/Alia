@@ -9,6 +9,7 @@ import {
   Image, FileText, Search, ShoppingBag, MoreHorizontal, ExternalLink,
   BookOpen, Globe, PenTool, Sparkles, User, CreditCard, Bell, LogOut,
   Folder, Check, Brain, Ghost, Bot, Bookmark, AlertTriangle, Pin,
+  ShieldCheck,
 } from "lucide-react-native";
 
 // Map iOS SF Symbol names to Lucide icons for web rendering
@@ -26,6 +27,7 @@ const SF_SYMBOL_MAP: Record<string, React.ComponentType<any>> = {
   "bookmark": Bookmark, "bookmark.fill": Bookmark,
   "exclamationmark.triangle": AlertTriangle,
   "pin": Pin, "pin.fill": Pin,
+  "doc.text": FileText, "hand.raised": ShieldCheck,
 };
 
 
