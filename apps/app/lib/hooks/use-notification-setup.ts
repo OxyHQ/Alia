@@ -12,18 +12,9 @@ import Constants from 'expo-constants';
 import { useRouter } from 'expo-router';
 import { useQueryClient } from '@tanstack/react-query';
 import { useOxy } from '@oxyhq/services';
-import { io as socketIO, type Socket } from 'socket.io-client';
+import { io as socketIO } from 'socket.io-client';
 import config from '@/lib/config';
 import apiClient from '@/lib/api/client';
-
-// ── Foreground notification display (module-level, runs once) ──────
-Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowAlert: true,
-    shouldPlaySound: true,
-    shouldSetBadge: true,
-  }),
-});
 
 // ── Constants ──────────────────────────────────────────────────────
 const PROJECT_ID =
@@ -33,8 +24,19 @@ export function useNotificationSetup() {
   const { user, isAuthenticated } = useOxy();
   const router = useRouter();
   const queryClient = useQueryClient();
-  const socketRef = useRef<Socket | null>(null);
   const tokenRef = useRef<string | null>(null);
+
+  // ── Foreground notification display (once, native only) ────────
+  useEffect(() => {
+    if (Platform.OS === 'web') return;
+    Notifications.setNotificationHandler({
+      handleNotification: async () => ({
+        shouldShowAlert: true,
+        shouldPlaySound: true,
+        shouldSetBadge: true,
+      }),
+    });
+  }, []);
 
   // ── Push token registration ────────────────────────────────────
   useEffect(() => {
@@ -65,7 +67,7 @@ export function useNotificationSetup() {
         const { data: token } = await Notifications.getExpoPushTokenAsync({
           projectId: PROJECT_ID,
         });
-        if (cancelled || !token) return;
+        if (cancelled || !token || token === tokenRef.current) return;
 
         tokenRef.current = token;
 
@@ -88,6 +90,7 @@ export function useNotificationSetup() {
   useEffect(() => {
     const subscription = Notifications.addNotificationResponseReceivedListener(
       (response) => {
+        if (!isAuthenticated) return;
         const data = response.notification.request.content.data;
         if (data?.conversationId) {
           router.push(`/(app)/c/${data.conversationId}`);
@@ -96,7 +99,7 @@ export function useNotificationSetup() {
     );
 
     return () => subscription.remove();
-  }, [router]);
+  }, [router, isAuthenticated]);
 
   // ── Socket.IO real-time notification subscription ──────────────
   useEffect(() => {
@@ -109,7 +112,6 @@ export function useNotificationSetup() {
       reconnectionDelay: 1000,
       reconnectionDelayMax: 10000,
     });
-    socketRef.current = socket;
 
     socket.on('connect', () => {
       socket.emit('subscribe-notifications', user.id);
@@ -122,7 +124,6 @@ export function useNotificationSetup() {
 
     return () => {
       socket.disconnect();
-      socketRef.current = null;
     };
   }, [isAuthenticated, user?.id, queryClient]);
 }
