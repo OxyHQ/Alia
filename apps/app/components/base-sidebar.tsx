@@ -12,6 +12,8 @@ interface BaseSidebarProps {
   navigation: React.ReactNode;
   /** Scrollable content area (projects, apps, history, etc.) */
   scrollableContent?: React.ReactNode;
+  /** Content that floats above the footer, overlapping the scroll area */
+  scrollOverlay?: React.ReactNode;
   /** Footer content (user menu, auth buttons, etc.) */
   footer: React.ReactNode;
   /** Background color class (default: bg-background for white) */
@@ -23,24 +25,16 @@ interface BaseSidebarProps {
 }
 
 const GRADIENT_HEIGHT = 24;
+const OVERLAY_PADDING = 56;
 
-/**
- * BaseSidebar - Reusable sidebar layout component
- *
- * Provides a consistent structure for all sidebars with:
- * - Header section (logo/branding)
- * - Optional top section (e.g., organization switcher, new chat button)
- * - Navigation section (main nav links)
- * - Scrollable content area (dynamic content like projects, apps, history)
- * - Footer section (user menu/auth)
- */
 export const BaseSidebar = React.memo(function BaseSidebar({
   header,
   topSection,
   navigation,
   scrollableContent,
+  scrollOverlay,
   footer,
-  backgroundColor = "bg-background",
+  backgroundColor = "bg-sidebar",
   onScroll,
   showScrollIndicator = false,
 }: BaseSidebarProps) {
@@ -56,9 +50,9 @@ export const BaseSidebar = React.memo(function BaseSidebar({
   }, [onScroll]);
 
   return (
-    <View className={`flex-1 ${backgroundColor} border-r border-border`}>
+    <View className={`flex-1 ${backgroundColor} border-r border-sidebar-border`}>
       {/* Header */}
-      <View className="border-b border-border/50 p-4 md:p-3">
+      <View className="p-4 md:p-3">
         {header}
       </View>
 
@@ -67,13 +61,14 @@ export const BaseSidebar = React.memo(function BaseSidebar({
         {/* Top gradient */}
         {showTopGradient && (
           <LinearGradient
-            colors={[colors.background, "transparent"]}
+            colors={[colors.sidebar, "transparent"]}
             style={{ position: "absolute", top: 0, left: 0, right: 0, height: GRADIENT_HEIGHT, zIndex: 10, pointerEvents: "none" }}
           />
         )}
 
         <ScrollView
           className="flex-1 px-3 md:px-2"
+          contentContainerStyle={scrollOverlay ? { paddingBottom: OVERLAY_PADDING } : undefined}
           onScroll={handleScroll}
           scrollEventThrottle={16}
           showsVerticalScrollIndicator={showScrollIndicator}
@@ -92,16 +87,30 @@ export const BaseSidebar = React.memo(function BaseSidebar({
         </ScrollView>
 
         {/* Bottom gradient */}
-        {showBottomGradient && (
+        {showBottomGradient && !scrollOverlay && (
           <LinearGradient
-            colors={["transparent", colors.background]}
+            colors={["transparent", colors.sidebar]}
             style={{ position: "absolute", bottom: 0, left: 0, right: 0, height: GRADIENT_HEIGHT, zIndex: 10, pointerEvents: "none" }}
           />
+        )}
+
+        {/* Floating overlay above footer */}
+        {scrollOverlay && (
+          <View style={{ position: "absolute", bottom: 0, left: 0, right: 0, zIndex: 10 }} className="items-center pb-1">
+            <LinearGradient
+              colors={["transparent", colors.sidebar, colors.sidebar]}
+              locations={[0, 0.8, 1]}
+              style={{ position: "absolute", top: -60, left: 0, right: 0, bottom: 0, pointerEvents: "none" }}
+            />
+            <View style={{ width: "90%" }}>
+              {scrollOverlay}
+            </View>
+          </View>
         )}
       </View>
 
       {/* Footer */}
-      <View className="border-t border-border/50 p-3 md:p-2">
+      <View className="p-3 md:p-2">
         {footer}
       </View>
     </View>

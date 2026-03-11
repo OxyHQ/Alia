@@ -166,13 +166,10 @@
       "writingStyle": "Estilo de Escritura"
     },
     "accentColor": {
-      "title": "Color de acento",
-      "default": "Predeterminado",
-      "blue": "Azul",
+      "title": "Color de la app",
+      "purple": "Morado",
       "green": "Verde",
-      "yellow": "Amarillo",
-      "pink": "Rosa",
-      "orange": "Naranja"
+      "blue": "Azul"
     }
   },
   "nav": {

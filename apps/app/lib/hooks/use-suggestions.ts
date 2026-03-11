@@ -1,4 +1,6 @@
+import { useEffect, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useAuth } from '@oxyhq/services';
 import apiClient from '../api/client';
 import { API_ROUTES } from '../api/routes';
 import { queryKeys } from './query-keys';
@@ -82,4 +84,23 @@ export function useGenerateSuggestions() {
       queryClient.invalidateQueries({ queryKey: queryKeys.suggestions.me });
     },
   });
+}
+
+/**
+ * Auto-generate personalized suggestions once per app session.
+ * Call from the app layout so it fires as soon as auth is ready.
+ */
+let hasGeneratedThisSession = false;
+
+export function useSessionSuggestionGeneration() {
+  const { isAuthenticated } = useAuth();
+  const { mutate } = useGenerateSuggestions();
+  const mutateRef = useRef(mutate);
+  mutateRef.current = mutate;
+
+  useEffect(() => {
+    if (!isAuthenticated || hasGeneratedThisSession) return;
+    hasGeneratedThisSession = true;
+    mutateRef.current({ count: 8, types: ['welcome', 'autocomplete'] });
+  }, [isAuthenticated]);
 }

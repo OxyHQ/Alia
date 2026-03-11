@@ -4,6 +4,7 @@
  */
 
 import { View, Text, Pressable, ActivityIndicator, StyleSheet } from 'react-native';
+import { Mic, MicOff, PhoneOff, Users } from 'lucide-react-native';
 import type { RoomState, AgentState } from '../../types';
 import { useAliaColors } from '../../theme';
 
@@ -19,6 +20,8 @@ interface VoiceControlsProps {
   onDisableCohost: () => void;
   onContinueCohost: () => void;
   onEnd: () => void;
+  /** Override theme primary color */
+  primaryColor?: string;
 }
 
 function getStatusText(
@@ -52,8 +55,10 @@ export function VoiceControls({
   onDisableCohost,
   onContinueCohost,
   onEnd,
+  primaryColor,
 }: VoiceControlsProps) {
-  const colors = useAliaColors();
+  const aliaColors = useAliaColors();
+  const colors = primaryColor ? { ...aliaColors, primary: primaryColor } : aliaColors;
   const statusText = getStatusText(roomState, agentState, isMuted, cohostActive, currentSpeaker);
 
   return (
@@ -67,9 +72,9 @@ export function VoiceControls({
       {roundComplete && (
         <Pressable
           onPress={onContinueCohost}
-          style={styles.continueButton}
+          style={[styles.continueButton, { backgroundColor: colors.primary + '4D' }]}
         >
-          <Text style={styles.continueText}>Continue conversation</Text>
+          <Text style={[styles.continueText, { color: colors.primary }]}>Continue conversation</Text>
         </Pressable>
       )}
 
@@ -80,14 +85,16 @@ export function VoiceControls({
               onPress={onToggleMute}
               style={[
                 styles.button,
-                { backgroundColor: isMuted ? '#ef4444' : 'rgba(255,255,255,0.15)' },
+                { backgroundColor: isMuted ? '#ef4444' : colors.muted },
               ]}
             >
-              <Text style={styles.buttonIcon}>
-                {isMuted ? '\u{1F507}' : '\u{1F3A4}'}
-              </Text>
+              {isMuted ? (
+                <MicOff size={24} color="white" />
+              ) : (
+                <Mic size={24} color="white" />
+              )}
             </Pressable>
-            <Text style={styles.buttonLabel}>
+            <Text style={[styles.buttonLabel, { color: colors.mutedForeground }]}>
               {isMuted ? 'Unmute' : 'Mute'}
             </Text>
           </View>
@@ -97,12 +104,12 @@ export function VoiceControls({
               onPress={cohostActive ? onDisableCohost : onEnableCohost}
               style={[
                 styles.button,
-                { backgroundColor: cohostActive ? '#8b5cf6' : 'rgba(255,255,255,0.15)' },
+                { backgroundColor: cohostActive ? colors.primary : colors.muted },
               ]}
             >
-              <Text style={styles.buttonIcon}>{'\u{1F465}'}</Text>
+              <Users size={24} color="white" />
             </Pressable>
-            <Text style={styles.buttonLabel}>
+            <Text style={[styles.buttonLabel, { color: colors.mutedForeground }]}>
               {cohostActive ? 'Solo' : 'Cohost'}
             </Text>
           </View>
@@ -112,15 +119,15 @@ export function VoiceControls({
               onPress={onEnd}
               style={[styles.button, { backgroundColor: '#ef4444' }]}
             >
-              <Text style={styles.endIcon}>{'\u2715'}</Text>
+              <PhoneOff size={24} color="white" />
             </Pressable>
-            <Text style={styles.buttonLabel}>End</Text>
+            <Text style={[styles.buttonLabel, { color: colors.mutedForeground }]}>End</Text>
           </View>
         </View>
       )}
 
       {roomState === 'connecting' && (
-        <ActivityIndicator size="large" color="#38bdf8" />
+        <ActivityIndicator size="large" color={colors.mutedForeground} />
       )}
     </View>
   );
@@ -153,16 +160,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  buttonIcon: {
-    fontSize: 24,
-  },
-  endIcon: {
-    fontSize: 24,
-    color: '#ffffff',
-    fontWeight: '700',
-  },
   buttonLabel: {
-    color: '#8E8E93',
     fontSize: 12,
   },
   continueButton: {
@@ -170,10 +168,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingVertical: 8,
     borderRadius: 24,
-    backgroundColor: 'rgba(139, 92, 246, 0.3)',
   },
   continueText: {
-    color: '#a78bfa',
     fontSize: 14,
     fontWeight: '500',
   },

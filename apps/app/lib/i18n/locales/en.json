@@ -193,13 +193,10 @@
       "writingStyle": "Writing Style"
     },
     "accentColor": {
-      "title": "Accent Color",
-      "default": "Default",
-      "blue": "Blue",
+      "title": "App Color",
+      "purple": "Purple",
       "green": "Green",
-      "yellow": "Yellow",
-      "pink": "Pink",
-      "orange": "Orange"
+      "blue": "Blue"
     }
   },
   "nav": {

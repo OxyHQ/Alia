@@ -4,7 +4,7 @@ import { useColorScheme } from "@/lib/useColorScheme";
 import { useThemeStore } from "@/lib/stores/theme-store";
 import { useTranslation } from "@/hooks/useTranslation";
 import { LanguageSelector } from "@/components/language-selector";
-import { ACCENT_PRESETS, ACCENT_COLOR_NAMES, type AccentColorName } from "@/lib/accent-presets";
+import { APP_COLOR_PRESETS, APP_COLOR_NAMES, type AppColorName } from "@/lib/app-color-presets";
 import { cn } from "@/lib/utils";
 
 /** Miniature app layout mimicking sidebar + main content */
@@ -61,9 +61,9 @@ function AppMiniature({ variant, accentHex }: { variant: "light" | "dark"; accen
 
 export function GeneralSection() {
   const { mode, setColorScheme } = useColorScheme();
-  const accentColor = useThemeStore((s) => s.accentColor);
-  const setAccentColor = useThemeStore((s) => s.setAccentColor);
-  const accentHex = ACCENT_PRESETS[accentColor].hex;
+  const appColor = useThemeStore((s) => s.appColor);
+  const setAppColor = useThemeStore((s) => s.setAppColor);
+  const accentHex = APP_COLOR_PRESETS[appColor].hex;
   const { t } = useTranslation();
 
   return (
@@ -135,20 +135,20 @@ export function GeneralSection() {
         </View>
       </View>
 
-      {/* Accent Color */}
+      {/* App Color */}
       <View className="gap-2">
         <Text className="text-[11px] font-semibold text-muted-foreground tracking-wider uppercase">
           {t("settings.accentColor.title")}
         </Text>
 
         <View className="flex-row gap-3 flex-wrap">
-          {ACCENT_COLOR_NAMES.map((key) => {
-            const preset = ACCENT_PRESETS[key];
-            const isSelected = accentColor === key;
+          {APP_COLOR_NAMES.map((key) => {
+            const preset = APP_COLOR_PRESETS[key];
+            const isSelected = appColor === key;
             return (
               <Pressable
                 key={key}
-                onPress={() => setAccentColor(key)}
+                onPress={() => setAppColor(key)}
                 className="items-center gap-1.5"
               >
                 <View

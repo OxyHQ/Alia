@@ -830,28 +830,30 @@ const ChatSidebar = React.memo(function ChatSidebar() {
     </View>
   );
 
-  // Footer with share banner + icon bar or auth buttons
+  // Share banner - floats above scroll content
+  const shareBanner = isAuthenticated ? (
+    <Pressable
+      onPress={() => setInviteDialogOpen(true)}
+      className="flex-row items-center gap-3 md:gap-2 p-2.5 md:p-2 rounded-xl bg-muted active:bg-muted/80"
+    >
+      <Gift size={18} className="text-foreground" />
+      <View className="flex-1">
+        <Text className="text-sm md:text-xs font-medium text-foreground">
+          Share Alia with a friend
+        </Text>
+        <Text className="text-xs md:text-[10px] text-muted-foreground">
+          Get 500 credits each
+        </Text>
+      </View>
+      <ChevronRight size={16} className="text-muted-foreground" />
+    </Pressable>
+  ) : null;
+
+  // Footer with icon bar or auth buttons
   const footer = (
     <>
         {isAuthenticated ? (
           <View className="gap-2">
-            {/* Share Banner */}
-            <Pressable
-              onPress={() => setInviteDialogOpen(true)}
-              className="flex-row items-center gap-3 md:gap-2 p-2.5 md:p-2 rounded-xl bg-muted/50 active:bg-muted"
-            >
-              <Gift size={18} className="text-primary" />
-              <View className="flex-1">
-                <Text className="text-sm md:text-xs font-medium text-foreground">
-                  Share Alia with a friend
-                </Text>
-                <Text className="text-xs md:text-[10px] text-muted-foreground">
-                  Get 500 credits each
-                </Text>
-              </View>
-              <ChevronRight size={16} className="text-muted-foreground" />
-            </Pressable>
-
             {/* Icon Button Bar */}
             <View className="flex-row items-center">
               {/* User avatar - opens account dropdown */}
@@ -1017,8 +1019,9 @@ const ChatSidebar = React.memo(function ChatSidebar() {
         topSection={topSection}
         navigation={navigation}
         scrollableContent={scrollableContent}
+        scrollOverlay={shareBanner}
         footer={footer}
-        backgroundColor="bg-background"
+        backgroundColor="bg-sidebar"
         onScroll={handleScroll}
         showScrollIndicator={false}
       />
