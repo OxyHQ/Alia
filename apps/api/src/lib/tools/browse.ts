@@ -10,6 +10,7 @@ import { z } from 'zod';
 import { Stagehand } from '@browserbasehq/stagehand';
 import { validateUrl } from './sandbox.js';
 import { log } from '../logger.js';
+import { getErrorMessage } from '../errors/index.js';
 
 export interface BrowseSearchResult {
   title: string;
@@ -137,9 +138,9 @@ export const browseTool = tool({
       }
 
       return { action, error: 'Invalid action' };
-    } catch (err: any) {
+    } catch (err: unknown) {
       log.tools.error({ err, action, query, url }, 'Browse tool error');
-      return { action, error: err.message || 'Browse failed' };
+      return { action, error: getErrorMessage(err) };
     } finally {
       if (stagehand) {
         try {

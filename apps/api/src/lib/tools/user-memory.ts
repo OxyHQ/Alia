@@ -80,11 +80,11 @@ export const saveUserMemoryTool = (oxyUserId: string) => tool({
         message: `Recuerdo guardado exitosamente: ${key} = ${value}`,
         totalMemories: memory.memories.length
       };
-    } catch (error: any) {
+    } catch (error: unknown) {
       log.tools.error({ err: error }, 'Error');
       return {
         success: false,
-        message: `Error al guardar el recuerdo: ${error.message}`
+        message: `Error al guardar el recuerdo: ${getErrorMessage(error)}`
       };
     }
   },
@@ -130,11 +130,11 @@ export const updateUserPreferencesTool = (oxyUserId: string) => tool({
         message: 'Preferences updated successfully',
         preferences: memory.preferences,
       };
-    } catch (error: any) {
+    } catch (error: unknown) {
       log.tools.error({ err: error }, 'Error updating preferences');
       return {
         success: false,
-        message: `Failed to update preferences: ${error.message}`,
+        message: `Failed to update preferences: ${getErrorMessage(error)}`,
       };
     }
   },
@@ -171,11 +171,11 @@ export const updateUserContextTool = (oxyUserId: string) => tool({
         message: 'Contexto actualizado exitosamente',
         context: memory.context
       };
-    } catch (error: any) {
+    } catch (error: unknown) {
       log.tools.error({ err: error }, 'Error');
       return {
         success: false,
-        message: `Error al actualizar contexto: ${error.message}`
+        message: `Error al actualizar contexto: ${getErrorMessage(error)}`
       };
     }
   },

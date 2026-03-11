@@ -18,7 +18,7 @@ import { ContextNode } from '../models/context-node.js';
 import { sendNotification } from '../lib/notification-service.js';
 import { enqueueAgentSession } from '../lib/task-queue.js';
 import { log } from '../lib/logger.js';
-import { getErrorMessage } from '../lib/errors/index.js';
+import { getErrorMessage, isDuplicateKeyError } from '../lib/errors/index.js';
 import { autonomyFlags } from '../lib/autonomy/flags.js';
 
 const router = Router();
@@ -320,7 +320,7 @@ router.post('/:serviceId', async (req: Request, res: Response) => {
         message,
       }).catch((err) => log.general.error({ err, serviceId, event }, 'Async processing failed'));
     } catch (insertErr: unknown) {
-      if (insertErr instanceof Error && 'code' in insertErr && (insertErr as { code: number }).code === 11000) {
+      if (isDuplicateKeyError(insertErr)) {
         await OxyServiceEventLog.updateOne(
           { serviceId, oxyUserId: userId, eventId },
           { $set: { status: 'duplicate', processedAt: new Date() } }

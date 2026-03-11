@@ -1,6 +1,7 @@
 import crypto from 'crypto';
 import type { ChannelPlugin, OutboundContext, OutboundResult, ChannelInboundMessage } from '../types.js';
 import type { Request } from 'express';
+import { getErrorMessage } from '../../errors/index.js';
 
 export const discordPlugin: ChannelPlugin = {
   id: 'discord',
@@ -54,8 +55,8 @@ export const discordPlugin: ChannelPlugin = {
 
         const data = await res.json() as any;
         return { channel: 'discord', ok: true, messageId: data.id };
-      } catch (err: any) {
-        return { channel: 'discord', ok: false, error: err.message };
+      } catch (err: unknown) {
+        return { channel: 'discord', ok: false, error: getErrorMessage(err) };
       }
     },
   },

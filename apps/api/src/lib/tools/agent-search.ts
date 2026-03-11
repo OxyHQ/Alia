@@ -7,6 +7,7 @@ import { tool } from 'ai';
 import { z } from 'zod';
 import { Agent } from '../../models/agent.js';
 import { log } from '../logger.js';
+import { getErrorMessage } from '../errors/index.js';
 
 const MAX_RESULTS = 10;
 
@@ -56,9 +57,9 @@ export const createSearchAgentsTool = () => tool({
         })),
         count: agents.length,
       };
-    } catch (error: any) {
+    } catch (error: unknown) {
       log.general.error({ err: error, query }, 'Agent search failed');
-      return { agents: [], count: 0, error: error.message };
+      return { agents: [], count: 0, error: getErrorMessage(error) };
     }
   },
 });

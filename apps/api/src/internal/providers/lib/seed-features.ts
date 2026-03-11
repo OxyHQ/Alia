@@ -11,6 +11,7 @@ import { Feature } from '../models/feature.js';
 import { PlanFeature } from '../models/plan-feature.js';
 import { connectDB } from './db.js';
 import { log } from '../../../lib/logger.js';
+import { isDuplicateKeyError } from '../../../lib/errors/index.js';
 
 // ─── Feature seed data ──────────────────────────────────────
 
@@ -267,7 +268,7 @@ export async function seedFeatures(): Promise<{ seeded: number; skipped: number 
         skipped++;
       }
     } catch (error: unknown) {
-      if (error instanceof Error && 'code' in error && (error as any).code === 11000) {
+      if (isDuplicateKeyError(error)) {
         skipped++;
       } else {
         log.seed.error({ err: error, featureId: f.featureId }, 'Error seeding feature');

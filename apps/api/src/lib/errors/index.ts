@@ -19,6 +19,7 @@ export {
 export {
   classifyError,
   getErrorMessage,
+  isDuplicateKeyError,
   isTimeoutError,
   toAliaError,
   getRetryAfterHeader,

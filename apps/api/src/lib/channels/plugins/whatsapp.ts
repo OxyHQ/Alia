@@ -1,6 +1,7 @@
 import crypto from 'crypto';
 import type { ChannelPlugin, OutboundContext, OutboundResult, ChannelInboundMessage } from '../types.js';
 import type { Request } from 'express';
+import { getErrorMessage } from '../../errors/index.js';
 
 export const whatsappPlugin: ChannelPlugin = {
   id: 'whatsapp',
@@ -66,8 +67,8 @@ export const whatsappPlugin: ChannelPlugin = {
         const data = await res.json() as any;
         const messageId = data.messages?.[0]?.id;
         return { channel: 'whatsapp', ok: true, messageId };
-      } catch (err: any) {
-        return { channel: 'whatsapp', ok: false, error: err.message };
+      } catch (err: unknown) {
+        return { channel: 'whatsapp', ok: false, error: getErrorMessage(err) };
       }
     },
   },

@@ -9,6 +9,7 @@
 import { Plan } from '../models/plan.js';
 import { connectDB } from './db.js';
 import { log } from '../../../lib/logger.js';
+import { isDuplicateKeyError } from '../../../lib/errors/index.js';
 
 interface PlanSeed {
   planId: string;
@@ -195,7 +196,7 @@ export async function seedPlans(): Promise<{ seeded: number; skipped: number }> 
         skipped++;
       }
     } catch (error: unknown) {
-      if (error instanceof Error && 'code' in error && (error as any).code === 11000) {
+      if (isDuplicateKeyError(error)) {
         skipped++;
       } else {
         log.seed.error({ err: error, planId: planData.planId }, 'Error seeding plan');

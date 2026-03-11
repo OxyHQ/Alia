@@ -15,6 +15,7 @@ import { tool, type ToolSet } from 'ai';
 import { OxyService, type IOxyServiceTool, type IOxyServiceToolEndpoint } from '../../models/oxy-service.js';
 import { jsonSchemaToZod } from './mcp-schema.js';
 import { log } from '../logger.js';
+import { getErrorMessage } from '../errors/index.js';
 
 const TOOL_TIMEOUT_MS = 15_000;
 const OXY_API_URL = process.env.OXY_API_URL || 'https://api.oxy.so';
@@ -26,9 +27,9 @@ const OXY_API_URL = process.env.OXY_API_URL || 'https://api.oxy.so';
 async function safeExecute(service: string, fn: () => Promise<any>): Promise<any> {
   try {
     return await fn();
-  } catch (err: any) {
+  } catch (err: unknown) {
     log.general.warn({ err, service }, 'Oxy service tool error');
-    return { error: `Could not access ${service}: ${err.message?.slice(0, 150) || 'unknown error'}` };
+    return { error: `Could not access ${service}: ${getErrorMessage(err).slice(0, 150)}` };
   }
 }
 

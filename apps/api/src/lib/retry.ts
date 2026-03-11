@@ -4,13 +4,13 @@
  */
 
 import { log } from './logger.js';
-import { getErrorMessage } from './errors/index.js';
+import { getErrorMessage, getRetryAfterHeader } from './errors/index.js';
 
 export interface RetryOptions {
   maxAttempts?: number;     // Default 3
   minDelay?: number;        // Default 500ms
   maxDelay?: number;        // Default 5000ms
-  shouldRetry?: (error: any) => boolean;
+  shouldRetry?: (error: unknown) => boolean;
 }
 
 const DEFAULT_OPTIONS: Required<RetryOptions> = {
@@ -30,7 +30,7 @@ export async function withRetry<T>(
 ): Promise<T> {
   const { maxAttempts, minDelay, maxDelay, shouldRetry } = { ...DEFAULT_OPTIONS, ...opts };
 
-  let lastError: any;
+  let lastError: unknown;
 
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     try {
@@ -48,8 +48,8 @@ export async function withRetry<T>(
       const delay = Math.max(0, Math.round(baseDelay + jitter));
 
       // Respect Retry-After header if present
-      const retryAfter = (error as any)?.headers?.get?.('retry-after');
-      const finalDelay = retryAfter ? Math.max(delay, parseInt(retryAfter, 10) * 1000) : delay;
+      const retryAfterSec = getRetryAfterHeader(error);
+      const finalDelay = retryAfterSec ? Math.max(delay, retryAfterSec * 1000) : delay;
 
       log.general.warn({ attempt, maxAttempts, delay: finalDelay, error: getErrorMessage(error) }, 'Retrying after transient failure');
       await new Promise(resolve => setTimeout(resolve, finalDelay));
