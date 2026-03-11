@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useMemo, useRef } from "react";
+import { useState, useCallback, useEffect, useMemo } from "react";
 import { useSharedValue, withTiming, Easing } from "react-native-reanimated";
 import { View, Pressable, useWindowDimensions } from "react-native";
 import { useColorScheme } from "@/lib/useColorScheme";
@@ -28,7 +28,6 @@ import { useEntitlements } from "@/lib/hooks/use-billing";
 import { useCredits } from "@/lib/hooks/use-credits";
 import { useRouter } from "expo-router";
 import { useTranslation } from "@/hooks/useTranslation";
-import { useGenerateSuggestions } from "@/lib/hooks/use-suggestions";
 import type { useVoiceMode } from "@/lib/hooks/use-voice-mode";
 import { useTTS } from "@/lib/hooks/use-tts";
 import { useSTTStore } from "@/lib/stores/stt-store";
@@ -172,16 +171,6 @@ export const ChatPageContent = ({
   const [bottomBarHeight, setBottomBarHeight] = useState(160);
   const [isAtBottom, setIsAtBottom] = useState(true);
   const isMainScreen = messages.length === 0;
-
-  // Auto-generate personalized suggestions after first message (once per session)
-  const { mutate: generateSuggestions } = useGenerateSuggestions();
-  const hasGeneratedRef = useRef(false);
-  useEffect(() => {
-    if (messages.length === 1 && !hasGeneratedRef.current && isAuthenticated) {
-      hasGeneratedRef.current = true;
-      generateSuggestions({ count: 8, types: ['welcome', 'autocomplete'] });
-    }
-  }, [messages.length, isAuthenticated, generateSuggestions]);
 
   const handleScrollToBottom = useCallback(() => {
     scrollViewRef.current?.scrollToEnd({ animated: true });

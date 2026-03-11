@@ -14,9 +14,11 @@ interface VoiceOverlayProps {
   waveAmplitude: SharedValue<number>;
   agentState: AgentState;
   isConnected: boolean;
+  primaryColor?: string;
+  isDarkMode?: boolean;
 }
 
-export function VoiceOverlay({ waveAmplitude, agentState, isConnected }: VoiceOverlayProps) {
+export function VoiceOverlay({ waveAmplitude, agentState, isConnected, primaryColor, isDarkMode }: VoiceOverlayProps) {
   return (
     <Animated.View
       entering={FadeIn.duration(400)}
@@ -36,6 +38,8 @@ export function VoiceOverlay({ waveAmplitude, agentState, isConnected }: VoiceOv
           waveAmplitude={waveAmplitude}
           agentState={agentState}
           isConnected={isConnected}
+          primaryColor={primaryColor}
+          isDarkMode={isDarkMode}
         />
       </View>
     </Animated.View>

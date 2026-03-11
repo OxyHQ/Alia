@@ -12,7 +12,7 @@ import { AppErrorBoundary } from '@/components/error-boundary';
 import { KeyboardProvider } from '@/lib/keyboard';
 import { useColorScheme } from '@/lib/useColorScheme';
 import { useThemeStore } from '@/lib/stores/theme-store';
-import { ACCENT_PRESETS, getAccentCSSVariables, applyAccentToDocument } from '@/lib/accent-presets';
+import { APP_COLOR_PRESETS, getAppColorCSSVariables, applyAppColorToDocument } from '@/lib/app-color-presets';
 import { setTokenGetter } from '@/lib/api/client';
 import 'react-native-reanimated';
 import '../global.css';
@@ -40,19 +40,19 @@ function AuthSetup({ children }: { children: React.ReactNode }) {
 
 function AppContent() {
   const { colors, colorScheme } = useColorScheme();
-  const accentColor = useThemeStore((s) => s.accentColor);
+  const appColor = useThemeStore((s) => s.appColor);
 
-  // Web: apply accent CSS variables to document
+  // Web: apply app color CSS variables to document
   useEffect(() => {
-    applyAccentToDocument(accentColor, colorScheme);
-  }, [accentColor, colorScheme]);
+    applyAppColorToDocument(appColor, colorScheme);
+  }, [appColor, colorScheme]);
 
-  // Native: cascade accent CSS variables via NativeWind vars()
-  const accentVars = useMemo(() => {
-    if (accentColor === 'default') return undefined;
-    const preset = ACCENT_PRESETS[accentColor];
-    return vars(getAccentCSSVariables(preset, colorScheme));
-  }, [accentColor, colorScheme]);
+  // Native: cascade app color CSS variables via NativeWind vars()
+  const colorVars = useMemo(() => {
+    if (appColor === 'purple') return undefined;
+    const preset = APP_COLOR_PRESETS[appColor];
+    return vars(getAppColorCSSVariables(preset, colorScheme));
+  }, [appColor, colorScheme]);
 
   const stack = (
     <Stack
@@ -69,7 +69,7 @@ function AppContent() {
 
   return (
     <AuthSetup>
-      <View style={[{ flex: 1 }, accentVars]}>
+      <View style={[{ flex: 1 }, colorVars]}>
         <KeyboardProvider>{stack}</KeyboardProvider>
       </View>
     </AuthSetup>

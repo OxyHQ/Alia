@@ -323,14 +323,12 @@ export function CreditsPanel() {
         </View>
 
         {/* Usage Chart */}
-        <View className="px-4 pb-4">
-          <View className="border border-border rounded-xl p-3">
-            <View className="flex-row items-center justify-between mb-2">
-              <Text className="text-xs font-medium text-muted-foreground">{t('credits.creditUsage')}</Text>
-              <PeriodToggle value={period} onChange={setPeriod} />
-            </View>
-            <UsageChart period={period} />
+        <View className="px-4 pb-3 border-b border-border">
+          <View className="flex-row items-center justify-between mb-2">
+            <Text className="text-xs font-medium text-muted-foreground">{t('credits.creditUsage')}</Text>
+            <PeriodToggle value={period} onChange={setPeriod} />
           </View>
+          <UsageChart period={period} />
         </View>
 
         {/* Buy Credits */}

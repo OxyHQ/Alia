@@ -1,6 +1,7 @@
 import React, { useEffect } from 'react';
 import { View, Platform, useWindowDimensions } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
+import { useAliaColors } from '../../theme';
 import Animated, {
   useSharedValue,
   useAnimatedProps,
@@ -167,19 +168,78 @@ const BLOB_COLORS: Record<AgentState, string[]> = {
   speaking: ['#1e2870', '#6366f1', '#9333ea', '#0ea5e9'],
 };
 
+// Derive wave & blob palettes from a hex color
+function hexToRgb(hex: string): [number, number, number] {
+  const h = hex.replace('#', '');
+  return [parseInt(h.slice(0, 2), 16), parseInt(h.slice(2, 4), 16), parseInt(h.slice(4, 6), 16)];
+}
+
+function darken(rgb: [number, number, number], factor: number): [number, number, number] {
+  return [Math.round(rgb[0] * factor), Math.round(rgb[1] * factor), Math.round(rgb[2] * factor)];
+}
+
+function lighten(rgb: [number, number, number], factor: number): [number, number, number] {
+  return [
+    Math.min(255, Math.round(rgb[0] + (255 - rgb[0]) * factor)),
+    Math.min(255, Math.round(rgb[1] + (255 - rgb[1]) * factor)),
+    Math.min(255, Math.round(rgb[2] + (255 - rgb[2]) * factor)),
+  ];
+}
+
+function deriveWavePalette(hex: string, isDark: boolean): { waves: string[]; blobs: string[] } {
+  const rgb = hexToRgb(hex);
+  // Dark mode: lighter/brighter waves visible against dark bg
+  // Light mode: darker waves visible against light bg
+  const layer0 = isDark ? darken(rgb, 0.55) : darken(rgb, 0.3);
+  const layer1 = isDark ? lighten(rgb, 0.15) : darken(rgb, 0.5);
+  const layer2 = isDark ? lighten(rgb, 0.4) : darken(rgb, 0.15);
+  const layer3 = isDark ? lighten(rgb, 0.6) : rgb;
+  return {
+    waves: [
+      `rgba(${layer0[0]}, ${layer0[1]}, ${layer0[2]}, 0.8)`,
+      `rgba(${layer1[0]}, ${layer1[1]}, ${layer1[2]}, 0.45)`,
+      `rgba(${layer2[0]}, ${layer2[1]}, ${layer2[2]}, 0.35)`,
+      `rgba(${layer3[0]}, ${layer3[1]}, ${layer3[2]}, 0.25)`,
+    ],
+    blobs: [
+      `rgb(${layer0[0]}, ${layer0[1]}, ${layer0[2]})`,
+      `rgb(${layer1[0]}, ${layer1[1]}, ${layer1[2]})`,
+      `rgb(${layer2[0]}, ${layer2[1]}, ${layer2[2]})`,
+      `rgb(${layer3[0]}, ${layer3[1]}, ${layer3[2]})`,
+    ],
+  };
+}
+
 interface AudioWaveVisualizerProps {
   waveAmplitude: SharedValue<number>;
   agentState: AgentState;
   isConnected: boolean;
+  /** Theme primary color hex — derives idle/listening wave palette */
+  primaryColor?: string;
+  /** Whether the app is in dark mode (affects wave brightness) */
+  isDarkMode?: boolean;
 }
 
 export function AudioWaveVisualizer({
   waveAmplitude,
   agentState = 'idle',
   isConnected,
+  primaryColor,
+  isDarkMode,
 }: AudioWaveVisualizerProps) {
   const { width: screenWidth } = useWindowDimensions();
+  const aliaColors = useAliaColors();
+  const effectiveIsDark = isDarkMode ?? aliaColors.isDark;
   const state = WAVE_COLORS[agentState] ? agentState : 'idle';
+
+  // Use theme-derived palette for idle/listening, keep hardcoded for thinking/speaking
+  const themed = primaryColor ? deriveWavePalette(primaryColor, effectiveIsDark) : null;
+  const waveColors = (state === 'idle' || state === 'listening') && themed
+    ? themed.waves
+    : WAVE_COLORS[state];
+  const blobColors = (state === 'idle' || state === 'listening') && themed
+    ? themed.blobs
+    : BLOB_COLORS[state];
 
   return (
     <View
@@ -194,7 +254,7 @@ export function AudioWaveVisualizer({
         <GlowBlob
           key={`blob-${i}`}
           blob={blob}
-          color={BLOB_COLORS[state][i]}
+          color={blobColors[i]}
           waveAmplitude={waveAmplitude}
           isConnected={isConnected}
           screenWidth={screenWidth}
@@ -206,7 +266,7 @@ export function AudioWaveVisualizer({
         <OceanWave
           key={`wave-${i}`}
           layer={layer}
-          color={WAVE_COLORS[state][i]}
+          color={waveColors[i]}
           waveAmplitude={waveAmplitude}
           isConnected={isConnected}
           screenWidth={screenWidth}
