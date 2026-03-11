@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { generateText } from 'ai';
-import { Agent, AGENT_ARCHETYPES } from '../models/agent.js';
+import { Agent, AGENT_ARCHETYPES, type IAgent } from '../models/agent.js';
 import { AgentSession } from '../models/agent-session.js';
 import { AgentReview } from '../models/agent-review.js';
 import { Conversation } from '../models/conversation.js';
@@ -1109,7 +1109,7 @@ router.get('/:id/sessions/:sessionId/activity', authenticateToken, async (req: R
 async function syncArchetypeTriggers(
   agentId: string,
   userId: string,
-  agent: { archetype?: string; archetypeConfig?: any; name?: string },
+  agent: Pick<IAgent, 'archetype' | 'archetypeConfig' | 'name'>,
 ): Promise<void> {
   const config = agent.archetypeConfig;
   if (!config) return;
