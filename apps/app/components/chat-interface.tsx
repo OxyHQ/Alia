@@ -392,7 +392,7 @@ export const ChatInterface = React.memo(function ChatInterface({ messages, scrol
 
                   {/* Message Content */}
                   {(messageText.length > 0 || messageImages.length > 0 || (m as any).isStreaming) && (
-                    <View key="message-content" className={`w-full ${m.role === "user" ? "mt-2" : ""}`}>
+                    <View key="message-content" className={cn("w-full", m.role === "user" && "mt-2")}>
                       {m.role === "assistant" ? (
                         // Assistant message: text below (flying face handles avatar)
                         <DropdownMenu.Root>

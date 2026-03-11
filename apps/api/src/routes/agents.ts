@@ -21,6 +21,35 @@ import type { Request, Response } from 'express';
 
 const router = Router();
 
+/** Batch-attach child agent info to parent sessions (for delegation display). Mutates in place. */
+async function attachChildAgents(sessions: Record<string, any>[], userId: string): Promise<void> {
+  const sessionIds = sessions.map(s => s._id);
+  if (sessionIds.length === 0) return;
+
+  const childSessions = await AgentSession.find({
+    parentSessionId: { $in: sessionIds },
+    userId,
+  })
+    .populate('agentId', 'name handle avatar')
+    .select('agentId parentSessionId')
+    .lean();
+
+  const childMap = new Map<string, typeof childSessions>();
+  for (const child of childSessions) {
+    if (!child.parentSessionId || !child.agentId) continue;
+    const key = child.parentSessionId.toString();
+    if (!childMap.has(key)) childMap.set(key, []);
+    childMap.get(key)!.push(child);
+  }
+
+  for (const session of sessions) {
+    const children = childMap.get(session._id.toString());
+    if (children?.length) {
+      session.childAgents = children.map(c => c.agentId);
+    }
+  }
+}
+
 type SessionResourceLike = {
   type: string;
   resourceId: string;

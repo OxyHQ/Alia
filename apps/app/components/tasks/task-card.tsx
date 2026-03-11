@@ -24,7 +24,7 @@ export const TaskCard = React.memo(function TaskCard({
   onPress,
 }: TaskCardProps) {
   const { colors } = useColorScheme();
-  const statusConfig = getStatusConfig(task.status, colors);
+  const statusConfig = useMemo(() => getStatusConfig(task.status, colors), [task.status, colors]);
   const [expanded, setExpanded] = useState(false);
   const [elapsed, setElapsed] = useState('');
 
