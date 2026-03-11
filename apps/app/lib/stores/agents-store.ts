@@ -2,6 +2,25 @@ import { create } from 'zustand';
 import apiClient from '../api/client';
 import { API_ROUTES } from '../api/routes';
 
+export interface AgentAccessory {
+  accessoryId: string;
+  position: { x: number; y: number; scale: number; rotation: number };
+}
+
+/** Normalizes accessories from API (may be string[] or AgentAccessory[]) */
+export function normalizeAccessories(raw: unknown): AgentAccessory[] {
+  if (!Array.isArray(raw)) return [];
+  return raw.map((item) => {
+    if (typeof item === 'string') {
+      return { accessoryId: item, position: { x: 0.5, y: 0.5, scale: 1, rotation: 0 } };
+    }
+    if (item && typeof item === 'object' && 'accessoryId' in item) {
+      return item as AgentAccessory;
+    }
+    return null;
+  }).filter(Boolean) as AgentAccessory[];
+}
+
 export interface Agent {
   _id: string;
   name: string;
@@ -28,7 +47,7 @@ export interface Agent {
   isPublished: boolean;
   status: 'active' | 'idle' | 'offline';
   creditBalance: number;
-  accessories: string[];
+  accessories: AgentAccessory[];
   allowHiring: boolean;
   systemPrompt?: string;
   allowedModels?: string[];
@@ -77,11 +96,11 @@ export const useAgentsStore = create<AgentsStoreState>((set, get) => ({
     try {
       set({ loading: true, error: null });
       const res = await apiClient.get(API_ROUTES.agents.list, { params });
-      set({
-        agents: res.data.agents,
-        total: res.data.total,
-        loading: false,
-      });
+      const agents = (res.data.agents as Agent[]).map((a) => ({
+        ...a,
+        accessories: normalizeAccessories(a.accessories),
+      }));
+      set({ agents, total: res.data.total, loading: false });
     } catch (error: any) {
       console.error('Error loading agents:', error);
       set({ error: error.message, loading: false });
@@ -91,7 +110,8 @@ export const useAgentsStore = create<AgentsStoreState>((set, get) => ({
   getAgent: async (id: string) => {
     try {
       const res = await apiClient.get(API_ROUTES.agents.get(id));
-      return res.data.agent;
+      const agent = res.data.agent;
+      return { ...agent, accessories: normalizeAccessories(agent.accessories) } as Agent;
     } catch (error) {
       console.error('Error getting agent:', error);
       return null;

@@ -36,6 +36,8 @@ export type AliaExpression =
 export interface AliaAccessory {
   layer: 'front' | 'behind';
   image: ImageSourcePropType;
+  /** Optional position overrides (ratios 0-1, scale multiplier, rotation in degrees) */
+  position?: { x: number; y: number; scale: number; rotation: number };
 }
 
 export interface AliaFaceProps {
@@ -369,7 +371,14 @@ export function AliaFace({
       <View style={{ width: size, height: size, overflow: 'visible' as const }}>
         {/* Behind-layer accessories (e.g. headphones) */}
         {behind.map((acc, i) => (
-          <Image key={`behind-${i}`} source={acc.image} style={accessoryStyle} />
+          <Image key={`behind-${i}`} source={acc.image} style={acc.position ? {
+            position: 'absolute',
+            width: size * acc.position.scale,
+            height: size * acc.position.scale,
+            top: (acc.position.y - 0.5) * size + (size - size * acc.position.scale) / 2,
+            left: (acc.position.x - 0.5) * size + (size - size * acc.position.scale) / 2,
+            transform: [{ rotate: `${acc.position.rotation}deg` }],
+          } : accessoryStyle} />
         ))}
 
         {/* Face circle */}
@@ -427,7 +436,14 @@ export function AliaFace({
 
         {/* Front-layer accessories (e.g. hat, glasses, tie) */}
         {front.map((acc, i) => (
-          <Image key={`front-${i}`} source={acc.image} style={accessoryStyle} />
+          <Image key={`front-${i}`} source={acc.image} style={acc.position ? {
+            position: 'absolute',
+            width: size * acc.position.scale,
+            height: size * acc.position.scale,
+            top: (acc.position.y - 0.5) * size + (size - size * acc.position.scale) / 2,
+            left: (acc.position.x - 0.5) * size + (size - size * acc.position.scale) / 2,
+            transform: [{ rotate: `${acc.position.rotation}deg` }],
+          } : accessoryStyle} />
         ))}
       </View>
 
