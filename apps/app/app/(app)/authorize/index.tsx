@@ -12,6 +12,7 @@ import { Text } from '@/components/ui/text';
 import { Separator } from '@/components/ui/separator';
 import { io as socketIO } from 'socket.io-client';
 import { useTranslation } from '@/hooks/useTranslation';
+import { useColorScheme } from '@/lib/useColorScheme';
 
 type AppType = string;
 type Status = 'loading' | 'authorize' | 'authorizing' | 'success' | 'error' | 'needLogin';
@@ -63,6 +64,7 @@ export default function AuthorizeScreen() {
   const { isAuthenticated, isLoading: authLoading } = useAuth();
   const { isAuthenticated: isOxyAuth } = useOxy();
   const { t } = useTranslation();
+  const { colors } = useColorScheme();
 
   // Determine app type from params
   const app = (params.app as AppType) || 'codea';
@@ -249,7 +251,7 @@ export default function AuthorizeScreen() {
       <AuthContainer>
         <AuthLogo />
         <View className="items-center py-8">
-          <ActivityIndicator size="large" color="#667eea" />
+          <ActivityIndicator size="large" color={colors.primary} />
           <Text className="text-muted-foreground mt-4">{t('common.loading')}</Text>
         </View>
       </AuthContainer>
@@ -309,7 +311,7 @@ export default function AuthorizeScreen() {
           <Card>
             <CardContent>
               <View className="items-center py-4 gap-3">
-                <ActivityIndicator size="large" color="#667eea" />
+                <ActivityIndicator size="large" color={colors.primary} />
                 <Text className="text-xl font-semibold text-foreground">
                   {appConfig.isChannel ? t('authorize.linkingAccount') : t('authorize.authorizing')}
                 </Text>

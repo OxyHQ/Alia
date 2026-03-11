@@ -4,6 +4,7 @@ import { Text } from "@/components/ui/text";
 import { io as socketIO, type Socket } from "socket.io-client";
 import config from "@/lib/config";
 import apiClient from "@/lib/api/client";
+import { useColorScheme } from "@/lib/useColorScheme";
 
 interface AgentTerminalProps {
   agentId: string;
@@ -76,6 +77,7 @@ export function AgentTerminal({ agentId }: AgentTerminalProps) {
 // ---------------------------------------------------------------------------
 
 function WebTerminal({ agentId }: AgentTerminalProps) {
+  const { colors } = useColorScheme();
   const containerRef = useRef<HTMLDivElement | null>(null);
   const terminalRef = useRef<any>(null);
   const fitAddonRef = useRef<any>(null);
@@ -265,7 +267,7 @@ function WebTerminal({ agentId }: AgentTerminalProps) {
     <View className="flex-1 bg-[#0d0d0d] overflow-hidden rounded-lg border border-border">
       {!ready && (
         <View className="absolute inset-0 items-center justify-center z-10">
-          <ActivityIndicator size="small" color="#808080" />
+          <ActivityIndicator size="small" color={colors.mutedForeground} />
           <Text className="text-muted-foreground text-xs mt-2">
             Loading terminal...
           </Text>
@@ -376,6 +378,7 @@ const TERMINAL_HTML = `
 `;
 
 function NativeTerminal({ agentId }: AgentTerminalProps) {
+  const { colors } = useColorScheme();
   const webViewRef = useRef<any>(null);
   const socketRef = useRef<Socket | null>(null);
   const [webViewReady, setWebViewReady] = useState(false);
@@ -493,7 +496,7 @@ function NativeTerminal({ agentId }: AgentTerminalProps) {
   if (!WebViewComponent) {
     return (
       <View className="flex-1 bg-[#0d0d0d] items-center justify-center">
-        <ActivityIndicator size="small" color="#808080" />
+        <ActivityIndicator size="small" color={colors.mutedForeground} />
         <Text className="text-muted-foreground text-xs mt-2">
           Loading terminal...
         </Text>

@@ -54,6 +54,9 @@ module.exports = {
           DEFAULT: "hsl(var(--surface))",
           foreground: "hsl(var(--surface-foreground))",
         },
+        "content-area": {
+          DEFAULT: "hsl(var(--content-area))",
+        },
         chart: {
           1: "hsl(var(--chart-1))",
           2: "hsl(var(--chart-2))",

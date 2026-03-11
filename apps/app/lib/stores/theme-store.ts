@@ -1,9 +1,9 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { colorScheme as nwColorScheme } from 'nativewind';
 import { Platform } from 'react-native';
 import { type AppColorName, applyAppColorToDocument } from '../app-color-presets';
+import { setColorSchemeSafe } from '../set-color-scheme-safe';
 
 export type ThemeMode = 'light' | 'dark' | 'system';
 
@@ -27,7 +27,7 @@ export const useThemeStore = create<ThemeState>()(
       storage: createJSONStorage(() => AsyncStorage),
       onRehydrateStorage: () => (state) => {
         if (!state?.mode) return;
-        nwColorScheme.set(state.mode);
+        setColorSchemeSafe(state.mode);
         if (Platform.OS === 'web' && typeof document !== 'undefined') {
           const resolved = state.mode === 'system'
             ? (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')

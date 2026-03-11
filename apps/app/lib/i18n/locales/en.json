@@ -196,7 +196,9 @@
       "title": "App Color",
       "purple": "Purple",
       "green": "Green",
-      "blue": "Blue"
+      "blue": "Blue",
+      "yellow": "Yellow",
+      "orange": "Orange"
     }
   },
   "nav": {
