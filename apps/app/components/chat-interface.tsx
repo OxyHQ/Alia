@@ -39,6 +39,8 @@ import { ResearchProgressCard, PlanPreviewCard } from '@alia.onl/sdk';
 import type { ResearchProgress as ResearchProgressData } from '@alia.onl/sdk';
 import type { AgentActivityState } from "@/lib/hooks/use-agent-activity";
 import { Skeleton } from "@/components/ui/skeleton";
+import apiClient from "@/lib/api/client";
+import { useTranslation } from "@/hooks/useTranslation";
 
 const isWeb = Platform.OS === "web";
 
@@ -143,9 +145,11 @@ function ToolBullet({ isRunning }: { isRunning: boolean }) {
 }
 
 export const ChatInterface = React.memo(function ChatInterface({ messages, scrollViewRef, isLoading, conversationLoading, onSuggestionPress, onEditMessage, onCopyMessage, bottomPadding = 160, isVoiceActive = false, voiceAgentState, onAtBottomChange, agentActivity, agentSessionId, onApprovePlan, onRejectPlan }: ChatInterfaceProps) {
+    const { t } = useTranslation();
     const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
     const [editedContent, setEditedContent] = useState("");
     const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
+    const [votedMessages, setVotedMessages] = useState<Record<string, 'up' | 'down'>>({});
     const openThoughtPanel = useUIStore((s) => s.openThoughtPanel);
     const setThoughtMessages = useUIStore((s) => s.setThoughtMessages);
     const { readAloud, activeMessageId: ttsActiveMessageId, playbackState: ttsPlaybackState } = useTTS();
@@ -219,17 +223,24 @@ export const ChatInterface = React.memo(function ChatInterface({ messages, scrol
       await Clipboard.setStringAsync(content);
       setCopiedMessageId(messageId);
       setTimeout(() => setCopiedMessageId(null), 2000);
-      toast.success("Copied to clipboard");
+      toast.success(t('chat.copiedToClipboard'));
       onCopyMessage?.(content);
-    }, [onCopyMessage]);
+    }, [onCopyMessage, t]);
 
-    const handleThumbsUp = useCallback((messageId: string) => {
-      toast.success("Thanks for your feedback!");
-    }, []);
-
-    const handleThumbsDown = useCallback((messageId: string) => {
-      toast("Thanks for your feedback");
-    }, []);
+    const handleVote = useCallback(async (messageId: string, vote: 'up' | 'down') => {
+      const currentVote = votedMessages[messageId];
+      const newVote = currentVote === vote ? null : vote;
+      setVotedMessages(prev => {
+        const next = { ...prev };
+        if (newVote) next[messageId] = newVote;
+        else delete next[messageId];
+        return next;
+      });
+      toast.success(t('chat.thanksFeedback'));
+      if (chatId?.id) {
+        apiClient.patch(`/conversations/${chatId.id}/messages/${messageId}/vote`, { vote: newVote }).catch(() => {});
+      }
+    }, [votedMessages, chatId, t]);
 
     const handleStartEdit = useCallback((messageId: string, content: string) => {
       setEditingMessageId(messageId);
@@ -453,11 +464,11 @@ export const ChatInterface = React.memo(function ChatInterface({ messages, scrol
                                 <Copy size={14} className="text-muted-foreground" />
                               )}
                             </Pressable>
-                            <Pressable key="thumbs-up" className="p-1.5 rounded-lg hover:bg-muted active:bg-muted" onPress={() => handleThumbsUp(m.id)}>
-                              <ThumbsUp size={14} className="text-muted-foreground" />
+                            <Pressable key="thumbs-up" className="p-1.5 rounded-lg hover:bg-muted active:bg-muted" onPress={() => handleVote(m.id, 'up')}>
+                              <ThumbsUp size={14} className={votedMessages[m.id] === 'up' ? "text-primary" : "text-muted-foreground"} />
                             </Pressable>
-                            <Pressable key="thumbs-down" className="p-1.5 rounded-lg hover:bg-muted active:bg-muted" onPress={() => handleThumbsDown(m.id)}>
-                              <ThumbsDown size={14} className="text-muted-foreground" />
+                            <Pressable key="thumbs-down" className="p-1.5 rounded-lg hover:bg-muted active:bg-muted" onPress={() => handleVote(m.id, 'down')}>
+                              <ThumbsDown size={14} className={votedMessages[m.id] === 'down' ? "text-primary" : "text-muted-foreground"} />
                             </Pressable>
                           </View>
                           )}
@@ -474,11 +485,11 @@ export const ChatInterface = React.memo(function ChatInterface({ messages, scrol
                             <DropdownMenu.ItemIcon ios={{ name: "doc.on.doc" }} />
                             <DropdownMenu.ItemTitle>Copy</DropdownMenu.ItemTitle>
                           </DropdownMenu.Item>
-                          <DropdownMenu.Item key="thumbs-up" onSelect={() => handleThumbsUp(m.id)}>
+                          <DropdownMenu.Item key="thumbs-up" onSelect={() => handleVote(m.id, 'up')}>
                             <DropdownMenu.ItemIcon ios={{ name: "hand.thumbsup" }} />
                             <DropdownMenu.ItemTitle>Like</DropdownMenu.ItemTitle>
                           </DropdownMenu.Item>
-                          <DropdownMenu.Item key="thumbs-down" onSelect={() => handleThumbsDown(m.id)}>
+                          <DropdownMenu.Item key="thumbs-down" onSelect={() => handleVote(m.id, 'down')}>
                             <DropdownMenu.ItemIcon ios={{ name: "hand.thumbsdown" }} />
                             <DropdownMenu.ItemTitle>Dislike</DropdownMenu.ItemTitle>
                           </DropdownMenu.Item>

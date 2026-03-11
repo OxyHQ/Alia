@@ -286,7 +286,9 @@
     "sendButton": "Enviar",
     "failedPickDocuments": "Error al seleccionar documentos. Inténtalo de nuevo.",
     "failedPasteImages": "Error al procesar las imágenes pegadas. Inténtalo de nuevo.",
-    "addSourcesHint": "Puedes agregar URLs, documentos u otras fuentes como referencia."
+    "addSourcesHint": "Puedes agregar URLs, documentos u otras fuentes como referencia.",
+    "copiedToClipboard": "Copiado al portapapeles",
+    "thanksFeedback": "¡Gracias por tu opinión!"
   },
   "credits": {
     "title": "Créditos",
