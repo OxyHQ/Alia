@@ -14,10 +14,8 @@ services:
 
     build_command: >-
       ELECTRON_SKIP_BINARY_DOWNLOAD=1 PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
-      ./scripts/with-bun.sh install --frozen-lockfile --filter @alia/api &&
-      ELECTRON_SKIP_BINARY_DOWNLOAD=1 PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
-      ./scripts/with-bun.sh run --filter @alia/api build
-    run_command: node apps/api/dist/index.js
+      bun run build:api
+    run_command: bun run start:api
     source_dir: /
     environment_slug: node-js
     instance_size_slug: apps-s-2vcpu-4gb
@@ -87,10 +85,8 @@ services:
 
     build_command: >-
       ELECTRON_SKIP_BINARY_DOWNLOAD=1 PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
-      ./scripts/with-bun.sh install --frozen-lockfile --filter @alia/gateway &&
-      ELECTRON_SKIP_BINARY_DOWNLOAD=1 PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
-      ./scripts/with-bun.sh run --filter @alia/gateway build
-    run_command: node apps/alia-gateway/dist/index.js
+      bun run build:gateway
+    run_command: bun run start:gateway
     source_dir: /
     environment_slug: node-js
 
@@ -129,10 +125,8 @@ services:
       deploy_on_push: true
     build_command: >-
       ELECTRON_SKIP_BINARY_DOWNLOAD=1 PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
-      ./scripts/with-bun.sh install --frozen-lockfile --filter alia-console &&
-      ELECTRON_SKIP_BINARY_DOWNLOAD=1 PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
-      ./scripts/with-bun.sh run --filter alia-console build
-    run_command: node apps/alia-console/.output/server/index.mjs
+      bun run build:admin
+    run_command: bun run start:admin
     source_dir: /
     environment_slug: node-js
     instance_size_slug: apps-s-1vcpu-0.5gb
@@ -167,10 +161,8 @@ services:
       deploy_on_push: true
     build_command: >-
       ELECTRON_SKIP_BINARY_DOWNLOAD=1 PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
-      ./scripts/with-bun.sh install --frozen-lockfile --filter alia-canvas &&
-      ELECTRON_SKIP_BINARY_DOWNLOAD=1 PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
-      ./scripts/with-bun.sh run --filter alia-canvas build
-    run_command: ./node_modules/.bin/next start -p 3002
+      bun run build:canvas
+    run_command: bun run start:canvas
     source_dir: /
     environment_slug: node-js
     instance_size_slug: apps-s-1vcpu-0.5gb
@@ -185,9 +177,7 @@ static_sites:
       deploy_on_push: true
     build_command: >-
       ELECTRON_SKIP_BINARY_DOWNLOAD=1 PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
-      ./scripts/with-bun.sh install --frozen-lockfile --filter @alia/app --filter @alia.onl/sdk &&
-      ELECTRON_SKIP_BINARY_DOWNLOAD=1 PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
-      ./scripts/with-bun.sh run --filter @alia/app build
+      bun run build:app
     source_dir: /
     environment_slug: node-js
     output_dir: apps/app/dist
@@ -200,9 +190,7 @@ static_sites:
       deploy_on_push: true
     build_command: >-
       ELECTRON_SKIP_BINARY_DOWNLOAD=1 PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
-      ./scripts/with-bun.sh install --frozen-lockfile --filter alia-gateway-admin &&
-      ELECTRON_SKIP_BINARY_DOWNLOAD=1 PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
-      ./scripts/with-bun.sh run --filter alia-gateway-admin build
+      bun run build:gateway-admin
     source_dir: /
     environment_slug: node-js
     output_dir: apps/alia-gateway-admin/dist
