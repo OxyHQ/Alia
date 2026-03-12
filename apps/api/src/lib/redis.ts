@@ -28,12 +28,17 @@ function parseRedisUrl(): { host: string; port: number; password?: string; usern
 
   try {
     const parsed = new URL(url);
+    let tls: object | undefined;
+    if (parsed.protocol === 'rediss:') {
+      const caCert = process.env.REDIS_CA_CERT || process.env.CA_CERT;
+      tls = caCert ? { ca: caCert } : {};
+    }
     return {
       host: parsed.hostname,
       port: parseInt(parsed.port || '6379', 10),
       password: parsed.password || undefined,
       username: parsed.username || undefined,
-      tls: parsed.protocol === 'rediss:' ? { rejectUnauthorized: false } : undefined,
+      tls,
     };
   } catch {
     log.general.warn('REDIS_URL is set but could not be parsed');
