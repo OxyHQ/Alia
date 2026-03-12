@@ -14,6 +14,7 @@ import { generateText } from 'ai';
 import { Show, type IShow } from '../../models/show.js';
 import { resolveModel, getAIModel, getDefaultAliaModel } from '../chat-core.js';
 import { callProviderAPI } from '../../internal/providers/lib/provider-api.js';
+import { extractAudioUrl, downloadBinaryFromUrl } from '../../internal/providers/lib/digitalocean-async.js';
 import { getModelMappingsForTier } from '../gateway-client.js';
 import { uploadToS3 } from '../s3.js';
 import { reserveCredits, finalizeCredits } from '../credits-manager.js';
@@ -111,6 +112,9 @@ export async function runShowPipeline(showId: string): Promise<void> {
     // Step 3: Generate audio for each segment (batched)
     await updateShow(show, { status: 'generating_audio' });
 
+    // Hoist tier lookup outside the per-segment loop
+    const ttsMappings = await getModelMappingsForTier('v1-tts');
+
     const totalSegments = indexedSegments.length;
     const segmentBuffers: Array<{ index: number; buffer: Buffer }> = [];
 
@@ -120,7 +124,7 @@ export async function runShowPipeline(showId: string): Promise<void> {
       const results = await Promise.allSettled(
         batch.map(async (segment) => {
           if (segment.type === 'dialogue') {
-            return generateTTSSegment(segment.text, speakers, segment.speaker);
+            return generateTTSSegment(segment.text, speakers, segment.speaker, ttsMappings);
           } else if (segment.type === 'sfx' || segment.type === 'transition') {
             return generateSFXSegment(segment.sfxPrompt || 'short transition sound, 2 seconds');
           }
@@ -242,7 +246,6 @@ async function generateScript(show: IShow): Promise<ShowScript | null> {
   const MAX_RETRIES = 3;
   const skipProviders = new Set<string>();
 
-  // Estimate target duration from segment count or default to 3 minutes
   const targetMinutes = 3;
 
   for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
@@ -308,20 +311,19 @@ async function generateScript(show: IShow): Promise<ShowScript | null> {
 
 /**
  * Generate TTS audio for a single dialogue segment.
+ * Accepts pre-fetched tier mappings to avoid per-segment lookups.
  */
 async function generateTTSSegment(
   text: string,
   speakers: Array<{ name: string; voiceId: string }>,
   speakerName: string,
+  ttsMappings: Awaited<ReturnType<typeof getModelMappingsForTier>>,
 ): Promise<Buffer | null> {
   const speaker = speakers.find(s => s.name === speakerName);
   if (!speaker) {
     log.general.warn({ speakerName }, 'Speaker not found in roster');
     return null;
   }
-
-  // Try TTS providers in tier order
-  const ttsMappings = await getModelMappingsForTier('v1-tts');
 
   for (const mapping of ttsMappings) {
     try {
@@ -367,12 +369,10 @@ async function generateSFXSegment(prompt: string): Promise<Buffer | null> {
       maxAttempts: 1,
     });
 
-    const audioUrl = sfxOutput?.audio_url ?? sfxOutput?.url ?? sfxOutput?.audio?.url;
+    const audioUrl = extractAudioUrl(sfxOutput);
     if (!audioUrl) return null;
 
-    // Download the audio
-    const response = await fetch(audioUrl);
-    return Buffer.from(await response.arrayBuffer());
+    return await downloadBinaryFromUrl(audioUrl);
   } catch (err: unknown) {
     log.general.warn({ err, prompt }, 'SFX generation failed');
     return null;

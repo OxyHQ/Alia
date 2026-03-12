@@ -4,7 +4,7 @@
  * Uses ffmpeg-static (pre-built binary, no system install) + fluent-ffmpeg.
  */
 
-import { createWriteStream, createReadStream, mkdtempSync, writeFileSync, unlinkSync, existsSync } from 'fs';
+import { mkdtempSync, writeFileSync, unlinkSync } from 'fs';
 import { join } from 'path';
 import { tmpdir } from 'os';
 import { log } from '../logger.js';
@@ -78,9 +78,7 @@ export async function concatenateAudioSegments(
   } finally {
     // Clean up temp files
     for (const f of [...segmentFiles, join(tempDir, 'concat.txt'), join(tempDir, 'output.mp3')]) {
-      try {
-        if (existsSync(f)) unlinkSync(f);
-      } catch {}
+      try { unlinkSync(f); } catch {}
     }
     try {
       const { rmdir } = await import('fs/promises');

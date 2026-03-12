@@ -8,6 +8,7 @@ import { UserMemory } from '../../models/user-memory.js';
 import { getIO } from '../../socket.js';
 import type { Request, Response } from 'express';
 import { callProviderAPI, getModelMappingsForTier } from '../../lib/gateway-client.js';
+import { extractImageUrl } from '../../internal/providers/lib/digitalocean-async.js';
 import { log } from '../../lib/logger.js';
 
 
@@ -260,7 +261,7 @@ async function executeNode(node: WorkflowNode, input: string, userId: string): P
             timeout: 30_000,
             maxAttempts: 1,
           });
-          const url = data.data?.[0]?.url ?? data?.images?.[0]?.url;
+          const url = extractImageUrl(data);
           if (url) return url;
         } catch (err) {
           log.general.warn({ err, provider: mapping.provider, model: mapping.modelId }, 'Image provider failed, trying next');

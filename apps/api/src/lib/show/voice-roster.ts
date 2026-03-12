@@ -5,6 +5,8 @@
  * available via DigitalOcean's async-invoke API.
  */
 
+import type { ShowFormat, ShowSpeakerRole } from '../../models/show.js';
+
 export interface ShowVoice {
   voiceId: string;
   name: string;
@@ -25,13 +27,13 @@ export const SHOW_VOICES: ShowVoice[] = [
 ];
 
 export type FormatRoles = {
-  roles: Array<{ role: 'host' | 'co-host' | 'guest' | 'narrator'; defaultGender: 'male' | 'female' }>;
+  roles: Array<{ role: ShowSpeakerRole; defaultGender: 'male' | 'female' }>;
 };
 
 /**
  * Default speaker configurations per show format.
  */
-export const FORMAT_DEFAULTS: Record<string, FormatRoles> = {
+export const FORMAT_DEFAULTS: Record<ShowFormat, FormatRoles> = {
   podcast: {
     roles: [
       { role: 'host', defaultGender: 'male' },
@@ -69,9 +71,9 @@ export const FORMAT_DEFAULTS: Record<string, FormatRoles> = {
  */
 export function assignVoices(
   speakerNames: string[],
-  format: string,
+  format: ShowFormat,
   userVoices?: Record<string, string>,
-): Array<{ name: string; voiceId: string; voiceName: string; role: 'host' | 'co-host' | 'guest' | 'narrator' }> {
+): Array<{ name: string; voiceId: string; voiceName: string; role: ShowSpeakerRole }> {
   const formatConfig = FORMAT_DEFAULTS[format] || FORMAT_DEFAULTS.podcast;
   const usedVoiceIds = new Set<string>();
 

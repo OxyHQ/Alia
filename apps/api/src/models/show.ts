@@ -1,6 +1,9 @@
 import mongoose, { Schema, Model, Document } from 'mongoose';
 
-export type ShowFormat = 'podcast' | 'news' | 'debate' | 'interview' | 'explainer';
+export const SHOW_FORMATS = ['podcast', 'news', 'debate', 'interview', 'explainer'] as const;
+export type ShowFormat = (typeof SHOW_FORMATS)[number];
+
+export const ACTIVE_SHOW_STATUSES = ['queued', 'generating_script', 'generating_audio', 'concatenating'] as const;
 export type ShowStatus = 'queued' | 'generating_script' | 'generating_audio' | 'concatenating' | 'completed' | 'failed';
 export type ShowSegmentType = 'dialogue' | 'sfx' | 'transition';
 export type ShowSpeakerRole = 'host' | 'co-host' | 'guest' | 'narrator';

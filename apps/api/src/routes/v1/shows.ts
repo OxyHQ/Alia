@@ -1,15 +1,12 @@
 import { Router } from 'express';
-import { Show } from '../../models/show.js';
+import { Show, SHOW_FORMATS, ACTIVE_SHOW_STATUSES } from '../../models/show.js';
 import { enqueueShowGeneration } from '../../lib/show/show-queue.js';
 import { SHOW_VOICES, FORMAT_DEFAULTS } from '../../lib/show/voice-roster.js';
 import { log } from '../../lib/logger.js';
-import { sanitizeMessage } from '../../lib/errors/sanitize.js';
+import { getSafeErrorMessage } from '../../lib/errors/sanitize.js';
 import type { Request, Response } from 'express';
 
 const router = Router();
-
-const getSafeErrorMessage = (error: unknown, fallback: string): string =>
-  sanitizeMessage(error instanceof Error ? error.message : fallback);
 
 /**
  * GET /v1/shows/voices
@@ -58,13 +55,12 @@ router.post('/generate', async (req: Request, res: Response) => {
       });
     }
 
-    const validFormats = ['podcast', 'news', 'debate', 'interview', 'explainer'];
-    const showFormat = validFormats.includes(format || '') ? format! : 'podcast';
+    const showFormat = (SHOW_FORMATS as readonly string[]).includes(format || '') ? format! : 'podcast';
 
     // Check concurrent show limit (max 3 active per user)
     const activeCount = await Show.countDocuments({
       userId,
-      status: { $in: ['queued', 'generating_script', 'generating_audio', 'concatenating'] },
+      status: { $in: ACTIVE_SHOW_STATUSES },
     });
     if (activeCount >= 3) {
       return res.status(429).json({

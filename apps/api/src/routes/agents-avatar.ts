@@ -6,6 +6,7 @@ import { generateText } from 'ai';
 import { authenticateToken } from '../middleware/auth.js';
 import { resolveModel, getAIModel, reportModelUsage } from '../lib/chat-core.js';
 import { callProviderAPI, getModelMappingsForTier } from '../lib/gateway-client.js';
+import { extractImageUrl } from '../internal/providers/lib/digitalocean-async.js';
 import { uploadToS3 } from '../lib/s3.js';
 import { log } from '../lib/logger.js';
 import { getErrorMessage, classifyError } from '../lib/errors/index.js';
@@ -157,7 +158,7 @@ router.post('/generate', authenticateToken, async (req: Request, res: Response) 
 
         // Different providers return images in different formats
         b64Image = data.data?.[0]?.b64_json ?? null;
-        imageUrl = data.data?.[0]?.url ?? data?.images?.[0]?.url ?? null;
+        imageUrl = extractImageUrl(data) ?? null;
 
         if (b64Image || imageUrl) break;
       } catch (err: unknown) {

@@ -4,12 +4,11 @@ import { reserveCredits, finalizeCredits } from '../../lib/credits-manager.js';
 import { getOrCreateUserCredits } from '../../lib/user-credits-helpers.js';
 import { uploadToS3 } from '../../lib/s3.js';
 import { log } from '../../lib/logger.js';
-import { sanitizeMessage } from '../../lib/errors/sanitize.js';
+import { getSafeErrorMessage } from '../../lib/errors/sanitize.js';
+import { extractImageUrl } from '../../internal/providers/lib/digitalocean-async.js';
 import type { Request, Response } from 'express';
 
 const router = Router();
-const getSafeErrorMessage = (error: unknown, fallback: string): string =>
-  sanitizeMessage(error instanceof Error ? error.message : fallback);
 
 /**
  * POST /v1/images/generations
@@ -85,7 +84,7 @@ router.post('/generations', async (req: Request, res: Response) => {
         });
 
         // Different providers return images in different formats
-        imageUrl = data.data?.[0]?.url ?? data?.images?.[0]?.url ?? null;
+        imageUrl = extractImageUrl(data) ?? null;
         const b64 = data.data?.[0]?.b64_json;
 
         if (b64) {
