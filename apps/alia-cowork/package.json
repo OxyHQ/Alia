@@ -15,8 +15,8 @@
     "clean:all": "gulp clean:all",
     "kill": "gulp kill-electron",
     "postinstall": "playwright install chromium",
-    "package": "npm run build && electron-builder",
-    "dist": "npm run build && electron-builder --publish never"
+    "package": "bun run build && electron-builder",
+    "dist": "bun run build && electron-builder --publish never"
   },
   "dependencies": {
     "@base-ui/react": "^1.1.0",

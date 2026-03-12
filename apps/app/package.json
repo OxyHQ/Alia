@@ -9,9 +9,9 @@
     "ios": "expo run:ios",
     "web": "expo start --web",
     "generate-sitemap": "tsx scripts/generate-sitemap.ts",
-    "prebuild": "npm run generate-sitemap",
-    "build": "npx expo export --platform web",
-    "build:production": "NODE_ENV=production npx expo export --platform web --clear",
+    "prebuild": "bun run generate-sitemap",
+    "build": "bunx expo export --platform web",
+    "build:production": "NODE_ENV=production bunx expo export --platform web --clear",
     "build:android": "eas build --platform android",
     "build:ios": "eas build --platform ios"
   },
