@@ -12,8 +12,12 @@ services:
       branch: main
       deploy_on_push: true
 
-    build_command: ELECTRON_SKIP_BINARY_DOWNLOAD=1 PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 bun install --frozen-lockfile && bun run build:api
-    run_command: bun run start:api
+    build_command: >-
+      ELECTRON_SKIP_BINARY_DOWNLOAD=1 PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
+      ./scripts/with-bun.sh install --frozen-lockfile --filter @alia/api &&
+      ELECTRON_SKIP_BINARY_DOWNLOAD=1 PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
+      ./scripts/with-bun.sh run --filter @alia/api build
+    run_command: node apps/api/dist/index.js
     source_dir: /
     environment_slug: node-js
     instance_size_slug: apps-s-2vcpu-4gb
@@ -81,8 +85,12 @@ services:
       branch: main
       deploy_on_push: true
 
-    build_command: ELECTRON_SKIP_BINARY_DOWNLOAD=1 PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 bun install --frozen-lockfile && bun run build:gateway
-    run_command: bun run start:gateway
+    build_command: >-
+      ELECTRON_SKIP_BINARY_DOWNLOAD=1 PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
+      ./scripts/with-bun.sh install --frozen-lockfile --filter @alia/gateway &&
+      ELECTRON_SKIP_BINARY_DOWNLOAD=1 PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
+      ./scripts/with-bun.sh run --filter @alia/gateway build
+    run_command: node apps/alia-gateway/dist/index.js
     source_dir: /
     environment_slug: node-js
 
@@ -119,7 +127,11 @@ services:
       repo: Alia-onl/Alia
       branch: main
       deploy_on_push: true
-    build_command: ELECTRON_SKIP_BINARY_DOWNLOAD=1 PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 bun install --frozen-lockfile && bun run build:admin
+    build_command: >-
+      ELECTRON_SKIP_BINARY_DOWNLOAD=1 PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
+      ./scripts/with-bun.sh install --frozen-lockfile --filter alia-console &&
+      ELECTRON_SKIP_BINARY_DOWNLOAD=1 PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
+      ./scripts/with-bun.sh run --filter alia-console build
     run_command: node apps/alia-console/.output/server/index.mjs
     source_dir: /
     environment_slug: node-js
@@ -153,8 +165,12 @@ services:
       repo: Alia-onl/Alia
       branch: main
       deploy_on_push: true
-    build_command: ELECTRON_SKIP_BINARY_DOWNLOAD=1 PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 bun install --frozen-lockfile && bun run build:canvas
-    run_command: bun run start:canvas
+    build_command: >-
+      ELECTRON_SKIP_BINARY_DOWNLOAD=1 PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
+      ./scripts/with-bun.sh install --frozen-lockfile --filter alia-canvas &&
+      ELECTRON_SKIP_BINARY_DOWNLOAD=1 PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
+      ./scripts/with-bun.sh run --filter alia-canvas build
+    run_command: ./node_modules/.bin/next start -p 3002
     source_dir: /
     environment_slug: node-js
     instance_size_slug: apps-s-1vcpu-0.5gb
@@ -167,7 +183,11 @@ static_sites:
       repo: Alia-onl/Alia
       branch: main
       deploy_on_push: true
-    build_command: ELECTRON_SKIP_BINARY_DOWNLOAD=1 PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 bun install --frozen-lockfile && bun run build:app
+    build_command: >-
+      ELECTRON_SKIP_BINARY_DOWNLOAD=1 PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
+      ./scripts/with-bun.sh install --frozen-lockfile --filter @alia/app --filter @alia.onl/sdk &&
+      ELECTRON_SKIP_BINARY_DOWNLOAD=1 PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
+      ./scripts/with-bun.sh run --filter @alia/app build
     source_dir: /
     environment_slug: node-js
     output_dir: apps/app/dist
@@ -178,7 +198,11 @@ static_sites:
       repo: Alia-onl/Alia
       branch: main
       deploy_on_push: true
-    build_command: ELECTRON_SKIP_BINARY_DOWNLOAD=1 PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 bun install --frozen-lockfile && bun run build --filter alia-gateway-admin
+    build_command: >-
+      ELECTRON_SKIP_BINARY_DOWNLOAD=1 PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
+      ./scripts/with-bun.sh install --frozen-lockfile --filter alia-gateway-admin &&
+      ELECTRON_SKIP_BINARY_DOWNLOAD=1 PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
+      ./scripts/with-bun.sh run --filter alia-gateway-admin build
     source_dir: /
     environment_slug: node-js
     output_dir: apps/alia-gateway-admin/dist
