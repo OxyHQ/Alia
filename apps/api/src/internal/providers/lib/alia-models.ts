@@ -6,7 +6,7 @@
  * requests are routed to appropriate provider models.
  */
 
-export type AliaTier = 'lite' | 'v1' | 'v1-codea' | 'v1-cowork' | 'v1-browser' | 'v1-vision' | 'v1-audio' | 'v1-tts' | 'v1-multimodal' | 'v1-pro' | 'v1-pro-max' | 'v1-voice' | 'v1-voice-pro';
+export type AliaTier = 'lite' | 'v1' | 'v1-codea' | 'v1-cowork' | 'v1-browser' | 'v1-vision' | 'v1-audio' | 'v1-tts' | 'v1-image' | 'v1-multimodal' | 'v1-pro' | 'v1-pro-max' | 'v1-voice' | 'v1-voice-pro';
 
 export type ModelCategory = 'general' | 'coding' | 'vision' | 'audio' | 'multimodal' | 'voice';
 export type PricingTier = 'free' | 'freemium' | 'paid';

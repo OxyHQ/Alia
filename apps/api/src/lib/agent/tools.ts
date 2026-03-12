@@ -28,7 +28,6 @@ import { buildIntegrationTools } from '../tools/integrations.js';
 import { buildMcpTools } from '../tools/mcp.js';
 import { log } from '../logger.js';
 import { getErrorMessage } from '../errors/index.js';
-import * as containerManager from '../container-manager.js';
 import { getSandboxProvider, isSandboxAvailable } from '../sandbox/index.js';
 import { executeCode } from './codeact/index.js';
 import { Container } from '../../models/container.js';
@@ -199,6 +198,8 @@ export async function buildAgentTools(ctx: BuildToolsContext) {
   // ── Container / Shell / File tools (only if Docker host is configured) ──
 
   if (isSandboxAvailable()) {
+    const sandbox = getSandboxProvider();
+
     tools.shell_create_container = tool({
       description: 'Create a Docker container for code execution. Choose the right image for the project type. The container starts with a /workspace directory.',
       inputSchema: z.object({
@@ -218,7 +219,7 @@ export async function buildAgentTools(ctx: BuildToolsContext) {
         }
 
         try {
-          const info = await containerManager.createContainer({
+          const info = await sandbox.createSandbox({
             image,
             name,
             size,
@@ -232,14 +233,14 @@ export async function buildAgentTools(ctx: BuildToolsContext) {
 
           session.resources.push({
             type: 'container',
-            resourceId: info.containerId,
+            resourceId: info.id,
             status: 'active',
             createdAt: new Date(),
           });
           await session.save();
 
           await Container.create({
-            containerId: info.containerId,
+            containerId: info.id,
             name: info.name,
             sessionId: session._id,
             agentId: session.agentId,
@@ -251,9 +252,9 @@ export async function buildAgentTools(ctx: BuildToolsContext) {
           });
 
           // Provision workspace memory structure
-          await workspaceMemory.provision(info.containerId);
+          await workspaceMemory.provision(info.id);
 
-          return { containerId: info.containerId, name: info.name, image };
+          return { containerId: info.id, name: info.name, image };
         } catch (err: unknown) {
           log.agents.error({ err }, 'Container creation error');
           return { error: getErrorMessage(err) };
@@ -275,7 +276,7 @@ export async function buildAgentTools(ctx: BuildToolsContext) {
         }
 
         try {
-          const result = await containerManager.execInContainer(containerId, command, Math.min(timeout || 30, 300));
+          const result = await sandbox.exec(containerId, command, Math.min(timeout || 30, 300));
           await Container.updateOne({ containerId }, { lastActivityAt: new Date() });
           return result;
         } catch (err: unknown) {
@@ -296,7 +297,7 @@ export async function buildAgentTools(ctx: BuildToolsContext) {
         if (!resource) return { error: 'Container not found or not active' };
 
         try {
-          await containerManager.writeFileToContainer(containerId, path, content);
+          await sandbox.writeFile(containerId, path, content);
           return { success: true, path };
         } catch (err: unknown) {
           return { error: getErrorMessage(err) };
@@ -315,7 +316,7 @@ export async function buildAgentTools(ctx: BuildToolsContext) {
         if (!resource) return { error: 'Container not found or not active' };
 
         try {
-          const content = await containerManager.readFileFromContainer(containerId, path);
+          const content = await sandbox.readFile(containerId, path);
           return { content, path };
         } catch (err: unknown) {
           return { error: getErrorMessage(err) };
@@ -334,7 +335,7 @@ export async function buildAgentTools(ctx: BuildToolsContext) {
         if (!resource) return { error: 'Container not found or not active' };
 
         try {
-          const files = await containerManager.listFilesInContainer(containerId, dir);
+          const files = await sandbox.listFiles(containerId, dir);
           return { files, dir };
         } catch (err: unknown) {
           return { error: getErrorMessage(err) };
@@ -353,7 +354,7 @@ export async function buildAgentTools(ctx: BuildToolsContext) {
         if (!resource) return { error: 'Container not found or not active' };
 
         try {
-          const previewUrl = await containerManager.exposeContainerPort(containerId, port);
+          const previewUrl = await sandbox.exposePort(containerId, port);
           await Container.updateOne(
             { containerId },
             { previewUrl, $addToSet: { exposedPorts: port } },
@@ -380,7 +381,7 @@ export async function buildAgentTools(ctx: BuildToolsContext) {
 
         try {
           const tag = name.replace(/[^a-zA-Z0-9._-]/g, '-').toLowerCase();
-          const imageTag = await containerManager.snapshotContainer(containerId, tag);
+          const imageTag = await sandbox.snapshot(containerId, tag);
           const containerDoc = await Container.findOne({ containerId });
           const template = await ContainerTemplate.create({
             name,
@@ -404,7 +405,7 @@ export async function buildAgentTools(ctx: BuildToolsContext) {
       }),
       execute: async ({ containerId }) => {
         try {
-          await containerManager.destroyContainer(containerId);
+          await sandbox.destroy(containerId);
           const resource = session.resources.find(r => r.resourceId === containerId);
           if (resource) {
             resource.status = 'destroyed';

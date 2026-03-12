@@ -37,6 +37,7 @@ import {
   Smartphone,
   Keyboard,
   ListTodo,
+  Mic,
   type LucideIcon,
 } from "lucide-react-native";
 import { useTranslation } from "@/hooks/useTranslation";
@@ -239,6 +240,10 @@ const ChatSidebar = React.memo(function ChatSidebar() {
 
   const handleSkills = React.useCallback(() => {
     router.push("/(app)/skills");
+  }, [router]);
+
+  const handleShows = React.useCallback(() => {
+    router.push("/(app)/shows" as any);
   }, [router]);
 
   const handleAgents = React.useCallback(() => {
@@ -578,6 +583,14 @@ const ChatSidebar = React.memo(function ChatSidebar() {
         >
           <BookOpen size={16} className="text-muted-foreground" />
           <Text className="text-sm md:text-xs">{t('sidebar.skills')}</Text>
+        </Button>
+        <Button
+          variant="ghost"
+          className="h-10 md:h-8 flex-row items-center justify-start gap-2 rounded-full px-3 md:px-2 w-full"
+          onPress={handleShows}
+        >
+          <Mic size={16} className="text-muted-foreground" />
+          <Text className="text-sm md:text-xs">Shows</Text>
         </Button>
     </>
   );

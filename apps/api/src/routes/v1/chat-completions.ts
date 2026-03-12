@@ -5,11 +5,18 @@ import { resolveModel, getAIModel, getDefaultAliaModel, reportModelUsage } from 
 import { getAliaModel, getModelMappingsForTier } from '../../lib/gateway-client.js';
 import { UserMemory } from '../../models/user-memory.js';
 import { getOrCreateUserCredits } from '../../lib/user-credits-helpers.js';
-import { saveConversation, generateConversationTitle, generateTitle } from '../../lib/conversation-saver.js';
 import { Conversation } from '../../models/conversation.js';
-import { reserveCredits, finalizeCredits, refundReservation, type CreditReservation, type CreditUsage } from '../../lib/credits-manager.js';
-import { recordUsage } from '../../middleware/api-key-rate-limit.js';
-import { detectCreditAnomaly, type CreditWarning } from '../../lib/credit-anomaly.js';
+import { reserveCredits, refundReservation, type CreditReservation, type CreditUsage } from '../../lib/credits-manager.js';
+import { handleDeepResearch } from '../../lib/chat-modes/deep-research-handler.js';
+import {
+  saveConversationResult,
+  generateTitleAsync,
+  startParallelTitleGeneration,
+  finalizeChatCredits,
+  runPostChatHooks,
+  notifyDisconnectedClient,
+  type LifecycleContext,
+} from '../../lib/chat-lifecycle.js';
 import { getUserEntitlements } from '../../lib/plan-access.js';
 import { ToolPipeline } from '../../lib/tool-pipeline.js';
 import { createResponseSSEEmitter } from '../../lib/sse-emitter.js';
@@ -18,19 +25,16 @@ import { convertToAISDKMessages, type ChatMessage } from '../../lib/message-conv
 import { oxyClient } from '../../middleware/auth.js';
 import { Skill } from '../../models/skill.js';
 import { estimateMessageTokens } from '../../lib/token-counter.js';
-import { runBeforeChatHooks, runAfterChatHooks } from '../../lib/hooks/index.js';
+import { runBeforeChatHooks } from '../../lib/hooks/index.js';
 import { wrapToolsWithTruncation, getToolResultBudget } from '../../lib/tools/result-truncation.js';
 import { log } from '../../lib/logger.js';
 import { recordEvent } from '../../lib/observability/index.js';
-import { classifyError, getRetryAfterHeader, sanitizeMessage } from '../../lib/errors/index.js';
+import { classifyError, getRetryAfterHeader } from '../../lib/errors/index.js';
 import { setupSSEHeaders, writeTextChunk, writeStopChunk, writeContentChunk, filterThinking, makeChunk } from '../../lib/streaming-helpers.js';
 import type { FailoverReason } from '../../lib/errors/error-codes.js';
-import { runDeepResearch, type ResearchProgress } from '../../lib/research/research-engine.js';
-import { sendNotification } from '../../lib/notification-service.js';
 import { Agent as AgentModel, type IAgent } from '../../models/agent.js';
 import {
   runAutonomyBeforeChat,
-  runAutonomyAfterChat,
   type AutonomyRuntimeContext,
 } from '../../lib/autonomy/runtime.js';
 
@@ -319,114 +323,21 @@ export const handleChatCompletions = async (req: Request, res: Response) => {
     }
 
     // ── Deep Research Mode ──
-    // When activated via the app's deep research toggle, route to the specialized
-    // research engine with multi-query web search, source tracking, and citations.
     if (deepResearch && req.user?.id) {
-      const userQuery = messages.filter((m: ChatMessage) => m.role === 'user').pop()?.content || '';
-      const queryText = typeof userQuery === 'string' ? userQuery : '';
-      if (queryText.trim()) {
-        log.v1.info({ conversationId, autoDetected: !deepResearch }, 'Deep research mode activated');
-
-        try {
-          const result = await runDeepResearch(queryText, messages, {
-            userId: req.user.id,
-            signal: req.socket.destroyed ? AbortSignal.abort() : undefined,
-            onProgress: (progress: ResearchProgress) => {
-              if (!res.writableEnded) {
-                res.write(`event: alia.research_progress\ndata: ${JSON.stringify({
-                  eventVersion: 1,
-                  phase: progress.phase,
-                  message: progress.message,
-                  subQuestions: progress.subQuestions,
-                  sourcesFound: progress.sourcesFound,
-                  currentQuery: progress.currentQuery,
-                  iteration: progress.iteration,
-                })}\n\n`);
-              }
-            },
-          });
-
-          // Stream the final report as content deltas (OpenAI SSE format)
-          const CHUNK_SIZE = 100;
-          for (let i = 0; i < result.report.length; i += CHUNK_SIZE) {
-            writeContentChunk(res, requestId, aliasModelId, result.report.slice(i, i + CHUNK_SIZE));
-          }
-
-          // Send sources metadata as named event
-          res.write(`event: alia.research_progress\ndata: ${JSON.stringify({
-            eventVersion: 1,
-            phase: 'complete',
-            sources: result.sources,
-            totalSearches: result.totalSearches,
-            subQuestions: result.subQuestions,
-          })}\n\n`);
-
-          // Send final chunk with finish_reason
-          writeStopChunk(res, requestId, aliasModelId);
-          res.write('data: [DONE]\n\n');
-          res.end();
-
-          // Save conversation and generate title
-          if (conversationId && req.user?.id) {
-            saveConversation({
-              userId: req.user.id,
-              conversationId,
-              messages,
-              assistantResponse: result.report,
-            }).catch(err => log.v1.warn({ err }, 'Failed to save research conversation'));
-
-            const firstUserMsg = typeof messages[0]?.content === 'string' ? messages[0].content : '';
-            if (firstUserMsg) {
-              generateConversationTitle(req.user.id, conversationId, firstUserMsg)
-                .catch(err => log.v1.error({ err }, 'Research title generation failed'));
-            }
-          }
-
-          // Finalize credits
-          if (creditReservation) {
-            const promptTokenEstimate = messages.reduce(
-              (sum: number, m: ChatMessage) => sum + estimateMessageTokens(m.role, typeof m.content === 'string' ? m.content : ''), 0
-            );
-            const completionTokens = Math.ceil(result.report.length / 4);
-            finalizeCredits(creditReservation, {
-              promptTokens: promptTokenEstimate,
-              completionTokens,
-              totalTokens: promptTokenEstimate + completionTokens,
-              systemPromptTokens: 0,
-            }).catch((err: unknown) => log.v1.error({ err, reservationId: creditReservation?.userId }, 'finalizeCredits failed after deep research'));
-          }
-
-          runAutonomyAfterChat({
-            userId: req.user?.id,
-            runtimeContext: autonomyRuntime,
-            messages,
-            assistantResponse: result.report,
-            latencyMs: Date.now() - requestStartTime,
-          }).catch(err => log.v1.warn({ err }, 'Autonomy after-chat learn failed'));
-
-          clearTimeout(globalTimer);
-          return;
-        } catch (err: unknown) {
-          log.v1.error({ err }, 'Deep research failed');
-          if (creditReservation) {
-            refundReservation(creditReservation).catch((err2: unknown) => log.v1.error({ err: err2, reservationId: creditReservation?.userId }, 'refundReservation failed after deep research error'));
-          }
-          if (!res.writableEnded) {
-            res.write(`data: ${JSON.stringify({
-                error: {
-                  message: sanitizeMessage((err as Error)?.message || 'Research failed.'),
-                  type: 'server_error',
-                  param: null,
-                  code: 'research_failed',
-                },
-            })}\n\n`);
-            res.write('data: [DONE]\n\n');
-            res.end();
-          }
-          clearTimeout(globalTimer);
-          return;
-        }
-      }
+      const handled = await handleDeepResearch({
+        res,
+        requestId,
+        aliasModelId,
+        userId: req.user.id,
+        conversationId,
+        messages,
+        creditReservation,
+        autonomyRuntime,
+        requestStartTime,
+        globalTimer,
+        signal: req.socket.destroyed ? AbortSignal.abort() : undefined,
+      });
+      if (handled) return;
     }
 
     // Assemble all tools via the unified pipeline
@@ -735,74 +646,31 @@ export const handleChatCompletions = async (req: Request, res: Response) => {
         };
       });
 
-      // Auto-save conversation if conversationId provided and user is authenticated
-      if (conversationId && typeof conversationId === 'string' && conversationId.trim() && req.user && assistantResponse) {
-        try {
-          await saveConversation({
-            userId: req.user.id,
-            conversationId,
-            messages,
-            assistantResponse,
-            toolInvocations: nonStreamToolInvocations,
-          });
-          log.v1.info({ conversationId }, 'Conversation saved');
+      // Build lifecycle context for post-request operations
+      const lifecycleCtx: LifecycleContext = {
+        userId: req.user?.id,
+        conversationId,
+        messages,
+        aliasModelId,
+        creditReservation,
+        tokenUsage,
+        requestStartTime,
+        skillId: body.skillId,
+        isApiKey: !!req.apiKey,
+        autonomyRuntime,
+      };
 
-          // Generate title asynchronously (fire-and-forget, non-streaming fallback)
-          const firstUserMsgRaw = messages.find((m: ChatMessage) => m.role === 'user')?.content;
-          const firstUserMsg = typeof firstUserMsgRaw === 'string'
-            ? firstUserMsgRaw
-            : Array.isArray(firstUserMsgRaw)
-              ? (firstUserMsgRaw.find((p: { type: string; text?: string }) => p.type === 'text')?.text ?? '')
-              : '';
-          if (firstUserMsg) {
-            generateConversationTitle(req.user.id, conversationId, firstUserMsg)
-              .catch(err => log.v1.error({ err }, 'Background title generation failed'));
-          }
-        } catch (error) {
-          log.v1.error({ err: error }, 'Error saving conversation');
-        }
+      // Save conversation + generate title
+      await saveConversationResult(lifecycleCtx, assistantResponse, nonStreamToolInvocations);
+      if (conversationId && req.user?.id && assistantResponse) {
+        generateTitleAsync(req.user.id, conversationId, messages);
       }
 
-      // Finalize credits
-      let creditsCharged = 0;
-      let creditsRemaining = 0;
-      if (creditReservation && req.user) {
-        try {
-          const creditResult = await finalizeCredits(creditReservation, tokenUsage, aliasModelId);
-          creditsCharged = creditResult.creditsCharged;
-          creditsRemaining = creditResult.creditsRemaining;
-
-          // Record usage with credits info (API key basic usage is also logged in auth middleware)
-          recordUsage(req, 200, tokenUsage.totalTokens, undefined, creditsCharged).catch(err =>
-            log.v1.error({ err }, 'Error recording session usage')
-          );
-        } catch (error) {
-          log.v1.error({ err: error }, 'Error finalizing credits');
-        }
-      }
+      // Finalize credits + detect anomalies
+      const { creditsCharged, creditsRemaining, creditWarning } = await finalizeChatCredits(lifecycleCtx, req);
 
       // Fire afterChat hooks (non-blocking)
-      runAfterChatHooks({
-        userId: req.user?.id,
-        conversationId: body.conversationId,
-        messages,
-        model: aliasModelId,
-        skillId: body.skillId,
-        platform: req.apiKey ? 'telegram' as const : 'app' as const,
-        metadata: { model: aliasModelId },
-        response: assistantResponse,
-        tokenUsage,
-        modelUsed: aliasModelId,
-        latencyMs: Date.now() - requestStartTime,
-      }).catch(err => log.v1.error({ err }, 'Error in afterChat hooks'));
-
-      runAutonomyAfterChat({
-        userId: req.user?.id,
-        runtimeContext: autonomyRuntime,
-        messages,
-        assistantResponse,
-        latencyMs: Date.now() - requestStartTime,
-      }).catch(err => log.v1.warn({ err }, 'Autonomy after-chat learn failed'));
+      runPostChatHooks(lifecycleCtx, assistantResponse);
 
       // Build tool_calls array if there were any tool calls
       const toolCalls = result.toolCalls?.map((tc: { toolCallId?: string; toolName: string; args?: unknown }, index: number) => {
@@ -816,17 +684,6 @@ export const handleChatCompletions = async (req: Request, res: Response) => {
           }
         };
       });
-
-      // Detect spending anomalies for proactive warnings
-      let creditWarning: CreditWarning | null = null;
-      if (req.user?.id) {
-        try {
-          creditWarning = await detectCreditAnomaly(req.user.id);
-          if (creditWarning) {
-            creditWarning.currentModelMultiplier = (await getAliaModel(aliasModelId))?.creditMultiplier || 1;
-          }
-        } catch { /* non-critical anomaly check */ }
-      }
 
       // Return OpenAI-compatible non-streaming response
       const response = {
@@ -871,24 +728,7 @@ export const handleChatCompletions = async (req: Request, res: Response) => {
     // Start title generation in parallel for new conversations (runs during streaming)
     let titlePromise: Promise<string | null> | null = null;
     if (conversationId && typeof conversationId === 'string' && conversationId.trim() && req.user) {
-      const existing = await Conversation.findOne(
-        { oxyUserId: req.user.id, conversationId },
-        { _id: 1 }
-      ).lean();
-      const hasMessages = existing
-        ? await (await import('../../models/message.js')).Message.exists({ conversationId })
-        : false;
-      if (!existing || !hasMessages) {
-        const firstUserMsgRaw = messages.find((m: ChatMessage) => m.role === 'user')?.content;
-        const firstUserMsg = typeof firstUserMsgRaw === 'string'
-          ? firstUserMsgRaw
-          : Array.isArray(firstUserMsgRaw)
-            ? (firstUserMsgRaw.find((p: { type: string; text?: string }) => p.type === 'text')?.text ?? '')
-            : '';
-        if (firstUserMsg) {
-          titlePromise = generateTitle(firstUserMsg);
-        }
-      }
+      titlePromise = startParallelTitleGeneration(req.user.id, conversationId, messages).catch(() => null);
     }
 
     // Streaming request
@@ -1237,23 +1077,22 @@ export const handleChatCompletions = async (req: Request, res: Response) => {
       }
     }
 
-    // Auto-save conversation if conversationId provided and user is authenticated
-    // Save when there's text content OR tool invocations (tools without text are valid responses)
-    if (conversationId && typeof conversationId === 'string' && conversationId.trim() && req.user && (assistantResponse || toolInvocations.length > 0)) {
-      try {
-        await saveConversation({
-          userId: req.user.id,
-          conversationId,
-          messages,
-          assistantResponse,
-          toolInvocations,
-          agentMessages: agentMessages.length > 0 ? agentMessages : undefined,
-        });
-        log.v1.info({ conversationId }, 'Conversation saved');
-      } catch (error) {
-        log.v1.error({ err: error }, 'Error saving conversation');
-      }
-    }
+    // Build lifecycle context for post-stream operations
+    const lifecycleCtx: LifecycleContext = {
+      userId: req.user?.id,
+      conversationId,
+      messages,
+      aliasModelId,
+      creditReservation,
+      tokenUsage,
+      requestStartTime,
+      skillId: body.skillId,
+      isApiKey: !!req.apiKey,
+      autonomyRuntime,
+    };
+
+    // Save conversation
+    await saveConversationResult(lifecycleCtx, assistantResponse, toolInvocations, agentMessages);
 
     // Send AI-generated title via SSE (generated in parallel with streaming)
     if (titlePromise && conversationId && req.user) {
@@ -1272,85 +1111,37 @@ export const handleChatCompletions = async (req: Request, res: Response) => {
       }
     }
 
-    // Finalize credits based on actual token usage and model tier
-    if (creditReservation && req.user) {
-      try {
-        const { creditsCharged, creditsRemaining } = await finalizeCredits(
-          creditReservation,
-          tokenUsage,
-          aliasModelId
-        );
-
-        // Record usage with credits info
-        recordUsage(req, 200, tokenUsage.totalTokens, undefined, creditsCharged).catch(err =>
-          log.v1.error({ err }, 'Error recording session usage')
-        );
-
-        // Detect spending anomalies for proactive warnings
-        let creditWarning: CreditWarning | null = null;
-        if (req.user?.id) {
-          try {
-            creditWarning = await detectCreditAnomaly(req.user.id);
-            if (creditWarning) {
-              creditWarning.currentModelMultiplier = (await getAliaModel(aliasModelId))?.creditMultiplier || 1;
-            }
-          } catch { /* non-critical anomaly check */ }
-        }
-
-        // Send usage chunk only when stream_options.include_usage is true (OpenAI spec)
-        if (includeUsage) {
-          const usageChunk = {
-            id: requestId,
-            object: 'chat.completion.chunk',
-            created: Math.floor(Date.now() / 1000),
-            model: aliasModelId,
-            system_fingerprint: 'fp_alia',
-            service_tier: 'default',
-            choices: [],
-            usage: {
-              prompt_tokens: tokenUsage.promptTokens,
-              completion_tokens: tokenUsage.completionTokens,
-              total_tokens: tokenUsage.totalTokens,
-              prompt_tokens_details: { cached_tokens: 0, audio_tokens: 0 },
-              completion_tokens_details: { reasoning_tokens: 0, audio_tokens: 0, accepted_prediction_tokens: 0, rejected_prediction_tokens: 0 },
-            },
-            alia_usage: {
-              system_prompt_tokens: tokenUsage.systemPromptTokens || 0,
-              billable_tokens: Math.max(0, tokenUsage.totalTokens - (tokenUsage.systemPromptTokens || 0)),
-              credits_charged: creditsCharged,
-              credits_remaining: creditsRemaining,
-              credit_warning: creditWarning,
-            },
-          };
-          res.write(`data: ${JSON.stringify(usageChunk)}\n\n`);
-        }
-      } catch (error) {
-        log.v1.error({ err: error }, 'Error finalizing credits');
-      }
+    // Finalize credits + send usage chunk
+    const { creditsCharged, creditsRemaining, creditWarning } = await finalizeChatCredits(lifecycleCtx, req);
+    if (includeUsage && creditReservation && req.user) {
+      const usageChunk = {
+        id: requestId,
+        object: 'chat.completion.chunk',
+        created: Math.floor(Date.now() / 1000),
+        model: aliasModelId,
+        system_fingerprint: 'fp_alia',
+        service_tier: 'default',
+        choices: [],
+        usage: {
+          prompt_tokens: tokenUsage.promptTokens,
+          completion_tokens: tokenUsage.completionTokens,
+          total_tokens: tokenUsage.totalTokens,
+          prompt_tokens_details: { cached_tokens: 0, audio_tokens: 0 },
+          completion_tokens_details: { reasoning_tokens: 0, audio_tokens: 0, accepted_prediction_tokens: 0, rejected_prediction_tokens: 0 },
+        },
+        alia_usage: {
+          system_prompt_tokens: tokenUsage.systemPromptTokens || 0,
+          billable_tokens: Math.max(0, tokenUsage.totalTokens - (tokenUsage.systemPromptTokens || 0)),
+          credits_charged: creditsCharged,
+          credits_remaining: creditsRemaining,
+          credit_warning: creditWarning,
+        },
+      };
+      res.write(`data: ${JSON.stringify(usageChunk)}\n\n`);
     }
 
-    // Fire afterChat hooks (non-blocking)
-    runAfterChatHooks({
-      userId: req.user?.id,
-      conversationId: body.conversationId,
-      messages,
-      model: aliasModelId,
-      skillId: body.skillId,
-      platform: req.apiKey ? 'telegram' as const : 'app' as const,
-      metadata: { model: aliasModelId },
-      response: assistantResponse,
-      tokenUsage,
-      modelUsed: aliasModelId,
-      latencyMs: Date.now() - requestStartTime,
-    }).catch(err => log.v1.error({ err }, 'Error in afterChat hooks'));
-
-    runAutonomyAfterChat({
-      userId: req.user?.id,
-      runtimeContext: autonomyRuntime,
-      messages,
-      assistantResponse,
-      latencyMs: Date.now() - requestStartTime,
-    }).catch(err => log.v1.warn({ err }, 'Autonomy after-chat learn failed'));
+    // Fire afterChat hooks + autonomy (non-blocking)
+    runPostChatHooks(lifecycleCtx, assistantResponse);
 
     // Record agent.end for observability (success path)
     recordEvent({
@@ -1369,14 +1160,8 @@ export const handleChatCompletions = async (req: Request, res: Response) => {
     clearTimeout(globalTimer);
 
     // If the client disconnected before the stream finished, send a push notification
-    if (clientDisconnected && assistantResponse.length > 0 && req.user?.id && body.conversationId) {
-      sendNotification({
-        userId: req.user!.id as string,
-        type: 'chat_response_ready',
-        title: 'Alia has responded',
-        body: assistantResponse.slice(0, 200) + (assistantResponse.length > 200 ? '...' : ''),
-        conversationId: body.conversationId,
-      }).catch(err => log.v1.warn({ err }, 'Failed to send disconnect notification'));
+    if (clientDisconnected && req.user?.id && body.conversationId) {
+      notifyDisconnectedClient(req.user.id, body.conversationId, assistantResponse);
     }
 
     return; // Success - exit the route handler

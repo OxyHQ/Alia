@@ -133,6 +133,13 @@ export const GENERATED_TIER_MAPPINGS: Record<AliaTier, ModelMapping[]> = {
     createMapping('openai', 'tts-1', 1, 90),
     createMapping('openai', 'tts-1-hd', 2, 95),
     createMapping('openrouter', 'openai/tts-1', 3, 88),
+    createMapping('digitalocean', 'fal-ai/elevenlabs/tts/multilingual-v2', 4, 87),
+  ],
+  'v1-image': [
+    createMapping('openai', 'dall-e-3', 1, 92),
+    createMapping('digitalocean', 'openai-gpt-image-1', 2, 90),
+    createMapping('digitalocean', 'fal-ai/flux/schnell', 3, 85),
+    createMapping('digitalocean', 'fal-ai/fast-sdxl', 4, 80),
   ],
   'v1-multimodal': [
     createMapping('google', 'gemini-3-pro-preview', 1, 99),

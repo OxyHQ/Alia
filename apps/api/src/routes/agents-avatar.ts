@@ -5,7 +5,7 @@ import { fileURLToPath } from 'url';
 import { generateText } from 'ai';
 import { authenticateToken } from '../middleware/auth.js';
 import { resolveModel, getAIModel, reportModelUsage } from '../lib/chat-core.js';
-import { callProviderAPI } from '../lib/gateway-client.js';
+import { callProviderAPI, getModelMappingsForTier } from '../lib/gateway-client.js';
 import { uploadToS3 } from '../lib/s3.js';
 import { log } from '../lib/logger.js';
 import { getErrorMessage, classifyError } from '../lib/errors/index.js';
@@ -132,29 +132,56 @@ router.post('/generate', authenticateToken, async (req: Request, res: Response) 
         `The image should work as a circular social media profile picture. No text, letters, or words in the image.`;
     }
 
-    // Call the internal provider system — it handles keys, retries, and error recording
-    try {
-      const data = await callProviderAPI<any>({
-        provider: 'openai',
-        modelId: 'dall-e-3',
-        endpoint: '/v1/images/generations',
-        body: {
-          model: 'dall-e-3',
-          prompt: imagePrompt,
-          n: 1,
-          size: '1024x1024',
-          quality: 'standard',
-          response_format: 'b64_json',
-        },
-      });
+    // Resolve image provider via tier mappings — try each in priority order
+    const imageMappings = await getModelMappingsForTier('v1-image');
+    let imageUrl: string | null = null;
+    let b64Image: string | null = null;
 
-      const b64Image = data.data?.[0]?.b64_json;
-      if (!b64Image) {
-        return res.status(502).json({ error: 'Image generation returned no result' });
+    for (const mapping of imageMappings) {
+      try {
+        const data = await callProviderAPI<any>({
+          provider: mapping.provider,
+          modelId: mapping.modelId,
+          endpoint: '/v1/images/generations',
+          body: {
+            model: mapping.modelId,
+            prompt: imagePrompt,
+            n: 1,
+            size: '1024x1024',
+            quality: 'standard',
+            response_format: 'b64_json',
+          },
+          timeout: 30_000,
+          maxAttempts: 1,
+        });
+
+        // Different providers return images in different formats
+        b64Image = data.data?.[0]?.b64_json ?? null;
+        imageUrl = data.data?.[0]?.url ?? data?.images?.[0]?.url ?? null;
+
+        if (b64Image || imageUrl) break;
+      } catch (err: unknown) {
+        if (classifyError(err) === 'content_filter') {
+          return res.status(400).json({ error: 'Image generation request was rejected by content policy. Try a different description.' });
+        }
+        log.agents.warn({ err, provider: mapping.provider, model: mapping.modelId }, 'Image provider failed, trying next');
+        continue;
       }
+    }
 
-      // Convert to buffer — upload as WebP for smaller S3 size
-      const imageBuffer = Buffer.from(b64Image, 'base64');
+    if (!b64Image && !imageUrl) {
+      return res.status(502).json({ error: 'Image generation failed — all providers exhausted' });
+    }
+
+    try {
+      // Get image buffer: either from b64 or by downloading the URL
+      let imageBuffer: Buffer;
+      if (b64Image) {
+        imageBuffer = Buffer.from(b64Image, 'base64');
+      } else {
+        const imgRes = await fetch(imageUrl!);
+        imageBuffer = Buffer.from(await imgRes.arrayBuffer());
+      }
 
       const avatarUrl = await uploadToS3(
         imageBuffer,
@@ -165,11 +192,8 @@ router.post('/generate', authenticateToken, async (req: Request, res: Response) 
 
       return res.json({ avatarUrl });
     } catch (genErr: unknown) {
-      if (classifyError(genErr) === 'content_filter') {
-        return res.status(400).json({ error: 'Image generation request was rejected by content policy. Try a different description.' });
-      }
-      log.agents.error({ err: genErr }, 'Avatar generation failed');
-      return res.status(502).json({ error: 'Image generation failed' });
+      log.agents.error({ err: genErr }, 'Avatar upload failed');
+      return res.status(502).json({ error: 'Avatar upload failed' });
     }
   } catch (error: unknown) {
     log.agents.error({ err: error }, 'Error generating agent avatar');
