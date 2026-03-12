@@ -66,8 +66,8 @@
     --accent-foreground: 0 0% 100%;
 
     --destructive: 0 84% 60%;
-    --border: 0 0% 100% / 10%;
-    --input: 0 0% 100% / 15%;
+    --border: 275 12% 20%;
+    --input: 275 10% 23%;
     --ring: 288 77% 62%;
 
     --chart-1: 288 77% 85%;
@@ -83,7 +83,7 @@
     --sidebar-primary-foreground: 0 0% 100%;
     --sidebar-accent: 275 30% 8%;
     --sidebar-accent-foreground: 0 0% 100%;
-    --sidebar-border: 0 0% 100% / 10%;
+    --sidebar-border: 275 12% 20%;
     --sidebar-ring: 288 77% 62%;
   }
 }
