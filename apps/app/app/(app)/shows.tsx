@@ -3,6 +3,7 @@ import { View, Pressable, RefreshControl, useWindowDimensions, FlatList } from '
 import { Text } from '@/components/ui/text';
 import { Button } from '@/components/ui/button';
 import { Plus, Mic, Trash2, AlertCircle, CheckCircle } from 'lucide-react-native';
+import { useAuth } from '@oxyhq/services';
 import { useShowStore, type Show } from '@/lib/stores/show-store';
 import { ShowPlayer } from '@/components/show/show-player';
 import { ShowProgressCard } from '@/components/show/show-progress';
@@ -111,6 +112,7 @@ export default function ShowsScreen() {
   const error = useShowStore(s => s.error);
   const fetchShows = useShowStore(s => s.fetchShows);
   const deleteShow = useShowStore(s => s.deleteShow);
+  const { isAuthenticated } = useAuth();
   const { colors } = useColorScheme();
   const { width } = useWindowDimensions();
 
@@ -121,8 +123,8 @@ export default function ShowsScreen() {
   const [refreshing, setRefreshing] = useState(false);
 
   useEffect(() => {
-    fetchShows();
-  }, [fetchShows]);
+    if (isAuthenticated) fetchShows();
+  }, [fetchShows, isAuthenticated]);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);

@@ -20,7 +20,7 @@ export function initSocket(server: http.Server) {
       methods: ['GET', 'POST'],
       credentials: true,
     },
-    transports: ['websocket'],
+    transports: ['websocket', 'polling'],
   });
 
   // Attach Redis adapter for horizontal scaling
