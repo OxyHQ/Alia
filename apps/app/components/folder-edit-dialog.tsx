@@ -21,6 +21,7 @@ import {
   type LucideIcon,
 } from "lucide-react-native";
 import { cn } from "@/lib/utils";
+import { ColorPicker, COLOR_OPTIONS } from "@/components/ui/color-picker";
 import type { Folder as FolderType } from "@/lib/stores/folders-store";
 
 const ICON_OPTIONS = [
@@ -30,17 +31,6 @@ const ICON_OPTIONS = [
   { name: "Archive", Icon: Archive },
   { name: "Inbox", Icon: Inbox },
   { name: "BookMarked", Icon: BookMarked },
-];
-
-const COLOR_OPTIONS = [
-  "#3b82f6", // blue
-  "#8b5cf6", // purple
-  "#ec4899", // pink
-  "#f59e0b", // amber
-  "#10b981", // green
-  "#06b6d4", // cyan
-  "#f97316", // orange
-  "#ef4444", // red
 ];
 
 interface FolderEditDialogProps {
@@ -137,25 +127,7 @@ export const FolderEditDialog = ({
           </View>
 
           {/* Color Picker */}
-          <View className="gap-2">
-            <Text className="text-sm font-medium text-foreground">Color</Text>
-            <View className="flex-row flex-wrap gap-2">
-              {COLOR_OPTIONS.map((color) => (
-                <Pressable
-                  key={color}
-                  onPress={() => setSelectedColor(color)}
-                  className={cn(
-                    "h-10 w-10 rounded-full border-2 overflow-hidden",
-                    selectedColor === color
-                      ? "border-foreground scale-110"
-                      : "border-transparent"
-                  )}
-                >
-                  <View style={{ backgroundColor: color, flex: 1 }} />
-                </Pressable>
-              ))}
-            </View>
-          </View>
+          <ColorPicker selected={selectedColor} onSelect={setSelectedColor} />
         </View>
 
         <DialogFooter>
