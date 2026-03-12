@@ -7,25 +7,27 @@
 # --- Stage 1: Builder ---
 FROM node:22-bookworm-slim AS builder
 
-# Install build tools for native modules (node-pty requires python3 + make + g++)
+# Install build tools for native modules (node-pty requires python3 + make + g++) and Bun
 RUN apt-get update && \
-    apt-get install -y --no-install-recommends python3 make g++ && \
+    apt-get install -y --no-install-recommends python3 make g++ curl unzip && \
+    curl -fsSL https://bun.sh/install | bash && \
+    ln -s /root/.bun/bin/bun /usr/local/bin/bun && \
     rm -rf /var/lib/apt/lists/*
 
 WORKDIR /build
 
 # Copy root workspace files
-COPY package.json package-lock.json ./
+COPY package.json bun.lock ./
 COPY apps/integrations/package.json ./apps/integrations/
 
 # Install all dependencies (including devDependencies for build)
-RUN npm ci --workspace=apps/integrations
+RUN bun install --frozen-lockfile
 
 # Copy source
 COPY apps/integrations/ ./apps/integrations/
 
 # Build TypeScript
-RUN npm run build --workspace=apps/integrations
+RUN bun run --filter @alia/integrations build
 
 # --- Stage 2: Production Runtime ---
 FROM node:22-bookworm-slim AS runtime
@@ -38,6 +40,7 @@ FROM node:22-bookworm-slim AS runtime
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
       curl \
+      unzip \
       chromium \
       default-jre-headless \
       python3 \
@@ -45,6 +48,8 @@ RUN apt-get update && \
       g++ \
       ca-certificates \
       wget && \
+    curl -fsSL https://bun.sh/install | bash && \
+    ln -s /root/.bun/bin/bun /usr/local/bin/bun && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
@@ -62,11 +67,11 @@ ENV PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
 WORKDIR /app
 
 # Copy root workspace files
-COPY package.json package-lock.json ./
+COPY package.json bun.lock ./
 COPY apps/integrations/package.json ./apps/integrations/
 
 # Install production dependencies only
-RUN npm ci --workspace=apps/integrations --omit=dev
+RUN bun install --frozen-lockfile --production
 
 # Copy built output from builder
 COPY --from=builder /build/apps/integrations/dist ./apps/integrations/dist
