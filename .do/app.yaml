@@ -12,7 +12,7 @@ services:
       branch: main
       deploy_on_push: true
 
-    build_command: ELECTRON_SKIP_BINARY_DOWNLOAD=1 npm ci -w @alia/api && npm run build:api
+    build_command: ELECTRON_SKIP_BINARY_DOWNLOAD=1 PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 npm ci -w @alia/api && npm run build:api
     run_command: npm run start:api
     source_dir: /
     environment_slug: node-js
@@ -79,7 +79,7 @@ services:
       branch: main
       deploy_on_push: true
 
-    build_command: ELECTRON_SKIP_BINARY_DOWNLOAD=1 npm ci -w @alia/gateway --include=dev && npm run build:gateway
+    build_command: ELECTRON_SKIP_BINARY_DOWNLOAD=1 PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 npm ci -w @alia/gateway --include=dev && npm run build:gateway
     run_command: npm run start:gateway
     source_dir: /
     environment_slug: node-js
@@ -115,9 +115,9 @@ services:
       repo: Alia-onl/Alia
       branch: main
       deploy_on_push: true
-    build_command: npm install && npm run build
-    run_command: node .output/server/index.mjs
-    source_dir: apps/alia-console
+    build_command: ELECTRON_SKIP_BINARY_DOWNLOAD=1 PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 npm ci -w alia-console && npm run build --workspace=alia-console
+    run_command: node apps/alia-console/.output/server/index.mjs
+    source_dir: /
     environment_slug: node-js
     instance_size_slug: apps-s-1vcpu-0.5gb
     instance_count: 1
@@ -149,7 +149,7 @@ services:
       repo: Alia-onl/Alia
       branch: main
       deploy_on_push: true
-    build_command: ELECTRON_SKIP_BINARY_DOWNLOAD=1 npm ci -w alia-canvas && npm run build:canvas
+    build_command: ELECTRON_SKIP_BINARY_DOWNLOAD=1 PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 npm ci -w alia-canvas && npm run build:canvas
     run_command: npm run start:canvas
     source_dir: /
     environment_slug: node-js
@@ -163,7 +163,7 @@ static_sites:
       repo: Alia-onl/Alia
       branch: main
       deploy_on_push: true
-    build_command: ELECTRON_SKIP_BINARY_DOWNLOAD=1 npm ci -w @alia/app && npm run build --workspace=@alia/app
+    build_command: ELECTRON_SKIP_BINARY_DOWNLOAD=1 PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 npm ci -w @alia/app && npm run build --workspace=@alia/app
     source_dir: /
     environment_slug: node-js
     output_dir: apps/app/dist
@@ -174,10 +174,10 @@ static_sites:
       repo: Alia-onl/Alia
       branch: main
       deploy_on_push: true
-    build_command: npm install --include=dev && npm run build
-    source_dir: apps/alia-gateway-admin
+    build_command: ELECTRON_SKIP_BINARY_DOWNLOAD=1 PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 npm ci -w alia-gateway-admin --include=dev && npm run build --workspace=alia-gateway-admin
+    source_dir: /
     environment_slug: node-js
-    output_dir: dist
+    output_dir: apps/alia-gateway-admin/dist
     catchall_document: index.html
 
 databases:
