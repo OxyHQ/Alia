@@ -2,9 +2,10 @@
   "name": "@alia/gateway",
   "version": "1.0.0",
   "private": true,
+  "type": "module",
   "scripts": {
     "dev": "tsx watch src/index.ts",
-    "build": "tsc",
+    "build": "tsx build.ts",
     "start": "node dist/index.js"
   },
   "dependencies": {
@@ -19,6 +20,7 @@
     "ws": "^8.18.0"
   },
   "devDependencies": {
+    "esbuild": "^0.27.2",
     "@types/cors": "^2.8.17",
     "@types/express": "4.17.21",
     "@types/node": "^22.7.5",

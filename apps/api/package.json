@@ -45,10 +45,12 @@
     "stripe": "^20.2.0",
     "tsx": "^4.19.2",
     "web-push": "^3.6.7",
+    "ws": "^8.19.0",
     "zod": "^3.24.1"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.2",
+    "@types/ws": "^8.18.1",
     "@swc/cli": "^0.5.2",
     "@swc/core": "^1.15.8",
     "@types/cors": "^2.8.17",
