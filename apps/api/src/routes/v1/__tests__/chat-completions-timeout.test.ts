@@ -118,7 +118,7 @@ vi.mock('../../../lib/tools/index.js', () => ({
   createGetWhatsAppChatsTool: vi.fn(() => ({ execute: vi.fn() })),
   createGetWhatsAppMessagesTool: vi.fn(() => ({ execute: vi.fn() })),
   createSendWhatsAppMessageTool: vi.fn(() => ({ execute: vi.fn() })),
-  createProvidersAdminTool: vi.fn(() => ({ execute: vi.fn() })),
+  createGatewayAdminTool: vi.fn(() => ({ execute: vi.fn() })),
   webScraperTool: { execute: vi.fn() },
   generateFileTool: { execute: vi.fn() },
   createSearchAgentsTool: vi.fn(() => ({ execute: vi.fn() })),
@@ -167,7 +167,7 @@ vi.mock('../../../lib/errors/index.js', () => ({
   getRetryAfterHeader: vi.fn(() => undefined),
 }));
 
-vi.mock('../../../lib/providers-client.js', () => ({
+vi.mock('../../../lib/gateway-client.js', () => ({
   getAliaModel: vi.fn(() => ({ name: 'Alia V1', creditMultiplier: 1 })),
   getModelMappingsForTier: vi.fn(() => []),
 }));

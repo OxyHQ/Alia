@@ -4,7 +4,7 @@
  * Graceful degradation: if embedding fails, returns null (never throws).
  */
 
-import { callProviderAPI } from '../providers-client.js';
+import { callProviderAPI } from '../gateway-client.js';
 import { log } from '../logger.js';
 
 const EMBEDDING_MODEL = 'text-embedding-3-small';

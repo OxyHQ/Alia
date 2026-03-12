@@ -17,7 +17,7 @@ import { generateText } from 'ai';
 import { AgentSession, type IAgentSession } from '../models/agent-session.js';
 import { Agent, type IAgent } from '../models/agent.js';
 import { resolveModel, getAIModel, reportModelUsage, getDefaultAliaModel } from './chat-core.js';
-import { markKeyCreditExhausted } from './providers-client.js';
+import { markKeyCreditExhausted } from './gateway-client.js';
 import { cleanupSessionResources } from './agent-tools.js';
 import { log } from './logger.js';
 import { EventStream } from './agent/event-stream.js';

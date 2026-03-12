@@ -34,7 +34,7 @@ This is an **npm workspaces** monorepo (no Turborepo/Nx).
 | `apps/alia-cowork` | Electron | Desktop assistant surface |
 | `apps/alia-console` | TanStack Start + React | Admin console |
 | `apps/alia-canvas` | Next.js | Canvas app |
-| `apps/alia-providers-admin` | Vite + React | Internal model-routing admin |
+| `apps/alia-gateway-admin` | Vite + React | Internal gateway admin |
 | `apps/alia-codea-cli` | CLI | Terminal coding assistant |
 | `apps/alia-docker-host` | Express + TypeScript | Sandboxed container host |
 | `apps/integrations` | Express + TypeScript | Messaging and channel integrations |

@@ -1,4 +1,4 @@
-name: alia-providers-admin
+name: alia-gateway-admin
 region: nyc
 
 static_sites:
@@ -9,7 +9,7 @@ static_sites:
       repo: Alia-onl/Alia
 
     # Source directory (monorepo path)
-    source_dir: /apps/alia-providers-admin
+    source_dir: /apps/alia-gateway-admin
 
     # Build configuration
     build_command: npm install --include=dev && npm run build
@@ -19,8 +19,8 @@ static_sites:
 
     # Environment variables
     envs:
-      - key: VITE_PROVIDERS_API_URL
-        value: https://api.providers.alia.onl/providers
+      - key: VITE_GATEWAY_API_URL
+        value: https://api.gateway.alia.onl/gateway
         scope: BUILD_TIME
 
     # Routes configuration for SPA
@@ -29,5 +29,5 @@ static_sites:
 
     # Custom domain
     domains:
-      - domain: providers.alia.onl
+      - domain: gateway.alia.onl
         type: PRIMARY

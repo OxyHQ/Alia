@@ -1,15 +1,15 @@
-# Alia Providers Admin Panel
+# Alia Gateway Admin Panel
 
-Modern admin panel for managing the Alia Providers module (internal to the main API). Built with Vite, React, TypeScript, and shadcn/ui.
+Modern admin panel for managing the Alia Gateway module (internal to the main API). Built with Vite, React, TypeScript, and shadcn/ui.
 
 ## Architecture
 
-The providers module lives inside the main API at `apps/api/src/internal/providers/`. It is **not** a separate microservice. The admin panel connects to `http://localhost:3001/internal/providers` (or the configured `VITE_PROVIDERS_API_URL`).
+The providers module lives inside the main API at `apps/api/src/internal/gateway/`. It is **not** a separate microservice. The admin panel connects to `http://localhost:3001/internal/gateway` (or the configured `VITE_GATEWAY_API_URL`).
 
 ```
 Admin Panel (this app)
   └─→ Main API (apps/api, port 3001)
-       └─→ /internal/providers/*   ← providers module
+       └─→ /internal/gateway/*   ← providers module
 ```
 
 ## Features
@@ -78,7 +78,7 @@ const { user, isAuthenticated, isLoading } = useAuth();
 const isAuthorized = user?.username?.toLowerCase() === 'nate';
 ```
 
-**Backend** (apps/api [src/internal/providers/middleware/auth.ts](../api/src/internal/providers/middleware/auth.ts)):
+**Backend** (apps/api [src/internal/gateway/middleware/auth.ts](../api/src/internal/gateway/middleware/auth.ts)):
 ```typescript
 // Accepts both HMAC (service-to-service) and Bearer token (admin panel)
 // Bearer tokens are validated against OxyHQ and checked for admin username
@@ -110,7 +110,7 @@ cp .env.example .env
 
 **Development:**
 ```env
-VITE_PROVIDERS_API_URL=http://localhost:3001/internal/providers
+VITE_GATEWAY_API_URL=http://localhost:3001/internal/gateway
 VITE_OAUTH_CLIENT_ID=your-oxyauth-client-id
 VITE_OAUTH_AUTHORITY=https://auth.oxy.com
 VITE_OAUTH_REDIRECT_URI=http://localhost:5173/auth/callback
@@ -119,7 +119,7 @@ VITE_OAUTH_SCOPE=openid profile email
 
 **Production:**
 ```env
-VITE_PROVIDERS_API_URL=https://api.alia.onl/internal/providers
+VITE_GATEWAY_API_URL=https://api.alia.onl/internal/gateway
 ```
 
 ### Development
@@ -140,10 +140,10 @@ npm run preview
 
 ### Production Domains
 
-- **Admin Panel**: `https://providers.alia.onl`
-- **API (providers endpoint)**: `https://api.alia.onl/internal/providers`
+- **Admin Panel**: `https://gateway.alia.onl`
+- **API (providers endpoint)**: `https://api.alia.onl/internal/gateway`
 
-The admin panel communicates with the providers module inside the main API. Ensure the API is deployed and the `VITE_PROVIDERS_API_URL` environment variable points to the correct endpoint.
+The admin panel communicates with the providers module inside the main API. Ensure the API is deployed and the `VITE_GATEWAY_API_URL` environment variable points to the correct endpoint.
 
 ### Deployment Notes
 

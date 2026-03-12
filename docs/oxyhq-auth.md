@@ -25,7 +25,7 @@ Are you building...
 **Packages:** `@oxyhq/auth` + `@oxyhq/core`
 
 **Apps using this:**
-- `alia-providers-admin` - Vite + React admin panel
+- `alia-gateway-admin` - Vite + React admin panel
 - `alia-console` - Vite + React console
 - `canvas` - Next.js web app
 

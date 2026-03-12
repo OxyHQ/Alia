@@ -40,7 +40,7 @@ All Oxy ecosystem apps share the same MongoDB cluster on DigitalOcean. Each app 
 - `apps/api/` - Express backend API
 - `apps/alia-codea/` - VS Code extension
 - `apps/alia-canvas/` - Web canvas app
-- `apps/alia-providers-api/` - Providers service (internal)
+- `apps/alia-gateway/` - Gateway service (internal)
 
 ## Tech Stack
 

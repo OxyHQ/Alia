@@ -19,7 +19,7 @@ const providersModule = express.Router();
 providersModule.get('/health', (_req, res) => {
   res.json({
     success: true,
-    service: 'alia-providers (internal)',
+    service: 'alia-gateway (internal fallback)',
     status: 'healthy',
     timestamp: new Date().toISOString(),
   });

@@ -1,6 +1,6 @@
 # Real-Time WebSocket Implementation
 
-This document describes the real-time WebSocket implementation for the Alia Providers Admin panel.
+This document describes the real-time WebSocket implementation for the Alia Gateway Admin panel.
 
 ## Overview
 
@@ -75,7 +75,7 @@ The backend needs to implement a WebSocket server to enable real-time functional
 
 ### WebSocket Endpoint
 
-**URL**: `ws://localhost:3001/internal/providers/ws` (derived from `VITE_PROVIDERS_API_URL`)
+**URL**: `ws://localhost:3001/internal/gateway/ws` (derived from `VITE_GATEWAY_API_URL`)
 
 ### Message Protocol
 
@@ -252,7 +252,7 @@ Channels:
 
 ### Environment Variables
 
-- `VITE_PROVIDERS_API_URL` - Base HTTP URL (e.g., `http://localhost:3001/internal/providers`)
+- `VITE_GATEWAY_API_URL` - Base HTTP URL (e.g., `http://localhost:3001/internal/gateway`)
   - WebSocket URL is automatically derived by replacing `http` with `ws` and appending `/ws`
 
 ## Testing
@@ -303,7 +303,7 @@ If the WebSocket server is not yet implemented:
 ## Troubleshooting
 
 ### Connection Fails Immediately
-- Check `VITE_PROVIDERS_API_URL` is set correctly
+- Check `VITE_GATEWAY_API_URL` is set correctly
 - Verify backend WebSocket server is running on `/ws` endpoint
 - Check browser console for WebSocket errors
 

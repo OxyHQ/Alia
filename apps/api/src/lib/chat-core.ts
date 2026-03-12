@@ -24,7 +24,7 @@ import {
   type AliaModel,
   type AliaModelWithAvailability,
   type ModelCategory,
-} from './providers-client.js';
+} from './gateway-client.js';
 
 // Re-export types and helpers that chat routes need
 export { getDefaultAliaModel, isAliaModel, getAliaModel, getAllAliaModels, getAliaModelsByCategory, getDefaultModelForCategory, getAvailableModels };
@@ -46,7 +46,7 @@ export interface ResolvedModel {
 
 /**
  * Resolve an Alia model ID to a concrete provider and model.
- * Uses the providers API for key-manager + circuit breaker + priority rotation.
+ * Uses the gateway API for key-manager + circuit breaker + priority rotation.
  *
  * @param aliasModelId - The Alia model ID (e.g., "alia-v1", "alia-lite")
  * @param skipProviders - Providers to skip (for retry scenarios)
@@ -211,7 +211,7 @@ export function getAIModel(keyConfig: KeyConfig) {
 
 /**
  * Report the result of a provider call for health tracking and key rotation.
- * Delegates to the providers API via providers-client (fire-and-forget).
+ * Delegates to the gateway API via gateway-client (fire-and-forget).
  *
  * @param keyId - The key ID from the resolved model (may not exist for env-based keys)
  * @param provider - Provider name

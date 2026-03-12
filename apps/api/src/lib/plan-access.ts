@@ -5,7 +5,7 @@
  */
 
 import { Subscription } from '../models/subscription.js';
-import { getPlans, getPlanFeatures } from './providers-client.js';
+import { getPlans, getPlanFeatures } from './gateway-client.js';
 
 const FREE_MODEL_IDS = ['alia-lite', 'alia-v1', 'alia-v1-audio'];
 

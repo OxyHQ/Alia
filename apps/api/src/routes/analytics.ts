@@ -2,7 +2,7 @@ import { Router, Request, Response } from 'express';
 import mongoose from 'mongoose';
 import { authenticateToken } from '../middleware/auth.js';
 import { ChatAnalytics } from '../lib/hooks/built-in/analytics-hook.js';
-import { getAliaModel } from '../lib/providers-client.js';
+import { getAliaModel } from '../lib/gateway-client.js';
 import { log } from '../lib/logger.js';
 
 const router = Router();

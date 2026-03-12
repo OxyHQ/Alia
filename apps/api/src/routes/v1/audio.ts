@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { getModelMappingsForTier, callProviderAPI } from '../../lib/providers-client.js';
+import { getModelMappingsForTier, callProviderAPI } from '../../lib/gateway-client.js';
 import { reserveCredits, finalizeCredits } from '../../lib/credits-manager.js';
 import { getOrCreateUserCredits } from '../../lib/user-credits-helpers.js';
 import { uploadToS3 } from '../../lib/s3.js';
