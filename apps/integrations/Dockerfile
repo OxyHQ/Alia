@@ -33,6 +33,10 @@ COPY apps/alia-cowork/package.json ./apps/alia-cowork/
 COPY apps/alia-codea-cli/package.json ./apps/alia-codea-cli/
 COPY apps/alia-gateway/package.json ./apps/alia-gateway/
 
+# Rewrite git+ssh:// to git+https:// so cloning works without SSH keys
+RUN git config --global url."https://github.com/".insteadOf "git@github.com:" && \
+    git config --global url."https://github.com/".insteadOf "ssh://git@github.com/"
+
 # Install all dependencies (including devDependencies for build)
 RUN bun install --frozen-lockfile --filter @alia/integrations
 
@@ -50,6 +54,7 @@ FROM node:22-bookworm-slim AS runtime
 # - chromium: Playwright browser automation
 # - default-jre-headless: signal-cli runtime
 # - python3, make, g++: node-pty native build
+# - git: required by bun for git dependencies (libsignal)
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
       curl \
@@ -60,6 +65,7 @@ RUN apt-get update && \
       make \
       g++ \
       ca-certificates \
+      git \
       wget && \
     curl -fsSL https://bun.com/install -o /tmp/install-bun.sh && \
     bash /tmp/install-bun.sh && \
@@ -95,6 +101,10 @@ COPY apps/alia-codea/package.json ./apps/alia-codea/
 COPY apps/alia-cowork/package.json ./apps/alia-cowork/
 COPY apps/alia-codea-cli/package.json ./apps/alia-codea-cli/
 COPY apps/alia-gateway/package.json ./apps/alia-gateway/
+
+# Rewrite git+ssh:// to git+https:// so cloning works without SSH keys
+RUN git config --global url."https://github.com/".insteadOf "git@github.com:" && \
+    git config --global url."https://github.com/".insteadOf "ssh://git@github.com/"
 
 # Install production dependencies only
 RUN bun install --frozen-lockfile --production --filter @alia/integrations
