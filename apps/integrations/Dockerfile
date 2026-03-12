@@ -9,7 +9,7 @@ FROM node:22-bookworm-slim AS builder
 
 # Install build tools for native modules (node-pty requires python3 + make + g++) and Bun
 RUN apt-get update && \
-    apt-get install -y --no-install-recommends python3 make g++ ca-certificates curl unzip && \
+    apt-get install -y --no-install-recommends python3 make g++ ca-certificates curl unzip git && \
     curl -fsSL https://bun.com/install -o /tmp/install-bun.sh && \
     bash /tmp/install-bun.sh && \
     ln -s /root/.bun/bin/bun /usr/local/bin/bun && \
