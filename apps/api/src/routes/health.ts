@@ -24,8 +24,10 @@ async function getHealthSnapshot() {
     : 'disconnected';
 
   let providersSummary = { total: 0, healthy: 0, unhealthy: 0, openCircuits: 0 };
+  let providersReachable = false;
   try {
     const providers = await getAllProviderHealth();
+    providersReachable = true;
     providersSummary = {
       total: providers.length,
       healthy: providers.filter((p: HealthMetrics) => p.isHealthy).length,
@@ -33,14 +35,17 @@ async function getHealthSnapshot() {
       openCircuits: providers.filter((p: HealthMetrics) => p.circuitState === 'open').length,
     };
   } catch {
-    // If we can't reach providers health, still report what we know
+    // Gateway unreachable — don't penalize health status
   }
 
   const mem = process.memoryUsage();
   const redisStatus = isQueueActive() ? 'connected' : 'unavailable';
 
+  // Only require healthy providers if we could actually reach the gateway
+  const isHealthy = mongoState === 1 && (!providersReachable || providersSummary.healthy > 0);
+
   const snapshot = {
-    status: mongoState === 1 && providersSummary.healthy > 0 ? 'healthy' : 'degraded',
+    status: isHealthy ? 'healthy' : 'degraded',
     timestamp: new Date().toISOString(),
     uptime: Math.round(process.uptime()),
     mongodb: mongoStatus,

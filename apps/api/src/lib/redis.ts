@@ -10,6 +10,18 @@ import { log } from './logger.js';
 let client: Redis | null = null;
 let subClient: Redis | null = null;
 
+const MAX_RETRIES = 10;
+const ERROR_LOG_INTERVAL_MS = 60_000;
+let lastErrorLogTime = 0;
+
+function throttledErrorLog(label: string, err: Error) {
+  const now = Date.now();
+  if (now - lastErrorLogTime > ERROR_LOG_INTERVAL_MS) {
+    log.general.error({ err }, `${label} (suppressing repeats for 60s)`);
+    lastErrorLogTime = now;
+  }
+}
+
 function parseRedisUrl(): { host: string; port: number; password?: string; username?: string; tls?: object } | null {
   const url = process.env.REDIS_URL;
   if (!url) return null;
@@ -21,7 +33,7 @@ function parseRedisUrl(): { host: string; port: number; password?: string; usern
       port: parseInt(parsed.port || '6379', 10),
       password: parsed.password || undefined,
       username: parsed.username || undefined,
-      tls: parsed.protocol === 'rediss:' ? {} : undefined,
+      tls: parsed.protocol === 'rediss:' ? { rejectUnauthorized: false } : undefined,
     };
   } catch {
     log.general.warn('REDIS_URL is set but could not be parsed');
@@ -41,13 +53,19 @@ export function getRedisClient(): Redis | null {
   client = new Redis({
     ...config,
     maxRetriesPerRequest: 3,
-    connectTimeout: 3000,
+    connectTimeout: 5000,
     commandTimeout: 2000,
-    retryStrategy: (times) => Math.min(times * 200, 3000),
+    retryStrategy: (times) => {
+      if (times > MAX_RETRIES) {
+        log.general.warn(`Redis client giving up after ${MAX_RETRIES} retries`);
+        return null; // Stop reconnecting
+      }
+      return Math.min(times * 500, 5000);
+    },
   });
 
   client.on('error', (err) => {
-    log.general.error({ err }, 'Redis client error');
+    throttledErrorLog('Redis client error', err);
   });
 
   client.on('connect', () => {
@@ -70,13 +88,19 @@ export function getRedisSubClient(): Redis | null {
   subClient = new Redis({
     ...config,
     maxRetriesPerRequest: 3,
-    connectTimeout: 3000,
+    connectTimeout: 5000,
     commandTimeout: 2000,
-    retryStrategy: (times) => Math.min(times * 200, 3000),
+    retryStrategy: (times) => {
+      if (times > MAX_RETRIES) {
+        log.general.warn(`Redis subscriber giving up after ${MAX_RETRIES} retries`);
+        return null;
+      }
+      return Math.min(times * 500, 5000);
+    },
   });
 
   subClient.on('error', (err) => {
-    log.general.error({ err }, 'Redis subscriber client error');
+    throttledErrorLog('Redis subscriber client error', err);
   });
 
   return subClient;
