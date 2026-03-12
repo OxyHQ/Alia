@@ -108,7 +108,7 @@ router.get('/', async (req: Request, res: Response) => {
   try {
     const userId = req.user?.id;
     if (!userId) {
-      return res.status(401).json({ error: 'Authentication required' });
+      return res.json({ shows: [], pagination: { page: 1, limit: 20, total: 0, pages: 0 } });
     }
 
     const page = Math.max(1, parseInt(req.query.page as string) || 1);

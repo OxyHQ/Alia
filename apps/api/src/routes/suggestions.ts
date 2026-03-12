@@ -312,6 +312,7 @@ router.post('/generate', authenticateToken, async (req: Request, res: Response) 
         const model = getAIModel(resolved.keyConfig);
         result = await generateText({
           model,
+          abortSignal: AbortSignal.timeout(30000),
           messages: [
             {
               role: 'user',
@@ -412,7 +413,8 @@ Return ONLY a valid JSON array, no other text.`,
     res.json({ suggestions: created, generated: created.length });
   } catch (error: unknown) {
     log.general.error({ err: error }, 'Error generating suggestions');
-    res.status(500).json({ error: 'Failed to generate suggestions' });
+    const status = (error as any)?.statusCode >= 500 || (error as any)?.code === 'ECONNREFUSED' ? 503 : 500;
+    res.status(status).json({ error: 'Failed to generate suggestions' });
   }
 });
 
