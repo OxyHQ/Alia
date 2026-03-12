@@ -87,6 +87,7 @@
   },
   "dependencies": {
     "@oxyhq/auth": "^2.0.1",
-    "@oxyhq/core": "^1.7.0"
+    "@oxyhq/core": "^1.7.0",
+    "tailwindcss": "^4.1.17"
   }
 }
