@@ -20,7 +20,18 @@ WORKDIR /build
 
 # Copy root workspace files
 COPY package.json bun.lock ./
+COPY apps/api/package.json ./apps/api/
+COPY apps/app/package.json ./apps/app/
+COPY apps/alia-chat/package.json ./apps/alia-chat/
+COPY apps/alia-canvas/package.json ./apps/alia-canvas/
+COPY apps/alia-docker-host/package.json ./apps/alia-docker-host/
 COPY apps/integrations/package.json ./apps/integrations/
+COPY apps/alia-console/package.json ./apps/alia-console/
+COPY apps/alia-gateway-admin/package.json ./apps/alia-gateway-admin/
+COPY apps/alia-codea/package.json ./apps/alia-codea/
+COPY apps/alia-cowork/package.json ./apps/alia-cowork/
+COPY apps/alia-codea-cli/package.json ./apps/alia-codea-cli/
+COPY apps/alia-gateway/package.json ./apps/alia-gateway/
 
 # Install all dependencies (including devDependencies for build)
 RUN bun install --frozen-lockfile --filter @alia/integrations
@@ -72,7 +83,18 @@ WORKDIR /app
 
 # Copy root workspace files
 COPY package.json bun.lock ./
+COPY apps/api/package.json ./apps/api/
+COPY apps/app/package.json ./apps/app/
+COPY apps/alia-chat/package.json ./apps/alia-chat/
+COPY apps/alia-canvas/package.json ./apps/alia-canvas/
+COPY apps/alia-docker-host/package.json ./apps/alia-docker-host/
 COPY apps/integrations/package.json ./apps/integrations/
+COPY apps/alia-console/package.json ./apps/alia-console/
+COPY apps/alia-gateway-admin/package.json ./apps/alia-gateway-admin/
+COPY apps/alia-codea/package.json ./apps/alia-codea/
+COPY apps/alia-cowork/package.json ./apps/alia-cowork/
+COPY apps/alia-codea-cli/package.json ./apps/alia-codea-cli/
+COPY apps/alia-gateway/package.json ./apps/alia-gateway/
 
 # Install production dependencies only
 RUN bun install --frozen-lockfile --production --filter @alia/integrations
