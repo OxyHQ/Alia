@@ -36,6 +36,7 @@
     "build:admin": "bun run --filter alia-console build",
     "build:canvas": "bun run --filter alia-canvas build",
     "build:docker-host": "bun run --filter @alia/docker-host build",
+    "build:gateway-admin": "bun run --filter alia-gateway-admin build",
     "build:integrations": "bun run --filter @alia/integrations build",
     "build:gateway": "bun run --filter @alia/gateway build",
     "start:app": "bun run --filter @alia/app start",
