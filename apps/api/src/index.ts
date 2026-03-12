@@ -58,7 +58,7 @@ import { seedSuggestions } from './lib/seed-suggestions.js';
 import { seedBots } from './lib/seed-bots.js';
 import { startTriggerScheduler } from './lib/trigger-engine.js';
 import { warmupProviders } from './lib/provider-warmup.js';
-import { warmupProvidersClient } from './lib/providers-client.js';
+import { warmupGatewayClient } from './lib/gateway-client.js';
 import { initChannels } from './lib/channels/index.js';
 // Socket.io
 import { initSocket } from './socket.js';
@@ -109,7 +109,7 @@ server.on('connection', (socket) => {
 initSocket(server);
 initMcpRelay(server);
 
-// Note: WebSocket upgrade for providers admin is now handled by alia-providers-api
+// Note: WebSocket upgrade for gateway admin is now handled by alia-gateway
 
 // Public API routes (/v1) - allow all origins (like OpenAI's API)
 app.use('/v1', cors({
@@ -129,7 +129,7 @@ app.use('/v1', (_req, res, next) => {
 const PRODUCTION_ORIGINS = [
   'https://alia.onl',
   'https://console.alia.onl',
-  'https://providers.alia.onl',
+  'https://gateway.alia.onl',
 ];
 
 const DEV_ORIGINS = [
@@ -317,8 +317,8 @@ connectDB()
   .then(() => {
     server.listen(PORT, '0.0.0.0', () => {
       console.log(`🚀 API Server running on http://0.0.0.0:${PORT}`);
-      // Warm up providers client cache (non-blocking)
-      warmupProvidersClient().catch((err) => console.error('[Providers] Client warmup error:', err));
+      // Warm up gateway client cache (non-blocking)
+      warmupGatewayClient().catch((err) => console.error('[Gateway] Client warmup error:', err));
       // Seed built-in skills and suggestions (non-blocking)
       seedSkills().catch((err) => console.error('[Skills] Seed error:', err));
       seedSuggestions().catch((err) => console.error('[Suggestions] Seed error:', err));

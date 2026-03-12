@@ -38,8 +38,8 @@ services:
         type: SECRET
       - key: SERVICE_SECRET
         type: SECRET
-      - key: PROVIDERS_API_URL
-        value: "http://providers-api:9091"
+      - key: GATEWAY_API_URL
+        value: "http://gateway:9091"
       - key: WEB_URL
         value: "https://alia.onl"
       # S3/Spaces
@@ -73,14 +73,14 @@ services:
       - key: LIVEKIT_INTERNAL_URL
         value: "wss://livekit.oxy.so"
 
-  - name: providers-api
+  - name: gateway
     github:
       repo: Alia-onl/Alia
       branch: main
       deploy_on_push: true
 
-    build_command: ELECTRON_SKIP_BINARY_DOWNLOAD=1 npm ci -w @alia/providers-api --include=dev && npm run build:providers-api
-    run_command: npm run start:providers-api
+    build_command: ELECTRON_SKIP_BINARY_DOWNLOAD=1 npm ci -w @alia/gateway --include=dev && npm run build:gateway
+    run_command: npm run start:gateway
     source_dir: /
     environment_slug: node-js
 
@@ -169,13 +169,13 @@ static_sites:
     output_dir: apps/app/dist
     catchall_document: index.html
 
-  - name: providers-admin
+  - name: gateway-admin
     github:
       repo: Alia-onl/Alia
       branch: main
       deploy_on_push: true
     build_command: npm install --include=dev && npm run build
-    source_dir: apps/alia-providers-admin
+    source_dir: apps/alia-gateway-admin
     environment_slug: node-js
     output_dir: dist
     catchall_document: index.html
@@ -194,10 +194,10 @@ domains:
   - domain: api.alia.onl
     type: ALIAS
     zone: alia.onl
-  - domain: api.providers.alia.onl
+  - domain: api.gateway.alia.onl
     type: ALIAS
     zone: alia.onl
-  - domain: providers.alia.onl
+  - domain: gateway.alia.onl
     type: ALIAS
     zone: alia.onl
   - domain: console.alia.onl

@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import mongoose from 'mongoose';
-import { getAllProviderHealth, type HealthMetrics } from '../lib/providers-client.js';
+import { getAllProviderHealth, type HealthMetrics } from '../lib/gateway-client.js';
 import { isQueueActive } from '../lib/task-queue.js';
 import { log } from '../lib/logger.js';
 

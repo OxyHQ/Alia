@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { createVoiceToken, isLiveKitConfigured, getLiveKitUrl } from '../../lib/livekit-token.js';
-import { getModelMappingsForTier } from '../../lib/providers-client.js';
-import { callProviderAPI } from '../../lib/providers-client.js';
+import { getModelMappingsForTier } from '../../lib/gateway-client.js';
+import { callProviderAPI } from '../../lib/gateway-client.js';
 import { reserveCredits, finalizeCredits } from '../../lib/credits-manager.js';
 import { getOrCreateUserCredits } from '../../lib/user-credits-helpers.js';
 import { voiceSessionManager } from '../../internal/providers/lib/voice-session-manager.js';

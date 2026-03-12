@@ -1,12 +1,12 @@
 # Deploying to DigitalOcean App Platform
 
-This guide covers deploying the Alia Providers Admin Panel as a Static Site on DigitalOcean.
+This guide covers deploying the Alia Gateway Admin Panel as a Static Site on DigitalOcean.
 
 ## Prerequisites
 
 - DigitalOcean account
 - GitHub repository
-- Domain configured (providers.alia.onl)
+- Domain configured (gateway.alia.onl)
 
 ## Deployment Steps
 
@@ -20,7 +20,7 @@ This guide covers deploying the Alia Providers Admin Panel as a Static Site on D
 
 2. **Configure the Static Site**
    - **Type**: Static Site
-   - **Source Directory**: `/apps/alia-providers-admin`
+   - **Source Directory**: `/apps/alia-gateway-admin`
    - **Build Command**:
      ```bash
      npm install && npm run build
@@ -33,14 +33,14 @@ This guide covers deploying the Alia Providers Admin Panel as a Static Site on D
    Add these as **Build-time** variables:
    
    ```env
-   VITE_PROVIDERS_API_URL=https://api.providers.alia.onl
+   VITE_GATEWAY_API_URL=https://api.gateway.alia.onl
    VITE_SERVICE_SECRET=your-secret-here
    ```
    
    Set `VITE_SERVICE_SECRET` as an encrypted secret.
 
 4. **Configure Domain**
-   - Add custom domain: `providers.alia.onl`
+   - Add custom domain: `gateway.alia.onl`
    - DigitalOcean will handle SSL/TLS automatically
    - Update your DNS to point to the app
 
@@ -77,7 +77,7 @@ The app includes a `.do/app.yaml` configuration file. You can use it to deploy v
 
 4. **Create the App**
    ```bash
-   cd apps/alia-providers-admin
+   cd apps/alia-gateway-admin
    doctl apps create --spec .do/app.yaml
    ```
 
@@ -95,7 +95,7 @@ The app includes a `.do/app.yaml` configuration file. You can use it to deploy v
 
 This project uses a monorepo structure. Important notes:
 
-1. **Source Directory**: Must be set to `/apps/alia-providers-admin`
+1. **Source Directory**: Must be set to `/apps/alia-gateway-admin`
 2. **Build Command**: Must run `npm install` first (dependencies aren't in repo root)
 3. **Dependencies**: All dependencies are in the admin folder's `package.json`
 
@@ -116,9 +116,9 @@ This installs all dependencies (including devDependencies which are needed for t
 
 **Cause**: Providers API not allowing requests from admin domain
 
-**Solution**: Check `alia-providers` service has correct CORS configuration:
+**Solution**: Check `alia-gateway` service has correct CORS configuration:
 ```env
-ALLOWED_ORIGINS=https://providers.alia.onl,https://api.alia.onl
+ALLOWED_ORIGINS=https://gateway.alia.onl,https://api.alia.onl
 ```
 
 ### Environment variables not working
@@ -149,7 +149,7 @@ This ensures all routes serve index.html for client-side routing.
    - Ensure no errors
 
 2. **Test the App**
-   - Visit https://providers.alia.onl
+   - Visit https://gateway.alia.onl
    - Check all pages load
    - Verify API connection works
 

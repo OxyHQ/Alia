@@ -8,7 +8,7 @@
 
 import { tool } from 'ai';
 import { z } from 'zod';
-import { getAliaModel } from '../providers-client.js';
+import { getAliaModel } from '../gateway-client.js';
 import { log } from '../logger.js';
 
 /**

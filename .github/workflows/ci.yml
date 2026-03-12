@@ -53,8 +53,8 @@ jobs:
       - name: Build API
         run: npm run build:api
 
-  build-providers-api:
-    name: Build Providers API
+  build-gateway:
+    name: Build Gateway
     runs-on: ubuntu-latest
     timeout-minutes: 10
     needs: lint-and-test
@@ -70,5 +70,5 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Build Providers API
-        run: npm run build:providers-api
+      - name: Build Gateway
+        run: npm run build:gateway

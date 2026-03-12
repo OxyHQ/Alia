@@ -4,7 +4,7 @@ import { authenticateToken, oxyClient } from '../middleware/auth.js';
 import { UserCredits, type IUserCredits } from '../models/user-credits.js';
 import { Subscription } from '../models/subscription.js';
 import { Transaction } from '../models/transaction.js';
-import { getPlans, getCreditPackages, getFeatures, getPlanFeatures, getAllAliaModels, type PlanFeatureData } from '../lib/providers-client.js';
+import { getPlans, getCreditPackages, getFeatures, getPlanFeatures, getAllAliaModels, type PlanFeatureData } from '../lib/gateway-client.js';
 import { ensureStripePriceId } from '../lib/stripe-prices.js';
 import { getOrCreateUserCredits } from '../lib/user-credits-helpers.js';
 import { getUserEntitlements, invalidateEntitlementsCache } from '../lib/plan-access.js';

@@ -1,11 +1,11 @@
 /**
- * API Client for Alia Providers Service
+ * API Client for Alia Gateway Service
  * Uses OxyHQ authentication for admin access
  */
 
-const API_BASE_URL = import.meta.env.VITE_PROVIDERS_API_URL || 'http://localhost:3001/internal/providers';
+const API_BASE_URL = import.meta.env.VITE_GATEWAY_API_URL || 'http://localhost:3001/internal/gateway';
 
-class ProvidersAPIClient {
+class GatewayAPIClient {
   private baseUrl: string;
   private getAccessToken: (() => Promise<string | null>) | null = null;
 
@@ -560,4 +560,4 @@ export interface DashboardStats {
   };
 }
 
-export const apiClient = new ProvidersAPIClient();
+export const apiClient = new GatewayAPIClient();

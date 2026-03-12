@@ -7,7 +7,7 @@
  */
 
 import type Stripe from 'stripe';
-import { getPlans, updatePlan, type PlanData } from './providers-client.js';
+import { getPlans, updatePlan, type PlanData } from './gateway-client.js';
 import { log } from './logger.js';
 
 type StripeFn = () => Stripe;

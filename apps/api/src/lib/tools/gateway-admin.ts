@@ -4,7 +4,7 @@ import crypto from 'crypto';
 import { log } from '../logger.js';
 import { getErrorMessage } from '../errors/index.js';
 
-const PROVIDERS_API_URL = process.env.PROVIDERS_API_URL || 'http://localhost:9091';
+const GATEWAY_API_URL = process.env.GATEWAY_API_URL || 'http://localhost:9091';
 const SERVICE_SECRET = process.env.SERVICE_SECRET;
 
 function generateAuthHeaders(): Record<string, string> {
@@ -21,7 +21,7 @@ function generateAuthHeaders(): Record<string, string> {
 }
 
 async function proxyRequest(method: string, path: string, body?: any): Promise<any> {
-  const res = await fetch(`${PROVIDERS_API_URL}${path}`, {
+  const res = await fetch(`${GATEWAY_API_URL}${path}`, {
     method,
     headers: generateAuthHeaders(),
     body: body ? JSON.stringify(body) : undefined,
@@ -31,17 +31,17 @@ async function proxyRequest(method: string, path: string, body?: any): Promise<a
 
 // Map entity names to admin API paths
 const ENTITY_PATHS: Record<string, string> = {
-  keys: '/internal/providers/v1/keys',
-  models: '/internal/providers/v1/models',
-  aliaModels: '/internal/providers/v1/alia-models',
-  usage: '/internal/providers/v1/usage',
+  keys: '/gateway/v1/keys',
+  models: '/gateway/v1/models',
+  aliaModels: '/gateway/v1/alia-models',
+  usage: '/gateway/v1/usage',
 };
 
 /**
  * Admin tool for managing AI providers, keys, models, and Alia models.
- * Routes all operations through the alia-providers-api service.
+ * Routes all operations through the alia-gateway service.
  */
-export function createProvidersAdminTool() {
+export function createGatewayAdminTool() {
   return tool({
     description:
       'Admin tool for managing AI providers infrastructure. Supports CRUD operations on: keys (API keys for providers), models (provider model configs), aliaModels (virtual Alia model mappings), and usage (API usage stats). Use action "stats" for health overviews and aggregated usage data.',

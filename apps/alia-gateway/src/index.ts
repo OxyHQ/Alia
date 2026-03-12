@@ -49,7 +49,7 @@ const PORT = parseInt(process.env.PORT || '9091', 10);
 
 const allowedOrigins = process.env.CORS_ORIGINS
   ? process.env.CORS_ORIGINS.split(',')
-  : ['https://providers.alia.onl', 'http://localhost:5173', 'http://localhost:3001'];
+  : ['https://gateway.alia.onl', 'http://localhost:5173', 'http://localhost:3001'];
 
 app.use(helmet());
 app.use(cors({ origin: allowedOrigins, credentials: true }));
@@ -80,7 +80,7 @@ const authFailureLimiter = rateLimit({
   skipSuccessfulRequests: true,
   message: { error: { message: 'Too many failed requests, try again later', type: 'rate_limit_error', param: null, code: 'rate_limit_exceeded' } },
 });
-app.use('/providers', authFailureLimiter);
+app.use('/gateway', authFailureLimiter);
 app.use('/api', authFailureLimiter);
 
 // Health check — minimal info (public endpoint, no sensitive data)
@@ -106,7 +106,7 @@ app.get('/health/ready', (_req, res) => {
 });
 
 // Admin routes (existing admin panel UI)
-app.use('/providers', providersModule);
+app.use('/gateway', providersModule);
 
 // Service-to-service API routes (require HMAC auth)
 app.use('/api/resolve', authenticateService, resolveRouter);
@@ -129,7 +129,7 @@ async function start() {
   await runStartupSeed();
 
   const server = app.listen(PORT, () => {
-    log.general.info('alia-providers-api listening on port %d', PORT);
+    log.general.info('alia-gateway listening on port %d', PORT);
   });
 
   // WebSocket upgrade for /providers/ws
@@ -137,7 +137,7 @@ async function start() {
     try {
       const pathname = new URL(request.url!, `http://${request.headers.host}`).pathname;
 
-      if (pathname === '/providers/ws') {
+      if (pathname === '/gateway/ws') {
         const url = new URL(request.url!, `http://${request.headers.host}`);
         const token = url.searchParams.get('token');
         if (!token) {
@@ -209,6 +209,6 @@ async function start() {
 }
 
 start().catch((err) => {
-  log.general.fatal({ err }, 'Failed to start alia-providers-api');
+  log.general.fatal({ err }, 'Failed to start alia-gateway');
   process.exit(1);
 });

@@ -1,7 +1,7 @@
 import mongoose from 'mongoose';
 import { log } from './logger';
 
-// Share the same database as the main API — providers-api manages
+// Share the same database as the main API — the gateway manages
 // a subset of collections (provider keys, models, plans, etc.)
 // within the shared alia-{env} database.
 const APP_NAME = 'alia';

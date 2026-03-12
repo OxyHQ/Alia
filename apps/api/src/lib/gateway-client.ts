@@ -1,10 +1,10 @@
 /**
- * Providers Client — Dual-mode facade
+ * Gateway Client — Dual-mode facade
  *
- * When PROVIDERS_API is available (SERVICE_SECRET is set):
- *   → Routes all calls through the alia-providers-api HTTP service
+ * When GATEWAY_API is available (SERVICE_SECRET is set):
+ *   → Routes all calls through the alia-gateway HTTP service
  *
- * When PROVIDERS_API is NOT available:
+ * When GATEWAY_API is NOT available:
  *   → Falls back to direct imports from internal/providers/ modules
  *
  * Consumer files always import from this module — the backend is transparent.
@@ -17,14 +17,14 @@ import { getStatusCode } from './errors/index.js';
 // ============== MODE DETECTION ==============
 
 const SERVICE_SECRET = process.env.SERVICE_SECRET;
-const PROVIDERS_API_URL = process.env.PROVIDERS_API_URL || 'http://localhost:9091';
-const PROVIDERS_API_ENABLED = !!SERVICE_SECRET;
+const GATEWAY_API_URL = process.env.GATEWAY_API_URL || 'http://localhost:9091';
+const GATEWAY_API_ENABLED = !!SERVICE_SECRET;
 
-if (!PROVIDERS_API_ENABLED) {
-  log.general.info('Providers API not configured (no SERVICE_SECRET) — using local fallback');
+if (!GATEWAY_API_ENABLED) {
+  log.general.info('Gateway API not configured (no SERVICE_SECRET) — using local fallback');
 }
 
-// ============== HTTP AUTH (only used when PROVIDERS_API_ENABLED) ==============
+// ============== HTTP AUTH (only used when GATEWAY_API_ENABLED) ==============
 
 const SERVICE_NAME = 'alia-api';
 
@@ -42,19 +42,19 @@ function generateAuthHeaders(): Record<string, string> {
 }
 
 async function apiGet<T = unknown>(path: string): Promise<T> {
-  const res = await fetch(`${PROVIDERS_API_URL}${path}`, {
+  const res = await fetch(`${GATEWAY_API_URL}${path}`, {
     headers: generateAuthHeaders(),
   });
   if (!res.ok) {
     const body = await res.text();
-    throw new Error(`Providers API GET ${path} failed (${res.status}): ${body}`);
+    throw new Error(`Gateway API GET ${path} failed (${res.status}): ${body}`);
   }
   const json = await res.json() as Record<string, unknown>;
   return (json.data ?? json) as T;
 }
 
 async function apiPost<T = unknown>(path: string, body: unknown, signal?: AbortSignal): Promise<T> {
-  const res = await fetch(`${PROVIDERS_API_URL}${path}`, {
+  const res = await fetch(`${GATEWAY_API_URL}${path}`, {
     method: 'POST',
     headers: generateAuthHeaders(),
     body: JSON.stringify(body),
@@ -64,7 +64,7 @@ async function apiPost<T = unknown>(path: string, body: unknown, signal?: AbortS
     const text = await res.text();
     let parsed: { error?: string; reason?: string };
     try { parsed = JSON.parse(text); } catch { parsed = { error: text }; }
-    const error = new Error(parsed.error || `Providers API POST ${path} failed (${res.status})`) as Error & { reason?: string; status?: number };
+    const error = new Error(parsed.error || `Gateway API POST ${path} failed (${res.status})`) as Error & { reason?: string; status?: number };
     error.reason = parsed.reason;
     error.status = res.status;
     throw error;
@@ -74,7 +74,7 @@ async function apiPost<T = unknown>(path: string, body: unknown, signal?: AbortS
 }
 
 async function apiPatch<T = unknown>(path: string, body: unknown): Promise<T> {
-  const res = await fetch(`${PROVIDERS_API_URL}${path}`, {
+  const res = await fetch(`${GATEWAY_API_URL}${path}`, {
     method: 'PATCH',
     headers: generateAuthHeaders(),
     body: JSON.stringify(body),
@@ -83,7 +83,7 @@ async function apiPatch<T = unknown>(path: string, body: unknown): Promise<T> {
     const text = await res.text();
     let parsed: { error?: string };
     try { parsed = JSON.parse(text); } catch { parsed = { error: text }; }
-    const error = new Error(parsed.error || `Providers API PATCH ${path} failed (${res.status})`) as Error & { status?: number };
+    const error = new Error(parsed.error || `Gateway API PATCH ${path} failed (${res.status})`) as Error & { status?: number };
     error.status = res.status;
     throw error;
   }
@@ -253,7 +253,7 @@ export async function resolveAliaModel(
   skipProviders: Set<string> = new Set(),
   skipKeyIds?: Set<string>
 ): Promise<ResolvedModel | null> {
-  if (PROVIDERS_API_ENABLED) {
+  if (GATEWAY_API_ENABLED) {
     try {
       return await apiPost<ResolvedModel>('/api/resolve', {
         model,
@@ -292,7 +292,7 @@ export interface ProviderCallOptions {
  * Used for images, embeddings, transcription.
  */
 export async function callProviderAPI<T = unknown>(options: ProviderCallOptions): Promise<T> {
-  if (PROVIDERS_API_ENABLED) {
+  if (GATEWAY_API_ENABLED) {
     const { signal, ...bodyOptions } = options;
     return apiPost<T>('/api/call', bodyOptions, signal);
   }
@@ -338,7 +338,7 @@ export function reportModelUsage(
   success: boolean,
   opts?: { latencyMs?: number; errorCode?: string; tokens?: number; reason?: string; retryAfterMs?: number }
 ): void {
-  if (PROVIDERS_API_ENABLED) {
+  if (GATEWAY_API_ENABLED) {
     apiPost('/api/report', {
       keyId,
       provider,
@@ -376,7 +376,7 @@ export function reportModelUsage(
  * Get all alia models.
  */
 export async function getAllAliaModels(): Promise<AliaModel[]> {
-  if (PROVIDERS_API_ENABLED) {
+  if (GATEWAY_API_ENABLED) {
     if (isCacheValid(modelsCache)) return modelsCache.data;
     const data = await apiGet<{ models: AliaModel[] }>('/api/models');
     const models = data.models;
@@ -392,7 +392,7 @@ export async function getAllAliaModels(): Promise<AliaModel[]> {
  * Get all alia models with availability (checks health).
  */
 export async function getAvailableModels(): Promise<AliaModelWithAvailability[]> {
-  if (PROVIDERS_API_ENABLED) {
+  if (GATEWAY_API_ENABLED) {
     const data = await apiGet<{ models: AliaModelWithAvailability[] }>('/api/models?available=true');
     return data.models;
   }
@@ -405,7 +405,7 @@ export async function getAvailableModels(): Promise<AliaModelWithAvailability[]>
  * Get a specific alia model by ID.
  */
 export async function getAliaModel(modelId: string): Promise<AliaModel | null> {
-  if (PROVIDERS_API_ENABLED) {
+  if (GATEWAY_API_ENABLED) {
     const models = await getAllAliaModels();
     return models.find(m => m.id === modelId) ?? null;
   }
@@ -418,7 +418,7 @@ export async function getAliaModel(modelId: string): Promise<AliaModel | null> {
  * Synchronous model lookup from cache (returns null if cache cold).
  */
 export function getAliaModelSync(modelId: string): AliaModel | null {
-  if (PROVIDERS_API_ENABLED) {
+  if (GATEWAY_API_ENABLED) {
     if (!isCacheValid(modelsCache)) return null;
     return modelsCache.data.find(m => m.id === modelId) ?? null;
   }
@@ -438,7 +438,7 @@ export function getAliaModelSync(modelId: string): AliaModel | null {
  * Check if a model ID is an alia model.
  */
 export async function isAliaModel(modelId: string): Promise<boolean> {
-  if (PROVIDERS_API_ENABLED) {
+  if (GATEWAY_API_ENABLED) {
     const models = await getAllAliaModels();
     return models.some(m => m.id === modelId);
   }
@@ -451,7 +451,7 @@ export async function isAliaModel(modelId: string): Promise<boolean> {
  * Get all alia models by category.
  */
 export async function getAliaModelsByCategory(category: string): Promise<AliaModel[]> {
-  if (PROVIDERS_API_ENABLED) {
+  if (GATEWAY_API_ENABLED) {
     const models = await getAllAliaModels();
     return models.filter(m => m.category === category);
   }
@@ -464,7 +464,7 @@ export async function getAliaModelsByCategory(category: string): Promise<AliaMod
  * Get default model for a category.
  */
 export async function getDefaultModelForCategory(category: string): Promise<AliaModel | null> {
-  if (PROVIDERS_API_ENABLED) {
+  if (GATEWAY_API_ENABLED) {
     const models = await getAliaModelsByCategory(category);
     if (models.length === 0) return null;
     return models.reduce((best, m) => m.creditMultiplier < best.creditMultiplier ? m : best);
@@ -487,7 +487,7 @@ export function getDefaultAliaModel(): string {
  * Get tier-to-model mappings.
  */
 export async function getTierMappings(): Promise<Record<string, ModelMapping[]>> {
-  if (PROVIDERS_API_ENABLED) {
+  if (GATEWAY_API_ENABLED) {
     if (isCacheValid(tierMappingsCache)) return tierMappingsCache.data;
     const data = await apiGet<{ models: AliaModel[]; tierMappings: Record<string, ModelMapping[]> }>(
       '/api/models?tierMappings=true'
@@ -508,7 +508,7 @@ export async function getTierMappings(): Promise<Record<string, ModelMapping[]>>
  * Get model mappings for a specific tier.
  */
 export async function getModelMappingsForTier(tier: string): Promise<ModelMapping[]> {
-  if (PROVIDERS_API_ENABLED) {
+  if (GATEWAY_API_ENABLED) {
     const mappings = await getTierMappings();
     return mappings[tier] ?? [];
   }
@@ -523,7 +523,7 @@ export async function getModelMappingsForTier(tier: string): Promise<ModelMappin
  * Get all provider health metrics.
  */
 export async function getAllProviderHealth(): Promise<HealthMetrics[]> {
-  if (PROVIDERS_API_ENABLED) {
+  if (GATEWAY_API_ENABLED) {
     return apiGet<HealthMetrics[]>('/api/health');
   }
 
@@ -535,7 +535,7 @@ export async function getAllProviderHealth(): Promise<HealthMetrics[]> {
  * Get health for a specific provider/model.
  */
 export async function getProviderHealth(provider: string, modelId: string): Promise<HealthMetrics> {
-  if (PROVIDERS_API_ENABLED) {
+  if (GATEWAY_API_ENABLED) {
     return apiGet<HealthMetrics>(`/api/health?provider=${encodeURIComponent(provider)}&modelId=${encodeURIComponent(modelId)}`);
   }
 
@@ -549,7 +549,7 @@ export async function getProviderHealth(provider: string, modelId: string): Prom
  * Get plans.
  */
 export async function getPlans(filter?: Record<string, unknown>): Promise<PlanData[]> {
-  if (PROVIDERS_API_ENABLED) {
+  if (GATEWAY_API_ENABLED) {
     const data = await apiGet<{ plans: PlanData[] }>('/api/billing?type=plans');
     const plans = data.plans ?? [];
     if (!filter) return plans;
@@ -564,7 +564,7 @@ export async function getPlans(filter?: Record<string, unknown>): Promise<PlanDa
  * Get credit packages.
  */
 export async function getCreditPackages(active?: boolean): Promise<CreditPackageData[]> {
-  if (PROVIDERS_API_ENABLED) {
+  if (GATEWAY_API_ENABLED) {
     const query = active !== undefined ? `&active=${active}` : '';
     const data = await apiGet<{ packages: CreditPackageData[] }>(`/api/billing?type=packages${query}`);
     return data.packages ?? [];
@@ -580,7 +580,7 @@ export async function getCreditPackages(active?: boolean): Promise<CreditPackage
  * Get features.
  */
 export async function getFeatures(): Promise<FeatureData[]> {
-  if (PROVIDERS_API_ENABLED) {
+  if (GATEWAY_API_ENABLED) {
     const data = await apiGet<{ features: FeatureData[] }>('/api/billing?type=features');
     return data.features ?? [];
   }
@@ -593,7 +593,7 @@ export async function getFeatures(): Promise<FeatureData[]> {
  * Get plan features.
  */
 export async function getPlanFeatures(planId?: string): Promise<PlanFeatureData[]> {
-  if (PROVIDERS_API_ENABLED) {
+  if (GATEWAY_API_ENABLED) {
     const query = planId ? `&planId=${encodeURIComponent(planId)}` : '';
     const data = await apiGet<{ planFeatures: PlanFeatureData[] }>(`/api/billing?type=plan-features${query}`);
     return data.planFeatures ?? [];
@@ -609,7 +609,7 @@ export async function getPlanFeatures(planId?: string): Promise<PlanFeatureData[
  * Update a plan (e.g. to persist auto-created Stripe price IDs).
  */
 export async function updatePlan(planId: string, updates: Record<string, unknown>): Promise<PlanData | null> {
-  if (PROVIDERS_API_ENABLED) {
+  if (GATEWAY_API_ENABLED) {
     return apiPatch(`/v1/plans/${planId}`, updates);
   }
 
@@ -621,11 +621,11 @@ export async function updatePlan(planId: string, updates: Record<string, unknown
 
 /**
  * Mark a provider key as credit-exhausted.
- * Routes through providers-api when enabled so it operates on the correct database.
+ * Routes through gateway API when enabled so it operates on the correct database.
  */
 export async function markKeyCreditExhausted(keyId: string): Promise<void> {
   if (!keyId) return;
-  if (PROVIDERS_API_ENABLED) {
+  if (GATEWAY_API_ENABLED) {
     apiPost('/api/report', { keyId, provider: '', modelId: '', success: false, reason: 'billing' }).catch(() => {});
     return;
   }
@@ -638,16 +638,16 @@ export async function markKeyCreditExhausted(keyId: string): Promise<void> {
 /**
  * Warm up the in-memory cache at startup.
  */
-export async function warmupProvidersClient(): Promise<void> {
-  if (!PROVIDERS_API_ENABLED) {
-    log.general.info('Providers client using local modules — no warmup needed');
+export async function warmupGatewayClient(): Promise<void> {
+  if (!GATEWAY_API_ENABLED) {
+    log.general.info('Gateway client using local modules — no warmup needed');
     return;
   }
 
   try {
     await getTierMappings();
-    log.general.info('Providers client cache warmed up');
+    log.general.info('Gateway client cache warmed up');
   } catch (error: unknown) {
-    log.general.warn({ err: error }, 'Failed to warm up providers client cache (providers API may not be ready)');
+    log.general.warn({ err: error }, 'Failed to warm up gateway client cache (gateway API may not be ready)');
   }
 }
