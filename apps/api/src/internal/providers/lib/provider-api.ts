@@ -11,7 +11,7 @@
 import { getBestKeyForModel, recordKeySuccess, recordKeyFailure, recordKeyUsage, markKeyCreditExhausted } from './key-manager.js';
 import { classifyError } from '../../../lib/errors/failover-error.js';
 import { log } from '../../../lib/logger.js';
-import { callDigitalOceanAsyncInvoke, downloadBinaryFromUrl } from './digitalocean-async.js';
+import { callDigitalOceanAsyncInvoke, downloadBinaryFromUrl, extractAudioUrl } from './digitalocean-async.js';
 import type { FailoverReason } from '../../../lib/errors/error-codes.js';
 
 // Provider base URLs — internal knowledge
@@ -135,7 +135,7 @@ export async function callProviderAPI<T = any>(options: ProviderAPIOptions): Pro
 
         // For TTS / binary responses: download audio from the output URL
         if (options.responseType === 'arrayBuffer') {
-          const audioUrl = output?.audio_url ?? output?.url ?? output?.audio?.url;
+          const audioUrl = extractAudioUrl(output);
           if (!audioUrl) {
             throw new Error(`DO async-invoke: no audio URL in output for ${modelId}`);
           }

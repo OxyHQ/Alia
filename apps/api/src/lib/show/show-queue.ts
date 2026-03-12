@@ -82,16 +82,7 @@ export async function startShowWorker(): Promise<void> {
       } catch (err: unknown) {
         log.general.error({ err, showId }, 'Show generation failed');
 
-        // Update show status
-        try {
-          const { Show } = await import('../../models/show.js');
-          await Show.findByIdAndUpdate(showId, {
-            status: 'failed',
-            error: getErrorMessage(err).slice(0, 500),
-          });
-        } catch {}
-
-        // Send failure notification
+        // Pipeline already updates show status to 'failed' — just send notification
         try {
           const { sendNotification } = await import('../notification-service.js');
           await sendNotification({

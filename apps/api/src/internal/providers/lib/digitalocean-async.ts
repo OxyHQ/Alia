@@ -144,6 +144,21 @@ export async function callDigitalOceanAsyncInvoke(
 }
 
 /**
+ * Extract audio URL from a DO async-invoke output object.
+ * Different models use different keys — this normalizes them.
+ */
+export function extractAudioUrl(output: any): string | undefined {
+  return output?.audio_url ?? output?.url ?? output?.audio?.url;
+}
+
+/**
+ * Extract image URL from a DO async-invoke or OpenAI-compatible output object.
+ */
+export function extractImageUrl(output: any): string | undefined {
+  return output?.data?.[0]?.url ?? output?.images?.[0]?.url;
+}
+
+/**
  * Download binary content from a URL (e.g., audio file from TTS result).
  */
 export async function downloadBinaryFromUrl(

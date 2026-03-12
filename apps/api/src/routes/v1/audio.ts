@@ -5,12 +5,11 @@ import { getOrCreateUserCredits } from '../../lib/user-credits-helpers.js';
 import { uploadToS3 } from '../../lib/s3.js';
 import { Message } from '../../models/message.js';
 import { log } from '../../lib/logger.js';
-import { sanitizeMessage } from '../../lib/errors/sanitize.js';
+import { getSafeErrorMessage } from '../../lib/errors/sanitize.js';
+import { extractAudioUrl } from '../../internal/providers/lib/digitalocean-async.js';
 import type { Request, Response } from 'express';
 
 const router = Router();
-const getSafeErrorMessage = (error: unknown, fallback: string): string =>
-  sanitizeMessage(error instanceof Error ? error.message : fallback);
 
 /**
  * POST /v1/audio/speech
@@ -242,7 +241,7 @@ router.post('/generate', async (req: Request, res: Response) => {
     }
 
     // Extract audio URL from the async-invoke result
-    const generatedUrl = audioOutput?.audio_url ?? audioOutput?.url ?? audioOutput?.audio?.url;
+    const generatedUrl = extractAudioUrl(audioOutput);
     if (!generatedUrl) {
       await finalizeCredits(reservation, { promptTokens: 0, completionTokens: 0, totalTokens: 0 });
       return res.status(502).json({ error: { message: 'Audio generation returned no result', type: 'server_error' } });

@@ -3,7 +3,7 @@ import { View, Pressable, RefreshControl, useWindowDimensions, FlatList } from '
 import { Text } from '@/components/ui/text';
 import { Button } from '@/components/ui/button';
 import { Plus, Mic, Trash2, AlertCircle, CheckCircle } from 'lucide-react-native';
-import { useShowStore, type Show, type ShowProgress } from '@/lib/stores/show-store';
+import { useShowStore, type Show } from '@/lib/stores/show-store';
 import { ShowPlayer } from '@/components/show/show-player';
 import { ShowProgressCard } from '@/components/show/show-progress';
 import { ShowCreateDialog } from '@/components/show/show-create-dialog';
@@ -22,18 +22,18 @@ const STATUS_CONFIG: Record<string, { label: string; color: string }> = {
   failed: { label: 'Failed', color: 'text-red-500' },
 };
 
-function ShowCard({ show, progress, onDelete }: {
+const formatDate = (dateStr: string) => {
+  const d = new Date(dateStr);
+  return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+};
+
+function ShowCard({ show, onDelete }: {
   show: Show;
-  progress?: ShowProgress;
   onDelete: (id: string) => void;
 }) {
+  const progress = useShowStore(s => s.activeGenerations.get(show._id));
   const isActive = ['queued', 'generating_script', 'generating_audio', 'concatenating'].includes(show.status);
   const statusConfig = STATUS_CONFIG[show.status] || STATUS_CONFIG.queued;
-
-  const formatDate = (dateStr: string) => {
-    const d = new Date(dateStr);
-    return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
-  };
 
   return (
     <View className="bg-card rounded-xl border border-border p-4 gap-3">
@@ -109,7 +109,6 @@ export default function ShowsScreen() {
   const shows = useShowStore(s => s.shows);
   const loading = useShowStore(s => s.loading);
   const error = useShowStore(s => s.error);
-  const activeGenerations = useShowStore(s => s.activeGenerations);
   const fetchShows = useShowStore(s => s.fetchShows);
   const deleteShow = useShowStore(s => s.deleteShow);
   const { colors } = useColorScheme();
@@ -136,18 +135,11 @@ export default function ShowsScreen() {
     toast.success('Show deleted');
   }, [deleteShow]);
 
-  const renderItem = useCallback(({ item }: { item: Show }) => {
-    const progress = activeGenerations.get(item._id);
-    return (
-      <View className="px-4 pb-3">
-        <ShowCard
-          show={item}
-          progress={progress}
-          onDelete={handleDelete}
-        />
-      </View>
-    );
-  }, [activeGenerations, handleDelete]);
+  const renderItem = useCallback(({ item }: { item: Show }) => (
+    <View className="px-4 pb-3">
+      <ShowCard show={item} onDelete={handleDelete} />
+    </View>
+  ), [handleDelete]);
 
   return (
     <View className="flex-1 bg-background">

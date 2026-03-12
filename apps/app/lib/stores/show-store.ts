@@ -164,12 +164,19 @@ export const useShowStore = create<ShowStore>((set, get) => ({
 
   updateProgress: (progress) => {
     set(state => {
+      // Skip no-op updates
+      const existing = state.activeGenerations.get(progress.showId);
+      if (existing && existing.progress === progress.progress && existing.status === progress.status) {
+        return state;
+      }
+
       const newMap = new Map(state.activeGenerations);
       newMap.set(progress.showId, progress);
 
       // Update show status in list
       const shows = state.shows.map(s => {
         if (s._id === progress.showId) {
+          if (s.status === progress.status && s.progress === progress.progress) return s;
           return {
             ...s,
             status: progress.status as ShowStatus,

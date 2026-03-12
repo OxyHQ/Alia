@@ -93,6 +93,14 @@ export function sanitizeFull(message: string): string {
 }
 
 /**
+ * Safely extract a user-facing error message from an unknown error.
+ * Wraps sanitizeMessage to strip provider names.
+ */
+export function getSafeErrorMessage(error: unknown, fallback: string): string {
+  return sanitizeMessage(error instanceof Error ? error.message : fallback);
+}
+
+/**
  * Format an AliaError for API response (user-facing).
  * Returns OpenAI-compatible error format.
  * NEVER includes provider information.
