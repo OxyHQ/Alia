@@ -11,16 +11,14 @@ import { reserveCredits, finalizeCredits, refundReservation, type CreditReservat
 import { recordUsage } from '../../middleware/api-key-rate-limit.js';
 import { detectCreditAnomaly, type CreditWarning } from '../../lib/credit-anomaly.js';
 import { getUserEntitlements } from '../../lib/plan-access.js';
-import { convertOpenAIToolsToToolSet } from '../../lib/tool-converter.js';
-import { getCurrentDateTool, webSearchTool, browseTool, saveUserMemoryTool, updateUserPreferencesTool, updateUserContextTool, createSendTelegramTool, createGetWhatsAppChatsTool, createGetWhatsAppMessagesTool, createSendWhatsAppMessageTool, createGatewayAdminTool, webScraperTool, generateFileTool, createSearchAgentsTool, createDelegateToAgentTool, createDeepResearchTool, createSwitchModelTool, createAgentTool, createPlanPreviewTool } from '../../lib/tools/index.js';
-import { buildMcpTools } from '../../lib/tools/mcp.js';
-import { buildIntegrationTools } from '../../lib/tools/integrations.js';
-import { buildOxyServiceTools, getOxyServicePromptFragment, getOxyServiceContext } from '../../lib/tools/oxy-services.js';
+import { ToolPipeline } from '../../lib/tool-pipeline.js';
+import { createResponseSSEEmitter } from '../../lib/sse-emitter.js';
+import { SystemPromptBuilder } from '../../lib/system-prompt-builder.js';
+import { convertToAISDKMessages, type ChatMessage } from '../../lib/message-converter.js';
 import { oxyClient } from '../../middleware/auth.js';
 import { Skill } from '../../models/skill.js';
 import { estimateMessageTokens } from '../../lib/token-counter.js';
 import { runBeforeChatHooks, runAfterChatHooks } from '../../lib/hooks/index.js';
-import { buildSystemPrompt } from '../../lib/prompt-loader.js';
 import { wrapToolsWithTruncation, getToolResultBudget } from '../../lib/tools/result-truncation.js';
 import { log } from '../../lib/logger.js';
 import { recordEvent } from '../../lib/observability/index.js';
@@ -30,178 +28,19 @@ import type { FailoverReason } from '../../lib/errors/error-codes.js';
 import { runDeepResearch, type ResearchProgress } from '../../lib/research/research-engine.js';
 import { sendNotification } from '../../lib/notification-service.js';
 import { Agent as AgentModel, type IAgent } from '../../models/agent.js';
-import { buildArchetypeSystemPrompt } from '../../lib/agent/archetype-prompts.js';
 import {
   runAutonomyBeforeChat,
   runAutonomyAfterChat,
-  buildAutonomyPromptFragment,
   type AutonomyRuntimeContext,
 } from '../../lib/autonomy/runtime.js';
 
 const router = Router();
-
-/** Minimal type for OpenAI-format chat messages from request body */
-interface ChatMessage {
-  role: string;
-  content?: string | Array<{ type: string; text?: string; image_url?: { url: string } }>;
-  name?: string;
-  tool_call_id?: string;
-  tool_calls?: Array<{ id: string; type: string; function: { name: string; arguments: string } }>;
-  toolInvocations?: Array<{ toolCallId: string; toolName: string; state: string; args?: unknown; result?: unknown }>;
-}
 
 /** Extended stream chunk types not yet exported by AI SDK */
 type ExtendedChunk = { type: string; text?: string; thoughtDelta?: string; reasoningDelta?: string; toolName?: string; error?: Error & { message: string }; [key: string]: unknown };
 
 /** Errors that should NOT be retried on a different provider (model-level issues, not provider-level) */
 const NON_RETRYABLE_STREAM: Set<FailoverReason> = new Set(['format', 'content_filter']);
-
-/**
- * Convert OpenAI-format messages to AI SDK ModelMessage format.
- * Handles tool result messages which have role "tool" in OpenAI format.
- */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any -- AI SDK ModelMessage types are complex/dynamic
-function convertToAISDKMessages(messages: ChatMessage[], toolNameMapping: Map<string, string>): any[] {
-  const result: any[] = [];
-  const toolCallsMap = new Map<string, { name: string; index: number }>();
-
-  for (let i = 0; i < messages.length; i++) {
-    const msg = messages[i];
-
-    if (msg.role === 'system') {
-      result.push({
-        role: 'system',
-        content: msg.content || ''
-      });
-    } else if (msg.role === 'user') {
-      if (Array.isArray(msg.content)) {
-        // Multi-part content (text + images): convert OpenAI image_url format to AI SDK image format
-        result.push({
-          role: 'user',
-          content: (msg.content as Array<{ type: string; image_url?: { url: string } }>).map(part => {
-            if (part.type === 'image_url' && part.image_url?.url) {
-              return { type: 'image', image: part.image_url.url };
-            }
-            return part;
-          }),
-        });
-      } else {
-        result.push({
-          role: 'user',
-          content: msg.content
-        });
-      }
-    } else if (msg.role === 'assistant') {
-      // Support both formats:
-      // - tool_calls: OpenAI/editor format (from Cursor, VS Code, etc.)
-      // - toolInvocations: Alia app format (from mobile/web app)
-      let toolCalls = msg.tool_calls;
-      if (!toolCalls && msg.toolInvocations && Array.isArray(msg.toolInvocations) && msg.toolInvocations.length > 0) {
-        toolCalls = msg.toolInvocations!.map(inv => ({
-          id: inv.toolCallId,
-          type: 'function',
-          function: {
-            name: inv.toolName,
-            arguments: JSON.stringify(inv.args || {}),
-          },
-        }));
-      }
-
-      if (toolCalls && Array.isArray(toolCalls) && toolCalls.length > 0) {
-        // Track tool calls for matching with results
-        for (const tc of toolCalls) {
-          if (tc.id && tc.function?.name) {
-            const sanitizedName = Array.from(toolNameMapping.entries())
-              .find(([_, orig]: [string, string]) => orig === tc.function.name)?.[0] || tc.function.name;
-            toolCallsMap.set(tc.id, { name: sanitizedName, index: result.length });
-          }
-        }
-
-        result.push({
-          role: 'assistant',
-          content: msg.content || '',
-          toolCalls: toolCalls.map((tc: { id: string; function?: { name: string; arguments: string } }) => {
-            const sanitizedName = Array.from(toolNameMapping.entries())
-              .find(([_, orig]: [string, string]) => orig === tc.function?.name)?.[0] || tc.function?.name || 'unknown';
-
-            return {
-              toolCallId: tc.id,
-              toolName: sanitizedName,
-              args: typeof tc.function?.arguments === 'string'
-                ? JSON.parse(tc.function.arguments)
-                : (tc.function?.arguments || {})
-            };
-          })
-        });
-
-        // For toolInvocations with results, also push corresponding tool result messages
-        // (These are already resolved — the app stores the tool output inline)
-        if (msg.toolInvocations && Array.isArray(msg.toolInvocations)) {
-          for (const inv of msg.toolInvocations) {
-            if (inv.state === 'result' && inv.result !== undefined) {
-              const resultValue = typeof inv.result === 'string' ? inv.result : JSON.stringify(inv.result);
-              result.push({
-                role: 'tool',
-                content: [{
-                  type: 'tool-result',
-                  toolCallId: inv.toolCallId,
-                  toolName: inv.toolName,
-                  output: {
-                    type: 'text',
-                    value: resultValue,
-                  },
-                }],
-              });
-            }
-          }
-        }
-      } else {
-        result.push({
-          role: 'assistant',
-          content: msg.content || ''
-        });
-      }
-    } else if (msg.role === 'tool') {
-      // Convert OpenAI tool result to AI SDK format
-      const toolCallId = msg.tool_call_id;
-      const toolInfo = toolCallsMap.get(toolCallId);
-      let toolName = toolInfo?.name || msg.name || 'unknown';
-
-      // Try to find tool name from previous assistant message if unknown
-      if (toolName === 'unknown' && i > 0) {
-        for (let j = i - 1; j >= 0; j--) {
-          const prevMsg = messages[j];
-          if (prevMsg.role === 'assistant' && prevMsg.tool_calls) {
-            const matchingCall = prevMsg.tool_calls!.find(tc => tc.id === toolCallId);
-            if (matchingCall) {
-              toolName = matchingCall.function?.name || 'unknown';
-              break;
-            }
-          }
-        }
-      }
-
-      const contentValue = typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content);
-
-      result.push({
-        role: 'tool',
-        content: [{
-          type: 'tool-result',
-          toolCallId: toolCallId,
-          toolName: toolName,
-          output: {
-            type: 'text',
-            value: contentValue
-          }
-        }]
-      });
-    }
-  }
-
-  return result;
-}
-
-// getAIModel is now imported from chat-core.ts
 
 /**
  * POST /v1/chat/completions
@@ -590,75 +429,23 @@ export const handleChatCompletions = async (req: Request, res: Response) => {
       }
     }
 
-    // Build system prompt (depends on aliasModelId from model resolution)
-    const baseSystemPrompt = await buildSystemPrompt(aliasModelId, clientContext);
+    // Assemble all tools via the unified pipeline
+    const sseEmitter = createResponseSSEEmitter(res, ensureSSEHeaders);
+    const { tools: allTools, toolNameMapping } = await ToolPipeline.forUser({
+      userId: req.user?.id || '',
+      accessToken: req.accessToken,
+      isDirectSession: isDirectUserSession,
+      agentMode,
+      username: (oxyUser as any)?.username,
+      requestId,
+      editorToolDefinitions: body.tools,
+      sseEmitter,
+    });
+    const hasEditorTools = Array.isArray(body.tools) && body.tools.length > 0;
 
-    // Convert editor tools from OpenAI format and sanitize names for Google compatibility
-    const toolNameMapping = new Map<string, string>();
-    const editorTools = Array.isArray(body.tools) ? convertOpenAIToolsToToolSet(body.tools, toolNameMapping) : {};
-
-    // Alia internal tools are server-executed
-    // Editor tools are client-executed (VS Code, Cursor, Cowork)
-    const hasEditorTools = Object.keys(editorTools).length > 0;
-
-    // Always include server-only tools (no conflicts with client tools):
-    // - getCurrentDate: Server time/date
-    // - webSearch: Web search via DuckDuckGo (free, no API key)
-    // - sendTelegram: Server-side Telegram API (only for direct user sessions)
-    // - saveUserMemory/updateUserPreferences/updateUserContext: Server-side DB operations (only for direct user sessions)
-    //
-    // IMPORTANT: Memory tools are ONLY available for direct user sessions.
-    // API key requests should NOT be able to modify the API creator's memory.
-    //
-    const aliaTools: ToolSet = {
-      getCurrentDate: getCurrentDateTool,
-      webScraper: webScraperTool,
-      generateFile: generateFileTool,
-      webSearch: webSearchTool,
-      browse: browseTool,
-      // Personal tools only available for direct user sessions (not API key requests)
-      ...(isDirectUserSession ? {
-        sendTelegram: createSendTelegramTool(req.user!.id),
-        getWhatsAppChats: createGetWhatsAppChatsTool(req.user!.id),
-        getWhatsAppMessages: createGetWhatsAppMessagesTool(req.user!.id),
-        sendWhatsAppMessage: createSendWhatsAppMessageTool(req.user!.id),
-        saveUserMemory: saveUserMemoryTool(req.user!.id),
-        updateUserPreferences: updateUserPreferencesTool(req.user!.id),
-        updateUserContext: updateUserContextTool(req.user!.id),
-        createAgent: createAgentTool(req.user!.id, (oxyUser as any)?.username),
-        deepResearch: createDeepResearchTool(req.user!.id),
-        switchModel: createSwitchModelTool((modelId, modelName) => {
-          ensureSSEHeaders();
-          res.write(`event: alia.model_switch\ndata: ${JSON.stringify({ eventVersion: 1, model: modelId, modelName })}\n\n`);
-        }),
-        planPreview: createPlanPreviewTool((steps) => {
-          ensureSSEHeaders();
-          res.write(`event: alia.plan_preview\ndata: ${JSON.stringify({ eventVersion: 1, planId: `plan-${requestId}`, steps })}\n\n`);
-        }),
-      } : {}),
-    };
-
-    // Add user's MCP server tools, integration tools, and Oxy service tools (only for direct user sessions)
-    if (isDirectUserSession && req.user?.id) {
-      try {
-        const [mcpTools, integrationTools, oxyServiceTools] = await Promise.all([
-          buildMcpTools(req.user.id),
-          buildIntegrationTools(req.user.id),
-          buildOxyServiceTools(req.user.id, req.accessToken!),
-        ]);
-        Object.assign(aliaTools, mcpTools, integrationTools, oxyServiceTools);
-      } catch (err) {
-        log.v1.warn({ err }, 'Failed to load MCP/integration/oxy-service tools');
-      }
-    }
-
-    const allTools = { ...aliaTools, ...editorTools };
-
-    // Agent mode: add search & delegation tools + full agent escalation
+    // Agent mode: full agent escalation for linked conversations
     const agentMessages: Array<{ role: 'assistant'; content: string; agentInfo: { id: string; name: string; avatar: string | null; handle: string } }> = [];
     if (agentMode && isDirectUserSession) {
-      allTools.searchAgents = createSearchAgentsTool();
-      allTools.delegateToAgent = createDelegateToAgentTool();
 
       // Check if this conversation is linked to a specific agent — enable full agent execution
       if (conversationId && req.user?.id) {
@@ -731,102 +518,21 @@ export const handleChatCompletions = async (req: Request, res: Response) => {
       log.v1.info({ toolCount: body.tools.length }, 'Received tools from client');
     }
 
-    // Build system message from base prompt (which includes language + identity + tool boundaries)
-    let systemMessage = baseSystemPrompt;
-
-    // Inject current date so the AI always knows "today" without a tool call
-    systemMessage += `\n\nToday is ${new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}.`;
-    if (autonomyRuntime) {
-      systemMessage += buildAutonomyPromptFragment(autonomyRuntime);
-    }
-    if (recalledMemories?.length) {
-      const memoryLines = recalledMemories.slice(0, 12).map((m) => `- ${m.key}: ${m.value}`).join('\n');
-      systemMessage += `\n\n## Recalled Memories\n${memoryLines}`;
-    }
-
-    // Inject current model identity so Alia knows which tier it's running as
-    const aliaModel = await getAliaModel(aliasModelId);
-    if (aliaModel) {
-      systemMessage += `\n\nYou are currently using the **${aliaModel.name}** model. When asked what model you use, say you are using ${aliaModel.name}.`;
-    }
-
-    // Only inject personal user information for DIRECT user sessions
-    // API key requests are for third-party apps and should remain neutral
-    if (isDirectUserSession) {
-      // Use user profile fetched in parallel
-      const userName = oxyUser?.name?.full || oxyUser?.name?.first || oxyUser?.username;
-      if (userName) {
-        systemMessage += `\n\nThe user's name is ${userName}.`;
-      }
-      // Add admin tools for authorized users
-      if (oxyUser?.username === 'nate') {
-        allTools.gatewayAdmin = createGatewayAdminTool();
-      }
-      systemMessage += '\n\nYou have `sendTelegram` and WhatsApp tools (`getWhatsAppChats`, `getWhatsAppMessages`, `sendWhatsAppMessage`). Use them when the user asks. For WhatsApp, call getWhatsAppChats first to get chat JIDs.';
-
-      // Inject Oxy service tools description + live context (non-blocking)
-      try {
-        const [oxyServicePrompt, oxyServiceCtx] = await Promise.all([
-          getOxyServicePromptFragment(req.user.id),
-          getOxyServiceContext(req.accessToken!),
-        ] as const);
-        if (oxyServicePrompt) systemMessage += oxyServicePrompt;
-        if (oxyServiceCtx) systemMessage += oxyServiceCtx;
-      } catch {
-        // Non-critical — don't block chat
-      }
-      if (agentMode) {
-        systemMessage += '\n\nAGENT MODE: You have `searchAgents` and `delegateToAgent` tools. Search for specialist agents, delegate to the best match, and briefly explain why. If no agent fits, handle it yourself.';
-      }
-    } else if (req.apiKey) {
-      // API key request - add neutral context
-      log.v1.info('API key request - using neutral context');
-    }
-
-    // Only inject user memory for DIRECT user sessions
-    // API key requests should not have access to the API creator's personal memory
-    if (userMemory && isDirectUserSession) {
-      systemMessage += '\n\n## User Information';
-
-      if (userMemory.memories && userMemory.memories.length > 0) {
-        systemMessage += '\n### Known Facts:\n' + userMemory.memories.map(m => `- ${m.key}: ${m.value}`).join('\n');
-      }
-      if (userMemory.preferences && Object.keys(userMemory.preferences).length > 0) {
-        const prefs = Object.entries(userMemory.preferences)
-          .filter(([k, v]) => v !== undefined && v !== null && k !== 'language')
-          .map(([k, v]) => `- ${k}: ${Array.isArray(v) ? v.join(', ') : v}`);
-        if (prefs.length > 0) {
-          systemMessage += '\n### User Preferences:\n' + prefs.join('\n');
-        }
-      }
-      if (userMemory.context && Object.keys(userMemory.context).length > 0) {
-        const ctx = Object.entries(userMemory.context)
-          .filter(([_, v]) => v !== undefined && v !== null)
-          .map(([k, v]) => `- ${k}: ${v}`);
-        if (ctx.length > 0) {
-          systemMessage += '\n### Context:\n' + ctx.join('\n');
-        }
-      }
-    }
-
-    // Inject skill system prompt if skillId provided (already loaded in parallel)
-    const skillDoc = skill as { systemPrompt?: string; title?: string } | null;
-    if (skillDoc?.systemPrompt && isDirectUserSession) {
-      systemMessage = `# ACTIVE SKILL: ${skillDoc.title}\n\n${skillDoc.systemPrompt}\n\n---\n\n${systemMessage}`;
-      log.v1.info({ skillTitle: skillDoc.title }, 'Skill activated');
-    }
-
-    // Inject agent archetype prompt for linked agents (Q&A, status_update, task_router)
-    if (linkedAgent && isDirectUserSession) {
-      const agentPrompt = linkedAgent.systemPrompt || buildArchetypeSystemPrompt(linkedAgent as IAgent);
-      if (agentPrompt) {
-        systemMessage = `# AGENT: ${linkedAgent.name}\n\n${agentPrompt}\n\n---\n\n${systemMessage}`;
-        log.v1.info({ agentName: linkedAgent.name, archetype: linkedAgent.archetype }, 'Agent prompt injected');
-      }
-    }
-
-    // Title generation is handled asynchronously via generateConversationTitle()
-    // after conversation save — no in-response tags needed.
+    // Build complete system message via SystemPromptBuilder
+    const systemMessage = await SystemPromptBuilder.build({
+      aliasModelId,
+      clientContext,
+      isDirectUserSession,
+      userId: req.user?.id,
+      accessToken: req.accessToken,
+      oxyUser: oxyUser as any,
+      userMemory: userMemory as any,
+      recalledMemories,
+      skill: skill as { systemPrompt?: string; title?: string } | null,
+      linkedAgent: linkedAgent as IAgent | null,
+      agentMode,
+      autonomyRuntime,
+    });
 
 
     // Replace or inject system message
