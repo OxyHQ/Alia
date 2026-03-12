@@ -9,9 +9,11 @@ FROM node:22-bookworm-slim AS builder
 
 # Install build tools for native modules (node-pty requires python3 + make + g++) and Bun
 RUN apt-get update && \
-    apt-get install -y --no-install-recommends python3 make g++ curl unzip && \
-    curl -fsSL https://bun.sh/install | bash && \
+    apt-get install -y --no-install-recommends python3 make g++ ca-certificates curl unzip && \
+    curl -fsSL https://bun.com/install -o /tmp/install-bun.sh && \
+    bash /tmp/install-bun.sh && \
     ln -s /root/.bun/bin/bun /usr/local/bin/bun && \
+    rm /tmp/install-bun.sh && \
     rm -rf /var/lib/apt/lists/*
 
 WORKDIR /build
@@ -21,7 +23,7 @@ COPY package.json bun.lock ./
 COPY apps/integrations/package.json ./apps/integrations/
 
 # Install all dependencies (including devDependencies for build)
-RUN bun install --frozen-lockfile
+RUN bun install --frozen-lockfile --filter @alia/integrations
 
 # Copy source
 COPY apps/integrations/ ./apps/integrations/
@@ -48,8 +50,10 @@ RUN apt-get update && \
       g++ \
       ca-certificates \
       wget && \
-    curl -fsSL https://bun.sh/install | bash && \
+    curl -fsSL https://bun.com/install -o /tmp/install-bun.sh && \
+    bash /tmp/install-bun.sh && \
     ln -s /root/.bun/bin/bun /usr/local/bin/bun && \
+    rm /tmp/install-bun.sh && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
@@ -71,7 +75,7 @@ COPY package.json bun.lock ./
 COPY apps/integrations/package.json ./apps/integrations/
 
 # Install production dependencies only
-RUN bun install --frozen-lockfile --production
+RUN bun install --frozen-lockfile --production --filter @alia/integrations
 
 # Copy built output from builder
 COPY --from=builder /build/apps/integrations/dist ./apps/integrations/dist
