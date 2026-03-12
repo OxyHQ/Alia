@@ -35,7 +35,9 @@ services:
       - key: CA_CERT
         value: "${db-oxy.CA_CERT}"
       - key: REDIS_URL
-        type: SECRET
+        value: "${db-valkey.DATABASE_URL}"
+      - key: REDIS_CA_CERT
+        value: "${db-valkey.CA_CERT}"
       - key: SERVICE_SECRET
         type: SECRET
       - key: GATEWAY_API_URL
@@ -186,6 +188,11 @@ databases:
     version: "8"
     production: true
     cluster_name: db-oxy
+  - name: db-valkey
+    engine: REDIS
+    version: "7"
+    production: true
+    cluster_name: db-valkey-ams3-04785
 
 domains:
   - domain: alia.onl
