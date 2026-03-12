@@ -155,5 +155,14 @@ export const API_ROUTES = {
     chatCompletions: '/v1/chat/completions',
     models: '/v1/models',
     audioSpeech: '/v1/audio/speech',
+    audioGenerate: '/v1/audio/generate',
+    imagesGenerations: '/v1/images/generations',
+    shows: {
+      generate: '/v1/shows/generate',
+      list: '/v1/shows',
+      get: (id: string) => `/v1/shows/${id}`,
+      delete: (id: string) => `/v1/shows/${id}`,
+      voices: '/v1/shows/voices',
+    },
   },
 } as const;

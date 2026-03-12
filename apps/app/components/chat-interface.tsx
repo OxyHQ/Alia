@@ -13,9 +13,10 @@ import { cn } from "@/lib/utils";
 import { ThinkingIndicator } from '@alia.onl/sdk';
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { AliaFace, type AliaExpression } from "@/components/ui/alia-face";
-import { Copy, ThumbsUp, ThumbsDown, Pencil, Check, Volume2, Square } from "lucide-react-native";
+import { Copy, ThumbsUp, ThumbsDown, Pencil, Check, Volume2, Square, Music } from "lucide-react-native";
 import * as DropdownMenu from "@/components/ui/dropdown-menu";
 import { useTTS } from "@/lib/hooks/use-tts";
+import { useAudioGen } from "@/lib/hooks/use-audio-gen";
 import Animated, {
   FadeInUp,
   useSharedValue,
@@ -173,6 +174,9 @@ type MessageRowProps = {
   handleCopyMessage: (messageId: string, content: string) => void;
   handleVote: (messageId: string, vote: 'up' | 'down') => void;
   readAloud: (id: string, text: string, chatId?: string, audioUrl?: string) => void;
+  generateAudio: (messageId: string, prompt: string, conversationId?: string) => void;
+  audioGenActiveMessageId: string | null;
+  audioGenState: string;
   openThoughtPanel: (messageId: string) => void;
   onStartEdit?: (messageId: string, content: string) => void;
   onApprovePlan?: (planId: string) => void;
@@ -184,6 +188,7 @@ const MessageRow = React.memo(function MessageRow({
   isLoading, isLastMessage, isCopied, myVote,
   ttsActiveMessageId, ttsPlaybackState, chatId, voiceAgentState,
   handleFaceLayout, handleCopyMessage, handleVote, readAloud,
+  generateAudio, audioGenActiveMessageId, audioGenState,
   openThoughtPanel, onStartEdit, onApprovePlan, onRejectPlan,
 }: MessageRowProps) {
   const messageText = getMessageText(m);
@@ -314,6 +319,17 @@ const MessageRow = React.memo(function MessageRow({
                   )}
                 </Pressable>
                 <Pressable
+                  key="generate-audio"
+                  className="p-1.5 rounded-lg hover:bg-muted active:bg-muted"
+                  onPress={() => generateAudio(m.id, messageText, chatId?.id)}
+                >
+                  {audioGenActiveMessageId === m.id && audioGenState === 'playing' ? (
+                    <Square size={14} className="text-primary" />
+                  ) : (
+                    <Music size={14} className={audioGenActiveMessageId === m.id && audioGenState === 'generating' ? "text-primary opacity-50" : "text-muted-foreground"} />
+                  )}
+                </Pressable>
+                <Pressable
                   key="copy"
                   className="p-1.5 rounded-lg hover:bg-muted active:bg-muted"
                   onPress={() => handleCopyMessage(m.id, messageText)}
@@ -340,6 +356,10 @@ const MessageRow = React.memo(function MessageRow({
               <DropdownMenu.Item key="read-aloud" onSelect={() => readAloud(m.id, messageText, chatId?.id, m.audioUrl)}>
                 <DropdownMenu.ItemIcon ios={{ name: "speaker.wave.2" }} />
                 <DropdownMenu.ItemTitle>Read Aloud</DropdownMenu.ItemTitle>
+              </DropdownMenu.Item>
+              <DropdownMenu.Item key="generate-audio" onSelect={() => generateAudio(m.id, messageText, chatId?.id)}>
+                <DropdownMenu.ItemIcon ios={{ name: "music.note" }} />
+                <DropdownMenu.ItemTitle>Generate Audio</DropdownMenu.ItemTitle>
               </DropdownMenu.Item>
               <DropdownMenu.Item key="copy" onSelect={() => handleCopyMessage(m.id, messageText)}>
                 <DropdownMenu.ItemIcon ios={{ name: "doc.on.doc" }} />
@@ -464,6 +484,7 @@ export const ChatInterface = React.memo(function ChatInterface({ messages, scrol
     const openThoughtPanel = useUIStore((s) => s.openThoughtPanel);
     const setThoughtMessages = useUIStore((s) => s.setThoughtMessages);
     const { readAloud, activeMessageId: ttsActiveMessageId, playbackState: ttsPlaybackState } = useTTS();
+    const { generateAudio, activeMessageId: audioGenActiveMessageId, state: audioGenState } = useAudioGen();
     const chatId = useStore(s => s.chatId);
 
     const { isAtBottom, onScroll, onContentSizeChange } = useScrollToBottom(scrollViewRef);
@@ -647,6 +668,9 @@ export const ChatInterface = React.memo(function ChatInterface({ messages, scrol
                   handleCopyMessage={handleCopyMessage}
                   handleVote={handleVote}
                   readAloud={readAloud}
+                  generateAudio={generateAudio}
+                  audioGenActiveMessageId={audioGenActiveMessageId}
+                  audioGenState={audioGenState}
                   openThoughtPanel={openThoughtPanel}
                   onStartEdit={onStartEdit}
                   onApprovePlan={onApprovePlan}

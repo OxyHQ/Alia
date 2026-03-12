@@ -7,13 +7,10 @@ import { resolveModel, getAIModel, getDefaultAliaModel } from '../../lib/chat-co
 import { UserMemory } from '../../models/user-memory.js';
 import { getIO } from '../../socket.js';
 import type { Request, Response } from 'express';
-import { callProviderAPI } from '../../lib/gateway-client.js';
+import { callProviderAPI, getModelMappingsForTier } from '../../lib/gateway-client.js';
 import { log } from '../../lib/logger.js';
 
-// Response types for external API calls
-interface OpenAIImageResponse {
-  data: { url: string }[];
-}
+
 
 interface OpenAIErrorResponse {
   error?: { message?: string };
@@ -246,17 +243,31 @@ async function executeNode(node: WorkflowNode, input: string, userId: string): P
       const imagePrompt = node.data.prompt
         ? node.data.prompt.replace(/\{\{input\}\}/g, input)
         : input;
-      const data = await callProviderAPI<OpenAIImageResponse>({
-        provider: 'openai',
-        modelId: 'dall-e-3',
-        endpoint: '/v1/images/generations',
-        body: {
-          prompt: imagePrompt,
-          n: 1,
-          size: node.data.size || '1024x1024',
-        },
-      });
-      return data.data[0].url;
+      const imageMappings = await getModelMappingsForTier('v1-image');
+
+      for (const mapping of imageMappings) {
+        try {
+          const data = await callProviderAPI<any>({
+            provider: mapping.provider,
+            modelId: mapping.modelId,
+            endpoint: '/v1/images/generations',
+            body: {
+              model: mapping.modelId,
+              prompt: imagePrompt,
+              n: 1,
+              size: node.data.size || '1024x1024',
+            },
+            timeout: 30_000,
+            maxAttempts: 1,
+          });
+          const url = data.data?.[0]?.url ?? data?.images?.[0]?.url;
+          if (url) return url;
+        } catch (err) {
+          log.general.warn({ err, provider: mapping.provider, model: mapping.modelId }, 'Image provider failed, trying next');
+          continue;
+        }
+      }
+      throw new Error('Image generation failed — all providers exhausted');
     }
 
     case 'github': {

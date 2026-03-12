@@ -11,6 +11,7 @@
 import { getBestKeyForModel, recordKeySuccess, recordKeyFailure, recordKeyUsage, markKeyCreditExhausted } from './key-manager.js';
 import { classifyError } from '../../../lib/errors/failover-error.js';
 import { log } from '../../../lib/logger.js';
+import { callDigitalOceanAsyncInvoke, downloadBinaryFromUrl } from './digitalocean-async.js';
 import type { FailoverReason } from '../../../lib/errors/error-codes.js';
 
 // Provider base URLs — internal knowledge
@@ -18,7 +19,47 @@ const PROVIDER_BASES: Record<string, string> = {
   openai: 'https://api.openai.com',
   groq: 'https://api.groq.com/openai',
   openrouter: 'https://openrouter.ai/api',
+  digitalocean: 'https://inference.do-ai.run',
 };
+
+// DigitalOcean fal-ai models use the async-invoke pattern instead of direct endpoints
+function isDOAsyncInvokeModel(modelId: string): boolean {
+  return modelId.startsWith('fal-ai/');
+}
+
+// Default ElevenLabs voice ID for DO TTS
+const DO_ELEVENLABS_DEFAULT_VOICE = 'kPzsL2i3teMYv0FxEYQ6';
+
+/**
+ * Build the async-invoke input object from the standard callProviderAPI body.
+ * Translates OpenAI-compatible request bodies to DO async-invoke input format.
+ */
+function buildAsyncInvokeInput(modelId: string, endpoint: string, body: any): Record<string, unknown> {
+  // TTS: OpenAI body { input, voice, ... } → DO input { text, voice }
+  if (endpoint === '/v1/audio/speech' || modelId.includes('tts')) {
+    return {
+      text: body?.input ?? '',
+      voice: body?.voice || DO_ELEVENLABS_DEFAULT_VOICE,
+    };
+  }
+
+  // Image generation: OpenAI body { prompt, size, n, ... } → DO input { prompt, ... }
+  if (endpoint === '/v1/images/generations' || modelId.includes('sdxl') || modelId.includes('flux')) {
+    return {
+      prompt: body?.prompt ?? '',
+      ...(body?.num_images && { num_images: body.num_images }),
+      ...(body?.n && { num_images: body.n }),
+    };
+  }
+
+  // Audio generation: pass input through
+  if (modelId.includes('audio')) {
+    return body?.input ?? body ?? {};
+  }
+
+  // Fallback: pass body.input or entire body
+  return body?.input ?? body ?? {};
+}
 
 // Non-retryable error reasons (a different key won't help)
 const NON_RETRYABLE: Set<FailoverReason> = new Set(['format', 'content_filter']);
@@ -77,6 +118,35 @@ export async function callProviderAPI<T = any>(options: ProviderAPIOptions): Pro
       : controller.signal;
 
     try {
+      // DigitalOcean fal-ai models use the async-invoke pattern
+      if (provider === 'digitalocean' && isDOAsyncInvokeModel(modelId)) {
+        const asyncInput = buildAsyncInvokeInput(modelId, endpoint, body);
+        const output = await callDigitalOceanAsyncInvoke({
+          apiKey: keyConfig.key,
+          modelId,
+          input: asyncInput,
+          timeoutMs: timeout,
+          signal: combinedSignal,
+        });
+
+        if (timer) clearTimeout(timer);
+        await recordKeyUsage(keyConfig.keyId, 0, provider, modelId);
+        await recordKeySuccess(keyConfig.keyId);
+
+        // For TTS / binary responses: download audio from the output URL
+        if (options.responseType === 'arrayBuffer') {
+          const audioUrl = output?.audio_url ?? output?.url ?? output?.audio?.url;
+          if (!audioUrl) {
+            throw new Error(`DO async-invoke: no audio URL in output for ${modelId}`);
+          }
+          const buffer = await downloadBinaryFromUrl(audioUrl, combinedSignal);
+          return buffer as any as T;
+        }
+
+        return output as T;
+      }
+
+      // Standard synchronous provider call
       const headers: Record<string, string> = {
         'Authorization': `Bearer ${keyConfig.key}`,
       };

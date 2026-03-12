@@ -4,6 +4,8 @@ import responsesRouter from './v1/responses.js';
 import modelsRouter from './v1/models.js';
 import voiceRouter from './v1/voice.js';
 import audioRouter from './v1/audio.js';
+import imagesRouter from './v1/images.js';
+import showsRouter from './v1/shows.js';
 import { authenticateTokenOrApiKey } from '../middleware/auth.js';
 import { apiKeyRateLimit } from '../middleware/api-key-rate-limit.js';
 import { UserCredits } from '../models/user-credits.js';
@@ -130,7 +132,13 @@ router.use('/responses', responsesRouter);
 // Voice mode (LiveKit token + transcription)
 router.use('/voice', voiceRouter);
 
-// Audio (TTS)
+// Audio (TTS + generation)
 router.use('/audio', audioRouter);
+
+// Image generation
+router.use('/images', imagesRouter);
+
+// Podcast generation
+router.use('/shows', showsRouter);
 
 export default router;

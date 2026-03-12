@@ -66,6 +66,7 @@ import { initSocket } from './socket.js';
 import { initMcpRelay, shutdownMcpRelay } from './lib/mcp-relay.js';
 // Task queue for async agent sessions (BullMQ + Redis)
 import { initTaskQueue, startWorker, shutdownTaskQueue } from './lib/task-queue.js';
+import { initShowQueue, startShowWorker, shutdownShowQueue } from './lib/show/show-queue.js';
 
 // Fix for ES Modules __dirname
 const __filename = fileURLToPath(import.meta.url);
@@ -333,6 +334,10 @@ connectDB()
       initTaskQueue()
         .then(() => startWorker())
         .catch((err) => console.error('[TaskQueue] Startup error:', err));
+      // Initialize show generation queue (non-blocking)
+      initShowQueue()
+        .then(() => startShowWorker())
+        .catch((err) => console.error('[ShowQueue] Startup error:', err));
       // Verify Redis connectivity (non-blocking)
       import('./lib/redis.js').then(({ getRedisClient }) => {
         const redis = getRedisClient();
@@ -376,7 +381,8 @@ connectDB()
 
         // Close task queue (drains in-flight jobs)
         await shutdownTaskQueue();
-        log.general.info('Task queue shut down');
+        await shutdownShowQueue();
+        log.general.info('Task queues shut down');
 
         // Close Redis connections
         const { closeRedis } = await import('./lib/redis.js');

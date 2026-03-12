@@ -142,6 +142,18 @@ export const MODEL_CAPABILITIES: Record<string, ModelCapabilities> = {
   'tts-1-hd': createCapabilities({ audio: true, tools: false, functionCalling: false, maxContextTokens: 4096, maxOutputTokens: 4096 }),
   'openai/tts-1': createCapabilities({ audio: true, tools: false, functionCalling: false, maxContextTokens: 4096, maxOutputTokens: 4096 }),
 
+  // DigitalOcean TTS / Audio
+  'fal-ai/elevenlabs/tts/multilingual-v2': createCapabilities({ audio: true, tools: false, functionCalling: false, streaming: false, maxContextTokens: 4096, maxOutputTokens: 4096 }),
+  'fal-ai/stable-audio-25/text-to-audio': createCapabilities({ audio: true, tools: false, functionCalling: false, streaming: false, maxContextTokens: 4096, maxOutputTokens: 4096 }),
+
+  // DigitalOcean Image Generation
+  'openai-gpt-image-1': createCapabilities({ vision: true, tools: false, functionCalling: false, streaming: false, maxContextTokens: 4096, maxOutputTokens: 4096 }),
+  'fal-ai/flux/schnell': createCapabilities({ tools: false, functionCalling: false, streaming: false, maxContextTokens: 4096, maxOutputTokens: 4096 }),
+  'fal-ai/fast-sdxl': createCapabilities({ tools: false, functionCalling: false, streaming: false, maxContextTokens: 4096, maxOutputTokens: 4096 }),
+
+  // Image Generation (OpenAI direct)
+  'dall-e-3': createCapabilities({ tools: false, functionCalling: false, streaming: false, maxContextTokens: 4096, maxOutputTokens: 4096 }),
+
   // ============== ANTHROPIC CLAUDE ==============
   'claude-instant-1': createCapabilities({ maxContextTokens: 100000, maxOutputTokens: 8192 }),
   'claude-instant-1.2': createCapabilities({ maxContextTokens: 100000, maxOutputTokens: 8192 }),
@@ -450,6 +462,18 @@ export const MODEL_PRICING: Record<string, ModelPricing> = {
   'tts-1': { tier: 'paid', costPer1MInput: 15.00, costPer1MOutput: 0, averageLatencyMs: 800 },
   'tts-1-hd': { tier: 'paid', costPer1MInput: 30.00, costPer1MOutput: 0, averageLatencyMs: 1200 },
   'openai/tts-1': { tier: 'paid', costPer1MInput: 15.00, costPer1MOutput: 0, averageLatencyMs: 1000 },
+
+  // DigitalOcean TTS / Audio (async-invoke adds polling overhead)
+  'fal-ai/elevenlabs/tts/multilingual-v2': { tier: 'paid', costPer1MInput: 15.00, costPer1MOutput: 0, averageLatencyMs: 3000 },
+  'fal-ai/stable-audio-25/text-to-audio': { tier: 'paid', costPer1MInput: 10.00, costPer1MOutput: 0, averageLatencyMs: 5000 },
+
+  // DigitalOcean Image Generation
+  'openai-gpt-image-1': { tier: 'paid', costPer1MInput: 0, costPer1MOutput: 0, averageLatencyMs: 5000 },
+  'fal-ai/flux/schnell': { tier: 'paid', costPer1MInput: 0, costPer1MOutput: 0, averageLatencyMs: 4000 },
+  'fal-ai/fast-sdxl': { tier: 'paid', costPer1MInput: 0, costPer1MOutput: 0, averageLatencyMs: 3000 },
+
+  // Image Generation (OpenAI direct)
+  'dall-e-3': { tier: 'paid', costPer1MInput: 0, costPer1MOutput: 0, averageLatencyMs: 8000 },
 
   // ============== ANTHROPIC CLAUDE ==============
   'claude-instant-1': { tier: 'paid', costPer1MInput: 1.63, costPer1MOutput: 55.10 },
