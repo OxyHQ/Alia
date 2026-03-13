@@ -365,7 +365,7 @@ async function generateSFXSegment(prompt: string): Promise<Buffer | null> {
           seconds_total: 5,
         },
       },
-      timeout: 30_000,
+      timeout: 60_000,
       maxAttempts: 1,
     });
 

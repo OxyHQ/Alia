@@ -21,14 +21,24 @@ export async function concatenateAudioSegments(
   if (segmentBuffers.length === 0) throw new Error('No segments to concatenate');
   if (segmentBuffers.length === 1) return segmentBuffers[0];
 
-  // Dynamic imports for ffmpeg
-  const ffmpegStaticModule = await import('ffmpeg-static');
-  const ffmpegPath = ffmpegStaticModule.default;
-  const ffmpegModule = await import('fluent-ffmpeg');
-  const ffmpeg = ffmpegModule.default;
+  // Dynamic imports for ffmpeg — fall back to raw concatenation if unavailable
+  let ffmpegPath: string | null = null;
+  let ffmpeg: any = null;
+  try {
+    const ffmpegStaticModule = await import('ffmpeg-static');
+    ffmpegPath = ffmpegStaticModule.default;
+    const ffmpegModule = await import('fluent-ffmpeg');
+    ffmpeg = ffmpegModule.default;
+    if (ffmpegPath) {
+      ffmpeg.setFfmpegPath(ffmpegPath);
+    }
+  } catch {
+    log.general.warn('ffmpeg not available, using raw MP3 concatenation');
+  }
 
-  if (ffmpegPath) {
-    ffmpeg.setFfmpegPath(ffmpegPath);
+  // If ffmpeg isn't available, do raw buffer concatenation (works for same-format MP3s)
+  if (!ffmpeg || !ffmpegPath) {
+    return Buffer.concat(segmentBuffers);
   }
 
   const tempDir = mkdtempSync(join(tmpdir(), 'show-'));
@@ -50,9 +60,11 @@ export async function concatenateAudioSegments(
     // Output path
     const outputPath = join(tempDir, 'output.mp3');
 
-    // Run ffmpeg concatenation
+    // Run ffmpeg concatenation with timeout
+    const FFMPEG_TIMEOUT_MS = 120_000; // 2 minutes
     await new Promise<void>((resolve, reject) => {
-      ffmpeg()
+      let settled = false;
+      const command = ffmpeg()
         .input(listPath)
         .inputOptions(['-f', 'concat', '-safe', '0'])
         .outputOptions([
@@ -64,12 +76,26 @@ export async function concatenateAudioSegments(
           '-filter:a', 'loudnorm=I=-16:TP=-1.5:LRA=11',
         ])
         .output(outputPath)
-        .on('end', () => resolve())
+        .on('end', () => { if (!settled) { settled = true; resolve(); } })
         .on('error', (err: Error) => {
-          log.general.error({ err }, 'ffmpeg concatenation failed');
-          reject(err);
-        })
-        .run();
+          if (!settled) {
+            settled = true;
+            log.general.error({ err }, 'ffmpeg concatenation failed');
+            reject(err);
+          }
+        });
+
+      const timer = setTimeout(() => {
+        if (!settled) {
+          settled = true;
+          try { command.kill('SIGKILL'); } catch {}
+          reject(new Error(`ffmpeg concatenation timed out after ${FFMPEG_TIMEOUT_MS}ms`));
+        }
+      }, FFMPEG_TIMEOUT_MS);
+
+      command.on('end', () => clearTimeout(timer));
+      command.on('error', () => clearTimeout(timer));
+      command.run();
     });
 
     // Read result into buffer
