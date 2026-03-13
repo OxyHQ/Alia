@@ -276,7 +276,7 @@ export async function resolveAliaModel(
 
 /** DO async-invoke models (fal-ai) need longer timeouts for queue + cold start + execution */
 export function getProviderTimeout(modelId: string): number {
-  return modelId.startsWith('fal-ai/') ? 45_000 : 15_000;
+  return modelId.startsWith('fal-ai/') ? 120_000 : 15_000;
 }
 
 // ============== PROVIDER API CALLS ==============

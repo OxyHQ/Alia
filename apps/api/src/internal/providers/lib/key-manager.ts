@@ -264,29 +264,35 @@ export async function recordKeyFailure(keyId: string, reason: string, retryAfter
     await key.recordFailure(reason, maxPriority);
 
     // Set cooldown (atomic $set)
+    // Timeouts indicate slow service, not a bad key — skip cooldown for them.
     // Priority: 1) Provider's Retry-After header, 2) Key's configured rateLimitResetMs, 3) Default
     // For rate_limit errors: use provider Retry-After or key config or 60s flat
     // For other errors: exponential backoff (30s base, doubles per failure, capped at 5min)
-    const consecutiveFailures = (key.consecutiveFailures || 0) + 1; // +1 because recordFailure already incremented
-    const isRateLimit = /rate.?limit|429|RESOURCE_EXHAUSTED|quota/i.test(reason);
-    let cooldownMs: number;
-    if (retryAfterMs && retryAfterMs > 0) {
-      cooldownMs = retryAfterMs; // Provider-supplied Retry-After takes priority
-    } else if (isRateLimit && key.rateLimitResetMs) {
-      cooldownMs = key.rateLimitResetMs;  // Per-key configured value
-    } else if (isRateLimit) {
-      cooldownMs = 60000;  // Default 60s for rate limits
+    const isTimeout = /timeout|Aborted|AbortError/i.test(reason);
+    if (!isTimeout) {
+      const consecutiveFailures = (key.consecutiveFailures || 0) + 1; // +1 because recordFailure already incremented
+      const isRateLimit = /rate.?limit|429|RESOURCE_EXHAUSTED|quota/i.test(reason);
+      let cooldownMs: number;
+      if (retryAfterMs && retryAfterMs > 0) {
+        cooldownMs = retryAfterMs; // Provider-supplied Retry-After takes priority
+      } else if (isRateLimit && key.rateLimitResetMs) {
+        cooldownMs = key.rateLimitResetMs;  // Per-key configured value
+      } else if (isRateLimit) {
+        cooldownMs = 60000;  // Default 60s for rate limits
+      } else {
+        cooldownMs = Math.min(30000 * Math.pow(2, consecutiveFailures - 1), 300000);
+      }
+      const cooldownUntil = new Date(Date.now() + cooldownMs);
+
+      await ProviderKey.updateOne(
+        { _id: keyId },
+        { $set: { cooldownUntil } }
+      );
+
+      log.keys.info({ keyPrefix: key.keyPrefix, provider: key.provider, cooldownSec: cooldownMs / 1000 }, 'Key cooldown set');
     } else {
-      cooldownMs = Math.min(30000 * Math.pow(2, consecutiveFailures - 1), 300000);
+      log.keys.info({ keyPrefix: key.keyPrefix, provider: key.provider }, 'Timeout failure — skipping cooldown');
     }
-    const cooldownUntil = new Date(Date.now() + cooldownMs);
-
-    await ProviderKey.updateOne(
-      { _id: keyId },
-      { $set: { cooldownUntil } }
-    );
-
-    log.keys.info({ keyPrefix: key.keyPrefix, provider: key.provider, cooldownSec: cooldownMs / 1000 }, 'Key cooldown set');
 
     // Invalidate cache to pick up priority changes
     invalidateKeyCache(key.provider);
