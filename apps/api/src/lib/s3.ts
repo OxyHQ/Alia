@@ -25,6 +25,16 @@ const S3_BASE_URL = (() => {
   return `https://${BUCKET_NAME}.s3.${process.env.AWS_REGION || 'us-east-1'}.amazonaws.com`;
 })();
 
+/** Compute base URL for public access (prefer CDN if configured) */
+const S3_PUBLIC_URL = (() => {
+  if (process.env.AWS_CDN_URL) return process.env.AWS_CDN_URL.replace(/\/$/, '');
+  if (process.env.AWS_ENDPOINT_URL) {
+    const host = new URL(process.env.AWS_ENDPOINT_URL).host;
+    return `https://${BUCKET_NAME}.${host}`;
+  }
+  return `https://${BUCKET_NAME}.s3.${process.env.AWS_REGION || 'us-east-1'}.amazonaws.com`;
+})();
+
 /** Upload a buffer to S3 with the given key and content type. Returns the public URL. */
 async function executeUpload(key: string, file: Buffer, contentType: string): Promise<string> {
   const upload = new Upload({
@@ -40,7 +50,7 @@ async function executeUpload(key: string, file: Buffer, contentType: string): Pr
 
   await upload.done();
 
-  return `${S3_BASE_URL}/${key}`;
+  return `${S3_PUBLIC_URL}/${key}`;
 }
 
 /**
