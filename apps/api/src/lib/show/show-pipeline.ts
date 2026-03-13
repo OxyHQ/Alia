@@ -338,7 +338,7 @@ async function generateTTSSegment(
         },
         responseType: 'arrayBuffer',
         maxAttempts: 1,
-        timeout: 20_000,
+        timeout: mapping.modelId.startsWith('fal-ai/') ? 45_000 : 15_000,
       });
       if (audioBuffer) return audioBuffer;
     } catch (err: unknown) {
@@ -365,8 +365,8 @@ async function generateSFXSegment(prompt: string): Promise<Buffer | null> {
           seconds_total: 5,
         },
       },
-      timeout: 60_000,
-      maxAttempts: 1,
+      timeout: 170_000,
+      maxAttempts: 2,
     });
 
     const audioUrl = extractAudioUrl(sfxOutput);
