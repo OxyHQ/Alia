@@ -39,7 +39,6 @@ async function executeUpload(key: string, file: Buffer, contentType: string): Pr
       Key: key,
       Body: file,
       ContentType: contentType,
-      ACL: 'public-read',
     },
   });
 
