@@ -9,6 +9,7 @@ import { AudioJob } from '../../models/audio-job.js';
 import { log } from '../../lib/logger.js';
 import { getSafeErrorMessage } from '../../lib/errors/sanitize.js';
 import { extractAudioUrl } from '../../internal/providers/lib/digitalocean-async.js';
+import { emitAudioJobUpdate } from '../../socket.js';
 import type { Request, Response } from 'express';
 
 const router = Router();
@@ -280,7 +281,9 @@ async function processAudioGeneration(input: AudioGenJobInput): Promise<void> {
 
     if (!audioOutput) {
       await finalizeCredits(reservation, { promptTokens: 0, completionTokens: 0, totalTokens: 0 });
-      await AudioJob.updateOne({ _id: jobId }, { status: 'failed', error: 'Generation failed — all providers exhausted' });
+      const error = 'Generation failed — all providers exhausted';
+      await AudioJob.updateOne({ _id: jobId }, { status: 'failed', error });
+      emitAudioJobUpdate(userId, { jobId, status: 'failed', error });
       return;
     }
 
@@ -288,7 +291,9 @@ async function processAudioGeneration(input: AudioGenJobInput): Promise<void> {
     const generatedUrl = extractAudioUrl(audioOutput);
     if (!generatedUrl) {
       await finalizeCredits(reservation, { promptTokens: 0, completionTokens: 0, totalTokens: 0 });
-      await AudioJob.updateOne({ _id: jobId }, { status: 'failed', error: 'Generation returned no audio' });
+      const error = 'Generation returned no audio';
+      await AudioJob.updateOne({ _id: jobId }, { status: 'failed', error });
+      emitAudioJobUpdate(userId, { jobId, status: 'failed', error });
       return;
     }
 
@@ -308,8 +313,9 @@ async function processAudioGeneration(input: AudioGenJobInput): Promise<void> {
       }),
     ]);
 
-    // Update job with result
+    // Update job with result and notify client
     await AudioJob.updateOne({ _id: jobId }, { status: 'completed', audioUrl });
+    emitAudioJobUpdate(userId, { jobId, status: 'completed', audioUrl });
 
     // Link to message (fire-and-forget)
     if (conversationId && messageId) {
@@ -323,11 +329,13 @@ async function processAudioGeneration(input: AudioGenJobInput): Promise<void> {
 
     log.general.info({ jobId, userId }, 'Audio generation completed');
   } catch (error: unknown) {
+    const errMsg = getSafeErrorMessage(error, 'Generation failed');
     log.general.error({ err: error, jobId, userId }, 'Audio generation background processing failed');
     await AudioJob.updateOne(
       { _id: jobId },
-      { status: 'failed', error: getSafeErrorMessage(error, 'Generation failed') }
+      { status: 'failed', error: errMsg }
     ).catch(() => {});
+    emitAudioJobUpdate(userId, { jobId, status: 'failed', error: errMsg });
     await finalizeCredits(reservation, { promptTokens: 0, completionTokens: 0, totalTokens: 0 }).catch(() => {});
   } finally {
     clearTimeout(globalTimer);

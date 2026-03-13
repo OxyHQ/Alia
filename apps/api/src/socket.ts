@@ -173,6 +173,19 @@ export function emitApprovalResult(sessionId: string, data: {
   }
 }
 
+export interface AudioJobUpdate {
+  jobId: string;
+  status: 'completed' | 'failed';
+  audioUrl?: string;
+  error?: string;
+}
+
+export function emitAudioJobUpdate(userId: string, data: AudioJobUpdate) {
+  if (io) {
+    io.to(`user:${userId}`).emit('audio:job-update', data);
+  }
+}
+
 export function emitAgentActivity(agentId: string, data: AgentActivityEvent) {
   if (io) {
     io.to(`agent:${agentId}`).emit('agent-activity', { agentId, ...data });

@@ -2,24 +2,39 @@
  * Hook for AI audio generation from text prompts.
  *
  * Submits a generation job via POST /v1/audio/generate (returns immediately),
- * then polls GET /v1/audio/jobs/:jobId until the audio is ready.
+ * then listens for Socket.IO push notification of completion. Falls back to
+ * polling GET /v1/audio/jobs/:jobId if the socket event doesn't arrive.
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { io as socketIO, type Socket } from 'socket.io-client';
+import { useOxy } from '@oxyhq/services';
 import apiClient from '@/lib/api/client';
+import config from '@/lib/config';
 
 type AudioGenState = 'idle' | 'generating' | 'playing' | 'error';
 
-const POLL_INTERVAL_MS = 2_000;
+const POLL_INTERVAL_MS = 3_000;
 const MAX_POLL_DURATION_MS = 180_000; // 3 minutes
 
+interface AudioJobUpdate {
+  jobId: string;
+  status: 'completed' | 'failed';
+  audioUrl?: string;
+  error?: string;
+}
+
 export function useAudioGen() {
+  const { user, isAuthenticated } = useOxy();
+  const userId = user?.id;
+
   const [state, setState] = useState<AudioGenState>('idle');
   const [error, setError] = useState<string | null>(null);
   const [activeMessageId, setActiveMessageId] = useState<string | null>(null);
   const playerRef = useRef<any>(null);
   const pollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const abortRef = useRef(false);
+  const socketRef = useRef<Socket | null>(null);
 
   const clearPollTimer = useCallback(() => {
     if (pollTimerRef.current) {
@@ -44,6 +59,33 @@ export function useAudioGen() {
     setError(null);
   }, [releasePlayer, clearPollTimer]);
 
+  // Manage socket connection for real-time job updates
+  useEffect(() => {
+    if (!isAuthenticated || !userId) return;
+
+    const socket = socketIO(config.apiUrl, {
+      transports: ['websocket'],
+      reconnection: true,
+      reconnectionAttempts: Infinity,
+      reconnectionDelay: 1000,
+      reconnectionDelayMax: 10000,
+    });
+
+    socket.on('connect', () => {
+      socket.emit('subscribe-notifications', userId);
+    });
+    if (socket.connected) {
+      socket.emit('subscribe-notifications', userId);
+    }
+
+    socketRef.current = socket;
+
+    return () => {
+      socket.disconnect();
+      socketRef.current = null;
+    };
+  }, [isAuthenticated, userId]);
+
   // Clean up timer and player on unmount
   useEffect(() => {
     return () => {
@@ -53,27 +95,90 @@ export function useAudioGen() {
     };
   }, [clearPollTimer]);
 
-  const pollForResult = useCallback(async (jobId: string): Promise<string> => {
+  /**
+   * Wait for job completion via Socket.IO push, with polling fallback.
+   * Socket events arrive instantly; polling kicks in as a safety net.
+   */
+  const waitForResult = useCallback(async (jobId: string): Promise<string> => {
     const deadline = Date.now() + MAX_POLL_DURATION_MS;
 
-    while (Date.now() < deadline) {
-      if (abortRef.current) throw new Error('Cancelled');
+    return new Promise<string>((resolve, reject) => {
+      let settled = false;
 
-      await new Promise<void>(resolve => {
-        pollTimerRef.current = setTimeout(resolve, POLL_INTERVAL_MS);
-      });
+      const settle = (fn: () => void) => {
+        if (settled) return;
+        settled = true;
+        cleanup();
+        fn();
+      };
 
-      if (abortRef.current) throw new Error('Cancelled');
+      const cleanup = () => {
+        clearPollTimer();
+        if (socketRef.current) {
+          socketRef.current.off('audio:job-update', onSocketUpdate);
+        }
+      };
 
-      const { data } = await apiClient.get(`/v1/audio/jobs/${jobId}`);
+      // Socket.IO listener — resolves immediately when server pushes update
+      const onSocketUpdate = (data: AudioJobUpdate) => {
+        if (data.jobId !== jobId) return;
+        if (data.status === 'completed' && data.audioUrl) {
+          settle(() => resolve(data.audioUrl!));
+        } else if (data.status === 'failed') {
+          settle(() => reject(new Error(data.error || 'Generation failed')));
+        }
+      };
 
-      if (data.status === 'completed') return data.audioUrl;
-      if (data.status === 'failed') throw new Error(data.error || 'Generation failed');
-      // status === 'processing' — continue polling
-    }
+      if (socketRef.current) {
+        socketRef.current.on('audio:job-update', onSocketUpdate);
+      }
 
-    throw new Error('Generation timed out');
-  }, []);
+      // Polling fallback — in case socket is disconnected or event is missed
+      const poll = async () => {
+        if (settled || abortRef.current) return;
+        if (Date.now() >= deadline) {
+          settle(() => reject(new Error('Generation timed out')));
+          return;
+        }
+
+        try {
+          const { data } = await apiClient.get(`/v1/audio/jobs/${jobId}`);
+          if (data.status === 'completed') {
+            settle(() => resolve(data.audioUrl));
+            return;
+          }
+          if (data.status === 'failed') {
+            settle(() => reject(new Error(data.error || 'Generation failed')));
+            return;
+          }
+        } catch {
+          // Transient poll failure — continue
+        }
+
+        if (!settled && !abortRef.current) {
+          pollTimerRef.current = setTimeout(poll, POLL_INTERVAL_MS);
+        }
+      };
+
+      // Start first poll after a short delay (give socket a chance to deliver first)
+      pollTimerRef.current = setTimeout(poll, POLL_INTERVAL_MS);
+
+      // Cancellation check
+      const checkAbort = () => {
+        if (abortRef.current) {
+          settle(() => reject(new Error('Cancelled')));
+        }
+      };
+
+      // Check periodically if user cancelled
+      const abortChecker = setInterval(() => {
+        if (abortRef.current || settled) {
+          clearInterval(abortChecker);
+          checkAbort();
+        }
+      }, 200);
+    });
+  }, [clearPollTimer]);
 
   const generateAudio = useCallback(async (
     messageId: string,
@@ -107,8 +212,8 @@ export function useAudioGen() {
 
       const { jobId } = submitData;
 
-      // Poll until audio is ready
-      const audioUrl = await pollForResult(jobId);
+      // Wait for completion via socket push + polling fallback
+      const audioUrl = await waitForResult(jobId);
 
       if (abortRef.current) return;
 
@@ -135,7 +240,7 @@ export function useAudioGen() {
       setError(msg);
       setState('error');
     }
-  }, [activeMessageId, state, stop, releasePlayer, pollForResult]);
+  }, [activeMessageId, state, stop, releasePlayer, waitForResult]);
 
   return {
     generateAudio,
