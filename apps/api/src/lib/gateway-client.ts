@@ -272,6 +272,13 @@ export async function resolveAliaModel(
   return localResolve(model, tokens, skipProviders, skipKeyIds || new Set());
 }
 
+// ============== PROVIDER HELPERS ==============
+
+/** DO async-invoke models (fal-ai) need longer timeouts for queue + cold start + execution */
+export function getProviderTimeout(modelId: string): number {
+  return modelId.startsWith('fal-ai/') ? 45_000 : 15_000;
+}
+
 // ============== PROVIDER API CALLS ==============
 
 export interface ProviderCallOptions {

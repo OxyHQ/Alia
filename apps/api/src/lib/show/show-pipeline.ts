@@ -15,7 +15,7 @@ import { Show, type IShow } from '../../models/show.js';
 import { resolveModel, getAIModel, getDefaultAliaModel } from '../chat-core.js';
 import { callProviderAPI } from '../../internal/providers/lib/provider-api.js';
 import { extractAudioUrl, downloadBinaryFromUrl } from '../../internal/providers/lib/digitalocean-async.js';
-import { getModelMappingsForTier } from '../gateway-client.js';
+import { getModelMappingsForTier, getProviderTimeout } from '../gateway-client.js';
 import { uploadToS3 } from '../s3.js';
 import { reserveCredits, finalizeCredits } from '../credits-manager.js';
 import { getOrCreateUserCredits } from '../user-credits-helpers.js';
@@ -24,6 +24,7 @@ import { buildScriptSystemPrompt, buildScriptUserPrompt } from './script-prompt.
 import { assignVoices } from './voice-roster.js';
 import { concatenateAudioSegments } from './audio-concat.js';
 import { log } from '../logger.js';
+import { getSafeErrorMessage } from '../errors/sanitize.js';
 import { getIO } from '../../socket.js';
 
 // Max concurrent TTS calls to avoid rate limiting
@@ -233,7 +234,7 @@ export async function runShowPipeline(showId: string): Promise<void> {
     log.general.error({ err: error, showId }, 'Show pipeline failed');
     await updateShow(show, {
       status: 'failed',
-      error: error instanceof Error ? error.message : 'Unknown error',
+      error: getSafeErrorMessage(error, 'Show generation failed'),
     });
     emitProgress(userId, showId, { status: 'failed', progress: 0, currentStep: 'Failed' });
   }
@@ -338,7 +339,7 @@ async function generateTTSSegment(
         },
         responseType: 'arrayBuffer',
         maxAttempts: 1,
-        timeout: mapping.modelId.startsWith('fal-ai/') ? 45_000 : 15_000,
+        timeout: getProviderTimeout(mapping.modelId),
       });
       if (audioBuffer) return audioBuffer;
     } catch (err: unknown) {
@@ -365,8 +366,8 @@ async function generateSFXSegment(prompt: string): Promise<Buffer | null> {
           seconds_total: 5,
         },
       },
-      timeout: 170_000,
-      maxAttempts: 2,
+      timeout: 170_000, // fal-ai audio gen: queue + cold start + synthesis can take 60-90s
+      maxAttempts: 1,
     });
 
     const audioUrl = extractAudioUrl(sfxOutput);

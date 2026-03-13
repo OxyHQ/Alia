@@ -76,10 +76,11 @@ export async function concatenateAudioSegments(
           '-filter:a', 'loudnorm=I=-16:TP=-1.5:LRA=11',
         ])
         .output(outputPath)
-        .on('end', () => { if (!settled) { settled = true; resolve(); } })
+        .on('end', () => { if (!settled) { settled = true; clearTimeout(timer); resolve(); } })
         .on('error', (err: Error) => {
           if (!settled) {
             settled = true;
+            clearTimeout(timer);
             log.general.error({ err }, 'ffmpeg concatenation failed');
             reject(err);
           }
@@ -93,8 +94,6 @@ export async function concatenateAudioSegments(
         }
       }, FFMPEG_TIMEOUT_MS);
 
-      command.on('end', () => clearTimeout(timer));
-      command.on('error', () => clearTimeout(timer));
       command.run();
     });
 
