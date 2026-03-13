@@ -24,6 +24,33 @@ interface AudioJobUpdate {
   error?: string;
 }
 
+// Shared socket with reference counting (same pattern as use-show-progress.ts)
+let sharedSocket: ReturnType<typeof socketIO> | null = null;
+let refCount = 0;
+
+function getSharedSocket(apiUrl: string): ReturnType<typeof socketIO> {
+  if (!sharedSocket) {
+    sharedSocket = socketIO(apiUrl, {
+      transports: ['websocket'],
+      reconnection: true,
+      reconnectionAttempts: Infinity,
+      reconnectionDelay: 1000,
+      reconnectionDelayMax: 10000,
+    });
+  }
+  refCount++;
+  return sharedSocket;
+}
+
+function releaseSharedSocket() {
+  refCount--;
+  if (refCount <= 0 && sharedSocket) {
+    sharedSocket.disconnect();
+    sharedSocket = null;
+    refCount = 0;
+  }
+}
+
 export function useAudioGen() {
   const { user, isAuthenticated } = useOxy();
   const userId = user?.id;
@@ -59,17 +86,11 @@ export function useAudioGen() {
     setError(null);
   }, [releasePlayer, clearPollTimer]);
 
-  // Manage socket connection for real-time job updates
+  // Manage shared socket connection for real-time job updates
   useEffect(() => {
     if (!isAuthenticated || !userId) return;
 
-    const socket = socketIO(config.apiUrl, {
-      transports: ['websocket'],
-      reconnection: true,
-      reconnectionAttempts: Infinity,
-      reconnectionDelay: 1000,
-      reconnectionDelayMax: 10000,
-    });
+    const socket = getSharedSocket(config.apiUrl);
 
     socket.on('connect', () => {
       socket.emit('subscribe-notifications', userId);
@@ -81,8 +102,8 @@ export function useAudioGen() {
     socketRef.current = socket;
 
     return () => {
-      socket.disconnect();
       socketRef.current = null;
+      releaseSharedSocket();
     };
   }, [isAuthenticated, userId]);
 
@@ -104,6 +125,7 @@ export function useAudioGen() {
 
     return new Promise<string>((resolve, reject) => {
       let settled = false;
+      let abortChecker: ReturnType<typeof setInterval> | null = null;
 
       const settle = (fn: () => void) => {
         if (settled) return;
@@ -114,6 +136,10 @@ export function useAudioGen() {
 
       const cleanup = () => {
         clearPollTimer();
+        if (abortChecker) {
+          clearInterval(abortChecker);
+          abortChecker = null;
+        }
         if (socketRef.current) {
           socketRef.current.off('audio:job-update', onSocketUpdate);
         }
@@ -163,18 +189,14 @@ export function useAudioGen() {
       // Start first poll after a short delay (give socket a chance to deliver first)
       pollTimerRef.current = setTimeout(poll, POLL_INTERVAL_MS);
 
-      // Cancellation check
-      const checkAbort = () => {
-        if (abortRef.current) {
-          settle(() => reject(new Error('Cancelled')));
-        }
-      };
-
       // Check periodically if user cancelled
-      const abortChecker = setInterval(() => {
+      abortChecker = setInterval(() => {
         if (abortRef.current || settled) {
-          clearInterval(abortChecker);
-          checkAbort();
+          clearInterval(abortChecker!);
+          abortChecker = null;
+          if (abortRef.current) {
+            settle(() => reject(new Error('Cancelled')));
+          }
         }
       }, 200);
     });
