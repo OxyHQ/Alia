@@ -115,7 +115,7 @@ initMcpRelay(server);
 // Public API routes (/v1) - allow all origins (like OpenAI's API)
 app.use('/v1', cors({
   origin: '*',
-  methods: ['GET', 'POST', 'OPTIONS'],
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin', 'X-Service-Name', 'X-Timestamp', 'X-Signature', 'X-Session-Id', 'X-Device-Info'],
   optionsSuccessStatus: 200
 }));
