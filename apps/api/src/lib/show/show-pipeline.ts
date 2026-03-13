@@ -111,16 +111,22 @@ export async function runShowPipeline(showId: string): Promise<void> {
     emitProgress(userId, showId, { status: 'generating_audio', progress: 15, currentStep: 'Generating audio...' });
 
     // Step 3: Generate audio for each segment (batched)
+    // Process dialogue (TTS) first, then SFX/transitions — prevents SFX timeouts
+    // from poisoning the provider key pool before TTS completes.
     await updateShow(show, { status: 'generating_audio' });
 
-    // Hoist tier lookup outside the per-segment loop
     const ttsMappings = await getModelMappingsForTier('v1-tts');
 
     const totalSegments = indexedSegments.length;
     const segmentBuffers: Array<{ index: number; buffer: Buffer }> = [];
 
-    for (let batchStart = 0; batchStart < totalSegments; batchStart += TTS_BATCH_SIZE) {
-      const batch = indexedSegments.slice(batchStart, batchStart + TTS_BATCH_SIZE);
+    const dialogueSegments = indexedSegments.filter(s => s.type === 'dialogue');
+    const sfxSegments = indexedSegments.filter(s => s.type === 'sfx' || s.type === 'transition');
+    const orderedSegments = [...dialogueSegments, ...sfxSegments];
+    let completedCount = 0;
+
+    for (let batchStart = 0; batchStart < orderedSegments.length; batchStart += TTS_BATCH_SIZE) {
+      const batch = orderedSegments.slice(batchStart, batchStart + TTS_BATCH_SIZE);
 
       const results = await Promise.allSettled(
         batch.map(async (segment) => {
@@ -154,14 +160,14 @@ export async function runShowPipeline(showId: string): Promise<void> {
         }
       }
 
-      // Update progress
-      const progress = 15 + Math.round(((batchStart + batch.length) / totalSegments) * 65);
+      completedCount += batch.length;
+      const progress = 15 + Math.round((completedCount / totalSegments) * 65);
       await updateShow(show, { segments: indexedSegments, progress });
       emitProgress(userId, showId, {
         status: 'generating_audio',
         progress,
         currentStep: 'Generating audio...',
-        segmentIndex: batchStart + batch.length,
+        segmentIndex: completedCount,
         totalSegments,
       });
     }
