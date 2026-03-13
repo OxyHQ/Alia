@@ -1,4 +1,5 @@
-import mongoose, { Schema, Document } from 'mongoose';
+import mongoose, { Schema, Document, Model } from 'mongoose';
+import { log } from '../lib/logger.js';
 
 export type AudioJobStatus = 'processing' | 'completed' | 'failed';
 
@@ -17,6 +18,10 @@ export interface IAudioJob {
 
 export interface IAudioJobDocument extends IAudioJob, Document {}
 
+interface IAudioJobModel extends Model<IAudioJobDocument> {
+  cleanupOrphanedJobs(): Promise<number>;
+}
+
 const AudioJobSchema = new Schema<IAudioJobDocument>(
   {
     userId: { type: String, required: true, index: true },
@@ -34,4 +39,22 @@ const AudioJobSchema = new Schema<IAudioJobDocument>(
 // Auto-delete jobs after 24 hours — they're ephemeral
 AudioJobSchema.index({ createdAt: 1 }, { expireAfterSeconds: 86400 });
 
-export const AudioJob = mongoose.model<IAudioJobDocument>('AudioJob', AudioJobSchema);
+/**
+ * Mark orphaned 'processing' jobs as failed.
+ * Jobs stuck in 'processing' for >5 minutes are likely from a crashed process
+ * (normal generation completes within 3 minutes).
+ */
+AudioJobSchema.statics.cleanupOrphanedJobs = async function (): Promise<number> {
+  const cutoff = new Date(Date.now() - 5 * 60 * 1000);
+  const result = await this.updateMany(
+    { status: 'processing', createdAt: { $lt: cutoff } },
+    { $set: { status: 'failed', error: 'Job orphaned — server restarted during generation' } }
+  );
+  const count = result.modifiedCount;
+  if (count > 0) {
+    log.general.info({ count }, 'Cleaned up orphaned audio jobs');
+  }
+  return count;
+};
+
+export const AudioJob = mongoose.model<IAudioJobDocument, IAudioJobModel>('AudioJob', AudioJobSchema);

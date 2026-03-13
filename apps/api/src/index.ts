@@ -334,6 +334,10 @@ connectDB()
       initTaskQueue()
         .then(() => startWorker())
         .catch((err) => console.error('[TaskQueue] Startup error:', err));
+      // Clean up orphaned audio jobs from previous process crashes (non-blocking)
+      import('./models/audio-job.js').then(({ AudioJob }) =>
+        AudioJob.cleanupOrphanedJobs()
+      ).catch((err) => console.error('[AudioJob] Orphan cleanup error:', err));
       // Initialize show generation queue (non-blocking)
       initShowQueue()
         .then(() => startShowWorker())
