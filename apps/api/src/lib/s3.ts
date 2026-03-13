@@ -1,5 +1,4 @@
-import { S3Client, DeleteObjectCommand } from '@aws-sdk/client-s3';
-import { Upload } from '@aws-sdk/lib-storage';
+import { S3Client, DeleteObjectCommand, PutObjectCommand } from '@aws-sdk/client-s3';
 import crypto from 'crypto';
 import { log } from './logger.js';
 
@@ -32,17 +31,12 @@ const S3_PUBLIC_URL = process.env.AWS_CDN_URL
 
 /** Upload a buffer to S3 with the given key and content type. Returns the public URL. */
 async function executeUpload(key: string, file: Buffer, contentType: string): Promise<string> {
-  const upload = new Upload({
-    client: s3Client,
-    params: {
-      Bucket: BUCKET_NAME,
-      Key: key,
-      Body: file,
-      ContentType: contentType,
-    },
-  });
-
-  await upload.done();
+  await s3Client.send(new PutObjectCommand({
+    Bucket: BUCKET_NAME,
+    Key: key,
+    Body: file,
+    ContentType: contentType,
+  }));
 
   return `${S3_PUBLIC_URL}/${key}`;
 }
