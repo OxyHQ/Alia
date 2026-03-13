@@ -294,7 +294,14 @@ export interface ProviderCallOptions {
 export async function callProviderAPI<T = unknown>(options: ProviderCallOptions): Promise<T> {
   if (GATEWAY_API_ENABLED) {
     const { signal, ...bodyOptions } = options;
-    return apiPost<T>('/api/call', bodyOptions, signal);
+    const result = await apiPost<T>('/api/call', bodyOptions, signal);
+
+    // Gateway returns base64-encoded binary for arrayBuffer responses — decode it
+    if (options.responseType === 'arrayBuffer' && typeof result === 'string') {
+      return Buffer.from(result, 'base64') as unknown as T;
+    }
+
+    return result;
   }
 
   // Local fallback — convert audio field to FormData for the local callProviderAPI

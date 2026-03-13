@@ -13,7 +13,7 @@ const router = express.Router();
 
 router.post('/', async (req: Request, res: Response) => {
   try {
-    const { provider, modelId, endpoint, body, audio, extraFormFields, maxAttempts, timeout } = req.body;
+    const { provider, modelId, endpoint, body, audio, extraFormFields, maxAttempts, timeout, responseType } = req.body;
 
     if (!provider || !modelId || !endpoint) {
       return res.status(400).json({
@@ -47,7 +47,17 @@ router.post('/', async (req: Request, res: Response) => {
       formData,
       maxAttempts: maxAttempts ?? 3,
       timeout: timeout ?? 30000,
+      responseType: responseType ?? 'json',
     });
+
+    // Binary responses (e.g. TTS audio): return base64-encoded buffer
+    if (responseType === 'arrayBuffer' && Buffer.isBuffer(data)) {
+      return res.json({
+        success: true,
+        data: data.toString('base64'),
+        encoding: 'base64',
+      });
+    }
 
     res.json({ success: true, data });
   } catch (error: any) {
