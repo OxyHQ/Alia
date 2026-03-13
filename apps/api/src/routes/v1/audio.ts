@@ -1,6 +1,7 @@
 import { Router } from 'express';
-import { getModelMappingsForTier, callProviderAPI } from '../../lib/gateway-client.js';
+import { getModelMappingsForTier, callProviderAPI, getProviderTimeout } from '../../lib/gateway-client.js';
 import { reserveCredits, finalizeCredits } from '../../lib/credits-manager.js';
+import type { CreditReservation } from '../../lib/credits-manager.js';
 import { getOrCreateUserCredits } from '../../lib/user-credits-helpers.js';
 import { uploadToS3 } from '../../lib/s3.js';
 import { Message } from '../../models/message.js';
@@ -91,8 +92,7 @@ router.post('/speech', async (req: Request, res: Response) => {
 
     for (const mapping of ttsMappings) {
       if (abortController.signal.aborted) break;
-      // DO async-invoke models (fal-ai) need longer for queue + cold start + execution
-      const providerTimeout = mapping.modelId.startsWith('fal-ai/') ? 45_000 : 15_000;
+      const providerTimeout = getProviderTimeout(mapping.modelId);
       try {
         audioBuffer = await callProviderAPI<Buffer>({
           provider: mapping.provider,
@@ -229,26 +229,29 @@ router.post('/generate', async (req: Request, res: Response) => {
     res.status(202).json({ jobId: job._id.toString(), status: 'processing' });
 
     // Background: generate audio, upload to S3, finalize credits
-    processAudioGeneration(job._id.toString(), userId, prompt, duration, reservation, conversationId, messageId);
+    processAudioGeneration({ jobId: job._id.toString(), userId, prompt, duration, reservation, conversationId, messageId });
   } catch (error: unknown) {
     log.general.error({ err: error, userId: req.user?.id }, 'Audio generation submission failed');
     res.status(500).json({ error: { message: getSafeErrorMessage(error, 'Audio generation failed'), type: 'server_error' } });
   }
 });
 
+interface AudioGenJobInput {
+  jobId: string;
+  userId: string;
+  prompt: string;
+  duration: number;
+  reservation: CreditReservation;
+  conversationId?: string;
+  messageId?: string;
+}
+
 /**
  * Background audio generation processor.
  * Runs after the HTTP response is sent — not subject to proxy timeouts.
  */
-async function processAudioGeneration(
-  jobId: string,
-  userId: string,
-  prompt: string,
-  duration: number,
-  reservation: any,
-  conversationId?: string,
-  messageId?: string,
-): Promise<void> {
+async function processAudioGeneration(input: AudioGenJobInput): Promise<void> {
+  const { jobId, userId, prompt, duration, reservation, conversationId, messageId } = input;
   const GEN_TIMEOUT_MS = 180_000; // 3 minutes — generous for queue + cold start + generation
   const abortController = new AbortController();
   const globalTimer = setTimeout(() => abortController.abort('Audio gen timeout'), GEN_TIMEOUT_MS);

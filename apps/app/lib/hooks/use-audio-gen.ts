@@ -5,7 +5,7 @@
  * then polls GET /v1/audio/jobs/:jobId until the audio is ready.
  */
 
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import apiClient from '@/lib/api/client';
 
 type AudioGenState = 'idle' | 'generating' | 'playing' | 'error';
@@ -43,6 +43,15 @@ export function useAudioGen() {
     setActiveMessageId(null);
     setError(null);
   }, [releasePlayer, clearPollTimer]);
+
+  // Clean up timer and player on unmount
+  useEffect(() => {
+    return () => {
+      abortRef.current = true;
+      clearPollTimer();
+      try { playerRef.current?.remove(); } catch {}
+    };
+  }, [clearPollTimer]);
 
   const pollForResult = useCallback(async (jobId: string): Promise<string> => {
     const deadline = Date.now() + MAX_POLL_DURATION_MS;
