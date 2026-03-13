@@ -16,7 +16,7 @@ const s3Client = new S3Client({
 
 const BUCKET_NAME = process.env.AWS_S3_BUCKET || '';
 
-/** Compute base URL once at module load */
+/** Compute base URL once at module load (used for S3 API operations like delete) */
 const S3_BASE_URL = (() => {
   if (process.env.AWS_ENDPOINT_URL) {
     const host = new URL(process.env.AWS_ENDPOINT_URL).host;
@@ -25,15 +25,10 @@ const S3_BASE_URL = (() => {
   return `https://${BUCKET_NAME}.s3.${process.env.AWS_REGION || 'us-east-1'}.amazonaws.com`;
 })();
 
-/** Compute base URL for public access (prefer CDN if configured) */
-const S3_PUBLIC_URL = (() => {
-  if (process.env.AWS_CDN_URL) return process.env.AWS_CDN_URL.replace(/\/$/, '');
-  if (process.env.AWS_ENDPOINT_URL) {
-    const host = new URL(process.env.AWS_ENDPOINT_URL).host;
-    return `https://${BUCKET_NAME}.${host}`;
-  }
-  return `https://${BUCKET_NAME}.s3.${process.env.AWS_REGION || 'us-east-1'}.amazonaws.com`;
-})();
+/** Public-facing URL for uploaded files (prefer CDN if configured, else same as S3_BASE_URL) */
+const S3_PUBLIC_URL = process.env.AWS_CDN_URL
+  ? process.env.AWS_CDN_URL.replace(/\/$/, '')
+  : S3_BASE_URL;
 
 /** Upload a buffer to S3 with the given key and content type. Returns the public URL. */
 async function executeUpload(key: string, file: Buffer, contentType: string): Promise<string> {

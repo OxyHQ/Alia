@@ -8,6 +8,10 @@ import { ApiUsage } from '../models/api-usage';
 import type { KeyConfig } from './types';
 import { log } from '../../../lib/logger.js';
 
+// Pre-compiled patterns for error classification in recordKeyFailure
+const TIMEOUT_PATTERN = /timeout|AbortError/i;
+const RATE_LIMIT_PATTERN = /rate.?limit|429|RESOURCE_EXHAUSTED|quota/i;
+
 // Cache for loaded keys (TTL: 10 seconds — short to minimize stale-key window)
 const keyCache = new Map<string, { keys: IProviderKey[]; timestamp: number }>();
 const KEY_CACHE_TTL = 10000;
@@ -268,10 +272,10 @@ export async function recordKeyFailure(keyId: string, reason: string, retryAfter
     // Priority: 1) Provider's Retry-After header, 2) Key's configured rateLimitResetMs, 3) Default
     // For rate_limit errors: use provider Retry-After or key config or 60s flat
     // For other errors: exponential backoff (30s base, doubles per failure, capped at 5min)
-    const isTimeout = /timeout|Aborted|AbortError/i.test(reason);
+    const isTimeout = TIMEOUT_PATTERN.test(reason);
     if (!isTimeout) {
       const consecutiveFailures = (key.consecutiveFailures || 0) + 1; // +1 because recordFailure already incremented
-      const isRateLimit = /rate.?limit|429|RESOURCE_EXHAUSTED|quota/i.test(reason);
+      const isRateLimit = RATE_LIMIT_PATTERN.test(reason);
       let cooldownMs: number;
       if (retryAfterMs && retryAfterMs > 0) {
         cooldownMs = retryAfterMs; // Provider-supplied Retry-After takes priority
