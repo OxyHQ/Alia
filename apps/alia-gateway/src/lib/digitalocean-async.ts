@@ -5,6 +5,9 @@
  * for non-chat models (TTS, image generation, audio generation).
  *
  * Flow: POST async-invoke → poll status → GET result
+ *
+ * NOTE: Kept in sync with apps/api/src/internal/providers/lib/digitalocean-async.ts
+ * TODO: Extract to a shared workspace package when packages/ infra is added.
  */
 
 import { log } from './logger';
@@ -44,11 +47,15 @@ function authHeaders(apiKey: string): Record<string, string> {
 function sleep(ms: number, signal?: AbortSignal): Promise<void> {
   return new Promise((resolve, reject) => {
     if (signal?.aborted) return reject(new DOMException('Aborted', 'AbortError'));
-    const timer = setTimeout(resolve, ms);
-    signal?.addEventListener('abort', () => {
+    const onAbort = () => {
       clearTimeout(timer);
       reject(new DOMException('Aborted', 'AbortError'));
-    }, { once: true });
+    };
+    const timer = setTimeout(() => {
+      signal?.removeEventListener('abort', onAbort);
+      resolve();
+    }, ms);
+    signal?.addEventListener('abort', onAbort, { once: true });
   });
 }
 
