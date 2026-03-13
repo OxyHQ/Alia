@@ -131,8 +131,10 @@ export async function callProviderAPI<T = any>(options: ProviderAPIOptions): Pro
         });
 
         if (timer) clearTimeout(timer);
-        await recordKeyUsage(keyId, 0, provider, modelId);
-        await recordKeySuccess(keyId);
+        await Promise.all([
+          recordKeyUsage(keyId, 0, provider, modelId),
+          recordKeySuccess(keyId),
+        ]);
 
         // For TTS / binary responses: download audio from the output URL
         if (options.responseType === 'arrayBuffer') {
@@ -197,8 +199,10 @@ export async function callProviderAPI<T = any>(options: ProviderAPIOptions): Pro
       }
 
       // Success
-      await recordKeyUsage(keyId, 0, provider, modelId);
-      await recordKeySuccess(keyId);
+      await Promise.all([
+        recordKeyUsage(keyId, 0, provider, modelId),
+        recordKeySuccess(keyId),
+      ]);
 
       if (options.responseType === 'arrayBuffer') {
         const buffer = Buffer.from(await response.arrayBuffer());
