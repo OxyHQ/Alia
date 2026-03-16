@@ -27,6 +27,7 @@ import { UserMemory } from '../models/user-memory.js';
 import type { IUserMemory } from '../models/user-memory.js';
 import { recordUsage } from '../middleware/api-key-rate-limit.js';
 import { log } from '../lib/logger.js';
+import { getSafeErrorMessage } from '../lib/errors/sanitize.js';
 
 const router = Router();
 
@@ -258,7 +259,7 @@ router.post('/trigger', oxyServiceAuth, async (req, res) => {
 
     res.status(500).json({
       error: 'Trigger processing failed',
-      details: error instanceof Error ? error.message : 'Unknown error',
+      details: getSafeErrorMessage(error, 'Trigger processing failed'),
       responseTime,
     });
   }

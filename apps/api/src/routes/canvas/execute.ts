@@ -10,6 +10,7 @@ import type { Request, Response } from 'express';
 import { callProviderAPI, getModelMappingsForTier } from '../../lib/gateway-client.js';
 import { extractImageUrl } from '../../internal/providers/lib/digitalocean-async.js';
 import { log } from '../../lib/logger.js';
+import { getSafeErrorMessage } from '../../lib/errors/sanitize.js';
 
 
 
@@ -100,7 +101,7 @@ router.post('/', async (req: Request, res: Response) => {
   } catch (error) {
     log.canvas.error({ err: error }, 'Error executing workflow');
     res.status(500).json({
-      error: error instanceof Error ? error.message : 'Failed to execute workflow'
+      error: getSafeErrorMessage(error, 'Failed to execute workflow')
     });
   }
 });
@@ -192,7 +193,7 @@ async function executeWorkflow(
         });
       }
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      const errorMessage = getSafeErrorMessage(error, 'Node execution failed');
       results.push({
         nodeId: node.id,
         nodeType: node.type,
