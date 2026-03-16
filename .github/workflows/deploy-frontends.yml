@@ -5,6 +5,7 @@ on:
   push:
     branches: [main]
     paths:
+      - '.github/workflows/deploy-frontends.yml'
       - 'apps/app/**'
       - 'apps/alia-gateway-admin/**'
       - 'packages/**'
@@ -33,7 +34,7 @@ jobs:
 
   deploy-app:
     needs: detect-changes
-    if: needs.detect-changes.outputs.app == 'true'
+    if: needs.detect-changes.outputs.app == 'true' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -55,7 +56,7 @@ jobs:
 
   deploy-gateway-admin:
     needs: detect-changes
-    if: needs.detect-changes.outputs.gateway-admin == 'true'
+    if: needs.detect-changes.outputs.gateway-admin == 'true' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
