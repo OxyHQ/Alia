@@ -44,6 +44,7 @@ import { useTranslation } from "@/hooks/useTranslation";
 import { useStore } from "@/lib/globalStore";
 import { useRouter, usePathname } from "expo-router";
 import { SettingsSidebar } from "@/components/settings/settings-sidebar";
+import { UserAvatar } from "@/components/user-avatar";
 import { useOxy } from "@oxyhq/services";
 import { useProjectsStore } from "@/lib/stores/projects-store";
 import { useFoldersStore } from "@/lib/stores/folders-store";
@@ -871,11 +872,7 @@ const ChatSidebar = React.memo(function ChatSidebar() {
               <DropdownMenu.Root>
                 <DropdownMenu.Trigger>
                   <Pressable className="h-9 w-9 md:h-8 md:w-8 items-center justify-center rounded-lg hover:bg-muted active:bg-muted">
-                    <View className="h-6 w-6 rounded-full bg-muted items-center justify-center">
-                      <Text className="text-[10px] font-bold text-foreground">
-                        {(user?.name?.first?.[0] || user?.username?.[0] || "U").toUpperCase()}
-                      </Text>
-                    </View>
+                    <UserAvatar size={24} />
                     {(unreadData?.count ?? 0) > 0 && (
                       <View className="absolute top-0.5 right-0.5 h-2.5 w-2.5 rounded-full bg-red-500 border border-background" />
                     )}
@@ -884,11 +881,7 @@ const ChatSidebar = React.memo(function ChatSidebar() {
                 <DropdownMenu.Content>
                   {Platform.OS === 'web' ? (
                     <View className="flex-row items-center gap-2.5 px-1.5 py-1.5">
-                      <View className="h-9 w-9 rounded-full bg-muted items-center justify-center">
-                        <Text className="text-xs font-bold text-foreground">
-                          {(user?.name?.first?.[0] || user?.username?.[0] || "U").toUpperCase()}
-                        </Text>
-                      </View>
+                      <UserAvatar size={36} />
                       <View>
                         <Text className="text-sm font-semibold text-foreground">{getUserDisplayName()}</Text>
                         {user?.username && <Text className="text-xs text-muted-foreground">{user.username}@oxy.so</Text>}
