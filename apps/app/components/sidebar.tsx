@@ -50,6 +50,7 @@ import { useProjectsStore } from "@/lib/stores/projects-store";
 import { useFoldersStore } from "@/lib/stores/folders-store";
 import { useFavoritesStore } from "@/lib/stores/favorites-store";
 import { usePinnedStore } from "@/lib/stores/pinned-store";
+import { SidebarSkeleton } from "@/components/sidebar-skeleton";
 import { useQueryClient } from "@tanstack/react-query";
 import { queryKeys } from "@/lib/hooks/query-keys";
 import { useConversations, useDeleteConversation, prefetchConversation } from "@/lib/hooks/use-conversations";
@@ -479,7 +480,7 @@ const ChatSidebar = React.memo(function ChatSidebar() {
 
   // Header component
   const header = (
-    <Pressable onPress={handleLogoPress} style={({ pressed }) => ({ opacity: pressed ? 0.7 : 1 })}>
+    <Pressable accessibilityLabel="Home" accessibilityRole="button" onPress={handleLogoPress} style={({ pressed }) => ({ opacity: pressed ? 0.7 : 1 })}>
       <AliaLogo height={48} />
     </Pressable>
   );
@@ -488,6 +489,8 @@ const ChatSidebar = React.memo(function ChatSidebar() {
   const topSection = (
     <View className="gap-2">
       <Button
+        accessibilityLabel="New chat"
+        accessibilityRole="button"
         onPress={handleNewChat}
         className="h-11 md:h-9 rounded-full w-full"
       >
@@ -554,6 +557,8 @@ const ChatSidebar = React.memo(function ChatSidebar() {
           <Text className="text-sm md:text-xs">Favorites</Text>
         </Button>
         <Button
+          accessibilityLabel="Library"
+          accessibilityRole="link"
           variant="ghost"
           className="h-10 md:h-8 flex-row items-center justify-start gap-2 rounded-full px-3 md:px-2 w-full"
           onPress={handleLibrary}
@@ -735,6 +740,8 @@ const ChatSidebar = React.memo(function ChatSidebar() {
                   </Text>
                 </Pressable>
                 <Pressable
+                  accessibilityLabel="New folder"
+                  accessibilityRole="button"
                   onPress={handleNewFolder}
                   className="h-5 w-5 md:h-4 md:w-4 rounded active:opacity-70"
                 >
@@ -744,11 +751,15 @@ const ChatSidebar = React.memo(function ChatSidebar() {
               {!historyCollapsed && (
                 <View className="gap-1">
 {conversationsNotInProjects.length === 0 ? (
+                  isLoading ? (
+                    <SidebarSkeleton />
+                  ) : (
                   <View className="items-center justify-center py-4">
                     <Text className="text-xs text-muted-foreground">
-                      {isLoading ? t('common.loading') : 'No history yet'}
+                      No history yet
                     </Text>
                   </View>
+                  )
                 ) : (
                   <>
                     {/* Render folders (always on top, favorites first) */}
@@ -871,7 +882,7 @@ const ChatSidebar = React.memo(function ChatSidebar() {
               {/* User avatar - opens account dropdown */}
               <DropdownMenu.Root>
                 <DropdownMenu.Trigger>
-                  <Pressable className="h-9 w-9 md:h-8 md:w-8 items-center justify-center rounded-lg hover:bg-muted active:bg-muted">
+                  <Pressable accessibilityLabel="Account menu" accessibilityRole="button" className="h-9 w-9 md:h-8 md:w-8 items-center justify-center rounded-lg hover:bg-muted active:bg-muted">
                     <UserAvatar size={24} />
                     {(unreadData?.count ?? 0) > 0 && (
                       <View className="absolute top-0.5 right-0.5 h-2.5 w-2.5 rounded-full bg-red-500 border border-background" />
@@ -926,6 +937,8 @@ const ChatSidebar = React.memo(function ChatSidebar() {
 
               {/* Settings */}
               <Pressable
+                accessibilityLabel="Settings"
+                accessibilityRole="button"
                 onPress={handleSettings}
                 className="h-9 w-9 md:h-8 md:w-8 items-center justify-center rounded-lg hover:bg-muted active:bg-muted"
               >

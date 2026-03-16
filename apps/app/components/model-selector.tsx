@@ -158,7 +158,7 @@ export function ModelSelector({
   return (
     <DropdownMenu.Root>
       <DropdownMenu.Trigger>
-        <Pressable className="flex-row items-center gap-1.5 px-3 py-1.5 rounded-full bg-muted active:opacity-70">
+        <Pressable accessibilityLabel="Select model" accessibilityRole="button" className="flex-row items-center gap-1.5 px-3 py-1.5 rounded-full bg-muted active:opacity-70">
           <Text className="text-sm font-medium text-foreground">
             {currentModel?.name || "Alia V1"}
           </Text>
