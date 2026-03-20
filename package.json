@@ -87,6 +87,6 @@
   },
   "dependencies": {
     "@oxyhq/auth": "^2.0.2",
-    "@oxyhq/core": "^1.11.1"
+    "@oxyhq/core": "^1.11.2"
   }
 }
