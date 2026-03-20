@@ -89,7 +89,7 @@ export async function concatenateAudioSegments(
       const timer = setTimeout(() => {
         if (!settled) {
           settled = true;
-          try { command.kill('SIGKILL'); } catch {}
+          try { command.kill('SIGKILL'); } catch { /* process may already be dead */ }
           reject(new Error(`ffmpeg concatenation timed out after ${FFMPEG_TIMEOUT_MS}ms`));
         }
       }, FFMPEG_TIMEOUT_MS);
@@ -103,11 +103,11 @@ export async function concatenateAudioSegments(
   } finally {
     // Clean up temp files
     for (const f of [...segmentFiles, join(tempDir, 'concat.txt'), join(tempDir, 'output.mp3')]) {
-      try { unlinkSync(f); } catch {}
+      try { unlinkSync(f); } catch { /* best-effort cleanup */ }
     }
     try {
       const { rmdir } = await import('fs/promises');
       await rmdir(tempDir).catch(() => {});
-    } catch {}
+    } catch { /* best-effort cleanup */ }
   }
 }

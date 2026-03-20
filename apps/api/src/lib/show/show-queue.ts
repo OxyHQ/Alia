@@ -93,7 +93,7 @@ export async function startShowWorker(): Promise<void> {
             priority: 'high',
             data: { showId, status: 'failed' },
           });
-        } catch {}
+        } catch { /* notification failure is non-fatal */ }
 
         throw err;
       }
