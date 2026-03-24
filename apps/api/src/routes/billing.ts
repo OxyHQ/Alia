@@ -1,6 +1,6 @@
 import { Router, Request, Response } from 'express';
 import Stripe from 'stripe';
-import { authenticateToken, oxyClient } from '../middleware/auth.js';
+import { authenticateToken, optionalAuth, oxyClient } from '../middleware/auth.js';
 import { UserCredits, type IUserCredits } from '../models/user-credits.js';
 import { Subscription } from '../models/subscription.js';
 import { Transaction } from '../models/transaction.js';
@@ -378,11 +378,14 @@ router.post('/checkout/subscription', authenticateToken, async (req: Request, re
   }
 });
 
-router.get('/subscription', authenticateToken, async (req: Request, res: Response) => {
+router.get('/subscription', optionalAuth, async (req: Request, res: Response) => {
   try {
+    if (!req.user) {
+      return res.json({ subscription: null });
+    }
     const product = req.query.product as string | undefined;
     const query: Record<string, unknown> = {
-      oxyUserId: req.user!.id,
+      oxyUserId: req.user.id,
       status: { $in: ['active', 'trialing'] },
     };
     if (product) {
