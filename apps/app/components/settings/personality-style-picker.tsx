@@ -13,8 +13,7 @@ import {
 } from "lucide-react-native";
 import { PERSONALITY_STYLES, PERSONALITY_STYLE_MAP, type PersonalityStyleId, type PersonalityStyleUI } from "@/lib/personality-styles";
 import { useTranslation } from "@/hooks/useTranslation";
-import { usePersonalitySamplePhrase } from "@/hooks/usePersonalitySamplePhrase";
-import React, { useEffect, useCallback } from "react";
+import React, { useState, useCallback } from "react";
 
 const ICON_MAP: Record<string, LucideIcon> = {
   Heart,
@@ -36,20 +35,15 @@ export function PersonalityStylePicker({
   onSelectStyle,
 }: PersonalityStylePickerProps) {
   const { t } = useTranslation();
-  const { phrase, isStreaming, fetchPhrase } = usePersonalitySamplePhrase();
+  const [phrase] = useState("");
   const currentStyleId: PersonalityStyleId =
     PERSONALITY_STYLE_MAP[selectedStyle as PersonalityStyleId]
       ? (selectedStyle as PersonalityStyleId)
       : "clarity";
 
-  useEffect(() => {
-    fetchPhrase(currentStyleId);
-  }, [currentStyleId, fetchPhrase]);
-
   const handleSelect = useCallback(
     (id: PersonalityStyleId) => {
       onSelectStyle(id);
-      // fetchPhrase is triggered by the useEffect on currentStyleId
     },
     [onSelectStyle],
   );
@@ -73,9 +67,6 @@ export function PersonalityStylePicker({
           numberOfLines={4}
         >
           "{phrase || "..."}"
-          {isStreaming && (
-            <Text className="text-lg text-muted-foreground">|</Text>
-          )}
         </Text>
       </View>
 

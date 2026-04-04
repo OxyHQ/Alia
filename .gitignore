@@ -67,3 +67,5 @@ apps/web/out/
 apps/api/dist/
 apps/mobile/.expo/
 apps/mobile/dist/
+Perplexity.html
+Perplexity_files/
