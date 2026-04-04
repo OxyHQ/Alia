@@ -1,5 +1,10 @@
 # Alia - Project Conventions
 
+## Custom Agents
+
+Use this agent for all implementation work:
+- `alia` — Full-stack engineer (13 apps, multi-provider AI, multi-channel)
+
 ## Model Abstraction Architecture
 
 **CRITICAL RULE: Users and developers must ONLY see Alia-branded model names. Never expose internal provider names.**
