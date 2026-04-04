@@ -516,66 +516,68 @@ export const ChatPageContent = ({
                             {/* Action bar */}
                             <View className="px-3 pb-2.5 flex-row items-center justify-between">
                               <View className="flex-row items-center gap-1.5">
-                                {/* Attach (+) button */}
+                                {/* Add tools & modes (+) button */}
                                 <DropdownMenu.Root>
                                   <DropdownMenu.Trigger>
-                                    <Pressable className="h-8 w-8 rounded-full items-center justify-center bg-muted">
+                                    <Pressable className="h-8 w-8 rounded-full items-center justify-center active:bg-muted">
                                       <Plus size={16} className="text-muted-foreground" />
                                     </Pressable>
                                   </DropdownMenu.Trigger>
-                                  <DropdownMenu.Content side="top" align="start">
-                                    <DropdownMenu.Item key="photos" onSelect={handleAddPhotos}>
-                                      <DropdownMenu.ItemIcon ios={{ name: "photo" }} />
-                                      <DropdownMenu.ItemTitle>Add photos</DropdownMenu.ItemTitle>
+                                  <DropdownMenu.Content side="bottom" align="start">
+                                    <DropdownMenu.Item key="upload" onSelect={handleAddPhotos}>
+                                      <DropdownMenu.ItemIcon ios={{ name: "paperclip" }} />
+                                      <DropdownMenu.ItemTitle>Upload files or images</DropdownMenu.ItemTitle>
                                     </DropdownMenu.Item>
                                     <DropdownMenu.Item key="document" onSelect={handleAddDocument}>
                                       <DropdownMenu.ItemIcon ios={{ name: "doc" }} />
-                                      <DropdownMenu.ItemTitle>Add document</DropdownMenu.ItemTitle>
+                                      <DropdownMenu.ItemTitle>Upload document</DropdownMenu.ItemTitle>
                                     </DropdownMenu.Item>
+                                    <DropdownMenu.Separator />
+                                    <DropdownMenu.CheckboxItem
+                                      key="deep-research"
+                                      value={activeModes.has("deepResearch") ? "on" : "off"}
+                                      onValueChange={() => toggleMode("deepResearch")}
+                                    >
+                                      <DropdownMenu.ItemIcon ios={{ name: "magnifyingglass" }} />
+                                      <DropdownMenu.ItemTitle>Deep research</DropdownMenu.ItemTitle>
+                                    </DropdownMenu.CheckboxItem>
+                                    <DropdownMenu.CheckboxItem
+                                      key="thinking"
+                                      value={thinkingMode ? "on" : "off"}
+                                      onValueChange={handleThinkingMode}
+                                    >
+                                      <DropdownMenu.ItemIcon ios={{ name: "brain" }} />
+                                      <DropdownMenu.ItemTitle>Thinking mode</DropdownMenu.ItemTitle>
+                                    </DropdownMenu.CheckboxItem>
                                   </DropdownMenu.Content>
                                 </DropdownMenu.Root>
 
                                 {/* Focus chip */}
-                                <DropdownMenu.Root>
-                                  <DropdownMenu.Trigger>
-                                    <Pressable className="flex-row items-center h-8 rounded-full border border-dashed border-border px-3 gap-1.5 bg-transparent active:bg-muted">
-                                      <Globe size={14} className="text-muted-foreground" />
-                                      <Text className="text-sm text-muted-foreground">Focus</Text>
-                                    </Pressable>
-                                  </DropdownMenu.Trigger>
-                                  <DropdownMenu.Content side="top" align="start" collisionPadding={8}>
-                                    <DropdownMenu.CheckboxItem
-                                      key="all"
-                                      value={!activeModes.has("search") ? "on" : "off"}
-                                      onValueChange={() => { if (activeModes.has("search")) toggleMode("search"); }}
-                                    >
-                                      <DropdownMenu.ItemIcon ios={{ name: "globe" }} />
-                                      <DropdownMenu.ItemTitle>All</DropdownMenu.ItemTitle>
-                                    </DropdownMenu.CheckboxItem>
-                                    <DropdownMenu.CheckboxItem
-                                      key="search"
-                                      value={activeModes.has("search") ? "on" : "off"}
-                                      onValueChange={() => toggleMode("search")}
-                                    >
-                                      <DropdownMenu.ItemIcon ios={{ name: "magnifyingglass" }} />
-                                      <DropdownMenu.ItemTitle>Web Search</DropdownMenu.ItemTitle>
-                                    </DropdownMenu.CheckboxItem>
-                                  </DropdownMenu.Content>
-                                </DropdownMenu.Root>
-
-                                {/* Research chip */}
                                 <Pressable
-                                  onPress={() => toggleMode("deepResearch")}
+                                  onPress={() => toggleMode("search")}
                                   className={cn(
                                     "flex-row items-center h-8 rounded-full border border-dashed px-3 gap-1.5",
-                                    activeModes.has("deepResearch")
+                                    activeModes.has("search")
                                       ? "border-primary bg-primary/10"
                                       : "border-border bg-transparent active:bg-muted"
                                   )}
                                 >
-                                  <Search size={14} className={activeModes.has("deepResearch") ? "text-primary" : "text-muted-foreground"} />
-                                  <Text className={cn("text-sm", activeModes.has("deepResearch") ? "text-primary" : "text-muted-foreground")}>Research</Text>
+                                  <Globe size={14} className={activeModes.has("search") ? "text-primary" : "text-muted-foreground"} />
+                                  <Text className={cn("text-sm", activeModes.has("search") ? "text-primary" : "text-muted-foreground")}>Focus</Text>
                                 </Pressable>
+
+                                {/* Active mode chips */}
+                                {activeModes.has("deepResearch") && (
+                                  <ModeChip
+                                    icon={MODE_CONFIG.deepResearch.icon}
+                                    label={t(MODE_CONFIG.deepResearch.label)}
+                                    color={MODE_CONFIG.deepResearch.color}
+                                    onDismiss={() => toggleMode("deepResearch")}
+                                  />
+                                )}
+                                {thinkingMode && (
+                                  <ModeChip icon={Brain} label={t("modes.thinkingLabel")} color="#a855f7" onDismiss={handleThinkingMode} />
+                                )}
                               </View>
 
                               <View className="flex-row items-center gap-1.5">
