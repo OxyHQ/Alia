@@ -1,6 +1,6 @@
 import React, { useMemo } from "react";
 import { View } from "react-native";
-import { ClarityMarkdown } from '@clarity/sdk';
+import { ClarityMarkdown } from '@/lib/sdk';
 import { useColorScheme } from "@/lib/useColorScheme";
 import {
   CompactList,

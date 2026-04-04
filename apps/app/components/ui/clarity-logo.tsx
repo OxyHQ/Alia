@@ -1,5 +1,5 @@
 import React from "react";
-import { ClarityLogo as ClarityLogoBase, type ClarityExpression } from '@clarity/sdk';
+import { ClarityLogo as ClarityLogoBase, type ClarityExpression } from '@/lib/sdk';
 
 export type { ClarityExpression };
 

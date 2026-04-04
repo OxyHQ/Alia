@@ -8,7 +8,7 @@ import React, {
 } from "react";
 import { View, Pressable } from "react-native";
 import { Text } from "@/components/ui/text";
-import { ClarityMarkdown } from '@clarity/sdk';
+import { ClarityMarkdown } from '@/lib/sdk';
 import { useColorScheme } from "@/lib/useColorScheme";
 import {
   Collapsible,

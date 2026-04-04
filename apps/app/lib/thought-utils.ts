@@ -1,5 +1,5 @@
 import type { ToolInvocation } from '@/lib/types/messages';
-import { getToolLabel } from '@clarity/sdk';
+import { getToolLabel } from '@/lib/sdk';
 
 export interface Source {
   title: string;

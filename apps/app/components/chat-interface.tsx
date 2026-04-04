@@ -10,7 +10,7 @@ import React, { useEffect, useState, useCallback, useRef, useMemo } from "react"
 import type { ScrollView as GHScrollView } from "react-native-gesture-handler";
 import { processMessage } from "@/lib/message-processor";
 import { cn } from "@/lib/utils";
-import { ThinkingIndicator } from '@clarity/sdk';
+import { ThinkingIndicator } from '@/lib/sdk';
 import { Copy, ThumbsUp, ThumbsDown, Pencil, Check } from "lucide-react-native";
 import * as DropdownMenu from "@/components/ui/dropdown-menu";
 import Animated, {
@@ -24,13 +24,13 @@ import Animated, {
 } from "react-native-reanimated";
 import * as Clipboard from "expo-clipboard";
 import { Reasoning, ReasoningTrigger } from "@/components/ui/reasoning";
-import { getToolLabel, getToolActiveLabel, getResearchActiveLabel, getTextFromContent, getImagesFromContent } from '@clarity/sdk';
+import { getToolLabel, getToolActiveLabel, getResearchActiveLabel, getTextFromContent, getImagesFromContent } from '@/lib/sdk';
 import { useUIStore } from "@/lib/stores/ui-store";
 import { useStore } from "@/lib/globalStore";
 import type { ToolInvocation } from "@/lib/types/messages";
 import { useScrollToBottom } from "@/hooks/use-scroll-to-bottom";
-import { ResearchProgressCard } from '@clarity/sdk';
-import type { ResearchProgress as ResearchProgressData } from '@clarity/sdk';
+import { ResearchProgressCard } from '@/lib/sdk';
+import type { ResearchProgress as ResearchProgressData } from '@/lib/sdk';
 import { Skeleton } from "@/components/ui/skeleton";
 import apiClient from "@/lib/api/client";
 import { useTranslation } from "@/hooks/useTranslation";

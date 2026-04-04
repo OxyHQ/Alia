@@ -4,7 +4,7 @@ import { useTranslation } from "@/hooks/useTranslation";
 import { useWelcomeSuggestions, useRecordSuggestionUsage } from "@/lib/hooks/use-suggestions";
 import { useUserDataStore } from "@/lib/stores/user-data-store";
 import { PERSONALITY_STYLE_MAP } from "@/lib/personality-styles";
-import { ClarityWelcomeMessage } from '@clarity/sdk';
+import { ClarityWelcomeMessage } from '@/lib/sdk';
 
 type TimeOfDay = "morning" | "afternoon" | "evening";
 
