@@ -465,7 +465,9 @@ export const ChatPageContent = ({
 
                       {/* Logo area */}
                       <View className="mb-6 flex w-full items-center justify-center pb-3">
-                        <ClarityWordmark height={40} />
+                        <View className="h-auto w-64">
+                          <ClarityWordmark width={256} />
+                        </View>
                       </View>
 
                       {/* Search input box */}
@@ -593,38 +595,37 @@ export const ChatPageContent = ({
                                 </Pressable>
                               </View>
                             </View>
+
+                            {/* Autocomplete suggestions — inside search box */}
+                            {completions.length > 0 && (
+                              <View className="border-t border-border/50 mx-3 pt-1 pb-1">
+                                {completions.map((item) => (
+                                  <Pressable
+                                    key={item.suggestionId || item.text}
+                                    onPress={() => {
+                                      if (item.suggestionId) recordUsage(item.suggestionId);
+                                      setInputValue(item.text);
+                                      setTimeout(() => {
+                                        onSubmit(item.text, attachments.length > 0 ? attachments : undefined);
+                                        useStore.getState().clearAttachments();
+                                      }, 0);
+                                    }}
+                                    className="px-2 py-2 active:bg-muted rounded-lg flex-row items-center"
+                                  >
+                                    <Search size={14} className="text-muted-foreground mr-3 shrink-0" />
+                                    <Text className="text-sm text-foreground flex-1" numberOfLines={1}>
+                                      <Text className="text-foreground">{item.text.slice(0, item.matchStart)}</Text>
+                                      <Text className="text-primary font-medium">{item.text.slice(item.matchStart, item.matchEnd)}</Text>
+                                      <Text className="text-foreground">{item.text.slice(item.matchEnd)}</Text>
+                                    </Text>
+                                    <ArrowUp size={14} className="text-muted-foreground ml-2 shrink-0 rotate-45" />
+                                  </Pressable>
+                                ))}
+                              </View>
+                            )}
                           </View>
                         </Pressable>
                       </View>
-
-                      {/* Autocomplete dropdown */}
-                      {completions.length > 0 && (
-                        <View className="mt-1 rounded-xl border border-border bg-card shadow-md overflow-hidden">
-                          {completions.map((item) => (
-                            <Pressable
-                              key={item.suggestionId || item.text}
-                              onPress={() => {
-                                if (item.suggestionId) recordUsage(item.suggestionId);
-                                setInputValue(item.text);
-                                // Submit on next tick so inputValue state is updated
-                                setTimeout(() => {
-                                  onSubmit(item.text, attachments.length > 0 ? attachments : undefined);
-                                  useStore.getState().clearAttachments();
-                                }, 0);
-                              }}
-                              className="px-4 py-2.5 active:bg-muted flex-row items-center border-b border-border/30 last:border-b-0"
-                            >
-                              <Search size={14} className="text-muted-foreground mr-3 shrink-0" />
-                              <Text className="text-sm text-foreground flex-1" numberOfLines={1}>
-                                <Text className="text-foreground">{item.text.slice(0, item.matchStart)}</Text>
-                                <Text className="text-primary font-medium">{item.text.slice(item.matchStart, item.matchEnd)}</Text>
-                                <Text className="text-foreground">{item.text.slice(item.matchEnd)}</Text>
-                              </Text>
-                              <ArrowUp size={14} className="text-muted-foreground ml-2 shrink-0 rotate-45" />
-                            </Pressable>
-                          ))}
-                        </View>
-                      )}
                     </View>
 
                     {/* Category tabs + suggestion cards below search */}
