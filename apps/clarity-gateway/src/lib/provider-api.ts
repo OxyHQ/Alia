@@ -1,0 +1,231 @@
+/**
+ * Provider API - Internal system for making non-streaming API calls to providers.
+ *
+ * This is the equivalent of proxy() (which handles streaming chat) but for
+ * direct API calls like image generation, embeddings, and transcription.
+ *
+ * Features call this function — they never touch keys, provider URLs, or auth
+ * headers. The internal system handles key selection, retries, and error recording.
+ */
+
+import { getBestKeyForModel, recordKeySuccess, recordKeyFailure, recordKeyUsage, markKeyCreditExhausted } from './key-manager';
+import { classifyError } from './errors/failover-error';
+import { log } from './logger';
+import { callDigitalOceanAsyncInvoke, downloadBinaryFromUrl, extractAudioUrl } from './digitalocean-async';
+import type { FailoverReason } from './errors/error-codes';
+
+// Provider base URLs — internal knowledge
+const PROVIDER_BASES: Record<string, string> = {
+  openai: 'https://api.openai.com',
+  groq: 'https://api.groq.com/openai',
+  openrouter: 'https://openrouter.ai/api',
+  digitalocean: 'https://inference.do-ai.run',
+};
+
+// DigitalOcean fal-ai models use the async-invoke pattern instead of direct endpoints
+function isDOAsyncInvokeModel(modelId: string): boolean {
+  return modelId.startsWith('fal-ai/');
+}
+
+// Default ElevenLabs voice ID for DO TTS
+const DO_ELEVENLABS_DEFAULT_VOICE = 'kPzsL2i3teMYv0FxEYQ6';
+
+/**
+ * Build the async-invoke input object from the standard callProviderAPI body.
+ * Translates OpenAI-compatible request bodies to DO async-invoke input format.
+ */
+function buildAsyncInvokeInput(modelId: string, endpoint: string, body: any): Record<string, unknown> {
+  // TTS: OpenAI body { input, voice, ... } → DO input { text, voice }
+  if (endpoint === '/v1/audio/speech' || modelId.includes('tts')) {
+    return {
+      text: body?.input ?? '',
+      voice: body?.voice || DO_ELEVENLABS_DEFAULT_VOICE,
+    };
+  }
+
+  // Image generation: OpenAI body { prompt, size, n, ... } → DO input { prompt, ... }
+  if (endpoint === '/v1/images/generations' || modelId.includes('sdxl') || modelId.includes('flux')) {
+    return {
+      prompt: body?.prompt ?? '',
+      ...(body?.num_images && { num_images: body.num_images }),
+      ...(body?.n && { num_images: body.n }),
+    };
+  }
+
+  // Audio generation: pass input through
+  if (modelId.includes('audio')) {
+    return body?.input ?? body ?? {};
+  }
+
+  // Fallback: pass body.input or entire body
+  return body?.input ?? body ?? {};
+}
+
+// Non-retryable error reasons (a different key won't help)
+const NON_RETRYABLE: Set<FailoverReason> = new Set(['format', 'content_filter']);
+
+export interface ProviderAPIOptions {
+  provider: string;
+  modelId: string;
+  endpoint: string;         // e.g. '/v1/images/generations'
+  body?: any;               // JSON body (mutually exclusive with formData)
+  formData?: FormData;      // Multipart body (e.g. Whisper audio)
+  maxAttempts?: number;     // Default: 3
+  timeout?: number;         // Per-attempt timeout in ms (e.g. 30000 for Whisper)
+  responseType?: 'json' | 'arrayBuffer'; // Default: 'json'. Use 'arrayBuffer' for binary responses (TTS audio)
+  signal?: AbortSignal;     // External abort signal (e.g. global request timeout)
+}
+
+/**
+ * Make a non-streaming API call to a provider with automatic key rotation.
+ *
+ * On failure, classifies the error, records it against the key, and retries
+ * with the next available key. Billing errors permanently exhaust the key.
+ * Content filter / format errors are not retried (a different key won't help).
+ *
+ * @throws Error if all keys are exhausted or the error is non-retryable.
+ */
+export async function callProviderAPI<T = any>(options: ProviderAPIOptions): Promise<T> {
+  const { provider, modelId, endpoint, body, formData, maxAttempts = 3, timeout, signal: externalSignal } = options;
+
+  const baseUrl = PROVIDER_BASES[provider];
+  if (!baseUrl) {
+    throw new Error(`Provider "${provider}" has no configured base URL`);
+  }
+
+  const url = `${baseUrl}${endpoint}`;
+  let lastReason: FailoverReason = 'unknown';
+  let lastMessage = '';
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    if (externalSignal?.aborted) {
+      lastReason = 'timeout';
+      lastMessage = 'Request aborted by caller';
+      break;
+    }
+
+    const keyConfig = await getBestKeyForModel(provider, modelId);
+    if (!keyConfig) {
+      log.keys.warn({ provider, modelId, attempt }, 'No keys available');
+      break;
+    }
+    const keyId = keyConfig.keyId ?? `${provider}-unknown`;
+
+    const controller = new AbortController();
+    const timer = timeout ? setTimeout(() => controller.abort(), timeout) : undefined;
+    // Combine per-attempt timeout with caller's external signal
+    const combinedSignal = externalSignal
+      ? AbortSignal.any([controller.signal, externalSignal])
+      : controller.signal;
+
+    try {
+      // DigitalOcean fal-ai models use the async-invoke pattern
+      if (provider === 'digitalocean' && isDOAsyncInvokeModel(modelId)) {
+        const asyncInput = buildAsyncInvokeInput(modelId, endpoint, body);
+        const output = await callDigitalOceanAsyncInvoke({
+          apiKey: keyConfig.key,
+          modelId,
+          input: asyncInput,
+          timeoutMs: timeout,
+          signal: combinedSignal,
+        });
+
+        if (timer) clearTimeout(timer);
+        await Promise.all([
+          recordKeyUsage(keyId, 0, provider, modelId),
+          recordKeySuccess(keyId),
+        ]);
+
+        // For TTS / binary responses: download audio from the output URL
+        if (options.responseType === 'arrayBuffer') {
+          const audioUrl = extractAudioUrl(output);
+          if (!audioUrl) {
+            throw new Error(`DO async-invoke: no audio URL in output for ${modelId}`);
+          }
+          const buffer = await downloadBinaryFromUrl(audioUrl, combinedSignal);
+          return buffer as any as T;
+        }
+
+        return output as T;
+      }
+
+      // Standard synchronous provider call
+      const headers: Record<string, string> = {
+        'Authorization': `Bearer ${keyConfig.key}`,
+      };
+
+      let fetchBody: any;
+      if (formData) {
+        fetchBody = formData;
+      } else if (body) {
+        headers['Content-Type'] = 'application/json';
+        fetchBody = JSON.stringify(body);
+      }
+
+      const response = await fetch(url, {
+        method: 'POST',
+        headers,
+        body: fetchBody,
+        signal: combinedSignal,
+      });
+
+      if (timer) clearTimeout(timer);
+
+      if (!response.ok) {
+        let errBody = '';
+        try {
+          errBody = await response.text();
+        } catch {
+          errBody = `HTTP ${response.status} (body unreadable)`;
+        }
+        const reason = classifyError({ status: response.status, message: errBody });
+
+        log.keys.warn({ attempt, provider, modelId, status: response.status, reason }, 'Provider API call failed');
+
+        lastReason = reason;
+        lastMessage = errBody;
+
+        if (reason === 'billing') {
+          await markKeyCreditExhausted(keyId);
+        } else {
+          await recordKeyFailure(keyId, `${modelId} ${response.status}: ${errBody.slice(0, 200)}`);
+        }
+
+        if (NON_RETRYABLE.has(reason)) {
+          break;
+        }
+
+        continue;
+      }
+
+      // Success
+      await Promise.all([
+        recordKeyUsage(keyId, 0, provider, modelId),
+        recordKeySuccess(keyId),
+      ]);
+
+      if (options.responseType === 'arrayBuffer') {
+        const buffer = Buffer.from(await response.arrayBuffer());
+        return buffer as any as T;
+      }
+
+      const data = await response.json() as T;
+      return data;
+
+    } catch (fetchErr: any) {
+      if (timer) clearTimeout(timer);
+      const isTimeout = fetchErr?.name === 'AbortError';
+      log.keys.warn({ attempt, provider, modelId, err: fetchErr, isTimeout }, 'Provider API fetch error');
+      await recordKeyFailure(keyId, `${modelId} ${isTimeout ? 'timeout' : 'fetch'}: ${fetchErr?.message?.slice(0, 200)}`);
+      lastReason = isTimeout ? 'timeout' : 'unknown';
+      lastMessage = fetchErr?.message || 'Network error';
+      continue;
+    }
+  }
+
+  // All attempts exhausted
+  const error: any = new Error(`Provider API exhausted: ${provider}/${modelId} (${lastReason})`);
+  error.reason = lastReason;
+  error.providerMessage = lastMessage;
+  throw error;
+}

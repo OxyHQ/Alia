@@ -1,0 +1,194 @@
+import { useEffect, useCallback, useRef } from "react";
+import { useRouter } from "expo-router";
+import { useQueryClient } from "@tanstack/react-query";
+import { queryKeys } from "@/lib/hooks/query-keys";
+import { useStore, type Attachment } from "@/lib/globalStore";
+import { useStreamingChat } from "@/hooks/useStreamingChat";
+import { useConversation, useCreateConversation } from "@/lib/hooks/use-conversations";
+import { generateAPIUrl } from "@/lib/generate-api-url";
+import { buildMessageContent } from "@/lib/attachment-utils";
+import type { ScrollView as GHScrollView } from "react-native-gesture-handler";
+
+interface UseChatConversationOptions {
+  conversationId?: string;
+  thinkingMode?: boolean;
+  selectedModel?: string;
+}
+
+export function useChatConversation({ conversationId, thinkingMode, selectedModel }: UseChatConversationOptions = {}) {
+  const router = useRouter();
+  const queryClient = useQueryClient();
+  const scrollViewRef = useRef<GHScrollView>(null);
+  const hasSentPendingMessage = useRef(false);
+  const lastConversationId = useRef<string | null>(null);
+  const wasLoadingRef = useRef(false);
+
+  const pendingInitialMessage = useStore((state) => state.pendingInitialMessage);
+  const { data: conversation, isLoading: conversationQueryLoading, isFetching: conversationFetching } = useConversation(conversationId || "");
+  const createConversationMutation = useCreateConversation();
+
+  const {
+    messages,
+    append,
+    isLoading,
+    error,
+    clearError,
+    setMessages,
+    stop,
+    approvePlan,
+    rejectPlan,
+  } = useStreamingChat(generateAPIUrl('/v1/chat/completions'), undefined, conversationId, thinkingMode, selectedModel);
+
+  // Expose streaming state globally so sidebar can show a spinner
+  const setStreamingChatId = useStore((s) => s.setStreamingChatId);
+  useEffect(() => {
+    setStreamingChatId(isLoading && conversationId ? conversationId : null);
+    return () => {
+      if (useStore.getState().streamingChatId === conversationId) {
+        setStreamingChatId(null);
+      }
+    };
+  }, [isLoading, conversationId, setStreamingChatId]);
+
+  // Refresh sidebar when streaming finishes (backend auto-saves with AI-generated title)
+  useEffect(() => {
+    if (wasLoadingRef.current && !isLoading && conversationId) {
+      // Immediate refetch (gets saved conversation data)
+      queryClient.invalidateQueries({ queryKey: queryKeys.conversations.all });
+      queryClient.invalidateQueries({ queryKey: queryKeys.conversations.detail(conversationId) });
+      // Delayed refetch as fallback for async title generation (non-streaming paths, deep research)
+      const timer = setTimeout(() => {
+        queryClient.invalidateQueries({ queryKey: queryKeys.conversations.all });
+        queryClient.invalidateQueries({ queryKey: queryKeys.conversations.detail(conversationId) });
+      }, 5000);
+      wasLoadingRef.current = isLoading;
+      return () => clearTimeout(timer);
+    }
+    wasLoadingRef.current = isLoading;
+  }, [isLoading, conversationId, queryClient]);
+
+  // Sync chatId and load messages when conversation changes or when
+  // seeded cache data upgrades to full data (messages go from empty to populated).
+  useEffect(() => {
+    useStore.getState().setChatId(conversationId ? { id: conversationId, from: "url" } : null);
+
+    if (!conversationId || conversationQueryLoading) return;
+
+    const incomingMessages = conversation?.messages || [];
+    const isNewConversation = lastConversationId.current !== conversationId;
+    const isDataUpgrade = !isNewConversation && incomingMessages.length > 0 && messages.length === 0;
+
+    if (!isNewConversation && !isDataUpgrade) return;
+
+    if (isNewConversation) {
+      lastConversationId.current = conversationId;
+      hasSentPendingMessage.current = false;
+    }
+
+    const validMessages = incomingMessages
+      .filter(msg => msg?.role && msg?.content !== undefined)
+      .map((msg, index) => ({
+        ...msg,
+        id: msg.id || `db-${conversationId}-${index}`,
+      }));
+    setMessages(validMessages);
+  }, [conversationId, conversation, conversationQueryLoading, setMessages, messages.length]);
+
+  // Send pending initial message for new conversations
+  useEffect(() => {
+    if (!conversationId || !pendingInitialMessage || isLoading) return;
+    if (hasSentPendingMessage.current) return;
+    if (messages.length > 0) return; // Only send if no messages yet
+
+    hasSentPendingMessage.current = true;
+    useStore.getState().setBottomChatHeightHandler(true);
+    append({
+      role: 'user',
+      content: pendingInitialMessage,
+    });
+    useStore.getState().clearPendingInitialMessage();
+  }, [conversationId, pendingInitialMessage, isLoading, messages.length, append]);
+
+  // Actions
+  const sendMessage = useCallback(async (content: string, attachments?: Attachment[]) => {
+    if (!content.trim() || isLoading) return;
+
+    useStore.getState().setBottomChatHeightHandler(true);
+
+    const messageContent = attachments?.length
+      ? await buildMessageContent(content, attachments)
+      : content;
+
+    append({
+      role: 'user',
+      content: messageContent,
+    });
+    useStore.getState().clearAttachments();
+  }, [isLoading, append]);
+
+  const createNewConversation = useCallback(async (initialMessage: string, attachments?: Attachment[]) => {
+    if (!initialMessage.trim()) return;
+
+    // If there are attachments, build multi-part content and store it as pending
+    if (attachments?.length) {
+      const messageContent = await buildMessageContent(initialMessage, attachments);
+      useStore.getState().setPendingInitialMessage(messageContent);
+      useStore.getState().clearAttachments();
+    } else {
+      useStore.getState().setPendingInitialMessage(initialMessage);
+    }
+
+    try {
+      // Create conversation on backend and get the ID
+      const newConversation = await createConversationMutation.mutateAsync({});
+
+      // Navigate to the new conversation
+      router.replace(`/(app)/c/${newConversation.id}` as any);
+    } catch {
+      // onError handler in useCreateConversation already shows a toast
+    }
+  }, [router, createConversationMutation]);
+
+  const editMessage = useCallback((messageId: string, newContent: string) => {
+    // Truncate to messages before the edited one, then re-send.
+    // setMessages eagerly syncs messagesRef so append reads truncated history.
+    setMessages(prev => {
+      const idx = prev.findIndex(msg => msg.id === messageId);
+      return idx < 0 ? prev : prev.slice(0, idx);
+    });
+    append({ role: 'user', content: newContent });
+  }, [setMessages, append]);
+
+  const stopGeneration = useCallback(() => {
+    stop();
+  }, [stop]);
+
+  const clearConversation = useCallback(() => {
+    setMessages([]);
+  }, [setMessages]);
+
+  // True while loading conversation messages (initial fetch or seeded→full upgrade)
+  const conversationLoading = conversationQueryLoading ||
+    (conversationFetching && (!conversation?.messages || conversation.messages.length === 0));
+
+  return {
+    // State
+    conversationId,
+    messages,
+    isLoading,
+    conversationLoading,
+    error,
+    scrollViewRef,
+
+    // Actions
+    sendMessage,
+    createNewConversation,
+    editMessage,
+    stopGeneration,
+    clearConversation,
+    clearError,
+    setMessages,
+    approvePlan,
+    rejectPlan,
+  };
+}

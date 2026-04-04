@@ -1,0 +1,63 @@
+# Alia by Oxy - Robots.txt optimizado para SEO 2026
+# Actualizado: 2026-01-24
+
+# Google, Bing, y buscadores principales
+User-agent: Googlebot
+User-agent: Bingbot
+User-agent: Slurp
+User-agent: DuckDuckBot
+Allow: /
+Disallow: /settings/
+Disallow: /billing
+Disallow: /c/
+Disallow: /reset-password
+Disallow: /telegram-auth
+Disallow: /developers/apps/
+Disallow: /developers/billing
+Disallow: /developers/organizations/
+Crawl-delay: 0
+
+# Permitir indexación específica de contenido público
+Allow: /
+Allow: /login
+Allow: /register
+Allow: /ai-chat
+Allow: /chatbot-ai
+Allow: /ai-assistant
+Allow: /features
+Allow: /use-cases
+Allow: /pricing
+Allow: /vs/
+Allow: /blog/
+Allow: /roles
+Allow: /library
+Allow: /developers/documentation
+Allow: /developers/examples
+
+# Bloquear bots de scraping agresivos
+User-agent: AhrefsBot
+User-agent: SemrushBot
+User-agent: MJ12bot
+User-agent: DotBot
+User-agent: BLEXBot
+Disallow: /
+
+# Todos los demás bots
+User-agent: *
+Allow: /
+Disallow: /settings/
+Disallow: /billing
+Disallow: /c/
+Disallow: /reset-password
+Disallow: /telegram-auth
+Disallow: /developers/apps/
+Disallow: /developers/billing
+Disallow: /developers/organizations/
+
+# Sitemaps
+Sitemap: https://alia.onl/sitemap.xml
+Sitemap: https://alia.onl/sitemap-blog.xml
+Sitemap: https://alia.onl/sitemap-roles.xml
+
+# Crawl rate hints para Google
+# Host: https://alia.onl

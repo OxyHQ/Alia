@@ -1,0 +1,338 @@
+/**
+ * Schema.org Structured Data para SEO
+ * Genera JSON-LD para rich snippets en Google
+ */
+
+import React from 'react';
+
+const SITE_URL = 'https://clarity.oxy.so';
+const SITE_NAME = 'Clarity by Oxy';
+const LOGO_URL = `${SITE_URL}/icon-512.png`;
+
+/**
+ * Schema.org Organization
+ */
+export function generateOrganizationSchema() {
+  return {
+    '@context': 'https://schema.org',
+    '@type': 'Organization',
+    'name': SITE_NAME,
+    'legalName': 'Oxy Technologies Inc.',
+    'url': SITE_URL,
+    'logo': LOGO_URL,
+    'foundingDate': '2024',
+    'description': 'Advanced AI chat assistant with contextual memory and multilingual support.',
+    'sameAs': [
+      'https://twitter.com/ClarityByOxy',
+      'https://github.com/oxy',
+      'https://linkedin.com/company/oxy',
+    ],
+    'contactPoint': {
+      '@type': 'ContactPoint',
+      'contactType': 'Customer Support',
+      'email': 'support@clarity.oxy.so',
+      'availableLanguage': ['en', 'es', 'fr', 'de', 'pt', 'it', 'ja', 'zh', 'ko'],
+    },
+  };
+}
+
+/**
+ * Schema.org WebApplication
+ */
+export function generateWebApplicationSchema() {
+  return {
+    '@context': 'https://schema.org',
+    '@type': 'WebApplication',
+    'name': SITE_NAME,
+    'url': SITE_URL,
+    'description': 'Clarity is an AI-powered search engine by Oxy that provides comprehensive answers with cited sources.',
+    'applicationCategory': 'UtilityApplication',
+    'operatingSystem': 'Web, iOS, Android',
+    'offers': {
+      '@type': 'Offer',
+      'price': '0',
+      'priceCurrency': 'USD',
+      'availability': 'https://schema.org/InStock',
+    },
+    'aggregateRating': {
+      '@type': 'AggregateRating',
+      'ratingValue': '4.8',
+      'ratingCount': '1247',
+      'bestRating': '5',
+      'worstRating': '1',
+    },
+    'author': {
+      '@type': 'Organization',
+      'name': 'Oxy Technologies',
+    },
+    'screenshot': `${SITE_URL}/screenshots/chat-interface.png`,
+    'featureList': [
+      'Advanced AI chat with memory',
+      'Multiple AI models for every task',
+      'Custom roles and personas',
+      'Developer API',
+      'Multilingual support (50+ languages)',
+      'Free tier available',
+    ],
+  };
+}
+
+/**
+ * Schema.org SoftwareApplication (más específico para apps)
+ */
+export function generateSoftwareApplicationSchema() {
+  return {
+    '@context': 'https://schema.org',
+    '@type': 'SoftwareApplication',
+    'name': SITE_NAME,
+    'applicationCategory': 'BusinessApplication',
+    'operatingSystem': 'Web Browser, iOS, Android',
+    'offers': [
+      {
+        '@type': 'Offer',
+        'name': 'Free Plan',
+        'price': '0',
+        'priceCurrency': 'USD',
+      },
+      {
+        '@type': 'Offer',
+        'name': 'Pro Plan',
+        'price': '20',
+        'priceCurrency': 'USD',
+        'priceSpecification': {
+          '@type': 'UnitPriceSpecification',
+          'billingDuration': 'P1M',
+          'billingIncrement': '1',
+        },
+      },
+    ],
+    'aggregateRating': {
+      '@type': 'AggregateRating',
+      'ratingValue': '4.8',
+      'ratingCount': '1247',
+    },
+  };
+}
+
+/**
+ * Schema.org FAQ (para páginas de features, pricing, etc.)
+ */
+export function generateFAQSchema(faqs: Array<{ question: string; answer: string }>) {
+  return {
+    '@context': 'https://schema.org',
+    '@type': 'FAQPage',
+    'mainEntity': faqs.map(faq => ({
+      '@type': 'Question',
+      'name': faq.question,
+      'acceptedAnswer': {
+        '@type': 'Answer',
+        'text': faq.answer,
+      },
+    })),
+  };
+}
+
+/**
+ * Schema.org Article (para blog posts)
+ */
+export function generateArticleSchema(article: {
+  title: string;
+  description: string;
+  author: string;
+  datePublished: string;
+  dateModified?: string;
+  image?: string;
+  url: string;
+}) {
+  return {
+    '@context': 'https://schema.org',
+    '@type': 'Article',
+    'headline': article.title,
+    'description': article.description,
+    'image': article.image || `${SITE_URL}/og-image-default.png`,
+    'datePublished': article.datePublished,
+    'dateModified': article.dateModified || article.datePublished,
+    'author': {
+      '@type': 'Person',
+      'name': article.author,
+    },
+    'publisher': {
+      '@type': 'Organization',
+      'name': SITE_NAME,
+      'logo': {
+        '@type': 'ImageObject',
+        'url': LOGO_URL,
+      },
+    },
+    'url': article.url,
+  };
+}
+
+/**
+ * Schema.org BreadcrumbList
+ */
+export function generateBreadcrumbSchema(items: Array<{ name: string; url: string }>) {
+  return {
+    '@context': 'https://schema.org',
+    '@type': 'BreadcrumbList',
+    'itemListElement': items.map((item, index) => ({
+      '@type': 'ListItem',
+      'position': index + 1,
+      'name': item.name,
+      'item': item.url,
+    })),
+  };
+}
+
+/**
+ * Schema.org HowTo (para tutoriales)
+ */
+export function generateHowToSchema(howto: {
+  name: string;
+  description: string;
+  steps: Array<{ name: string; text: string; image?: string }>;
+}) {
+  return {
+    '@context': 'https://schema.org',
+    '@type': 'HowTo',
+    'name': howto.name,
+    'description': howto.description,
+    'step': howto.steps.map((step, index) => ({
+      '@type': 'HowToStep',
+      'position': index + 1,
+      'name': step.name,
+      'text': step.text,
+      ...(step.image && { image: step.image }),
+    })),
+  };
+}
+
+/**
+ * Schema.org Product (para comparaciones vs ChatGPT, Claude, etc.)
+ */
+export function generateProductSchema(product: {
+  name: string;
+  description: string;
+  image?: string;
+  offers?: {
+    price: string;
+    priceCurrency: string;
+  };
+  rating?: {
+    value: number;
+    count: number;
+  };
+}) {
+  return {
+    '@context': 'https://schema.org',
+    '@type': 'Product',
+    'name': product.name,
+    'description': product.description,
+    'image': product.image || `${SITE_URL}/og-image-default.png`,
+    ...(product.offers && {
+      offers: {
+        '@type': 'Offer',
+        'price': product.offers.price,
+        'priceCurrency': product.offers.priceCurrency,
+        'availability': 'https://schema.org/InStock',
+      },
+    }),
+    ...(product.rating && {
+      aggregateRating: {
+        '@type': 'AggregateRating',
+        'ratingValue': product.rating.value.toString(),
+        'ratingCount': product.rating.count.toString(),
+      },
+    }),
+  };
+}
+
+/**
+ * Schema.org VideoObject (si tienes demos en video)
+ */
+export function generateVideoSchema(video: {
+  name: string;
+  description: string;
+  thumbnailUrl: string;
+  uploadDate: string;
+  contentUrl: string;
+  duration?: string; // ISO 8601 format (PT1M30S = 1 min 30 sec)
+}) {
+  return {
+    '@context': 'https://schema.org',
+    '@type': 'VideoObject',
+    'name': video.name,
+    'description': video.description,
+    'thumbnailUrl': video.thumbnailUrl,
+    'uploadDate': video.uploadDate,
+    'contentUrl': video.contentUrl,
+    ...(video.duration && { duration: video.duration }),
+  };
+}
+
+/**
+ * Helper para insertar JSON-LD en Head
+ */
+export function JSONLDScript({ data }: { data: object }) {
+  return (
+    <script
+      type="application/ld+json"
+      dangerouslySetInnerHTML={{
+        __html: JSON.stringify(data),
+      }}
+    />
+  );
+}
+
+/**
+ * Presets comunes de structured data
+ */
+export const STRUCTURED_DATA_PRESETS = {
+  homepage: [generateOrganizationSchema(), generateWebApplicationSchema()],
+
+  features: [
+    generateWebApplicationSchema(),
+    generateFAQSchema([
+      {
+        question: 'What makes Clarity different from other search engines?',
+        answer:
+          'Alia offers enhanced contextual memory, multiple specialized AI models in one platform, custom roles, developer API access, and native multilingual support across 50+ languages.',
+      },
+      {
+        question: 'Is Clarity free to use?',
+        answer:
+          'Yes! Clarity offers a generous free tier. Pro plans are available for power users who need higher limits.',
+      },
+      {
+        question: 'Which models does Clarity use?',
+        answer:
+          'Alia supports multiple specialized AI models including Clarity V1, Clarity Pro, Clarity Thinking, and more. You can switch between models seamlessly.',
+      },
+      {
+        question: 'Can I use Clarity for research?',
+        answer:
+          'Yes! Clarity excels at deep research with multi-source synthesis, providing comprehensive answers with cited sources.',
+      },
+    ]),
+  ],
+
+  pricing: [
+    generateSoftwareApplicationSchema(),
+    generateFAQSchema([
+      {
+        question: 'How does pricing work?',
+        answer:
+          'Clarity uses a credit-based system. Free tier includes generous credits monthly. Pro users can purchase additional credits as needed.',
+      },
+      {
+        question: 'Can I cancel anytime?',
+        answer:
+          'Yes! There are no contracts or subscriptions. Purchase credits when you need them, use them at your own pace.',
+      },
+      {
+        question: 'Do unused credits expire?',
+        answer: 'No. Your credits never expire and roll over month to month.',
+      },
+    ]),
+  ],
+};

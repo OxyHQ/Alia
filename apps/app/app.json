@@ -1,0 +1,66 @@
+{
+  "expo": {
+    "owner": "oxyhq",
+    "name": "Clarity",
+    "slug": "clarity",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon-512.png",
+    "scheme": "clarity",
+    "userInterfaceStyle": "automatic",
+    "splash": {
+      "image": "./assets/icon-512.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#040711"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "so.oxy.clarity",
+      "infoPlist": {
+        "UIBackgroundModes": [
+          "audio",
+          "remote-notification"
+        ]
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/icon-512-maskable.png",
+        "monochromeImage": "./assets/adaptive-icon-monochrome.png",
+        "backgroundColor": "#FFFFFF"
+      },
+      "googleServicesFile": "./google-services.json",
+      "package": "so.oxy.clarity",
+      "predictiveBackGestureEnabled": false,
+      "permissions": [
+        "android.permission.RECORD_AUDIO",
+        "android.permission.MODIFY_AUDIO_SETTINGS"
+      ]
+    },
+    "web": {
+      "bundler": "metro",
+      "output": "single",
+      "favicon": "./assets/icon-192.png"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-localization",
+      "expo-audio",
+      "expo-font",
+      "expo-image",
+      "expo-secure-store",
+      "expo-web-browser",
+      "expo-asset",
+      "expo-notifications"
+    ],
+    "experiments": {
+      "typedRoutes": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "ca1a1ca1-2469-4ceb-8387-e43d6832bbab"
+      }
+    }
+  }
+}

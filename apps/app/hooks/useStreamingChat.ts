@@ -1,0 +1,862 @@
+import { useState, useCallback, useRef, useEffect } from 'react';
+import { fetch as expoFetch } from 'expo/fetch';
+import * as Haptics from 'expo-haptics';
+import { useOxy } from '@oxyhq/services';
+import { useQueryClient } from '@tanstack/react-query';
+import type { Message } from '@/lib/hooks/use-conversations';
+import type { CreditsInfo } from '@/lib/hooks/use-credits';
+import { collectDeviceInfo } from '@/lib/device-info';
+import { UsageLimitError } from '@/lib/errors/usage-limit-error';
+import { queryKeys } from '@/lib/hooks/query-keys';
+import { useStore } from '@/lib/globalStore';
+import { useModelStore } from '@/lib/stores/model-store';
+import { useUIStore } from '@/lib/stores/ui-store';
+import { toast } from '@/components/sonner';
+
+import type { ToolInvocation } from '@/lib/types/messages';
+export type { ToolInvocation };
+
+
+export function useStreamingChat(apiUrl: string, activeRole?: any, conversationId?: string, thinkingMode?: boolean, selectedModel?: string, skillId?: string | null, agentId?: string | null) {
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<Error | null>(null);
+  const [conversationTitle, setConversationTitle] = useState<string | null>(null);
+  const { oxyServices } = useOxy();
+  const queryClient = useQueryClient();
+  const abortControllerRef = useRef<AbortController | null>(null);
+
+  // Batching refs: accumulate streaming text and flush at ~20fps instead of per-chunk
+  const pendingContentRef = useRef('');
+  const pendingReasoningRef = useRef('');
+  const flushTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const flushPendingUpdates = useCallback(() => {
+    const content = pendingContentRef.current;
+    const reasoning = pendingReasoningRef.current;
+    if (!content && !reasoning) return;
+
+    pendingContentRef.current = '';
+    pendingReasoningRef.current = '';
+
+    setMessages((prev) => {
+      const updated = [...prev];
+      const lastMessage = updated[updated.length - 1];
+      if (lastMessage?.role === 'assistant') {
+        const changes: Partial<Message> = {};
+        if (content) changes.content = lastMessage.content + content;
+        if (reasoning) (changes as any).thinking = ((lastMessage as any).thinking || '') + reasoning;
+        updated[updated.length - 1] = { ...lastMessage, ...changes };
+      }
+      return updated;
+    });
+  }, []);
+
+  const scheduleFlush = useCallback(() => {
+    if (flushTimerRef.current) return;
+    flushTimerRef.current = setTimeout(() => {
+      flushTimerRef.current = null;
+      flushPendingUpdates();
+    }, 50);
+  }, [flushPendingUpdates]);
+
+  // Cleanup: flush remaining content and clear timer on unmount
+  useEffect(() => {
+    return () => {
+      flushPendingUpdates();
+      if (flushTimerRef.current) {
+        clearTimeout(flushTimerRef.current);
+        flushTimerRef.current = null;
+      }
+    };
+  }, [flushPendingUpdates]);
+
+  // Ref to avoid messages in append's dep array (avoids recreation every 50ms during streaming)
+  // Synced both via useEffect (for streaming updates) and eagerly in setMessagesAndRef
+  // so that setMessages + append in the same tick see the correct history.
+  const messagesRef = useRef<Message[]>([]);
+  useEffect(() => { messagesRef.current = messages; }, [messages]);
+
+  // Wrapper that eagerly syncs messagesRef before React re-renders,
+  // so append() called in the same tick reads truncated history (e.g. editMessage).
+  const setMessagesAndRef = useCallback((update: Message[] | ((prev: Message[]) => Message[])) => {
+    if (typeof update === 'function') {
+      setMessages(prev => {
+        const next = update(prev);
+        messagesRef.current = next;
+        return next;
+      });
+    } else {
+      messagesRef.current = update;
+      setMessages(update);
+    }
+  }, []);
+
+  const append = useCallback(async (message: Message) => {
+    setIsLoading(true);
+    setError(null);
+
+    const userMessage = { ...message, id: Date.now().toString() };
+    setMessages((prev) => [...prev, userMessage]);
+
+    // Create assistant message placeholder
+    const assistantMessageId = (Date.now() + 1).toString();
+    const assistantMessage: Message = {
+      id: assistantMessageId,
+      role: 'assistant',
+      content: '',
+      toolInvocations: [],
+    };
+    setMessages((prev) => [...prev, assistantMessage]);
+
+    try {
+      // Collect device info (will be available to AI via tool if needed)
+      const deviceInfo = await collectDeviceInfo();
+
+      // Build headers with optional session ID
+      const headers: HeadersInit = {
+        'Content-Type': 'application/json',
+        'X-Device-Info': JSON.stringify(deviceInfo),
+      };
+
+      const token = oxyServices.getAccessToken();
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+
+      // Build system message with role context if active
+      let systemMessage = '';
+      if (activeRole) {
+        systemMessage = `You are acting in the role of "${activeRole.name}".
+
+Role Description: ${activeRole.description}
+
+Reasoning Approach: ${activeRole.reasoning}
+Writing Style: ${activeRole.writingStyle}
+Tone: ${activeRole.tone}
+Priorities: ${activeRole.priorities.join(', ')}
+
+Use this role to guide your responses, maintaining the specified tone, style, and priorities throughout the conversation.`;
+      }
+
+      // Build messages array with system message if present
+      // Include tool invocations for proper conversation context
+      const conversationMessages = [...messagesRef.current, userMessage];
+
+      const formatMessage = (m: Message | { role: string; content: string }) => {
+        const msg: any = {
+          role: m.role,
+          content: m.content,
+        };
+        // Include tool invocations if present for assistant messages
+        if ('toolInvocations' in m && m.role === 'assistant' && m.toolInvocations && m.toolInvocations.length > 0) {
+          msg.toolInvocations = m.toolInvocations.map((inv: ToolInvocation) => ({
+            toolCallId: inv.toolCallId,
+            toolName: inv.toolName,
+            state: inv.state,
+            args: inv.args,
+            result: inv.result,
+          }));
+        }
+        return msg;
+      };
+
+      const messagesToSend = systemMessage
+        ? [
+            { role: 'system', content: systemMessage },
+            ...conversationMessages,
+          ].map(formatMessage)
+        : conversationMessages.map(formatMessage);
+
+      // Create abort controller for this request
+      abortControllerRef.current = new AbortController();
+
+      const agentMode = useStore.getState().agentMode;
+      const deepResearchMode = useStore.getState().deepResearchMode;
+
+      const response = await expoFetch(apiUrl, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          messages: messagesToSend,
+          stream: true,
+          ...(conversationId && { conversationId }),
+          ...(thinkingMode && { thinkingMode: true }),
+          ...(selectedModel && { model: selectedModel }),
+          ...(skillId && { skillId }),
+          ...(agentId && { agentId }),
+          ...(agentMode && { agentMode: true }),
+          ...(deepResearchMode && { deepResearch: true }),
+        }),
+        signal: abortControllerRef.current.signal,
+      });
+
+      if (!response.ok) {
+        let errorData: any = null;
+        try {
+          // expoFetch is streaming-oriented; .json() may not work for error responses.
+          // Read the body manually via the ReadableStream reader.
+          if (response.body) {
+            const errReader = response.body.getReader();
+            const { value } = await errReader.read();
+            if (value) {
+              errorData = JSON.parse(new TextDecoder().decode(value));
+            }
+          }
+        } catch {}
+
+        // Detect usage limit errors (429 rate limit, 402 insufficient credits, 403 model access)
+        if (response.status === 429 || response.status === 402 || response.status === 403) {
+          const errObj = errorData?.error && typeof errorData.error === 'object' ? errorData.error : null;
+          const isModelAccess = response.status === 403 && errObj?.code === 'MODEL_NOT_IN_PLAN';
+          const isCredits = response.status === 402 || errObj?.code === 'INSUFFICIENT_CREDITS';
+
+          if (isModelAccess || isCredits || response.status === 429) {
+            throw new UsageLimitError({
+              type: isModelAccess ? 'model_access' : isCredits ? 'credits' : 'rate_limit',
+              code: errObj?.code || (isModelAccess ? 'MODEL_NOT_IN_PLAN' : isCredits ? 'INSUFFICIENT_CREDITS' : 'RATE_LIMIT_EXCEEDED'),
+              message: errObj?.message || (isModelAccess
+                ? 'Upgrade your plan to use this model.'
+                : isCredits
+                  ? "You've run out of credits."
+                  : "You've sent too many messages."),
+              retryable: errObj?.retryable ?? (!isCredits && !isModelAccess),
+              retryAfterSeconds: errObj?.retryAfter,
+              suggestedAction: errObj?.suggestedAction || (isCredits || isModelAccess ? 'upgrade' : 'wait'),
+              limitType: errObj?.details?.limitType,
+              current: errObj?.details?.current,
+              limit: errObj?.details?.limit,
+              tier: errObj?.details?.tier,
+            });
+          }
+        }
+
+        // Generic error fallback
+        let errorMessage = `Server error (${response.status})`;
+        if (errorData) {
+          const err = errorData.error;
+          if (typeof err === 'string') {
+            errorMessage = err;
+          } else if (err?.message) {
+            errorMessage = err.message;
+          } else if (typeof errorData.details === 'string') {
+            errorMessage = errorData.details;
+          }
+        } else {
+          errorMessage = response.statusText || errorMessage;
+        }
+        throw new Error(errorMessage);
+      }
+
+      if (!response.body) {
+        throw new Error('No response received from server');
+      }
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+      let fullContent = '';
+      let charCount = 0;
+      let hasToolInvocations = false;
+
+      while (true) {
+        const { done, value } = await reader.read();
+
+        if (done) {
+          // Flush any remaining batched content before checking
+          flushPendingUpdates();
+
+          // Check if we received any content
+          if (!fullContent && !error && !hasToolInvocations) {
+            console.error('[useStreamingChat] Stream ended without content');
+            setMessages((prev) => {
+              const updated = [...prev];
+              const lastMessage = updated[updated.length - 1];
+              if (lastMessage?.role === 'assistant' && !lastMessage.content) {
+                updated[updated.length - 1] = {
+                  ...lastMessage,
+                  content: '⚠️ No response received from AI. Please try again.',
+                };
+              }
+              return updated;
+            });
+            setError(new Error('No response received from AI'));
+          }
+          break;
+        }
+
+        // Decode chunk and add to buffer
+        const chunk = decoder.decode(value, { stream: true });
+        buffer += chunk;
+
+        // Process complete lines (supports named SSE events: event: X\ndata: Y)
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || ''; // Keep incomplete line in buffer
+
+        let currentEventType = '';
+        for (const line of lines) {
+          // Track named SSE event type
+          if (line.startsWith('event: ')) {
+            currentEventType = line.slice(7).trim();
+            continue;
+          }
+
+          // Reset event type on empty line (SSE event boundary)
+          if (line === '') {
+            currentEventType = '';
+            continue;
+          }
+
+          if (line.startsWith('data: ')) {
+            const data = line.slice(6).trim();
+
+            // Skip [DONE] marker
+            if (data === '[DONE]') { currentEventType = ''; continue; }
+
+            try {
+              const parsed = JSON.parse(data);
+
+              // ── Named SSE events (Clarity extensions) ──
+              if (currentEventType) {
+                switch (currentEventType) {
+                  case 'clarity.reasoning': {
+                    const content = parsed.content;
+                    if (content) {
+                      pendingReasoningRef.current += content;
+                      scheduleFlush();
+                    }
+                    currentEventType = '';
+                    continue;
+                  }
+                  case 'clarity.tool_result': {
+                    const { tool_call_id, name, output } = parsed;
+                    if (tool_call_id) {
+                      setMessages((prev) => {
+                        const updated = [...prev];
+                        const lastMessage = updated[updated.length - 1];
+                        if (lastMessage?.role === 'assistant') {
+                          const invocations = [...(lastMessage.toolInvocations || [])];
+                          const idx = invocations.findIndex((t) => t.toolCallId === tool_call_id);
+                          if (idx >= 0) {
+                            invocations[idx] = { ...invocations[idx], state: 'result', result: output };
+                          } else {
+                            invocations.push({ toolCallId: tool_call_id, toolName: name || 'unknown', state: 'result', result: output });
+                          }
+                          updated[updated.length - 1] = { ...lastMessage, toolInvocations: invocations };
+                        }
+                        return updated;
+                      });
+                      // Detect artifact-like results
+                      if (name === 'generateFile' && output && typeof output === 'object') {
+                        const artifactType = output.language ? 'code' : 'markdown';
+                        useUIStore.getState().addCanvasArtifact({
+                          id: tool_call_id,
+                          type: artifactType,
+                          content: artifactType === 'code'
+                            ? { language: output.language, code: output.content }
+                            : { content: output.content },
+                          title: output.filename || output.title || 'Generated file',
+                          timestamp: Date.now(),
+                        });
+                        useUIStore.getState().setRightPanel('canvas');
+                      } else if (output?.artifact) {
+                        const a = output.artifact;
+                        useUIStore.getState().addCanvasArtifact({
+                          id: tool_call_id,
+                          type: a.type || 'markdown',
+                          content: a.data || a.content || a,
+                          title: a.title || name || 'Artifact',
+                          timestamp: Date.now(),
+                        });
+                        useUIStore.getState().setRightPanel('canvas');
+                      }
+                    }
+                    currentEventType = '';
+                    continue;
+                  }
+                  case 'clarity.agent': {
+                    const am = parsed;
+                    setMessages((prev) => {
+                      const updated = [...prev];
+                      const agentMsg: Message = {
+                        id: `agent-${Date.now()}-${am.agentId}`,
+                        role: 'assistant',
+                        content: am.content,
+                        agentInfo: {
+                          id: am.agentId,
+                          name: am.agentName,
+                          avatar: am.agentAvatar,
+                          handle: am.agentHandle,
+                          accessories: am.agentAccessories,
+                        },
+                      };
+                      const lastIdx = updated.length - 1;
+                      updated.splice(lastIdx, 0, agentMsg);
+                      return updated;
+                    });
+                    currentEventType = '';
+                    continue;
+                  }
+                  case 'clarity.title': {
+                    if (parsed.title && parsed.conversationId) {
+                      queryClient.setQueryData(
+                        queryKeys.conversations.detail(parsed.conversationId),
+                        (old: any) => old ? { ...old, title: parsed.title } : old
+                      );
+                      queryClient.setQueriesData(
+                        { queryKey: queryKeys.conversations.all },
+                        (old: any) => {
+                          if (!old?.pages) return old;
+                          return {
+                            ...old,
+                            pages: old.pages.map((page: any) => ({
+                              ...page,
+                              conversations: page.conversations.map((c: any) =>
+                                c.id === parsed.conversationId ? { ...c, title: parsed.title } : c
+                              ),
+                            })),
+                          };
+                        }
+                      );
+                      setConversationTitle(parsed.title);
+                    }
+                    currentEventType = '';
+                    continue;
+                  }
+                  case 'clarity.research_progress': {
+                    setMessages((prev) => {
+                      const updated = [...prev];
+                      const lastMessage = updated[updated.length - 1];
+                      if (lastMessage?.role === 'assistant') {
+                        updated[updated.length - 1] = {
+                          ...lastMessage,
+                          researchProgress: {
+                            phase: parsed.phase,
+                            message: parsed.message,
+                            subQuestions: parsed.subQuestions || (lastMessage as any).researchProgress?.subQuestions,
+                            sourcesFound: parsed.sourcesFound,
+                            currentQuery: parsed.currentQuery,
+                            iteration: parsed.iteration,
+                          },
+                        } as any;
+                      }
+                      return updated;
+                    });
+                    currentEventType = '';
+                    continue;
+                  }
+                  case 'clarity.plan_preview': {
+                    setMessages((prev) => {
+                      const updated = [...prev];
+                      const lastMessage = updated[updated.length - 1];
+                      if (lastMessage?.role === 'assistant') {
+                        updated[updated.length - 1] = {
+                          ...lastMessage,
+                          pendingPlan: {
+                            planId: parsed.planId,
+                            steps: parsed.steps || [],
+                            approved: false,
+                            rejected: false,
+                          },
+                        } as any;
+                      }
+                      return updated;
+                    });
+                    currentEventType = '';
+                    continue;
+                  }
+                  case 'clarity.approval_request': {
+                    setMessages((prev) => {
+                      const updated = [...prev];
+                      const lastMessage = updated[updated.length - 1];
+                      if (lastMessage?.role === 'assistant') {
+                        updated[updated.length - 1] = {
+                          ...lastMessage,
+                          pendingApproval: {
+                            requestId: parsed.requestId,
+                            toolName: parsed.toolName,
+                            description: parsed.description,
+                            severity: parsed.severity,
+                            timeout: parsed.timeout,
+                            args: parsed.args,
+                          },
+                        } as any;
+                      }
+                      return updated;
+                    });
+                    currentEventType = '';
+                    continue;
+                  }
+                  case 'clarity.approval_result': {
+                    setMessages((prev) => {
+                      const updated = [...prev];
+                      const lastMessage = updated[updated.length - 1];
+                      if (lastMessage?.role === 'assistant') {
+                        updated[updated.length - 1] = {
+                          ...lastMessage,
+                          pendingApprovalResult: {
+                            requestId: parsed.requestId,
+                            decision: parsed.decision,
+                          },
+                        } as any;
+                      }
+                      return updated;
+                    });
+                    currentEventType = '';
+                    continue;
+                  }
+                  case 'clarity.model_switch': {
+                    if (parsed.model) {
+                      useModelStore.getState().setSelectedModel(parsed.model);
+                    }
+                    currentEventType = '';
+                    continue;
+                  }
+                  case 'clarity.agent_session': {
+                    if (parsed.sessionId) {
+                      const { useUIStore } = await import('@/lib/stores/ui-store');
+                      useUIStore.getState().openAgentPanel(parsed.sessionId, parsed.agentId || '');
+                    }
+                    currentEventType = '';
+                    continue;
+                  }
+                  default:
+                    // Unknown named event — skip
+                    currentEventType = '';
+                    continue;
+                }
+              }
+
+              // ── Standard OpenAI data events ──
+
+              // Handle structured error events sent via SSE
+              if (parsed.error) {
+                const err = parsed.error;
+                // Check for usage limit errors (rate limit, credits, model access)
+                if (err.code === 'MODEL_NOT_IN_PLAN' || err.code === 'INSUFFICIENT_CREDITS' || err.type === 'rate_limit_error') {
+                  throw new UsageLimitError({
+                    type: err.code === 'MODEL_NOT_IN_PLAN' ? 'model_access' : err.code === 'INSUFFICIENT_CREDITS' ? 'credits' : 'rate_limit',
+                    code: err.code,
+                    message: err.message,
+                    retryable: false,
+                    suggestedAction: 'upgrade',
+                  });
+                }
+
+                // Generic SSE error — show toast and stop
+                const msg = err.message || 'Something went wrong. Please try again.';
+                toast.error(msg);
+                setError(new Error(msg));
+                setIsLoading(false);
+                setMessages((prev) => prev.filter((m) => m.id !== assistantMessageId));
+                if (abortControllerRef.current) {
+                  abortControllerRef.current.abort();
+                  abortControllerRef.current = null;
+                }
+                reader.cancel();
+                return;
+              }
+
+              // Handle OpenAI-compatible format
+              const choice = parsed.choices?.[0];
+              if (!choice) continue;
+
+              const delta = choice.delta;
+              if (!delta) continue;
+
+              // Handle reasoning/thinking content (batched for performance)
+              if (delta.reasoning) {
+                pendingReasoningRef.current += delta.reasoning;
+                scheduleFlush();
+              }
+
+              // Handle text content (batched for performance)
+              if (delta.content) {
+                fullContent += delta.content;
+
+                // Subtle haptic feedback every 15 characters
+                charCount += delta.content.length;
+                if (charCount >= 15) {
+                  charCount = 0;
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+                }
+
+                pendingContentRef.current += delta.content;
+                scheduleFlush();
+              }
+
+              // Handle usage/credits info (comes at the end of stream)
+              // New format: clarity_usage (separate from OpenAI usage), fallback to legacy usage
+              const clarityUsage = parsed.clarity_usage || parsed.usage;
+              if (clarityUsage && clarityUsage.credits_remaining !== undefined) {
+                queryClient.setQueryData<CreditsInfo>(queryKeys.credits.info, (old) => {
+                  if (!old) return old;
+                  return { ...old, credits: clarityUsage.credits_remaining };
+                });
+                queryClient.invalidateQueries({ queryKey: queryKeys.credits.usage() });
+
+                // Proactive warning when spending anomaly detected
+                if (clarityUsage.credit_warning) {
+                  const w = clarityUsage.credit_warning;
+                  queryClient.setQueryData(queryKeys.credits.usageWarning, {
+                    level: w.level,
+                    daysRemaining: w.daysRemaining,
+                    todaySpend: w.todaySpend,
+                    avgDailySpend: w.avgDailySpend,
+                    currentModelMultiplier: w.currentModelMultiplier,
+                  });
+                }
+              }
+
+              // Handle tool calls (OpenAI format: delta.tool_calls)
+              if (delta.tool_calls && Array.isArray(delta.tool_calls)) {
+                hasToolInvocations = true;
+                for (const tc of delta.tool_calls) {
+                  const toolCallId = tc.id;
+                  const toolName = tc.function?.name;
+                  if (!toolCallId || !toolName) continue;
+
+                  let args: any;
+                  if (tc.function?.arguments) {
+                    try {
+                      args = JSON.parse(tc.function.arguments);
+                    } catch {
+                      args = { _raw: tc.function.arguments };
+                    }
+                  }
+
+                  setMessages((prev) => {
+                    const updated = [...prev];
+                    const lastMessage = updated[updated.length - 1];
+                    if (lastMessage?.role === 'assistant') {
+                      const invocations = [...(lastMessage.toolInvocations || [])];
+                      const idx = invocations.findIndex((t) => t.toolCallId === toolCallId);
+                      const invocation: ToolInvocation = { toolCallId, toolName, state: 'call', args };
+
+                      if (idx >= 0) {
+                        invocations[idx] = invocation;
+                      } else {
+                        invocations.push(invocation);
+                      }
+
+                      updated[updated.length - 1] = { ...lastMessage, toolInvocations: invocations };
+                    }
+                    return updated;
+                  });
+                }
+              }
+
+              // Handle tool results (custom extension: delta.tool_result)
+              if (delta.tool_result) {
+                const { tool_call_id, name, output } = delta.tool_result;
+                if (tool_call_id) {
+                  setMessages((prev) => {
+                    const updated = [...prev];
+                    const lastMessage = updated[updated.length - 1];
+                    if (lastMessage?.role === 'assistant') {
+                      const invocations = [...(lastMessage.toolInvocations || [])];
+                      const idx = invocations.findIndex((t) => t.toolCallId === tool_call_id);
+
+                      if (idx >= 0) {
+                        invocations[idx] = { ...invocations[idx], state: 'result', result: output };
+                      } else {
+                        invocations.push({ toolCallId: tool_call_id, toolName: name || 'unknown', state: 'result', result: output });
+                      }
+
+                      updated[updated.length - 1] = { ...lastMessage, toolInvocations: invocations };
+                    }
+                    return updated;
+                  });
+
+                  // Detect artifact-like results and push to canvas panel
+                  if (name === 'generateFile' && output && typeof output === 'object') {
+                    const artifactType = output.language ? 'code' : 'markdown';
+                    useUIStore.getState().addCanvasArtifact({
+                      id: tool_call_id,
+                      type: artifactType,
+                      content: artifactType === 'code'
+                        ? { language: output.language, code: output.content }
+                        : { content: output.content },
+                      title: output.filename || output.title || 'Generated file',
+                      timestamp: Date.now(),
+                    });
+                    useUIStore.getState().setRightPanel('canvas');
+                  } else if (output?.artifact) {
+                    const a = output.artifact;
+                    useUIStore.getState().addCanvasArtifact({
+                      id: tool_call_id,
+                      type: a.type || 'markdown',
+                      content: a.data || a.content || a,
+                      title: a.title || name || 'Artifact',
+                      timestamp: Date.now(),
+                    });
+                    useUIStore.getState().setRightPanel('canvas');
+                  }
+                }
+              }
+
+              // Handle agent delegation messages (agent mode)
+              if (delta.agent_message) {
+                const am = delta.agent_message;
+                setMessages((prev) => {
+                  const updated = [...prev];
+                  const agentMsg: Message = {
+                    id: `agent-${Date.now()}-${am.agentId}`,
+                    role: 'assistant',
+                    content: am.content,
+                    agentInfo: {
+                      id: am.agentId,
+                      name: am.agentName,
+                      avatar: am.agentAvatar,
+                      handle: am.agentHandle,
+                    },
+                  };
+                  // Insert before the last message (Clarity's in-progress response)
+                  const lastIdx = updated.length - 1;
+                  updated.splice(lastIdx, 0, agentMsg);
+                  return updated;
+                });
+              }
+
+              // Handle error events from server
+              if (parsed.type === 'error') {
+                console.error('[useStreamingChat] Server error:', parsed.error);
+
+                // Update the assistant message with error information
+                setMessages((prev) => {
+                  const updated = [...prev];
+                  const lastMessage = updated[updated.length - 1];
+                  if (lastMessage?.role === 'assistant' && !lastMessage.content) {
+                    // If assistant message is empty, show error in it
+                    updated[updated.length - 1] = {
+                      ...lastMessage,
+                      content: `⚠️ Error: ${typeof parsed.error === 'string' ? parsed.error : (parsed.error?.message || 'Unknown error')}`,
+                    };
+                  }
+                  return updated;
+                });
+
+                // Set error state and stop loading
+                const errMsg = typeof parsed.error === 'string' ? parsed.error : (parsed.error?.message || JSON.stringify(parsed.error));
+                setError(new Error(errMsg));
+                setIsLoading(false);
+
+                // Abort the stream
+                if (abortControllerRef.current) {
+                  abortControllerRef.current.abort();
+                  abortControllerRef.current = null;
+                }
+
+                // Break out of the streaming loop
+                reader.cancel();
+                return;
+              }
+            } catch (e) {
+              // Ignore parse errors for malformed JSON
+              console.warn('[useStreamingChat] Failed to parse SSE event:', e);
+            }
+          }
+        }
+      }
+    } catch (e: any) {
+      // Ignore abort errors (user cancelled)
+      if (e instanceof Error && e.name === 'AbortError') {
+        return;
+      }
+
+      // UsageLimitError thrown from the 429/402 handler above
+      // Check both instanceof AND name — Hermes can break instanceof for Error subclasses
+      if (e instanceof UsageLimitError || e?.name === 'UsageLimitError') {
+        setError(e);
+        setMessages((prev) => prev.filter((m) => m.id !== assistantMessageId));
+        return;
+      }
+
+      // expoFetch may throw a non-Error object (e.g. the response body)
+      // Try to detect rate limit / credit errors from the thrown object
+      if (e && typeof e === 'object' && !(e instanceof Error)) {
+        const status = e.status || e.statusCode;
+        const errBody = e.error || e.body?.error || e;
+        if (status === 429 || status === 402 || errBody?.code === 'RATE_LIMIT_EXCEEDED' || errBody?.code === 'INSUFFICIENT_CREDITS') {
+          const isCredits = status === 402 || errBody?.code === 'INSUFFICIENT_CREDITS';
+          const usageError = new UsageLimitError({
+            type: isCredits ? 'credits' : 'rate_limit',
+            code: errBody?.code || (isCredits ? 'INSUFFICIENT_CREDITS' : 'RATE_LIMIT_EXCEEDED'),
+            message: errBody?.message || (isCredits ? "You've run out of credits." : "You've sent too many messages."),
+            retryable: errBody?.retryable ?? !isCredits,
+            retryAfterSeconds: errBody?.retryAfter,
+            suggestedAction: errBody?.suggestedAction || (isCredits ? 'upgrade' : 'wait'),
+          });
+          setError(usageError);
+          setMessages((prev) => prev.filter((m) => m.id !== assistantMessageId));
+          return;
+        }
+      }
+
+      console.error('[useStreamingChat] Error:', e);
+      const finalError = e instanceof Error
+        ? e
+        : new Error(typeof e === 'string' ? e : (e?.message || 'An unexpected error occurred'));
+      setError(finalError);
+
+      // Remove the empty assistant message on error
+      setMessages((prev) => prev.filter((m) => m.id !== assistantMessageId));
+    } finally {
+      // Flush any remaining batched content
+      flushPendingUpdates();
+      if (flushTimerRef.current) {
+        clearTimeout(flushTimerRef.current);
+        flushTimerRef.current = null;
+      }
+      abortControllerRef.current = null;
+      setIsLoading(false);
+    }
+  }, [apiUrl, oxyServices, activeRole, queryClient, thinkingMode, selectedModel, skillId, agentId, scheduleFlush, flushPendingUpdates]);
+
+  const stop = useCallback(() => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
+    }
+    setIsLoading(false);
+  }, []);
+
+  const clearError = useCallback(() => setError(null), []);
+
+  const approvePlan = useCallback((planId: string) => {
+    setMessages((prev) => {
+      const updated = [...prev];
+      const msg = updated.find((m) => (m as any).pendingPlan?.planId === planId);
+      if (msg) {
+        (msg as any).pendingPlan = { ...(msg as any).pendingPlan, approved: true };
+      }
+      return [...updated];
+    });
+    // Backend integration: POST plan approval (follow-up task)
+  }, []);
+
+  const rejectPlan = useCallback((planId: string) => {
+    setMessages((prev) => {
+      const updated = [...prev];
+      const msg = updated.find((m) => (m as any).pendingPlan?.planId === planId);
+      if (msg) {
+        (msg as any).pendingPlan = { ...(msg as any).pendingPlan, rejected: true };
+      }
+      return [...updated];
+    });
+    stop();
+  }, [stop]);
+
+  return {
+    messages,
+    isLoading,
+    error,
+    append,
+    stop,
+    setMessages: setMessagesAndRef,
+    conversationTitle,
+    clearError,
+    approvePlan,
+    rejectPlan,
+  };
+}
