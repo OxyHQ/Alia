@@ -96,41 +96,6 @@ async function deliverInApp(notification: INotification): Promise<boolean> {
   return true;
 }
 
-async function deliverTelegram(userId: string, notification: INotification): Promise<boolean> {
-  const bot = await Bot.findOne({ platform: 'telegram', status: 'active' });
-  if (!bot) return false;
-
-  const botUser = await BotUser.findOne({
-    botId: bot._id,
-    oxyUserId: new mongoose.Types.ObjectId(userId),
-    isLinked: true,
-  });
-  if (!botUser?.chatId) return false;
-
-  const text = formatNotificationText(notification);
-  const results = await sendChannelMessage('telegram', botUser.chatId, text);
-  return results.length > 0 && results[0].ok;
-}
-
-async function deliverViaChannel(
-  channelId: ChannelId,
-  userId: string,
-  notification: INotification
-): Promise<boolean> {
-  // Find user's connected account for this channel
-  const account = await ConnectedAccount.findOne({
-    oxyUserId: new mongoose.Types.ObjectId(userId),
-    platform: channelId,
-    status: 'connected',
-  });
-
-  if (!account?.accountId) return false;
-
-  const text = formatNotificationText(notification);
-  const results = await sendChannelMessage(channelId, account.accountId, text);
-  return results.length > 0 && results[0].ok;
-}
-
 // ── Expo Push Notifications ─────────────────────────────────────────
 
 /**
@@ -355,14 +320,6 @@ export async function sendNotification(options: SendNotificationOptions): Promis
       switch (channel) {
         case 'in_app':
           success = await deliverInApp(notification);
-          break;
-        case 'telegram':
-          success = await deliverTelegram(userId, notification);
-          break;
-        case 'discord':
-        case 'whatsapp':
-        case 'slack':
-          success = await deliverViaChannel(channel, userId, notification);
           break;
         case 'push': {
           // Deliver to both Expo (mobile) and web push in parallel

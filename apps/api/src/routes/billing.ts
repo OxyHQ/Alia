@@ -24,7 +24,7 @@ function getStripe(): Stripe {
       throw new Error('STRIPE_SECRET_KEY is not defined');
     }
     stripeInstance = new Stripe(process.env.STRIPE_SECRET_KEY, {
-      apiVersion: '2026-01-28.clover',
+      apiVersion: '2026-02-25.clover',
     });
   }
   return stripeInstance;
@@ -572,27 +572,6 @@ router.get('/entitlements', authenticateToken, async (req: Request, res: Respons
   } catch (error: unknown) {
     log.credits.error({ err: error }, 'Error fetching entitlements');
     res.status(500).json({ error: getSafeErrorMessage(error, 'Failed to fetch entitlements') });
-  }
-});
-
-// Voice usage: returns current voice minutes used vs limit for the billing period
-router.get('/voice-usage', authenticateToken, async (req: Request, res: Response) => {
-  try {
-    const { getUserEntitlements: getEntitlements } = await import('../lib/plan-access.js');
-    const { getVoiceUsageSummary } = await import('../lib/voice-usage.js');
-
-    const entitlements = await getEntitlements(req.user!.id);
-    const voiceMinutesLimit = entitlements.features['voice-minutes'];
-
-    if (typeof voiceMinutesLimit !== 'number' || voiceMinutesLimit <= 0) {
-      return res.json({ usedMinutes: 0, limitMinutes: 0, remainingMinutes: 0 });
-    }
-
-    const usage = await getVoiceUsageSummary(req.user!.id, voiceMinutesLimit);
-    res.json(usage);
-  } catch (error: unknown) {
-    log.credits.error({ err: error }, 'Error fetching voice usage');
-    res.status(500).json({ error: getSafeErrorMessage(error, 'Failed to fetch voice usage') });
   }
 });
 

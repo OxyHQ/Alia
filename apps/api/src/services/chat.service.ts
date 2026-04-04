@@ -27,6 +27,8 @@ import { log } from '../lib/logger.js';
 import { loadPrompt } from '../lib/prompt-loader.js';
 import { wrapToolsWithTruncation, getToolResultBudget } from '../lib/tools/result-truncation.js';
 import { BILLING_RE, AUTH_RE } from '../lib/constants.js';
+import { Skill } from '../models/skill.js';
+import { Agent } from '../models/agent.js';
 
 // ── Inline type for recalled memory (previously from deleted lib/memory/recall.ts) ──
 export interface RecalledMemory {
@@ -44,7 +46,7 @@ export interface ChatRequestParams {
   requestedModel?: string;
   thinkingMode?: boolean;
   userId?: string;
-  platform: 'app' | 'web';
+  platform: 'app' | 'telegram';
 }
 
 export interface UserContext {
@@ -239,7 +241,7 @@ export async function handleKeyExhaustion(keyId: string, provider: string, reaso
 
 export function processAndCompactMessages(
   messages: any[],
-  platform: 'app' | 'web',
+  platform: 'app' | 'telegram',
   modelContextTokens: number,
 ): { processedMessages: any[]; compactedMessages: any[] } {
   const processedMessages = processMessagesForPlatform(
@@ -253,7 +255,8 @@ export function processAndCompactMessages(
   const compactedMessages: any[] = [];
   for (let i = processedMessages.length - 1; i >= 0; i--) {
     const msg = processedMessages[i];
-    const msgTokens = estimateMessageTokens(msg);
+    const content = typeof msg.content === 'string' ? msg.content : '';
+    const msgTokens = estimateMessageTokens(msg.role || 'user', content);
     if (tokenCount + msgTokens > historyBudget) break;
     tokenCount += msgTokens;
     compactedMessages.unshift(msg);
@@ -269,9 +272,10 @@ export function checkContext(
   systemPrompt: string,
   modelContextTokens: number,
 ): { fits: boolean; estimatedTokens?: number; contextLimit?: number; usage?: number } {
-  let totalTokens = estimateMessageTokens({ role: 'system', content: systemPrompt });
+  let totalTokens = estimateMessageTokens('system', systemPrompt);
   for (const msg of messages) {
-    totalTokens += estimateMessageTokens(msg);
+    const content = typeof msg.content === 'string' ? msg.content : '';
+    totalTokens += estimateMessageTokens(msg.role || 'user', content);
   }
   const usage = totalTokens / modelContextTokens;
   return {

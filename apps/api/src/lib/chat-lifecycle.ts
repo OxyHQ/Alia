@@ -154,7 +154,7 @@ export function runPostChatHooks(
     messages,
     model: clarityModelId,
     skillId,
-    platform: isApiKey ? 'web' as const : 'app' as const,
+    platform: 'app' as const,
     metadata: { model: clarityModelId },
     response: assistantResponse,
     tokenUsage,

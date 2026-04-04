@@ -15,10 +15,6 @@ import {
   getCurrentDateTool,
   webSearchTool,
   browseTool,
-  saveUserMemoryTool,
-  updateUserPreferencesTool,
-  updateUserContextTool,
-  createSendTelegramTool,
   webScraperTool,
 } from '../lib/tools/index.js';
 import { oxyServiceAuth, oxyClient } from '../middleware/auth.js';
@@ -79,21 +75,19 @@ function buildTriggerSystemPrompt(
     }
   }
 
-  let prompt = `You are Clarity, an autonomous AI assistant for the Oxy ecosystem. You are processing an event from ${appName || 'an internal service'} on behalf of a user.
+  let prompt = `You are Clarity, an AI search assistant for the Oxy ecosystem. You are processing an event from ${appName || 'an internal service'} on behalf of a user.
 
 ## Available Actions
 
 | Tool | Use when... |
 |------|-------------|
-| \`sendTelegramMessage\` | Event is important or time-sensitive — NOT for routine/low-priority events |
-| \`saveUserMemory\` | Event reveals a key fact worth remembering for future conversations |
-| \`updateUserPreferences\` / \`updateUserContext\` | You learn something new about the user |
+| \`webSearch\` | Find current information about the event topic |
+| \`webScraper\` | Read a specific URL related to the event |
 
 ## Guidelines
 
 - Use the user's preferred language if known.
-- Be concise in notifications — no filler, just the essential information.
-- Do NOT notify for routine events unless the user specifically requested it.
+- Be concise — no filler, just the essential information.
 - Respond with a brief summary of what you decided and why.`;
 
   if (userContext.length > 0) {
@@ -176,13 +170,9 @@ router.post('/trigger', oxyServiceAuth, async (req, res) => {
     // Build tools — authenticated user tools + general tools
     const tools: ToolSet = {
       getCurrentDate: getCurrentDateTool,
-      webScraper: webScraperTool,
       webSearch: webSearchTool,
+      webScraper: webScraperTool,
       browse: browseTool,
-      saveUserMemory: saveUserMemoryTool(userId),
-      updateUserPreferences: updateUserPreferencesTool(userId),
-      updateUserContext: updateUserContextTool(userId),
-      sendTelegramMessage: createSendTelegramTool(userId),
     };
 
     // Build the user message from the event

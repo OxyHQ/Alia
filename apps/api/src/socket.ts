@@ -70,15 +70,8 @@ export function initSocket(server: http.Server) {
     // Agent action approval response from user
     socket.on('agent-approval-response', async (data: { requestId: string; sessionId: string; approved: boolean; alwaysAllow?: boolean }) => {
       if (!data?.requestId || typeof data.sessionId !== 'string') return;
-      // Resolve pending approval in-memory and broadcast the decision.
-      const { resolveApprovalDecision } = await import('./lib/agent/action-approval.js');
-      resolveApprovalDecision({
-        requestId: data.requestId,
-        approved: !!data.approved,
-        alwaysAllow: data.alwaysAllow || false,
-      });
 
-      // Also mirror to the session room for real-time client updates.
+      // Mirror to the session room for real-time client updates.
       io!.to(`agent-session:${data.sessionId}`).emit('agent-approval-decision', {
         requestId: data.requestId,
         approved: data.approved,

@@ -6,7 +6,6 @@
  */
 
 import { PROVIDER_NAMES as REGISTERED_PROVIDERS } from '../../internal/providers/lib/provider-names.js';
-import { redactSecrets } from '../agent/secret-scanner.js';
 import type { ClarityError } from './error-codes.js';
 import { ClarityErrorCode } from './error-codes.js';
 
@@ -89,7 +88,11 @@ export function getOpenAIErrorType(code: string): string {
  * Use this for user-facing content that may contain either.
  */
 export function sanitizeFull(message: string): string {
-  return sanitizeMessage(redactSecrets(message).redacted);
+  // Basic secret redaction: mask anything that looks like a key/token
+  let redacted = message;
+  // Redact API keys (sk-*, pk-*, Bearer tokens, etc.)
+  redacted = redacted.replace(/\b(sk|pk|api|key|token|secret|bearer)[-_]?[a-zA-Z0-9]{20,}\b/gi, '[REDACTED]');
+  return sanitizeMessage(redacted);
 }
 
 /**
