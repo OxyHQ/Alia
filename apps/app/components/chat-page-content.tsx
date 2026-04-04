@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useRef } from "react";
+import { useState, useCallback, useEffect, useRef, useMemo } from "react";
 import { View, Pressable, type TextInput } from "react-native";
 import { useColorScheme } from "@/lib/useColorScheme";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -34,6 +34,7 @@ import { useImagePicker } from "@/hooks/useImagePicker";
 import { useDocumentPicker } from "@/hooks/useDocumentPicker";
 import { cn } from "@/lib/utils";
 import { Image } from "react-native";
+import { useSearchSuggestions, useRecordSuggestionUsage } from "@/lib/hooks/use-suggestions";
 
 type Mode = "search" | "deepResearch";
 
@@ -118,6 +119,7 @@ export const ChatPageContent = ({
   }, [selectedModel, setBaseModel]);
 
   const [inputValue, setInputValue] = useState("");
+  const [debouncedQuery, setDebouncedQuery] = useState("");
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
   const { colors } = useColorScheme();
   const insets = useSafeAreaInsets();
@@ -126,6 +128,46 @@ export const ChatPageContent = ({
 
   const hasMessages = messages.length > 0;
   const showConversationView = hasMessages || conversationLoading;
+
+  // Landing page autocomplete: debounce input for search suggestions
+  useEffect(() => {
+    const trimmed = inputValue.trim();
+    if (!trimmed || trimmed.length < 2) {
+      setDebouncedQuery("");
+      return;
+    }
+    const timer = setTimeout(() => setDebouncedQuery(trimmed), 200);
+    return () => clearTimeout(timer);
+  }, [inputValue]);
+
+  const { data: searchSuggestions } = useSearchSuggestions(debouncedQuery);
+  const { mutate: recordUsage } = useRecordSuggestionUsage();
+
+  const completions = useMemo(() => {
+    const trimmed = inputValue.trim();
+    if (!trimmed || trimmed.length < 2 || !searchSuggestions?.length) return [];
+
+    const lower = trimmed.toLowerCase();
+    const results: Array<{ text: string; matchStart: number; matchEnd: number; suggestionId?: string }> = [];
+    const seen = new Set<string>();
+
+    for (const s of searchSuggestions) {
+      if (results.length >= 6) break;
+      const textLower = s.text.toLowerCase();
+      if (seen.has(textLower)) continue;
+      seen.add(textLower);
+
+      const idx = textLower.indexOf(lower);
+      results.push({
+        text: s.text,
+        matchStart: idx !== -1 ? idx : 0,
+        matchEnd: idx !== -1 ? idx + trimmed.length : 0,
+        suggestionId: s.suggestionId,
+      });
+    }
+
+    return results;
+  }, [searchSuggestions, inputValue]);
 
   const handleScrollToBottom = useCallback(() => {
     scrollViewRef.current?.scrollToEnd({ animated: true });
@@ -554,6 +596,35 @@ export const ChatPageContent = ({
                           </View>
                         </Pressable>
                       </View>
+
+                      {/* Autocomplete dropdown */}
+                      {completions.length > 0 && (
+                        <View className="mt-1 rounded-xl border border-border bg-card shadow-md overflow-hidden">
+                          {completions.map((item) => (
+                            <Pressable
+                              key={item.suggestionId || item.text}
+                              onPress={() => {
+                                if (item.suggestionId) recordUsage(item.suggestionId);
+                                setInputValue(item.text);
+                                // Submit on next tick so inputValue state is updated
+                                setTimeout(() => {
+                                  onSubmit(item.text, attachments.length > 0 ? attachments : undefined);
+                                  useStore.getState().clearAttachments();
+                                }, 0);
+                              }}
+                              className="px-4 py-2.5 active:bg-muted flex-row items-center border-b border-border/30 last:border-b-0"
+                            >
+                              <Search size={14} className="text-muted-foreground mr-3 shrink-0" />
+                              <Text className="text-sm text-foreground flex-1" numberOfLines={1}>
+                                <Text className="text-foreground">{item.text.slice(0, item.matchStart)}</Text>
+                                <Text className="text-primary font-medium">{item.text.slice(item.matchStart, item.matchEnd)}</Text>
+                                <Text className="text-foreground">{item.text.slice(item.matchEnd)}</Text>
+                              </Text>
+                              <ArrowUp size={14} className="text-muted-foreground ml-2 shrink-0 rotate-45" />
+                            </Pressable>
+                          ))}
+                        </View>
+                      )}
                     </View>
 
                     {/* Category tabs + suggestion cards below search */}
