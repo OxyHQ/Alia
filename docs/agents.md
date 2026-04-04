@@ -49,7 +49,7 @@ Risk policy is enforced per action:
 - `R2` external/unknown impact: approval required.
 - `R3` destructive: blocked.
 
-User approvals are interactive and real-time (`alia.approval_request` / `alia.approval_result`).
+User approvals are interactive and real-time (`clarity.approval_request` / `clarity.approval_result`).
 
 ## Triggers and Proactive Runs
 

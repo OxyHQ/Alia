@@ -4,7 +4,7 @@ Express + TypeScript API for Clarity autonomy runtime.
 
 ## What Is Live
 
-- Single chat runtime for all surfaces (`/alia/chat` and `/v1/chat/completions`).
+- Single chat runtime for all surfaces (`/clarity/search` and `/v1/chat/completions`).
 - Autonomy loop with intent classification and context-graph recall.
 - Trigger engine (`/triggers`) for schedule, webhook, integration event, and agent heartbeat tasks.
 - Oxy service event ingestion with idempotency and autonomous session creation.
@@ -33,7 +33,7 @@ Express + TypeScript API for Clarity autonomy runtime.
 
 ### Chat
 
-- `POST /alia/chat`
+- `POST /clarity/search`
 - `POST /v1/chat/completions`
 - `POST /v1/responses`
 - `GET /v1/models`
@@ -67,15 +67,15 @@ Express + TypeScript API for Clarity autonomy runtime.
 
 Named SSE events used by all clients:
 
-- `alia.plan_preview`
-- `alia.approval_request`
-- `alia.approval_result`
-- `alia.research_progress`
-- `alia.agent_session`
-- `alia.reasoning`
-- `alia.tool_result`
-- `alia.title`
-- `alia.model_switch`
+- `clarity.plan_preview`
+- `clarity.approval_request`
+- `clarity.approval_result`
+- `clarity.research_progress`
+- `clarity.agent_session`
+- `clarity.reasoning`
+- `clarity.tool_result`
+- `clarity.title`
+- `clarity.model_switch`
 
 ## Development
 

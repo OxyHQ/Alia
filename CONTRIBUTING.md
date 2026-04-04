@@ -1,4 +1,4 @@
-# Contributing to Alia
+# Contributing to Clarity
 
 ## Prerequisites
 
@@ -9,7 +9,7 @@
 ## Getting Started
 
 ```bash
-git clone <repo-url> && cd Alia
+git clone <repo-url> && cd Clarity
 npm install              # installs all workspaces
 cp apps/api/.env.example apps/api/.env   # fill in your values
 npm run dev              # starts all services
@@ -30,13 +30,13 @@ This is an **npm workspaces** monorepo (no Turborepo/Nx).
 | --- | --- | --- |
 | `apps/api` | Express + TypeScript | Core API runtime |
 | `apps/app` | Expo 55 (React Native + Web) | Main app (web + iOS + Android) |
-| `apps/alia-codea` | VS Code extension | Coding assistant surface |
-| `apps/alia-cowork` | Electron | Desktop assistant surface |
-| `apps/alia-console` | TanStack Start + React | Admin console |
-| `apps/alia-canvas` | Next.js | Canvas app |
+| `apps/clarity-codea` | VS Code extension | Coding assistant surface |
+| `apps/clarity-cowork` | Electron | Desktop assistant surface |
+| `apps/clarity-console` | TanStack Start + React | Admin console |
+| `apps/clarity-canvas` | Next.js | Canvas app |
 | `apps/clarity-gateway-admin` | Vite + React | Internal gateway admin |
-| `apps/alia-codea-cli` | CLI | Terminal coding assistant |
-| `apps/alia-docker-host` | Express + TypeScript | Sandboxed container host |
+| `apps/clarity-codea-cli` | CLI | Terminal coding assistant |
+| `apps/clarity-docker-host` | Express + TypeScript | Sandboxed container host |
 | `apps/integrations` | Express + TypeScript | Messaging and channel integrations |
 
 ## Branch Naming
@@ -105,4 +105,4 @@ Use `sanitizeMessage()` from `apps/api/src/lib/errors/sanitize.ts` for all user-
 
 ### Database
 
-MongoDB with Mongoose. Database name follows `alia-{NODE_ENV}` convention. Connection URI is shared across the Oxy ecosystem -- the `dbName` is passed to `mongoose.connect()`, not embedded in the URI.
+MongoDB with Mongoose. Database name follows `clarity-{NODE_ENV}` convention. Connection URI is shared across the Oxy ecosystem -- the `dbName` is passed to `mongoose.connect()`, not embedded in the URI.

@@ -330,7 +330,7 @@ async function tryResolveWithKey(
  * Record a fallback event for analytics. Non-blocking, fire-and-forget.
  */
 function recordFallbackEvent(
-  aliasModel: string,
+  clarityModel: string,
   attempts: FallbackAttempt[],
   finalProvider: string | null,
   finalModel: string | null,
@@ -344,7 +344,7 @@ function recordFallbackEvent(
 
   FallbackEvent.create({
     timestamp: new Date(),
-    aliasModel,
+    clarityModel,
     attempts: attempts.map((a) => ({
       provider: a.provider,
       model: a.model,

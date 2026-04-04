@@ -38,7 +38,7 @@ A comprehensive developer portal that allows users to create applications and ge
 - Top endpoints by usage
 
 ### 4. Security
-- API keys prefixed with `alia_sk_` for easy identification
+- API keys prefixed with `clarity_sk_` for easy identification
 - Keys are hashed (SHA-256) before storage
 - Only the key prefix is shown after creation
 - Automatic usage logging with IP and user agent
@@ -126,7 +126,7 @@ A comprehensive developer portal that allows users to create applications and ge
 - Service tokens (type: 'service') are recognized automatically — sets `req.serviceApp`
 
 **API Key Authentication** (`authenticateApiKey`)
-- Validates Bearer API keys (format: `alia_sk_...`)
+- Validates Bearer API keys (format: `clarity_sk_...`)
 - Checks key validity, expiration, and scopes
 - Logs usage automatically
 - Updates last used timestamp
@@ -246,11 +246,11 @@ Added "Developers" link to sidebar navigation with Code icon.
 3. **Use the API Key**
    ```bash
    curl -X POST https://api.clarity.oxy.so/v1/chat/completions \
-     -H "Authorization: Bearer alia_sk_your_api_key_here" \
+     -H "Authorization: Bearer clarity_sk_your_api_key_here" \
      -H "Content-Type: application/json" \
      -d '{
        "messages": [
-         {"role": "user", "content": "Hello, Alia!"}
+         {"role": "user", "content": "Hello, Clarity!"}
        ]
      }'
    ```
@@ -270,7 +270,7 @@ Added "Developers" link to sidebar navigation with Code icon.
 const response = await fetch('https://api.clarity.oxy.so/v1/chat/completions', {
   method: 'POST',
   headers: {
-    'Authorization': 'Bearer alia_sk_your_key_here',
+    'Authorization': 'Bearer clarity_sk_your_key_here',
     'Content-Type': 'application/json'
   },
   body: JSON.stringify({
@@ -303,7 +303,7 @@ All `/v1/*` endpoints support API key authentication:
    - Keys are only shown in full once during creation
 
 2. **Key Format**
-   - All API keys follow the format: `alia_sk_` + 43 random URL-safe base64 characters
+   - All API keys follow the format: `clarity_sk_` + 43 random URL-safe base64 characters
    - Total length: ~51 characters
    - Easily identifiable and prevents accidental exposure
 

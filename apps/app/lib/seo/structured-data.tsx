@@ -296,7 +296,7 @@ export const STRUCTURED_DATA_PRESETS = {
       {
         question: 'What makes Clarity different from other search engines?',
         answer:
-          'Alia offers enhanced contextual memory, multiple specialized AI models in one platform, custom roles, developer API access, and native multilingual support across 50+ languages.',
+          'Clarity provides comprehensive answers with cited sources, deep research capabilities, multiple AI models, and a powerful developer API.',
       },
       {
         question: 'Is Clarity free to use?',
@@ -306,7 +306,7 @@ export const STRUCTURED_DATA_PRESETS = {
       {
         question: 'Which models does Clarity use?',
         answer:
-          'Alia supports multiple specialized AI models including Clarity V1, Clarity Pro, Clarity Thinking, and more. You can switch between models seamlessly.',
+          'Clarity uses multiple specialized AI models including Clarity V1, Clarity Pro, Clarity Thinking, and more. You can switch between models seamlessly.',
       },
       {
         question: 'Can I use Clarity for research?',

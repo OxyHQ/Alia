@@ -11,7 +11,7 @@ Last updated: 2026-03-07
 Use one of:
 
 - `Authorization: Bearer <session-token>`
-- `Authorization: Bearer alia_sk_<api-key>`
+- `Authorization: Bearer clarity_sk_<api-key>`
 
 ## Models
 
@@ -31,7 +31,7 @@ Response shape:
     {
       "id": "clarity-v1",
       "object": "model",
-      "owned_by": "alia",
+      "owned_by": "clarity",
       "name": "Clarity V1",
       "category": "general",
       "is_default": true,
@@ -77,14 +77,14 @@ Supported extras (selected):
 - `tools`
 - `stream_options.include_usage`
 
-### `POST /alia/chat`
+### `POST /clarity/search`
 Same runtime and behavior as `/v1/chat/completions`.
 
 ## SSE Event Contract (streaming)
 
 All named events include `eventVersion: 1`.
 
-### `alia.plan_preview`
+### `clarity.plan_preview`
 
 ```json
 {
@@ -96,7 +96,7 @@ All named events include `eventVersion: 1`.
 }
 ```
 
-### `alia.approval_request`
+### `clarity.approval_request`
 
 ```json
 {
@@ -111,7 +111,7 @@ All named events include `eventVersion: 1`.
 }
 ```
 
-### `alia.approval_result`
+### `clarity.approval_result`
 
 ```json
 {
@@ -123,22 +123,22 @@ All named events include `eventVersion: 1`.
 
 `decision` is `approved | denied | timeout`.
 
-### `alia.research_progress`
+### `clarity.research_progress`
 Progress updates for deep research.
 
-### `alia.agent_session`
+### `clarity.agent_session`
 Announces autonomous agent session creation from chat.
 
-### `alia.reasoning`
+### `clarity.reasoning`
 Reasoning tokens/summary blocks.
 
-### `alia.tool_result`
+### `clarity.tool_result`
 Tool execution result payload.
 
-### `alia.title`
+### `clarity.title`
 Conversation title updates.
 
-### `alia.model_switch`
+### `clarity.model_switch`
 Runtime model switch notification.
 
 ## Triggers API

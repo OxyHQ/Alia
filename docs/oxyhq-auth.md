@@ -26,7 +26,7 @@ Are you building...
 
 **Apps using this:**
 - `clarity-gateway-admin` - Vite + React admin panel
-- `alia-console` - Vite + React console
+- `clarity-console` - Vite + React console
 - `canvas` - Next.js web app
 
 **Features:**

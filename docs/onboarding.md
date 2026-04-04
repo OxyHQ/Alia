@@ -52,7 +52,7 @@ Every chat interaction runs one loop:
 | R2 | External/unknown impact | Requires user approval |
 | R3 | Destructive | Blocked |
 
-Approvals are real-time via Socket.IO (`alia.approval_request` / `alia.approval_result`).
+Approvals are real-time via Socket.IO (`clarity.approval_request` / `clarity.approval_result`).
 
 ---
 
@@ -223,7 +223,7 @@ npm test -w @clarity/api            # API tests (vitest)
 npm run lint -w @clarity/api        # Lint API code
 ```
 
-Environment: copy `.env.example` to `.env` in `apps/api/` and fill in your MongoDB URI, Redis URL, and provider API keys. The database name is computed automatically as `alia-{NODE_ENV}` -- do not embed it in the URI.
+Environment: copy `.env.example` to `.env` in `apps/api/` and fill in your MongoDB URI, Redis URL, and provider API keys. The database name is computed automatically as `clarity-{NODE_ENV}` -- do not embed it in the URI.
 
 ---
 

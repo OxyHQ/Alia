@@ -22,7 +22,7 @@ const router = express.Router();
  *   - summary: total events, success/failure counts, fallback rate
  *   - topFailureReasons: most common failure reasons with counts
  *   - mostFailedProviders: providers with the most failures
- *   - failuresByModel: failures grouped by alias model
+ *   - failuresByModel: failures grouped by Clarity model
  *   - recentFailures: last 20 failed fallback events
  */
 router.get('/', async (req: Request, res: Response) => {
@@ -102,12 +102,12 @@ router.get('/', async (req: Request, res: Response) => {
         },
       ]),
 
-      // Failures by alias model
+      // Failures by Clarity model
       FallbackEvent.aggregate([
         { $match: { timestamp: { $gte: since } } },
         {
           $group: {
-            _id: '$aliasModel',
+            _id: '$clarityModel',
             totalEvents: { $sum: 1 },
             failures: { $sum: { $cond: ['$success', 0, 1] } },
             successes: { $sum: { $cond: ['$success', 1, 0] } },
@@ -118,7 +118,7 @@ router.get('/', async (req: Request, res: Response) => {
         { $limit: 20 },
         {
           $project: {
-            aliasModel: '$_id',
+            clarityModel: '$_id',
             totalEvents: 1,
             failures: 1,
             successes: 1,
@@ -182,7 +182,7 @@ router.get('/', async (req: Request, res: Response) => {
         failuresByModel,
         recentFailures: recentFailures.map((e: any) => ({
           timestamp: e.timestamp,
-          aliasModel: e.aliasModel,
+          clarityModel: e.clarityModel,
           attempts: e.attempts,
           totalLatencyMs: e.totalLatencyMs,
         })),

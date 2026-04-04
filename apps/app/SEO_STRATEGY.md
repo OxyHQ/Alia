@@ -178,7 +178,7 @@ apps/app/app/blog/
     ├── best-ai-chat-2026.md
     ├── chatgpt-alternatives.md
     ├── ai-for-coding.md
-    ├── alia-tutorial-beginners.md
+    ├── clarity-tutorial-beginners.md
     └── ...
 ```
 

@@ -55,7 +55,7 @@ Each run writes a `TriggerExecution` record with:
 - `R2`: waits for approval.
 - `R3`: blocked.
 
-Approvals emit `alia.approval_request` and `alia.approval_result`.
+Approvals emit `clarity.approval_request` and `clarity.approval_result`.
 
 ## Oxy Service Events
 
@@ -72,15 +72,15 @@ Behavior:
 
 All chat clients consume the same named events with `eventVersion: 1`:
 
-- `alia.plan_preview`
-- `alia.approval_request`
-- `alia.approval_result`
-- `alia.research_progress`
-- `alia.agent_session`
-- `alia.reasoning`
-- `alia.tool_result`
-- `alia.title`
-- `alia.model_switch`
+- `clarity.plan_preview`
+- `clarity.approval_request`
+- `clarity.approval_result`
+- `clarity.research_progress`
+- `clarity.agent_session`
+- `clarity.reasoning`
+- `clarity.tool_result`
+- `clarity.title`
+- `clarity.model_switch`
 
 ## Important
 

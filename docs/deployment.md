@@ -15,9 +15,9 @@ This guide covers production deployment for the current Clarity runtime (unified
 
 Use per-app, per-env database naming:
 
-- `alia-development`
-- `alia-staging`
-- `alia-production`
+- `clarity-development`
+- `clarity-staging`
+- `clarity-production`
 
 Set database name via `mongoose.connect(..., { dbName })`.
 
@@ -81,10 +81,10 @@ On API boot, the server automatically:
 ## Post-Deploy Validation
 
 1. Chat stream works on `/v1/chat/completions`.
-2. `alia.plan_preview` SSE is emitted for stream requests with autonomy context.
+2. `clarity.plan_preview` SSE is emitted for stream requests with autonomy context.
 3. Trigger create/run works via `/triggers`.
 4. Oxy webhook accepts and deduplicates `eventId`.
-5. Approval flow emits `alia.approval_request/result` for `R2` actions.
+5. Approval flow emits `clarity.approval_request/result` for `R2` actions.
 6. Removed endpoints return `410` (`/v1/resolve-model`, `/v1/report-usage`, `/codea/resolve-model`, `/codea/report-usage`).
 
 ## Rollback Strategy

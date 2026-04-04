@@ -18,7 +18,7 @@ export interface IFallbackAttemptRecord {
 
 export interface IFallbackEvent extends Document {
   timestamp: Date;
-  aliasModel: string;
+  clarityModel: string;
   attempts: IFallbackAttemptRecord[];
   finalProvider: string | null;
   finalModel: string | null;
@@ -28,7 +28,7 @@ export interface IFallbackEvent extends Document {
 
 const FallbackEventSchema = new Schema<IFallbackEvent>({
   timestamp: { type: Date, default: Date.now },
-  aliasModel: { type: String, required: true },
+  clarityModel: { type: String, required: true },
   attempts: [{
     provider: String,
     model: String,
@@ -46,7 +46,7 @@ const FallbackEventSchema = new Schema<IFallbackEvent>({
 FallbackEventSchema.index({ timestamp: 1 }, { expireAfterSeconds: 30 * 24 * 60 * 60 });
 
 // Index for analytics queries
-FallbackEventSchema.index({ aliasModel: 1, timestamp: -1 });
+FallbackEventSchema.index({ clarityModel: 1, timestamp: -1 });
 FallbackEventSchema.index({ success: 1, timestamp: -1 });
 
 export const FallbackEvent = (mongoose.models.FallbackEvent || mongoose.model<IFallbackEvent>('FallbackEvent', FallbackEventSchema)) as mongoose.Model<IFallbackEvent>;

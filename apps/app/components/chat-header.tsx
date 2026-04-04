@@ -1,6 +1,6 @@
 import { View, useWindowDimensions, Platform } from "react-native";
 import { Text } from "@/components/ui/text";
-import { Search, MoreHorizontal, Menu, Ghost, Mic } from "lucide-react-native";
+import { Search, MoreHorizontal, Menu } from "lucide-react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Button } from "@/components/ui/button";
 import { ModelSelector } from "@/components/model-selector";
@@ -16,24 +16,18 @@ interface ChatHeaderProps {
   title: string;
   selectedModel?: string;
   onModelChange?: (modelId: string) => void;
-  onGhostModePress?: () => void;
-  ghostModeActive?: boolean;
   onSearchPress?: () => void;
   onClear?: () => void;
   isConversation?: boolean;
-  isVoiceActive?: boolean;
 }
 
 export function ChatHeader({
   title,
   selectedModel,
   onModelChange,
-  onGhostModePress,
-  ghostModeActive = false,
   onSearchPress,
   onClear,
   isConversation = false,
-  isVoiceActive = false,
 }: ChatHeaderProps) {
   const { t } = useTranslation();
   const insets = useSafeAreaInsets();
@@ -42,6 +36,7 @@ export function ChatHeader({
   const router = useRouter();
   const isLargeScreen = dimensions.width >= 768;
   const [showClearDialog, setShowClearDialog] = useState(false);
+
   const handleDrawerToggle = () => {
     navigation.toggleDrawer();
   };
@@ -91,26 +86,9 @@ export function ChatHeader({
           selectedModel={selectedModel}
           onModelChange={onModelChange}
         />
-        {isVoiceActive && (
-          <View className="h-6 rounded-full px-2 flex-row items-center gap-1" style={{ backgroundColor: 'rgba(56, 189, 248, 0.15)' }}>
-            <Mic size={12} color="#38bdf8" />
-            <Text className="text-[11px] font-medium" style={{ color: '#38bdf8' }}>Voice</Text>
-          </View>
-        )}
       </View>
 
       <View className="flex-row items-center gap-2">
-        {!isConversation && (
-          <Button
-            variant="ghost"
-            size="icon"
-            onPress={onGhostModePress}
-            className={ghostModeActive ? "h-9 w-9 rounded-full bg-accent" : "h-9 w-9 rounded-full"}
-          >
-            <Ghost size={20} className={ghostModeActive ? "text-accent-foreground" : "text-muted-foreground"} />
-          </Button>
-        )}
-
         <Button
           variant="ghost"
           size="icon"

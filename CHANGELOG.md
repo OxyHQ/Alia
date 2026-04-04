@@ -6,7 +6,7 @@ All notable changes to Clarity are documented here.
 
 ### Added
 
-- Unified autonomy runtime for all chat surfaces (`/alia/chat` and `/v1/chat/completions`).
+- Unified autonomy runtime for all chat surfaces (`/clarity/search` and `/v1/chat/completions`).
 - Context graph persistence with new models:
   - `ContextNode`
   - `ContextEdge`

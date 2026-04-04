@@ -15,15 +15,15 @@ Expo app for web, iOS, and Android.
 
 `useStreamingChat` consumes named SSE events from `/v1/chat/completions`:
 
-- `alia.reasoning`
-- `alia.tool_result`
-- `alia.plan_preview`
-- `alia.approval_request`
-- `alia.approval_result`
-- `alia.research_progress`
-- `alia.model_switch`
-- `alia.agent_session`
-- `alia.title`
+- `clarity.reasoning`
+- `clarity.tool_result`
+- `clarity.plan_preview`
+- `clarity.approval_request`
+- `clarity.approval_result`
+- `clarity.research_progress`
+- `clarity.model_switch`
+- `clarity.agent_session`
+- `clarity.title`
 
 All payloads include `eventVersion: 1`.
 

@@ -17,7 +17,7 @@ const router = express.Router();
  * Returns paginated request logs with filtering.
  * Query params:
  *   - provider (string, optional) - Filter by final provider
- *   - model (string, optional) - Search in aliasModel (partial match)
+ *   - model (string, optional) - Search in clarityModel (partial match)
  *   - status (string, optional) - "success" | "error" | "all" (default: "all")
  *   - hours (number, default: 24) - Time window in hours (1h, 6h, 24h, 168h=7d)
  *   - page (number, default: 1) - Page number
@@ -42,7 +42,7 @@ router.get('/', async (req: Request, res: Response) => {
     }
 
     if (req.query.model) {
-      match.aliasModel = { $regex: req.query.model as string, $options: 'i' };
+      match.clarityModel = { $regex: req.query.model as string, $options: 'i' };
     }
 
     if (req.query.status === 'success') {
@@ -70,7 +70,7 @@ router.get('/', async (req: Request, res: Response) => {
       return {
         _id: event._id,
         timestamp: event.timestamp,
-        aliasModel: event.aliasModel,
+        clarityModel: event.clarityModel,
         finalProvider: event.finalProvider,
         finalModel: event.finalModel,
         success: event.success,

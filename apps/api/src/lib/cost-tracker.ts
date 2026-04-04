@@ -246,7 +246,7 @@ export async function getGlobalCostStats(
   totalTokens: number;
   totalRequests: number;
   uniqueUsers: number;
-  costByAliasModel: Record<string, number>;
+  costByClarityModel: Record<string, number>;
   costByActualProvider: Record<string, number>;  // Internal only!
   avgCostPerRequest: number;
   cacheSavingsTotal: number;
@@ -269,7 +269,7 @@ export async function getGlobalCostStats(
     let totalTokens = 0;
     let cacheSavingsTotal = 0;
     let freeTierSavingsTotal = 0;
-    const costByAliasModel: Record<string, number> = {};
+    const costByClarityModel: Record<string, number> = {};
     const costByActualProvider: Record<string, number> = {};
 
     for (const entry of entries) {
@@ -277,7 +277,7 @@ export async function getGlobalCostStats(
       totalTokens += entry.totalTokens;
 
       // By Clarity model (user-facing)
-      costByAliasModel[entry.clarityModelId] = (costByAliasModel[entry.clarityModelId] || 0) + entry.costUSD;
+      costByClarityModel[entry.clarityModelId] = (costByClarityModel[entry.clarityModelId] || 0) + entry.costUSD;
 
       // By actual provider (internal analytics only!)
       costByActualProvider[entry.actualProvider] = (costByActualProvider[entry.actualProvider] || 0) + entry.costUSD;
@@ -299,7 +299,7 @@ export async function getGlobalCostStats(
       totalTokens,
       totalRequests,
       uniqueUsers,
-      costByAliasModel,        // Safe for users
+      costByClarityModel,        // Safe for users
       costByActualProvider,    // INTERNAL ONLY - never expose to users!
       avgCostPerRequest,
       cacheSavingsTotal,
@@ -312,7 +312,7 @@ export async function getGlobalCostStats(
       totalTokens: 0,
       totalRequests: 0,
       uniqueUsers: 0,
-      costByAliasModel: {},
+      costByClarityModel: {},
       costByActualProvider: {},
       avgCostPerRequest: 0,
       cacheSavingsTotal: 0,

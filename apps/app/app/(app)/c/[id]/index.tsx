@@ -47,8 +47,6 @@ const ChatConversationPage = () => {
         selectedModel={selectedModel}
         onModelChange={setSelectedModel}
         disabled={!!usageLimitError}
-        onApprovePlan={approvePlan}
-        onRejectPlan={rejectPlan}
       />
       <UsageLimitDialog error={usageLimitError} onDismiss={clearError} />
     </>
