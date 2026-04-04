@@ -34,6 +34,8 @@ export type PromptInputProps = {
   leadingAddMenu?: boolean;
   // Custom left-side actions (replaces default add menu in the actions bar)
   actionsLeft?: React.ReactNode;
+  // Custom right-side actions (placed before mic + submit buttons)
+  actionsRight?: React.ReactNode;
   // Submit button props
   onStop?: () => void;
   emptyAction?: React.ReactNode;
@@ -61,6 +63,7 @@ export function PromptInput({
   autocompletePosition = "top",
   leadingAddMenu = false,
   actionsLeft,
+  actionsRight,
   onStop,
   emptyAction,
   attachments: controlledAttachments,
@@ -164,23 +167,32 @@ export function PromptInput({
   const content = isSimpleMode ? (
     <>
       <PromptInputAttachments />
-      <PromptInputTextarea
-        placeholder={placeholder}
-        className="min-h-[44px] text-base py-3"
-      />
-      <PromptInputActions className="flex-row items-center justify-between gap-2 mt-1.5 mb-3 px-3">
-        <View className="flex-row items-center gap-1.5">
-          {actionsLeft ?? <PromptInputAddMenu />}
+      <View className="px-3">
+        {/* Input area spanning full width */}
+        <View className="overflow-hidden relative flex h-full pb-2 ml-2 mt-1">
+          <View className="w-full" style={{ minHeight: 48 }}>
+            <PromptInputTextarea
+              placeholder={placeholder}
+              className="min-h-[44px] text-base bg-transparent border-0 shadow-none"
+            />
+          </View>
         </View>
-        <View className="flex-row items-center gap-1.5">
-          <PromptInputMicButton />
-          <PromptInputSubmitButton
-            isLoading={isLoading}
-            onStop={onStop}
-            emptyAction={emptyAction}
-          />
+        {/* Actions row */}
+        <View className="flex-row items-center justify-between gap-2 mt-1.5 mb-1">
+          <View className="flex-row items-center gap-1.5 flex-1 min-w-0">
+            {actionsLeft ?? <PromptInputAddMenu />}
+          </View>
+          <View className="flex-row items-center gap-1.5">
+            {actionsRight}
+            <PromptInputMicButton />
+            <PromptInputSubmitButton
+              isLoading={isLoading}
+              onStop={onStop}
+              emptyAction={emptyAction}
+            />
+          </View>
         </View>
-      </PromptInputActions>
+      </View>
     </>
   ) : (
     children

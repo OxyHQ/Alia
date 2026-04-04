@@ -11,6 +11,7 @@ import * as DropdownMenu from "@/components/ui/dropdown-menu";
 import { Text } from "@/components/ui/text";
 import { Button } from "@/components/ui/button";
 import { PromptInput, type Attachment } from "@/components/ui/prompt-input";
+import { PromptInputAddMenu } from "@/components/ui/prompt-input/add-menu";
 import { ScrollButton } from "@/components/ui/scroll-button";
 import { ChatInterface } from "@/components/chat-interface";
 import { ChatHeader } from "@/components/chat-header";
@@ -18,7 +19,7 @@ import type { Message } from "@/types/chat";
 import { toast } from "@/components/sonner";
 import { AlertTriangle, Pencil } from "lucide-react-native";
 import { CreditWarningBanner } from "@/components/credit-warning-banner";
-import { getThinkingModelId, isThinkingModel } from "@/components/model-selector";
+import { ModelSelector, getThinkingModelId, isThinkingModel } from "@/components/model-selector";
 import { useModelStore } from "@/lib/stores/model-store";
 import { useEntitlements } from "@/lib/hooks/use-billing";
 import { useRouter } from "expo-router";
@@ -259,22 +260,66 @@ export const ChatPageContent = ({
   // Landing-page-specific actions for the search box grid layout
   const landingActionsLeft = (
     <>
-      {/* Attach button */}
-      <Pressable
-        className="h-8 rounded-full aspect-square items-center justify-center text-muted-foreground hover:text-foreground hover:bg-accent"
-        onPress={() => toggleMode("search")}
-      >
-        <Plus size={16} className={activeModes.has("search") ? "text-primary" : "text-muted-foreground"} />
-      </Pressable>
+      {/* Attach button — opens file/photo picker */}
+      <PromptInputAddMenu className="h-8 w-8" />
 
-      {/* Focus chip */}
-      <Pressable
-        className="inline-flex select-none h-8 max-w-full flex-row items-center border text-sm transition-colors duration-150 cursor-pointer rounded-full gap-1 pl-2 pr-3 border-dashed bg-transparent border-border hover:bg-muted"
-        onPress={() => toggleMode("search")}
-      >
-        <Globe size={14} className={activeModes.has("search") ? "text-primary" : "text-muted-foreground"} />
-        <Text className="text-sm text-muted-foreground truncate">Focus</Text>
-      </Pressable>
+      {/* Focus chip — dropdown for focus modes */}
+      <DropdownMenu.Root>
+        <DropdownMenu.Trigger>
+          <View className="inline-flex select-none h-8 max-w-full flex-row items-center border text-sm transition-colors duration-150 cursor-pointer rounded-full gap-1 pl-2 pr-3 border-dashed bg-transparent border-border hover:bg-muted">
+            <Globe size={14} className="text-muted-foreground" />
+            <Text className="text-sm text-muted-foreground truncate">Focus</Text>
+            <Plus size={12} className="text-muted-foreground" />
+          </View>
+        </DropdownMenu.Trigger>
+        <DropdownMenu.Content side="top" align="start" collisionPadding={8}>
+          <DropdownMenu.CheckboxItem
+            key="all"
+            value={!activeModes.has("search") ? "on" : "off"}
+            onValueChange={() => { if (activeModes.has("search")) toggleMode("search"); }}
+          >
+            <DropdownMenu.ItemIcon ios={{ name: "globe" }} />
+            <DropdownMenu.ItemTitle>All</DropdownMenu.ItemTitle>
+          </DropdownMenu.CheckboxItem>
+          <DropdownMenu.CheckboxItem
+            key="search"
+            value={activeModes.has("search") ? "on" : "off"}
+            onValueChange={() => toggleMode("search")}
+          >
+            <DropdownMenu.ItemIcon ios={{ name: "magnifyingglass" }} />
+            <DropdownMenu.ItemTitle>Web Search</DropdownMenu.ItemTitle>
+          </DropdownMenu.CheckboxItem>
+        </DropdownMenu.Content>
+      </DropdownMenu.Root>
+
+      {/* Mode chips */}
+      <DropdownMenu.Root>
+        <DropdownMenu.Trigger>
+          <View className="inline-flex select-none h-8 max-w-full flex-row items-center border text-sm transition-colors duration-150 cursor-pointer rounded-full gap-1 pl-2 pr-3 border-dashed bg-transparent border-border hover:bg-muted">
+            <Search size={14} className="text-muted-foreground" />
+            <Text className="text-sm text-muted-foreground truncate">Deep Research</Text>
+            <Plus size={12} className="text-muted-foreground" />
+          </View>
+        </DropdownMenu.Trigger>
+        <DropdownMenu.Content side="top" align="start" collisionPadding={8}>
+          <DropdownMenu.CheckboxItem
+            key="deep-research"
+            value={activeModes.has("deepResearch") ? "on" : "off"}
+            onValueChange={() => toggleMode("deepResearch")}
+          >
+            <DropdownMenu.ItemIcon ios={{ name: "magnifyingglass" }} />
+            <DropdownMenu.ItemTitle>Deep Research</DropdownMenu.ItemTitle>
+          </DropdownMenu.CheckboxItem>
+          <DropdownMenu.CheckboxItem
+            key="thinking"
+            value={thinkingMode ? "on" : "off"}
+            onValueChange={handleThinkingMode}
+          >
+            <DropdownMenu.ItemIcon ios={{ name: "brain" }} />
+            <DropdownMenu.ItemTitle>Thinking Mode</DropdownMenu.ItemTitle>
+          </DropdownMenu.CheckboxItem>
+        </DropdownMenu.Content>
+      </DropdownMenu.Root>
 
       {thinkingMode && (
         <ModeChip icon={Brain} label={t("modes.thinkingLabel")} color="#a855f7" onDismiss={handleThinkingMode} />
@@ -289,6 +334,11 @@ export const ChatPageContent = ({
         />
       )}
     </>
+  );
+
+  // Landing-page model selector (compact, placed on right side of actions bar)
+  const landingActionsRight = (
+    <ModelSelector selectedModel={selectedModel} onModelChange={onModelChange} />
   );
 
   // ---- Conversation view: messages + sticky bottom input ----
@@ -442,6 +492,7 @@ export const ChatPageContent = ({
                                 onStop={onStop}
                                 className="border-0 rounded-none bg-transparent shadow-none"
                                 actionsLeft={landingActionsLeft}
+                                actionsRight={landingActionsRight}
                               />
                             </View>
                           </View>
