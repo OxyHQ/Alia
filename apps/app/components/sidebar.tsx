@@ -282,7 +282,7 @@ const SearchSidebar = React.memo(function SearchSidebar() {
 
   return (
     <BaseSidebar header={header} topSection={topSection} navigation={null}
-      scrollableContent={scrollableContent} footer={footer} backgroundColor="bg-sidebar"
+      scrollableContent={scrollableContent} footer={footer} backgroundColor="bg-muted/50"
       onScroll={handleScroll} showScrollIndicator={false} />
   );
 });

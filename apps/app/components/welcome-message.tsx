@@ -1,10 +1,11 @@
-import { useMemo, useCallback } from "react";
+import { useMemo, useCallback, useState } from "react";
 import { useAuth } from "@oxyhq/services";
 import { useTranslation } from "@/hooks/useTranslation";
 import { useWelcomeSuggestions, useRecordSuggestionUsage } from "@/lib/hooks/use-suggestions";
 import { useUserDataStore } from "@/lib/stores/user-data-store";
 import { PERSONALITY_STYLE_MAP } from "@/lib/personality-styles";
 import { ClarityWelcomeMessage } from '@/lib/sdk';
+import type { SearchCategory } from '@/lib/sdk';
 
 type TimeOfDay = "morning" | "afternoon" | "evening";
 
@@ -26,6 +27,7 @@ export const WelcomeMessage = ({ onSuggestionPress }: WelcomeMessageProps) => {
   const { t } = useTranslation();
   const { data: apiSuggestions } = useWelcomeSuggestions();
   const recordUsage = useRecordSuggestionUsage();
+  const [selectedCategory, setSelectedCategory] = useState<SearchCategory>('all');
 
   const tone = useUserDataStore(s => s.memory?.preferences?.tone);
   const activeStyle = tone && tone !== 'clarity' ? PERSONALITY_STYLE_MAP[tone as keyof typeof PERSONALITY_STYLE_MAP] : null;
@@ -68,6 +70,8 @@ export const WelcomeMessage = ({ onSuggestionPress }: WelcomeMessageProps) => {
       subtitle={subtitle}
       suggestions={suggestions}
       onSuggestionPress={handleSuggestionPress}
+      selectedCategory={selectedCategory}
+      onCategoryChange={setSelectedCategory}
     />
   );
 };

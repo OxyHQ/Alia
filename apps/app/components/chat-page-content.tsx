@@ -23,6 +23,7 @@ import { useModelStore } from "@/lib/stores/model-store";
 import { useEntitlements } from "@/lib/hooks/use-billing";
 import { useRouter } from "expo-router";
 import { useTranslation } from "@/hooks/useTranslation";
+import { WelcomeMessage } from "@/components/welcome-message";
 
 type Mode = "search" | "deepResearch";
 
@@ -110,6 +111,9 @@ export const ChatPageContent = ({
   const [bottomBarHeight, setBottomBarHeight] = useState(160);
   const [isAtBottom, setIsAtBottom] = useState(true);
 
+  const hasMessages = messages.length > 0;
+  const showConversationView = hasMessages || conversationLoading;
+
   const handleScrollToBottom = useCallback(() => {
     scrollViewRef.current?.scrollToEnd({ animated: true });
   }, [scrollViewRef]);
@@ -193,72 +197,172 @@ export const ChatPageContent = ({
     });
   }, [addAttachment]);
 
-  return (
-    <View className="flex-1 bg-content-area">
-      <View className="flex-1 relative">
-        <ChatInterface
-          messages={messages}
-          scrollViewRef={scrollViewRef}
-          isLoading={isLoading}
-          conversationLoading={conversationLoading}
-          onSuggestionPress={handleSuggestionPress}
-          onStartEdit={handleStartEdit}
-          bottomPadding={bottomBarHeight}
-          onAtBottomChange={setIsAtBottom}
+  const actionsLeftContent = (
+    <>
+      <Button
+        variant={activeModes.has("search") ? "default" : "outline"}
+        className="h-8 rounded-full px-3 flex-row items-center gap-2 text-muted-foreground hover:text-foreground font-normal text-xs"
+        onPress={() => toggleMode("search")}
+      >
+        <Globe size={16} className={activeModes.has("search") ? "text-primary-foreground" : "text-muted-foreground"} />
+      </Button>
+
+      {thinkingMode && (
+        <ModeChip icon={Brain} label={t("modes.thinkingLabel")} color="#a855f7" onDismiss={handleThinkingMode} />
+      )}
+
+      {activeModes.has("deepResearch") && (
+        <ModeChip
+          icon={MODE_CONFIG.deepResearch.icon}
+          label={t(MODE_CONFIG.deepResearch.label)}
+          color={MODE_CONFIG.deepResearch.color}
+          onDismiss={() => toggleMode("deepResearch")}
         />
+      )}
 
-        <LinearGradient
-          colors={[colors.background, "transparent"]}
-          locations={[0.1, 1]}
-          style={{ position: "absolute", top: 0, left: 0, right: 0, zIndex: 10, paddingBottom: 32, pointerEvents: "box-none" }}
-        >
-          <ChatHeader
-            title="Clarity"
-            selectedModel={selectedModel}
-            onModelChange={onModelChange}
-            onClear={onClear}
-            isConversation={messages.length > 0}
-          />
-        </LinearGradient>
-
-        {/* Bottom area: search input */}
-        <KeyboardStickyView
-          offset={{ closed: 0, opened: 0 }}
-          style={{ position: "absolute", bottom: 0, left: 0, right: 0, zIndex: 10 }}
-          onLayout={(e) => setBottomBarHeight(e.nativeEvent.layout.height)}
-        >
-          <LinearGradient
-            colors={["transparent", colors.background]}
-            locations={[0, 0.9]}
-            style={{ paddingTop: 24, paddingBottom: insets.bottom }}
+      <DropdownMenu.Root>
+        <DropdownMenu.Trigger>
+          <Button variant="outline" size="icon" className="h-8 w-8 rounded-full text-muted-foreground hover:text-foreground">
+            <Search size={16} className="text-muted-foreground" />
+          </Button>
+        </DropdownMenu.Trigger>
+        <DropdownMenu.Content side="top" align="start" collisionPadding={8}>
+          <DropdownMenu.CheckboxItem
+            key="deep-research"
+            value={activeModes.has("deepResearch") ? "on" : "off"}
+            onValueChange={() => toggleMode("deepResearch")}
           >
-            <CreditWarningBanner selectedModel={selectedModel} onSwitchModel={onModelChange} />
+            <DropdownMenu.ItemIcon ios={{ name: "magnifyingglass" }} />
+            <DropdownMenu.ItemTitle>Deep research</DropdownMenu.ItemTitle>
+          </DropdownMenu.CheckboxItem>
+          <DropdownMenu.CheckboxItem
+            key="thinking"
+            value={thinkingMode ? "on" : "off"}
+            onValueChange={handleThinkingMode}
+          >
+            <DropdownMenu.ItemIcon ios={{ name: "brain" }} />
+            <DropdownMenu.ItemTitle>Thinking mode</DropdownMenu.ItemTitle>
+          </DropdownMenu.CheckboxItem>
+        </DropdownMenu.Content>
+      </DropdownMenu.Root>
+    </>
+  );
 
-            {disabled && (
-              <View className="mx-auto w-full max-w-3xl px-4 pb-1">
-                <View className="flex-row items-center gap-2 rounded-lg bg-destructive/10 px-3 py-2">
-                  <AlertTriangle size={14} className="text-destructive" />
-                  <Text className="text-xs text-destructive flex-1">{t("usageLimit.limitReachedBanner")}</Text>
+  // When messages exist (or conversation is loading): full conversation view with bottom-sticky input
+  if (showConversationView) {
+    return (
+      <View className="flex-1 bg-content-area">
+        <View className="flex-1 relative">
+          <ChatInterface
+            messages={messages}
+            scrollViewRef={scrollViewRef}
+            isLoading={isLoading}
+            conversationLoading={conversationLoading}
+            onSuggestionPress={handleSuggestionPress}
+            onStartEdit={handleStartEdit}
+            bottomPadding={bottomBarHeight}
+            onAtBottomChange={setIsAtBottom}
+          />
+
+          <LinearGradient
+            colors={[colors.background, "transparent"]}
+            locations={[0.1, 1]}
+            style={{ position: "absolute", top: 0, left: 0, right: 0, zIndex: 10, paddingBottom: 32, pointerEvents: "box-none" }}
+          >
+            <ChatHeader
+              title="Clarity"
+              selectedModel={selectedModel}
+              onModelChange={onModelChange}
+              onClear={onClear}
+              isConversation
+            />
+          </LinearGradient>
+
+          <KeyboardStickyView
+            offset={{ closed: 0, opened: 0 }}
+            style={{ position: "absolute", bottom: 0, left: 0, right: 0, zIndex: 10 }}
+            onLayout={(e) => setBottomBarHeight(e.nativeEvent.layout.height)}
+          >
+            <LinearGradient
+              colors={["transparent", colors.background]}
+              locations={[0, 0.9]}
+              style={{ paddingTop: 24, paddingBottom: insets.bottom }}
+            >
+              <CreditWarningBanner selectedModel={selectedModel} onSwitchModel={onModelChange} />
+
+              {disabled && (
+                <View className="mx-auto w-full max-w-3xl px-4 pb-1">
+                  <View className="flex-row items-center gap-2 rounded-lg bg-destructive/10 px-3 py-2">
+                    <AlertTriangle size={14} className="text-destructive" />
+                    <Text className="text-xs text-destructive flex-1">{t("usageLimit.limitReachedBanner")}</Text>
+                  </View>
                 </View>
-              </View>
-            )}
+              )}
 
-            <View className="px-4 py-3">
-              <View className="mx-auto w-full max-w-3xl relative">
-                {messages.length > 0 && (
+              <View className="px-4 py-3">
+                <View className="mx-auto w-full max-w-3xl relative">
                   <View style={{ position: "absolute", top: -48, right: 0, zIndex: -1 }}>
                     <ScrollButton isAtBottom={isAtBottom} onScrollToBottom={handleScrollToBottom} />
                   </View>
-                )}
-                {editingMessageId && (
-                  <View className="flex-row items-center gap-2 mb-2 px-1">
-                    <Pencil size={14} className="text-primary" />
-                    <Text className="text-xs text-muted-foreground flex-1">Editing message</Text>
-                    <Pressable onPress={handleCancelEdit} className="active:opacity-70">
-                      <X size={14} className="text-muted-foreground" />
-                    </Pressable>
-                  </View>
-                )}
+                  {editingMessageId && (
+                    <View className="flex-row items-center gap-2 mb-2 px-1">
+                      <Pencil size={14} className="text-primary" />
+                      <Text className="text-xs text-muted-foreground flex-1">Editing message</Text>
+                      <Pressable onPress={handleCancelEdit} className="active:opacity-70">
+                        <X size={14} className="text-muted-foreground" />
+                      </Pressable>
+                    </View>
+                  )}
+                  <PromptInput
+                    value={inputValue}
+                    onValueChange={setInputValue}
+                    onSubmit={handleSubmit}
+                    isLoading={isLoading}
+                    disabled={isLoading || disabled}
+                    disableKeyboardAvoidance
+                    attachments={attachments}
+                    onAddAttachment={addAttachment}
+                    onRemoveAttachment={removeAttachment}
+                    onImagePaste={handleImagePaste}
+                    autocomplete
+                    leadingAddMenu
+                    placeholder={disabled ? t("usageLimit.inputDisabledPlaceholder") : "Ask anything..."}
+                    onStop={onStop}
+                    actionsLeft={actionsLeftContent}
+                  />
+                </View>
+              </View>
+            </LinearGradient>
+          </KeyboardStickyView>
+        </View>
+      </View>
+    );
+  }
+
+  // No messages: centered search landing page
+  return (
+    <View className="flex-1 bg-content-area">
+      {/* Header row */}
+      <View style={{ position: "absolute", top: 0, left: 0, right: 0, zIndex: 10 }}>
+        <ChatHeader
+          title="Clarity"
+          selectedModel={selectedModel}
+          onModelChange={onModelChange}
+          onClear={onClear}
+          isConversation={false}
+        />
+      </View>
+
+      {/* Scrollable content area */}
+      <View className="flex-1">
+        <View className="flex-1 px-4 md:px-6" style={{ paddingBottom: insets.bottom + 16 }}>
+          <View className="mx-auto w-full max-w-screen-md flex-1 justify-center">
+            {/* Spacer: pushes content to center on larger screens */}
+            <View className="hidden md:flex" style={{ height: '15%' }} />
+
+            {/* Search Box: rounded-2xl, raised surface, shadow */}
+            <View className="w-full rounded-2xl border border-border bg-background shadow-sm overflow-hidden">
+              <View className="pt-3 pb-3">
                 <PromptInput
                   value={inputValue}
                   onValueChange={setInputValue}
@@ -271,65 +375,25 @@ export const ChatPageContent = ({
                   onRemoveAttachment={removeAttachment}
                   onImagePaste={handleImagePaste}
                   autocomplete
-                  leadingAddMenu
                   placeholder={disabled ? t("usageLimit.inputDisabledPlaceholder") : "Ask anything..."}
                   onStop={onStop}
-                  actionsLeft={
-                    <>
-                      <Button
-                        variant={activeModes.has("search") ? "default" : "outline"}
-                        className="h-8 rounded-full px-3 flex-row items-center gap-2 text-muted-foreground hover:text-foreground font-normal text-xs"
-                        onPress={() => toggleMode("search")}
-                      >
-                        <Globe size={16} className={activeModes.has("search") ? "text-primary-foreground" : "text-muted-foreground"} />
-                      </Button>
-
-                      {thinkingMode && (
-                        <ModeChip icon={Brain} label={t("modes.thinkingLabel")} color="#a855f7" onDismiss={handleThinkingMode} />
-                      )}
-
-                      {activeModes.has("deepResearch") && (
-                        <ModeChip
-                          icon={MODE_CONFIG.deepResearch.icon}
-                          label={t(MODE_CONFIG.deepResearch.label)}
-                          color={MODE_CONFIG.deepResearch.color}
-                          onDismiss={() => toggleMode("deepResearch")}
-                        />
-                      )}
-
-                      <DropdownMenu.Root>
-                        <DropdownMenu.Trigger>
-                          <Button variant="outline" size="icon" className="h-8 w-8 rounded-full text-muted-foreground hover:text-foreground">
-                            <Search size={16} className="text-muted-foreground" />
-                          </Button>
-                        </DropdownMenu.Trigger>
-                        <DropdownMenu.Content side="top" align="start" collisionPadding={8}>
-                          <DropdownMenu.CheckboxItem
-                            key="deep-research"
-                            value={activeModes.has("deepResearch") ? "on" : "off"}
-                            onValueChange={() => toggleMode("deepResearch")}
-                          >
-                            <DropdownMenu.ItemIcon ios={{ name: "magnifyingglass" }} />
-                            <DropdownMenu.ItemTitle>Deep research</DropdownMenu.ItemTitle>
-                          </DropdownMenu.CheckboxItem>
-                          <DropdownMenu.CheckboxItem
-                            key="thinking"
-                            value={thinkingMode ? "on" : "off"}
-                            onValueChange={handleThinkingMode}
-                          >
-                            <DropdownMenu.ItemIcon ios={{ name: "brain" }} />
-                            <DropdownMenu.ItemTitle>Thinking mode</DropdownMenu.ItemTitle>
-                          </DropdownMenu.CheckboxItem>
-                        </DropdownMenu.Content>
-                      </DropdownMenu.Root>
-                    </>
-                  }
+                  className="border-0 rounded-none bg-transparent shadow-none"
+                  actionsLeft={actionsLeftContent}
                 />
               </View>
             </View>
-          </LinearGradient>
-        </KeyboardStickyView>
+
+            {/* Welcome message: category tabs + suggestion cards */}
+            <View className="mt-2">
+              <WelcomeContent onSuggestionPress={handleSuggestionPress} />
+            </View>
+          </View>
+        </View>
       </View>
     </View>
   );
 };
+
+function WelcomeContent({ onSuggestionPress }: { onSuggestionPress: (msg: string) => void }) {
+  return <WelcomeMessage onSuggestionPress={onSuggestionPress} />;
+}

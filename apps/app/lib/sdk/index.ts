@@ -12,3 +12,4 @@ export { getTextFromContent, getImagesFromContent } from './content-utils';
 // Types
 export type { ResearchProgress, WelcomeSuggestion, ClarityColors } from './types';
 export type { ClarityExpression } from './ClarityLogo';
+export type { SearchCategory } from './ClarityWelcomeMessage';
