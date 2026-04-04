@@ -233,6 +233,10 @@
   },
   "sidebar": {
     "newChat": "New Chat",
+    "newSearch": "New Search",
+    "history": "History",
+    "noSearches": "No searches yet",
+    "delete": "Delete",
     "roles": "Roles",
     "agents": "Agents",
     "library": "Library",
@@ -247,6 +251,7 @@
     "billing": "Billing",
     "notifications": "Notifications",
     "logOut": "Log out",
+    "settings": "Settings",
     "termsOfService": "Terms of Service",
     "privacyPolicy": "Privacy Policy"
   },

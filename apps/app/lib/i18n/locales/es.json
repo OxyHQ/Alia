@@ -205,6 +205,10 @@
   },
   "sidebar": {
     "newChat": "Nueva conversación",
+    "newSearch": "Nueva Búsqueda",
+    "history": "Historial",
+    "noSearches": "Sin búsquedas aún",
+    "delete": "Eliminar",
     "roles": "Roles",
     "agents": "Agentes",
     "library": "Biblioteca",
@@ -219,6 +223,7 @@
     "billing": "Facturación",
     "notifications": "Notificaciones",
     "logOut": "Cerrar sesión",
+    "settings": "Configuración",
     "termsOfService": "Términos de Servicio",
     "privacyPolicy": "Política de Privacidad"
   },

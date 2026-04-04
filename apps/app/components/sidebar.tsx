@@ -1,10 +1,8 @@
 import React from "react";
 import { View, Pressable, Platform, NativeSyntheticEvent, NativeScrollEvent, Linking } from "react-native";
-import { ClarityWordmark } from "@/components/ui/clarity-wordmark";
 import { Text } from "@/components/ui/text";
-import { Button } from "@/components/ui/button";
 import { BaseSidebar } from "@/components/base-sidebar";
-import { Settings2, LogIn, UserPlus, Plus } from "lucide-react-native";
+import { Search, Plus, Clock, Settings2, LogIn, UserPlus, ChevronDown, ChevronRight } from "lucide-react-native";
 import { useTranslation } from "@/hooks/useTranslation";
 import { useStore } from "@/lib/globalStore";
 import { useRouter, usePathname } from "expo-router";
@@ -25,7 +23,7 @@ export function Sidebar() {
   return <SearchSidebar />;
 }
 
-/* Date grouping helpers */
+/* ── Date grouping helpers ─────────────────────────────────── */
 
 function isToday(d: Date): boolean {
   return d.toDateString() === new Date().toDateString();
@@ -58,7 +56,7 @@ function groupConversations<T extends ConvLike>(convs: T[]) {
   return g;
 }
 
-/* History item — matches reference: group relative block rounded-md select-none */
+/* ── History item ──────────────────────────────────────────── */
 
 const SearchHistoryItem = React.memo(function SearchHistoryItem({
   id, title, isActive, onSelect, onPrefetch, onDelete,
@@ -66,6 +64,7 @@ const SearchHistoryItem = React.memo(function SearchHistoryItem({
   id: string; title: string; isActive: boolean;
   onSelect: (id: string) => void; onPrefetch: (id: string) => void; onDelete: (id: string) => void;
 }) {
+  const { t } = useTranslation();
   const prefetch = React.useCallback(() => onPrefetch(id), [onPrefetch, id]);
   return (
     <DropdownMenu.Root>
@@ -80,12 +79,14 @@ const SearchHistoryItem = React.memo(function SearchHistoryItem({
             isActive && "bg-muted"
           )}
         >
-          {/* Hover background overlay */}
-          <View className="absolute rounded-md opacity-0 group-hover:opacity-100 bg-muted inset-0" />
-          {/* Text content */}
+          {/* hover overlay */}
+          <View className="absolute inset-x-0 inset-y-0 rounded-md opacity-0 group-hover:opacity-100 bg-muted/50" />
+          {/* text content */}
           <View className="relative flex-row items-center gap-2 pl-1 py-1.5 px-2">
             <View className="w-full overflow-hidden">
-              <Text className="font-sans text-sm text-foreground" numberOfLines={1}>{title || "New search"}</Text>
+              <Text className="font-sans text-sm text-foreground" numberOfLines={1}>
+                {title || t("sidebar.newSearch")}
+              </Text>
             </View>
           </View>
         </Pressable>
@@ -93,14 +94,14 @@ const SearchHistoryItem = React.memo(function SearchHistoryItem({
       <DropdownMenu.Content>
         <DropdownMenu.Item key="delete" destructive onSelect={() => onDelete(id)}>
           <DropdownMenu.ItemIcon ios={{ name: "trash" }} />
-          <DropdownMenu.ItemTitle>Delete</DropdownMenu.ItemTitle>
+          <DropdownMenu.ItemTitle>{t("sidebar.delete")}</DropdownMenu.ItemTitle>
         </DropdownMenu.Item>
       </DropdownMenu.Content>
     </DropdownMenu.Root>
   );
 });
 
-/* Grouped section — matches reference history-group-label / history-label-text */
+/* ── Grouped section header + items ───────────────────────── */
 
 function ConversationGroup({ label, items, currentChatId, onSelect, onPrefetch, onDelete }: {
   label: string; items: ConvLike[]; currentChatId: string | undefined;
@@ -109,30 +110,34 @@ function ConversationGroup({ label, items, currentChatId, onSelect, onPrefetch, 
   if (items.length === 0) return null;
   return (
     <View className="gap-0.5">
-      {/* history-group-label */}
       <View className="gap-1 flex-row items-center justify-between select-none py-1 pl-1 pb-2">
-        <View className="min-w-0 flex-row items-center gap-1 w-fit max-w-full">
-          <Text className="text-muted-foreground font-medium text-xs hover:text-foreground">{label}</Text>
+        <View className="min-w-0 flex-row items-center gap-1">
+          <Text className="text-muted-foreground font-medium text-xs">{label}</Text>
         </View>
       </View>
       {items.map((c) => (
-        <SearchHistoryItem key={c.id} id={c.id} title={c.title} isActive={currentChatId === c.id}
-          onSelect={onSelect} onPrefetch={onPrefetch} onDelete={onDelete} />
+        <SearchHistoryItem
+          key={c.id} id={c.id} title={c.title} isActive={currentChatId === c.id}
+          onSelect={onSelect} onPrefetch={onPrefetch} onDelete={onDelete}
+        />
       ))}
     </View>
   );
 }
 
-/* Main sidebar */
+/* ── Main sidebar ─────────────────────────────────────────── */
 
 const SearchSidebar = React.memo(function SearchSidebar() {
   const router = useRouter();
+  const pathname = usePathname();
   const qc = useQueryClient();
   const { t } = useTranslation();
   const chatId = useStore((s) => s.chatId);
   const { data, fetchNextPage, hasNextPage, isFetchingNextPage, isLoading } = useConversations();
   const deleteMut = useDeleteConversation();
   const { user, isAuthenticated, logout, showBottomSheet } = useOxy();
+
+  const [historyExpanded, setHistoryExpanded] = React.useState(true);
 
   const allConvs = React.useMemo(() => {
     const all = data?.pages.flatMap((p) => p.conversations) || [];
@@ -141,8 +146,10 @@ const SearchSidebar = React.memo(function SearchSidebar() {
 
   const grouped = React.useMemo(() => groupConversations(allConvs), [allConvs]);
 
+  /* Navigation */
+  const isHome = pathname === "/" || pathname === "/(app)";
+
   const handleNewSearch = React.useCallback(() => router.replace("/(app)"), [router]);
-  const handleLogoPress = React.useCallback(() => router.replace("/(app)"), [router]);
   const handlePrefetch = React.useCallback((id: string) => prefetchConversation(qc, id), [qc]);
 
   const handleSelect = React.useCallback((id: string) => {
@@ -175,35 +182,80 @@ const SearchSidebar = React.memo(function SearchSidebar() {
     }
   }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
 
-  /* Header: logo */
-  const header = (
-    <Pressable accessibilityLabel="Home" accessibilityRole="button" onPress={handleLogoPress}
-      style={({ pressed }) => ({ opacity: pressed ? 0.7 : 1 })}>
-      <ClarityWordmark height={48} />
-    </Pressable>
-  );
+  /* ── Header: empty (navigation is in topSection) ── */
+  const header = <View />;
 
-  /* Nav items: New Search button */
+  /* ── Top section: nav links + new thread button ── */
   const topSection = (
-    <View className="flex-row items-center justify-start no-underline w-full h-8 shrink-0 relative cursor-pointer transition-colors duration-150 gap-1">
+    <View className="flex-none flex-col gap-0.5">
+      {/* Search — primary nav, active when on home */}
       <Pressable
-        accessibilityLabel="New search"
-        accessibilityRole="button"
         onPress={handleNewSearch}
-        className="flex-row items-center gap-2 w-full h-8 rounded-full bg-primary px-3 justify-center"
+        className="flex-row items-center justify-start w-full h-8 shrink-0 relative cursor-pointer transition-colors duration-150 gap-1 px-1"
       >
-        <Plus size={16} color="white" />
-        <Text className="flex-1 font-sans text-sm font-medium text-primary-foreground">New Search</Text>
+        <Search size={16} className={isHome ? "text-foreground" : "text-muted-foreground"} />
+        <Text className={cn("flex-1 font-sans text-sm", isHome ? "text-foreground" : "text-muted-foreground")}>{t("sidebar.newSearch")}</Text>
+        {Platform.OS === "web" && (
+          <Text className="mr-4 shrink-0 text-[10px] font-normal text-muted-foreground/60 select-none">{"\u2318"}1</Text>
+        )}
+      </Pressable>
+
+      {/* New thread button */}
+      <Pressable
+        onPress={handleNewSearch}
+        className="py-1 flex-row w-full justify-start items-center cursor-pointer rounded-xl hover:bg-muted px-1 gap-1 h-8"
+      >
+        <Plus size={16} className="text-muted-foreground" />
+        <Text className="flex-1 font-sans text-sm text-muted-foreground">{t("sidebar.newChat")}</Text>
+        {Platform.OS === "web" && (
+          <Text className="mr-4 shrink-0 text-[10px] font-normal text-muted-foreground/60 select-none">{"\u2318"}I</Text>
+        )}
+      </Pressable>
+
+      {/* History nav link */}
+      <Pressable
+        onPress={() => setHistoryExpanded((v) => !v)}
+        className="flex-row items-center justify-start w-full h-8 shrink-0 relative cursor-pointer transition-colors duration-150 gap-1 px-1"
+      >
+        <Clock size={16} className="text-muted-foreground" />
+        <Text className="flex-1 font-sans text-sm text-muted-foreground hover:text-foreground">{t("sidebar.history")}</Text>
+      </Pressable>
+
+      {/* Settings nav link */}
+      <Pressable
+        onPress={handleSettings}
+        className="flex-row items-center justify-start w-full h-8 shrink-0 relative cursor-pointer transition-colors duration-150 gap-1 px-1"
+      >
+        <Settings2 size={16} className="text-muted-foreground" />
+        <Text className="flex-1 font-sans text-sm text-muted-foreground hover:text-foreground">{t("sidebar.settings")}</Text>
+      </Pressable>
+
+      {/* Divider */}
+      <View className="border-t border-border/50 mx-1 my-1" />
+
+      {/* History collapsible header */}
+      <Pressable
+        onPress={() => setHistoryExpanded((v) => !v)}
+        className="gap-1 flex-row items-center justify-between select-none py-1 pl-1 pb-2"
+      >
+        <View className="min-w-0 flex-row items-center gap-1">
+          <Text className="text-muted-foreground font-medium text-xs hover:text-foreground">{t("sidebar.history")}</Text>
+        </View>
+        {historyExpanded ? (
+          <ChevronDown size={12} className="text-muted-foreground" />
+        ) : (
+          <ChevronRight size={12} className="text-muted-foreground" />
+        )}
       </Pressable>
     </View>
   );
 
-  /* History section — matches: flex min-h-0 w-full flex-1 flex-col overflow-x-hidden overflow-y-auto */
-  const scrollableContent = (
+  /* ── Scrollable: history items ── */
+  const scrollableContent = historyExpanded ? (
     <View className="flex min-h-0 w-full flex-1 flex-col overflow-x-hidden overflow-y-auto">
       {isLoading ? <SidebarSkeleton /> : allConvs.length === 0 ? (
         <View className="items-center justify-center py-8">
-          <Text className="text-xs text-muted-foreground">No searches yet</Text>
+          <Text className="text-xs text-muted-foreground">{t("sidebar.noSearches")}</Text>
         </View>
       ) : (
         <>
@@ -218,29 +270,28 @@ const SearchSidebar = React.memo(function SearchSidebar() {
         </>
       )}
     </View>
-  );
+  ) : null;
 
-  /* Footer: user section — matches: mt-auto w-full min-w-0 border-t border-border/50 */
+  /* ── Footer: user section ── */
   const footer = (
-    <View className="mt-auto w-full min-w-0 border-t border-border/50 flex-col items-center justify-center pt-3">
+    <View className="mt-auto w-full min-w-0 border-t border-border/50 flex-col items-center justify-center">
       {isAuthenticated ? (
         <View className="w-full flex-row justify-start overflow-hidden">
           <DropdownMenu.Root>
             <DropdownMenu.Trigger>
-              {/* user-button: flex cursor-pointer items-center relative group shrink-0 w-full */}
               <Pressable
                 accessibilityLabel="Account menu"
                 accessibilityRole="button"
-                className="flex-row cursor-pointer items-center relative group shrink-0 w-full gap-2 py-1"
+                className="flex-row cursor-pointer items-center relative group shrink-0 w-full py-2 px-2"
               >
                 {/* hover bg */}
-                <View className="pointer-events-none absolute bg-muted rounded-md opacity-0 group-hover:opacity-100 transition-opacity duration-150 inset-0" />
+                <View className="pointer-events-none absolute inset-1 bg-muted/50 rounded-md opacity-0 group-hover:opacity-100 transition-opacity duration-150" />
                 {/* avatar */}
                 <View className="relative flex aspect-square shrink-0 items-center justify-center bg-muted rounded-full w-8 h-8">
                   <UserAvatar size={32} />
                 </View>
                 {/* name */}
-                <Text className="text-sm text-foreground leading-tight truncate">{displayName()}</Text>
+                <Text className="font-sans text-sm text-foreground leading-tight truncate ml-2">{displayName()}</Text>
               </Pressable>
             </DropdownMenu.Trigger>
             <DropdownMenu.Content>
@@ -286,18 +337,17 @@ const SearchSidebar = React.memo(function SearchSidebar() {
           </DropdownMenu.Root>
         </View>
       ) : (
-        <View className="w-full gap-2">
-          {/* sign-in-btn: select-none font-medium ... flex w-full rounded-full hover:bg-muted px-3 justify-between */}
+        <View className="w-full gap-2 py-2">
           <Pressable
             onPress={handleLogin}
-            className="select-none font-medium transition-colors duration-300 text-center items-center justify-center whitespace-nowrap text-foreground border border-solid border-border h-8 text-sm cursor-pointer flex-row w-full rounded-full hover:bg-muted px-3 justify-between"
+            className="font-medium transition-colors duration-300 font-sans text-center items-center justify-center whitespace-nowrap text-foreground border border-solid border-border h-8 text-sm cursor-pointer flex-row w-full rounded-full hover:bg-muted px-3 justify-between"
           >
             <LogIn size={16} className="text-foreground" />
             <Text className="text-sm font-medium text-foreground flex-1 text-center">{t("login.signInButton")}</Text>
           </Pressable>
           <Pressable
             onPress={handleRegister}
-            className="select-none font-medium transition-colors duration-300 text-center items-center justify-center whitespace-nowrap text-foreground border border-solid border-border h-8 text-sm cursor-pointer flex-row w-full rounded-full hover:bg-muted px-3 justify-between"
+            className="font-medium transition-colors duration-300 font-sans text-center items-center justify-center whitespace-nowrap text-foreground border border-solid border-border h-8 text-sm cursor-pointer flex-row w-full rounded-full hover:bg-muted px-3 justify-between"
           >
             <UserPlus size={16} className="text-foreground" />
             <Text className="text-sm font-medium text-foreground flex-1 text-center">{t("login.footerLink")}</Text>
@@ -319,8 +369,15 @@ const SearchSidebar = React.memo(function SearchSidebar() {
   );
 
   return (
-    <BaseSidebar header={header} topSection={topSection} navigation={null}
-      scrollableContent={scrollableContent} footer={footer} backgroundColor="bg-muted"
-      onScroll={handleScroll} showScrollIndicator={false} />
+    <BaseSidebar
+      header={header}
+      topSection={topSection}
+      navigation={null}
+      scrollableContent={scrollableContent}
+      footer={footer}
+      backgroundColor="bg-muted"
+      onScroll={handleScroll}
+      showScrollIndicator={false}
+    />
   );
 });
