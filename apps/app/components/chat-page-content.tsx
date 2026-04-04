@@ -456,7 +456,7 @@ export const ChatPageContent = ({
                   )}
 
                   {/* Search section (vertically centered) */}
-                  <View className="w-full grow flex-col items-center pb-[10vh] md:mt-0 md:flex z-10">
+                  <View className="w-full grow flex-col items-center md:mt-0 md:flex z-10">
                     {/* Spacer pushes content to center on desktop */}
                     <View className="hidden shrink-0 md:flex md:h-[40vh]" />
 
