@@ -25,7 +25,7 @@ export function Sidebar() {
   return <SearchSidebar />;
 }
 
-/* ── Sidebar nav item (matches Perplexity's item structure) ── */
+/* ── Sidebar nav item ── */
 
 function SidebarNavItem({
   icon,
@@ -79,7 +79,6 @@ const SearchHistoryItem = React.memo(function SearchHistoryItem({
         <Pressable
           onPress={() => onSelect(id)}
           onPressIn={prefetch}
-          // @ts-ignore web-only
           onHoverIn={prefetch}
           className={`group relative rounded-md select-none ${isActive ? "bg-muted" : ""}`}
         >
@@ -155,7 +154,7 @@ const SearchSidebar = React.memo(function SearchSidebar() {
     }
   }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
 
-  /* ── Header: Search mode toggle (Perplexity-style) ── */
+  /* ── Header: Search mode toggle ── */
   const header = (
     <View style={{ height: 90 }} className="flex-col justify-center">
       <View className="mx-2 p-1 relative">

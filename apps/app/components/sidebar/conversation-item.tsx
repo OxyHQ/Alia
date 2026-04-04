@@ -66,7 +66,6 @@ export const ConversationItem = React.memo<ConversationItemProps>(({
       <Pressable
         onPress={() => onSelect(conversation.id)}
         onPressIn={handlePrefetch}
-        // @ts-ignore web-only prop
         onHoverIn={handlePrefetch}
         className={cn(
           "flex-1 flex-row items-center gap-2",
