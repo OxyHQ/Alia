@@ -415,8 +415,8 @@ export const ChatPageContent = ({
                     {/* Search wrapper */}
                     <View className="px-4 relative flex w-full flex-col justify-center md:h-auto md:px-0">
 
-                      {/* Logo area (positioned above search box on desktop) */}
-                      <View className="mb-6 bottom-0 flex w-full items-center justify-center pb-3 text-center md:absolute">
+                      {/* Logo area */}
+                      <View className="mb-6 flex w-full items-center justify-center pb-3">
                         <ClarityWordmark height={40} />
                       </View>
 
@@ -437,6 +437,7 @@ export const ChatPageContent = ({
                                 onRemoveAttachment={removeAttachment}
                                 onImagePaste={handleImagePaste}
                                 autocomplete
+                                autocompletePosition="bottom"
                                 placeholder={disabled ? t("usageLimit.inputDisabledPlaceholder") : "Ask anything..."}
                                 onStop={onStop}
                                 className="border-0 rounded-none bg-transparent shadow-none"
