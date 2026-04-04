@@ -8,8 +8,10 @@ export interface ClarityWordmarkProps {
   color?: string;
 }
 
-const VIEWBOX_W = 3830;
-const VIEWBOX_H = 1470;
+// Original SVG: width=383pt height=147pt, viewBox="0 0 383 147"
+// Paths use 10x coordinates with scale(0.1,-0.1) transform
+const VIEWBOX_W = 383;
+const VIEWBOX_H = 147;
 const ASPECT = VIEWBOX_W / VIEWBOX_H;
 
 export function ClarityWordmark({ width, height, color }: ClarityWordmarkProps) {
@@ -28,8 +30,8 @@ export function ClarityWordmark({ width, height, color }: ClarityWordmarkProps) 
     h = height;
     w = height * ASPECT;
   } else {
-    w = 160;
-    h = 160 / ASPECT;
+    w = 256;
+    h = 256 / ASPECT;
   }
 
   return (
