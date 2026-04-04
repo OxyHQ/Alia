@@ -472,31 +472,25 @@ export const ChatPageContent = ({
 
                       {/* Search input box */}
                       <View className="w-full relative">
-                        <View className="bg-background rounded-2xl">
-                          <View className="relative rounded-2xl bg-background">
-                            <View className="bg-card w-full border rounded-2xl duration-75 transition-all border-border shadow-sm px-0 pt-3 pb-3">
-                              <PromptInput
-                                value={inputValue}
-                                onValueChange={setInputValue}
-                                onSubmit={handleSubmit}
-                                isLoading={isLoading}
-                                disabled={isLoading || disabled}
-                                disableKeyboardAvoidance
-                                attachments={attachments}
-                                onAddAttachment={addAttachment}
-                                onRemoveAttachment={removeAttachment}
-                                onImagePaste={handleImagePaste}
-                                autocomplete
-                                autocompletePosition="bottom"
-                                placeholder={disabled ? t("usageLimit.inputDisabledPlaceholder") : "Ask anything..."}
-                                onStop={onStop}
-                                className="border-0 rounded-none bg-transparent shadow-none"
-                                actionsLeft={landingActionsLeft}
-                                actionsRight={landingActionsRight}
-                              />
-                            </View>
-                          </View>
-                        </View>
+                        <PromptInput
+                          value={inputValue}
+                          onValueChange={setInputValue}
+                          onSubmit={handleSubmit}
+                          isLoading={isLoading}
+                          disabled={isLoading || disabled}
+                          disableKeyboardAvoidance
+                          attachments={attachments}
+                          onAddAttachment={addAttachment}
+                          onRemoveAttachment={removeAttachment}
+                          onImagePaste={handleImagePaste}
+                          autocomplete
+                          autocompletePosition="bottom"
+                          placeholder={disabled ? t("usageLimit.inputDisabledPlaceholder") : "Ask anything..."}
+                          onStop={onStop}
+                          className="rounded-2xl border-border bg-card shadow-sm"
+                          actionsLeft={landingActionsLeft}
+                          actionsRight={landingActionsRight}
+                        />
                       </View>
                     </View>
 
