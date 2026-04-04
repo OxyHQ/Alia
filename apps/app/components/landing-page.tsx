@@ -36,7 +36,7 @@ import {
 import { OxySignInButton, useAuth } from "@oxyhq/services";
 import { Text } from "@/components/ui/text";
 import { TextShimmer } from "@/components/ui/text-shimmer";
-import { ClarityLogo, type ClarityExpression } from "@/components/ui/clarity-logo";
+import { ClarityWordmark } from "@/components/ui/clarity-wordmark";
 import { useTranslation } from "@/hooks/useTranslation";
 import { useColorScheme } from "@/lib/useColorScheme";
 
@@ -255,13 +255,7 @@ function ScrollIndicator() {
 // ---------------------------------------------------------------------------
 // Constants
 // ---------------------------------------------------------------------------
-const HERO_EXPRESSIONS: ClarityExpression[] = [
-  "Greeting",
-  "Interesting",
-  "Idle A",
-  "Thinking",
-  "Searching F",
-];
+// Logo wordmark is static — no expression cycling needed
 
 const DEMO_KEYS = [
   "landing.demo1",
@@ -289,14 +283,9 @@ export function LandingPage({ returnTo }: LandingPageProps) {
     }
   }, [isAuthenticated, isLoading]);
 
-  // Expression cycling
-  const [expression, setExpression] = useState<ClarityExpression>("Greeting");
+  // No expression cycling needed for wordmark logo
   useEffect(() => {
-    let idx = 0;
-    const interval = setInterval(() => {
-      idx = (idx + 1) % HERO_EXPRESSIONS.length;
-      setExpression(HERO_EXPRESSIONS[idx]);
-    }, 4000);
+    const interval = setInterval(() => {}, 4000);
     return () => clearInterval(interval);
   }, []);
 
@@ -409,7 +398,7 @@ export function LandingPage({ returnTo }: LandingPageProps) {
 
   if (isAuthenticated) return null;
 
-  const faceSize = isLargeScreen ? 200 : 140;
+  const logoHeight = isLargeScreen ? 60 : 44;
 
   return (
     <View className="flex-1">
@@ -476,7 +465,7 @@ export function LandingPage({ returnTo }: LandingPageProps) {
             entering={FadeIn.duration(800)}
             className="items-center w-full max-w-2xl"
           >
-            <ClarityLogo expression={expression} size={faceSize} />
+            <ClarityWordmark height={logoHeight} />
             <View className="mt-6 mb-2">
               <TextShimmer
                 duration={6}

@@ -24,7 +24,7 @@ import { useEntitlements } from "@/lib/hooks/use-billing";
 import { useRouter } from "expo-router";
 import { useTranslation } from "@/hooks/useTranslation";
 import { WelcomeMessage } from "@/components/welcome-message";
-import { ClarityLogo } from "@/lib/sdk";
+import { ClarityWordmark } from "@/components/ui/clarity-wordmark";
 
 type Mode = "search" | "deepResearch";
 
@@ -366,7 +366,7 @@ export const ChatPageContent = ({
 
             {/* logo-area: mb-6 bottom-0 flex w-full items-center justify-center pb-3 text-center */}
             <View className="mb-6 flex w-full items-center justify-center pb-3 text-center">
-              <ClarityLogo size={56} expression="Greeting" />
+              <ClarityWordmark height={40} />
             </View>
 
             {/* Search box: outer > border-wrap > search-box */}
