@@ -9,10 +9,18 @@
  */
 
 import { getBestKeyForModel, recordKeySuccess, recordKeyFailure, recordKeyUsage, markKeyCreditExhausted } from './key-manager';
-import { classifyError } from './errors/failover-error';
+import { classifyError, toAliaError } from './errors/failover-error';
 import { log } from './logger';
 import { callDigitalOceanAsyncInvoke, downloadBinaryFromUrl, extractAudioUrl } from './digitalocean-async';
 import type { FailoverReason } from './errors/error-codes';
+import {
+  TIER_MODEL_MAPPINGS,
+  getAliaModel,
+  isAliaModel,
+  type ModelMapping,
+} from './alia-models';
+import { isProviderAvailable, recordFailure, recordSuccess } from './provider-health';
+import { FallbackEvent } from '../models/fallback-event.js';
 
 // Provider base URLs — internal knowledge
 const PROVIDER_BASES: Record<string, string> = {
@@ -29,6 +37,9 @@ function isDOAsyncInvokeModel(modelId: string): boolean {
 
 // Default ElevenLabs voice ID for DO TTS
 const DO_ELEVENLABS_DEFAULT_VOICE = 'kPzsL2i3teMYv0FxEYQ6';
+
+// Reasons that should not advance to another provider (caller must fix request)
+const NON_PROVIDER_RETRYABLE: Set<FailoverReason> = new Set(['format', 'content_filter']);
 
 /**
  * Build the async-invoke input object from the standard callProviderAPI body.
@@ -76,6 +87,11 @@ export interface ProviderAPIOptions {
   signal?: AbortSignal;     // External abort signal (e.g. global request timeout)
 }
 
+export interface AliaModelAPIOptions extends Omit<ProviderAPIOptions, 'provider' | 'modelId'> {
+  model: string;            // Alia model id (alias)
+  maxProviderAttempts?: number; // Max providers to try (default: all for the tier)
+}
+
 /**
  * Make a non-streaming API call to a provider with automatic key rotation.
  *
@@ -98,6 +114,7 @@ export async function callProviderAPI<T = any>(options: ProviderAPIOptions): Pro
   let lastMessage = '';
 
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    const attemptStart = Date.now();
     if (externalSignal?.aborted) {
       lastReason = 'timeout';
       lastMessage = 'Request aborted by caller';
@@ -135,6 +152,7 @@ export async function callProviderAPI<T = any>(options: ProviderAPIOptions): Pro
           recordKeyUsage(keyId, 0, provider, modelId),
           recordKeySuccess(keyId),
         ]);
+        recordSuccess(provider, modelId, Date.now() - attemptStart).catch(() => {});
 
         // For TTS / binary responses: download audio from the output URL
         if (options.responseType === 'arrayBuffer') {
@@ -191,6 +209,8 @@ export async function callProviderAPI<T = any>(options: ProviderAPIOptions): Pro
           await recordKeyFailure(keyId, `${modelId} ${response.status}: ${errBody.slice(0, 200)}`);
         }
 
+        recordFailure(provider, modelId, `${response.status}`).catch(() => {});
+
         if (NON_RETRYABLE.has(reason)) {
           break;
         }
@@ -203,6 +223,7 @@ export async function callProviderAPI<T = any>(options: ProviderAPIOptions): Pro
         recordKeyUsage(keyId, 0, provider, modelId),
         recordKeySuccess(keyId),
       ]);
+      recordSuccess(provider, modelId, Date.now() - attemptStart).catch(() => {});
 
       if (options.responseType === 'arrayBuffer') {
         const buffer = Buffer.from(await response.arrayBuffer());
@@ -217,6 +238,7 @@ export async function callProviderAPI<T = any>(options: ProviderAPIOptions): Pro
       const isTimeout = fetchErr?.name === 'AbortError';
       log.keys.warn({ attempt, provider, modelId, err: fetchErr, isTimeout }, 'Provider API fetch error');
       await recordKeyFailure(keyId, `${modelId} ${isTimeout ? 'timeout' : 'fetch'}: ${fetchErr?.message?.slice(0, 200)}`);
+      recordFailure(provider, modelId, isTimeout ? 'timeout' : fetchErr?.code || fetchErr?.name || 'fetch_error').catch(() => {});
       lastReason = isTimeout ? 'timeout' : 'unknown';
       lastMessage = fetchErr?.message || 'Network error';
       continue;
@@ -228,4 +250,195 @@ export async function callProviderAPI<T = any>(options: ProviderAPIOptions): Pro
   error.reason = lastReason;
   error.providerMessage = lastMessage;
   throw error;
+}
+
+// ============== ALIA MODEL FALLBACK WRAPPER ==============
+
+interface ProviderAttempt {
+  provider: string;
+  modelId: string;
+  reason: FailoverReason;
+  error: string;
+  latencyMs: number;
+}
+
+interface AliaModelAPIResult<T> {
+  data: T;
+  attempts: ProviderAttempt[];
+  finalProvider: string;
+  finalModelId: string;
+  usedFallback: boolean;
+}
+
+/**
+ * Call a provider API using an Alia model alias with cross-provider fallback.
+ *
+ * - Iterates tier mappings by priority.
+ * - For each mapping, calls callProviderAPI (which handles key rotation + per-provider retries).
+ * - On non-retryable reasons (format/content_filter), stop immediately.
+ * - On retryable reasons (timeout, rate_limit, billing, auth, unknown), advance to next provider.
+ */
+export async function callAliaModelAPI<T = any>(options: AliaModelAPIOptions): Promise<AliaModelAPIResult<T>> {
+  const {
+    model,
+    endpoint,
+    body,
+    formData,
+    maxAttempts,
+    timeout,
+    responseType,
+    signal,
+    maxProviderAttempts,
+  } = options;
+
+  const aliaModel = isAliaModel(model) ? getAliaModel(model) : getAliaModel('alia-v1');
+  if (!aliaModel) {
+    throw toAliaError(new Error('Invalid model'), { provider: 'alia', model });
+  }
+
+  // If caller passed a concrete provider/model in the alias field, just try that once
+  if (!isAliaModel(model) && model.includes('/')) {
+    const [explicitProvider, ...rest] = model.split('/');
+    const explicitModel = rest.join('/');
+    const attemptStart = Date.now();
+    try {
+      const data = await callProviderAPI<T>({
+        provider: explicitProvider,
+        modelId: explicitModel,
+        endpoint,
+        body,
+        formData,
+        maxAttempts,
+        timeout,
+        responseType,
+        signal,
+      });
+      recordFallbackEvent(model, [], explicitProvider, explicitModel, true, Date.now() - attemptStart);
+      return {
+        data,
+        attempts: [],
+        finalProvider: explicitProvider,
+        finalModelId: explicitModel,
+        usedFallback: false,
+      };
+    } catch (err: any) {
+      const reason: FailoverReason = err?.reason ?? classifyError(err);
+      const latencyMs = Date.now() - attemptStart;
+      recordFallbackEvent(
+        model,
+        [{ provider: explicitProvider, model: explicitModel, error: err?.message || String(err), reason, latencyMs }],
+        null,
+        null,
+        false,
+        latencyMs,
+      );
+      throw err;
+    }
+  }
+
+  const mappings = TIER_MODEL_MAPPINGS[aliaModel.tier] ?? [];
+  const sorted = [...mappings].sort((a, b) => a.priority - b.priority);
+  const limit = maxProviderAttempts && maxProviderAttempts > 0
+    ? Math.min(maxProviderAttempts, sorted.length)
+    : sorted.length;
+
+  if (limit === 0) {
+    throw toAliaError(new Error('No providers available for this model tier'), { provider: 'alia', model });
+  }
+
+  const attempts: ProviderAttempt[] = [];
+  const start = Date.now();
+
+  for (let i = 0; i < limit; i++) {
+    const mapping: ModelMapping = sorted[i];
+
+    const available = await isProviderAvailable(mapping.provider, mapping.modelId);
+    if (!available) {
+      attempts.push({
+        provider: mapping.provider,
+        modelId: mapping.modelId,
+        reason: 'unknown',
+        error: 'Circuit breaker open',
+        latencyMs: 0,
+      });
+      continue;
+    }
+
+    const attemptStart = Date.now();
+    try {
+      const data = await callProviderAPI<T>({
+        provider: mapping.provider,
+        modelId: mapping.modelId,
+        endpoint,
+        body,
+        formData,
+        maxAttempts,
+        timeout,
+        responseType,
+        signal,
+      });
+
+      recordFallbackEvent(
+        model,
+        attempts.map((a) => ({
+          provider: a.provider,
+          model: a.modelId,
+          error: a.error,
+          reason: a.reason,
+          latencyMs: a.latencyMs,
+        })),
+        mapping.provider,
+        mapping.modelId,
+        true,
+        Date.now() - start,
+      );
+
+      return {
+        data,
+        attempts,
+        finalProvider: mapping.provider,
+        finalModelId: mapping.modelId,
+        usedFallback: i > 0 || attempts.length > 0,
+      };
+    } catch (err: any) {
+      const reason: FailoverReason = err?.reason ?? classifyError(err);
+      const latencyMs = Date.now() - attemptStart;
+      attempts.push({
+        provider: mapping.provider,
+        modelId: mapping.modelId,
+        reason,
+        error: err?.providerMessage || err?.message || String(err),
+        latencyMs,
+      });
+
+      // Non-provider-retryable reasons: stop and bubble
+      if (NON_PROVIDER_RETRYABLE.has(reason)) {
+        break;
+      }
+
+      // Retryable: move to next mapping
+      continue;
+    }
+  }
+
+  recordFallbackEvent(
+    model,
+    attempts.map((a) => ({
+      provider: a.provider,
+      model: a.modelId,
+      error: a.error,
+      reason: a.reason,
+      latencyMs: a.latencyMs,
+    })),
+    null,
+    null,
+    false,
+    Date.now() - start,
+  );
+
+  const err = toAliaError(new Error('All providers exhausted'), {
+    provider: 'alia',
+    model,
+  });
+  throw err;
 }

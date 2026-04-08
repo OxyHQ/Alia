@@ -6,19 +6,28 @@
  */
 
 import express, { Request, Response } from 'express';
-import { callProviderAPI } from '../lib/provider-api.js';
+import { callAliaModelAPI, callProviderAPI } from '../lib/provider-api.js';
 import { log } from '../lib/logger.js';
 
 const router = express.Router();
 
 router.post('/', async (req: Request, res: Response) => {
   try {
-    const { provider, modelId, endpoint, body, audio, extraFormFields, maxAttempts, timeout, responseType } = req.body;
+    const { provider, modelId, model, endpoint, body, audio, extraFormFields, maxAttempts, timeout, responseType, maxProviderAttempts } = req.body;
 
-    if (!provider || !modelId || !endpoint) {
+    if (!endpoint) {
       return res.status(400).json({
         success: false,
-        error: 'provider, modelId, and endpoint are required',
+        error: 'endpoint is required',
+        code: 'INVALID_REQUEST',
+      });
+    }
+
+    const useAlias = !provider && !modelId && !!model;
+    if (!useAlias && (!provider || !modelId)) {
+      return res.status(400).json({
+        success: false,
+        error: 'provider and modelId are required when not using an Alia model alias',
         code: 'INVALID_REQUEST',
       });
     }
@@ -39,27 +48,41 @@ router.post('/', async (req: Request, res: Response) => {
       }
     }
 
-    const data = await callProviderAPI({
-      provider,
-      modelId,
-      endpoint,
-      body: formData ? undefined : body,
-      formData,
-      maxAttempts: maxAttempts ?? 3,
-      timeout: timeout ?? 30000,
-      responseType: responseType ?? 'json',
-    });
+    const callBody = formData ? undefined : body;
+
+    const data = useAlias
+      ? await callAliaModelAPI({
+          model,
+          endpoint,
+          body: callBody,
+          formData,
+          maxAttempts: maxAttempts ?? 3,
+          timeout: timeout ?? 30000,
+          responseType: responseType ?? 'json',
+          maxProviderAttempts,
+        })
+      : await callProviderAPI({
+          provider: provider as string,
+          modelId: modelId as string,
+          endpoint,
+          body: callBody,
+          formData,
+          maxAttempts: maxAttempts ?? 3,
+          timeout: timeout ?? 30000,
+          responseType: responseType ?? 'json',
+        });
 
     // Binary responses (e.g. TTS audio): return base64-encoded buffer
-    if (responseType === 'arrayBuffer' && Buffer.isBuffer(data)) {
+    const payload = useAlias ? (data as any).data ?? data : data;
+    if (responseType === 'arrayBuffer' && Buffer.isBuffer(payload)) {
       return res.json({
         success: true,
-        data: data.toString('base64'),
+        data: payload.toString('base64'),
         encoding: 'base64',
       });
     }
 
-    res.json({ success: true, data });
+    res.json({ success: true, data: payload });
   } catch (error: any) {
     log.providers.error({ err: error }, 'Provider API call failed');
     res.status(502).json({
