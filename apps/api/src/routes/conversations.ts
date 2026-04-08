@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import mongoose from 'mongoose';
 import { randomUUID } from 'crypto';
 import { Conversation } from '../models/conversation.js';
 import { Message } from '../models/message.js';
@@ -228,11 +229,19 @@ router.patch('/:id/messages/:messageId/vote', authenticateToken, async (req: Req
       return res.status(400).json({ error: 'vote must be "up", "down", or null' });
     }
 
+    const messageId = req.params.messageId;
+    const objectId = mongoose.isValidObjectId(messageId)
+      ? new mongoose.Types.ObjectId(messageId)
+      : null;
+
     const result = await Message.findOneAndUpdate(
       {
         conversationId: req.params.id,
-        id: req.params.messageId,
         oxyUserId: req.user.id,
+        $or: [
+          { id: messageId },
+          ...(objectId ? [{ _id: objectId }] as any[] : []),
+        ],
       },
       vote ? { $set: { vote } } : { $unset: { vote: 1 } },
       { new: true }
