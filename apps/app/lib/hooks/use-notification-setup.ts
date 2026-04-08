@@ -89,6 +89,8 @@ export function useNotificationSetup() {
 
   // ── Notification tap handler (deep-link to conversation) ───────
   useEffect(() => {
+    if (Platform.OS === 'web') return;
+
     const subscription = Notifications.addNotificationResponseReceivedListener(
       (response) => {
         if (!isAuthenticated) return;
