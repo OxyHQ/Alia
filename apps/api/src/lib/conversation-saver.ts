@@ -97,17 +97,7 @@ export async function saveConversation(params: SaveConversationParams): Promise<
   await Message.deleteMany({ conversationId, oxyUserId: userId });
   if (allMessages.length > 0) {
     await Message.insertMany(
-      allMessages.map((m, idx) => ({
-        conversationId,
-        oxyUserId: userId,
-        role: m.role,
-        content: m.content,
-        ...('toolInvocations' in m && m.toolInvocations ? { toolInvocations: m.toolInvocations } : {}),
-        ...('agentInfo' in m && m.agentInfo ? { agentInfo: m.agentInfo } : {}),
-        // Preserve existing id when provided; otherwise generate a deterministic fallback
-        ...(m.id ? { id: m.id } : { id: `msg-${idx}` }),
-        createdAt: new Date(),
-      })),
+      allMessages.map((message, index) => buildStoredMessage(message, userId, conversationId, index)),
       { ordered: false },
     );
   }
@@ -171,4 +161,31 @@ export async function generateConversationTitle(
   } catch (err) {
     log.chat.error({ err, conversationId }, 'generateConversationTitle failed');
   }
+}
+
+function buildStoredMessage(
+  message: any,
+  userId: string,
+  conversationId: string,
+  index: number,
+): Record<string, unknown> {
+  const base = {
+    conversationId,
+    oxyUserId: userId,
+    role: message.role,
+    content: message.content,
+    createdAt: new Date(),
+  };
+
+  const withToolInvocations = message.toolInvocations
+    ? { ...base, toolInvocations: message.toolInvocations }
+    : base;
+
+  const withAgentInfo = message.agentInfo
+    ? { ...withToolInvocations, agentInfo: message.agentInfo }
+    : withToolInvocations;
+
+  const id = message.id ? message.id : `msg-${index}`;
+
+  return { ...withAgentInfo, id };
 }
