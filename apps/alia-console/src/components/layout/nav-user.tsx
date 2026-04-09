@@ -1,14 +1,14 @@
-import { HugeiconsIcon } from '@hugeicons/react';
+import { HugeiconsIcon } from '@hugeicons/react'
 import {
   ArrowUp01Icon,
   Logout03Icon,
   Money01Icon,
   Notification01Icon,
   Setting06Icon,
-} from '@hugeicons/core-free-icons';
-import { useAuth } from '@oxyhq/auth';
-import { Link } from '@tanstack/react-router';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+} from '@hugeicons/core-free-icons'
+import { useAuth } from '@oxyhq/auth'
+import { Link } from '@tanstack/react-router'
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -17,50 +17,62 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
+} from '@/components/ui/dropdown-menu'
 import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
   useSidebar,
-} from '@/components/ui/sidebar';
-import config from '@/lib/config';
+} from '@/components/ui/sidebar'
+import config from '@/lib/config'
 
-export function NavUser() {
-  const { isMobile } = useSidebar();
-  const { user, signOut } = useAuth();
+type UserName = { first?: string; last?: string }
+
+export function NavUser(): JSX.Element | null {
+  const { isMobile } = useSidebar()
+  const { user, signOut } = useAuth()
 
   if (!user) {
-    return null;
+    return null
   }
 
-  const handleSignOut = async () => {
-    await signOut();
-    window.location.href = '/';
-  };
+  async function handleSignOut(): Promise<void> {
+    await signOut()
+    window.location.href = '/'
+  }
 
-  const getUserInitials = () => {
-    if (!user.name) return (user.username.charAt(0) || 'U').toUpperCase();
-    const name = user.name as { first?: string; last?: string };
+  function getUserInitials(): string {
+    if (!user.name) {
+      return (user.username?.[0] || user.email?.[0] || 'U').toUpperCase()
+    }
+
+    const name = user.name as UserName
+
     if (name.first && name.last) {
-      return `${name.first[0]}${name.last[0]}`.toUpperCase();
+      return `${name.first[0]}${name.last[0]}`.toUpperCase()
     }
-    return (name.first?.charAt(0) || user.username.charAt(0) || 'U').toUpperCase();
-  };
 
-  const getAvatarUrl = () => {
-    if (!user.avatar) return undefined;
-    if (user.avatar.startsWith('http')) return user.avatar;
-    return `${config.oxyUrl}/media/${user.avatar}`;
-  };
+    return (
+      name.first?.[0] ||
+      user.username?.[0] ||
+      user.email?.[0] ||
+      'U'
+    ).toUpperCase()
+  }
 
-  const getUserDisplayName = () => {
-    const name = user.name as { first?: string; last?: string } | undefined;
+  function getAvatarUrl(): string | undefined {
+    if (!user.avatar) return undefined
+    if (user.avatar.startsWith('http')) return user.avatar
+    return `${config.oxyUrl}/media/${user.avatar}`
+  }
+
+  function getUserDisplayName(): string {
+    const name = user.name as UserName | undefined
     if (name?.first) {
-      return name.last ? `${name.first} ${name.last}` : name.first;
+      return name.last ? `${name.first} ${name.last}` : name.first
     }
-    return user.username || 'User';
-  };
+    return user.username || 'User'
+  }
 
   return (
     <SidebarMenu>
@@ -73,10 +85,14 @@ export function NavUser() {
             >
               <Avatar className="h-8 w-8 rounded-lg">
                 <AvatarImage src={getAvatarUrl()} alt={getUserDisplayName()} />
-                <AvatarFallback className="rounded-lg">{getUserInitials()}</AvatarFallback>
+                <AvatarFallback className="rounded-lg">
+                  {getUserInitials()}
+                </AvatarFallback>
               </Avatar>
               <div className="grid flex-1 text-left text-sm leading-tight">
-                <span className="truncate font-medium">{getUserDisplayName()}</span>
+                <span className="truncate font-medium">
+                  {getUserDisplayName()}
+                </span>
                 <span className="truncate text-xs">{user.email}</span>
               </div>
               <HugeiconsIcon icon={ArrowUp01Icon} className="ml-auto size-4" />
@@ -91,11 +107,18 @@ export function NavUser() {
             <DropdownMenuLabel className="p-0 font-normal">
               <div className="flex items-center gap-2 px-1 py-1.5 text-left text-sm">
                 <Avatar className="h-8 w-8 rounded-lg">
-                  <AvatarImage src={getAvatarUrl()} alt={getUserDisplayName()} />
-                  <AvatarFallback className="rounded-lg">{getUserInitials()}</AvatarFallback>
+                  <AvatarImage
+                    src={getAvatarUrl()}
+                    alt={getUserDisplayName()}
+                  />
+                  <AvatarFallback className="rounded-lg">
+                    {getUserInitials()}
+                  </AvatarFallback>
                 </Avatar>
                 <div className="grid flex-1 text-left text-sm leading-tight">
-                  <span className="truncate font-medium">{getUserDisplayName()}</span>
+                  <span className="truncate font-medium">
+                    {getUserDisplayName()}
+                  </span>
                   <span className="truncate text-xs">{user.email}</span>
                 </div>
               </div>
@@ -118,7 +141,10 @@ export function NavUser() {
               </DropdownMenuItem>
             </DropdownMenuGroup>
             <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={handleSignOut} className="text-destructive">
+            <DropdownMenuItem
+              onClick={handleSignOut}
+              className="text-destructive"
+            >
               <HugeiconsIcon icon={Logout03Icon} size={16} />
               Sign out
             </DropdownMenuItem>
@@ -126,5 +152,5 @@ export function NavUser() {
         </DropdownMenu>
       </SidebarMenuItem>
     </SidebarMenu>
-  );
+  )
 }
