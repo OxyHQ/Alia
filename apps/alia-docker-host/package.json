@@ -6,7 +6,7 @@
   "type": "module",
   "main": "dist/index.js",
   "scripts": {
-    "dev": "tsx watch src/index.ts",
+    "dev": "bun --watch src/index.ts",
     "build": "tsc",
     "start": "node dist/index.js"
   },
@@ -24,7 +24,6 @@
     "@types/express": "^5.0.0",
     "@types/cors": "^2.8.17",
     "@types/node": "^25.0.8",
-    "tsx": "^4.19.2",
     "typescript": "^5.9.3",
     "pino-pretty": "^13.1.3"
   }

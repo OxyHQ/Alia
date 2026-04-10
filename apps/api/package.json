@@ -6,7 +6,7 @@
   "type": "module",
   "main": "dist/index.js",
   "scripts": {
-    "dev": "tsx watch src/index.ts",
+    "dev": "bun --watch src/index.ts",
     "build": "bun build.ts",
     "start": "node dist/index.js",
     "lint": "eslint src",
@@ -24,7 +24,7 @@
     "@livekit/agents": "^1.0.43",
     "@livekit/rtc-node": "^0.13.24",
     "@mozilla/readability": "^0.6.0",
-    "@oxyhq/core": "^1.11.3",
+    "@oxyhq/core": "^1.11.11",
     "@socket.io/redis-adapter": "^8.3.0",
     "ai": "^6.0.33",
     "bullmq": "^5.70.1",
@@ -45,7 +45,6 @@
     "socket.io": "^4.8.3",
     "ssh2": "^1.17.0",
     "stripe": "^20.2.0",
-    "tsx": "^4.19.2",
     "web-push": "^3.6.7",
     "ws": "^8.19.0",
     "zod": "^3.24.1"
