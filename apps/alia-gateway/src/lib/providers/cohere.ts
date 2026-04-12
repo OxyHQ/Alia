@@ -33,6 +33,7 @@ export const cohereProvider: Provider = {
       throw new Error(`Cohere ${res.status}: ${await res.text()}`);
     }
 
-    return res.body!;
+    if (!res.body) throw new Error('Cohere returned empty response body');
+    return res.body;
   },
 };

@@ -32,7 +32,8 @@ export const groqProvider: Provider = {
       throw new Error(`Groq ${res.status}: ${await res.text()}`);
     }
 
+    if (!res.body) throw new Error('Groq returned empty response body');
     // Groq ya usa formato OpenAI nativo
-    return res.body!;
+    return res.body;
   }
 };

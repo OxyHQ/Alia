@@ -6,7 +6,7 @@
 import express, { Request, Response } from 'express';
 import { PlanFeature } from '../models/plan-feature.js';
 import { Feature } from '../models/feature.js';
-import { Plan } from '../models/plan.js';
+import { Plan, type IPlan } from '../models/plan.js';
 import { broadcastPlanFeaturesUpdate } from '../lib/broadcast-helpers.js';
 import { log } from '../lib/logger.js';
 
@@ -19,12 +19,12 @@ const router = express.Router();
 router.get('/', async (req: Request, res: Response) => {
   try {
     const { planId } = req.query;
-    const query: any = {};
+    const query: Record<string, string> = {};
     if (planId && typeof planId === 'string') query.planId = planId;
 
     const mappings = await PlanFeature.find(query).sort({ planId: 1, featureId: 1 }).lean();
     res.json({ success: true, count: mappings.length, data: mappings });
-  } catch (error: any) {
+  } catch (error: unknown) {
     log.providers.error({ err: error }, 'Error listing plan-features');
     res.status(500).json({ success: false, error: 'An internal error occurred', code: 'INTERNAL_ERROR' });
   }
@@ -43,7 +43,7 @@ router.get('/matrix', async (_req: Request, res: Response) => {
     ]);
 
     // Build lookup: planId:featureId -> mapping
-    const mappingMap: Record<string, any> = {};
+    const mappingMap: Record<string, typeof mappings[number]> = {};
     for (const m of mappings) {
       mappingMap[`${m.planId}:${m.featureId}`] = m;
     }
@@ -52,11 +52,11 @@ router.get('/matrix', async (_req: Request, res: Response) => {
       success: true,
       data: {
         features,
-        plans: plans.map(p => ({ planId: (p as any).planId, name: p.name, product: p.product })),
+        plans: plans.map(p => ({ planId: (p as IPlan).planId, name: p.name, product: p.product })),
         mappings: mappingMap,
       },
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     log.providers.error({ err: error }, 'Error building plan-features matrix');
     res.status(500).json({ success: false, error: 'An internal error occurred', code: 'INTERNAL_ERROR' });
   }
@@ -86,7 +86,7 @@ router.put('/:planId/:featureId', async (req: Request, res: Response) => {
 
     res.json({ success: true, data: mapping });
     broadcastPlanFeaturesUpdate();
-  } catch (error: any) {
+  } catch (error: unknown) {
     log.providers.error({ err: error }, 'Error upserting plan-feature');
     res.status(500).json({ success: false, error: 'An internal error occurred', code: 'INTERNAL_ERROR' });
   }
@@ -104,7 +104,16 @@ router.post('/bulk', async (req: Request, res: Response) => {
       return res.status(400).json({ success: false, error: 'mappings must be an array', code: 'INVALID_REQUEST' });
     }
 
-    const ops = mappings.map((m: any) => ({
+    interface BulkMappingInput {
+      planId: string;
+      featureId: string;
+      enabled?: boolean;
+      limitValue?: number;
+      displayLabel?: string;
+      displayDescription?: string;
+    }
+
+    const ops = (mappings as BulkMappingInput[]).map((m) => ({
       updateOne: {
         filter: { planId: m.planId, featureId: m.featureId },
         update: {
@@ -128,7 +137,7 @@ router.post('/bulk', async (req: Request, res: Response) => {
       total: ops.length,
     });
     broadcastPlanFeaturesUpdate();
-  } catch (error: any) {
+  } catch (error: unknown) {
     log.providers.error({ err: error }, 'Error bulk upserting plan-features');
     res.status(500).json({ success: false, error: 'An internal error occurred', code: 'INTERNAL_ERROR' });
   }
@@ -147,7 +156,7 @@ router.delete('/:planId/:featureId', async (req: Request, res: Response) => {
     }
     res.json({ success: true, message: 'Mapping deleted' });
     broadcastPlanFeaturesUpdate();
-  } catch (error: any) {
+  } catch (error: unknown) {
     log.providers.error({ err: error }, 'Error deleting plan-feature');
     res.status(500).json({ success: false, error: 'An internal error occurred', code: 'INTERNAL_ERROR' });
   }

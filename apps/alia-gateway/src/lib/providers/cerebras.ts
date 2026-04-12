@@ -32,6 +32,7 @@ export const cerebrasProvider: Provider = {
       throw new Error(`Cerebras ${res.status}: ${await res.text()}`);
     }
 
-    return res.body!;
+    if (!res.body) throw new Error('Cerebras returned empty response body');
+    return res.body;
   }
 };

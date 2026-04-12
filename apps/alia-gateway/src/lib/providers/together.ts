@@ -32,6 +32,7 @@ export const togetherProvider: Provider = {
       throw new Error(`Together ${res.status}: ${await res.text()}`);
     }
 
-    return res.body!;
+    if (!res.body) throw new Error('Together returned empty response body');
+    return res.body;
   }
 };

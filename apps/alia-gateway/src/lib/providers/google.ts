@@ -97,7 +97,8 @@ export const googleProvider: Provider = {
       throw new Error(`Gemini ${res.status}: ${await res.text()}`);
     }
 
-    return transformGeminiStream(res.body!, key.modelId);
+    if (!res.body) throw new Error('Gemini returned empty response body');
+    return transformGeminiStream(res.body, key.modelId);
   }
 };
 

@@ -34,7 +34,8 @@ export const mistralProvider: Provider = {
       throw new Error(`Mistral ${res.status}: ${await res.text()}`);
     }
 
+    if (!res.body) throw new Error('Mistral returned empty response body');
     // Mistral uses OpenAI-compatible format
-    return res.body!;
+    return res.body;
   }
 };

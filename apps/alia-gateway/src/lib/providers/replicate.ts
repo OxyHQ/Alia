@@ -131,6 +131,7 @@ export const replicateProvider: Provider = {
       throw new Error(`Replicate ${res.status}: ${await res.text()}`);
     }
 
-    return convertReplicateStreamToOpenAI(res.body!);
+    if (!res.body) throw new Error('Replicate returned empty response body');
+    return convertReplicateStreamToOpenAI(res.body);
   },
 };

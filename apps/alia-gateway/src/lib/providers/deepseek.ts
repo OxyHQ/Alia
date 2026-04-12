@@ -34,7 +34,8 @@ export const deepseekProvider: Provider = {
       throw new Error(`DeepSeek ${res.status}: ${await res.text()}`);
     }
 
+    if (!res.body) throw new Error('DeepSeek returned empty response body');
     // DeepSeek uses OpenAI-compatible format
-    return res.body!;
+    return res.body;
   }
 };

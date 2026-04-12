@@ -161,7 +161,7 @@ export async function callProviderAPI<T = any>(options: ProviderAPIOptions): Pro
             throw new Error(`DO async-invoke: no audio URL in output for ${modelId}`);
           }
           const buffer = await downloadBinaryFromUrl(audioUrl, combinedSignal);
-          return buffer as any as T;
+          return buffer as unknown as T;
         }
 
         return output as T;
@@ -227,26 +227,29 @@ export async function callProviderAPI<T = any>(options: ProviderAPIOptions): Pro
 
       if (options.responseType === 'arrayBuffer') {
         const buffer = Buffer.from(await response.arrayBuffer());
-        return buffer as any as T;
+        return buffer as unknown as T;
       }
 
       const data = await response.json() as T;
       return data;
 
-    } catch (fetchErr: any) {
+    } catch (fetchErr: unknown) {
       if (timer) clearTimeout(timer);
-      const isTimeout = fetchErr?.name === 'AbortError';
-      log.keys.warn({ attempt, provider, modelId, err: fetchErr, isTimeout }, 'Provider API fetch error');
-      await recordKeyFailure(keyId, `${modelId} ${isTimeout ? 'timeout' : 'fetch'}: ${fetchErr?.message?.slice(0, 200)}`);
-      recordFailure(provider, modelId, isTimeout ? 'timeout' : fetchErr?.code || fetchErr?.name || 'fetch_error').catch(() => {});
+      const errObj = fetchErr instanceof Error ? fetchErr : new Error(String(fetchErr));
+      const isTimeout = errObj.name === 'AbortError';
+      log.keys.warn({ attempt, provider, modelId, err: errObj, isTimeout }, 'Provider API fetch error');
+      await recordKeyFailure(keyId, `${modelId} ${isTimeout ? 'timeout' : 'fetch'}: ${errObj.message.slice(0, 200)}`);
+      recordFailure(provider, modelId, isTimeout ? 'timeout' : errObj.name || 'fetch_error').catch((err: unknown) => {
+        log.keys.warn({ err }, 'Failed to record provider failure');
+      });
       lastReason = isTimeout ? 'timeout' : 'unknown';
-      lastMessage = fetchErr?.message || 'Network error';
+      lastMessage = errObj.message || 'Network error';
       continue;
     }
   }
 
   // All attempts exhausted
-  const error: any = new Error(`Provider API exhausted: ${provider}/${modelId} (${lastReason})`);
+  const error = new Error(`Provider API exhausted: ${provider}/${modelId} (${lastReason})`) as Error & { reason: FailoverReason; providerMessage: string };
   error.reason = lastReason;
   error.providerMessage = lastMessage;
   throw error;

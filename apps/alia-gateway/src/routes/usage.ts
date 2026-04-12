@@ -7,12 +7,9 @@ import express, { Request, Response } from 'express';
 import ApiKeyUsage from '../models/billing-refs.js';
 import { log } from '../lib/logger.js';
 
-// Cost tracking -- stubbed for standalone service
-async function getGlobalCostStats(_start: Date, _end: Date) {
-  return { totalCostUSD: 0, byProvider: [], byModel: [] };
-}
-
 const router = express.Router();
+
+const ALLOWED_PERIODS = ['24h', '7d', '30d', '90d'];
 
 function getStartDate(period: string): Date {
   const now = new Date();
@@ -44,7 +41,8 @@ function getStartDate(period: string): Date {
  */
 router.get('/', async (req: Request, res: Response) => {
   try {
-    const period = (req.query.period as string) || '7d';
+    let period = (req.query.period as string) || '7d';
+    if (!ALLOWED_PERIODS.includes(period)) period = '7d';
     const startDate = getStartDate(period);
 
     const [summary] = await ApiKeyUsage.aggregate([
@@ -107,7 +105,7 @@ router.get('/', async (req: Request, res: Response) => {
         byEndpoint,
       },
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     log.providers.error({ err: error }, 'Error getting usage stats');
     res.status(500).json({
       success: false,
@@ -123,16 +121,42 @@ router.get('/', async (req: Request, res: Response) => {
  */
 router.get('/costs', async (req: Request, res: Response) => {
   try {
-    const period = (req.query.period as string) || '7d';
+    let period = (req.query.period as string) || '7d';
+    if (!ALLOWED_PERIODS.includes(period)) period = '7d';
     const startDate = getStartDate(period);
 
-    const stats = await getGlobalCostStats(startDate, new Date());
+    // Cost breakdown from aggregated usage data
+    const [byProvider, byModel] = await Promise.all([
+      ApiKeyUsage.aggregate([
+        { $match: { timestamp: { $gte: startDate } } },
+        {
+          $group: {
+            _id: '$provider',
+            totalCredits: { $sum: '$creditsUsed' },
+            requests: { $sum: 1 },
+          },
+        },
+        { $sort: { totalCredits: -1 } },
+      ]),
+      ApiKeyUsage.aggregate([
+        { $match: { timestamp: { $gte: startDate } } },
+        {
+          $group: {
+            _id: '$model',
+            totalCredits: { $sum: '$creditsUsed' },
+            requests: { $sum: 1 },
+          },
+        },
+        { $sort: { totalCredits: -1 } },
+        { $limit: 10 },
+      ]),
+    ]);
 
     res.json({
       success: true,
-      data: stats,
+      data: { totalCostUSD: 0, byProvider, byModel },
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     log.providers.error({ err: error }, 'Error getting cost stats');
     res.status(500).json({
       success: false,
