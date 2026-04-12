@@ -327,10 +327,55 @@ async function tryResolveWithKey(
   }
 }
 
-// ============== ANALYTICS (FIRE-AND-FORGET) ==============
+// ============== WRITE BATCHING ==============
+
+const FLUSH_INTERVAL_MS = 5_000;
+const MAX_BUFFER_SIZE = 100;
+let eventBuffer: Array<Record<string, unknown>> = [];
+let flushTimer: ReturnType<typeof setInterval> | null = null;
+
+function startFlushTimer(): void {
+  if (flushTimer) return;
+  flushTimer = setInterval(flushEvents, FLUSH_INTERVAL_MS);
+  flushTimer.unref(); // Don't block process exit
+}
+
+async function flushEvents(): Promise<void> {
+  if (eventBuffer.length === 0) return;
+  const batch = eventBuffer;
+  eventBuffer = [];
+  try {
+    await FallbackEvent.insertMany(batch, { ordered: false });
+  } catch (err: unknown) {
+    log.fallback.warn({ err, count: batch.length }, 'Failed to flush fallback events');
+  }
+}
+
+function bufferFallbackEvent(event: Record<string, unknown>): void {
+  eventBuffer.push(event);
+  startFlushTimer();
+  if (eventBuffer.length >= MAX_BUFFER_SIZE) {
+    flushEvents();
+  }
+}
 
 /**
- * Record a fallback event for analytics. Non-blocking, fire-and-forget.
+ * Flush any pending buffered events. Call during graceful shutdown
+ * before closing the MongoDB connection.
+ */
+export async function flushPendingEvents(): Promise<void> {
+  if (flushTimer) {
+    clearInterval(flushTimer);
+    flushTimer = null;
+  }
+  await flushEvents();
+}
+
+// ============== ANALYTICS (BUFFERED) ==============
+
+/**
+ * Record a fallback event for analytics.
+ * Events are buffered and flushed in batches to reduce MongoDB write pressure.
  */
 function recordFallbackEvent(
   aliasModel: string,
@@ -345,7 +390,7 @@ function recordFallbackEvent(
     return;
   }
 
-  FallbackEvent.create({
+  bufferFallbackEvent({
     timestamp: new Date(),
     aliasModel,
     attempts: attempts.map((a) => ({
@@ -359,7 +404,5 @@ function recordFallbackEvent(
     finalModel,
     success,
     totalLatencyMs,
-  }).catch((err: unknown) => {
-    log.fallback.error({ err }, 'Failed to record fallback event');
   });
 }

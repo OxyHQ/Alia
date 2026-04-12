@@ -10,12 +10,14 @@ import { log } from './lib/logger';
 import { isAbortError, isFatalError, isTransientNetworkError } from './lib/error-classification';
 import { runStartupSeed } from './lib/seed-model-configs';
 import { stopHealthCheckMonitor } from './lib/provider-health';
+import { flushPendingEvents } from './lib/fallback-engine';
 import { authenticateService } from './middleware/auth';
 import { providersWss } from './ws';
 import providersModule from './router';
 import resolveRouter from './routes/resolve';
 import callRouter from './routes/call';
 import reportRouter from './routes/report';
+import streamRouter from './routes/stream';
 import dataRouter from './routes/data';
 
 // Process-level error handlers — prevent crashes from unhandled rejections
@@ -112,6 +114,7 @@ app.use('/gateway', providersModule);
 app.use('/api/resolve', authenticateService, resolveRouter);
 app.use('/api/call', authenticateService, callRouter);
 app.use('/api/report', authenticateService, reportRouter);
+app.use('/api/stream', authenticateService, streamRouter);
 app.use('/api', authenticateService, dataRouter);
 
 // Global error handler — ensures JSON responses for unhandled middleware errors
@@ -197,6 +200,10 @@ async function start() {
     forceTimeout.unref();
 
     try {
+      // Flush buffered fallback events before closing the database connection
+      await flushPendingEvents();
+      log.general.info('Flushed pending fallback events');
+
       await mongoose.connection.close();
       log.general.info('MongoDB connection closed');
       clearTimeout(forceTimeout);

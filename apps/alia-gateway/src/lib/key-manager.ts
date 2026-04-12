@@ -1,16 +1,30 @@
 /**
  * Key Manager - Handles provider key loading, selection, and rate limiting
  * Uses dynamic priority rotation: failed keys move to end of queue
+ *
+ * Optimizations:
+ * - Batched rate-limit queries: one aggregation per time window for ALL candidate keys
+ * - Latency-weighted key selection: keys with lower provider latency score better
+ * - Daily/monthly spend caps: rolling-window cost checks from tracked spend fields
  */
 
+import mongoose from 'mongoose';
 import { ProviderKey, IProviderKey } from '../models/provider-key.js';
 import { ApiUsage } from '../models/api-usage.js';
+import { getProviderHealth } from './provider-health.js';
 import type { KeyConfig } from './types';
 import { log } from './logger';
 
 // Cache for loaded keys (TTL: 30 seconds)
 const keyCache = new Map<string, { keys: IProviderKey[]; timestamp: number }>();
 const KEY_CACHE_TTL = 30000;
+
+// Rolling window durations in milliseconds
+const ONE_SECOND_MS = 1_000;
+const ONE_MINUTE_MS = 60_000;
+const ONE_HOUR_MS = 3_600_000;
+const ONE_DAY_MS = 86_400_000;
+const THIRTY_DAYS_MS = 30 * ONE_DAY_MS;
 
 /**
  * Load all available keys for a provider from MongoDB
@@ -34,12 +48,12 @@ export async function loadProviderKeys(provider: string): Promise<IProviderKey[]
 
   // Separate free and paid keys, sort each group by currentPriority
   const freeKeys = allKeys
-    .filter((k: any) => !k.isPaid)
-    .sort((a: any, b: any) => a.currentPriority - b.currentPriority);
+    .filter((k: IProviderKey) => !k.isPaid)
+    .sort((a: IProviderKey, b: IProviderKey) => a.currentPriority - b.currentPriority);
 
   const paidKeys = allKeys
-    .filter((k: any) => k.isPaid)
-    .sort((a: any, b: any) => a.currentPriority - b.currentPriority);
+    .filter((k: IProviderKey) => k.isPaid)
+    .sort((a: IProviderKey, b: IProviderKey) => a.currentPriority - b.currentPriority);
 
   // Free keys first, then paid keys
   const keys = [...freeKeys, ...paidKeys];
@@ -50,75 +64,190 @@ export async function loadProviderKeys(provider: string): Promise<IProviderKey[]
   return keys;
 }
 
+// ============== BATCHED RATE-LIMIT QUERIES ==============
+
+interface WindowStats {
+  count: number;
+  tokens: number;
+}
+
+/** Per-key usage stats across all time windows, loaded in batch. */
+interface BatchedKeyUsage {
+  second: WindowStats;
+  minute: WindowStats;
+  hour: WindowStats;
+  day: WindowStats;
+}
+
+const EMPTY_STATS: WindowStats = { count: 0, tokens: 0 };
+
 /**
- * Check if a key has exceeded rate limits.
- * Uses a single $facet aggregation to check all limits in one DB round-trip.
+ * Batch-load usage stats for a set of keys across all rate-limit windows.
+ *
+ * Runs one aggregation per distinct time window (1s, 1m, 1h, 1d) — at most
+ * 4 DB round-trips total regardless of how many keys there are, instead of
+ * N round-trips (one per key).
+ *
+ * Returns a Map from key._id.toString() -> BatchedKeyUsage.
  */
-async function isKeyRateLimited(key: IProviderKey, tokens: number = 0): Promise<boolean> {
-  const rl = key.rateLimit;
-  // No limits configured = not rate limited
-  if (!rl.rps && !rl.rpm && !rl.rph && !rl.rpd && !rl.tps && !rl.tpm && !rl.tph && !rl.tpd) {
-    return false;
+async function batchLoadUsageStats(
+  keys: IProviderKey[],
+): Promise<Map<string, BatchedKeyUsage>> {
+  const result = new Map<string, BatchedKeyUsage>();
+
+  if (keys.length === 0) return result;
+
+  // Determine which windows are actually needed based on the keys' rate limits
+  let needSecond = false;
+  let needMinute = false;
+  let needHour = false;
+  let needDay = false;
+
+  for (const key of keys) {
+    const rl = key.rateLimit;
+    if (rl.rps || rl.tps) needSecond = true;
+    if (rl.rpm || rl.tpm) needMinute = true;
+    if (rl.rph || rl.tph) needHour = true;
+    if (rl.rpd || rl.tpd) needDay = true;
+  }
+
+  // If no rate limits configured on any key, return empty map (all pass)
+  if (!needSecond && !needMinute && !needHour && !needDay) {
+    return result;
   }
 
   const now = Date.now();
-  const oneSecondAgo = new Date(now - 1000);
-  const oneMinuteAgo = new Date(now - 60000);
-  const oneHourAgo = new Date(now - 3600000);
-  const oneDayAgo = new Date(now - 86400000);
+  const keyIds = keys.map((k) => k._id);
 
-  // Build facet stages only for configured limits
-  const facet: Record<string, any[]> = {};
-  if (rl.rps || rl.tps) {
-    facet.secondStats = [
-      { $match: { timestamp: { $gte: oneSecondAgo } } },
-      { $group: { _id: null, count: { $sum: 1 }, tokens: { $sum: '$tokens' } } },
-    ];
-  }
-  if (rl.rpm || rl.tpm) {
-    facet.minuteStats = [
-      { $match: { timestamp: { $gte: oneMinuteAgo } } },
-      { $group: { _id: null, count: { $sum: 1 }, tokens: { $sum: '$tokens' } } },
-    ];
-  }
-  if (rl.rph || rl.tph) {
-    facet.hourStats = [
-      { $match: { timestamp: { $gte: oneHourAgo } } },
-      { $group: { _id: null, count: { $sum: 1 }, tokens: { $sum: '$tokens' } } },
-    ];
-  }
-  if (rl.rpd || rl.tpd) {
-    facet.dayStats = [
-      { $group: { _id: null, count: { $sum: 1 }, tokens: { $sum: '$tokens' } } },
-    ];
+  // Helper: run one aggregation for a time window, grouped by keyId
+  async function aggregateWindow(
+    sinceMs: number,
+  ): Promise<Map<string, WindowStats>> {
+    const since = new Date(now - sinceMs);
+    const rows: Array<{ _id: mongoose.Types.ObjectId; count: number; tokens: number }> =
+      await ApiUsage.aggregate([
+        { $match: { keyId: { $in: keyIds }, timestamp: { $gte: since } } },
+        { $group: { _id: '$keyId', count: { $sum: 1 }, tokens: { $sum: '$tokens' } } },
+      ]);
+    const map = new Map<string, WindowStats>();
+    for (const row of rows) {
+      map.set(row._id.toString(), { count: row.count, tokens: row.tokens });
+    }
+    return map;
   }
 
-  // Single aggregation with $facet to check all limits at once
-  const [result] = await ApiUsage.aggregate([
-    { $match: { keyId: key._id, timestamp: { $gte: oneDayAgo } } },
-    { $facet: facet },
+  // Fire all needed window queries in parallel
+  const [secondMap, minuteMap, hourMap, dayMap] = await Promise.all([
+    needSecond ? aggregateWindow(ONE_SECOND_MS) : Promise.resolve(new Map<string, WindowStats>()),
+    needMinute ? aggregateWindow(ONE_MINUTE_MS) : Promise.resolve(new Map<string, WindowStats>()),
+    needHour ? aggregateWindow(ONE_HOUR_MS) : Promise.resolve(new Map<string, WindowStats>()),
+    needDay ? aggregateWindow(ONE_DAY_MS) : Promise.resolve(new Map<string, WindowStats>()),
   ]);
 
-  const second = result?.secondStats?.[0] || { count: 0, tokens: 0 };
-  const minute = result?.minuteStats?.[0] || { count: 0, tokens: 0 };
-  const hour = result?.hourStats?.[0] || { count: 0, tokens: 0 };
-  const day = result?.dayStats?.[0] || { count: 0, tokens: 0 };
+  // Assemble per-key results
+  for (const key of keys) {
+    const id = key._id.toString();
+    result.set(id, {
+      second: secondMap.get(id) ?? EMPTY_STATS,
+      minute: minuteMap.get(id) ?? EMPTY_STATS,
+      hour: hourMap.get(id) ?? EMPTY_STATS,
+      day: dayMap.get(id) ?? EMPTY_STATS,
+    });
+  }
 
-  if (rl.rps && second.count >= rl.rps) return true;
-  if (rl.rpm && minute.count >= rl.rpm) return true;
-  if (rl.rph && hour.count >= rl.rph) return true;
-  if (rl.rpd && day.count >= rl.rpd) return true;
-  if (rl.tps && tokens > 0 && second.tokens + tokens > rl.tps) return true;
-  if (rl.tpm && tokens > 0 && minute.tokens + tokens > rl.tpm) return true;
-  if (rl.tph && tokens > 0 && hour.tokens + tokens > rl.tph) return true;
-  if (rl.tpd && tokens > 0 && day.tokens + tokens > rl.tpd) return true;
+  return result;
+}
+
+/**
+ * Check if a key exceeds its rate limits using pre-loaded batched usage stats.
+ */
+function isKeyRateLimitedFromBatch(
+  key: IProviderKey,
+  usage: BatchedKeyUsage,
+  estimatedTokens: number,
+): boolean {
+  const rl = key.rateLimit;
+
+  if (rl.rps && usage.second.count >= rl.rps) return true;
+  if (rl.rpm && usage.minute.count >= rl.rpm) return true;
+  if (rl.rph && usage.hour.count >= rl.rph) return true;
+  if (rl.rpd && usage.day.count >= rl.rpd) return true;
+
+  if (estimatedTokens > 0) {
+    if (rl.tps && usage.second.tokens + estimatedTokens > rl.tps) return true;
+    if (rl.tpm && usage.minute.tokens + estimatedTokens > rl.tpm) return true;
+    if (rl.tph && usage.hour.tokens + estimatedTokens > rl.tph) return true;
+    if (rl.tpd && usage.day.tokens + estimatedTokens > rl.tpd) return true;
+  }
 
   return false;
 }
 
+// ============== DAILY/MONTHLY SPEND CAP CHECKS ==============
+
 /**
- * Get the best available key for a provider/model combination
- * Keys are already sorted by currentPriority (dynamic rotation)
+ * Check if a key has exceeded its daily or monthly spend cap.
+ *
+ * Uses the rolling-window tracked fields on the key document
+ * (dailySpentUSD / monthlySpentUSD) which are reset when the
+ * window expires. No extra DB query needed.
+ */
+function isKeyOverSpendCap(key: IProviderKey, nowMs: number): boolean {
+  // Daily cap check
+  if (key.dailyLimitUSD != null) {
+    const windowExpired = nowMs - key.dailySpentResetAt.getTime() >= ONE_DAY_MS;
+    const dailySpent = windowExpired ? 0 : key.dailySpentUSD;
+    if (dailySpent >= key.dailyLimitUSD) {
+      return true;
+    }
+  }
+
+  // Monthly cap check
+  if (key.monthlyLimitUSD != null) {
+    const windowExpired = nowMs - key.monthlySpentResetAt.getTime() >= THIRTY_DAYS_MS;
+    const monthlySpent = windowExpired ? 0 : key.monthlySpentUSD;
+    if (monthlySpent >= key.monthlyLimitUSD) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+// ============== LATENCY-WEIGHTED KEY SCORING ==============
+
+/**
+ * Compute an effective score for key selection.
+ *
+ * Base score is the key's currentPriority (lower = better).
+ * A latency penalty of (averageLatencyMs / 1000) is added so that among
+ * keys with similar priority, faster providers win.
+ *
+ * Example: priority 5 + 200ms latency = score 5.2
+ *          priority 6 + 50ms latency  = score 6.05
+ */
+async function computeKeyScore(key: IProviderKey, modelId: string): Promise<number> {
+  let latencyPenalty = 0;
+
+  try {
+    const health = await getProviderHealth(key.provider, modelId);
+    if (health.averageLatencyMs > 0) {
+      latencyPenalty = health.averageLatencyMs / 1000;
+    }
+  } catch {
+    // If health data is unavailable, skip the latency adjustment
+  }
+
+  return key.currentPriority + latencyPenalty;
+}
+
+/**
+ * Get the best available key for a provider/model combination.
+ *
+ * Improvements over the naive per-key loop:
+ * 1. Rate limits are checked from a single batched aggregation (not N queries)
+ * 2. Daily/monthly spend caps are evaluated from tracked key fields
+ * 3. Keys are scored with a latency penalty so faster providers win ties
  */
 export async function getBestKeyForModel(
   provider: string,
@@ -133,59 +262,108 @@ export async function getBestKeyForModel(
     return null;
   }
 
-  // Try keys in order of currentPriority (already sorted)
-  // Failed keys will have been moved to end of queue
-  const now = new Date();
-  for (const key of keys) {
-    // Skip keys explicitly excluded by the caller (already failed in this request)
-    if (skipKeyIds?.has(key._id.toString())) {
-      continue;
-    }
+  const nowMs = Date.now();
+  const now = new Date(nowMs);
 
-    // Skip keys in cooldown period
+  // --- Phase 1: Pre-filter candidates (cheap, no DB) ---
+  const candidates: IProviderKey[] = [];
+  for (const key of keys) {
+    if (skipKeyIds?.has(key._id.toString())) continue;
+
     if (key.cooldownUntil && key.cooldownUntil > now) {
       log.keys.debug({ keyPrefix: key.keyPrefix, provider: key.provider, cooldownUntil: key.cooldownUntil }, 'Key in cooldown, skipping');
       continue;
     }
 
-    // Skip keys that have exceeded their credit limit
     if (key.creditLimitUSD != null && key.spentUSD >= key.creditLimitUSD) {
       log.keys.debug({ keyPrefix: key.keyPrefix, provider: key.provider, spentUSD: key.spentUSD, creditLimitUSD: key.creditLimitUSD }, 'Key credit exhausted, skipping');
       continue;
     }
 
-    // Check rate limits
-    const isLimited = await isKeyRateLimited(key, estimatedTokens);
-    if (isLimited) {
+    if (isKeyOverSpendCap(key, nowMs)) {
+      log.keys.debug({ keyPrefix: key.keyPrefix, provider: key.provider }, 'Key over daily/monthly spend cap, skipping');
       continue;
     }
 
-    // Skip keys without a stored key value
     if (!key.key) {
       log.keys.warn({ keyPrefix: key.keyPrefix, provider: key.provider }, 'Key has no value, skipping');
       continue;
     }
 
-    // Found a suitable key
-    return {
-      keyId: key._id.toString(),
-      provider: key.provider,
-      modelId,
-      key: key.key,
-      isPaid: key.isPaid,
-      rps: key.rateLimit.rps,
-      rpm: key.rateLimit.rpm,
-      rph: key.rateLimit.rph,
-      rpd: key.rateLimit.rpd,
-      tps: key.rateLimit.tps,
-      tpm: key.rateLimit.tpm,
-      tph: key.rateLimit.tph,
-      tpd: key.rateLimit.tpd,
-    };
+    candidates.push(key);
   }
 
-  log.keys.warn({ provider }, 'All keys rate-limited or in cooldown');
-  return null;
+  if (candidates.length === 0) {
+    log.keys.warn({ provider }, 'All keys filtered out before rate-limit check');
+    return null;
+  }
+
+  // --- Phase 2: Batch-load rate-limit usage for all candidates (1-4 DB queries total) ---
+  const usageMap = await batchLoadUsageStats(candidates);
+
+  // --- Phase 3: Filter by rate limits, then score with latency ---
+  interface ScoredKey {
+    key: IProviderKey;
+    score: number;
+  }
+
+  const scorePromises: Array<Promise<ScoredKey | null>> = [];
+  for (const key of candidates) {
+    const usage = usageMap.get(key._id.toString());
+    const batchedUsage: BatchedKeyUsage = usage ?? {
+      second: EMPTY_STATS,
+      minute: EMPTY_STATS,
+      hour: EMPTY_STATS,
+      day: EMPTY_STATS,
+    };
+
+    if (isKeyRateLimitedFromBatch(key, batchedUsage, estimatedTokens)) {
+      continue;
+    }
+
+    // Compute score asynchronously (reads from provider-health cache, no extra DB call)
+    scorePromises.push(
+      computeKeyScore(key, modelId).then((score) => ({ key, score }))
+    );
+  }
+
+  const scoredKeys = (await Promise.all(scorePromises)).filter(
+    (entry): entry is ScoredKey => entry !== null,
+  );
+
+  if (scoredKeys.length === 0) {
+    log.keys.warn({ provider }, 'All keys rate-limited or in cooldown');
+    return null;
+  }
+
+  // Sort by effective score (lower = better); within same isPaid group, free keys first
+  scoredKeys.sort((a, b) => {
+    // Free keys before paid keys
+    if (a.key.isPaid !== b.key.isPaid) {
+      return a.key.isPaid ? 1 : -1;
+    }
+    return a.score - b.score;
+  });
+
+  const best = scoredKeys[0].key;
+  // best.key is guaranteed defined — candidates without a key value were
+  // filtered out in Phase 1 above.
+  const keyValue = best.key ?? '';
+  return {
+    keyId: best._id.toString(),
+    provider: best.provider,
+    modelId,
+    key: keyValue,
+    isPaid: best.isPaid,
+    rps: best.rateLimit.rps,
+    rpm: best.rateLimit.rpm,
+    rph: best.rateLimit.rph,
+    rpd: best.rateLimit.rpd,
+    tps: best.rateLimit.tps,
+    tpm: best.rateLimit.tpm,
+    tph: best.rateLimit.tph,
+    tpd: best.rateLimit.tpd,
+  };
 }
 
 /**
@@ -209,7 +387,7 @@ export async function recordKeyUsage(
   ProviderKey.findByIdAndUpdate(keyId, {
     $set: { lastUsedAt: new Date() },
     $inc: { totalRequests: 1, totalTokens: tokens },
-  }).catch((err: any) => log.keys.error({ err }, 'Failed to update key stats'));
+  }).catch((err: unknown) => log.keys.error({ err }, 'Failed to update key stats'));
 }
 
 /**
@@ -230,7 +408,7 @@ export async function recordKeySuccess(keyId: string): Promise<void> {
       // Invalidate cache to pick up priority changes
       invalidateKeyCache(key.provider);
     }
-  } catch (error: any) {
+  } catch (error: unknown) {
     log.keys.error({ err: error }, 'Failed to record key success');
   }
 }
@@ -285,39 +463,75 @@ export async function recordKeyFailure(keyId: string, reason: string): Promise<v
 
     // Invalidate cache to pick up priority changes
     invalidateKeyCache(key.provider);
-  } catch (error: any) {
+  } catch (error: unknown) {
     log.keys.error({ err: error }, 'Failed to record key failure');
   }
+}
+
+interface ProviderKeyStatsResult {
+  total: number;
+  active: number;
+  rateLimited: number;
+  averageSuccessRate: number;
+  totalRequests: number;
+  totalFailures: number;
 }
 
 /**
  * Get statistics for a provider's keys
  */
-export async function getProviderKeyStats(provider: string): Promise<any> {
+export async function getProviderKeyStats(provider: string): Promise<ProviderKeyStatsResult> {
   const keys = await ProviderKey.find({ provider, isArchived: false });
 
   return {
     total: keys.length,
-    active: keys.filter((k: any) => k.isActive).length,
+    active: keys.filter((k: IProviderKey) => k.isActive).length,
     rateLimited: 0, // Would need to check actual rate limits
     averageSuccessRate:
-      keys.reduce((sum: any, k: any) => {
+      keys.reduce((sum: number, k: IProviderKey) => {
         const total = k.successCount + k.totalFailures;
         return sum + (total > 0 ? k.successCount / total : 1);
       }, 0) / keys.length,
-    totalRequests: keys.reduce((sum: any, k: any) => sum + k.totalRequests, 0),
-    totalFailures: keys.reduce((sum: any, k: any) => sum + k.totalFailures, 0),
+    totalRequests: keys.reduce((sum: number, k: IProviderKey) => sum + k.totalRequests, 0),
+    totalFailures: keys.reduce((sum: number, k: IProviderKey) => sum + k.totalFailures, 0),
   };
 }
 
 /**
- * Record key spend (fire and forget) - increments spentUSD on the key
+ * Record key spend (fire and forget).
+ *
+ * Increments spentUSD (lifetime) and the rolling daily/monthly spend trackers.
+ * If a rolling window has expired, resets it before incrementing.
  */
 export async function recordKeySpend(keyId: string, costUSD: number): Promise<void> {
   if (costUSD <= 0) return;
-  ProviderKey.findByIdAndUpdate(keyId, {
-    $inc: { spentUSD: costUSD },
-  }).catch((err: any) => log.keys.error({ err }, 'Failed to update key spend'));
+
+  const now = Date.now();
+
+  ProviderKey.findById(keyId).then((key) => {
+    if (!key) return;
+
+    // Always increment lifetime spend
+    key.spentUSD += costUSD;
+
+    // Daily window: reset if expired, then increment
+    if (now - key.dailySpentResetAt.getTime() >= ONE_DAY_MS) {
+      key.dailySpentUSD = costUSD;
+      key.dailySpentResetAt = new Date(now);
+    } else {
+      key.dailySpentUSD += costUSD;
+    }
+
+    // Monthly window: reset if expired, then increment
+    if (now - key.monthlySpentResetAt.getTime() >= THIRTY_DAYS_MS) {
+      key.monthlySpentUSD = costUSD;
+      key.monthlySpentResetAt = new Date(now);
+    } else {
+      key.monthlySpentUSD += costUSD;
+    }
+
+    return key.save();
+  }).catch((err: unknown) => log.keys.error({ err }, 'Failed to update key spend'));
 }
 
 /**
@@ -350,7 +564,12 @@ export async function markKeyCreditExhausted(keyId: string): Promise<void> {
 }
 
 /**
- * Invalidate key cache (call after adding/removing/modifying keys)
+ * Invalidate key cache (call after adding/removing/modifying keys).
+ *
+ * Note: The model-resolver has its own short-lived resolve cache (5s TTL).
+ * Callers that need immediate invalidation of both caches should also call
+ * clearResolveCache() from model-resolver.ts. The short TTL ensures stale
+ * entries expire quickly even without explicit clearing.
  */
 export function invalidateKeyCache(provider?: string): void {
   if (provider) {

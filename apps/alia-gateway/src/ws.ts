@@ -8,11 +8,46 @@ interface Client {
 
 const clients = new Set<Client>();
 
+// --------------- Heartbeat ---------------
+const HEARTBEAT_INTERVAL_MS = 30_000;
+
+/** Tracks whether each client responded to the last protocol-level ping. */
+const clientAlive = new WeakMap<WebSocket, boolean>();
+
 export const providersWss = new WebSocketServer({ noServer: true });
+
+const heartbeatInterval = setInterval(() => {
+  providersWss.clients.forEach((ws) => {
+    if (clientAlive.get(ws) === false) {
+      // Client missed the previous pong — consider it stale and terminate.
+      ws.terminate();
+      return;
+    }
+    clientAlive.set(ws, false);
+    ws.ping(); // WebSocket protocol-level ping
+  });
+}, HEARTBEAT_INTERVAL_MS);
+
+heartbeatInterval.unref();
+
+/** Stop the heartbeat interval (call during graceful shutdown). */
+export function stopHeartbeat(): void {
+  clearInterval(heartbeatInterval);
+}
+
+// --------------- Connection handling ---------------
 
 providersWss.on('connection', (ws: WebSocket, _req: IncomingMessage) => {
   const client: Client = { ws, channels: new Set() };
   clients.add(client);
+
+  // Mark the client as alive on initial connection
+  clientAlive.set(ws, true);
+
+  // Protocol-level pong response — keeps heartbeat aware the client is alive
+  ws.on('pong', () => {
+    clientAlive.set(ws, true);
+  });
 
   ws.on('message', (raw) => {
     try {

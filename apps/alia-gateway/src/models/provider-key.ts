@@ -39,7 +39,13 @@ export interface IProviderKey extends Document {
 
   // Credit/Spending Limits
   creditLimitUSD?: number | null;  // Max spend for this key (null = unlimited)
+  dailyLimitUSD?: number | null;   // Max spend per rolling 24h window (null = unlimited)
+  monthlyLimitUSD?: number | null; // Max spend per rolling 30d window (null = unlimited)
   spentUSD: number;                // Total USD spent through this key
+  dailySpentUSD: number;           // USD spent in current 24h window
+  dailySpentResetAt: Date;         // When the current 24h window started
+  monthlySpentUSD: number;         // USD spent in current 30d window
+  monthlySpentResetAt: Date;       // When the current 30d window started
 
   // Usage Tracking
   lastUsedAt?: Date;
@@ -157,10 +163,36 @@ const ProviderKeySchema = new Schema<IProviderKey>(
       type: Number,
       default: null,
     },
+    dailyLimitUSD: {
+      type: Number,
+      default: null,
+    },
+    monthlyLimitUSD: {
+      type: Number,
+      default: null,
+    },
     spentUSD: {
       type: Number,
       default: 0,
       min: 0,
+    },
+    dailySpentUSD: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
+    dailySpentResetAt: {
+      type: Date,
+      default: Date.now,
+    },
+    monthlySpentUSD: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
+    monthlySpentResetAt: {
+      type: Date,
+      default: Date.now,
     },
     lastUsedAt: {
       type: Date,

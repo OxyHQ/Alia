@@ -8,7 +8,7 @@ export const googleProvider: Provider = {
   isEnabled: () => true,
 
   async proxy(key: KeyConfig, messages: OpenAIMessage[], tools?: OpenAITool[], config?: ProviderConfig): Promise<ReadableStream> {
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/${key.modelId}:streamGenerateContent?alt=sse&key=${key.key}`;
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${key.modelId}:streamGenerateContent?alt=sse`;
 
     // Convertir mensajes OpenAI -> Gemini
     let systemText = '';
@@ -89,7 +89,10 @@ export const googleProvider: Provider = {
 
     const res = await fetch(url, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        'x-goog-api-key': key.key,
+      },
       body: JSON.stringify(body)
     });
 
