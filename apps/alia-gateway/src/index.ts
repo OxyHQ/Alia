@@ -115,7 +115,7 @@ app.use('/api/report', authenticateService, reportRouter);
 app.use('/api', authenticateService, dataRouter);
 
 // Global error handler — ensures JSON responses for unhandled middleware errors
-app.use((err: any, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
+app.use((err: Error & { status?: number }, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
   log.general.error({ err }, 'Unhandled error');
   res.status(err.status || 500).json({
     success: false,
@@ -135,10 +135,14 @@ async function start() {
   // WebSocket upgrade for /providers/ws
   server.on('upgrade', (request, socket, head) => {
     try {
-      const pathname = new URL(request.url!, `http://${request.headers.host}`).pathname;
+      if (!request.url) {
+        socket.destroy();
+        return;
+      }
+      const pathname = new URL(request.url, `http://${request.headers.host}`).pathname;
 
       if (pathname === '/gateway/ws') {
-        const url = new URL(request.url!, `http://${request.headers.host}`);
+        const url = new URL(request.url, `http://${request.headers.host}`);
         const token = url.searchParams.get('token');
         if (!token) {
           socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n');

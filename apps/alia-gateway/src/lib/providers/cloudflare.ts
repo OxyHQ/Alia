@@ -41,7 +41,8 @@ export const cloudflareProvider: Provider = {
       throw new Error(`Cloudflare ${res.status}: ${await res.text()}`);
     }
 
+    if (!res.body) throw new Error('Cloudflare returned empty response body');
     // Cloudflare Workers AI uses OpenAI-compatible format
-    return res.body!;
+    return res.body;
   }
 };

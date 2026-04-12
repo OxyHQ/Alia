@@ -32,6 +32,7 @@ export const openaiProvider: Provider = {
       throw new Error(`OpenAI ${res.status}: ${await res.text()}`);
     }
 
-    return res.body!;
+    if (!res.body) throw new Error('OpenAI returned empty response body');
+    return res.body;
   }
 };

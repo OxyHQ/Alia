@@ -7,8 +7,39 @@ import express, { Request, Response } from 'express';
 import { ProviderKey } from '../models/provider-key.js';
 import { ApiUsage } from '../models/api-usage.js';
 import { UserCredits } from '../models/billing-refs.js';
-import { getAllProviderHealth } from '../lib/provider-health.js';
+import { getAllProviderHealth, type HealthMetrics } from '../lib/provider-health.js';
 import { log } from '../lib/logger.js';
+
+interface ProviderKeyStats {
+  _id: unknown;
+  name: string;
+  provider: string;
+  keyPrefix: string;
+  isActive: boolean;
+  isPaid: boolean;
+  tier: string;
+  consecutiveFailures: number;
+  totalFailures: number;
+  isArchived: boolean;
+  archivedAt?: Date;
+  archivedReason?: string;
+  creditLimitUSD?: number | null;
+  spentUSD: number;
+  totalRequests: number;
+  successCount: number;
+}
+
+interface AggregateTimelineResult {
+  _id: string;
+  requests: number;
+  tokens: number;
+}
+
+interface AggregateProviderResult {
+  _id: string;
+  requests: number;
+  tokens: number;
+}
 
 const router = express.Router();
 
@@ -125,7 +156,7 @@ router.get('/', async (_req: Request, res: Response) => {
     ]);
 
     // Process keys into alerts
-    const allKeys = keys as any[];
+    const allKeys = keys as ProviderKeyStats[];
     const failingKeys = allKeys.filter(
       (k) => !k.isArchived && k.consecutiveFailures > 3
     );
@@ -138,7 +169,7 @@ router.get('/', async (_req: Request, res: Response) => {
     );
 
     // Process health into alerts
-    const healthArr = (health as any[]) || [];
+    const healthArr: HealthMetrics[] = health;
     const openCircuitBreakers = healthArr.filter(
       (h) => h.circuitState === 'open'
     );
@@ -179,28 +210,28 @@ router.get('/', async (_req: Request, res: Response) => {
     res.json({
       success: true,
       data: {
-        requestsTimeline: requestsTimeline.map((r: any) => ({
+        requestsTimeline: (requestsTimeline as AggregateTimelineResult[]).map((r) => ({
           time: r._id,
           requests: r.requests,
           tokens: r.tokens,
         })),
-        topModels: topModels.map((m: any) => ({
+        topModels: (topModels as AggregateTimelineResult[]).map((m) => ({
           modelId: m._id,
           requests: m.requests,
           tokens: m.tokens,
         })),
         costsByProvider: {
-          daily: costsByProvider24h.map((c: any) => ({
+          daily: (costsByProvider24h as AggregateProviderResult[]).map((c) => ({
             provider: c._id,
             requests: c.requests,
             tokens: c.tokens,
           })),
-          weekly: costsByProvider7d.map((c: any) => ({
+          weekly: (costsByProvider7d as AggregateProviderResult[]).map((c) => ({
             provider: c._id,
             requests: c.requests,
             tokens: c.tokens,
           })),
-          monthly: costsByProvider30d.map((c: any) => ({
+          monthly: (costsByProvider30d as AggregateProviderResult[]).map((c) => ({
             provider: c._id,
             requests: c.requests,
             tokens: c.tokens,
@@ -215,27 +246,27 @@ router.get('/', async (_req: Request, res: Response) => {
           })
         ),
         alerts: {
-          failingKeys: failingKeys.map((k: any) => ({
+          failingKeys: failingKeys.map((k) => ({
             id: k._id,
             name: k.name,
             provider: k.provider,
             keyPrefix: k.keyPrefix,
             consecutiveFailures: k.consecutiveFailures,
           })),
-          openCircuitBreakers: openCircuitBreakers.map((h: any) => ({
+          openCircuitBreakers: openCircuitBreakers.map((h) => ({
             provider: h.provider,
             modelId: h.modelId,
             successRate: h.successRate,
             consecutiveFailures: h.consecutiveFailures,
           })),
-          nearCreditLimitKeys: nearCreditLimitKeys.map((k: any) => ({
+          nearCreditLimitKeys: nearCreditLimitKeys.map((k) => ({
             id: k._id,
             name: k.name,
             provider: k.provider,
             keyPrefix: k.keyPrefix,
             spentUSD: k.spentUSD,
             creditLimitUSD: k.creditLimitUSD,
-            percentUsed: Math.round((k.spentUSD / k.creditLimitUSD) * 100),
+            percentUsed: Math.round((k.spentUSD / (k.creditLimitUSD ?? 1)) * 100),
           })),
         },
         avgLatencyPerProvider,
@@ -247,7 +278,7 @@ router.get('/', async (_req: Request, res: Response) => {
         },
       },
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     log.providers.error({ err: error }, 'Error getting dashboard stats');
     res.status(500).json({
       success: false,

@@ -81,8 +81,9 @@ export const anthropicProvider: Provider = {
       throw new Error(`Anthropic ${res.status}: ${await res.text()}`);
     }
 
+    if (!res.body) throw new Error('Anthropic returned empty response body');
     // Convert Anthropic streaming format to OpenAI format
-    return convertAnthropicStreamToOpenAI(res.body!);
+    return convertAnthropicStreamToOpenAI(res.body);
   }
 };
 

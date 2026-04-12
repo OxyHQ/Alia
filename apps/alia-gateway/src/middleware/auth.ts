@@ -1,9 +1,6 @@
 import crypto from 'crypto';
 import { Request, Response, NextFunction } from 'express';
 import { OxyServices } from '@oxyhq/core';
-// Auth health recording -- simplified for standalone service
-const recordAuthSuccess = async (_type: string) => {};
-const recordAuthFailure = async (_type: string, _reason: string) => {};
 
 const oxyClient = new OxyServices({ baseURL: process.env.OXY_API_URL || 'https://api.oxy.so' });
 
@@ -16,7 +13,7 @@ declare global {
     interface Request {
       service?: string;
       userId?: string;
-      user?: { username?: string; [key: string]: any };
+      user?: { username?: string; _id?: string; email?: string };
     }
   }
 }
@@ -33,13 +30,11 @@ export async function authenticateService(req: Request, res: Response, next: Nex
 
   // Bearer token auth (admin UI) — delegate to official oxyClient.auth() middleware
   if (authHeader?.startsWith('Bearer ') && !serviceName) {
-    return oxyClient.auth({ loadUser: true })(req, res, (err?: any) => {
+    return oxyClient.auth({ loadUser: true })(req, res, (err?: unknown) => {
       if (err) {
-        recordAuthFailure('jwt', 'auth_middleware_error').catch(() => {});
         return next(err);
       }
       if (!req.userId) {
-        recordAuthFailure('jwt', 'no_user_id').catch(() => {});
         return res.status(401).json({
           success: false,
           error: 'Authentication required',
@@ -50,11 +45,9 @@ export async function authenticateService(req: Request, res: Response, next: Nex
       // Admin gate: only allowed usernames can access providers admin
       const ADMIN_USERNAMES = (process.env.ADMIN_USERNAMES || 'nate').split(',').map((s) => s.trim().toLowerCase());
       if (!req.user?.username || !ADMIN_USERNAMES.includes(req.user.username.toLowerCase())) {
-        recordAuthFailure('jwt', 'admin_access_denied').catch(() => {});
         return res.status(403).json({ success: false, error: 'Admin access required', code: 'ADMIN_REQUIRED' });
       }
 
-      recordAuthSuccess('jwt').catch(() => {});
       req.service = 'admin-ui';
       next();
     });
@@ -65,7 +58,6 @@ export async function authenticateService(req: Request, res: Response, next: Nex
   const signature = req.headers['x-signature'] as string;
 
   if (!serviceName || !timestamp || !signature) {
-    recordAuthFailure('service', 'missing_auth_headers').catch(() => {});
     return res.status(401).json({
       success: false,
       error: 'Missing authentication headers',
@@ -74,7 +66,6 @@ export async function authenticateService(req: Request, res: Response, next: Nex
   }
 
   if (!SERVICE_SECRET) {
-    recordAuthFailure('service', 'service_secret_not_configured').catch(() => {});
     return res.status(500).json({
       success: false,
       error: 'Service authentication not configured',
@@ -83,7 +74,6 @@ export async function authenticateService(req: Request, res: Response, next: Nex
   }
 
   if (!ALLOWED_SERVICES.includes(serviceName)) {
-    recordAuthFailure('service', `service_not_allowed:${serviceName}`).catch(() => {});
     return res.status(403).json({
       success: false,
       error: 'Service not allowed',
@@ -95,7 +85,6 @@ export async function authenticateService(req: Request, res: Response, next: Nex
   const now = Date.now();
   const requestTime = parseInt(timestamp, 10);
   if (isNaN(requestTime) || Math.abs(now - requestTime) > 60000) {
-    recordAuthFailure('service', 'request_expired').catch(() => {});
     return res.status(401).json({
       success: false,
       error: 'Request expired or invalid timestamp',
@@ -110,7 +99,6 @@ export async function authenticateService(req: Request, res: Response, next: Nex
   const sigBuffer = Buffer.from(signature, 'hex');
   const expectedBuffer = Buffer.from(expectedSignature, 'hex');
   if (sigBuffer.length !== expectedBuffer.length || !crypto.timingSafeEqual(sigBuffer, expectedBuffer)) {
-    recordAuthFailure('service', 'invalid_signature').catch(() => {});
     return res.status(401).json({
       success: false,
       error: 'Invalid signature',
@@ -118,7 +106,6 @@ export async function authenticateService(req: Request, res: Response, next: Nex
     });
   }
 
-  recordAuthSuccess('service').catch(() => {});
   req.service = serviceName;
   next();
 }

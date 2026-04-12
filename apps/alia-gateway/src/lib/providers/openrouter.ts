@@ -36,7 +36,8 @@ export const openrouterProvider: Provider = {
       throw new Error(`OpenRouter ${res.status}: ${await res.text()}`);
     }
 
+    if (!res.body) throw new Error('OpenRouter returned empty response body');
     // OpenRouter uses OpenAI-compatible format
-    return res.body!;
+    return res.body;
   }
 };

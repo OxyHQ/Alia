@@ -203,7 +203,9 @@ export async function resolveWithFallback(
 
           // Mark the key as credit exhausted so it won't be selected again
           if (result.failedKeyId) {
-            markKeyCreditExhausted(result.failedKeyId).catch(() => {});
+            markKeyCreditExhausted(result.failedKeyId).catch((err: unknown) => {
+              log.fallback.warn({ err }, 'Failed to mark key credit exhausted');
+            });
           }
           break;
         }
@@ -309,13 +311,14 @@ async function tryResolveWithKey(
       attempt: null,
       failedKeyId: null,
     };
-  } catch (error: any) {
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : String(error);
     return {
       resolved: null,
       attempt: {
         provider: mapping.provider,
         model: mapping.modelId,
-        error: error?.message || String(error),
+        error: message,
         reason: 'unknown',
         latencyMs: Date.now() - attemptStart,
       },
@@ -356,7 +359,7 @@ function recordFallbackEvent(
     finalModel,
     success,
     totalLatencyMs,
-  }).catch((err: any) => {
+  }).catch((err: unknown) => {
     log.fallback.error({ err }, 'Failed to record fallback event');
   });
 }
