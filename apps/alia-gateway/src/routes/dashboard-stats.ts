@@ -43,12 +43,36 @@ interface AggregateProviderResult {
 
 const router = express.Router();
 
+// --------------- In-memory cache ---------------
+interface DashboardCache {
+  data: Record<string, unknown>;
+  expiresAt: number;
+}
+
+let dashboardCache: DashboardCache | null = null;
+const DASHBOARD_CACHE_TTL = 30_000;
+
+/**
+ * POST /v1/dashboard-stats/invalidate
+ * Clears the in-memory cache so the next GET returns fresh data.
+ */
+router.post('/invalidate', (_req: Request, res: Response) => {
+  dashboardCache = null;
+  res.json({ success: true, message: 'Dashboard cache invalidated' });
+});
+
 /**
  * GET /v1/dashboard-stats
  * Returns aggregated stats for the admin dashboard in one call.
+ * Results are cached in-memory for 30 seconds to avoid saturating the
+ * MongoDB connection pool under concurrent admin access.
  */
 router.get('/', async (_req: Request, res: Response) => {
   try {
+    if (dashboardCache && Date.now() < dashboardCache.expiresAt) {
+      return res.json({ success: true, data: dashboardCache.data, cached: true });
+    }
+
     const now = new Date();
     const twentyFourHoursAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
     const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
@@ -207,77 +231,78 @@ router.get('/', async (_req: Request, res: Response) => {
       })
     ).sort((a, b) => a.averageLatencyMs - b.averageLatencyMs);
 
-    res.json({
-      success: true,
-      data: {
-        requestsTimeline: (requestsTimeline as AggregateTimelineResult[]).map((r) => ({
-          time: r._id,
-          requests: r.requests,
-          tokens: r.tokens,
+    const responseData: Record<string, unknown> = {
+      requestsTimeline: (requestsTimeline as AggregateTimelineResult[]).map((r) => ({
+        time: r._id,
+        requests: r.requests,
+        tokens: r.tokens,
+      })),
+      topModels: (topModels as AggregateTimelineResult[]).map((m) => ({
+        modelId: m._id,
+        requests: m.requests,
+        tokens: m.tokens,
+      })),
+      costsByProvider: {
+        daily: (costsByProvider24h as AggregateProviderResult[]).map((c) => ({
+          provider: c._id,
+          requests: c.requests,
+          tokens: c.tokens,
         })),
-        topModels: (topModels as AggregateTimelineResult[]).map((m) => ({
-          modelId: m._id,
-          requests: m.requests,
-          tokens: m.tokens,
+        weekly: (costsByProvider7d as AggregateProviderResult[]).map((c) => ({
+          provider: c._id,
+          requests: c.requests,
+          tokens: c.tokens,
         })),
-        costsByProvider: {
-          daily: (costsByProvider24h as AggregateProviderResult[]).map((c) => ({
-            provider: c._id,
-            requests: c.requests,
-            tokens: c.tokens,
-          })),
-          weekly: (costsByProvider7d as AggregateProviderResult[]).map((c) => ({
-            provider: c._id,
-            requests: c.requests,
-            tokens: c.tokens,
-          })),
-          monthly: (costsByProvider30d as AggregateProviderResult[]).map((c) => ({
-            provider: c._id,
-            requests: c.requests,
-            tokens: c.tokens,
-          })),
-        },
-        spendByProvider: Object.entries(keysByProvider).map(
-          ([provider, data]) => ({
-            provider,
-            spentUSD: Number(data.spent.toFixed(4)),
-            creditLimitUSD: data.limit,
-            keyCount: data.count,
-          })
-        ),
-        alerts: {
-          failingKeys: failingKeys.map((k) => ({
-            id: k._id,
-            name: k.name,
-            provider: k.provider,
-            keyPrefix: k.keyPrefix,
-            consecutiveFailures: k.consecutiveFailures,
-          })),
-          openCircuitBreakers: openCircuitBreakers.map((h) => ({
-            provider: h.provider,
-            modelId: h.modelId,
-            successRate: h.successRate,
-            consecutiveFailures: h.consecutiveFailures,
-          })),
-          nearCreditLimitKeys: nearCreditLimitKeys.map((k) => ({
-            id: k._id,
-            name: k.name,
-            provider: k.provider,
-            keyPrefix: k.keyPrefix,
-            spentUSD: k.spentUSD,
-            creditLimitUSD: k.creditLimitUSD,
-            percentUsed: Math.round((k.spentUSD / (k.creditLimitUSD ?? 1)) * 100),
-          })),
-        },
-        avgLatencyPerProvider,
-        creditsOverview: creditsOverview[0] || {
-          totalUsers: 0,
-          totalBalance: 0,
-          totalEarned: 0,
-          totalSpent: 0,
-        },
+        monthly: (costsByProvider30d as AggregateProviderResult[]).map((c) => ({
+          provider: c._id,
+          requests: c.requests,
+          tokens: c.tokens,
+        })),
       },
-    });
+      spendByProvider: Object.entries(keysByProvider).map(
+        ([provider, data]) => ({
+          provider,
+          spentUSD: Number(data.spent.toFixed(4)),
+          creditLimitUSD: data.limit,
+          keyCount: data.count,
+        })
+      ),
+      alerts: {
+        failingKeys: failingKeys.map((k) => ({
+          id: k._id,
+          name: k.name,
+          provider: k.provider,
+          keyPrefix: k.keyPrefix,
+          consecutiveFailures: k.consecutiveFailures,
+        })),
+        openCircuitBreakers: openCircuitBreakers.map((h) => ({
+          provider: h.provider,
+          modelId: h.modelId,
+          successRate: h.successRate,
+          consecutiveFailures: h.consecutiveFailures,
+        })),
+        nearCreditLimitKeys: nearCreditLimitKeys.map((k) => ({
+          id: k._id,
+          name: k.name,
+          provider: k.provider,
+          keyPrefix: k.keyPrefix,
+          spentUSD: k.spentUSD,
+          creditLimitUSD: k.creditLimitUSD,
+          percentUsed: Math.round((k.spentUSD / (k.creditLimitUSD ?? 1)) * 100),
+        })),
+      },
+      avgLatencyPerProvider,
+      creditsOverview: creditsOverview[0] || {
+        totalUsers: 0,
+        totalBalance: 0,
+        totalEarned: 0,
+        totalSpent: 0,
+      },
+    };
+
+    dashboardCache = { data: responseData, expiresAt: Date.now() + DASHBOARD_CACHE_TTL };
+
+    res.json({ success: true, data: responseData });
   } catch (error: unknown) {
     log.providers.error({ err: error }, 'Error getting dashboard stats');
     res.status(500).json({
