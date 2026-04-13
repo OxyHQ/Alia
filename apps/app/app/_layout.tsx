@@ -10,6 +10,7 @@ import { vars } from 'nativewind';
 
 import { AppErrorBoundary } from '@/components/error-boundary';
 import { Toaster } from '@/components/sonner';
+import { DatabaseProvider } from '@/lib/db/database';
 import { KeyboardProvider } from '@/lib/keyboard';
 import { useColorScheme } from '@/lib/useColorScheme';
 import { useThemeStore } from '@/lib/stores/theme-store';
@@ -101,7 +102,9 @@ function RootLayout() {
         baseURL={OXY_API_URL}
         authRedirectUri={Platform.OS !== 'web' ? AUTH_REDIRECT_URI : undefined}
       >
-        <AppContent />
+        <DatabaseProvider>
+          <AppContent />
+        </DatabaseProvider>
       </OxyProvider>
     </AppErrorBoundary>
   );
