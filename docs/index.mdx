@@ -1,0 +1,174 @@
+---
+title: "Alia"
+description: "Multi-surface context-agent platform with autonomous execution, persistent context graph, and policy controls."
+order: 0
+---
+
+# Alia
+
+Alia is a multi-surface context-agent platform focused on autonomous execution with policy controls. One runtime powers the Expo app, the Codea VS Code extension, the Cowork desktop client, the developer CLI, and every webhook-driven trigger — all on top of a shared autonomy loop and a persistent context graph in MongoDB.
+
+## What it is
+
+A single chat runtime (`/alia/chat` and `/v1/chat/completions`) serves every surface. Each turn runs the autonomy loop `classify → recall → retrieve → act → learn`, draws from a per-user context graph, and is governed by an explicit risk policy (`R0`/`R1`/`R2`/`R3`) so writes are reversible, external impact requires approval, and destructive actions are blocked.
+
+Models are exposed as Alia identifiers only (`alia-lite`, `alia-v1`, `alia-v1-pro`, `alia-v1-thinking`, …). Internal provider routing is never leaked to clients, errors, or analytics.
+
+## Architecture
+
+```
+                            +-------------------+
+                            |   Expo App (Web,  |
+     User  ────────────────>|   iOS, Android)   |
+                            +---------+---------+
+                                      |
+                            POST /v1/chat/completions (SSE)
+                                      |
+                            +---------v---------+
+                            |  Express API      |
+                            |  (apps/api)       |
+                            +--+----------+-----+
+                               |          |
+              +----------------+          +-----------------+
+              |                                             |
+     +--------v---------+                       +-----------v-----------+
+     |   MongoDB        |                       |  AI Providers         |
+     |   (Mongoose)     |                       |  (routed via Alia     |
+     +--------+---------+                       |   model abstraction)  |
+              |                                 +-----------------------+
+     +--------v---------+
+     |  Redis (Valkey)  |     Socket.IO (real-time events,
+     |  rate limits,    |     approval requests, streaming)
+     |  caching         |
+     +------------------+
+```
+
+| App | Stack | Purpose |
+| --- | --- | --- |
+| `apps/app` | Expo 55 / React Native 0.83 | Main app (web + iOS + Android) |
+| `apps/api` | Express + TypeScript | Core API runtime |
+| `apps/alia-codea` | VS Code extension | Coding assistant surface |
+| `apps/alia-codea-cli` | Bun CLI | Terminal coding assistant |
+| `apps/alia-cowork` | Electron 33 | Desktop assistant surface |
+| `apps/alia-console` | TanStack Start + React | Admin console |
+| `apps/alia-canvas` | Next.js 16 | Canvas / diagram editor |
+| `apps/alia-gateway` | TypeScript service | WebSocket gateway |
+| `apps/alia-gateway-admin` | Vite + React | Internal gateway admin |
+| `apps/alia-docker-host` | Express + TypeScript | Sandboxed container host |
+| `apps/integrations` | Express + TypeScript | Telegram / WhatsApp / Discord / browser bridges |
+
+## Install
+
+The monorepo uses Bun workspaces and Turbo. Bun is the only supported package manager.
+
+```sh
+bun install
+```
+
+Copy `apps/api/.env.example` to `apps/api/.env` and fill in `MONGODB_URI`, `REDIS_URL`, and provider keys. The database name is computed automatically as `alia-{NODE_ENV}` — do not embed it in the URI.
+
+## Quick start
+
+Boot the full stack:
+
+```sh
+bun run dev
+```
+
+Or run individual workspaces:
+
+```sh
+bun run dev:api          # Express API only
+bun run dev:app          # Expo app (web + tunnel)
+bun run dev:admin        # Admin console
+bun run dev:canvas       # Canvas app
+bun run dev:gateway      # WebSocket gateway
+bun run dev:codea        # VS Code extension
+bun run dev:cowork       # Electron desktop app
+```
+
+Hit the unified chat endpoint:
+
+```ts
+const res = await fetch('https://api.alia.onl/v1/chat/completions', {
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json',
+    Authorization: 'Bearer alia_sk_…',
+  },
+  body: JSON.stringify({
+    model: 'alia-v1',
+    messages: [{ role: 'user', content: 'Prepare my meeting with Sarah' }],
+    stream: true,
+  }),
+});
+// SSE stream — see "AI providers and model abstraction" for the event contract.
+```
+
+## Core concepts
+
+### Autonomy loop
+
+Every chat turn runs the same five-step loop in `apps/api/src/lib/autonomy/runtime.ts`:
+
+1. **classify** — detect intent (`meeting_prep`, `inbox_digest`, `project_status`, `task_followup`, `monitoring`, `research`, `general`)
+2. **recall** — load ranked `ContextSource`s and `LearningRule`s from the per-user context graph
+3. **retrieve** — pull data from top sources (integrations, MCP servers, Oxy ecosystem services)
+4. **act** — produce the answer, call tools, stream the response over SSE
+5. **learn** — update source quality scores and persist new `LearningRule`s
+
+The loop is shared verbatim across app, Codea, and Cowork. Feature flags (`AUTONOMY_RUNTIME_ENABLED`, `AUTONOMY_CONTEXT_GRAPH_ENABLED`, `AUTONOMY_APPROVALS_ENABLED`, `AUTONOMY_ROLLBACK_ENABLED`, `AUTONOMY_OXY_EVENTS_ENABLED`) gate each stage and default to enabled.
+
+### Context graph
+
+Persistent autonomy state lives in MongoDB:
+
+| Model | Tracks |
+|-------|--------|
+| `ContextSource` | freshness, precision, average cost, latency, failure rate of a source |
+| `ContextNode` | entities discovered during retrieval (people, projects, docs, threads) |
+| `ContextEdge` | relationships and confidence weights between nodes |
+| `RetrievalStrategy` | per-intent source ordering and fallback paths |
+| `LearningRule` | persisted corrections, constraints, and preferences |
+| `RollbackRecord` | before/after state + rollback payload for `R1` writes |
+
+User-visible memory (preferences, long-term facts, occupation, tone) lives in the separate `UserMemory` model exposed via `/memory/*`.
+
+### Risk governance
+
+Every action carries a risk class enforced by the runtime:
+
+| Level | Meaning | Behavior |
+|-------|---------|----------|
+| `R0` | Read-only | Fully autonomous |
+| `R1` | Reversible write | Autonomous + `RollbackRecord` saved |
+| `R2` | External / unknown impact | Requires user approval over Socket.IO (`alia.approval_request` / `alia.approval_result`) |
+| `R3` | Destructive | Blocked |
+
+Approvals are real-time. The client receives `alia.approval_request` while the stream is paused and resolves it with an `approve` / `deny` decision; timeouts default to 60s.
+
+### Model abstraction (non-negotiable)
+
+Public surfaces only ever expose Alia model IDs:
+
+- `alia-lite`, `alia-v1`, `alia-v1-pro`, `alia-v1-pro-max`, `alia-v1-thinking`
+- Category-specific: `alia-v1-codea`, `alia-v1-cowork`, `alia-v1-browser`, `alia-v1-vision`, `alia-v1-audio`, `alia-v1-tts`, `alia-v1-image`, `alia-v1-multimodal`, `alia-v1-voice`, `alia-v1-voice-pro`
+
+Each Alia tier maps to a prioritized list of provider models (`ModelMapping` in `apps/api/src/internal/providers/lib/alia-models.ts`). The fallback engine tries the cheapest healthy provider first and progressively escalates. Errors are passed through `sanitizeMessage()` (`apps/api/src/lib/errors/sanitize.ts`) before reaching any user-facing surface — provider names, model IDs, and internal endpoints are stripped.
+
+### Trigger engine
+
+The only scheduling primitive is `/triggers`. Trigger types:
+
+- `schedule` — cron, daily, or interval
+- `webhook` — token URL with optional HMAC and IP allowlist
+- `integration_event` — matched by `service + event + filters`
+- `agent_heartbeat` — periodic agent health / status check
+
+Each run writes a `TriggerExecution` record with status, tool calls, token usage, and duration. Trigger actions follow the unified action contract: `{ prompt, agentId?, roleId?, useTools, notify?, channelId? }`.
+
+## Deep dives
+
+- [Chat runtime and SSE events](./chat-runtime.mdx)
+- [AI providers and model abstraction](./model-abstraction.mdx)
+- [Multi-channel integrations and tools](./integrations.mdx)

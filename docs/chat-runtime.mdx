@@ -1,0 +1,148 @@
+---
+title: "Chat runtime"
+description: "How the unified chat endpoint streams SSE events, runs the autonomy loop, and resolves models."
+order: 1
+---
+
+# Chat runtime
+
+Every Alia surface — the Expo app, Codea, Cowork, the CLI, and external integrations — talks to the same handler. `POST /alia/chat` and `POST /v1/chat/completions` are aliases for the same code path in `apps/api/src/routes/v1/chat-completions.ts`. There is no second runtime to keep in sync.
+
+## Request shape
+
+The endpoint is OpenAI-compatible at the schema level and adds Alia-specific extras:
+
+```json
+{
+  "model": "alia-v1",
+  "messages": [
+    { "role": "user", "content": "Prepare my meeting with Sarah" }
+  ],
+  "stream": true,
+  "conversationId": "conv_…",
+  "thinkingMode": true,
+  "agentMode": "research",
+  "deepResearch": true,
+  "tools": ["webSearch", "webScraper"],
+  "stream_options": { "include_usage": true }
+}
+```
+
+Authentication accepts either:
+
+- `Authorization: Bearer <session-token>` — user session issued by Oxy
+- `Authorization: Bearer alia_sk_<api-key>` — developer API key
+
+## Pipeline
+
+What happens between request and first SSE chunk:
+
+1. JWT verification via Oxy auth middleware sets `req.userId`
+2. Workspace / org middleware resolves active org and entitlements
+3. Alia model ID is resolved to a provider model through the fallback chain
+4. `UserMemory`, `ContextSource`s, and `LearningRule`s are loaded
+5. Tools are assembled: native tools + MCP servers + Oxy service connector + integration bridges
+6. The system prompt is built from `apps/api/src/lib/prompt-loader.ts` fragments
+7. `autonomy.beforeChat()` runs `classify → recall → retrieve`
+8. AI SDK `streamText()` opens the provider connection with the fallback chain
+9. Chunks are written back as SSE `data:` events
+10. `autonomy.afterChat()` runs `learn`, updates source scores, persists rules
+11. Conversation + messages are saved to MongoDB
+12. Credit usage is finalized against the user's plan
+
+If a provider returns 5xx, rate-limits, or trips the local circuit breaker, the fallback engine retries with the next ranked provider transparently — the client sees a single contiguous stream.
+
+## SSE event contract
+
+All Alia-prefixed events carry `eventVersion: 1` for forward compatibility. Standard OpenAI-style `chat.completion.chunk` events are emitted alongside.
+
+### `alia.plan_preview`
+
+Emitted once before `act`, showing the classified intent and proposed steps:
+
+```json
+{
+  "eventVersion": 1,
+  "planId": "plan-chatcmpl-…",
+  "intent": "meeting_prep",
+  "confidence": 0.8,
+  "steps": ["Check calendar", "Check email", "Check notes"]
+}
+```
+
+### `alia.approval_request`
+
+Sent when an action's risk class is `R2`. Stream pauses until the client posts a decision back via Socket.IO.
+
+```json
+{
+  "eventVersion": 1,
+  "requestId": "req_…",
+  "agentId": "agent_…",
+  "toolName": "sendTelegram",
+  "args": {},
+  "description": "External impact action",
+  "severity": "high",
+  "timeout": 60000
+}
+```
+
+### `alia.approval_result`
+
+```json
+{
+  "eventVersion": 1,
+  "requestId": "req_…",
+  "decision": "approved"
+}
+```
+
+`decision` is one of `approved | denied | timeout`.
+
+### Other named events
+
+| Event | Purpose |
+|-------|---------|
+| `alia.reasoning` | Reasoning tokens or summary blocks (thinking-mode models) |
+| `alia.tool_result` | Tool execution result payload |
+| `alia.research_progress` | Progress updates for deep-research runs |
+| `alia.agent_session` | An autonomous `AgentSession` was created mid-chat |
+| `alia.title` | Conversation title updated |
+| `alia.model_switch` | The fallback engine switched providers mid-stream |
+
+## Conversations and messages
+
+- Conversations are scoped to `userId` and optionally `organizationId`
+- Each turn produces a `Message` with role, content blocks, tool calls, and reasoning
+- `conversationId` is optional on first turn — the runtime creates one and emits `alia.title` after the first response
+- Message IDs are stable across reconnects so clients can dedupe on the wire
+
+## Tools
+
+Tools are registered in `apps/api/src/lib/tools/registry.ts` and assembled per request based on the user's plan and capabilities. Categories include:
+
+- **Utility** — `getCurrentDate`, `getDeviceInfo`, `switchModel`
+- **Research** — `webSearch`, `webScraper`, `browse`, `deepResearch`
+- **Memory** — `saveUserMemory`, `updateUserPreferences`, `updateUserContext`
+- **Generation** — `generateFile`, `canvas`
+- **Agents** — `searchAgents`, `delegateToAgent`, `orchestrateAgents`, `createAgent`
+- **Triggers** — `createTrigger`, `listTriggers`, `updateTrigger`, `deleteTrigger`
+- **Integrations** — `sendTelegram`, `sendWhatsAppMessage`, `getWhatsAppChats`, `getWhatsAppMessages`
+- **Infrastructure** — `sandbox` (Docker host), `gatewayAdmin`
+- **External** — MCP server bridges and Oxy ecosystem service connectors
+
+Tool calls flow through `safeExecute()` so errors surface as `alia.tool_result` events without crashing the stream.
+
+## Removed compatibility endpoints
+
+These return `410 Gone` — there is no compatibility shim:
+
+- `POST /v1/resolve-model`
+- `POST /v1/report-usage`
+- `POST /codea/resolve-model`
+- `POST /codea/report-usage`
+- All `/automations*` endpoints — use `/triggers` instead
+
+## Real-time channel
+
+Approvals, notifications, and live updates run over Socket.IO at the same origin as the API. Clients connect, emit `subscribe-notifications` with the user ID, and listen for `notification`, `alia.approval_request`, and `alia.approval_result` events. The same channel emits cache-invalidation events for conversation, trigger, and notification lists.
