@@ -1,0 +1,11 @@
+{
+  "package": "alia",
+  "displayName": "Alia",
+  "shortName": "alia",
+  "repo": "https://github.com/OxyHQ/Alia",
+  "category": "app",
+  "versions": ["main"],
+  "defaultVersion": "main",
+  "docsPath": "docs/",
+  "description": "Multi-surface context-agent platform with autonomous execution, persistent context graph, and policy controls."
+}

@@ -1,0 +1,120 @@
+---
+title: "Integrations and tools"
+description: "How Alia connects to Telegram, WhatsApp, Discord, MCP servers, Oxy ecosystem services, and arbitrary webhooks."
+order: 3
+---
+
+# Integrations and tools
+
+Alia's reach across channels and external systems comes from three layers:
+
+1. **Native tools** registered in `apps/api/src/lib/tools/` — the runtime exposes them to the model directly.
+2. **MCP servers** — Model Context Protocol bridges to user-installed tools.
+3. **Channel integrations** — long-running connectors in `apps/integrations/` that mirror messages from Telegram, WhatsApp, Discord, Signal, Gmail, and a headless browser into Alia.
+
+## Native tools
+
+Tools live in `apps/api/src/lib/tools/` and self-register through `registry.ts`. Each tool declares its name, description, default-enabled state, and category; the runtime assembles the per-request tool set based on the user's plan, the model's capabilities, and any explicit `tools` list on the request.
+
+| Category | Tools |
+|----------|-------|
+| Utility | `getCurrentDate`, `getDeviceInfo`, `switchModel` |
+| Research | `webSearch`, `webScraper`, `browse`, `deepResearch` |
+| Memory | `saveUserMemory`, `updateUserPreferences`, `updateUserContext` |
+| Generation | `generateFile`, `canvas` |
+| Agents | `searchAgents`, `delegateToAgent`, `orchestrateAgents`, `createAgent`, `delegateSubtask` |
+| Triggers | `createTrigger`, `listTriggers`, `updateTrigger`, `deleteTrigger` |
+| Channels | `sendTelegram`, `sendWhatsAppMessage`, `getWhatsAppChats`, `getWhatsAppMessages` |
+| Infrastructure | `sandbox`, `gatewayAdmin`, `planPreview` |
+| Bridges | `mcp`, `oxy-services`, `integrations` |
+
+All tools wrap their executor in `safeExecute()` so errors surface as `alia.tool_result` events without breaking the SSE stream. Risk class is declared per-tool and enforced by the autonomy runtime — `R2` calls pause the stream for approval, `R3` calls are blocked outright.
+
+### Adding a tool
+
+1. Create `apps/api/src/lib/tools/my-tool.ts` exporting a tool constructor
+2. Export it from `apps/api/src/lib/tools/index.ts`
+3. Register it with `registerTool({ name, description, tool, enabledByDefault, category })`
+4. Pick a risk class and wrap any external write in a `RollbackRecord` if reversible
+5. Add a description fragment under `apps/api/src/lib/tools/descriptions/`
+6. Test it under `apps/api/src/lib/tools/__tests__/`
+
+## MCP servers
+
+MCP integration lives in `apps/api/src/lib/tools/mcp.ts` and `apps/integrations/src/mcp/`. Users register MCP servers from their account; tools are introspected via `mcp-schema.ts` and surfaced as first-class tool calls inside chat. The runtime handles transport (stdio / HTTP / websocket), schema validation, lifecycle, and rate limiting per server.
+
+MCP capabilities are visible to the model with the same calling convention as native tools, so the LLM does not need to distinguish them. Per-user MCP policy is exposed through `GET /codea/mcp_registry` for the Codea VS Code surface.
+
+## Oxy service connector
+
+Alia is part of the Oxy ecosystem. Services in that ecosystem register a manifest in MongoDB; Alia auto-discovers their tools and exposes them in chat. Two files own this:
+
+- `apps/api/src/models/oxy-service.ts` — `OxyService` model (manifest, tools, scopes)
+- `apps/api/src/lib/tools/oxy-services.ts` — tool builder that turns manifest entries into AI SDK tools
+
+Inbound service events go through `POST /webhooks/oxy/:serviceId`:
+
+- Signature verified against the registered service secret
+- `eventId` deduplicated against `OxyServiceEventLog`
+- Persistent `AgentSession` created before queueing autonomous work
+- If autonomous execution fails, a notification fallback is dispatched
+
+The connector reuses the same `service-token` flow as the rest of the Oxy ecosystem so Alia can act as either a tool host or a tool consumer.
+
+## Channel integrations
+
+`apps/integrations` is a separate Express service that owns long-lived connections to messaging platforms. It mirrors channel messages into Alia conversations and exposes outbound tools the runtime can call.
+
+| Subdirectory | Channel | Notes |
+|--------------|---------|-------|
+| `accounts/telegram-gateway/` | Telegram user accounts | MTProto bridge |
+| `accounts/whatsapp/` | WhatsApp Web | Multi-device bridge with chat / message sync |
+| `accounts/signal/` | Signal | Bridge for Signal accounts |
+| `accounts/gmail/` | Gmail | IMAP / Gmail API sync |
+| `bots/telegram-bot/` | Telegram bot | Bot API bridge |
+| `bots/discord-bot/` | Discord | Bot user that mirrors guild channels |
+| `browser/` | Headless browser | Used by `browse` and `webScraper` tools |
+| `terminal/` | Terminal sessions | Used by Codea CLI for shell access |
+| `realtime/` | Realtime audio | Voice-tier model bridge |
+
+Inbound messages arrive at the API as either:
+
+- **Channel-bound conversations** — each chat becomes a conversation scoped to that channel and a user, so the autonomy loop can reuse the same context graph
+- **Webhook events** — for trigger-driven actions, the integration emits an `integration_event` matched by `service + event + filters`
+
+Outbound tools (e.g. `sendTelegram`, `sendWhatsAppMessage`) require `R2` approval by default. The trigger engine respects the same risk class when integrations call tools autonomously.
+
+## Triggers
+
+`/triggers` is the only scheduling primitive — there is no separate automations API. A trigger ties an action prompt to one of four sources:
+
+```ts
+type TriggerType = 'schedule' | 'webhook' | 'integration_event' | 'agent_heartbeat';
+
+interface TriggerAction {
+  prompt: string;
+  agentId?: ObjectId;
+  roleId?: string;
+  useTools: boolean;
+  notify?: boolean;
+  channelId?: string;
+}
+```
+
+Each invocation runs the same autonomy loop as a chat turn, writes a `TriggerExecution` record (status, tool calls, token usage, duration), and respects the user's risk policy. Webhook triggers expose a token URL with optional HMAC and IP allowlist; integration triggers match against the event filter; heartbeats run on a fixed cadence.
+
+Endpoints:
+
+| Method | Path | Purpose |
+|--------|------|---------|
+| `GET` | `/triggers` | List user triggers |
+| `POST` | `/triggers` | Create trigger |
+| `PATCH` | `/triggers/:id` | Update trigger |
+| `DELETE` | `/triggers/:id` | Delete trigger |
+| `POST` | `/triggers/:id/run` | Manual run |
+| `GET` | `/triggers/:id/executions` | Execution history |
+| `POST` | `/triggers/webhook/:token` | Public webhook entry point |
+
+## Sandbox and Docker host
+
+`apps/alia-docker-host` provides per-conversation isolated containers for code execution and ephemeral environments. The `sandbox` tool spawns containers from `ContainerTemplate` definitions and the runtime garbage-collects idle containers after the chat closes. Use the Docker host for any tool that needs filesystem isolation, shell access, or network egress controls.
