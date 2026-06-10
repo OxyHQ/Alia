@@ -5,6 +5,9 @@
   "private": true,
   "type": "module",
   "main": "dist/index.js",
+  "trustedDependencies": [
+    "ffmpeg-static"
+  ],
   "scripts": {
     "dev": "bun --watch src/index.ts",
     "build": "bun build.ts",
