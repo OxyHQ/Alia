@@ -313,107 +313,134 @@ process.on('uncaughtException', (error) => {
   setTimeout(() => process.exit(1), 5000).unref();
 });
 
-// Connect to MongoDB before starting the server
-connectDB()
-  .then(() => {
-    server.listen(PORT, '0.0.0.0', () => {
-      console.log(`🚀 API Server running on http://0.0.0.0:${PORT}`);
-      // Warm up gateway client cache (non-blocking)
-      warmupGatewayClient().catch((err) => console.error('[Gateway] Client warmup error:', err));
-      // Seed built-in skills and suggestions (non-blocking)
-      seedSkills().catch((err) => console.error('[Skills] Seed error:', err));
-      seedSuggestions().catch((err) => console.error('[Suggestions] Seed error:', err));
-      seedBots().catch((err) => console.error('[Bots] Seed error:', err));
-      // Sync external models in background (non-blocking)
-      syncZeroEval().catch((err) => console.error('[ZeroEval] Background sync error:', err));
-      // Start trigger scheduler (non-blocking)
-      startTriggerScheduler().catch((err) => console.error('[Triggers] Scheduler startup error:', err));
-      // Pre-warm TLS connections to AI providers (non-blocking)
-      warmupProviders().catch((err) => console.error('[Warmup] Provider warmup error:', err));
-      // Initialize task queue for async agent sessions (non-blocking)
-      initTaskQueue()
-        .then(() => startWorker())
-        .catch((err) => console.error('[TaskQueue] Startup error:', err));
-      // Clean up orphaned audio jobs from previous process crashes (non-blocking)
-      import('./models/audio-job.js').then(({ AudioJob }) =>
-        AudioJob.cleanupOrphanedJobs()
-      ).catch((err) => console.error('[AudioJob] Orphan cleanup error:', err));
-      // Initialize show generation queue (non-blocking)
-      initShowQueue()
-        .then(() => startShowWorker())
-        .catch((err) => console.error('[ShowQueue] Startup error:', err));
-      // Verify Redis connectivity (non-blocking)
-      import('./lib/redis.js').then(({ getRedisClient }) => {
-        const redis = getRedisClient();
-        if (redis) {
-          redis.ping()
-            .then(() => log.general.info('Redis readiness check passed'))
-            .catch((err) => log.general.warn({ err }, 'Redis readiness check failed — rate limiting will fail-open'));
-        } else {
-          log.general.info('Redis not configured (REDIS_URL not set) — rate limiting disabled');
-        }
-      });
+// Background services that depend on a live MongoDB connection. Run once the
+// first connection is established (and re-seeding is idempotent on reconnect).
+let backgroundServicesStarted = false;
+function startBackgroundServices(): void {
+  if (backgroundServicesStarted) return;
+  backgroundServicesStarted = true;
+
+  // Warm up gateway client cache (non-blocking)
+  warmupGatewayClient().catch((err) => log.general.error({ err }, '[Gateway] Client warmup error'));
+  // Seed built-in skills and suggestions (non-blocking)
+  seedSkills().catch((err) => log.general.error({ err }, '[Skills] Seed error'));
+  seedSuggestions().catch((err) => log.general.error({ err }, '[Suggestions] Seed error'));
+  seedBots().catch((err) => log.general.error({ err }, '[Bots] Seed error'));
+  // Sync external models in background (non-blocking)
+  syncZeroEval().catch((err) => log.general.error({ err }, '[ZeroEval] Background sync error'));
+  // Start trigger scheduler (non-blocking)
+  startTriggerScheduler().catch((err) => log.general.error({ err }, '[Triggers] Scheduler startup error'));
+  // Initialize task queue for async agent sessions (non-blocking)
+  initTaskQueue()
+    .then(() => startWorker())
+    .catch((err) => log.general.error({ err }, '[TaskQueue] Startup error'));
+  // Clean up orphaned audio jobs from previous process crashes (non-blocking)
+  import('./models/audio-job.js').then(({ AudioJob }) =>
+    AudioJob.cleanupOrphanedJobs()
+  ).catch((err) => log.general.error({ err }, '[AudioJob] Orphan cleanup error'));
+  // Initialize show generation queue (non-blocking)
+  initShowQueue()
+    .then(() => startShowWorker())
+    .catch((err) => log.general.error({ err }, '[ShowQueue] Startup error'));
+}
+
+// Attempt the MongoDB connection in the background with retry. The HTTP server
+// starts listening regardless so liveness probes pass and the process stays up
+// even when MongoDB/Redis are temporarily unreachable (readiness stays 503
+// until the database is connected).
+function connectWithRetry(attempt = 1): void {
+  connectDB()
+    .then(() => {
+      log.general.info('MongoDB ready — starting background services');
+      startBackgroundServices();
+    })
+    .catch((error) => {
+      const delayMs = Math.min(30_000, 2_000 * attempt);
+      log.general.error(
+        { err: error, attempt, retryInMs: delayMs },
+        'MongoDB connection failed — retrying (server remains up; readiness will report not_ready)'
+      );
+      setTimeout(() => connectWithRetry(attempt + 1), delayMs).unref();
     });
+}
 
-    // Graceful shutdown handler
-    let shuttingDown = false;
-    const shutdown = async (signal: string) => {
-      if (shuttingDown) return;
-      shuttingDown = true;
-      log.general.info(`Received ${signal}. Starting graceful shutdown...`);
+// Start listening immediately — do not block on external dependencies.
+server.listen(PORT, '0.0.0.0', () => {
+  log.general.info(`🚀 API Server running on http://0.0.0.0:${PORT}`);
 
-      // Stop accepting new connections
-      server.close(() => {
-        log.general.info('HTTP server closed (no new connections)');
-      });
+  // Kick off MongoDB connection (with retry) and dependent background services.
+  connectWithRetry();
 
-      // Give in-flight requests 30 seconds to complete (agent sessions can be long)
-      const forceTimeout = setTimeout(() => {
-        log.general.error('Force exit after 30s grace period');
-        process.exit(1);
-      }, 30_000);
-      forceTimeout.unref();
+  // Pre-warm TLS connections to AI providers (non-blocking, no DB dependency)
+  warmupProviders().catch((err) => log.general.error({ err }, '[Warmup] Provider warmup error'));
 
-      try {
-        // Close Socket.IO connections
-        const { getIO } = await import('./socket.js');
-        const io = getIO();
-        if (io) {
-          await new Promise<void>((resolve) => io.close(() => resolve()));
-          log.general.info('Socket.IO closed');
-        }
-
-        // Close task queue (drains in-flight jobs)
-        await shutdownTaskQueue();
-        await shutdownShowQueue();
-        log.general.info('Task queues shut down');
-
-        // Close Redis connections
-        const { closeRedis } = await import('./lib/redis.js');
-        await closeRedis();
-        log.general.info('Redis connections closed');
-
-        // Close MCP relay connections
-        shutdownMcpRelay();
-
-        // Close MongoDB connection
-        const mongoose = await import('mongoose');
-        await mongoose.default.connection.close();
-        log.general.info('MongoDB connection closed');
-
-        clearTimeout(forceTimeout);
-        log.general.info('Graceful shutdown complete');
-        process.exit(0);
-      } catch (error) {
-        log.general.error({ err: error }, 'Error during shutdown');
-        process.exit(1);
-      }
-    };
-
-    process.on('SIGTERM', () => shutdown('SIGTERM'));
-    process.on('SIGINT', () => shutdown('SIGINT'));
-  })
-  .catch((error) => {
-    console.error('Failed to connect to MongoDB:', error);
-    process.exit(1);
+  // Verify Redis connectivity (non-blocking)
+  import('./lib/redis.js').then(({ getRedisClient }) => {
+    const redis = getRedisClient();
+    if (redis) {
+      redis.ping()
+        .then(() => log.general.info('Redis readiness check passed'))
+        .catch((err) => log.general.warn({ err }, 'Redis readiness check failed — rate limiting will fail-open'));
+    } else {
+      log.general.info('Redis not configured (REDIS_URL not set) — rate limiting disabled');
+    }
   });
+});
+
+// Graceful shutdown handler
+let shuttingDown = false;
+const shutdown = async (signal: string) => {
+  if (shuttingDown) return;
+  shuttingDown = true;
+  log.general.info(`Received ${signal}. Starting graceful shutdown...`);
+
+  // Stop accepting new connections
+  server.close(() => {
+    log.general.info('HTTP server closed (no new connections)');
+  });
+
+  // Give in-flight requests 30 seconds to complete (agent sessions can be long)
+  const forceTimeout = setTimeout(() => {
+    log.general.error('Force exit after 30s grace period');
+    process.exit(1);
+  }, 30_000);
+  forceTimeout.unref();
+
+  try {
+    // Close Socket.IO connections
+    const { getIO } = await import('./socket.js');
+    const io = getIO();
+    if (io) {
+      await new Promise<void>((resolve) => io.close(() => resolve()));
+      log.general.info('Socket.IO closed');
+    }
+
+    // Close task queue (drains in-flight jobs)
+    await shutdownTaskQueue();
+    await shutdownShowQueue();
+    log.general.info('Task queues shut down');
+
+    // Close Redis connections
+    const { closeRedis } = await import('./lib/redis.js');
+    await closeRedis();
+    log.general.info('Redis connections closed');
+
+    // Close MCP relay connections
+    shutdownMcpRelay();
+
+    // Close MongoDB connection
+    const mongoose = await import('mongoose');
+    await mongoose.default.connection.close();
+    log.general.info('MongoDB connection closed');
+
+    clearTimeout(forceTimeout);
+    log.general.info('Graceful shutdown complete');
+    process.exit(0);
+  } catch (error) {
+    log.general.error({ err: error }, 'Error during shutdown');
+    process.exit(1);
+  }
+};
+
+process.on('SIGTERM', () => shutdown('SIGTERM'));
+process.on('SIGINT', () => shutdown('SIGINT'));
