@@ -1,3 +1,11 @@
 [install]
 logLevel = "warn"
 saveTextLockfile = true
+# Hoist dependencies into the root node_modules instead of bun 1.3's default
+# "isolated" linker (which keeps real packages in node_modules/.bun and exposes
+# them only via per-workspace symlinks). The production Docker image copies the
+# root node_modules into the runtime stage and resolves the externalized API
+# bundle against it; the isolated layout leaves runtime deps (pino, express, …)
+# unresolvable there. Hoisting keeps a single flat tree that resolves the same
+# in local dev, CI, and the container.
+linker = "hoisted"
