@@ -9,9 +9,12 @@
 #   stays lean and unrelated workspaces' native builds (e.g. node-pty in the
 #   Electron app) are never compiled.
 # - All apps/*/package.json manifests are copied first so bun can resolve the
-#   workspace graph. Bun hoists real dependencies to the root node_modules;
-#   that single tree is copied into the runtime image (esbuild externalizes
-#   node_modules, so the bundle resolves against it at runtime).
+#   workspace graph. The root bunfig.toml sets `linker = "hoisted"`, so bun
+#   flattens real dependencies into the root node_modules (instead of the
+#   bun 1.3 default "isolated" linker, which keeps them under node_modules/.bun
+#   and exposes them only via per-workspace symlinks). That single hoisted tree
+#   is copied into the runtime image; esbuild externalizes node_modules, so the
+#   bundle resolves bare imports (pino, express, …) against it at runtime.
 # - The runtime image is a slim Node image and runs as a non-root user.
 
 # Bun version pinned to "packageManager" in the root package.json for
@@ -24,8 +27,10 @@ FROM oven/bun:${BUN_VERSION}-slim AS builder
 
 WORKDIR /build
 
-# Root manifests + lockfile first for better layer caching.
-COPY package.json bun.lock ./
+# Root manifests + lockfile + bunfig first for better layer caching.
+# bunfig.toml carries `linker = "hoisted"`, which the install below relies on so
+# runtime deps land in the root node_modules the runtime stage copies.
+COPY package.json bun.lock bunfig.toml ./
 # All workspace manifests (required so bun can resolve the workspace graph).
 # Directory structure is preserved.
 COPY apps/api/package.json ./apps/api/
@@ -62,7 +67,12 @@ RUN bun install --filter "@alia/api"
 
 # Copy API source and build the bundle.
 COPY apps/api/ ./apps/api/
-RUN bun run --filter @alia/api build
+# Build from the workspace directory rather than `bun run --filter`. With the
+# hoisted linker + a filtered install, bun does not materialize
+# apps/api/node_modules, and `bun run --filter` aborts trying to read it. Running
+# the script in-place lets Node resolve esbuild up the tree to the root
+# node_modules (which the hoisted install populated).
+RUN cd apps/api && bun run build
 
 # --- Stage 2: Production runtime ---
 FROM node:${NODE_VERSION}-bookworm-slim AS runtime
