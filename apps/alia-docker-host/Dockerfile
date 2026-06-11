@@ -8,7 +8,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends curl unzip && \
 
 WORKDIR /app
 COPY package.json bun.lock ./
-RUN bun install --frozen-lockfile
+# --frozen-lockfile is intentionally omitted: bun's frozen check reports false
+# drift for this monorepo (re-resolves ^/~ transitive ranges against the live
+# registry) even against a freshly regenerated bun.lock. bun.lock remains the
+# resolution baseline. Matches apps/api/Dockerfile.
+RUN bun install
 COPY tsconfig.json ./
 COPY src/ ./src/
 RUN bunx tsc
@@ -24,7 +28,8 @@ RUN apt-get update && \
 
 WORKDIR /app
 COPY package.json bun.lock ./
-RUN bun install --frozen-lockfile --production
+# See builder stage: --frozen-lockfile omitted due to bun's false-drift check.
+RUN bun install --production
 COPY --from=builder /app/dist ./dist
 
 EXPOSE 9090

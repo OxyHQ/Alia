@@ -3,7 +3,7 @@ import { Text } from "@/components/ui/text";
 import { Button } from "@/components/ui/button";
 import { useNavigation } from "expo-router";
 import { useRouter } from "expo-router";
-import { DrawerNavigationProp } from "@react-navigation/drawer";
+import type { DrawerNavigationProp } from "expo-router/drawer";
 import { Menu, ArrowLeft } from "lucide-react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -15,7 +15,7 @@ interface SettingsHeaderProps {
 }
 
 export function SettingsHeader({ title, subtitle, showBack = false, onBack }: SettingsHeaderProps) {
-  const navigation = useNavigation<DrawerNavigationProp<any>>();
+  const navigation = useNavigation<DrawerNavigationProp<ReactNavigation.RootParamList>>();
   const router = useRouter();
   const { width } = useWindowDimensions();
   const isLargeScreen = width >= 768;

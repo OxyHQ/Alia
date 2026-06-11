@@ -53,9 +53,11 @@ ENV ELECTRON_SKIP_BINARY_DOWNLOAD=1 \
 # workspaces (e.g. node-pty in the Electron app) that are irrelevant to the API.
 #
 # --frozen-lockfile is intentionally NOT used: bun's frozen check reports false
-# drift for this mixed monorepo (root-level dependencies + overrides spanning 13
-# workspaces) even against a freshly regenerated lockfile, on every bun version
-# tested. bun.lock remains the resolution baseline for locked versions.
+# drift for this mixed monorepo. It re-resolves ^/~ transitive ranges against
+# the live registry and fails even on a freshly regenerated, idempotent
+# bun.lock, on every bun version tested (through 1.3.14) and independent of the
+# root `overrides` block. bun.lock remains the resolution baseline for locked
+# versions.
 RUN bun install --filter "@alia/api"
 
 # Copy API source and build the bundle.

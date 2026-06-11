@@ -37,8 +37,12 @@ COPY apps/alia-gateway/package.json ./apps/alia-gateway/
 RUN git config --global url."https://github.com/".insteadOf "git@github.com:" && \
     git config --global url."https://github.com/".insteadOf "ssh://git@github.com/"
 
-# Install all dependencies (including devDependencies for build)
-RUN bun install --frozen-lockfile --filter @alia/integrations
+# Install all dependencies (including devDependencies for build).
+# --frozen-lockfile is intentionally omitted: bun's frozen check reports false
+# drift for this monorepo (re-resolves ^/~ transitive ranges against the live
+# registry) even against a freshly regenerated bun.lock. bun.lock remains the
+# resolution baseline. Matches apps/api/Dockerfile.
+RUN bun install --filter @alia/integrations
 
 # Copy source
 COPY apps/integrations/ ./apps/integrations/
@@ -106,8 +110,9 @@ COPY apps/alia-gateway/package.json ./apps/alia-gateway/
 RUN git config --global url."https://github.com/".insteadOf "git@github.com:" && \
     git config --global url."https://github.com/".insteadOf "ssh://git@github.com/"
 
-# Install production dependencies only
-RUN bun install --frozen-lockfile --production --filter @alia/integrations
+# Install production dependencies only.
+# See builder stage: --frozen-lockfile omitted due to bun's false-drift check.
+RUN bun install --production --filter @alia/integrations
 
 # Copy built output from builder
 COPY --from=builder /build/apps/integrations/dist ./apps/integrations/dist
