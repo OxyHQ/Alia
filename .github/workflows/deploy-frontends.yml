@@ -9,7 +9,7 @@ on:
       - 'apps/app/**'
       - 'apps/alia-gateway-admin/**'
       - 'packages/**'
-      - 'bun.lock'
+      - 'bun.lockb'
 
 jobs:
   detect-changes:
@@ -26,11 +26,11 @@ jobs:
             app:
               - 'apps/app/**'
               - 'packages/**'
-              - 'bun.lock'
+              - 'bun.lockb'
             gateway-admin:
               - 'apps/alia-gateway-admin/**'
               - 'packages/**'
-              - 'bun.lock'
+              - 'bun.lockb'
 
   deploy-app:
     needs: detect-changes
