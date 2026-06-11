@@ -25,7 +25,7 @@ FROM oven/bun:${BUN_VERSION}-slim AS builder
 WORKDIR /build
 
 # Root manifests + lockfile first for better layer caching.
-COPY package.json bun.lock ./
+COPY package.json bun.lockb ./
 # All workspace manifests (required so bun can resolve the workspace graph).
 # Directory structure is preserved.
 COPY apps/api/package.json ./apps/api/
@@ -55,7 +55,7 @@ ENV ELECTRON_SKIP_BINARY_DOWNLOAD=1 \
 # --frozen-lockfile is intentionally NOT used: bun's frozen check reports false
 # drift for this mixed monorepo (root-level dependencies + overrides spanning 13
 # workspaces) even against a freshly regenerated lockfile, on every bun version
-# tested. bun.lock remains the resolution baseline for locked versions.
+# tested. bun.lockb remains the resolution baseline for locked versions.
 RUN bun install --filter "@alia/api"
 
 # Copy API source and build the bundle.
@@ -80,7 +80,7 @@ WORKDIR /app
 # Dependencies (installed for the target architecture, hoisted to the root
 # node_modules — this is what the externalized bundle resolves against).
 COPY --from=builder /build/node_modules ./node_modules
-COPY --from=builder /build/package.json /build/bun.lock ./
+COPY --from=builder /build/package.json /build/bun.lockb ./
 COPY --from=builder /build/apps/api/package.json ./apps/api/package.json
 
 # Built application bundle.
