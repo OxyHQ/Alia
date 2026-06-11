@@ -5,6 +5,17 @@
 Use this agent for all implementation work:
 - `alia` — Full-stack engineer (13 apps, multi-provider AI, multi-channel)
 
+## AWS Deployment
+
+The backend (`apps/api`) runs on **AWS ECS Fargate** (region `eu-west-1`, cluster `oxy-cluster`), behind an ALB with ACM HTTPS.
+
+- **Port**: `3001` | **Domain**: `api.alia.onl`
+- **Deploy**: `git push origin main` → `.github/workflows/deploy-aws.yml` builds a `linux/arm64` Docker image → pushes to ECR (`237343248947.dkr.ecr.eu-west-1.amazonaws.com/oxy/alia`) → `aws ecs update-service --force-new-deployment`
+- **Auth**: GitHub OIDC → role `oxy-github-deploy`. No AWS keys stored in GitHub.
+- **Secrets**: GitHub Actions secrets are the source of truth. The deploy workflow syncs them to AWS SSM (`/oxy/alia/*`; shared secrets to `/oxy/_shared/*`); ECS injects them into the container. To change a secret: edit it in GitHub — the next deploy applies it.
+- **Dockerfile**: must build for `linux/arm64` (Graviton).
+- **WARNING**: Never put secret values in this file.
+
 ## Model Abstraction Architecture
 
 **CRITICAL RULE: Users and developers must ONLY see Alia-branded model names. Never expose internal provider names.**
