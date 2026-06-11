@@ -19,7 +19,7 @@ RUN apt-get update && \
 WORKDIR /build
 
 # Copy root workspace files
-COPY package.json bun.lockb ./
+COPY package.json bun.lock ./
 COPY apps/api/package.json ./apps/api/
 COPY apps/app/package.json ./apps/app/
 COPY apps/alia-chat/package.json ./apps/alia-chat/
@@ -88,7 +88,7 @@ ENV PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
 WORKDIR /app
 
 # Copy root workspace files
-COPY package.json bun.lockb ./
+COPY package.json bun.lock ./
 COPY apps/api/package.json ./apps/api/
 COPY apps/app/package.json ./apps/app/
 COPY apps/alia-chat/package.json ./apps/alia-chat/

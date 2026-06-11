@@ -7,7 +7,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends curl unzip && \
     rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
-COPY package.json bun.lockb ./
+COPY package.json bun.lock ./
 RUN bun install --frozen-lockfile
 COPY tsconfig.json ./
 COPY src/ ./src/
@@ -23,7 +23,7 @@ RUN apt-get update && \
     rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
-COPY package.json bun.lockb ./
+COPY package.json bun.lock ./
 RUN bun install --frozen-lockfile --production
 COPY --from=builder /app/dist ./dist
 
