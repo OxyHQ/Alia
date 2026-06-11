@@ -8,11 +8,6 @@
     "icon": "./assets/icon-512.png",
     "scheme": "alia",
     "userInterfaceStyle": "automatic",
-    "splash": {
-      "image": "./assets/icon-512.png",
-      "resizeMode": "contain",
-      "backgroundColor": "#040711"
-    },
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "onl.alia.app",
@@ -44,6 +39,14 @@
     },
     "plugins": [
       "expo-router",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/icon-512.png",
+          "resizeMode": "contain",
+          "backgroundColor": "#040711"
+        }
+      ],
       "expo-localization",
       "expo-audio",
       "expo-font",

@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { ModelSelector } from "@/components/model-selector";
 import { CreditsMenu } from "@/components/credits-menu";
 import { useNavigation, useRouter } from "expo-router";
-import { DrawerNavigationProp } from "@react-navigation/drawer";
+import type { DrawerNavigationProp } from "expo-router/drawer";
 import * as DropdownMenu from "@/components/ui/dropdown-menu";
 import { toast } from "@/components/sonner";
 import { ConfirmationDialog } from "@/components/ui/confirmation-dialog";
@@ -39,7 +39,7 @@ export function ChatHeader({
   const { t } = useTranslation();
   const insets = useSafeAreaInsets();
   const dimensions = useWindowDimensions();
-  const navigation = useNavigation<DrawerNavigationProp<any>>();
+  const navigation = useNavigation<DrawerNavigationProp<ReactNavigation.RootParamList>>();
   const router = useRouter();
   const isLargeScreen = dimensions.width >= 768;
   const [showClearDialog, setShowClearDialog] = useState(false);
