@@ -168,11 +168,19 @@
     },
     "accentColor": {
       "title": "Color de la app",
-      "purple": "Morado",
-      "green": "Verde",
+      "teal": "Verde azulado",
       "blue": "Azul",
+      "green": "Verde",
+      "amber": "Ámbar",
       "yellow": "Amarillo",
-      "orange": "Naranja"
+      "red": "Rojo",
+      "purple": "Morado",
+      "pink": "Rosa",
+      "sky": "Celeste",
+      "orange": "Naranja",
+      "mint": "Menta",
+      "oxy": "Oxy",
+      "faircoin": "Faircoin"
     }
   },
   "nav": {
