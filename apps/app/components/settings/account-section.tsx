@@ -35,7 +35,7 @@ export function AccountSection() {
       {/* Manage Account */}
       <Button
         variant="outline"
-        onPress={() => showBottomSheet("AccountSettings")}
+        onPress={() => showBottomSheet("ManageAccount")}
         className="flex-row items-center justify-between"
       >
         <Text className="text-sm font-medium">{t("settings.account.title")}</Text>
