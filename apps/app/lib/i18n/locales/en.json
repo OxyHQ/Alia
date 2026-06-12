@@ -195,11 +195,19 @@
     },
     "accentColor": {
       "title": "App Color",
-      "purple": "Purple",
-      "green": "Green",
+      "teal": "Teal",
       "blue": "Blue",
+      "green": "Green",
+      "amber": "Amber",
       "yellow": "Yellow",
-      "orange": "Orange"
+      "red": "Red",
+      "purple": "Purple",
+      "pink": "Pink",
+      "sky": "Sky",
+      "orange": "Orange",
+      "mint": "Mint",
+      "oxy": "Oxy",
+      "faircoin": "Faircoin"
     }
   },
   "nav": {

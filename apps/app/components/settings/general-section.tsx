@@ -3,10 +3,9 @@ import { View, Pressable } from "react-native";
 import { vars } from "nativewind";
 import { Text } from "@/components/ui/text";
 import { useColorScheme } from "@/lib/useColorScheme";
-import { useThemeStore } from "@/lib/stores/theme-store";
+import { useBloomTheme, APP_COLOR_PRESETS, APP_COLOR_NAMES, type AppColorPreset } from "@oxyhq/bloom";
 import { useTranslation } from "@/hooks/useTranslation";
 import { LanguageSelector } from "@/components/language-selector";
-import { APP_COLOR_PRESETS, APP_COLOR_NAMES, type AppColorPreset } from "@/lib/app-color-presets";
 import { cn } from "@/lib/utils";
 
 /** Miniature app layout using real theme tokens via NativeWind vars() */
@@ -67,9 +66,8 @@ const AppMiniature = React.memo(function AppMiniature({ variant, preset }: { var
 
 export function GeneralSection() {
   const { mode, setColorScheme } = useColorScheme();
-  const appColor = useThemeStore((s) => s.appColor);
-  const setAppColor = useThemeStore((s) => s.setAppColor);
-  const preset = APP_COLOR_PRESETS[appColor];
+  const { colorPreset, setColorPreset } = useBloomTheme();
+  const preset = APP_COLOR_PRESETS[colorPreset];
   const { t } = useTranslation();
 
   return (
@@ -150,11 +148,11 @@ export function GeneralSection() {
         <View className="flex-row gap-3 flex-wrap">
           {APP_COLOR_NAMES.map((key) => {
             const p = APP_COLOR_PRESETS[key];
-            const isSelected = appColor === key;
+            const isSelected = colorPreset === key;
             return (
               <Pressable
                 key={key}
-                onPress={() => setAppColor(key)}
+                onPress={() => setColorPreset(key)}
                 className="items-center gap-1.5"
               >
                 <View
