@@ -204,7 +204,7 @@ const ChatSidebar = React.memo(function ChatSidebar() {
   }, [router]);
 
   const handleAccount = React.useCallback(() => {
-    showBottomSheet('AccountSettings');
+    showBottomSheet('ManageAccount');
   }, [showBottomSheet]);
 
   const handleLogout = React.useCallback(() => {
