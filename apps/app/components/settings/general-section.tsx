@@ -3,7 +3,7 @@ import { View, Pressable } from "react-native";
 import { vars } from "nativewind";
 import { Text } from "@/components/ui/text";
 import { useColorScheme } from "@/lib/useColorScheme";
-import { useBloomTheme, APP_COLOR_PRESETS, APP_COLOR_NAMES, type AppColorPreset } from "@oxyhq/bloom";
+import { useBloomTheme, APP_COLOR_PRESETS, APP_COLOR_NAMES, type AppColorPreset } from "@oxyhq/bloom/theme";
 import { useTranslation } from "@/hooks/useTranslation";
 import { LanguageSelector } from "@/components/language-selector";
 import { cn } from "@/lib/utils";

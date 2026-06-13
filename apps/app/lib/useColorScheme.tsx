@@ -1,6 +1,6 @@
 import { useColorScheme as useNativeWindColorScheme } from 'nativewind';
 import { useCallback, useMemo } from 'react';
-import { APP_COLOR_PRESETS, useBloomTheme, type ThemeMode } from '@oxyhq/bloom';
+import { APP_COLOR_PRESETS, useBloomTheme, type ThemeMode } from '@oxyhq/bloom/theme';
 
 /** Convert an HSL CSS variable value like "153 50% 5%" to "hsl(153, 50%, 5%)".
  *  Also handles alpha syntax "0 0% 100% / 10%" → "hsla(0, 0%, 100%, 0.1)". */
