@@ -2,18 +2,16 @@ import FontAwesome from '@expo/vector-icons/FontAwesome';
 import { useFonts } from 'expo-font';
 import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
-import { useEffect, useMemo } from 'react';
+import { useEffect } from 'react';
 import { OxyProvider, useOxy } from '@oxyhq/services';
-import { BloomThemeProvider, useBloomTheme } from '@oxyhq/bloom';
+import { BloomThemeProvider } from '@oxyhq/bloom/theme';
 import * as Linking from 'expo-linking';
-import { Platform, View } from 'react-native';
-import { vars } from 'nativewind';
+import { Platform } from 'react-native';
 
 import { AppErrorBoundary } from '@/components/error-boundary';
 import { Toaster } from '@/components/sonner';
 import { KeyboardProvider } from '@/lib/keyboard';
 import { useColorScheme } from '@/lib/useColorScheme';
-import { getScopedColorCSSVariables } from '@/lib/app-color-presets';
 import { setTokenGetter } from '@/lib/api/client';
 import 'react-native-reanimated';
 import '../global.css';
@@ -39,33 +37,23 @@ function AuthSetup({ children }: { children: React.ReactNode }) {
 }
 
 function AppContent() {
-  const { colors, colorScheme } = useColorScheme();
-  const { colorPreset } = useBloomTheme();
-
-  const colorVars = useMemo(
-    () => vars(getScopedColorCSSVariables(colorPreset, colorScheme)),
-    [colorPreset, colorScheme],
-  );
-
-  const stack = (
-    <Stack
-      screenOptions={{
-        contentStyle: {
-          backgroundColor: colors.background,
-        },
-      }}
-    >
-      <Stack.Screen name="(app)" options={{ headerShown: false }} />
-      <Stack.Screen name="(biglayout)" options={{ headerShown: false }} />
-    </Stack>
-  );
+  const { colors } = useColorScheme();
 
   return (
     <AuthSetup>
-      <View style={[{ flex: 1 }, colorVars]}>
-        <KeyboardProvider>{stack}</KeyboardProvider>
-        <Toaster />
-      </View>
+      <KeyboardProvider>
+        <Stack
+          screenOptions={{
+            contentStyle: {
+              backgroundColor: colors.background,
+            },
+          }}
+        >
+          <Stack.Screen name="(app)" options={{ headerShown: false }} />
+          <Stack.Screen name="(biglayout)" options={{ headerShown: false }} />
+        </Stack>
+      </KeyboardProvider>
+      <Toaster />
     </AuthSetup>
   );
 }

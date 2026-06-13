@@ -87,7 +87,7 @@
   },
   "dependencies": {
     "@oxyhq/auth": "^3.0.0",
-    "@oxyhq/bloom": "^0.6.11",
+    "@oxyhq/bloom": "0.6.20",
     "@oxyhq/core": "^2.0.0"
   }
 }
