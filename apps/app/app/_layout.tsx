@@ -4,13 +4,7 @@ import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { useEffect, useMemo } from 'react';
 import { OxyProvider, useOxy } from '@oxyhq/services';
-import {
-  BloomThemeProvider,
-  useBloomTheme,
-  webLocalStorage,
-  type BloomThemeStorage,
-} from '@oxyhq/bloom';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { BloomThemeProvider, useBloomTheme } from '@oxyhq/bloom';
 import * as Linking from 'expo-linking';
 import { Platform, View } from 'react-native';
 import { vars } from 'nativewind';
@@ -35,14 +29,6 @@ SplashScreen.preventAutoHideAsync();
 
 const OXY_API_URL = process.env.EXPO_PUBLIC_OXY_API_URL || 'https://api.oxy.so';
 const AUTH_REDIRECT_URI = Linking.createURL('/');
-
-const nativeAsyncStorage: BloomThemeStorage = {
-  getItem: (key) => AsyncStorage.getItem(key),
-  setItem: (key, value) => AsyncStorage.setItem(key, value),
-};
-
-const themeStorage: BloomThemeStorage | undefined =
-  Platform.OS === 'web' ? webLocalStorage : nativeAsyncStorage;
 
 function AuthSetup({ children }: { children: React.ReactNode }) {
   const { oxyServices } = useOxy();
@@ -107,8 +93,6 @@ function RootLayout() {
       <BloomThemeProvider
         defaultMode="system"
         defaultColorPreset="purple"
-        persistKey="alia-theme"
-        storage={themeStorage}
         fonts={false}
       >
         <OxyProvider
