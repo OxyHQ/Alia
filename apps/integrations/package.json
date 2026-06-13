@@ -10,7 +10,7 @@
     "type-check": "tsc --noEmit"
   },
   "dependencies": {
-    "@whiskeysockets/baileys": "latest",
+    "@whiskeysockets/baileys": "~6.7.23",
     "telegram": "^2.26.22",
     "telegraf": "^4.16.3",
     "discord.js": "^14.16.3",

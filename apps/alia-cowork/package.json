@@ -62,7 +62,7 @@
     "autoprefixer": "^10.4.20",
     "electron": "^33.0.0",
     "electron-builder": "^25.1.8",
-    "esbuild": "^0.25.0",
+    "esbuild": "^0.28.1",
     "esbuild-plugin-html": "^1.0.0",
     "esbuild-plugin-postcss2": "^0.1.2",
     "gulp": "^5.0.0",
