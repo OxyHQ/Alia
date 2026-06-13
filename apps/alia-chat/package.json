@@ -20,7 +20,7 @@
   "peerDependencies": {
     "react": ">=18",
     "react-native": ">=0.73",
-    "@oxyhq/services": "^8.0.1",
+    "@oxyhq/services": "^8.1.1",
     "expo-blur": "*",
     "react-native-reanimated": ">=3",
     "react-native-gesture-handler": ">=2",
