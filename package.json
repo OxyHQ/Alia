@@ -88,6 +88,6 @@
   "dependencies": {
     "@oxyhq/auth": "^3.2.0",
     "@oxyhq/bloom": "0.6.20",
-    "@oxyhq/core": "^2.1.1"
+    "@oxyhq/core": "^2.2.1"
   }
 }
