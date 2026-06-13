@@ -5,7 +5,7 @@
     "": {
       "name": "alia-monorepo",
       "dependencies": {
-        "@oxyhq/auth": "^3.0.0",
+        "@oxyhq/auth": "^3.1.0",
         "@oxyhq/bloom": "0.6.20",
         "@oxyhq/core": "^2.0.0",
       },
@@ -1465,7 +1465,7 @@
 
     "@oxc-project/types": ["@oxc-project/types@0.135.0", "", {}, "sha512-wR+xRdFkUBMvcAjBJ2q2kcZM6d+DKu2NgoOyxZgYwZdLhmiv6+rnO8PZ/P68kMiZtIKm+pW7zyEJ4kSOs0vo+Q=="],
 
-    "@oxyhq/auth": ["@oxyhq/auth@3.0.0", "", { "dependencies": { "@tanstack/query-sync-storage-persister": "^5.100", "@tanstack/react-query": "^5.100", "@tanstack/react-query-persist-client": "^5.100", "sonner": "^2.0.4", "zustand": "^5.0.9" }, "peerDependencies": { "@oxyhq/core": "^2.0.0", "react": ">=18.0.0", "socket.io-client": "^4.8.1" }, "optionalPeers": ["socket.io-client"] }, "sha512-zxrMr7mznFRObs3zdchAreTyvRmYec9p7jYglx2fVHTn5Njil/ywKbYNsCAsflD4m43UIzrZ8xnMxVTgtoNSug=="],
+    "@oxyhq/auth": ["@oxyhq/auth@3.1.0", "", { "dependencies": { "@tanstack/query-sync-storage-persister": "^5.100", "@tanstack/react-query": "^5.100", "@tanstack/react-query-persist-client": "^5.100", "sonner": "^2.0.4", "zustand": "^5.0.9" }, "peerDependencies": { "@oxyhq/core": "^2.0.0", "react": ">=18.0.0", "socket.io-client": "^4.8.1" }, "optionalPeers": ["socket.io-client"] }, "sha512-0DTZ0L2BmECyldHCh00AO1zeDac4oub8UvtEST1b9Ak7G/BThgBJqBI6lNkGcafciKggwojiGkK9WjL5VHDmxA=="],
 
     "@oxyhq/bloom": ["@oxyhq/bloom@0.6.20", "", { "dependencies": { "nanoid": "^5.1.5", "react-remove-scroll-bar": "^2.3.8" }, "peerDependencies": { "expo": "*", "expo-font": "*", "react": ">=18.0.0", "react-dom": ">=18.0.0", "react-native": ">=0.73.0", "react-native-gesture-handler": ">=2.0.0", "react-native-reanimated": ">=3.0.0", "react-native-safe-area-context": ">=5.0.0", "react-native-svg": ">=13.0.0", "sonner": ">=2.0.0", "sonner-native": ">=0.17.0" }, "optionalPeers": ["expo", "expo-font", "react-dom", "react-native-gesture-handler", "react-native-reanimated", "react-native-svg", "sonner", "sonner-native"] }, "sha512-x/0vj1V5jQ9MNhkLQJu4mVh9BnitneK4YxHY0a1MbB97ZVHVBRoPWMJyhtV4d68TcJuWV5vH9XXWPtn20v6b2Q=="],
 
