@@ -144,7 +144,7 @@ const DropdownMenuSubContent = React.forwardRef<
       )}
       style={{
         boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -2px rgba(0,0,0,0.1)',
-        border: '1px solid hsl(var(--border))',
+        border: '1px solid var(--border)',
         ...style as any,
       }}
       {...props}
@@ -170,7 +170,7 @@ const DropdownMenuContent = React.forwardRef<
       )}
       style={{
         boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -2px rgba(0,0,0,0.1)',
-        border: '1px solid hsl(var(--border))',
+        border: '1px solid var(--border)',
         ...style as any,
       }}
       {...props}
