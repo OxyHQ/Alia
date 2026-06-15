@@ -26,6 +26,8 @@ export const unstable_settings = {
 SplashScreen.preventAutoHideAsync();
 
 const OXY_API_URL = process.env.EXPO_PUBLIC_OXY_API_URL || 'https://api.oxy.so';
+const OXY_CLIENT_ID =
+  process.env.EXPO_PUBLIC_OXY_CLIENT_ID ?? 'oxy_dk_06488927793f96922ef4f366a9800547b34c6aec025fece3';
 const AUTH_REDIRECT_URI = Linking.createURL('/');
 
 function AuthSetup({ children }: { children: React.ReactNode }) {
@@ -85,6 +87,7 @@ function RootLayout() {
       >
         <OxyProvider
           baseURL={OXY_API_URL}
+          clientId={OXY_CLIENT_ID}
           authRedirectUri={Platform.OS !== 'web' ? AUTH_REDIRECT_URI : undefined}
         >
           <AppContent />

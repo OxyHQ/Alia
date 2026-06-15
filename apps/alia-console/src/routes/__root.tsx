@@ -67,7 +67,7 @@ function RootComponent() {
       </head>
       <body className="min-h-screen bg-background font-sans antialiased">
         <QueryClientProvider client={queryClient}>
-          <WebOxyProvider baseURL={config.oxyUrl}>
+          <WebOxyProvider baseURL={config.oxyUrl} clientId={config.oxyClientId}>
             <TooltipProvider delayDuration={300}>
               <Outlet />
               <Toaster position="bottom-right" richColors closeButton />
