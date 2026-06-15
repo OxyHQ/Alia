@@ -320,17 +320,17 @@ export function DashboardPage() {
               <div className="h-[250px]">
                 <ResponsiveContainer width="100%" height="100%">
                   <LineChart data={stats.requestsTimeline}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                    <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
                     <XAxis
                       dataKey="time"
                       tickFormatter={formatHour}
-                      tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }}
-                      stroke="hsl(var(--border))"
+                      tick={{ fontSize: 11, fill: 'var(--muted-foreground)' }}
+                      stroke="var(--border)"
                     />
                     <YAxis
                       tickFormatter={formatNumber}
-                      tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }}
-                      stroke="hsl(var(--border))"
+                      tick={{ fontSize: 11, fill: 'var(--muted-foreground)' }}
+                      stroke="var(--border)"
                     />
                     <Tooltip
                       content={
@@ -391,18 +391,18 @@ export function DashboardPage() {
                     layout="vertical"
                     margin={{ left: 10, right: 20 }}
                   >
-                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" horizontal={false} />
+                    <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" horizontal={false} />
                     <XAxis
                       type="number"
                       tickFormatter={formatNumber}
-                      tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }}
-                      stroke="hsl(var(--border))"
+                      tick={{ fontSize: 11, fill: 'var(--muted-foreground)' }}
+                      stroke="var(--border)"
                     />
                     <YAxis
                       type="category"
                       dataKey="modelId"
-                      tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }}
-                      stroke="hsl(var(--border))"
+                      tick={{ fontSize: 11, fill: 'var(--muted-foreground)' }}
+                      stroke="var(--border)"
                       width={120}
                     />
                     <Tooltip
