@@ -1,5 +1,21 @@
 # Alia - Project Conventions
 
+## Custom Agents
+
+Use this agent for all implementation work:
+- `alia` — Full-stack engineer (13 apps, multi-provider AI, multi-channel)
+
+## AWS Deployment
+
+The backend (`apps/api`) runs on **AWS ECS Fargate** (region `us-west-2`, cluster `oxy-cluster`), behind an ALB with ACM HTTPS.
+
+- **Port**: `3001` | **Domain**: `api.alia.onl`
+- **Deploy**: `git push origin main` → `.github/workflows/deploy-aws.yml` builds a `linux/arm64` Docker image → pushes to ECR (`237343248947.dkr.ecr.us-west-2.amazonaws.com/oxy/alia`) → `aws ecs update-service --force-new-deployment`
+- **Auth**: GitHub OIDC → role `oxy-github-deploy`. No AWS keys stored in GitHub.
+- **Secrets**: GitHub Actions secrets are the source of truth. The deploy workflow syncs them to AWS SSM (`/oxy/alia/*`; shared secrets to `/oxy/_shared/*`); ECS injects them into the container. To change a secret: edit it in GitHub — the next deploy applies it.
+- **Dockerfile**: must build for `linux/arm64` (Graviton).
+- **WARNING**: Never put secret values in this file.
+
 ## Model Abstraction Architecture
 
 **CRITICAL RULE: Users and developers must ONLY see Alia-branded model names. Never expose internal provider names.**
@@ -13,7 +29,7 @@
 ### What to NEVER do
 
 - Never show provider names (OpenAI, Anthropic, Google, Groq, etc.) in UI, API responses, error messages, SEO metadata, or documentation
-- Never show provider model IDs (gpt-4o, Codex-sonnet-4, gemini-2.5-flash, etc.) to users
+- Never show provider model IDs (gpt-4o, claude-sonnet-4, gemini-2.5-flash, etc.) to users
 - Never reference specific provider models in feature descriptions or marketing copy
 
 ### What to ALWAYS do
