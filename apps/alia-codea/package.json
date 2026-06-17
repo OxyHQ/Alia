@@ -240,14 +240,14 @@
     "vscode:prepublish": "bun run build",
     "build": "bun run build:webview && bun run build:extension && bun run build:browser",
     "build:extension": "esbuild ./src/extension.ts --bundle --outfile=dist/extension.js --external:vscode --format=cjs --platform=node",
-    "build:browser": "esbuild ./src/extension.ts --bundle --outfile=dist/web/extension.js --external:vscode --external:child_process --external:crypto --format=cjs --platform=browser",
+    "build:browser": "esbuild ./src/extension.ts --bundle --outfile=dist/web/extension.js --external:vscode --external:child_process --external:crypto --external:node:crypto --format=cjs --platform=browser",
     "build:webview": "cd webview-ui && bun run build",
     "watch": "esbuild ./src/extension.ts --bundle --outfile=dist/extension.js --external:vscode --format=cjs --platform=node --watch",
     "watch:webview": "cd webview-ui && bun run dev",
     "package": "vsce package --no-dependencies"
   },
   "dependencies": {
-    "@oxyhq/core": "^3.2.0",
+    "@oxyhq/core": "^3.4.1",
     "openai": "^6.16.0"
   },
   "devDependencies": {

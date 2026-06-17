@@ -13,6 +13,7 @@
     "apps/alia-console",
     "apps/alia-gateway-admin",
     "apps/alia-codea",
+    "apps/alia-codea/webview-ui",
     "apps/alia-cowork",
     "apps/alia-codea-cli",
     "apps/alia-gateway"
@@ -88,6 +89,6 @@
   "dependencies": {
     "@oxyhq/auth": "^4.1.0",
     "@oxyhq/bloom": "^0.8.1",
-    "@oxyhq/core": "^3.2.0"
+    "@oxyhq/core": "^3.4.1"
   }
 }

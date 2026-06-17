@@ -6,9 +6,23 @@ import { jwtDecode } from 'jwt-decode';
 
 const AUTH_URL = 'https://auth.oxy.so';
 const OXY_PLATFORM_URL = 'https://api.oxy.so';
+const OXY_CLIENT_ID = 'oxy_dk_06488927793f96922ef4f366a9800547b34c6aec025fece3';
 const CALLBACK_PATH = '/auth-callback';
 const SIGN_IN_TIMEOUT_MS = 5 * 60 * 1000;
 const DEFAULT_TOKEN_LIFETIME_MS = 15 * 60 * 1000;
+
+type OAuthTokenExchange = {
+  access_token: string;
+  token_type: 'Bearer';
+  expires_in: number;
+  session_id: string;
+  user?: {
+    id?: string;
+    username?: string | null;
+    displayName?: string | null;
+    email?: string | null;
+  };
+};
 
 class VsCodeStorageAdapter implements StorageAdapter {
   constructor(private readonly secrets: vscode.SecretStorage) {}
@@ -44,6 +58,8 @@ export class AliaAuthenticationProvider
   private _pendingAuthResolve: ((session: vscode.AuthenticationSession) => void) | null = null;
   private _pendingAuthReject: ((error: Error) => void) | null = null;
   private _pendingAuthTimeout: ReturnType<typeof setTimeout> | null = null;
+  private _pendingCodeVerifier: string | null = null;
+  private _pendingRedirectUri: string | null = null;
 
   constructor(context: vscode.ExtensionContext) {
     this._oxyServices = new OxyServices({ baseURL: OXY_PLATFORM_URL });
@@ -91,9 +107,7 @@ export class AliaAuthenticationProvider
       if (!params.has(k)) { params.set(k, v); }
     }
 
-    const token = params.get('token') || params.get('access_token');
-    const sessionId = params.get('sessionId') || params.get('session_id');
-    const expiresAt = params.get('expires_at') || params.get('expiresAt');
+    const code = params.get('code');
     const state = params.get('state');
     const error = params.get('error');
 
@@ -107,22 +121,36 @@ export class AliaAuthenticationProvider
       return;
     }
 
-    if (!token) {
-      this.rejectPending('No authentication token received.');
+    if (!code) {
+      this.rejectPending('No authorization code received.');
       return;
     }
 
     try {
+      if (!this._pendingCodeVerifier || !this._pendingRedirectUri) {
+        this.rejectPending('Missing PKCE verifier. Please start sign-in again.');
+        return;
+      }
+
+      const tokenData = await this.exchangeAuthorizationCode(
+        code,
+        this._pendingRedirectUri,
+        this._pendingCodeVerifier,
+      );
+      const token = tokenData.access_token;
       this._oxyServices.setTokens(token);
 
-      let userId = '';
-      let username = '';
-      let resolvedSessionId = sessionId || `browser-${Date.now()}`;
+      let userId = tokenData.user?.id || '';
+      let username = tokenData.user?.username || tokenData.user?.displayName || '';
+      let resolvedSessionId = tokenData.session_id || `browser-${Date.now()}`;
+      const expiresAt = new Date(
+        Date.now() + (tokenData.expires_in || DEFAULT_TOKEN_LIFETIME_MS / 1000) * 1000,
+      ).toISOString();
 
       try {
         const payload = jwtDecode<{ userId?: string; sub?: string; id?: string; username?: string; sessionId?: string }>(token);
-        userId = payload.userId || payload.sub || payload.id || '';
-        username = payload.username || '';
+        userId = payload.userId || payload.sub || payload.id || userId;
+        username = payload.username || username;
         if (payload.sessionId) { resolvedSessionId = payload.sessionId; }
       } catch { /* token is not a decodable JWT */ }
 
@@ -133,7 +161,7 @@ export class AliaAuthenticationProvider
         accessToken: token,
         sessionId: resolvedSessionId,
         deviceId: 'vscode-codea',
-        expiresAt: expiresAt || new Date(Date.now() + DEFAULT_TOKEN_LIFETIME_MS).toISOString(),
+        expiresAt,
         user: { id: userId, username: displayName },
       };
 
@@ -156,19 +184,24 @@ export class AliaAuthenticationProvider
 
   public async signInWithBrowser(): Promise<vscode.AuthenticationSession> {
     const state = crypto.randomBytes(32).toString('base64url');
-    const nonce = crypto.randomBytes(16).toString('base64url');
+    const codeVerifier = crypto.randomBytes(32).toString('base64url');
+    const codeChallenge = crypto.createHash('sha256').update(codeVerifier).digest('base64url');
     this._pendingAuthState = state;
+    this._pendingCodeVerifier = codeVerifier;
 
     const callbackUri = await vscode.env.asExternalUri(
       vscode.Uri.parse(`${vscode.env.uriScheme}://oxy.alia-codea${CALLBACK_PATH}`),
     );
+    this._pendingRedirectUri = callbackUri.toString();
 
-    const authUrl = new URL(`${AUTH_URL}/login`);
+    const authUrl = new URL(`${AUTH_URL}/authorize`);
     authUrl.searchParams.set('redirect_uri', callbackUri.toString());
     authUrl.searchParams.set('state', state);
-    authUrl.searchParams.set('nonce', nonce);
-    authUrl.searchParams.set('client_id', 'codea');
-    authUrl.searchParams.set('response_type', 'token');
+    authUrl.searchParams.set('client_id', OXY_CLIENT_ID);
+    authUrl.searchParams.set('response_type', 'code');
+    authUrl.searchParams.set('code_challenge', codeChallenge);
+    authUrl.searchParams.set('code_challenge_method', 'S256');
+    authUrl.searchParams.set('scope', 'openid profile email');
 
     await vscode.env.openExternal(vscode.Uri.parse(authUrl.toString()));
 
@@ -293,6 +326,37 @@ export class AliaAuthenticationProvider
     }
   }
 
+  private async exchangeAuthorizationCode(
+    code: string,
+    redirectUri: string,
+    codeVerifier: string,
+  ): Promise<OAuthTokenExchange> {
+    const response = await fetch(`${OXY_PLATFORM_URL}/auth/oauth/token`, {
+      method: 'POST',
+      headers: {
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        code,
+        clientId: OXY_CLIENT_ID,
+        redirectUri,
+        codeVerifier,
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`OAuth token exchange failed (${response.status})`);
+    }
+
+    const payload = await response.json() as { data?: OAuthTokenExchange } & Partial<OAuthTokenExchange>;
+    const data = payload.data ?? payload;
+    if (!data.access_token) {
+      throw new Error('OAuth token exchange returned no access token.');
+    }
+    return data as OAuthTokenExchange;
+  }
+
   private rejectPending(message: string): void {
     this._pendingAuthReject?.(new Error(message));
     this.clearPendingAuth();
@@ -305,5 +369,7 @@ export class AliaAuthenticationProvider
     this._pendingAuthResolve = null;
     this._pendingAuthReject = null;
     this._pendingAuthTimeout = null;
+    this._pendingCodeVerifier = null;
+    this._pendingRedirectUri = null;
   }
 }
