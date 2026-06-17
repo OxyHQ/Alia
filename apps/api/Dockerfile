@@ -42,6 +42,7 @@ COPY apps/integrations/package.json ./apps/integrations/
 COPY apps/alia-console/package.json ./apps/alia-console/
 COPY apps/alia-gateway-admin/package.json ./apps/alia-gateway-admin/
 COPY apps/alia-codea/package.json ./apps/alia-codea/
+COPY apps/alia-codea/webview-ui/package.json ./apps/alia-codea/webview-ui/
 COPY apps/alia-cowork/package.json ./apps/alia-cowork/
 COPY apps/alia-codea-cli/package.json ./apps/alia-codea-cli/
 COPY apps/alia-gateway/package.json ./apps/alia-gateway/
