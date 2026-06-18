@@ -23,7 +23,7 @@ This guide covers deploying the Alia Gateway Admin Panel as a Static Site on Dig
    - **Source Directory**: `/apps/alia-gateway-admin`
    - **Build Command**:
      ```bash
-     npm install && npm run build
+     bun install && bun run build
      ```
    - **Output Directory**: `dist`
    - **Node Version**: Select latest Node.js (18 or higher)
@@ -96,7 +96,7 @@ The app includes a `.do/app.yaml` configuration file. You can use it to deploy v
 This project uses a monorepo structure. Important notes:
 
 1. **Source Directory**: Must be set to `/apps/alia-gateway-admin`
-2. **Build Command**: Must run `npm install` first (dependencies aren't in repo root)
+2. **Build Command**: Must run `bun install` first (dependencies aren't in repo root)
 3. **Dependencies**: All dependencies are in the admin folder's `package.json`
 
 ## Troubleshooting
@@ -107,7 +107,7 @@ This project uses a monorepo structure. Important notes:
 
 **Solution**: Ensure build command is:
 ```bash
-npm install && npm run build
+bun install && bun run build
 ```
 
 This installs all dependencies (including devDependencies which are needed for the build).

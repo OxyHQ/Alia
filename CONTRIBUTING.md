@@ -10,21 +10,21 @@
 
 ```bash
 git clone <repo-url> && cd Alia
-npm install              # installs all workspaces
+bun install              # installs all workspaces
 cp apps/api/.env.example apps/api/.env   # fill in your values
-npm run dev              # starts all services
+bun run dev              # starts all services
 ```
 
 Focused commands:
 
 ```bash
-npm run dev:api          # API only
-npm run dev:app          # Expo app only
+bun run dev:api          # API only
+bun run dev:app          # Expo app only
 ```
 
 ## Monorepo Structure
 
-This is an **npm workspaces** monorepo (no Turborepo/Nx).
+This is an **Bun workspaces** monorepo (no Turborepo/Nx).
 
 | App | Stack | Purpose |
 | --- | --- | --- |

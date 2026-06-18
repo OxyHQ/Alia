@@ -62,8 +62,12 @@ All Oxy ecosystem apps share the same MongoDB cluster on DigitalOcean. Each app 
 
 - **Frontend**: Expo 55, React Native 0.83, TypeScript, NativeWind (Tailwind), Reanimated v4, Zustand, TanStack Query
 - **Backend**: Express, TypeScript, MongoDB/Mongoose, Socket.IO
-- **Auth**: @oxyhq/services (OxyProvider, useAuth, OxySignInButton)
+- **Auth**: `@oxyhq/core ^3.4.5`, `@oxyhq/auth ^4.1.1`, `@oxyhq/services ^10.2.2`, `@oxyhq/bloom ^0.8.5`
 - **Routing**: expo-router (file-based)
+
+Expo web SSO callback bootstrap lives in `apps/app/app/+html.tsx` via
+`getSsoCallbackBootstrapScript()` from `@oxyhq/core`. Do not add local
+`/__oxy/sso-callback` routes or copy SSO helper logic.
 
 ## Oxy Service Connector Protocol
 

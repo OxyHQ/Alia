@@ -20,7 +20,7 @@
   "peerDependencies": {
     "react": ">=18",
     "react-native": ">=0.73",
-    "@oxyhq/services": "^10.2.0",
+    "@oxyhq/services": "^10.2.2",
     "expo-blur": "*",
     "react-native-reanimated": ">=3",
     "react-native-gesture-handler": ">=2",
@@ -42,20 +42,48 @@
     "@radix-ui/react-dropdown-menu": ">=2"
   },
   "peerDependenciesMeta": {
-    "livekit-client": { "optional": true },
-    "expo-audio": { "optional": true },
-    "react-native-svg": { "optional": true },
-    "nativewind": { "optional": true },
-    "clsx": { "optional": true },
-    "tailwind-merge": { "optional": true },
-    "class-variance-authority": { "optional": true },
-    "zeego": { "optional": true },
-    "expo-image": { "optional": true },
-    "expo-image-picker": { "optional": true },
-    "expo-document-picker": { "optional": true },
-    "expo-clipboard": { "optional": true },
-    "lucide-react-native": { "optional": true },
-    "@radix-ui/react-dropdown-menu": { "optional": true }
+    "livekit-client": {
+      "optional": true
+    },
+    "expo-audio": {
+      "optional": true
+    },
+    "react-native-svg": {
+      "optional": true
+    },
+    "nativewind": {
+      "optional": true
+    },
+    "clsx": {
+      "optional": true
+    },
+    "tailwind-merge": {
+      "optional": true
+    },
+    "class-variance-authority": {
+      "optional": true
+    },
+    "zeego": {
+      "optional": true
+    },
+    "expo-image": {
+      "optional": true
+    },
+    "expo-image-picker": {
+      "optional": true
+    },
+    "expo-document-picker": {
+      "optional": true
+    },
+    "expo-clipboard": {
+      "optional": true
+    },
+    "lucide-react-native": {
+      "optional": true
+    },
+    "@radix-ui/react-dropdown-menu": {
+      "optional": true
+    }
   },
   "devDependencies": {
     "typescript": "^5.9.3"

@@ -87,8 +87,8 @@
     "@react-native-menu/menu": "2.0.0"
   },
   "dependencies": {
-    "@oxyhq/auth": "^4.1.0",
-    "@oxyhq/bloom": "^0.8.1",
-    "@oxyhq/core": "^3.4.1"
+    "@oxyhq/auth": "^4.1.1",
+    "@oxyhq/bloom": "^0.8.5",
+    "@oxyhq/core": "^3.4.5"
   }
 }

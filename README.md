@@ -29,15 +29,15 @@ Alia is a multi-surface context-agent platform focused on autonomous execution w
 ## Quick Start
 
 ```bash
-npm install
-npm run dev
+bun install
+bun run dev
 ```
 
 Focused commands:
 
 ```bash
-npm run dev:api
-npm run dev:app
+bun run dev:api
+bun run dev:app
 ```
 
 ## Docs

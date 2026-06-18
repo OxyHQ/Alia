@@ -69,13 +69,13 @@ Are you building...
 ### Installation
 
 ```bash
-npm install @oxyhq/services @oxyhq/core
+bun add @oxyhq/services @oxyhq/core
 ```
 
 #### Peer Dependencies
 
 ```bash
-npm install react-native-reanimated react-native-gesture-handler \
+bun add react-native-reanimated react-native-gesture-handler \
   react-native-safe-area-context react-native-svg \
   expo expo-font expo-image expo-linear-gradient \
   @react-navigation/native @tanstack/react-query
@@ -95,9 +95,11 @@ import 'react-native-url-polyfill/auto';
 ```tsx
 import { OxyProvider } from '@oxyhq/services';
 
+const OXY_CLIENT_ID = process.env.EXPO_PUBLIC_OXY_CLIENT_ID;
+
 export default function App() {
   return (
-    <OxyProvider baseURL="https://api.oxy.so">
+    <OxyProvider baseURL="https://api.oxy.so" clientId={OXY_CLIENT_ID}>
       <YourApp />
     </OxyProvider>
   );
@@ -142,15 +144,15 @@ Cross-domain SSO is automatic. If a user is signed in on any Oxy domain (account
 // app/_layout.tsx
 import 'react-native-url-polyfill/auto';
 import { OxyProvider } from '@oxyhq/services';
-import * as Linking from 'expo-linking';
 
 const API_URL = process.env.EXPO_PUBLIC_API_URL ?? 'https://api.oxy.so';
+const OXY_CLIENT_ID = process.env.EXPO_PUBLIC_OXY_CLIENT_ID;
 
 export default function RootLayout() {
   return (
     <OxyProvider
       baseURL={API_URL}
-      authRedirectUri={Linking.createURL('/')}
+      clientId={OXY_CLIENT_ID}
     >
       <YourApp />
     </OxyProvider>
@@ -166,10 +168,8 @@ import { useOxy } from '@oxyhq/services';
 const { showBottomSheet } = useOxy();
 
 // Account
-showBottomSheet('AccountCenter');      // Main account hub
-showBottomSheet('AccountSwitcher');    // Switch accounts
+showBottomSheet('ManageAccount');      // Account hub and account switcher
 showBottomSheet('SessionManagement');  // Manage devices
-showBottomSheet('AccountSettings');    // Edit profile
 
 // Auth
 showBottomSheet('OxyAuth');            // QR code auth
@@ -177,7 +177,7 @@ showBottomSheet('OxyAuth');            // QR code auth
 // Features
 showBottomSheet('FileManagement');     // Files
 showBottomSheet('LanguageSelector');   // Language
-showBottomSheet('KarmaCenter');        // Karma
+showBottomSheet('TrustCenter');        // Trust
 
 // Payments
 showBottomSheet({ screen: 'PaymentGateway', props: { amount: 10 } });
@@ -242,7 +242,7 @@ const {
 ### Installation
 
 ```bash
-npm install @oxyhq/auth @oxyhq/core
+bun add @oxyhq/auth @oxyhq/core
 ```
 
 ### Next.js Example
@@ -252,9 +252,11 @@ npm install @oxyhq/auth @oxyhq/core
 'use client';
 import { WebOxyProvider } from '@oxyhq/auth';
 
+const OXY_CLIENT_ID = process.env.NEXT_PUBLIC_OXY_CLIENT_ID;
+
 export function Providers({ children }) {
   return (
-    <WebOxyProvider baseURL="https://api.oxy.so">
+    <WebOxyProvider baseURL="https://api.oxy.so" clientId={OXY_CLIENT_ID}>
       {children}
     </WebOxyProvider>
   );
@@ -328,7 +330,7 @@ Cross-domain SSO uses **FedCM** (Federated Credential Management) -- the browser
 ### Installation
 
 ```bash
-npm install @oxyhq/core
+bun add @oxyhq/core
 ```
 
 ### Quick Start
@@ -340,9 +342,6 @@ const oxyClient = new OxyServices({
   baseURL: process.env.OXY_API_URL || 'https://api.oxy.so'
 });
 
-// Validate sessions
-const { valid, user } = await oxyClient.validateSession(sessionId);
-
 // Get user data
 const user = await oxyClient.getCurrentUser();
 const profile = await oxyClient.getUserByUsername('nate');
@@ -353,24 +352,7 @@ const profile = await oxyClient.getUserByUsername('nate');
 ```typescript
 import { oxyClient } from '@oxyhq/core';
 
-async function authMiddleware(req, res, next) {
-  const sessionId = req.headers['x-session-id'] || req.cookies.sessionId;
-
-  if (!sessionId) {
-    return res.status(401).json({ error: 'No session' });
-  }
-
-  try {
-    const { valid, user } = await oxyClient.validateSession(sessionId);
-    if (!valid) return res.status(401).json({ error: 'Invalid session' });
-    req.user = user;
-    next();
-  } catch {
-    res.status(401).json({ error: 'Auth failed' });
-  }
-}
-
-app.get('/api/me', authMiddleware, (req, res) => res.json(req.user));
+app.get('/api/me', oxyClient.auth(), (req, res) => res.json(req.user));
 ```
 
 ### Next.js API Route
@@ -408,10 +390,6 @@ await oxyClient.getUserFollowers(userId);
 await oxyClient.getUserFollowing(userId);
 await oxyClient.followUser(userId);
 await oxyClient.unfollowUser(userId);
-
-// Karma
-await oxyClient.getKarma();
-await oxyClient.getKarmaLeaderboard();
 
 // Wallet
 await oxyClient.getWallet();
