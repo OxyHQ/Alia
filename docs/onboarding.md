@@ -207,7 +207,7 @@ This is the most important convention in the codebase. Violating it is a shippin
 ```bash
 npm test -w @alia/api            # Run all API tests
 npm test -w @alia/api -- --run   # Run once (no watch)
-npm run lint -w @alia/api        # Lint the API
+bun run lint -w @alia/api        # Lint the API
 ```
 
 ---
@@ -215,12 +215,12 @@ npm run lint -w @alia/api        # Lint the API
 ## Useful Commands
 
 ```bash
-npm install                      # Install all workspace dependencies
-npm run dev                      # Start all apps in dev mode
-npm run dev:api                  # API only (Express + hot reload)
-npm run dev:app                  # Expo app only (web + tunnel)
+bun install                      # Install all workspace dependencies
+bun run dev                      # Start all apps in dev mode
+bun run dev:api                  # API only (Express + hot reload)
+bun run dev:app                  # Expo app only (web + tunnel)
 npm test -w @alia/api            # API tests (vitest)
-npm run lint -w @alia/api        # Lint API code
+bun run lint -w @alia/api        # Lint API code
 ```
 
 Environment: copy `.env.example` to `.env` in `apps/api/` and fill in your MongoDB URI, Redis URL, and provider API keys. The database name is computed automatically as `alia-{NODE_ENV}` -- do not embed it in the URI.

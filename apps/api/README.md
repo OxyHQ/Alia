@@ -81,17 +81,17 @@ Named SSE events used by all clients:
 
 ```bash
 # from repo root
-npm run dev:api
+bun run dev:api
 
 # or from apps/api
-npm run dev
+bun run dev
 ```
 
 ## Build
 
 ```bash
-npm run build
-npm run start
+bun run build
+bun run start
 ```
 
 ## Environment

@@ -102,7 +102,7 @@ See [REALTIME.md](REALTIME.md) for full WebSocket protocol documentation.
 ### Installation
 
 ```bash
-npm install
+bun install
 cp .env.example .env
 ```
 
@@ -125,15 +125,15 @@ VITE_GATEWAY_API_URL=https://api.alia.onl/internal/gateway
 ### Development
 
 ```bash
-npm run dev
+bun run dev
 # Open browser at http://localhost:5173
 ```
 
 ### Production Build
 
 ```bash
-npm run build
-npm run preview
+bun run build
+bun run preview
 ```
 
 ## Deployment
