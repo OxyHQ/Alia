@@ -18,7 +18,7 @@
     "apps/alia-codea-cli",
     "apps/alia-gateway"
   ],
-  "packageManager": "bun@1.3.10",
+  "packageManager": "bun@1.3.14",
   "scripts": {
     "dev": "bun run --filter '*' dev",
     "dev:gateway": "bun run --filter @alia/gateway dev",
@@ -89,6 +89,6 @@
   "dependencies": {
     "@oxyhq/auth": "^4.1.1",
     "@oxyhq/bloom": "^0.8.5",
-    "@oxyhq/core": "^3.4.5"
+    "@oxyhq/core": "^3.4.13"
   }
 }
