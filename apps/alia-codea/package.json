@@ -247,7 +247,7 @@
     "package": "vsce package --no-dependencies"
   },
   "dependencies": {
-    "@oxyhq/core": "^3.4.5",
+    "@oxyhq/core": "^3.4.13",
     "openai": "^6.16.0"
   },
   "devDependencies": {

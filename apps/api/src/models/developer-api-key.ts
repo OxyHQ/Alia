@@ -1,4 +1,4 @@
-import mongoose, { Schema, Document } from 'mongoose';
+import mongoose, { Schema, Document, Model } from 'mongoose';
 import crypto from 'crypto';
 
 export interface IRateLimitConfig {
@@ -24,6 +24,11 @@ export interface IDeveloperApiKey extends Document {
 
   // Methods
   validateKey(key: string): boolean;
+}
+
+export interface DeveloperApiKeyModel extends Model<IDeveloperApiKey> {
+  generateKey(): string;
+  hashKey(key: string): string;
 }
 
 const DeveloperApiKeySchema = new Schema<IDeveloperApiKey>(
@@ -123,6 +128,6 @@ DeveloperApiKeySchema.statics.hashKey = function (key: string): string {
   return crypto.createHash('sha256').update(key).digest('hex');
 };
 
-const DeveloperApiKey = mongoose.model<IDeveloperApiKey>('DeveloperApiKey', DeveloperApiKeySchema);
+const DeveloperApiKey = mongoose.model<IDeveloperApiKey, DeveloperApiKeyModel>('DeveloperApiKey', DeveloperApiKeySchema);
 
 export default DeveloperApiKey;

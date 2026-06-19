@@ -1,6 +1,12 @@
 import crypto from 'crypto';
 import { Request, Response, NextFunction } from 'express';
 import { OxyServices } from '@oxyhq/core';
+import {
+  createOptionalOxyAuth,
+  createOxyAuthMiddleware,
+  type OxyRequestUser,
+  type OxyServiceAppContext,
+} from '@oxyhq/core/server';
 import DeveloperApiKey from '../models/developer-api-key.js';
 import DeveloperApp from '../models/developer-app.js';
 import ApiKeyUsage from '../models/api-key-usage.js';
@@ -20,17 +26,15 @@ declare global {
     interface Request {
       userId?: string;
       accessToken?: string;
-      user?: { id: string; username?: string; [key: string]: any };
+      user?: OxyRequestUser | null;
       apiKey?: {
         id: string;
         appId: string;
         userId: string;
         scopes: string[];
       };
-      serviceApp?: {
-        appId: string;
-        appName: string;
-      };
+      serviceApp?: OxyServiceAppContext;
+      _usageRecorded?: boolean;
       workspace?: {
         id: string | null;
         role?: 'owner' | 'admin' | 'member';
@@ -40,10 +44,10 @@ declare global {
 }
 
 /**
- * Oxy authentication middleware (official @oxyhq/core)
+ * Oxy authentication middleware (official @oxyhq/core/server)
  * Validates JWT tokens (including service tokens) and sets req.userId, req.user, req.accessToken
  */
-export const authenticateToken = oxyClient.auth({ debug: true });
+export const authenticateToken = createOxyAuthMiddleware(oxyClient, { auth: { debug: true } });
 
 /**
  * Service-only auth — rejects anything that isn't a service token.
@@ -55,7 +59,7 @@ export const oxyServiceAuth = oxyClient.serviceAuth({ debug: true });
  * Optional auth - attaches user if token present, doesn't block if absent
  * Tries bot auth first (Telegram), then Oxy JWT auth
  */
-const oxyOptionalAuth = oxyClient.auth({ optional: true, debug: true });
+const oxyOptionalAuth = createOptionalOxyAuth(oxyClient, { auth: { debug: true } });
 
 export function optionalAuth(
   req: Request,
@@ -76,7 +80,7 @@ export function optionalAuth(
     return next();
   }
 
-  // Use oxyClient.auth({ optional: true }) — attaches user if valid, continues if not
+  // Uses @oxyhq/core/server optional auth — attaches user if valid, continues if not.
   oxyOptionalAuth(req, res, next);
 }
 
@@ -106,7 +110,7 @@ export async function authenticateApiKey(
       return;
     }
 
-    const keyHash = (DeveloperApiKey as any).hashKey(apiKey);
+    const keyHash = DeveloperApiKey.hashKey(apiKey);
     const developerApiKey = await DeveloperApiKey.findOne({ keyHash });
 
     if (!developerApiKey) {
@@ -147,7 +151,7 @@ export async function authenticateApiKey(
 
     // Log usage after response (skip if the route already recorded usage via recordUsage())
     res.on('finish', async () => {
-      if ((req as any)._usageRecorded) return;
+      if (req._usageRecorded) return;
       const responseTime = Date.now() - startTime;
       try {
         await ApiKeyUsage.create({
@@ -216,8 +220,14 @@ export function authenticateTokenOrApiKey(
   const serviceSecret = process.env.SERVICE_SECRET;
   if (serviceSecret && token.length === serviceSecret.length &&
       crypto.timingSafeEqual(Buffer.from(token), Buffer.from(serviceSecret))) {
-    (req as any).user = { id: 'system' };
-    (req as any).serviceApp = { appName: 'internal' };
+    req.userId = 'system';
+    req.user = { id: 'system' };
+    req.serviceApp = {
+      appId: 'internal',
+      appName: 'internal',
+      credentialId: 'service-secret',
+      scopes: ['internal'],
+    };
     return next();
   }
 
@@ -402,4 +412,3 @@ export async function authenticateChannelBotSecret(
     res.status(500).json({ error: 'Authentication failed' });
   }
 }
-

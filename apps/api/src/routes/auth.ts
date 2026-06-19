@@ -282,8 +282,8 @@ router.post('/token', async (req, res) => {
 
     if (apiKey) {
       // Regenerate key for security (user is re-authorizing)
-      plainKey = (DeveloperApiKey as any).generateKey();
-      const keyHash = (DeveloperApiKey as any).hashKey(plainKey);
+      plainKey = DeveloperApiKey.generateKey();
+      const keyHash = DeveloperApiKey.hashKey(plainKey);
       const keyPrefix = plainKey.substring(0, 16);
 
       apiKey.keyHash = keyHash;
@@ -292,8 +292,8 @@ router.post('/token', async (req, res) => {
       await apiKey.save();
     } else {
       // Create new API key
-      plainKey = (DeveloperApiKey as any).generateKey();
-      const keyHash = (DeveloperApiKey as any).hashKey(plainKey);
+      plainKey = DeveloperApiKey.generateKey();
+      const keyHash = DeveloperApiKey.hashKey(plainKey);
       const keyPrefix = plainKey.substring(0, 16);
 
       apiKey = await DeveloperApiKey.create({

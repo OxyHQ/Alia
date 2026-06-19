@@ -199,8 +199,8 @@ router.post('/apps/:appId/keys', async (req: Request, res: Response) => {
     const validatedData = createApiKeySchema.parse(req.body);
 
     // Generate a new API key
-    const plainKey = (DeveloperApiKey as any).generateKey();
-    const keyHash = (DeveloperApiKey as any).hashKey(plainKey);
+    const plainKey = DeveloperApiKey.generateKey();
+    const keyHash = DeveloperApiKey.hashKey(plainKey);
     const keyPrefix = plainKey.substring(0, 16); // "alia_sk_12345678"
 
     const apiKey = new DeveloperApiKey({

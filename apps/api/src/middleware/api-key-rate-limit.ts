@@ -15,6 +15,25 @@ interface RateLimitStatus {
   resetInSeconds?: number;
 }
 
+type UsageAuthType = 'api_key' | 'session' | 'internal';
+
+interface UsageRecord {
+  oxyUserId: string;
+  endpoint: string;
+  method: string;
+  statusCode: number;
+  tokensUsed: number;
+  creditsUsed: number;
+  responseTime?: number;
+  userAgent?: string;
+  ipAddress?: string;
+  timestamp: Date;
+  authType: UsageAuthType;
+  serviceApp?: string;
+  apiKeyId?: string;
+  appId?: string;
+}
+
 // Rate limits by subscription tier for session-based users
 // Credits are the sole usage gate — these are burst/abuse protection only (per-minute).
 // Daily limits are intentionally null; credits control total usage.
@@ -241,11 +260,12 @@ function sendRateLimitResponse(
     tokensPerMinute: 'tokens per minute',
     tokensPerDay: 'tokens per day',
   };
+  const limitLabel = status.limitType ? limitTypeMessages[status.limitType] : 'requests';
 
   res.status(429).json({
     error: {
       code: 'RATE_LIMIT_EXCEEDED',
-      message: `Rate limit exceeded: ${status.current}/${status.limit} ${limitTypeMessages[status.limitType!]}`,
+      message: `Rate limit exceeded: ${status.current}/${status.limit} ${limitLabel}`,
       retryable: true,
       retryAfter: status.resetInSeconds,
       suggestedAction: tier === 'free' ? 'upgrade' : 'wait',
@@ -358,8 +378,14 @@ export async function recordUsage(
   creditsUsed?: number
 ): Promise<void> {
   try {
-    const usageRecord: any = {
-      oxyUserId: req.user?.id || req.userId,
+    const oxyUserId = req.user?.id || req.userId;
+    if (!oxyUserId) {
+      log.rateLimit.warn({ endpoint: req.path, method: req.method }, 'Skipping usage record without auth context');
+      return;
+    }
+
+    const usageRecord: UsageRecord = {
+      oxyUserId,
       endpoint: req.path,
       method: req.method,
       statusCode,
@@ -383,7 +409,7 @@ export async function recordUsage(
     }
 
     // Mark that usage was explicitly recorded, so the auth middleware skips its own logging
-    (req as any)._usageRecorded = true;
+    req._usageRecorded = true;
 
     await ApiKeyUsage.create(usageRecord);
   } catch (error) {

@@ -40,9 +40,11 @@ vi.mock('../../lib/channels/registry.js', () => ({
 }));
 
 vi.mock('@oxyhq/core', () => {
+  const passThroughMiddleware = (_req: Request, _res: Response, next: NextFunction) => next();
+
   class MockOxyServices {
-    auth() { return vi.fn((_req: any, _res: any, next: any) => next()); }
-    serviceAuth() { return vi.fn((_req: any, _res: any, next: any) => next()); }
+    auth() { return vi.fn(passThroughMiddleware); }
+    serviceAuth() { return vi.fn(passThroughMiddleware); }
   }
   return { OxyServices: MockOxyServices };
 });
@@ -56,23 +58,45 @@ import {
   requireScope,
 } from '../auth.js';
 
+type MockFn = ReturnType<typeof vi.fn>;
+
+interface MockDeveloperApiKeyModel {
+  findOne: MockFn;
+  findByIdAndUpdate: MockFn;
+  hashKey: MockFn;
+}
+
+interface MockDeveloperAppModel {
+  findById: MockFn;
+}
+
+const developerApiKeyMock = DeveloperApiKey as unknown as MockDeveloperApiKeyModel;
+const developerAppMock = DeveloperApp as unknown as MockDeveloperAppModel;
+
 function mockReq(overrides: Partial<Request> = {}): Request {
   return {
     headers: {},
     path: '/test',
     method: 'GET',
     ...overrides,
-  } as unknown as Request;
+  } as Request;
 }
 
-function mockRes(): Response {
-  const res: any = {
+type MockResponse = Response & {
+  status: MockFn;
+  json: MockFn;
+  on: MockFn;
+  statusCode: number;
+};
+
+function mockRes(): MockResponse {
+  const res = {
     status: vi.fn().mockReturnThis(),
     json: vi.fn().mockReturnThis(),
     statusCode: 200,
     on: vi.fn(),
   };
-  return res as Response;
+  return res as unknown as MockResponse;
 }
 
 describe('auth middleware', () => {
@@ -107,7 +131,7 @@ describe('auth middleware', () => {
     });
 
     it('rejects unknown API key', async () => {
-      (DeveloperApiKey as any).findOne.mockResolvedValue(null);
+      developerApiKeyMock.findOne.mockResolvedValue(null);
 
       const req = mockReq({ headers: { authorization: 'Bearer alia_sk_test123' } });
       const res = mockRes();
@@ -120,7 +144,7 @@ describe('auth middleware', () => {
     });
 
     it('rejects inactive API key', async () => {
-      (DeveloperApiKey as any).findOne.mockResolvedValue({
+      developerApiKeyMock.findOne.mockResolvedValue({
         _id: 'key-1',
         isActive: false,
         appId: 'app-1',
@@ -139,7 +163,7 @@ describe('auth middleware', () => {
     });
 
     it('rejects expired API key', async () => {
-      (DeveloperApiKey as any).findOne.mockResolvedValue({
+      developerApiKeyMock.findOne.mockResolvedValue({
         _id: 'key-1',
         isActive: true,
         expiresAt: new Date('2020-01-01'),
@@ -159,14 +183,14 @@ describe('auth middleware', () => {
     });
 
     it('rejects when app is inactive', async () => {
-      (DeveloperApiKey as any).findOne.mockResolvedValue({
+      developerApiKeyMock.findOne.mockResolvedValue({
         _id: 'key-1',
         isActive: true,
         appId: 'app-1',
         oxyUserId: 'user-1',
         scopes: ['chat'],
       });
-      (DeveloperApp as any).findById.mockResolvedValue({ isActive: false });
+      developerAppMock.findById.mockResolvedValue({ isActive: false });
 
       const req = mockReq({ headers: { authorization: 'Bearer alia_sk_test123' } });
       const res = mockRes();
@@ -179,14 +203,14 @@ describe('auth middleware', () => {
     });
 
     it('succeeds with valid API key', async () => {
-      (DeveloperApiKey as any).findOne.mockResolvedValue({
+      developerApiKeyMock.findOne.mockResolvedValue({
         _id: { toString: () => 'key-1' },
         isActive: true,
         appId: { toString: () => 'app-1' },
         oxyUserId: { toString: () => 'user-1' },
         scopes: ['chat', 'memory'],
       });
-      (DeveloperApp as any).findById.mockResolvedValue({ isActive: true });
+      developerAppMock.findById.mockResolvedValue({ isActive: true });
 
       const req = mockReq({ headers: { authorization: 'Bearer alia_sk_test123' } });
       const res = mockRes();
@@ -299,7 +323,7 @@ describe('auth middleware', () => {
   describe('authenticateTokenOrApiKey', () => {
     it('skips auth if user already set', () => {
       const req = mockReq();
-      (req as any).user = { id: 'user-1' };
+      req.user = { id: 'user-1' };
       const res = mockRes();
       const next = vi.fn();
 
@@ -329,14 +353,14 @@ describe('auth middleware', () => {
       authenticateTokenOrApiKey(req, res, next);
 
       expect(next).toHaveBeenCalled();
-      expect((req as any).user).toEqual({ id: 'system' });
+      expect(req.user).toEqual({ id: 'system' });
     });
   });
 
   describe('requireScope', () => {
     it('passes session users without checking scope', () => {
       const req = mockReq();
-      (req as any).user = { id: 'user-1' };
+      req.user = { id: 'user-1' };
       const res = mockRes();
       const next = vi.fn();
 
@@ -347,8 +371,8 @@ describe('auth middleware', () => {
 
     it('passes API key users with matching scope', () => {
       const req = mockReq();
-      (req as any).user = { id: 'user-1' };
-      (req as any).apiKey = { id: 'key-1', appId: 'app-1', userId: 'user-1', scopes: ['chat', 'memory'] };
+      req.user = { id: 'user-1' };
+      req.apiKey = { id: 'key-1', appId: 'app-1', userId: 'user-1', scopes: ['chat', 'memory'] };
       const res = mockRes();
       const next = vi.fn();
 
@@ -359,8 +383,8 @@ describe('auth middleware', () => {
 
     it('rejects API key users without matching scope', () => {
       const req = mockReq();
-      (req as any).user = { id: 'user-1' };
-      (req as any).apiKey = { id: 'key-1', appId: 'app-1', userId: 'user-1', scopes: ['memory'] };
+      req.user = { id: 'user-1' };
+      req.apiKey = { id: 'key-1', appId: 'app-1', userId: 'user-1', scopes: ['memory'] };
       const res = mockRes();
       const next = vi.fn();
 
