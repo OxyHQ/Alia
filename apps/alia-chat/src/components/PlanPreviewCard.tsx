@@ -2,7 +2,8 @@ import { View, Pressable } from 'react-native';
 import { Text } from './ui/text';
 import { Button } from './ui/button';
 import { Check, X, ListChecks } from 'lucide-react-native';
-import Animated, { FadeInUp } from 'react-native-reanimated';
+import Animated from 'react-native-reanimated';
+import { planPreviewEnter } from '../animations';
 import type { PlanStep } from '../types';
 
 interface PlanPreviewCardProps {
@@ -33,7 +34,7 @@ export function PlanPreviewCard({ steps, onApprove, onReject, approved, rejected
   }
 
   return (
-    <Animated.View entering={FadeInUp.springify()}>
+    <Animated.View entering={planPreviewEnter}>
       <View className="border border-border rounded-xl bg-card p-4 gap-3 my-2">
         <View className="flex-row items-center gap-2">
           <ListChecks size={16} className="text-foreground" />

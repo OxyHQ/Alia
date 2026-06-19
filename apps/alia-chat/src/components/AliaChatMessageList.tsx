@@ -9,7 +9,6 @@ import Animated, {
   withTiming,
   withSequence,
   cancelAnimation,
-  FadeInUp,
   type SharedValue,
 } from 'react-native-reanimated';
 import {
@@ -27,6 +26,7 @@ import { ThinkingIndicator } from './ThinkingIndicator';
 import { Reasoning, ReasoningTrigger, ReasoningContent } from './Reasoning';
 import { ResearchProgressCard } from './ResearchProgressCard';
 import { PlanPreviewCard } from './PlanPreviewCard';
+import { chatMessageEnter } from '../animations';
 import { getToolLabel, getToolActiveLabel, getResearchActiveLabel } from '../lib/tool-registry';
 import { getTextFromContent, getImagesFromContent } from '../lib/content-utils';
 import type { ChatMessage, ToolInvocation } from '../types';
@@ -508,7 +508,7 @@ export function AliaChatMessageList({
             return (
               <Animated.View
                 key={msg.id}
-                entering={isNewMessage ? FadeInUp.springify() : undefined}
+                entering={isNewMessage ? chatMessageEnter : undefined}
               >
                 {msg.role === 'user' ? (
                   <UserBubble
