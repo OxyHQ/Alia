@@ -13,6 +13,7 @@ import { Toaster } from '@/components/sonner';
 import { KeyboardProvider } from '@/lib/keyboard';
 import { useColorScheme } from '@/lib/useColorScheme';
 import { setTokenGetter } from '@/lib/api/client';
+import { BLOOM_THEME_PERSIST_KEY, BLOOM_THEME_STORAGE } from '@/lib/themePersistence';
 import 'react-native-reanimated';
 import '../global.css';
 import '@/lib/i18n';
@@ -83,6 +84,8 @@ function RootLayout() {
       <BloomThemeProvider
         defaultMode="system"
         defaultColorPreset="purple"
+        persistKey={BLOOM_THEME_PERSIST_KEY}
+        storage={BLOOM_THEME_STORAGE}
         fonts={false}
       >
         <OxyProvider

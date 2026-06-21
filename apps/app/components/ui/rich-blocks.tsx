@@ -1,14 +1,12 @@
 import React from 'react';
-import { View as RNView, Linking, Pressable as RNPressable } from 'react-native';
+import { View, Linking, Pressable } from 'react-native';
 import { Image } from 'expo-image';
 import { Text } from '@/components/ui/text';
 import { cn } from '@/lib/utils';
 import { ExternalLink, Info, CheckCircle, AlertTriangle, XCircle } from 'lucide-react-native';
-import { cssInterop } from 'nativewind';
 
-// Create styled components that support className
-const View = cssInterop(RNView, { className: 'style' });
-const Pressable = cssInterop(RNPressable, { className: 'style' });
+// NativeWind 5 augments RN's `View`/`Pressable` to accept `className` directly,
+// so no per-component styling wrapper is needed.
 
 // COMPACTLIST Component
 type CompactListItem = {
