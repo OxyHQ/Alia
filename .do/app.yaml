@@ -138,7 +138,7 @@ services:
       repo: Alia-onl/Alia
       branch: main
       deploy_on_push: true
-    dockerfile_path: apps/integrations/Dockerfile
+    dockerfile_path: packages/integrations/Dockerfile
     source_dir: /
     instance_size_slug: apps-s-2vcpu-4gb
     instance_count: 1
@@ -180,7 +180,7 @@ static_sites:
       bun run build:app
     source_dir: /
     environment_slug: node-js
-    output_dir: apps/app/dist
+    output_dir: packages/app/dist
     catchall_document: index.html
 
   - name: gateway-admin
@@ -193,7 +193,7 @@ static_sites:
       bun run build:gateway-admin
     source_dir: /
     environment_slug: node-js
-    output_dir: apps/alia-gateway-admin/dist
+    output_dir: packages/alia-gateway-admin/dist
     catchall_document: index.html
 
 databases:

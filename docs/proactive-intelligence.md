@@ -15,7 +15,7 @@ Alia proactive intelligence is built on `triggers` + autonomy runtime + policy c
 
 ## Trigger Engine
 
-Source: `apps/api/src/lib/trigger-engine.ts`
+Source: `packages/api/src/lib/trigger-engine.ts`
 
 Supported trigger types:
 
@@ -59,7 +59,7 @@ Approvals emit `alia.approval_request` and `alia.approval_result`.
 
 ## Oxy Service Events
 
-Source: `apps/api/src/routes/oxy-service-events.ts`
+Source: `packages/api/src/routes/oxy-service-events.ts`
 
 Behavior:
 

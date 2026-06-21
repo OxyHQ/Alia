@@ -1,0 +1,36 @@
+{
+  "name": "@alia/shared-types",
+  "version": "1.0.0",
+  "description": "Shared TypeScript types for the Alia monorepo (frontend, API, gateway, integrations)",
+  "private": true,
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist/**/*"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "clean": "rm -rf dist",
+    "test": "echo \"No tests specified\" && exit 0",
+    "prepublishOnly": "bun run build"
+  },
+  "keywords": [
+    "typescript",
+    "types",
+    "shared",
+    "alia"
+  ],
+  "author": "Alia",
+  "license": "UNLICENSED",
+  "devDependencies": {
+    "typescript": "^5.9.3"
+  }
+}

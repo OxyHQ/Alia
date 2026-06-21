@@ -16,7 +16,7 @@ Welcome to Alia -- a multi-surface context-agent platform with autonomous execut
                                     |
                            +--------v----------+
                            |  Express API       |
-                           |  (apps/api)        |
+                           |  (packages/api)        |
                            +--+---------+------+
                               |         |
               +---------------+         +----------------+
@@ -58,7 +58,7 @@ Approvals are real-time via Socket.IO (`alia.approval_request` / `alia.approval_
 
 ## Key Directories and Files
 
-### API (`apps/api/src/`)
+### API (`packages/api/src/`)
 
 | Path | What it does | When you touch it |
 |------|-------------|-------------------|
@@ -80,7 +80,7 @@ Approvals are real-time via Socket.IO (`alia.approval_request` / `alia.approval_
 | `models/` | Mongoose models (~40 files: conversation, message, agent, trigger, etc.) | Schema changes |
 | `internal/providers/` | Provider routing logic (CORS-restricted, never exposed) | Internal model config |
 
-### App (`apps/app/`)
+### App (`packages/app/`)
 
 | Path | What it does | When you touch it |
 |------|-------------|-------------------|
@@ -185,20 +185,20 @@ This is the most important convention in the codebase. Violating it is a shippin
 
 ### Adding a new API route
 
-1. Create `apps/api/src/routes/my-route.ts` with an Express Router
-2. Import and mount it in `apps/api/src/index.ts`
+1. Create `packages/api/src/routes/my-route.ts` with an Express Router
+2. Import and mount it in `packages/api/src/index.ts`
 3. If it needs auth, the `auth` middleware is already applied to most route groups -- check `index.ts` for the pattern
 
 ### Adding a new screen in the app
 
-1. Create a file in `apps/app/app/(app)/` -- expo-router uses file-based routing
+1. Create a file in `packages/app/app/(app)/` -- expo-router uses file-based routing
 2. Register it as a `<Drawer.Screen>` in `app/(app)/_layout.tsx`
-3. Add the route constant to `apps/app/lib/api/routes.ts` if it needs an API endpoint
+3. Add the route constant to `packages/app/lib/api/routes.ts` if it needs an API endpoint
 
 ### Adding a new AI tool
 
-1. Create `apps/api/src/lib/tools/my-tool.ts` exporting a tool constructor function
-2. Export it from `apps/api/src/lib/tools/index.ts`
+1. Create `packages/api/src/lib/tools/my-tool.ts` exporting a tool constructor function
+2. Export it from `packages/api/src/lib/tools/index.ts`
 3. Wire it into the tool-building section of `routes/v1/chat-completions.ts`
 4. Follow the `safeExecute()` pattern used by existing tools for error handling
 
@@ -223,7 +223,7 @@ npm test -w @alia/api            # API tests (vitest)
 bun run lint -w @alia/api        # Lint API code
 ```
 
-Environment: copy `.env.example` to `.env` in `apps/api/` and fill in your MongoDB URI, Redis URL, and provider API keys. The database name is computed automatically as `alia-{NODE_ENV}` -- do not embed it in the URI.
+Environment: copy `.env.example` to `.env` in `packages/api/` and fill in your MongoDB URI, Redis URL, and provider API keys. The database name is computed automatically as `alia-{NODE_ENV}` -- do not embed it in the URI.
 
 ---
 

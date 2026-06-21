@@ -7,7 +7,7 @@ Use this agent for all implementation work:
 
 ## AWS Deployment
 
-The backend (`apps/api`) runs on **AWS ECS Fargate** (region `us-west-2`, cluster `oxy-cluster`), behind an ALB with ACM HTTPS.
+The backend (`packages/api`) runs on **AWS ECS Fargate** (region `us-west-2`, cluster `oxy-cluster`), behind an ALB with ACM HTTPS.
 
 - **Port**: `3001` | **Domain**: `api.alia.onl`
 - **Deploy**: `git push origin main` → `.github/workflows/deploy-aws.yml` builds a `linux/arm64` Docker image → pushes to ECR (`237343248947.dkr.ecr.us-west-2.amazonaws.com/oxy/alia`) → `aws ecs update-service --force-new-deployment`
@@ -35,16 +35,16 @@ The backend (`apps/api`) runs on **AWS ECS Fargate** (region `us-west-2`, cluste
 ### What to ALWAYS do
 
 - Use Alia model names: `alia-v1`, `alia-lite`, `alia-v1-pro`, `alia-v1-thinking`, etc.
-- Use `sanitizeMessage()` from `apps/api/src/lib/errors/sanitize.ts` for all user-facing error messages
+- Use `sanitizeMessage()` from `packages/api/src/lib/errors/sanitize.ts` for all user-facing error messages
 - When displaying analytics/model usage, resolve to Alia model names via `getAliaModel()` and skip entries that can't be resolved
 
 ### Key files
 
-- `apps/api/src/internal/providers/lib/alia-models.ts` - Alia model definitions
-- `apps/api/src/internal/providers/lib/generate-model-mappings.ts` - Provider routing config
-- `apps/api/src/routes/v1/models.ts` - Public models API (returns only Alia models)
-- `apps/api/src/lib/errors/sanitize.ts` - Error message sanitization (strips provider names)
-- `apps/api/src/internal/` - All provider logic (internal only, CORS-restricted)
+- `packages/api/src/internal/providers/lib/alia-models.ts` - Alia model definitions
+- `packages/api/src/internal/providers/lib/generate-model-mappings.ts` - Provider routing config
+- `packages/api/src/routes/v1/models.ts` - Public models API (returns only Alia models)
+- `packages/api/src/lib/errors/sanitize.ts` - Error message sanitization (strips provider names)
+- `packages/api/src/internal/` - All provider logic (internal only, CORS-restricted)
 
 ## MongoDB Database Naming
 
@@ -52,11 +52,11 @@ All Oxy ecosystem apps share the same MongoDB cluster on DigitalOcean. Each app 
 
 ## Monorepo Structure
 
-- `apps/app/` - Main Expo app (React Native + Web)
-- `apps/api/` - Express backend API
-- `apps/alia-codea/` - VS Code extension
-- `apps/alia-canvas/` - Web canvas app
-- `apps/alia-gateway/` - Gateway service (internal)
+- `packages/app/` - Main Expo app (React Native + Web)
+- `packages/api/` - Express backend API
+- `packages/alia-codea/` - VS Code extension
+- `packages/alia-canvas/` - Web canvas app
+- `packages/alia-gateway/` - Gateway service (internal)
 
 ## Tech Stack
 
@@ -65,7 +65,7 @@ All Oxy ecosystem apps share the same MongoDB cluster on DigitalOcean. Each app 
 - **Auth**: `@oxyhq/core ^3.4.13`, `@oxyhq/auth ^4.1.1`, `@oxyhq/services ^10.2.10`, `@oxyhq/bloom ^0.8.5`
 - **Routing**: expo-router (file-based)
 
-Expo web SSO callback bootstrap lives in `apps/app/app/+html.tsx` via
+Expo web SSO callback bootstrap lives in `packages/app/app/+html.tsx` via
 `getSsoCallbackBootstrapScript()` from `@oxyhq/core`. Do not add local
 `/__oxy/sso-callback` routes or copy SSO helper logic. RP frontends use
 `WebOxyProvider` / `OxyProvider` with a registered `clientId`; SDK cold boot owns
@@ -102,11 +102,11 @@ Insert an `OxyService` document — zero changes to Alia's codebase needed:
 
 ### Key files
 
-- `apps/api/src/models/oxy-service.ts` - OxyService Mongoose model (manifest schema)
-- `apps/api/src/lib/tools/oxy-services.ts` - Tool builder (`buildOxyServiceTools`, `callOxyService`, `getOxyServiceContext`, `getOxyServicePromptFragment`)
-- `apps/api/src/routes/oxy-service-events.ts` - Event webhook endpoint
-- `apps/api/src/scripts/seed-oxy-services.ts` - Seed script for email service manifest
-- `apps/api/src/routes/v1/chat-completions.ts` - Integration point (~line 615)
+- `packages/api/src/models/oxy-service.ts` - OxyService Mongoose model (manifest schema)
+- `packages/api/src/lib/tools/oxy-services.ts` - Tool builder (`buildOxyServiceTools`, `callOxyService`, `getOxyServiceContext`, `getOxyServicePromptFragment`)
+- `packages/api/src/routes/oxy-service-events.ts` - Event webhook endpoint
+- `packages/api/src/scripts/seed-oxy-services.ts` - Seed script for email service manifest
+- `packages/api/src/routes/v1/chat-completions.ts` - Integration point (~line 615)
 
 ### Patterns to follow
 

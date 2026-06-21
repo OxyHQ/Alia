@@ -6,8 +6,7 @@
  *
  * Flow: POST async-invoke → poll status → GET result
  *
- * NOTE: Kept in sync with apps/api/src/internal/providers/lib/digitalocean-async.ts
- * TODO: Extract to a shared workspace package when packages/ infra is added.
+ * NOTE: Kept in sync with packages/api/src/internal/providers/lib/digitalocean-async.ts
  */
 
 import { log } from './logger';

@@ -26,20 +26,20 @@ Available SEO helper files (for advanced usage when needed):
 ### Implemented
 
 1. **Automatic Dynamic Sitemap**
-   - File: `apps/app/scripts/generate-sitemap.ts`
+   - File: `packages/app/scripts/generate-sitemap.ts`
    - Generates sitemap.xml with all routes (static and dynamic)
    - Run: `npm run generate-sitemap` (add script to package.json)
    - Recommended automatic update: every build or deploy
 
 2. **Optimized Robots.txt**
-   - File: `apps/app/public/robots.txt`
+   - File: `packages/app/public/robots.txt`
    - Blocks private routes (/settings, /billing, /c/)
    - Allows crawling of public content
    - Blocks aggressive scraping bots (Ahrefs, Semrush)
    - Multiple sitemaps declared
 
 3. **Dynamic Meta Tags + Open Graph**
-   - File: `apps/app/lib/seo/meta-tags.ts`
+   - File: `packages/app/lib/seo/meta-tags.ts`
    - Complete per-page meta tag system
    - Open Graph for social media sharing
    - Twitter Cards
@@ -47,12 +47,12 @@ Available SEO helper files (for advanced usage when needed):
    - Predefined presets for common pages
 
 4. **Reusable SEOHead Component**
-   - File: `apps/app/components/seo/SEOHead.tsx`
+   - File: `packages/app/components/seo/SEOHead.tsx`
    - Usage: `<SEOHead {...META_PRESETS.home} />`
    - Seamless integration with Expo Router
 
 5. **Structured Data (Schema.org)**
-   - File: `apps/app/lib/seo/structured-data.ts`
+   - File: `packages/app/lib/seo/structured-data.ts`
    - WebApplication schema
    - SoftwareApplication schema
    - FAQ schema
@@ -100,7 +100,7 @@ Available SEO helper files (for advanced usage when needed):
 
 ### 1. Update Home Page with SEO
 
-**File**: `apps/app/app/(app)/index.tsx`
+**File**: `packages/app/app/(app)/index.tsx`
 
 ```tsx
 import { SEOHead } from '@/components/seo/SEOHead';
@@ -159,9 +159,9 @@ export default function MyPage() {
 
 ```bash
 # Create these pages:
-apps/app/app/vs/claude.tsx
-apps/app/app/vs/gemini.tsx
-apps/app/app/vs/copilot.tsx
+packages/app/app/vs/claude.tsx
+packages/app/app/vs/gemini.tsx
+packages/app/app/vs/copilot.tsx
 ```
 
 Use `/vs/chatgpt.tsx` as a template.
@@ -171,7 +171,7 @@ Use `/vs/chatgpt.tsx` as a template.
 **Recommended structure**:
 
 ```
-apps/app/app/blog/
+packages/app/app/blog/
 ├── index.tsx                   (Article listing)
 ├── [slug].tsx                  (Individual article)
 └── _posts/
@@ -201,7 +201,7 @@ Options:
 **Structure**:
 
 ```typescript
-// apps/app/app/api/og/route.ts
+// packages/app/app/api/og/route.ts
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const title = searchParams.get('title');
@@ -266,7 +266,7 @@ https://fr.alia.onl/       (French)
 
 Create structure:
 ```
-apps/app/app/[locale]/
+packages/app/app/[locale]/
 ├── _layout.tsx
 ├── index.tsx
 ├── ai-chat.tsx
@@ -432,7 +432,7 @@ export function reportWebVitals() {
 ```json
 {
   "scripts": {
-    "generate-sitemap": "tsx apps/app/scripts/generate-sitemap.ts",
+    "generate-sitemap": "tsx packages/app/scripts/generate-sitemap.ts",
     "build:web": "npm run generate-sitemap && npm run build",
     "prebuild": "npm run generate-sitemap"
   }
@@ -442,7 +442,7 @@ export function reportWebVitals() {
 ### 2. Create Default OG Image
 
 Design and add:
-- `apps/app/public/og-image-default.png` (1200x630px)
+- `packages/app/public/og-image-default.png` (1200x630px)
 - Alia branding
 - Tagline: "Chat with AI that remembers"
 
@@ -467,7 +467,7 @@ export function Breadcrumbs({ items }: { items: Array<{name: string, href: strin
 ### 4. Update +html.tsx with Canonical
 
 ```tsx
-// apps/app/app/+html.tsx
+// packages/app/app/+html.tsx
 <link rel="canonical" href="https://alia.onl/" />
 ```
 

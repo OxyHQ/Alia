@@ -62,8 +62,5 @@ next-env.d.ts
 usage-data.json
 
 # App specific
-apps/web/.next/
-apps/web/out/
-apps/api/dist/
-apps/mobile/.expo/
-apps/mobile/dist/
+packages/api/dist/
+packages/app/.expo/

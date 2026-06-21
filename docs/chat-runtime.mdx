@@ -6,7 +6,7 @@ order: 1
 
 # Chat runtime
 
-Every Alia surface — the Expo app, Codea, Cowork, the CLI, and external integrations — talks to the same handler. `POST /alia/chat` and `POST /v1/chat/completions` are aliases for the same code path in `apps/api/src/routes/v1/chat-completions.ts`. There is no second runtime to keep in sync.
+Every Alia surface — the Expo app, Codea, Cowork, the CLI, and external integrations — talks to the same handler. `POST /alia/chat` and `POST /v1/chat/completions` are aliases for the same code path in `packages/api/src/routes/v1/chat-completions.ts`. There is no second runtime to keep in sync.
 
 ## Request shape
 
@@ -42,7 +42,7 @@ What happens between request and first SSE chunk:
 3. Alia model ID is resolved to a provider model through the fallback chain
 4. `UserMemory`, `ContextSource`s, and `LearningRule`s are loaded
 5. Tools are assembled: native tools + MCP servers + Oxy service connector + integration bridges
-6. The system prompt is built from `apps/api/src/lib/prompt-loader.ts` fragments
+6. The system prompt is built from `packages/api/src/lib/prompt-loader.ts` fragments
 7. `autonomy.beforeChat()` runs `classify → recall → retrieve`
 8. AI SDK `streamText()` opens the provider connection with the fallback chain
 9. Chunks are written back as SSE `data:` events
@@ -119,7 +119,7 @@ Sent when an action's risk class is `R2`. Stream pauses until the client posts a
 
 ## Tools
 
-Tools are registered in `apps/api/src/lib/tools/registry.ts` and assembled per request based on the user's plan and capabilities. Categories include:
+Tools are registered in `packages/api/src/lib/tools/registry.ts` and assembled per request based on the user's plan and capabilities. Categories include:
 
 - **Utility** — `getCurrentDate`, `getDeviceInfo`, `switchModel`
 - **Research** — `webSearch`, `webScraper`, `browse`, `deepResearch`

@@ -83,7 +83,7 @@ Named SSE events used by all clients:
 # from repo root
 bun run dev:api
 
-# or from apps/api
+# or from packages/api
 bun run dev
 ```
 
@@ -96,7 +96,7 @@ bun run start
 
 ## Environment
 
-Use `apps/api/example.env` as baseline.
+Use `packages/api/example.env` as baseline.
 
 Key groups:
 

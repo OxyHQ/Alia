@@ -1,6 +1,6 @@
 /**
  * Personality Styles — UI metadata for the card picker.
- * The actual prompt supplements live in the API (apps/api/src/lib/personality-styles.ts).
+ * The actual prompt supplements live in the API (packages/api/src/lib/personality-styles.ts).
  */
 
 export type PersonalityStyleId = 'alia' | 'brief' | 'chill' | 'sweet' | 'witty' | 'mentor' | 'bold';

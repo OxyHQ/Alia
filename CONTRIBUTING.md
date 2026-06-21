@@ -11,7 +11,7 @@
 ```bash
 git clone <repo-url> && cd Alia
 bun install              # installs all workspaces
-cp apps/api/.env.example apps/api/.env   # fill in your values
+cp packages/api/.env.example packages/api/.env   # fill in your values
 bun run dev              # starts all services
 ```
 
@@ -28,16 +28,16 @@ This is an **Bun workspaces** monorepo (no Turborepo/Nx).
 
 | App | Stack | Purpose |
 | --- | --- | --- |
-| `apps/api` | Express + TypeScript | Core API runtime |
-| `apps/app` | Expo 55 (React Native + Web) | Main app (web + iOS + Android) |
-| `apps/alia-codea` | VS Code extension | Coding assistant surface |
-| `apps/alia-cowork` | Electron | Desktop assistant surface |
-| `apps/alia-console` | TanStack Start + React | Admin console |
-| `apps/alia-canvas` | Next.js | Canvas app |
-| `apps/alia-gateway-admin` | Vite + React | Internal gateway admin |
-| `apps/alia-codea-cli` | CLI | Terminal coding assistant |
-| `apps/alia-docker-host` | Express + TypeScript | Sandboxed container host |
-| `apps/integrations` | Express + TypeScript | Messaging and channel integrations |
+| `packages/api` | Express + TypeScript | Core API runtime |
+| `packages/app` | Expo 55 (React Native + Web) | Main app (web + iOS + Android) |
+| `packages/alia-codea` | VS Code extension | Coding assistant surface |
+| `packages/alia-cowork` | Electron | Desktop assistant surface |
+| `packages/alia-console` | TanStack Start + React | Admin console |
+| `packages/alia-canvas` | Next.js | Canvas app |
+| `packages/alia-gateway-admin` | Vite + React | Internal gateway admin |
+| `packages/alia-codea-cli` | CLI | Terminal coding assistant |
+| `packages/alia-docker-host` | Express + TypeScript | Sandboxed container host |
+| `packages/integrations` | Express + TypeScript | Messaging and channel integrations |
 
 ## Branch Naming
 
@@ -75,7 +75,7 @@ chore: bump dependencies
 - **TypeScript strict mode** encouraged. Avoid `any` -- use proper types.
 - **Frontend styling**: NativeWind (Tailwind). No inline style objects unless necessary.
 - **State management**: Zustand stores. Data fetching via TanStack Query.
-- **Routing**: expo-router (file-based) in `apps/app`.
+- **Routing**: expo-router (file-based) in `packages/app`.
 - Follow existing patterns in the codebase. When in doubt, look at neighboring files.
 
 ## Testing
@@ -101,7 +101,7 @@ Always use Alia model names: `alia-v1`, `alia-lite`, `alia-v1-pro`, `alia-v1-thi
 
 ### Error Handling
 
-Use `sanitizeMessage()` from `apps/api/src/lib/errors/sanitize.ts` for all user-facing error messages. This strips any leaked provider names.
+Use `sanitizeMessage()` from `packages/api/src/lib/errors/sanitize.ts` for all user-facing error messages. This strips any leaked provider names.
 
 ### Database
 

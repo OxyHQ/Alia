@@ -8,13 +8,13 @@ order: 3
 
 Alia's reach across channels and external systems comes from three layers:
 
-1. **Native tools** registered in `apps/api/src/lib/tools/` — the runtime exposes them to the model directly.
+1. **Native tools** registered in `packages/api/src/lib/tools/` — the runtime exposes them to the model directly.
 2. **MCP servers** — Model Context Protocol bridges to user-installed tools.
-3. **Channel integrations** — long-running connectors in `apps/integrations/` that mirror messages from Telegram, WhatsApp, Discord, Signal, Gmail, and a headless browser into Alia.
+3. **Channel integrations** — long-running connectors in `packages/integrations/` that mirror messages from Telegram, WhatsApp, Discord, Signal, Gmail, and a headless browser into Alia.
 
 ## Native tools
 
-Tools live in `apps/api/src/lib/tools/` and self-register through `registry.ts`. Each tool declares its name, description, default-enabled state, and category; the runtime assembles the per-request tool set based on the user's plan, the model's capabilities, and any explicit `tools` list on the request.
+Tools live in `packages/api/src/lib/tools/` and self-register through `registry.ts`. Each tool declares its name, description, default-enabled state, and category; the runtime assembles the per-request tool set based on the user's plan, the model's capabilities, and any explicit `tools` list on the request.
 
 | Category | Tools |
 |----------|-------|
@@ -32,16 +32,16 @@ All tools wrap their executor in `safeExecute()` so errors surface as `alia.tool
 
 ### Adding a tool
 
-1. Create `apps/api/src/lib/tools/my-tool.ts` exporting a tool constructor
-2. Export it from `apps/api/src/lib/tools/index.ts`
+1. Create `packages/api/src/lib/tools/my-tool.ts` exporting a tool constructor
+2. Export it from `packages/api/src/lib/tools/index.ts`
 3. Register it with `registerTool({ name, description, tool, enabledByDefault, category })`
 4. Pick a risk class and wrap any external write in a `RollbackRecord` if reversible
-5. Add a description fragment under `apps/api/src/lib/tools/descriptions/`
-6. Test it under `apps/api/src/lib/tools/__tests__/`
+5. Add a description fragment under `packages/api/src/lib/tools/descriptions/`
+6. Test it under `packages/api/src/lib/tools/__tests__/`
 
 ## MCP servers
 
-MCP integration lives in `apps/api/src/lib/tools/mcp.ts` and `apps/integrations/src/mcp/`. Users register MCP servers from their account; tools are introspected via `mcp-schema.ts` and surfaced as first-class tool calls inside chat. The runtime handles transport (stdio / HTTP / websocket), schema validation, lifecycle, and rate limiting per server.
+MCP integration lives in `packages/api/src/lib/tools/mcp.ts` and `packages/integrations/src/mcp/`. Users register MCP servers from their account; tools are introspected via `mcp-schema.ts` and surfaced as first-class tool calls inside chat. The runtime handles transport (stdio / HTTP / websocket), schema validation, lifecycle, and rate limiting per server.
 
 MCP capabilities are visible to the model with the same calling convention as native tools, so the LLM does not need to distinguish them. Per-user MCP policy is exposed through `GET /codea/mcp_registry` for the Codea VS Code surface.
 
@@ -49,8 +49,8 @@ MCP capabilities are visible to the model with the same calling convention as na
 
 Alia is part of the Oxy ecosystem. Services in that ecosystem register a manifest in MongoDB; Alia auto-discovers their tools and exposes them in chat. Two files own this:
 
-- `apps/api/src/models/oxy-service.ts` — `OxyService` model (manifest, tools, scopes)
-- `apps/api/src/lib/tools/oxy-services.ts` — tool builder that turns manifest entries into AI SDK tools
+- `packages/api/src/models/oxy-service.ts` — `OxyService` model (manifest, tools, scopes)
+- `packages/api/src/lib/tools/oxy-services.ts` — tool builder that turns manifest entries into AI SDK tools
 
 Inbound service events go through `POST /webhooks/oxy/:serviceId`:
 
@@ -63,7 +63,7 @@ The connector reuses the same `service-token` flow as the rest of the Oxy ecosys
 
 ## Channel integrations
 
-`apps/integrations` is a separate Express service that owns long-lived connections to messaging platforms. It mirrors channel messages into Alia conversations and exposes outbound tools the runtime can call.
+`packages/integrations` is a separate Express service that owns long-lived connections to messaging platforms. It mirrors channel messages into Alia conversations and exposes outbound tools the runtime can call.
 
 | Subdirectory | Channel | Notes |
 |--------------|---------|-------|
@@ -117,4 +117,4 @@ Endpoints:
 
 ## Sandbox and Docker host
 
-`apps/alia-docker-host` provides per-conversation isolated containers for code execution and ephemeral environments. The `sandbox` tool spawns containers from `ContainerTemplate` definitions and the runtime garbage-collects idle containers after the chat closes. Use the Docker host for any tool that needs filesystem isolation, shell access, or network egress controls.
+`packages/alia-docker-host` provides per-conversation isolated containers for code execution and ephemeral environments. The `sandbox` tool spawns containers from `ContainerTemplate` definitions and the runtime garbage-collects idle containers after the chat closes. Use the Docker host for any tool that needs filesystem isolation, shell access, or network egress controls.

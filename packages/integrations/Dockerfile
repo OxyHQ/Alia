@@ -20,18 +20,19 @@ WORKDIR /build
 
 # Copy root workspace files
 COPY package.json bun.lock ./
-COPY apps/api/package.json ./apps/api/
-COPY apps/app/package.json ./apps/app/
-COPY apps/alia-chat/package.json ./apps/alia-chat/
-COPY apps/alia-canvas/package.json ./apps/alia-canvas/
-COPY apps/alia-docker-host/package.json ./apps/alia-docker-host/
-COPY apps/integrations/package.json ./apps/integrations/
-COPY apps/alia-console/package.json ./apps/alia-console/
-COPY apps/alia-gateway-admin/package.json ./apps/alia-gateway-admin/
-COPY apps/alia-codea/package.json ./apps/alia-codea/
-COPY apps/alia-cowork/package.json ./apps/alia-cowork/
-COPY apps/alia-codea-cli/package.json ./apps/alia-codea-cli/
-COPY apps/alia-gateway/package.json ./apps/alia-gateway/
+COPY packages/api/package.json ./packages/api/
+COPY packages/app/package.json ./packages/app/
+COPY packages/alia-chat/package.json ./packages/alia-chat/
+COPY packages/alia-canvas/package.json ./packages/alia-canvas/
+COPY packages/alia-docker-host/package.json ./packages/alia-docker-host/
+COPY packages/integrations/package.json ./packages/integrations/
+COPY packages/alia-console/package.json ./packages/alia-console/
+COPY packages/alia-gateway-admin/package.json ./packages/alia-gateway-admin/
+COPY packages/alia-codea/package.json ./packages/alia-codea/
+COPY packages/alia-cowork/package.json ./packages/alia-cowork/
+COPY packages/alia-codea-cli/package.json ./packages/alia-codea-cli/
+COPY packages/alia-gateway/package.json ./packages/alia-gateway/
+COPY packages/shared-types/package.json ./packages/shared-types/
 
 # Rewrite git+ssh:// to git+https:// so cloning works without SSH keys
 RUN git config --global url."https://github.com/".insteadOf "git@github.com:" && \
@@ -41,11 +42,11 @@ RUN git config --global url."https://github.com/".insteadOf "git@github.com:" &&
 # --frozen-lockfile is intentionally omitted: bun's frozen check reports false
 # drift for this monorepo (re-resolves ^/~ transitive ranges against the live
 # registry) even against a freshly regenerated bun.lock. bun.lock remains the
-# resolution baseline. Matches apps/api/Dockerfile.
+# resolution baseline. Matches packages/api/Dockerfile.
 RUN bun install --filter @alia/integrations
 
 # Copy source
-COPY apps/integrations/ ./apps/integrations/
+COPY packages/integrations/ ./packages/integrations/
 
 # Build TypeScript
 RUN bun run --filter @alia/integrations build
@@ -93,18 +94,19 @@ WORKDIR /app
 
 # Copy root workspace files
 COPY package.json bun.lock ./
-COPY apps/api/package.json ./apps/api/
-COPY apps/app/package.json ./apps/app/
-COPY apps/alia-chat/package.json ./apps/alia-chat/
-COPY apps/alia-canvas/package.json ./apps/alia-canvas/
-COPY apps/alia-docker-host/package.json ./apps/alia-docker-host/
-COPY apps/integrations/package.json ./apps/integrations/
-COPY apps/alia-console/package.json ./apps/alia-console/
-COPY apps/alia-gateway-admin/package.json ./apps/alia-gateway-admin/
-COPY apps/alia-codea/package.json ./apps/alia-codea/
-COPY apps/alia-cowork/package.json ./apps/alia-cowork/
-COPY apps/alia-codea-cli/package.json ./apps/alia-codea-cli/
-COPY apps/alia-gateway/package.json ./apps/alia-gateway/
+COPY packages/api/package.json ./packages/api/
+COPY packages/app/package.json ./packages/app/
+COPY packages/alia-chat/package.json ./packages/alia-chat/
+COPY packages/alia-canvas/package.json ./packages/alia-canvas/
+COPY packages/alia-docker-host/package.json ./packages/alia-docker-host/
+COPY packages/integrations/package.json ./packages/integrations/
+COPY packages/alia-console/package.json ./packages/alia-console/
+COPY packages/alia-gateway-admin/package.json ./packages/alia-gateway-admin/
+COPY packages/alia-codea/package.json ./packages/alia-codea/
+COPY packages/alia-cowork/package.json ./packages/alia-cowork/
+COPY packages/alia-codea-cli/package.json ./packages/alia-codea-cli/
+COPY packages/alia-gateway/package.json ./packages/alia-gateway/
+COPY packages/shared-types/package.json ./packages/shared-types/
 
 # Rewrite git+ssh:// to git+https:// so cloning works without SSH keys
 RUN git config --global url."https://github.com/".insteadOf "git@github.com:" && \
@@ -115,7 +117,7 @@ RUN git config --global url."https://github.com/".insteadOf "git@github.com:" &&
 RUN bun install --production --filter @alia/integrations
 
 # Copy built output from builder
-COPY --from=builder /build/apps/integrations/dist ./apps/integrations/dist
+COPY --from=builder /build/packages/integrations/dist ./packages/integrations/dist
 
 # Create signal-cli data directory
 RUN mkdir -p /app/signal-data && chown -R node:node /app
@@ -130,4 +132,4 @@ EXPOSE 3005
 HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
   CMD curl -f http://localhost:3005/health || exit 1
 
-CMD ["node", "apps/integrations/dist/index.js"]
+CMD ["node", "packages/integrations/dist/index.js"]
