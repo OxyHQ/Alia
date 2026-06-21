@@ -25,7 +25,7 @@ module.exports = (() => {
   };
   config.resolver = {
     ...resolver,
-    assetExts: resolver.assetExts.filter((ext) => ext !== "svg"),
+    assetExts: [...resolver.assetExts.filter((ext) => ext !== "svg"), "wasm", "woff2", "woff"],
     sourceExts: [...resolver.sourceExts, "svg"],
     // On web, replace react-native-track-player with a no-op shim so the
     // bundler never pulls in shaka-player (TTS uses expo-speech on web).
@@ -39,6 +39,7 @@ module.exports = (() => {
 
   return withNativeWind(config, {
     input: './global.css',
-    inlineRem: 16
+    inlineRem: 16,
+    inlineVariables: false
   });
 })();
