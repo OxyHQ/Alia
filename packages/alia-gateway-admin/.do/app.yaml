@@ -9,7 +9,7 @@ static_sites:
       repo: Alia-onl/Alia
 
     # Source directory (monorepo path)
-    source_dir: /apps/alia-gateway-admin
+    source_dir: /packages/alia-gateway-admin
 
     # Build configuration
     build_command: bun install && bun run build

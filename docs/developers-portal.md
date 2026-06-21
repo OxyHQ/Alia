@@ -50,7 +50,7 @@ A comprehensive developer portal that allows users to create applications and ge
 
 #### Database Models
 
-**DeveloperApp** (`apps/api/src/models/developer-app.ts`)
+**DeveloperApp** (`packages/api/src/models/developer-app.ts`)
 ```typescript
 {
   userId: ObjectId          // Owner of the app
@@ -63,7 +63,7 @@ A comprehensive developer portal that allows users to create applications and ge
 }
 ```
 
-**DeveloperApiKey** (`apps/api/src/models/developer-api-key.ts`)
+**DeveloperApiKey** (`packages/api/src/models/developer-api-key.ts`)
 ```typescript
 {
   userId: ObjectId         // Key owner
@@ -78,7 +78,7 @@ A comprehensive developer portal that allows users to create applications and ge
 }
 ```
 
-**ApiKeyUsage** (`apps/api/src/models/api-key-usage.ts`)
+**ApiKeyUsage** (`packages/api/src/models/api-key-usage.ts`)
 ```typescript
 {
   apiKeyId: ObjectId

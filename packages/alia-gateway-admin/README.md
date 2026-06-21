@@ -4,11 +4,11 @@ Modern admin panel for managing the Alia Gateway module (internal to the main AP
 
 ## Architecture
 
-The providers module lives inside the main API at `apps/api/src/internal/gateway/`. It is **not** a separate microservice. The admin panel connects to `http://localhost:3001/internal/gateway` (or the configured `VITE_GATEWAY_API_URL`).
+The providers module lives inside the main API at `packages/api/src/internal/gateway/`. It is **not** a separate microservice. The admin panel connects to `http://localhost:3001/internal/gateway` (or the configured `VITE_GATEWAY_API_URL`).
 
 ```
 Admin Panel (this app)
-  └─→ Main API (apps/api, port 3001)
+  └─→ Main API (packages/api, port 3001)
        └─→ /internal/gateway/*   ← providers module
 ```
 
@@ -78,7 +78,7 @@ const { user, isAuthenticated, isLoading } = useAuth();
 const isAuthorized = user?.username?.toLowerCase() === 'nate';
 ```
 
-**Backend** (apps/api [src/internal/gateway/middleware/auth.ts](../api/src/internal/gateway/middleware/auth.ts)):
+**Backend** (packages/api [src/internal/gateway/middleware/auth.ts](../api/src/internal/gateway/middleware/auth.ts)):
 ```typescript
 // Accepts both HMAC (service-to-service) and Bearer token (admin panel)
 // Bearer tokens are validated against OxyHQ and checked for admin username
@@ -96,7 +96,7 @@ See [REALTIME.md](REALTIME.md) for full WebSocket protocol documentation.
 
 - Node.js 18+
 - npm or yarn
-- Running main API service (`apps/api` on port 3001)
+- Running main API service (`packages/api` on port 3001)
 - OxyHQ account (username must be "nate" for admin access)
 
 ### Installation

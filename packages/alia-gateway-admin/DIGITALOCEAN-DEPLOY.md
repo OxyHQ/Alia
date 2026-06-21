@@ -20,7 +20,7 @@ This guide covers deploying the Alia Gateway Admin Panel as a Static Site on Dig
 
 2. **Configure the Static Site**
    - **Type**: Static Site
-   - **Source Directory**: `/apps/alia-gateway-admin`
+   - **Source Directory**: `/packages/alia-gateway-admin`
    - **Build Command**:
      ```bash
      bun install && bun run build
@@ -77,7 +77,7 @@ The app includes a `.do/app.yaml` configuration file. You can use it to deploy v
 
 4. **Create the App**
    ```bash
-   cd apps/alia-gateway-admin
+   cd packages/alia-gateway-admin
    doctl apps create --spec .do/app.yaml
    ```
 
@@ -95,7 +95,7 @@ The app includes a `.do/app.yaml` configuration file. You can use it to deploy v
 
 This project uses a monorepo structure. Important notes:
 
-1. **Source Directory**: Must be set to `/apps/alia-gateway-admin`
+1. **Source Directory**: Must be set to `/packages/alia-gateway-admin`
 2. **Build Command**: Must run `bun install` first (dependencies aren't in repo root)
 3. **Dependencies**: All dependencies are in the admin folder's `package.json`
 

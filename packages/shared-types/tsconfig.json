@@ -1,0 +1,33 @@
+{
+  // ---------------------------------------------------------------------------
+  // @alia/shared-types
+  //
+  // Type definitions shared across the Alia monorepo (API, gateway,
+  // integrations, and the Expo app). Alia has no root tsconfig, so this config
+  // is fully self-contained.
+  //
+  // It emits ESM with declarations to `dist/` (`"type": "module"`). The API
+  // build externalizes node_modules, so consumers resolve `@alia/shared-types`
+  // against `dist/index.js` / `dist/index.d.ts` at runtime and at type-check
+  // time. NodeNext keeps the emitted module format unambiguous for Node/Bun.
+  // ---------------------------------------------------------------------------
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2022"],
+    "module": "NodeNext",
+    "moduleResolution": "nodenext",
+    "declaration": true,
+    "declarationMap": true,
+    "sourceMap": false,
+    "outDir": "./dist",
+    "rootDir": "./src",
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "isolatedModules": true,
+    "noEmit": false
+  },
+  "include": ["src/**/*"],
+  "exclude": ["node_modules", "dist"]
+}

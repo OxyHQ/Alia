@@ -11,7 +11,7 @@ COPY package.json bun.lock ./
 # --frozen-lockfile is intentionally omitted: bun's frozen check reports false
 # drift for this monorepo (re-resolves ^/~ transitive ranges against the live
 # registry) even against a freshly regenerated bun.lock. bun.lock remains the
-# resolution baseline. Matches apps/api/Dockerfile.
+# resolution baseline. Matches packages/api/Dockerfile.
 RUN bun install
 COPY tsconfig.json ./
 COPY src/ ./src/

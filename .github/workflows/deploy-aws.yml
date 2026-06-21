@@ -1,5 +1,5 @@
 # Reusable AWS deploy workflow — copy to each repo as .github/workflows/deploy-aws.yml
-# and substitute alia (ecs service + ecr repo name) and apps/api/Dockerfile (path).
+# and substitute alia (ecs service + ecr repo name) and packages/api/Dockerfile (path).
 name: Deploy to AWS
 
 on:
@@ -19,7 +19,7 @@ env:
   ECR_REGISTRY: 237343248947.dkr.ecr.us-west-2.amazonaws.com
   APP: alia
   CLUSTER: oxy-cluster
-  DOCKERFILE: apps/api/Dockerfile
+  DOCKERFILE: packages/api/Dockerfile
 
 jobs:
   deploy:

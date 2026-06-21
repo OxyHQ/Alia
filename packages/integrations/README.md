@@ -71,7 +71,7 @@ PORT=3005
 npm run dev:integrations
 
 # Or directly
-cd apps/integrations
+cd packages/integrations
 npx tsx src/index.ts
 ```
 

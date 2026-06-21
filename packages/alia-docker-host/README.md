@@ -113,7 +113,7 @@ See [.env.example](.env.example) for all options.
 
 ### API Server Config
 
-Add to `apps/api/.env`:
+Add to `packages/api/.env`:
 
 ```bash
 DOCKER_HOST_URL=http://<droplet-ip>:9090

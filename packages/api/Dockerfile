@@ -8,7 +8,7 @@
 # - Only the @alia/api workspace is installed (via --filter), so the image
 #   stays lean and unrelated workspaces' native builds (e.g. node-pty in the
 #   Electron app) are never compiled.
-# - All apps/*/package.json manifests are copied first so bun can resolve the
+# - All packages/*/package.json manifests are copied first so bun can resolve the
 #   workspace graph. The root bunfig.toml sets `linker = "hoisted"`, so bun
 #   flattens real dependencies into the root node_modules (instead of the
 #   bun 1.3 default "isolated" linker, which keeps them under node_modules/.bun
@@ -33,22 +33,23 @@ WORKDIR /build
 COPY package.json bun.lock bunfig.toml ./
 # All workspace manifests (required so bun can resolve the workspace graph).
 # Directory structure is preserved.
-COPY apps/api/package.json ./apps/api/
-COPY apps/app/package.json ./apps/app/
-COPY apps/alia-chat/package.json ./apps/alia-chat/
-COPY apps/alia-canvas/package.json ./apps/alia-canvas/
-COPY apps/alia-docker-host/package.json ./apps/alia-docker-host/
-COPY apps/integrations/package.json ./apps/integrations/
-COPY apps/alia-console/package.json ./apps/alia-console/
-COPY apps/alia-gateway-admin/package.json ./apps/alia-gateway-admin/
-COPY apps/alia-codea/package.json ./apps/alia-codea/
-COPY apps/alia-codea/webview-ui/package.json ./apps/alia-codea/webview-ui/
-COPY apps/alia-cowork/package.json ./apps/alia-cowork/
-COPY apps/alia-codea-cli/package.json ./apps/alia-codea-cli/
-COPY apps/alia-gateway/package.json ./apps/alia-gateway/
+COPY packages/api/package.json ./packages/api/
+COPY packages/app/package.json ./packages/app/
+COPY packages/alia-chat/package.json ./packages/alia-chat/
+COPY packages/alia-canvas/package.json ./packages/alia-canvas/
+COPY packages/alia-docker-host/package.json ./packages/alia-docker-host/
+COPY packages/integrations/package.json ./packages/integrations/
+COPY packages/alia-console/package.json ./packages/alia-console/
+COPY packages/alia-gateway-admin/package.json ./packages/alia-gateway-admin/
+COPY packages/alia-codea/package.json ./packages/alia-codea/
+COPY packages/alia-codea/webview-ui/package.json ./packages/alia-codea/webview-ui/
+COPY packages/alia-cowork/package.json ./packages/alia-cowork/
+COPY packages/alia-codea-cli/package.json ./packages/alia-codea-cli/
+COPY packages/alia-gateway/package.json ./packages/alia-gateway/
+COPY packages/shared-types/package.json ./packages/shared-types/
 
 # Skip heavy browser/desktop binaries pulled by unrelated workspaces.
-# ffmpeg-static (declared in apps/api "trustedDependencies") still fetches its
+# ffmpeg-static (declared in packages/api "trustedDependencies") still fetches its
 # arch-specific binary so audio features work on the target architecture.
 ENV ELECTRON_SKIP_BINARY_DOWNLOAD=1 \
     PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 \
@@ -67,13 +68,13 @@ ENV ELECTRON_SKIP_BINARY_DOWNLOAD=1 \
 RUN bun install --filter "@alia/api"
 
 # Copy API source and build the bundle.
-COPY apps/api/ ./apps/api/
+COPY packages/api/ ./packages/api/
 # Build from the workspace directory rather than `bun run --filter`. With the
 # hoisted linker + a filtered install, bun does not materialize
 # apps/api/node_modules, and `bun run --filter` aborts trying to read it. Running
 # the script in-place lets Node resolve esbuild up the tree to the root
 # node_modules (which the hoisted install populated).
-RUN cd apps/api && bun run build
+RUN cd packages/api && bun run build
 
 # --- Stage 2: Production runtime ---
 FROM node:${NODE_VERSION}-bookworm-slim AS runtime
@@ -94,10 +95,10 @@ WORKDIR /app
 # node_modules — this is what the externalized bundle resolves against).
 COPY --from=builder /build/node_modules ./node_modules
 COPY --from=builder /build/package.json /build/bun.lock ./
-COPY --from=builder /build/apps/api/package.json ./apps/api/package.json
+COPY --from=builder /build/packages/api/package.json ./packages/api/package.json
 
 # Built application bundle.
-COPY --from=builder /build/apps/api/dist ./apps/api/dist
+COPY --from=builder /build/packages/api/dist ./packages/api/dist
 
 # Security hardening: run as the unprivileged "node" user shipped in the image.
 RUN chown -R node:node /app
@@ -112,4 +113,4 @@ EXPOSE 3001
 HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
   CMD curl -fsS "http://127.0.0.1:${PORT:-3001}/health/live" || exit 1
 
-CMD ["node", "apps/api/dist/index.js"]
+CMD ["node", "packages/api/dist/index.js"]

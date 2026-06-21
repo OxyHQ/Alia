@@ -55,7 +55,7 @@ Screen path remains `app/(app)/automations.tsx`, but the data source is now `/tr
 # from repo root
 bun run dev:app
 
-# from apps/app
+# from packages/app
 npm start
 ```
 
@@ -69,7 +69,7 @@ bun run android
 
 ## API Config
 
-Configured in `apps/app/lib/config.ts`.
+Configured in `packages/app/lib/config.ts`.
 
 Expected production API:
 

@@ -13,7 +13,7 @@
         "typescript": "^5.9.3",
       },
     },
-    "apps/alia-canvas": {
+    "packages/alia-canvas": {
       "name": "alia-canvas",
       "version": "0.1.0",
       "dependencies": {
@@ -57,7 +57,7 @@
         "eslint-config-next": "16.2.9",
       },
     },
-    "apps/alia-chat": {
+    "packages/alia-chat": {
       "name": "@alia.onl/sdk",
       "version": "3.1.2",
       "dependencies": {
@@ -111,7 +111,7 @@
         "zeego",
       ],
     },
-    "apps/alia-codea": {
+    "packages/alia-codea": {
       "name": "alia-codea",
       "version": "1.0.7",
       "dependencies": {
@@ -126,7 +126,7 @@
         "typescript": "^5.3.0",
       },
     },
-    "apps/alia-codea-cli": {
+    "packages/alia-codea-cli": {
       "name": "@alia-codea/cli",
       "version": "2.0.2",
       "bin": {
@@ -153,7 +153,7 @@
         "typescript": "^5.7.2",
       },
     },
-    "apps/alia-codea/webview-ui": {
+    "packages/alia-codea/webview-ui": {
       "name": "webview-ui",
       "version": "0.0.0",
       "dependencies": {
@@ -203,7 +203,7 @@
         "vite": "^7.2.4",
       },
     },
-    "apps/alia-console": {
+    "packages/alia-console": {
       "name": "alia-console",
       "dependencies": {
         "@base-ui/react": "^1.1.0",
@@ -256,7 +256,7 @@
         "web-vitals": "^5.1.0",
       },
     },
-    "apps/alia-cowork": {
+    "packages/alia-cowork": {
       "name": "alia-cowork",
       "version": "1.0.0",
       "dependencies": {
@@ -316,7 +316,7 @@
         "typescript": "^5.3.2",
       },
     },
-    "apps/alia-docker-host": {
+    "packages/alia-docker-host": {
       "name": "@alia/docker-host",
       "version": "1.0.0",
       "dependencies": {
@@ -337,7 +337,7 @@
         "typescript": "^5.9.3",
       },
     },
-    "apps/alia-gateway": {
+    "packages/alia-gateway": {
       "name": "@alia/gateway",
       "version": "1.0.0",
       "dependencies": {
@@ -361,7 +361,7 @@
         "typescript": "^5.6.3",
       },
     },
-    "apps/alia-gateway-admin": {
+    "packages/alia-gateway-admin": {
       "name": "alia-gateway-admin",
       "version": "0.0.0",
       "dependencies": {
@@ -415,7 +415,7 @@
         "vite": "^7.2.4",
       },
     },
-    "apps/api": {
+    "packages/api": {
       "name": "@alia/api",
       "version": "1.0.0",
       "dependencies": {
@@ -473,7 +473,7 @@
         "vitest": "^4.0.18",
       },
     },
-    "apps/app": {
+    "packages/app": {
       "name": "@alia/app",
       "version": "1.0.0",
       "dependencies": {
@@ -596,7 +596,7 @@
         "lightningcss-linux-x64-gnu": "1.30.1",
       },
     },
-    "apps/integrations": {
+    "packages/integrations": {
       "name": "@alia/integrations",
       "version": "1.0.0",
       "dependencies": {
@@ -622,6 +622,13 @@
         "uuid": "^9.0.0",
         "ws": "^8.19.0",
         "zod": "^4.3.6",
+      },
+    },
+    "packages/shared-types": {
+      "name": "@alia/shared-types",
+      "version": "1.0.0",
+      "devDependencies": {
+        "typescript": "^5.9.3",
       },
     },
   },
@@ -695,19 +702,21 @@
 
     "@alcalzone/ansi-tokenize": ["@alcalzone/ansi-tokenize@0.2.5", "", { "dependencies": { "ansi-styles": "^6.2.1", "is-fullwidth-code-point": "^5.0.0" } }, "sha512-3NX/MpTdroi0aKz134A6RC2Gb2iXVECN4QaAXnvCIxxIm3C3AVB1mkUe8NaaiyvOpDfsrqWhYtj+Q6a62RrTsw=="],
 
-    "@alia-codea/cli": ["@alia-codea/cli@workspace:apps/alia-codea-cli"],
+    "@alia-codea/cli": ["@alia-codea/cli@workspace:packages/alia-codea-cli"],
 
-    "@alia.onl/sdk": ["@alia.onl/sdk@workspace:apps/alia-chat"],
+    "@alia.onl/sdk": ["@alia.onl/sdk@workspace:packages/alia-chat"],
 
-    "@alia/api": ["@alia/api@workspace:apps/api"],
+    "@alia/api": ["@alia/api@workspace:packages/api"],
 
-    "@alia/app": ["@alia/app@workspace:apps/app"],
+    "@alia/app": ["@alia/app@workspace:packages/app"],
 
-    "@alia/docker-host": ["@alia/docker-host@workspace:apps/alia-docker-host"],
+    "@alia/docker-host": ["@alia/docker-host@workspace:packages/alia-docker-host"],
 
-    "@alia/gateway": ["@alia/gateway@workspace:apps/alia-gateway"],
+    "@alia/gateway": ["@alia/gateway@workspace:packages/alia-gateway"],
 
-    "@alia/integrations": ["@alia/integrations@workspace:apps/integrations"],
+    "@alia/integrations": ["@alia/integrations@workspace:packages/integrations"],
+
+    "@alia/shared-types": ["@alia/shared-types@workspace:packages/shared-types"],
 
     "@alloc/quick-lru": ["@alloc/quick-lru@5.2.0", "", {}, "sha512-UrcABB+4bUrFABwbluTIBErXwvbsU/V7TZWfmbgJfbkwiBuziS9gxdODUyuiecfdGQ85jglMW6juS3+z5TsKLw=="],
 
@@ -2465,15 +2474,15 @@
 
     "ajv-keywords": ["ajv-keywords@3.5.2", "", { "peerDependencies": { "ajv": "^6.9.1" } }, "sha512-5p6WTN0DdTGVQk6VjcEju19IgaHudalcfabD7yhDGeA6bcQnmL+CpveLJq/3hvfwd1aof6L386Ougkx6RfyMIQ=="],
 
-    "alia-canvas": ["alia-canvas@workspace:apps/alia-canvas"],
+    "alia-canvas": ["alia-canvas@workspace:packages/alia-canvas"],
 
-    "alia-codea": ["alia-codea@workspace:apps/alia-codea"],
+    "alia-codea": ["alia-codea@workspace:packages/alia-codea"],
 
-    "alia-console": ["alia-console@workspace:apps/alia-console"],
+    "alia-console": ["alia-console@workspace:packages/alia-console"],
 
-    "alia-cowork": ["alia-cowork@workspace:apps/alia-cowork"],
+    "alia-cowork": ["alia-cowork@workspace:packages/alia-cowork"],
 
-    "alia-gateway-admin": ["alia-gateway-admin@workspace:apps/alia-gateway-admin"],
+    "alia-gateway-admin": ["alia-gateway-admin@workspace:packages/alia-gateway-admin"],
 
     "anser": ["anser@1.4.10", "", {}, "sha512-hCv9AqTQ8ycjpSd3upOJd7vFwW1JaoYQ7tpham03GJ1ca8/65rqn0RpaWpItOAd6ylW9wAw6luXYPJIyPFVOww=="],
 
@@ -5601,7 +5610,7 @@
 
     "websocket": ["websocket@1.0.35", "", { "dependencies": { "bufferutil": "^4.0.1", "debug": "^2.2.0", "es5-ext": "^0.10.63", "typedarray-to-buffer": "^3.1.5", "utf-8-validate": "^5.0.2", "yaeti": "^0.0.6" } }, "sha512-/REy6amwPZl44DDzvRCkaI1q1bIiQB0mEFQLUrhz3z2EK91cp3n72rAjUlrTP0zV22HJIUOVHQGPxhFRjxjt+Q=="],
 
-    "webview-ui": ["webview-ui@workspace:apps/alia-codea/webview-ui"],
+    "webview-ui": ["webview-ui@workspace:packages/alia-codea/webview-ui"],
 
     "well-known-symbols": ["well-known-symbols@4.1.0", "", { "dependencies": { "get-intrinsic": "^1.2.7", "has-symbols": "^1.1.0" } }, "sha512-lKhCpGfPkaJnPKyep1Uj44pNmyrdupYHtxci2ThUCC/Y0px44d9BWt2dbewDif4PwOqSI6KkCdwuL22CDUj4rw=="],
 
@@ -5775,15 +5784,11 @@
 
     "@ai-sdk/xai/@ai-sdk/provider-utils": ["@ai-sdk/provider-utils@3.0.25", "", { "dependencies": { "@ai-sdk/provider": "2.0.3", "@standard-schema/spec": "^1.0.0", "eventsource-parser": "^3.0.6" }, "peerDependencies": { "zod": "^3.25.76 || ^4.1.8" } }, "sha512-CvsRu+32Y8a167s+lrIBtsybvgTHp8j9y+6BeTvLeoW3Q+okw/b4CnNUFOLIXsRaKHQKAH+IHNJPYWywfpw0LA=="],
 
-    "@alia/api/@oxyhq/core": ["@oxyhq/core@3.4.13", "", { "dependencies": { "@oxyhq/contracts": "^0.1.0", "bip39": "^3.1.0", "buffer": "^6.0.3", "elliptic": "^6.6.1", "invariant": "^2.2.4", "jwt-decode": "^4.0.0", "socket.io-client": "^4.8.1", "zod": "^3.25.64" }, "peerDependencies": { "@react-native-async-storage/async-storage": "*", "expo-crypto": "*", "expo-secure-store": "*", "express": "^4.0.0", "express-rate-limit": "^7.0.0" }, "optionalPeers": ["@react-native-async-storage/async-storage", "expo-crypto", "expo-secure-store", "express", "express-rate-limit"] }, "sha512-unazIdQxrhcfmmCS+/xGzQrG1mVVbltGJwJ2PGso3io5sh02znvwgT25KvC4Y3JkFVddtn6uh32uWx7udy/dtA=="],
-
     "@alia/api/@types/node": ["@types/node@25.9.3", "", { "dependencies": { "undici-types": ">=7.24.0 <7.24.7" } }, "sha512-603BddQMv3pUcr4U2dhujk83N2tTDVr/34wII2B6bJy6g+8WD6yUb11jszNs0gdi4PesVWl7ABt8nYMVpnLUcg=="],
 
     "@alia/app/express": ["express@5.2.1", "", { "dependencies": { "accepts": "^2.0.0", "body-parser": "^2.2.1", "content-disposition": "^1.0.0", "content-type": "^1.0.5", "cookie": "^0.7.1", "cookie-signature": "^1.2.1", "debug": "^4.4.0", "depd": "^2.0.0", "encodeurl": "^2.0.0", "escape-html": "^1.0.3", "etag": "^1.8.1", "finalhandler": "^2.1.0", "fresh": "^2.0.0", "http-errors": "^2.0.0", "merge-descriptors": "^2.0.0", "mime-types": "^3.0.0", "on-finished": "^2.4.1", "once": "^1.4.0", "parseurl": "^1.3.3", "proxy-addr": "^2.0.7", "qs": "^6.14.0", "range-parser": "^1.2.1", "router": "^2.2.0", "send": "^1.1.0", "serve-static": "^2.2.0", "statuses": "^2.0.1", "type-is": "^2.0.1", "vary": "^1.1.2" } }, "sha512-hIS4idWWai69NezIdRt2xFVofaF4j+6INOpJlVOLDO8zXGpUVEVzIYk12UUi2JzjEzWL3IOAxcTubgz9Po0yXw=="],
 
     "@alia/docker-host/@types/node": ["@types/node@25.9.3", "", { "dependencies": { "undici-types": ">=7.24.0 <7.24.7" } }, "sha512-603BddQMv3pUcr4U2dhujk83N2tTDVr/34wII2B6bJy6g+8WD6yUb11jszNs0gdi4PesVWl7ABt8nYMVpnLUcg=="],
-
-    "@alia/gateway/@oxyhq/core": ["@oxyhq/core@3.4.13", "", { "dependencies": { "@oxyhq/contracts": "^0.1.0", "bip39": "^3.1.0", "buffer": "^6.0.3", "elliptic": "^6.6.1", "invariant": "^2.2.4", "jwt-decode": "^4.0.0", "socket.io-client": "^4.8.1", "zod": "^3.25.64" }, "peerDependencies": { "@react-native-async-storage/async-storage": "*", "expo-crypto": "*", "expo-secure-store": "*", "express": "^4.0.0", "express-rate-limit": "^7.0.0" }, "optionalPeers": ["@react-native-async-storage/async-storage", "expo-crypto", "expo-secure-store", "express", "express-rate-limit"] }, "sha512-unazIdQxrhcfmmCS+/xGzQrG1mVVbltGJwJ2PGso3io5sh02znvwgT25KvC4Y3JkFVddtn6uh32uWx7udy/dtA=="],
 
     "@alia/gateway/@types/express": ["@types/express@4.17.21", "", { "dependencies": { "@types/body-parser": "*", "@types/express-serve-static-core": "^4.17.33", "@types/qs": "*", "@types/serve-static": "*" } }, "sha512-ejlPM315qwLpaQlQDTjPdsUFSc6ZsP4AN6AlWnogPjQ7CVi7PYF3YVz+CY3jE2pwYf7E/7HlDAN0rV2GxTG0HQ=="],
 
@@ -6455,8 +6460,6 @@
 
     "ajv-keywords/ajv": ["ajv@6.15.0", "", { "dependencies": { "fast-deep-equal": "^3.1.1", "fast-json-stable-stringify": "^2.0.0", "json-schema-traverse": "^0.4.1", "uri-js": "^4.2.2" } }, "sha512-fgFx7Hfoq60ytK2c7DhnF8jIvzYgOMxfugjLOSMHjLIPgenqa7S7oaagATUq99mV6IYvN2tRmC0wnTYX6iPbMw=="],
 
-    "alia-canvas/@oxyhq/core": ["@oxyhq/core@3.4.13", "", { "dependencies": { "@oxyhq/contracts": "^0.1.0", "bip39": "^3.1.0", "buffer": "^6.0.3", "elliptic": "^6.6.1", "invariant": "^2.2.4", "jwt-decode": "^4.0.0", "socket.io-client": "^4.8.1", "zod": "^3.25.64" }, "peerDependencies": { "@react-native-async-storage/async-storage": "*", "expo-crypto": "*", "expo-secure-store": "*", "express": "^4.0.0", "express-rate-limit": "^7.0.0" }, "optionalPeers": ["@react-native-async-storage/async-storage", "expo-crypto", "expo-secure-store", "express", "express-rate-limit"] }, "sha512-unazIdQxrhcfmmCS+/xGzQrG1mVVbltGJwJ2PGso3io5sh02znvwgT25KvC4Y3JkFVddtn6uh32uWx7udy/dtA=="],
-
     "alia-canvas/@radix-ui/react-dropdown-menu": ["@radix-ui/react-dropdown-menu@2.1.4", "", { "dependencies": { "@radix-ui/primitive": "1.1.1", "@radix-ui/react-compose-refs": "1.1.1", "@radix-ui/react-context": "1.1.1", "@radix-ui/react-id": "1.1.0", "@radix-ui/react-menu": "2.1.4", "@radix-ui/react-primitive": "2.0.1", "@radix-ui/react-use-controllable-state": "1.1.0" }, "peerDependencies": { "@types/react": "*", "@types/react-dom": "*", "react": "^16.8 || ^17.0 || ^18.0 || ^19.0 || ^19.0.0-rc", "react-dom": "^16.8 || ^17.0 || ^18.0 || ^19.0 || ^19.0.0-rc" }, "optionalPeers": ["@types/react", "@types/react-dom"] }, "sha512-iXU1Ab5ecM+yEepGAWK8ZhMyKX4ubFdCNtol4sT9D0OVErG9PNElfx3TQhjw7n7BC5nFVz68/5//clWy+8TXzA=="],
 
     "alia-canvas/@radix-ui/react-scroll-area": ["@radix-ui/react-scroll-area@1.2.2", "", { "dependencies": { "@radix-ui/number": "1.1.0", "@radix-ui/primitive": "1.1.1", "@radix-ui/react-compose-refs": "1.1.1", "@radix-ui/react-context": "1.1.1", "@radix-ui/react-direction": "1.1.0", "@radix-ui/react-presence": "1.1.2", "@radix-ui/react-primitive": "2.0.1", "@radix-ui/react-use-callback-ref": "1.1.0", "@radix-ui/react-use-layout-effect": "1.1.0" }, "peerDependencies": { "@types/react": "*", "@types/react-dom": "*", "react": "^16.8 || ^17.0 || ^18.0 || ^19.0 || ^19.0.0-rc", "react-dom": "^16.8 || ^17.0 || ^18.0 || ^19.0 || ^19.0.0-rc" }, "optionalPeers": ["@types/react", "@types/react-dom"] }, "sha512-EFI1N/S3YxZEW/lJ/H1jY3njlvTd8tBmgKEn4GHi51+aMm94i6NmAJstsm5cu3yJwYqYc93gpCPm21FeAbFk6g=="],
@@ -6469,11 +6472,7 @@
 
     "alia-canvas/tailwindcss": ["tailwindcss@4.3.0", "", {}, "sha512-y6nxMGB1nMW9R6k96e5gdIFzcfL/gTJRNaqGes1YvkLnPVXzWgbqFF2yLC0T8G774n24cx3Pe8XrKoniCOAH+Q=="],
 
-    "alia-codea/@oxyhq/core": ["@oxyhq/core@3.4.13", "", { "dependencies": { "@oxyhq/contracts": "^0.1.0", "bip39": "^3.1.0", "buffer": "^6.0.3", "elliptic": "^6.6.1", "invariant": "^2.2.4", "jwt-decode": "^4.0.0", "socket.io-client": "^4.8.1", "zod": "^3.25.64" }, "peerDependencies": { "@react-native-async-storage/async-storage": "*", "expo-crypto": "*", "expo-secure-store": "*", "express": "^4.0.0", "express-rate-limit": "^7.0.0" }, "optionalPeers": ["@react-native-async-storage/async-storage", "expo-crypto", "expo-secure-store", "express", "express-rate-limit"] }, "sha512-unazIdQxrhcfmmCS+/xGzQrG1mVVbltGJwJ2PGso3io5sh02znvwgT25KvC4Y3JkFVddtn6uh32uWx7udy/dtA=="],
-
     "alia-codea/@types/node": ["@types/node@20.19.43", "", { "dependencies": { "undici-types": "~6.21.0" } }, "sha512-6oYBAi5ikg4Pl+kGsoYtawUMBT2zZMCvPNF7pVLnHZfd1zf38DRiWn/gT01RYCdUqkv7Fhr+C9ot4/tb+2sVvA=="],
-
-    "alia-console/@oxyhq/core": ["@oxyhq/core@3.4.13", "", { "dependencies": { "@oxyhq/contracts": "^0.1.0", "bip39": "^3.1.0", "buffer": "^6.0.3", "elliptic": "^6.6.1", "invariant": "^2.2.4", "jwt-decode": "^4.0.0", "socket.io-client": "^4.8.1", "zod": "^3.25.64" }, "peerDependencies": { "@react-native-async-storage/async-storage": "*", "expo-crypto": "*", "expo-secure-store": "*", "express": "^4.0.0", "express-rate-limit": "^7.0.0" }, "optionalPeers": ["@react-native-async-storage/async-storage", "expo-crypto", "expo-secure-store", "express", "express-rate-limit"] }, "sha512-unazIdQxrhcfmmCS+/xGzQrG1mVVbltGJwJ2PGso3io5sh02znvwgT25KvC4Y3JkFVddtn6uh32uWx7udy/dtA=="],
 
     "alia-console/jsdom": ["jsdom@27.4.0", "", { "dependencies": { "@acemir/cssom": "^0.9.28", "@asamuzakjp/dom-selector": "^6.7.6", "@exodus/bytes": "^1.6.0", "cssstyle": "^5.3.4", "data-urls": "^6.0.0", "decimal.js": "^10.6.0", "html-encoding-sniffer": "^6.0.0", "http-proxy-agent": "^7.0.2", "https-proxy-agent": "^7.0.6", "is-potential-custom-element-name": "^1.0.1", "parse5": "^8.0.0", "saxes": "^6.0.0", "symbol-tree": "^3.2.4", "tough-cookie": "^6.0.0", "w3c-xmlserializer": "^5.0.0", "webidl-conversions": "^8.0.0", "whatwg-mimetype": "^4.0.0", "whatwg-url": "^15.1.0", "ws": "^8.18.3", "xml-name-validator": "^5.0.0" }, "peerDependencies": { "canvas": "^3.0.0" }, "optionalPeers": ["canvas"] }, "sha512-mjzqwWRD9Y1J1KUi7W97Gja1bwOOM5Ug0EZ6UDK3xS7j7mndrkwozHtSblfomlzyB4NepioNt+B2sOSzczVgtQ=="],
 
@@ -6498,8 +6497,6 @@
     "alia-cowork/openai": ["openai@4.104.0", "", { "dependencies": { "@types/node": "^18.11.18", "@types/node-fetch": "^2.6.4", "abort-controller": "^3.0.0", "agentkeepalive": "^4.2.1", "form-data-encoder": "1.7.2", "formdata-node": "^4.3.2", "node-fetch": "^2.6.7" }, "peerDependencies": { "ws": "^8.18.0", "zod": "^3.23.8" }, "optionalPeers": ["ws", "zod"], "bin": { "openai": "bin/cli" } }, "sha512-p99EFNsA/yX6UhVO93f5kJsDRLAg+CTA2RBqdHK4RtK8u5IJw32Hyb2dTGKbnnFmnuoBv5r7Z2CURI9sGZpSuA=="],
 
     "alia-cowork/tailwindcss": ["tailwindcss@4.3.0", "", {}, "sha512-y6nxMGB1nMW9R6k96e5gdIFzcfL/gTJRNaqGes1YvkLnPVXzWgbqFF2yLC0T8G774n24cx3Pe8XrKoniCOAH+Q=="],
-
-    "alia-gateway-admin/@oxyhq/core": ["@oxyhq/core@3.4.13", "", { "dependencies": { "@oxyhq/contracts": "^0.1.0", "bip39": "^3.1.0", "buffer": "^6.0.3", "elliptic": "^6.6.1", "invariant": "^2.2.4", "jwt-decode": "^4.0.0", "socket.io-client": "^4.8.1", "zod": "^3.25.64" }, "peerDependencies": { "@react-native-async-storage/async-storage": "*", "expo-crypto": "*", "expo-secure-store": "*", "express": "^4.0.0", "express-rate-limit": "^7.0.0" }, "optionalPeers": ["@react-native-async-storage/async-storage", "expo-crypto", "expo-secure-store", "express", "express-rate-limit"] }, "sha512-unazIdQxrhcfmmCS+/xGzQrG1mVVbltGJwJ2PGso3io5sh02znvwgT25KvC4Y3JkFVddtn6uh32uWx7udy/dtA=="],
 
     "alia-gateway-admin/@radix-ui/react-dialog": ["@radix-ui/react-dialog@1.1.16", "", { "dependencies": { "@radix-ui/primitive": "1.1.4", "@radix-ui/react-compose-refs": "1.1.3", "@radix-ui/react-context": "1.1.4", "@radix-ui/react-dismissable-layer": "1.1.12", "@radix-ui/react-focus-guards": "1.1.4", "@radix-ui/react-focus-scope": "1.1.9", "@radix-ui/react-id": "1.1.2", "@radix-ui/react-portal": "1.1.11", "@radix-ui/react-presence": "1.1.6", "@radix-ui/react-primitive": "2.1.5", "@radix-ui/react-slot": "1.2.5", "@radix-ui/react-use-controllable-state": "1.2.3", "aria-hidden": "^1.2.4", "react-remove-scroll": "^2.7.2" }, "peerDependencies": { "@types/react": "*", "@types/react-dom": "*", "react": "^16.8 || ^17.0 || ^18.0 || ^19.0 || ^19.0.0-rc", "react-dom": "^16.8 || ^17.0 || ^18.0 || ^19.0 || ^19.0.0-rc" }, "optionalPeers": ["@types/react", "@types/react-dom"] }, "sha512-l9ok83YBclEZhbjgzt76Hw733e6cvRKPNgO6GJ/IETlufXG9p+fRu2wlvpImQvR6xdJ8h7J8J2DBvsPEiEsKMw=="],
 
@@ -7247,8 +7244,6 @@
 
     "@ai-sdk/ui-utils/@ai-sdk/provider-utils/secure-json-parse": ["secure-json-parse@2.7.0", "", {}, "sha512-6aU+Rwsezw7VR8/nyvKTx8QpWH9FrcYiXXlqC4z5d5XQBDRqtbfsRjnwGyqbi3gddNtWHuEk9OANUotL26qKUw=="],
 
-    "@alia/api/@oxyhq/core/@oxyhq/contracts": ["@oxyhq/contracts@0.1.0", "", { "dependencies": { "zod": "^3.25.64" } }, "sha512-E73HNOdYIJFRVDtH46/1Ad2k9JS7zBv0TLDbVWmHYnvRL65Wzp7QevhbRUdBKkzFakg6bRQIvgvIwKsf1OWEEw=="],
-
     "@alia/api/@types/node/undici-types": ["undici-types@7.24.6", "", {}, "sha512-WRNW+sJgj5OBN4/0JpHFqtqzhpbnV0GuB+OozA9gCL7a993SmU+1JBZCzLNxYsbMfIeDL+lTsphD5jN5N+n0zg=="],
 
     "@alia/app/express/accepts": ["accepts@2.0.0", "", { "dependencies": { "mime-types": "^3.0.0", "negotiator": "^1.0.0" } }, "sha512-5cvg6CtKwfgdmVqY1WIiXKc3Q1bkRqGLi+2W/6ao+6Y7gu/RCwRuAhGEzh5B4KlszSuTLgZYuqFqo5bImjNKng=="],
@@ -7272,8 +7267,6 @@
     "@alia/app/express/type-is": ["type-is@2.1.0", "", { "dependencies": { "content-type": "^2.0.0", "media-typer": "^1.1.0", "mime-types": "^3.0.0" } }, "sha512-faYHw0anBbc/kWF3zFTEnxSFOAGUX9GFbOBthvDdLsIlEoWOFOtS0zgCiQYwIskL9iGXZL3kAXD8OoZ4GmMATA=="],
 
     "@alia/docker-host/@types/node/undici-types": ["undici-types@7.24.6", "", {}, "sha512-WRNW+sJgj5OBN4/0JpHFqtqzhpbnV0GuB+OozA9gCL7a993SmU+1JBZCzLNxYsbMfIeDL+lTsphD5jN5N+n0zg=="],
-
-    "@alia/gateway/@oxyhq/core/@oxyhq/contracts": ["@oxyhq/contracts@0.1.0", "", { "dependencies": { "zod": "^3.25.64" } }, "sha512-E73HNOdYIJFRVDtH46/1Ad2k9JS7zBv0TLDbVWmHYnvRL65Wzp7QevhbRUdBKkzFakg6bRQIvgvIwKsf1OWEEw=="],
 
     "@alia/gateway/@types/express/@types/express-serve-static-core": ["@types/express-serve-static-core@4.19.8", "", { "dependencies": { "@types/node": "*", "@types/qs": "*", "@types/range-parser": "*", "@types/send": "*" } }, "sha512-02S5fmqeoKzVZCHPZid4b8JH2eM5HzQLZWN2FohQEy/0eXTq8VXZfSN6Pcr3F6N9R/vNrj7cpgbhjie6m/1tCA=="],
 
@@ -7857,8 +7850,6 @@
 
     "ajv-keywords/ajv/json-schema-traverse": ["json-schema-traverse@0.4.1", "", {}, "sha512-xbbCH5dCYU5T8LcEhhuh7HJ88HXuW3qsI3Y0zOZFKfZEHcpWiHU/Jxzk629Brsab/mMiHQti9wMP+845RPe3Vg=="],
 
-    "alia-canvas/@oxyhq/core/@oxyhq/contracts": ["@oxyhq/contracts@0.1.0", "", { "dependencies": { "zod": "^3.25.64" } }, "sha512-E73HNOdYIJFRVDtH46/1Ad2k9JS7zBv0TLDbVWmHYnvRL65Wzp7QevhbRUdBKkzFakg6bRQIvgvIwKsf1OWEEw=="],
-
     "alia-canvas/@radix-ui/react-dropdown-menu/@radix-ui/primitive": ["@radix-ui/primitive@1.1.1", "", {}, "sha512-SJ31y+Q/zAyShtXJc8x83i9TYdbAfHZ++tUZnvjJJqFjzsdUnKsxPL6IEtBlxKkU7yzer//GQtZSV4GbldL3YA=="],
 
     "alia-canvas/@radix-ui/react-dropdown-menu/@radix-ui/react-compose-refs": ["@radix-ui/react-compose-refs@1.1.1", "", { "peerDependencies": { "@types/react": "*", "react": "^16.8 || ^17.0 || ^18.0 || ^19.0 || ^19.0.0-rc" }, "optionalPeers": ["@types/react"] }, "sha512-Y9VzoRDSJtgFMUCoiZBDVo084VQ5hfpXxVE+NgkdNsjiDBByiImMZKKhxMwCbdHvhlENG6a833CbFkOQvTricw=="],
@@ -7917,10 +7908,6 @@
 
     "alia-canvas/eslint/minimatch": ["minimatch@3.1.5", "", { "dependencies": { "brace-expansion": "^1.1.7" } }, "sha512-VgjWUsnnT6n+NUk6eZq77zeFdpW2LWDzP6zFGrCbHXiYNul5Dzqk2HHQ5uFH2DNW5Xbp8+jVzaeNt94ssEEl4w=="],
 
-    "alia-codea/@oxyhq/core/@oxyhq/contracts": ["@oxyhq/contracts@0.1.0", "", { "dependencies": { "zod": "^3.25.64" } }, "sha512-E73HNOdYIJFRVDtH46/1Ad2k9JS7zBv0TLDbVWmHYnvRL65Wzp7QevhbRUdBKkzFakg6bRQIvgvIwKsf1OWEEw=="],
-
-    "alia-console/@oxyhq/core/@oxyhq/contracts": ["@oxyhq/contracts@0.1.0", "", { "dependencies": { "zod": "^3.25.64" } }, "sha512-E73HNOdYIJFRVDtH46/1Ad2k9JS7zBv0TLDbVWmHYnvRL65Wzp7QevhbRUdBKkzFakg6bRQIvgvIwKsf1OWEEw=="],
-
     "alia-console/jsdom/cssstyle": ["cssstyle@5.3.7", "", { "dependencies": { "@asamuzakjp/css-color": "^4.1.1", "@csstools/css-syntax-patches-for-csstree": "^1.0.21", "css-tree": "^3.1.0", "lru-cache": "^11.2.4" } }, "sha512-7D2EPVltRrsTkhpQmksIu+LxeWAIEk6wRDMJ1qljlv+CKHJM+cJLlfhWIzNA44eAsHXSNe3+vO6DW1yCYx8SuQ=="],
 
     "alia-console/jsdom/data-urls": ["data-urls@6.0.1", "", { "dependencies": { "whatwg-mimetype": "^5.0.0", "whatwg-url": "^15.1.0" } }, "sha512-euIQENZg6x8mj3fO6o9+fOW8MimUI4PpD/fZBhJfeioZVy9TUpM4UY7KjQNVZFlqwJ0UdzRDzkycB997HEq1BQ=="],
@@ -7964,8 +7951,6 @@
     "alia-cowork/@tailwindcss/postcss/@tailwindcss/oxide": ["@tailwindcss/oxide@4.3.0", "", { "optionalDependencies": { "@tailwindcss/oxide-android-arm64": "4.3.0", "@tailwindcss/oxide-darwin-arm64": "4.3.0", "@tailwindcss/oxide-darwin-x64": "4.3.0", "@tailwindcss/oxide-freebsd-x64": "4.3.0", "@tailwindcss/oxide-linux-arm-gnueabihf": "4.3.0", "@tailwindcss/oxide-linux-arm64-gnu": "4.3.0", "@tailwindcss/oxide-linux-arm64-musl": "4.3.0", "@tailwindcss/oxide-linux-x64-gnu": "4.3.0", "@tailwindcss/oxide-linux-x64-musl": "4.3.0", "@tailwindcss/oxide-wasm32-wasi": "4.3.0", "@tailwindcss/oxide-win32-arm64-msvc": "4.3.0", "@tailwindcss/oxide-win32-x64-msvc": "4.3.0" } }, "sha512-F7HZGBeN9I0/AuuJS5PwcD8xayx5ri5GhjYUDBEVYUkexyA/giwbDNjRVrxSezE3T250OU2K/wp/ltWx3UOefg=="],
 
     "alia-cowork/openai/@types/node": ["@types/node@18.19.130", "", { "dependencies": { "undici-types": "~5.26.4" } }, "sha512-GRaXQx6jGfL8sKfaIDD6OupbIHBr9jv7Jnaml9tB7l4v068PAOXqfcujMMo5PhbIs6ggR1XODELqahT2R8v0fg=="],
-
-    "alia-gateway-admin/@oxyhq/core/@oxyhq/contracts": ["@oxyhq/contracts@0.1.0", "", { "dependencies": { "zod": "^3.25.64" } }, "sha512-E73HNOdYIJFRVDtH46/1Ad2k9JS7zBv0TLDbVWmHYnvRL65Wzp7QevhbRUdBKkzFakg6bRQIvgvIwKsf1OWEEw=="],
 
     "alia-gateway-admin/@radix-ui/react-dialog/@radix-ui/react-dismissable-layer": ["@radix-ui/react-dismissable-layer@1.1.12", "", { "dependencies": { "@radix-ui/primitive": "1.1.4", "@radix-ui/react-compose-refs": "1.1.3", "@radix-ui/react-primitive": "2.1.5", "@radix-ui/react-use-callback-ref": "1.1.2", "@radix-ui/react-use-escape-keydown": "1.1.2" }, "peerDependencies": { "@types/react": "*", "@types/react-dom": "*", "react": "^16.8 || ^17.0 || ^18.0 || ^19.0 || ^19.0.0-rc", "react-dom": "^16.8 || ^17.0 || ^18.0 || ^19.0 || ^19.0.0-rc" }, "optionalPeers": ["@types/react", "@types/react-dom"] }, "sha512-MhoruH6xEzsbvOmo4TNgMfmtvRGyDZw4MDSdf4ybMHfezjqwzv6hyd4lsMzBp8K9Sn6sGzCF62x1I7BYUECXOg=="],
 

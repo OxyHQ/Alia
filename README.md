@@ -15,16 +15,16 @@ Alia is a multi-surface context-agent platform focused on autonomous execution w
 
 | App | Stack | Purpose |
 | --- | --- | --- |
-| `apps/app` | Expo | Main app (web + iOS + Android) |
-| `apps/api` | Express + TypeScript | Core API runtime |
-| `apps/alia-codea` | VS Code extension | Coding assistant surface |
-| `apps/alia-cowork` | Electron | Desktop assistant surface |
-| `apps/alia-console` | TanStack Start + React | Admin console |
-| `apps/alia-canvas` | Next.js | Canvas app |
-| `apps/alia-gateway-admin` | Vite + React | Internal gateway admin |
-| `apps/alia-codea-cli` | CLI | Terminal coding assistant |
-| `apps/alia-docker-host` | Express + TypeScript | Sandboxed container host |
-| `apps/integrations` | Express + TypeScript | Messaging and channel integrations |
+| `packages/app` | Expo | Main app (web + iOS + Android) |
+| `packages/api` | Express + TypeScript | Core API runtime |
+| `packages/alia-codea` | VS Code extension | Coding assistant surface |
+| `packages/alia-cowork` | Electron | Desktop assistant surface |
+| `packages/alia-console` | TanStack Start + React | Admin console |
+| `packages/alia-canvas` | Next.js | Canvas app |
+| `packages/alia-gateway-admin` | Vite + React | Internal gateway admin |
+| `packages/alia-codea-cli` | CLI | Terminal coding assistant |
+| `packages/alia-docker-host` | Express + TypeScript | Sandboxed container host |
+| `packages/integrations` | Express + TypeScript | Messaging and channel integrations |
 
 ## Quick Start
 

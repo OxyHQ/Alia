@@ -18,7 +18,7 @@
 #
 # Usage:
 #   1. Create Droplet with Docker 1-click image from DO Marketplace
-#   2. Copy apps/alia-docker-host to /opt/alia-docker-host on the Droplet
+#   2. Copy packages/alia-docker-host to /opt/alia-docker-host on the Droplet
 #   3. Run this script on the Droplet: bash setup-docker-host.sh
 # ==============================================================================
 

@@ -6,9 +6,8 @@ on:
     branches: [main]
     paths:
       - '.github/workflows/deploy-frontends.yml'
-      - 'apps/app/**'
-      - 'apps/alia-gateway-admin/**'
-      - 'packages/**'
+      - 'packages/app/**'
+      - 'packages/alia-gateway-admin/**'
       - 'bun.lock'
 
 jobs:
@@ -24,12 +23,10 @@ jobs:
         with:
           filters: |
             app:
-              - 'apps/app/**'
-              - 'packages/**'
+              - 'packages/app/**'
               - 'bun.lock'
             gateway-admin:
-              - 'apps/alia-gateway-admin/**'
-              - 'packages/**'
+              - 'packages/alia-gateway-admin/**'
               - 'bun.lock'
 
   deploy-app:
@@ -63,7 +60,7 @@ jobs:
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          command: pages deploy apps/app/dist --project-name=alia-app --branch=main
+          command: pages deploy packages/app/dist --project-name=alia-app --branch=main
 
   deploy-gateway-admin:
     needs: detect-changes
@@ -95,4 +92,4 @@ jobs:
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          command: pages deploy apps/alia-gateway-admin/dist --project-name=alia-gateway-admin --branch=main
+          command: pages deploy packages/alia-gateway-admin/dist --project-name=alia-gateway-admin --branch=main
