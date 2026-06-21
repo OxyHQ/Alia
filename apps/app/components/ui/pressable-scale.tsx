@@ -1,6 +1,6 @@
 import { type ComponentProps, useMemo } from "react";
 import { MotiPressable } from "moti/interactions";
-import { cssInterop } from "nativewind";
+import { styled } from "nativewind";
 
 export type PressableScaleProps = ComponentProps<typeof MotiPressable> & {
   scaleTo?: number;
@@ -8,7 +8,7 @@ export type PressableScaleProps = ComponentProps<typeof MotiPressable> & {
   className?: string;
 };
 
-const StyledMotiPressable = cssInterop(MotiPressable, { className: "style" });
+const StyledMotiPressable = styled(MotiPressable, { className: "style" });
 
 export function PressableScale({
   scaleTo = 0.95,

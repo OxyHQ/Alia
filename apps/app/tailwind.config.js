@@ -1,15 +1,17 @@
 /** @type {import('tailwindcss').Config} */
 module.exports = {
+  important: true,
   darkMode: 'class',
   content: [
     "./app/**/*.{js,jsx,ts,tsx}",
     "./components/**/*.{js,jsx,ts,tsx}",
     "./lib/**/*.{js,jsx,ts,tsx}",
     "./hooks/**/*.{js,jsx,ts,tsx}",
-    // SDK components using NativeWind classes
+    // SDK components using NativeWind classes (rendered at runtime via @alia.onl/sdk)
     "../alia-chat/src/**/*.{ts,tsx}",
+    "../../node_modules/@oxyhq/services/lib/**/*.{js,jsx}",
+    "../../node_modules/@oxyhq/bloom/lib/**/*.{js,jsx}",
   ],
-  presets: [require("nativewind/preset")],
   theme: {
     extend: {
       fontFamily: {
@@ -36,7 +38,7 @@ module.exports = {
         },
         destructive: {
           DEFAULT: "var(--destructive)",
-          foreground: "hsl(0 0% 100% / <alpha-value>)",
+          foreground: "hsl(0 0% 100%)",
         },
         muted: {
           DEFAULT: "var(--muted)",
