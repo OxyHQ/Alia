@@ -27,7 +27,7 @@
     "@livekit/agents": "^1.0.43",
     "@livekit/rtc-node": "^0.13.24",
     "@mozilla/readability": "^0.6.0",
-    "@oxyhq/core": "^3.4.13",
+    "@oxyhq/core": "^3.8.0",
     "@socket.io/redis-adapter": "^8.3.0",
     "ai": "^6.0.33",
     "bullmq": "^5.70.1",
