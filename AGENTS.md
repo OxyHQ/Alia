@@ -60,10 +60,17 @@ All Oxy ecosystem apps share the same MongoDB cluster on DigitalOcean. Each app 
 
 ## Tech Stack
 
-- **Frontend**: Expo 55, React Native 0.83, TypeScript, NativeWind (Tailwind), Reanimated v4, Zustand, TanStack Query
+- **Frontend**: Expo 56, React Native 0.85.3, TypeScript, NativeWind (Tailwind), Reanimated v4, Zustand, TanStack Query
 - **Backend**: Express, TypeScript, MongoDB/Mongoose, Socket.IO
-- **Auth**: `@oxyhq/core ^3.4.13`, `@oxyhq/auth ^4.1.1`, `@oxyhq/services ^10.2.10`, `@oxyhq/bloom ^0.8.5`
+- **Auth**: `@oxyhq/core ^3.8.0`, `@oxyhq/auth ^4.1.1`, `@oxyhq/services ^10.3.3`, `@oxyhq/bloom ^0.16.2`
 - **Routing**: expo-router (file-based)
+
+## Dependency / Expo Gotchas
+
+**Root `overrides` wins over `packages/app/package.json` (verified 2026-06-24, commit d3726373):**
+The root `/home/nate/Oxy/Alia/package.json` carries an `overrides` block that pins Expo SDK packages tree-wide (e.g. `"expo": "56.0.11"`, `"expo-font": "56.0.6"`). These pins take precedence over whatever `packages/app/package.json` declares — bun will revert `node_modules` to the pinned version even after `bunx expo install --fix` or `bun update`. Symptom: `bunx expo install --fix` loops infinitely because the override immediately resets the version it just wrote.
+
+**Rule:** Any Expo SDK version bump in Alia MUST also update the matching entries in the ROOT `package.json` `overrides` block, or the bump is cosmetic — `node_modules` stays on the old version. A correct bump commit touches THREE files: `packages/app/package.json`, root `package.json` (overrides), and `bun.lock`.
 
 Expo web SSO callback bootstrap lives in `packages/app/app/+html.tsx` via
 `getSsoCallbackBootstrapScript()` from `@oxyhq/core`. Do not add local
