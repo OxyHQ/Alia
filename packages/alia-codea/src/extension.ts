@@ -4,6 +4,7 @@ import { AliaInlineCompletionProvider } from './inlineCompletionProvider';
 import { AliaChatParticipant } from './chatParticipant';
 import { AliaAuthenticationProvider } from './authProvider';
 import { McpLocalClient } from './mcp-client';
+import { errorMessage } from './errors';
 
 let mcpClient: McpLocalClient | null = null;
 
@@ -69,9 +70,10 @@ export function activate(context: vscode.ExtensionContext) {
       if (choice?.value === 'browser') {
         try {
           await authProvider.signInWithBrowser();
-        } catch (error: any) {
-          if (!error.message?.includes('timed out')) {
-            vscode.window.showErrorMessage(`Sign-in failed: ${error.message}`);
+        } catch (error: unknown) {
+          const message = errorMessage(error);
+          if (!message.includes('timed out')) {
+            vscode.window.showErrorMessage(`Sign-in failed: ${message}`);
           }
         }
       } else if (choice?.value === 'apikey') {

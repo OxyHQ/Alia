@@ -17,6 +17,7 @@ import {
   Dimensions,
   Platform,
   useColorScheme,
+  type ViewStyle,
 } from 'react-native';
 import { Gesture, GestureDetector, GestureHandlerRootView } from 'react-native-gesture-handler';
 import { useKeyboardHandler } from 'react-native-keyboard-controller';
@@ -324,7 +325,7 @@ const styles = StyleSheet.create({
       web: {
         marginHorizontal: 'auto',
         boxShadow: '0 -4px 24px rgba(0,0,0,0.15)',
-      } as any,
+      } as ViewStyle & { boxShadow?: string },
       default: { elevation: 16 },
     }),
   },

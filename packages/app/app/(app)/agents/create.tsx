@@ -9,6 +9,7 @@ import { toast } from "@/components/sonner";
 import apiClient from "@/lib/api/client";
 import { API_ROUTES } from "@/lib/api/routes";
 import { Sparkles, MessageCircleQuestion, GitBranch, BarChart3 } from "lucide-react-native";
+import { errorMessage as getErrorMessage } from '@/lib/errors/error-utils';
 
 type Archetype = 'general' | 'qa' | 'task_router' | 'status_update';
 
@@ -93,9 +94,9 @@ export default function CreateAgentScreen() {
       } else {
         toast.error("Failed to create agent");
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       const message =
-        error?.response?.data?.error || "Failed to generate agent";
+        getErrorMessage(error, "Failed to generate agent");
       toast.error(message);
     } finally {
       setGenerating(false);

@@ -122,7 +122,7 @@ export function PromptInputAutocomplete({
   // Register/unregister the key handler based on completions
   useEffect(() => {
     if (completions.length > 0) {
-      (setHandleCompletionKey as any)(() => handleKey);
+      setHandleCompletionKey(() => handleKey);
     } else {
       setHandleCompletionKey(null);
     }

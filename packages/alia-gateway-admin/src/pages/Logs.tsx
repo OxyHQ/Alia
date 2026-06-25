@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '@oxyhq/auth';
 import { apiClient } from '@/lib/api/client';
+import type { ApiEnvelope, PaginatedData } from '@/types';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
@@ -146,16 +147,16 @@ export function LogsPage() {
     refetchInterval: 15000,
   });
 
-  const stats: LogStats = (statsData as any)?.data || {
+  const stats: LogStats = (statsData as ApiEnvelope<LogStats>)?.data || {
     totalRequests: 0,
     errorRate: 0,
     fallbackRate: 0,
     avgLatencyMs: 0,
   };
 
-  const providers: string[] = (providersData as any)?.data || [];
-  const logs: LogEntry[] = (logsData as any)?.data?.items || [];
-  const pagination = (logsData as any)?.data?.pagination || {
+  const providers: string[] = (providersData as ApiEnvelope<string[]>)?.data || [];
+  const logs: LogEntry[] = (logsData as ApiEnvelope<PaginatedData<LogEntry>>)?.data?.items || [];
+  const pagination = (logsData as ApiEnvelope<PaginatedData<LogEntry>>)?.data?.pagination || {
     page: 1,
     limit: 50,
     totalCount: 0,

@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@oxyhq/auth';
 import { apiClient } from '@/lib/api/client';
+import { getErrorMessage } from '@/lib/utils';
 import type { AdminFeature, AdminPlanFeature } from '@/types';
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
@@ -39,6 +40,15 @@ interface FeatureFormState {
   isActive: boolean;
 }
 
+interface PlanFeatureMapping {
+  planId: string;
+  featureId: string;
+  enabled: boolean;
+  limitValue?: number | null;
+  displayLabel?: string;
+  displayDescription?: string;
+}
+
 const DEFAULT_FEATURE: FeatureFormState = {
   featureId: '',
   label: '',
@@ -73,19 +83,19 @@ function FeatureListTab() {
   const createMut = useMutation({
     mutationFn: (data: FeatureFormState) => apiClient.createFeature(data),
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['features'] }); setEditOpen(false); },
-    onError: (err: any) => alert(err.message || 'Failed'),
+    onError: (err: unknown) => alert(getErrorMessage(err, 'Failed')),
   });
 
   const updateMut = useMutation({
     mutationFn: ({ id, data }: { id: string; data: Partial<FeatureFormState> }) => apiClient.updateFeature(id, data),
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['features'] }); setEditOpen(false); },
-    onError: (err: any) => alert(err.message || 'Failed'),
+    onError: (err: unknown) => alert(getErrorMessage(err, 'Failed')),
   });
 
   const deleteMut = useMutation({
     mutationFn: (id: string) => apiClient.deleteFeature(id),
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['features'] }); setDeleteOpen(false); },
-    onError: (err: any) => alert(err.message || 'Failed'),
+    onError: (err: unknown) => alert(getErrorMessage(err, 'Failed')),
   });
 
   const handleAdd = () => {
@@ -222,7 +232,7 @@ function FeatureListTab() {
               </div>
               <div>
                 <Label className="text-xs">Type</Label>
-                <select value={form.featureType} onChange={e => setForm({ ...form, featureType: e.target.value as any })} className="flex h-8 w-full rounded-md border border-input bg-background px-3 py-1 text-sm">
+                <select value={form.featureType} onChange={e => setForm({ ...form, featureType: e.target.value as 'boolean' | 'limit' })} className="flex h-8 w-full rounded-md border border-input bg-background px-3 py-1 text-sm">
                   <option value="boolean">Boolean</option>
                   <option value="limit">Limit</option>
                 </select>
@@ -327,7 +337,7 @@ function MatrixTab() {
   const bulkSaveMut = useMutation({
     mutationFn: async () => {
       // Build all mappings from server + local edits
-      const allMappings: any[] = [];
+      const allMappings: PlanFeatureMapping[] = [];
       for (const plan of plans) {
         for (const feat of features) {
           const m = getMapping(plan.planId, feat.featureId);
@@ -348,7 +358,7 @@ function MatrixTab() {
       setLocalEdits({});
       setHasChanges(false);
     },
-    onError: (err: any) => alert(err.message || 'Failed to save'),
+    onError: (err: unknown) => alert(getErrorMessage(err, 'Failed to save')),
   });
 
   if (isLoading) {

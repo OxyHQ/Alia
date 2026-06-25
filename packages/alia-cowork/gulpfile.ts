@@ -1,6 +1,6 @@
 import { task, series, parallel, watch as gulpWatch, src, dest } from 'gulp'
 import * as esbuild from 'esbuild'
-import { spawn } from 'child_process'
+import { spawn, type ChildProcess } from 'child_process'
 import * as path from 'path'
 import * as fs from 'fs'
 import { fileURLToPath } from 'url'
@@ -273,7 +273,7 @@ task('watch', async () => {
   console.log('\n👀 Ready! Watching for file changes...\n')
 })
 
-let electronProcess: any = null
+let electronProcess: ChildProcess | null = null
 
 // Kill any existing Electron processes
 task('kill-electron', (done) => {

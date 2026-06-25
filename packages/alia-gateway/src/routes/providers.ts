@@ -4,6 +4,7 @@
  */
 
 import express, { Request, Response } from 'express';
+import { errorMessage, sanitizeError } from '../lib/error-handler';
 import { providers } from '../lib/providers/index.js';
 import type { Provider } from '../lib/types.js';
 import { resolveAliaModel } from '../lib/model-resolver.js';
@@ -20,7 +21,6 @@ import { getBestKeyForModel, recordKeyUsage, recordKeySpend } from '../lib/key-m
 import { broadcastHealthUpdate } from '../lib/broadcast-helpers.js';
 import { log } from '../lib/logger.js';
 
-function sanitizeError(err: any): string { return err?.message || 'Unknown error'; }
 function calculateCost(_provider: string, _modelId: string, _inputTokens: number, _outputTokens: number): number { return 0; }
 
 const router = express.Router();
@@ -74,11 +74,11 @@ router.post('/resolve', async (req: Request, res: Response) => {
         },
       },
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     log.providers.error({ err: error }, 'Error resolving model');
     res.status(500).json({
       success: false,
-      error: sanitizeError(error.message),
+      error: sanitizeError(error),
       code: 'INTERNAL_ERROR',
     });
   }
@@ -171,18 +171,18 @@ router.post('/:provider/proxy', async (req: Request, res: Response) => {
       }
 
       res.end();
-    } catch (streamError: any) {
+    } catch (streamError: unknown) {
       success = false;
       log.providers.error({ err: streamError }, 'Stream error');
 
       // Record failure
-      await recordFailure(provider, modelId, streamError.message);
+      await recordFailure(provider, modelId, errorMessage(streamError));
 
       // Send error to client if response not ended
       if (!res.headersSent) {
         res.status(500).json({
           success: false,
-          error: sanitizeError(streamError.message),
+          error: sanitizeError(streamError),
           code: 'STREAMING_ERROR',
         });
       }
@@ -205,13 +205,13 @@ router.post('/:provider/proxy', async (req: Request, res: Response) => {
       recordKeySpend(keyConfig.keyId, costUSD);
     }
 
-  } catch (error: any) {
+  } catch (error: unknown) {
     log.providers.error({ err: error }, 'Error proxying request');
 
     if (!res.headersSent) {
       res.status(500).json({
         success: false,
-        error: sanitizeError(error.message),
+        error: sanitizeError(error),
         code: 'INTERNAL_ERROR',
       });
     }
@@ -242,11 +242,11 @@ router.get('/health', async (req: Request, res: Response) => {
         data: allHealth,
       });
     }
-  } catch (error: any) {
+  } catch (error: unknown) {
     log.providers.error({ err: error }, 'Error getting health');
     res.status(500).json({
       success: false,
-      error: error.message,
+      error: errorMessage(error),
       code: 'INTERNAL_ERROR',
     });
   }
@@ -287,11 +287,11 @@ router.post('/health/record', async (req: Request, res: Response) => {
     });
 
     broadcastHealthUpdate(provider, modelId);
-  } catch (error: any) {
+  } catch (error: unknown) {
     log.providers.error({ err: error }, 'Error recording health');
     res.status(500).json({
       success: false,
-      error: error.message,
+      error: errorMessage(error),
       code: 'INTERNAL_ERROR',
     });
   }
@@ -324,11 +324,11 @@ router.get('/available', async (req: Request, res: Response) => {
         available,
       },
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     log.providers.error({ err: error }, 'Error checking availability');
     res.status(500).json({
       success: false,
-      error: error.message,
+      error: errorMessage(error),
       code: 'INTERNAL_ERROR',
     });
   }
@@ -375,11 +375,11 @@ router.post('/health/reset-all', async (req: Request, res: Response) => {
         message: 'All provider health records reset to healthy state',
       },
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     log.providers.error({ err: error }, 'Error resetting all health');
     res.status(500).json({
       success: false,
-      error: error.message,
+      error: errorMessage(error),
       code: 'INTERNAL_ERROR',
     });
   }
@@ -408,11 +408,11 @@ router.post('/health/reset', async (req: Request, res: Response) => {
       success: true,
       data: health,
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     log.providers.error({ err: error }, 'Error resetting health');
     res.status(500).json({
       success: false,
-      error: error.message,
+      error: errorMessage(error),
       code: 'INTERNAL_ERROR',
     });
   }

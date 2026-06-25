@@ -37,7 +37,7 @@ import {
   ResponsiveContainer,
   Cell,
 } from 'recharts';
-import type { HealthMetrics, ProviderKey } from '@/types';
+import type { HealthMetrics, ProviderKey, ApiEnvelope } from '@/types';
 
 // Chart colors palette
 const CHART_COLORS = [
@@ -81,12 +81,25 @@ function formatHour(timeStr: string): string {
 }
 
 // Custom tooltip for charts
-function ChartTooltipContent({ active, payload, label, formatter }: any) {
+interface ChartTooltipEntry {
+  name?: string;
+  value: number;
+  color?: string;
+}
+
+interface ChartTooltipContentProps {
+  active?: boolean;
+  payload?: ChartTooltipEntry[];
+  label?: string | number;
+  formatter?: (value: number) => string;
+}
+
+function ChartTooltipContent({ active, payload, label, formatter }: ChartTooltipContentProps) {
   if (!active || !payload?.length) return null;
   return (
     <div className="rounded-lg border bg-background px-3 py-2 text-xs shadow-xl">
       <p className="mb-1 font-medium text-foreground">{label}</p>
-      {payload.map((entry: any, i: number) => (
+      {payload.map((entry: ChartTooltipEntry, i: number) => (
         <div key={i} className="flex items-center gap-2">
           <div
             className="h-2 w-2 rounded-full"
@@ -137,9 +150,9 @@ export function DashboardPage() {
   const healthData = realtimeHealthData || polledHealthData;
   const keysData = realtimeKeysData || polledKeysData;
 
-  const health: HealthMetrics[] = (healthData as any)?.data || [];
-  const keys: ProviderKey[] = (keysData as any)?.data || [];
-  const stats: DashboardStats | undefined = (dashboardData as any)?.data;
+  const health: HealthMetrics[] = (healthData as ApiEnvelope<HealthMetrics[]>)?.data || [];
+  const keys: ProviderKey[] = (keysData as ApiEnvelope<ProviderKey[]>)?.data || [];
+  const stats: DashboardStats | undefined = (dashboardData as ApiEnvelope<DashboardStats>)?.data;
 
   // Calculate stats
   const totalKeys = keys.length;
@@ -443,7 +456,7 @@ export function DashboardPage() {
                   Request and token usage breakdown
                 </CardDescription>
               </div>
-              <Tabs value={costPeriod} onValueChange={(v) => setCostPeriod(v as any)}>
+              <Tabs value={costPeriod} onValueChange={(v) => setCostPeriod(v as 'daily' | 'weekly' | 'monthly')}>
                 <TabsList>
                   <TabsTrigger value="daily">24h</TabsTrigger>
                   <TabsTrigger value="weekly">7d</TabsTrigger>

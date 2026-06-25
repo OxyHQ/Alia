@@ -18,7 +18,7 @@ router.get('/', async (req: Request, res: Response) => {
   try {
     const { active } = req.query;
 
-    const query: any = {};
+    const query: Record<string, unknown> = {};
     if (active !== undefined) query.isActive = active === 'true';
 
     const packages = await CreditPackage.find(query).sort({ sortOrder: 1 }).lean();
@@ -28,7 +28,7 @@ router.get('/', async (req: Request, res: Response) => {
       count: packages.length,
       data: packages,
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     log.providers.error({ err: error }, 'Error listing credit packages');
     res.status(500).json({
       success: false,
@@ -59,7 +59,7 @@ router.get('/:packageId', async (req: Request, res: Response) => {
       success: true,
       data: pkg,
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     log.providers.error({ err: error }, 'Error getting credit package');
     res.status(500).json({
       success: false,
@@ -125,7 +125,7 @@ router.post('/', async (req: Request, res: Response) => {
     });
 
     broadcastCreditPackagesUpdate();
-  } catch (error: any) {
+  } catch (error: unknown) {
     log.providers.error({ err: error }, 'Error creating credit package');
     res.status(500).json({
       success: false,
@@ -183,7 +183,7 @@ router.patch('/:packageId', async (req: Request, res: Response) => {
     });
 
     broadcastCreditPackagesUpdate();
-  } catch (error: any) {
+  } catch (error: unknown) {
     log.providers.error({ err: error }, 'Error updating credit package');
     res.status(500).json({
       success: false,
@@ -217,7 +217,7 @@ router.delete('/:packageId', async (req: Request, res: Response) => {
     });
 
     broadcastCreditPackagesUpdate();
-  } catch (error: any) {
+  } catch (error: unknown) {
     log.providers.error({ err: error }, 'Error deleting credit package');
     res.status(500).json({
       success: false,

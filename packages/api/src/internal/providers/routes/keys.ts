@@ -86,7 +86,7 @@ router.get('/', async (req: Request, res: Response) => {
     const active = sanitizeQueryParam(req.query.active);
 
     // Build query
-    const query: any = {};
+    const query: Record<string, unknown> = {};
     if (provider) query.provider = provider;
     if (environment) query.environment = environment;
     if (active !== undefined) query.isActive = active === 'true';

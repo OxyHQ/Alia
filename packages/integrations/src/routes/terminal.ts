@@ -1,4 +1,5 @@
 import { Router, type Router as RouterType } from 'express';
+import { errorMessage } from '../shared/utils';
 import { createSession, runCommand, destroySession, writeToSession } from '../terminal/manager';
 
 export const terminalRouter: RouterType = Router();
@@ -8,8 +9,8 @@ terminalRouter.post('/session/:sessionId/create', async (req, res) => {
   try {
     await createSession(req.params.sessionId);
     res.json({ sessionId: req.params.sessionId, status: 'created' });
-  } catch (err: any) {
-    res.status(500).json({ error: err.message });
+  } catch (err: unknown) {
+    res.status(500).json({ error: errorMessage(err) });
   }
 });
 
@@ -23,8 +24,8 @@ terminalRouter.post('/session/:sessionId/run', async (req, res) => {
     }
     const output = await runCommand(req.params.sessionId, command);
     res.json({ output, command });
-  } catch (err: any) {
-    res.status(500).json({ error: err.message });
+  } catch (err: unknown) {
+    res.status(500).json({ error: errorMessage(err) });
   }
 });
 

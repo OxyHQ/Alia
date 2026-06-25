@@ -31,8 +31,8 @@ export interface McpServerSession {
   process?: import('child_process').ChildProcess;
   killTimer?: NodeJS.Timeout;
   pendingRequests: Map<number, {
-    resolve: (value: any) => void;
-    reject: (reason: any) => void;
+    resolve: (value: unknown) => void;
+    reject: (reason: unknown) => void;
     timer: NodeJS.Timeout;
   }>;
   nextRequestId: number;

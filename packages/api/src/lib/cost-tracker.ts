@@ -155,11 +155,12 @@ export async function getUserCostSummary(
   try {
     await connectDB();
 
-    const query: any = { userId };
+    const query: Record<string, unknown> = { userId };
     if (startDate || endDate) {
-      query.timestamp = {};
-      if (startDate) query.timestamp.$gte = startDate;
-      if (endDate) query.timestamp.$lte = endDate;
+      const timestamp: { $gte?: Date; $lte?: Date } = {};
+      if (startDate) timestamp.$gte = startDate;
+      if (endDate) timestamp.$lte = endDate;
+      query.timestamp = timestamp;
     }
 
     const entries = await CostEntryModel.find(query);
@@ -255,11 +256,12 @@ export async function getGlobalCostStats(
   try {
     await connectDB();
 
-    const query: any = {};
+    const query: Record<string, unknown> = {};
     if (startDate || endDate) {
-      query.timestamp = {};
-      if (startDate) query.timestamp.$gte = startDate;
-      if (endDate) query.timestamp.$lte = endDate;
+      const timestamp: { $gte?: Date; $lte?: Date } = {};
+      if (startDate) timestamp.$gte = startDate;
+      if (endDate) timestamp.$lte = endDate;
+      query.timestamp = timestamp;
     }
 
     const entries = await CostEntryModel.find(query);

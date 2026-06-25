@@ -48,7 +48,7 @@ export function useIntegrations() {
       );
       setConnected(connectedRes.data.integrations || []);
       setError(null);
-    } catch (err: any) {
+    } catch (err: unknown) {
       setError(err as Error);
     } finally {
       setLoading(false);

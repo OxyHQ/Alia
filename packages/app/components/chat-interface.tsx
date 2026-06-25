@@ -1,4 +1,4 @@
-import { View, Pressable, StyleSheet, Platform } from "react-native";
+import { View, Pressable, StyleSheet, Platform, type LayoutChangeEvent } from "react-native";
 import { toast } from "@/components/sonner";
 import { BlurView } from "expo-blur";
 import { KeyboardAwareScrollView } from "@/lib/keyboard";
@@ -31,8 +31,9 @@ import * as Clipboard from "expo-clipboard";
 import { Reasoning, ReasoningTrigger } from "@/components/ui/reasoning";
 import { getToolLabel, getToolActiveLabel, getResearchActiveLabel, getTextFromContent, getImagesFromContent } from '@alia.onl/sdk';
 import { useUIStore } from "@/lib/stores/ui-store";
-import { useStore } from "@/lib/globalStore";
+import { useStore, type ChatIdState } from "@/lib/globalStore";
 import type { ToolInvocation } from "@/lib/types/messages";
+import type { Message as ConversationMessage } from "@/lib/hooks/use-conversations";
 import { useScrollToBottom } from "@/hooks/use-scroll-to-bottom";
 import { AgentTaskCard } from "@/components/agent-task-card";
 import { AgentResultCard } from "@/components/agent-result-card";
@@ -48,13 +49,20 @@ const isWeb = Platform.OS === "web";
 type MessagePart = {
   type: string;
   text?: string;
-  [key: string]: any;
+  [key: string]: unknown;
+};
+
+type PendingPlan = {
+  planId: string;
+  steps: React.ComponentProps<typeof PlanPreviewCard>['steps'];
+  approved?: boolean;
+  rejected?: boolean;
 };
 
 type Message = {
   id: string;
   role: "user" | "assistant" | "system" | "function" | "data" | "tool";
-  content?: string | Array<{ type: string; [key: string]: any }>;
+  content?: string | Array<{ type: string; [key: string]: unknown }>;
   thinking?: string; // Extended thinking content
   parts?: MessagePart[];
   toolInvocations?: ToolInvocation[];
@@ -62,6 +70,9 @@ type Message = {
   source?: 'text' | 'voice';
   speaker?: 'primary' | 'cohost';
   isStreaming?: boolean;
+  // Plan preview + research progress
+  pendingPlan?: PendingPlan;
+  researchProgress?: ResearchProgressData;
   // Agent delegation metadata
   agentInfo?: {
     id: string;
@@ -168,9 +179,9 @@ type MessageRowProps = {
   myVote: 'up' | 'down' | null;
   ttsActiveMessageId: string | null | undefined;
   ttsPlaybackState: string;
-  chatId: any;
+  chatId: ChatIdState;
   voiceAgentState?: 'idle' | 'listening' | 'thinking' | 'speaking';
-  handleFaceLayout: (e: any) => void;
+  handleFaceLayout: (e: LayoutChangeEvent) => void;
   handleCopyMessage: (messageId: string, content: string) => void;
   handleVote: (messageId: string, vote: 'up' | 'down') => void;
   readAloud: (id: string, text: string, chatId?: string, audioUrl?: string) => void;
@@ -202,15 +213,18 @@ const MessageRow = React.memo(function MessageRow({
       onLayout={isAliaMessage && isLastAlia ? handleFaceLayout : undefined}
     >
       {/* Plan Preview — shown before tool execution */}
-      {(m as any).pendingPlan && (
-        <PlanPreviewCard
-          steps={(m as any).pendingPlan.steps}
-          approved={(m as any).pendingPlan.approved}
-          rejected={(m as any).pendingPlan.rejected}
-          onApprove={() => onApprovePlan?.((m as any).pendingPlan.planId)}
-          onReject={() => onRejectPlan?.((m as any).pendingPlan.planId)}
-        />
-      )}
+      {m.pendingPlan && (() => {
+        const plan = m.pendingPlan;
+        return (
+          <PlanPreviewCard
+            steps={plan.steps}
+            approved={plan.approved}
+            rejected={plan.rejected}
+            onApprove={() => onApprovePlan?.(plan.planId)}
+            onReject={() => onRejectPlan?.(plan.planId)}
+          />
+        );
+      })()}
 
       {/* Tool Invocations — alia-codea bullet style */}
       {m.toolInvocations?.map((t, ti) => {
@@ -249,12 +263,12 @@ const MessageRow = React.memo(function MessageRow({
       })}
 
       {/* Deep Research Progress */}
-      {m.role === "assistant" && (m as any).researchProgress && (
-        <ResearchProgressCard progress={(m as any).researchProgress as ResearchProgressData} />
+      {m.role === "assistant" && m.researchProgress && (
+        <ResearchProgressCard progress={m.researchProgress as ResearchProgressData} />
       )}
 
       {/* Thinking Content (Extended Thinking Mode) */}
-      {m.role === "assistant" && (m as any).thinking && (
+      {m.role === "assistant" && m.thinking && (
         <View key="thinking-content" className="mb-3 w-full">
           <Reasoning
             isStreaming={
@@ -272,7 +286,7 @@ const MessageRow = React.memo(function MessageRow({
 
 
       {/* Message Content */}
-      {(messageText.length > 0 || messageImages.length > 0 || (m as any).isStreaming) && (
+      {(messageText.length > 0 || messageImages.length > 0 || m.isStreaming) && (
         <View key="message-content" className={cn("w-full", m.role === "user" && "mt-2")}>
           {m.role === "assistant" ? (
             // Assistant message: text below (flying face handles avatar)
@@ -291,14 +305,14 @@ const MessageRow = React.memo(function MessageRow({
                     {m.agentInfo.name}
                   </Text>
                 </View>
-              ) : (m as any).source === 'voice' && (m as any).speaker === 'cohost' ? (
+              ) : m.source === 'voice' && m.speaker === 'cohost' ? (
                 <Text className="text-xs text-indigo-400 mb-0.5">Cohost</Text>
               ) : null}
               <View className="w-full">
-                {(m as any).source === 'voice' ? (
+                {m.source === 'voice' ? (
                   <Text className="text-base text-foreground leading-7">
                     {messageText}
-                    {(m as any).isStreaming ? '\u258C' : ''}
+                    {m.isStreaming ? '\u258C' : ''}
                   </Text>
                 ) : (
                   <CustomMarkdown content={messageText} />
@@ -454,13 +468,13 @@ const MessageRow = React.memo(function MessageRow({
         !messageText && (() => {
           // Derive context-aware status from active state
           const activeTool = m.toolInvocations?.find(t => t.state === 'call' || t.state === 'partial-call');
-          const rp = (m as any).researchProgress;
+          const rp = m.researchProgress;
           let activeStatus: string | undefined;
           if (activeTool) {
             activeStatus = getToolActiveLabel(activeTool.toolName);
           } else if (rp?.phase && rp.phase !== 'complete') {
             activeStatus = getResearchActiveLabel(rp.phase);
-          } else if ((m as any).thinking) {
+          } else if (m.thinking) {
             activeStatus = "Reasoning...";
           }
           return (
@@ -537,7 +551,7 @@ export const ChatInterface = React.memo(function ChatInterface({ messages, scrol
       zIndex: 10,
     }));
 
-    const handleFaceLayout = useCallback((e: any) => {
+    const handleFaceLayout = useCallback((e: LayoutChangeEvent) => {
       faceY.value = withTiming(e.nativeEvent.layout.y, {
         duration: 500,
         easing: Easing.bezier(0.4, 0, 0.2, 1),
@@ -548,7 +562,9 @@ export const ChatInterface = React.memo(function ChatInterface({ messages, scrol
     const rightPanel = useUIStore((s) => s.rightPanel);
     useEffect(() => {
       if (rightPanel === 'thought') {
-        setThoughtMessages(messages as any);
+        // The local Message shape is a structural superset of the conversation Message
+        // used by the thought panel store.
+        setThoughtMessages(messages as unknown as ConversationMessage[]);
       }
     }, [messages, setThoughtMessages, rightPanel]);
 

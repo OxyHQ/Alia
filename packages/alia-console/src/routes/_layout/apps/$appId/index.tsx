@@ -1,4 +1,5 @@
 import { Link, createFileRoute, useNavigate } from '@tanstack/react-router';
+import { getErrorMessage } from '@/lib/utils';
 import { useState } from 'react';
 import { HugeiconsIcon } from '@hugeicons/react';
 import {
@@ -57,8 +58,8 @@ function AppDetailPage() {
       setDeleteAppDialog(false);
       navigate({ to: '/apps' });
       toast.success('App deleted successfully');
-    } catch (error: any) {
-      toast.error(error.message || 'Failed to delete app');
+    } catch (error: unknown) {
+      toast.error(getErrorMessage(error, 'Failed to delete app'));
     }
   };
 
@@ -81,8 +82,8 @@ function AppDetailPage() {
       setShowNewKeyModal(false);
       setKeyName('');
       toast.success('API key created successfully');
-    } catch (error: any) {
-      toast.error(error.message || 'Failed to create API key');
+    } catch (error: unknown) {
+      toast.error(getErrorMessage(error, 'Failed to create API key'));
     }
   };
 

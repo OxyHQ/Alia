@@ -16,6 +16,7 @@ import {
   deleteSnapshot,
 } from '../lib/docker.js';
 import { log } from '../index.js';
+import { errorMessage, errorStatusCode } from '../lib/errors.js';
 
 const PREVIEW_DOMAIN = process.env.PREVIEW_DOMAIN || 'preview.alia.onl';
 const MIME_BY_EXT: Record<string, string> = {
@@ -58,9 +59,9 @@ containersRouter.get('/', async (_req, res) => {
   try {
     const containers = await listManagedContainers();
     res.json({ containers });
-  } catch (err: any) {
+  } catch (err: unknown) {
     log.error({ err }, 'Failed to list containers');
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: errorMessage(err) });
   }
 });
 
@@ -79,9 +80,9 @@ containersRouter.post('/', async (req, res) => {
     const opts = createSchema.parse(req.body);
     const info = await createContainer(opts);
     res.status(201).json(info);
-  } catch (err: any) {
+  } catch (err: unknown) {
     log.error({ err }, 'Failed to create container');
-    res.status(err.message?.includes('not allowed') ? 400 : 500).json({ error: err.message });
+    res.status(errorMessage(err).includes('not allowed') ? 400 : 500).json({ error: errorMessage(err) });
   }
 });
 
@@ -91,12 +92,12 @@ containersRouter.get('/:id', async (req, res) => {
   try {
     const status = await getContainerStatus(req.params.id);
     res.json(status);
-  } catch (err: any) {
-    if (err.statusCode === 404) {
+  } catch (err: unknown) {
+    if (errorStatusCode(err) === 404) {
       res.status(404).json({ error: 'Container not found' });
       return;
     }
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: errorMessage(err) });
   }
 });
 
@@ -106,12 +107,12 @@ containersRouter.delete('/:id', async (req, res) => {
   try {
     await destroyContainer(req.params.id);
     res.json({ destroyed: true });
-  } catch (err: any) {
-    if (err.statusCode === 404) {
+  } catch (err: unknown) {
+    if (errorStatusCode(err) === 404) {
       res.json({ destroyed: true }); // already gone
       return;
     }
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: errorMessage(err) });
   }
 });
 
@@ -127,12 +128,12 @@ containersRouter.post('/:id/exec', async (req, res) => {
     const { command, timeout } = execSchema.parse(req.body);
     const result = await execInContainer(req.params.id, command, timeout);
     res.json(result);
-  } catch (err: any) {
-    if (err.message?.includes('timed out')) {
-      res.status(408).json({ error: err.message });
+  } catch (err: unknown) {
+    if (errorMessage(err).includes('timed out')) {
+      res.status(408).json({ error: errorMessage(err) });
       return;
     }
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: errorMessage(err) });
   }
 });
 
@@ -148,8 +149,8 @@ containersRouter.post('/:id/files/write', async (req, res) => {
     const { path, content } = writeFileSchema.parse(req.body);
     await writeFileToContainer(req.params.id, path, content);
     res.json({ success: true, path });
-  } catch (err: any) {
-    res.status(500).json({ error: err.message });
+  } catch (err: unknown) {
+    res.status(500).json({ error: errorMessage(err) });
   }
 });
 
@@ -164,8 +165,8 @@ containersRouter.get('/:id/files/read', async (req, res) => {
     }
     const content = await readFileFromContainer(req.params.id, path);
     res.json({ content, path });
-  } catch (err: any) {
-    res.status(err.message?.includes('not found') ? 404 : 500).json({ error: err.message });
+  } catch (err: unknown) {
+    res.status(errorMessage(err).includes('not found') ? 404 : 500).json({ error: errorMessage(err) });
   }
 });
 
@@ -183,16 +184,16 @@ containersRouter.get('/:id/files/download', async (req, res) => {
     res.setHeader('Content-Type', guessMimeType(path));
     res.setHeader('Content-Disposition', `attachment; filename="${safeFileName(path)}"`);
     res.send(content);
-  } catch (err: any) {
-    if (err.message?.includes('not found')) {
-      res.status(404).json({ error: err.message });
+  } catch (err: unknown) {
+    if (errorMessage(err).includes('not found')) {
+      res.status(404).json({ error: errorMessage(err) });
       return;
     }
-    if (err.message?.includes('too large')) {
-      res.status(413).json({ error: err.message });
+    if (errorMessage(err).includes('too large')) {
+      res.status(413).json({ error: errorMessage(err) });
       return;
     }
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: errorMessage(err) });
   }
 });
 
@@ -203,8 +204,8 @@ containersRouter.get('/:id/files/list', async (req, res) => {
     const dir = (req.query.dir as string) || '/workspace';
     const files = await listFilesInContainer(req.params.id, dir);
     res.json({ files, dir });
-  } catch (err: any) {
-    res.status(500).json({ error: err.message });
+  } catch (err: unknown) {
+    res.status(500).json({ error: errorMessage(err) });
   }
 });
 
@@ -219,8 +220,8 @@ containersRouter.post('/:id/expose', async (req, res) => {
     const { port } = exposeSchema.parse(req.body);
     const previewUrl = await exposeContainerPort(req.params.id, port, PREVIEW_DOMAIN);
     res.json({ previewUrl, port });
-  } catch (err: any) {
-    res.status(500).json({ error: err.message });
+  } catch (err: unknown) {
+    res.status(500).json({ error: errorMessage(err) });
   }
 });
 
@@ -235,8 +236,8 @@ containersRouter.post('/:id/snapshot', async (req, res) => {
     const { tag } = snapshotSchema.parse(req.body);
     const imageTag = await snapshotContainer(req.params.id, tag);
     res.json({ imageTag, tag });
-  } catch (err: any) {
-    res.status(500).json({ error: err.message });
+  } catch (err: unknown) {
+    res.status(500).json({ error: errorMessage(err) });
   }
 });
 
@@ -246,8 +247,8 @@ containersRouter.get('/snapshots/list', async (_req, res) => {
   try {
     const snapshots = await listSnapshots();
     res.json({ snapshots });
-  } catch (err: any) {
-    res.status(500).json({ error: err.message });
+  } catch (err: unknown) {
+    res.status(500).json({ error: errorMessage(err) });
   }
 });
 
@@ -255,7 +256,7 @@ containersRouter.delete('/snapshots/:tag', async (req, res) => {
   try {
     await deleteSnapshot(req.params.tag);
     res.json({ deleted: true });
-  } catch (err: any) {
-    res.status(500).json({ error: err.message });
+  } catch (err: unknown) {
+    res.status(500).json({ error: errorMessage(err) });
   }
 });

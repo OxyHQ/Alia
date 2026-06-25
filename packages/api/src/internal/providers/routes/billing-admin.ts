@@ -19,7 +19,7 @@ router.get('/transactions', async (req: Request, res: Response) => {
   try {
     const { status, type, limit: limitStr, offset: offsetStr } = req.query;
 
-    const query: any = {};
+    const query: Record<string, unknown> = {};
     if (status && typeof status === 'string') query.status = status;
     if (type && typeof type === 'string') query.type = type;
 
@@ -55,7 +55,7 @@ router.get('/subscriptions', async (req: Request, res: Response) => {
   try {
     const { status, product, limit: limitStr, offset: offsetStr } = req.query;
 
-    const query: any = {};
+    const query: Record<string, unknown> = {};
     if (status && typeof status === 'string') query.status = status;
     if (product && typeof product === 'string') query['plan.product'] = product;
 

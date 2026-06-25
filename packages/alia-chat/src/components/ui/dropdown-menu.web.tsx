@@ -4,6 +4,7 @@ import { cn } from "../../lib/utils";
 import * as DropdownMenuPrimitive from "@radix-ui/react-dropdown-menu";
 import { CheckIcon, ChevronRightIcon } from "@radix-ui/react-icons";
 import * as React from "react";
+import type { LucideIcon } from "lucide-react-native";
 import {
   Star, Pencil, Trash2, Share2, Download, Settings, HelpCircle,
   Image, FileText, Search, ShoppingBag, MoreHorizontal, ExternalLink,
@@ -12,7 +13,7 @@ import {
 } from "lucide-react-native";
 
 // Map iOS SF Symbol names to Lucide icons for web rendering
-const SF_SYMBOL_MAP: Record<string, React.ComponentType<any>> = {
+const SF_SYMBOL_MAP: Record<string, LucideIcon> = {
   "star": Star, "star.fill": Star, "pencil": Pencil, "trash": Trash2,
   "square.and.arrow.up": Share2, "arrow.down.doc": Download,
   "gearshape": Settings, "questionmark.circle": HelpCircle,
@@ -143,7 +144,7 @@ const DropdownMenuSubContent = React.forwardRef<
       style={{
         boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -2px rgba(0,0,0,0.1)',
         border: '1px solid var(--border)',
-        ...style as any,
+        ...style,
       }}
       {...props}
     />
@@ -169,7 +170,7 @@ const DropdownMenuContent = React.forwardRef<
       style={{
         boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -2px rgba(0,0,0,0.1)',
         border: '1px solid var(--border)',
-        ...style as any,
+        ...style,
       }}
       {...props}
     />
@@ -198,7 +199,7 @@ const DropdownMenuItem = React.forwardRef<
   ) => (
     <DropdownMenuPrimitive.Item
       ref={ref}
-      onSelect={(e: any) => {
+      onSelect={(e: Event) => {
         onSelect?.(e);
         if (shouldDismissMenuOnSelect === false) {
           e.preventDefault();
@@ -244,7 +245,7 @@ const DropdownMenuCheckboxItem = React.forwardRef<
   ) => (
     <DropdownMenuPrimitive.CheckboxItem
       ref={ref}
-      onSelect={(e: any) => {
+      onSelect={(e: Event) => {
         const current =
           value === true ? "on" : value === false ? "off" : value;
         const next = current === "on" ? "off" : "on";
@@ -305,7 +306,7 @@ DropdownMenuSeparator.displayName =
 
 export const ItemIcon = React.forwardRef<
   HTMLSpanElement,
-  React.HTMLProps<HTMLSpanElement> & { ios?: { name?: string; [key: string]: any }; androidIconName?: string }
+  React.HTMLProps<HTMLSpanElement> & { ios?: { name?: string; [key: string]: unknown }; androidIconName?: string }
 >(({ className, ios, androidIconName, children, ...props }, ref) => {
   const IconComponent = ios?.name ? SF_SYMBOL_MAP[ios.name] : null;
   return (

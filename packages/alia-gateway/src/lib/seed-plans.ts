@@ -7,6 +7,7 @@
  */
 
 import { Plan } from '../models/plan.js';
+import { errorCode } from './error-handler';
 import { connectDB } from './db';
 import { log } from './logger';
 
@@ -194,8 +195,8 @@ export async function seedPlans(): Promise<{ seeded: number; skipped: number }> 
       } else {
         skipped++;
       }
-    } catch (error: any) {
-      if (error.code === 11000) {
+    } catch (error: unknown) {
+      if (errorCode(error) === 11000) {
         skipped++;
       } else {
         log.seed.error({ err: error, planId: planData.planId }, 'Error seeding plan');

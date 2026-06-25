@@ -3,6 +3,7 @@ import {
   View,
   Pressable,
   type TextInput as RNTextInput,
+  type ViewStyle,
 } from "react-native";
 import { KeyboardAvoidingView } from "../../../lib/keyboard";
 import { Maximize2, Minimize2 } from "lucide-react-native";
@@ -253,7 +254,8 @@ export function PromptInput({
       {showFullscreen && (
         <View
           style={{
-            position: "fixed" as any,
+            // `position: 'fixed'` is a web-only value (NativeWind) not in RN's ViewStyle union.
+            position: "fixed" as unknown as ViewStyle["position"],
             top: 0,
             left: 0,
             right: 0,

@@ -7,6 +7,7 @@ import {
   type TextInputKeyPressEventData,
   type NativeSyntheticEvent as RNSyntheticEvent,
   type TextInputContentSizeChangeEventData,
+  type TextStyle,
 } from "react-native";
 import { cn } from "../../lib/utils";
 
@@ -144,12 +145,12 @@ const ChatTextInput = React.forwardRef<TextInput, ChatTextInputProps>(
           scrollEnabled={fillContainer || props.multiline}
           style={[
             style,
-            !fillContainer && props.multiline && !disableAutoHeight && {
+            !fillContainer && props.multiline && !disableAutoHeight && ({
               minHeight,
               maxHeight,
-              overflow: 'auto' as any,
+              overflow: 'auto',
               ...(Platform.OS === 'web' ? { fieldSizing: 'content' } : {}),
-            },
+            } as TextStyle & { overflow: 'auto'; fieldSizing?: string }),
             fillContainer && { flex: 1, height: '100%' },
           ]}
           {...props}

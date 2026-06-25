@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import apiClient from '../api/client';
 import { API_ROUTES } from '../api/routes';
+import { errorMessage as getErrorMessage } from '../errors/error-utils';
 
 export type ShowFormat = 'podcast' | 'news' | 'debate' | 'interview' | 'explainer';
 export type ShowStatus = 'queued' | 'generating_script' | 'generating_audio' | 'concatenating' | 'completed' | 'failed';
@@ -92,8 +93,8 @@ export const useShowStore = create<ShowStore>((set, get) => ({
     try {
       const res = await apiClient.get(API_ROUTES.v1.shows.list);
       set({ shows: res.data.shows, loading: false });
-    } catch (err: any) {
-      set({ error: err.response?.data?.error?.message || 'Failed to load shows', loading: false });
+    } catch (err: unknown) {
+      set({ error: getErrorMessage(err, 'Failed to load shows'), loading: false });
     }
   },
 
@@ -137,8 +138,8 @@ export const useShowStore = create<ShowStore>((set, get) => ({
       }));
 
       return showId;
-    } catch (err: any) {
-      const msg = err.response?.data?.error?.message || 'Failed to generate show';
+    } catch (err: unknown) {
+      const msg = getErrorMessage(err, 'Failed to generate show');
       set({ error: msg });
       return null;
     }
@@ -150,8 +151,8 @@ export const useShowStore = create<ShowStore>((set, get) => ({
       set(state => ({
         shows: state.shows.filter(s => s._id !== id),
       }));
-    } catch (err: any) {
-      set({ error: err.response?.data?.error?.message || 'Failed to delete show' });
+    } catch (err: unknown) {
+      set({ error: getErrorMessage(err, 'Failed to delete show') });
     }
   },
 

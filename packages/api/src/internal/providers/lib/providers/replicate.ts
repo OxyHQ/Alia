@@ -16,7 +16,7 @@ function convertMessagesToPrompt(messages: OpenAIMessage[]): { prompt: string; s
       conversationParts.push(`User: ${text}`);
     } else if (msg.role === 'assistant') {
       if (msg.tool_calls) {
-        const calls = msg.tool_calls.map((tc: any) => `[Called ${tc.function?.name}(${tc.function?.arguments})]`).join(' ');
+        const calls = msg.tool_calls.map((tc) => `[Called ${tc.function?.name}(${tc.function?.arguments})]`).join(' ');
         conversationParts.push(`Assistant: ${calls}`);
       } else {
         const text = typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content);
@@ -108,7 +108,7 @@ export const replicateProvider: Provider = {
 
     const { prompt, systemPrompt } = convertMessagesToPrompt(messages);
 
-    const input: any = {
+    const input: Record<string, unknown> = {
       prompt,
       max_tokens: config?.maxTokens ?? 8192,
       temperature: config?.temperature ?? 0.7,

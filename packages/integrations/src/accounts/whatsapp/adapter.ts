@@ -1,4 +1,5 @@
 import { Router, Request, Response } from 'express';
+import { errorMessage } from '../../shared/utils';
 import type { AccountAdapter } from '../types';
 import { sessionManager } from './session-manager';
 import { WhatsAppChat, WhatsAppMessage } from './models';
@@ -44,9 +45,9 @@ export class WhatsAppAdapter implements AccountAdapter {
           qr,
           message: 'Scan the QR code with WhatsApp to connect',
         });
-      } catch (error: any) {
+      } catch (error: unknown) {
         console.error('[Sessions] Connect error:', error);
-        return res.status(500).json({ error: error.message || 'Failed to create session' });
+        return res.status(500).json({ error: errorMessage(error) || 'Failed to create session' });
       }
     });
 
@@ -85,9 +86,9 @@ export class WhatsAppAdapter implements AccountAdapter {
           status: session.status,
           qr: session.lastQR,
         });
-      } catch (error: any) {
+      } catch (error: unknown) {
         console.error('[Sessions] QR fetch error:', error);
-        return res.status(500).json({ error: error.message || 'Failed to get QR code' });
+        return res.status(500).json({ error: errorMessage(error) || 'Failed to get QR code' });
       }
     });
 
@@ -116,9 +117,9 @@ export class WhatsAppAdapter implements AccountAdapter {
           createdAt: session.createdAt,
           updatedAt: session.updatedAt,
         });
-      } catch (error: any) {
+      } catch (error: unknown) {
         console.error('[Sessions] Status error:', error);
-        return res.status(500).json({ error: error.message || 'Failed to get status' });
+        return res.status(500).json({ error: errorMessage(error) || 'Failed to get status' });
       }
     });
 
@@ -135,9 +136,9 @@ export class WhatsAppAdapter implements AccountAdapter {
           status: 'logged-out',
           message: 'Session disconnected successfully',
         });
-      } catch (error: any) {
+      } catch (error: unknown) {
         console.error('[Sessions] Disconnect error:', error);
-        return res.status(500).json({ error: error.message || 'Failed to disconnect session' });
+        return res.status(500).json({ error: errorMessage(error) || 'Failed to disconnect session' });
       }
     });
 
@@ -151,9 +152,9 @@ export class WhatsAppAdapter implements AccountAdapter {
       try {
         const sessions = await sessionManager.getUserSessions(userId);
         return res.json({ sessions });
-      } catch (error: any) {
+      } catch (error: unknown) {
         console.error('[Sessions] User sessions error:', error);
-        return res.status(500).json({ error: error.message || 'Failed to get user sessions' });
+        return res.status(500).json({ error: errorMessage(error) || 'Failed to get user sessions' });
       }
     });
 
@@ -165,9 +166,9 @@ export class WhatsAppAdapter implements AccountAdapter {
       try {
         const sessions = await sessionManager.listSessions();
         return res.json({ sessions });
-      } catch (error: any) {
+      } catch (error: unknown) {
         console.error('[Sessions] List error:', error);
-        return res.status(500).json({ error: error.message || 'Failed to list sessions' });
+        return res.status(500).json({ error: errorMessage(error) || 'Failed to list sessions' });
       }
     });
 
@@ -202,9 +203,9 @@ export class WhatsAppAdapter implements AccountAdapter {
         );
 
         return res.json({ chats });
-      } catch (error: any) {
+      } catch (error: unknown) {
         console.error('[Sessions] Chats error:', error);
-        return res.status(500).json({ error: error.message || 'Failed to get chats' });
+        return res.status(500).json({ error: errorMessage(error) || 'Failed to get chats' });
       }
     });
 
@@ -232,9 +233,9 @@ export class WhatsAppAdapter implements AccountAdapter {
             pushName: m.pushName || null,
           })),
         });
-      } catch (error: any) {
+      } catch (error: unknown) {
         console.error('[Sessions] Messages error:', error);
-        return res.status(500).json({ error: error.message || 'Failed to get messages' });
+        return res.status(500).json({ error: errorMessage(error) || 'Failed to get messages' });
       }
     });
 
@@ -259,9 +260,9 @@ export class WhatsAppAdapter implements AccountAdapter {
 
         const result = await sock.sendMessage(jid, { text });
         return res.json({ success: true, messageId: result?.key?.id });
-      } catch (error: any) {
+      } catch (error: unknown) {
         console.error('[Sessions] Send error:', error);
-        return res.status(500).json({ error: error.message || 'Failed to send message' });
+        return res.status(500).json({ error: errorMessage(error) || 'Failed to send message' });
       }
     });
 

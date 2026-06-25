@@ -62,7 +62,7 @@ export function useMcpServers() {
       setRegistry(registryRes.data.registry || []);
       setInstalled(installedRes.data.servers || []);
       setError(null);
-    } catch (err: any) {
+    } catch (err: unknown) {
       setError(err as Error);
     } finally {
       setLoading(false);

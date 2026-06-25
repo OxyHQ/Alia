@@ -13,6 +13,7 @@ import { Separator } from '@/components/ui/separator';
 import { io as socketIO } from 'socket.io-client';
 import { useTranslation } from '@/hooks/useTranslation';
 import { useColorScheme } from '@/lib/useColorScheme';
+import { errorMessage as getErrorMessage } from '@/lib/errors/error-utils';
 
 type AppType = string;
 type Status = 'loading' | 'authorize' | 'authorizing' | 'success' | 'error' | 'needLogin';
@@ -120,10 +121,10 @@ export default function AuthorizeScreen() {
           window.location.href = finalUrl;
         }
       }, 1000);
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Authorization error:', error);
       setStatus('error');
-      setMessage(error.response?.data?.error || t('authorize.failedToAuthorize'));
+      setMessage(getErrorMessage(error, t('authorize.failedToAuthorize')));
     }
   };
 
@@ -148,7 +149,7 @@ export default function AuthorizeScreen() {
         setMessage(res.data?.error || t('authorize.tokenExpired'));
         return;
       }
-    } catch (e: any) {
+    } catch (e: unknown) {
       setStatus('error');
       setMessage(t('authorize.invalidOrExpiredToken'));
       return;
@@ -176,9 +177,9 @@ export default function AuthorizeScreen() {
         setStatus('error');
         setMessage(t('authorize.failedToLink'));
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Bot link error:', error);
-      const errorMessage = error.response?.data?.error || t('authorize.failedToLink');
+      const errorMessage = getErrorMessage(error, t('authorize.failedToLink'));
       setStatus('error');
       setMessage(errorMessage);
     }

@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { docker, listManagedContainers } from '../lib/docker.js';
+import { errorMessage } from '../lib/errors.js';
 
 export const healthRouter = Router();
 
@@ -24,10 +25,10 @@ healthRouter.get('/', async (_req, res) => {
       },
       uptime: process.uptime(),
     });
-  } catch (err: any) {
+  } catch (err: unknown) {
     res.status(503).json({
       status: 'error',
-      error: err.message,
+      error: errorMessage(err),
     });
   }
 });

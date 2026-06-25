@@ -1,8 +1,8 @@
-import { Client, GatewayIntentBits, Events, Partials } from 'discord.js';
+import { Client, GatewayIntentBits, Events, Partials, type Message } from 'discord.js';
 import { v4 as uuidv4 } from 'uuid';
 import type { BotAdapter } from '../types';
-import { APIClient } from '../../shared/api-client';
-import { chunkText } from '../../shared/utils';
+import { APIClient, type BotUser } from '../../shared/api-client';
+import { chunkText, errorStatus } from '../../shared/utils';
 import {
   initCommands,
   registerSlashCommands,
@@ -113,7 +113,7 @@ export class DiscordBotAdapter implements BotAdapter {
             const modelArg = interaction.options.getString('model');
             if (!modelArg) {
               const models = await apiClient.fetchModels();
-              const list = models.map((m: any) => `\`${m.id}\` - ${m.name}`).join('\n');
+              const list = models.map((m) => `\`${m.id}\` - ${m.name}`).join('\n');
               await interaction.editReply(`**Available Models:**\n${list || 'None'}`);
             } else {
               await apiClient.updateModel(interaction.user.id, modelArg);
@@ -169,15 +169,15 @@ export class DiscordBotAdapter implements BotAdapter {
    * Chat handler — uses generateText (single-shot) with Discord-specific formatting.
    * Discord bot has unique behavior: sends "Thinking..." message first, then edits it.
    */
-  private async handleChat(message: any, content: string) {
+  private async handleChat(message: Message, content: string) {
     const discordUserId = message.author.id;
 
     try {
-      let botUser: any;
+      let botUser: BotUser | null;
       try {
         botUser = await apiClient.getBotUser(discordUserId);
-      } catch (error: any) {
-        if (error.response?.status === 404) {
+      } catch (error: unknown) {
+        if (errorStatus(error) === 404) {
           await apiClient.createOrUpdateBotUser({
             platformUserId: discordUserId,
             chatId: message.channelId,
@@ -217,9 +217,9 @@ export class DiscordBotAdapter implements BotAdapter {
           const conversation = await apiClient.getConversation(botUser.oxyUserId, conversationId);
           if (conversation?.messages?.length) {
             messages_history = conversation.messages
-              .filter((m: any) => m.role === 'user' || m.role === 'assistant')
+              .filter((m) => m.role === 'user' || m.role === 'assistant')
               .slice(-20)
-              .map((m: any) => ({ role: m.role, content: m.content }));
+              .map((m) => ({ role: m.role, content: typeof m.content === 'string' ? m.content : JSON.stringify(m.content) }));
           }
         } catch {}
 
@@ -263,7 +263,7 @@ export class DiscordBotAdapter implements BotAdapter {
       } finally {
         clearInterval(typingInterval);
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('[Discord/Chat] Error:', error);
       await message.reply('Sorry, an error occurred. Please try again.').catch(() => {});
     }

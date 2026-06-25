@@ -1,5 +1,6 @@
 import { createFileRoute } from '@tanstack/react-router';
 import { useState } from 'react';
+import type { BundledLanguage } from 'shiki';
 import { HugeiconsIcon } from '@hugeicons/react';
 import { SourceCodeIcon } from '@hugeicons/core-free-icons';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -160,7 +161,7 @@ const tabs: Array<{ value: ExampleKey; label: string }> = [
   { value: 'curl', label: 'cURL' },
 ];
 
-const languageMap: Record<ExampleKey, string> = {
+const languageMap: Record<ExampleKey, BundledLanguage> = {
   javascript: 'javascript',
   python: 'python',
   nodejs: 'typescript',
@@ -235,7 +236,7 @@ function ExamplesPage() {
             </TabsList>
             {tabs.map((tab) => (
               <TabsContent key={tab.value} value={tab.value}>
-                <CodeBlock code={examples[tab.value]} language={languageMap[tab.value] as any}>
+                <CodeBlock code={examples[tab.value]} language={languageMap[tab.value]}>
                   <CodeBlockHeader>
                     <CodeBlockTitle>
                       <HugeiconsIcon icon={SourceCodeIcon} size={14} className="text-muted-foreground" />

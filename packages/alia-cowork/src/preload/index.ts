@@ -1,5 +1,13 @@
 import { contextBridge, ipcRenderer } from 'electron'
 
+/** A file/folder context item attached to a chat message. */
+interface ContextItem {
+  type: 'file' | 'folder'
+  path: string
+  content?: string
+  language?: string
+}
+
 // Custom APIs for renderer
 const api = {
   // Window controls
@@ -13,7 +21,7 @@ const api = {
   zoomReset: () => ipcRenderer.invoke('window:zoom-reset'),
 
   // Chat
-  sendMessage: (message: string, mode: string, model: string, context?: any[]) =>
+  sendMessage: (message: string, mode: string, model: string, context?: ContextItem[]) =>
     ipcRenderer.invoke('chat:send', message, mode, model, context),
   stopGeneration: () => ipcRenderer.invoke('chat:stop'),
   clearChat: () => ipcRenderer.invoke('chat:clear'),
@@ -58,7 +66,7 @@ const api = {
     ipcRenderer.on('chat:error', (_, data) => callback(data))
     return () => ipcRenderer.removeListener('chat:error', callback)
   },
-  onChatTool: (callback: (data: { tool: string; args: any; status: string }) => void) => {
+  onChatTool: (callback: (data: { tool: string; args: Record<string, unknown>; status: string }) => void) => {
     ipcRenderer.on('chat:tool', (_, data) => callback(data))
     return () => ipcRenderer.removeListener('chat:tool', callback)
   },
@@ -74,7 +82,7 @@ const api = {
     ipcRenderer.on('window:fullscreen-changed', (_, isFullScreen) => callback(isFullScreen))
     return () => ipcRenderer.removeListener('window:fullscreen-changed', callback)
   },
-  onAuthSuccess: (callback: (data: { token: string; userInfo: any }) => void) => {
+  onAuthSuccess: (callback: (data: { token: string; userInfo: unknown }) => void) => {
     ipcRenderer.on('auth:success', (_, data) => callback(data))
     return () => ipcRenderer.removeListener('auth:success', callback)
   },
@@ -90,10 +98,10 @@ const api = {
 
 // Generic electron IPC bridge for dynamic channels (e.g., browser events)
 const electron = {
-  on: (channel: string, callback: (...args: any[]) => void) => {
+  on: (channel: string, callback: (...args: unknown[]) => void) => {
     ipcRenderer.on(channel, (_, ...args) => callback(...args))
   },
-  off: (channel: string, callback: (...args: any[]) => void) => {
+  off: (channel: string, callback: (...args: unknown[]) => void) => {
     ipcRenderer.removeListener(channel, callback)
   }
 }

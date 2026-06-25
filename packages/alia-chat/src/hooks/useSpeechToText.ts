@@ -1,4 +1,5 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
+import { errorMessage } from '../lib/utils';
 import {
   useAudioRecorder,
   useAudioRecorderState,
@@ -108,7 +109,7 @@ export function useSpeechToText(options: UseSTTOptions = {}) {
       await audioRecorder.prepareToRecordAsync();
       audioRecorder.record();
       isRecordingRef.current = true;
-    } catch (e: any) {
+    } catch (e: unknown) {
       console.error('[STT] Recording error:', e);
       setError('Failed to start recording');
       setState('idle');
@@ -167,9 +168,9 @@ export function useSpeechToText(options: UseSTTOptions = {}) {
       const result = await transcribeResponse.json() as { text: string };
       setState('idle');
       return result.text || null;
-    } catch (e: any) {
+    } catch (e: unknown) {
       console.error('[STT] Transcription error:', e);
-      setError(e.message || 'Transcription failed');
+      setError(errorMessage(e, 'Transcription failed'));
       setState('idle');
       return null;
     }

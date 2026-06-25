@@ -8,6 +8,7 @@
 import express, { Request, Response } from 'express';
 import { callAliaModelAPI, callProviderAPI } from '../lib/provider-api.js';
 import { log } from '../lib/logger.js';
+import { errorMessage } from '../lib/error-handler.js';
 
 const router = express.Router();
 
@@ -73,7 +74,7 @@ router.post('/', async (req: Request, res: Response) => {
         });
 
     // Binary responses (e.g. TTS audio): return base64-encoded buffer
-    const payload = useAlias ? (data as any).data ?? data : data;
+    const payload = useAlias ? (data as { data?: unknown }).data ?? data : data;
     if (responseType === 'arrayBuffer' && Buffer.isBuffer(payload)) {
       return res.json({
         success: true,
@@ -83,12 +84,15 @@ router.post('/', async (req: Request, res: Response) => {
     }
 
     res.json({ success: true, data: payload });
-  } catch (error: any) {
+  } catch (error: unknown) {
     log.providers.error({ err: error }, 'Provider API call failed');
+    const reason = (typeof error === 'object' && error !== null && 'reason' in error)
+      ? String((error as { reason?: unknown }).reason)
+      : 'unknown';
     res.status(502).json({
       success: false,
-      error: error.message || 'Provider API call failed',
-      reason: error.reason || 'unknown',
+      error: errorMessage(error, 'Provider API call failed'),
+      reason,
       code: 'PROVIDER_ERROR',
     });
   }

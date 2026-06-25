@@ -17,11 +17,21 @@ const DEFAULT_TIMEOUT_MS = 45_000;
 
 type AsyncStatus = 'QUEUED' | 'PROCESSING' | 'COMPLETED' | 'FAILED';
 
+/** Heterogeneous model output; only the URL-bearing keys are read by extractors. */
+export interface AsyncInvokeOutput {
+  audio_url?: string;
+  url?: string;
+  audio?: { url?: string };
+  data?: Array<{ url?: string }>;
+  images?: Array<{ url?: string }>;
+  [key: string]: unknown;
+}
+
 interface AsyncInvokeResponse {
   request_id: string;
   status: AsyncStatus;
   model_id: string;
-  output: any;
+  output: AsyncInvokeOutput;
   error: string | null;
   created_at: string;
   started_at: string | null;
@@ -67,7 +77,7 @@ function sleep(ms: number, signal?: AbortSignal): Promise<void> {
  */
 export async function callDigitalOceanAsyncInvoke(
   options: DOAsyncInvokeOptions
-): Promise<any> {
+): Promise<AsyncInvokeOutput> {
   const { apiKey, modelId, input, signal } = options;
   const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
   const deadline = Date.now() + timeoutMs;
@@ -153,14 +163,14 @@ export async function callDigitalOceanAsyncInvoke(
  * Extract audio URL from a DO async-invoke output object.
  * Different models use different keys — this normalizes them.
  */
-export function extractAudioUrl(output: any): string | undefined {
+export function extractAudioUrl(output: AsyncInvokeOutput | undefined): string | undefined {
   return output?.audio_url ?? output?.url ?? output?.audio?.url;
 }
 
 /**
  * Extract image URL from a DO async-invoke or OpenAI-compatible output object.
  */
-export function extractImageUrl(output: any): string | undefined {
+export function extractImageUrl(output: AsyncInvokeOutput | undefined): string | undefined {
   return output?.data?.[0]?.url ?? output?.images?.[0]?.url;
 }
 

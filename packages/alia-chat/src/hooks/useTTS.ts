@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef } from 'react';
+import type { AudioPlayer, AudioPlaybackStatus } from 'expo-audio';
 import {
   useSharedValue,
   withRepeat,
@@ -8,6 +9,7 @@ import {
   Easing,
 } from 'react-native-reanimated';
 import { useOxy } from '@oxyhq/services';
+import { errorMessage } from '../lib/utils';
 import { create } from 'zustand';
 
 const API_URL = process.env.EXPO_PUBLIC_ALIA_API_URL ?? 'https://api.alia.onl';
@@ -63,7 +65,7 @@ export function useTTS(options: UseTTSOptions = {}) {
     reset,
   } = useTTSStore();
 
-  const playerRef = useRef<any>(null);
+  const playerRef = useRef<AudioPlayer | null>(null);
 
   // Simulated wave amplitude for visualization
   const ttsWaveAmplitude = useSharedValue(0);
@@ -124,7 +126,7 @@ export function useTTS(options: UseTTSOptions = {}) {
         const player = createAudioPlayer({ uri: audioUrl });
         playerRef.current = player;
 
-        player.addListener('playbackStatusUpdate', (status: any) => {
+        player.addListener('playbackStatusUpdate', (status: AudioPlaybackStatus) => {
           if (status.didJustFinish) {
             releasePlayer();
             reset();
@@ -206,9 +208,9 @@ export function useTTS(options: UseTTSOptions = {}) {
 
       const data = await response.json();
       playFromUrl(data.audioUrl, messageId);
-    } catch (e: any) {
+    } catch (e: unknown) {
       console.error('[TTS] Error:', e);
-      setError(e.message || 'Failed to read aloud');
+      setError(errorMessage(e, 'Failed to read aloud'));
     }
   }, [activeMessageId, playbackState, getToken, apiUrl, getTTSVoice, getTTSSpeed, stop, playFromUrl, setActiveMessage, setPlaybackState, setError]);
 

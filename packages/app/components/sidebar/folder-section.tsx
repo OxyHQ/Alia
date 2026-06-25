@@ -12,6 +12,7 @@ import type { Conversation } from "@/lib/hooks/use-conversations";
 import type { Folder } from "@/lib/stores/folders-store";
 import type { Project } from "@/lib/stores/projects-store";
 import { ConversationItem } from "./conversation-item";
+import type { StopPropagationEvent } from '@/lib/types/events';
 
 const ICON_MAP: Record<string, any> = {
   Folder: FolderIcon,
@@ -27,15 +28,15 @@ interface FolderSectionProps {
   projects: Project[];
   folders: Folder[];
   onToggle: (id: string) => void;
-  onEdit: (folder: Folder, e: any) => void;
-  onDelete: (id: string, e: any) => void;
-  onToggleFavorite: (folder: Folder, e: any) => void;
+  onEdit: (folder: Folder, e: StopPropagationEvent) => void;
+  onDelete: (id: string, e: StopPropagationEvent) => void;
+  onToggleFavorite: (folder: Folder, e: StopPropagationEvent) => void;
   onSelectConversation: (id: string) => void;
-  onToggleFavoriteConversation: (id: string, e: any) => void;
-  onTogglePinConversation: (id: string, e: any) => void;
-  onMoveToProject: (convId: string, projectId: string | null, e: any) => void;
-  onMoveToFolder: (convId: string, folderId: string | null, e: any) => void;
-  onDeleteConversation: (id: string, e: any) => void;
+  onToggleFavoriteConversation: (id: string, e: StopPropagationEvent) => void;
+  onTogglePinConversation: (id: string, e: StopPropagationEvent) => void;
+  onMoveToProject: (convId: string, projectId: string | null, e: StopPropagationEvent) => void;
+  onMoveToFolder: (convId: string, folderId: string | null, e: StopPropagationEvent) => void;
+  onDeleteConversation: (id: string, e: StopPropagationEvent) => void;
   onPrefetchConversation?: (id: string) => void;
   getConversationProject: (id: string) => Project | undefined;
   getConversationFolder: (id: string) => Folder | undefined;

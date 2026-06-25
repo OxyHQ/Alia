@@ -27,6 +27,7 @@ import {
   InfoBanners,
   PageFooter,
 } from '@/components/subscribe-shared';
+import { errorMessage as getErrorMessage } from '../../lib/errors/error-utils';
 
 function buildTiers(
   apiPlans: SubscriptionPlan[],
@@ -127,8 +128,8 @@ export default function SubscribeScreen() {
       const result = await changePlanMutation.mutateAsync({ planId, billingPeriod });
       await refetchSubscription();
       toast.success(t(result.direction === 'upgrade' ? 'subscribe.upgradeSuccess' : 'subscribe.downgradeSuccess'));
-    } catch (error: any) {
-      toast.error(error?.response?.data?.error || error.message || t('subscribe.failedPlanChange'));
+    } catch (error: unknown) {
+      toast.error(getErrorMessage(error) || t('subscribe.failedPlanChange'));
     } finally {
       setLoadingPlanId(undefined);
     }
@@ -161,8 +162,8 @@ export default function SubscribeScreen() {
             await cancelMutation.mutateAsync();
             await refetchSubscription();
             toast.success(t('subscribe.downgradeSuccess'));
-          } catch (error: any) {
-            toast.error(error?.response?.data?.error || error.message || t('subscribe.failedPlanChange'));
+          } catch (error: unknown) {
+            toast.error(getErrorMessage(error) || t('subscribe.failedPlanChange'));
           } finally {
             setLoadingPlanId(undefined);
           }
@@ -207,8 +208,8 @@ export default function SubscribeScreen() {
       if (url) {
         await Linking.openURL(url);
       }
-    } catch (error: any) {
-      toast.error(error.message || t('subscribe.failedCheckout'));
+    } catch (error: unknown) {
+      toast.error(getErrorMessage(error) || t('subscribe.failedCheckout'));
     } finally {
       setLoadingPlanId(undefined);
     }

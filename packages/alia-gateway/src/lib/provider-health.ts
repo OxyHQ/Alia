@@ -204,7 +204,7 @@ export async function recordSuccess(
       if (health.latencySamples.length > 100) {
         health.latencySamples = health.latencySamples.slice(-100);
       }
-      health.averageLatencyMs = health.latencySamples.reduce((a: any, b: any) => a + b, 0) / health.latencySamples.length;
+      health.averageLatencyMs = health.latencySamples.reduce((a: number, b: number) => a + b, 0) / health.latencySamples.length;
 
       // Update success rate
       health.successRate = (health.successCount / health.totalRequests) * 100;
@@ -405,7 +405,7 @@ export async function resetProviderHealth(provider: string, modelId: string): Pr
 
 // ============== HELPER FUNCTIONS ==============
 
-function healthToMetrics(health: any): HealthMetrics {
+function healthToMetrics(health: HealthMetrics): HealthMetrics {
   return {
     provider: health.provider,
     modelId: health.modelId,

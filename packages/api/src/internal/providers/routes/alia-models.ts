@@ -26,7 +26,7 @@ router.get('/', async (req: Request, res: Response) => {
   try {
     const { tier, active } = req.query;
 
-    const query: any = {};
+    const query: Record<string, unknown> = {};
     if (tier && typeof tier === 'string') query.tier = tier;
     if (active !== undefined) query.isActive = active === 'true';
 

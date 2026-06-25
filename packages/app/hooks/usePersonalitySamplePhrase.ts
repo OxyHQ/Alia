@@ -3,6 +3,7 @@ import { fetch as expoFetch } from 'expo/fetch';
 import { useOxy } from '@oxyhq/services';
 import { generateAPIUrl } from '@/lib/generate-api-url';
 import { PERSONALITY_STYLE_MAP, type PersonalityStyleId } from '@/lib/personality-styles';
+import { errorName } from '../lib/errors/error-utils';
 
 function pickRandom<T>(arr: T[], count: number): T[] {
   const copy = [...arr];
@@ -128,8 +129,8 @@ export function usePersonalitySamplePhrase() {
           } else if (accumulated && !controller.signal.aborted) {
             cacheRef.current.set(styleId, accumulated);
           }
-        } catch (err: any) {
-          if (err.name === 'AbortError') return;
+        } catch (err: unknown) {
+          if (errorName(err) === 'AbortError') return;
           setPhrase(style.sampleGreeting);
         } finally {
           if (!controller.signal.aborted) {

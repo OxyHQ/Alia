@@ -35,7 +35,7 @@ export type PromptInputContextType = {
   removeAttachment: (id: string) => void;
   updateAttachment: (id: string, updates: Partial<Attachment>) => void;
   handleCompletionKey: ((key: string) => boolean) | null;
-  setHandleCompletionKey: (fn: ((key: string) => boolean) | null) => void;
+  setHandleCompletionKey: React.Dispatch<React.SetStateAction<((key: string) => boolean) | null>>;
   // Injectable autocomplete hooks
   useSuggestions?: (query: string) => { data: Completion[] | undefined; isLoading: boolean };
   onSuggestionUsed?: (suggestionId: string) => void;

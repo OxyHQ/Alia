@@ -19,7 +19,7 @@ router.get('/', async (req: Request, res: Response) => {
   try {
     const { product, active } = req.query;
 
-    const query: any = {};
+    const query: Record<string, unknown> = {};
     if (product && typeof product === 'string') query.product = product;
     if (active !== undefined) query.isActive = active === 'true';
 
@@ -30,7 +30,7 @@ router.get('/', async (req: Request, res: Response) => {
       count: plans.length,
       data: plans,
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     log.providers.error({ err: error }, 'Error listing plans');
     res.status(500).json({
       success: false,
@@ -61,7 +61,7 @@ router.get('/:planId', async (req: Request, res: Response) => {
       success: true,
       data: plan,
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     log.providers.error({ err: error }, 'Error getting plan');
     res.status(500).json({
       success: false,
@@ -116,7 +116,7 @@ router.post('/', async (req: Request, res: Response) => {
 
     if (rest.modelIds && Array.isArray(rest.modelIds) && rest.modelIds.length > 0) {
       const validModels = await AliaModel.find({ modelId: { $in: rest.modelIds } }).select('modelId').lean();
-      const validIds = new Set(validModels.map((m: any) => m.modelId));
+      const validIds = new Set(validModels.map((m) => m.modelId));
       const invalid = rest.modelIds.filter((id: string) => !validIds.has(id));
       if (invalid.length > 0) {
         return res.status(400).json({
@@ -144,7 +144,7 @@ router.post('/', async (req: Request, res: Response) => {
     });
 
     broadcastPlansUpdate();
-  } catch (error: any) {
+  } catch (error: unknown) {
     log.providers.error({ err: error }, 'Error creating plan');
     res.status(500).json({
       success: false,
@@ -186,7 +186,7 @@ router.patch('/:planId', async (req: Request, res: Response) => {
 
     if (updates.modelIds && Array.isArray(updates.modelIds) && updates.modelIds.length > 0) {
       const validModels = await AliaModel.find({ modelId: { $in: updates.modelIds } }).select('modelId').lean();
-      const validIds = new Set(validModels.map((m: any) => m.modelId));
+      const validIds = new Set(validModels.map((m) => m.modelId));
       const invalid = updates.modelIds.filter((id: string) => !validIds.has(id));
       if (invalid.length > 0) {
         return res.status(400).json({
@@ -217,7 +217,7 @@ router.patch('/:planId', async (req: Request, res: Response) => {
     });
 
     broadcastPlansUpdate();
-  } catch (error: any) {
+  } catch (error: unknown) {
     log.providers.error({ err: error }, 'Error updating plan');
     res.status(500).json({
       success: false,
@@ -251,7 +251,7 @@ router.delete('/:planId', async (req: Request, res: Response) => {
     });
 
     broadcastPlansUpdate();
-  } catch (error: any) {
+  } catch (error: unknown) {
     log.providers.error({ err: error }, 'Error deleting plan');
     res.status(500).json({
       success: false,

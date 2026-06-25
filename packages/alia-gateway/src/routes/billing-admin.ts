@@ -19,7 +19,7 @@ router.get('/transactions', async (req: Request, res: Response) => {
   try {
     const { status, type, limit: limitStr, offset: offsetStr } = req.query;
 
-    const query: any = {};
+    const query: Record<string, unknown> = {};
     if (status && typeof status === 'string') query.status = status;
     if (type && typeof type === 'string') query.type = type;
 
@@ -37,7 +37,7 @@ router.get('/transactions', async (req: Request, res: Response) => {
       total,
       data: transactions,
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     log.providers.error({ err: error }, 'Error listing transactions');
     res.status(500).json({
       success: false,
@@ -55,7 +55,7 @@ router.get('/subscriptions', async (req: Request, res: Response) => {
   try {
     const { status, product, limit: limitStr, offset: offsetStr } = req.query;
 
-    const query: any = {};
+    const query: Record<string, unknown> = {};
     if (status && typeof status === 'string') query.status = status;
     if (product && typeof product === 'string') query['plan.product'] = product;
 
@@ -73,7 +73,7 @@ router.get('/subscriptions', async (req: Request, res: Response) => {
       total,
       data: subscriptions,
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     log.providers.error({ err: error }, 'Error listing subscriptions');
     res.status(500).json({
       success: false,
@@ -105,7 +105,7 @@ router.get('/user/:userId', async (req: Request, res: Response) => {
         transactions,
       },
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     log.providers.error({ err: error }, 'Error getting user billing summary');
     res.status(500).json({
       success: false,

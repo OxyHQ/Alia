@@ -20,7 +20,7 @@ export const cloudflareProvider: Provider = {
 
     const url = `https://api.cloudflare.com/client/v4/accounts/${accountId}/ai/v1/chat/completions`;
 
-    const body: any = {
+    const body: Record<string, unknown> = {
       model: key.modelId,
       messages,
       temperature: config?.temperature ?? 0.7,

@@ -9,12 +9,21 @@ import makeWASocket, {
   type SignalKeyStore,
   type WASocket,
 } from '@whiskeysockets/baileys';
+import { errorCode } from '../../shared/utils';
 import { v4 as uuidv4 } from 'uuid';
 import { WhatsAppSession, WhatsAppChat, WhatsAppMessage, type IWhatsAppSession } from './models';
 import { handleIncomingMessage } from '../../shared/chat-handler';
 import { APIClient } from '../../shared/api-client';
 
 const apiClient = new APIClient('whatsapp', process.env.INTEGRATIONS_SECRET || '');
+
+/** Baileys timestamps are `number` or a protobuf `Long` (`{ low, high }`). */
+type LongLike = { low: number; high?: number };
+function toUnixSeconds(ts: number | LongLike | null | undefined, fallback: number): number {
+  if (typeof ts === 'number') return ts;
+  if (ts && typeof ts === 'object' && typeof ts.low === 'number') return ts.low;
+  return fallback;
+}
 
 /** Convert Buffers to base64 JSON objects before MongoDB storage (avoids BSON Binary). */
 function serialize(data: unknown): unknown {
@@ -186,7 +195,7 @@ class SessionManager {
       }
 
       if (connection === 'close') {
-        const statusCode = (lastDisconnect?.error as any)?.output?.statusCode;
+        const statusCode = (lastDisconnect?.error as { output?: { statusCode?: number } } | undefined)?.output?.statusCode;
         const shouldReconnect = statusCode !== DisconnectReason.loggedOut;
 
         this.sessions.delete(sessionId);
@@ -260,7 +269,7 @@ class SessionManager {
         if (!text || !msg.key.id || !msg.key.remoteJid) continue;
 
         const ts = msg.messageTimestamp;
-        const timestamp = typeof ts === 'number' ? ts : (ts as any)?.low || Math.floor(Date.now() / 1000);
+        const timestamp = toUnixSeconds(ts, Math.floor(Date.now() / 1000));
 
         try {
           await WhatsAppMessage.updateOne(
@@ -279,8 +288,8 @@ class SessionManager {
             },
             { upsert: true }
           );
-        } catch (err: any) {
-          if (err.code !== 11000) { // ignore duplicate key
+        } catch (err: unknown) {
+          if (errorCode(err) !== 11000) { // ignore duplicate key
             console.error(`[WhatsApp] Error persisting message for session ${sessionId}:`, err);
           }
         }
@@ -337,7 +346,7 @@ class SessionManager {
       for (const chat of chats) {
         if (!chat.id || chat.id === 'status@broadcast') continue;
         const ts = chat.conversationTimestamp;
-        const timestamp = typeof ts === 'number' ? ts : (ts as any)?.low || 0;
+        const timestamp = toUnixSeconds(ts, 0);
 
         try {
           await WhatsAppChat.updateOne(
@@ -361,12 +370,12 @@ class SessionManager {
     sock.ev.on('chats.update', async (updates) => {
       for (const update of updates) {
         if (!update.id || update.id === 'status@broadcast') continue;
-        const $set: Record<string, any> = {};
+        const $set: Record<string, unknown> = {};
         if (update.name) $set.name = update.name;
         if (update.unreadCount !== undefined) $set.unreadCount = update.unreadCount;
         if (update.conversationTimestamp) {
           const ts = update.conversationTimestamp;
-          $set.conversationTimestamp = typeof ts === 'number' ? ts : (ts as any)?.low || 0;
+          $set.conversationTimestamp = toUnixSeconds(ts, 0);
         }
 
         if (Object.keys($set).length > 0) {
@@ -409,7 +418,7 @@ class SessionManager {
       } else if ('jid' in item && item.all) {
         // All messages in chat cleared
         try {
-          await WhatsAppMessage.deleteMany({ sessionId, jid: (item as any).jid });
+          await WhatsAppMessage.deleteMany({ sessionId, jid: item.jid });
         } catch (err) {
           console.error(`[WhatsApp] Error clearing messages for session ${sessionId}:`, err);
         }
@@ -442,10 +451,10 @@ class SessionManager {
       // Bulk upsert chats
       if (chats.length > 0) {
         const chatOps = chats
-          .filter((c: any) => c.id !== 'status@broadcast')
-          .map((c: any) => {
+          .filter((c) => c.id !== 'status@broadcast')
+          .map((c) => {
             const ts = c.conversationTimestamp;
-            const timestamp = typeof ts === 'number' ? ts : (ts as any)?.low || 0;
+            const timestamp = toUnixSeconds(ts, 0);
             return {
               updateOne: {
                 filter: { sessionId, jid: c.id },
@@ -474,23 +483,25 @@ class SessionManager {
       // Bulk upsert messages
       if (messages.length > 0) {
         const msgOps = messages
-          .filter((m: any) => {
+          .filter((m) => {
             const text = m.message?.conversation || m.message?.extendedTextMessage?.text || '';
             return text && m.key?.id && m.key?.remoteJid;
           })
-          .map((m: any) => {
+          .map((m) => {
             const text = m.message?.conversation || m.message?.extendedTextMessage?.text || '';
             const ts = m.messageTimestamp;
-            const timestamp = typeof ts === 'number' ? ts : (ts as any)?.low || Math.floor(Date.now() / 1000);
+            const timestamp = toUnixSeconds(ts, Math.floor(Date.now() / 1000));
+            const messageId = m.key.id ?? undefined;
+            const jid = m.key.remoteJid ?? undefined;
             return {
               updateOne: {
-                filter: { sessionId, messageId: m.key.id },
+                filter: { sessionId, messageId },
                 update: {
                   $setOnInsert: {
                     sessionId,
                     oxyUserId,
-                    jid: m.key.remoteJid,
-                    messageId: m.key.id,
+                    jid,
+                    messageId,
                     fromMe: m.key.fromMe || false,
                     timestamp,
                     text,
@@ -534,10 +545,12 @@ class SessionManager {
       : initAuthCreds();
 
     const store: SignalKeyStore = {
-      get: async (type: string, ids: string[]) => {
-        const result: Record<string, any> = {};
+      // Baileys' `get` is generic over `SignalDataTypeMap`; our store deserializes
+      // opaque JSON, so the per-type value shape is recovered via the SDK's own typing.
+      get: (async (type: string, ids: string[]) => {
+        const result: Record<string, unknown> = {};
         const fresh = await WhatsAppSession.findOne({ sessionId }).lean();
-        const authKeys = fresh?.authKeys as Record<string, any> | undefined;
+        const authKeys = fresh?.authKeys as Record<string, unknown> | undefined;
 
         for (const id of ids) {
           const value = authKeys?.[`${type}-${id}`];
@@ -546,11 +559,11 @@ class SessionManager {
           }
         }
         return result;
-      },
+      }) as SignalKeyStore['get'],
 
-      set: async (data: Record<string, Record<string, any>>) => {
-        const $set: Record<string, any> = {};
-        const $unset: Record<string, any> = {};
+      set: async (data: Record<string, Record<string, unknown>>) => {
+        const $set: Record<string, unknown> = {};
+        const $unset: Record<string, unknown> = {};
 
         for (const [type, entries] of Object.entries(data)) {
           for (const [id, value] of Object.entries(entries)) {
@@ -563,7 +576,7 @@ class SessionManager {
           }
         }
 
-        const ops: Record<string, any> = {};
+        const ops: Record<string, unknown> = {};
         if (Object.keys($set).length > 0) ops['$set'] = $set;
         if (Object.keys($unset).length > 0) ops['$unset'] = $unset;
 

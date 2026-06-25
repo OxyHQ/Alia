@@ -19,7 +19,7 @@ const router = express.Router();
 router.get('/', async (req: Request, res: Response) => {
   try {
     const { planId } = req.query;
-    const query: any = {};
+    const query: Record<string, unknown> = {};
     if (planId && typeof planId === 'string') query.planId = planId;
 
     const mappings = await PlanFeature.find(query).sort({ planId: 1, featureId: 1 }).lean();

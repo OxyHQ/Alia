@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import apiClient from '../api/client';
 import { API_ROUTES } from '../api/routes';
+import { errorMessage as getErrorMessage, errorStatus, errorResponseData } from '../errors/error-utils';
 
 export type AccessorySlot = 'head' | 'face' | 'neck';
 export type AccessoryLayer = 'front' | 'behind';
@@ -44,9 +45,9 @@ export const useAccessoriesStore = create<AccessoriesStoreState>((set, get) => (
       set({ loading: true, error: null });
       const res = await apiClient.get(API_ROUTES.accessories.list);
       set({ catalog: res.data.accessories, loading: false });
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Error loading accessories catalog:', error);
-      set({ error: error.message, loading: false });
+      set({ error: getErrorMessage(error), loading: false });
     }
   },
 
@@ -54,7 +55,7 @@ export const useAccessoriesStore = create<AccessoriesStoreState>((set, get) => (
     try {
       const res = await apiClient.get(API_ROUTES.accessories.me);
       set({ owned: res.data.owned });
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Error loading owned accessories:', error);
     }
   },
@@ -64,9 +65,9 @@ export const useAccessoriesStore = create<AccessoriesStoreState>((set, get) => (
       const res = await apiClient.post(API_ROUTES.accessories.purchase(id));
       set({ owned: res.data.owned });
       return true;
-    } catch (error: any) {
-      const status = error?.response?.status;
-      const data = error?.response?.data;
+    } catch (error: unknown) {
+      const status = errorStatus(error);
+      const data = errorResponseData(error);
       if (status === 402) {
         throw new Error(data?.error || 'Insufficient credits');
       }

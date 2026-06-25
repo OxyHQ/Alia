@@ -25,6 +25,7 @@ import {
   BackButton,
   PageFooter,
 } from '@/components/subscribe-shared';
+import { errorMessage as getErrorMessage } from '../../lib/errors/error-utils';
 
 const MONO_FONT = Platform.select({ ios: 'Menlo', android: 'monospace', default: 'monospace' });
 
@@ -123,8 +124,8 @@ export default function CodeaSubscribeScreen() {
       const result = await changePlanMutation.mutateAsync({ planId, billingPeriod });
       await refetchSubscription();
       toast.success(t(result.direction === 'upgrade' ? 'subscribe.upgradeSuccess' : 'subscribe.downgradeSuccess'));
-    } catch (error: any) {
-      toast.error(error?.response?.data?.error || error.message || t('subscribe.failedPlanChange'));
+    } catch (error: unknown) {
+      toast.error(getErrorMessage(error) || t('subscribe.failedPlanChange'));
     } finally {
       setLoadingPlanId(undefined);
     }
@@ -157,8 +158,8 @@ export default function CodeaSubscribeScreen() {
             await cancelMutation.mutateAsync();
             await refetchSubscription();
             toast.success(t('subscribe.downgradeSuccess'));
-          } catch (error: any) {
-            toast.error(error?.response?.data?.error || error.message || t('subscribe.failedPlanChange'));
+          } catch (error: unknown) {
+            toast.error(getErrorMessage(error) || t('subscribe.failedPlanChange'));
           } finally {
             setLoadingPlanId(undefined);
           }
@@ -203,8 +204,8 @@ export default function CodeaSubscribeScreen() {
       if (url) {
         await Linking.openURL(url);
       }
-    } catch (error: any) {
-      toast.error(error.message || t('subscribe.failedCheckout'));
+    } catch (error: unknown) {
+      toast.error(getErrorMessage(error) || t('subscribe.failedCheckout'));
     } finally {
       setLoadingPlanId(undefined);
     }

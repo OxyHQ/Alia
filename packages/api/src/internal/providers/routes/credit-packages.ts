@@ -18,7 +18,7 @@ router.get('/', async (req: Request, res: Response) => {
   try {
     const { active } = req.query;
 
-    const query: any = {};
+    const query: Record<string, unknown> = {};
     if (active !== undefined) query.isActive = active === 'true';
 
     const packages = await CreditPackage.find(query).sort({ sortOrder: 1 }).lean();

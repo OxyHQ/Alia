@@ -9,6 +9,7 @@ import { useI18nStore } from '@/lib/stores/i18n-store';
 import { toast } from '@/components/sonner';
 import apiClient from '@/lib/api/client';
 import { API_ROUTES } from '@/lib/api/routes';
+import { errorMessage as getErrorMessage } from '@/lib/errors/error-utils';
 
 export default function CreateSkillScreen() {
   const router = useRouter();
@@ -44,8 +45,8 @@ export default function CreateSkillScreen() {
       } else {
         toast.error(t('skills.createError'));
       }
-    } catch (error: any) {
-      const message = error?.response?.data?.error || t('skills.createError');
+    } catch (error: unknown) {
+      const message = getErrorMessage(error, t('skills.createError'));
       toast.error(message);
     } finally {
       setGenerating(false);

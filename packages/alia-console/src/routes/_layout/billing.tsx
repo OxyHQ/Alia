@@ -1,4 +1,5 @@
 import { createFileRoute } from '@tanstack/react-router';
+import { getErrorMessage } from '@/lib/utils';
 import { useState } from 'react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
@@ -56,8 +57,8 @@ function BillingPage() {
       if (result.url) {
         window.location.href = result.url;
       }
-    } catch (error: any) {
-      toast.error(error?.response?.data?.error || 'Failed to create checkout session');
+    } catch (error: unknown) {
+      toast.error(getErrorMessage(error, 'Failed to create checkout session'));
     }
   };
 
@@ -72,8 +73,8 @@ function BillingPage() {
       if (result.url) {
         window.location.href = result.url;
       }
-    } catch (error: any) {
-      toast.error(error?.response?.data?.error || 'Failed to create subscription checkout');
+    } catch (error: unknown) {
+      toast.error(getErrorMessage(error, 'Failed to create subscription checkout'));
     }
   };
 

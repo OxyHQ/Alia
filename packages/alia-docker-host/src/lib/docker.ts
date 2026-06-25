@@ -1,6 +1,7 @@
 import Dockerode from 'dockerode';
 import crypto from 'crypto';
 import { log } from '../index.js';
+import { errorStatusCode } from './errors.js';
 
 export const docker = new Dockerode({ socketPath: '/var/run/docker.sock' });
 
@@ -440,8 +441,8 @@ export async function destroyContainer(containerId: string): Promise<void> {
     await container.stop({ t: 5 }).catch(() => {});
     await container.remove({ force: true });
     forgetContainerActivity(containerId);
-  } catch (err: any) {
-    if (err.statusCode === 404) {
+  } catch (err: unknown) {
+    if (errorStatusCode(err) === 404) {
       forgetContainerActivity(containerId);
       return; // already gone
     }

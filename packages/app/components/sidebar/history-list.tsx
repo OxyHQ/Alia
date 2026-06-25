@@ -5,6 +5,7 @@ import type { Conversation } from "@/lib/hooks/use-conversations";
 import type { Project } from "@/lib/stores/projects-store";
 import type { Folder } from "@/lib/stores/folders-store";
 import { ConversationItem } from "./conversation-item";
+import type { StopPropagationEvent } from '@/lib/types/events';
 
 interface HistoryListProps {
   data: Conversation[];
@@ -15,11 +16,11 @@ interface HistoryListProps {
   folders: Folder[];
   isFetchingNextPage?: boolean;
   onSelect: (id: string) => void;
-  onToggleFavorite: (id: string, e: any) => void;
-  onTogglePin: (id: string, e: any) => void;
-  onMoveToProject: (convId: string, projectId: string | null, e: any) => void;
-  onMoveToFolder: (convId: string, folderId: string | null, e: any) => void;
-  onDelete: (id: string, e: any) => void;
+  onToggleFavorite: (id: string, e: StopPropagationEvent) => void;
+  onTogglePin: (id: string, e: StopPropagationEvent) => void;
+  onMoveToProject: (convId: string, projectId: string | null, e: StopPropagationEvent) => void;
+  onMoveToFolder: (convId: string, folderId: string | null, e: StopPropagationEvent) => void;
+  onDelete: (id: string, e: StopPropagationEvent) => void;
   onPrefetch?: (id: string) => void;
   getConversationProject: (id: string) => Project | undefined;
   getConversationFolder: (id: string) => Folder | undefined;

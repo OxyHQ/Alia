@@ -1,4 +1,13 @@
 import * as vscode from 'vscode';
+import { errorMessage } from './errors';
+
+/** Editor context gathered from VS Code and sent to the backend. */
+export interface EditorContext {
+  openFile?: { path: string; content: string; language: string };
+  selection?: { text: string; startLine: number; endLine: number };
+  openTabs?: string[];
+  workspaceStructure?: string;
+}
 
 // Tool definitions in OpenAI format (for backward compatibility)
 export const fileTools = [
@@ -241,30 +250,30 @@ export class ToolExecutor {
     return filePath;
   }
 
-  async execute(toolName: string, args: any): Promise<{ success: boolean; result: string }> {
+  async execute(toolName: string, args: Record<string, unknown>): Promise<{ success: boolean; result: string }> {
     try {
       switch (toolName) {
         case 'read_file':
-          return await this.readFile(args);
+          return await this.readFile(args as { path: string; start_line?: number; end_line?: number });
         case 'write_file':
-          return await this.writeFile(args);
+          return await this.writeFile(args as { path: string; content: string });
         case 'edit_file':
-          return await this.editFile(args);
+          return await this.editFile(args as { path: string; old_text: string; new_text: string });
         case 'delete_file':
-          return await this.deleteFile(args);
+          return await this.deleteFile(args as { path: string });
         case 'list_files':
-          return await this.listFiles(args);
+          return await this.listFiles(args as { path: string; recursive?: boolean; pattern?: string });
         case 'search_files':
-          return await this.searchFiles(args);
+          return await this.searchFiles(args as { query: string; path?: string; include?: string; exclude?: string });
         case 'run_command':
-          return await this.runCommand(args);
+          return await this.runCommand(args as { command: string; cwd?: string });
         case 'open_file':
-          return await this.openFile(args);
+          return await this.openFile(args as { path: string; line?: number });
         default:
           return { success: false, result: `Unknown tool: ${toolName}` };
       }
-    } catch (error: any) {
-      return { success: false, result: `Error: ${error.message}` };
+    } catch (error: unknown) {
+      return { success: false, result: `Error: ${errorMessage(error)}` };
     }
   }
 
@@ -490,18 +499,13 @@ export class ToolExecutor {
       }
 
       return { success: true, result: `Opened ${args.path}${args.line ? ` at line ${args.line}` : ''}` };
-    } catch (error: any) {
-      return { success: false, result: `Error opening file: ${error.message}` };
+    } catch (error: unknown) {
+      return { success: false, result: `Error opening file: ${errorMessage(error)}` };
     }
   }
 
   // Get current context (open file, selection)
-  async getContext(): Promise<{
-    openFile?: { path: string; content: string; language: string };
-    selection?: { text: string; startLine: number; endLine: number };
-    openTabs?: string[];
-    workspaceStructure?: string;
-  }> {
+  async getContext(): Promise<EditorContext> {
     const editor = vscode.window.activeTextEditor;
     const context: {
       openFile?: { path: string; content: string; language: string };

@@ -22,7 +22,7 @@ export function useImagePicker(): ImagePickerResult {
       });
 
       if (!result.canceled && result.assets.length > 0) {
-        return result.assets.map((asset: any) => ({
+        return result.assets.map((asset) => ({
           uri: asset.uri,
           name: asset.fileName || `image-${Date.now()}.jpg`,
           size: asset.fileSize || 0,

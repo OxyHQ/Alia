@@ -19,6 +19,7 @@ import Animated, {
   withSpring,
   runOnJS,
 } from "react-native-reanimated";
+import { errorMessage as getErrorMessage } from '../../../lib/errors/error-utils';
 
 const CANVAS_SIZE = 256;
 
@@ -133,8 +134,8 @@ export default function AccessoriesEditorScreen() {
                   await purchaseAccessory(accessory._id);
                   toast.success(t("accessories.purchased"));
                   addAccessory(accessory);
-                } catch (err: any) {
-                  toast.error(err.message);
+                } catch (err: unknown) {
+                  toast.error(getErrorMessage(err));
                 }
               },
             },
@@ -188,8 +189,8 @@ export default function AccessoriesEditorScreen() {
       await updateAgent(agentId, { accessories } as any);
       toast.success(t("common.saved"));
       router.back();
-    } catch (err: any) {
-      toast.error(err.message || t("common.error"));
+    } catch (err: unknown) {
+      toast.error(getErrorMessage(err) || t("common.error"));
     } finally {
       setSaving(false);
     }

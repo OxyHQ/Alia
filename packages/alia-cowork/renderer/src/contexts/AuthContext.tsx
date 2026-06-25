@@ -4,7 +4,7 @@ interface User {
   id: string
   email?: string
   name?: string
-  [key: string]: any
+  [key: string]: unknown
 }
 
 interface AuthContextType {
@@ -27,7 +27,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       const userInfo = await window.api.getUserInfo()
       if (userInfo) {
-        setUser(userInfo)
+        setUser(userInfo as User)
         setIsAuthenticated(true)
       } else {
         setUser(null)
@@ -71,7 +71,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // Listen for auth events
   React.useEffect(() => {
     const unsubscribeSuccess = window.api.onAuthSuccess(({ userInfo }) => {
-      setUser(userInfo)
+      setUser(userInfo as User)
       setIsAuthenticated(true)
     })
 

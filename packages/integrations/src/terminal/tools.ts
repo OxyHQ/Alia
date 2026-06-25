@@ -3,6 +3,7 @@
  */
 
 import { tool } from 'ai';
+import { errorMessage } from '../shared/utils';
 import { z } from 'zod';
 import { runCommand, destroySession } from './manager';
 import * as fs from 'fs/promises';
@@ -40,8 +41,8 @@ export function getTerminalTools(sessionId: string) {
         try {
           const content = await fs.readFile(resolved, 'utf-8');
           return { content: content.slice(0, 20000), path: resolved };
-        } catch (err: any) {
-          return { error: err.message };
+        } catch (err: unknown) {
+          return { error: errorMessage(err) };
         }
       },
     }),
@@ -61,8 +62,8 @@ export function getTerminalTools(sessionId: string) {
           await fs.mkdir(path.dirname(resolved), { recursive: true });
           await fs.writeFile(resolved, content, 'utf-8');
           return { written: resolved, bytes: content.length };
-        } catch (err: any) {
-          return { error: err.message };
+        } catch (err: unknown) {
+          return { error: errorMessage(err) };
         }
       },
     }),
@@ -87,8 +88,8 @@ export function getTerminalTools(sessionId: string) {
               type: e.isDirectory() ? 'directory' : 'file',
             })),
           };
-        } catch (err: any) {
-          return { error: err.message };
+        } catch (err: unknown) {
+          return { error: errorMessage(err) };
         }
       },
     }),

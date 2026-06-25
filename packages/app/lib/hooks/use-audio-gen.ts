@@ -11,6 +11,7 @@ import { io as socketIO, type Socket } from 'socket.io-client';
 import { useOxy } from '@oxyhq/services';
 import apiClient, { getSocketToken } from '@/lib/api/client';
 import config from '@/lib/config';
+import { errorMessage as getErrorMessage } from '../errors/error-utils';
 
 type AudioGenState = 'idle' | 'generating' | 'playing' | 'error';
 
@@ -258,10 +259,10 @@ export function useAudioGen() {
 
       player.play();
       setState('playing');
-    } catch (e: any) {
+    } catch (e: unknown) {
       if (abortRef.current) return; // user cancelled — don't show error
       console.error('[AudioGen] Error:', e);
-      const msg = e.response?.data?.error?.message || e.message || 'Failed to generate audio';
+      const msg = getErrorMessage(e, 'Failed to generate audio');
       setError(msg);
       setState('error');
     }

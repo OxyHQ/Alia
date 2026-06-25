@@ -218,9 +218,17 @@ function getLanguageFromExtension(filePath: string): string {
   return languageMap[ext] || 'text'
 }
 
-function processFiles(filePaths: string[], basePath?: string): any[] {
+interface ProcessedFile {
+  type: 'file'
+  path: string
+  fullPath: string
+  content: string
+  language: string
+}
+
+function processFiles(filePaths: string[], basePath?: string): ProcessedFile[] {
   const maxFileSize = 1024 * 1024 // 1MB max per file
-  const results: any[] = []
+  const results: ProcessedFile[] = []
 
   for (const filePath of filePaths) {
     try {
@@ -394,7 +402,7 @@ function setupIPC(): void {
       }
 
       return sources[0].thumbnail.toDataURL()
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Screen capture failed:', error)
       throw error
     }

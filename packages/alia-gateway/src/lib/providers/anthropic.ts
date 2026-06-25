@@ -19,7 +19,7 @@ export const anthropicProvider: Provider = {
         // Convert tool calls to Anthropic format
         return {
           role: 'assistant',
-          content: msg.tool_calls.map((tc: any) => ({
+          content: msg.tool_calls.map((tc) => ({
             type: 'tool_use',
             id: tc.id,
             name: tc.function.name,
@@ -51,7 +51,7 @@ export const anthropicProvider: Provider = {
       input_schema: tool.function.parameters || { type: 'object', properties: {} }
     }));
 
-    const body: any = {
+    const body: Record<string, unknown> = {
       model: key.modelId,
       messages: anthropicMessages,
       max_tokens: config?.maxTokens ?? 8192,

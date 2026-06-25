@@ -128,7 +128,7 @@ export function useAliaChat(options: UseAliaChatOptions = {}): UseAliaChatReturn
 
   /** Apply a tool result to the last assistant message and sync the ref */
   const applyToolResult = useCallback(
-    (toolCallId: string, name: string | undefined, output: any) => {
+    (toolCallId: string, name: string | undefined, output: unknown) => {
       updateAssistant((last) => {
         const invocations = [...(last.toolInvocations || [])];
         const idx = invocations.findIndex((t) => t.toolCallId === toolCallId);
@@ -380,9 +380,9 @@ export function useAliaChat(options: UseAliaChatOptions = {}): UseAliaChatReturn
                     const toolName = tc.function?.name;
                     if (!toolCallId || !toolName) continue;
 
-                    let args: any;
+                    let args: Record<string, unknown> | undefined;
                     if (tc.function?.arguments) {
-                      try { args = JSON.parse(tc.function.arguments); } catch { args = { _raw: tc.function.arguments }; }
+                      try { args = JSON.parse(tc.function.arguments) as Record<string, unknown>; } catch { args = { _raw: tc.function.arguments }; }
                     }
 
                     const invocation: ToolInvocation = { toolCallId, toolName, state: 'call', args };
@@ -411,9 +411,9 @@ export function useAliaChat(options: UseAliaChatOptions = {}): UseAliaChatReturn
         } finally {
           reader.releaseLock();
         }
-      } catch (err: any) {
-        if (err?.name === 'AbortError') return;
-        const errorMessage = err?.message || 'Something went wrong';
+      } catch (err: unknown) {
+        if (err instanceof Error && err.name === 'AbortError') return;
+        const errorMessage = err instanceof Error ? err.message : 'Something went wrong';
         setError(errorMessage);
         updateAssistant((last) =>
           !last.content ? { content: "I'm having trouble connecting right now. Please try again." } : {}

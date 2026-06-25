@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useOxy } from '@oxyhq/services';
 import apiClient from '@/lib/api/client';
+import { errorStatus } from '../lib/errors/error-utils';
 
 export interface ConnectedAccount {
   _id: string;
@@ -42,8 +43,8 @@ export function useConnectedAccounts(platform?: string) {
       const response = await apiClient.get(url);
       setAccounts(response.data.accounts || []);
       setError(null);
-    } catch (err: any) {
-      if (err.response?.status === 404 || err.response?.status === 503) {
+    } catch (err: unknown) {
+      if (errorStatus(err) === 404 || errorStatus(err) === 503) {
         setAccounts([]);
       } else {
         setError(err as Error);

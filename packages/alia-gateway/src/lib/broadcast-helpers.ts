@@ -22,7 +22,7 @@ export async function broadcastKeysUpdate(provider: string): Promise<void> {
       .sort({ provider: 1, priority: 1 });
     broadcast('keys:all', { success: true, count: allKeys.length, data: allKeys });
 
-    const providerKeys = allKeys.filter((k: any) => k.provider === provider);
+    const providerKeys = allKeys.filter((k) => k.provider === provider);
     broadcast(`keys:${provider}`, { success: true, count: providerKeys.length, data: providerKeys });
   } catch (error) {
     log.providers.error({ err: error }, 'Error broadcasting keys update');
@@ -34,7 +34,7 @@ export async function broadcastModelsUpdate(provider: string): Promise<void> {
     const allModels = await ModelConfig.find({}).sort({ provider: 1, priority: 1 });
     broadcast('models:all', { success: true, count: allModels.length, data: allModels });
 
-    const providerModels = allModels.filter((m: any) => m.provider === provider);
+    const providerModels = allModels.filter((m) => m.provider === provider);
     broadcast(`models:${provider}`, { success: true, count: providerModels.length, data: providerModels });
   } catch (error) {
     log.providers.error({ err: error }, 'Error broadcasting models update');

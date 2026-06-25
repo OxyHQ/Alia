@@ -31,7 +31,7 @@ import { AliaWelcomeMessage, type WelcomeSuggestion } from './AliaWelcomeMessage
 import { PromptInput } from './ui/prompt-input/prompt-input';
 import { Button } from './ui/button';
 import type { AliaExpression } from './AliaFace';
-import type { ChatMessage } from '../types';
+import type { ChatMessage, VoiceMessage } from '../types';
 import type { Completion } from './ui/prompt-input/context';
 
 export interface AliaChatContentProps {
@@ -70,7 +70,7 @@ export interface AliaChatContentRef {
 }
 
 /** Adapt a voice message into the chat message format. */
-function adaptVoiceMessage(vm: any): ChatMessage {
+function adaptVoiceMessage(vm: VoiceMessage): ChatMessage {
   return {
     id: vm.id,
     role: vm.role,

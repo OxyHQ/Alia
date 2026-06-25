@@ -3,6 +3,13 @@ import Store from 'electron-store'
 import * as http from 'http'
 import * as https from 'https'
 import * as crypto from 'crypto'
+import { errorMessage } from './errors'
+
+/** Authenticated user profile returned by `GET /v1/me`. */
+interface UserInfo {
+  email?: string
+  [key: string]: unknown
+}
 
 // Default URLs (can be overridden via .env)
 const DEFAULT_API_BASE_URL = 'https://api.alia.onl'
@@ -147,10 +154,11 @@ export class AuthProvider {
                     this.tokenExchangeInProgress = false
                   }, 1000)
                 })
-            } catch (err: any) {
+            } catch (err: unknown) {
+              const msg = errorMessage(err, 'Token exchange failed')
               res.writeHead(200, { 'Content-Type': 'text/html' })
-              res.end(this.getErrorHtml(err.message || 'Token exchange failed'))
-              this.mainWindow.webContents.send('auth:error', { message: err.message })
+              res.end(this.getErrorHtml(msg))
+              this.mainWindow.webContents.send('auth:error', { message: msg })
 
               // Delay server shutdown to ensure IPC event is sent
               setTimeout(() => {
@@ -527,7 +535,7 @@ export class AuthProvider {
   /**
    * Fetch user info from API
    */
-  private async fetchUserInfo(token: string): Promise<any> {
+  private async fetchUserInfo(token: string): Promise<UserInfo> {
     const baseUrl = this.apiBaseUrl
 
     return new Promise((resolve, reject) => {

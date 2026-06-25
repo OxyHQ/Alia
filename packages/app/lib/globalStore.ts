@@ -10,7 +10,7 @@ export interface Attachment {
   isLoading?: boolean;
 }
 
-type ChatIdState = {
+export type ChatIdState = {
   id: string;
   from: "history" | "newChat" | "sidebar" | "url";
 } | null;

@@ -7,12 +7,43 @@
  */
 
 import { Router, type Router as RouterType, type Request, type Response } from 'express';
+import { errorMessage } from '../../shared/utils';
 import type { AccountAdapter } from '../types';
 import type { GmailSession, GmailThread, GmailMessage, SendEmailParams } from './types';
 
 const GMAIL_API = 'https://gmail.googleapis.com/gmail/v1';
 const GOOGLE_TOKEN_URL = 'https://oauth2.googleapis.com/token';
 const API_TIMEOUT_MS = 15_000;
+
+// ── Narrow Gmail REST API shapes (only the fields this adapter reads) ──
+interface GmailHeader {
+  name: string;
+  value: string;
+}
+interface GmailPayload {
+  mimeType?: string;
+  headers?: GmailHeader[];
+  body?: { data?: string };
+  parts?: GmailPayload[];
+}
+interface GmailApiMessage {
+  id: string;
+  threadId: string;
+  labelIds?: string[];
+  snippet?: string;
+  payload?: GmailPayload;
+}
+interface GmailThreadResponse {
+  snippet?: string;
+  messages?: GmailApiMessage[];
+}
+interface GmailThreadListResponse {
+  threads?: Array<{ id: string }>;
+}
+interface GoogleTokenResponse {
+  access_token: string;
+  expires_in?: number;
+}
 
 // In-memory sessions indexed by sessionId
 const sessions = new Map<string, GmailSession>();
@@ -47,8 +78,8 @@ export class GmailAdapter implements AccountAdapter {
         try {
           const profile = await getProfile(accessToken);
           userEmail = profile.emailAddress;
-        } catch (err: any) {
-          return res.status(401).json({ error: `Invalid access token: ${err.message}` });
+        } catch (err: unknown) {
+          return res.status(401).json({ error: `Invalid access token: ${errorMessage(err)}` });
         }
       }
 
@@ -122,8 +153,8 @@ export class GmailAdapter implements AccountAdapter {
         const limit = Number(req.query.limit) || 20;
         const threads = await listThreads(token, limit);
         res.json({ chats: threads });
-      } catch (err: any) {
-        res.status(500).json({ error: err.message });
+      } catch (err: unknown) {
+        res.status(500).json({ error: errorMessage(err) });
       }
     });
 
@@ -142,8 +173,8 @@ export class GmailAdapter implements AccountAdapter {
       try {
         const messages = await getThreadMessages(token, req.params.chatId);
         res.json({ messages });
-      } catch (err: any) {
-        res.status(500).json({ error: err.message });
+      } catch (err: unknown) {
+        res.status(500).json({ error: errorMessage(err) });
       }
     });
 
@@ -169,8 +200,8 @@ export class GmailAdapter implements AccountAdapter {
           to, subject, body, inReplyTo, threadId,
         });
         res.json({ success: true, messageId: result.id });
-      } catch (err: any) {
-        res.status(500).json({ error: err.message });
+      } catch (err: unknown) {
+        res.status(500).json({ error: errorMessage(err) });
       }
     });
 
@@ -214,7 +245,7 @@ async function listThreads(accessToken: string, maxResults: number): Promise<Gma
     throw new Error(`Gmail list threads failed (${response.status})`);
   }
 
-  const data = (await response.json()) as any;
+  const data = (await response.json()) as GmailThreadListResponse;
   if (!data.threads?.length) return [];
 
   // Fetch snippet details for each thread (batched)
@@ -245,13 +276,13 @@ async function fetchThreadSummary(
 
   if (!response.ok) return null;
 
-  const data = (await response.json()) as any;
+  const data = (await response.json()) as GmailThreadResponse;
   const firstMessage = data.messages?.[0];
   if (!firstMessage) return null;
 
   const headers = firstMessage.payload?.headers || [];
   const getHeader = (name: string) =>
-    headers.find((h: any) => h.name.toLowerCase() === name.toLowerCase())?.value || '';
+    headers.find((h) => h.name.toLowerCase() === name.toLowerCase())?.value || '';
 
   const labels: string[] = firstMessage.labelIds || [];
 
@@ -282,13 +313,13 @@ async function getThreadMessages(
     throw new Error(`Gmail get thread failed (${response.status})`);
   }
 
-  const data = (await response.json()) as any;
+  const data = (await response.json()) as GmailThreadResponse;
   if (!data.messages?.length) return [];
 
-  return data.messages.map((msg: any) => {
+  return data.messages.map((msg) => {
     const headers = msg.payload?.headers || [];
     const getHeader = (name: string) =>
-      headers.find((h: any) => h.name.toLowerCase() === name.toLowerCase())?.value || '';
+      headers.find((h) => h.name.toLowerCase() === name.toLowerCase())?.value || '';
 
     return {
       id: msg.id,
@@ -303,7 +334,7 @@ async function getThreadMessages(
   });
 }
 
-function extractBody(payload: any): string {
+function extractBody(payload: GmailPayload | undefined): string {
   if (!payload) return '';
 
   // Simple body
@@ -313,12 +344,12 @@ function extractBody(payload: any): string {
 
   // Multipart — prefer text/plain, fallback to text/html
   if (payload.parts) {
-    const textPart = payload.parts.find((p: any) => p.mimeType === 'text/plain');
+    const textPart = payload.parts.find((p) => p.mimeType === 'text/plain');
     if (textPart?.body?.data) {
       return decodeBase64Url(textPart.body.data);
     }
 
-    const htmlPart = payload.parts.find((p: any) => p.mimeType === 'text/html');
+    const htmlPart = payload.parts.find((p) => p.mimeType === 'text/html');
     if (htmlPart?.body?.data) {
       return decodeBase64Url(htmlPart.body.data);
     }
@@ -333,12 +364,12 @@ function extractBody(payload: any): string {
   return '';
 }
 
-function isHtmlBody(payload: any): boolean {
+function isHtmlBody(payload: GmailPayload | undefined): boolean {
   if (payload?.mimeType === 'text/html') return true;
   if (payload?.parts) {
-    const textPart = payload.parts.find((p: any) => p.mimeType === 'text/plain');
+    const textPart = payload.parts.find((p) => p.mimeType === 'text/plain');
     if (textPart?.body?.data) return false;
-    const htmlPart = payload.parts.find((p: any) => p.mimeType === 'text/html');
+    const htmlPart = payload.parts.find((p) => p.mimeType === 'text/html');
     if (htmlPart?.body?.data) return true;
   }
   return false;
@@ -374,7 +405,7 @@ async function sendEmail(
   lines.push('', params.body);
 
   const raw = encodeBase64Url(lines.join('\r\n'));
-  const body: any = { raw };
+  const body: { raw: string; threadId?: string } = { raw };
   if (params.threadId) body.threadId = params.threadId;
 
   const response = await fetch(`${GMAIL_API}/users/me/messages/send`, {
@@ -425,7 +456,7 @@ async function tryRefreshToken(session: GmailSession): Promise<boolean> {
 
     if (!response.ok) return false;
 
-    const data = (await response.json()) as any;
+    const data = (await response.json()) as GoogleTokenResponse;
     session.accessToken = data.access_token;
     if (data.expires_in) {
       session.expiresAt = new Date(Date.now() + data.expires_in * 1000);

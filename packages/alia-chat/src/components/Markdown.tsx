@@ -1,6 +1,6 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, type ReactNode } from 'react';
 import { View, Text, Platform, Linking, useColorScheme } from 'react-native';
-import Markdown from 'react-native-markdown-display';
+import Markdown, { type ASTNode } from 'react-native-markdown-display';
 import type { AliaColors } from '../theme';
 
 // Hardcoded fallback colors for standalone SDK usage (when no color override is passed).
@@ -29,7 +29,7 @@ function createRules(colors: AliaColors) {
   const { text: textColor, muted, border, primary, mutedForeground } = colors;
 
   return {
-    heading1: (node: any, children: any) => (
+    heading1: (node: ASTNode, children: ReactNode[]) => (
       <Text
         key={node.key}
         style={{ marginBottom: 8, marginTop: 12, fontSize: 18, fontWeight: '600', lineHeight: 24, color: textColor }}
@@ -37,7 +37,7 @@ function createRules(colors: AliaColors) {
         {children}
       </Text>
     ),
-    heading2: (node: any, children: any) => (
+    heading2: (node: ASTNode, children: ReactNode[]) => (
       <Text
         key={node.key}
         style={{ marginBottom: 8, marginTop: 12, ...HEADING_TEXT, fontWeight: '600', color: textColor }}
@@ -45,7 +45,7 @@ function createRules(colors: AliaColors) {
         {children}
       </Text>
     ),
-    heading3: (node: any, children: any) => (
+    heading3: (node: ASTNode, children: ReactNode[]) => (
       <Text
         key={node.key}
         style={{ marginBottom: 6, marginTop: 8, ...HEADING_TEXT, fontWeight: '600', color: textColor }}
@@ -53,7 +53,7 @@ function createRules(colors: AliaColors) {
         {children}
       </Text>
     ),
-    heading4: (node: any, children: any) => (
+    heading4: (node: ASTNode, children: ReactNode[]) => (
       <Text
         key={node.key}
         style={{ marginBottom: 6, marginTop: 8, ...HEADING_TEXT, fontWeight: '500', color: textColor }}
@@ -61,7 +61,7 @@ function createRules(colors: AliaColors) {
         {children}
       </Text>
     ),
-    heading5: (node: any, children: any) => (
+    heading5: (node: ASTNode, children: ReactNode[]) => (
       <Text
         key={node.key}
         style={{ marginBottom: 4, marginTop: 8, ...HEADING_TEXT, fontWeight: '500', color: textColor }}
@@ -69,7 +69,7 @@ function createRules(colors: AliaColors) {
         {children}
       </Text>
     ),
-    heading6: (node: any, children: any) => (
+    heading6: (node: ASTNode, children: ReactNode[]) => (
       <Text
         key={node.key}
         style={{ marginBottom: 4, marginTop: 8, ...HEADING_TEXT, fontWeight: '500', color: textColor }}
@@ -77,7 +77,7 @@ function createRules(colors: AliaColors) {
         {children}
       </Text>
     ),
-    code: (node: any, children: any, parent: any) => {
+    code: (node: ASTNode, children: ReactNode[], parent: ASTNode[]) => {
       return parent.length > 1 ? (
         <View
           key={node.key}
@@ -109,7 +109,7 @@ function createRules(colors: AliaColors) {
         </Text>
       );
     },
-    list_item: (node: any, children: any, parent: any) => {
+    list_item: (node: ASTNode, children: ReactNode[], parent: ASTNode[]) => {
       const isOrdered = parent[parent.length - 1]?.type === 'ordered_list';
       const bullet = isOrdered
         ? `${parent[parent.length - 1].children.indexOf(node) + 1}.`
@@ -122,16 +122,16 @@ function createRules(colors: AliaColors) {
         </View>
       );
     },
-    ordered_list: (node: any, children: any) => (
+    ordered_list: (node: ASTNode, children: ReactNode[]) => (
       <View key={node.key} style={{ marginVertical: 8 }}>{children}</View>
     ),
-    unordered_list: (node: any, children: any) => (
+    unordered_list: (node: ASTNode, children: ReactNode[]) => (
       <View key={node.key} style={{ marginVertical: 8 }}>{children}</View>
     ),
-    strong: (node: any, children: any) => (
+    strong: (node: ASTNode, children: ReactNode[]) => (
       <Text key={node.key} style={{ fontWeight: '600', ...BODY_TEXT, color: textColor }}>{children}</Text>
     ),
-    link: (node: any, children: any) => (
+    link: (node: ASTNode, children: ReactNode[]) => (
       <Text
         key={node.key}
         style={{ color: primary, textDecorationLine: 'underline', ...BODY_TEXT }}
@@ -142,10 +142,10 @@ function createRules(colors: AliaColors) {
         {children}
       </Text>
     ),
-    paragraph: (node: any, children: any) => (
+    paragraph: (node: ASTNode, children: ReactNode[]) => (
       <Text key={node.key} style={{ marginBottom: 8, ...BODY_TEXT, color: textColor }}>{children}</Text>
     ),
-    blockquote: (node: any, children: any) => (
+    blockquote: (node: ASTNode, children: ReactNode[]) => (
       <View
         key={node.key}
         style={{
@@ -162,7 +162,7 @@ function createRules(colors: AliaColors) {
         {children}
       </View>
     ),
-    hr: (node: any) => (
+    hr: (node: ASTNode) => (
       <View
         key={node.key}
         style={{
@@ -172,7 +172,7 @@ function createRules(colors: AliaColors) {
         }}
       />
     ),
-    body: (node: any, children: any) => {
+    body: (node: ASTNode, children: ReactNode[]) => {
       return <View key={node.key} style={{ marginBottom: -8 }}>{children}</View>;
     },
   };

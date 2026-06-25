@@ -12,11 +12,13 @@ import {
   RoomEvent,
   Track,
   DisconnectReason,
+  type RemoteTrack,
   type RemoteTrackPublication,
   type RemoteParticipant,
   type DataPublishOptions,
 } from 'livekit-client';
 import { useOxy } from '@oxyhq/services';
+import { errorMessage } from '../lib/utils';
 import type { RoomState, AgentState, VoiceMessage, VoiceToolInvocation } from '../types';
 
 const API_URL = process.env.EXPO_PUBLIC_ALIA_API_URL ?? 'https://api.alia.onl';
@@ -63,7 +65,7 @@ interface CohostEnabledMsg { type: 'cohost.enabled' }
 interface CohostDisabledMsg { type: 'cohost.disabled' }
 interface CohostTurnMsg { type: 'cohost.turn_changed'; speaker: 'primary' | 'cohost' | 'user' }
 interface CohostRoundMsg { type: 'cohost.round_complete'; turns: number }
-interface ToolCallMsg { type: 'tool.call'; toolName: string; callId: string; args?: any; speaker: 'primary' | 'cohost' }
+interface ToolCallMsg { type: 'tool.call'; toolName: string; callId: string; args?: Record<string, unknown>; speaker: 'primary' | 'cohost' }
 interface ToolResultMsg { type: 'tool.result'; callId: string; speaker: 'primary' | 'cohost' }
 interface SessionEndedMsg { type: 'session.ended'; reason: string }
 interface ErrorMsg { type: 'error'; code: string; message: string }
@@ -324,13 +326,13 @@ export function useVoiceRoom(options: UseVoiceRoomOptions = {}) {
 
       // Event: remote audio tracks (agent speaking)
       // On web, must attach to a DOM element to play. On native, WebRTC plays audio automatically.
-      room.on(RoomEvent.TrackSubscribed, (track, publication, participant) => {
+      room.on(RoomEvent.TrackSubscribed, (track: RemoteTrack) => {
         if (track.kind === Track.Kind.Audio && hasDOM) {
           track.attach();
         }
       });
 
-      room.on(RoomEvent.TrackUnsubscribed, (track) => {
+      room.on(RoomEvent.TrackUnsubscribed, (track: RemoteTrack) => {
         if (hasDOM && track.kind === Track.Kind.Audio) {
           track.detach();
         }
@@ -357,9 +359,9 @@ export function useVoiceRoom(options: UseVoiceRoomOptions = {}) {
       setRoomState('connected');
       setAgentState('listening');
 
-    } catch (e: any) {
+    } catch (e: unknown) {
       console.error('[useVoiceRoom] Connection error:', e);
-      setError(e.message || 'Failed to connect');
+      setError(errorMessage(e, 'Failed to connect'));
       setRoomState('error');
       cleanup();
     }

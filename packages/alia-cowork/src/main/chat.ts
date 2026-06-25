@@ -7,6 +7,18 @@ import { BrowserWindow } from 'electron'
 import OpenAI from 'openai'
 import { ToolExecutor } from './tools'
 import Store from 'electron-store'
+import { errorMessage, errorName, errorStack } from './errors'
+
+/** A file/folder context item attached to a chat message from the renderer. */
+interface ContextItem {
+  type: 'file' | 'folder'
+  path: string
+  content?: string
+  language?: string
+}
+
+/** OpenAI streaming delta may carry a non-standard `reasoning` field on the Alia gateway. */
+type ReasoningDelta = OpenAI.Chat.ChatCompletionChunk.Choice.Delta & { reasoning?: string }
 
 const store = new Store({
   defaults: {
@@ -31,7 +43,7 @@ export class ChatProvider {
     this.toolExecutor = toolExecutor
   }
 
-  private send(channel: string, data: any): void {
+  private send(channel: string, data: unknown): void {
     this.window.webContents.send(channel, data)
   }
 
@@ -39,7 +51,7 @@ export class ChatProvider {
     content: string,
     mode: string = 'ask',
     model?: string,
-    context?: any[]
+    context?: ContextItem[]
   ): Promise<void> {
     if (this.isProcessing) return
 
@@ -59,21 +71,20 @@ export class ChatProvider {
 
     // Build user message with context
     // Separate folders from files
-    const folders = context?.filter((item: any) => item.type === 'folder') || []
-    const files = context?.filter((item: any) => item.type === 'file') || []
-    const hasImages = files.some((item: any) => item.language === 'image')
+    const folders = context?.filter((item) => item.type === 'folder') || []
+    const files = context?.filter((item) => item.type === 'file') || []
+    const hasImages = files.some((item) => item.language === 'image')
 
     if (hasImages) {
       // Multimodal format for images
-      const contentParts: Array<{ type: 'text' | 'image_url'; text?: string; image_url?: { url: string } }> = [
-        { type: 'text', text: content }
-      ]
+      const textPart: OpenAI.Chat.ChatCompletionContentPartText = { type: 'text', text: content }
+      const contentParts: OpenAI.Chat.ChatCompletionContentPart[] = [textPart]
 
       // Add folder references (just mention the path)
       if (folders.length > 0) {
-        contentParts[0].text += '\n\n**Attached Folders** (use list_files and read_file tools to explore):'
+        textPart.text += '\n\n**Attached Folders** (use list_files and read_file tools to explore):'
         for (const folder of folders) {
-          contentParts[0].text += `\n- ${folder.path}`
+          textPart.text += `\n- ${folder.path}`
         }
       }
 
@@ -82,14 +93,14 @@ export class ChatProvider {
         if (item.language === 'image') {
           contentParts.push({
             type: 'image_url',
-            image_url: { url: item.content }
+            image_url: { url: item.content ?? '' }
           })
         } else {
-          contentParts[0].text += `\n\n**File: ${item.path}**\n\`\`\`${item.language || ''}\n${item.content}\n\`\`\``
+          textPart.text += `\n\n**File: ${item.path}**\n\`\`\`${item.language || ''}\n${item.content}\n\`\`\``
         }
       }
 
-      this.messages.push({ role: 'user', content: contentParts as any })
+      this.messages.push({ role: 'user', content: contentParts })
     } else if (context && context.length > 0) {
       // Text-only format
       let enhancedContent = content
@@ -422,9 +433,9 @@ export class ChatProvider {
         }
 
         // Handle reasoning (chain-of-thought)
-        if ((delta as any).reasoning) {
-          console.log('[ChatProvider] Reasoning chunk:', (delta as any).reasoning)
-          this.send('chat:thinking', { content: (delta as any).reasoning })
+        if ((delta as ReasoningDelta).reasoning) {
+          console.log('[ChatProvider] Reasoning chunk:', (delta as ReasoningDelta).reasoning)
+          this.send('chat:thinking', { content: (delta as ReasoningDelta).reasoning })
         }
 
         // Handle content
@@ -520,7 +531,7 @@ export class ChatProvider {
           console.log(`[ChatProvider] Tool call ID: ${toolCall.id}`)
           console.log(`[ChatProvider] Raw arguments: ${toolCall.function.arguments}`)
 
-          let args: any = {}
+          let args: Record<string, unknown> = {}
           try {
             args = JSON.parse(toolCall.function.arguments || '{}')
             console.log('[ChatProvider] Parsed arguments:', JSON.stringify(args, null, 2))
@@ -532,7 +543,7 @@ export class ChatProvider {
           // Handle set_mode specially
           if (toolName === 'set_mode') {
             console.log(`[ChatProvider] Setting mode to: ${args.mode}`)
-            this.currentMode = args.mode
+            this.currentMode = String(args.mode ?? this.currentMode)
             this.send('chat:modeChanged', { mode: this.currentMode })
           }
 
@@ -549,35 +560,35 @@ export class ChatProvider {
             switch (toolName) {
               case 'read_file':
                 console.log('[ChatProvider] Executing read_file')
-                result = await this.toolExecutor.readFile(args)
+                result = await this.toolExecutor.readFile(args as { path: string; start_line?: number; end_line?: number })
                 break
               case 'write_file':
                 console.log('[ChatProvider] Executing write_file')
-                result = await this.toolExecutor.writeFile(args)
+                result = await this.toolExecutor.writeFile(args as { path: string; content: string })
                 break
               case 'edit_file':
                 console.log('[ChatProvider] Executing edit_file')
-                result = await this.toolExecutor.editFile(args)
+                result = await this.toolExecutor.editFile(args as { path: string; old_text: string; new_text: string })
                 break
               case 'list_files':
                 console.log('[ChatProvider] Executing list_files')
-                result = await this.toolExecutor.listFiles(args)
+                result = await this.toolExecutor.listFiles(args as { path?: string; recursive?: boolean })
                 break
               case 'search_files':
                 console.log('[ChatProvider] Executing search_files')
-                result = await this.toolExecutor.searchFiles(args)
+                result = await this.toolExecutor.searchFiles(args as { pattern: string; path?: string })
                 break
               case 'run_command':
                 console.log('[ChatProvider] Executing run_command')
-                result = await this.toolExecutor.runCommand(args)
+                result = await this.toolExecutor.runCommand(args as { command: string; cwd?: string })
                 break
               case 'open_application':
                 console.log('[ChatProvider] Executing open_application')
-                result = await this.toolExecutor.openApplication(args)
+                result = await this.toolExecutor.openApplication(args as { application_name: string })
                 break
               case 'open_url':
                 console.log('[ChatProvider] Executing open_url')
-                result = await this.toolExecutor.openUrl(args)
+                result = await this.toolExecutor.openUrl(args as { url: string })
                 break
               case 'clipboard_read':
                 console.log('[ChatProvider] Executing clipboard_read')
@@ -585,7 +596,7 @@ export class ChatProvider {
                 break
               case 'clipboard_write':
                 console.log('[ChatProvider] Executing clipboard_write')
-                result = this.toolExecutor.clipboardWrite(args)
+                result = this.toolExecutor.clipboardWrite(args as { text: string })
                 break
               case 'get_system_info':
                 console.log('[ChatProvider] Executing get_system_info')
@@ -641,10 +652,10 @@ export class ChatProvider {
               success: true,
               result: String(toolResult || '').slice(0, 500)
             })
-          } catch (error: any) {
-            const errorMsg = error.message || String(error)
+          } catch (error: unknown) {
+            const errorMsg = errorMessage(error)
             console.error(`[ChatProvider] Tool ${toolName} execution failed:`, errorMsg)
-            console.error('[ChatProvider] Error stack:', error.stack)
+            console.error('[ChatProvider] Error stack:', errorStack(error))
 
             this.messages.push({
               role: 'tool',
@@ -680,15 +691,15 @@ export class ChatProvider {
           console.error('[ChatProvider] Error auto-closing browser:', error)
         }
       }
-    } catch (error: any) {
-      if (error.name === 'AbortError') {
+    } catch (error: unknown) {
+      if (errorName(error) === 'AbortError') {
         console.log('[ChatProvider] Stream aborted by user')
         this.send('chat:end', {})
       } else {
         console.error('[ChatProvider] ===== STREAM ERROR =====')
-        console.error('[ChatProvider] Error name:', error.name)
-        console.error('[ChatProvider] Error message:', error.message)
-        console.error('[ChatProvider] Error stack:', error.stack)
+        console.error('[ChatProvider] Error name:', errorName(error))
+        console.error('[ChatProvider] Error message:', errorMessage(error))
+        console.error('[ChatProvider] Error stack:', errorStack(error))
         console.error('[ChatProvider] Full error:', JSON.stringify(error, null, 2))
         this.send('chat:error', { message: this.formatErrorMessage(error) })
       }
@@ -750,7 +761,7 @@ export class ChatProvider {
     console.log('[ChatProvider] Last 3 messages:', JSON.stringify(this.messages.slice(-3).map(m => ({
       role: m.role,
       contentLength: typeof m.content === 'string' ? m.content.length : 0,
-      hasToolCalls: !!(m as any).tool_calls
+      hasToolCalls: !!(m as OpenAI.Chat.ChatCompletionAssistantMessageParam).tool_calls
     })), null, 2))
 
     try {
@@ -758,7 +769,7 @@ export class ChatProvider {
       console.log('[ChatProvider] Creating continuation stream...')
 
       // After first iteration, prefer not calling more tools unless absolutely necessary
-      const streamConfig: any = {
+      const streamConfig: OpenAI.Chat.ChatCompletionCreateParamsStreaming = {
         model,
         messages: this.messages,
         tools,
@@ -798,9 +809,9 @@ export class ChatProvider {
         }
 
         // Handle reasoning
-        if ((delta as any).reasoning) {
-          console.log('[ChatProvider] Continuation reasoning chunk:', (delta as any).reasoning)
-          this.send('chat:thinking', { content: (delta as any).reasoning })
+        if ((delta as ReasoningDelta).reasoning) {
+          console.log('[ChatProvider] Continuation reasoning chunk:', (delta as ReasoningDelta).reasoning)
+          this.send('chat:thinking', { content: (delta as ReasoningDelta).reasoning })
         }
 
         // Handle content
@@ -866,7 +877,7 @@ export class ChatProvider {
             continue
           }
 
-          let args: any = {}
+          let args: Record<string, unknown> = {}
           try {
             args = JSON.parse(toolCall.function.arguments || '{}')
           } catch (e) {
@@ -875,7 +886,7 @@ export class ChatProvider {
           }
 
           if (toolName === 'set_mode') {
-            this.currentMode = args.mode
+            this.currentMode = String(args.mode ?? this.currentMode)
             this.send('chat:modeChanged', { mode: this.currentMode })
           }
 
@@ -889,34 +900,34 @@ export class ChatProvider {
             let result: string
             switch (toolName) {
               case 'read_file':
-                result = await this.toolExecutor.readFile(args)
+                result = await this.toolExecutor.readFile(args as { path: string; start_line?: number; end_line?: number })
                 break
               case 'write_file':
-                result = await this.toolExecutor.writeFile(args)
+                result = await this.toolExecutor.writeFile(args as { path: string; content: string })
                 break
               case 'edit_file':
-                result = await this.toolExecutor.editFile(args)
+                result = await this.toolExecutor.editFile(args as { path: string; old_text: string; new_text: string })
                 break
               case 'list_files':
-                result = await this.toolExecutor.listFiles(args)
+                result = await this.toolExecutor.listFiles(args as { path?: string; recursive?: boolean })
                 break
               case 'search_files':
-                result = await this.toolExecutor.searchFiles(args)
+                result = await this.toolExecutor.searchFiles(args as { pattern: string; path?: string })
                 break
               case 'run_command':
-                result = await this.toolExecutor.runCommand(args)
+                result = await this.toolExecutor.runCommand(args as { command: string; cwd?: string })
                 break
               case 'open_application':
-                result = await this.toolExecutor.openApplication(args)
+                result = await this.toolExecutor.openApplication(args as { application_name: string })
                 break
               case 'open_url':
-                result = await this.toolExecutor.openUrl(args)
+                result = await this.toolExecutor.openUrl(args as { url: string })
                 break
               case 'clipboard_read':
                 result = this.toolExecutor.clipboardRead()
                 break
               case 'clipboard_write':
-                result = this.toolExecutor.clipboardWrite(args)
+                result = this.toolExecutor.clipboardWrite(args as { text: string })
                 break
               case 'get_system_info':
                 result = this.toolExecutor.getSystemInfo()
@@ -959,8 +970,8 @@ export class ChatProvider {
               success: true,
               result: String(toolResult || '').slice(0, 500)
             })
-          } catch (error: any) {
-            const errorMsg = error.message || String(error)
+          } catch (error: unknown) {
+            const errorMsg = errorMessage(error)
             this.messages.push({
               role: 'tool',
               tool_call_id: toolCall.id,
@@ -981,12 +992,12 @@ export class ChatProvider {
       } else {
         console.log('[ChatProvider] No more tools to execute, continuation complete')
       }
-    } catch (error: any) {
-      if (error.name !== 'AbortError') {
+    } catch (error: unknown) {
+      if (errorName(error) !== 'AbortError') {
         console.error('[ChatProvider] ===== CONTINUATION ERROR =====')
-        console.error('[ChatProvider] Error name:', error.name)
-        console.error('[ChatProvider] Error message:', error.message)
-        console.error('[ChatProvider] Error stack:', error.stack)
+        console.error('[ChatProvider] Error name:', errorName(error))
+        console.error('[ChatProvider] Error message:', errorMessage(error))
+        console.error('[ChatProvider] Error stack:', errorStack(error))
         console.error('[ChatProvider] Full error:', JSON.stringify(error, null, 2))
       } else {
         console.log('[ChatProvider] Continuation aborted by user')
@@ -1028,8 +1039,8 @@ export class ChatProvider {
     this.send('chat:cleared', {})
   }
 
-  private formatErrorMessage(error: Error): string {
-    const message = error.message || 'An error occurred'
+  private formatErrorMessage(error: unknown): string {
+    const message = errorMessage(error, 'An error occurred')
 
     if (message.includes('402') || message.toLowerCase().includes('insufficient credits')) {
       return 'Insufficient credits. Please add more credits at alia.onl'
@@ -1046,7 +1057,7 @@ export class ChatProvider {
     return message
   }
 
-  async getUserInfo(): Promise<any> {
+  async getUserInfo(): Promise<unknown> {
     const apiKey = store.get('apiKey') as string
     const baseUrl = store.get('apiBaseUrl') as string
 
@@ -1066,7 +1077,7 @@ export class ChatProvider {
     }
   }
 
-  async getModels(): Promise<any[]> {
+  async getModels(): Promise<unknown[]> {
     const baseUrl = store.get('apiBaseUrl') as string
 
     try {
@@ -1074,14 +1085,14 @@ export class ChatProvider {
 
       if (!response.ok) return []
 
-      const data = await response.json()
+      const data = await response.json() as { data?: unknown[] }
       return data.data || []
     } catch {
       return []
     }
   }
 
-  async getUserMemory(): Promise<any> {
+  async getUserMemory(): Promise<unknown> {
     const apiKey = store.get('apiKey') as string
     const baseUrl = store.get('apiBaseUrl') as string
 

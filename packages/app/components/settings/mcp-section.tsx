@@ -23,6 +23,7 @@ import {
   CollapsibleTrigger,
   CollapsibleContent,
 } from "@/components/ui/collapsible";
+import { errorStatus } from '@/lib/errors/error-utils';
 
 function ServerStatusBadge({ status }: { status: InstalledMcpServer["status"] }) {
   const config = {
@@ -253,8 +254,8 @@ export function McpSection() {
 
       toast.success(`${customName.trim()} added`);
       resetCustomDialog();
-    } catch (err: any) {
-      if (err?.response?.status === 409) {
+    } catch (err: unknown) {
+      if (errorStatus(err) === 409) {
         toast.error("A server with this name already exists");
       } else {
         toast.error("Failed to add server");
