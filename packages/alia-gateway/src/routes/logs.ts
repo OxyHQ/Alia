@@ -42,7 +42,10 @@ router.get('/', async (req: Request, res: Response) => {
     }
 
     if (req.query.model) {
-      match.aliasModel = { $regex: req.query.model as string, $options: 'i' };
+      // Escape user input so it is matched as a literal substring — never as an
+      // attacker-controlled regular expression (ReDoS / injection).
+      const escaped = String(req.query.model).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      match.aliasModel = { $regex: escaped, $options: 'i' };
     }
 
     if (req.query.status === 'success') {

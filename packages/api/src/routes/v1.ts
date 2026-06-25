@@ -1,4 +1,5 @@
 import { Router, Request, Response } from 'express';
+import type { User } from '@oxyhq/core';
 import chatCompletionsRouter from './v1/chat-completions.js';
 import responsesRouter from './v1/responses.js';
 import modelsRouter from './v1/models.js';
@@ -6,7 +7,7 @@ import voiceRouter from './v1/voice.js';
 import audioRouter from './v1/audio.js';
 import imagesRouter from './v1/images.js';
 import showsRouter from './v1/shows.js';
-import { authenticateTokenOrApiKey, optionalAuth } from '../middleware/auth.js';
+import { authenticateTokenOrApiKey, optionalAuth, oxyClient } from '../middleware/auth.js';
 import { apiKeyRateLimit } from '../middleware/api-key-rate-limit.js';
 import { UserCredits } from '../models/user-credits.js';
 import { listChannels } from '../lib/channels/registry.js';
@@ -46,7 +47,7 @@ router.use((req: Request, _res: Response, next) => {
     const providedBuf = Buffer.from(botSecret);
     if (expectedBuf.length === providedBuf.length &&
         crypto.timingSafeEqual(expectedBuf, providedBuf)) {
-      (req as any).user = { id: oxyUserId };
+      req.user = { id: oxyUserId };
       req.channelType = channel.id;
       return next();
     }
@@ -72,6 +73,16 @@ router.get('/me', async (req: Request, res: Response) => {
       return res.status(401).json({ error: 'User not found' });
     }
 
+    // Load the canonical Oxy user so we can emit the authoritative
+    // `name.displayName` (the auth middleware only plants `{ id }`). Best-effort:
+    // a profile-fetch failure must not block the credits payload.
+    let oxyUser: User | null = null;
+    try {
+      oxyUser = await oxyClient.getUserById(userId);
+    } catch (err) {
+      log.general.warn({ err, userId }, 'Failed to load Oxy user for /v1/me');
+    }
+
     // Get user credits
     let userCredits = await UserCredits.findById(userId);
     if (!userCredits) {
@@ -91,8 +102,8 @@ router.get('/me', async (req: Request, res: Response) => {
 
     res.json({
       id: userId,
-      email: (req.user as any)?.email || '',
-      name: (req.user as any)?.displayName || (req.user as any)?.email || '',
+      email: oxyUser?.email || req.user?.email || '',
+      name: oxyUser?.name?.displayName || oxyUser?.username || req.user?.email || '',
       credits: {
         free: userCredits.credits.free,
         paid: userCredits.credits.paid,

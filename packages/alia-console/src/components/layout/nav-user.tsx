@@ -1,3 +1,4 @@
+import type { JSX } from 'react'
 import { HugeiconsIcon } from '@hugeicons/react'
 import {
   ArrowUp01Icon,
@@ -24,55 +25,36 @@ import {
   SidebarMenuItem,
   useSidebar,
 } from '@/components/ui/sidebar'
-import config from '@/lib/config'
-
-type UserName = { first?: string; last?: string }
 
 export function NavUser(): JSX.Element | null {
   const { isMobile } = useSidebar()
-  const { user, signOut } = useAuth()
+  const { user, signOut, oxyServices } = useAuth()
 
   if (!user) {
     return null
   }
 
-  async function handleSignOut(): Promise<void> {
+  const handleSignOut = async (): Promise<void> => {
     await signOut()
     window.location.href = '/'
   }
 
-  function getUserInitials(): string {
-    if (!user.name) {
-      return (user.username?.[0] || user.email?.[0] || 'U').toUpperCase()
-    }
-
-    const name = user.name as UserName
-
-    if (name.first && name.last) {
-      return `${name.first[0]}${name.last[0]}`.toUpperCase()
-    }
-
-    return (
-      name.first?.[0] ||
+  const getUserInitials = (): string =>
+    (
+      user.name?.displayName?.[0] ||
       user.username?.[0] ||
       user.email?.[0] ||
       'U'
     ).toUpperCase()
-  }
 
-  function getAvatarUrl(): string | undefined {
+  const getAvatarUrl = (): string | undefined => {
     if (!user.avatar) return undefined
     if (user.avatar.startsWith('http')) return user.avatar
-    return `${config.oxyUrl}/media/${user.avatar}`
+    return oxyServices.getFileDownloadUrl(user.avatar, 'thumb')
   }
 
-  function getUserDisplayName(): string {
-    const name = user.name as UserName | undefined
-    if (name?.first) {
-      return name.last ? `${name.first} ${name.last}` : name.first
-    }
-    return user.username || 'User'
-  }
+  const getUserDisplayName = (): string =>
+    user.name?.displayName || user.username || 'User'
 
   return (
     <SidebarMenu>

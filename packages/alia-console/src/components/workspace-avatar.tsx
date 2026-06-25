@@ -1,11 +1,13 @@
+import type { JSX } from 'react'
+import { useAuth } from '@oxyhq/auth'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import type { Workspace } from '@/hooks/use-workspace'
-import config from '@/lib/config'
 import { cn } from '@/lib/utils'
 
-function resolveImageUrl(path: string): string {
-  if (path.startsWith('http')) return path
-  return `${config.oxyUrl}/media/${path}`
+type AvatarUser = {
+  avatar?: string | null
+  username?: string
+  name?: { displayName?: string }
 }
 
 const sizeClasses = {
@@ -16,7 +18,7 @@ const sizeClasses = {
 
 interface WorkspaceAvatarProps {
   workspace: Workspace
-  user?: { avatar?: string; username?: string; name?: any } | null
+  user?: AvatarUser | null
   size?: 'sm' | 'md' | 'lg'
   className?: string
 }
@@ -27,7 +29,11 @@ export function WorkspaceAvatar({
   size = 'md',
   className,
 }: WorkspaceAvatarProps): JSX.Element {
+  const { oxyServices } = useAuth()
   const sizeClass = sizeClasses[size]
+
+  const resolveImageUrl = (path: string): string =>
+    path.startsWith('http') ? path : oxyServices.getFileDownloadUrl(path, 'thumb')
 
   if (workspace.type === 'personal' && user) {
     const avatarUrl = user.avatar ? resolveImageUrl(user.avatar) : undefined
@@ -63,10 +69,6 @@ export function WorkspaceAvatar({
   )
 }
 
-function getUserInitials(user: { username?: string; name?: any }): string {
-  if (!user.name) return user.username?.[0]?.toUpperCase() || 'U'
-  const name = user.name as { first?: string; last?: string }
-  if (name.first && name.last)
-    return `${name.first[0]}${name.last[0]}`.toUpperCase()
-  return (name.first?.[0] || user.username?.[0] || 'U').toUpperCase()
+function getUserInitials(user: AvatarUser): string {
+  return (user.name?.displayName?.[0] || user.username?.[0] || 'U').toUpperCase()
 }

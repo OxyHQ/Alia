@@ -177,8 +177,14 @@ app.use((_req, res, next) => {
 // Stripe webhook needs raw body for signature verification
 app.use('/billing/webhook', express.raw({ type: 'application/json' }));
 
-// Increase body size limit for large chat contexts
-app.use(express.json({ limit: '10mb' }));
+// Increase body size limit for large chat contexts. Capture the raw body so the
+// service-to-service HMAC (providers middleware) can bind a body hash.
+app.use(express.json({
+  limit: '10mb',
+  verify: (req, _res, buf) => {
+    (req as express.Request).rawBody = buf;
+  },
+}));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 // Optimize SSE routes for real-time streaming

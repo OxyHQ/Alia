@@ -9,7 +9,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { io as socketIO, type Socket } from 'socket.io-client';
 import { useOxy } from '@oxyhq/services';
-import apiClient from '@/lib/api/client';
+import apiClient, { getSocketToken } from '@/lib/api/client';
 import config from '@/lib/config';
 
 type AudioGenState = 'idle' | 'generating' | 'playing' | 'error';
@@ -32,6 +32,8 @@ function getSharedSocket(apiUrl: string): ReturnType<typeof socketIO> {
   if (!sharedSocket) {
     sharedSocket = socketIO(apiUrl, {
       transports: ['websocket'],
+      // Function form so a fresh token is read on every (re)connect.
+      auth: (cb) => cb({ token: getSocketToken() }),
       reconnection: true,
       reconnectionAttempts: Infinity,
       reconnectionDelay: 1000,
@@ -93,10 +95,11 @@ export function useAudioGen() {
     const socket = getSharedSocket(config.apiUrl);
 
     socket.on('connect', () => {
-      socket.emit('subscribe-notifications', userId);
+      // Server derives the room from the authenticated user; arg is ignored.
+      socket.emit('subscribe-notifications');
     });
     if (socket.connected) {
-      socket.emit('subscribe-notifications', userId);
+      socket.emit('subscribe-notifications');
     }
 
     socketRef.current = socket;

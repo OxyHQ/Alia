@@ -69,10 +69,13 @@ export class CodeaChatViewProvider implements vscode.WebviewViewProvider {
 
     try {
       const oxyServices = this._authProvider.getOxyServices();
-      const userInfo = await oxyServices.getCurrentUser() as any;
-      this._userName = userInfo?.name?.first || userInfo?.username || userInfo?.email?.split('@')[0] || null;
+      const userInfo = await oxyServices.getCurrentUser();
+      // Prefer the canonical API-composed display name on `name.displayName`;
+      // do not recompute from first/last.
+      const displayName = (userInfo.name as { displayName?: string } | undefined)?.displayName;
+      this._userName = displayName || userInfo.username || userInfo.email?.split('@')[0] || null;
       this._view?.webview.postMessage({ type: 'userInfo', userName: this._userName });
-    } catch (error) {
+    } catch {
       this._view?.webview.postMessage({ type: 'userInfo', userName: null });
     }
   }

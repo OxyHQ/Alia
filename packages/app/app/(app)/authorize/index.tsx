@@ -4,7 +4,7 @@ import { useRouter, useLocalSearchParams } from 'expo-router';
 import Head from 'expo-router/head';
 import { AuthContainer, AuthLogo } from '@/components/auth';
 import { useAuth, useOxy } from '@oxyhq/services';
-import apiClient from '@/lib/api/client';
+import apiClient, { getSocketToken } from '@/lib/api/client';
 import config from '@/lib/config';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -215,7 +215,13 @@ export default function AuthorizeScreen() {
     const token = params.token as string | undefined;
     if (app !== 'telegram' || !token) return;
 
+    // The user is already authenticated on the authorize screen (the layout
+    // redirects to /login otherwise), so the connection carries the Oxy bearer
+    // token expected by the server's authSocket() middleware. The telegram token
+    // is the one-time pairing code, distinct from the auth token.
     const socket = socketIO(config.apiUrl, {
+      // Function form so a fresh token is read on every (re)connect.
+      auth: (cb) => cb({ token: getSocketToken() }),
       transports: ['websocket'],
     });
 

@@ -8,6 +8,7 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { io as socketIO, type Socket } from 'socket.io-client';
 import config from '@/lib/config';
+import { getSocketToken } from '@/lib/api/client';
 
 export interface PlanItem {
   id: number;
@@ -258,6 +259,9 @@ export function useAgentActivity(sessionId: string | null, agentId?: string | nu
 
     const socket = socketIO(config.apiUrl, {
       transports: ['websocket'],
+      // Function form so a fresh token is read on every (re)connect — survives
+      // access-token rotation across reconnections.
+      auth: (cb) => cb({ token: getSocketToken() }),
       reconnection: true,
       reconnectionAttempts: Infinity,
       reconnectionDelay: 1000,

@@ -20,6 +20,7 @@ if (!process.env.INTEGRATIONS_SECRET) {
   console.error('INTEGRATIONS_SECRET is required');
   process.exit(1);
 }
+const INTEGRATIONS_SECRET: string = process.env.INTEGRATIONS_SECRET;
 
 const accountAdapters: AccountAdapter[] = [];
 const botAdapters: BotAdapter[] = [];
@@ -114,11 +115,36 @@ async function main() {
     });
   });
 
+  const { verifySecret } = await import('@oxyhq/core/server');
+
   // Auth middleware
   const requireSecret = (req: express.Request, res: express.Response, next: express.NextFunction): void => {
     const secret = req.headers['x-gateway-secret'] as string;
-    if (secret !== process.env.INTEGRATIONS_SECRET) {
+    if (!secret || !verifySecret(secret, INTEGRATIONS_SECRET)) {
       res.status(401).json({ error: 'Invalid gateway secret' });
+      return;
+    }
+    next();
+  };
+
+  /**
+   * Bind terminal/browser session access to the requesting user. The API
+   * gateway namespaces every session id as `${oxyUserId}:${clientSessionId}`
+   * and forwards the authoritative user id in `X-Oxy-User-Id`. We re-verify
+   * here so the in-memory session Map can never be addressed across users even
+   * if the gateway secret leaks or a path is forged.
+   */
+  const requireSessionOwner = (req: express.Request, res: express.Response, next: express.NextFunction): void => {
+    const ownerUserId = req.headers['x-oxy-user-id'] as string | undefined;
+    if (!ownerUserId || !/^[a-f0-9]{24}$/i.test(ownerUserId)) {
+      res.status(401).json({ error: 'User context required' });
+      return;
+    }
+    // Inside the mounted router, req.path is `/session/<sessionId>/<action>`.
+    const match = req.path.match(/^\/session\/([^/]+)\//);
+    const sessionId = match ? decodeURIComponent(match[1]) : '';
+    if (!sessionId.startsWith(`${ownerUserId}:`)) {
+      res.status(403).json({ error: 'Session does not belong to user' });
       return;
     }
     next();
@@ -140,7 +166,7 @@ async function main() {
   // Browser routes (lazy-loaded)
   try {
     const { browserRouter } = await import('./routes/browser');
-    app.use('/browser', requireSecret, browserRouter);
+    app.use('/browser', requireSecret, requireSessionOwner, browserRouter);
     console.log('[Integrations] Mounted routes: /browser');
   } catch {
     console.log('[Integrations] Browser routes not available');
@@ -149,7 +175,7 @@ async function main() {
   // Terminal routes (lazy-loaded)
   try {
     const { terminalRouter } = await import('./routes/terminal');
-    app.use('/terminal', requireSecret, terminalRouter);
+    app.use('/terminal', requireSecret, requireSessionOwner, terminalRouter);
     console.log('[Integrations] Mounted routes: /terminal');
   } catch {
     console.log('[Integrations] Terminal routes not available');

@@ -7,10 +7,17 @@ import { getErrorMessage } from '../errors/index.js';
 const GATEWAY_API_URL = process.env.GATEWAY_API_URL || 'http://localhost:9091';
 const SERVICE_SECRET = process.env.SERVICE_SECRET;
 
-function generateAuthHeaders(): Record<string, string> {
+/**
+ * Build service-to-service auth headers. The HMAC binds the method, full path,
+ * and a hash of the serialized body so a captured signature can't be replayed
+ * against a different endpoint. MUST match `buildServiceSigningString` in
+ * alia-gateway's auth middleware.
+ */
+function generateAuthHeaders(method: string, path: string, body: string = ''): Record<string, string> {
   if (!SERVICE_SECRET) throw new Error('SERVICE_SECRET is not configured');
   const timestamp = Date.now().toString();
-  const payload = JSON.stringify({ timestamp, service: 'alia-api' });
+  const bodyHash = crypto.createHash('sha256').update(body || '').digest('hex');
+  const payload = [timestamp, 'alia-api', method.toUpperCase(), path, bodyHash].join('\n');
   const signature = crypto.createHmac('sha256', SERVICE_SECRET).update(payload).digest('hex');
   return {
     'X-Service-Name': 'alia-api',
@@ -21,10 +28,11 @@ function generateAuthHeaders(): Record<string, string> {
 }
 
 async function proxyRequest(method: string, path: string, body?: any): Promise<any> {
+  const serializedBody = body !== undefined ? JSON.stringify(body) : undefined;
   const res = await fetch(`${GATEWAY_API_URL}${path}`, {
     method,
-    headers: generateAuthHeaders(),
-    body: body ? JSON.stringify(body) : undefined,
+    headers: generateAuthHeaders(method, path, serializedBody ?? ''),
+    body: serializedBody,
   });
   return res.json();
 }

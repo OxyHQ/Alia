@@ -29,6 +29,8 @@ const queryClient = new QueryClient({
 const OXY_CLIENT_ID =
   import.meta.env.VITE_OXY_CLIENT_ID || 'oxy_dk_06488927793f96922ef4f366a9800547b34c6aec025fece3';
 
+const OXY_API_URL = import.meta.env.VITE_OXY_URL || 'https://api.oxy.so';
+
 function ApiAuthSetup({ children }: { children: React.ReactNode }) {
   const { oxyServices } = useAuth();
 
@@ -41,7 +43,7 @@ function ApiAuthSetup({ children }: { children: React.ReactNode }) {
 
 function App() {
   return (
-    <WebOxyProvider baseURL="https://api.oxy.so" clientId={OXY_CLIENT_ID}>
+    <WebOxyProvider baseURL={OXY_API_URL} clientId={OXY_CLIENT_ID}>
       <ApiAuthSetup>
         <RealtimeProvider>
           <QueryClientProvider client={queryClient}>

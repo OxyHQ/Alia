@@ -12,6 +12,7 @@ import { io as socketIO } from 'socket.io-client';
 import { useOxy } from '@oxyhq/services';
 import { useShowStore, type ShowProgress } from '@/lib/stores/show-store';
 import config from '@/lib/config';
+import { getSocketToken } from '@/lib/api/client';
 
 let sharedSocket: ReturnType<typeof socketIO> | null = null;
 let refCount = 0;
@@ -20,6 +21,8 @@ function getSharedSocket(apiUrl: string): ReturnType<typeof socketIO> {
   if (!sharedSocket) {
     sharedSocket = socketIO(apiUrl, {
       transports: ['websocket'],
+      // Function form so a fresh token is read on every (re)connect.
+      auth: (cb) => cb({ token: getSocketToken() }),
       reconnection: true,
       reconnectionAttempts: Infinity,
       reconnectionDelay: 1000,
@@ -51,12 +54,13 @@ export function useShowProgress() {
     const socket = getSharedSocket(config.apiUrl);
 
     socket.on('connect', () => {
-      socket.emit('subscribe-notifications', userId);
+      // Server derives the room from the authenticated user; arg is ignored.
+      socket.emit('subscribe-notifications');
     });
 
     // If already connected, subscribe immediately
     if (socket.connected) {
-      socket.emit('subscribe-notifications', userId);
+      socket.emit('subscribe-notifications');
     }
 
     const handler = (data: ShowProgress) => {

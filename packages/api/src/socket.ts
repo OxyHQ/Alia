@@ -1,8 +1,27 @@
-import { Server } from 'socket.io';
+import { Server, type Socket } from 'socket.io';
 import { createAdapter } from '@socket.io/redis-adapter';
 import http from 'http';
 import { getRedisClient, getRedisSubClient } from './lib/redis.js';
 import { log } from './lib/logger.js';
+import { oxyClient } from './middleware/auth.js';
+import { AgentSession } from './models/agent-session.js';
+import { Agent } from './models/agent.js';
+import { CanvasSession } from './models/canvas-session.js';
+import { WorkflowExecution } from './models/workflow-execution.js';
+
+/** Read the authenticated user id planted on the socket by `oxy.authSocket()`. */
+function socketUserId(socket: Socket): string | null {
+  const fromData = socket.data?.userId;
+  if (typeof fromData === 'string' && fromData.length > 0) return fromData;
+  return null;
+}
+
+/** True if the authenticated user owns the given agent session. */
+async function ownsAgentSession(userId: string, sessionId: string): Promise<boolean> {
+  if (!/^[a-f0-9]{24}$/i.test(sessionId)) return false;
+  const session = await AgentSession.findById(sessionId).select('userId').lean();
+  return !!session && session.userId?.toString() === userId;
+}
 
 const ALLOWED_ORIGINS = [
   process.env.WEB_URL || 'http://localhost:3000',
@@ -36,42 +55,78 @@ export function initSocket(server: http.Server) {
         log.general.warn({ err }, 'Socket.IO Redis adapter failed — using in-memory');
       });
   }
+  // Authenticate every connection. `oxy.authSocket()` validates the handshake
+  // bearer token, plants `socket.data.userId`, and rejects unauthenticated /
+  // invalid / expired tokens before any `connection` handler runs.
+  io.use(oxyClient.authSocket({ debug: process.env.NODE_ENV !== 'production' }));
+
   io.on('connection', (socket) => {
+    const userId = socketUserId(socket);
+
     socket.on('subscribe-telegram-token', (token: string) => {
-      if (typeof token !== 'string' || token.length > 256) return;
+      // Telegram link tokens are short-lived, single-use codes minted for the
+      // authenticated user who initiated linking; the room is the token itself.
+      if (typeof token !== 'string' || token.length === 0 || token.length > 256) return;
       socket.join(`telegram-token:${token}`);
     });
 
-    socket.on('subscribe-workflow', (executionId: string) => {
-      if (typeof executionId !== 'string' || executionId.length > 256) return;
+    socket.on('subscribe-workflow', async (executionId: string) => {
+      if (typeof executionId !== 'string' || executionId.length === 0 || executionId.length > 256) return;
+      if (!userId) return;
+      const execution = await WorkflowExecution.findOne({ executionId }).select('oxyUserId').lean();
+      if (!execution || execution.oxyUserId?.toString() !== userId) return;
       socket.join(`workflow:${executionId}`);
     });
 
-    socket.on('subscribe-canvas', (conversationId: string) => {
-      if (typeof conversationId !== 'string' || conversationId.length > 256) return;
+    socket.on('subscribe-canvas', async (conversationId: string) => {
+      if (typeof conversationId !== 'string' || conversationId.length === 0 || conversationId.length > 256) return;
+      if (!userId) return;
+      const canvas = await CanvasSession.findOne({ oxyUserId: userId, conversationId }).select('_id').lean();
+      if (!canvas) return;
       socket.join(`canvas:${conversationId}`);
     });
 
-    socket.on('subscribe-agent', (agentId: string) => {
-      if (typeof agentId !== 'string' || agentId.length > 256) return;
+    socket.on('subscribe-agent', async (agentId: string) => {
+      if (typeof agentId !== 'string' || agentId.length === 0 || agentId.length > 256) return;
+      if (!userId || !/^[a-f0-9]{24}$/i.test(agentId)) return;
+      // A user may observe an agent's activity room only if they authored it or
+      // currently have a session with it. Agent-activity events carry tool calls,
+      // file changes, and screenshots from a running (owned) session.
+      const authored = await Agent.exists({ _id: agentId, author: userId });
+      const hasSession = authored
+        ? true
+        : !!(await AgentSession.exists({ agentId, userId }));
+      if (!authored && !hasSession) return;
       socket.join(`agent:${agentId}`);
     });
 
-    socket.on('subscribe-agent-session', (sessionId: string) => {
-      if (typeof sessionId !== 'string' || sessionId.length > 256) return;
+    socket.on('subscribe-agent-session', async (sessionId: string) => {
+      if (typeof sessionId !== 'string' || sessionId.length === 0 || sessionId.length > 256) return;
+      if (!userId || !(await ownsAgentSession(userId, sessionId))) return;
       socket.join(`agent-session:${sessionId}`);
     });
 
-    socket.on('subscribe-notifications', (userId: string) => {
-      if (typeof userId !== 'string' || userId.length > 256) return;
+    socket.on('subscribe-notifications', () => {
+      // Room is always derived from the authenticated user — any client-supplied
+      // userId is ignored to prevent subscribing to another user's notifications.
+      if (!userId) return;
       socket.join(`user:${userId}`);
     });
 
     // Agent action approval response from user
     socket.on('agent-approval-response', async (data: { requestId: string; sessionId: string; approved: boolean; alwaysAllow?: boolean }) => {
-      if (!data?.requestId || typeof data.sessionId !== 'string') return;
+      if (!data?.requestId || typeof data.requestId !== 'string' || typeof data.sessionId !== 'string') return;
+      if (!userId) return;
+
+      const { getPendingApprovalSession, resolveApprovalDecision } = await import('./lib/agent/action-approval.js');
+
+      // The pending approval is bound to a sessionId at creation time. Reject if
+      // the claimed session does not match the request, or the user does not own it.
+      const boundSessionId = getPendingApprovalSession(data.requestId);
+      if (!boundSessionId || boundSessionId !== data.sessionId) return;
+      if (!(await ownsAgentSession(userId, data.sessionId))) return;
+
       // Resolve pending approval in-memory and broadcast the decision.
-      const { resolveApprovalDecision } = await import('./lib/agent/action-approval.js');
       resolveApprovalDecision({
         requestId: data.requestId,
         approved: !!data.approved,

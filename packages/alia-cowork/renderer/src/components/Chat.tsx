@@ -180,7 +180,7 @@ export function Chat() {
     // Get user info
     window.api.getUserInfo().then((user) => {
       if (user) {
-        setUserName(user.name?.first || user.username || null)
+        setUserName(user.name || user.username || null)
       }
     })
 

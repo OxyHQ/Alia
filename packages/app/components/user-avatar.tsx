@@ -10,7 +10,7 @@ export function UserAvatar({ size = 24 }: UserAvatarProps) {
   const { user, oxyServices } = useOxy();
 
   const initial = (
-    user?.name?.first?.[0] || user?.username?.[0] || "U"
+    user?.name?.displayName?.[0] || user?.username?.[0] || "U"
   ).toUpperCase();
 
   const avatarUrl = user?.avatar
