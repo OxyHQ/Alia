@@ -3,6 +3,7 @@ import * as crypto from 'crypto';
 import { OxyServices, createAuthManager } from '@oxyhq/core';
 import type { AuthManager, StorageAdapter, SessionLoginResponse, MinimalUserData } from '@oxyhq/core';
 import { jwtDecode } from 'jwt-decode';
+import { errorMessage } from './errors';
 
 const AUTH_URL = 'https://auth.oxy.so';
 const OXY_PLATFORM_URL = 'https://api.oxy.so';
@@ -175,8 +176,8 @@ export class AliaAuthenticationProvider
       this.clearPendingAuth();
 
       vscode.window.showInformationMessage(`Signed in as ${displayName}`);
-    } catch (err: any) {
-      this.rejectPending(err.message);
+    } catch (err: unknown) {
+      this.rejectPending(errorMessage(err));
     }
   }
 

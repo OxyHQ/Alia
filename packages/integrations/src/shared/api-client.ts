@@ -1,10 +1,54 @@
 import axios, { AxiosInstance } from 'axios';
+import { errorCode, errorStatus } from './utils';
 
 /** OpenAI-compatible message content — plain string or multi-part array */
-type MessageContentPart =
+export type MessageContentPart =
   | { type: 'text'; text: string }
   | { type: 'image_url'; image_url: { url: string } };
-type MessageContent = string | MessageContentPart[];
+export type MessageContent = string | MessageContentPart[];
+
+/** A bot user record linking a platform identity to an Oxy account. */
+export interface BotUser {
+  oxyUserId: string;
+  platformUserId: string;
+  conversationId?: string;
+  model?: string;
+  preferredModel?: string;
+  isLinked?: boolean;
+  linkedAt?: string;
+  displayName?: string;
+  username?: string;
+  [key: string]: unknown;
+}
+
+/** A single stored conversation message. */
+export interface ConversationMessage {
+  role: string;
+  content: MessageContent;
+  [key: string]: unknown;
+}
+
+/** A stored conversation with its message history. */
+export interface Conversation {
+  conversationId?: string;
+  id?: string;
+  title?: string;
+  messages?: ConversationMessage[];
+  createdAt?: string;
+  updatedAt?: string;
+  [key: string]: unknown;
+}
+
+/** A model entry from the gateway `/v1/models` listing. */
+export interface ModelInfo {
+  id: string;
+  name: string;
+  description?: string;
+  emoji?: string;
+  category?: string;
+  pricing?: { credit_multiplier: number };
+  [key: string]: unknown;
+}
 
 /**
  * Parameterized API client — one instance per platform, all sharing the same core logic.
@@ -29,15 +73,15 @@ export class APIClient {
     return { 'X-Channel-Bot-Secret': this.secret };
   }
 
-  async getBotUser(platformUserId: string): Promise<any> {
+  async getBotUser(platformUserId: string): Promise<BotUser | null> {
     try {
       const response = await this.client.get(
         `/bots/internal/${this.platform}/users/${platformUserId}`,
         { headers: this.authHeaders },
       );
       return response.data;
-    } catch (error: any) {
-      if (error.response?.status === 404) return null;
+    } catch (error: unknown) {
+      if (errorStatus(error) === 404) return null;
       throw error;
     }
   }
@@ -47,7 +91,7 @@ export class APIClient {
     chatId: string;
     username?: string;
     displayName?: string;
-  }): Promise<any> {
+  }): Promise<BotUser> {
     const response = await this.client.post(
       `/bots/internal/${this.platform}/users`,
       data,
@@ -77,14 +121,14 @@ export class APIClient {
     );
   }
 
-  async getConversation(oxyUserId: string, conversationId: string): Promise<any> {
+  async getConversation(oxyUserId: string, conversationId: string): Promise<Conversation | null> {
     try {
       const response = await this.client.get(`/conversations/${conversationId}`, {
         headers: { ...this.authHeaders, 'X-Oxy-User-Id': oxyUserId },
       });
       return response.data;
-    } catch (error: any) {
-      if (error.response?.status === 404) return null;
+    } catch (error: unknown) {
+      if (errorStatus(error) === 404) return null;
       throw error;
     }
   }
@@ -92,9 +136,9 @@ export class APIClient {
   async saveConversation(
     oxyUserId: string,
     conversationId: string,
-    messages: any[],
+    messages: ConversationMessage[],
     title?: string,
-  ): Promise<any> {
+  ): Promise<Conversation> {
     const response = await this.client.post(
       '/conversations',
       { conversationId, messages, title },
@@ -103,14 +147,14 @@ export class APIClient {
     return response.data;
   }
 
-  async getConversations(oxyUserId: string): Promise<any[]> {
+  async getConversations(oxyUserId: string): Promise<Conversation[]> {
     const response = await this.client.get('/conversations', {
       headers: { ...this.authHeaders, 'X-Oxy-User-Id': oxyUserId },
     });
     return response.data;
   }
 
-  async fetchModels(): Promise<any[]> {
+  async fetchModels(): Promise<ModelInfo[]> {
     try {
       const response = await this.client.get('/v1/models');
       return response.data.data || [];
@@ -171,7 +215,7 @@ export class APIClient {
 
     if (!response.ok) {
       const body = await response.json().catch(() => ({ error: `HTTP ${response.status}` }));
-      const err: any = new Error(body.error?.message || body.error || `HTTP ${response.status}`);
+      const err: Error & { status?: number; code?: unknown } = new Error(body.error?.message || body.error || `HTTP ${response.status}`);
       err.status = response.status;
       err.code = body.error?.code;
       throw err;
@@ -232,7 +276,7 @@ export class APIClient {
 
     if (!response.ok) {
       const body = await response.json().catch(() => ({ error: `HTTP ${response.status}` }));
-      const err: any = new Error(body.error?.message || body.error || `HTTP ${response.status}`);
+      const err: Error & { status?: number; code?: unknown } = new Error(body.error?.message || body.error || `HTTP ${response.status}`);
       err.status = response.status;
       err.code = body.error?.code;
       throw err;

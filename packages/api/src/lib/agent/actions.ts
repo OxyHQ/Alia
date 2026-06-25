@@ -201,10 +201,10 @@ export async function buildActions(ctx: ActionContext) {
         if (eventStream) {
           const planData = todoManager.toJSON();
           const planItems = planData.items || [];
-          const completed = planItems.filter((i: any) => i.status === 'completed').length;
+          const completed = planItems.filter((i) => i.status === 'completed').length;
           eventStream.append('plan_progress', todoManager.serialize(), undefined, {
             plan: {
-              items: planItems.map((i: any) => ({ id: i.id, text: i.text, status: i.status })),
+              items: planItems.map((i) => ({ id: i.id, text: i.text, status: i.status })),
               completed,
               total: planItems.length,
             },

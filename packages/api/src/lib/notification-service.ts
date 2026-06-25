@@ -14,6 +14,7 @@ import Expo, { type ExpoPushMessage, type ExpoPushTicket, type ExpoPushReceiptId
 import { Notification, type INotification, type NotificationType, type NotificationChannel, type NotificationPriority } from '../models/notification.js';
 import { ConnectedAccount } from '../models/connected-account.js';
 import { PushToken } from '../models/push-token.js';
+import { getStatusCode } from './errors/index.js';
 import { WebPushSubscription } from '../models/web-push-subscription.js';
 import { Bot } from '../models/bot.js';
 import { BotUser } from '../models/bot-user.js';
@@ -311,8 +312,9 @@ async function deliverWebPush(userId: string, notification: INotification): Prom
           { endpoint: sub.endpoint, keys: sub.keys },
           payload,
         );
-      } catch (error: any) {
-        if (error?.statusCode === 410 || error?.statusCode === 404) {
+      } catch (error: unknown) {
+        const statusCode = getStatusCode(error);
+        if (statusCode === 410 || statusCode === 404) {
           // Subscription expired or invalid — deactivate
           await WebPushSubscription.updateOne({ _id: sub._id }, { $set: { active: false } });
           log.general.info({ userId, endpoint: sub.endpoint }, 'Web push subscription expired, deactivated');

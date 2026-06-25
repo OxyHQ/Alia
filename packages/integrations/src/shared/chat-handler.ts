@@ -72,9 +72,9 @@ export async function handleIncomingMessage(
       const conversation = await apiClient.getConversation(botUser.oxyUserId, conversationId);
       if (conversation?.messages?.length) {
         messages = conversation.messages
-          .filter((m: any) => m.role === 'user' || m.role === 'assistant')
+          .filter((m) => m.role === 'user' || m.role === 'assistant')
           .slice(-20)
-          .map((m: any) => ({ role: m.role, content: m.content }));
+          .map((m) => ({ role: m.role, content: typeof m.content === 'string' ? m.content : JSON.stringify(m.content) }));
       }
     } catch (error) {
       console.error(`[${platform}/Chat] Failed to load history:`, error);
@@ -118,7 +118,7 @@ export async function handleIncomingMessage(
     }
 
     // Conversation is auto-saved by the API when conversationId is provided
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error(`[${platform}/Chat] Error:`, error);
     await sendResponse('Sorry, an error occurred. Please try again.').catch(() => {});
   }

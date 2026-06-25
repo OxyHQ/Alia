@@ -9,6 +9,7 @@ import { useSubscription, useSubscriptionPolling, useCancelSubscription, useCrea
 import { useEffect, useState, useRef } from "react";
 import { toast } from "@/components/sonner";
 import { useTranslation } from "@/hooks/useTranslation";
+import { errorMessage as getErrorMessage } from '../../lib/errors/error-utils';
 
 interface BillingSectionProps {
   success?: boolean;
@@ -69,8 +70,8 @@ export function BillingSection({ success }: BillingSectionProps) {
     try {
       await cancelSubscriptionMutation.mutateAsync();
       toast.success(t('billing.cancelSubscriptionSuccess'));
-    } catch (error: any) {
-      toast.error(error.message || t('billing.failedCancelSubscription'));
+    } catch (error: unknown) {
+      toast.error(getErrorMessage(error) || t('billing.failedCancelSubscription'));
     }
   };
 
@@ -80,8 +81,8 @@ export function BillingSection({ success }: BillingSectionProps) {
       if (url) {
         await Linking.openURL(url);
       }
-    } catch (error: any) {
-      toast.error(error.message || t('billing.failedPortal'));
+    } catch (error: unknown) {
+      toast.error(getErrorMessage(error) || t('billing.failedPortal'));
     }
   };
 
@@ -98,8 +99,8 @@ export function BillingSection({ success }: BillingSectionProps) {
       if (url) {
         await Linking.openURL(url);
       }
-    } catch (error: any) {
-      toast.error(error.message || t('billing.failedCheckout'));
+    } catch (error: unknown) {
+      toast.error(getErrorMessage(error) || t('billing.failedCheckout'));
     }
   };
 
@@ -125,8 +126,8 @@ export function BillingSection({ success }: BillingSectionProps) {
         await Linking.openURL(url);
         setCustomCredits('');
       }
-    } catch (error: any) {
-      toast.error(error.message || t('billing.failedCheckout'));
+    } catch (error: unknown) {
+      toast.error(getErrorMessage(error) || t('billing.failedCheckout'));
     }
   };
 

@@ -22,7 +22,7 @@ router.get('/', async (req: Request, res: Response) => {
     const { provider, aliaTier, active, deprecated } = req.query;
 
     // Build query
-    const query: any = {};
+    const query: Record<string, unknown> = {};
     if (provider) query.provider = provider;
     if (aliaTier) query.aliaTier = aliaTier;
     if (active !== undefined) query.isActive = active === 'true';

@@ -16,10 +16,14 @@ import type { AgentState } from '../../types';
 const AnimatedPath = Animated.createAnimatedComponent(Path);
 
 /** Cross-platform blur: CSS string on web, RN array syntax on native */
-function blurStyle(radius: number) {
+type BlurStyle =
+  | { filter: string; WebkitFilter: string }
+  | { filter: Array<{ blur: number }> };
+
+function blurStyle(radius: number): BlurStyle {
   return Platform.OS === 'web'
-    ? ({ filter: `blur(${radius}px)`, WebkitFilter: `blur(${radius}px)` } as any)
-    : ({ filter: [{ blur: radius }] } as any);
+    ? { filter: `blur(${radius}px)`, WebkitFilter: `blur(${radius}px)` }
+    : { filter: [{ blur: radius }] };
 }
 
 const GLOW_HEIGHT = 350;

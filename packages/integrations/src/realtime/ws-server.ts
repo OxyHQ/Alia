@@ -15,19 +15,19 @@
  *   { type: "terminal_exit", sessionId: "abc" }
  */
 
-import type { WebSocket } from 'ws';
+import { getWss, type SessionWebSocket } from './wss-global';
 
 /**
  * Broadcast a message to all WebSocket clients subscribed to a session.
  */
-export function broadcastToSession(sessionId: string, type: string, data: Record<string, any>) {
-  const wss = (global as any).__wss;
+export function broadcastToSession(sessionId: string, type: string, data: Record<string, unknown>) {
+  const wss = getWss();
   if (!wss) return;
 
   const message = JSON.stringify({ type, sessionId, ...data });
 
   for (const client of wss.clients) {
-    const ws = client as WebSocket & { sessionId?: string };
+    const ws = client as SessionWebSocket;
     if (ws.sessionId === sessionId && ws.readyState === 1) {
       ws.send(message);
     }

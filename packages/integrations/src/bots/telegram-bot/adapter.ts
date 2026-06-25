@@ -6,10 +6,12 @@
  * Responses stream via SSE and are progressively edited into a Telegram message.
  */
 
-import { Telegraf, Markup } from 'telegraf';
+import { Telegraf, Markup, type Context } from 'telegraf';
+import type { Message, TelegramEmoji } from 'telegraf/types';
+import { errorMessage, errorCode, errorStatus } from '../../shared/utils';
 import { v4 as uuidv4 } from 'uuid';
 import type { BotAdapter } from '../types';
-import { APIClient } from '../../shared/api-client';
+import { APIClient, type MessageContent, type MessageContentPart } from '../../shared/api-client';
 import { markdownToTelegramHtml, stripMarkdown } from '../../shared/telegram-format';
 import {
   handleStart,
@@ -99,7 +101,7 @@ export class TelegramBotAdapter implements BotAdapter {
     });
 
     // Global error handler
-    bot.catch((err: any, ctx: any) => {
+    bot.catch((err: unknown, ctx: Context) => {
       console.error('[Telegram Bot] Error:', err);
       ctx.reply('An error occurred. Please try again later.').catch(() => {});
     });
@@ -120,7 +122,7 @@ export class TelegramBotAdapter implements BotAdapter {
   // Streaming chat handler (preserves original behaviour)
   // -----------------------------------------------------------------------
   private async handleChatMessage(
-    ctx: any,
+    ctx: Context,
     options?: { textOverride?: string; imageUrl?: string },
   ) {
     const telegramId = ctx.from?.id.toString();
@@ -152,7 +154,7 @@ export class TelegramBotAdapter implements BotAdapter {
       }
 
       // Load conversation history (last 20 messages, user/assistant only)
-      let messages: Array<{ role: string; content: any }> = [];
+      let messages: Array<{ role: string; content: MessageContent }> = [];
       try {
         const conversation = await apiClient.getConversation(
           botUser.oxyUserId.toString(),
@@ -160,9 +162,9 @@ export class TelegramBotAdapter implements BotAdapter {
         );
         if (conversation?.messages?.length) {
           messages = conversation.messages
-            .filter((m: any) => m.role === 'user' || m.role === 'assistant')
+            .filter((m) => m.role === 'user' || m.role === 'assistant')
             .slice(-20)
-            .map((msg: any) => ({ role: msg.role, content: msg.content }));
+            .map((msg) => ({ role: msg.role, content: msg.content }));
         }
       } catch (error) {
         console.error('[Telegram Bot] Failed to load conversation history:', error);
@@ -170,7 +172,7 @@ export class TelegramBotAdapter implements BotAdapter {
 
       // Append new user message (multi-part if image is included)
       if (options?.imageUrl) {
-        const parts: Array<any> = [];
+        const parts: MessageContentPart[] = [];
         if (messageText) parts.push({ type: 'text', text: messageText });
         parts.push({ type: 'image_url', image_url: { url: options.imageUrl } });
         messages.push({ role: 'user', content: parts });
@@ -199,7 +201,7 @@ Be concise and friendly. Use these Telegram features when appropriate.`,
       // ---------- Stream response via API ----------
       let fullResponse = '';
       let lastUpdateTime = Date.now();
-      let currentMessage: any = null;
+      let currentMessage: Message.TextMessage | null = null;
 
       const stream = apiClient.chatCompletionStream(
         botUser.oxyUserId.toString(),
@@ -243,7 +245,7 @@ Be concise and friendly. Use these Telegram features when appropriate.`,
       const reactionMatch = fullResponse.match(/\[(?:ALIA_)?REACT:([^\]]+)\]/);
       if (reactionMatch && 'message' in ctx && ctx.message) {
         try {
-          await ctx.react(reactionMatch[1].trim() as any);
+          await ctx.react(reactionMatch[1].trim() as TelegramEmoji);
         } catch {
           // Ignore reaction errors
         }
@@ -285,10 +287,10 @@ Be concise and friendly. Use these Telegram features when appropriate.`,
       }
 
       // Conversation is auto-saved by the API when conversationId is provided
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('[Telegram Bot] Chat error:', error);
 
-      if (error.code === 'INSUFFICIENT_CREDITS' || error.status === 402) {
+      if (errorCode(error) === 'INSUFFICIENT_CREDITS' || errorStatus(error) === 402) {
         const appUrl = process.env.APP_URL || 'https://alia.onl';
         await ctx.reply(
           `💳 <b>Out of Credits</b>\n\n` +
@@ -296,7 +298,7 @@ Be concise and friendly. Use these Telegram features when appropriate.`,
           `<a href="${appUrl}">Open Alia to add credits</a>`,
           { parse_mode: 'HTML', link_preview_options: { is_disabled: true } },
         );
-      } else if (error.response?.status === 401 || error.message?.includes('401')) {
+      } else if (errorStatus(error) === 401 || errorMessage(error).includes('401')) {
         await ctx.reply(
           '🔒 <b>Session Expired</b>\n\nYour authentication session has expired.\nPlease logout and sign in again.',
           {
@@ -308,7 +310,7 @@ Be concise and friendly. Use these Telegram features when appropriate.`,
         );
       } else {
         await ctx.reply(
-          `❌ <b>Error Processing Message</b>\n\n${error.message || 'An unexpected error occurred'}\n\n<i>Please try again in a moment.</i>`,
+          `❌ <b>Error Processing Message</b>\n\n${errorMessage(error) || 'An unexpected error occurred'}\n\n<i>Please try again in a moment.</i>`,
           { parse_mode: 'HTML' },
         );
       }
@@ -322,7 +324,7 @@ Be concise and friendly. Use these Telegram features when appropriate.`,
   /**
    * Download a Telegram file by file_id and return it as a base64 string.
    */
-  private async downloadTelegramFile(ctx: any, fileId: string): Promise<string> {
+  private async downloadTelegramFile(ctx: Context, fileId: string): Promise<string> {
     const fileUrl = await ctx.telegram.getFileLink(fileId);
     const response = await fetch(fileUrl.href);
     if (!response.ok) throw new Error(`Failed to download file: HTTP ${response.status}`);
@@ -333,7 +335,7 @@ Be concise and friendly. Use these Telegram features when appropriate.`,
   /**
    * Handle voice/audio messages: download, transcribe, then pass text to chat.
    */
-  private async handleVoiceMessage(ctx: any) {
+  private async handleVoiceMessage(ctx: Context) {
     const telegramId = ctx.from?.id.toString();
     if (!telegramId) return;
 
@@ -346,8 +348,9 @@ Be concise and friendly. Use these Telegram features when appropriate.`,
 
       await ctx.sendChatAction('typing');
 
-      const voice = ctx.message.voice;
-      const audio = ctx.message.audio;
+      const msg = ctx.message;
+      const voice = msg && 'voice' in msg ? msg.voice : undefined;
+      const audio = msg && 'audio' in msg ? msg.audio : undefined;
       const fileObj = voice || audio;
 
       if (!fileObj?.file_id) {
@@ -362,7 +365,7 @@ Be concise and friendly. Use these Telegram features when appropriate.`,
       }
 
       const base64Audio = await this.downloadTelegramFile(ctx, fileObj.file_id);
-      const mimeType = voice ? 'audio/ogg' : (audio.mime_type || 'audio/mpeg');
+      const mimeType = voice ? 'audio/ogg' : (audio?.mime_type || 'audio/mpeg');
 
       const transcribedText = await apiClient.transcribe(
         botUser.oxyUserId.toString(),
@@ -376,10 +379,10 @@ Be concise and friendly. Use these Telegram features when appropriate.`,
       }
 
       await this.handleChatMessage(ctx, { textOverride: transcribedText });
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('[Telegram Bot] Voice message error:', error);
 
-      if (error.response?.status === 402 || error.code === 'INSUFFICIENT_CREDITS') {
+      if (errorStatus(error) === 402 || errorCode(error) === 'INSUFFICIENT_CREDITS') {
         const appUrl = process.env.APP_URL || 'https://alia.onl';
         await ctx.reply(
           `You've run out of credits. Add more to continue using Alia.\n\n${appUrl}`,
@@ -393,7 +396,7 @@ Be concise and friendly. Use these Telegram features when appropriate.`,
   /**
    * Handle photo messages: download, build data URL, pass to vision-capable chat.
    */
-  private async handlePhotoMessage(ctx: any) {
+  private async handlePhotoMessage(ctx: Context) {
     const telegramId = ctx.from?.id.toString();
     if (!telegramId) return;
 
@@ -406,7 +409,8 @@ Be concise and friendly. Use these Telegram features when appropriate.`,
 
       await ctx.sendChatAction('typing');
 
-      const photos = ctx.message.photo;
+      const photoMsg = ctx.message;
+      const photos = photoMsg && 'photo' in photoMsg ? photoMsg.photo : undefined;
       if (!photos || photos.length === 0) {
         await ctx.reply('Could not process this image.');
         return;
@@ -422,10 +426,10 @@ Be concise and friendly. Use these Telegram features when appropriate.`,
 
       const base64Image = await this.downloadTelegramFile(ctx, largestPhoto.file_id);
       const dataUrl = `data:image/jpeg;base64,${base64Image}`;
-      const caption = ctx.message.caption || undefined;
+      const caption = photoMsg && 'caption' in photoMsg ? photoMsg.caption : undefined;
 
       await this.handleChatMessage(ctx, { textOverride: caption, imageUrl: dataUrl });
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('[Telegram Bot] Photo message error:', error);
       await ctx.reply('Sorry, I had trouble processing that image. Please try again.').catch(() => {});
     }
@@ -434,7 +438,7 @@ Be concise and friendly. Use these Telegram features when appropriate.`,
   // -----------------------------------------------------------------------
   // Telegram-specific components (images, docs, link buttons)
   // -----------------------------------------------------------------------
-  private async processTelegramComponents(ctx: any, response: string) {
+  private async processTelegramComponents(ctx: Context, response: string) {
     // Images [ALIA_TGIMAGE url="..." caption="..."]
     const imageMatches = response.matchAll(/\[(?:ALIA_)?TGIMAGE\s+url="([^"]+)"(?:\s+caption="([^"]*)")?\]/g);
     for (const match of imageMatches) {

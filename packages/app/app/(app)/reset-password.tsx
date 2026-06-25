@@ -5,6 +5,7 @@ import { AuthContainer, AuthLogo, AuthInput, AuthButton, AuthError } from '@/com
 import apiClient from '@/lib/api/client';
 import { toast } from '@/components/sonner';
 import { useTranslation } from '@/hooks/useTranslation';
+import { errorMessage as getErrorMessage } from '@/lib/errors/error-utils';
 
 export default function ResetPasswordScreen() {
   const { t } = useTranslation();
@@ -55,9 +56,9 @@ export default function ResetPasswordScreen() {
 
       toast.success(t('resetPassword.successMessage'));
       router.replace('/login');
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Reset password error:', error);
-      const errorMessage = error.response?.data?.error || t('resetPassword.failedToReset');
+      const errorMessage = getErrorMessage(error, t('resetPassword.failedToReset'));
       setError(errorMessage);
 
       toast.error(errorMessage);

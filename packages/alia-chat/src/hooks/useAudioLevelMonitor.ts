@@ -9,10 +9,10 @@
  */
 
 import { useState, useEffect, useRef } from 'react';
-import { Room, RoomEvent, Track } from 'livekit-client';
+import { Room, RoomEvent, Track, type RemoteTrack, type RemoteTrackPublication, type RemoteParticipant } from 'livekit-client';
 
 /** Compute RMS (root mean square) amplitude from an AnalyserNode. Returns 0-1. */
-function getRMS(analyser: AnalyserNode, buffer: any): number {
+function getRMS(analyser: AnalyserNode, buffer: Float32Array<ArrayBuffer>): number {
   analyser.getFloatTimeDomainData(buffer);
   let sum = 0;
   for (let i = 0; i < buffer.length; i++) sum += buffer[i] * buffer[i];
@@ -45,8 +45,8 @@ export function useAudioLevelMonitor(room: Room | null, isConnected: boolean) {
     }
 
     let localAnalyser: AnalyserNode | null = null;
-    let localBuffer: Float32Array | null = null;
-    const remoteAnalysers = new Map<string, { analyser: AnalyserNode; buffer: Float32Array }>();
+    let localBuffer: Float32Array<ArrayBuffer> | null = null;
+    const remoteAnalysers = new Map<string, { analyser: AnalyserNode; buffer: Float32Array<ArrayBuffer> }>();
     let rafId = 0;
     let disposed = false;
 
@@ -89,7 +89,7 @@ export function useAudioLevelMonitor(room: Room | null, isConnected: boolean) {
     }
 
     // Listen for new remote audio tracks
-    const onTrackSubscribed = (track: any, publication: any, participant: any) => {
+    const onTrackSubscribed = (track: RemoteTrack, publication: RemoteTrackPublication, participant: RemoteParticipant) => {
       if (track.kind === Track.Kind.Audio && track.mediaStreamTrack) {
         setupRemoteAnalyser(track.mediaStreamTrack, `${participant.identity}-${publication.trackSid}`);
       }
@@ -97,7 +97,7 @@ export function useAudioLevelMonitor(room: Room | null, isConnected: boolean) {
     room.on(RoomEvent.TrackSubscribed, onTrackSubscribed);
 
     // Clean up stale analysers when tracks are unsubscribed
-    const onTrackUnsubscribed = (track: any, publication: any, participant: any) => {
+    const onTrackUnsubscribed = (_track: RemoteTrack, publication: RemoteTrackPublication, participant: RemoteParticipant) => {
       const key = `${participant.identity}-${publication.trackSid}`;
       remoteAnalysers.delete(key);
     };

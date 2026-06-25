@@ -11,7 +11,7 @@ import { useConsole } from "@/contexts/ConsoleContext"
 
 export function Console() {
   const { logs, addLog, clearLogs: clearConsoleLogs } = useConsole()
-  const [authState, setAuthState] = React.useState<any>(null)
+  const [authState, setAuthState] = React.useState<{ isAuthenticated: boolean; apiKey?: string } | null>(null)
   const [apiTest, setApiTest] = React.useState<{ status: string; message: string } | null>(null)
 
   // Fetch auth state
@@ -33,9 +33,10 @@ export function Console() {
         setApiTest({ status: "error", message: `HTTP ${response.status}: ${response.statusText}` })
         addLog("error", `API test failed: HTTP ${response.status}`)
       }
-    } catch (error: any) {
-      setApiTest({ status: "error", message: error.message || "Connection failed" })
-      addLog("error", `API test error: ${error.message}`)
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : "Connection failed"
+      setApiTest({ status: "error", message })
+      addLog("error", `API test error: ${message}`)
     }
   }
 

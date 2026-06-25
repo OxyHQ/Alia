@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import apiClient from '../api/client';
 import { API_ROUTES } from '../api/routes';
+import { errorMessage as getErrorMessage } from '../errors/error-utils';
 
 export interface Skill {
   _id: string;
@@ -50,9 +51,9 @@ export const useSkillsStore = create<SkillsStoreState>((set) => ({
       set({ loading: true, error: null });
       const res = await apiClient.get(API_ROUTES.skills.list, { params });
       set({ skills: res.data.skills, loading: false });
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Error loading skills:', error);
-      set({ error: error.message, loading: false });
+      set({ error: getErrorMessage(error), loading: false });
     }
   },
 
@@ -60,7 +61,7 @@ export const useSkillsStore = create<SkillsStoreState>((set) => ({
     try {
       const res = await apiClient.get(API_ROUTES.skills.me);
       set({ mySkills: res.data.skills });
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Error loading my skills:', error);
     }
   },

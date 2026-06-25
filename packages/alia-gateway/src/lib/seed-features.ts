@@ -8,6 +8,7 @@
  */
 
 import { Feature } from '../models/feature.js';
+import { errorCode } from './error-handler';
 import { PlanFeature } from '../models/plan-feature.js';
 import { connectDB } from './db';
 import { log } from './logger';
@@ -257,8 +258,8 @@ export async function seedFeatures(): Promise<{ seeded: number; skipped: number 
       } else {
         skipped++;
       }
-    } catch (error: any) {
-      if (error.code === 11000) {
+    } catch (error: unknown) {
+      if (errorCode(error) === 11000) {
         skipped++;
       } else {
         log.seed.error({ err: error, featureId: f.featureId }, 'Error seeding feature');

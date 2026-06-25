@@ -1,7 +1,34 @@
 import * as vscode from 'vscode';
 import OpenAI from 'openai';
-import { fileTools, ToolExecutor } from './tools';
+import { fileTools, ToolExecutor, type EditorContext } from './tools';
 import type { AliaAuthenticationProvider } from './authProvider';
+import { errorMessage, errorName, errorStatus } from './errors';
+
+/** Alia API streams an extra `alia_meta` field on chunks; not part of the OpenAI type. */
+type AliaMetaChunk = OpenAI.Chat.ChatCompletionChunk & {
+  alia_meta?: { synthetic?: boolean };
+};
+
+/** Codea only deals with function tool calls (not custom tool calls). */
+type FunctionToolCall = OpenAI.Chat.ChatCompletionMessageFunctionToolCall;
+
+/** A model entry from the gateway `/v1/models` listing (forwarded to the webview). */
+interface ModelInfo {
+  id: string;
+  [key: string]: unknown;
+}
+
+/**
+ * The terminal `executedCommands` history is a proposed VS Code API not present in
+ * the stable `TerminalShellIntegration` type, so we describe the shape we read.
+ */
+interface ShellExecutionRecord {
+  commandLine?: string;
+  read(): Promise<string>;
+}
+interface ExtendedShellIntegration {
+  executedCommands?: ShellExecutionRecord[];
+}
 
 /** Patterns that indicate a synthetic/error response from the backend */
 const SYNTHETIC_ERROR_PATTERNS = [
@@ -112,13 +139,13 @@ export class CodeaChatViewProvider implements vscode.WebviewViewProvider {
     await this.processConversation(baseUrl, accessToken, model, clientContext);
   }
 
-  private async fetchModels(baseUrl: string): Promise<any[]> {
+  private async fetchModels(baseUrl: string): Promise<ModelInfo[]> {
     const url = `${baseUrl}/v1/models?category=coding`;
 
     try {
       const response = await fetch(url);
       if (!response.ok) return [];
-      const parsed = await response.json() as { data?: any[] };
+      const parsed = await response.json() as { data?: ModelInfo[] };
       return parsed.data || [];
     } catch (e) {
       return [];
@@ -341,9 +368,10 @@ export class CodeaChatViewProvider implements vscode.WebviewViewProvider {
         const terminal = vscode.window.activeTerminal;
         if (terminal) {
           try {
-            const shellIntegration = (terminal as any).shellIntegration;
-            if (shellIntegration) {
-              const execution = shellIntegration.executedCommands?.[shellIntegration.executedCommands.length - 1];
+            const shellIntegration = terminal.shellIntegration as ExtendedShellIntegration | undefined;
+            const executedCommands = shellIntegration?.executedCommands;
+            if (executedCommands && executedCommands.length > 0) {
+              const execution = executedCommands[executedCommands.length - 1];
               if (execution) {
                 const output = await execution.read();
                 if (output) {
@@ -612,7 +640,7 @@ export class CodeaChatViewProvider implements vscode.WebviewViewProvider {
     await this.processConversation(baseUrl, accessToken, model, clientContext);
   }
 
-  private buildClientContext(mode: string, context: any): string {
+  private buildClientContext(mode: string, context: EditorContext): string {
     // Build VS Code specific context to send to the backend
     let clientContext = `# VS Code Editor Context
 
@@ -655,8 +683,8 @@ You are running inside Visual Studio Code, Microsoft's popular code editor.
       clientContext += `\n\n=== WORKSPACE STRUCTURE ===\n\`\`\`\n${context.workspaceStructure}\n\`\`\``;
     }
 
-    if (context.openTabs?.length > 0) {
-      clientContext += `\n\n=== CURRENTLY OPEN FILES ===\n${context.openTabs.map((f: string) => `- ${f}`).join('\n')}`;
+    if (context.openTabs && context.openTabs.length > 0) {
+      clientContext += `\n\n=== CURRENTLY OPEN FILES ===\n${context.openTabs.map((f) => `- ${f}`).join('\n')}`;
     }
 
     if (context.openFile) {
@@ -691,7 +719,7 @@ You are running inside Visual Studio Code, Microsoft's popular code editor.
 
       try {
         await makeRequest(currentToken);
-      } catch (error: any) {
+      } catch (error: unknown) {
         // On synthetic error, auto-retry once after a short delay
         if (error instanceof SyntheticErrorSignal) {
           console.log('[Codea] Synthetic error detected, retrying in 2s...');
@@ -705,7 +733,7 @@ You are running inside Visual Studio Code, Microsoft's popular code editor.
 
           try {
             await makeRequest(currentToken);
-          } catch (retryError: any) {
+          } catch (retryError: unknown) {
             // Second attempt also failed — show as retryable error
             if (retryError instanceof SyntheticErrorSignal) {
               this._view?.webview.postMessage({
@@ -722,7 +750,7 @@ You are running inside Visual Studio Code, Microsoft's popular code editor.
         }
 
         // On 401, try refreshing the token and retry once
-        if (error?.status === 401 || error?.message?.includes('401')) {
+        if (errorStatus(error) === 401 || errorMessage(error).includes('401')) {
           const refreshed = await this._authProvider.refreshToken();
           if (refreshed) {
             const newToken = await this._authProvider.getAccessToken();
@@ -738,14 +766,14 @@ You are running inside Visual Studio Code, Microsoft's popular code editor.
       }
 
       this._view?.webview.postMessage({ type: 'endAssistantMessage' });
-    } catch (error: any) {
-      if (error.name !== 'AbortError') {
-        const errorMessage = this.formatErrorMessage(error);
+    } catch (error: unknown) {
+      if (errorName(error) !== 'AbortError') {
+        const errorMsg = this.formatErrorMessage(error);
         this._view?.webview.postMessage({
           type: 'error',
-          message: errorMessage
+          message: errorMsg
         });
-        vscode.window.showErrorMessage(`Codea: ${errorMessage}`);
+        vscode.window.showErrorMessage(`Codea: ${errorMsg}`);
       }
     } finally {
       this._isProcessing = false;
@@ -773,14 +801,14 @@ You are running inside Visual Studio Code, Microsoft's popular code editor.
     );
 
     let assistantMessage = '';
-    let toolCalls: OpenAI.Chat.ChatCompletionMessageToolCall[] = [];
+    let toolCalls: FunctionToolCall[] = [];
     let detectedSynthetic = false;
 
     for await (const chunk of stream) {
       if (!this._isProcessing) break;
 
       // Detect synthetic responses via alia_meta
-      if ((chunk as any).alia_meta?.synthetic) {
+      if ((chunk as AliaMetaChunk).alia_meta?.synthetic) {
         detectedSynthetic = true;
       }
 
@@ -804,15 +832,15 @@ You are running inside Visual Studio Code, Microsoft's popular code editor.
               id: toolCall.id || '',
               type: 'function',
               function: { name: toolCall.function?.name || '', arguments: '' }
-            } as OpenAI.Chat.ChatCompletionMessageToolCall;
+            } as FunctionToolCall;
           }
 
           if (toolCall.function?.name) {
-            (toolCalls[index] as any).function.name = toolCall.function.name;
+            toolCalls[index].function.name = toolCall.function.name;
           }
 
           if (toolCall.function?.arguments) {
-            (toolCalls[index] as any).function.arguments += toolCall.function.arguments;
+            toolCalls[index].function.arguments += toolCall.function.arguments;
           }
 
           if (toolCall.id) {
@@ -827,7 +855,7 @@ You are running inside Visual Studio Code, Microsoft's popular code editor.
       throw new SyntheticErrorSignal(assistantMessage.trim());
     }
 
-    const validToolCalls = toolCalls.filter(tc => tc && tc.id && (tc as any).function && (tc as any).function.name);
+    const validToolCalls = toolCalls.filter(tc => tc && tc.id && tc.function && tc.function.name);
 
     if (assistantMessage || validToolCalls.length > 0) {
       const assistantMsg: OpenAI.Chat.ChatCompletionAssistantMessageParam = {
@@ -842,17 +870,17 @@ You are running inside Visual Studio Code, Microsoft's popular code editor.
 
     if (validToolCalls.length > 0) {
       for (const toolCall of validToolCalls) {
-        const toolName = (toolCall as any).function.name;
-        let args: any = {};
+        const toolName = toolCall.function.name;
+        let args: Record<string, unknown> = {};
         try {
-          args = JSON.parse((toolCall as any).function.arguments || '{}');
+          args = JSON.parse(toolCall.function.arguments || '{}') as Record<string, unknown>;
         } catch (e) {
-          console.error('[Codea] Failed to parse tool arguments:', (toolCall as any).function.arguments, e);
+          console.error('[Codea] Failed to parse tool arguments:', toolCall.function.arguments, e);
           continue;
         }
 
         if (toolName === 'set_mode') {
-          this._currentMode = args.mode;
+          this._currentMode = String(args.mode ?? this._currentMode);
           this._view?.webview.postMessage({
             type: 'modeChanged',
             mode: this._currentMode
@@ -881,8 +909,8 @@ You are running inside Visual Studio Code, Microsoft's popular code editor.
             success: result.success,
             result: result.result.slice(0, 500) + (result.result.length > 500 ? '...' : '')
           });
-        } catch (error: any) {
-          const errorMsg = error.message || String(error);
+        } catch (error: unknown) {
+          const errorMsg = errorMessage(error);
           this._messages.push({
             role: 'tool',
             tool_call_id: toolCall.id,
@@ -930,13 +958,13 @@ You are running inside Visual Studio Code, Microsoft's popular code editor.
     );
 
     let assistantMessage = '';
-    let toolCalls: OpenAI.Chat.ChatCompletionMessageToolCall[] = [];
+    let toolCalls: FunctionToolCall[] = [];
     let detectedSynthetic = false;
 
     for await (const chunk of stream) {
       if (!this._isProcessing) break;
 
-      if ((chunk as any).alia_meta?.synthetic) {
+      if ((chunk as AliaMetaChunk).alia_meta?.synthetic) {
         detectedSynthetic = true;
       }
 
@@ -959,15 +987,15 @@ You are running inside Visual Studio Code, Microsoft's popular code editor.
               id: toolCall.id || '',
               type: 'function',
               function: { name: toolCall.function?.name || '', arguments: '' }
-            } as OpenAI.Chat.ChatCompletionMessageToolCall;
+            } as FunctionToolCall;
           }
 
           if (toolCall.function?.name) {
-            (toolCalls[index] as any).function.name = toolCall.function.name;
+            toolCalls[index].function.name = toolCall.function.name;
           }
 
           if (toolCall.function?.arguments) {
-            (toolCalls[index] as any).function.arguments += toolCall.function.arguments;
+            toolCalls[index].function.arguments += toolCall.function.arguments;
           }
 
           if (toolCall.id) {
@@ -982,7 +1010,7 @@ You are running inside Visual Studio Code, Microsoft's popular code editor.
       throw new SyntheticErrorSignal(assistantMessage.trim());
     }
 
-    const validToolCalls = toolCalls.filter(tc => tc && tc.id && (tc as any).function && (tc as any).function.name);
+    const validToolCalls = toolCalls.filter(tc => tc && tc.id && tc.function && tc.function.name);
 
     if (assistantMessage || validToolCalls.length > 0) {
       const assistantMsg: OpenAI.Chat.ChatCompletionAssistantMessageParam = {
@@ -997,16 +1025,16 @@ You are running inside Visual Studio Code, Microsoft's popular code editor.
 
     if (validToolCalls.length > 0) {
       for (const toolCall of validToolCalls) {
-        const toolName = (toolCall as any).function.name;
-        let args: any = {};
+        const toolName = toolCall.function.name;
+        let args: Record<string, unknown> = {};
         try {
-          args = JSON.parse((toolCall as any).function.arguments || '{}');
+          args = JSON.parse(toolCall.function.arguments || '{}') as Record<string, unknown>;
         } catch (e) {
           continue;
         }
 
         if (toolName === 'set_mode') {
-          this._currentMode = args.mode;
+          this._currentMode = String(args.mode ?? this._currentMode);
           this._view?.webview.postMessage({
             type: 'modeChanged',
             mode: this._currentMode
@@ -1035,8 +1063,8 @@ You are running inside Visual Studio Code, Microsoft's popular code editor.
             success: result.success,
             result: result.result.slice(0, 500)
           });
-        } catch (error: any) {
-          const errorMsg = error.message || String(error);
+        } catch (error: unknown) {
+          const errorMsg = errorMessage(error);
           this._messages.push({
             role: 'tool',
             tool_call_id: toolCall.id,
@@ -1056,8 +1084,8 @@ You are running inside Visual Studio Code, Microsoft's popular code editor.
     }
   }
 
-  private formatErrorMessage(error: Error): string {
-    const message = error.message || 'An error occurred';
+  private formatErrorMessage(error: unknown): string {
+    const message = errorMessage(error, 'An error occurred');
 
     if (message.includes('402') || message.toLowerCase().includes('insufficient credits')) {
       return 'Insufficient credits. Please add more credits at alia.onl';

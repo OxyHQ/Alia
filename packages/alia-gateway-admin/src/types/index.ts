@@ -209,7 +209,7 @@ export interface AdminTransaction {
   credits: number;
   status: 'pending' | 'completed' | 'failed' | 'refunded';
   description?: string;
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
   createdAt: string;
   updatedAt: string;
 }
@@ -281,3 +281,23 @@ export const ALIA_TIERS = [
 ] as const;
 
 export type AliaTier = typeof ALIA_TIERS[number];
+
+/** Standard `{ data, ... }` envelope returned by the gateway API. */
+export interface ApiEnvelope<T> {
+  data?: T;
+  success?: boolean;
+  error?: string;
+  message?: string;
+}
+
+export interface PaginationMeta {
+  page: number;
+  limit: number;
+  totalCount: number;
+  totalPages: number;
+}
+
+export interface PaginatedData<T> {
+  items?: T[];
+  pagination?: PaginationMeta;
+}

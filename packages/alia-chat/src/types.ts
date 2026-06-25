@@ -42,7 +42,7 @@ export interface PendingPlan {
 export interface ChatMessage {
   id: string;
   role: 'user' | 'assistant' | 'system';
-  content: string | Array<{ type: string; [key: string]: any }>;
+  content: string | Array<{ type: string; [key: string]: unknown }>;
   toolInvocations?: ToolInvocation[];
   createdAt: number;
   /** Extended thinking / reasoning content */
@@ -66,8 +66,8 @@ export interface ChatMessage {
 export interface ToolInvocation {
   toolName: string;
   state: 'call' | 'partial-call' | 'result';
-  args?: Record<string, any>;
-  result?: any;
+  args?: Record<string, unknown>;
+  result?: unknown;
   /** OpenAI-format tool call ID for matching calls to results */
   toolCallId?: string;
 }
@@ -81,7 +81,7 @@ export interface VoiceToolInvocation {
   toolCallId: string;
   toolName: string;
   state: 'call' | 'result';
-  args?: any;
+  args?: Record<string, unknown>;
 }
 
 export interface VoiceMessage {

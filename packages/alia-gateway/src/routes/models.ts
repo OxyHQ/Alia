@@ -4,6 +4,7 @@
  */
 
 import express, { Request, Response } from 'express';
+import { errorMessage } from '../lib/error-handler';
 import { ModelConfig } from '../models/model-config.js';
 import { broadcastModelsUpdate } from '../lib/broadcast-helpers.js';
 import { log } from '../lib/logger.js';
@@ -21,7 +22,7 @@ router.get('/', async (req: Request, res: Response) => {
     const { provider, aliaTier, active, deprecated } = req.query;
 
     // Build query
-    const query: any = {};
+    const query: Record<string, unknown> = {};
     if (provider) query.provider = provider;
     if (aliaTier) query.aliaTier = aliaTier;
     if (active !== undefined) query.isActive = active === 'true';
@@ -35,11 +36,11 @@ router.get('/', async (req: Request, res: Response) => {
       count: models.length,
       data: models,
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     log.models.error({ err: error }, 'Error listing models');
     res.status(500).json({
       success: false,
-      error: error.message,
+      error: errorMessage(error),
       code: 'INTERNAL_ERROR',
     });
   }
@@ -65,11 +66,11 @@ router.get('/by-tier/:tier', async (req: Request, res: Response) => {
       count: models.length,
       data: models,
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     log.models.error({ err: error }, 'Error getting models by tier');
     res.status(500).json({
       success: false,
-      error: error.message,
+      error: errorMessage(error),
       code: 'INTERNAL_ERROR',
     });
   }
@@ -97,11 +98,11 @@ router.get('/:provider/:modelId', async (req: Request, res: Response) => {
       success: true,
       data: model,
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     log.models.error({ err: error }, 'Error getting model');
     res.status(500).json({
       success: false,
-      error: error.message,
+      error: errorMessage(error),
       code: 'INTERNAL_ERROR',
     });
   }
@@ -138,11 +139,11 @@ router.post('/', async (req: Request, res: Response) => {
     });
 
     broadcastModelsUpdate(modelData.provider);
-  } catch (error: any) {
+  } catch (error: unknown) {
     log.models.error({ err: error }, 'Error creating model');
     res.status(500).json({
       success: false,
-      error: error.message,
+      error: errorMessage(error),
       code: 'INTERNAL_ERROR',
     });
   }
@@ -181,11 +182,11 @@ router.patch('/:provider/:modelId', async (req: Request, res: Response) => {
     });
 
     broadcastModelsUpdate(provider as string);
-  } catch (error: any) {
+  } catch (error: unknown) {
     log.models.error({ err: error }, 'Error updating model');
     res.status(500).json({
       success: false,
-      error: error.message,
+      error: errorMessage(error),
       code: 'INTERNAL_ERROR',
     });
   }
@@ -215,11 +216,11 @@ router.delete('/:provider/:modelId', async (req: Request, res: Response) => {
     });
 
     broadcastModelsUpdate(provider as string);
-  } catch (error: any) {
+  } catch (error: unknown) {
     log.models.error({ err: error }, 'Error deleting model');
     res.status(500).json({
       success: false,
-      error: error.message,
+      error: errorMessage(error),
       code: 'INTERNAL_ERROR',
     });
   }

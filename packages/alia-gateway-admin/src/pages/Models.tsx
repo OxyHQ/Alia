@@ -48,7 +48,7 @@ import {
   AlertTriangle,
   X,
 } from 'lucide-react';
-import type { ModelConfig, AliaModel } from '@/types';
+import type { ModelConfig, AliaModel, ApiEnvelope } from '@/types';
 import { FallbackChain, FallbackChainEditable } from '@/components/models/FallbackChain';
 
 export function ModelsPage() {
@@ -126,8 +126,8 @@ export function ModelsPage() {
   // Use real-time data if available, otherwise fall back to polled data
   const providerModelsData = realtimeProviderModelsData || polledProviderModelsData;
 
-  const providerModels: ModelConfig[] = (providerModelsData as any)?.data || [];
-  const aliaModels: AliaModel[] = (polledAliaModelsData as any)?.data || [];
+  const providerModels: ModelConfig[] = (providerModelsData as ApiEnvelope<ModelConfig[]>)?.data || [];
+  const aliaModels: AliaModel[] = (polledAliaModelsData as ApiEnvelope<AliaModel[]>)?.data || [];
 
   // Create provider model mutation
   const createProviderModelMutation = useMutation({

@@ -1,4 +1,5 @@
 import { Router, type Router as RouterType } from 'express';
+import { errorMessage } from '../shared/utils';
 import { getOrCreateContext, takeScreenshot, closeContext } from '../browser/manager';
 
 export const browserRouter: RouterType = Router();
@@ -15,8 +16,8 @@ browserRouter.post('/session/:sessionId/navigate', async (req, res) => {
     await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 15000 });
     const title = await page.title();
     res.json({ title, url: page.url() });
-  } catch (err: any) {
-    res.status(500).json({ error: err.message });
+  } catch (err: unknown) {
+    res.status(500).json({ error: errorMessage(err) });
   }
 });
 
@@ -30,8 +31,8 @@ browserRouter.get('/session/:sessionId/screenshot', async (req, res) => {
     }
     res.set('Content-Type', 'image/jpeg');
     res.send(screenshot);
-  } catch (err: any) {
-    res.status(500).json({ error: err.message });
+  } catch (err: unknown) {
+    res.status(500).json({ error: errorMessage(err) });
   }
 });
 
@@ -40,7 +41,7 @@ browserRouter.post('/session/:sessionId/close', async (req, res) => {
   try {
     await closeContext(req.params.sessionId);
     res.json({ closed: true });
-  } catch (err: any) {
-    res.status(500).json({ error: err.message });
+  } catch (err: unknown) {
+    res.status(500).json({ error: errorMessage(err) });
   }
 });

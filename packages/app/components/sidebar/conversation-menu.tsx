@@ -5,6 +5,7 @@ import { MoreHorizontal, Pin, Star } from "lucide-react-native";
 import type { Conversation } from "@/lib/hooks/use-conversations";
 import type { Project } from "@/lib/stores/projects-store";
 import type { Folder } from "@/lib/stores/folders-store";
+import type { StopPropagationEvent } from '@/lib/types/events';
 
 interface ConversationMenuProps {
   conversation: Conversation;
@@ -14,11 +15,11 @@ interface ConversationMenuProps {
   isPinned: boolean;
   projects: Project[];
   folders: Folder[];
-  onToggleFavorite: (id: string, e: any) => void;
-  onTogglePin: (id: string, e: any) => void;
-  onMoveToProject: (convId: string, projectId: string | null, e: any) => void;
-  onMoveToFolder: (convId: string, folderId: string | null, e: any) => void;
-  onDelete: (id: string, e: any) => void;
+  onToggleFavorite: (id: string, e: StopPropagationEvent) => void;
+  onTogglePin: (id: string, e: StopPropagationEvent) => void;
+  onMoveToProject: (convId: string, projectId: string | null, e: StopPropagationEvent) => void;
+  onMoveToFolder: (convId: string, folderId: string | null, e: StopPropagationEvent) => void;
+  onDelete: (id: string, e: StopPropagationEvent) => void;
 }
 
 export const ConversationMenu = React.memo<ConversationMenuProps>(({

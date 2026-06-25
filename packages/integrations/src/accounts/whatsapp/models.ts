@@ -12,8 +12,8 @@ export interface IWhatsAppSession extends Document {
   phoneNumber?: string;
   displayName?: string;
   status: SessionStatus;
-  authState: any; // Serialized Baileys auth creds
-  authKeys: Map<string, any>; // Serialized Baileys auth keys (pre-keys, sessions, sender-keys, etc.)
+  authState: unknown; // Serialized Baileys auth creds
+  authKeys: Map<string, unknown>; // Serialized Baileys auth keys (pre-keys, sessions, sender-keys, etc.)
   lastConnected?: Date;
   lastDisconnected?: Date;
   lastQR?: string;

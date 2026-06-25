@@ -11,6 +11,7 @@ import { useRouter } from "expo-router";
 import { useUIStore } from "@/lib/stores/ui-store";
 import { useTranslation } from "@/hooks/useTranslation";
 import { toast } from "@/components/sonner";
+import { errorMessage as getErrorMessage } from '../lib/errors/error-utils';
 
 function PeriodToggle({ value, onChange }: { value: UsagePeriod; onChange: (p: UsagePeriod) => void }) {
   return (
@@ -219,8 +220,8 @@ export function CreditsPanel() {
       if (url) {
         await Linking.openURL(url);
       }
-    } catch (error: any) {
-      toast.error(error.message || t('billing.failedCheckout'));
+    } catch (error: unknown) {
+      toast.error(getErrorMessage(error) || t('billing.failedCheckout'));
     }
   };
 

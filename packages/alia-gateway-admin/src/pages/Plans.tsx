@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@oxyhq/auth';
 import { apiClient } from '@/lib/api/client';
+import { getErrorMessage } from '@/lib/utils';
 import type { SubscriptionPlan, AliaModel } from '@/types';
 import {
   Table,
@@ -158,7 +159,7 @@ export function PlansPage() {
       queryClient.invalidateQueries({ queryKey: ['plans'] });
       setEditOpen(false);
     },
-    onError: (err: any) => alert(err?.response?.data?.error || err.message || 'Failed to create plan'),
+    onError: (err: unknown) => alert(getErrorMessage(err, 'Failed to create plan')),
   });
 
   const updateMutation = useMutation({
@@ -169,7 +170,7 @@ export function PlansPage() {
       setEditOpen(false);
       setSelectedPlan(null);
     },
-    onError: (err: any) => alert(err?.response?.data?.error || err.message || 'Failed to update plan'),
+    onError: (err: unknown) => alert(getErrorMessage(err, 'Failed to update plan')),
   });
 
   const deleteMutation = useMutation({
@@ -179,7 +180,7 @@ export function PlansPage() {
       setDeleteOpen(false);
       setSelectedPlan(null);
     },
-    onError: (err: any) => alert(err?.response?.data?.error || err.message || 'Failed to delete plan'),
+    onError: (err: unknown) => alert(getErrorMessage(err, 'Failed to delete plan')),
   });
 
   // Handlers

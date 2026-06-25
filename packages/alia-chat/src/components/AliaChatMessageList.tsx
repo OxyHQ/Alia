@@ -32,7 +32,12 @@ import { getTextFromContent, getImagesFromContent } from '../lib/content-utils';
 import type { ChatMessage, ToolInvocation } from '../types';
 
 // Resolve expo-image once at module load (optional peer dep)
-let ExpoImage: any = null;
+type ExpoImageProps = {
+  source: { uri: string };
+  className?: string;
+  contentFit?: string;
+};
+let ExpoImage: React.ComponentType<ExpoImageProps> | null = null;
 try { ExpoImage = require('expo-image').Image; } catch {}
 
 type PlaybackState = 'idle' | 'loading' | 'playing' | 'paused' | 'error';
@@ -433,7 +438,7 @@ export function AliaChatMessageList({
   useEffect(() => {
     if (messages.length > 0) {
       const timer = setTimeout(() => {
-        (scrollRef.current as any)?.scrollToEnd?.({ animated: true });
+        (scrollRef.current as { scrollToEnd?: (opts: { animated: boolean }) => void } | null)?.scrollToEnd?.({ animated: true });
       }, 100);
       return () => clearTimeout(timer);
     }

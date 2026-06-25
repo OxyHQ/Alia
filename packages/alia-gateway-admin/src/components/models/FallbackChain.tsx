@@ -46,7 +46,7 @@ import {
   CircleAlert,
   CircleX,
 } from 'lucide-react';
-import type { HealthMetrics, AliaModel } from '@/types';
+import type { HealthMetrics, AliaModel, ApiEnvelope } from '@/types';
 
 // ─── Types ───────────────────────────────────────────────────
 
@@ -401,7 +401,7 @@ function useHealthData() {
 
   const healthMap = useMemo(() => {
     const map = new Map<string, HealthMetrics>();
-    const healthData = (data as any)?.data;
+    const healthData = (data as ApiEnvelope<HealthMetrics[]>)?.data;
     if (Array.isArray(healthData)) {
       for (const h of healthData) {
         map.set(`${h.provider}:${h.modelId}`, h);

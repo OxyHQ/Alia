@@ -26,7 +26,7 @@ router.get('/', async (req: Request, res: Response) => {
   try {
     const { tier, active } = req.query;
 
-    const query: any = {};
+    const query: Record<string, unknown> = {};
     if (tier && typeof tier === 'string') query.tier = tier;
     if (active !== undefined) query.isActive = active === 'true';
 
@@ -37,7 +37,7 @@ router.get('/', async (req: Request, res: Response) => {
       count: models.length,
       data: models,
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     log.providers.error({ err: error }, 'Error listing alia models');
     res.status(500).json({
       success: false,
@@ -69,7 +69,7 @@ router.get('/:aliasModelId', async (req: Request, res: Response) => {
       success: true,
       data: model,
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     log.providers.error({ err: error }, 'Error getting alia model');
     res.status(500).json({
       success: false,
@@ -154,7 +154,7 @@ router.post('/', async (req: Request, res: Response) => {
     });
 
     broadcastAliaModelsUpdate();
-  } catch (error: any) {
+  } catch (error: unknown) {
     log.providers.error({ err: error }, 'Error creating alia model');
     res.status(500).json({
       success: false,
@@ -230,7 +230,7 @@ router.patch('/:aliasModelId', async (req: Request, res: Response) => {
     });
 
     broadcastAliaModelsUpdate();
-  } catch (error: any) {
+  } catch (error: unknown) {
     log.providers.error({ err: error }, 'Error updating alia model');
     res.status(500).json({
       success: false,
@@ -264,7 +264,7 @@ router.delete('/:aliasModelId', async (req: Request, res: Response) => {
     });
 
     broadcastAliaModelsUpdate();
-  } catch (error: any) {
+  } catch (error: unknown) {
     log.providers.error({ err: error }, 'Error deleting alia model');
     res.status(500).json({
       success: false,

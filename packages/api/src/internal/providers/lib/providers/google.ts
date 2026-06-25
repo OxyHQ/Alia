@@ -1,6 +1,17 @@
 import type { KeyConfig, OpenAIMessage, OpenAITool, Provider, ProviderConfig } from '../types';
 import { log } from '../../../../lib/logger.js';
 
+// Narrow shapes for the Gemini `generateContent` request body.
+interface GeminiPart {
+  text?: string;
+  functionCall?: { name?: string; args: Record<string, unknown> };
+  functionResponse?: { name: string; response: unknown };
+}
+interface GeminiContent {
+  role: 'user' | 'model';
+  parts: GeminiPart[];
+}
+
 // ============== GEMINI (Google) ==============
 export const googleProvider: Provider = {
   name: 'Google Gemini',
@@ -12,37 +23,37 @@ export const googleProvider: Provider = {
 
     // Convertir mensajes OpenAI -> Gemini
     let systemText = '';
-    const contents: any[] = [];
+    const contents: GeminiContent[] = [];
 
     for (const msg of messages) {
       if (msg.role === 'system') {
         systemText += (msg.content || '') + '\n';
-      } 
+      }
       else if (msg.role === 'user') {
-        const parts: any[] = [];
+        const parts: GeminiPart[] = [];
         if (typeof msg.content === 'string') {
           parts.push({ text: msg.content });
         } else if (Array.isArray(msg.content)) {
-          for (const c of msg.content) {
+          for (const c of msg.content as Array<{ type?: string; text?: string }>) {
             if (c.type === 'text') parts.push({ text: c.text });
           }
         }
         if (parts.length) contents.push({ role: 'user', parts });
       }
       else if (msg.role === 'assistant') {
-        const parts: any[] = [];
+        const parts: GeminiPart[] = [];
         if (msg.content) parts.push({ text: msg.content as string });
         if (msg.tool_calls) {
           for (const tc of msg.tool_calls) {
-            let args = {};
-            try { args = JSON.parse(tc.function?.arguments || '{}'); } catch { /* ignore parse errors */ }
+            let args: Record<string, unknown> = {};
+            try { args = JSON.parse(tc.function?.arguments || '{}') as Record<string, unknown>; } catch { /* ignore parse errors */ }
             parts.push({ functionCall: { name: tc.function?.name, args } });
           }
         }
         if (parts.length) contents.push({ role: 'model', parts });
       }
       else if (msg.role === 'tool') {
-        let response: any = msg.content;
+        let response: unknown = msg.content;
         try { response = JSON.parse(msg.content as string); } catch { response = { result: msg.content }; }
         contents.push({ role: 'user', parts: [{ functionResponse: { name: msg.name || 'unknown', response } }] });
       }
@@ -72,7 +83,7 @@ export const googleProvider: Provider = {
       toolInstructions += '\nWhen you need to perform an action, respond with the tool name and required parameters.';
     }
 
-    const body: any = {
+    const body: Record<string, unknown> = {
       contents,
       generationConfig: {
         temperature: config?.temperature ?? 0.7,

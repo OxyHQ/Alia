@@ -5,6 +5,7 @@ import { Server as WebSocketServer } from 'ws';
 import http from 'http';
 import type { AccountAdapter } from './accounts/types';
 import type { BotAdapter } from './bots/types';
+import { setWss, type SessionWebSocket } from './realtime/wss-global';
 
 const PORT = Number(process.env.PORT) || 3005;
 const INTERNAL_PORT = 3005; // Must match DO App Platform internal_ports + health_check.port
@@ -99,7 +100,7 @@ async function main() {
 
   // Health check
   app.get('/health', async (_req, res) => {
-    let mcpSessions: any[] = [];
+    let mcpSessions: import('./mcp/manager').McpSessionSummary[] = [];
     try {
       const { listSessions } = await import('./mcp/manager');
       mcpSessions = listSessions();
@@ -192,14 +193,14 @@ async function main() {
         const msg = JSON.parse(data.toString());
         // Handle subscribe/unsubscribe to session streams
         if (msg.type === 'subscribe') {
-          (ws as any).sessionId = msg.sessionId;
+          (ws as SessionWebSocket).sessionId = msg.sessionId;
         }
       } catch {}
     });
   });
 
   // Make WSS available for terminal/browser managers
-  (global as any).__wss = wss;
+  setWss(wss);
 
   // Start HTTP server FIRST so health checks pass during adapter initialization
   await new Promise<void>((resolve) => {

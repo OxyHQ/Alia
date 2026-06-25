@@ -11,6 +11,7 @@ import { promisify } from 'util'
 import { clipboard, shell, desktopCapturer, BrowserWindow } from 'electron'
 import { Stagehand } from '@browserbasehq/stagehand'
 import Store from 'electron-store'
+import { errorMessage, errorCode } from './errors'
 
 const execAsync = promisify(exec)
 const store = new Store()
@@ -150,8 +151,8 @@ export class ToolExecutor {
     try {
       const { stdout } = await execAsync(command, { cwd: searchPath, maxBuffer: 1024 * 1024 })
       return stdout.slice(0, 5000)
-    } catch (error: any) {
-      if (error.code === 1) {
+    } catch (error: unknown) {
+      if (errorCode(error) === 1) {
         return 'No matches found'
       }
       throw error
@@ -257,8 +258,9 @@ export class ToolExecutor {
 
       // Return data URL if no path specified
       return dataURL
-    } catch (error: any) {
-      if (error.message?.includes('not allowed') || error.message?.includes('permission')) {
+    } catch (error: unknown) {
+      const msg = errorMessage(error)
+      if (msg.includes('not allowed') || msg.includes('permission')) {
         if (process.platform === 'darwin') {
           throw new Error('Screen recording permission denied. Please enable screen recording for Alia Cowork in System Preferences → Security & Privacy → Screen Recording, then restart the app.')
         } else if (process.platform === 'win32') {
@@ -348,8 +350,8 @@ export class ToolExecutor {
       }
 
       return `Found ${uniqueApps.length} installed applications:\n\n${uniqueApps.join('\n')}`
-    } catch (error: any) {
-      return `Error listing applications: ${error.message}`
+    } catch (error: unknown) {
+      return `Error listing applications: ${errorMessage(error)}`
     }
   }
 
@@ -358,13 +360,14 @@ export class ToolExecutor {
    * Browser automation using Stagehand Agent
    * Opens a browser, performs actions, and shows preview
    */
-  async browserAction(args: any): Promise<string> {
+  async browserAction(args: Record<string, unknown>): Promise<string> {
     try {
       // Normalize args - handle multiple possible parameter names that AI might use
+      const str = (v: unknown): string | undefined => (typeof v === 'string' ? v : undefined)
       const normalizedArgs = {
-        url: args.url || undefined,
-        action: args.action || args.instruction || args.user_instruction || args.task || args.query || undefined,
-        extract: args.extract || undefined
+        url: str(args.url),
+        action: str(args.action) || str(args.instruction) || str(args.user_instruction) || str(args.task) || str(args.query),
+        extract: str(args.extract)
       }
 
       console.log('[ToolExecutor] Browser action called with:', JSON.stringify(args, null, 2))
@@ -457,7 +460,7 @@ export class ToolExecutor {
             instruction: normalizedArgs.action,
             maxSteps: 10,
             callbacks: {
-              onStepFinish: async (event: any) => {
+              onStepFinish: async (event: { finishReason?: string }) => {
                 console.log(`[ToolExecutor] Agent step finished: ${event.finishReason}`)
                 await capturePreview()
               }
@@ -483,17 +486,18 @@ export class ToolExecutor {
       await capturePreview()
 
       return result || 'Browser action completed successfully'
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('[ToolExecutor] Browser action failed:', error)
+      const msg = errorMessage(error)
 
       // Send error to frontend
       if (this.mainWindow) {
         this.mainWindow.webContents.send('browser:error', {
-          error: error.message
+          error: msg
         })
       }
 
-      throw new Error(`Browser automation failed: ${error.message}`)
+      throw new Error(`Browser automation failed: ${msg}`)
     }
   }
 
@@ -513,8 +517,8 @@ export class ToolExecutor {
         return 'Browser closed'
       }
       return 'Browser was not open'
-    } catch (error: any) {
-      throw new Error(`Failed to close browser: ${error.message}`)
+    } catch (error: unknown) {
+      throw new Error(`Failed to close browser: ${errorMessage(error)}`)
     }
   }
 

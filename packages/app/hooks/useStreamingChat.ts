@@ -15,7 +15,17 @@ import { normalizeAccessories } from '@/lib/stores/agents-store';
 import { toast } from '@/components/sonner';
 
 import type { ToolInvocation } from '@/lib/types/messages';
+import { errorMessage as getErrorMessage, errorStatus, errorCode, errorName } from '../lib/errors/error-utils';
 export type { ToolInvocation };
+
+/** Shape of an error body thrown by the streaming fetch (rate-limit / credit info). */
+interface ThrownErrorBody {
+  code?: string;
+  message?: string;
+  retryable?: boolean;
+  retryAfter?: number;
+  suggestedAction?: 'wait' | 'upgrade';
+}
 
 
 export function useStreamingChat(apiUrl: string, activeRole?: any, conversationId?: string, thinkingMode?: boolean, selectedModel?: string, skillId?: string | null, agentId?: string | null) {
@@ -238,8 +248,8 @@ Use this role to guide your responses, maintaining the specified tone, style, an
           const err = errorData.error;
           if (typeof err === 'string') {
             errorMessage = err;
-          } else if (err?.message) {
-            errorMessage = err.message;
+          } else if (getErrorMessage(err)) {
+            errorMessage = getErrorMessage(err);
           } else if (typeof errorData.details === 'string') {
             errorMessage = errorData.details;
           }
@@ -534,18 +544,18 @@ Use this role to guide your responses, maintaining the specified tone, style, an
               if (parsed.error) {
                 const err = parsed.error;
                 // Check for usage limit errors (rate limit, credits, model access)
-                if (err.code === 'MODEL_NOT_IN_PLAN' || err.code === 'INSUFFICIENT_CREDITS' || err.type === 'rate_limit_error') {
+                if (errorCode(err) === 'MODEL_NOT_IN_PLAN' || errorCode(err) === 'INSUFFICIENT_CREDITS' || err.type === 'rate_limit_error') {
                   throw new UsageLimitError({
-                    type: err.code === 'MODEL_NOT_IN_PLAN' ? 'model_access' : err.code === 'INSUFFICIENT_CREDITS' ? 'credits' : 'rate_limit',
-                    code: err.code,
-                    message: err.message,
+                    type: errorCode(err) === 'MODEL_NOT_IN_PLAN' ? 'model_access' : errorCode(err) === 'INSUFFICIENT_CREDITS' ? 'credits' : 'rate_limit',
+                    code: String(errorCode(err) ?? ''),
+                    message: getErrorMessage(err),
                     retryable: false,
                     suggestedAction: 'upgrade',
                   });
                 }
 
                 // Generic SSE error — show toast and stop
-                const msg = err.message || 'Something went wrong. Please try again.';
+                const msg = getErrorMessage(err) || 'Something went wrong. Please try again.';
                 toast.error(msg);
                 setError(new Error(msg));
                 setIsLoading(false);
@@ -759,16 +769,16 @@ Use this role to guide your responses, maintaining the specified tone, style, an
           }
         }
       }
-    } catch (e: any) {
+    } catch (e: unknown) {
       // Ignore abort errors (user cancelled)
-      if (e instanceof Error && e.name === 'AbortError') {
+      if (e instanceof Error && errorName(e) === 'AbortError') {
         return;
       }
 
       // UsageLimitError thrown from the 429/402 handler above
       // Check both instanceof AND name — Hermes can break instanceof for Error subclasses
-      if (e instanceof UsageLimitError || e?.name === 'UsageLimitError') {
-        setError(e);
+      if (e instanceof UsageLimitError || errorName(e) === 'UsageLimitError') {
+        setError(e instanceof Error ? e : new Error(getErrorMessage(e)));
         setMessages((prev) => prev.filter((m) => m.id !== assistantMessageId));
         return;
       }
@@ -776,8 +786,13 @@ Use this role to guide your responses, maintaining the specified tone, style, an
       // expoFetch may throw a non-Error object (e.g. the response body)
       // Try to detect rate limit / credit errors from the thrown object
       if (e && typeof e === 'object' && !(e instanceof Error)) {
-        const status = e.status || e.statusCode;
-        const errBody = e.error || e.body?.error || e;
+        const thrown = e as {
+          status?: number;
+          error?: ThrownErrorBody;
+          body?: { error?: ThrownErrorBody };
+        };
+        const status = thrown.status || errorStatus(e);
+        const errBody: ThrownErrorBody | undefined = thrown.error || thrown.body?.error || (thrown as ThrownErrorBody);
         if (status === 429 || status === 402 || errBody?.code === 'RATE_LIMIT_EXCEEDED' || errBody?.code === 'INSUFFICIENT_CREDITS') {
           const isCredits = status === 402 || errBody?.code === 'INSUFFICIENT_CREDITS';
           const usageError = new UsageLimitError({
@@ -797,7 +812,7 @@ Use this role to guide your responses, maintaining the specified tone, style, an
       console.error('[useStreamingChat] Error:', e);
       const finalError = e instanceof Error
         ? e
-        : new Error(typeof e === 'string' ? e : (e?.message || 'An unexpected error occurred'));
+        : new Error(typeof e === 'string' ? e : (getErrorMessage(e) || 'An unexpected error occurred'));
       setError(finalError);
 
       // Remove the empty assistant message on error

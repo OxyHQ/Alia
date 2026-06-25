@@ -7,6 +7,7 @@
  */
 
 import { ModelConfig } from '../models/model-config.js';
+import { errorCode } from './error-handler';
 import { AliaModel } from '../models/alia-model.js';
 import { ProviderKey } from '../models/provider-key.js';
 import { TIER_MODEL_MAPPINGS, ALIA_MODELS, type ModelCapabilities } from './alia-models';
@@ -53,7 +54,7 @@ export async function seedModelConfigs(): Promise<{ seeded: number; skipped: num
   // Collect unique provider+modelId combinations across all tiers
   const seen = new Set<string>();
 
-  for (const [tier, mappings] of Object.entries(TIER_MODEL_MAPPINGS) as [string, any[]][]) {
+  for (const [tier, mappings] of Object.entries(TIER_MODEL_MAPPINGS)) {
     for (const mapping of mappings) {
       const uniqueKey = `${mapping.provider}:${mapping.modelId}`;
 
@@ -122,9 +123,9 @@ export async function seedModelConfigs(): Promise<{ seeded: number; skipped: num
         }
 
         seen.add(uniqueKey);
-      } catch (error: any) {
+      } catch (error: unknown) {
         // Handle duplicate key errors gracefully (same model in multiple tiers)
-        if (error.code === 11000) {
+        if (errorCode(error) === 11000) {
           skipped++;
         } else {
           log.seed.error({ err: error, uniqueKey }, 'Error seeding ModelConfig');
@@ -183,10 +184,10 @@ export async function seedAliaModels(): Promise<{ seeded: number; skipped: numbe
       }
 
       // Determine aggregated capabilities from tier mappings
-      const hasVision = tierMappings.some((m: any) => m.capabilities?.vision);
-      const hasAudio = tierMappings.some((m: any) => m.capabilities?.audio);
-      const hasCodeExecution = tierMappings.some((m: any) => m.capabilities?.codeExecution);
-      const hasWebSearch = tierMappings.some((m: any) => m.capabilities?.webSearch);
+      const hasVision = tierMappings.some((m) => m.capabilities?.vision);
+      const hasAudio = tierMappings.some((m) => m.capabilities?.audio);
+      const hasCodeExecution = tierMappings.some((m) => m.capabilities?.codeExecution);
+      const hasWebSearch = tierMappings.some((m) => m.capabilities?.webSearch);
 
       const result = await AliaModel.updateOne(
         { aliasModelId: modelId },
@@ -220,8 +221,8 @@ export async function seedAliaModels(): Promise<{ seeded: number; skipped: numbe
       } else {
         skipped++;
       }
-    } catch (error: any) {
-      if (error.code === 11000) {
+    } catch (error: unknown) {
+      if (errorCode(error) === 11000) {
         skipped++;
       } else {
         log.seed.error({ err: error, modelId }, 'Error seeding AliaModel');

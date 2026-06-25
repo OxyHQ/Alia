@@ -118,7 +118,9 @@ export class AliaInlineCompletionProvider implements vscode.InlineCompletionItem
         throw new Error(`API error: ${response.status}`);
       }
 
-      const data = await response.json() as any;
+      const data = await response.json() as {
+        choices?: Array<{ message?: { content?: string } }>;
+      };
       const completion = data.choices?.[0]?.message?.content?.trim();
 
       if (!completion) {

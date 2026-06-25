@@ -4,6 +4,7 @@
  */
 
 import type { IPty } from 'node-pty';
+import { getWss, type SessionWebSocket } from '../realtime/wss-global';
 
 interface TerminalSession {
   pty: IPty;
@@ -133,23 +134,25 @@ function getSandboxedEnv(): Record<string, string> {
 }
 
 function broadcastTerminal(sessionId: string, data: string) {
-  const wss = (global as any).__wss;
+  const wss = getWss();
   if (!wss) return;
   const message = JSON.stringify({ type: 'terminal', sessionId, data });
   for (const client of wss.clients) {
-    if ((client as any).sessionId === sessionId && client.readyState === 1) {
-      client.send(message);
+    const ws = client as SessionWebSocket;
+    if (ws.sessionId === sessionId && ws.readyState === 1) {
+      ws.send(message);
     }
   }
 }
 
-function broadcastEvent(sessionId: string, type: string, data: any) {
-  const wss = (global as any).__wss;
+function broadcastEvent(sessionId: string, type: string, data: Record<string, unknown>) {
+  const wss = getWss();
   if (!wss) return;
   const message = JSON.stringify({ type, sessionId, ...data });
   for (const client of wss.clients) {
-    if ((client as any).sessionId === sessionId && client.readyState === 1) {
-      client.send(message);
+    const ws = client as SessionWebSocket;
+    if (ws.sessionId === sessionId && ws.readyState === 1) {
+      ws.send(message);
     }
   }
 }

@@ -5,6 +5,7 @@ import { toast } from '@/components/sonner';
 import apiClient from '../api/client';
 import { queryKeys } from './query-keys';
 import type { ToolInvocation } from '../types/messages';
+import { errorMessage as getErrorMessage, errorStatus } from '../errors/error-utils';
 
 export interface Message {
   id?: string;
@@ -76,9 +77,9 @@ async function fetchConversationsPage({ pageParam }: { pageParam?: string }): Pr
       nextCursor: response.data.nextCursor,
       hasMore: response.data.hasMore,
     };
-  } catch (error: any) {
+  } catch (error: unknown) {
     // If unauthorized, fall back to local storage
-    if (error.response?.status === 401) {
+    if (errorStatus(error) === 401) {
       const conversations = (await fetchConversations()).map((c) => ({ ...c, messages: [] as Message[] }));
       const offset = pageParam ? parseInt(pageParam) : 0;
       const limit = 20;
@@ -119,9 +120,9 @@ async function fetchConversation(id: string): Promise<Conversation> {
       createdAt: new Date(data.createdAt),
       updatedAt: new Date(data.updatedAt),
     };
-  } catch (error: any) {
+  } catch (error: unknown) {
     // If unauthorized or not found on server, fall back to local storage
-    if (error.response?.status === 401 || error.response?.status === 404) {
+    if (errorStatus(error) === 401 || errorStatus(error) === 404) {
       const stored = await AsyncStorage.getItem(CONVERSATIONS_STORAGE_KEY);
       if (stored) {
         const parsed = JSON.parse(stored);
@@ -195,9 +196,9 @@ export function useSaveConversation() {
           updatedAt: new Date(data.updatedAt),
           messages
         };
-      } catch (error: any) {
+      } catch (error: unknown) {
         // If unauthorized, save to local storage
-        if (error.response?.status === 401) {
+        if (errorStatus(error) === 401) {
           const conversations = await fetchConversations();
           const existingIndex = conversations.findIndex((c) => c.id === id);
 
@@ -274,7 +275,7 @@ export function useSaveConversation() {
       queryClient.setQueryData(queryKeys.conversations.detail(data.id), data);
     },
     onError: (error: any) => {
-      toast.error(error.message || 'Failed to save conversation');
+      toast.error(getErrorMessage(error) || 'Failed to save conversation');
     },
   });
 }
@@ -288,9 +289,9 @@ export function useDeleteConversation() {
     mutationFn: async (id: string) => {
       try {
         await apiClient.delete(`/conversations/${id}`);
-      } catch (error: any) {
+      } catch (error: unknown) {
         // If unauthorized, delete from local storage
-        if (error.response?.status === 401) {
+        if (errorStatus(error) === 401) {
           const conversations = await fetchConversations();
           const newConversations = conversations.filter((c) => c.id !== id);
           await AsyncStorage.setItem(CONVERSATIONS_STORAGE_KEY, JSON.stringify(newConversations));
@@ -318,7 +319,7 @@ export function useDeleteConversation() {
       queryClient.removeQueries({ queryKey: queryKeys.conversations.detail(id) });
     },
     onError: (error: any) => {
-      toast.error(error.message || 'Failed to delete conversation');
+      toast.error(getErrorMessage(error) || 'Failed to delete conversation');
     },
   });
 }
@@ -344,9 +345,9 @@ export function useCreateConversation() {
           updatedAt: new Date(data.updatedAt),
           messages: [],
         };
-      } catch (error: any) {
+      } catch (error: unknown) {
         // If unauthorized, create locally
-        if (error.response?.status === 401) {
+        if (errorStatus(error) === 401) {
           const { generateUUID } = await import('../utils');
           const id = generateUUID();
           const conversation: Conversation = {
@@ -403,7 +404,7 @@ export function useCreateConversation() {
       queryClient.setQueryData(queryKeys.conversations.detail(data.id), data);
     },
     onError: (error: any) => {
-      toast.error(error.message || 'Failed to create conversation');
+      toast.error(getErrorMessage(error) || 'Failed to create conversation');
     },
   });
 }

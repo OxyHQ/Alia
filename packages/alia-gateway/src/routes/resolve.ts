@@ -45,7 +45,7 @@ router.post('/', async (req: Request, res: Response) => {
         aliaModel: resolved.aliaModel,
       },
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     log.providers.error({ err: error }, 'Error resolving model');
     res.status(500).json({
       success: false,

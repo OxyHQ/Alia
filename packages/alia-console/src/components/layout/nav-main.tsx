@@ -1,5 +1,5 @@
 import { Link, useLocation } from '@tanstack/react-router';
-import { HugeiconsIcon } from '@hugeicons/react';
+import { HugeiconsIcon, type IconSvgElement } from '@hugeicons/react';
 import { ArrowRight01Icon } from '@hugeicons/core-free-icons';
 import {
   Collapsible,
@@ -20,7 +20,7 @@ import {
 interface NavItem {
   title: string;
   url: string;
-  icon: any;
+  icon: IconSvgElement;
   isActive?: boolean;
   items?: Array<{
     title: string;

@@ -45,7 +45,7 @@ const NON_PROVIDER_RETRYABLE: Set<FailoverReason> = new Set(['format', 'content_
  * Build the async-invoke input object from the standard callProviderAPI body.
  * Translates OpenAI-compatible request bodies to DO async-invoke input format.
  */
-function buildAsyncInvokeInput(modelId: string, endpoint: string, body: any): Record<string, unknown> {
+function buildAsyncInvokeInput(modelId: string, endpoint: string, body: Record<string, unknown> | undefined): Record<string, unknown> {
   // TTS: OpenAI body { input, voice, ... } → DO input { text, voice }
   if (endpoint === '/v1/audio/speech' || modelId.includes('tts')) {
     return {
@@ -56,20 +56,19 @@ function buildAsyncInvokeInput(modelId: string, endpoint: string, body: any): Re
 
   // Image generation: OpenAI body { prompt, size, n, ... } → DO input { prompt, ... }
   if (endpoint === '/v1/images/generations' || modelId.includes('sdxl') || modelId.includes('flux')) {
-    return {
-      prompt: body?.prompt ?? '',
-      ...(body?.num_images && { num_images: body.num_images }),
-      ...(body?.n && { num_images: body.n }),
-    };
+    const input: Record<string, unknown> = { prompt: body?.prompt ?? '' };
+    if (body?.num_images) input.num_images = body.num_images;
+    if (body?.n) input.num_images = body.n;
+    return input;
   }
 
   // Audio generation: pass input through
   if (modelId.includes('audio')) {
-    return body?.input ?? body ?? {};
+    return (body?.input as Record<string, unknown> | undefined) ?? body ?? {};
   }
 
   // Fallback: pass body.input or entire body
-  return body?.input ?? body ?? {};
+  return (body?.input as Record<string, unknown> | undefined) ?? body ?? {};
 }
 
 // Non-retryable error reasons (a different key won't help)
@@ -79,7 +78,7 @@ export interface ProviderAPIOptions {
   provider: string;
   modelId: string;
   endpoint: string;         // e.g. '/v1/images/generations'
-  body?: any;               // JSON body (mutually exclusive with formData)
+  body?: Record<string, unknown>;               // JSON body (mutually exclusive with formData)
   formData?: FormData;      // Multipart body (e.g. Whisper audio)
   maxAttempts?: number;     // Default: 3
   timeout?: number;         // Per-attempt timeout in ms (e.g. 30000 for Whisper)
@@ -172,7 +171,7 @@ export async function callProviderAPI<T = any>(options: ProviderAPIOptions): Pro
         'Authorization': `Bearer ${keyConfig.key}`,
       };
 
-      let fetchBody: any;
+      let fetchBody: FormData | string | undefined;
       if (formData) {
         fetchBody = formData;
       } else if (body) {
@@ -324,12 +323,13 @@ export async function callAliaModelAPI<T = any>(options: AliaModelAPIOptions): P
         finalModelId: explicitModel,
         usedFallback: false,
       };
-    } catch (err: any) {
-      const reason: FailoverReason = err?.reason ?? classifyError(err);
+    } catch (err: unknown) {
+      const errObj = (typeof err === 'object' && err !== null) ? err as { reason?: FailoverReason; message?: string; providerMessage?: string } : {};
+      const reason: FailoverReason = errObj.reason ?? classifyError(err);
       const latencyMs = Date.now() - attemptStart;
       recordFallbackEvent(
         model,
-        [{ provider: explicitProvider, model: explicitModel, error: err?.message || String(err), reason, latencyMs }],
+        [{ provider: explicitProvider, model: explicitModel, error: errObj.message || String(err), reason, latencyMs }],
         null,
         null,
         false,
@@ -403,14 +403,15 @@ export async function callAliaModelAPI<T = any>(options: AliaModelAPIOptions): P
         finalModelId: mapping.modelId,
         usedFallback: i > 0 || attempts.length > 0,
       };
-    } catch (err: any) {
-      const reason: FailoverReason = err?.reason ?? classifyError(err);
+    } catch (err: unknown) {
+      const errObj = (typeof err === 'object' && err !== null) ? err as { reason?: FailoverReason; message?: string; providerMessage?: string } : {};
+      const reason: FailoverReason = errObj.reason ?? classifyError(err);
       const latencyMs = Date.now() - attemptStart;
       attempts.push({
         provider: mapping.provider,
         modelId: mapping.modelId,
         reason,
-        error: err?.providerMessage || err?.message || String(err),
+        error: errObj.providerMessage || errObj.message || String(err),
         latencyMs,
       });
 

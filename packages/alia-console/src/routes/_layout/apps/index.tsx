@@ -1,4 +1,5 @@
 import { Link, createFileRoute, useNavigate } from '@tanstack/react-router';
+import { getErrorMessage } from '@/lib/utils';
 import { useState } from 'react';
 import { HugeiconsIcon } from '@hugeicons/react';
 import {
@@ -79,8 +80,8 @@ function AppsPage() {
       setWebsiteUrl('');
       toast.success('App created successfully');
       navigate({ to: '/apps/$appId', params: { appId: newApp._id } });
-    } catch (error: any) {
-      toast.error(error.message || 'Failed to create app');
+    } catch (error: unknown) {
+      toast.error(getErrorMessage(error, 'Failed to create app'));
     }
   };
 
@@ -90,8 +91,8 @@ function AppsPage() {
       await deleteAppMutation.mutateAsync(deleteAppId);
       setDeleteAppId(null);
       toast.success('App deleted successfully');
-    } catch (error: any) {
-      toast.error(error.message || 'Failed to delete app');
+    } catch (error: unknown) {
+      toast.error(getErrorMessage(error, 'Failed to delete app'));
     }
   };
 

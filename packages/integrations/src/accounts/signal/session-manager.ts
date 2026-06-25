@@ -4,10 +4,25 @@ import path from 'path';
 import { v4 as uuidv4 } from 'uuid';
 import { SignalSession } from './models';
 import { SignalMessage } from './models';
+
+/** Narrow shape of a signal-cli JSON-RPC `receive` envelope (only fields we read). */
+interface SignalEnvelopeBody {
+  sourceNumber?: string;
+  sourceUuid?: string;
+  sourceName?: string;
+  dataMessage?: {
+    message?: string;
+    timestamp?: number;
+    groupInfo?: { groupId: string };
+  };
+}
+interface SignalReceiveEnvelope {
+  envelope?: SignalEnvelopeBody;
+}
 import { SignalChat } from './models';
 import { handleIncomingMessage } from '../../shared/chat-handler';
 import { APIClient } from '../../shared/api-client';
-import { DedupSet } from '../../shared/utils';
+import { DedupSet, errorCode, errorName } from '../../shared/utils';
 
 const apiClient = new APIClient('signal', process.env.INTEGRATIONS_SECRET || '');
 const dedup = new DedupSet();
@@ -320,16 +335,18 @@ class SessionManager {
         });
         if (!res.ok) return;
 
-        const messages = (await res.json()) as any[];
+        const messages = (await res.json()) as SignalReceiveEnvelope[];
         for (const envelope of messages) {
-          if (!envelope.envelope?.dataMessage?.message) continue;
-
           const msg = envelope.envelope;
-          const text = msg.dataMessage.message;
+          const text = msg?.dataMessage?.message;
+          if (!msg || !text) continue;
+
+          const dataMessage = msg.dataMessage;
           const sender = msg.sourceNumber || msg.sourceUuid || '';
-          const timestamp = msg.dataMessage.timestamp || Date.now();
-          const isGroup = !!msg.dataMessage.groupInfo;
-          const contactId = isGroup ? msg.dataMessage.groupInfo.groupId : sender;
+          const timestamp = dataMessage?.timestamp || Date.now();
+          const groupInfo = dataMessage?.groupInfo;
+          const isGroup = !!groupInfo;
+          const contactId = groupInfo ? groupInfo.groupId : sender;
 
           // Deduplication
           const dedupKey = `${sessionId}:${sender}:${text}:${Date.now().toString().slice(0, -3)}`;
@@ -352,8 +369,8 @@ class SessionManager {
               },
               { upsert: true }
             );
-          } catch (err: any) {
-            if (err.code !== 11000) {
+          } catch (err: unknown) {
+            if (errorCode(err) !== 11000) {
               console.error(`[Signal] Error persisting message:`, err);
             }
           }
@@ -373,8 +390,8 @@ class SessionManager {
               },
               { upsert: true }
             );
-          } catch (err: any) {
-            if (err.code !== 11000) {
+          } catch (err: unknown) {
+            if (errorCode(err) !== 11000) {
               console.error(`[Signal] Error upserting chat:`, err);
             }
           }
@@ -411,8 +428,8 @@ class SessionManager {
             console.error(`[Signal] Error handling message:`, err);
           }
         }
-      } catch (err: any) {
-        if (err.name !== 'AbortError') {
+      } catch (err: unknown) {
+        if (errorName(err) !== 'AbortError') {
           console.error(`[Signal] Poll error for ${sessionId}:`, err);
         }
       }

@@ -19,7 +19,7 @@ router.get('/', async (req: Request, res: Response) => {
   try {
     const { product, active } = req.query;
 
-    const query: any = {};
+    const query: Record<string, unknown> = {};
     if (product && typeof product === 'string') query.product = product;
     if (active !== undefined) query.isActive = active === 'true';
 

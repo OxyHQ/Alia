@@ -149,7 +149,7 @@ async function handleModelChange(message: Message, modelName: string): Promise<v
     }
     if (!modelName) {
       const models = await apiClient.fetchModels();
-      const list = models.map((m: any) => `\`${m.id}\` - ${m.name}`).join('\n');
+      const list = models.map((m) => `\`${m.id}\` - ${m.name}`).join('\n');
       await message.reply(`**Available Models:**\n${list || 'None'}\n\nCurrent: ${botUser.preferredModel || 'alia-lite'}`);
       return;
     }

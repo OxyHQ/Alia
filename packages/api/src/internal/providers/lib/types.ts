@@ -37,14 +37,20 @@ export interface OpenAITool {
   function: {
     name: string;
     description?: string;
-    parameters?: any;
+    parameters?: Record<string, unknown>;
   };
+}
+
+export interface OpenAIToolCall {
+  id: string;
+  type: 'function';
+  function: { name: string; arguments: string };
 }
 
 export interface OpenAIMessage {
   role: 'system' | 'user' | 'assistant' | 'tool';
-  content?: string | any[];
-  tool_calls?: any[];
+  content?: string | unknown[];
+  tool_calls?: OpenAIToolCall[];
   tool_call_id?: string;
   name?: string;
 }
@@ -93,5 +99,5 @@ export interface ChatHistory {
   iconColor?: string;
   isFavorite?: boolean;
   isPublic?: boolean;
-  messages?: any[]; // Only if needed locally
+  messages?: OpenAIMessage[]; // Only if needed locally
 }

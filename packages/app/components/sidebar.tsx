@@ -66,6 +66,7 @@ import { FolderSection } from "@/components/sidebar/folder-section";
 import { HistoryList } from "@/components/sidebar/history-list";
 import type { Project } from "@/lib/stores/projects-store";
 import type { Folder as FolderType } from "@/lib/stores/folders-store";
+import type { StopPropagationEvent } from '@/lib/types/events';
 
 // Icon mapping for projects and folders
 const ICON_MAP: Record<string, LucideIcon> = {
@@ -194,7 +195,7 @@ const ChatSidebar = React.memo(function ChatSidebar() {
     router.replace(`/(app)/c/${id}`);
   }, [router, queryClient, allConversations]);
 
-  const handleDeleteConversation = React.useCallback((id: string, e: any) => {
+  const handleDeleteConversation = React.useCallback((id: string, e: StopPropagationEvent) => {
     e?.stopPropagation?.();
     deleteConversationMutation.mutate(id);
   }, [deleteConversationMutation]);
@@ -293,13 +294,13 @@ const ChatSidebar = React.memo(function ChatSidebar() {
     setEditDialogOpen(true);
   }, []);
 
-  const handleEditProject = React.useCallback((project: Project, e: any) => {
+  const handleEditProject = React.useCallback((project: Project, e: StopPropagationEvent) => {
     e?.stopPropagation?.();
     setEditingProject(project);
     setEditDialogOpen(true);
   }, []);
 
-  const handleDeleteProject = React.useCallback(async (id: string, e: any) => {
+  const handleDeleteProject = React.useCallback(async (id: string, e: StopPropagationEvent) => {
     e?.stopPropagation?.();
     await deleteProject(id);
   }, [deleteProject]);
@@ -331,7 +332,7 @@ const ChatSidebar = React.memo(function ChatSidebar() {
   }, []);
 
   const handleMoveConversationToProject = React.useCallback(
-    async (conversationId: string, projectId: string | null, e: any) => {
+    async (conversationId: string, projectId: string | null, e: StopPropagationEvent) => {
       e?.stopPropagation?.();
 
       // Remove from all projects first
@@ -363,18 +364,18 @@ const ChatSidebar = React.memo(function ChatSidebar() {
     setFolderEditDialogOpen(true);
   }, []);
 
-  const handleEditFolder = React.useCallback((folder: FolderType, e: any) => {
+  const handleEditFolder = React.useCallback((folder: FolderType, e: StopPropagationEvent) => {
     e?.stopPropagation?.();
     setEditingFolder(folder);
     setFolderEditDialogOpen(true);
   }, []);
 
-  const handleDeleteFolder = React.useCallback(async (id: string, e: any) => {
+  const handleDeleteFolder = React.useCallback(async (id: string, e: StopPropagationEvent) => {
     e?.stopPropagation?.();
     await deleteFolder(id);
   }, [deleteFolder]);
 
-  const handleToggleFavoriteFolder = React.useCallback(async (folder: FolderType, e: any) => {
+  const handleToggleFavoriteFolder = React.useCallback(async (folder: FolderType, e: StopPropagationEvent) => {
     e?.stopPropagation?.();
     await updateFolder(folder.id, { isFavorite: !folder.isFavorite });
   }, [updateFolder]);
@@ -398,7 +399,7 @@ const ChatSidebar = React.memo(function ChatSidebar() {
   );
 
   const handleMoveConversationToFolder = React.useCallback(
-    async (conversationId: string, folderId: string | null, e: any) => {
+    async (conversationId: string, folderId: string | null, e: StopPropagationEvent) => {
       e?.stopPropagation?.();
 
       // Remove from all folders first
@@ -425,7 +426,7 @@ const ChatSidebar = React.memo(function ChatSidebar() {
   );
 
   const handleToggleFavorite = React.useCallback(
-    async (conversationId: string, e: any) => {
+    async (conversationId: string, e: StopPropagationEvent) => {
       e?.stopPropagation?.();
       await toggleFavorite(conversationId);
     },
@@ -433,7 +434,7 @@ const ChatSidebar = React.memo(function ChatSidebar() {
   );
 
   const handleTogglePin = React.useCallback(
-    async (conversationId: string, e: any) => {
+    async (conversationId: string, e: StopPropagationEvent) => {
       e?.stopPropagation?.();
       await togglePin(conversationId);
     },

@@ -51,7 +51,7 @@ import {
   Loader2,
   DollarSign,
 } from 'lucide-react';
-import { PROVIDERS, type ProviderKey } from '@/types';
+import { PROVIDERS, type ProviderKey, type ApiEnvelope } from '@/types';
 
 type KeyFormData = {
   name: string;
@@ -135,7 +135,7 @@ export function KeysPage() {
 
   // Use real-time data if available, otherwise fall back to polled data
   const keysData = realtimeKeysData || polledKeysData;
-  const keys: ProviderKey[] = (keysData as any)?.data || [];
+  const keys: ProviderKey[] = (keysData as ApiEnvelope<ProviderKey[]>)?.data || [];
 
   // Create mutation
   const createMutation = useMutation({

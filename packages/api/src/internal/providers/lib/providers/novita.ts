@@ -9,7 +9,7 @@ export const novitaProvider: Provider = {
   async proxy(key: KeyConfig, messages: OpenAIMessage[], tools?: OpenAITool[], config?: ProviderConfig): Promise<ReadableStream> {
     const url = 'https://api.novita.ai/v3/openai/chat/completions';
 
-    const body: any = {
+    const body: Record<string, unknown> = {
       model: key.modelId,
       messages,
       temperature: config?.temperature ?? 0.7,

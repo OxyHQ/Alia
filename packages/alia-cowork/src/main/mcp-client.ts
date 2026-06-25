@@ -8,6 +8,7 @@
 
 import { spawn, type ChildProcess } from 'child_process'
 import Store from 'electron-store'
+import { errorMessage } from './errors'
 
 const store = new Store()
 
@@ -26,7 +27,7 @@ interface McpServerConfig {
 interface McpTool {
   name: string
   description: string
-  inputSchema: Record<string, any>
+  inputSchema: Record<string, unknown>
 }
 
 interface LocalServer {
@@ -35,11 +36,43 @@ interface LocalServer {
   tools: McpTool[]
   nextId: number
   pending: Map<number, {
-    resolve: (value: any) => void
-    reject: (reason: any) => void
+    resolve: (value: unknown) => void
+    reject: (reason: unknown) => void
     timer: NodeJS.Timeout
   }>
   buffer: string
+}
+
+/** Server entry returned by `GET /mcp/installed`. */
+interface InstalledServerEntry {
+  _id: string
+  name: string
+  runtime?: string
+  enabled?: boolean
+  config?: { command?: string; args?: string[]; env?: Record<string, string> }
+}
+
+/** A single JSON-RPC `tools/list` tool descriptor. */
+interface RpcToolDescriptor {
+  name: string
+  description?: string
+  inputSchema?: Record<string, unknown>
+}
+
+/** A `tools/call` content block. */
+interface RpcContentBlock {
+  type: string
+  text?: string
+}
+
+/** Inbound message from the relay WebSocket. */
+interface RelayMessage {
+  type: string
+  callId?: string
+  serverId?: string
+  toolName?: string
+  args?: Record<string, unknown>
+  error?: string
 }
 
 export class McpLocalClient {
@@ -77,10 +110,13 @@ export class McpLocalClient {
     })
     if (!response.ok) return []
 
-    const data = (await response.json()) as any
+    const data = (await response.json()) as { servers?: InstalledServerEntry[] }
     return (data.servers || [])
-      .filter((s: any) => s.runtime === 'local' && s.enabled && s.config?.command)
-      .map((s: any) => ({
+      .filter(
+        (s): s is InstalledServerEntry & { config: { command: string } } =>
+          s.runtime === 'local' && Boolean(s.enabled) && Boolean(s.config?.command),
+      )
+      .map((s) => ({
         id: s._id,
         name: s.name,
         command: s.config.command,
@@ -133,7 +169,7 @@ export class McpLocalClient {
     }
   }
 
-  private sendRpc(server: LocalServer, method: string, params?: any): Promise<any> {
+  private sendRpc(server: LocalServer, method: string, params?: Record<string, unknown>): Promise<unknown> {
     return new Promise((resolve, reject) => {
       const id = ++server.nextId
       const timer = setTimeout(() => {
@@ -187,7 +223,8 @@ export class McpLocalClient {
 
   private async discoverTools(server: LocalServer): Promise<McpTool[]> {
     const result = await this.sendRpc(server, 'tools/list')
-    return (result?.tools || []).map((t: any) => ({
+    const tools = (result as { tools?: RpcToolDescriptor[] } | null)?.tools || []
+    return tools.map((t) => ({
       name: t.name,
       description: t.description || t.name,
       inputSchema: t.inputSchema || {},
@@ -210,7 +247,7 @@ export class McpLocalClient {
 
       this.ws.onmessage = (event) => {
         try {
-          const msg = JSON.parse(event.data as string)
+          const msg = JSON.parse(event.data as string) as RelayMessage
           this.handleRelayMessage(msg)
         } catch {}
       }
@@ -229,7 +266,7 @@ export class McpLocalClient {
     }
   }
 
-  private handleRelayMessage(msg: any): void {
+  private handleRelayMessage(msg: RelayMessage): void {
     switch (msg.type) {
       case 'auth-ok':
         for (const server of this.servers.values()) {
@@ -253,9 +290,9 @@ export class McpLocalClient {
     }
   }
 
-  private async handleToolCall(msg: any): Promise<void> {
+  private async handleToolCall(msg: RelayMessage): Promise<void> {
     const { callId, serverId, toolName, args } = msg
-    const server = this.servers.get(serverId)
+    const server = serverId ? this.servers.get(serverId) : undefined
 
     if (!server) {
       this.sendMessage({ type: 'tool-error', callId, error: 'Server not found' })
@@ -269,23 +306,24 @@ export class McpLocalClient {
       })
 
       // Extract text content from MCP response
+      const content = (result as { content?: RpcContentBlock[] } | null)?.content
       let text = ''
-      if (Array.isArray(result?.content)) {
-        text = result.content
-          .filter((c: any) => c.type === 'text')
-          .map((c: any) => c.text)
+      if (Array.isArray(content)) {
+        text = content
+          .filter((c) => c.type === 'text')
+          .map((c) => c.text ?? '')
           .join('\n')
       } else {
         text = JSON.stringify(result)
       }
 
       this.sendMessage({ type: 'tool-result', callId, result: text })
-    } catch (err: any) {
-      this.sendMessage({ type: 'tool-error', callId, error: err.message })
+    } catch (err: unknown) {
+      this.sendMessage({ type: 'tool-error', callId, error: errorMessage(err) })
     }
   }
 
-  private sendMessage(msg: any): void {
+  private sendMessage(msg: Record<string, unknown>): void {
     if (this.ws?.readyState === WebSocket.OPEN) {
       this.ws.send(JSON.stringify(msg))
     }

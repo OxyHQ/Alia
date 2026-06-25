@@ -60,14 +60,14 @@ router.get('/models', async (req: Request, res: Response) => {
       ? await getAvailableModels()
       : getAllAliaModels();
 
-    const response: any = { success: true, data: { models } };
+    const response: { success: boolean; data: Record<string, unknown> } = { success: true, data: { models } };
 
     if (tierMappings === 'true') {
       response.data.tierMappings = TIER_MODEL_MAPPINGS;
     }
 
     res.json(response);
-  } catch (error: any) {
+  } catch (error: unknown) {
     log.providers.error({ err: error }, 'Error getting models');
     res.status(500).json({
       success: false,
@@ -95,7 +95,7 @@ router.get('/health', async (req: Request, res: Response) => {
 
     const allHealth = await getAllProviderHealth();
     res.json({ success: true, data: allHealth });
-  } catch (error: any) {
+  } catch (error: unknown) {
     log.providers.error({ err: error }, 'Error getting provider health');
     res.status(500).json({
       success: false,
@@ -119,14 +119,14 @@ router.get('/billing', async (req: Request, res: Response) => {
     const active = req.query.active as string;
     const planId = req.query.planId as string;
 
-    const response: any = { success: true, data: {} };
+    const response: { success: boolean; data: Record<string, unknown> } = { success: true, data: {} };
 
     if (type === 'plans' || type === 'all') {
       response.data.plans = await Plan.find({}).sort({ sortOrder: 1 }).lean();
     }
 
     if (type === 'packages' || type === 'all') {
-      const query: any = {};
+      const query: Record<string, unknown> = {};
       if (active !== undefined) query.isActive = active === 'true';
       response.data.packages = await CreditPackage.find(query).sort({ sortOrder: 1 }).lean();
     }
@@ -136,13 +136,13 @@ router.get('/billing', async (req: Request, res: Response) => {
     }
 
     if (type === 'plan-features' || type === 'all') {
-      const pfQuery: any = {};
+      const pfQuery: Record<string, unknown> = {};
       if (planId) pfQuery.planId = planId;
       response.data.planFeatures = await PlanFeature.find(pfQuery).lean();
     }
 
     res.json(response);
-  } catch (error: any) {
+  } catch (error: unknown) {
     log.providers.error({ err: error }, 'Error getting billing data');
     res.status(500).json({
       success: false,

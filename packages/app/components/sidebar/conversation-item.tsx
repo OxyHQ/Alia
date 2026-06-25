@@ -8,6 +8,7 @@ import type { Project } from "@/lib/stores/projects-store";
 import type { Folder } from "@/lib/stores/folders-store";
 import { useStore } from "@/lib/globalStore";
 import { ConversationMenu } from "./conversation-menu";
+import type { StopPropagationEvent } from '@/lib/types/events';
 
 interface ConversationItemProps {
   conversation: Conversation;
@@ -19,11 +20,11 @@ interface ConversationItemProps {
   projects: Project[];
   folders: Folder[];
   onSelect: (id: string) => void;
-  onToggleFavorite: (id: string, e: any) => void;
-  onTogglePin: (id: string, e: any) => void;
-  onMoveToProject: (convId: string, projectId: string | null, e: any) => void;
-  onMoveToFolder: (convId: string, folderId: string | null, e: any) => void;
-  onDelete: (id: string, e: any) => void;
+  onToggleFavorite: (id: string, e: StopPropagationEvent) => void;
+  onTogglePin: (id: string, e: StopPropagationEvent) => void;
+  onMoveToProject: (convId: string, projectId: string | null, e: StopPropagationEvent) => void;
+  onMoveToFolder: (convId: string, folderId: string | null, e: StopPropagationEvent) => void;
+  onDelete: (id: string, e: StopPropagationEvent) => void;
   onPrefetch?: (id: string) => void;
   compact?: boolean;
   indented?: boolean;

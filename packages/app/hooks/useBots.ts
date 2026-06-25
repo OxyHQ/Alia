@@ -53,7 +53,7 @@ export function useBots() {
       );
       setLinkStatuses(statuses);
       setError(null);
-    } catch (err: any) {
+    } catch (err: unknown) {
       setError(err as Error);
       setBots([]);
     } finally {

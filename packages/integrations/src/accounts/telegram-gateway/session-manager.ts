@@ -8,7 +8,7 @@ import { TelegramChat } from './models';
 import { TelegramMessage } from './models';
 import { handleIncomingMessage } from '../../shared/chat-handler';
 import { APIClient } from '../../shared/api-client';
-import { DedupSet } from '../../shared/utils';
+import { DedupSet, errorCode, errorMessage } from '../../shared/utils';
 
 const apiClient = new APIClient('telegram-gateway', process.env.INTEGRATIONS_SECRET || '');
 const dedup = new DedupSet();
@@ -165,7 +165,7 @@ class SessionManager {
 
         // If we reach here, login succeeded
         await this.onConnected(sessionId, client);
-      } catch (err: any) {
+      } catch (err: unknown) {
         // If QR login fails fatally, mark as failed
         const isAlreadyRejected = !this.pendingQRs.has(sessionId);
         if (!isAlreadyRejected) {
@@ -199,8 +199,8 @@ class SessionManager {
           console.log(`[Telegram] Session ${sessionId} expired, marked as logged-out`);
           return;
         }
-      } catch (err: any) {
-        const errorMsg = err?.message || String(err);
+      } catch (err: unknown) {
+        const errorMsg = errorMessage(err);
         if (
           errorMsg.includes('AUTH_KEY_UNREGISTERED') ||
           errorMsg.includes('SESSION_REVOKED')
@@ -277,7 +277,8 @@ class SessionManager {
       try {
         const sender = await message.getSender();
         if (sender && 'firstName' in sender) {
-          senderName = [sender.firstName, (sender as any).lastName]
+          const lastName = 'lastName' in sender ? sender.lastName : undefined;
+          senderName = [sender.firstName, lastName]
             .filter(Boolean)
             .join(' ');
         }
@@ -302,8 +303,8 @@ class SessionManager {
           },
           { upsert: true }
         );
-      } catch (err: any) {
-        if (err.code !== 11000) {
+      } catch (err: unknown) {
+        if (errorCode(err) !== 11000) {
           console.error(`[Telegram] Error persisting message:`, err);
         }
       }
@@ -316,7 +317,7 @@ class SessionManager {
           const chat = await message.getChat();
           if (chat) {
             if (chat.className === 'Channel') {
-              chatType = (chat as any).megagroup ? 'group' : 'channel';
+              chatType = ('megagroup' in chat && chat.megagroup) ? 'group' : 'channel';
             } else if (chat.className === 'Chat') {
               chatType = 'group';
             }
@@ -339,8 +340,8 @@ class SessionManager {
           },
           { upsert: true }
         );
-      } catch (err: any) {
-        if (err.code !== 11000) {
+      } catch (err: unknown) {
+        if (errorCode(err) !== 11000) {
           console.error(`[Telegram] Error updating chat:`, err);
         }
       }

@@ -25,7 +25,7 @@ import {
   Clock,
   Zap,
 } from 'lucide-react';
-import type { HealthMetrics, ProviderKey } from '@/types';
+import type { HealthMetrics, ProviderKey, ApiEnvelope } from '@/types';
 import type {
   ChartConfig,
 } from '@/components/ui/chart';
@@ -72,8 +72,8 @@ export function MonitoringPage() {
   const healthData = realtimeHealthData || polledHealthData;
   const keysData = realtimeKeysData || polledKeysData;
 
-  const health: HealthMetrics[] = (healthData as any)?.data || [];
-  const keys: ProviderKey[] = (keysData as any)?.data || [];
+  const health: HealthMetrics[] = (healthData as ApiEnvelope<HealthMetrics[]>)?.data || [];
+  const keys: ProviderKey[] = (keysData as ApiEnvelope<ProviderKey[]>)?.data || [];
 
   // Get unique providers
   const providers = useMemo(() => {

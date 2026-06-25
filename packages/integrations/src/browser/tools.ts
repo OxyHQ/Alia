@@ -5,6 +5,7 @@
 import { tool } from 'ai';
 import { z } from 'zod';
 import { getOrCreateContext, takeScreenshot, closeContext } from './manager';
+import { getWss, type SessionWebSocket } from '../realtime/wss-global';
 
 /**
  * Get browser tools for a specific session.
@@ -103,13 +104,14 @@ export function getBrowserTools(sessionId: string) {
   };
 }
 
-function broadcastEvent(sessionId: string, type: string, data: any) {
-  const wss = (global as any).__wss;
+function broadcastEvent(sessionId: string, type: string, data: Record<string, unknown>) {
+  const wss = getWss();
   if (!wss) return;
   const message = JSON.stringify({ type, sessionId, ...data });
   for (const client of wss.clients) {
-    if ((client as any).sessionId === sessionId && client.readyState === 1) {
-      client.send(message);
+    const ws = client as SessionWebSocket;
+    if (ws.sessionId === sessionId && ws.readyState === 1) {
+      ws.send(message);
     }
   }
 }

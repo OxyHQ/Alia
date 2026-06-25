@@ -6,14 +6,14 @@
 
 import { Context, Markup } from 'telegraf';
 import { v4 as uuidv4 } from 'uuid';
-import { APIClient } from '../../shared/api-client';
+import { APIClient, type ModelInfo } from '../../shared/api-client';
 
 const apiClient = new APIClient('telegram', process.env.TELEGRAM_BOT_SECRET || '');
 
 // ---------------------------------------------------------------------------
 // Model cache
 // ---------------------------------------------------------------------------
-let cachedModels: { id: string; name: string; description: string; emoji?: string; category: string; pricing: { credit_multiplier: number } }[] = [];
+let cachedModels: ModelInfo[] = [];
 let lastFetchTime = 0;
 const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
 
@@ -300,7 +300,7 @@ export async function handleModel(ctx: Context) {
     for (const model of models) {
       const current = model.id === currentModel ? ' ✓' : '';
       message += `\n${model.emoji || '🤖'} <b>${model.name}</b>${current}\n`;
-      message += `   <i>${model.description} (${model.pricing.credit_multiplier}x credits)</i>`;
+      message += `   <i>${model.description} (${model.pricing?.credit_multiplier ?? 1}x credits)</i>`;
     }
 
     // Build button rows (2 per row)
@@ -432,9 +432,9 @@ export async function handleHistory(ctx: Context) {
       }
 
       let message = '📚 <b>Your Recent Conversations</b>\n\n';
-      conversations.slice(0, 10).forEach((conv: any, index: number) => {
+      conversations.slice(0, 10).forEach((conv, index: number) => {
         const title = conv.title || 'Untitled';
-        const date = new Date(conv.updatedAt || conv.createdAt).toLocaleDateString();
+        const date = new Date(conv.updatedAt || conv.createdAt || Date.now()).toLocaleDateString();
         const current = conv.conversationId === botUser.conversationId ? '▶️ ' : '  ';
         message += `${current}<b>${index + 1}.</b> ${title}\n   <i>${date}</i>\n\n`;
       });

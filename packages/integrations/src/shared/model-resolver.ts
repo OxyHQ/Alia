@@ -6,9 +6,10 @@
 import { createGoogleGenerativeAI } from '@ai-sdk/google';
 import { createOpenAI } from '@ai-sdk/openai';
 import { createAnthropic } from '@ai-sdk/anthropic';
+import type { LanguageModel } from 'ai';
 
 export interface ResolvedModel {
-  model: any;
+  model: LanguageModel;
   provider: string;
   modelId: string;
   sessionId: string;
@@ -81,7 +82,7 @@ export async function reportUsage(
   }
 }
 
-export function createAIModel(provider: string, modelId: string, apiKey: string): any {
+export function createAIModel(provider: string, modelId: string, apiKey: string): LanguageModel {
   switch (provider) {
     case 'google':
       return createGoogleGenerativeAI({ apiKey })(modelId);

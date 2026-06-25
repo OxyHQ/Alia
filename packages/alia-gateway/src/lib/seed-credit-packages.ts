@@ -4,6 +4,7 @@
  */
 
 import { CreditPackage } from '../models/credit-package.js';
+import { errorCode } from './error-handler';
 import { connectDB } from './db';
 import { log } from './logger';
 
@@ -52,8 +53,8 @@ export async function seedCreditPackages(): Promise<{ seeded: number; skipped: n
       } else {
         skipped++;
       }
-    } catch (error: any) {
-      if (error.code === 11000) {
+    } catch (error: unknown) {
+      if (errorCode(error) === 11000) {
         skipped++;
       } else {
         log.seed.error({ err: error, packageId: pkgData.packageId }, 'Error seeding credit package');

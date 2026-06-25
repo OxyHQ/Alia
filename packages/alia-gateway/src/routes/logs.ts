@@ -6,7 +6,7 @@
  */
 
 import express, { Request, Response } from 'express';
-import { FallbackEvent } from '../models/fallback-event.js';
+import { FallbackEvent, type IFallbackAttemptRecord } from '../models/fallback-event.js';
 import { log } from '../lib/logger.js';
 
 const router = express.Router();
@@ -32,7 +32,7 @@ router.get('/', async (req: Request, res: Response) => {
     const since = new Date(Date.now() - hours * 60 * 60 * 1000);
 
     // Build match filter
-    const match: Record<string, any> = { timestamp: { $gte: since } };
+    const match: Record<string, unknown> = { timestamp: { $gte: since } };
 
     if (req.query.provider && req.query.provider !== 'all') {
       match['$or'] = [
@@ -65,9 +65,9 @@ router.get('/', async (req: Request, res: Response) => {
     ]);
 
     // Map to response format
-    const items = logs.map((event: any) => {
-      const attempts = event.attempts || [];
-      const failedAttempts = attempts.filter((a: any) => a.error || a.reason);
+    const items = logs.map((event) => {
+      const attempts: IFallbackAttemptRecord[] = (event.attempts as IFallbackAttemptRecord[] | undefined) || [];
+      const failedAttempts = attempts.filter((a) => a.error || a.reason);
       const hadFallback = attempts.length > 1;
 
       return {
@@ -80,14 +80,14 @@ router.get('/', async (req: Request, res: Response) => {
         totalLatencyMs: event.totalLatencyMs,
         attemptCount: attempts.length,
         hadFallback,
-        attempts: attempts.map((a: any) => ({
+        attempts: attempts.map((a) => ({
           provider: a.provider,
           model: a.model,
           error: a.error,
           reason: a.reason,
           latencyMs: a.latencyMs,
         })),
-        failureReasons: failedAttempts.map((a: any) => a.reason).filter(Boolean),
+        failureReasons: failedAttempts.map((a) => a.reason).filter(Boolean),
       };
     });
 
@@ -103,7 +103,7 @@ router.get('/', async (req: Request, res: Response) => {
         },
       },
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     log.providers.error({ err: error }, 'Error getting logs');
     res.status(500).json({
       success: false,
@@ -168,7 +168,7 @@ router.get('/stats', async (req: Request, res: Response) => {
         avgLatencyMs: Math.round(stats.avgLatencyMs || 0),
       },
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     log.providers.error({ err: error }, 'Error getting log stats');
     res.status(500).json({
       success: false,
@@ -194,7 +194,7 @@ router.get('/providers', async (req: Request, res: Response) => {
     });
 
     // Also get providers from attempts
-    const attemptProviders = await FallbackEvent.aggregate([
+    const attemptProviders = await FallbackEvent.aggregate<{ _id: string }>([
       { $match: { timestamp: { $gte: since } } },
       { $unwind: '$attempts' },
       { $group: { _id: '$attempts.provider' } },
@@ -202,14 +202,14 @@ router.get('/providers', async (req: Request, res: Response) => {
 
     const allProviders = new Set([
       ...providers,
-      ...attemptProviders.map((p: any) => p._id),
+      ...attemptProviders.map((p) => p._id),
     ]);
 
     res.json({
       success: true,
       data: Array.from(allProviders).filter(Boolean).sort(),
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     log.providers.error({ err: error }, 'Error getting log providers');
     res.status(500).json({
       success: false,

@@ -8,21 +8,22 @@
  */
 
 import { useEffect, useRef, useCallback } from 'react';
+import type { AudioPlayer, AudioSource } from 'expo-audio';
 import type { AgentState } from '../types';
 
 export type SoundName = 'thinking' | 'toolCall' | 'voiceConnect' | 'voiceDisconnect';
 
 export interface SoundSources {
-  thinking?: any;
-  toolCall?: any;
-  voiceConnect?: any;
-  voiceDisconnect?: any;
+  thinking?: AudioSource;
+  toolCall?: AudioSource;
+  voiceConnect?: AudioSource;
+  voiceDisconnect?: AudioSource;
 }
 
 const SOUND_NAMES: SoundName[] = ['thinking', 'toolCall', 'voiceConnect', 'voiceDisconnect'];
 
 export function useSoundEffects(enabled: boolean = false, sounds: SoundSources = {}) {
-  const playersRef = useRef<Map<SoundName, any>>(new Map());
+  const playersRef = useRef<Map<SoundName, AudioPlayer>>(new Map());
   const loadedRef = useRef(false);
 
   useEffect(() => {

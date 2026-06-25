@@ -1,4 +1,5 @@
 import { Link, createFileRoute, useNavigate } from '@tanstack/react-router';
+import { getErrorMessage } from '@/lib/utils';
 import { useEffect, useState } from 'react';
 import { HugeiconsIcon } from '@hugeicons/react';
 import { ArrowLeft01Icon } from '@hugeicons/core-free-icons';
@@ -50,8 +51,8 @@ function AppSettingsPage() {
       });
       toast.success('App updated successfully');
       navigate({ to: '/apps/$appId', params: { appId } });
-    } catch (error: any) {
-      toast.error(error.message || 'Failed to update app');
+    } catch (error: unknown) {
+      toast.error(getErrorMessage(error, 'Failed to update app'));
     }
   };
 

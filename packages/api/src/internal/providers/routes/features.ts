@@ -16,7 +16,7 @@ const router = express.Router();
 router.get('/', async (req: Request, res: Response) => {
   try {
     const { category, active } = req.query;
-    const query: any = {};
+    const query: Record<string, unknown> = {};
     if (category && typeof category === 'string') query.category = category;
     if (active !== undefined) query.isActive = active === 'true';
 

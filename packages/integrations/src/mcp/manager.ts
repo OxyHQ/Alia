@@ -7,6 +7,7 @@
  */
 
 import { spawn } from 'child_process';
+import { errorMessage, errorCode } from '../shared/utils';
 import type {
   McpServerSession,
   McpServerConfig,
@@ -82,8 +83,8 @@ export async function stopServer(serverId: string): Promise<void> {
 export async function callTool(
   serverId: string,
   toolName: string,
-  args: Record<string, any>,
-): Promise<any> {
+  args: Record<string, unknown>,
+): Promise<unknown> {
   const session = sessions.get(serverId);
   if (!session) throw new Error('MCP server not running');
   if (session.status !== 'running') throw new Error(`MCP server is ${session.status}`);
@@ -94,10 +95,11 @@ export async function callTool(
   });
 
   // MCP tool results: { content: [{ type: 'text', text: '...' }] }
-  if (result?.content && Array.isArray(result.content)) {
-    return result.content
-      .filter((c: any) => c.type === 'text')
-      .map((c: any) => c.text)
+  const content = (result as { content?: Array<{ type: string; text?: string }> } | null)?.content;
+  if (content && Array.isArray(content)) {
+    return content
+      .filter((c) => c.type === 'text')
+      .map((c) => c.text ?? '')
       .join('\n');
   }
 
@@ -108,13 +110,15 @@ export function getSession(serverId: string): McpServerSession | undefined {
   return sessions.get(serverId);
 }
 
-export function listSessions(): Array<{
+export interface McpSessionSummary {
   id: string;
   oxyUserId: string;
   status: string;
   transport: string;
   toolCount: number;
-}> {
+}
+
+export function listSessions(): McpSessionSummary[] {
   return Array.from(sessions.values()).map((s) => ({
     id: s.id,
     oxyUserId: s.oxyUserId,
@@ -188,9 +192,9 @@ async function startStdioServer(
     });
 
     child.on('error', (err) => {
-      console.error(`[MCP:${serverId}] Process error:`, err.message);
+      console.error(`[MCP:${serverId}] Process error:`, errorMessage(err));
       session.status = 'error';
-      session.statusMessage = err.message;
+      session.statusMessage = errorMessage(err);
     });
 
     child.on('exit', (code, signal) => {
@@ -219,7 +223,7 @@ async function startStdioServer(
 
     console.log(`[MCP:${serverId}] Started (${tools.length} tools, ${resources.length} resources)`);
     return { tools, resources };
-  } catch (err: any) {
+  } catch (err: unknown) {
     cleanupFailedSession(serverId, session, err);
     throw err;
   }
@@ -268,7 +272,7 @@ async function startHttpServer(
 
     console.log(`[MCP:${serverId}] Connected via streamable-http (${tools.length} tools)`);
     return { tools, resources };
-  } catch (err: any) {
+  } catch (err: unknown) {
     cleanupFailedSession(serverId, session, err);
     throw err;
   }
@@ -278,9 +282,9 @@ async function startHttpServer(
 // Session cleanup on failure
 // ---------------------------------------------------------------------------
 
-function cleanupFailedSession(serverId: string, session: McpServerSession, err: Error): void {
+function cleanupFailedSession(serverId: string, session: McpServerSession, err: unknown): void {
   session.status = 'error';
-  session.statusMessage = err.message;
+  session.statusMessage = errorMessage(err);
   sessions.delete(serverId);
 
   if (session.process && !session.process.killed) {
@@ -315,7 +319,7 @@ function processStdoutBuffer(session: McpServerSession): void {
   }
 }
 
-function handleJsonRpcMessage(session: McpServerSession, msg: any): void {
+function handleJsonRpcMessage(session: McpServerSession, msg: JsonRpcResponse): void {
   if (msg.id !== undefined && msg.id !== null) {
     const pending = session.pendingRequests.get(msg.id);
     if (!pending) return;
@@ -337,7 +341,7 @@ function handleJsonRpcMessage(session: McpServerSession, msg: any): void {
   // Server notification — no action needed
 }
 
-function sendRequest(session: McpServerSession, method: string, params?: Record<string, any>): Promise<any> {
+function sendRequest(session: McpServerSession, method: string, params?: Record<string, unknown>): Promise<unknown> {
   if (session.transport === 'streamable-http') {
     return sendHttpRequest(session, method, params);
   }
@@ -373,7 +377,7 @@ function sendRequest(session: McpServerSession, method: string, params?: Record<
   });
 }
 
-async function sendHttpRequest(session: McpServerSession, method: string, params?: Record<string, any>): Promise<any> {
+async function sendHttpRequest(session: McpServerSession, method: string, params?: Record<string, unknown>): Promise<unknown> {
   if (!session.config.url) {
     throw new Error('No URL configured for HTTP transport');
   }
@@ -409,7 +413,7 @@ async function sendHttpRequest(session: McpServerSession, method: string, params
   return result.result;
 }
 
-function sendNotification(session: McpServerSession, method: string, params?: Record<string, any>): void {
+function sendNotification(session: McpServerSession, method: string, params?: Record<string, unknown>): void {
   const body = JSON.stringify({
     jsonrpc: '2.0',
     method,
@@ -452,10 +456,12 @@ async function performHandshake(session: McpServerSession): Promise<void> {
 
 async function discoverTools(session: McpServerSession): Promise<McpToolDefinition[]> {
   try {
-    const result = await sendRequest(session, 'tools/list');
+    const result = await sendRequest(session, 'tools/list') as {
+      tools?: Array<{ name: string; description?: string; inputSchema?: Record<string, unknown> }>;
+    } | null;
     if (!result?.tools || !Array.isArray(result.tools)) return [];
 
-    return result.tools.map((t: any) => ({
+    return result.tools.map((t) => ({
       name: t.name,
       description: t.description || '',
       inputSchema: t.inputSchema || {},
@@ -467,10 +473,12 @@ async function discoverTools(session: McpServerSession): Promise<McpToolDefiniti
 
 async function discoverResources(session: McpServerSession): Promise<McpResourceDefinition[]> {
   try {
-    const result = await sendRequest(session, 'resources/list');
+    const result = await sendRequest(session, 'resources/list') as {
+      resources?: Array<{ uri: string; name: string; description?: string; mimeType?: string }>;
+    } | null;
     if (!result?.resources || !Array.isArray(result.resources)) return [];
 
-    return result.resources.map((r: any) => ({
+    return result.resources.map((r) => ({
       uri: r.uri,
       name: r.name,
       description: r.description,

@@ -27,6 +27,7 @@ import { useColorScheme } from "@/lib/useColorScheme";
 import { cn } from "@/lib/utils";
 import { useCreateConversation } from "@/lib/hooks/use-conversations";
 import { useAgentFavoritesStore } from "@/lib/stores/agent-favorites-store";
+import { errorMessage as getErrorMessage, errorStatus, errorResponseData } from "@/lib/errors/error-utils";
 
 const STATUS_COLORS: Record<string, string> = {
   active: "bg-green-500",
@@ -379,9 +380,9 @@ export default function AgentDetailScreen() {
         const { useUIStore } = await import("@/lib/stores/ui-store");
         useUIStore.getState().openAgentPanel(String(sessionId), agent._id);
       }
-    } catch (err: any) {
-      const status = err?.response?.status;
-      const data = err?.response?.data;
+    } catch (err: unknown) {
+      const status = errorStatus(err);
+      const data = errorResponseData(err);
       if (status === 402) {
         toast.error(`Insufficient credits. You need ${data?.creditsNeeded || 'more'} credits.`);
         // Open credits panel
@@ -481,8 +482,8 @@ export default function AgentDetailScreen() {
       toast.success(t("agents.reviewSubmitted"));
       const reviewsRes = await apiClient.get(`/agents/${agent._id}/reviews`);
       setReviews(reviewsRes.data?.reviews || []);
-    } catch (err: any) {
-      toast.error(err?.response?.data?.error || "Failed to submit review");
+    } catch (err: unknown) {
+      toast.error(getErrorMessage(err, "Failed to submit review"));
     } finally {
       setSubmittingReview(false);
     }

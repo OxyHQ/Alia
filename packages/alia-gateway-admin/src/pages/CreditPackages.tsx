@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@oxyhq/auth';
 import { apiClient } from '@/lib/api/client';
+import { getErrorMessage } from '@/lib/utils';
 import type { CreditPackage } from '@/types';
 import {
   Table,
@@ -117,7 +118,7 @@ export function CreditPackagesPage() {
       queryClient.invalidateQueries({ queryKey: ['credit-packages'] });
       setEditOpen(false);
     },
-    onError: (err: any) => alert(err?.response?.data?.error || err.message || 'Failed to create package'),
+    onError: (err: unknown) => alert(getErrorMessage(err, 'Failed to create package')),
   });
 
   const updateMutation = useMutation({
@@ -128,7 +129,7 @@ export function CreditPackagesPage() {
       setEditOpen(false);
       setSelectedPackage(null);
     },
-    onError: (err: any) => alert(err?.response?.data?.error || err.message || 'Failed to update package'),
+    onError: (err: unknown) => alert(getErrorMessage(err, 'Failed to update package')),
   });
 
   const deleteMutation = useMutation({
@@ -138,7 +139,7 @@ export function CreditPackagesPage() {
       setDeleteOpen(false);
       setSelectedPackage(null);
     },
-    onError: (err: any) => alert(err?.response?.data?.error || err.message || 'Failed to delete package'),
+    onError: (err: unknown) => alert(getErrorMessage(err, 'Failed to delete package')),
   });
 
   // Handlers

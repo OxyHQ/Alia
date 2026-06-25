@@ -10,22 +10,28 @@
 // have their own real types — ambient declarations here would shadow them.
 
 declare module 'livekit-client' {
+  export interface RemoteTrack {
+    kind?: string;
+    mediaStreamTrack?: MediaStreamTrack;
+    attach(): HTMLMediaElement;
+    detach(): HTMLMediaElement[];
+  }
   export class Room {
-    on(event: any, listener: (...args: any[]) => void): this;
-    off(event: any, listener: (...args: any[]) => void): this;
+    on<Args extends unknown[]>(event: string, listener: (...args: Args) => void): this;
+    off<Args extends unknown[]>(event: string, listener: (...args: Args) => void): this;
     localParticipant: LocalParticipant;
     remoteParticipants: Map<string, RemoteParticipant>;
-    connect(url: string, token: string, options?: any): Promise<void>;
+    connect(url: string, token: string, options?: Record<string, unknown>): Promise<void>;
     disconnect(): Promise<void>;
     state: string;
   }
   export class LocalParticipant {
     publishData(data: Uint8Array, options?: DataPublishOptions): Promise<void>;
-    getTrackPublications(): Map<string, any>;
-    getTrackPublication(source: string): any;
+    getTrackPublications(): Map<string, RemoteTrackPublication>;
+    getTrackPublication(source: string): RemoteTrackPublication | undefined;
     setMicrophoneEnabled(enabled: boolean): Promise<void>;
-    audioTrackPublications: Map<string, any>;
-    trackPublications: Map<string, any>;
+    audioTrackPublications: Map<string, RemoteTrackPublication>;
+    trackPublications: Map<string, RemoteTrackPublication>;
   }
   export class RemoteParticipant {
     getTrackPublications(): Map<string, RemoteTrackPublication>;
@@ -34,7 +40,7 @@ declare module 'livekit-client' {
     identity: string;
   }
   export class RemoteTrackPublication {
-    track: any;
+    track: RemoteTrack | null;
     source: string;
     kind: string;
     isSubscribed: boolean;
@@ -60,14 +66,41 @@ declare module 'livekit-client' {
 }
 
 declare module 'expo-audio' {
-  export function createAudioPlayer(source: any): any;
-  export function useAudioRecorder(preset: any): any;
-  export function useAudioRecorderState(recorder: any, interval: number): any;
+  export interface AudioPlaybackStatus {
+    didJustFinish?: boolean;
+    isLoaded?: boolean;
+    playing?: boolean;
+  }
+  export interface AudioPlayer {
+    addListener(event: 'playbackStatusUpdate', listener: (status: AudioPlaybackStatus) => void): { remove(): void };
+    play(): void;
+    pause(): void;
+    seekTo(seconds: number): void;
+    remove(): void;
+    release(): void;
+  }
+  /** A URI object, a bundled asset module id (number), or a required asset. */
+  export type AudioSource = { uri: string } | number;
+  export interface RecordingPreset {
+    isMeteringEnabled?: boolean;
+    [key: string]: unknown;
+  }
+  export interface AudioMode {
+    [key: string]: unknown;
+  }
+  export interface AudioRecorderState {
+    metering?: number;
+    isRecording?: boolean;
+    durationMillis?: number;
+  }
+  export function createAudioPlayer(source: AudioSource): AudioPlayer;
+  export function useAudioRecorder(preset: RecordingPreset): AudioRecorder;
+  export function useAudioRecorderState(recorder: AudioRecorder, interval: number): AudioRecorderState;
   export function requestRecordingPermissionsAsync(): Promise<{ granted: boolean }>;
-  export function setAudioModeAsync(mode: any): Promise<void>;
-  export const RecordingPresets: { HIGH_QUALITY: any };
+  export function setAudioModeAsync(mode: AudioMode): Promise<void>;
+  export const RecordingPresets: { HIGH_QUALITY: RecordingPreset };
   export class AudioRecorder {
-    constructor(preset: any);
+    constructor(preset: RecordingPreset);
     prepareToRecordAsync(): Promise<void>;
     record(): void;
     stop(): Promise<void>;
@@ -81,6 +114,22 @@ declare module 'expo-clipboard' {
 }
 
 declare module 'expo-image-picker' {
-  export function launchImageLibraryAsync(options?: any): Promise<any>;
+  export interface ImagePickerAsset {
+    uri: string;
+    fileName?: string | null;
+    fileSize?: number;
+    mimeType?: string;
+  }
+  export interface ImagePickerOptions {
+    allowsMultipleSelection?: boolean;
+    mediaTypes?: string;
+    aspect?: [number, number];
+    quality?: number;
+  }
+  export interface ImagePickerResult {
+    canceled: boolean;
+    assets: ImagePickerAsset[];
+  }
+  export function launchImageLibraryAsync(options?: ImagePickerOptions): Promise<ImagePickerResult>;
   export const MediaTypeOptions: { Images: string; Videos: string; All: string };
 }

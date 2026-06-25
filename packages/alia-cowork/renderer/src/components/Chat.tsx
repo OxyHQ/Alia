@@ -235,7 +235,7 @@ export function Chat() {
         if (existingIndex >= 0 && data.status === "running") {
           return prev.map((t, i) => i === existingIndex ? { ...t, args: data.args, status: "running" } : t)
         }
-        return [...prev, { tool: data.tool, args: data.args, status: data.status as any }]
+        return [...prev, { tool: data.tool, args: data.args, status: data.status as ToolExecution["status"] }]
       })
     })
 

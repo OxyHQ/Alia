@@ -1,4 +1,5 @@
 import { Link, createFileRoute, useNavigate } from '@tanstack/react-router';
+import { getErrorMessage } from '@/lib/utils';
 import { useState } from 'react';
 import { HugeiconsIcon } from '@hugeicons/react';
 import { ArrowLeft01Icon, Copy01Icon, Delete02Icon, Settings01Icon } from '@hugeicons/core-free-icons';
@@ -59,8 +60,8 @@ function KeyDetailPage() {
       setDeleteDialog(false);
       navigate({ to: '/apps/$appId', params: { appId } });
       toast.success('API key deleted');
-    } catch (error: any) {
-      toast.error(error.message || 'Failed to delete API key');
+    } catch (error: unknown) {
+      toast.error(getErrorMessage(error, 'Failed to delete API key'));
     }
   };
 

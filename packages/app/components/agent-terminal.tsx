@@ -5,6 +5,7 @@ import { io as socketIO, type Socket } from "socket.io-client";
 import config from "@/lib/config";
 import apiClient, { getSocketToken } from "@/lib/api/client";
 import { useColorScheme } from "@/lib/useColorScheme";
+import { errorMessage as getErrorMessage } from '../lib/errors/error-utils';
 
 interface AgentTerminalProps {
   agentId: string;
@@ -149,10 +150,10 @@ function WebTerminal({ agentId }: AgentTerminalProps) {
         terminal.writeln("");
 
         setReady(true);
-      } catch (err: any) {
+      } catch (err: unknown) {
         if (!cancelled) {
           console.error("[AgentTerminal] xterm init error:", err);
-          setError(err.message || "Failed to initialize terminal");
+          setError(getErrorMessage(err) || "Failed to initialize terminal");
         }
       }
     }

@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import apiClient from '../api/client';
 import { API_ROUTES } from '../api/routes';
+import { errorMessage as getErrorMessage, errorStatus, errorResponseData } from '../errors/error-utils';
 
 export interface AgentAccessory {
   accessoryId: string;
@@ -101,9 +102,9 @@ export const useAgentsStore = create<AgentsStoreState>((set, get) => ({
         accessories: normalizeAccessories(a.accessories),
       }));
       set({ agents, total: res.data.total, loading: false });
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Error loading agents:', error);
-      set({ error: error.message, loading: false });
+      set({ error: getErrorMessage(error), loading: false });
     }
   },
 
@@ -157,9 +158,9 @@ export const useAgentsStore = create<AgentsStoreState>((set, get) => ({
     try {
       const res = await apiClient.post(API_ROUTES.agents.hire(id), { task });
       return res.data.sessionId || null;
-    } catch (error: any) {
-      const status = error?.response?.status;
-      const data = error?.response?.data;
+    } catch (error: unknown) {
+      const status = errorStatus(error);
+      const data = errorResponseData(error);
       if (status === 402) {
         throw new Error(`Insufficient credits. You need ${data?.creditsNeeded || 'more'} credits to hire this agent.`);
       }

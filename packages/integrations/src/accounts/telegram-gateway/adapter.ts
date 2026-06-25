@@ -1,4 +1,5 @@
 import { Router, Request, Response } from 'express';
+import { errorMessage } from '../../shared/utils';
 import type { AccountAdapter } from '../types';
 import { sessionManager } from './session-manager';
 import { TelegramChat, TelegramMessage } from './models';
@@ -32,9 +33,9 @@ export class TelegramGatewayAdapter implements AccountAdapter {
           qr,
           message: 'Scan the QR code with Telegram to connect',
         });
-      } catch (error: any) {
+      } catch (error: unknown) {
         console.error('[Telegram] Connect error:', error);
-        return res.status(500).json({ error: error.message || 'Failed to create session' });
+        return res.status(500).json({ error: errorMessage(error) || 'Failed to create session' });
       }
     });
 
@@ -48,8 +49,8 @@ export class TelegramGatewayAdapter implements AccountAdapter {
           return res.json({ status: 'connected', message: 'Already connected' });
         }
         return res.json({ status: session.status, qr: session.lastQR || null });
-      } catch (error: any) {
-        return res.status(500).json({ error: error.message });
+      } catch (error: unknown) {
+        return res.status(500).json({ error: errorMessage(error) });
       }
     });
 
@@ -59,8 +60,8 @@ export class TelegramGatewayAdapter implements AccountAdapter {
         const session = await sessionManager.getStatus(req.params.sessionId);
         if (!session) return res.status(404).json({ error: 'Session not found' });
         return res.json(session);
-      } catch (error: any) {
-        return res.status(500).json({ error: error.message });
+      } catch (error: unknown) {
+        return res.status(500).json({ error: errorMessage(error) });
       }
     });
 
@@ -69,8 +70,8 @@ export class TelegramGatewayAdapter implements AccountAdapter {
       try {
         await sessionManager.disconnectSession(req.params.sessionId);
         return res.json({ status: 'logged-out', message: 'Session disconnected' });
-      } catch (error: any) {
-        return res.status(500).json({ error: error.message });
+      } catch (error: unknown) {
+        return res.status(500).json({ error: errorMessage(error) });
       }
     });
 
@@ -79,8 +80,8 @@ export class TelegramGatewayAdapter implements AccountAdapter {
       try {
         const sessions = await sessionManager.getUserSessions(req.params.userId);
         return res.json({ sessions });
-      } catch (error: any) {
-        return res.status(500).json({ error: error.message });
+      } catch (error: unknown) {
+        return res.status(500).json({ error: errorMessage(error) });
       }
     });
 
@@ -89,8 +90,8 @@ export class TelegramGatewayAdapter implements AccountAdapter {
       try {
         const sessions = await sessionManager.listSessions();
         return res.json({ sessions });
-      } catch (error: any) {
-        return res.status(500).json({ error: error.message });
+      } catch (error: unknown) {
+        return res.status(500).json({ error: errorMessage(error) });
       }
     });
 
@@ -103,7 +104,7 @@ export class TelegramGatewayAdapter implements AccountAdapter {
           .lean();
 
         const chats = await Promise.all(
-          dbChats.map(async (c: any) => {
+          dbChats.map(async (c) => {
             const lastMsg = await TelegramMessage.findOne({
               sessionId: req.params.sessionId,
               chatId: c.chatId,
@@ -116,14 +117,14 @@ export class TelegramGatewayAdapter implements AccountAdapter {
               name: c.name || String(c.chatId),
               unreadCount: c.unreadCount || 0,
               lastMessageTimestamp: c.lastMessageTimestamp || null,
-              lastMessagePreview: (lastMsg as any)?.text?.slice(0, 100) || '',
+              lastMessagePreview: lastMsg?.text?.slice(0, 100) || '',
             };
           }),
         );
 
         return res.json({ chats });
-      } catch (error: any) {
-        return res.status(500).json({ error: error.message });
+      } catch (error: unknown) {
+        return res.status(500).json({ error: errorMessage(error) });
       }
     });
 
@@ -139,7 +140,7 @@ export class TelegramGatewayAdapter implements AccountAdapter {
           .lean();
 
         return res.json({
-          messages: messages.map((m: any) => ({
+          messages: messages.map((m) => ({
             id: String(m.messageId || m._id),
             fromMe: m.fromMe,
             timestamp: m.timestamp,
@@ -147,8 +148,8 @@ export class TelegramGatewayAdapter implements AccountAdapter {
             senderName: m.senderName || null,
           })),
         });
-      } catch (error: any) {
-        return res.status(500).json({ error: error.message });
+      } catch (error: unknown) {
+        return res.status(500).json({ error: errorMessage(error) });
       }
     });
 
@@ -165,8 +166,8 @@ export class TelegramGatewayAdapter implements AccountAdapter {
         }
         const result = await client.sendMessage(chatId, { message: text });
         return res.json({ success: true, messageId: String(result?.id) });
-      } catch (error: any) {
-        return res.status(500).json({ error: error.message });
+      } catch (error: unknown) {
+        return res.status(500).json({ error: errorMessage(error) });
       }
     });
 

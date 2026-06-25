@@ -20,6 +20,7 @@ import { toast } from '@/components/sonner';
 import { useTranslation } from '@/hooks/useTranslation';
 import apiClient from '@/lib/api/client';
 import { API_ROUTES } from '@/lib/api/routes';
+import { errorMessage as getErrorMessage } from '@/lib/errors/error-utils';
 
 interface TriggerRecord {
   _id: string;
@@ -269,9 +270,9 @@ export default function AutomationsScreen() {
       }
       setDialogOpen(false);
       toast.success('Trigger created');
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Failed to create automation:', error);
-      toast.error(error.response?.data?.error || 'Failed to create automation');
+      toast.error(getErrorMessage(error, 'Failed to create automation'));
     } finally {
       setCreating(false);
     }
@@ -329,8 +330,8 @@ export default function AutomationsScreen() {
       }
 
       toast.success(result ? result.slice(0, 120) : 'Trigger completed');
-    } catch (error: any) {
-      toast.error(error.response?.data?.error || 'Automation run failed');
+    } catch (error: unknown) {
+      toast.error(getErrorMessage(error, 'Automation run failed'));
     } finally {
       setRunningIds((prev) => {
         const next = new Set(prev);
