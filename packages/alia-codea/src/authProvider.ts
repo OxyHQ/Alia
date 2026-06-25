@@ -319,8 +319,11 @@ export class AliaAuthenticationProvider
 
   private async resolveDisplayName(): Promise<string | null> {
     try {
-      const user = await this._oxyServices.getCurrentUser() as any;
-      return user?.name?.first || user?.username || user?.email?.split('@')[0] || null;
+      const user = await this._oxyServices.getCurrentUser();
+      // Prefer the canonical API-composed display name; the SDK returns it on
+      // `name.displayName`. Read it without recomputing from first/last.
+      const displayName = (user.name as { displayName?: string } | undefined)?.displayName;
+      return displayName || user.username || user.email?.split('@')[0] || null;
     } catch {
       return null;
     }

@@ -28,9 +28,16 @@ if (!GATEWAY_API_ENABLED) {
 
 const SERVICE_NAME = 'alia-api';
 
-function generateAuthHeaders(): Record<string, string> {
+/**
+ * Build service-to-service auth headers. The HMAC binds the method, full path
+ * (with query), and a hash of the serialized body — not just timestamp/service —
+ * so a captured signature can't be replayed against a different endpoint. This
+ * MUST match `buildServiceSigningString` in alia-gateway's auth middleware.
+ */
+function generateAuthHeaders(method: string, path: string, body: string = ''): Record<string, string> {
   const timestamp = Date.now().toString();
-  const payload = JSON.stringify({ timestamp, service: SERVICE_NAME });
+  const bodyHash = crypto.createHash('sha256').update(body || '').digest('hex');
+  const payload = [timestamp, SERVICE_NAME, method.toUpperCase(), path, bodyHash].join('\n');
   const signature = crypto.createHmac('sha256', SERVICE_SECRET!).update(payload).digest('hex');
 
   return {
@@ -43,7 +50,7 @@ function generateAuthHeaders(): Record<string, string> {
 
 async function apiGet<T = unknown>(path: string): Promise<T> {
   const res = await fetch(`${GATEWAY_API_URL}${path}`, {
-    headers: generateAuthHeaders(),
+    headers: generateAuthHeaders('GET', path),
   });
   if (!res.ok) {
     const body = await res.text();
@@ -54,10 +61,11 @@ async function apiGet<T = unknown>(path: string): Promise<T> {
 }
 
 async function apiPost<T = unknown>(path: string, body: unknown, signal?: AbortSignal): Promise<T> {
+  const serializedBody = JSON.stringify(body);
   const res = await fetch(`${GATEWAY_API_URL}${path}`, {
     method: 'POST',
-    headers: generateAuthHeaders(),
-    body: JSON.stringify(body),
+    headers: generateAuthHeaders('POST', path, serializedBody),
+    body: serializedBody,
     signal,
   });
   if (!res.ok) {
@@ -74,10 +82,11 @@ async function apiPost<T = unknown>(path: string, body: unknown, signal?: AbortS
 }
 
 async function apiPatch<T = unknown>(path: string, body: unknown): Promise<T> {
+  const serializedBody = JSON.stringify(body);
   const res = await fetch(`${GATEWAY_API_URL}${path}`, {
     method: 'PATCH',
-    headers: generateAuthHeaders(),
-    body: JSON.stringify(body),
+    headers: generateAuthHeaders('PATCH', path, serializedBody),
+    body: serializedBody,
   });
   if (!res.ok) {
     const text = await res.text();

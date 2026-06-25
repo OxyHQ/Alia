@@ -344,9 +344,13 @@ router.get('/internal/:platform/verify', async (req, res) => {
       return res.status(404).json({ error: 'Token not found or expired' });
     }
 
+    // Deliver the token in the URL fragment, NOT the query string. Fragments are
+    // never sent to servers, so the short-lived auth token does not leak into
+    // access logs, proxies, or the Referer header on the next navigation. The
+    // channel-auth screen reads it from `window.location.hash` client-side.
     const appUrl = process.env.APP_URL || process.env.WEB_URL || 'http://localhost:3000';
-    const redirectUrl = `${appUrl}/channel-auth?token=${token}&channel=${platform}`;
-    res.redirect(redirectUrl);
+    const fragment = `token=${encodeURIComponent(token)}&channel=${encodeURIComponent(platform)}`;
+    res.redirect(`${appUrl}/channel-auth#${fragment}`);
   } catch (error: unknown) {
     log.channels.error({ err: error }, 'Verify error');
     res.status(500).json({ error: 'Internal server error' });

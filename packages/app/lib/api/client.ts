@@ -17,6 +17,16 @@ export function setTokenGetter(getter: () => string | null) {
   getAccessToken = getter;
 }
 
+/**
+ * Returns the current Oxy access token for Socket.IO handshakes.
+ * Socket connections must authenticate via the auth-function form
+ * `auth: (cb) => cb({ token: getSocketToken() })` so a fresh token is read on
+ * every (re)connect and the server's `oxy.authSocket()` middleware accepts it.
+ */
+export function getSocketToken(): string | null {
+  return getAccessToken ? getAccessToken() : null;
+}
+
 // Request interceptor to add Bearer JWT token
 apiClient.interceptors.request.use(
   (config) => {

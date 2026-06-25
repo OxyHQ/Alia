@@ -11,8 +11,29 @@ declare global {
   namespace Express {
     interface Request {
       service?: string;
+      rawBody?: Buffer;
     }
   }
+}
+
+/**
+ * Canonical signing string for service-to-service HMAC.
+ *
+ * Binds the signature to the HTTP method, full request path (with query), and a
+ * hash of the request body — not just `{ timestamp, service }`. Without these in
+ * the signed material, a captured signature could be replayed against any other
+ * endpoint within the timestamp window. Signer and verifier MUST build this
+ * string identically (mirrors alia-gateway's middleware).
+ */
+export function buildServiceSigningString(parts: {
+  timestamp: string;
+  service: string;
+  method: string;
+  path: string;
+  body: string | Buffer;
+}): string {
+  const bodyHash = crypto.createHash('sha256').update(parts.body || '').digest('hex');
+  return [parts.timestamp, parts.service, parts.method.toUpperCase(), parts.path, bodyHash].join('\n');
 }
 
 /**
@@ -27,7 +48,7 @@ export async function authenticateService(req: Request, res: Response, next: Nex
 
   // Bearer token auth (admin UI) — delegate to official oxyClient.auth() middleware
   if (authHeader?.startsWith('Bearer ') && !serviceName) {
-    return oxyClient.auth({ loadUser: true })(req, res, (err?: any) => {
+    return oxyClient.auth({ loadUser: true })(req, res, (err?: unknown) => {
       if (err) {
         recordAuthFailure('jwt', 'auth_middleware_error').catch(() => {});
         return next(err);
@@ -97,8 +118,14 @@ export async function authenticateService(req: Request, res: Response, next: Nex
     });
   }
 
-  // Verify HMAC signature
-  const payload = JSON.stringify({ timestamp, service: serviceName });
+  // Verify HMAC signature over method + path + body, not just timestamp/service.
+  const payload = buildServiceSigningString({
+    timestamp,
+    service: serviceName,
+    method: req.method,
+    path: req.originalUrl,
+    body: req.rawBody ?? '',
+  });
   const expectedSignature = crypto.createHmac('sha256', SERVICE_SECRET).update(payload).digest('hex');
 
   const sigBuffer = Buffer.from(signature, 'hex');
@@ -118,12 +145,12 @@ export async function authenticateService(req: Request, res: Response, next: Nex
 }
 
 // Generate auth headers for outgoing service-to-service requests
-export function generateAuthHeaders(serviceName: string): Record<string, string> {
+export function generateAuthHeaders(serviceName: string, method: string, path: string, body: string | Buffer = ''): Record<string, string> {
   if (!SERVICE_SECRET) {
     throw new Error('SERVICE_SECRET is not configured');
   }
   const timestamp = Date.now().toString();
-  const payload = JSON.stringify({ timestamp, service: serviceName });
+  const payload = buildServiceSigningString({ timestamp, service: serviceName, method, path, body });
   const signature = crypto.createHmac('sha256', SERVICE_SECRET).update(payload).digest('hex');
 
   return {

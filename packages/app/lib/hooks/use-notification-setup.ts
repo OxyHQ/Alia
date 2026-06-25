@@ -14,7 +14,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useOxy } from '@oxyhq/services';
 import { io as socketIO } from 'socket.io-client';
 import config from '@/lib/config';
-import apiClient from '@/lib/api/client';
+import apiClient, { getSocketToken } from '@/lib/api/client';
 
 // ── Constants ──────────────────────────────────────────────────────
 const PROJECT_ID =
@@ -166,6 +166,8 @@ export function useNotificationSetup() {
 
     const socket = socketIO(config.apiUrl, {
       transports: ['websocket'],
+      // Function form so a fresh token is read on every (re)connect.
+      auth: (cb) => cb({ token: getSocketToken() }),
       reconnection: true,
       reconnectionAttempts: Infinity,
       reconnectionDelay: 1000,
@@ -173,7 +175,8 @@ export function useNotificationSetup() {
     });
 
     socket.on('connect', () => {
-      socket.emit('subscribe-notifications', user.id);
+      // Server derives the room from the authenticated user; arg is ignored.
+      socket.emit('subscribe-notifications');
     });
 
     socket.on('notification', () => {

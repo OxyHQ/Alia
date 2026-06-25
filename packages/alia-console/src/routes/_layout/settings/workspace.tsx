@@ -58,7 +58,6 @@ import {
   useWorkspaces,
 } from '@/hooks/use-workspace'
 import { WorkspaceAvatar } from '@/components/workspace-avatar'
-import config from '@/lib/config'
 
 export const Route = createFileRoute('/_layout/settings/workspace')({
   component: WorkspaceSettingsPage,
@@ -77,7 +76,7 @@ const roleDescriptions: Record<WorkspaceRole, string> = {
 }
 
 function WorkspaceSettingsPage() {
-  const { user } = useAuth()
+  const { user, oxyServices } = useAuth()
   const { workspaces } = useWorkspaces()
   const [currentWorkspaceId, setCurrentWorkspaceId] = useCurrentWorkspaceId()
   const updateMutation = useUpdateWorkspace()
@@ -368,7 +367,10 @@ function WorkspaceSettingsPage() {
                           src={
                             member.avatar.startsWith('http')
                               ? member.avatar
-                              : `${config.oxyUrl}/media/${member.avatar}`
+                              : oxyServices.getFileDownloadUrl(
+                                  member.avatar,
+                                  'thumb',
+                                )
                           }
                           alt={member.name || member.email}
                         />

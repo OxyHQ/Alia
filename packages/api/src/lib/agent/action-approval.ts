@@ -82,6 +82,14 @@ export async function requestApproval(opts: {
 }
 
 /**
+ * Look up the sessionId bound to a pending approval request, if any.
+ * Used to authorize a Socket.IO approval-response against the request's session.
+ */
+export function getPendingApprovalSession(requestId: string): string | null {
+  return pendingApprovals.get(requestId)?.sessionId ?? null;
+}
+
+/**
  * Resolve a pending approval from Socket.IO decision input.
  */
 export function resolveApprovalDecision(data: {

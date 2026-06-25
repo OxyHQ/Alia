@@ -55,7 +55,13 @@ const allowedOrigins = process.env.CORS_ORIGINS
 
 app.use(helmet());
 app.use(cors({ origin: allowedOrigins, credentials: true }));
-app.use(express.json({ limit: '10mb' }));
+// Capture the raw body so the service-to-service HMAC can bind a body hash.
+app.use(express.json({
+  limit: '10mb',
+  verify: (req, _res, buf) => {
+    (req as express.Request).rawBody = buf;
+  },
+}));
 
 // Mark as internal service
 app.use((_req, res, next) => {

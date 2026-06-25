@@ -3,7 +3,7 @@ import { View, Platform, ActivityIndicator } from "react-native";
 import { Text } from "@/components/ui/text";
 import { io as socketIO, type Socket } from "socket.io-client";
 import config from "@/lib/config";
-import apiClient from "@/lib/api/client";
+import apiClient, { getSocketToken } from "@/lib/api/client";
 import { useColorScheme } from "@/lib/useColorScheme";
 
 interface AgentTerminalProps {
@@ -212,6 +212,8 @@ function WebTerminal({ agentId }: AgentTerminalProps) {
     // Connect Socket.IO
     let wasConnected = false;
     const socket = socketIO(config.apiUrl, {
+      // Function form so a fresh token is read on every (re)connect.
+      auth: (cb) => cb({ token: getSocketToken() }),
       transports: ['websocket'],
       reconnection: true,
       reconnectionAttempts: Infinity,
@@ -438,6 +440,8 @@ function NativeTerminal({ agentId }: AgentTerminalProps) {
     // Connect Socket.IO
     let wasConnected = false;
     const socket = socketIO(config.apiUrl, {
+      // Function form so a fresh token is read on every (re)connect.
+      auth: (cb) => cb({ token: getSocketToken() }),
       transports: ['websocket'],
       reconnection: true,
       reconnectionAttempts: Infinity,

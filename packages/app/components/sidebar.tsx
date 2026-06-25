@@ -442,11 +442,7 @@ const ChatSidebar = React.memo(function ChatSidebar() {
 
   // Get display name for user
   const getUserDisplayName = React.useCallback(() => {
-    if (!user) return t('common.user');
-    if (user.name?.first) {
-      return user.name.last ? `${user.name.first} ${user.name.last}` : user.name.first;
-    }
-    return user.username || t('common.user');
+    return user?.name?.displayName || t('common.user');
   }, [user, t]);
 
   // Get pinned conversations (from all conversations not in projects)
