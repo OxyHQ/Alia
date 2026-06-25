@@ -10,7 +10,7 @@
     "type-check": "tsc --noEmit"
   },
   "dependencies": {
-    "@oxyhq/core": "^3.10.0",
+    "@oxyhq/core": "^3.10.1",
     "@whiskeysockets/baileys": "~6.7.23",
     "telegram": "^2.26.22",
     "telegraf": "^4.16.3",
