@@ -62,7 +62,7 @@ All Oxy ecosystem apps share the same MongoDB cluster on DigitalOcean. Each app 
 
 - **Frontend**: Expo 56, React Native 0.85.3, TypeScript, NativeWind (Tailwind), Reanimated v4, Zustand, TanStack Query
 - **Backend**: Express, TypeScript, MongoDB/Mongoose, Socket.IO
-- **Auth**: `@oxyhq/core ^3.8.0`, `@oxyhq/auth ^4.1.1`, `@oxyhq/services ^10.3.3`, `@oxyhq/bloom ^0.16.2`
+- **Auth**: `@oxyhq/core ^3.10.0`, `@oxyhq/auth ^5.0.1`, `@oxyhq/services ^11.0.0`, `@oxyhq/bloom ^0.19.1`, `@oxyhq/contracts ^0.2.1` (transitive via core)
 - **Routing**: expo-router (file-based)
 
 ## Dependency / Expo Gotchas
@@ -71,6 +71,15 @@ All Oxy ecosystem apps share the same MongoDB cluster on DigitalOcean. Each app 
 The root `/home/nate/Oxy/Alia/package.json` carries an `overrides` block that pins Expo SDK packages tree-wide (e.g. `"expo": "56.0.11"`, `"expo-font": "56.0.6"`). These pins take precedence over whatever `packages/app/package.json` declares — bun will revert `node_modules` to the pinned version even after `bunx expo install --fix` or `bun update`. Symptom: `bunx expo install --fix` loops infinitely because the override immediately resets the version it just wrote.
 
 **Rule:** Any Expo SDK version bump in Alia MUST also update the matching entries in the ROOT `package.json` `overrides` block, or the bump is cosmetic — `node_modules` stays on the old version. A correct bump commit touches THREE files: `packages/app/package.json`, root `package.json` (overrides), and `bun.lock`.
+
+## Oxy SDK Conventions
+
+- **Versions**: `@oxyhq/core ^3.10.0`, `@oxyhq/auth ^5.0.1`, `@oxyhq/services ^11.0.0`, `@oxyhq/bloom ^0.19.1`, `@oxyhq/contracts ^0.2.1` (transitive via core). `@oxyhq/services ^11.0.0` is a packaging-only major — deps moved to peerDependencies; app must declare TanStack Query peers.
+- **Media**: avatars/images resolve ONLY through `oxyServices.getFileDownloadUrl(id, variant)` + bloom's variant-aware `<Avatar source={fileId} variant="thumb">`. Never hardcode `cloud.oxy.so` or `/media/` URLs.
+- **Display names**: render `name.displayName` directly (core 3.10 fixes the type under node resolution). No local name fallbacks.
+- **Backend auth**: `@oxyhq/core/server` only — `createOxyAuthMiddleware`/`getRequiredOxyUserId`/`authSocket`. No local `requireAuth`, bearer parsers, or token-decoding middleware.
+- **Socket.IO (CRITICAL)**: Socket.IO server MUST use `io.use(oxy.authSocket())` for authenticated namespaces + per-event ownership checks. Previously unauthenticated — this was a critical security fix; do not regress.
+- **Backend client**: `oxyServices.createLinkedClient({ baseURL })` — no local token providers, auth interceptors, manual `Authorization` headers, or refresh retries.
 
 Expo web SSO callback bootstrap lives in `packages/app/app/+html.tsx` via
 `getSsoCallbackBootstrapScript()` from `@oxyhq/core`. Do not add local
