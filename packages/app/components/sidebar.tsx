@@ -38,14 +38,16 @@ import {
   Keyboard,
   ListTodo,
   Mic,
+  Bell,
+  CreditCard,
+  Sparkles,
   type LucideIcon,
 } from "lucide-react-native";
 import { useTranslation } from "@/hooks/useTranslation";
 import { useStore } from "@/lib/globalStore";
 import { useRouter, usePathname } from "expo-router";
 import { SettingsSidebar } from "@/components/settings/settings-sidebar";
-import { UserAvatar } from "@/components/user-avatar";
-import { useOxy } from "@oxyhq/services";
+import { useOxy, ProfileButton } from "@oxyhq/services";
 import { useProjectsStore } from "@/lib/stores/projects-store";
 import { useFoldersStore } from "@/lib/stores/folders-store";
 import { useFavoritesStore } from "@/lib/stores/favorites-store";
@@ -118,7 +120,7 @@ const ChatSidebar = React.memo(function ChatSidebar() {
     const all = data?.pages.flatMap(page => page.conversations) || [];
     return all.sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime());
   }, [data]);
-  const { user, isAuthenticated, logout, showBottomSheet } = useOxy();
+  const { isAuthenticated, showBottomSheet } = useOxy();
   const setShortcutsDialogOpen = useUIStore((s) => s.setShortcutsDialogOpen);
   const projects = useProjectsStore((state) => state.projects);
   const currentProjectId = useProjectsStore((state) => state.currentProjectId);
@@ -204,14 +206,13 @@ const ChatSidebar = React.memo(function ChatSidebar() {
     router.push("/(app)/settings");
   }, [router]);
 
-  const handleAccount = React.useCallback(() => {
+  const handleManageAccount = React.useCallback(() => {
     showBottomSheet('ManageAccount');
   }, [showBottomSheet]);
 
-  const handleLogout = React.useCallback(() => {
-    logout();
-    router.replace("/login");
-  }, [router, logout]);
+  const handleAddAccount = React.useCallback(() => {
+    router.push("/login");
+  }, [router]);
 
   const handleLogin = React.useCallback(() => {
     router.push("/login");
@@ -440,11 +441,6 @@ const ChatSidebar = React.memo(function ChatSidebar() {
     },
     [togglePin]
   );
-
-  // Get display name for user
-  const getUserDisplayName = React.useCallback(() => {
-    return user?.name?.displayName || t('common.user');
-  }, [user, t]);
 
   // Get pinned conversations (from all conversations not in projects)
   const pinnedConversations = React.useMemo(() => {
@@ -874,63 +870,51 @@ const ChatSidebar = React.memo(function ChatSidebar() {
     <>
         {isAuthenticated ? (
           <View className="gap-2">
+            {/* Account trigger. ProfileButton owns all three auth states
+                (undetermined skeleton, signed-in row + account switcher,
+                signed-out "Sign in") and the device-account switcher menu
+                (switch / add account / sign out / sign out all). Manage → Alia's
+                ManageAccount sheet; Add account → the sign-in flow. */}
+            <ProfileButton
+              expanded
+              onNavigateManage={handleManageAccount}
+              onAddAccount={handleAddAccount}
+            />
+
             {/* Icon Button Bar */}
             <View className="flex-row items-center">
-              {/* User avatar - opens account dropdown */}
-              <DropdownMenu.Root>
-                <DropdownMenu.Trigger>
-                  <Pressable accessibilityLabel="Account menu" accessibilityRole="button" className="h-9 w-9 md:h-8 md:w-8 items-center justify-center rounded-lg hover:bg-muted active:bg-muted">
-                    <UserAvatar size={24} />
-                    {(unreadData?.count ?? 0) > 0 && (
-                      <View className="absolute top-0.5 right-0.5 h-2.5 w-2.5 rounded-full bg-red-500 border border-background" />
-                    )}
-                  </Pressable>
-                </DropdownMenu.Trigger>
-                <DropdownMenu.Content>
-                  {Platform.OS === 'web' ? (
-                    <View className="flex-row items-center gap-2.5 px-1.5 py-1.5">
-                      <UserAvatar size={36} />
-                      <View>
-                        <Text className="text-sm font-semibold text-foreground">{getUserDisplayName()}</Text>
-                        {user?.username && <Text className="text-xs text-muted-foreground">{user.username}@oxy.so</Text>}
-                      </View>
-                    </View>
-                  ) : (
-                    <DropdownMenu.Label>{getUserDisplayName()}</DropdownMenu.Label>
-                  )}
-                  <DropdownMenu.Separator />
-                  <DropdownMenu.Item key="upgrade" onSelect={handleUpgrade}>
-                    <DropdownMenu.ItemIcon ios={{ name: "sparkle" }} />
-                    <DropdownMenu.ItemTitle>{t('sidebar.upgradeToPro')}</DropdownMenu.ItemTitle>
-                  </DropdownMenu.Item>
-                  <DropdownMenu.Item key="account" onSelect={handleAccount}>
-                    <DropdownMenu.ItemIcon ios={{ name: "person.circle" }} />
-                    <DropdownMenu.ItemTitle>{t('sidebar.account')}</DropdownMenu.ItemTitle>
-                  </DropdownMenu.Item>
-                  <DropdownMenu.Item key="billing" onSelect={handleBilling}>
-                    <DropdownMenu.ItemIcon ios={{ name: "creditcard" }} />
-                    <DropdownMenu.ItemTitle>{t('sidebar.billing')}</DropdownMenu.ItemTitle>
-                  </DropdownMenu.Item>
-                  <DropdownMenu.Item key="notifications" onSelect={handleNotifications}>
-                    <DropdownMenu.ItemIcon ios={{ name: "bell" }} />
-                    <DropdownMenu.ItemTitle>{t('sidebar.notifications')}</DropdownMenu.ItemTitle>
-                  </DropdownMenu.Item>
-                  <DropdownMenu.Separator />
-                  <DropdownMenu.Item key="terms" onSelect={() => Linking.openURL('https://oxy.so/company/transparency/policies/terms-of-service')}>
-                    <DropdownMenu.ItemIcon ios={{ name: "doc.text" }} />
-                    <DropdownMenu.ItemTitle>{t('sidebar.termsOfService')}</DropdownMenu.ItemTitle>
-                  </DropdownMenu.Item>
-                  <DropdownMenu.Item key="privacy" onSelect={() => Linking.openURL('https://oxy.so/company/transparency/policies/privacy')}>
-                    <DropdownMenu.ItemIcon ios={{ name: "hand.raised" }} />
-                    <DropdownMenu.ItemTitle>{t('sidebar.privacyPolicy')}</DropdownMenu.ItemTitle>
-                  </DropdownMenu.Item>
-                  <DropdownMenu.Separator />
-                  <DropdownMenu.Item key="logout" destructive onSelect={handleLogout}>
-                    <DropdownMenu.ItemIcon ios={{ name: "rectangle.portrait.and.arrow.right" }} />
-                    <DropdownMenu.ItemTitle>{t('sidebar.logOut')}</DropdownMenu.ItemTitle>
-                  </DropdownMenu.Item>
-                </DropdownMenu.Content>
-              </DropdownMenu.Root>
+              {/* Upgrade to Pro */}
+              <Pressable
+                accessibilityLabel={t('sidebar.upgradeToPro')}
+                accessibilityRole="button"
+                onPress={handleUpgrade}
+                className="h-9 w-9 md:h-8 md:w-8 items-center justify-center rounded-lg hover:bg-muted active:bg-muted"
+              >
+                <Sparkles size={18} className="text-muted-foreground" />
+              </Pressable>
+
+              {/* Notifications */}
+              <Pressable
+                accessibilityLabel={t('sidebar.notifications')}
+                accessibilityRole="button"
+                onPress={handleNotifications}
+                className="h-9 w-9 md:h-8 md:w-8 items-center justify-center rounded-lg hover:bg-muted active:bg-muted"
+              >
+                <Bell size={18} className="text-muted-foreground" />
+                {(unreadData?.count ?? 0) > 0 && (
+                  <View className="absolute top-0.5 right-0.5 h-2.5 w-2.5 rounded-full bg-red-500 border border-background" />
+                )}
+              </Pressable>
+
+              {/* Billing */}
+              <Pressable
+                accessibilityLabel={t('sidebar.billing')}
+                accessibilityRole="button"
+                onPress={handleBilling}
+                className="h-9 w-9 md:h-8 md:w-8 items-center justify-center rounded-lg hover:bg-muted active:bg-muted"
+              >
+                <CreditCard size={18} className="text-muted-foreground" />
+              </Pressable>
 
               {/* Settings */}
               <Pressable
@@ -982,6 +966,23 @@ const ChatSidebar = React.memo(function ChatSidebar() {
               >
                 <BookOpen size={18} className="text-muted-foreground" />
               </Pressable>
+            </View>
+
+            {/* Legal links */}
+            <View className="flex-row items-center justify-center gap-1">
+              <Text
+                className="text-[10px] text-muted-foreground underline"
+                onPress={() => Linking.openURL('https://oxy.so/company/transparency/policies/privacy')}
+              >
+                {t('sidebar.privacyPolicy')}
+              </Text>
+              <Text className="text-[10px] text-muted-foreground">·</Text>
+              <Text
+                className="text-[10px] text-muted-foreground underline"
+                onPress={() => Linking.openURL('https://oxy.so/company/transparency/policies/terms-of-service')}
+              >
+                {t('sidebar.termsOfService')}
+              </Text>
             </View>
           </View>
         ) : (
