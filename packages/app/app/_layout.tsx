@@ -2,9 +2,10 @@ import FontAwesome from '@expo/vector-icons/FontAwesome';
 import { useFonts } from 'expo-font';
 import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
-import { useEffect } from 'react';
+import { useEffect, useMemo } from 'react';
 import { OxyProvider, useOxy } from '@oxyhq/services';
 import { BloomThemeProvider } from '@oxyhq/bloom/theme';
+import { ImageResolverProvider } from '@oxyhq/bloom/image-resolver';
 import * as Linking from 'expo-linking';
 import { Platform } from 'react-native';
 
@@ -36,7 +37,16 @@ function AuthSetup({ children }: { children: React.ReactNode }) {
 
   setTokenGetter(() => oxyServices.getAccessToken() || null);
 
-  return <>{children}</>;
+  // Resolve bare Oxy file IDs to loadable URLs for Bloom components (avatars in
+  // ProfileButton, etc.). Single chokepoint: getFileDownloadUrl builds the
+  // canonical cloud.oxy.so URL. Defaults to the 'thumb' rendition when a caller
+  // omits the variant so list/sidebar avatars stay light.
+  const resolveImageSource = useMemo(
+    () => (id: string, variant?: string) => oxyServices.getFileDownloadUrl(id, variant ?? 'thumb'),
+    [oxyServices],
+  );
+
+  return <ImageResolverProvider value={resolveImageSource}>{children}</ImageResolverProvider>;
 }
 
 function AppContent() {
