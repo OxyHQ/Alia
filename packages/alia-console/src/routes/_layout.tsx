@@ -12,11 +12,11 @@ export const Route = createFileRoute('/_layout')({
 });
 
 function ApiAuthSetup({ children }: { children: React.ReactNode }) {
-  const { authManager } = useAuth();
+  const { oxyServices } = useAuth();
 
   // Set token getter synchronously during render to avoid race condition
   // where child effects (React Query) fire before this parent's useEffect
-  setTokenGetter(() => authManager.getAccessToken());
+  setTokenGetter(async () => oxyServices.getAccessToken());
 
   // Set workspace getter — reads current workspace from localStorage
   setWorkspaceGetter(() => {

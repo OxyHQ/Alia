@@ -1,8 +1,5 @@
-import { getSsoCallbackBootstrapScript } from '@oxyhq/core';
 import { ScrollViewStyleReset } from 'expo-router/html';
 import { type PropsWithChildren } from 'react';
-
-const SSO_CALLBACK_BOOTSTRAP_SCRIPT = getSsoCallbackBootstrapScript();
 
 /**
  * Root HTML component for static rendering
@@ -80,7 +77,6 @@ export default function Root({ children }: PropsWithChildren) {
         <meta name="apple-mobile-web-app-title" content="Alia" />
 
         {/* Disable body scrolling for native-like feel on web */}
-        <script dangerouslySetInnerHTML={{ __html: SSO_CALLBACK_BOOTSTRAP_SCRIPT }} />
         <ScrollViewStyleReset />
 
         {/* Preconnect to important domains for performance */}
