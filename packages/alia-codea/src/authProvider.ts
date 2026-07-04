@@ -224,10 +224,37 @@ export class AliaAuthenticationProvider
       return;
     }
 
-    const displayName = (await this.resolveDisplayName()) || persisted.username || 'Oxy User';
+    // Restore synchronously from storage — never block cold start on a network
+    // round-trip (offline / slow API would otherwise stall extension startup).
+    // `username` is the display name resolved at the last sign-in; refresh it
+    // lazily in the background and re-emit the session if it has changed.
     this._sessions = [
-      this.buildSession(`alia-session-${persisted.userId}`, persisted.accessToken, persisted.userId, displayName),
+      this.buildSession(
+        `alia-session-${persisted.userId}`,
+        persisted.accessToken,
+        persisted.userId,
+        persisted.username || 'Oxy User',
+      ),
     ];
+    void this.refreshSessionDisplayName(persisted.userId);
+  }
+
+  private async refreshSessionDisplayName(userId: string): Promise<void> {
+    const displayName = await this.resolveDisplayName();
+    if (!displayName) { return; }
+
+    const existing = this._sessions.find(s => s.account.id === userId);
+    if (!existing || existing.account.label === displayName) { return; }
+
+    const updated = this.buildSession(existing.id, existing.accessToken, userId, displayName);
+    this._sessions = this._sessions.map(s => (s.id === existing.id ? updated : s));
+    this._sessionChangeEmitter.fire({ added: [], removed: [], changed: [updated] });
+
+    // Persist the freshened name so the next cold start restores it directly.
+    const persisted = await this.readPersistedSession();
+    if (persisted && persisted.userId === userId) {
+      await this.persistSession({ ...persisted, username: displayName });
+    }
   }
 
   // --- Public API ---
@@ -259,7 +286,10 @@ export class AliaAuthenticationProvider
 
       const next: PersistedSession = {
         accessToken: rotated.accessToken,
-        refreshToken: rotated.refreshToken,
+        // A rotation that omits a new refresh token must NOT wipe the stored
+        // one — otherwise a single optional-rotation response would force a full
+        // re-sign-in on the next cold start.
+        refreshToken: rotated.refreshToken || persisted.refreshToken,
         expiresAt: rotated.expiresAt,
         userId: persisted.userId,
         username: persisted.username,
@@ -345,9 +375,14 @@ export class AliaAuthenticationProvider
     const raw = await this._secrets.get(SESSION_STORAGE_KEY);
     if (!raw) { return null; }
     try {
-      const parsed = JSON.parse(raw) as PersistedSession;
-      if (!parsed.accessToken || !parsed.userId) { return null; }
-      return parsed;
+      // `JSON.parse` yields null/primitives for a corrupt or literal `'null'`
+      // slot — reading `.accessToken` off those would throw. Reject anything
+      // that is not a populated object.
+      const parsed = JSON.parse(raw) as unknown;
+      if (typeof parsed !== 'object' || parsed === null) { return null; }
+      const session = parsed as PersistedSession;
+      if (!session.accessToken || !session.userId) { return null; }
+      return session;
     } catch {
       return null;
     }
