@@ -87,7 +87,7 @@ interface UsageStats {
 
 function PlaygroundPage() {
   const { data: modelsData, isLoading: modelsLoading } = useModelsStats();
-  const { authManager, isAuthenticated } = useAuth();
+  const { oxyServices, isAuthenticated } = useAuth();
 
   // Chat state
   const [messages, setMessages] = useState<Array<Message>>([]);
@@ -117,7 +117,7 @@ function PlaygroundPage() {
       return;
     }
 
-    const token = await authManager.getAccessToken();
+    const token = oxyServices.getAccessToken();
     if (!token) {
       toast.error('Authentication expired. Please sign in again.');
       return;
@@ -213,7 +213,7 @@ function PlaygroundPage() {
     userInput,
     isStreaming,
     isAuthenticated,
-    authManager,
+    oxyServices,
     messages,
     systemPrompt,
     selectedModel,

@@ -1,7 +1,6 @@
 import * as vscode from 'vscode';
 import * as crypto from 'crypto';
-import { OxyServices, createAuthManager } from '@oxyhq/core';
-import type { AuthManager, StorageAdapter, SessionLoginResponse, MinimalUserData } from '@oxyhq/core';
+import { OxyServices } from '@oxyhq/core';
 import { jwtDecode } from 'jwt-decode';
 import { errorMessage } from './errors';
 
@@ -11,9 +10,17 @@ const OXY_CLIENT_ID = 'oxy_dk_06488927793f96922ef4f366a9800547b34c6aec025fece3';
 const CALLBACK_PATH = '/auth-callback';
 const SIGN_IN_TIMEOUT_MS = 5 * 60 * 1000;
 const DEFAULT_TOKEN_LIFETIME_MS = 15 * 60 * 1000;
+// Refresh a planted access token this long before its JWT `exp` so an in-flight
+// request never races the boundary.
+const REFRESH_BUFFER_MS = 60 * 1000;
+// SecretStorage slot holding the persisted device session (access + rotating
+// refresh token). The device-first SDK no longer ships a headless AuthManager,
+// so the extension owns its own persistence and refresh loop.
+const SESSION_STORAGE_KEY = 'alia.session.v1';
 
 type OAuthTokenExchange = {
   access_token: string;
+  refresh_token?: string;
   token_type: 'Bearer';
   expires_in: number;
   session_id: string;
@@ -25,20 +32,12 @@ type OAuthTokenExchange = {
   };
 };
 
-class VsCodeStorageAdapter implements StorageAdapter {
-  constructor(private readonly secrets: vscode.SecretStorage) {}
-
-  async getItem(key: string): Promise<string | null> {
-    return (await this.secrets.get(key)) ?? null;
-  }
-
-  async setItem(key: string, value: string): Promise<void> {
-    await this.secrets.store(key, value);
-  }
-
-  async removeItem(key: string): Promise<void> {
-    await this.secrets.delete(key);
-  }
+interface PersistedSession {
+  accessToken: string;
+  refreshToken?: string;
+  expiresAt: string;
+  userId: string;
+  username: string;
 }
 
 export class AliaAuthenticationProvider
@@ -51,7 +50,7 @@ export class AliaAuthenticationProvider
     new vscode.EventEmitter<vscode.AuthenticationProviderAuthenticationSessionsChangeEvent>();
   private readonly _disposable: vscode.Disposable;
   private readonly _oxyServices: OxyServices;
-  private readonly _authManager: AuthManager;
+  private readonly _secrets: vscode.SecretStorage;
   private readonly _ready: Promise<void>;
 
   private _sessions: vscode.AuthenticationSession[] = [];
@@ -64,15 +63,7 @@ export class AliaAuthenticationProvider
 
   constructor(context: vscode.ExtensionContext) {
     this._oxyServices = new OxyServices({ baseURL: OXY_PLATFORM_URL });
-    this._authManager = createAuthManager(this._oxyServices, {
-      storage: new VsCodeStorageAdapter(context.secrets),
-      autoRefresh: true,
-      refreshBuffer: 5 * 60 * 1000,
-    });
-
-    this._authManager.onAuthStateChange((user: MinimalUserData | null) => {
-      this.handleAuthStateChange(user);
-    });
+    this._secrets = context.secrets;
 
     this._ready = this.initialize();
 
@@ -158,19 +149,18 @@ export class AliaAuthenticationProvider
       const displayName = (await this.resolveDisplayName()) || username || 'Oxy User';
       if (!userId) { userId = `user-${Date.now()}`; }
 
-      const sessionResponse: SessionLoginResponse = {
+      await this.persistSession({
         accessToken: token,
-        sessionId: resolvedSessionId,
-        deviceId: 'vscode-codea',
+        refreshToken: tokenData.refresh_token,
         expiresAt,
-        user: { id: userId, username: displayName },
-      };
-
-      await this._authManager.handleAuthSuccess(sessionResponse, 'redirect');
+        userId,
+        username: displayName,
+      });
 
       const session = this.buildSession(resolvedSessionId, token, userId, displayName);
+      const previous = [...this._sessions];
       this._sessions = [session];
-      this._sessionChangeEmitter.fire({ added: [session], removed: [], changed: [] });
+      this._sessionChangeEmitter.fire({ added: [session], removed: previous, changed: [] });
 
       this._pendingAuthResolve?.(session);
       this.clearPendingAuth();
@@ -219,44 +209,25 @@ export class AliaAuthenticationProvider
   // --- Session lifecycle ---
 
   private async initialize(): Promise<void> {
-    try {
-      const user = await this._authManager.initialize();
-      if (!user) { return; }
+    const persisted = await this.readPersistedSession();
+    if (!persisted) { return; }
 
-      const token = await this._authManager.getAccessToken();
-      if (token) { this._oxyServices.setTokens(token); }
+    this._oxyServices.setTokens(persisted.accessToken);
 
-      const displayName = (await this.resolveDisplayName()) || user.username || 'Oxy User';
-      this._sessions = [this.buildSession(`alia-session-${user.id}`, token || '', user.id, displayName)];
-    } catch {
-      // No persisted session to restore
-    }
-  }
-
-  private async handleAuthStateChange(user: MinimalUserData | null): Promise<void> {
-    if (user) {
-      const token = await this._authManager.getAccessToken();
-      const displayName = (await this.resolveDisplayName()) || user.username || 'Oxy User';
-      const session = this.buildSession(`alia-session-${user.id}`, token || '', user.id, displayName);
-
-      const previous = [...this._sessions];
-      this._sessions = [session];
-
-      const isUpdate = previous.length > 0 && previous[0].id === session.id;
-      this._sessionChangeEmitter.fire(
-        isUpdate
-          ? { added: [], removed: [], changed: [session] }
-          : { added: [session], removed: previous, changed: [] },
-      );
-    } else {
-      if (this._pendingAuthResolve) { return; }
-
-      const removed = [...this._sessions];
-      this._sessions = [];
-      if (removed.length > 0) {
-        this._sessionChangeEmitter.fire({ added: [], removed, changed: [] });
+    if (!this.isPlantedTokenFresh(persisted.expiresAt)) {
+      // Expired on cold start — try to rotate before surfacing a session.
+      const refreshed = await this.refreshToken();
+      if (!refreshed) {
+        await this.clearPersistedSession();
+        return;
       }
+      return;
     }
+
+    const displayName = (await this.resolveDisplayName()) || persisted.username || 'Oxy User';
+    this._sessions = [
+      this.buildSession(`alia-session-${persisted.userId}`, persisted.accessToken, persisted.userId, displayName),
+    ];
   }
 
   // --- Public API ---
@@ -264,16 +235,51 @@ export class AliaAuthenticationProvider
   public async getAccessToken(): Promise<string | null> {
     await this._ready;
 
-    const jwt = await this._authManager.getAccessToken();
-    if (jwt) { return jwt; }
+    const persisted = await this.readPersistedSession();
+    if (persisted) {
+      if (this.isPlantedTokenFresh(persisted.expiresAt)) {
+        return this._oxyServices.getAccessToken();
+      }
+      if (await this.refreshToken()) {
+        return this._oxyServices.getAccessToken();
+      }
+    }
 
     const apiKey = vscode.workspace.getConfiguration('codea').get<string>('apiKey', '');
     return apiKey?.startsWith('alia_sk_') ? apiKey : null;
   }
 
   public async refreshToken(): Promise<boolean> {
-    try { return await this._authManager.refreshToken(); }
-    catch { return false; }
+    const persisted = await this.readPersistedSession();
+    if (!persisted?.refreshToken) { return false; }
+
+    try {
+      const rotated = await this._oxyServices.refreshWithToken(persisted.refreshToken);
+      this._oxyServices.setTokens(rotated.accessToken);
+
+      const next: PersistedSession = {
+        accessToken: rotated.accessToken,
+        refreshToken: rotated.refreshToken,
+        expiresAt: rotated.expiresAt,
+        userId: persisted.userId,
+        username: persisted.username,
+      };
+      await this.persistSession(next);
+
+      const session = this.buildSession(
+        `alia-session-${next.userId}`, next.accessToken, next.userId, next.username,
+      );
+      const wasActive = this._sessions.length > 0;
+      this._sessions = [session];
+      this._sessionChangeEmitter.fire(
+        wasActive
+          ? { added: [], removed: [], changed: [session] }
+          : { added: [session], removed: [], changed: [] },
+      );
+      return true;
+    } catch {
+      return false;
+    }
   }
 
   public getOxyServices(): OxyServices {
@@ -292,7 +298,7 @@ export class AliaAuthenticationProvider
   }
 
   async removeSession(sessionId: string): Promise<void> {
-    await this._authManager.signOut();
+    await this.clearPersistedSession();
     this._oxyServices.clearTokens();
 
     const removed = this._sessions.filter(s => s.id === sessionId);
@@ -305,7 +311,6 @@ export class AliaAuthenticationProvider
 
   dispose(): void {
     this.clearPendingAuth();
-    this._authManager.destroy();
     this._disposable.dispose();
     this._sessionChangeEmitter.dispose();
   }
@@ -316,6 +321,40 @@ export class AliaAuthenticationProvider
     id: string, token: string, userId: string, label: string,
   ): vscode.AuthenticationSession {
     return { id, accessToken: token, account: { id: userId, label }, scopes: [] };
+  }
+
+  private isPlantedTokenFresh(fallbackExpiresAt: string): boolean {
+    if (!this._oxyServices.getAccessToken()) { return false; }
+
+    // Prefer the JWT `exp` claim; fall back to the persisted ISO expiry for
+    // opaque tokens that carry no decodable expiry.
+    const expSeconds = this._oxyServices.getAccessTokenExpiry();
+    const expiresAtMs = expSeconds != null
+      ? expSeconds * 1000
+      : Date.parse(fallbackExpiresAt);
+    if (Number.isNaN(expiresAtMs)) { return true; }
+
+    return expiresAtMs > Date.now() + REFRESH_BUFFER_MS;
+  }
+
+  private async persistSession(session: PersistedSession): Promise<void> {
+    await this._secrets.store(SESSION_STORAGE_KEY, JSON.stringify(session));
+  }
+
+  private async readPersistedSession(): Promise<PersistedSession | null> {
+    const raw = await this._secrets.get(SESSION_STORAGE_KEY);
+    if (!raw) { return null; }
+    try {
+      const parsed = JSON.parse(raw) as PersistedSession;
+      if (!parsed.accessToken || !parsed.userId) { return null; }
+      return parsed;
+    } catch {
+      return null;
+    }
+  }
+
+  private async clearPersistedSession(): Promise<void> {
+    await this._secrets.delete(SESSION_STORAGE_KEY);
   }
 
   private async resolveDisplayName(): Promise<string | null> {
