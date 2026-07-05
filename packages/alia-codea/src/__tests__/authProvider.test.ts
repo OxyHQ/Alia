@@ -68,7 +68,10 @@ function makeContext(session: Record<string, unknown>) {
     onDidChange: () => ({ dispose: () => undefined }),
   };
   const context = { secrets: secretStorage } as unknown as vscode.ExtensionContext;
-  return { context, secrets };
+  // `storage` is the live SecretStorage double (same reference the provider
+  // holds), so a test can flip `storage.get` to reject and simulate a locked
+  // keychain mid-session.
+  return { context, secrets, storage: secretStorage };
 }
 
 function readPersisted(secrets: Map<string, string>): { accessToken: string; refreshToken: string } {
@@ -190,6 +193,41 @@ describe('AliaAuthenticationProvider refresh single-flight', () => {
 
     expect(refreshMock).toHaveBeenCalledTimes(2);
     expect(provider.getOxyServices().getAccessToken()).toBe('access-2');
+
+    provider.dispose();
+  });
+
+  it('resolves to false (never rejects) when the storage read fails, for all awaiters', async () => {
+    const { context, storage } = makeContext(freshSession());
+    const provider = new AliaAuthenticationProvider(context);
+    await provider.getSessions(); // cold-start restore while storage still works
+
+    // Simulate a locked keychain: the read now rejects. This happens BEFORE
+    // rotateRefreshToken's own try/catch, so without the single-flight
+    // `.catch(() => false)` the shared promise would reject and propagate as an
+    // unhandled rejection to callers that don't catch.
+    storage.get = async () => {
+      throw new Error('keychain locked');
+    };
+
+    const results = await Promise.all([
+      provider.refreshToken(),
+      provider.refreshToken(),
+    ]);
+
+    // Both concurrent awaiters get a clean `false` — no throw, no rotation.
+    expect(results).toEqual([false, false]);
+    expect(refreshMock).not.toHaveBeenCalled();
+
+    // The guard cleared, so a later refresh (storage recovered) can still run.
+    storage.get = async () => JSON.stringify(freshSession());
+    refreshMock.mockResolvedValueOnce({
+      accessToken: 'access-2',
+      refreshToken: 'refresh-2',
+      expiresAt: futureExpiry(),
+    });
+    expect(await provider.refreshToken()).toBe(true);
+    expect(refreshMock).toHaveBeenCalledTimes(1);
 
     provider.dispose();
   });

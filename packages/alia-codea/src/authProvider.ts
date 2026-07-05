@@ -289,9 +289,19 @@ export class AliaAuthenticationProvider
     // planted + persisted, so every awaiter observes the new token.
     if (this._refreshInFlight) { return this._refreshInFlight; }
 
-    const inFlight = this.rotateRefreshToken().finally(() => {
-      this._refreshInFlight = null;
-    });
+    // `.catch(() => false)` before caching guarantees the shared promise
+    // RESOLVES (never rejects): a keychain/storage read failure inside
+    // `rotateRefreshToken` (e.g. `readPersistedSession`, which runs before its
+    // own try/catch) must surface as a normal `false` to every awaiter — some
+    // callers (`initialize`, session restore) `await refreshToken()` without a
+    // catch, and a rejected shared promise would become an unhandled rejection
+    // and could stall extension init. The `.finally` still clears the cache so a
+    // later attempt can retry.
+    const inFlight = this.rotateRefreshToken()
+      .catch(() => false)
+      .finally(() => {
+        this._refreshInFlight = null;
+      });
     this._refreshInFlight = inFlight;
     return inFlight;
   }
