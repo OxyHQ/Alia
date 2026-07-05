@@ -60,6 +60,11 @@ export class AliaAuthenticationProvider
   private _pendingAuthTimeout: ReturnType<typeof setTimeout> | null = null;
   private _pendingCodeVerifier: string | null = null;
   private _pendingRedirectUri: string | null = null;
+  // Single-flight guard for token rotation. Concurrent callers share one
+  // in-flight refresh instead of each rotating the same refresh token — a
+  // double rotation trips the server's refresh-token reuse-detection and
+  // revokes the whole family.
+  private _refreshInFlight: Promise<boolean> | null = null;
 
   constructor(context: vscode.ExtensionContext) {
     this._oxyServices = new OxyServices({ baseURL: OXY_PLATFORM_URL });
@@ -277,6 +282,31 @@ export class AliaAuthenticationProvider
   }
 
   public async refreshToken(): Promise<boolean> {
+    // Coalesce concurrent rotations: a stampede of near-expiry callers (e.g. two
+    // AI requests firing at once) must share a single rotation. Rotating the
+    // same refresh token twice trips server-side reuse-detection and revokes the
+    // family. The in-flight promise resolves only after the rotated pair is
+    // planted + persisted, so every awaiter observes the new token.
+    if (this._refreshInFlight) { return this._refreshInFlight; }
+
+    // `.catch(() => false)` before caching guarantees the shared promise
+    // RESOLVES (never rejects): a keychain/storage read failure inside
+    // `rotateRefreshToken` (e.g. `readPersistedSession`, which runs before its
+    // own try/catch) must surface as a normal `false` to every awaiter — some
+    // callers (`initialize`, session restore) `await refreshToken()` without a
+    // catch, and a rejected shared promise would become an unhandled rejection
+    // and could stall extension init. The `.finally` still clears the cache so a
+    // later attempt can retry.
+    const inFlight = this.rotateRefreshToken()
+      .catch(() => false)
+      .finally(() => {
+        this._refreshInFlight = null;
+      });
+    this._refreshInFlight = inFlight;
+    return inFlight;
+  }
+
+  private async rotateRefreshToken(): Promise<boolean> {
     const persisted = await this.readPersistedSession();
     if (!persisted?.refreshToken) { return false; }
 
