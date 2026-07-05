@@ -134,6 +134,7 @@
         "@vscode/vsce": "^2.22.0",
         "esbuild": "^0.28.1",
         "typescript": "^5.3.0",
+        "vitest": "^4.0.18",
       },
     },
     "packages/alia-codea-cli": {
