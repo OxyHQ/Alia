@@ -89,8 +89,8 @@
   },
   "dependencies": {
     "@oxyhq/auth": "^8.0.0",
-    "@oxyhq/bloom": "^0.29.1",
-    "@oxyhq/core": "^6.0.0",
+    "@oxyhq/bloom": "^0.29.2",
+    "@oxyhq/core": "^9.0.0",
     "@tanstack/query-sync-storage-persister": "^5.100.0",
     "@tanstack/react-query": "^5.100.0",
     "@tanstack/react-query-persist-client": "^5.100.0",

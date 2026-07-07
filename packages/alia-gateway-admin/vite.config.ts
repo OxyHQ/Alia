@@ -2,14 +2,48 @@ import path from "path"
 import tailwindcss from "@tailwindcss/vite"
 import react from "@vitejs/plugin-react"
 import { defineConfig } from "vite"
+import reactNativeWeb from "vite-plugin-react-native-web"
 
-export default defineConfig({
-  plugins: [react(), tailwindcss()],
+const emptyModule = path.resolve(__dirname, "./src/empty-module.js")
+
+// The admin panel runs on rolldown-vite (`"vite": "npm:rolldown-vite@^7"`) so
+// the `@oxyhq/services` React Native graph bundles through the maintained
+// `vite-plugin-react-native-web` plugin instead of hand-rolled interop: it
+// aliases react-native→react-native-web, applies `.web.*` platform extension
+// priority in dev AND build, treats RN packages' JSX-in-.js via rolldown
+// moduleTypes, strips Flow types, keeps expo-modules-core's side-effectful web
+// polyfill (`globalThis.expo`) from being tree-shaken, and defines the RN
+// globals.
+export default defineConfig(({ mode }) => ({
+  plugins: [reactNativeWeb(), react(), tailwindcss()],
   resolve: {
     conditions: ['style'],
-    alias: {
-      "@": path.resolve(__dirname, "./src"),
-    },
+    alias: [
+      { find: "@", replacement: path.resolve(__dirname, "./src") },
+      // Deep native-only internals that monorepo hoisting can pull in
+      // transitively and that have no web implementation.
+      { find: /^react-native\/Libraries\/.*/, replacement: emptyModule },
+      // Native-only navigation primitives; `sonner-native` named-imports
+      // FullWindowOverlay, which on web renders straight through (see shim).
+      {
+        find: 'react-native-screens',
+        replacement: path.resolve(__dirname, './src/shims/react-native-screens.js'),
+      },
+      // react-native-svg asset resolution reaches for RN's Flow-typed CJS asset
+      // registry; on web the one true registry is react-native-web's (ESM, same
+      // registerAsset/getAssetByID API).
+      {
+        find: '@react-native/assets-registry/registry',
+        replacement: 'react-native-web/dist/modules/AssetRegistry',
+      },
+    ],
+  },
+  define: {
+    // vite-plugin-react-native-web pins __DEV__=false and NODE_ENV=production
+    // unconditionally; re-assert the mode-aware values (user config wins over
+    // plugin config in Vite's merge).
+    __DEV__: JSON.stringify(mode !== 'production'),
+    'process.env.NODE_ENV': JSON.stringify(mode),
   },
   server: {
     proxy: {
@@ -21,4 +55,4 @@ export default defineConfig({
       },
     },
   },
-})
+}))

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useAuth } from '@oxyhq/auth';
+import { useAuth } from '@oxyhq/services';
 import { apiClient } from '@/lib/api/client';
 import { getErrorMessage } from '@/lib/utils';
 import type { AdminFeature, AdminPlanFeature } from '@/types';
