@@ -1,7 +1,8 @@
 import { HeadContent, Outlet, Scripts, createRootRoute } from '@tanstack/react-router';
 import { Suspense, lazy } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { WebOxyProvider } from '@oxyhq/auth';
+import { OxyProvider } from '@oxyhq/services';
+import { BloomThemeProvider } from '@oxyhq/bloom/theme';
 import appCss from '../styles.css?url';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { Toaster } from '@/components/ui/sonner';
@@ -67,12 +68,18 @@ function RootComponent() {
       </head>
       <body className="min-h-screen bg-background font-sans antialiased">
         <QueryClientProvider client={queryClient}>
-          <WebOxyProvider baseURL={config.oxyUrl} clientId={config.oxyClientId}>
-            <TooltipProvider delayDuration={300}>
-              <Outlet />
-              <Toaster position="bottom-right" richColors closeButton />
-            </TooltipProvider>
-          </WebOxyProvider>
+          <BloomThemeProvider mode="system" colorPreset="oxy">
+            <OxyProvider
+              baseURL={config.oxyUrl}
+              clientId={config.oxyClientId}
+              queryClient={queryClient}
+            >
+              <TooltipProvider delayDuration={300}>
+                <Outlet />
+                <Toaster position="bottom-right" richColors closeButton />
+              </TooltipProvider>
+            </OxyProvider>
+          </BloomThemeProvider>
         </QueryClientProvider>
         {import.meta.env.DEV && (
           <Suspense fallback={null}>

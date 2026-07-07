@@ -1,5 +1,5 @@
 import type { JSX } from 'react'
-import { useAuth } from '@oxyhq/auth'
+import { useAuth } from '@oxyhq/services'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import type { Workspace } from '@/hooks/use-workspace'
 import { cn } from '@/lib/utils'

@@ -11,7 +11,7 @@ import {
   Settings01Icon,
   SourceCodeIcon,
 } from '@hugeicons/core-free-icons';
-import { useAuth } from '@oxyhq/auth';
+import { useAuth } from '@oxyhq/services';
 import { NavMain } from './nav-main';
 import { NavApps } from './nav-apps';
 import { NavUser } from './nav-user';
@@ -109,7 +109,7 @@ export function AppSidebar() {
         {isAuthenticated ? (
           <NavUser />
         ) : (
-          <Button variant="ghost" className="w-full justify-start gap-2 px-2" onClick={signIn}>
+          <Button variant="ghost" className="w-full justify-start gap-2 px-2" onClick={() => void signIn()}>
             <HugeiconsIcon icon={Login01Icon} size={18} />
             <span>Sign in</span>
           </Button>
