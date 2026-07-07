@@ -16,6 +16,9 @@ import { LoadWorkflowDialog } from "./load-workflow-dialog";
 import { NodeEditPanel } from "./node-edit-panel";
 import { RunHistoryDialog } from "./run-history-dialog";
 
+// Alia workflow API base (workflows, execute). Overridable at build time.
+const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3001";
+
 // Default README Generator template
 const initialNodes: WorkflowNode[] = [
   {
@@ -196,7 +199,6 @@ function WorkflowEditorInner() {
     setExecution(null);
 
     try {
-      const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
       const response = await fetch(`${API_URL}/api/execute`, {
         method: "POST",
         headers: {
@@ -255,7 +257,6 @@ function WorkflowEditorInner() {
     setIsSaving(true);
 
     try {
-      const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
       const url = workflowId ? `${API_URL}/api/workflows/${workflowId}` : `${API_URL}/api/workflows`;
       const method = workflowId ? "PUT" : "POST";
 
@@ -288,7 +289,6 @@ function WorkflowEditorInner() {
 
   const handleLoad = async (id: string) => {
     try {
-      const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
       const response = await fetch(`${API_URL}/api/workflows/${id}`);
       const result = await response.json();
 

@@ -26,6 +26,7 @@ export function RunHistoryDialog({
     queryKey: ["canvas", "executions", workflowId],
     enabled: isOpen && Boolean(workflowId),
     queryFn: async (): Promise<WorkflowExecution[]> => {
+      if (!workflowId) return [];
       const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3001";
       const response = await fetch(`${API_URL}/api/workflows/${workflowId}/executions`);
       if (!response.ok) {
