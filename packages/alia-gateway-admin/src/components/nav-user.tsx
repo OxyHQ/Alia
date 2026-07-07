@@ -1,5 +1,5 @@
 import { LogOut, ChevronsUpDown } from 'lucide-react';
-import { useAuth } from '@oxyhq/auth';
+import { useAuth } from '@oxyhq/services';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import {
   DropdownMenu,

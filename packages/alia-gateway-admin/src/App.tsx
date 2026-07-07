@@ -1,6 +1,7 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
-import { WebOxyProvider, useAuth } from '@oxyhq/auth';
+import { OxyProvider, useAuth } from '@oxyhq/services';
+import { BloomThemeProvider } from '@oxyhq/bloom/theme';
 import { DashboardLayout } from './components/layouts/DashboardLayout';
 import { DashboardPage } from './pages/Dashboard';
 import { KeysPage } from './pages/Keys';
@@ -43,17 +44,19 @@ function ApiAuthSetup({ children }: { children: React.ReactNode }) {
 
 function App() {
   return (
-    <WebOxyProvider baseURL={OXY_API_URL} clientId={OXY_CLIENT_ID}>
-      <ApiAuthSetup>
-        <RealtimeProvider>
-          <QueryClientProvider client={queryClient}>
-            <BrowserRouter>
-              <AppRoutes />
-            </BrowserRouter>
-          </QueryClientProvider>
-        </RealtimeProvider>
-      </ApiAuthSetup>
-    </WebOxyProvider>
+    <QueryClientProvider client={queryClient}>
+      <BloomThemeProvider mode="system" colorPreset="oxy">
+        <OxyProvider baseURL={OXY_API_URL} clientId={OXY_CLIENT_ID} queryClient={queryClient}>
+          <ApiAuthSetup>
+            <RealtimeProvider>
+              <BrowserRouter>
+                <AppRoutes />
+              </BrowserRouter>
+            </RealtimeProvider>
+          </ApiAuthSetup>
+        </OxyProvider>
+      </BloomThemeProvider>
+    </QueryClientProvider>
   );
 }
 

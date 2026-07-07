@@ -4,7 +4,7 @@
  */
 
 import { createContext, useContext, useEffect, type ReactNode } from 'react';
-import { useAuth } from '@oxyhq/auth';
+import { useAuth } from '@oxyhq/services';
 import { realtimeClient } from './client';
 
 interface RealtimeContextValue {

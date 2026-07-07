@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { useAuth } from '@oxyhq/auth';
+import { useAuth } from '@oxyhq/services';
 import { apiClient } from '@/lib/api/client';
 import type { ApiEnvelope, PaginatedData } from '@/types';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';

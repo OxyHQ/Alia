@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { useAuth } from '@oxyhq/auth';
+import { useAuth } from '@oxyhq/services';
 import { apiClient } from '@/lib/api/client';
 import type { DashboardStats } from '@/lib/api/client';
 import { useRealtimeHealth, useRealtimeKeys } from '@/lib/websocket/hooks';
