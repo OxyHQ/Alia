@@ -109,7 +109,7 @@ export function AppSidebar() {
         {isAuthenticated ? (
           <NavUser />
         ) : (
-          <Button variant="ghost" className="w-full justify-start gap-2 px-2" onClick={() => signIn()}>
+          <Button variant="ghost" className="w-full justify-start gap-2 px-2" onClick={() => void signIn()}>
             <HugeiconsIcon icon={Login01Icon} size={18} />
             <span>Sign in</span>
           </Button>
