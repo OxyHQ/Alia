@@ -52,19 +52,19 @@ Admin Panel (this app)
 - **Styling**: Tailwind CSS v4
 - **Data Fetching**: TanStack Query (React Query)
 - **Real-time**: WebSocket with automatic fallback to HTTP polling
-- **Authentication**: OxyHQ Auth (cross-domain SSO via `@oxyhq/auth`)
+- **Authentication**: OxyHQ device-first session via `@oxyhq/services` (`OxyProvider` + `useAuth`)
 - **Charts**: Recharts
 - **Routing**: React Router v7
 - **Icons**: Lucide React
 
 ## Authentication
 
-The admin panel uses **OxyHQ's cross-domain SSO** for authentication with strict authorization.
+The admin panel uses OxyHQ's **device-first session** for authentication with strict authorization.
 
 ### How it works
 
-1. **Frontend**: Uses `WebOxyProvider` and `useAuth` from `@oxyhq/auth`
-2. **Login Flow**: Click "Sign in with Oxy" -> redirects to auth.oxy.so -> FedCM/popup/redirect -> returns with session
+1. **Frontend**: Uses `OxyProvider` and `useAuth` from `@oxyhq/services` (the one SDK for web + native; web bundles the RN graph via `rolldown-vite` + `vite-plugin-react-native-web`)
+2. **Login Flow**: `useAuth().signIn()` opens the in-app SDK sign-in dialog; the session is minted device-first (`deviceId` + `deviceSecret` → `POST /session/device/token`), no cookie, no cross-domain SSO bounce
 3. **Authorization Check**: Only username `nate` is allowed admin access
 4. **Backend Validation**: Every API request includes a Bearer token validated by the API's auth middleware
 
@@ -72,7 +72,7 @@ The admin panel uses **OxyHQ's cross-domain SSO** for authentication with strict
 
 **Frontend** ([src/App.tsx](src/App.tsx)):
 ```typescript
-import { WebOxyProvider, useAuth } from '@oxyhq/auth';
+import { OxyProvider, useAuth } from '@oxyhq/services';
 
 const { user, isAuthenticated, isLoading } = useAuth();
 const isAuthorized = user?.username?.toLowerCase() === 'nate';

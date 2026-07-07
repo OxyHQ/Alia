@@ -18,4 +18,4 @@ npm run build
 - [React](https://react.dev) - UI library
 - [TypeScript](https://www.typescriptlang.org) - Type-safe JavaScript
 - [shadcn/ui](https://ui.shadcn.com) - UI components
-- [@oxyhq/auth](https://www.npmjs.com/package/@oxyhq/auth) - Authentication
+- [@oxyhq/services](https://www.npmjs.com/package/@oxyhq/services) - Authentication (device-first `OxyProvider` + `useAuth`)

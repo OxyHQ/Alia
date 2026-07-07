@@ -1,507 +1,71 @@
-# OxyHQ Authentication & Packages Guide
+# OxyHQ Authentication & Packages Guide (Alia)
 
-This document explains which OxyHQ packages to use for each platform and provides detailed code examples for integration.
+> **Model:** device-first, **zero-cookie**. There is **one** frontend SDK — `@oxyhq/services` (`OxyProvider` + `useAuth`/`useOxy`) — for **web AND native**. The old web-only `@oxyhq/auth` / `WebOxyProvider` package and cross-domain SSO/FedCM were removed ecosystem-wide (2026-07). The canonical, always-current reference lives in the OxyHQServices repo: `docs/architecture/oxy-auth-platform.md`, `docs/SESSION-ARCHITECTURE.md`, `docs/auth/device-session.md`.
 
-## Decision Tree: Which Package Should I Use?
+## Which package?
 
-```
-Are you building...
-|-- A web app (React, Next.js, Vite)?
-|   -> Use @oxyhq/auth + @oxyhq/core
-|
-|-- A mobile app (Expo, React Native)?
-|   -> Use @oxyhq/services + @oxyhq/core
-|
-|-- A backend (Node.js, Express)?
-    -> Use @oxyhq/core only
-```
+| Where | Package | What you mount / import |
+|-------|---------|-------------------------|
+| **Frontend — web** (Vite) | `@oxyhq/services` | `OxyProvider` + `useAuth()`/`useOxy()`. Bundle the React-Native graph in Vite with `rolldown-vite` + `vite-plugin-react-native-web` (see `packages/alia-console`, `packages/alia-gateway-admin`, `packages/alia-canvas`). |
+| **Frontend — native** (Expo/RN) | `@oxyhq/services` | Same `OxyProvider` + `useAuth()`/`useOxy()`. |
+| **Backend** (Node/Express) | `@oxyhq/core/server` | `createOxyAuthMiddleware`, `createOptionalOxyAuth`, `requireOxyAuth`, `getRequiredOxyUserId`, `authSocket`. Never mount a frontend provider on the server. |
 
----
+`@oxyhq/core` provides the platform-agnostic client (`OxyServices`, `createLinkedClient`) and is a dependency of `@oxyhq/services`; import core types directly from `@oxyhq/core` and API contracts from `@oxyhq/contracts`.
 
-## Package Selection by Platform
+## Session model (device-first, zero-cookie)
 
-### Web Apps (React, Next.js, Vite)
+The transport is a first-party `{ deviceId, deviceSecret }` persisted **per origin** (web `localStorage`, native SecureStore). The SDK cold boot mints a short access token by presenting them to `POST /session/device/token` — no cookie, no refresh-token family, no `#oxy_boot` bootstrap, no FedCM, no `/sso` bounce. The `DeviceSession` document is the server-side session authority. Apps never implement local session restore; the SDK owns it.
 
-**Packages:** `@oxyhq/auth` + `@oxyhq/core`
+## Frontend setup (web, Vite)
 
-**Apps using this:**
-- `alia-gateway-admin` - Vite + React admin panel
-- `alia-console` - Vite + React console
-- `canvas` - Next.js web app
+```typescript
+// src/App.tsx
+import { OxyProvider, useAuth } from '@oxyhq/services';
 
-**Features:**
-- FedCM (Federated Credential Management) support
-- Cross-domain SSO
-- Zero React Native dependencies
-- Optimized for web browsers
-
-### Expo / React Native Apps
-
-**Packages:** `@oxyhq/services` + `@oxyhq/core`
-
-**Apps using this:**
-- `app` - Expo mobile app
-
-**Features:**
-- Native bottom sheet screens
-- Secure keychain storage
-- Cross-domain SSO (native)
-- Account switching
-- Multi-session support
-
-### Backend / Node.js (Express, API servers)
-
-**Packages:** `@oxyhq/core` only
-
-**Apps using this:**
-- `api` - Main Alia API server (includes internal providers module)
-
-**Features:**
-- Session validation
-- User management
-- Server-side API calls
-- No UI dependencies
-
----
-
-## Native Apps (React Native / Expo)
-
-### Installation
-
-```bash
-bun add @oxyhq/services @oxyhq/core
-```
-
-#### Peer Dependencies
-
-```bash
-bun add react-native-reanimated react-native-gesture-handler \
-  react-native-safe-area-context react-native-svg \
-  expo expo-font expo-image expo-linear-gradient \
-  @react-navigation/native @tanstack/react-query
-```
-
-### Setup Entry Point
-
-Add polyfill at the very top of your entry file:
-
-```javascript
-// index.js or App.js (first line)
-import 'react-native-url-polyfill/auto';
-```
-
-### Wrap with Provider
-
-```tsx
-import { OxyProvider } from '@oxyhq/services';
-
-const OXY_CLIENT_ID = process.env.EXPO_PUBLIC_OXY_CLIENT_ID;
-
-export default function App() {
+function App() {
   return (
-    <OxyProvider baseURL="https://api.oxy.so" clientId={OXY_CLIENT_ID}>
-      <YourApp />
+    <OxyProvider baseURL="https://api.alia.onl" clientId={import.meta.env.VITE_OXY_CLIENT_ID}>
+      <Routes />
     </OxyProvider>
   );
 }
+
+// anywhere inside the provider
+const { user, isAuthenticated, isLoading, signIn, signOut, oxyServices } = useAuth();
+// signIn() with no args opens the in-app SDK sign-in dialog.
 ```
 
-`OxyProvider` works on iOS, Android, and Expo web. Always use `OxyProvider` in Expo apps.
+Vite config: use `rolldown-vite` + `vite-plugin-react-native-web` (+ the `react-native-screens` shim) so the RN graph bundles for the browser — copy `packages/alia-gateway-admin/vite.config.ts`.
 
-### Use Authentication
-
-```tsx
-import { useAuth, OxySignInButton } from '@oxyhq/services';
-
-function HomeScreen() {
-  const { user, isAuthenticated, isLoading, signOut } = useAuth();
-
-  if (isLoading) return <Loading />;
-
-  if (!isAuthenticated) {
-    return (
-      <View>
-        <Text>Please sign in</Text>
-        <OxySignInButton />
-      </View>
-    );
-  }
-
-  return (
-    <View>
-      <Text>Welcome, {user?.username}!</Text>
-      <Button title="Sign Out" onPress={signOut} />
-    </View>
-  );
-}
-```
-
-Cross-domain SSO is automatic. If a user is signed in on any Oxy domain (accounts.oxy.so, mention.earth, homiio.com, etc.), they are automatically signed in on your app.
-
-### Full Expo Example
-
-```tsx
-// app/_layout.tsx
-import 'react-native-url-polyfill/auto';
-import { OxyProvider } from '@oxyhq/services';
-
-const API_URL = process.env.EXPO_PUBLIC_API_URL ?? 'https://api.oxy.so';
-const OXY_CLIENT_ID = process.env.EXPO_PUBLIC_OXY_CLIENT_ID;
-
-export default function RootLayout() {
-  return (
-    <OxyProvider
-      baseURL={API_URL}
-      clientId={OXY_CLIENT_ID}
-    >
-      <YourApp />
-    </OxyProvider>
-  );
-}
-```
-
-### Bottom Sheet Screens
-
-```tsx
-import { useOxy } from '@oxyhq/services';
-
-const { showBottomSheet } = useOxy();
-
-// Account
-showBottomSheet('ManageAccount');      // Account hub and account switcher
-showBottomSheet('SessionManagement');  // Manage devices
-
-// Auth
-showBottomSheet('OxyAuth');            // QR code auth
-
-// Features
-showBottomSheet('FileManagement');     // Files
-showBottomSheet('LanguageSelector');   // Language
-showBottomSheet('TrustCenter');        // Trust
-
-// Payments
-showBottomSheet({ screen: 'PaymentGateway', props: { amount: 10 } });
-```
-
-### useAuth Hook Reference
-
-```tsx
-import { useAuth } from '@oxyhq/services';
-
-const {
-  // State
-  user,              // User | null - current user
-  isAuthenticated,   // boolean - is user signed in
-  isLoading,         // boolean - initial auth check
-  isReady,           // boolean - ready for API calls
-  error,             // string | null - error message
-
-  // Actions
-  signIn,            // () => Promise<User> - trigger sign in
-  signOut,           // () => Promise<void> - sign out current session
-  signOutAll,        // () => Promise<void> - sign out all devices
-  refresh,           // () => Promise<void> - refresh auth state
-
-  // Advanced
-  oxyServices,       // OxyServices instance
-} = useAuth();
-```
-
-### Advanced: useOxy Hook
-
-For full control in Expo/RN apps, use `useOxy` instead of `useAuth`:
-
-```tsx
-import { useOxy } from '@oxyhq/services';
-
-const {
-  // All useAuth properties plus:
-  sessions,            // All active sessions
-  activeSessionId,     // Current session ID
-  switchSession,       // Switch between accounts
-  refreshSessions,     // Refresh session list
-
-  // Language
-  currentLanguage,     // 'en', 'es', etc.
-  setLanguage,         // Change language
-
-  // UI
-  showBottomSheet,     // Show bottom sheet screens
-  openAvatarPicker,    // Open avatar picker
-
-  // Identity
-  hasIdentity,         // Check for crypto identity
-  getPublicKey,        // Get public key
-} = useOxy();
-```
-
----
-
-## Web Apps (Next.js / React)
-
-### Installation
-
-```bash
-bun add @oxyhq/auth @oxyhq/core
-```
-
-### Next.js Example
-
-```tsx
-// app/providers.tsx
-'use client';
-import { WebOxyProvider } from '@oxyhq/auth';
-
-const OXY_CLIENT_ID = process.env.NEXT_PUBLIC_OXY_CLIENT_ID;
-
-export function Providers({ children }) {
-  return (
-    <WebOxyProvider baseURL="https://api.oxy.so" clientId={OXY_CLIENT_ID}>
-      {children}
-    </WebOxyProvider>
-  );
-}
-
-// app/layout.tsx
-import { Providers } from './providers';
-
-export default function RootLayout({ children }) {
-  return (
-    <html>
-      <body>
-        <Providers>{children}</Providers>
-      </body>
-    </html>
-  );
-}
-
-// app/page.tsx
-'use client';
-import { useAuth } from '@oxyhq/auth';
-
-export default function Home() {
-  const { user, isAuthenticated, isLoading, signIn } = useAuth();
-
-  if (isLoading) return <div>Loading...</div>;
-
-  return isAuthenticated ? (
-    <h1>Welcome, {user?.username}!</h1>
-  ) : (
-    <button onClick={() => signIn()}>Sign In</button>
-  );
-}
-```
-
-### Vite + React Example
-
-```typescript
-import { WebOxyProvider, useAuth } from '@oxyhq/auth';
-
-export function App() {
-  return (
-    <WebOxyProvider baseURL="https://api.oxy.so">
-      <YourApp />
-    </WebOxyProvider>
-  );
-}
-
-function Component() {
-  const { user, isAuthenticated, signIn, signOut } = useAuth();
-  // ...
-}
-```
-
-### How Web SSO Works
-
-Cross-domain SSO uses **FedCM** (Federated Credential Management) -- the browser-native identity API that works without third-party cookies.
-
-1. User signs in on `auth.oxy.so` (or any Oxy app)
-2. Browser stores FedCM credential
-3. Your app's provider uses FedCM to request identity
-4. Browser returns ID token instantly (no network request to IdP)
-5. Your app exchanges token for session
-
-**Browser Support:** Chrome 108+, Safari 16.4+, Edge 108+. For Firefox and older browsers, users click "Sign In" which opens a popup.
-
----
-
-## Backend (Node.js / Express / Next.js API)
-
-### Installation
-
-```bash
-bun add @oxyhq/core
-```
-
-### Quick Start
+## Backend setup (Express)
 
 ```typescript
 import { OxyServices } from '@oxyhq/core';
+import { createOxyAuthMiddleware, getRequiredOxyUserId } from '@oxyhq/core/server';
 
-const oxyClient = new OxyServices({
-  baseURL: process.env.OXY_API_URL || 'https://api.oxy.so'
-});
-
-// Get user data
-const user = await oxyClient.getCurrentUser();
-const profile = await oxyClient.getUserByUsername('nate');
+const oxy = new OxyServices({ baseURL: 'https://api.oxy.so' });
+app.use('/api/protected', createOxyAuthMiddleware(oxy));
+// inside a handler: const userId = getRequiredOxyUserId(req);
 ```
 
-### Express Middleware
+## Environment variables
 
-```typescript
-import { oxyClient } from '@oxyhq/core';
+```bash
+# Web (Vite)
+VITE_OXY_CLIENT_ID=oxy_dk_...
+VITE_API_URL=https://api.alia.onl
 
-app.get('/api/me', oxyClient.auth(), (req, res) => res.json(req.user));
+# Native (Expo)
+EXPO_PUBLIC_OXY_CLIENT_ID=oxy_dk_...
 ```
 
-### Next.js API Route
+## Don't
 
-```typescript
-// app/api/user/[id]/route.ts
-import { oxyClient } from '@oxyhq/core';
-import { NextResponse } from 'next/server';
-
-export async function GET(req, { params }) {
-  try {
-    const user = await oxyClient.getUserById(params.id);
-    return NextResponse.json(user);
-  } catch {
-    return NextResponse.json({ error: 'Not found' }, { status: 404 });
-  }
-}
-```
-
-### Available Methods
-
-```typescript
-// Users
-await oxyClient.getUserById(id);
-await oxyClient.getUserByUsername(username);
-await oxyClient.getProfileByUsername(username);
-await oxyClient.getCurrentUser();
-
-// Sessions
-await oxyClient.validateSession(sessionId);
-await oxyClient.logoutSession(sessionId);
-
-// Social
-await oxyClient.getUserFollowers(userId);
-await oxyClient.getUserFollowing(userId);
-await oxyClient.followUser(userId);
-await oxyClient.unfollowUser(userId);
-
-// Wallet
-await oxyClient.getWallet();
-await oxyClient.transferFunds(request);
-
-// Files
-await oxyClient.listFiles();
-await oxyClient.uploadFile(file);
-await oxyClient.deleteFile(fileId);
-```
-
----
-
-## Common Mistakes to Avoid
-
-### Don't use `@oxyhq/services` in web apps
-
-```typescript
-// WRONG - for web apps
-import { OxyProvider } from '@oxyhq/services';
-```
-
-Instead use `@oxyhq/auth`:
-
-```typescript
-// CORRECT - for web apps
-import { WebOxyProvider } from '@oxyhq/auth';
-```
-
-### Don't use `@oxyhq/auth` in Expo/RN apps
-
-```typescript
-// WRONG - for mobile apps
-import { WebOxyProvider } from '@oxyhq/auth';
-```
-
-Instead use `@oxyhq/services`:
-
-```typescript
-// CORRECT - for mobile apps
-import { OxyProvider } from '@oxyhq/services';
-```
-
-### Don't use `@oxyhq/services` or `@oxyhq/auth` in backend
-
-```typescript
-// WRONG - for backend
-import { WebOxyProvider } from '@oxyhq/auth';
-```
-
-Instead use `@oxyhq/core` only:
-
-```typescript
-// CORRECT - for backend
-import { OxyServices } from '@oxyhq/core';
-```
-
----
-
-## Environment Variables
-
-### Web Apps
-
-```env
-# React/Next.js/Vite
-VITE_API_URL=https://api.oxy.so
-# or
-NEXT_PUBLIC_API_URL=https://api.oxy.so
-```
-
-### Mobile Apps
-
-```env
-# Expo
-EXPO_PUBLIC_API_URL=https://api.oxy.so
-```
-
-### Backend
-
-```env
-# Node.js
-OXY_API_URL=https://api.oxy.so
-```
-
----
+- **Don't** import `@oxyhq/auth` / `WebOxyProvider` — the package is retired; use `@oxyhq/services` `OxyProvider` on web and native alike.
+- **Don't** mount a frontend provider on the backend — use `@oxyhq/core/server` middleware there.
+- **Don't** hand-roll session restore, cookies, refresh tokens, or SSO redirects — the SDK's device-first cold boot owns it.
 
 ## Troubleshooting
 
-### "useAuth/useOxy must be used within OxyProvider"
-
-Wrap your app with `<OxyProvider>` (Expo/RN) or `<WebOxyProvider>` from `@oxyhq/auth` (web).
-
-### SSO not working on web
-
-1. Ensure you are using HTTPS (required for FedCM)
-2. Check browser version: Chrome 108+, Safari 16.4+, Edge 108+
-3. For Firefox: FedCM not supported, users must click "Sign In" (uses popup)
-4. Verify FedCM config: `https://auth.oxy.so/fedcm.json`
-
-### Native keychain issues
-
-1. iOS: Enable "Keychain Sharing" in Xcode with group `group.so.oxy.shared`
-2. Android: Add `android:sharedUserId="so.oxy.shared"` to manifest
-3. Both: Apps must be signed with same certificate/team
-
----
-
-## Summary
-
-All apps in this monorepo are configured as follows:
-- 3 web apps use `@oxyhq/auth` + `@oxyhq/core`
-- 1 mobile app uses `@oxyhq/services` + `@oxyhq/core`
-- 1 backend service uses `@oxyhq/core` only
-
-Cross-domain SSO works automatically across all platforms.
+- **"useAuth/useOxy must be used within OxyProvider"** — the hook is called outside the `<OxyProvider>` tree; hoist the provider to the app root.
+- **Web build fails resolving `react-native-*` / `codegenNativeComponent`** — the Vite app is missing `vite-plugin-react-native-web` or the `react-native-screens` shim; mirror `packages/alia-gateway-admin`. (Next.js/Turbopack cannot bundle the RN graph — Alia web apps are Vite.)
