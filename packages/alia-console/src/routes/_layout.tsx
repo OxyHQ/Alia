@@ -1,10 +1,10 @@
-import { useEffect } from 'react';
 import { Outlet, createFileRoute } from '@tanstack/react-router';
-import { useAuth } from '@oxyhq/auth';
+import { RequireOxyAuth, useAuth } from '@oxyhq/services';
 import { SidebarInset, SidebarProvider, SidebarTrigger } from '@/components/ui/sidebar';
 import { AppSidebar } from '@/components/layout/app-sidebar';
 import { Separator } from '@/components/ui/separator';
 import { CommandMenuTrigger } from '@/components/command-menu';
+import { Button } from '@/components/ui/button';
 import { setTokenGetter, setWorkspaceGetter } from '@/lib/api/client';
 
 export const Route = createFileRoute('/_layout')({
@@ -27,24 +27,40 @@ function ApiAuthSetup({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
+function LoadingScreen() {
+  return (
+    <div className="flex items-center justify-center h-screen">
+      <div className="text-muted-foreground">Loading...</div>
+    </div>
+  );
+}
+
+function SignInScreen() {
+  const { signIn } = useAuth();
+
+  return (
+    <div className="flex h-screen flex-col items-center justify-center gap-4">
+      <div className="text-muted-foreground">Sign in to continue</div>
+      <Button onClick={() => void signIn()}>Sign in with Oxy</Button>
+    </div>
+  );
+}
+
 function AuthGuard({ children }: { children: React.ReactNode }) {
-  const { isAuthenticated, isReady, signIn } = useAuth();
-
-  useEffect(() => {
-    if (isReady && !isAuthenticated) {
-      signIn();
-    }
-  }, [isReady, isAuthenticated, signIn]);
-
-  if (!isReady || !isAuthenticated) {
-    return (
-      <div className="flex items-center justify-center h-screen">
-        <div className="text-muted-foreground">Loading...</div>
-      </div>
-    );
-  }
-
-  return <>{children}</>;
+  // Shared SDK signed-out gate. It keys on the SDK readiness state
+  // (`canUsePrivateApi` / `isPrivateApiPending`), so private data never loads
+  // before the device-first cold boot resolves and the signed-out wall never
+  // flashes. `signIn()` opens the in-app "Sign in with Oxy" dialog — a modal,
+  // never a navigation.
+  return (
+    <RequireOxyAuth
+      prompt="hard"
+      loadingFallback={<LoadingScreen />}
+      signedOutFallback={<SignInScreen />}
+    >
+      {children}
+    </RequireOxyAuth>
+  );
 }
 
 function LayoutComponent() {

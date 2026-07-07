@@ -13,7 +13,7 @@ import {
   StopIcon,
   TextIcon,
 } from '@hugeicons/core-free-icons';
-import { useAuth } from '@oxyhq/auth';
+import { useAuth } from '@oxyhq/services';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';

@@ -7,7 +7,7 @@ import {
   Settings01Icon,
   Tick02Icon,
 } from '@hugeicons/core-free-icons';
-import { useAuth } from '@oxyhq/auth';
+import { useAuth } from '@oxyhq/services';
 import { toast } from 'sonner';
 import type {Workspace} from '@/hooks/use-workspace';
 import {
