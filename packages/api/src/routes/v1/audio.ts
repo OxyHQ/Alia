@@ -1,5 +1,6 @@
 import { Router } from 'express';
-import { getModelMappingsForTier, callProviderAPI, getProviderTimeout } from '../../lib/gateway-client.js';
+import { callProviderAPI } from '../../lib/gateway-client.js';
+import { synthesizeSpeech } from '../../lib/synthesize-speech.js';
 import { reserveCredits, finalizeCredits } from '../../lib/credits-manager.js';
 import type { CreditReservation } from '../../lib/credits-manager.js';
 import { getOrCreateUserCredits } from '../../lib/user-credits-helpers.js';
@@ -86,43 +87,22 @@ router.post('/speech', async (req: Request, res: Response) => {
       });
     }
 
-    // Resolve TTS provider via tier mappings — try each in priority order (fail fast, move to next)
-    const ttsMappings = await getModelMappingsForTier('v1-tts');
-    const ttsVoice = voice || 'nova';
-    let audioBuffer: Buffer | null = null;
+    // Synthesize speech, failing over across every TTS provider with an available key.
+    const synthesized = await synthesizeSpeech({
+      input,
+      voice: voice || 'nova',
+      format,
+      speed,
+      signal: abortController.signal,
+    });
 
-    for (const mapping of ttsMappings) {
-      if (abortController.signal.aborted) break;
-      const providerTimeout = getProviderTimeout(mapping.modelId);
-      try {
-        audioBuffer = await callProviderAPI<Buffer>({
-          provider: mapping.provider,
-          modelId: mapping.modelId,
-          endpoint: '/v1/audio/speech',
-          body: {
-            model: mapping.modelId,
-            input,
-            voice: ttsVoice,
-            response_format: format,
-            speed: speed || 1.0,
-          },
-          responseType: 'arrayBuffer',
-          maxAttempts: 1,
-          timeout: providerTimeout,
-          signal: abortController.signal,
-        });
-        break; // success
-      } catch (err: unknown) {
-        log.general.warn({ err, provider: mapping.provider, model: mapping.modelId }, 'TTS provider failed, trying next');
-        continue;
-      }
-    }
-
-    if (!audioBuffer) {
+    if (!synthesized) {
       await finalizeCredits(reservation, { promptTokens: 0, completionTokens: 0, totalTokens: 0 });
       const status = abortController.signal.aborted ? 504 : 503;
       return res.status(status).json({ error: { message: 'TTS generation failed — please try again', type: 'server_error' } });
     }
+
+    const { audio: audioBuffer, format: outputFormat } = synthesized;
 
     // Charge credits based on character count (~1 credit per 200 chars)
     const charCredits = Math.max(1, Math.ceil(input.length / 200));
@@ -131,7 +111,7 @@ router.post('/speech', async (req: Request, res: Response) => {
     let uploadTimer: NodeJS.Timeout;
     const uploadResult = await Promise.race([
       Promise.all([
-        uploadToS3(audioBuffer, `audio.${format}`, `tts/${userId}`, 'speech'),
+        uploadToS3(audioBuffer, `audio.${outputFormat}`, `tts/${userId}`, 'speech'),
         finalizeCredits(reservation, {
           promptTokens: charCredits * 50,
           completionTokens: 0,

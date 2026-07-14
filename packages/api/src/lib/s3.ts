@@ -107,6 +107,10 @@ function getContentType(extension: string): string {
     pdf: 'application/pdf',
     txt: 'text/plain',
     mp3: 'audio/mpeg',
+    wav: 'audio/wav',
+    opus: 'audio/opus',
+    aac: 'audio/aac',
+    flac: 'audio/flac',
   };
 
   return contentTypes[extension.toLowerCase()] || 'application/octet-stream';

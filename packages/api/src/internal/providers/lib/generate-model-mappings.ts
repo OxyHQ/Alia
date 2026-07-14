@@ -130,9 +130,13 @@ export const GENERATED_TIER_MAPPINGS: Record<AliaTier, ModelMapping[]> = {
     createMapping('openai', 'whisper-1', 3, 92),
   ],
   'v1-tts': [
+    // OpenAI stays highest priority so an added OpenAI key is preferred. Google
+    // Gemini TTS runs on the same keys chat uses, so it is the primary working
+    // provider today; DigitalOcean ElevenLabs backs it up. (OpenRouter serves no
+    // TTS endpoint — it 400s — so it is intentionally not in the chain.)
     createMapping('openai', 'tts-1', 1, 90),
     createMapping('openai', 'tts-1-hd', 2, 95),
-    createMapping('openrouter', 'openai/tts-1', 3, 88),
+    createMapping('google', 'gemini-2.5-flash-preview-tts', 3, 88),
     createMapping('digitalocean', 'fal-ai/elevenlabs/tts/multilingual-v2', 4, 87),
   ],
   'v1-image': [
