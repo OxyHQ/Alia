@@ -4,6 +4,7 @@ import { Switch } from '@/components/ui/switch';
 import { Text } from '@/components/ui/text';
 import { ChevronDown } from 'lucide-react-native';
 import { Button } from '@/components/ui/button';
+import { useTheme } from '@oxyhq/bloom/theme';
 
 interface FormField {
   name: string;
@@ -57,6 +58,7 @@ function SelectField({ field, value, onChange }: { field: FormField; value: stri
 
 export function FormRenderer({ data, onSubmit }: FormRendererProps) {
   const { fields } = data;
+  const { colors } = useTheme();
   const [formValues, setFormValues] = useState<Record<string, any>>({});
 
   const updateValue = (name: string, value: any) => {
@@ -78,7 +80,7 @@ export function FormRenderer({ data, onSubmit }: FormRendererProps) {
               onChangeText={(v) => updateValue(field.name, v)}
               placeholder={`Enter ${field.label.toLowerCase()}`}
               className="border border-border rounded-lg px-3 py-2.5 text-sm text-foreground bg-background"
-              placeholderTextColor="#a1a1aa"
+              placeholderTextColor={colors.textSecondary}
             />
           )}
           {field.type === 'select' && (

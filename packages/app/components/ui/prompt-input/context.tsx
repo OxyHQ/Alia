@@ -17,6 +17,8 @@ export type PromptInputContextType = {
   setValue: (value: string) => void;
   maxHeight: number;
   onSubmit?: () => void;
+  /** Send a suggestion's text directly (non-template selections), bypassing the input value. */
+  onSuggestionSend?: (text: string) => void;
   disabled?: boolean;
   textareaRef: React.RefObject<RNTextInput | null>;
   currentHeight: number;
@@ -37,6 +39,7 @@ export const PromptInputContext = createContext<PromptInputContextType>({
   setValue: () => {},
   maxHeight: 240,
   onSubmit: undefined,
+  onSuggestionSend: undefined,
   disabled: false,
   textareaRef: React.createRef<RNTextInput>(),
   currentHeight: 44,

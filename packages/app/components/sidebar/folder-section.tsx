@@ -69,18 +69,18 @@ export const FolderSection = React.memo<FolderSectionProps>(({
   return (
     <View className="gap-0.5">
       {/* Folder Header */}
-      <View className="flex-row items-center gap-1 rounded-lg group">
+      <View className="flex-row items-center gap-1 rounded-xl group hover:bg-muted">
         <Pressable
           onPress={() => onToggle(folder.id)}
-          className="flex-1 flex-row items-center gap-2 py-1.5 px-2 active:bg-muted/50 rounded-lg"
+          className="flex-1 h-9 flex-row items-center gap-2 px-2 active:bg-muted/50 rounded-xl"
         >
           <Icon
-            size={14}
+            size={16}
             className="text-muted-foreground"
-            style={{ color: folder.color }}
+            color={folder.color}
           />
           <Text
-            className="flex-1 text-xs text-foreground font-medium"
+            className="flex-1 text-sm text-foreground font-medium"
             numberOfLines={1}
           >
             {folder.name}
@@ -96,7 +96,7 @@ export const FolderSection = React.memo<FolderSectionProps>(({
         </Pressable>
         <DropdownMenu.Root>
           <DropdownMenu.Trigger>
-            <Pressable className="h-7 w-7 items-center justify-center rounded-full mr-1 active:bg-muted/70">
+            <Pressable className="h-6 w-6 items-center justify-center rounded-lg mr-1 web:opacity-0 web:group-hover:opacity-100 active:bg-muted/70">
               <MoreHorizontal size={12} className="text-muted-foreground" />
             </Pressable>
           </DropdownMenu.Trigger>
@@ -141,7 +141,6 @@ export const FolderSection = React.memo<FolderSectionProps>(({
             onMoveToFolder={onMoveToFolder}
             onDelete={onDeleteConversation}
             onPrefetch={onPrefetchConversation}
-            compact
             indented
           />
         ))}

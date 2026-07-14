@@ -24,6 +24,7 @@ import {
   CollapsibleContent,
 } from "@/components/ui/collapsible";
 import { errorStatus } from '@/lib/errors/error-utils';
+import { useTheme } from '@oxyhq/bloom/theme';
 
 function ServerStatusBadge({ status }: { status: InstalledMcpServer["status"] }) {
   const config = {
@@ -137,6 +138,7 @@ function RegistryCard({
 export function McpSection() {
   const { registry, installed, loading, install, installCustom, uninstall, start, stop, refresh } =
     useMcpServers();
+  const { colors } = useTheme();
   const [uninstallTarget, setUninstallTarget] = useState<string | null>(null);
   const [uninstalling, setUninstalling] = useState(false);
   const [installTarget, setInstallTarget] = useState<McpRegistryEntry | null>(null);
@@ -361,7 +363,7 @@ export function McpSection() {
                 <RNTextInput
                   className={inputClass}
                   placeholder={`Enter ${envKey}`}
-                  placeholderTextColor="#9ca3af"
+                  placeholderTextColor={colors.textSecondary}
                   value={envValues[envKey] || ""}
                   onChangeText={(val) => setEnvValues((prev) => ({ ...prev, [envKey]: val }))}
                   secureTextEntry={envKey.toLowerCase().includes("secret") || envKey.toLowerCase().includes("key")}
@@ -406,7 +408,7 @@ export function McpSection() {
               <RNTextInput
                 className={inputClass}
                 placeholder="My Custom Server"
-                placeholderTextColor="#9ca3af"
+                placeholderTextColor={colors.textSecondary}
                 value={customName}
                 onChangeText={setCustomName}
                 autoCapitalize="words"
@@ -420,7 +422,7 @@ export function McpSection() {
               <RNTextInput
                 className={inputClass}
                 placeholder="https://example.com/mcp"
-                placeholderTextColor="#9ca3af"
+                placeholderTextColor={colors.textSecondary}
                 value={customUrl}
                 onChangeText={setCustomUrl}
                 autoCapitalize="none"
@@ -451,7 +453,7 @@ export function McpSection() {
                     <RNTextInput
                       className={inputClass}
                       placeholder="Authorization"
-                      placeholderTextColor="#9ca3af"
+                      placeholderTextColor={colors.textSecondary}
                       value={customHeaderKey}
                       onChangeText={setCustomHeaderKey}
                       autoCapitalize="none"
@@ -465,7 +467,7 @@ export function McpSection() {
                     <RNTextInput
                       className={inputClass}
                       placeholder="Bearer sk-..."
-                      placeholderTextColor="#9ca3af"
+                      placeholderTextColor={colors.textSecondary}
                       value={customHeaderValue}
                       onChangeText={setCustomHeaderValue}
                       autoCapitalize="none"

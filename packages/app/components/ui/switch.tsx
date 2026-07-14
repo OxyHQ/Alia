@@ -1,6 +1,7 @@
 import * as React from "react";
 import { Pressable, Animated } from "react-native";
 import { cn } from "@/lib/utils";
+import { useTheme, withAlpha } from "@oxyhq/bloom/theme";
 
 interface SwitchProps {
   value: boolean;
@@ -17,6 +18,7 @@ const SQUEEZE_RATIO = 0.75; // thumb height shrinks to 75% when pressed
 
 const Switch = React.forwardRef<React.ElementRef<typeof Pressable>, SwitchProps>(
   ({ value, onValueChange, disabled, className, size = "default" }, ref) => {
+    const { colors } = useTheme();
     const anim = React.useRef(new Animated.Value(value ? 1 : 0)).current;
     const pressAnim = React.useRef(new Animated.Value(0)).current;
 
@@ -54,7 +56,7 @@ const Switch = React.forwardRef<React.ElementRef<typeof Pressable>, SwitchProps>
 
     const trackBg = anim.interpolate({
       inputRange: [0, 1],
-      outputRange: ["#78788029", "#34C759"],
+      outputRange: [withAlpha(colors.text, 0.16), colors.primary],
     });
 
     const thumbX = anim.interpolate({

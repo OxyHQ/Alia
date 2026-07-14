@@ -214,19 +214,6 @@ export const META_PRESETS = {
     keywords: ['ai use cases', 'ai examples', 'ai productivity', 'ai applications'],
     canonicalUrl: `${SITE_URL}/use-cases`,
   },
-
-  login: {
-    title: 'Login',
-    description: 'Sign in to Alia',
-    noindex: true,
-  },
-
-  register: {
-    title: 'Sign Up',
-    description: 'Create your free Alia account. No credit card required.',
-    keywords: ['sign up', 'create account', 'free ai'],
-    canonicalUrl: `${SITE_URL}/register`,
-  },
 };
 
 /**

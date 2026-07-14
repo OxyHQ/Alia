@@ -10,6 +10,7 @@ import Animated, {
   FadeIn,
 } from 'react-native-reanimated';
 import { CheckCircle2, Circle, AlertCircle } from 'lucide-react-native';
+import { useTheme } from '@oxyhq/bloom/theme';
 import { getToolIcon } from '@/lib/tool-registry';
 import { LottieLoader } from '@/components/lottie-loader';
 import type { PlanItem } from '@/lib/hooks/use-agent-activity';
@@ -42,17 +43,18 @@ function PulsingDot({ color }: { color: string }) {
 }
 
 function StepIcon({ item, toolName }: { item: PlanItem; toolName?: string | null }) {
+  const { colors } = useTheme();
   if (item.status === 'completed') {
-    return <CheckCircle2 size={14} color="#22c55e" />;
+    return <CheckCircle2 size={14} color={colors.success} />;
   }
   if (item.status === 'in_progress') {
     if (toolName) {
       return <LottieLoader width={14} height={14} />;
     }
-    return <PulsingDot color="#eab308" />;
+    return <PulsingDot color={colors.warning} />;
   }
   if (item.status === 'blocked') {
-    return <AlertCircle size={14} color="#ef4444" />;
+    return <AlertCircle size={14} color={colors.error} />;
   }
   return <Circle size={14} className="text-muted-foreground/30" />;
 }

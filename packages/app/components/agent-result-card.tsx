@@ -21,6 +21,7 @@ import {
   Coins,
 } from 'lucide-react-native';
 import { useColorScheme } from '@/lib/useColorScheme';
+import { useTheme, withAlpha } from '@oxyhq/bloom/theme';
 import { WorkspaceBrowser } from '@/components/workspace-browser';
 import type { AgentActivityState, PlanItem } from '@/lib/hooks/use-agent-activity';
 
@@ -42,6 +43,7 @@ function formatDuration(startedAt: number | null): string {
 }
 
 function CompletedPlanSummary({ items }: { items: PlanItem[] }) {
+  const { colors } = useTheme();
   const completed = items.filter(i => i.status === 'completed').length;
   const total = items.length;
 
@@ -50,11 +52,11 @@ function CompletedPlanSummary({ items }: { items: PlanItem[] }) {
       {items.map(item => (
         <View key={item.id} className="flex-row items-start gap-2">
           {item.status === 'completed' ? (
-            <CheckCircle size={12} color="#22c55e" style={{ marginTop: 2 }} />
+            <CheckCircle size={12} color={colors.success} style={{ marginTop: 2 }} />
           ) : item.status === 'blocked' ? (
-            <AlertTriangle size={12} color="#f59e0b" style={{ marginTop: 2 }} />
+            <AlertTriangle size={12} color={colors.warning} style={{ marginTop: 2 }} />
           ) : (
-            <XCircle size={12} color="#6b7280" style={{ marginTop: 2 }} />
+            <XCircle size={12} color={colors.textSecondary} style={{ marginTop: 2 }} />
           )}
           <Text
             className={`text-xs flex-1 ${item.status === 'completed' ? 'text-muted-foreground' : 'text-foreground'}`}
@@ -79,6 +81,7 @@ export const AgentResultCard = React.memo(function AgentResultCard({
   agentName,
 }: AgentResultCardProps) {
   const { colors } = useColorScheme();
+  const { colors: themeColors } = useTheme();
   const [showPlan, setShowPlan] = useState(false);
   const [showFiles, setShowFiles] = useState(false);
 
@@ -86,7 +89,7 @@ export const AgentResultCard = React.memo(function AgentResultCard({
   const isSuccess = isComplete && !hasError;
   const duration = formatDuration(startedAt);
 
-  const statusColor = isSuccess ? '#22c55e' : hasError ? '#ef4444' : '#6b7280';
+  const statusColor = isSuccess ? themeColors.success : hasError ? themeColors.error : themeColors.textSecondary;
   const StatusIcon = isSuccess ? CheckCircle : hasError ? XCircle : Clock;
   const statusLabel = isSuccess ? 'Completed' : hasError ? 'Failed' : 'Unknown';
 
@@ -98,7 +101,7 @@ export const AgentResultCard = React.memo(function AgentResultCard({
       {/* Status banner */}
       <View
         className="flex-row items-center gap-2 px-3 py-2.5"
-        style={{ backgroundColor: statusColor + '15' }}
+        style={{ backgroundColor: withAlpha(statusColor, 0.08) }}
       >
         <StatusIcon size={16} color={statusColor} />
         <View className="flex-1">

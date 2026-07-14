@@ -27,6 +27,7 @@ import {
   Users,
 } from "lucide-react-native";
 import { useUIStore } from "@/lib/stores/ui-store";
+import { useTheme, type ThemeColors } from "@oxyhq/bloom/theme";
 import {
   useAgentActivity,
   type AgentActivityEvent,
@@ -113,15 +114,15 @@ function PulsingDot({ color }: { color: string }) {
   );
 }
 
-function getStepIcon(event: AgentActivityEvent) {
+function getStepIcon(event: AgentActivityEvent, colors: ThemeColors) {
   const toolName = event.metadata?.toolName || "";
   switch (event.type) {
     case "thinking":
       return <PulsingDot color="#a855f7" />;
     case "complete":
-      return <CheckCircle2 size={14} color="#22c55e" />;
+      return <CheckCircle2 size={14} color={colors.success} />;
     case "error":
-      return <AlertCircle size={14} color="#ef4444" />;
+      return <AlertCircle size={14} color={colors.error} />;
     case "tool_call":
       if (toolName === "shell") return <Terminal size={14} className="text-foreground" />;
       if (toolName === "browser") return <Globe size={14} className="text-foreground" />;
@@ -132,7 +133,7 @@ function getStepIcon(event: AgentActivityEvent) {
     case "tool_result":
       return <Eye size={14} className="text-muted-foreground" />;
     case "source_found":
-      return <Search size={14} color="#3b82f6" />;
+      return <Search size={14} color={colors.info} />;
     case "response":
       return <FileText size={14} className="text-foreground" />;
     default:
@@ -172,6 +173,7 @@ function getStepLabel(event: AgentActivityEvent): string {
 }
 
 function StepsTab({ events, isActive }: { events: AgentActivityEvent[]; isActive: boolean }) {
+  const { colors } = useTheme();
   // Filter to meaningful events (skip system noise)
   const steps = useMemo(() => {
     return events.filter(
@@ -191,7 +193,7 @@ function StepsTab({ events, isActive }: { events: AgentActivityEvent[]; isActive
       <View className="items-center justify-center py-8">
         {isActive ? (
           <>
-            <PulsingDot color="#3b82f6" />
+            <PulsingDot color={colors.info} />
             <Text className="text-sm text-muted-foreground mt-3">
               Waiting for agent to start...
             </Text>
@@ -219,9 +221,9 @@ function StepsTab({ events, isActive }: { events: AgentActivityEvent[]; isActive
                 style={{ width: 20, height: 20 }}
               >
                 {isStepActive && step.type === "tool_call" ? (
-                  <PulsingDot color="#eab308" />
+                  <PulsingDot color={colors.warning} />
                 ) : (
-                  getStepIcon(step)
+                  getStepIcon(step, colors)
                 )}
               </View>
               {!isLast && (
@@ -401,6 +403,7 @@ function SourcesTab({ sources }: { sources: AgentSource[] }) {
 }
 
 export function AgentPanel() {
+  const { colors } = useTheme();
   const [activeTab, setActiveTab] = useState<Tab>("steps");
   const setRightPanel = useUIStore((s) => s.setRightPanel);
   const activeAgentSessionId = useUIStore((s) => s.activeAgentSessionId);
@@ -415,11 +418,11 @@ export function AgentPanel() {
       <View className="flex-row items-center justify-between px-4 py-3 border-b border-border">
         <View className="flex-row items-center gap-2">
           {isActive ? (
-            <PulsingDot color="#3b82f6" />
+            <PulsingDot color={colors.info} />
           ) : activity.isComplete ? (
-            <CheckCircle2 size={16} color="#22c55e" />
+            <CheckCircle2 size={16} color={colors.success} />
           ) : activity.hasError ? (
-            <AlertCircle size={16} color="#ef4444" />
+            <AlertCircle size={16} color={colors.error} />
           ) : null}
           <Text className="text-base font-semibold text-foreground">
             {activity.isComplete

@@ -12,6 +12,7 @@ import { toast } from "@/components/sonner";
 import { ConfirmationDialog } from "@/components/ui/confirmation-dialog";
 import { useState } from "react";
 import { useTranslation } from "@/hooks/useTranslation";
+import { useTheme, withAlpha } from "@oxyhq/bloom/theme";
 
 interface ChatHeaderProps {
   title: string;
@@ -37,6 +38,7 @@ export function ChatHeader({
   isVoiceActive = false,
 }: ChatHeaderProps) {
   const { t } = useTranslation();
+  const { colors } = useTheme();
   const insets = useSafeAreaInsets();
   const dimensions = useWindowDimensions();
   const navigation = useNavigation<DrawerNavigationProp<ReactNavigation.RootParamList>>();
@@ -93,9 +95,9 @@ export function ChatHeader({
           onModelChange={onModelChange}
         />
         {isVoiceActive && (
-          <View className="h-6 rounded-full px-2 flex-row items-center gap-1" style={{ backgroundColor: 'rgba(56, 189, 248, 0.15)' }}>
-            <Mic size={12} color="#38bdf8" />
-            <Text className="text-[11px] font-medium" style={{ color: '#38bdf8' }}>Voice</Text>
+          <View className="h-6 rounded-full px-2 flex-row items-center gap-1" style={{ backgroundColor: withAlpha(colors.info, 0.15) }}>
+            <Mic size={12} color={colors.info} />
+            <Text className="text-[11px] font-medium" style={{ color: colors.info }}>Voice</Text>
           </View>
         )}
       </View>

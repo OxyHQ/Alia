@@ -9,6 +9,7 @@ import React, {
 import { View, Pressable } from "react-native";
 import { Text } from "@/components/ui/text";
 import { AliaMarkdown } from '@alia.onl/sdk';
+import { withAlpha } from "@oxyhq/bloom/theme";
 import { useColorScheme } from "@/lib/useColorScheme";
 import {
   Collapsible,
@@ -284,8 +285,8 @@ export function ReasoningContent({ children, className }: ReasoningContentProps)
         <View
           className="rounded-lg p-3"
           style={{
-            backgroundColor: "#a855f710",
-            borderColor: "#a855f730",
+            backgroundColor: withAlpha("#a855f7", 0.06),
+            borderColor: withAlpha("#a855f7", 0.19),
             borderWidth: 1,
           }}
         >

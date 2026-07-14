@@ -12,7 +12,11 @@ import { useRolesStore } from '@/lib/stores/roles-store';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { toast } from '@/components/sonner';
 import { useTranslation } from '@/hooks/useTranslation';
-import { StatsRow, SectionLabel, PromptChipList, GoodAtNotFor, PillList } from '@/components/detail';
+import { StatsRow } from '@/components/detail/stats-row';
+import { SectionLabel } from '@/components/detail/section-label';
+import { PromptChipList } from '@/components/detail/prompt-chip-list';
+import { GoodAtNotFor } from '@/components/detail/good-at-not-for';
+import { PillList } from '@/components/detail/pill-list';
 
 export default function RoleDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();

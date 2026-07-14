@@ -15,8 +15,7 @@ import {
 } from "@/components/ui/dialog";
 import { ConfirmationDialog } from "@/components/ui/confirmation-dialog";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
-import { useOxy } from "@oxyhq/services";
-import { useRouter } from "expo-router";
+import { useOxy, useAuth } from "@oxyhq/services";
 import { generateAPIUrl } from "@/lib/generate-api-url";
 import {
   Brain,
@@ -73,8 +72,8 @@ const CATEGORY_CONFIG: Record<string, { icon: any; color: string; bgColor: strin
 const SUGGESTED_CATEGORIES = ['preferencia', 'personal', 'trabajo', 'objetivo', 'experiencia'];
 
 export default function MemoryScreen() {
-  const router = useRouter();
   const { isAuthenticated, oxyServices } = useOxy();
+  const { signIn } = useAuth();
   const { memory, loading } = useUserData();
   const setMemory = useUserDataStore((state) => state.setMemory);
   const { colors } = useColorScheme();
@@ -120,9 +119,9 @@ export default function MemoryScreen() {
   // Redirect if not authenticated
   useEffect(() => {
     if (!isAuthenticated) {
-      router.replace("/login");
+      signIn().catch(() => {});
     }
-  }, [isAuthenticated]);
+  }, [isAuthenticated, signIn]);
 
   // Get unique categories
   const categories = useMemo(() => {

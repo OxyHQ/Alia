@@ -4,6 +4,7 @@ import * as WebBrowser from "expo-web-browser";
 import { Text } from "@/components/ui/text";
 import { Brain, CheckCircle2, X, Globe, ChevronRight } from "lucide-react-native";
 import { useUIStore } from "@/lib/stores/ui-store";
+import { useTheme, type ThemeColors } from "@oxyhq/bloom/theme";
 import { useTranslation } from "@/hooks/useTranslation";
 import { extractSources, buildSteps, buildAuditTimeline, type Source, type ThoughtStep, type AuditEntry } from "@/lib/thought-utils";
 import { getToolIcon } from "@/lib/tool-registry";
@@ -70,12 +71,13 @@ function PulsingDot({ color }: { color: string }) {
 }
 
 function StepIcon({ step, isActive }: { step: ThoughtStep; isActive: boolean }) {
+  const { colors } = useTheme();
   if (step.type === "thinking") {
     if (isActive) return <PulsingDot color="#a855f7" />;
     return <Brain size={14} color="#a855f7" />;
   }
   if (step.type === "done") {
-    return <CheckCircle2 size={14} color="#22c55e" />;
+    return <CheckCircle2 size={14} color={colors.success} />;
   }
   // tool step
   const ToolIcon = getToolIcon(step.toolName || "");
@@ -216,19 +218,20 @@ function SourcesTab({ sources }: { sources: Source[] }) {
   );
 }
 
-function AuditIcon({ entry }: { entry: AuditEntry }) {
+function AuditIcon({ entry, colors }: { entry: AuditEntry; colors: ThemeColors }) {
   if (entry.type === 'tool_call' && entry.toolName) {
     const Icon = getToolIcon(entry.toolName);
     return <Icon size={12} className="text-foreground" />;
   }
   if (entry.type === 'research_phase') return <Brain size={12} color="#8b5cf6" />;
   if (entry.type === 'agent_delegation') return <Brain size={12} color="#f97316" />;
-  if (entry.type === 'plan_approved') return <CheckCircle2 size={12} color="#22c55e" />;
-  if (entry.type === 'artifact_generated') return <CheckCircle2 size={12} color="#3b82f6" />;
+  if (entry.type === 'plan_approved') return <CheckCircle2 size={12} color={colors.success} />;
+  if (entry.type === 'artifact_generated') return <CheckCircle2 size={12} color={colors.info} />;
   return <Globe size={12} className="text-muted-foreground" />;
 }
 
 function ActivityTab({ entries }: { entries: AuditEntry[] }) {
+  const { colors } = useTheme();
   if (entries.length === 0) {
     return (
       <View className="items-center justify-center py-8">
@@ -248,9 +251,9 @@ function ActivityTab({ entries }: { entries: AuditEntry[] }) {
               <View className="h-3" />
               <View className="items-center justify-center" style={{ width: 20, height: 20 }}>
                 {entry.status === 'in_progress' ? (
-                  <PulsingDot color="#eab308" />
+                  <PulsingDot color={colors.warning} />
                 ) : (
-                  <AuditIcon entry={entry} />
+                  <AuditIcon entry={entry} colors={colors} />
                 )}
               </View>
               {!isLast && (

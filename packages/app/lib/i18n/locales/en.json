@@ -29,42 +29,6 @@
     "authorize": "Authorize",
     "tryAgain": "Try Again"
   },
-  "login": {
-    "title": "Sign in or sign up",
-    "subtitle": "to continue to Alia",
-    "continueWithGoogle": "Continue with Google",
-    "continueWithMicrosoft": "Continue with Microsoft",
-    "continueWithApple": "Continue with Apple",
-    "continueWithTelegram": "Continue with Telegram",
-    "emailPlaceholder": "Email",
-    "passwordPlaceholder": "Password",
-    "forgotPassword": "Forgot password?",
-    "signInButton": "Sign in",
-    "signingIn": "Signing in...",
-    "footerText": "Don't have an account?",
-    "footerLink": "Sign up",
-    "termsPrefix": "By continuing, you agree to Alia's ",
-    "termsOfService": "Terms of Service",
-    "termsAnd": " and ",
-    "privacyPolicy": "Privacy Policy"
-  },
-  "register": {
-    "title": "Create Oxy Account",
-    "subtitle": "Sign up to get started with Alia",
-    "firstNamePlaceholder": "First Name",
-    "lastNamePlaceholder": "Last Name (Optional)",
-    "emailPlaceholder": "Email",
-    "passwordPlaceholder": "Password (min 8 characters)",
-    "confirmPasswordPlaceholder": "Confirm Password",
-    "createAccountButton": "Continue",
-    "creatingAccount": "Creating account...",
-    "footerText": "Already have an account?",
-    "footerLink": "Sign in",
-    "termsPrefix": "By continuing, you agree to Oxy's ",
-    "termsOfService": "Terms of Service",
-    "termsAnd": " and ",
-    "privacyPolicy": "Privacy Policy"
-  },
   "errors": {
     "emailRequired": "Please enter your email address",
     "passwordRequired": "Please enter your password",
@@ -256,7 +220,12 @@
     "notifications": "Notifications",
     "logOut": "Log out",
     "termsOfService": "Terms of Service",
-    "privacyPolicy": "Privacy Policy"
+    "privacyPolicy": "Privacy Policy",
+    "today": "Today",
+    "yesterday": "Yesterday",
+    "previous7Days": "Previous 7 days",
+    "earlier": "Earlier",
+    "collapse": "Collapse sidebar"
   },
   "billing": {
     "title": "Billing",
@@ -604,68 +573,8 @@
     "helpComingSoon": "Help functionality coming soon!"
   },
   "welcome": {
-    "morningGreetings": [
-      "Good morning, {{name}}",
-      "Rise and shine, {{name}}",
-      "Morning, {{name}}!",
-      "Top of the morning, {{name}}",
-      "Hey {{name}}, bright and early!",
-      "Good morning! Ready to start the day, {{name}}?",
-      "Hello {{name}}, fresh start today!",
-      "Hey {{name}}, let's make today great"
-    ],
-    "afternoonGreetings": [
-      "Good afternoon, {{name}}",
-      "Hey {{name}}, how's your day going?",
-      "Afternoon, {{name}}!",
-      "Hope your day's going well, {{name}}",
-      "Hey {{name}}, good to see you",
-      "What's up, {{name}}?",
-      "Hello {{name}}, how's the day treating you?",
-      "Hey there, {{name}}"
-    ],
-    "eveningGreetings": [
-      "Good evening, {{name}}",
-      "Hey {{name}}, how was your day?",
-      "Evening, {{name}}!",
-      "Hey there, {{name}}",
-      "Welcome back, {{name}}",
-      "Hey {{name}}, winding down?",
-      "Good evening! What's on your mind, {{name}}?",
-      "Hey {{name}}, burning the midnight oil?"
-    ],
-    "morningSubtitles": [
-      "What's on the agenda today?",
-      "Let's start the day off right",
-      "What can I help you with this morning?",
-      "Ready to make today count",
-      "How can I help you this morning?",
-      "What's the plan for today?",
-      "Let's make this morning productive",
-      "What are we tackling today?"
-    ],
-    "afternoonSubtitles": [
-      "How can I help you this afternoon?",
-      "What are we working on?",
-      "Need a hand with something?",
-      "How can I assist you?",
-      "What's on your mind?",
-      "What can I do for you?",
-      "Let's keep the momentum going",
-      "What do you need help with?"
-    ],
-    "eveningSubtitles": [
-      "How can I help you this evening?",
-      "What's on your mind tonight?",
-      "Need help with something tonight?",
-      "What can I do for you this evening?",
-      "Winding down or just getting started?",
-      "How can I help you tonight?",
-      "Let's get something done this evening",
-      "What are we working on tonight?"
-    ],
-    "defaultSubtitle": "How can I help you today?",
-    "appName": "Alia"
+    "greetingNamed": "Hi {{name}}, what's on your mind?",
+    "greeting": "Hi, what's on your mind?"
   },
   "notifications": {
     "title": "Notifications",
@@ -782,7 +691,6 @@
     "linkingAccount": "Linking account...",
     "pleaseWait": "Please wait while we set up your access",
     "authRequired": "Authentication Required",
-    "redirectingToLogin": "Redirecting to login...",
     "linked": "Linked!",
     "authorized": "Authorized!",
     "authSuccess": "Authorization successful! Redirecting back to the app...",

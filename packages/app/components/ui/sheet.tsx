@@ -12,6 +12,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { X } from "lucide-react-native";
 import { cn } from "@/lib/utils";
 import { Text } from "./text";
+import { useTheme } from "@oxyhq/bloom/theme";
 
 interface SheetProps {
   open?: boolean;
@@ -66,6 +67,7 @@ const SheetContent = React.forwardRef<
   const { open, onOpenChange } = React.useContext(SheetContext);
   const { width } = useWindowDimensions();
   const insets = useSafeAreaInsets();
+  const { colors } = useTheme();
 
   // Responsive: full width (fixed) on mobile, flex on desktop
   const isMobile = width < 640;
@@ -127,7 +129,7 @@ const SheetContent = React.forwardRef<
           style={[
             StyleSheet.absoluteFill,
             {
-              backgroundColor: "rgba(0, 0, 0, 0.5)",
+              backgroundColor: colors.overlay,
               opacity: fadeAnim,
             },
           ]}

@@ -4,7 +4,8 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import Head from "expo-router/head";
 import { HeartHandshake, Gift, ArrowRight, LogIn } from "lucide-react-native";
 import { useAuth } from "@oxyhq/services";
-import { AuthContainer, AuthLogo } from "@/components/auth";
+import { AuthContainer } from "@/components/auth/auth-container";
+import { AuthLogo } from "@/components/auth/auth-logo";
 import { Text } from "@/components/ui/text";
 import { Button } from "@/components/ui/button";
 import { useRedeemInviteCode } from "@/lib/hooks/use-referrals";
@@ -12,7 +13,7 @@ import { useRedeemInviteCode } from "@/lib/hooks/use-referrals";
 export default function InviteScreen() {
   const { code } = useLocalSearchParams<{ code: string }>();
   const router = useRouter();
-  const { isAuthenticated, isLoading: authLoading } = useAuth();
+  const { isAuthenticated, isLoading: authLoading, signIn } = useAuth();
   const redeemMutation = useRedeemInviteCode();
   const [redeemed, setRedeemed] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -157,7 +158,7 @@ export default function InviteScreen() {
 
           <View className="w-full gap-3">
             <Button
-              onPress={() => router.push(`/register?invite=${code}`)}
+              onPress={() => signIn().catch(() => {})}
               className="w-full h-12 rounded-full"
             >
               <View className="flex-row items-center gap-2">
@@ -170,7 +171,7 @@ export default function InviteScreen() {
 
             <Button
               variant="outline"
-              onPress={() => router.push(`/login?invite=${code}`)}
+              onPress={() => signIn().catch(() => {})}
               className="w-full h-12 rounded-full"
             >
               <View className="flex-row items-center gap-2">

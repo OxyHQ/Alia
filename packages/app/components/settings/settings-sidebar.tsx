@@ -135,7 +135,7 @@ export const SettingsSidebar = React.memo(function SettingsSidebar() {
       topSection={topSection}
       navigation={navigation}
       footer={footer}
-      backgroundColor="bg-sidebar"
+      backgroundColor="bg-background"
     />
   );
 });

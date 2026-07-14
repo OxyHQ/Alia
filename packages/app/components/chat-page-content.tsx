@@ -13,15 +13,15 @@ import Entypo from "@expo/vector-icons/Entypo";
 import * as DropdownMenu from "@/components/ui/dropdown-menu";
 import { Text } from "@/components/ui/text";
 import { Button } from "@/components/ui/button";
-import { PromptInput, type Attachment } from "@/components/ui/prompt-input";
+import { PromptInput } from "@/components/ui/prompt-input/prompt-input";
+import type { Attachment } from "@/components/ui/prompt-input/context";
 import { ScrollButton } from "@/components/ui/scroll-button";
 import { ChatInterface } from "@/components/chat-interface";
 import { ChatHeader } from "@/components/chat-header";
 import { useAuth } from "@oxyhq/services";
 import type { Message } from "@/types/chat";
 import { toast } from "@/components/sonner";
-import { VoiceOverlay } from "@/components/voice-overlay";
-import { VoiceControls } from "@/components/voice-controls";
+import { VoiceOverlay, VoiceControls } from "@alia.onl/sdk";
 import { AlertTriangle, Pencil } from "lucide-react-native";
 import { CreditWarningBanner } from "@/components/credit-warning-banner";
 import { getThinkingModelId, isThinkingModel } from "@/components/model-selector";
@@ -65,7 +65,6 @@ interface ChatPageContentProps {
   scrollViewRef: React.RefObject<GHScrollView>;
   isLoading: boolean;
   onSubmit: (value: string, attachments?: Attachment[]) => void;
-  onSuggestionPress: (message: string) => void;
   onEditMessage: (messageId: string, newContent: string) => void;
   onStop?: () => void;
   onClear?: () => void;
@@ -105,7 +104,6 @@ export const ChatPageContent = ({
   scrollViewRef,
   isLoading,
   onSubmit,
-  onSuggestionPress,
   onEditMessage,
   onStop,
   onClear,
@@ -243,14 +241,16 @@ export const ChatPageContent = ({
     useStore.getState().clearAttachments();
   };
 
-  const handleSuggestionPress = useCallback((message: string) => {
-    if (isLoading) return;
+  // Send a suggestion's text directly (non-template selections) via the same send path.
+  const handleSuggestionSend = useCallback((text: string) => {
+    if (isLoading || disabled) return;
     if (!isAuthenticated) {
       signIn().catch(() => {});
       return;
     }
-    onSuggestionPress(message);
-  }, [isLoading, isAuthenticated, signIn, onSuggestionPress]);
+    onSubmit(text);
+    setInputValue("");
+  }, [isLoading, disabled, isAuthenticated, signIn, onSubmit]);
 
   const handleThinkingMode = () => {
     if (thinkingMode) {
@@ -344,14 +344,13 @@ export const ChatPageContent = ({
   );
 
   return (
-    <View className="flex-1 bg-content-area">
+    <View className="flex-1 bg-background">
       <View className="flex-1 relative">
         <ChatInterface
           messages={messages}
           scrollViewRef={scrollViewRef}
           isLoading={isLoading}
           conversationLoading={conversationLoading}
-          onSuggestionPress={handleSuggestionPress}
           onStartEdit={handleStartEdit}
           bottomPadding={bottomBarHeight}
           isVoiceActive={isVoiceActive}
@@ -485,6 +484,8 @@ export const ChatPageContent = ({
                     onRemoveAttachment={removeAttachment}
                     onImagePaste={handleImagePaste}
                     autocomplete
+                    showDefaultSuggestions={messages.length === 0}
+                    onSuggestionSend={handleSuggestionSend}
                     leadingAddMenu
                     placeholder={disabled ? t('usageLimit.inputDisabledPlaceholder') : "Message Alia..."}
                     onStop={onStop}

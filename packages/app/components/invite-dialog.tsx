@@ -13,6 +13,7 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 import { useReferralInfo, useRedeemInviteCode, useReferralHistory } from "@/lib/hooks/use-referrals";
+import { useTheme } from "@oxyhq/bloom/theme";
 
 const SHARE_TEXT = "Check out Alia — sign up with my link and we both get 500 credits!";
 
@@ -39,6 +40,7 @@ const SocialButton = React.memo(function SocialButton({
 });
 
 export function InviteDialog({ open, onOpenChange }: InviteDialogProps) {
+  const { colors } = useTheme();
   const { data: referralInfo } = useReferralInfo();
   const [copied, setCopied] = React.useState(false);
   const [activeSection, setActiveSection] = React.useState<'redeem' | 'history' | null>(null);
@@ -242,7 +244,7 @@ export function InviteDialog({ open, onOpenChange }: InviteDialogProps) {
                   value={redeemCode}
                   onChangeText={setRedeemCode}
                   placeholder="Enter invite code"
-                  placeholderTextColor="#9ca3af"
+                  placeholderTextColor={colors.textSecondary}
                   autoCapitalize="none"
                   autoCorrect={false}
                   className="flex-1 h-11 rounded-full border border-input bg-background px-4 text-sm text-foreground"

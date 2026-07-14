@@ -8,6 +8,7 @@ import {
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
 import { cn } from "@/lib/utils";
+import { useTheme } from "@oxyhq/bloom/theme";
 import { CheckCircle, ChevronDown, Settings, XCircle } from "lucide-react-native";
 import Animated, {
   useSharedValue,
@@ -37,6 +38,7 @@ export type ToolDetailProps = {
 };
 
 function SpinningLoader() {
+  const { colors } = useTheme();
   const rotation = useSharedValue(0);
 
   useEffect(() => {
@@ -52,7 +54,7 @@ function SpinningLoader() {
 
   return (
     <Animated.View style={spinStyle}>
-      <Settings size={16} color="#3b82f6" />
+      <Settings size={16} color={colors.info} />
     </Animated.View>
   );
 }
@@ -79,6 +81,7 @@ const badgeLabels = {
 } as const;
 
 function ToolDetail({ toolPart, defaultOpen = false, className }: ToolDetailProps) {
+  const { colors } = useTheme();
   const [isOpen, setIsOpen] = useState(defaultOpen);
   const { state, input, output, toolCallId } = toolPart;
 
@@ -89,9 +92,9 @@ function ToolDetail({ toolPart, defaultOpen = false, className }: ToolDetailProp
       case "input-available":
         return <Settings size={16} color="#f97316" />;
       case "output-available":
-        return <CheckCircle size={16} color="#22c55e" />;
+        return <CheckCircle size={16} color={colors.success} />;
       case "output-error":
-        return <XCircle size={16} color="#ef4444" />;
+        return <XCircle size={16} color={colors.error} />;
       default:
         return <Settings size={16} className="text-muted-foreground" />;
     }

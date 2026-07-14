@@ -7,6 +7,7 @@ import {
 } from "react-native";
 import { Text } from "@/components/ui/text";
 import { useColorScheme } from "@/lib/useColorScheme";
+import { withAlpha } from "@oxyhq/bloom/theme";
 import { useActivityGrid, type ActivityGridDay } from "@/lib/hooks/use-activity-grid";
 import { toast } from "@/components/sonner";
 
@@ -91,28 +92,19 @@ function formatDisplayDate(dateStr: string): string {
   });
 }
 
-function hexToRgba(hex: string, alpha: number): string {
-  const r = parseInt(hex.slice(1, 3), 16);
-  const g = parseInt(hex.slice(3, 5), 16);
-  const b = parseInt(hex.slice(5, 7), 16);
-  return `rgba(${r},${g},${b},${alpha})`;
-}
-
 function getColorForCount(
   count: number,
   maxCount: number,
-  isDark: boolean,
-  primaryHex: string
+  emptyColor: string,
+  primaryColor: string
 ): string {
-  if (count === 0) {
-    return isDark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.06)";
-  }
+  if (count === 0) return emptyColor;
 
   const ratio = maxCount > 0 ? count / maxCount : 0;
-  if (ratio <= 0.25) return hexToRgba(primaryHex, 0.25);
-  if (ratio <= 0.5) return hexToRgba(primaryHex, 0.5);
-  if (ratio <= 0.75) return hexToRgba(primaryHex, 0.75);
-  return primaryHex;
+  if (ratio <= 0.25) return withAlpha(primaryColor, 0.25);
+  if (ratio <= 0.5) return withAlpha(primaryColor, 0.5);
+  if (ratio <= 0.75) return withAlpha(primaryColor, 0.75);
+  return primaryColor;
 }
 
 interface ActivityGridProps {
@@ -122,7 +114,7 @@ interface ActivityGridProps {
 
 export function ActivityGrid({ agentId, weeks: weeksProp }: ActivityGridProps) {
   const { width } = useWindowDimensions();
-  const { isDarkColorScheme: isDark, colors } = useColorScheme();
+  const { colors } = useColorScheme();
   const isLargeScreen = width >= 768;
   const weeks = weeksProp ?? (isLargeScreen ? 52 : 20);
 
@@ -135,6 +127,7 @@ export function ActivityGrid({ agentId, weeks: weeksProp }: ActivityGridProps) {
 
   const maxCount = data?.maxCount ?? 0;
   const totalSessions = data?.totalSessions ?? 0;
+  const emptyColor = withAlpha(colors.foreground, 0.06);
   const gridWidth = LABEL_WIDTH + weeks * (CELL_SIZE + CELL_GAP);
   const gridHeight = MONTH_LABEL_HEIGHT + 7 * (CELL_SIZE + CELL_GAP);
 
@@ -209,7 +202,7 @@ export function ActivityGrid({ agentId, weeks: weeksProp }: ActivityGridProps) {
                 width: CELL_SIZE,
                 height: CELL_SIZE,
                 borderRadius: 2,
-                backgroundColor: getColorForCount(cell.count, maxCount, isDark, colors.primary),
+                backgroundColor: getColorForCount(cell.count, maxCount, emptyColor, colors.primary),
               }}
             />
           ))}
@@ -229,7 +222,7 @@ export function ActivityGrid({ agentId, weeks: weeksProp }: ActivityGridProps) {
               backgroundColor: getColorForCount(
                 level === 0 ? 0 : Math.max(1, Math.ceil(level * (maxCount || 1))),
                 maxCount || 1,
-                isDark,
+                emptyColor,
                 colors.primary
               ),
             }}

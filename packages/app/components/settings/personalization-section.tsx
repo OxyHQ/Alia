@@ -19,6 +19,7 @@ import { useUserDataStore } from "@/lib/stores/user-data-store";
 import * as DropdownMenu from "@/components/ui/dropdown-menu";
 import { useTranslation } from "@/hooks/useTranslation";
 import { toast } from "@/components/sonner";
+import { useTheme } from "@oxyhq/bloom/theme";
 
 const LANGUAGES = [
   { value: "en-US", label: "English" },
@@ -41,6 +42,7 @@ export function PersonalizationSection() {
   const setMemory = useUserDataStore((state) => state.setMemory);
   const [saving, setSaving] = useState(false);
   const { t } = useTranslation();
+  const { colors } = useTheme();
 
   const [language, setLanguage] = useState("");
   const [tone, setTone] = useState("");
@@ -216,7 +218,7 @@ export function PersonalizationSection() {
         <RNTextInput
           className={inputClass}
           placeholder={t("settings.occupation.placeholder")}
-          placeholderTextColor="#9ca3af"
+          placeholderTextColor={colors.textSecondary}
           value={occupation}
           onChangeText={setOccupation}
         />
@@ -234,7 +236,7 @@ export function PersonalizationSection() {
         <RNTextInput
           className={inputClass}
           placeholder={t("settings.location.placeholder")}
-          placeholderTextColor="#9ca3af"
+          placeholderTextColor={colors.textSecondary}
           value={location}
           onChangeText={setLocation}
         />
@@ -252,7 +254,7 @@ export function PersonalizationSection() {
         <RNTextInput
           className={inputClass}
           placeholder={t("settings.aboutYou.placeholder")}
-          placeholderTextColor="#9ca3af"
+          placeholderTextColor={colors.textSecondary}
           value={bio}
           onChangeText={setBio}
           multiline
@@ -272,7 +274,7 @@ export function PersonalizationSection() {
         <RNTextInput
           className={inputClass}
           placeholder={t("settings.interests.placeholder")}
-          placeholderTextColor="#9ca3af"
+          placeholderTextColor={colors.textSecondary}
           value={interests}
           onChangeText={setInterests}
           multiline

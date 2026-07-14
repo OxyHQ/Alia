@@ -26,7 +26,6 @@ interface ConversationItemProps {
   onMoveToFolder: (convId: string, folderId: string | null, e: StopPropagationEvent) => void;
   onDelete: (id: string, e: StopPropagationEvent) => void;
   onPrefetch?: (id: string) => void;
-  compact?: boolean;
   indented?: boolean;
 }
 
@@ -46,7 +45,6 @@ export const ConversationItem = React.memo<ConversationItemProps>(({
   onMoveToFolder,
   onDelete,
   onPrefetch,
-  compact = false,
   indented = false,
 }) => {
   const { colors } = useColorScheme();
@@ -59,20 +57,18 @@ export const ConversationItem = React.memo<ConversationItemProps>(({
   return (
     <View
       className={cn(
-        "flex-row items-center gap-1 rounded-full group",
+        "flex-row items-center gap-1 rounded-xl group hover:bg-muted",
         indented && "ml-4",
-        isActive ? "bg-muted border border-border" : ""
+        isActive && "bg-muted"
       )}
     >
       <Pressable
         onPress={() => onSelect(conversation.id)}
         onPressIn={handlePrefetch}
-        // @ts-ignore web-only prop
         onHoverIn={handlePrefetch}
         className={cn(
-          "flex-1 flex-row items-center gap-2",
-          compact ? "py-1.5 pl-2.5 pr-1" : "py-2.5 md:py-2 pl-3 md:pl-2.5 pr-1",
-          !isActive && "active:bg-muted/50 rounded-full"
+          "flex-1 h-9 flex-row items-center gap-2 pl-2.5 pr-1 rounded-xl",
+          !isActive && "active:bg-muted/50"
         )}
       >
         {isStreaming && (
@@ -80,9 +76,8 @@ export const ConversationItem = React.memo<ConversationItemProps>(({
         )}
         <Text
           className={cn(
-            "flex-1 text-foreground",
-            compact ? "text-xs" : "text-sm md:text-xs",
-            isActive && "font-medium"
+            "flex-1 text-sm",
+            isActive ? "text-foreground font-medium" : "text-muted-foreground group-hover:text-foreground"
           )}
           numberOfLines={1}
         >

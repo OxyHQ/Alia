@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, Pressable, ScrollView, Platform } from 'react-native';
 import { Text } from '@/components/ui/text';
+import { useTheme, withAlpha } from '@oxyhq/bloom/theme';
 
 interface ErrorBoundaryProps {
   children: React.ReactNode;
@@ -87,11 +88,12 @@ function ErrorFallback({
   error: Error;
   resetError: () => void;
 }) {
+  const { colors } = useTheme();
   return (
     <View
       style={{
         flex: 1,
-        backgroundColor: '#040711',
+        backgroundColor: colors.background,
         justifyContent: 'center',
         alignItems: 'center',
         padding: 24,
@@ -110,7 +112,7 @@ function ErrorFallback({
             width: 56,
             height: 56,
             borderRadius: 28,
-            backgroundColor: 'rgba(239, 68, 68, 0.15)',
+            backgroundColor: withAlpha(colors.error, 0.15),
             justifyContent: 'center',
             alignItems: 'center',
             marginBottom: 20,
@@ -119,7 +121,7 @@ function ErrorFallback({
           <Text
             style={{
               fontSize: 24,
-              color: '#ef4444',
+              color: colors.error,
               fontWeight: '600',
             }}
           >
@@ -132,7 +134,7 @@ function ErrorFallback({
           style={{
             fontSize: 20,
             fontWeight: '700',
-            color: '#f1f5f9',
+            color: colors.text,
             textAlign: 'center',
             marginBottom: 8,
           }}
@@ -144,7 +146,7 @@ function ErrorFallback({
         <Text
           style={{
             fontSize: 15,
-            color: '#94a3b8',
+            color: colors.textSecondary,
             textAlign: 'center',
             lineHeight: 22,
             marginBottom: 24,
@@ -160,7 +162,7 @@ function ErrorFallback({
             style={{
               maxHeight: 120,
               width: '100%',
-              backgroundColor: 'rgba(255, 255, 255, 0.05)',
+              backgroundColor: withAlpha(colors.text, 0.05),
               borderRadius: 8,
               padding: 12,
               marginBottom: 24,
@@ -169,7 +171,7 @@ function ErrorFallback({
             <Text
               style={{
                 fontSize: 12,
-                color: '#64748b',
+                color: colors.textSecondary,
                 fontFamily: Platform.OS === 'web' ? 'monospace' : 'Geist Mono',
               }}
               selectable
@@ -183,7 +185,7 @@ function ErrorFallback({
         <Pressable
           onPress={resetError}
           style={({ pressed }) => ({
-            backgroundColor: pressed ? '#7c3aed' : '#8b5cf6',
+            backgroundColor: pressed ? withAlpha(colors.primary, 0.85) : colors.primary,
             paddingHorizontal: 28,
             paddingVertical: 12,
             borderRadius: 12,
@@ -197,7 +199,7 @@ function ErrorFallback({
             style={{
               fontSize: 15,
               fontWeight: '600',
-              color: '#ffffff',
+              color: colors.primaryForeground,
             }}
           >
             Try Again

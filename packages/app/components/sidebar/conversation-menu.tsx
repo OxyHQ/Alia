@@ -41,9 +41,9 @@ export const ConversationMenu = React.memo<ConversationMenuProps>(({
   return (
     <DropdownMenu.Root onOpenChange={setIsOpen}>
       <DropdownMenu.Trigger>
-        <View className="relative h-8 w-8 items-center justify-center mr-1">
+        <View className="relative h-6 w-6 items-center justify-center mr-1">
           {(isPinned || isFavorite) && !isOpen && (
-            <View className="absolute inset-0 items-center justify-center group-hover:opacity-0">
+            <View className="absolute inset-0 items-center justify-center web:group-hover:opacity-0">
               {isPinned ? (
                 <Pin size={14} className={isFavorite ? "text-amber-500" : "text-muted-foreground"} />
               ) : (
@@ -51,7 +51,7 @@ export const ConversationMenu = React.memo<ConversationMenuProps>(({
               )}
             </View>
           )}
-          <Pressable className={`h-8 w-8 items-center justify-center rounded-full active:bg-muted/70 ${isOpen ? "opacity-100" : "opacity-0 group-hover:opacity-100"}`}>
+          <Pressable className={`h-6 w-6 items-center justify-center rounded-lg active:bg-muted/70 ${isOpen ? "opacity-100" : "web:opacity-0 web:group-hover:opacity-100"}`}>
             <MoreHorizontal size={14} className="text-muted-foreground" />
           </Pressable>
         </View>

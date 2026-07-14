@@ -30,6 +30,8 @@ export type PromptInputProps = {
   placeholder?: string;
   autocomplete?: boolean;
   autocompletePosition?: "top" | "bottom";
+  /** When true (empty conversation), show default welcome suggestions while the query is short. */
+  showDefaultSuggestions?: boolean;
   // Shows the add menu as a standalone button to the left of the input box
   leadingAddMenu?: boolean;
   // Custom left-side actions (replaces default add menu in the actions bar)
@@ -37,6 +39,8 @@ export type PromptInputProps = {
   // Submit button props
   onStop?: () => void;
   emptyAction?: React.ReactNode;
+  /** Send a suggestion's text directly (non-template selections) via the chat's send path. */
+  onSuggestionSend?: (text: string) => void;
   // Controlled attachments (optional — uses internal state if omitted)
   attachments?: Attachment[];
   onAddAttachment?: (attachment: Attachment) => void;
@@ -59,10 +63,12 @@ export function PromptInput({
   placeholder,
   autocomplete = false,
   autocompletePosition = "top",
+  showDefaultSuggestions = false,
   leadingAddMenu = false,
   actionsLeft,
   onStop,
   emptyAction,
+  onSuggestionSend,
   attachments: controlledAttachments,
   onAddAttachment,
   onRemoveAttachment,
@@ -142,6 +148,7 @@ export function PromptInput({
     setValue: currentSetValue,
     maxHeight,
     onSubmit: handleSubmit,
+    onSuggestionSend,
     disabled,
     textareaRef,
     currentHeight,
@@ -156,7 +163,7 @@ export function PromptInput({
     setHandleCompletionKey,
   }), [
     isLoading, currentValue, currentSetValue, maxHeight, handleSubmit,
-    disabled, currentHeight, showFullscreen, onImagePaste,
+    onSuggestionSend, disabled, currentHeight, showFullscreen, onImagePaste,
     attachments, addAttachment, removeAttachment, updateAttachment,
     handleCompletionKey, setHandleCompletionKey,
   ]);
@@ -217,7 +224,7 @@ export function PromptInput({
   return (
     <PromptInputContext.Provider value={contextValue}>
       {autocomplete && autocompletePosition === "top" && !leadingAddMenu && (
-        <PromptInputAutocomplete position="top" />
+        <PromptInputAutocomplete position="top" showDefaultSuggestions={showDefaultSuggestions} />
       )}
 
       {(() => {
@@ -231,13 +238,21 @@ export function PromptInput({
                   iconSize={20}
                   className="h-10 w-10 rounded-full border"
                 />
-                <View className="flex-1">
+                <View className="flex-1 relative">
                   {autocomplete && autocompletePosition === "top" && (
-                    <PromptInputAutocomplete position="top" />
+                    // Overlay above the input — absolute so it never reserves layout
+                    // space (keeps the centered welcome + input position fixed).
+                    <View className="absolute left-0 right-0 bottom-full pb-2 z-50">
+                      <PromptInputAutocomplete
+                        position="top"
+                        showDefaultSuggestions={showDefaultSuggestions}
+                        className="rounded-2xl bg-background overflow-hidden shadow-md p-1"
+                      />
+                    </View>
                   )}
                   {inputBox}
                   {autocomplete && autocompletePosition === "bottom" && (
-                    <PromptInputAutocomplete position="bottom" />
+                    <PromptInputAutocomplete position="bottom" showDefaultSuggestions={showDefaultSuggestions} />
                   )}
                 </View>
               </View>
@@ -249,7 +264,7 @@ export function PromptInput({
       })()}
 
       {autocomplete && autocompletePosition === "bottom" && !leadingAddMenu && (
-        <PromptInputAutocomplete position="bottom" />
+        <PromptInputAutocomplete position="bottom" showDefaultSuggestions={showDefaultSuggestions} />
       )}
 
       {showFullscreen && (

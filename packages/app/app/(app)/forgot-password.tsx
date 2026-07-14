@@ -1,7 +1,11 @@
 import React, { useState } from 'react';
 import { View, Text, Pressable } from 'react-native';
 import { useRouter } from 'expo-router';
-import { AuthContainer, AuthLogo, AuthInput, AuthButton, AuthError } from '@/components/auth';
+import { AuthContainer } from '@/components/auth/auth-container';
+import { AuthLogo } from '@/components/auth/auth-logo';
+import { AuthInput } from '@/components/auth/auth-input';
+import { AuthButton } from '@/components/auth/auth-button';
+import { AuthError } from '@/components/auth/auth-error';
 import apiClient from '@/lib/api/client';
 import { toast } from '@/components/sonner';
 import { useTranslation } from '@/hooks/useTranslation';

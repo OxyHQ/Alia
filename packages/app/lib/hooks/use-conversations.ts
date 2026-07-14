@@ -40,6 +40,18 @@ export interface Conversation {
 
 const CONVERSATIONS_STORAGE_KEY = "alia-conversations";
 
+// Message content is either a plain string or a parts array; previews (titles,
+// lastMessage) need the flattened text either way.
+function messageText(message: Message | undefined): string {
+  const content = message?.content;
+  if (typeof content === "string") return content;
+  if (!content) return "";
+  return content
+    .map((part) => (typeof part.text === "string" ? part.text : ""))
+    .join(" ")
+    .trim();
+}
+
 // Fetch all conversations from local storage (offline fallback)
 async function fetchConversations(): Promise<Conversation[]> {
   const stored = await AsyncStorage.getItem(CONVERSATIONS_STORAGE_KEY);
@@ -176,7 +188,7 @@ export function useSaveConversation() {
       messages: Message[];
       title?: string;
     }) => {
-      const lastMessage = messages[messages.length - 1]?.content?.slice(0, 100);
+      const lastMessage = messageText(messages[messages.length - 1]).slice(0, 100) || undefined;
 
       try {
         const response = await apiClient.post('/conversations', {
@@ -201,7 +213,7 @@ export function useSaveConversation() {
           const conversations = await fetchConversations();
           const existingIndex = conversations.findIndex((c) => c.id === id);
 
-          const offlineTitle = title || messages.find((m) => m.role === "user")?.content?.slice(0, 50) || "New chat";
+          const offlineTitle = title || messageText(messages.find((m) => m.role === "user")).slice(0, 50) || "New chat";
           const conversation: Conversation = {
             id,
             title: offlineTitle,

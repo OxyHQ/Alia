@@ -17,6 +17,7 @@ import Animated, {
   FadeIn,
 } from 'react-native-reanimated';
 import { Check, Circle, Loader, ChevronDown, ChevronUp, Monitor, AlertCircle } from 'lucide-react-native';
+import { useTheme } from '@oxyhq/bloom/theme';
 import type { AgentActivityState, PlanItem, AgentScreenshot } from '@/lib/hooks/use-agent-activity';
 
 interface AgentTaskCardProps {
@@ -50,6 +51,7 @@ function formatElapsed(startedAt: number | null): string {
 }
 
 function PlanItemRow({ item }: { item: PlanItem }) {
+  const { colors } = useTheme();
   const isCompleted = item.status === 'completed';
   const isInProgress = item.status === 'in_progress';
 
@@ -58,7 +60,7 @@ function PlanItemRow({ item }: { item: PlanItem }) {
       {isCompleted ? (
         <Check size={14} className="text-green-500 mt-0.5" />
       ) : isInProgress ? (
-        <PulsingDot color="#eab308" />
+        <PulsingDot color={colors.warning} />
       ) : (
         <Circle size={14} className="text-muted-foreground mt-0.5" />
       )}
@@ -95,6 +97,7 @@ function ScreenshotThumbnail({ screenshot }: { screenshot: AgentScreenshot }) {
 }
 
 export const AgentTaskCard = React.memo(function AgentTaskCard({ activity }: AgentTaskCardProps) {
+  const { colors } = useTheme();
   const { plan, screenshots, currentAction, isComplete, hasError, lastError, eventCount, startedAt, latestResponse } = activity as any;
   const [showPlan, setShowPlan] = useState(true);
   const [elapsed, setElapsed] = useState('');
@@ -125,7 +128,7 @@ export const AgentTaskCard = React.memo(function AgentTaskCard({ activity }: Age
           ) : hasError ? (
             <AlertCircle size={14} className="text-red-500" />
           ) : (
-            <PulsingDot color="#3b82f6" />
+            <PulsingDot color={colors.info} />
           )}
           <Text className="text-xs font-semibold text-foreground">
             {isComplete ? 'Task Complete' : hasError ? 'Error' : 'Agent Working'}
