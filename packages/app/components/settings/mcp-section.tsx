@@ -8,7 +8,7 @@ import {
   type McpRegistryEntry,
 } from "@/hooks/useMcpServers";
 import { toast } from "@/components/sonner";
-import { ConfirmationDialog } from "@/components/ui/confirmation-dialog";
+import { confirm } from "@oxyhq/bloom/alert-dialog";
 import {
   Dialog,
   DialogContent,
@@ -139,8 +139,6 @@ export function McpSection() {
   const { registry, installed, loading, install, installCustom, uninstall, start, stop, refresh } =
     useMcpServers();
   const { colors } = useTheme();
-  const [uninstallTarget, setUninstallTarget] = useState<string | null>(null);
-  const [uninstalling, setUninstalling] = useState(false);
   const [installTarget, setInstallTarget] = useState<McpRegistryEntry | null>(null);
   const [envValues, setEnvValues] = useState<Record<string, string>>({});
   const [installing, setInstalling] = useState(false);
@@ -174,18 +172,21 @@ export function McpSection() {
     }
   };
 
-  const handleUninstall = async () => {
-    if (!uninstallTarget) return;
-    setUninstalling(true);
+  const handleUninstall = async (serverId: string) => {
+    const ok = await confirm({
+      title: "Uninstall Server",
+      description: "Are you sure you want to uninstall this MCP server? This will remove all its configuration.",
+      confirmLabel: "Uninstall",
+      cancelLabel: "Cancel",
+      destructive: true,
+    });
+    if (!ok) return;
     try {
-      await uninstall(uninstallTarget);
+      await uninstall(serverId);
       toast.success("Server uninstalled");
     } catch (err) {
       console.error("Failed to uninstall server:", err);
       toast.error("Failed to uninstall server");
-    } finally {
-      setUninstalling(false);
-      setUninstallTarget(null);
     }
   };
 
@@ -311,7 +312,7 @@ export function McpSection() {
                 server={server}
                 onStart={handleStart}
                 onStop={handleStop}
-                onUninstall={(id) => setUninstallTarget(id)}
+                onUninstall={handleUninstall}
               />
             ))}
           </View>
@@ -335,18 +336,6 @@ export function McpSection() {
           </View>
         </View>
       )}
-
-      <ConfirmationDialog
-        open={!!uninstallTarget}
-        onOpenChange={(open) => !open && setUninstallTarget(null)}
-        title="Uninstall Server"
-        description="Are you sure you want to uninstall this MCP server? This will remove all its configuration."
-        confirmText="Uninstall"
-        cancelText="Cancel"
-        confirmVariant="destructive"
-        onConfirm={handleUninstall}
-        loading={uninstalling}
-      />
 
       <Dialog open={!!installTarget} onOpenChange={(open) => !open && setInstallTarget(null)}>
         <DialogContent className="max-w-sm">

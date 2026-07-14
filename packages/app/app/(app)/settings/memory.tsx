@@ -13,7 +13,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { ConfirmationDialog } from "@/components/ui/confirmation-dialog";
+import { confirm } from "@oxyhq/bloom/alert-dialog";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { useOxy, useAuth } from "@oxyhq/services";
 import { generateAPIUrl } from "@/lib/generate-api-url";
@@ -108,11 +108,6 @@ export default function MemoryScreen() {
   const [showDuplicatesDialog, setShowDuplicatesDialog] = useState(false);
   const [duplicates, setDuplicates] = useState<any[]>([]);
   const [duplicatesLoading, setDuplicatesLoading] = useState(false);
-
-  // Delete confirmation state
-  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
-  const [memoryToDelete, setMemoryToDelete] = useState<string | null>(null);
-  const [deleting, setDeleting] = useState(false);
 
   const memories = memory?.memories || [];
 
@@ -237,17 +232,20 @@ export default function MemoryScreen() {
     }
   };
 
-  const handleDeleteMemory = (memoryId: string) => {
-    setMemoryToDelete(memoryId);
-    setShowDeleteDialog(true);
-  };
+  const handleDeleteMemory = async (memoryId: string) => {
+    if (!isAuthenticated) return;
 
-  const confirmDeleteMemory = async () => {
-    if (!isAuthenticated || !memoryToDelete) return;
+    const ok = await confirm({
+      title: t("memory.deleteMemory"),
+      description: t("memory.deleteConfirmation"),
+      confirmLabel: t("common.delete"),
+      cancelLabel: t("common.cancel"),
+      destructive: true,
+    });
+    if (!ok) return;
 
-    setDeleting(true);
     try {
-      const apiUrl = generateAPIUrl(`/memory/${memoryToDelete}`);
+      const apiUrl = generateAPIUrl(`/memory/${memoryId}`);
       const response = await fetch(apiUrl, {
         method: 'DELETE',
         headers: getAuthHeaders(),
@@ -261,9 +259,6 @@ export default function MemoryScreen() {
     } catch (error) {
       console.error("Error deleting memory:", error);
       toast.error(t("memory.failedToDelete"));
-    } finally {
-      setDeleting(false);
-      setMemoryToDelete(null);
     }
   };
 
@@ -972,19 +967,6 @@ export default function MemoryScreen() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-
-      {/* Delete Confirmation Dialog */}
-      <ConfirmationDialog
-        open={showDeleteDialog}
-        onOpenChange={setShowDeleteDialog}
-        title={t("memory.deleteMemory")}
-        description={t("memory.deleteConfirmation")}
-        confirmText={t("common.delete")}
-        cancelText={t("common.cancel")}
-        confirmVariant="destructive"
-        onConfirm={confirmDeleteMemory}
-        loading={deleting}
-      />
     </View>
   );
 }

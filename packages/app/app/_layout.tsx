@@ -9,6 +9,7 @@ import { Platform } from 'react-native';
 
 import { AppErrorBoundary } from '@/components/error-boundary';
 import { Toaster } from '@/components/sonner';
+import { AlertDialogHost } from '@oxyhq/bloom/alert-dialog';
 import { KeyboardProvider } from '@/lib/keyboard';
 import { useColorScheme } from '@/lib/useColorScheme';
 import { setTokenGetter } from '@/lib/api/client';
@@ -71,6 +72,7 @@ function AppContent() {
         </Stack>
       </KeyboardProvider>
       <Toaster />
+      <AlertDialogHost />
     </AuthSetup>
   );
 }

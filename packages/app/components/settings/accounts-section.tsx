@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { useState } from "react";
 import { useConnectedAccounts, type ConnectedAccount } from "@/hooks/useConnectedAccounts";
 import { toast } from "@/components/sonner";
-import { ConfirmationDialog } from "@/components/ui/confirmation-dialog";
+import { confirm } from "@oxyhq/bloom/alert-dialog";
 import * as DropdownMenu from "@/components/ui/dropdown-menu";
 import {
   Smartphone,
@@ -95,8 +95,6 @@ function AccountRow({
 export function AccountsSection() {
   const { accounts, loading, connect, disconnect, remove } = useConnectedAccounts();
   const [connecting, setConnecting] = useState(false);
-  const [disconnectTarget, setDisconnectTarget] = useState<string | null>(null);
-  const [disconnecting, setDisconnecting] = useState(false);
 
   const handleConnect = async (platformId: string) => {
     setConnecting(true);
@@ -111,18 +109,21 @@ export function AccountsSection() {
     }
   };
 
-  const handleDisconnect = async () => {
-    if (!disconnectTarget) return;
-    setDisconnecting(true);
+  const handleDisconnect = async (accountId: string) => {
+    const ok = await confirm({
+      title: "Disconnect Account",
+      description: "Are you sure you want to disconnect this account? You can reconnect it anytime.",
+      confirmLabel: "Disconnect",
+      cancelLabel: "Cancel",
+      destructive: true,
+    });
+    if (!ok) return;
     try {
-      await remove(disconnectTarget);
+      await remove(accountId);
       toast.success("Account disconnected");
     } catch (err) {
       console.error("Failed to disconnect account:", err);
       toast.error("Failed to disconnect account");
-    } finally {
-      setDisconnecting(false);
-      setDisconnectTarget(null);
     }
   };
 
@@ -177,23 +178,11 @@ export function AccountsSection() {
             <AccountRow
               key={account._id}
               account={account}
-              onDisconnect={(id) => setDisconnectTarget(id)}
+              onDisconnect={handleDisconnect}
             />
           ))}
         </View>
       )}
-
-      <ConfirmationDialog
-        open={!!disconnectTarget}
-        onOpenChange={(open) => !open && setDisconnectTarget(null)}
-        title="Disconnect Account"
-        description="Are you sure you want to disconnect this account? You can reconnect it anytime."
-        confirmText="Disconnect"
-        cancelText="Cancel"
-        confirmVariant="destructive"
-        onConfirm={handleDisconnect}
-        loading={disconnecting}
-      />
     </View>
   );
 }

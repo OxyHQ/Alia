@@ -8,7 +8,7 @@ import {
   type IntegrationEntry,
 } from "@/hooks/useIntegrations";
 import { toast } from "@/components/sonner";
-import { ConfirmationDialog } from "@/components/ui/confirmation-dialog";
+import { confirm } from "@oxyhq/bloom/alert-dialog";
 import { Link2, Unlink, ExternalLink, Plug } from "lucide-react-native";
 
 function IntegrationStatusBadge({ status }: { status: ConnectedIntegration["status"] }) {
@@ -106,8 +106,6 @@ export function IntegrationsSection({
 }) {
   const { available, connected, loading, getOAuthUrl, disconnect, refresh } = useIntegrations();
   const [connectingService, setConnectingService] = useState<string | null>(null);
-  const [disconnectTarget, setDisconnectTarget] = useState<string | null>(null);
-  const [disconnecting, setDisconnecting] = useState(false);
   const handledRef = useRef(false);
 
   useEffect(() => {
@@ -135,18 +133,21 @@ export function IntegrationsSection({
     }
   };
 
-  const handleDisconnect = async () => {
-    if (!disconnectTarget) return;
-    setDisconnecting(true);
+  const handleDisconnect = async (integrationId: string) => {
+    const ok = await confirm({
+      title: "Disconnect Integration",
+      description: "Are you sure you want to disconnect this integration? You can reconnect it anytime.",
+      confirmLabel: "Disconnect",
+      cancelLabel: "Cancel",
+      destructive: true,
+    });
+    if (!ok) return;
     try {
-      await disconnect(disconnectTarget);
+      await disconnect(integrationId);
       toast.success("Integration disconnected");
     } catch (err) {
       console.error("Failed to disconnect integration:", err);
       toast.error("Failed to disconnect integration");
-    } finally {
-      setDisconnecting(false);
-      setDisconnectTarget(null);
     }
   };
 
@@ -174,7 +175,7 @@ export function IntegrationsSection({
               <ConnectedRow
                 key={integration._id}
                 integration={integration}
-                onDisconnect={(id) => setDisconnectTarget(id)}
+                onDisconnect={handleDisconnect}
               />
             ))}
           </View>
@@ -198,18 +199,6 @@ export function IntegrationsSection({
           </View>
         </View>
       )}
-
-      <ConfirmationDialog
-        open={!!disconnectTarget}
-        onOpenChange={(open) => !open && setDisconnectTarget(null)}
-        title="Disconnect Integration"
-        description="Are you sure you want to disconnect this integration? You can reconnect it anytime."
-        confirmText="Disconnect"
-        cancelText="Cancel"
-        confirmVariant="destructive"
-        onConfirm={handleDisconnect}
-        loading={disconnecting}
-      />
     </View>
   );
 }
