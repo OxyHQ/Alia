@@ -110,7 +110,6 @@ export function Sidebar() {
 
 const ChatSidebar = React.memo(function ChatSidebar() {
   const router = useRouter();
-  const pathname = usePathname();
   const queryClient = useQueryClient();
   const { t } = useTranslation();
   const { data: unreadData } = useUnreadCount();
@@ -181,18 +180,10 @@ const ChatSidebar = React.memo(function ChatSidebar() {
 
   const { collapsed, collapse: handleCollapseSidebar, expand: handleExpandSidebar } = useSidebarCollapse();
 
-  // Playful rail detail: pressing the mark while already home replays a one-shot
-  // CSS spin (NativeWind keyframes); the `key` remount restarts the animation.
-  const [logoSpinCount, setLogoSpinCount] = React.useState(0);
-
   const handleLogoPress = React.useCallback(() => {
-    if (collapsed && pathname === "/") {
-      setLogoSpinCount((count) => count + 1);
-      return;
-    }
     // Use replace to reset to home
     router.replace("/(app)");
-  }, [collapsed, pathname, router]);
+  }, [router]);
 
   const handlePrefetchConversation = React.useCallback((id: string) => {
     prefetchConversation(queryClient, id);
@@ -489,20 +480,20 @@ const ChatSidebar = React.memo(function ChatSidebar() {
   // Header — logo chip on the left, collapse trigger on the right
   const header = (
     <View className={cn("flex-row items-center", collapsed && "justify-center")}>
-      <Pressable
-        accessibilityLabel="Home"
-        accessibilityRole="button"
-        onPress={handleLogoPress}
-        className="p-1.5 mx-0.5 rounded-xl hover:bg-muted active:bg-muted"
-      >
-        {collapsed ? (
-          <View key={logoSpinCount} className="animate-spin-once">
-            <AliaMark size={24} />
-          </View>
-        ) : (
+      {collapsed ? (
+        <View className="p-1.5 mx-0.5 rounded-xl hover:bg-muted active:bg-muted">
+          <AliaMark size={24} onPress={handleLogoPress} accessibilityLabel="Home" spinOnMount />
+        </View>
+      ) : (
+        <Pressable
+          accessibilityLabel="Home"
+          accessibilityRole="button"
+          onPress={handleLogoPress}
+          className="p-1.5 mx-0.5 rounded-xl hover:bg-muted active:bg-muted"
+        >
           <AliaLogo height={36} />
-        )}
-      </Pressable>
+        </Pressable>
+      )}
       {!collapsed && (
         <View className="ml-auto">
           <GhostIconButton

@@ -79,20 +79,20 @@ export const SettingsSidebar = React.memo(function SettingsSidebar() {
 
   const header = (
     <View className={collapsed ? "flex-row items-center justify-center" : "flex-row items-center"}>
-      <Pressable
-        accessibilityLabel="Home"
-        accessibilityRole="button"
-        onPress={handleBack}
-        className="p-1.5 mx-0.5 rounded-xl hover:bg-muted active:bg-muted"
-      >
-        {collapsed ? (
-          <View className="animate-spin-once">
-            <AliaMark size={24} />
-          </View>
-        ) : (
+      {collapsed ? (
+        <View className="p-1.5 mx-0.5 rounded-xl hover:bg-muted active:bg-muted">
+          <AliaMark size={24} onPress={handleBack} accessibilityLabel="Home" spinOnMount />
+        </View>
+      ) : (
+        <Pressable
+          accessibilityLabel="Home"
+          accessibilityRole="button"
+          onPress={handleBack}
+          className="p-1.5 mx-0.5 rounded-xl hover:bg-muted active:bg-muted"
+        >
           <AliaLogo height={36} />
-        )}
-      </Pressable>
+        </Pressable>
+      )}
       {!collapsed && (
         <View className="ml-auto">
           <GhostIconButton
