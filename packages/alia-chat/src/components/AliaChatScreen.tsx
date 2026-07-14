@@ -37,6 +37,10 @@ export interface AliaChatScreenProps {
   welcomeSubtitle?: string;
   /** Welcome screen suggestions */
   welcomeSuggestions?: WelcomeSuggestion[];
+  /** Theme primary color hex — forwarded to the ambient wave overlay palette. */
+  primaryColor?: string;
+  /** Dark-mode flag — forwarded to the ambient wave overlay. */
+  isDarkMode?: boolean;
 }
 
 export function AliaChatScreen({
@@ -48,6 +52,8 @@ export function AliaChatScreen({
   welcomeGreeting,
   welcomeSubtitle,
   welcomeSuggestions,
+  primaryColor,
+  isDarkMode,
 }: AliaChatScreenProps) {
   const insets = useSafeAreaInsets();
 
@@ -60,6 +66,8 @@ export function AliaChatScreen({
         welcomeGreeting={welcomeGreeting}
         welcomeSubtitle={welcomeSubtitle}
         welcomeSuggestions={welcomeSuggestions}
+        primaryColor={primaryColor}
+        isDarkMode={isDarkMode}
         header={({ markState, hasMessages, clear }) => (
           <View className="flex-row items-center justify-between px-4 py-3">
             <View className="flex-row items-center gap-2.5">
