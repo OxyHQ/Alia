@@ -60,7 +60,7 @@ router.get('/', authenticateToken, async (req, res) => {
 });
 
 // Generate OAuth URL for a service
-router.get('/:service/oauth-url', authenticateToken, async (req, res) => {
+router.get('/:service/oauth-url', authenticateToken, async (req: express.Request<{ service: string }>, res) => {
   const { service } = req.params;
   const entry = getRegistryEntry(service);
   if (!entry) {
