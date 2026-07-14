@@ -23,7 +23,7 @@ type ReasoningDelta = OpenAI.Chat.ChatCompletionChunk.Choice.Delta & { reasoning
 const store = new Store({
   defaults: {
     apiKey: '',
-    apiBaseUrl: 'https://api.alia.onl',
+    apiBaseUrl: 'https://api.ai.oxy.so',
     model: 'alia-v1-cowork',
     enableTools: true
   }
@@ -1043,7 +1043,7 @@ export class ChatProvider {
     const message = errorMessage(error, 'An error occurred')
 
     if (message.includes('402') || message.toLowerCase().includes('insufficient credits')) {
-      return 'Insufficient credits. Please add more credits at alia.onl'
+      return 'Insufficient credits. Please add more credits at ai.oxy.so'
     } else if (message.includes('401') || message.toLowerCase().includes('unauthorized')) {
       return 'Invalid API key. Please check your settings.'
     } else if (message.includes('429') || message.toLowerCase().includes('rate limit')) {

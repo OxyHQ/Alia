@@ -5,8 +5,8 @@
 
 import React from 'react';
 
-const SITE_URL = 'https://alia.onl';
-const SITE_NAME = 'Alia by Oxy';
+const SITE_URL = 'https://ai.oxy.so';
+const SITE_NAME = 'OxyAI';
 const LOGO_URL = `${SITE_URL}/icon-512.png`;
 
 /**
@@ -45,7 +45,7 @@ export function generateWebApplicationSchema() {
     '@type': 'WebApplication',
     'name': SITE_NAME,
     'url': SITE_URL,
-    'description': 'Alia is an advanced AI chat assistant with contextual memory, multiple AI models, and multilingual support.',
+    'description': 'OxyAI is an advanced AI chat assistant with contextual memory, multiple AI models, and multilingual support.',
     'applicationCategory': 'UtilityApplication',
     'operatingSystem': 'Web, iOS, Android',
     'offers': {
@@ -294,24 +294,24 @@ export const STRUCTURED_DATA_PRESETS = {
     generateWebApplicationSchema(),
     generateFAQSchema([
       {
-        question: 'What makes Alia different from other AI assistants?',
+        question: 'What makes OxyAI different from other AI assistants?',
         answer:
-          'Alia offers enhanced contextual memory, multiple specialized AI models in one platform, custom roles, developer API access, and native multilingual support across 50+ languages.',
+          'OxyAI offers enhanced contextual memory, multiple specialized AI models in one platform, custom roles, developer API access, and native multilingual support across 50+ languages.',
       },
       {
-        question: 'Is Alia free to use?',
+        question: 'Is OxyAI free to use?',
         answer:
-          'Yes! Alia offers a generous free tier with access to advanced AI models. Pro plans are available for power users who need higher limits.',
+          'Yes! OxyAI offers a generous free tier with access to advanced AI models. Pro plans are available for power users who need higher limits.',
       },
       {
-        question: 'Which AI models does Alia support?',
+        question: 'Which AI models does OxyAI support?',
         answer:
-          'Alia supports multiple specialized AI models including Alia V1, Alia Pro, Alia Thinking, and more. You can switch between models seamlessly.',
+          'OxyAI supports multiple specialized AI models including Alia V1, Alia Pro, Alia Thinking, and more. You can switch between models seamlessly.',
       },
       {
-        question: 'Can I use Alia for coding?',
+        question: 'Can I use OxyAI for coding?',
         answer:
-          'Absolutely! Alia excels at coding assistance, debugging, code review, and technical explanations across all major programming languages.',
+          'Absolutely! OxyAI excels at coding assistance, debugging, code review, and technical explanations across all major programming languages.',
       },
     ]),
   ],
@@ -322,7 +322,7 @@ export const STRUCTURED_DATA_PRESETS = {
       {
         question: 'How does pricing work?',
         answer:
-          'Alia uses a credit-based system. Free tier includes generous credits monthly. Pro users can purchase additional credits as needed with no subscription required.',
+          'OxyAI uses a credit-based system. Free tier includes generous credits monthly. Pro users can purchase additional credits as needed with no subscription required.',
       },
       {
         question: 'Can I cancel anytime?',

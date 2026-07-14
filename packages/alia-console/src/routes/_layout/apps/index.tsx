@@ -148,7 +148,7 @@ function AppsPage() {
             />
             <p className="text-sm font-medium text-foreground mb-1">No apps yet</p>
             <p className="text-sm text-muted-foreground mb-4 max-w-md mx-auto">
-              Create your first application to generate API keys and start using the Alia API.
+              Create your first application to generate API keys and start using the OxyAI API.
             </p>
             <Button size="sm" onClick={handleOpenCreate}>
               <HugeiconsIcon icon={Add01Icon} size={16} className="mr-2" />
@@ -254,7 +254,7 @@ function AppsPage() {
           <DialogHeader>
             <DialogTitle>Create app</DialogTitle>
             <DialogDescription>
-              Create a new application to generate API keys and start using the Alia API.
+              Create a new application to generate API keys and start using the OxyAI API.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">

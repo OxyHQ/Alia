@@ -60,7 +60,7 @@ function SDKsPage() {
         </Link>
         <h1 className="text-2xl font-semibold text-foreground">SDKs & Libraries</h1>
         <p className="text-sm text-muted-foreground mt-1">
-          Use the Alia API with your favorite programming language
+          Use the OxyAI API with your favorite programming language
         </p>
       </div>
 
@@ -68,12 +68,12 @@ function SDKsPage() {
       <div className="px-6 py-6 border-b border-border">
         <h2 className="text-lg font-semibold text-foreground mb-4">OpenAI SDK Compatibility</h2>
         <p className="text-sm text-muted-foreground mb-4">
-          The Alia API is fully compatible with OpenAI's SDK. You can use any OpenAI-compatible
-          library by simply changing the base URL to <code className="text-xs bg-muted px-1 py-0.5 rounded">https://api.alia.onl/v1</code>.
+          The OxyAI API is fully compatible with OpenAI's SDK. You can use any OpenAI-compatible
+          library by simply changing the base URL to <code className="text-xs bg-muted px-1 py-0.5 rounded">https://api.ai.oxy.so/v1</code>.
         </p>
         <div className="p-4 rounded-lg bg-primary/10 border border-primary/20">
           <p className="text-sm text-primary">
-            This means you can migrate existing OpenAI integrations to Alia with minimal code changes!
+            This means you can migrate existing OpenAI integrations to OxyAI with minimal code changes!
           </p>
         </div>
       </div>
@@ -121,7 +121,7 @@ function SDKsPage() {
 
 const client = new OpenAI({
   apiKey: process.env.ALIA_API_KEY,
-  baseURL: 'https://api.alia.onl/v1',
+  baseURL: 'https://api.ai.oxy.so/v1',
 });
 
 async function main() {
@@ -148,7 +148,7 @@ import os
 
 client = OpenAI(
     api_key=os.environ.get("ALIA_API_KEY"),
-    base_url="https://api.alia.onl/v1",
+    base_url="https://api.ai.oxy.so/v1",
 )
 
 completion = client.chat.completions.create(
@@ -166,7 +166,7 @@ print(completion.choices[0].message.content)`}
           <TabsContent value="curl">
             <CodeBlock
               title="Request"
-              code={`curl https://api.alia.onl/v1/chat/completions \\
+              code={`curl https://api.ai.oxy.so/v1/chat/completions \\
   -H "Authorization: Bearer $ALIA_API_KEY" \\
   -H "Content-Type: application/json" \\
   -d '{
@@ -197,7 +197,7 @@ print(completion.choices[0].message.content)`}
 
 const client = new OpenAI({
   apiKey: process.env.ALIA_API_KEY,
-  baseURL: 'https://api.alia.onl/v1',
+  baseURL: 'https://api.ai.oxy.so/v1',
 });
 
 async function main() {
@@ -225,7 +225,7 @@ import os
 
 client = OpenAI(
     api_key=os.environ.get("ALIA_API_KEY"),
-    base_url="https://api.alia.onl/v1",
+    base_url="https://api.ai.oxy.so/v1",
 )
 
 stream = client.chat.completions.create(
@@ -250,7 +250,7 @@ for chunk in stream:
             <CardHeader className="pb-2">
               <CardTitle className="text-base">Vercel AI SDK</CardTitle>
               <CardDescription>
-                Use Alia with the Vercel AI SDK for React/Next.js apps
+                Use OxyAI with the Vercel AI SDK for React/Next.js apps
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -259,7 +259,7 @@ for chunk in stream:
 
 const alia = createOpenAI({
   apiKey: process.env.ALIA_API_KEY,
-  baseURL: 'https://api.alia.onl/v1',
+  baseURL: 'https://api.ai.oxy.so/v1',
 });
 
 // Use with streamText, generateText, etc.
@@ -275,7 +275,7 @@ const result = await streamText({
             <CardHeader className="pb-2">
               <CardTitle className="text-base">LangChain</CardTitle>
               <CardDescription>
-                Integrate Alia with LangChain for complex workflows
+                Integrate OxyAI with LangChain for complex workflows
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -285,7 +285,7 @@ const result = await streamText({
 llm = ChatOpenAI(
     model="alia-v1",
     api_key="your-api-key",
-    base_url="https://api.alia.onl/v1",
+    base_url="https://api.ai.oxy.so/v1",
 )
 
 response = llm.invoke("Hello!")
@@ -305,7 +305,7 @@ print(response.content)`}
         <CodeBlock
           title=".env"
           code={`ALIA_API_KEY=alia_sk_your_api_key_here
-ALIA_BASE_URL=https://api.alia.onl/v1`}
+ALIA_BASE_URL=https://api.ai.oxy.so/v1`}
         />
       </div>
     </div>

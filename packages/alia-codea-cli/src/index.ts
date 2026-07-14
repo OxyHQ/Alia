@@ -20,7 +20,7 @@ ${chalk.cyan('  / ___|___   __| | ___  __ _ ')}
 ${chalk.cyan(' | |   / _ \\ / _` |/ _ \\/ _` |')}
 ${chalk.cyan(' | |__| (_) | (_| |  __/ (_| |')}
 ${chalk.cyan('  \\____\\___/ \\__,_|\\___|\\__,_|')}
-${chalk.gray('  AI Coding Assistant by Alia')}
+${chalk.gray('  AI Coding Assistant by OxyAI')}
 `;
 
 program

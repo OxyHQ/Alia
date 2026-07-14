@@ -74,7 +74,7 @@ async function loginWithBrowser(): Promise<boolean> {
       }
 
       try {
-        const baseUrl = config.get('apiBaseUrl') || 'https://api.alia.onl';
+        const baseUrl = config.get('apiBaseUrl') || 'https://api.ai.oxy.so';
         const response = await fetch(`${baseUrl}/auth/token`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -116,7 +116,7 @@ async function loginWithBrowser(): Promise<boolean> {
       const port = (server.address() as { port: number }).port;
       const callback = encodeURIComponent(`http://localhost:${port}/callback`);
       const authorizeUrl =
-        `https://alia.onl/authorize?app=codea` +
+        `https://ai.oxy.so/authorize?app=codea` +
         `&callback=${callback}` +
         `&code_challenge=${codeChallenge}` +
         `&code_challenge_method=S256`;
@@ -158,7 +158,7 @@ async function loginWithApiKey(): Promise<boolean> {
       printInfo('Validating API key...');
 
       try {
-        const baseUrl = config.get('apiBaseUrl') || 'https://api.alia.onl';
+        const baseUrl = config.get('apiBaseUrl') || 'https://api.ai.oxy.so';
         const response = await fetch(`${baseUrl}/codea/me`, {
           headers: { Authorization: `Bearer ${trimmedKey}` },
         });
@@ -197,7 +197,7 @@ export async function login(): Promise<boolean> {
   console.log();
   console.log(
     chalk.gray('Alternatively, paste your API key from: ') +
-      chalk.cyan('https://alia.onl/settings/api'),
+      chalk.cyan('https://ai.oxy.so/settings/api'),
   );
   console.log();
   return loginWithApiKey();

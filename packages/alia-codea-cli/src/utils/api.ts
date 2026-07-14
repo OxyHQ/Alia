@@ -129,7 +129,7 @@ export async function streamChat(
   const apiKey = config.get('apiKey');
   if (!apiKey) throw new Error('No API key configured. Run `codea login` first.');
 
-  const baseUrl = config.get('apiBaseUrl') || 'https://api.alia.onl';
+  const baseUrl = config.get('apiBaseUrl') || 'https://api.ai.oxy.so';
 
   const openai = new OpenAI({
     apiKey,

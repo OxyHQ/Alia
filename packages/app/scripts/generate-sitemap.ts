@@ -10,7 +10,7 @@ import { fileURLToPath } from 'url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const SITE_URL = 'https://alia.onl';
+const SITE_URL = 'https://ai.oxy.so';
 const CURRENT_DATE = new Date().toISOString().split('T')[0];
 
 interface SitemapURL {

@@ -1,7 +1,7 @@
 {
   "expo": {
     "owner": "oxyhq",
-    "name": "Alia",
+    "name": "OxyAI",
     "slug": "alia",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -22,7 +22,7 @@
       "adaptiveIcon": {
         "foregroundImage": "./assets/icon-512-maskable.png",
         "monochromeImage": "./assets/adaptive-icon-monochrome.png",
-        "backgroundColor": "#FFFFFF"
+        "backgroundColor": "#3F0050"
       },
       "googleServicesFile": "./google-services.json",
       "package": "onl.alia.app",
@@ -35,7 +35,7 @@
     "web": {
       "bundler": "metro",
       "output": "single",
-      "favicon": "./assets/icon-192.png"
+      "favicon": "./assets/images/favicon.png"
     },
     "plugins": [
       "expo-router",
