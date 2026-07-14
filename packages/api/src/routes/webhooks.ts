@@ -1,5 +1,6 @@
 import express from 'express';
 import crypto from 'crypto';
+import { verifySecret } from '@oxyhq/core/server';
 import { generateText } from 'ai';
 import { getChannel } from '../lib/channels/registry.js';
 import { resolveModel, getAIModel, reportModelUsage } from '../lib/chat-core.js';
@@ -242,7 +243,7 @@ router.get('/whatsapp', (req, res) => {
 
   const verifyToken = process.env.WHATSAPP_VERIFY_TOKEN;
 
-  if (mode === 'subscribe' && token === verifyToken) {
+  if (mode === 'subscribe' && verifyToken && verifySecret(token, verifyToken)) {
     log.webhook.info('WhatsApp verification successful');
     res.status(200).send(challenge);
   } else {

@@ -395,6 +395,7 @@ export async function recordUsage(
       userAgent: req.headers['user-agent'],
       ipAddress: req.ip || req.socket?.remoteAddress,
       timestamp: new Date(),
+      authType: 'session',
     };
 
     if (req.serviceApp) {
@@ -404,8 +405,6 @@ export async function recordUsage(
       usageRecord.apiKeyId = req.apiKey.id;
       usageRecord.appId = req.apiKey.appId;
       usageRecord.authType = 'api_key';
-    } else {
-      usageRecord.authType = 'session';
     }
 
     // Mark that usage was explicitly recorded, so the auth middleware skips its own logging

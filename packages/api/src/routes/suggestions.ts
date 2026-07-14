@@ -53,7 +53,7 @@ setInterval(() => {
   for (const [key, entry] of cache) {
     if (entry.expiresAt < now) cache.delete(key);
   }
-}, 2 * 60 * 1000);
+}, 2 * 60 * 1000).unref?.();
 
 /**
  * Helper: resolve user language from memory preferences, fallback to 'en-US'

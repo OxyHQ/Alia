@@ -1,6 +1,7 @@
 import express from 'express';
 import http from 'http';
 import cors from 'cors';
+import { createOxyCors } from '@oxyhq/core/server';
 import dotenv from 'dotenv';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
@@ -146,25 +147,18 @@ const allowedOrigins = [
   ...DEV_ORIGINS,
 ];
 
-// Internal routes CORS - skip /v1 routes (they have their own permissive CORS above)
+// Internal routes CORS via the shared Oxy allowlist (constant-time match, no
+// origin reflection, never a wildcard-with-credentials). Requests with no Origin
+// header (mobile apps, curl, server-to-server) pass through untouched — matching
+// the previous hand-rolled behavior. /v1 keeps its own permissive public CORS above.
+const internalCors = createOxyCors({
+  appOrigins: allowedOrigins,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin', 'X-Service-Name', 'X-Timestamp', 'X-Signature', 'X-Session-Id', 'X-Device-Info', 'X-Oxy-User-Id', 'X-Workspace-Id'],
+});
 app.use((req, res, next) => {
   if (req.path.startsWith('/v1')) return next();
-  cors({
-    origin: (origin, callback) => {
-      // Allow requests with no origin (like mobile apps or curl)
-      if (!origin) return callback(null, true);
-
-      if (allowedOrigins.includes(origin)) {
-        callback(null, true);
-      } else {
-        callback(new Error('Not allowed by CORS'));
-      }
-    },
-    credentials: true,
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin', 'X-Service-Name', 'X-Timestamp', 'X-Signature', 'X-Session-Id', 'X-Device-Info', 'X-Oxy-User-Id', 'X-Workspace-Id'],
-    optionsSuccessStatus: 200,
-  })(req, res, next);
+  internalCors(req, res, next);
 });
 
 // Allow cross-origin resource loading (fixes ERR_BLOCKED_BY_RESPONSE.NotSameOrigin)

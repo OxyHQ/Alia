@@ -18,7 +18,7 @@ setInterval(() => {
   for (const [key, entry] of anomalyCache.entries()) {
     if (entry.expiresAt < now) anomalyCache.delete(key);
   }
-}, 60_000);
+}, 60_000).unref?.();
 
 /**
  * Calculate days remaining accounting for daily credit refresh.
