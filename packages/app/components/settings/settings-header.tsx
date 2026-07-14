@@ -1,4 +1,4 @@
-import { View, useWindowDimensions } from "react-native";
+import { View } from "react-native";
 import { Text } from "@/components/ui/text";
 import { Button } from "@/components/ui/button";
 import { useNavigation } from "expo-router";
@@ -17,8 +17,6 @@ interface SettingsHeaderProps {
 export function SettingsHeader({ title, subtitle, showBack = false, onBack }: SettingsHeaderProps) {
   const navigation = useNavigation<DrawerNavigationProp<ReactNavigation.RootParamList>>();
   const router = useRouter();
-  const { width } = useWindowDimensions();
-  const isLargeScreen = width >= 768;
   const insets = useSafeAreaInsets();
 
   const handleBack = () => {
@@ -31,16 +29,14 @@ export function SettingsHeader({ title, subtitle, showBack = false, onBack }: Se
 
   return (
     <View className="flex-row items-center gap-2 px-4 border-b border-border" style={{ paddingTop: insets.top, height: 56 + insets.top }}>
-      {!isLargeScreen && (
-        <Button
-          variant="ghost"
-          size="icon"
-          onPress={() => navigation.toggleDrawer()}
-          className="h-9 w-9 rounded-full"
-        >
-          <Menu size={20} className="text-muted-foreground" />
-        </Button>
-      )}
+      <Button
+        variant="ghost"
+        size="icon"
+        onPress={() => navigation.toggleDrawer()}
+        className="h-9 w-9 rounded-full md:hidden"
+      >
+        <Menu size={20} className="text-muted-foreground" />
+      </Button>
       {showBack && (
         <Button
           variant="ghost"

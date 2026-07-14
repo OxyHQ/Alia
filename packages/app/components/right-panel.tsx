@@ -1,4 +1,3 @@
-import { useWindowDimensions } from "react-native";
 import { useUIStore } from "@/lib/stores/ui-store";
 import { CreditsPanel } from "./credits-panel";
 import { ThoughtPanel } from "./thought-panel";
@@ -10,8 +9,6 @@ const PANEL_WIDTH = 320;
 const AGENT_PANEL_WIDTH = 420;
 
 export function RightPanel() {
-  const { width } = useWindowDimensions();
-  const isLargeScreen = width >= 768;
   const rightPanel = useUIStore((state) => state.rightPanel);
   const setRightPanel = useUIStore((state) => state.setRightPanel);
 

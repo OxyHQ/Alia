@@ -5,8 +5,8 @@ import {
   Pressable,
   TextInput,
   Alert,
-  useWindowDimensions,
 } from "react-native";
+import { useIsLargeScreen } from "@/hooks/useIsLargeScreen";
 import { Switch } from "@/components/ui/switch";
 import { Text } from "@/components/ui/text";
 import { Input } from "@/components/ui/input";
@@ -81,8 +81,7 @@ export default function EditAgentScreen() {
   const router = useRouter();
   const { t } = useTranslation();
   const { colors } = useColorScheme();
-  const { width } = useWindowDimensions();
-  const isLargeScreen = width >= 768;
+  const isLargeScreen = useIsLargeScreen();
   const getAgent = useAgentsStore((state) => state.getAgent);
   const updateAgent = useAgentsStore((state) => state.updateAgent);
   const deleteAgent = useAgentsStore((state) => state.deleteAgent);

@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useMemo, useCallback } from "react";
-import { View, ScrollView, Pressable, TextInput, useWindowDimensions, RefreshControl } from "react-native";
+import { View, ScrollView, Pressable, TextInput, RefreshControl } from "react-native";
+import { useIsLargeScreen } from "@/hooks/useIsLargeScreen";
 import { FlashList } from "@shopify/flash-list";
 import { Text } from "@/components/ui/text";
 import { Button } from "@/components/ui/button";
@@ -22,8 +23,7 @@ export default function AgentsScreen() {
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const router = useRouter();
   const { colors } = useColorScheme();
-  const { width } = useWindowDimensions();
-  const isLargeScreen = width >= 768;
+  const isLargeScreen = useIsLargeScreen();
   const numColumns = isLargeScreen ? 3 : 2;
 
   useEffect(() => {

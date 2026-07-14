@@ -225,7 +225,8 @@
     "yesterday": "Yesterday",
     "previous7Days": "Previous 7 days",
     "earlier": "Earlier",
-    "collapse": "Collapse sidebar"
+    "collapse": "Collapse sidebar",
+    "expand": "Expand sidebar"
   },
   "billing": {
     "title": "Billing",

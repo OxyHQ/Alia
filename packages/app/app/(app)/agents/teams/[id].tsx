@@ -5,8 +5,8 @@ import {
   Pressable,
   Alert,
   TextInput,
-  useWindowDimensions,
 } from "react-native";
+import { useIsLargeScreen } from "@/hooks/useIsLargeScreen";
 import { Text } from "@/components/ui/text";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -57,8 +57,7 @@ export default function TeamDetailScreen() {
   const router = useRouter();
   const { t } = useTranslation();
   const { colors } = useColorScheme();
-  const { width } = useWindowDimensions();
-  const isLargeScreen = width >= 768;
+  const isLargeScreen = useIsLargeScreen();
 
   const { data: team, isLoading } = useAgentTeam(id!);
   const removeAgent = useRemoveAgentFromTeam();

@@ -1,5 +1,5 @@
 import React from "react";
-import { View, Pressable, Platform, useWindowDimensions, NativeSyntheticEvent, NativeScrollEvent, Linking } from "react-native";
+import { View, Pressable, Platform, NativeSyntheticEvent, NativeScrollEvent, Linking } from "react-native";
 import { AliaLogo } from "@/components/ui/alia-logo";
 import { AliaMark } from "@alia.onl/sdk";
 import { Text } from "@/components/ui/text";
@@ -44,7 +44,9 @@ import {
   Sparkles,
   type LucideIcon,
 } from "lucide-react-native";
+import { Portal } from "@oxyhq/bloom/portal";
 import { cn } from "@/lib/utils";
+import { useIsLargeScreen } from "@/hooks/useIsLargeScreen";
 import { useTranslation } from "@/hooks/useTranslation";
 import { useStore } from "@/lib/globalStore";
 import { useRouter, usePathname, useNavigation } from "expo-router";
@@ -91,6 +93,49 @@ const ICON_MAP: Record<string, LucideIcon> = {
   FolderClosed,
 };
 
+interface RailTooltipHandle {
+  anchorProps: {
+    ref: React.RefObject<View | null>;
+    onHoverIn: () => void;
+    onHoverOut: () => void;
+  };
+  tooltip: React.ReactNode;
+}
+
+/**
+ * Hover tooltip for icon-rail items. Attach `anchorProps` to the row's own
+ * Pressable and render `tooltip` next to it; the bubble goes through the Bloom
+ * portal so the drawer can't clip it. Hover-only, so touch never shows it.
+ */
+function useRailTooltip(label: string): RailTooltipHandle {
+  const ref = React.useRef<View>(null);
+  const [anchor, setAnchor] = React.useState<{ x: number; y: number } | null>(null);
+
+  const onHoverIn = React.useCallback(() => {
+    if (Platform.OS !== "web") return;
+    ref.current?.measureInWindow((x, y, width, height) => {
+      setAnchor({ x: x + width + 10, y: y + height / 2 });
+    });
+  }, []);
+  const onHoverOut = React.useCallback(() => setAnchor(null), []);
+
+  const tooltip = anchor ? (
+    <Portal>
+      <View
+        pointerEvents="none"
+        className="absolute rounded-lg bg-popover border border-border px-2 py-1 shadow-sm"
+        style={{ left: anchor.x, top: anchor.y - 13 }}
+      >
+        <Text className="text-xs text-popover-foreground" numberOfLines={1}>
+          {label}
+        </Text>
+      </View>
+    </Portal>
+  ) : null;
+
+  return { anchorProps: { ref, onHoverIn, onHoverOut }, tooltip };
+}
+
 interface SidebarRowProps {
   icon: LucideIcon;
   label: string;
@@ -104,22 +149,27 @@ interface SidebarRowProps {
 
 /** Ghost menu row shared by every sidebar navigation entry. */
 function SidebarRow({ icon: Icon, label, onPress, accessibilityLabel, sub = false, iconOnly = false }: SidebarRowProps) {
+  const { anchorProps, tooltip } = useRailTooltip(label);
   return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={accessibilityLabel ?? label}
-      onPress={onPress}
-      className={cn(
-        "flex-row items-center rounded-xl hover:bg-muted active:bg-muted",
-        iconOnly ? "h-9 w-9 justify-center" : "gap-2 px-1.5 w-full",
-        !iconOnly && (sub ? "h-8" : "h-9")
-      )}
-    >
-      <Icon size={sub ? 16 : 18} className="text-foreground" />
-      {!iconOnly && (
-        <Text className={cn("text-foreground", sub ? "text-xs" : "text-sm")}>{label}</Text>
-      )}
-    </Pressable>
+    <>
+      <Pressable
+        {...(iconOnly ? anchorProps : null)}
+        accessibilityRole="button"
+        accessibilityLabel={accessibilityLabel ?? label}
+        onPress={onPress}
+        className={cn(
+          "flex-row items-center rounded-xl hover:bg-muted active:bg-muted",
+          iconOnly ? "h-9 w-9 justify-center" : "gap-2 px-1.5 w-full",
+          !iconOnly && (sub ? "h-8" : "h-9")
+        )}
+      >
+        <Icon size={sub ? 16 : 18} className="text-foreground" />
+        {!iconOnly && (
+          <Text className={cn("text-foreground", sub ? "text-xs" : "text-sm")}>{label}</Text>
+        )}
+      </Pressable>
+      {iconOnly && tooltip}
+    </>
   );
 }
 
@@ -160,12 +210,15 @@ interface GhostIconButtonProps {
   label: string;
   onPress: () => void;
   badge?: boolean;
+  /** Rail tooltip anchor from `useRailTooltip` (hover + measure target). */
+  anchorProps?: RailTooltipHandle["anchorProps"];
 }
 
 /** Square ghost icon button (header collapse trigger, footer action bar). */
-function GhostIconButton({ icon: Icon, label, onPress, badge = false }: GhostIconButtonProps) {
+function GhostIconButton({ icon: Icon, label, onPress, badge = false, anchorProps }: GhostIconButtonProps) {
   return (
     <Pressable
+      {...anchorProps}
       accessibilityRole="button"
       accessibilityLabel={label}
       onPress={onPress}
@@ -192,6 +245,7 @@ export function Sidebar() {
 
 const ChatSidebar = React.memo(function ChatSidebar() {
   const router = useRouter();
+  const pathname = usePathname();
   const queryClient = useQueryClient();
   const { t } = useTranslation();
   const { data: unreadData } = useUnreadCount();
@@ -260,13 +314,7 @@ const ChatSidebar = React.memo(function ChatSidebar() {
     router.replace("/(app)");
   }, [router]);
 
-  const handleLogoPress = React.useCallback(() => {
-    // Use replace to reset to home
-    router.replace("/(app)");
-  }, [router]);
-
-  const dimensions = useWindowDimensions();
-  const isLargeScreen = dimensions.width >= 768;
+  const isLargeScreen = useIsLargeScreen();
   const drawerNavigation = useNavigation<DrawerNavigationProp<ReactNavigation.RootParamList>>();
   const sidebarOpen = useUIStore((s) => s.sidebarOpen);
   const setSidebarOpen = useUIStore((s) => s.setSidebarOpen);
@@ -286,6 +334,19 @@ const ChatSidebar = React.memo(function ChatSidebar() {
   const handleExpandSidebar = React.useCallback(() => {
     setSidebarOpen(true);
   }, [setSidebarOpen]);
+
+  // Playful rail detail: pressing the mark while already home replays a one-shot
+  // CSS spin (NativeWind keyframes); the `key` remount restarts the animation.
+  const [logoSpinCount, setLogoSpinCount] = React.useState(0);
+
+  const handleLogoPress = React.useCallback(() => {
+    if (collapsed && pathname === "/") {
+      setLogoSpinCount((count) => count + 1);
+      return;
+    }
+    // Use replace to reset to home
+    router.replace("/(app)");
+  }, [collapsed, pathname, router]);
 
   const handlePrefetchConversation = React.useCallback((id: string) => {
     prefetchConversation(queryClient, id);
@@ -589,7 +650,9 @@ const ChatSidebar = React.memo(function ChatSidebar() {
         className="p-1.5 mx-0.5 rounded-xl hover:bg-muted active:bg-muted"
       >
         {collapsed ? (
-          <AliaMark size={24} className="text-foreground" />
+          <View key={logoSpinCount} className={cn(logoSpinCount > 0 && "animate-spin-once")}>
+            <AliaMark size={24} className="text-foreground select-none" />
+          </View>
         ) : (
           <AliaLogo height={36} />
         )}
@@ -607,9 +670,11 @@ const ChatSidebar = React.memo(function ChatSidebar() {
   );
 
   // Top section with New Chat as a highlighted menu row (icon-only in the rail)
-  const topSection = (
-    <View className="gap-px">
+  const newChatTooltip = useRailTooltip(t('sidebar.newChat'));
+  const expandTooltip = useRailTooltip(t('sidebar.expand'));
+  const newChatRow = (
       <Pressable
+        {...(collapsed ? newChatTooltip.anchorProps : null)}
         accessibilityLabel={t('sidebar.newChat')}
         accessibilityRole="button"
         onPress={handleNewChat}
@@ -625,6 +690,12 @@ const ChatSidebar = React.memo(function ChatSidebar() {
           </Text>
         )}
       </Pressable>
+  );
+
+  const topSection = (
+    <View className="gap-px">
+      {newChatRow}
+      {collapsed && newChatTooltip.tooltip}
     </View>
   );
 
@@ -953,9 +1024,11 @@ const ChatSidebar = React.memo(function ChatSidebar() {
     <View className="gap-2 items-center">
       <GhostIconButton
         icon={ChevronsRight}
-        label={t('sidebar.collapse')}
+        label={t('sidebar.expand')}
         onPress={handleExpandSidebar}
+        anchorProps={expandTooltip.anchorProps}
       />
+      {expandTooltip.tooltip}
       <ProfileButton
         expanded={false}
         onNavigateManage={handleManageAccount}

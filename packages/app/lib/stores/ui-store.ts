@@ -1,4 +1,6 @@
 import { create } from 'zustand';
+import { persist, createJSONStorage } from 'zustand/middleware';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { Message } from '@/lib/hooks/use-conversations';
 
 type RightPanel = 'credits' | 'thought' | 'canvas' | 'agent' | null;
@@ -36,7 +38,9 @@ interface UIState {
   clearCanvasArtifacts: () => void;
 }
 
-export const useUIStore = create<UIState>((set) => ({
+export const useUIStore = create<UIState>()(
+  persist(
+    (set) => ({
   sidebarOpen: true,
   rightPanel: null,
   thoughtMessageId: null,
@@ -81,4 +85,12 @@ export const useUIStore = create<UIState>((set) => ({
 
   clearCanvasArtifacts: () =>
     set({ canvasArtifacts: [] }),
-}));
+}),
+    {
+      name: 'alia-ui',
+      storage: createJSONStorage(() => AsyncStorage),
+      // Only the sidebar collapse survives reloads; the rest is session state.
+      partialize: (state) => ({ sidebarOpen: state.sidebarOpen }),
+    },
+  ),
+);

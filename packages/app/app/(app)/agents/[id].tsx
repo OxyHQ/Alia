@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useCallback } from "react";
-import { View, ScrollView, Pressable, Share, TextInput, Alert, useWindowDimensions, ActivityIndicator } from "react-native";
+import { View, ScrollView, Pressable, Share, TextInput, Alert, ActivityIndicator } from "react-native";
+import { useIsLargeScreen } from "@/hooks/useIsLargeScreen";
 import { Switch } from "@/components/ui/switch";
 import { Text } from "@/components/ui/text";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
@@ -257,8 +258,7 @@ export default function AgentDetailScreen() {
   const { t } = useTranslation();
   const { user } = useOxy();
   const { colors } = useColorScheme();
-  const { width } = useWindowDimensions();
-  const isLargeScreen = width >= 768;
+  const isLargeScreen = useIsLargeScreen();
   const [agent, setAgent] = useState<Agent | null>(null);
   const [loading, setLoading] = useState(true);
 
