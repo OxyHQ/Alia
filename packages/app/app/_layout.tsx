@@ -10,6 +10,7 @@ import { Platform } from 'react-native';
 import { AppErrorBoundary } from '@/components/error-boundary';
 import { Toaster } from '@/components/sonner';
 import { AlertDialogHost } from '@oxyhq/bloom/alert-dialog';
+import { BloomDialogProvider } from '@oxyhq/bloom/dialog';
 import { KeyboardProvider } from '@/lib/keyboard';
 import { useColorScheme } from '@/lib/useColorScheme';
 import { setTokenGetter } from '@/lib/api/client';
@@ -59,20 +60,22 @@ function AppContent() {
 
   return (
     <AuthSetup>
-      <KeyboardProvider>
-        <Stack
-          screenOptions={{
-            contentStyle: {
-              backgroundColor: colors.background,
-            },
-          }}
-        >
-          <Stack.Screen name="(app)" options={{ headerShown: false }} />
-          <Stack.Screen name="(biglayout)" options={{ headerShown: false }} />
-        </Stack>
-      </KeyboardProvider>
-      <Toaster />
-      <AlertDialogHost />
+      <BloomDialogProvider>
+        <KeyboardProvider>
+          <Stack
+            screenOptions={{
+              contentStyle: {
+                backgroundColor: colors.background,
+              },
+            }}
+          >
+            <Stack.Screen name="(app)" options={{ headerShown: false }} />
+            <Stack.Screen name="(biglayout)" options={{ headerShown: false }} />
+          </Stack>
+        </KeyboardProvider>
+        <Toaster />
+        <AlertDialogHost />
+      </BloomDialogProvider>
     </AuthSetup>
   );
 }

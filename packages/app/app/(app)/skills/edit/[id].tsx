@@ -4,7 +4,6 @@ import {
   ScrollView,
   Pressable,
   TextInput,
-  Alert,
 } from 'react-native';
 import { useIsLargeScreen } from '@/hooks/useIsLargeScreen';
 import { Text } from '@/components/ui/text';
@@ -33,6 +32,7 @@ import { useTranslation } from '@/hooks/useTranslation';
 import { useColorScheme } from '@/lib/useColorScheme';
 import { useSkillsStore } from '@/lib/stores/skills-store';
 import { toast } from '@/components/sonner';
+import { confirm } from '@oxyhq/bloom/alert-dialog';
 import { cn } from '@/lib/utils';
 
 const SKILL_COLORS = [
@@ -160,24 +160,23 @@ export default function EditSkillScreen() {
     setter((prev) => prev.filter((t) => t !== tag));
   }, []);
 
-  const handleDelete = useCallback(() => {
+  const handleDelete = useCallback(async () => {
     if (!id) return;
-    Alert.alert(t('skills.deleteSkill'), t('skills.deleteSkillConfirm'), [
-      { text: t('common.cancel'), style: 'cancel' },
-      {
-        text: t('skills.deleteSkill'),
-        style: 'destructive',
-        onPress: async () => {
-          try {
-            await deleteSkill(id);
-            toast.success(t('skills.deleted'));
-            router.back();
-          } catch {
-            toast.error(t('skills.deleteError'));
-          }
-        },
-      },
-    ]);
+    const ok = await confirm({
+      title: t('skills.deleteSkill'),
+      description: t('skills.deleteSkillConfirm'),
+      confirmLabel: t('skills.deleteSkill'),
+      cancelLabel: t('common.cancel'),
+      destructive: true,
+    });
+    if (!ok) return;
+    try {
+      await deleteSkill(id);
+      toast.success(t('skills.deleted'));
+      router.back();
+    } catch {
+      toast.error(t('skills.deleteError'));
+    }
   }, [id, deleteSkill, router, t]);
 
   const handlePublishToggle = useCallback(async () => {

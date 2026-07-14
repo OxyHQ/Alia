@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback } from "react";
-import { View, ScrollView, Pressable, Share, TextInput, Alert, ActivityIndicator } from "react-native";
+import { View, ScrollView, Pressable, Share, TextInput, ActivityIndicator } from "react-native";
 import { useIsLargeScreen } from "@/hooks/useIsLargeScreen";
 import { Switch } from "@/components/ui/switch";
 import { Text } from "@/components/ui/text";
@@ -21,6 +21,8 @@ import { useRouter, useLocalSearchParams } from "expo-router";
 import { useTranslation } from "@/hooks/useTranslation";
 import { useOxy } from "@oxyhq/services";
 import { toast } from "@/components/sonner";
+import { confirm } from "@oxyhq/bloom/alert-dialog";
+import { alert } from "@oxyhq/bloom/dialog";
 import { SectionLabel } from "@/components/detail/section-label";
 import { PillList } from "@/components/detail/pill-list";
 import { ActivityGrid } from "@/components/detail/activity-grid";
@@ -432,7 +434,7 @@ export default function AgentDetailScreen() {
         await apiClient.post(`/agents/teams/${teams[0]._id}/agents`, { agentId: agent._id });
         toast.success(t("agents.addedToTeam"));
       } else {
-        Alert.alert(
+        alert(
           t("agents.addToTeam"),
           t("agents.selectTeam"),
           [
@@ -493,30 +495,29 @@ export default function AgentDetailScreen() {
 
   const handleDeleteReview = useCallback(async () => {
     if (!agent) return;
-    Alert.alert(t("agents.deleteReview"), t("agents.deleteReviewConfirm"), [
-      { text: t("common.cancel"), style: "cancel" },
-      {
-        text: t("agents.deleteReview"),
-        style: "destructive",
-        onPress: async () => {
-          try {
-            await apiClient.delete(`/agents/${agent._id}/reviews`);
-            setUserReview(null);
-            setReviewRating(0);
-            setReviewComment("");
-            toast.success(t("agents.reviewDeleted"));
-            const [agentRes, reviewsRes] = await Promise.all([
-              getAgent(agent._id),
-              apiClient.get(`/agents/${agent._id}/reviews`),
-            ]);
-            if (agentRes) setAgent(agentRes);
-            setReviews(reviewsRes.data?.reviews || []);
-          } catch {
-            toast.error("Failed to delete review");
-          }
-        },
-      },
-    ]);
+    const ok = await confirm({
+      title: t("agents.deleteReview"),
+      description: t("agents.deleteReviewConfirm"),
+      confirmLabel: t("agents.deleteReview"),
+      cancelLabel: t("common.cancel"),
+      destructive: true,
+    });
+    if (!ok) return;
+    try {
+      await apiClient.delete(`/agents/${agent._id}/reviews`);
+      setUserReview(null);
+      setReviewRating(0);
+      setReviewComment("");
+      toast.success(t("agents.reviewDeleted"));
+      const [agentRes, reviewsRes] = await Promise.all([
+        getAgent(agent._id),
+        apiClient.get(`/agents/${agent._id}/reviews`),
+      ]);
+      if (agentRes) setAgent(agentRes);
+      setReviews(reviewsRes.data?.reviews || []);
+    } catch {
+      toast.error("Failed to delete review");
+    }
   }, [agent, t, getAgent]);
 
   if (loading) {
