@@ -170,7 +170,7 @@ function ErrorFallback({
               style={{
                 fontSize: 12,
                 color: '#64748b',
-                fontFamily: Platform.OS === 'web' ? 'monospace' : 'SpaceMono',
+                fontFamily: Platform.OS === 'web' ? 'monospace' : 'Geist Mono',
               }}
               selectable
             >
