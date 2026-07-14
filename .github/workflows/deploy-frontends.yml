@@ -7,6 +7,7 @@ on:
     paths:
       - '.github/workflows/deploy-frontends.yml'
       - 'packages/app/**'
+      - 'packages/alia-chat/**'
       - 'packages/alia-gateway-admin/**'
       - 'packages/alia-canvas/**'
       - 'bun.lock'
@@ -26,6 +27,7 @@ jobs:
           filters: |
             app:
               - 'packages/app/**'
+              - 'packages/alia-chat/**'
               - 'bun.lock'
             gateway-admin:
               - 'packages/alia-gateway-admin/**'
