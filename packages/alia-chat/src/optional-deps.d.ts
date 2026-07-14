@@ -97,6 +97,7 @@ declare module 'expo-audio' {
   export function useAudioRecorder(preset: RecordingPreset): AudioRecorder;
   export function useAudioRecorderState(recorder: AudioRecorder, interval: number): AudioRecorderState;
   export function requestRecordingPermissionsAsync(): Promise<{ granted: boolean }>;
+  export function getRecordingPermissionsAsync(): Promise<{ granted: boolean }>;
   export function setAudioModeAsync(mode: AudioMode): Promise<void>;
   export const RecordingPresets: { HIGH_QUALITY: RecordingPreset };
   export class AudioRecorder {

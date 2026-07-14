@@ -4,7 +4,7 @@ import {
   useAudioRecorder,
   useAudioRecorderState,
   RecordingPresets,
-  requestRecordingPermissionsAsync,
+  getRecordingPermissionsAsync,
   setAudioModeAsync,
 } from 'expo-audio';
 import { useOxy } from '@oxyhq/services';
@@ -93,7 +93,12 @@ export function useSpeechToText(options: UseSTTOptions = {}) {
     try {
       setError(null);
 
-      const permStatus = await requestRecordingPermissionsAsync();
+      // getRecordingPermissionsAsync consults the Permissions API first (and
+      // only falls back to a real getUserMedia prompt when undetermined), so an
+      // already-granted permission never gets misreported as denied when the
+      // device itself is missing/busy — that failure surfaces from
+      // prepareToRecordAsync below with an accurate message.
+      const permStatus = await getRecordingPermissionsAsync();
       if (!permStatus.granted) {
         setError('Microphone permission required');
         return;
@@ -110,8 +115,16 @@ export function useSpeechToText(options: UseSTTOptions = {}) {
       audioRecorder.record();
       isRecordingRef.current = true;
     } catch (e: unknown) {
-      console.error('[STT] Recording error:', e);
-      setError('Failed to start recording');
+      const name = e instanceof Error ? e.name : '';
+      if (name === 'NotFoundError' || name === 'OverconstrainedError') {
+        setError('No microphone found — check your input devices');
+      } else if (name === 'NotAllowedError') {
+        setError('Microphone permission required');
+      } else if (name === 'NotReadableError') {
+        setError('Microphone is in use by another application');
+      } else {
+        setError('Failed to start recording');
+      }
       setState('idle');
       isRecordingRef.current = false;
     }
