@@ -31,7 +31,6 @@ export interface IVoiceCallUsage extends Document {
   audioFormat: string;
   sampleRate: number;
   clientType?: string;
-  ipAddress?: string;
 
   // Cohost
   cohostEnabled: boolean;
@@ -118,9 +117,6 @@ const VoiceCallUsageSchema = new Schema<IVoiceCallUsage>(
       default: 24000,
     },
     clientType: {
-      type: String,
-    },
-    ipAddress: {
       type: String,
     },
 

@@ -7,7 +7,6 @@ export interface IAdminAudit extends Document {
   resource: string;
   resourceId?: string;
   details?: Record<string, unknown>;
-  ip?: string;
 }
 
 const AdminAuditSchema = new Schema<IAdminAudit>(
@@ -18,7 +17,6 @@ const AdminAuditSchema = new Schema<IAdminAudit>(
     resource: { type: String, required: true },
     resourceId: { type: String },
     details: { type: Schema.Types.Mixed },
-    ip: { type: String },
   },
   { timestamps: false }
 );
