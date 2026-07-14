@@ -146,6 +146,6 @@ async function refreshAndPersist(integration: IIntegration): Promise<string> {
     if (errMsg.includes('please reconnect')) throw err;
     log.general.error({ err, service: integration.service }, 'Token refresh error');
     await Integration.updateOne({ _id: integration._id }, { status: 'error' });
-    throw new Error(`Error refreshing ${integration.service} token: ${errMsg}`);
+    throw new Error(`Error refreshing ${integration.service} token: ${errMsg}`, { cause: err });
   }
 }
