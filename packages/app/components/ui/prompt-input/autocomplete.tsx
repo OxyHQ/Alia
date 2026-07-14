@@ -185,8 +185,8 @@ export function PromptInputAutocomplete({
             key={item.suggestionId || item.text}
             onPress={() => selectCompletion(item)}
             className={cn(
-              "px-3 py-1.5 rounded-lg active:bg-muted/50",
-              index === selectedIndex && "bg-muted"
+              "px-3 py-1.5 rounded-lg active:bg-muted/50 web:hover:bg-muted/40",
+              index === selectedIndex && "bg-muted/40"
             )}
           >
             <Text className="text-sm leading-5" numberOfLines={1}>
