@@ -1,5 +1,4 @@
 import { useState, useCallback, useEffect, useMemo } from "react";
-import { useSharedValue, withTiming, Easing } from "react-native-reanimated";
 import { View, Pressable, useWindowDimensions } from "react-native";
 import { useColorScheme } from "@/lib/useColorScheme";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -21,7 +20,7 @@ import { ChatHeader } from "@/components/chat-header";
 import { useAuth } from "@oxyhq/services";
 import type { Message } from "@/types/chat";
 import { toast } from "@/components/sonner";
-import { VoiceOverlay, VoiceControls } from "@alia.onl/sdk";
+import { VoiceOverlay, VoiceControls, useAmbientWave } from "@alia.onl/sdk";
 import { AlertTriangle, Pencil } from "lucide-react-native";
 import { CreditWarningBanner } from "@/components/credit-warning-banner";
 import { getThinkingModelId, isThinkingModel } from "@/components/model-selector";
@@ -32,7 +31,6 @@ import { useRouter } from "expo-router";
 import { useTranslation } from "@/hooks/useTranslation";
 import type { useVoiceMode } from "@/lib/hooks/use-voice-mode";
 import { useTTS } from "@/lib/hooks/use-tts";
-import { useSTTStore } from "@/lib/stores/stt-store";
 import type { AgentActivityState } from "@/lib/hooks/use-agent-activity";
 import { AgentTerminal } from "@/components/agent-terminal";
 import { Terminal as TerminalIcon, ChevronDown, ChevronUp } from "lucide-react-native";
@@ -139,24 +137,21 @@ export const ChatPageContent = ({
   const isVoiceActive = voice?.isVoiceActive ?? false;
   const { ttsWaveAmplitude, playbackState: ttsPlaybackState } = useTTS();
 
-  // STT mic recording wave overlay
-  const sttIsRecording = useSTTStore((s) => s.isRecording);
-  const sttMetering = useSTTStore((s) => s.metering);
-  const sttWaveAmplitude = useSharedValue(0);
-
-  useEffect(() => {
-    if (!sttIsRecording) {
-      sttWaveAmplitude.value = withTiming(0, { duration: 300 });
-      return;
-    }
-    const target = Math.max(0.08, sttMetering);
-    // Fast attack, slow decay for natural VU-meter feel
-    const duration = target > sttWaveAmplitude.value ? 60 : 200;
-    sttWaveAmplitude.value = withTiming(target, {
-      duration,
-      easing: Easing.bezier(0.33, 1, 0.68, 1),
-    });
-  }, [sttIsRecording, sttMetering]);
+  // Ambient wave — one persistent overlay across idle / voice / TTS / STT.
+  // (STT is read inside useAmbientWave from the SDK store — the live one.)
+  const wave = useAmbientWave({
+    voice: voice
+      ? {
+          isActive: voice.isVoiceActive,
+          isConnected: voice.isConnected,
+          agentState: voice.agentState,
+          waveAmplitude: voice.waveAmplitude,
+        }
+      : undefined,
+    isTTSPlaying: ttsPlaybackState === 'playing',
+    ttsWaveAmplitude,
+    isGenerating: isLoading,
+  });
 
   useEffect(() => {
     if (!isThinkingModel(selectedModel)) {
@@ -362,34 +357,14 @@ export const ChatPageContent = ({
           onRejectPlan={onRejectPlan}
         />
 
-        {/* Voice wave overlay — renders on top of messages at low opacity */}
-        {isVoiceActive && voice && (
-          <VoiceOverlay
-            waveAmplitude={voice.waveAmplitude}
-            agentState={voice.agentState}
-            isConnected={voice.isConnected}
-            primaryColor={colors.primary}
-            isDarkMode={isDarkMode}
-          />
-        )}
-        {!isVoiceActive && ttsPlaybackState === 'playing' && (
-          <VoiceOverlay
-            waveAmplitude={ttsWaveAmplitude}
-            agentState="speaking"
-            isConnected={true}
-            primaryColor={colors.primary}
-            isDarkMode={isDarkMode}
-          />
-        )}
-        {!isVoiceActive && ttsPlaybackState !== 'playing' && sttIsRecording && (
-          <VoiceOverlay
-            waveAmplitude={sttWaveAmplitude}
-            agentState="listening"
-            isConnected={true}
-            primaryColor={colors.primary}
-            isDarkMode={isDarkMode}
-          />
-        )}
+        {/* Persistent ambient wave overlay — subtle at idle, intensifies on speech */}
+        <VoiceOverlay
+          waveAmplitude={wave.waveAmplitude}
+          agentState={wave.agentState}
+          intensity={wave.intensity}
+          primaryColor={colors.primary}
+          isDarkMode={isDarkMode}
+        />
 
         <LinearGradient
           colors={[colors.background, "transparent"]}

@@ -14,7 +14,7 @@ import React, {
   useRef,
 } from 'react';
 import { View, StyleSheet } from 'react-native';
-import { useSharedValue, withTiming, Easing } from 'react-native-reanimated';
+import { useSharedValue } from 'react-native-reanimated';
 import type { SharedValue } from 'react-native-reanimated';
 import { Volume2 } from 'lucide-react-native';
 import { useAliaChat, type UseAliaChatOptions } from '../hooks/useAliaChat';
@@ -22,7 +22,7 @@ import { useVoiceRoom } from '../hooks/useVoiceRoom';
 import { useAudioLevelMonitor } from '../hooks/useAudioLevelMonitor';
 import { useAudioLevels } from '../hooks/useAudioLevels';
 import { useTTS } from '../hooks/useTTS';
-import { useSTTStore } from '../hooks/useSpeechToText';
+import { useAmbientWave } from '../hooks/useAmbientWave';
 import { VoiceOverlay } from './voice/VoiceOverlay';
 import { VoiceControls } from './voice/VoiceControls';
 import { AliaChatMessageList } from './AliaChatMessageList';
@@ -60,6 +60,10 @@ export interface AliaChatContentProps {
   renderMarkdown?: (content: string) => React.ReactNode;
   /** Header bar render prop — receives live mark state, message presence, and the clear handler. */
   header?: (state: { markState: AliaMarkState; hasMessages: boolean; clear: () => void }) => React.ReactNode;
+  /** Theme primary color hex — forwarded to the ambient wave overlay palette. */
+  primaryColor?: string;
+  /** Dark-mode flag — forwarded to the ambient wave overlay. */
+  isDarkMode?: boolean;
 }
 
 /** Adapt a voice message into the chat message format. */
@@ -94,6 +98,8 @@ export function AliaChatContent({
   onToolResultPress,
   renderMarkdown,
   header,
+  primaryColor,
+  isDarkMode,
 }: AliaChatContentProps) {
   // ── Chat ──
   const chatOptions: UseAliaChatOptions = { apiUrl, model, clientContext };
@@ -125,24 +131,6 @@ export function AliaChatContent({
 
   // ── TTS ──
   const tts = useTTS({ apiUrl });
-
-  // ── STT wave overlay ──
-  const sttIsRecording = useSTTStore((s) => s.isRecording);
-  const sttMetering = useSTTStore((s) => s.metering);
-  const sttWaveAmplitude = useSharedValue(0);
-
-  useEffect(() => {
-    if (!sttIsRecording) {
-      sttWaveAmplitude.value = withTiming(0, { duration: 300 });
-      return;
-    }
-    const target = Math.max(0.08, sttMetering);
-    const duration = target > sttWaveAmplitude.value ? 60 : 200;
-    sttWaveAmplitude.value = withTiming(target, {
-      duration,
-      easing: Easing.bezier(0.33, 1, 0.68, 1),
-    });
-  }, [sttIsRecording, sttMetering]);
 
   // ── Voice mode state ──
   const [isVoiceActive, setIsVoiceActive] = useState(false);
@@ -221,10 +209,18 @@ export function AliaChatContent({
     );
   }, [welcomeGreeting, welcomeSubtitle, welcomeSuggestions, send, messages.length]);
 
-  // ── Overlay state ──
-  const showVoiceOverlay = isVoiceActive;
-  const showTTSOverlay = !isVoiceActive && tts.playbackState === 'playing';
-  const showSTTOverlay = !isVoiceActive && tts.playbackState !== 'playing' && sttIsRecording;
+  // ── Ambient wave — one persistent overlay across idle/voice/TTS/STT ──
+  const wave = useAmbientWave({
+    voice: {
+      isActive: isVoiceActive,
+      isConnected: voiceRoom.isConnected,
+      agentState: voiceRoom.agentState,
+      waveAmplitude,
+    },
+    isTTSPlaying: tts.playbackState === 'playing',
+    ttsWaveAmplitude: tts.ttsWaveAmplitude,
+    isGenerating: isStreaming,
+  });
 
   // ── Voice activate button for empty submit ──
   const voiceActivateButton = useMemo(
@@ -245,28 +241,14 @@ export function AliaChatContent({
       {/* Header (render prop) */}
       {header?.({ markState, hasMessages: messages.length > 0, clear })}
 
-      {/* Voice/TTS/STT wave overlay */}
-      {showVoiceOverlay && (
-        <VoiceOverlay
-          waveAmplitude={waveAmplitude}
-          agentState={voiceRoom.agentState}
-          isConnected={voiceRoom.isConnected}
-        />
-      )}
-      {showTTSOverlay && (
-        <VoiceOverlay
-          waveAmplitude={tts.ttsWaveAmplitude}
-          agentState="speaking"
-          isConnected={true}
-        />
-      )}
-      {showSTTOverlay && (
-        <VoiceOverlay
-          waveAmplitude={sttWaveAmplitude}
-          agentState="listening"
-          isConnected={true}
-        />
-      )}
+      {/* Persistent ambient wave overlay */}
+      <VoiceOverlay
+        waveAmplitude={wave.waveAmplitude}
+        agentState={wave.agentState}
+        intensity={wave.intensity}
+        primaryColor={primaryColor}
+        isDarkMode={isDarkMode}
+      />
 
       {/* Welcome or Messages */}
       <AliaChatMessageList

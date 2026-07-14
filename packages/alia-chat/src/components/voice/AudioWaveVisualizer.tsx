@@ -179,9 +179,21 @@ const BLOB_COLORS: Record<AgentState, string[]> = {
 };
 
 // Derive wave & blob palettes from a hex color
-function hexToRgb(hex: string): [number, number, number] {
-  const h = hex.replace('#', '');
-  return [parseInt(h.slice(0, 2), 16), parseInt(h.slice(2, 4), 16), parseInt(h.slice(4, 6), 16)];
+/** Parse a CSS color string (#rgb, #rrggbb, rgb(...), rgba(...)) to [r,g,b]; null if unrecognized. */
+function parseColor(input: string): [number, number, number] | null {
+  const s = input.trim();
+  if (s.startsWith('#')) {
+    const h = s.slice(1);
+    const expanded = h.length === 3 ? h[0] + h[0] + h[1] + h[1] + h[2] + h[2] : h;
+    if (expanded.length !== 6) return null;
+    const r = parseInt(expanded.slice(0, 2), 16);
+    const g = parseInt(expanded.slice(2, 4), 16);
+    const b = parseInt(expanded.slice(4, 6), 16);
+    return Number.isNaN(r) || Number.isNaN(g) || Number.isNaN(b) ? null : [r, g, b];
+  }
+  // rgb()/rgba() — comma OR space separated (rgb(r, g, b) and modern rgb(r g b / a)); alpha ignored
+  const match = s.match(/^rgba?\(\s*(\d+)[\s,]+(\d+)[\s,]+(\d+)/i);
+  return match ? [Number(match[1]), Number(match[2]), Number(match[3])] : null;
 }
 
 function darken(rgb: [number, number, number], factor: number): [number, number, number] {
@@ -196,8 +208,9 @@ function lighten(rgb: [number, number, number], factor: number): [number, number
   ];
 }
 
-function deriveWavePalette(hex: string, isDark: boolean): { waves: string[]; blobs: string[] } {
-  const rgb = hexToRgb(hex);
+function deriveWavePalette(color: string, isDark: boolean): { waves: string[]; blobs: string[] } | null {
+  const rgb = parseColor(color);
+  if (!rgb) return null;
   // Dark mode: lighter/brighter waves visible against dark bg
   // Light mode: darker waves visible against light bg
   const layer0 = isDark ? darken(rgb, 0.55) : darken(rgb, 0.3);
@@ -223,7 +236,7 @@ function deriveWavePalette(hex: string, isDark: boolean): { waves: string[]; blo
 interface AudioWaveVisualizerProps {
   waveAmplitude: SharedValue<number>;
   agentState: AgentState;
-  isConnected: boolean;
+  isConnected?: boolean;
   /** Theme primary color hex — derives idle/listening wave palette */
   primaryColor?: string;
   /** Whether the app is in dark mode (affects wave brightness) */
@@ -233,7 +246,7 @@ interface AudioWaveVisualizerProps {
 export function AudioWaveVisualizer({
   waveAmplitude,
   agentState = 'idle',
-  isConnected,
+  isConnected = true,
   primaryColor,
   isDarkMode,
 }: AudioWaveVisualizerProps) {

@@ -54,6 +54,10 @@ export interface AliaChatSheetProps {
   welcomeSubtitle?: string;
   /** Welcome screen suggestions */
   welcomeSuggestions?: WelcomeSuggestion[];
+  /** Theme primary color hex — forwarded to the ambient wave overlay palette. */
+  primaryColor?: string;
+  /** Dark-mode flag — forwarded to the ambient wave overlay (defaults to the sheet's own color scheme). */
+  isDarkMode?: boolean;
 }
 
 export interface AliaChatSheetRef {
@@ -62,7 +66,7 @@ export interface AliaChatSheetRef {
 }
 
 export const AliaChatSheet = forwardRef<AliaChatSheetRef, AliaChatSheetProps>(
-  ({ clientContext, model, apiUrl, welcomeGreeting, welcomeSubtitle, welcomeSuggestions }, ref) => {
+  ({ clientContext, model, apiUrl, welcomeGreeting, welcomeSubtitle, welcomeSuggestions, primaryColor, isDarkMode }, ref) => {
     const scheme = useColorScheme();
     const isDark = scheme === 'dark';
     const insets = useSafeAreaInsets();
@@ -244,6 +248,8 @@ export const AliaChatSheet = forwardRef<AliaChatSheetRef, AliaChatSheetProps>(
                   welcomeGreeting={welcomeGreeting}
                   welcomeSubtitle={welcomeSubtitle}
                   welcomeSuggestions={welcomeSuggestions}
+                  primaryColor={primaryColor}
+                  isDarkMode={isDarkMode ?? isDark}
                   header={({ markState, hasMessages, clear }) => (
                     <View style={styles.header}>
                       <View style={styles.headerLeft}>

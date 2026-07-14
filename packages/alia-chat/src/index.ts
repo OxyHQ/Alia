@@ -36,6 +36,8 @@ export { useTTS } from './hooks/useTTS';
 export type { UseTTSOptions } from './hooks/useTTS';
 export { useSpeechToText, useSTTStore } from './hooks/useSpeechToText';
 export type { UseSTTOptions } from './hooks/useSpeechToText';
+export { useAmbientWave } from './hooks/useAmbientWave';
+export type { UseAmbientWaveOptions, UseAmbientWaveResult, AmbientWaveVoice, AmbientWaveMode } from './hooks/useAmbientWave';
 export { useSoundEffects, useVoiceSoundEffects } from './hooks/useSoundEffects';
 export type { SoundName, SoundSources } from './hooks/useSoundEffects';
 
