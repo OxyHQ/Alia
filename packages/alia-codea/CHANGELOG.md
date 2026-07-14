@@ -1,6 +1,6 @@
 # Changelog
 
-All notable changes to the "Codea by OxyAI" extension will be documented in this file.
+All notable changes to the "Codea by Alia" extension will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
@@ -8,9 +8,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [1.0.0] - 2026-01-31
 
 ### Added
-- Initial release of Codea by OxyAI extension
+- Initial release of Codea by Alia extension
 - AI-powered chat interface in VS Code sidebar
-- Support for multiple OxyAI models:
+- Support for multiple Alia AI models:
   - Alia Lite (0.5x credits)
   - Alia V1 (1x credits)
   - Alia V1 Codea (1.5x credits)

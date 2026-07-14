@@ -33,12 +33,12 @@ const FEATURES: FeatureSeed[] = [
   { featureId: 'chat-qa', label: 'Chat & Q&A', description: 'Conversational AI for everyday questions', category: 'Features', featureType: 'boolean', sortOrder: 0, isVisibleOnPricing: true },
   { featureId: 'text-generation', label: 'Text generation', description: 'Write emails, summaries, and content', category: 'Features', featureType: 'boolean', sortOrder: 1, isVisibleOnPricing: true },
   { featureId: 'basic-research', label: 'Basic research', description: 'Simple information lookup and analysis', category: 'Features', featureType: 'boolean', sortOrder: 2, isVisibleOnPricing: true },
-  { featureId: 'memory', label: 'Memory', description: 'OxyAI remembers context across conversations', category: 'Features', featureType: 'boolean', sortOrder: 3, isVisibleOnPricing: true },
+  { featureId: 'memory', label: 'Memory', description: 'Alia remembers context across conversations', category: 'Features', featureType: 'boolean', sortOrder: 3, isVisibleOnPricing: true },
   { featureId: 'file-uploads', label: 'File uploads & analysis', description: 'Upload and process documents, images, and more', category: 'Features', featureType: 'boolean', sortOrder: 4, isVisibleOnPricing: true },
   { featureId: 'conversation-sync', label: 'Conversation history sync', description: 'Access your chats across all devices', category: 'Features', featureType: 'boolean', sortOrder: 5, isVisibleOnPricing: true },
   { featureId: 'agents', label: 'Agents', description: 'Autonomous AI agents that complete tasks for you', category: 'Features', featureType: 'boolean', sortOrder: 6, isVisibleOnPricing: true },
-  { featureId: 'skills', label: 'Skills', description: 'Extend OxyAI with custom capabilities', category: 'Features', featureType: 'boolean', sortOrder: 7, isVisibleOnPricing: true },
-  { featureId: 'roles-personas', label: 'Roles & personas', description: 'Customize OxyAI behavior and personality', category: 'Features', featureType: 'boolean', sortOrder: 8, isVisibleOnPricing: true },
+  { featureId: 'skills', label: 'Skills', description: 'Extend Alia with custom capabilities', category: 'Features', featureType: 'boolean', sortOrder: 7, isVisibleOnPricing: true },
+  { featureId: 'roles-personas', label: 'Roles & personas', description: 'Customize Alia behavior and personality', category: 'Features', featureType: 'boolean', sortOrder: 8, isVisibleOnPricing: true },
   { featureId: 'early-access', label: 'Early access', description: 'Try new beta features before everyone else', category: 'Features', featureType: 'boolean', sortOrder: 9, isVisibleOnPricing: true },
   { featureId: 'web-search', label: 'Web search & live data', description: 'Search the web and access real-time information', category: 'Features', featureType: 'boolean', sortOrder: 10, isVisibleOnPricing: true },
   { featureId: 'advanced-research', label: 'Advanced research', description: 'Deep analysis with citations and sources', category: 'Features', featureType: 'boolean', sortOrder: 11, isVisibleOnPricing: true },
@@ -51,9 +51,9 @@ const FEATURES: FeatureSeed[] = [
   { featureId: 'batch-processing', label: 'Batch processing', description: 'Process multiple tasks simultaneously', category: 'Features', featureType: 'boolean', sortOrder: 18, isVisibleOnPricing: true },
   { featureId: 'language-enforcement', label: 'Language enforcement', description: 'Force responses in your preferred language', category: 'Features', featureType: 'boolean', sortOrder: 19, isVisibleOnPricing: true },
   { featureId: 'advanced-automations', label: 'Advanced automations', description: 'Complex multi-step scheduled workflows', category: 'Features', featureType: 'boolean', sortOrder: 20, isVisibleOnPricing: true },
-  { featureId: 'api-access', label: 'API access', description: 'Programmatic access to OxyAI models via REST API', category: 'Features', featureType: 'boolean', sortOrder: 21, isVisibleOnPricing: true },
-  { featureId: 'priority-support', label: 'Priority support', description: 'Faster response times from the OxyAI team', category: 'Features', featureType: 'boolean', sortOrder: 22, isVisibleOnPricing: true },
-  { featureId: 'voice-mode', label: 'Voice conversations', description: 'Real-time voice conversations with OxyAI', category: 'Features', featureType: 'boolean', sortOrder: 23, isVisibleOnPricing: true },
+  { featureId: 'api-access', label: 'API access', description: 'Programmatic access to Alia models via REST API', category: 'Features', featureType: 'boolean', sortOrder: 21, isVisibleOnPricing: true },
+  { featureId: 'priority-support', label: 'Priority support', description: 'Faster response times from the Alia team', category: 'Features', featureType: 'boolean', sortOrder: 22, isVisibleOnPricing: true },
+  { featureId: 'voice-mode', label: 'Voice conversations', description: 'Real-time voice conversations with Alia', category: 'Features', featureType: 'boolean', sortOrder: 23, isVisibleOnPricing: true },
   { featureId: 'agent-mode', label: 'Agent mode', description: 'Autonomous AI agents that browse and take actions', category: 'Features', featureType: 'boolean', sortOrder: 24, isVisibleOnPricing: true },
   { featureId: 'deep-research', label: 'Deep research', description: 'Multi-step deep research with comprehensive reports', category: 'Features', featureType: 'boolean', sortOrder: 25, isVisibleOnPricing: true },
   { featureId: 'shopping-research', label: 'Shopping research', description: 'Product comparison and shopping assistance', category: 'Features', featureType: 'boolean', sortOrder: 26, isVisibleOnPricing: true },
@@ -217,12 +217,12 @@ const PLAN_FEATURES: PlanFeatureSeed[] = [
   { planId: 'ultra', featureId: 'response-length', enabled: true, limitValue: 5, displayLabel: 'Maximum response length' },
 
   // ═══ Codea Pro ═══
-  { planId: 'codea-pro', featureId: 'credits-display', enabled: true, displayLabel: '10,000 credits / month', displayDescription: 'Shared with your OxyAI plan — 300 daily refresh on top' },
+  { planId: 'codea-pro', featureId: 'credits-display', enabled: true, displayLabel: '10,000 credits / month', displayDescription: 'Shared with your Alia plan — 300 daily refresh on top' },
   { planId: 'codea-pro', featureId: 'concurrent-tasks', enabled: true, limitValue: 20, displayLabel: '20 concurrent tasks' },
   { planId: 'codea-pro', featureId: 'context-window', enabled: true, limitValue: 2, displayLabel: 'Extended context windows' },
 
   // ═══ Codea Max ═══
-  { planId: 'codea-max', featureId: 'credits-display', enabled: true, displayLabel: '50,000 credits / month', displayDescription: 'Shared with your OxyAI plan — 300 daily refresh on top' },
+  { planId: 'codea-max', featureId: 'credits-display', enabled: true, displayLabel: '50,000 credits / month', displayDescription: 'Shared with your Alia plan — 300 daily refresh on top' },
   { planId: 'codea-max', featureId: 'concurrent-tasks', enabled: true, limitValue: 50, displayLabel: '50 concurrent tasks' },
   { planId: 'codea-max', featureId: 'context-window', enabled: true, limitValue: 3, displayLabel: 'Maximum context windows' },
 ];

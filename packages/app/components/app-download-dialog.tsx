@@ -11,7 +11,7 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 
-const DOWNLOAD_URL = "https://ai.oxy.so/download";
+const DOWNLOAD_URL = "https://alia.onl/download";
 
 interface AppDownloadDialogProps {
   open: boolean;

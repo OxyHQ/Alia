@@ -127,7 +127,6 @@ app.use('/v1', (_req, res, next) => {
 
 // Internal routes - restricted to known origins
 const PRODUCTION_ORIGINS = [
-  'https://ai.oxy.so',
   'https://alia.onl',
   'https://console.alia.onl',
   'https://gateway.alia.onl',

@@ -1,11 +1,11 @@
-# Codea by OxyAI
+# Codea by Alia
 
 [![Visual Studio Marketplace Version](https://img.shields.io/visual-studio-marketplace/v/oxy.alia-codea?style=flat&label=VS%20Marketplace&logo=visual-studio-code)](https://marketplace.visualstudio.com/items?itemName=oxy.alia-codea)
 [![Visual Studio Marketplace Installs](https://img.shields.io/visual-studio-marketplace/i/oxy.alia-codea?style=flat&label=Installs)](https://marketplace.visualstudio.com/items?itemName=oxy.alia-codea)
 [![Visual Studio Marketplace Rating](https://img.shields.io/visual-studio-marketplace/r/oxy.alia-codea?style=flat&label=Rating)](https://marketplace.visualstudio.com/items?itemName=oxy.alia-codea)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-AI coding assistant for Visual Studio Code, powered by [OxyAI](https://ai.oxy.so).
+AI coding assistant for Visual Studio Code, powered by [Alia](https://alia.onl).
 
 ## Runtime Integration
 
@@ -41,14 +41,14 @@ Codea uses the same unified chat runtime as app and Cowork:
 
 ### Prerequisites
 
-You'll need an OxyAI API key to use this extension. Get yours at [ai.oxy.so](https://ai.oxy.so).
+You'll need an Alia API key to use this extension. Get yours at [alia.onl](https://alia.onl).
 
 ### Installation
 
 1. Install the extension from the [Visual Studio Marketplace](https://marketplace.visualstudio.com/items?itemName=oxy.alia-codea)
 2. Open VS Code Settings (`Cmd/Ctrl + ,`)
 3. Search for "Codea"
-4. Enter your OxyAI API key in `codea.apiKey` (it should start with `alia_sk_`)
+4. Enter your Alia API key in `codea.apiKey` (it should start with `alia_sk_`)
 
 ### Quick Start
 
@@ -58,8 +58,8 @@ Press `Ctrl+Shift+A` (or `Cmd+Shift+A` on Mac) to open Codea Chat and start codi
 
 | Setting | Description | Default |
 |---------|-------------|---------|
-| `codea.apiKey` | Your OxyAI API key (starts with `alia_sk_`) | - |
-| `codea.apiBaseUrl` | API base URL | `https://api.ai.oxy.so` |
+| `codea.apiKey` | Your Alia API key (starts with `alia_sk_`) | - |
+| `codea.apiBaseUrl` | API base URL | `https://api.alia.onl` |
 | `codea.model` | Model to use for completions | `alia-v1-codea` |
 | `codea.maxTokens` | Maximum tokens in response | `4096` |
 | `codea.temperature` | Temperature for response generation (0-2) | `0.7` |
@@ -77,21 +77,21 @@ Press `Ctrl+Shift+A` (or `Cmd+Shift+A` on Mac) to open Codea Chat and start codi
 Access these commands via the Command Palette (`Cmd/Ctrl + Shift + P`):
 
 - **Codea: Getting Started** - Open the walkthrough guide
-- **Codea: Sign In** - Sign in to your OxyAI account
+- **Codea: Sign In** - Sign in to your Alia account
 - **Codea: Refresh Token** - Refresh your authentication token
 - **Codea: Generate Commit Message** - AI-generated commit messages
 - **Codea: Resolve Merge Conflicts** - Get help resolving merge conflicts
 
 ## Privacy & Security
 
-- Your code is sent to OxyAI's servers for processing
+- Your code is sent to Alia's servers for processing
 - API keys are stored securely in VS Code's secret storage
-- See [OxyAI's Privacy Policy](https://ai.oxy.so/privacy) for details
+- See [Alia's Privacy Policy](https://alia.onl/privacy) for details
 
 ## Support
 
 - **Issues & Feature Requests**: [GitHub Issues](https://github.com/OxyHQ/codea-ai-extension/issues)
-- **Documentation**: [OxyAI Documentation](https://docs.alia.onl)
+- **Documentation**: [Alia Documentation](https://docs.alia.onl)
 - **General Support**: [oxy.so/support](https://oxy.so/support)
 
 ## Development

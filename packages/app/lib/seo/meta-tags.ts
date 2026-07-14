@@ -27,8 +27,8 @@ export interface MetaTagsConfig {
   alternateLocales?: Array<{ locale: string; url: string }>; // Para hreflang tags
 }
 
-const SITE_URL = 'https://ai.oxy.so';
-const SITE_NAME = 'OxyAI';
+const SITE_URL = 'https://alia.onl';
+const SITE_NAME = 'Alia by Oxy';
 const DEFAULT_OG_IMAGE = `${SITE_URL}/og-image-default.png`;
 const TWITTER_HANDLE = '@AliaByOxy'; // Actualizar con tu handle real
 
@@ -95,7 +95,7 @@ export function generateMetaTags(config: MetaTagsConfig): Record<string, string>
 
     // Mobile
     'viewport': 'width=device-width, initial-scale=1, maximum-scale=5',
-    'theme-color': '#d269e6',
+    'theme-color': '#ca52e9',
     'format-detection': 'telephone=no',
   };
 
@@ -136,81 +136,81 @@ export function generateMetaTags(config: MetaTagsConfig): Record<string, string>
  */
 export const META_PRESETS = {
   home: {
-    title: 'OxyAI \ Oxy',
-    description: 'Meet OxyAI, your intelligent AI assistant. Chat naturally, remember everything, and switch between the best AI models seamlessly.',
+    title: 'Alia \ Oxy',
+    description: 'Meet Alia, your intelligent AI assistant. Chat naturally, remember everything, and switch between the best AI models seamlessly.',
     keywords: ['ai chat', 'chatbot', 'artificial intelligence', 'ai assistant', 'conversational ai'],
     canonicalUrl: SITE_URL,
   },
 
   aiChat: {
-    title: 'Chat with AI - OxyAI',
-    description: 'Have intelligent conversations with OxyAI. Advanced AI that understands context, remembers your preferences, and adapts to your needs.',
+    title: 'Chat with AI - Alia',
+    description: 'Have intelligent conversations with Alia. Advanced AI that understands context, remembers your preferences, and adapts to your needs.',
     keywords: ['ai chat', 'chat with ai', 'conversational ai', 'intelligent chatbot'],
     canonicalUrl: `${SITE_URL}/ai-chat`,
   },
 
   chatbotAI: {
-    title: 'AI Assistant - OxyAI',
+    title: 'AI Assistant - Alia',
     description: 'Your personal AI assistant for work and creativity. Answer questions, generate content, write code, and more.',
     keywords: ['chatbot ai', 'ai assistant', 'virtual assistant', 'intelligent chatbot'],
     canonicalUrl: `${SITE_URL}/chatbot-ai`,
   },
 
   features: {
-    title: 'Features - OxyAI',
-    description: 'Discover what makes OxyAI different: persistent memory, multiple AI models, custom personas, and a powerful developer API.',
+    title: 'Features - Alia',
+    description: 'Discover what makes Alia different: persistent memory, multiple AI models, custom personas, and a powerful developer API.',
     keywords: ['ai features', 'contextual memory', 'ai models', 'chatbot api'],
     canonicalUrl: `${SITE_URL}/features`,
   },
 
   vsChatGPT: {
-    title: 'OxyAI vs ChatGPT',
-    description: 'An honest comparison between OxyAI and ChatGPT. Explore the differences in features, pricing, and capabilities.',
-    keywords: ['oxyai vs chatgpt', 'chatgpt comparison', 'ai assistant comparison'],
+    title: 'Alia vs ChatGPT',
+    description: 'An honest comparison between Alia and ChatGPT. Explore the differences in features, pricing, and capabilities.',
+    keywords: ['alia vs chatgpt', 'chatgpt comparison', 'ai assistant comparison'],
     canonicalUrl: `${SITE_URL}/vs/chatgpt`,
     ogType: 'article' as const,
   },
 
   vsClaude: {
-    title: 'OxyAI vs Claude',
-    description: 'Compare OxyAI and Claude side by side. Features, performance, and use cases explained.',
-    keywords: ['oxyai vs claude', 'claude comparison', 'ai comparison'],
+    title: 'Alia vs Claude',
+    description: 'Compare Alia and Claude side by side. Features, performance, and use cases explained.',
+    keywords: ['alia vs claude', 'claude comparison', 'ai comparison'],
     canonicalUrl: `${SITE_URL}/vs/claude`,
     ogType: 'article' as const,
   },
 
   vsGemini: {
-    title: 'OxyAI vs Gemini',
-    description: 'How does OxyAI compare to Google Gemini? A detailed look at strengths and differences.',
-    keywords: ['oxyai vs gemini', 'gemini comparison', 'google ai'],
+    title: 'Alia vs Gemini',
+    description: 'How does Alia compare to Google Gemini? A detailed look at strengths and differences.',
+    keywords: ['alia vs gemini', 'gemini comparison', 'google ai'],
     canonicalUrl: `${SITE_URL}/vs/gemini`,
     ogType: 'article' as const,
   },
 
   developers: {
-    title: 'API Documentation - OxyAI',
-    description: 'Build with OxyAI. Industry-standard API, comprehensive docs, and code examples to integrate AI into your applications.',
+    title: 'API Documentation - Alia',
+    description: 'Build with Alia. Industry-standard API, comprehensive docs, and code examples to integrate AI into your applications.',
     keywords: ['chatbot api', 'ai api', 'openai compatible', 'developer api'],
     canonicalUrl: `${SITE_URL}/developers/documentation`,
   },
 
   pricing: {
-    title: 'Pricing - OxyAI',
+    title: 'Pricing - Alia',
     description: 'Simple, transparent pricing. Start free, pay as you grow. No subscriptions, just credits that never expire.',
     keywords: ['ai pricing', 'chatbot pricing', 'pay as you go'],
     canonicalUrl: `${SITE_URL}/pricing`,
   },
 
   blog: {
-    title: 'Blog - OxyAI',
-    description: 'Insights, tutorials, and updates from the OxyAI team. Learn how to get the most out of AI.',
+    title: 'Blog - Alia',
+    description: 'Insights, tutorials, and updates from the Alia team. Learn how to get the most out of AI.',
     keywords: ['ai blog', 'ai tutorials', 'ai news', 'ai guides'],
     canonicalUrl: `${SITE_URL}/blog`,
   },
 
   useCases: {
-    title: 'Use Cases - OxyAI',
-    description: 'See how people use OxyAI for coding, writing, research, learning, and creative work.',
+    title: 'Use Cases - Alia',
+    description: 'See how people use Alia for coding, writing, research, learning, and creative work.',
     keywords: ['ai use cases', 'ai examples', 'ai productivity', 'ai applications'],
     canonicalUrl: `${SITE_URL}/use-cases`,
   },

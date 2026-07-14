@@ -25,7 +25,7 @@ export class AliaChatParticipant {
 
   private loadConfig() {
     const config = vscode.workspace.getConfiguration('codea');
-    this.apiBaseUrl = config.get('apiBaseUrl', 'https://api.ai.oxy.so');
+    this.apiBaseUrl = config.get('apiBaseUrl', 'https://api.alia.onl');
     this.model = config.get('model', 'alia-v1-codea');
   }
 
@@ -110,7 +110,7 @@ export class AliaChatParticipant {
     const messages: Array<{ role: string; content: string }> = [
       {
         role: 'system',
-        content: 'You are Codea, an expert coding assistant powered by OxyAI. You help developers write, understand, and improve their code. Provide clear, concise, and helpful responses. Format code using markdown code blocks.'
+        content: 'You are Codea, an expert coding assistant powered by Alia. You help developers write, understand, and improve their code. Provide clear, concise, and helpful responses. Format code using markdown code blocks.'
       }
     ];
 

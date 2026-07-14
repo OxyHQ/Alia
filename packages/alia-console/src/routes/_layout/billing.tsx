@@ -242,7 +242,7 @@ function BillingPage() {
           <DialogHeader>
             <DialogTitle>Choose your plan</DialogTitle>
             <DialogDescription>
-              All plans include OxyAI Chat + Codea (VS Code &amp; CLI). Credits are shared across all products.
+              All plans include Alia Chat + Codea (VS Code &amp; CLI). Credits are shared across all products.
             </DialogDescription>
           </DialogHeader>
 

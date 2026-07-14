@@ -49,7 +49,7 @@ export async function handleIncomingMessage(
 
     if (!botUser || !botUser.isLinked || !botUser.oxyUserId) {
       await sendResponse(
-        'Please link your OxyAI account first. Visit the OxyAI app and go to Settings.',
+        'Please link your Alia account first. Visit the Alia app and go to Settings.',
       );
       return;
     }

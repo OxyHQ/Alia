@@ -8,7 +8,7 @@ import { sanitizeMessage } from '../lib/errors/sanitize.js';
 const router = Router();
 
 const REFERRAL_CREDIT_REWARD = 500;
-const BASE_URL = process.env.WEB_URL || 'https://ai.oxy.so';
+const BASE_URL = process.env.WEB_URL || 'https://alia.onl';
 const getSafeErrorMessage = (error: unknown, fallback: string): string =>
   sanitizeMessage(error instanceof Error ? error.message : fallback);
 

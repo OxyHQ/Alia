@@ -321,7 +321,7 @@ export function PlansPage() {
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList>
           <TabsTrigger value="alia">
-            OxyAI Plans ({aliaPlans.length})
+            Alia Plans ({aliaPlans.length})
           </TabsTrigger>
           <TabsTrigger value="codea">
             Codea Plans ({codeaPlans.length})

@@ -38,7 +38,7 @@ export function Settings() {
             <CardHeader>
               <CardTitle>Appearance</CardTitle>
               <CardDescription>
-                Customize how OxyAI Cowork looks on your device
+                Customize how Alia Cowork looks on your device
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -71,7 +71,7 @@ export function Settings() {
               <CardHeader>
                 <CardTitle>Account</CardTitle>
                 <CardDescription>
-                  Manage your OxyAI account settings
+                  Manage your Alia account settings
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
@@ -96,7 +96,7 @@ export function Settings() {
                     Sign Out
                   </Button>
                   <p className="text-xs text-muted-foreground mt-2">
-                    You'll need to sign in again to use OxyAI Cowork
+                    You'll need to sign in again to use Alia Cowork
                   </p>
                 </div>
               </CardContent>
@@ -114,11 +114,11 @@ export function Settings() {
             <CardContent className="space-y-4">
               <div className="flex items-center gap-3 p-4 rounded-lg bg-muted/50">
                 <Avatar size="lg" className="size-12 rounded-lg">
-                  <AvatarImage src="icon.png" alt="OxyAI" />
+                  <AvatarImage src="icon.png" alt="Alia" />
                   <AvatarFallback>AI</AvatarFallback>
                 </Avatar>
                 <div>
-                  <div className="font-semibold">OxyAI Cowork</div>
+                  <div className="font-semibold">Alia Cowork</div>
                   <div className="text-sm text-muted-foreground">Made with ❤️ in the 🌎 by Oxy</div>
                 </div>
               </div>

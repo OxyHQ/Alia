@@ -73,11 +73,11 @@ function AppSidebar({ currentView, onViewChange }: { currentView?: string; onVie
       <SidebarHeader className="border-b">
         <div className="flex items-center gap-2 px-1">
           <Avatar size="sm">
-            <AvatarImage src="icon.png" alt="OxyAI" />
+            <AvatarImage src="icon.png" alt="Alia" />
             <AvatarFallback>AI</AvatarFallback>
           </Avatar>
           {state === "expanded" && (
-            <span className="font-semibold text-sm">OxyAI Cowork</span>
+            <span className="font-semibold text-sm">Alia Cowork</span>
           )}
         </div>
       </SidebarHeader>
@@ -229,7 +229,7 @@ function TitleBar({ onViewChange }: TitleBarProps) {
               </MenubarItem>
               <MenubarSeparator />
               <MenubarItem onClick={() => window.api?.showAbout()}>
-                About OxyAI Cowork
+                About Alia Cowork
               </MenubarItem>
             </MenubarContent>
           </MenubarMenu>

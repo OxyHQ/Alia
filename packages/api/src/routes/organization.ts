@@ -29,7 +29,7 @@ router.use(authenticateToken);
 // INVITE ROUTES (must be before /:id to avoid param conflicts)
 // ===========================================
 
-const BASE_URL = process.env.WEB_URL || 'https://ai.oxy.so';
+const BASE_URL = process.env.WEB_URL || 'https://alia.onl';
 
 // Get invite info by token (for accept page preview)
 router.get('/invites/:token/info', async (req: Request, res: Response) => {

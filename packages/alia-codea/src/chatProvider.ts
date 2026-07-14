@@ -109,7 +109,7 @@ export class CodeaChatViewProvider implements vscode.WebviewViewProvider {
 
   private async fetchAndSendModels(): Promise<void> {
     const config = vscode.workspace.getConfiguration('codea');
-    const baseUrl = config.get<string>('apiBaseUrl') || 'https://api.ai.oxy.so';
+    const baseUrl = config.get<string>('apiBaseUrl') || 'https://api.alia.onl';
 
     try {
       const models = await this.fetchModels(baseUrl);
@@ -587,7 +587,7 @@ export class CodeaChatViewProvider implements vscode.WebviewViewProvider {
 
     const config = vscode.workspace.getConfiguration('codea');
     const accessToken = await this._authProvider.getAccessToken();
-    const baseUrl = config.get<string>('apiBaseUrl') || 'https://api.ai.oxy.so';
+    const baseUrl = config.get<string>('apiBaseUrl') || 'https://api.alia.onl';
     const model = selectedModel || config.get<string>('model') || 'alia-v1-codea';
 
     if (!accessToken) {
@@ -1088,7 +1088,7 @@ You are running inside Visual Studio Code, Microsoft's popular code editor.
     const message = errorMessage(error, 'An error occurred');
 
     if (message.includes('402') || message.toLowerCase().includes('insufficient credits')) {
-      return 'Insufficient credits. Please add more credits at ai.oxy.so';
+      return 'Insufficient credits. Please add more credits at alia.onl';
     } else if (message.includes('401') || message.toLowerCase().includes('unauthorized')) {
       return 'Authentication failed. Please sign in again using the "Codea: Sign In" command.';
     } else if (message.includes('429') || message.toLowerCase().includes('rate limit')) {

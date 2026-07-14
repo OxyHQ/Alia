@@ -55,12 +55,12 @@ const ChatPage = () => {
   return (
     <>
       <Head>
-        <title>OxyAI</title>
-        <meta name="description" content="Meet OxyAI, your intelligent AI assistant. Chat naturally, remember everything, and switch between the best AI models seamlessly." />
-        <link rel="canonical" href="https://ai.oxy.so/" />
-        <meta property="og:title" content="OxyAI" />
-        <meta property="og:description" content="Meet OxyAI, your intelligent AI assistant. Chat naturally, remember everything, and switch between the best AI models seamlessly." />
-        <meta property="og:image" content="https://ai.oxy.so/og-image-default.png" />
+        <title>Alia \ Oxy</title>
+        <meta name="description" content="Meet Alia, your intelligent AI assistant. Chat naturally, remember everything, and switch between the best AI models seamlessly." />
+        <link rel="canonical" href="https://alia.onl/" />
+        <meta property="og:title" content="Alia \ Oxy" />
+        <meta property="og:description" content="Meet Alia, your intelligent AI assistant. Chat naturally, remember everything, and switch between the best AI models seamlessly." />
+        <meta property="og:image" content="https://alia.onl/og-image-default.png" />
       </Head>
       <ChatPageContent
         messages={messages}

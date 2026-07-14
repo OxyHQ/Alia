@@ -94,7 +94,7 @@ async function processChannelMessage(
 
     const creditReservation = await reserveCredits(userId);
     if (!creditReservation) {
-      const appUrl = process.env.APP_URL || process.env.WEB_URL || 'https://ai.oxy.so';
+      const appUrl = process.env.APP_URL || process.env.WEB_URL || 'https://alia.onl';
       await sendChannelMessage(
         channelType,
         message.chatId,

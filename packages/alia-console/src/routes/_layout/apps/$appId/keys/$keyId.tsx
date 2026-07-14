@@ -159,7 +159,7 @@ function KeyDetailPage() {
           </EnvironmentVariablesHeader>
           <EnvironmentVariablesContent>
             <EnvironmentVariable name="ALIA_API_KEY" value={`${apiKey.keyPrefix}...`} />
-            <EnvironmentVariable name="ALIA_BASE_URL" value="https://api.ai.oxy.so/v1" />
+            <EnvironmentVariable name="ALIA_BASE_URL" value="https://api.alia.onl/v1" />
           </EnvironmentVariablesContent>
         </EnvironmentVariables>
       </div>

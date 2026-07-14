@@ -1,8 +1,8 @@
-# Codea by OxyAI - Feature Documentation
+# Codea by Alia - Feature Documentation
 
 ## Hybrid Architecture
 
-Codea by OxyAI uses a **hybrid architecture** to provide the best of both worlds:
+Codea by Alia uses a **hybrid architecture** to provide the best of both worlds:
 
 ### 1. 🔮 Inline Completions (AI-Powered)
 **Native Codea Studio Code integration** - Ghost text appears as you type with intelligent AI suggestions.
@@ -121,7 +121,7 @@ webview-ui/                     # React app for custom UI
 ### API Integration
 
 All extension surfaces use the Alia API:
-- **Endpoint**: `https://api.ai.oxy.so/v1/chat/completions`
+- **Endpoint**: `https://api.alia.onl/v1/chat/completions`
 - **Authentication**: Bearer token (API key)
 - **Streaming**: Supported for chat responses
 - **Models**: Multiple model options
@@ -149,7 +149,7 @@ This enables the extension to work in:
 
 1. Check `codea.enableInlineCompletions` is `true`
 2. Verify API key is set correctly
-3. Look for errors in Output panel: View → Output → "Codea by OxyAI"
+3. Look for errors in Output panel: View → Output → "Codea by Alia"
 
 ### Chat participant not available
 

@@ -1,7 +1,7 @@
 {
   "name": "@alia-codea/cli",
   "version": "2.0.2",
-  "description": "Codea CLI - AI coding assistant for your terminal by OxyAI",
+  "description": "Codea CLI - AI coding assistant for your terminal by Alia",
   "main": "dist/index.js",
   "bin": {
     "codea": "./dist/index.js"
@@ -23,7 +23,7 @@
     "alia",
     "codea"
   ],
-  "author": "OxyAI",
+  "author": "Alia",
   "license": "MIT",
   "dependencies": {
     "chalk": "^5.6.2",

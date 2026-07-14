@@ -40,7 +40,7 @@ export class TelegramBotAdapter implements BotAdapter {
 
     // Set bot commands menu
     await bot.telegram.setMyCommands([
-      { command: 'start', description: 'Link your OxyAI account' },
+      { command: 'start', description: 'Link your Alia account' },
       { command: 'status', description: 'View account status and credits' },
       { command: 'model', description: 'Change AI model' },
       { command: 'new', description: 'Start a new conversation' },
@@ -291,11 +291,11 @@ Be concise and friendly. Use these Telegram features when appropriate.`,
       console.error('[Telegram Bot] Chat error:', error);
 
       if (errorCode(error) === 'INSUFFICIENT_CREDITS' || errorStatus(error) === 402) {
-        const appUrl = process.env.APP_URL || 'https://ai.oxy.so';
+        const appUrl = process.env.APP_URL || 'https://alia.onl';
         await ctx.reply(
           `💳 <b>Out of Credits</b>\n\n` +
-          `You've run out of credits. Add more to continue using OxyAI.\n\n` +
-          `<a href="${appUrl}">Open OxyAI to add credits</a>`,
+          `You've run out of credits. Add more to continue using Alia.\n\n` +
+          `<a href="${appUrl}">Open Alia to add credits</a>`,
           { parse_mode: 'HTML', link_preview_options: { is_disabled: true } },
         );
       } else if (errorStatus(error) === 401 || errorMessage(error).includes('401')) {
@@ -383,9 +383,9 @@ Be concise and friendly. Use these Telegram features when appropriate.`,
       console.error('[Telegram Bot] Voice message error:', error);
 
       if (errorStatus(error) === 402 || errorCode(error) === 'INSUFFICIENT_CREDITS') {
-        const appUrl = process.env.APP_URL || 'https://ai.oxy.so';
+        const appUrl = process.env.APP_URL || 'https://alia.onl';
         await ctx.reply(
-          `You've run out of credits. Add more to continue using OxyAI.\n\n${appUrl}`,
+          `You've run out of credits. Add more to continue using Alia.\n\n${appUrl}`,
         ).catch(() => {});
       } else {
         await ctx.reply('Sorry, I had trouble processing that audio. Please try again or type your message.').catch(() => {});

@@ -48,7 +48,7 @@ export default defineConfig(({ mode }) => ({
   server: {
     proxy: {
       '/api/providers': {
-        target: 'https://api.ai.oxy.so',
+        target: 'https://api.alia.onl',
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/api\/providers/, '/internal/providers'),
         ws: true,
