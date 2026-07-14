@@ -14,10 +14,9 @@ const router = Router();
 
 // ── Public route (no auth) — VAPID public key for browser subscription ──
 router.get('/vapid-public-key', (_req: Request, res: Response) => {
-  if (!VAPID_PUBLIC_KEY) {
-    return res.status(503).json({ error: 'Web push not configured' });
-  }
-  res.json({ publicKey: VAPID_PUBLIC_KEY });
+  // Unconfigured web push is a normal state, not a server error — a 503 here
+  // spams every browser console. Clients treat a null key as "unavailable".
+  res.json({ publicKey: VAPID_PUBLIC_KEY || null });
 });
 
 router.use(authenticateToken);
