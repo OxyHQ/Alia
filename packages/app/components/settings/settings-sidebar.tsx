@@ -86,7 +86,9 @@ export const SettingsSidebar = React.memo(function SettingsSidebar() {
         className="p-1.5 mx-0.5 rounded-xl hover:bg-muted active:bg-muted"
       >
         {collapsed ? (
-          <AliaMark size={24} className="text-foreground select-none" />
+          <View className="animate-spin-once">
+            <AliaMark size={24} />
+          </View>
         ) : (
           <AliaLogo height={36} />
         )}
