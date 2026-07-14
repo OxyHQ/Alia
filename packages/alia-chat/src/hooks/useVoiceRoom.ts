@@ -75,6 +75,31 @@ type AgentDataMessage =
   | CohostEnabledMsg | CohostDisabledMsg | CohostTurnMsg | CohostRoundMsg
   | ToolCallMsg | ToolResultMsg | SessionEndedMsg | ErrorMsg;
 
+// ============== MIC DEVICE ERRORS ==============
+
+/**
+ * Map a microphone-acquisition failure to actionable copy. When
+ * `setMicrophoneEnabled(true)` calls getUserMedia and the device is missing,
+ * blocked, or busy, it surfaces a DOMException whose `.name` identifies the
+ * cause (legacy aliases included). Returns null for anything that isn't a known
+ * device error so the caller can fall back to generic handling.
+ */
+function micDeviceErrorMessage(name: string): string | null {
+  switch (name) {
+    case 'NotFoundError':
+    case 'DevicesNotFoundError':
+      return 'No microphone found — connect one and try again';
+    case 'NotAllowedError':
+    case 'PermissionDeniedError':
+      return 'Microphone access denied — allow it in your browser';
+    case 'NotReadableError':
+    case 'TrackStartError':
+      return 'Microphone is in use by another app';
+    default:
+      return null;
+  }
+}
+
 // ============== HOOK ==============
 
 export function useVoiceRoom(options: UseVoiceRoomOptions = {}) {
@@ -353,8 +378,26 @@ export function useVoiceRoom(options: UseVoiceRoomOptions = {}) {
       // Connect to the room
       await room.connect(url, livekitToken, { autoSubscribe: true });
 
-      // Enable microphone — audio goes to LiveKit, agent picks it up server-side
-      await room.localParticipant.setMicrophoneEnabled(true);
+      // Enable microphone — audio goes to LiveKit, agent picks it up server-side.
+      // getUserMedia device failures (no mic, permission blocked, hardware busy)
+      // surface here; map them to actionable copy instead of a generic failure.
+      try {
+        await room.localParticipant.setMicrophoneEnabled(true);
+      } catch (micError: unknown) {
+        // DOMException is not `instanceof Error`, so read `.name` off the object.
+        const name =
+          typeof micError === 'object' && micError !== null && 'name' in micError &&
+          typeof micError.name === 'string'
+            ? micError.name
+            : '';
+        const friendly = micDeviceErrorMessage(name);
+        if (!friendly) throw micError; // unknown failure — let the generic handler report it
+        console.error(`[useVoiceRoom] Microphone error (${name || 'unknown'}):`, micError);
+        setError(friendly);
+        setRoomState('error');
+        cleanup();
+        return;
+      }
 
       setRoomState('connected');
       setAgentState('listening');
