@@ -1,12 +1,14 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   View,
+  Text,
   Pressable,
   type TextInput as RNTextInput,
 } from "react-native";
 import { KeyboardAvoidingView } from "@/lib/keyboard";
 import { Maximize2, Minimize2 } from "lucide-react-native";
 import { cn } from "@/lib/utils";
+import { asViewStyle } from "@/lib/types/webStyles";
 import { PromptInputContext, type Attachment } from "./context";
 import { PromptInputTextarea } from "./textarea";
 import { PromptInputActions } from "./actions";
@@ -15,6 +17,10 @@ import { PromptInputAutocomplete } from "./autocomplete";
 import { PromptInputAttachments } from "./attachments";
 import { PromptInputSubmitButton } from "./submit-button";
 import { PromptInputAddMenu } from "./add-menu";
+
+// Collapsed-state left inset (px) reserved for the pinned + button when measuring
+// whether the current value fits the single-line middle track (see isExpanded).
+const COLLAPSED_LEFT_INSET = 48;
 
 export type PromptInputProps = {
   isLoading?: boolean;
@@ -32,10 +38,12 @@ export type PromptInputProps = {
   autocompletePosition?: "top" | "bottom";
   /** When true (empty conversation), show default welcome suggestions while the query is short. */
   showDefaultSuggestions?: boolean;
-  // Shows the add menu as a standalone button to the left of the input box
-  leadingAddMenu?: boolean;
-  // Custom left-side actions (replaces default add menu in the actions bar)
-  actionsLeft?: React.ReactNode;
+  // Render autocomplete as an absolute floating overlay above the pill (never
+  // reserving layout space) instead of the inline top/bottom list — used by the
+  // main chat so the centered welcome + input stay fixed while suggestions show.
+  floatingAutocomplete?: boolean;
+  // Custom right-side actions (rendered before mic + submit in the actions bar)
+  actionsRight?: React.ReactNode;
   // Submit button props
   onStop?: () => void;
   emptyAction?: React.ReactNode;
@@ -53,7 +61,7 @@ export type PromptInputProps = {
 export function PromptInput({
   className,
   isLoading = false,
-  maxHeight = 240,
+  maxHeight = 400,
   value,
   onValueChange,
   onSubmit,
@@ -64,8 +72,8 @@ export function PromptInput({
   autocomplete = false,
   autocompletePosition = "top",
   showDefaultSuggestions = false,
-  leadingAddMenu = false,
-  actionsLeft,
+  floatingAutocomplete = false,
+  actionsRight,
   onStop,
   emptyAction,
   onSuggestionSend,
@@ -81,6 +89,12 @@ export function PromptInput({
   const [showFullscreen, setShowFullscreen] = useState(false);
   const [handleCompletionKey, setHandleCompletionKey] = useState<((key: string) => boolean) | null>(null);
   const textareaRef = useRef<RNTextInput>(null);
+
+  // Two-state (collapsed pill ↔ expanded) measurement — updated via onLayout so
+  // the expansion trigger is derived in render, hysteresis-free, with no effect.
+  const [containerWidth, setContainerWidth] = useState(0);
+  const [rightClusterWidth, setRightClusterWidth] = useState(0);
+  const [mirrorWidth, setMirrorWidth] = useState(0);
 
   // Internal attachment state (used when no controlled props)
   const [internalAttachments, setInternalAttachments] = useState<Attachment[]>(
@@ -142,6 +156,19 @@ export function PromptInput({
 
   const currentValue = value ?? internalValue;
   const currentSetValue = onValueChange ?? handleChange;
+
+  // Expanded when the value can't sit on the collapsed single-line track: it
+  // contains a newline, carries attachments, or its measured single-line width
+  // exceeds the middle track (container − left inset − right action cluster).
+  // Derived from measured widths only → deterministic, no oscillation: deleting
+  // back under the fit width collapses again on its own.
+  const middleWidth = containerWidth - COLLAPSED_LEFT_INSET - rightClusterWidth;
+  const isExpanded =
+    isSimpleMode &&
+    !showFullscreen &&
+    (currentValue.includes("\n") ||
+      attachments.length > 0 ||
+      (middleWidth > 0 && mirrorWidth > middleWidth));
   const contextValue = useMemo(() => ({
     isLoading,
     value: currentValue,
@@ -171,22 +198,36 @@ export function PromptInput({
   const content = isSimpleMode ? (
     <>
       <PromptInputAttachments />
+      {/* Collapsed: text sits on the single-line track between the pinned + (left)
+          and the action cluster (right). Expanded: paddings shrink, a bottom band
+          clears the pinned buttons, and text uses the full width above them. */}
       <PromptInputTextarea
         placeholder={placeholder}
-        className="min-h-[60px] text-base pt-4 pb-2"
+        minHeight={showFullscreen ? undefined : isExpanded ? 0 : 60}
+        className={
+          showFullscreen
+            ? "text-base"
+            : isExpanded
+              ? "min-h-0 max-h-[400px] pl-3.5 pr-3.5 pt-[18px] web:pt-[18px] pb-14 web:pb-14 text-base web:transition-[padding] web:duration-300 web:ease-out"
+              : "min-h-[60px] max-h-[400px] pl-11 pr-[185px] pt-[18px] web:pt-[18px] pb-[18px] web:pb-[18px] text-base web:transition-[padding] web:duration-300 web:ease-out"
+        }
       />
-      <PromptInputActions className="flex-row items-center p-2 gap-1.5">
-        <View className="flex-1 flex-row items-center gap-1.5">
-          {leadingAddMenu ? (
-            <>
-              <PromptInputAddMenu iconSize={20} className="h-10 w-10 rounded-full" />
-              {actionsLeft}
-            </>
-          ) : (
-            actionsLeft ?? <PromptInputAddMenu />
-          )}
+      <PromptInputActions
+        pointerEvents={showFullscreen ? undefined : "box-none"}
+        className={
+          showFullscreen
+            ? undefined
+            : "absolute left-0 right-0 bottom-0 flex-row items-center p-2"
+        }
+      >
+        <View className="flex-row items-center gap-1.5">
+          <PromptInputAddMenu iconSize={20} className="h-10 w-10 rounded-full" />
         </View>
-        <View className="flex-row items-center gap-1">
+        <View
+          className="ml-auto flex-row items-center gap-1"
+          onLayout={(e) => setRightClusterWidth(e.nativeEvent.layout.width)}
+        >
+          {actionsRight}
           <PromptInputMicButton />
           <PromptInputSubmitButton
             isLoading={isLoading}
@@ -209,12 +250,30 @@ export function PromptInput({
     >
       <View
         className={cn(
-          "rounded-[30px] border border-border bg-card shadow-sm relative overflow-hidden",
+          "border border-border bg-card shadow-sm relative overflow-hidden web:transition-[border-radius] web:duration-200",
+          isExpanded ? "rounded-[32px]" : "rounded-full",
           disabled && "opacity-60",
           className
         )}
         {...props}
+        onLayout={(e) => setContainerWidth(e.nativeEvent.layout.width)}
       >
+        {/* Hidden single-line mirror of the current value in the input's font —
+            its width drives the collapsed→expanded fit test. Measured on the
+            wrapping View: react-native-web fires onLayout reliably on View but
+            not on Text, so a bare <Text onLayout> never updates state (the
+            symptom). The absolute row shrinks to the single-line text width. */}
+        {isSimpleMode && (
+          <View
+            pointerEvents="none"
+            onLayout={(e) => setMirrorWidth(e.nativeEvent.layout.width)}
+            className="absolute top-0 left-0 flex-row opacity-0"
+          >
+            <Text numberOfLines={1} className="text-base lg:text-sm native:text-md">
+              {currentValue}
+            </Text>
+          </View>
+        )}
         {showExpandIcon && !disabled && (
           <Pressable
             onPress={() => setShowFullscreen(true)}
@@ -230,7 +289,7 @@ export function PromptInput({
 
   return (
     <PromptInputContext.Provider value={contextValue}>
-      {autocomplete && autocompletePosition === "top" && !leadingAddMenu && (
+      {autocomplete && autocompletePosition === "top" && !floatingAutocomplete && (
         <PromptInputAutocomplete position="top" showDefaultSuggestions={showDefaultSuggestions} />
       )}
 
@@ -239,7 +298,7 @@ export function PromptInput({
         const wrapperProps = disableKeyboardAvoidance ? {} : { behavior: "padding" as const };
         return (
           <Wrapper {...wrapperProps}>
-            {leadingAddMenu ? (
+            {floatingAutocomplete ? (
               <View className="relative">
                 {autocomplete && autocompletePosition === "top" && (
                   // Overlay above the input — absolute so it never reserves layout
@@ -264,20 +323,20 @@ export function PromptInput({
         );
       })()}
 
-      {autocomplete && autocompletePosition === "bottom" && !leadingAddMenu && (
+      {autocomplete && autocompletePosition === "bottom" && !floatingAutocomplete && (
         <PromptInputAutocomplete position="bottom" showDefaultSuggestions={showDefaultSuggestions} />
       )}
 
       {showFullscreen && (
         <View
-          style={{
-            position: "fixed" as any,
+          style={asViewStyle({
+            position: "fixed",
             top: 0,
             left: 0,
             right: 0,
             bottom: 0,
             zIndex: 9998,
-          }}
+          })}
           className="bg-background"
         >
           <Pressable
