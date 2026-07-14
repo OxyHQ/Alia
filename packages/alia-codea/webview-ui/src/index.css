@@ -5,6 +5,13 @@
 /* Support VS Code theme classes: vscode-dark, vscode-light, vscode-high-contrast */
 @custom-variant dark (&:is(.dark *, .vscode-dark *, .vscode-high-contrast *));
 
+/*
+ * The values below are only pre-mount FALLBACKS. At runtime `BloomThemeProvider`
+ * resolves the active `oxy` preset (base + extended tokens) to `rgb(...)` and
+ * writes them onto `document.documentElement`, so Bloom is the real token
+ * source — these static values just avoid an unstyled flash before the provider
+ * commits. They mirror `alia-gateway-admin`'s shadcn-neutral base.
+ */
 :root {
     --background: oklch(1 0 0);
     --foreground: oklch(0.13 0.028 261.692);
@@ -12,8 +19,8 @@
     --card-foreground: oklch(0.13 0.028 261.692);
     --popover: oklch(1 0 0);
     --popover-foreground: oklch(0.13 0.028 261.692);
-    --primary: oklch(0.852 0.199 91.936);
-    --primary-foreground: oklch(0.421 0.095 57.708);
+    --primary: oklch(0.541 0.281 293.009);
+    --primary-foreground: oklch(0.969 0.016 293.756);
     --secondary: oklch(0.967 0.001 286.375);
     --secondary-foreground: oklch(0.21 0.006 285.885);
     --muted: oklch(0.967 0.003 264.542);
@@ -24,16 +31,16 @@
     --border: oklch(0.928 0.006 264.531);
     --input: oklch(0.928 0.006 264.531);
     --ring: oklch(0.707 0.022 261.325);
-    --chart-1: oklch(0.905 0.182 98.111);
-    --chart-2: oklch(0.795 0.184 86.047);
-    --chart-3: oklch(0.681 0.162 75.834);
-    --chart-4: oklch(0.554 0.135 66.442);
-    --chart-5: oklch(0.476 0.114 61.907);
+    --chart-1: oklch(0.811 0.111 293.571);
+    --chart-2: oklch(0.606 0.25 292.717);
+    --chart-3: oklch(0.541 0.281 293.009);
+    --chart-4: oklch(0.491 0.27 292.581);
+    --chart-5: oklch(0.432 0.232 292.759);
     --radius: 0.875rem;
     --sidebar: oklch(0.985 0.002 247.839);
     --sidebar-foreground: oklch(0.13 0.028 261.692);
-    --sidebar-primary: oklch(0.681 0.162 75.834);
-    --sidebar-primary-foreground: oklch(0.987 0.026 102.212);
+    --sidebar-primary: oklch(0.541 0.281 293.009);
+    --sidebar-primary-foreground: oklch(0.969 0.016 293.756);
     --sidebar-accent: oklch(0.967 0.003 264.542);
     --sidebar-accent-foreground: oklch(0.21 0.034 264.665);
     --sidebar-border: oklch(0.928 0.006 264.531);
@@ -50,8 +57,8 @@
     --card-foreground: oklch(0.985 0.002 247.839);
     --popover: oklch(0.21 0.034 264.665);
     --popover-foreground: oklch(0.985 0.002 247.839);
-    --primary: oklch(0.795 0.184 86.047);
-    --primary-foreground: oklch(0.421 0.095 57.708);
+    --primary: oklch(0.606 0.25 292.717);
+    --primary-foreground: oklch(0.969 0.016 293.756);
     --secondary: oklch(0.274 0.006 286.033);
     --secondary-foreground: oklch(0.985 0 0);
     --muted: oklch(0.278 0.033 256.848);
@@ -62,15 +69,15 @@
     --border: oklch(1 0 0 / 10%);
     --input: oklch(1 0 0 / 15%);
     --ring: oklch(0.551 0.027 264.364);
-    --chart-1: oklch(0.905 0.182 98.111);
-    --chart-2: oklch(0.795 0.184 86.047);
-    --chart-3: oklch(0.681 0.162 75.834);
-    --chart-4: oklch(0.554 0.135 66.442);
-    --chart-5: oklch(0.476 0.114 61.907);
+    --chart-1: oklch(0.811 0.111 293.571);
+    --chart-2: oklch(0.606 0.25 292.717);
+    --chart-3: oklch(0.541 0.281 293.009);
+    --chart-4: oklch(0.491 0.27 292.581);
+    --chart-5: oklch(0.432 0.232 292.759);
     --sidebar: oklch(0.21 0.034 264.665);
     --sidebar-foreground: oklch(0.985 0.002 247.839);
-    --sidebar-primary: oklch(0.795 0.184 86.047);
-    --sidebar-primary-foreground: oklch(0.987 0.026 102.212);
+    --sidebar-primary: oklch(0.606 0.25 292.717);
+    --sidebar-primary-foreground: oklch(0.969 0.016 293.756);
     --sidebar-accent: oklch(0.278 0.033 256.848);
     --sidebar-accent-foreground: oklch(0.985 0.002 247.839);
     --sidebar-border: oklch(1 0 0 / 10%);

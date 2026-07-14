@@ -212,15 +212,17 @@ export default function CodeaSubscribeScreen() {
   };
 
   return (
-    <View className="dark flex-1">
-      <ScrollView className="flex-1" style={{ backgroundColor: '#0a0e1a' }}>
-        {/* ── Dark editor-style hero ────────────────────────────── */}
-        <View style={{ backgroundColor: '#111827' }}>
+    <View className="flex-1">
+      <ScrollView className="flex-1 bg-background">
+        {/* ── Editor-style hero (token-driven surface) ──────────── */}
+        <View className="bg-muted">
           <View className="w-full max-w-[800px] mx-auto px-6 pt-6 pb-8">
             <BackButton t={t} />
 
             <View className="items-center gap-5 mt-2">
-              {/* Decorative code snippet */}
+              {/* Decorative code snippet — intentionally fixed-dark: it is a
+                  product mockup (like a terminal screenshot), so its surface
+                  and syntax token colors stay constant across light/dark. */}
               <View style={{ backgroundColor: '#1e2433' }} className="rounded-lg px-4 py-3 w-full max-w-[340px]">
                 {/* Title bar dots */}
                 <View className="flex-row gap-1.5 mb-3">
@@ -252,10 +254,10 @@ export default function CodeaSubscribeScreen() {
               </View>
 
               {/* Title + subtitle */}
-              <Text className="text-2xl font-bold text-center" style={{ color: '#f4f4f5' }}>
+              <Text className="text-2xl font-bold text-center text-foreground">
                 {t('subscribe.codeaTitle')}
               </Text>
-              <Text className="text-sm text-center max-w-[320px]" style={{ color: '#9ca3af' }}>
+              <Text className="text-sm text-center max-w-[320px] text-muted-foreground">
                 {t('subscribe.codeaSubtitle')}
               </Text>
 
@@ -276,7 +278,7 @@ export default function CodeaSubscribeScreen() {
             </View>
           ) : plansError ? (
             <View className="items-center justify-center py-16 gap-2">
-              <Text className="text-sm" style={{ color: '#9ca3af' }}>{t('subscribe.loadError')}</Text>
+              <Text className="text-sm text-muted-foreground">{t('subscribe.loadError')}</Text>
             </View>
           ) : (
             <PlanGrid
@@ -296,8 +298,8 @@ export default function CodeaSubscribeScreen() {
           )}
 
           {/* Shared credits note */}
-          <View className="mx-4 mt-6 p-4 rounded-xl items-center" style={{ backgroundColor: 'rgba(255,255,255,0.05)' }}>
-            <Text className="text-xs text-center" style={{ color: '#9ca3af' }}>
+          <View className="mx-4 mt-6 p-4 rounded-xl items-center bg-muted/50">
+            <Text className="text-xs text-center text-muted-foreground">
               {t('subscribe.sharedCredits')}
             </Text>
           </View>
