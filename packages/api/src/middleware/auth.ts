@@ -11,7 +11,6 @@ import DeveloperApiKey from '../models/developer-api-key.js';
 import DeveloperApp from '../models/developer-app.js';
 import ApiKeyUsage from '../models/api-key-usage.js';
 import { log } from '../lib/logger.js';
-import { getClientIp } from '../lib/net-utils.js';
 import { getConfiguredChannels } from '../lib/channels/registry.js';
 
 // Initialize Oxy client
@@ -163,7 +162,6 @@ export async function authenticateApiKey(
           statusCode: res.statusCode,
           responseTime,
           userAgent: req.headers['user-agent'],
-          ipAddress: getClientIp(req),
           authType: 'api_key',
         });
       } catch (err) {
@@ -173,7 +171,7 @@ export async function authenticateApiKey(
 
     next();
   } catch (error) {
-    log.auth.error({ err: error, ip: getClientIp(req) }, 'API key authentication error');
+    log.auth.error({ err: error }, 'API key authentication error');
     res.status(500).json({ error: 'Authentication failed' });
   }
 }
@@ -294,7 +292,7 @@ export async function authenticateTelegramBot(
 
     // Verify secret provided
     if (!botSecret) {
-      log.auth.warn({ ip: getClientIp(req) }, 'Missing bot secret');
+      log.auth.warn('Missing bot secret');
       res.status(401).json({ error: 'Bot authentication required' });
       return;
     }
@@ -304,14 +302,14 @@ export async function authenticateTelegramBot(
     const providedBuffer = Buffer.from(botSecret);
 
     if (expectedBuffer.length !== providedBuffer.length) {
-      log.auth.warn({ ip: getClientIp(req) }, 'Invalid bot secret length');
+      log.auth.warn('Invalid bot secret length');
       res.status(401).json({ error: 'Invalid bot authentication' });
       return;
     }
 
     const crypto = await import('crypto');
     if (!crypto.timingSafeEqual(expectedBuffer, providedBuffer)) {
-      log.auth.warn({ ip: getClientIp(req) }, 'Invalid bot secret');
+      log.auth.warn('Invalid bot secret');
       res.status(401).json({ error: 'Invalid bot authentication' });
       return;
     }
@@ -325,7 +323,7 @@ export async function authenticateTelegramBot(
 
     // Log successful auth for audit trail
     const duration = Date.now() - startTime;
-    log.auth.info({ telegramId, oxyUserId: oxyUserId || 'unknown', ip: getClientIp(req), endpoint: req.path, durationMs: duration }, 'Telegram bot authenticated');
+    log.auth.info({ telegramId, oxyUserId: oxyUserId || 'unknown', endpoint: req.path, durationMs: duration }, 'Telegram bot authenticated');
 
     // Set user context if provided - the bot is acting on behalf of this user
     if (oxyUserId) {
@@ -363,14 +361,14 @@ export async function authenticateChannelBotSecret(
     }
 
     if (!oxyUserId) {
-      log.auth.warn({ ip: getClientIp(req) }, 'Missing X-Oxy-User-Id in channel bot request');
+      log.auth.warn('Missing X-Oxy-User-Id in channel bot request');
       res.status(401).json({ error: 'User context required for channel bot requests' });
       return;
     }
 
     // Validate oxyUserId is a valid 24-char hex ObjectId to prevent injection
     if (!/^[a-f0-9]{24}$/.test(oxyUserId)) {
-      log.auth.warn({ ip: getClientIp(req), oxyUserId }, 'Invalid oxyUserId format in channel bot request');
+      log.auth.warn({ oxyUserId }, 'Invalid oxyUserId format in channel bot request');
       res.status(400).json({ error: 'Invalid user ID format' });
       return;
     }
@@ -394,13 +392,13 @@ export async function authenticateChannelBotSecret(
     }
 
     if (!matched) {
-      log.auth.warn({ ip: getClientIp(req) }, 'Invalid channel bot secret');
+      log.auth.warn('Invalid channel bot secret');
       res.status(401).json({ error: 'Invalid channel bot authentication' });
       return;
     }
 
     log.auth.info(
-      { oxyUserId, ip: getClientIp(req), endpoint: req.path },
+      { oxyUserId, endpoint: req.path },
       'Channel bot authenticated'
     );
 

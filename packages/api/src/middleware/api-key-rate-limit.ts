@@ -26,7 +26,6 @@ interface UsageRecord {
   creditsUsed: number;
   responseTime?: number;
   userAgent?: string;
-  ipAddress?: string;
   timestamp: Date;
   authType: UsageAuthType;
   serviceApp?: string;
@@ -393,7 +392,6 @@ export async function recordUsage(
       creditsUsed: creditsUsed || 0,
       responseTime,
       userAgent: req.headers['user-agent'],
-      ipAddress: req.ip || req.socket?.remoteAddress,
       timestamp: new Date(),
       authType: 'session',
     };
