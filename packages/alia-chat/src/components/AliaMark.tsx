@@ -1,13 +1,15 @@
 import { View } from 'react-native';
-import Svg, { Line } from 'react-native-svg';
 import Animated, {
-  useDerivedValue,
+  useSharedValue,
+  useAnimatedReaction,
   useAnimatedStyle,
   withTiming,
   withRepeat,
   withSequence,
+  cancelAnimation,
   Easing,
 } from 'react-native-reanimated';
+import { Text } from './ui/text';
 import { cn } from '../lib/utils';
 
 export type AliaMarkState = 'idle' | 'thinking' | 'working' | 'writing';
@@ -15,47 +17,69 @@ export type AliaMarkState = 'idle' | 'thinking' | 'working' | 'writing';
 export interface AliaMarkProps {
   /** Width & height in px. Default 24. */
   size?: number;
-  /** Animation state — spins while thinking/working, pulses while writing, still when idle. Default 'idle'. */
+  /** Animation state — spins while thinking/working, opacity-pulses while writing, still when idle. Default 'idle'. */
   state?: AliaMarkState;
-  /** Color class on the outer View; the mark inherits via currentColor. Default 'text-foreground'. */
+  /** NativeWind text color class for the glyph. Default 'text-foreground'. */
   className?: string;
 }
 
 /**
- * Alia brand mark — a six-arm asterisk (✱) rendered as an SVG.
+ * Alia brand mark — the spinning asterisk (✱), mirrored from Codea's conversation glyph.
  * Effect-free reanimated: spin while thinking/using tools, opacity-pulse while
  * streaming text, still when idle.
  */
 export function AliaMark({ size = 24, state = 'idle', className }: AliaMarkProps) {
-  const rotation = useDerivedValue(() =>
-    state === 'thinking' || state === 'working'
-      ? withRepeat(withTiming(360, { duration: 2000, easing: Easing.linear }), -1)
-      : withTiming(0, { duration: 200 }),
+  // Imperative animations via reanimated's reactive primitive (NOT a React effect):
+  // on this reanimated-web setup, animations returned from mappers/styles never
+  // tick, but `sharedValue.value = withRepeat(...)` does.
+  const rotation = useSharedValue(0);
+  useAnimatedReaction(
+    () => state === 'thinking' || state === 'working',
+    (spinning, previous) => {
+      if (spinning === previous) return;
+      if (spinning) {
+        rotation.value = 0;
+        rotation.value = withRepeat(withTiming(360, { duration: 1000, easing: Easing.linear }), -1);
+      } else {
+        cancelAnimation(rotation);
+        rotation.value = withTiming(0, { duration: 200 });
+      }
+    },
+    [state],
+  );
+
+  const opacity = useSharedValue(1);
+  useAnimatedReaction(
+    () => state === 'writing',
+    (pulsing, previous) => {
+      if (pulsing === previous) return;
+      if (pulsing) {
+        opacity.value = withRepeat(
+          withSequence(
+            withTiming(0.5, { duration: 1000, easing: Easing.bezier(0.4, 0, 0.6, 1) }),
+            withTiming(1, { duration: 1000, easing: Easing.bezier(0.4, 0, 0.6, 1) }),
+          ),
+          -1,
+        );
+      } else {
+        cancelAnimation(opacity);
+        opacity.value = withTiming(1, { duration: 200 });
+      }
+    },
+    [state],
   );
 
   const animatedStyle = useAnimatedStyle(() => ({
-    opacity:
-      state === 'writing'
-        ? withRepeat(
-            withSequence(
-              withTiming(0.4, { duration: 700, easing: Easing.inOut(Easing.ease) }),
-              withTiming(1, { duration: 700, easing: Easing.inOut(Easing.ease) }),
-            ),
-            -1,
-            true,
-          )
-        : withTiming(1, { duration: 200 }),
+    opacity: opacity.value,
     transform: [{ rotate: `${rotation.value}deg` }],
   }));
 
   return (
-    <View className={cn(className ?? 'text-foreground')} style={{ width: size, height: size }}>
+    <View style={{ width: size, height: size, alignItems: 'center', justifyContent: 'center' }}>
       <Animated.View style={animatedStyle}>
-        <Svg width={size} height={size} viewBox="0 0 100 100">
-          <Line x1={50} y1={12} x2={50} y2={88} stroke="currentColor" strokeWidth={14} strokeLinecap="round" />
-          <Line x1={17.1} y1={31} x2={82.9} y2={69} stroke="currentColor" strokeWidth={14} strokeLinecap="round" />
-          <Line x1={82.9} y1={31} x2={17.1} y2={69} stroke="currentColor" strokeWidth={14} strokeLinecap="round" />
-        </Svg>
+        <Text className={cn(className ?? 'text-foreground')} style={{ fontSize: size, lineHeight: size }}>
+          ✱
+        </Text>
       </Animated.View>
     </View>
   );
