@@ -10,7 +10,7 @@ export function initCommands(client: APIClient) {
 
 export async function registerSlashCommands(client: Client): Promise<void> {
   const commands = [
-    new SlashCommandBuilder().setName('start').setDescription('Start using Alia AI / Link your account'),
+    new SlashCommandBuilder().setName('start').setDescription('Start using OxyAI / Link your account'),
     new SlashCommandBuilder().setName('status').setDescription('Check your account status'),
     new SlashCommandBuilder().setName('new').setDescription('Start a new conversation'),
     new SlashCommandBuilder()
@@ -20,7 +20,7 @@ export async function registerSlashCommands(client: Client): Promise<void> {
         opt.setName('model').setDescription('Model name').setRequired(false),
       ),
     new SlashCommandBuilder().setName('help').setDescription('Show help'),
-    new SlashCommandBuilder().setName('logout').setDescription('Disconnect your Alia account'),
+    new SlashCommandBuilder().setName('logout').setDescription('Disconnect your OxyAI account'),
   ];
 
   const rest = new REST({ version: '10' }).setToken(process.env.DISCORD_BOT_TOKEN!);
@@ -48,12 +48,12 @@ export async function sendAuthRequest(message: Message): Promise<void> {
     await message.reply({
       embeds: [
         {
-          title: 'Link Your Alia Account',
-          description: 'To use Alia AI on Discord, link your Alia account.',
+          title: 'Link Your OxyAI Account',
+          description: 'To use OxyAI on Discord, link your OxyAI account.',
           color: 0x5865f2,
           fields: [
             { name: 'Step 1', value: 'Click the link below to sign in', inline: false },
-            { name: 'Step 2', value: 'Sign in with your Alia account', inline: false },
+            { name: 'Step 2', value: 'Sign in with your OxyAI account', inline: false },
             { name: 'Step 3', value: 'Come back here and start chatting!', inline: false },
           ],
           footer: { text: 'Link expires in 15 minutes' },
@@ -62,7 +62,7 @@ export async function sendAuthRequest(message: Message): Promise<void> {
       components: [
         {
           type: 1,
-          components: [{ type: 2, style: 5, label: 'Sign In to Alia', url: authUrl }],
+          components: [{ type: 2, style: 5, label: 'Sign In to OxyAI', url: authUrl }],
         },
       ],
     });
@@ -164,11 +164,11 @@ async function handleHelp(message: Message): Promise<void> {
   await message.reply({
     embeds: [
       {
-        title: 'Alia AI - Discord Bot',
+        title: 'OxyAI - Discord Bot',
         description: "DM me or @mention me in a channel to chat!",
         color: 0x5865f2,
         fields: [
-          { name: '/start', value: 'Link your Alia account', inline: true },
+          { name: '/start', value: 'Link your OxyAI account', inline: true },
           { name: '/status', value: 'Check status', inline: true },
           { name: '/new', value: 'Start new conversation', inline: true },
           { name: '/model', value: 'Change AI model', inline: true },

@@ -642,7 +642,7 @@ export function Chat() {
           </InputGroupAddon>
         </InputGroup>
         <div className="mt-2 text-center text-[10px] text-muted-foreground">
-          Powered by <a href="https://alia.onl" target="_blank" rel="noopener noreferrer" className="hover:underline">Alia</a>, an <a href="https://oxy.so" target="_blank" rel="noopener noreferrer" className="hover:underline">Oxy</a> AI.
+          Powered by <a href="https://ai.oxy.so" target="_blank" rel="noopener noreferrer" className="hover:underline">OxyAI</a>, an <a href="https://oxy.so" target="_blank" rel="noopener noreferrer" className="hover:underline">Oxy</a> AI.
         </div>
       </div>
     </div>

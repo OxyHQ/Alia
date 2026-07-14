@@ -12,7 +12,7 @@ import { useOxy } from '@oxyhq/services';
 import { errorMessage } from '../lib/utils';
 import { create } from 'zustand';
 
-const API_URL = process.env.EXPO_PUBLIC_ALIA_API_URL ?? 'https://api.alia.onl';
+const API_URL = process.env.EXPO_PUBLIC_ALIA_API_URL ?? 'https://api.ai.oxy.so';
 
 // ============== OPTIONS ==============
 

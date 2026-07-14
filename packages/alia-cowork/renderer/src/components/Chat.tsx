@@ -438,7 +438,7 @@ export function Chat() {
           </InputGroupAddon>
         </InputGroup>
         <div className="mt-2 text-center text-[10px] text-muted-foreground">
-          Powered by <a href="https://alia.onl" target="_blank" rel="noopener noreferrer" className="hover:underline">Alia</a>
+          Powered by <a href="https://ai.oxy.so" target="_blank" rel="noopener noreferrer" className="hover:underline">OxyAI</a>
         </div>
       </div>
     </div>
@@ -554,7 +554,7 @@ function MessageBubble({ message, isStreaming }: { message: Message; isStreaming
   return (
     <div className="flex gap-3">
       <Avatar size="sm" className={cn(isStreaming && !message.content && "animate-pulse")}>
-        <AvatarImage src="icon.png" alt="Alia" />
+        <AvatarImage src="icon.png" alt="OxyAI" />
         <AvatarFallback>AI</AvatarFallback>
       </Avatar>
       <div className="flex-1 min-w-0 text-sm overflow-hidden">
@@ -585,7 +585,7 @@ function WelcomeScreen({ userName, greeting, onSuggestionClick }: { userName: st
     <div className="flex flex-col items-center justify-center gap-6 p-8 py-16 text-center">
       <div className="flex flex-col items-center gap-4">
         <Avatar size="lg" className="size-16">
-          <AvatarImage src="icon.png" alt="Alia" />
+          <AvatarImage src="icon.png" alt="OxyAI" />
           <AvatarFallback>AI</AvatarFallback>
         </Avatar>
         <div>

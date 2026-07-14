@@ -25,10 +25,10 @@ export default function Root({ children }: PropsWithChildren) {
         <meta httpEquiv="Permissions-Policy" content="camera=(), microphone=(), geolocation=()" />
 
         {/* Primary Meta Tags */}
-        <meta name="title" content="Alia" />
+        <meta name="title" content="OxyAI" />
         <meta
           name="description"
-          content="Alia helps you get answers, explore ideas, and boost productivity. Chat with AI for work, learning, and creative inspiration."
+          content="OxyAI helps you get answers, explore ideas, and boost productivity. Chat with AI for work, learning, and creative inspiration."
         />
         <meta
           name="keywords"
@@ -37,32 +37,33 @@ export default function Root({ children }: PropsWithChildren) {
 
         {/* Open Graph / Facebook Meta Tags for social sharing */}
         <meta property="og:type" content="website" />
-        <meta property="og:url" content="https://alia.onl/" />
-        <meta property="og:title" content="Alia" />
+        <meta property="og:url" content="https://ai.oxy.so/" />
+        <meta property="og:title" content="OxyAI" />
         <meta
           property="og:description"
-          content="Alia helps you get answers, explore ideas, and boost productivity. Chat with AI for work, learning, and creative inspiration."
+          content="OxyAI helps you get answers, explore ideas, and boost productivity. Chat with AI for work, learning, and creative inspiration."
         />
         <meta property="og:image" content="/og-image.png" />
 
         {/* Twitter Card Meta Tags */}
         <meta property="twitter:card" content="summary_large_image" />
-        <meta property="twitter:url" content="https://alia.onl/" />
-        <meta property="twitter:title" content="Alia" />
+        <meta property="twitter:url" content="https://ai.oxy.so/" />
+        <meta property="twitter:title" content="OxyAI" />
         <meta
           property="twitter:description"
-          content="Alia helps you get answers, explore ideas, and boost productivity. Chat with AI for work, learning, and creative inspiration."
+          content="OxyAI helps you get answers, explore ideas, and boost productivity. Chat with AI for work, learning, and creative inspiration."
         />
         <meta property="twitter:image" content="/og-image.png" />
 
         {/* Theme color for mobile browsers */}
-        <meta name="theme-color" content="#ca52e9" />
-        <meta name="msapplication-TileColor" content="#ca52e9" />
+        <meta name="theme-color" content="#d269e6" />
+        <meta name="msapplication-TileColor" content="#d269e6" />
 
         {/* PWA Manifest */}
         <link rel="manifest" href="/manifest.json" />
 
         {/* Favicons */}
+        <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
         <link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png" />
         <link rel="icon" type="image/png" sizes="512x512" href="/icon-512.png" />
         <link rel="shortcut icon" href="/icon-192.png" />
@@ -74,7 +75,7 @@ export default function Root({ children }: PropsWithChildren) {
         <link rel="apple-touch-icon" sizes="120x120" href="/icon-192.png" />
 
         {/* Apple Mobile Web App */}
-        <meta name="apple-mobile-web-app-title" content="Alia" />
+        <meta name="apple-mobile-web-app-title" content="OxyAI" />
 
         {/* Disable body scrolling for native-like feel on web */}
         <ScrollViewStyleReset />
@@ -90,10 +91,10 @@ export default function Root({ children }: PropsWithChildren) {
             __html: JSON.stringify({
               '@context': 'https://schema.org',
               '@type': 'WebApplication',
-              name: 'Alia',
-              url: 'https://alia.onl',
+              name: 'OxyAI',
+              url: 'https://ai.oxy.so',
               description:
-                'Alia helps you get answers, explore ideas, and boost productivity. Chat with AI for work, learning, and creative inspiration.',
+                'OxyAI helps you get answers, explore ideas, and boost productivity. Chat with AI for work, learning, and creative inspiration.',
               applicationCategory: 'BusinessApplication',
               operatingSystem: 'Web, iOS, Android',
               offers: {

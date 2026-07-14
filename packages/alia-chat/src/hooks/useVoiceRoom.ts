@@ -21,7 +21,7 @@ import { useOxy } from '@oxyhq/services';
 import { errorMessage } from '../lib/utils';
 import type { RoomState, AgentState, VoiceMessage, VoiceToolInvocation } from '../types';
 
-const API_URL = process.env.EXPO_PUBLIC_ALIA_API_URL ?? 'https://api.alia.onl';
+const API_URL = process.env.EXPO_PUBLIC_ALIA_API_URL ?? 'https://api.ai.oxy.so';
 
 /** On web, audio tracks must be attached to a DOM element to play.
  *  On native (React Native), the WebRTC layer plays them automatically. */

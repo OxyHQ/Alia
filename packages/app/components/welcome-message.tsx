@@ -15,9 +15,9 @@ export const WelcomeMessage = () => {
     : t('welcome.greeting');
 
   return (
-    <View className="flex-row items-center justify-center gap-3 px-4">
+    <View className="flex-col md:flex-row items-center justify-center gap-3">
       <AliaMark size={38} />
-      <Text className="text-4xl tracking-tight text-foreground">
+      <Text className="text-4xl tracking-tight text-foreground text-center md:text-left">
         {greeting}
       </Text>
     </View>

@@ -27,7 +27,7 @@ export const Route = createFileRoute('/_layout/examples')({
 });
 
 const examples = {
-  javascript: `const response = await fetch('https://api.alia.onl/v1/chat/completions', {
+  javascript: `const response = await fetch('https://api.ai.oxy.so/v1/chat/completions', {
   method: 'POST',
   headers: {
     'Authorization': 'Bearer alia_sk_YOUR_API_KEY',
@@ -48,7 +48,7 @@ console.log(data.choices[0].message.content);`,
 
 client = openai.OpenAI(
     api_key="alia_sk_YOUR_API_KEY",
-    base_url="https://api.alia.onl/v1"
+    base_url="https://api.ai.oxy.so/v1"
 )
 
 response = client.chat.completions.create(
@@ -64,7 +64,7 @@ print(response.choices[0].message.content)`,
 
 const openai = new OpenAI({
   apiKey: 'alia_sk_YOUR_API_KEY',
-  baseURL: 'https://api.alia.onl/v1',
+  baseURL: 'https://api.ai.oxy.so/v1',
 });
 
 const completion = await openai.chat.completions.create({
@@ -76,7 +76,7 @@ const completion = await openai.chat.completions.create({
 
 console.log(completion.choices[0].message.content);`,
 
-  curl: `curl https://api.alia.onl/v1/chat/completions \\
+  curl: `curl https://api.ai.oxy.so/v1/chat/completions \\
   -H "Authorization: Bearer alia_sk_YOUR_API_KEY" \\
   -H "Content-Type: application/json" \\
   -d '{
@@ -86,7 +86,7 @@ console.log(completion.choices[0].message.content);`,
     ]
   }'`,
 
-  streaming: `const response = await fetch('https://api.alia.onl/v1/chat/completions', {
+  streaming: `const response = await fetch('https://api.ai.oxy.so/v1/chat/completions', {
   method: 'POST',
   headers: {
     'Authorization': 'Bearer alia_sk_YOUR_API_KEY',
@@ -121,7 +121,7 @@ while (true) {
 
 const openai = new OpenAI({
   apiKey: 'alia_sk_YOUR_API_KEY',
-  baseURL: 'https://api.alia.onl/v1',
+  baseURL: 'https://api.ai.oxy.so/v1',
 });
 
 const tools = [
@@ -215,7 +215,7 @@ function ExamplesPage() {
         <div className="px-6 py-6 border-b border-border">
           <h1 className="text-2xl font-semibold text-foreground">Code Examples</h1>
           <p className="text-sm text-muted-foreground mt-1">
-            Example code for integrating with the Alia API
+            Example code for integrating with the OxyAI API
           </p>
         </div>
 

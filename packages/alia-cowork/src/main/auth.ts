@@ -12,8 +12,8 @@ interface UserInfo {
 }
 
 // Default URLs (can be overridden via .env)
-const DEFAULT_API_BASE_URL = 'https://api.alia.onl'
-const DEFAULT_AUTH_URL = 'https://alia.onl/authorize/cowork'
+const DEFAULT_API_BASE_URL = 'https://api.ai.oxy.so'
+const DEFAULT_AUTH_URL = 'https://ai.oxy.so/authorize/cowork'
 
 const store = new Store({
   defaults: {

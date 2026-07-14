@@ -1,6 +1,6 @@
-# Alia Console
+# OxyAI Console
 
-An admin console for managing the Alia platform, built with TanStack Start and a modern component library for a fast, type-safe experience.
+An admin console for managing the OxyAI platform, built with TanStack Start and a modern component library for a fast, type-safe experience.
 
 ## Development
 

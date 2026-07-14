@@ -26,10 +26,10 @@ export function SignIn() {
       <div className="flex items-center justify-between h-10 px-2 border-b bg-background/80 backdrop-blur shrink-0">
         <div className="flex items-center gap-2 px-2">
           <Avatar size="sm" className="size-5">
-            <AvatarImage src="icon.png" alt="Alia" />
+            <AvatarImage src="icon.png" alt="OxyAI" />
             <AvatarFallback>AI</AvatarFallback>
           </Avatar>
-          <span className="text-sm font-semibold">Alia Cowork</span>
+          <span className="text-sm font-semibold">OxyAI Cowork</span>
         </div>
 
         {/* Draggable spacer */}
@@ -55,10 +55,10 @@ export function SignIn() {
 
           <div className="space-y-2">
             <h1 className="text-2xl font-semibold tracking-tight">
-              Welcome to Alia Cowork
+              Welcome to OxyAI Cowork
             </h1>
             <p className="text-sm text-muted-foreground">
-              Connect your Alia account to start using AI-powered automation on your computer
+              Connect your OxyAI account to start using AI-powered automation on your computer
             </p>
           </div>
 
@@ -68,7 +68,7 @@ export function SignIn() {
             onClick={handleSignIn}
             disabled={isSigningIn}
           >
-            {isSigningIn ? "Opening browser..." : "Connect to Alia"}
+            {isSigningIn ? "Opening browser..." : "Connect to OxyAI"}
           </Button>
 
           <p className="text-xs text-muted-foreground mt-2">

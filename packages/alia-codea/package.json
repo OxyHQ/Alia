@@ -1,7 +1,7 @@
 {
   "name": "alia-codea",
-  "displayName": "Codea by Alia",
-  "description": "AI coding assistant powered by Alia",
+  "displayName": "Codea by OxyAI",
+  "description": "AI coding assistant powered by OxyAI",
   "version": "1.0.7",
   "publisher": "oxy",
   "license": "MIT",
@@ -36,7 +36,7 @@
     "authentication": [
       {
         "id": "alia",
-        "label": "Alia"
+        "label": "OxyAI"
       }
     ],
     "viewsContainers": {
@@ -143,7 +143,7 @@
       }
     ],
     "configuration": {
-      "title": "Codea by Alia",
+      "title": "Codea by OxyAI",
       "properties": {
         "codea.apiKey": {
           "type": "string",
@@ -153,8 +153,8 @@
         },
         "codea.apiBaseUrl": {
           "type": "string",
-          "default": "https://api.alia.onl",
-          "description": "Alia API base URL",
+          "default": "https://api.ai.oxy.so",
+          "description": "OxyAI API base URL",
           "order": 2
         },
         "codea.model": {

@@ -84,7 +84,7 @@ function AuthenticationPage() {
         </p>
         <div className="mt-2">
           <CodeBlock
-            code={`curl https://api.alia.onl/v1/chat/completions \\
+            code={`curl https://api.ai.oxy.so/v1/chat/completions \\
   -H "Authorization: Bearer alia_sk_your_api_key_here" \\
   -H "Content-Type: application/json" \\
   -d '{"model": "alia-v1", "messages": [{"role": "user", "content": "Hello"}]}'`}

@@ -25,6 +25,7 @@ async function ownsAgentSession(userId: string, sessionId: string): Promise<bool
 
 const ALLOWED_ORIGINS = [
   process.env.WEB_URL || 'http://localhost:3000',
+  'https://ai.oxy.so',
   'https://alia.onl',
   'https://console.alia.onl',
   'https://gateway.alia.onl',

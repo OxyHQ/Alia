@@ -76,7 +76,7 @@ export class DiscordBotAdapter implements BotAdapter {
           await interaction.reply({ content: 'Setting up...', ephemeral: true });
           try {
             const dm = await interaction.user.createDM();
-            await dm.send('Let me help you link your Alia account...');
+            await dm.send('Let me help you link your OxyAI account...');
             await interaction.editReply('Check your DMs!');
           } catch {
             await interaction.editReply('Please enable DMs from server members.');
@@ -127,7 +127,7 @@ export class DiscordBotAdapter implements BotAdapter {
         case 'help':
           await interaction.reply({
             embeds: [{
-              title: 'Alia AI - Discord Bot',
+              title: 'OxyAI - Discord Bot',
               description: 'DM me or @mention me to chat!',
               color: 0x5865f2,
               fields: [
