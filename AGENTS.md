@@ -71,6 +71,14 @@ Key files:
 - `packages/api/src/routes/oxy-service-events.ts`
 - `packages/api/src/routes/v1/chat-completions.ts` (~line 615)
 
+## Gateway & provider keys
+
+`alia-gateway` is NOT deployed in production. The API runs the `gateway-client` LOCAL fallback (in-process `internal/providers` + the same MongoDB). HTTP gateway mode requires BOTH `SERVICE_SECRET` and `GATEWAY_API_URL` env vars (explicit opt-in) — see `packages/api/src/lib/gateway-client.ts`.
+
+`packages/alia-gateway/src/lib/provider-api.ts` is a separate duplicate of the API's provider-call logic — changes to provider endpoints (e.g. TTS) must be mirrored there if the gateway is ever enabled.
+
+TTS fails over across providers via `packages/api/src/lib/synthesize-speech.ts` + `packages/api/src/internal/providers/lib/tts-providers.ts` (voice translation table).
+
 ## UI conventions (packages/app)
 
 - Bloom theming via NativeWind ONLY: surfaces/text/borders use semantic classes (`bg-background`, `text-muted-foreground`, `border-border`, etc.) mapped in `global.css` to Bloom tokens. When a JS color VALUE is unavoidable (LinearGradient stops, navigation options, SVG props) use `useColorScheme().colors` (`lib/useColorScheme`) and `withAlpha` from `@oxyhq/bloom/theme` — never hex-concat alpha (`color + "08"`), never the `transparent` keyword as a fade stop toward a surface (fade to `withAlpha(surface, 0)`).
