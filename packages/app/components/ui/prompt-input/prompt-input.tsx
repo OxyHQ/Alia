@@ -173,13 +173,20 @@ export function PromptInput({
       <PromptInputAttachments />
       <PromptInputTextarea
         placeholder={placeholder}
-        className="min-h-[44px] text-base py-3"
+        className="min-h-[60px] text-base pt-4 pb-2"
       />
-      <PromptInputActions className="flex-row items-center justify-between gap-2 mt-1.5 mb-3 px-3">
-        <View className="flex-row items-center gap-1.5">
-          {actionsLeft ?? <PromptInputAddMenu />}
+      <PromptInputActions className="flex-row items-center p-2 gap-1.5">
+        <View className="flex-1 flex-row items-center gap-1.5">
+          {leadingAddMenu ? (
+            <>
+              <PromptInputAddMenu iconSize={20} className="h-10 w-10 rounded-full" />
+              {actionsLeft}
+            </>
+          ) : (
+            actionsLeft ?? <PromptInputAddMenu />
+          )}
         </View>
-        <View className="flex-row items-center gap-1.5">
+        <View className="flex-row items-center gap-1">
           <PromptInputMicButton />
           <PromptInputSubmitButton
             isLoading={isLoading}
@@ -202,7 +209,7 @@ export function PromptInput({
     >
       <View
         className={cn(
-          "rounded-[24px] border border-border bg-background relative overflow-hidden",
+          "rounded-[30px] border border-border bg-card shadow-sm relative overflow-hidden",
           disabled && "opacity-60",
           className
         )}
@@ -233,28 +240,22 @@ export function PromptInput({
         return (
           <Wrapper {...wrapperProps}>
             {leadingAddMenu ? (
-              <View className="flex-row items-end gap-2">
-                <PromptInputAddMenu
-                  iconSize={20}
-                  className="h-10 w-10 rounded-full border"
-                />
-                <View className="flex-1 relative">
-                  {autocomplete && autocompletePosition === "top" && (
-                    // Overlay above the input — absolute so it never reserves layout
-                    // space (keeps the centered welcome + input position fixed).
-                    <View className="absolute left-0 right-0 bottom-full pb-2 z-50">
-                      <PromptInputAutocomplete
-                        position="top"
-                        showDefaultSuggestions={showDefaultSuggestions}
-                        className="rounded-2xl overflow-hidden p-1"
-                      />
-                    </View>
-                  )}
-                  {inputBox}
-                  {autocomplete && autocompletePosition === "bottom" && (
-                    <PromptInputAutocomplete position="bottom" showDefaultSuggestions={showDefaultSuggestions} />
-                  )}
-                </View>
+              <View className="relative">
+                {autocomplete && autocompletePosition === "top" && (
+                  // Overlay above the input — absolute so it never reserves layout
+                  // space (keeps the centered welcome + input position fixed).
+                  <View className="absolute left-0 right-0 bottom-full pb-2 z-50">
+                    <PromptInputAutocomplete
+                      position="top"
+                      showDefaultSuggestions={showDefaultSuggestions}
+                      className="rounded-2xl overflow-hidden p-1"
+                    />
+                  </View>
+                )}
+                {inputBox}
+                {autocomplete && autocompletePosition === "bottom" && (
+                  <PromptInputAutocomplete position="bottom" showDefaultSuggestions={showDefaultSuggestions} />
+                )}
               </View>
             ) : (
               inputBox

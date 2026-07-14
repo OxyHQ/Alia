@@ -12,6 +12,7 @@ import Entypo from "@expo/vector-icons/Entypo";
 import * as DropdownMenu from "@/components/ui/dropdown-menu";
 import { Text } from "@/components/ui/text";
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 import { PromptInput } from "@/components/ui/prompt-input/prompt-input";
 import type { Attachment } from "@/components/ui/prompt-input/context";
 import { ScrollButton } from "@/components/ui/scroll-button";
@@ -88,7 +89,7 @@ const ModeChip = ({ icon: Icon, label, color, onDismiss }: {
   color: string;
   onDismiss: () => void;
 }) => (
-  <View className="h-8 rounded-full px-3 flex-row items-center gap-1.5" style={{ backgroundColor: `${color}20` }}>
+  <View className="h-10 rounded-full px-3 flex-row items-center gap-1.5" style={{ backgroundColor: `${color}20` }}>
     <Icon size={14} color={color} />
     <Text className="text-xs font-medium" style={{ color }}>{label}</Text>
     <Pressable onPress={onDismiss} className="active:opacity-70">
@@ -467,20 +468,24 @@ export const ChatPageContent = ({
                     emptyAction={
                       <Button
                         size="icon"
-                        className="h-8 w-8 rounded-full"
+                        className="h-10 w-10 rounded-full items-center justify-center"
                         onPress={handleVoiceActivate}
                       >
-                        <Entypo name="sound" size={16} color="white" />
+                        <Entypo name="sound" size={18} color="white" />
                       </Button>
                     }
                     actionsLeft={
                       <>
                         <Button
-                          variant={activeModes.has('search') ? "default" : "outline"}
-                          className="h-8 rounded-full px-3 flex-row items-center gap-2 text-muted-foreground hover:text-foreground font-normal text-xs"
+                          variant={activeModes.has('search') ? "default" : "ghost"}
+                          size="icon"
+                          className={cn(
+                            "h-10 w-10 rounded-full items-center justify-center",
+                            !activeModes.has('search') && "web:hover:bg-muted active:bg-muted"
+                          )}
                           onPress={() => toggleMode('search')}
                         >
-                          <Globe size={16} className={activeModes.has('search') ? "text-primary-foreground" : "text-muted-foreground"} />
+                          <Globe size={18} className={activeModes.has('search') ? "text-primary-foreground" : "text-muted-foreground"} />
                         </Button>
 
                         {thinkingMode && (
@@ -505,7 +510,7 @@ export const ChatPageContent = ({
                         )}
 
                         {activeRole && (
-                          <View className="h-8 rounded-full px-3 bg-primary/10 flex-row items-center gap-1.5">
+                          <View className="h-10 rounded-full px-3 bg-primary/10 flex-row items-center gap-1.5">
                             <Sparkles size={12} className="text-primary" />
                             <Text className="text-xs font-medium text-primary" numberOfLines={1}>
                               {activeRole.name}
@@ -519,11 +524,11 @@ export const ChatPageContent = ({
                         <DropdownMenu.Root>
                           <DropdownMenu.Trigger>
                             <Button
-                              variant="outline"
+                              variant="ghost"
                               size="icon"
-                              className="h-8 w-8 rounded-full text-muted-foreground hover:text-foreground"
+                              className="h-10 w-10 rounded-full items-center justify-center web:hover:bg-muted active:bg-muted"
                             >
-                              <MoreHorizontal size={16} className="text-muted-foreground" />
+                              <MoreHorizontal size={18} className="text-muted-foreground" />
                             </Button>
                           </DropdownMenu.Trigger>
                           <DropdownMenu.Content side="top" align="start" collisionPadding={8}>

@@ -38,16 +38,16 @@ export function PromptInputMicButton({ className }: PromptInputMicButtonProps) {
       onPress={handlePress}
       disabled={stt.isTranscribing}
       className={cn(
-        "h-8 w-8 rounded-full items-center justify-center active:opacity-70",
+        "h-10 w-10 rounded-full items-center justify-center web:hover:bg-muted active:bg-muted",
         className
       )}
     >
       {stt.isTranscribing ? (
         <ActivityIndicator size="small" color={colors.primary} />
       ) : stt.isRecording ? (
-        <MicOff size={16} color={themeColors.error} />
+        <MicOff size={18} color={themeColors.error} />
       ) : (
-        <Mic size={16} className="text-muted-foreground" />
+        <Mic size={18} className="text-muted-foreground" />
       )}
     </Pressable>
   );

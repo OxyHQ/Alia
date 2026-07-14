@@ -12,7 +12,7 @@ export type PromptInputAddMenuProps = {
   iconSize?: number;
 };
 
-export function PromptInputAddMenu({ className, iconSize = 16 }: PromptInputAddMenuProps) {
+export function PromptInputAddMenu({ className, iconSize = 18 }: PromptInputAddMenuProps) {
   const { addAttachment } = usePromptInput();
   const { pickImage } = useImagePicker();
   const { pickDocument } = useDocumentPicker();
@@ -61,9 +61,12 @@ export function PromptInputAddMenu({ className, iconSize = 16 }: PromptInputAddM
     <DropdownMenu.Root>
       <DropdownMenu.Trigger>
         <Button
-          variant="outline"
+          variant="ghost"
           size="icon"
-          className={cn("h-8 w-8 rounded-full border-0", className)}
+          className={cn(
+            "h-10 w-10 rounded-full items-center justify-center web:hover:bg-muted active:bg-muted",
+            className
+          )}
         >
           <Plus size={iconSize} className="text-muted-foreground" />
         </Button>
