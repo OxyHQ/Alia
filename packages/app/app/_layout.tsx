@@ -82,13 +82,16 @@ function AppContent() {
 
 function RootLayout() {
   return (
-    <AppErrorBoundary>
-      <BloomThemeProvider
-        defaultMode="system"
-        defaultColorPreset="purple"
-        persistKey={BLOOM_THEME_PERSIST_KEY}
-        storage={BLOOM_THEME_STORAGE}
-      >
+    // BloomThemeProvider must sit ABOVE the error boundary: the boundary's
+    // fallback screen reads useTheme(), so with the provider inside it any
+    // caught error would crash the boundary itself.
+    <BloomThemeProvider
+      defaultMode="system"
+      defaultColorPreset="purple"
+      persistKey={BLOOM_THEME_PERSIST_KEY}
+      storage={BLOOM_THEME_STORAGE}
+    >
+      <AppErrorBoundary>
         <OxyProvider
           baseURL={OXY_API_URL}
           clientId={OXY_CLIENT_ID}
@@ -96,8 +99,8 @@ function RootLayout() {
         >
           <AppContent />
         </OxyProvider>
-      </BloomThemeProvider>
-    </AppErrorBoundary>
+      </AppErrorBoundary>
+    </BloomThemeProvider>
   );
 }
 
