@@ -1,4 +1,7 @@
-import { View } from 'react-native';
+// The glyph uses react-native's own Text (NOT ./ui/text): the chat Text applies
+// a `web:select-text` default that wins the cascade over any caller override,
+// and a brand mark must never be text-selectable.
+import { View, Text } from 'react-native';
 import Animated, {
   useSharedValue,
   useAnimatedReaction,
@@ -9,7 +12,6 @@ import Animated, {
   cancelAnimation,
   Easing,
 } from 'react-native-reanimated';
-import { Text } from './ui/text';
 import { cn } from '../lib/utils';
 
 export type AliaMarkState = 'idle' | 'thinking' | 'working' | 'writing';
