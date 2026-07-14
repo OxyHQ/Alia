@@ -1,4 +1,6 @@
-import { View } from 'react-native';
+import { useState } from 'react';
+import { Pressable } from 'react-native';
+import * as Haptics from 'expo-haptics';
 import Svg, { Path } from 'react-native-svg';
 import Animated, {
   useSharedValue,
@@ -22,6 +24,12 @@ export interface AliaMarkProps {
   className?: string;
   /** Glyph fill. Defaults to the Alia brand purple — never a theme token. */
   color?: string;
+  /** Called after the press flourish. The mark spins on press wherever it's used. */
+  onPress?: () => void;
+  /** Accessible name when the mark acts as a button. */
+  accessibilityLabel?: string;
+  /** Play the one-shot spin when the mark mounts (e.g. the sidebar rail collapsing in). */
+  spinOnMount?: boolean;
 }
 
 /** Alia brand purple — the mark keeps its identity color across themes. */
@@ -42,7 +50,15 @@ const GLYPH_PATH =
  * nature). Effect-free reanimated: spin while thinking/using tools,
  * opacity-pulse while streaming text, still when idle.
  */
-export function AliaMark({ size = 24, state = 'idle', className, color }: AliaMarkProps) {
+export function AliaMark({
+  size = 24,
+  state = 'idle',
+  className,
+  color,
+  onPress,
+  accessibilityLabel,
+  spinOnMount = false,
+}: AliaMarkProps) {
   // Imperative animations via reanimated's reactive primitive (NOT a React effect):
   // on this reanimated-web setup, animations returned from mappers/styles never
   // tick, but `sharedValue.value = withRepeat(...)` does.
@@ -83,13 +99,38 @@ export function AliaMark({ size = 24, state = 'idle', className, color }: AliaMa
     [state],
   );
 
+  // One-shot press/mount flourish. Skipped while the state-driven spin runs so
+  // the two never fight over the shared rotation value.
+  const [spinCount, setSpinCount] = useState(spinOnMount ? 1 : 0);
+  useAnimatedReaction(
+    () => spinCount,
+    (current, previous) => {
+      if (current === previous || current === 0) return;
+      rotation.value = 0;
+      rotation.value = withTiming(360, { duration: 500, easing: Easing.bezier(0.34, 1.3, 0.64, 1) });
+    },
+    [spinCount],
+  );
+
   const animatedStyle = useAnimatedStyle(() => ({
     opacity: opacity.value,
     transform: [{ rotate: `${rotation.value}deg` }],
   }));
 
+  const handlePress = () => {
+    if (state !== 'thinking' && state !== 'working') {
+      setSpinCount((count) => count + 1);
+    }
+    // Best-effort flourish: rejects on platforms without haptics — not an error.
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+    onPress?.();
+  };
+
   return (
-    <View
+    <Pressable
+      onPress={handlePress}
+      accessibilityRole={onPress ? 'button' : 'image'}
+      accessibilityLabel={accessibilityLabel}
       className={className}
       style={{ width: size, height: size, alignItems: 'center', justifyContent: 'center' }}
     >
@@ -98,6 +139,6 @@ export function AliaMark({ size = 24, state = 'idle', className, color }: AliaMa
           <Path d={GLYPH_PATH} fill={color ?? BRAND_FILL} />
         </Svg>
       </Animated.View>
-    </View>
+    </Pressable>
   );
 }

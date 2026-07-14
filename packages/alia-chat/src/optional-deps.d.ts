@@ -65,6 +65,17 @@ declare module 'livekit-client' {
   }
 }
 
+declare module 'expo-haptics' {
+  export enum ImpactFeedbackStyle {
+    Light = 'light',
+    Medium = 'medium',
+    Heavy = 'heavy',
+    Soft = 'soft',
+    Rigid = 'rigid',
+  }
+  export function impactAsync(style?: ImpactFeedbackStyle): Promise<void>;
+}
+
 declare module 'expo-audio' {
   export interface AudioPlaybackStatus {
     didJustFinish?: boolean;
