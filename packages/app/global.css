@@ -13,7 +13,7 @@
 @source "../alia-chat/src/**/*.{ts,tsx}";
 
 @theme {
-  --font-sans: Inter, sans-serif;
+  --font-sans: var(--bloom-font-sans);
 
   --radius-lg: var(--radius);
   --radius-md: calc(var(--radius) - 2px);

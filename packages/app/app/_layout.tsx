@@ -1,5 +1,3 @@
-import FontAwesome from '@expo/vector-icons/FontAwesome';
-import { useFonts } from 'expo-font';
 import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { useEffect, useMemo } from 'react';
@@ -52,6 +50,12 @@ function AuthSetup({ children }: { children: React.ReactNode }) {
 function AppContent() {
   const { colors } = useColorScheme();
 
+  // Mounted only after BloomThemeProvider's FontLoader resolves the default
+  // Bloom fonts, so hiding the OS splash here leaves no unstyled-text flash.
+  useEffect(() => {
+    SplashScreen.hideAsync();
+  }, []);
+
   return (
     <AuthSetup>
       <KeyboardProvider>
@@ -72,23 +76,6 @@ function AppContent() {
 }
 
 function RootLayout() {
-  const [loaded, error] = useFonts({
-    SpaceMono: require('../assets/fonts/SpaceMono-Regular.ttf'),
-    Inter: require('../assets/fonts/Inter-VariableFont_opsz,wght.ttf'),
-    'Inter-Italic': require('../assets/fonts/Inter-Italic-VariableFont_opsz,wght.ttf'),
-    ...FontAwesome.font,
-  });
-
-  useEffect(() => {
-    if (error) throw error;
-  }, [error]);
-
-  useEffect(() => {
-    if (loaded) SplashScreen.hideAsync();
-  }, [loaded]);
-
-  if (!loaded) return null;
-
   return (
     <AppErrorBoundary>
       <BloomThemeProvider
@@ -96,7 +83,6 @@ function RootLayout() {
         defaultColorPreset="purple"
         persistKey={BLOOM_THEME_PERSIST_KEY}
         storage={BLOOM_THEME_STORAGE}
-        fonts={false}
       >
         <OxyProvider
           baseURL={OXY_API_URL}

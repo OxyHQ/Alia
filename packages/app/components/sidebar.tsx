@@ -7,8 +7,6 @@ import { BaseSidebar } from "@/components/base-sidebar";
 import {
   Users,
   Settings2,
-  LogIn,
-  UserPlus,
   Library,
   FolderOpen,
   Plus,
@@ -47,7 +45,7 @@ import { useTranslation } from "@/hooks/useTranslation";
 import { useStore } from "@/lib/globalStore";
 import { useRouter, usePathname } from "expo-router";
 import { SettingsSidebar } from "@/components/settings/settings-sidebar";
-import { useOxy, ProfileButton } from "@oxyhq/services";
+import { useOxy, useAuth, ProfileButton } from "@oxyhq/services";
 import { useProjectsStore } from "@/lib/stores/projects-store";
 import { useFoldersStore } from "@/lib/stores/folders-store";
 import { useFavoritesStore } from "@/lib/stores/favorites-store";
@@ -121,6 +119,7 @@ const ChatSidebar = React.memo(function ChatSidebar() {
     return all.sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime());
   }, [data]);
   const { isAuthenticated, showBottomSheet } = useOxy();
+  const { signIn } = useAuth();
   const setShortcutsDialogOpen = useUIStore((s) => s.setShortcutsDialogOpen);
   const projects = useProjectsStore((state) => state.projects);
   const currentProjectId = useProjectsStore((state) => state.currentProjectId);
@@ -210,17 +209,11 @@ const ChatSidebar = React.memo(function ChatSidebar() {
     showBottomSheet?.('ManageAccount');
   }, [showBottomSheet]);
 
+  // Adding another account (from the ProfileButton menu) and signing in while
+  // signed out both go through the same SDK sign-in flow, same as Mention.
   const handleAddAccount = React.useCallback(() => {
-    router.push("/login");
-  }, [router]);
-
-  const handleLogin = React.useCallback(() => {
-    router.push("/login");
-  }, [router]);
-
-  const handleRegister = React.useCallback(() => {
-    router.push("/register");
-  }, [router]);
+    signIn().catch(() => {});
+  }, [signIn]);
 
   const handleFavorites = React.useCallback(() => {
     router.push("/(app)/favorites");
@@ -235,7 +228,7 @@ const ChatSidebar = React.memo(function ChatSidebar() {
   }, [router]);
 
   const handleTasks = React.useCallback(() => {
-    router.push("/(app)/tasks" as any);
+    router.push("/(app)/tasks");
   }, [router]);
 
   const handleAutomations = React.useCallback(() => {
@@ -247,7 +240,7 @@ const ChatSidebar = React.memo(function ChatSidebar() {
   }, [router]);
 
   const handleShows = React.useCallback(() => {
-    router.push("/(app)/shows" as any);
+    router.push("/(app)/shows");
   }, [router]);
 
   const handleAgents = React.useCallback(() => {
@@ -255,7 +248,7 @@ const ChatSidebar = React.memo(function ChatSidebar() {
   }, [router]);
 
   const handleAgentTeams = React.useCallback(() => {
-    router.push("/(app)/agents/teams" as any);
+    router.push("/(app)/agents/teams");
   }, [router]);
 
   const handleToggleAgents = React.useCallback(() => {
@@ -647,7 +640,7 @@ const ChatSidebar = React.memo(function ChatSidebar() {
                           <ProjectIcon
                             size={16}
                             className="text-muted-foreground"
-                            style={{ color: project.color }}
+                            color={project.color}
                           />
                           <Text
                             className="flex-1 text-sm md:text-xs text-foreground font-medium"
@@ -865,16 +858,12 @@ const ChatSidebar = React.memo(function ChatSidebar() {
     </Pressable>
   ) : null;
 
-  // Footer with icon bar or auth buttons
+  // Footer: ProfileButton owns all three auth states (undetermined skeleton,
+  // signed-in row + account switcher, signed-out "Sign in" → SDK dialog), so it
+  // renders unconditionally — same pattern as Mention's sidebar. Only the
+  // account-scoped icon bar is gated on auth.
   const footer = (
-    <>
-        {isAuthenticated ? (
-          <View className="gap-2">
-            {/* Account trigger. ProfileButton owns all three auth states
-                (undetermined skeleton, signed-in row + account switcher,
-                signed-out "Sign in") and the device-account switcher menu
-                (switch / add account / sign out / sign out all). Manage → Alia's
-                ManageAccount sheet; Add account → the sign-in flow. */}
+    <View className="gap-2">
             <ProfileButton
               expanded
               onNavigateManage={handleManageAccount}
@@ -882,6 +871,7 @@ const ChatSidebar = React.memo(function ChatSidebar() {
             />
 
             {/* Icon Button Bar */}
+            {isAuthenticated && (
             <View className="flex-row items-center">
               {/* Upgrade to Pro */}
               <Pressable
@@ -967,6 +957,7 @@ const ChatSidebar = React.memo(function ChatSidebar() {
                 <BookOpen size={18} className="text-muted-foreground" />
               </Pressable>
             </View>
+            )}
 
             {/* Legal links */}
             <View className="flex-row items-center justify-center gap-1">
@@ -984,50 +975,7 @@ const ChatSidebar = React.memo(function ChatSidebar() {
                 {t('sidebar.termsOfService')}
               </Text>
             </View>
-          </View>
-        ) : (
-          <View className="gap-2 md:gap-1.5">
-            <Button
-              onPress={handleLogin}
-              className="h-11 md:h-9 rounded-full w-full"
-            >
-              <View className="flex-row items-center gap-2 md:gap-1.5">
-                <LogIn size={16} className="text-primary-foreground" />
-                <Text className="text-sm md:text-xs font-semibold text-primary-foreground">
-                  {t('login.signInButton')}
-                </Text>
-              </View>
-            </Button>
-            <Button
-              onPress={handleRegister}
-              variant="outline"
-              className="h-11 md:h-9 rounded-full w-full"
-            >
-              <View className="flex-row items-center gap-2 md:gap-1.5">
-                <UserPlus size={16} className="text-foreground" />
-                <Text className="text-sm md:text-xs font-medium">
-                  {t('login.footerLink')}
-                </Text>
-              </View>
-            </Button>
-            <View className="flex-row items-center justify-center gap-1 mt-1">
-              <Text
-                className="text-[10px] text-muted-foreground underline"
-                onPress={() => Linking.openURL('https://oxy.so/company/transparency/policies/privacy')}
-              >
-                {t('sidebar.privacyPolicy')}
-              </Text>
-              <Text className="text-[10px] text-muted-foreground">·</Text>
-              <Text
-                className="text-[10px] text-muted-foreground underline"
-                onPress={() => Linking.openURL('https://oxy.so/company/transparency/policies/terms-of-service')}
-              >
-                {t('sidebar.termsOfService')}
-              </Text>
-            </View>
-          </View>
-        )}
-    </>
+    </View>
   );
 
   return (
