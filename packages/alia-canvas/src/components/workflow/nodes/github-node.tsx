@@ -1,6 +1,6 @@
 import { memo } from "react";
 import { BaseNode } from "./base-node";
-import { Github } from "lucide-react";
+import { GitBranch } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import type { WorkflowNodeData } from "@/lib/workflow-types";
 
@@ -16,7 +16,7 @@ export const GitHubNode = memo(function GitHubNode({ id, data, selected }: GitHu
       id={id}
       data={data}
       selected={selected}
-      icon={<Github className="w-3.5 h-3.5" />}
+      icon={<GitBranch className="w-3.5 h-3.5" />}
       targetHandle={false}
     >
       <div className="space-y-1.5">

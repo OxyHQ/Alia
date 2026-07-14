@@ -207,7 +207,7 @@ const ChatSidebar = React.memo(function ChatSidebar() {
   }, [router]);
 
   const handleManageAccount = React.useCallback(() => {
-    showBottomSheet('ManageAccount');
+    showBottomSheet?.('ManageAccount');
   }, [showBottomSheet]);
 
   const handleAddAccount = React.useCallback(() => {
