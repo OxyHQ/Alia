@@ -4,7 +4,6 @@ import {
   ScrollView,
   Pressable,
   TextInput,
-  Alert,
 } from "react-native";
 import { useIsLargeScreen } from "@/hooks/useIsLargeScreen";
 import { Switch } from "@/components/ui/switch";
@@ -52,6 +51,7 @@ import { useAgentsStore, type Agent } from "@/lib/stores/agents-store";
 import { useTranslation } from "@/hooks/useTranslation";
 import { useColorScheme } from "@/lib/useColorScheme";
 import { toast } from "@/components/sonner";
+import { confirm } from "@oxyhq/bloom/alert-dialog";
 import { cn } from "@/lib/utils";
 import apiClient from "@/lib/api/client";
 import { API_ROUTES } from "@/lib/api/routes";
@@ -235,24 +235,23 @@ export default function EditAgentScreen() {
     }
   }, [id, isPublished, updateAgent, t]);
 
-  const handleDelete = useCallback(() => {
+  const handleDelete = useCallback(async () => {
     if (!id) return;
-    Alert.alert(t("agents.deleteAgent"), t("agents.deleteAgentConfirm"), [
-      { text: "Cancel", style: "cancel" },
-      {
-        text: t("agents.deleteAgent"),
-        style: "destructive",
-        onPress: async () => {
-          try {
-            await deleteAgent(id);
-            toast.success(t("agents.agentDeleted"));
-            router.back();
-          } catch {
-            toast.error("Failed to delete agent");
-          }
-        },
-      },
-    ]);
+    const ok = await confirm({
+      title: t("agents.deleteAgent"),
+      description: t("agents.deleteAgentConfirm"),
+      confirmLabel: t("agents.deleteAgent"),
+      cancelLabel: "Cancel",
+      destructive: true,
+    });
+    if (!ok) return;
+    try {
+      await deleteAgent(id);
+      toast.success(t("agents.agentDeleted"));
+      router.back();
+    } catch {
+      toast.error("Failed to delete agent");
+    }
   }, [id, deleteAgent, router, t]);
 
   const addTag = useCallback(() => {

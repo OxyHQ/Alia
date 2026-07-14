@@ -3,7 +3,6 @@ import {
   View,
   ScrollView,
   Pressable,
-  Alert,
   TextInput,
 } from "react-native";
 import { useIsLargeScreen } from "@/hooks/useIsLargeScreen";
@@ -44,6 +43,7 @@ import {
 } from "@/lib/hooks/use-agent-teams";
 import { AgentCard } from "@/components/agent-card";
 import { toast } from "@/components/sonner";
+import { confirm } from "@oxyhq/bloom/alert-dialog";
 import { cn } from "@/lib/utils";
 import apiClient from "@/lib/api/client";
 import { API_ROUTES } from "@/lib/api/routes";
@@ -139,47 +139,41 @@ export default function TeamDetailScreen() {
   );
 
   const handleRemoveAgent = useCallback(
-    (agentId: string) => {
-      Alert.alert(
-        t("agents.removeAgent"),
-        t("agents.removeAgentConfirm") || "Remove this agent from the team?",
-        [
-          { text: t("common.cancel"), style: "cancel" },
-          {
-            text: t("agents.removeAgent"),
-            style: "destructive",
-            onPress: async () => {
-              try {
-                await removeAgent.mutateAsync({ teamId: id!, agentId });
-                toast.success(t("agents.agentRemoved"));
-              } catch {
-                toast.error("Failed to remove agent");
-              }
-            },
-          },
-        ]
-      );
+    async (agentId: string) => {
+      const ok = await confirm({
+        title: t("agents.removeAgent"),
+        description: t("agents.removeAgentConfirm") || "Remove this agent from the team?",
+        confirmLabel: t("agents.removeAgent"),
+        cancelLabel: t("common.cancel"),
+        destructive: true,
+      });
+      if (!ok) return;
+      try {
+        await removeAgent.mutateAsync({ teamId: id!, agentId });
+        toast.success(t("agents.agentRemoved"));
+      } catch {
+        toast.error("Failed to remove agent");
+      }
     },
     [id, removeAgent, t]
   );
 
-  const handleDeleteTeam = useCallback(() => {
-    Alert.alert(t("agents.deleteTeam"), t("agents.deleteTeamConfirm"), [
-      { text: t("common.cancel"), style: "cancel" },
-      {
-        text: t("agents.deleteTeam"),
-        style: "destructive",
-        onPress: async () => {
-          try {
-            await deleteTeam.mutateAsync(id!);
-            toast.success(t("agents.teamDeleted"));
-            router.back();
-          } catch {
-            toast.error("Failed to delete team");
-          }
-        },
-      },
-    ]);
+  const handleDeleteTeam = useCallback(async () => {
+    const ok = await confirm({
+      title: t("agents.deleteTeam"),
+      description: t("agents.deleteTeamConfirm"),
+      confirmLabel: t("agents.deleteTeam"),
+      cancelLabel: t("common.cancel"),
+      destructive: true,
+    });
+    if (!ok) return;
+    try {
+      await deleteTeam.mutateAsync(id!);
+      toast.success(t("agents.teamDeleted"));
+      router.back();
+    } catch {
+      toast.error("Failed to delete team");
+    }
   }, [id, deleteTeam, router, t]);
 
   const addLinkedSkill = useCallback((skill: LinkedSkill) => {
