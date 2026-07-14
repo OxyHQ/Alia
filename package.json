@@ -97,6 +97,7 @@
     "@react-native-menu/menu": "2.0.0",
     "expo-modules-core": "57.0.3",
     "expo-modules-jsi": "57.0.1",
-    "react-native-safe-area-context": "5.7.0"
+    "react-native-safe-area-context": "5.7.0",
+    "lightningcss": "1.30.1"
   }
 }
