@@ -12,6 +12,7 @@ import { Maximize2, Minimize2 } from "lucide-react-native";
 import { cn } from "@/lib/utils";
 import { asViewStyle } from "@/lib/types/webStyles";
 import { overflowsSingleLine } from "@/lib/measure-text-fit";
+import { Portal } from "@oxyhq/bloom/portal";
 import { PromptInputContext, type Attachment } from "./context";
 import { PromptInputTextarea } from "./textarea";
 import { PromptInputActions } from "./actions";
@@ -250,7 +251,13 @@ export function PromptInput({
       setFsSettled(!rect); // no rect → skip the grow, land settled
       setShowFullscreen(true);
       if (rect) {
-        requestAnimationFrame(() => requestAnimationFrame(() => setFsSettled(true)));
+        requestAnimationFrame(() =>
+          requestAnimationFrame(() => {
+            setFsSettled(true);
+            // The portal re-parents the bar, remounting the input — restore focus.
+            document.getElementById(inputId)?.focus();
+          }),
+        );
       }
     } else {
       setBarRect(null);
@@ -370,13 +377,7 @@ export function PromptInput({
     children
   );
 
-  const inputBox = (
-    <Pressable
-      onPress={() => {
-        if (!disabled) textareaRef.current?.focus();
-      }}
-      disabled={disabled}
-    >
+  const barNode = (
       <View
         className={cn(
           "border border-border bg-card shadow-sm relative overflow-hidden web:transition-[border-radius] web:duration-200",
@@ -441,8 +442,20 @@ export function PromptInput({
           content
         )}
       </View>
-      {/* The fixed bar leaves the layout flow — hold its space so the page
-          behind doesn't jump during the fullscreen grow/shrink. */}
+  );
+
+  const inputBox = (
+    <Pressable
+      onPress={() => {
+        if (!disabled) textareaRef.current?.focus();
+      }}
+      disabled={disabled}
+    >
+      {/* Fullscreen renders through a root portal: any transformed ancestor
+          (the drawer animates with translate) turns position:fixed into
+          absolute-like positioning trapped UNDER the sidebar. The portal
+          escapes that containing block; the spacer holds the layout slot. */}
+      {barState === "fullscreen" ? <Portal>{barNode}</Portal> : barNode}
       {showFullscreen && barRect != null && (
         <View style={{ height: barRect.bottom - barRect.top }} />
       )}
