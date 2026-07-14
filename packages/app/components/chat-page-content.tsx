@@ -126,7 +126,7 @@ export const ChatPageContent = ({
   const attachments = useStore((state) => state.attachments);
   const addAttachment = useStore((state) => state.addAttachment);
   const removeAttachment = useStore((state) => state.removeAttachment);
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, signIn } = useAuth();
   const { data: entitlements } = useEntitlements();
   const { data: creditsInfo } = useCredits();
   const router = useRouter();
@@ -226,6 +226,12 @@ export const ChatPageContent = ({
 
   const handleSubmit = () => {
     if (!inputValue.trim() || isLoading || disabled) return;
+    // Signed-out: open the SDK sign-in dialog instead of firing a request that
+    // would 401. The draft stays in the input for after sign-in.
+    if (!isAuthenticated) {
+      signIn().catch(() => {});
+      return;
+    }
     if (editingMessageId) {
       onEditMessage(editingMessageId, inputValue);
       setEditingMessageId(null);
@@ -239,8 +245,12 @@ export const ChatPageContent = ({
 
   const handleSuggestionPress = useCallback((message: string) => {
     if (isLoading) return;
+    if (!isAuthenticated) {
+      signIn().catch(() => {});
+      return;
+    }
     onSuggestionPress(message);
-  }, [isLoading, onSuggestionPress]);
+  }, [isLoading, isAuthenticated, signIn, onSuggestionPress]);
 
   const handleThinkingMode = () => {
     if (thinkingMode) {
