@@ -101,7 +101,7 @@ setInterval(() => {
       hotCache.delete(key);
     }
   }
-}, HOT_CACHE_CHECK_INTERVAL);
+}, HOT_CACHE_CHECK_INTERVAL).unref?.();
 
 // ============== CACHE KEY GENERATION ==============
 

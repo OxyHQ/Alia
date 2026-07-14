@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { Show, SHOW_FORMATS, ACTIVE_SHOW_STATUSES } from '../../models/show.js';
+import { Show, SHOW_FORMATS, ACTIVE_SHOW_STATUSES, type ShowFormat } from '../../models/show.js';
 import { enqueueShowGeneration } from '../../lib/show/show-queue.js';
 import { SHOW_VOICES, FORMAT_DEFAULTS } from '../../lib/show/voice-roster.js';
 import { log } from '../../lib/logger.js';
@@ -55,7 +55,7 @@ router.post('/generate', async (req: Request, res: Response) => {
       });
     }
 
-    const showFormat = (SHOW_FORMATS as readonly string[]).includes(format || '') ? format! : 'podcast';
+    const showFormat: ShowFormat = SHOW_FORMATS.find((f) => f === format) ?? 'podcast';
 
     // Check concurrent show limit (max 3 active per user)
     const activeCount = await Show.countDocuments({

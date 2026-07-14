@@ -1,10 +1,11 @@
 import mongoose, { Schema, Model, Document } from 'mongoose';
+import type { TriggerType } from './trigger';
 
 export interface ITriggerExecution extends Document {
   triggerId: mongoose.Types.ObjectId;
   oxyUserId: mongoose.Types.ObjectId;
   status: 'running' | 'success' | 'failed';
-  triggerType: 'schedule' | 'webhook' | 'integration_event' | 'manual';
+  triggerType: TriggerType | 'manual';
 
   // Input context
   input?: {
@@ -53,7 +54,7 @@ const TriggerExecutionSchema = new Schema<ITriggerExecution>({
   triggerType: {
     type: String,
     required: true,
-    enum: ['schedule', 'webhook', 'integration_event', 'manual'],
+    enum: ['schedule', 'webhook', 'integration_event', 'agent_heartbeat', 'manual'],
   },
 
   input: {

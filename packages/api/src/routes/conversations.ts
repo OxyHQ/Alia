@@ -218,7 +218,7 @@ router.post('/', authenticateTokenOrApiKey, async (req: Request, res: Response) 
 });
 
 // Vote on a message (thumbs up/down)
-router.patch('/:id/messages/:messageId/vote', authenticateToken, async (req: Request, res: Response) => {
+router.patch('/:id/messages/:messageId/vote', authenticateToken, async (req: Request<{ id: string; messageId: string }>, res: Response) => {
   try {
     if (!req.user?.id) {
       return res.status(401).json({ error: 'Unauthorized' });

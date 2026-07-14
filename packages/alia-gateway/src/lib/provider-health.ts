@@ -453,6 +453,7 @@ export function startHealthCheckMonitor(): void {
       log.providers.error({ err: error }, 'Error in health check monitor');
     }
   }, 5 * 60 * 1000); // Every 5 minutes
+  healthCheckInterval.unref?.();
 }
 
 export function stopHealthCheckMonitor(): void {
