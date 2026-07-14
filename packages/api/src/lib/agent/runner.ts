@@ -383,7 +383,7 @@ export async function runAgentSession(sessionId: string): Promise<void> {
   let totalSteps = 0;
   let totalTokens = 0;
   const failedKeyIds = new Set<string>();
-  let lastStepHadToolCalls = false;
+  let lastStepHadToolCalls: boolean;
   let iteration = 0;
   let textOnlyCount = 0;
 

@@ -201,13 +201,13 @@ async function executeWorkflow(
         error: errorMessage,
         timestamp: new Date()
       });
-      throw new Error(`Node ${node.id} (${node.type}) failed: ${errorMessage}`);
+      throw new Error(`Node ${node.id} (${node.type}) failed: ${errorMessage}`, { cause: error });
     }
   }
 
   // Find output nodes
   const outputNodes = nodes.filter(n => n.type === 'output');
-  let finalOutput = '';
+  let finalOutput: string;
 
   if (outputNodes.length > 0) {
     const outputs = outputNodes.map(n => nodeOutputs.get(n.id)).filter(Boolean);
@@ -319,7 +319,7 @@ async function executeNode(node: WorkflowNode, input: string, userId: string): P
     case 'condition': {
       const operator = node.data.operator;
       const value = node.data.value || '';
-      let matches = false;
+      let matches: boolean;
       switch (operator) {
         case 'contains':
           matches = input.includes(value);

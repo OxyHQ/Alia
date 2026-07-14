@@ -36,14 +36,17 @@ function getWebhookSecret(): string {
 
 // Helper to get or create Stripe customer
 async function getOrCreateStripeCustomer(userId: string, userCredits: IUserCredits): Promise<string> {
-  let customerId = userCredits.stripeCustomerId;
+  const existingCustomerId = userCredits.stripeCustomerId;
 
-  if (customerId) {
+  if (existingCustomerId) {
     try {
-      await getStripe().customers.retrieve(customerId);
-      return customerId;
-    } catch {
-      customerId = null;
+      await getStripe().customers.retrieve(existingCustomerId);
+      return existingCustomerId;
+    } catch (err: unknown) {
+      log.credits.warn(
+        { err, customerId: existingCustomerId, userId },
+        'Existing Stripe customer not retrievable — creating a new one',
+      );
     }
   }
 

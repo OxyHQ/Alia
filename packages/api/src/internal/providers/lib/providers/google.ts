@@ -53,7 +53,7 @@ export const googleProvider: Provider = {
         if (parts.length) contents.push({ role: 'model', parts });
       }
       else if (msg.role === 'tool') {
-        let response: unknown = msg.content;
+        let response: unknown;
         try { response = JSON.parse(msg.content as string); } catch { response = { result: msg.content }; }
         contents.push({ role: 'user', parts: [{ functionResponse: { name: msg.name || 'unknown', response } }] });
       }
