@@ -82,7 +82,7 @@ setInterval(() => {
   for (const [key, value] of gmailOAuthStates) {
     if (value.expiresAt < now) gmailOAuthStates.delete(key);
   }
-}, 60_000);
+}, 60_000).unref?.();
 
 const GMAIL_SCOPES = [
   'https://www.googleapis.com/auth/gmail.readonly',
