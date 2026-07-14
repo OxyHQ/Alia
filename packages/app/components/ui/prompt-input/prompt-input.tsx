@@ -5,6 +5,7 @@ import {
   Pressable,
   Platform,
   type TextInput as RNTextInput,
+  type ViewStyle,
 } from "react-native";
 import { KeyboardAvoidingView } from "@/lib/keyboard";
 import { Maximize2, Minimize2 } from "lucide-react-native";
@@ -26,6 +27,47 @@ const COLLAPSED_LEFT_INSET = 48;
 // Web canvas path: horizontal padding of the collapsed editor (pl-11 + pr-[185px])
 // subtracted from the input's inner width to get the single-line text track.
 const COLLAPSED_H_PADDING = 44 + 185;
+
+// Fullscreen grow (web): animate the fixed bar's insets + radius. A comma'd
+// property list is unwieldy as an arbitrary NW class, so it rides on the style.
+const FS_TRANSITION =
+  "top 300ms ease-out, left 300ms ease-out, right 300ms ease-out, bottom 300ms ease-out, border-radius 200ms ease-in-out";
+// Duration to keep the fixed layout alive while the exit shrink animates back.
+const FS_EXIT_MS = 300;
+
+type BarRect = { top: number; left: number; right: number; bottom: number };
+
+// The fixed fullscreen bar starts pinned to the captured on-screen `barRect` and
+// animates its viewport insets to 0 (full screen). `settled` — or a missing rect
+// (rAF never fired / capture failed) — is the end state: inset 0, square corners.
+function fullscreenGrowStyle(barRect: BarRect | null, settled: boolean): ViewStyle {
+  if (settled || !barRect) {
+    return asViewStyle({
+      position: "fixed",
+      top: 0,
+      left: 0,
+      right: 0,
+      bottom: 0,
+      zIndex: 9998,
+      borderWidth: 0,
+      borderRadius: 0,
+      transition: FS_TRANSITION,
+    });
+  }
+  const vw = typeof window !== "undefined" ? window.innerWidth : 0;
+  const vh = typeof window !== "undefined" ? window.innerHeight : 0;
+  return asViewStyle({
+    position: "fixed",
+    top: barRect.top,
+    left: barRect.left,
+    right: Math.max(0, vw - barRect.right),
+    bottom: Math.max(0, vh - barRect.bottom),
+    zIndex: 9998,
+    borderWidth: 0,
+    borderRadius: 32,
+    transition: FS_TRANSITION,
+  });
+}
 
 export type PromptInputProps = {
   isLoading?: boolean;
@@ -92,6 +134,11 @@ export function PromptInput({
   const [internalValue, setInternalValue] = useState(value || "");
   const [currentHeight, setCurrentHeight] = useState(44);
   const [showFullscreen, setShowFullscreen] = useState(false);
+  // Fullscreen grow choreography (web): the captured bar rect + whether it has
+  // settled to full-screen. Native ignores these and snaps.
+  const [barRect, setBarRect] = useState<BarRect | null>(null);
+  const [fsSettled, setFsSettled] = useState(false);
+  const fsTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [handleCompletionKey, setHandleCompletionKey] = useState<((key: string) => boolean) | null>(null);
   const textareaRef = useRef<RNTextInput>(null);
   // Stable DOM id for the textarea (colons stripped so it's a clean HTML id).
@@ -155,7 +202,61 @@ export function PromptInput({
 
   const handleSubmit = () => {
     onSubmit?.();
-    if (showFullscreen) setShowFullscreen(false);
+    if (showFullscreen) {
+      if (fsTimer.current) {
+        clearTimeout(fsTimer.current);
+        fsTimer.current = null;
+      }
+      setShowFullscreen(false);
+      setFsSettled(false);
+      setBarRect(null);
+    }
+  };
+
+  // Enter/exit fullscreen as an in-place GROW of the same bar (web). Enter:
+  // capture the bar's viewport rect, mount fixed pinned to it, then double-rAF →
+  // settle (insets animate to 0). Exit: un-settle (shrink back to the rect), then
+  // after the transition drop back to in-flow layout. Native snaps directly.
+  const toggleFullscreen = () => {
+    if (fsTimer.current) {
+      clearTimeout(fsTimer.current);
+      fsTimer.current = null;
+    }
+    if (showFullscreen) {
+      setFsSettled(false);
+      if (Platform.OS === "web") {
+        fsTimer.current = setTimeout(() => {
+          setShowFullscreen(false);
+          setBarRect(null);
+          fsTimer.current = null;
+        }, FS_EXIT_MS);
+      } else {
+        setShowFullscreen(false);
+        setBarRect(null);
+      }
+      return;
+    }
+    if (Platform.OS === "web") {
+      const el =
+        typeof document !== "undefined"
+          ? document.getElementById(`${inputId}-bar`)
+          : null;
+      const rect = el?.getBoundingClientRect();
+      setBarRect(
+        rect
+          ? { top: rect.top, left: rect.left, right: rect.right, bottom: rect.bottom }
+          : null,
+      );
+      setFsSettled(!rect); // no rect → skip the grow, land settled
+      setShowFullscreen(true);
+      if (rect) {
+        requestAnimationFrame(() => requestAnimationFrame(() => setFsSettled(true)));
+      }
+    } else {
+      setBarRect(null);
+      setFsSettled(true);
+      setShowFullscreen(true);
+    }
   };
 
   useEffect(() => {
@@ -226,7 +327,8 @@ export function PromptInput({
       {/* Verification note: the padding/radius transitions FREEZE in a hidden
           browser tab (Chrome pauses CSS transitions), so computed styles read
           from automation stay at the from-value — check state flips in a real
-          foregrounded tab, or read the class attribute instead. */}
+          foregrounded tab, read the class attribute, or disable transitions
+          on the element before reading. */}
       <PromptInputTextarea
         id={inputId}
         placeholder={placeholder}
@@ -279,7 +381,7 @@ export function PromptInput({
         className={cn(
           "border border-border bg-card shadow-sm relative overflow-hidden web:transition-[border-radius] web:duration-200",
           barState === "fullscreen"
-            ? "rounded-none border-0 bg-background"
+            ? "border-0 bg-background"
             : barState === "expanded"
               ? "rounded-[32px]"
               : "rounded-full",
@@ -287,14 +389,12 @@ export function PromptInput({
           className
         )}
         {...props}
-        // Fullscreen is the SAME bar growing to cover the screen (web fixed
-        // positioning; native ignores `fixed` and snaps in place), not a
-        // separate overlay component. After {...props} so it can't be clobbered.
-        style={
-          barState === "fullscreen"
-            ? asViewStyle({ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, zIndex: 9998 })
-            : undefined
-        }
+        // Fullscreen GROWS the same bar from its captured on-screen rect to the
+        // viewport (native snaps) — the rect-derived insets are runtime values, so
+        // they ride on `style`; `id` is how the rect is captured (refs don't reach
+        // the DOM node under NW5). Both after {...props} so nothing clobbers them.
+        id={`${inputId}-bar`}
+        style={barState === "fullscreen" ? fullscreenGrowStyle(barRect, fsSettled) : undefined}
         onLayout={(e) => setContainerWidth(e.nativeEvent.layout.width)}
       >
         {/* Hidden single-line mirror of the current value in the input's font —
@@ -315,7 +415,7 @@ export function PromptInput({
         )}
         {!disabled && (showFullscreen || showExpandIcon) && (
           <Pressable
-            onPress={() => setShowFullscreen(!showFullscreen)}
+            onPress={toggleFullscreen}
             className="absolute top-2 right-2 z-10 bg-background rounded-full p-1.5 border border-border active:opacity-70"
           >
             {showFullscreen ? (
@@ -326,11 +426,26 @@ export function PromptInput({
           </Pressable>
         )}
         {barState === "fullscreen" ? (
-          <View className="flex-1 flex-col">{content}</View>
+          // Container-transform: the frame flies while the content cross-fades —
+          // hidden during the grow/shrink, visible once settled. Without this the
+          // inner layout snaps to fullscreen instantly and the motion reads broken.
+          <View
+            className={cn(
+              "flex-1 flex-col web:transition-opacity web:duration-150",
+              fsSettled ? "opacity-100" : "opacity-0"
+            )}
+          >
+            {content}
+          </View>
         ) : (
           content
         )}
       </View>
+      {/* The fixed bar leaves the layout flow — hold its space so the page
+          behind doesn't jump during the fullscreen grow/shrink. */}
+      {showFullscreen && barRect != null && (
+        <View style={{ height: barRect.bottom - barRect.top }} />
+      )}
     </Pressable>
   );
 
