@@ -25,9 +25,9 @@ export function PromptInputSubmitButton({
       <Button
         size="icon"
         onPress={onStop}
-        className={cn("h-8 w-8 rounded-full", className)}
+        className={cn("h-10 w-10 rounded-full items-center justify-center", className)}
       >
-        <Square size={12} color="white" className="fill-current" />
+        <Square size={14} color="white" className="fill-current" />
       </Button>
     );
   }
@@ -41,9 +41,9 @@ export function PromptInputSubmitButton({
       size="icon"
       onPress={onSubmit}
       disabled={!hasContent}
-      className={cn("h-8 w-8 rounded-full", className)}
+      className={cn("h-10 w-10 rounded-full items-center justify-center", className)}
     >
-      <ArrowUp size={16} color="white" />
+      <ArrowUp size={18} color="white" />
     </Button>
   );
 }
