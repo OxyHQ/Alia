@@ -44,13 +44,10 @@ import {
   Sparkles,
   type LucideIcon,
 } from "lucide-react-native";
-import { Portal } from "@oxyhq/bloom/portal";
 import { cn } from "@/lib/utils";
-import { useIsLargeScreen } from "@/hooks/useIsLargeScreen";
 import { useTranslation } from "@/hooks/useTranslation";
 import { useStore } from "@/lib/globalStore";
-import { useRouter, usePathname, useNavigation } from "expo-router";
-import type { DrawerNavigationProp } from "expo-router/drawer";
+import { useRouter, usePathname } from "expo-router";
 import { SettingsSidebar } from "@/components/settings/settings-sidebar";
 import { useOxy, useAuth, ProfileButton } from "@oxyhq/services";
 import { useProjectsStore } from "@/lib/stores/projects-store";
@@ -68,6 +65,13 @@ import { AppDownloadDialog } from "@/components/app-download-dialog";
 import { FolderEditDialog } from "@/components/folder-edit-dialog";
 import { useUIStore } from "@/lib/stores/ui-store";
 import { useUnreadCount } from "@/lib/hooks/use-notifications";
+import {
+  SidebarRow,
+  SectionHeader,
+  GhostIconButton,
+  useRailTooltip,
+  useSidebarCollapse,
+} from "@/components/sidebar/primitives";
 import { ConversationItem } from "@/components/sidebar/conversation-item";
 import { FolderSection } from "@/components/sidebar/folder-section";
 import { HistoryList } from "@/components/sidebar/history-list";
@@ -92,145 +96,6 @@ const ICON_MAP: Record<string, LucideIcon> = {
   BookMarked,
   FolderClosed,
 };
-
-interface RailTooltipHandle {
-  anchorProps: {
-    ref: React.RefObject<View | null>;
-    onHoverIn: () => void;
-    onHoverOut: () => void;
-  };
-  tooltip: React.ReactNode;
-}
-
-/**
- * Hover tooltip for icon-rail items. Attach `anchorProps` to the row's own
- * Pressable and render `tooltip` next to it; the bubble goes through the Bloom
- * portal so the drawer can't clip it. Hover-only, so touch never shows it.
- */
-function useRailTooltip(label: string): RailTooltipHandle {
-  const ref = React.useRef<View>(null);
-  const [anchor, setAnchor] = React.useState<{ x: number; y: number } | null>(null);
-
-  const onHoverIn = React.useCallback(() => {
-    if (Platform.OS !== "web") return;
-    ref.current?.measureInWindow((x, y, width, height) => {
-      setAnchor({ x: x + width + 10, y: y + height / 2 });
-    });
-  }, []);
-  const onHoverOut = React.useCallback(() => setAnchor(null), []);
-
-  const tooltip = anchor ? (
-    <Portal>
-      <View
-        pointerEvents="none"
-        className="absolute rounded-lg bg-popover border border-border px-2 py-1 shadow-sm"
-        style={{ left: anchor.x, top: anchor.y - 13 }}
-      >
-        <Text className="text-xs text-popover-foreground" numberOfLines={1}>
-          {label}
-        </Text>
-      </View>
-    </Portal>
-  ) : null;
-
-  return { anchorProps: { ref, onHoverIn, onHoverOut }, tooltip };
-}
-
-interface SidebarRowProps {
-  icon: LucideIcon;
-  label: string;
-  onPress: () => void;
-  accessibilityLabel?: string;
-  /** Compact variant for nested rows (e.g. the expanded Agents children). */
-  sub?: boolean;
-  /** Icon-rail variant used when the sidebar is collapsed. */
-  iconOnly?: boolean;
-}
-
-/** Ghost menu row shared by every sidebar navigation entry. */
-function SidebarRow({ icon: Icon, label, onPress, accessibilityLabel, sub = false, iconOnly = false }: SidebarRowProps) {
-  const { anchorProps, tooltip } = useRailTooltip(label);
-  return (
-    <>
-      <Pressable
-        {...(iconOnly ? anchorProps : null)}
-        accessibilityRole="button"
-        accessibilityLabel={accessibilityLabel ?? label}
-        onPress={onPress}
-        className={cn(
-          "flex-row items-center rounded-xl hover:bg-muted active:bg-muted",
-          iconOnly ? "h-9 w-9 justify-center" : "gap-2 px-1.5 w-full",
-          !iconOnly && (sub ? "h-8" : "h-9")
-        )}
-      >
-        <Icon size={sub ? 16 : 18} className="text-foreground" />
-        {!iconOnly && (
-          <Text className={cn("text-foreground", sub ? "text-xs" : "text-sm")}>{label}</Text>
-        )}
-      </Pressable>
-      {iconOnly && tooltip}
-    </>
-  );
-}
-
-interface SectionHeaderProps {
-  label: string;
-  collapsed: boolean;
-  onToggle: () => void;
-  onAdd: () => void;
-  addAccessibilityLabel: string;
-}
-
-/** Collapsible group header (label + chevron) with a trailing add action. */
-function SectionHeader({ label, collapsed, onToggle, onAdd, addAccessibilityLabel }: SectionHeaderProps) {
-  const Chevron = collapsed ? ChevronRight : ChevronDown;
-  return (
-    <View className="flex-row items-center justify-between pt-4 pb-1 px-2">
-      <Pressable
-        onPress={onToggle}
-        className="flex-row items-center gap-1 flex-1 rounded-lg active:opacity-70"
-      >
-        <Text className="text-xs font-semibold text-foreground select-none">{label}</Text>
-        <Chevron size={12} className="text-foreground" />
-      </Pressable>
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel={addAccessibilityLabel}
-        onPress={onAdd}
-        className="h-6 w-6 items-center justify-center rounded-lg hover:bg-muted active:bg-muted"
-      >
-        <Plus size={14} className="text-muted-foreground" />
-      </Pressable>
-    </View>
-  );
-}
-
-interface GhostIconButtonProps {
-  icon: LucideIcon;
-  label: string;
-  onPress: () => void;
-  badge?: boolean;
-  /** Rail tooltip anchor from `useRailTooltip` (hover + measure target). */
-  anchorProps?: RailTooltipHandle["anchorProps"];
-}
-
-/** Square ghost icon button (header collapse trigger, footer action bar). */
-function GhostIconButton({ icon: Icon, label, onPress, badge = false, anchorProps }: GhostIconButtonProps) {
-  return (
-    <Pressable
-      {...anchorProps}
-      accessibilityRole="button"
-      accessibilityLabel={label}
-      onPress={onPress}
-      className="h-9 w-9 items-center justify-center rounded-xl hover:bg-muted active:bg-muted"
-    >
-      <Icon size={18} className="text-muted-foreground" />
-      {badge && (
-        <View className="absolute top-0.5 right-0.5 h-2.5 w-2.5 rounded-full bg-red-500 border border-background" />
-      )}
-    </Pressable>
-  );
-}
 
 export function Sidebar() {
   const pathname = usePathname();
@@ -314,26 +179,7 @@ const ChatSidebar = React.memo(function ChatSidebar() {
     router.replace("/(app)");
   }, [router]);
 
-  const isLargeScreen = useIsLargeScreen();
-  const drawerNavigation = useNavigation<DrawerNavigationProp<ReactNavigation.RootParamList>>();
-  const sidebarOpen = useUIStore((s) => s.sidebarOpen);
-  const setSidebarOpen = useUIStore((s) => s.setSidebarOpen);
-  // Desktop icon rail: the drawer narrows and every row renders icon-only.
-  const collapsed = isLargeScreen && !sidebarOpen;
-
-  const handleCollapseSidebar = React.useCallback(() => {
-    // Desktop: the permanent drawer collapses to an icon rail; mobile: the
-    // front drawer simply closes.
-    if (isLargeScreen) {
-      setSidebarOpen(false);
-    } else {
-      drawerNavigation.closeDrawer();
-    }
-  }, [isLargeScreen, setSidebarOpen, drawerNavigation]);
-
-  const handleExpandSidebar = React.useCallback(() => {
-    setSidebarOpen(true);
-  }, [setSidebarOpen]);
+  const { collapsed, collapse: handleCollapseSidebar, expand: handleExpandSidebar } = useSidebarCollapse();
 
   // Playful rail detail: pressing the mark while already home replays a one-shot
   // CSS spin (NativeWind keyframes); the `key` remount restarts the animation.
