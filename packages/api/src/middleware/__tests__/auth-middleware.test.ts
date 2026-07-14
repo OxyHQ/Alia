@@ -31,10 +31,6 @@ vi.mock('../../lib/logger.js', () => ({
   },
 }));
 
-vi.mock('../../lib/net-utils.js', () => ({
-  getClientIp: vi.fn(() => '127.0.0.1'),
-}));
-
 vi.mock('../../lib/channels/registry.js', () => ({
   getConfiguredChannels: vi.fn(() => []),
 }));

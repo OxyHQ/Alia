@@ -11,7 +11,6 @@ export interface IApiKeyUsage extends Document {
   creditsUsed?: number;
   responseTime?: number; // in milliseconds
   userAgent?: string;
-  ipAddress?: string;
   timestamp: Date;
   authType: 'api_key' | 'session' | 'internal';  // Track auth type for rate limiting
   serviceApp?: string;  // Service app name for internal auth
@@ -66,9 +65,6 @@ const ApiKeyUsageSchema = new Schema<IApiKeyUsage>(
       type: Number,
     },
     userAgent: {
-      type: String,
-    },
-    ipAddress: {
       type: String,
     },
     timestamp: {
