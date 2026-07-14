@@ -28,6 +28,7 @@ import { TerminalSession, inferImage } from './terminal-session.js';
 import { BrowserSession } from './browser-session.js';
 import { buildActions } from './actions.js';
 import { buildArchetypeSystemPrompt } from './archetype-prompts.js';
+import { buildIdentityGuard } from '../identity-guard.js';
 import { classifyError, getErrorMessage } from '../errors/failover-error.js';
 import { finalizeCredits, safeRefund, type CreditReservation } from '../credits-manager.js';
 import { MAX_DELEGATION_DEPTH, EVENT_STREAM_BUDGET } from '../constants.js';
@@ -373,8 +374,11 @@ export async function runAgentSession(sessionId: string): Promise<void> {
     eventStream,
   });
 
-  // Build system prompt (stable prefix — never changes between iterations)
-  const systemPrompt = buildSystemPrompt(agent, session.config);
+  // Build system prompt (stable prefix — never changes between iterations).
+  // The identity guard wraps the agent's own prompt so the Alia identity
+  // boundary holds even for custom / archetype agent prompts. The runner picks
+  // a model per step, so no single model name is passed here.
+  const systemPrompt = `${buildIdentityGuard()}\n\n---\n\n${buildSystemPrompt(agent, session.config)}`;
 
   const allowedModels = agent.allowedModels.length > 0
     ? agent.allowedModels

@@ -1,7 +1,8 @@
 import { Router } from 'express';
 import { createVoiceToken, isLiveKitConfigured, getLiveKitUrl } from '../../lib/livekit-token.js';
 import { getModelMappingsForTier } from '../../lib/gateway-client.js';
-import { callProviderAPI } from '../../lib/gateway-client.js';
+import { callProviderAPI, getAliaModel } from '../../lib/gateway-client.js';
+import { buildIdentityGuard } from '../../lib/identity-guard.js';
 import { reserveCredits, finalizeCredits } from '../../lib/credits-manager.js';
 import { getOrCreateUserCredits } from '../../lib/user-credits-helpers.js';
 import { voiceSessionManager } from '../../internal/providers/lib/voice-session-manager.js';
@@ -110,6 +111,12 @@ router.post('/token', async (req: Request, res: Response) => {
     if (clientInstructions) {
       voiceInstructions = clientInstructions;
     }
+
+    // Identity guard — prepended LAST so it survives a full client override and
+    // sits at the top of the voice session instructions. Nothing can strip the
+    // Alia identity boundary from a voice session.
+    const voiceModel = await getAliaModel(model);
+    voiceInstructions = `${buildIdentityGuard(voiceModel?.name)}\n\n---\n\n${voiceInstructions}`;
 
     // Voice-appropriate tools (executed server-side by VoiceSessionManager)
     const voiceTools: OpenAITool[] = [
