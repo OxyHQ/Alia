@@ -450,7 +450,7 @@ const inviteMemberSchema = z.object({
 
 const INVITE_EXPIRY_DAYS = 7;
 
-router.post('/:id/members', async (req: Request, res: Response) => {
+router.post('/:id/members', async (req: Request<{ id: string }>, res: Response) => {
   try {
     const userId = req.user!.id;
     const { id } = req.params;

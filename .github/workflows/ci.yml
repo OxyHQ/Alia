@@ -37,6 +37,9 @@ jobs:
       - name: Lint API
         run: bun run --filter @alia/api lint
 
+      - name: Typecheck API
+        run: bun run --filter @alia/api typecheck
+
       - name: Run API tests
         run: bun run --filter @alia/api test
 
