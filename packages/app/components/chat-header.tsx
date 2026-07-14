@@ -106,9 +106,13 @@ export function ChatHeader({
             variant="ghost"
             size="icon"
             onPress={onGhostModePress}
-            className={ghostModeActive ? "h-9 w-9 rounded-full bg-accent" : "h-9 w-9 rounded-full"}
+            className="h-9 w-9 rounded-full"
           >
-            <Ghost size={20} className={ghostModeActive ? "text-accent-foreground" : "text-muted-foreground"} />
+            <Ghost
+              size={20}
+              fill={ghostModeActive ? colors.text : "none"}
+              className={ghostModeActive ? "text-foreground" : "text-muted-foreground"}
+            />
           </Button>
         )}
 

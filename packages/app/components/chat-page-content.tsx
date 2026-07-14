@@ -462,7 +462,7 @@ export const ChatPageContent = ({
                     autocomplete
                     showDefaultSuggestions={messages.length === 0}
                     onSuggestionSend={handleSuggestionSend}
-                    leadingAddMenu
+                    floatingAutocomplete
                     placeholder={disabled ? t('usageLimit.inputDisabledPlaceholder') : "Message Alia..."}
                     onStop={onStop}
                     emptyAction={
@@ -474,7 +474,7 @@ export const ChatPageContent = ({
                         <Entypo name="sound" size={18} color="white" />
                       </Button>
                     }
-                    actionsLeft={
+                    actionsRight={
                       <>
                         <Button
                           variant={activeModes.has('search') ? "default" : "ghost"}
@@ -497,7 +497,9 @@ export const ChatPageContent = ({
                           />
                         )}
 
-                        {MODE_ORDER.map(mode =>
+                        {/* Ghost is surfaced by the header's ghost toggle, so it
+                            gets no chip here — but stays in MODE_ORDER for the menu. */}
+                        {MODE_ORDER.filter(mode => mode !== 'ghost').map(mode =>
                           activeModes.has(mode) && (
                             <ModeChip
                               key={mode}

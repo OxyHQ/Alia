@@ -186,8 +186,8 @@ export function PromptInputAttachments() {
     <ScrollView
       horizontal
       showsHorizontalScrollIndicator={false}
-      className="mb-2 pt-2 flex-none"
-      contentContainerClassName="gap-2.5 px-3"
+      className="mb-2 pt-4 flex-none"
+      contentContainerClassName="gap-2.5 px-5"
     >
       {attachments.map((attachment) => (
         <View key={attachment.id} className="relative">
