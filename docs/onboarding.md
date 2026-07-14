@@ -142,7 +142,6 @@ Use for UI state and data that needs to persist across screens.
 | `pinned-store` | Pinned conversations |
 | `roles-store` | User-created roles/personas |
 | `organization-store` | Org membership, settings |
-| `accessories-store` | Avatar accessories |
 
 ### TanStack Query (server state, async)
 

@@ -29,8 +29,8 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { AliaChatContent, type AliaChatContentRef } from './AliaChatContent';
-import { AliaFace, type AliaExpression } from './AliaFace';
+import { AliaChatContent } from './AliaChatContent';
+import { AliaMark } from './AliaMark';
 import type { WelcomeSuggestion } from './AliaWelcomeMessage';
 
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
@@ -67,27 +67,10 @@ export const AliaChatSheet = forwardRef<AliaChatSheetRef, AliaChatSheetProps>(
     const isDark = scheme === 'dark';
     const insets = useSafeAreaInsets();
 
-    // Content ref for reading state
-    const contentRef = useRef<AliaChatContentRef>(null);
-    const [faceExpression, setFaceExpression] = useState<AliaExpression>('Idle A');
-    const [hasMessages, setHasMessages] = useState(false);
-
     // Sheet visibility
     const [rendered, setRendered] = useState(false);
     const hasClosedRef = useRef(false);
     const closeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-    // Poll content ref for header state (lightweight, only when rendered)
-    useEffect(() => {
-      if (!rendered) return;
-      const interval = setInterval(() => {
-        if (contentRef.current) {
-          setFaceExpression(contentRef.current.faceExpression);
-          setHasMessages(contentRef.current.messages.length > 0);
-        }
-      }, 200);
-      return () => clearInterval(interval);
-    }, [rendered]);
 
     // Reanimated shared values
     const translateY = useSharedValue(SCREEN_HEIGHT);
@@ -215,10 +198,6 @@ export const AliaChatSheet = forwardRef<AliaChatSheetRef, AliaChatSheetProps>(
       [insets.top],
     );
 
-    const handleClear = useCallback(() => {
-      contentRef.current?.clear();
-    }, []);
-
     if (!rendered) return null;
 
     return (
@@ -255,38 +234,9 @@ export const AliaChatSheet = forwardRef<AliaChatSheetRef, AliaChatSheetProps>(
                 />
               </View>
 
-              {/* Header */}
-              <View style={styles.header}>
-                <View style={styles.headerLeft}>
-                  <AliaFace size={28} expression={faceExpression} />
-                  <Text className="text-lg font-semibold text-foreground">
-                    Alia
-                  </Text>
-                </View>
-                <View style={styles.headerRight}>
-                  {hasMessages && (
-                    <TouchableOpacity onPress={handleClear} style={styles.clearButton}>
-                      <Text className="text-sm text-muted-foreground">
-                        Clear
-                      </Text>
-                    </TouchableOpacity>
-                  )}
-                  <TouchableOpacity
-                    onPress={handleDismiss}
-                    style={styles.closeButton}
-                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                  >
-                    <Text className="text-lg font-semibold text-muted-foreground">
-                      {'\u2715'}
-                    </Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
-
-              {/* Chat content */}
+              {/* Chat content (header rendered inside via render prop) */}
               <GestureDetector gesture={nativeGesture}>
                 <AliaChatContent
-                  ref={contentRef}
                   clientContext={clientContext}
                   model={model}
                   apiUrl={apiUrl}
@@ -294,6 +244,34 @@ export const AliaChatSheet = forwardRef<AliaChatSheetRef, AliaChatSheetProps>(
                   welcomeGreeting={welcomeGreeting}
                   welcomeSubtitle={welcomeSubtitle}
                   welcomeSuggestions={welcomeSuggestions}
+                  header={({ markState, hasMessages, clear }) => (
+                    <View style={styles.header}>
+                      <View style={styles.headerLeft}>
+                        <AliaMark size={28} state={markState} />
+                        <Text className="text-lg font-semibold text-foreground">
+                          Alia
+                        </Text>
+                      </View>
+                      <View style={styles.headerRight}>
+                        {hasMessages && (
+                          <TouchableOpacity onPress={clear} style={styles.clearButton}>
+                            <Text className="text-sm text-muted-foreground">
+                              Clear
+                            </Text>
+                          </TouchableOpacity>
+                        )}
+                        <TouchableOpacity
+                          onPress={handleDismiss}
+                          style={styles.closeButton}
+                          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                        >
+                          <Text className="text-lg font-semibold text-muted-foreground">
+                            {'\u2715'}
+                          </Text>
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+                  )}
                 />
               </GestureDetector>
             </Animated.View>

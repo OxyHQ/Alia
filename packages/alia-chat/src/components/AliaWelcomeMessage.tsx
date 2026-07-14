@@ -2,7 +2,7 @@ import { Pressable, StyleSheet, View } from 'react-native';
 import { BlurView } from 'expo-blur';
 import { Text } from './ui/text';
 import Animated, { FadeIn } from 'react-native-reanimated';
-import { AliaFace } from './AliaFace';
+import { AliaMark } from './AliaMark';
 import type { WelcomeSuggestion } from '../types';
 
 export type { WelcomeSuggestion };
@@ -12,7 +12,7 @@ export interface AliaWelcomeMessageProps {
   subtitle?: string;
   suggestions?: WelcomeSuggestion[];
   onSuggestionPress?: (text: string) => void;
-  faceSize?: number;
+  markSize?: number;
 }
 
 export function AliaWelcomeMessage({
@@ -20,15 +20,15 @@ export function AliaWelcomeMessage({
   subtitle,
   suggestions = [],
   onSuggestionPress,
-  faceSize = 64,
+  markSize = 64,
 }: AliaWelcomeMessageProps) {
   return (
     <View className="flex-1 items-center justify-center px-4">
       <View className="w-full max-w-2xl">
-        {/* Face + Title */}
+        {/* Mark + Title */}
         <View className="items-start mb-8">
           <View className="mb-4">
-            <AliaFace size={faceSize} expression="Greeting" />
+            <AliaMark size={markSize} />
           </View>
           <View className="space-y-2">
             <Text className="text-3xl font-bold tracking-tight text-foreground">

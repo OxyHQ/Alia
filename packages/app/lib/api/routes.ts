@@ -112,13 +112,6 @@ export const API_ROUTES = {
     },
   },
 
-  // Accessories routes
-  accessories: {
-    list: '/accessories',
-    me: '/accessories/me',
-    purchase: (id: string) => `/accessories/${id}/purchase`,
-  },
-
   // Library routes
   library: {
     list: '/library',

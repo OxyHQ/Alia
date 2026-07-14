@@ -41,7 +41,6 @@ import {
   Image,
   Brain,
   Users,
-  Sparkles,
 } from "lucide-react-native";
 import { AGENT_TOOLS } from "@/lib/constants/agent-tools";
 import * as DropdownMenu from "@/components/ui/dropdown-menu";
@@ -782,18 +781,6 @@ export default function EditAgentScreen() {
               }}
             />
           </View>
-
-          {/* Accessories editor link */}
-          <Pressable
-            onPress={() => router.push(`/(app)/agents/accessories-editor?agentId=${id}`)}
-            className="active:opacity-70 mb-4"
-          >
-            <View className="flex-row items-center gap-2 bg-muted/50 rounded-xl px-4 py-3">
-              <Sparkles size={16} className="text-muted-foreground" />
-              <Text className="text-sm text-foreground flex-1">{t("accessories.customize")}</Text>
-              <ChevronRight size={16} className="text-muted-foreground" />
-            </View>
-          </Pressable>
 
           {/* System Prompt / Instructions */}
           <Textarea

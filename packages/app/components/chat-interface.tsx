@@ -10,9 +10,8 @@ import React, { useEffect, useState, useCallback, useRef, useMemo } from "react"
 import type { ScrollView as GHScrollView } from "react-native-gesture-handler";
 import { processMessage } from "@/lib/message-processor";
 import { cn } from "@/lib/utils";
-import { ThinkingIndicator } from '@alia.onl/sdk';
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { AliaFace, type AliaExpression } from "@/components/ui/alia-face";
+import { ThinkingIndicator, AliaMark, type AliaMarkState } from '@alia.onl/sdk';
+import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { Copy, ThumbsUp, ThumbsDown, Pencil, Check, Volume2, Square, Music } from "lucide-react-native";
 import * as DropdownMenu from "@/components/ui/dropdown-menu";
 import { useTTS } from "@/lib/hooks/use-tts";
@@ -79,7 +78,6 @@ type Message = {
     name: string;
     avatar: string | null;
     handle: string;
-    accessories?: Array<{ accessoryId: string; position: { x: number; y: number; scale: number; rotation: number } }>;
   };
   audioUrl?: string;
 };
@@ -181,7 +179,7 @@ type MessageRowProps = {
   ttsPlaybackState: string;
   chatId: ChatIdState;
   voiceAgentState?: 'idle' | 'listening' | 'thinking' | 'speaking';
-  handleFaceLayout: (e: LayoutChangeEvent) => void;
+  handleMarkLayout: (e: LayoutChangeEvent) => void;
   handleCopyMessage: (messageId: string, content: string) => void;
   handleVote: (messageId: string, vote: 'up' | 'down') => void;
   readAloud: (id: string, text: string, chatId?: string, audioUrl?: string) => void;
@@ -198,7 +196,7 @@ const MessageRow = React.memo(function MessageRow({
   m, index, isNewMessage, isAliaMessage, isLastAlia,
   isLoading, isLastMessage, isCopied, myVote,
   ttsActiveMessageId, ttsPlaybackState, chatId, voiceAgentState,
-  handleFaceLayout, handleCopyMessage, handleVote, readAloud,
+  handleMarkLayout, handleCopyMessage, handleVote, readAloud,
   generateAudio, audioGenActiveMessageId, audioGenState,
   openThoughtPanel, onStartEdit, onApprovePlan, onRejectPlan,
 }: MessageRowProps) {
@@ -210,7 +208,7 @@ const MessageRow = React.memo(function MessageRow({
       key={m.id || `msg-${index}`}
       entering={isNewMessage ? FadeInUp.springify() : undefined}
       style={isAliaMessage && isLastAlia ? { paddingTop: 36 } : undefined}
-      onLayout={isAliaMessage && isLastAlia ? handleFaceLayout : undefined}
+      onLayout={isAliaMessage && isLastAlia ? handleMarkLayout : undefined}
     >
       {/* Plan Preview — shown before tool execution */}
       {m.pendingPlan && (() => {
@@ -297,10 +295,17 @@ const MessageRow = React.memo(function MessageRow({
               {/* Agent identity or cohost label (Alia face is floating) */}
               {m.agentInfo ? (
                 <View className="flex-row items-center gap-2 mb-0.5">
-                  <AliaFace
-                    size={20}
-                    accessories={m.agentInfo.accessories}
-                  />
+                  <Avatar className="h-5 w-5">
+                    {m.agentInfo.avatar ? (
+                      <AvatarImage source={{ uri: m.agentInfo.avatar }} />
+                    ) : (
+                      <AvatarFallback>
+                        <Text className="text-[10px] font-bold text-foreground">
+                          {m.agentInfo.name.charAt(0)}
+                        </Text>
+                      </AvatarFallback>
+                    )}
+                  </Avatar>
                   <Text className="text-xs font-semibold" style={{ color: '#f97316' }}>
                     {m.agentInfo.name}
                   </Text>
@@ -513,50 +518,45 @@ export const ChatInterface = React.memo(function ChatInterface({ messages, scrol
       prevMessageCountRef.current = messages.length;
     }, [messages.length]);
 
-    // ── Flying AliaFace ──
-    const faceY = useSharedValue(0);
-    const [faceExpression, setFaceExpression] = useState<AliaExpression>("Idle A");
+    // ── Flying AliaMark ──
+    const markY = useSharedValue(0);
 
     const filteredMessages = useMemo(() => messages.filter(m => m != null && m.role), [messages]);
     const lastAliaIndex = useMemo(() => filteredMessages.reduce((acc, m, i) =>
       isAliaOwnedMessage(m) ? i : acc, -1), [filteredMessages]);
 
-    // Update expression based on voice state or text chat state
-    useEffect(() => {
+    // Derive mark state from voice state or text chat state
+    const markState = useMemo<AliaMarkState>(() => {
       if (isVoiceActive && voiceAgentState) {
-        switch (voiceAgentState) {
-          case 'thinking': setFaceExpression("Thinking"); return;
-          case 'speaking': setFaceExpression("Writing E"); return;
-          case 'listening': setFaceExpression("Interesting"); return;
-          default: setFaceExpression("Idle A"); return;
-        }
+        if (voiceAgentState === 'thinking') return 'thinking';
+        if (voiceAgentState === 'speaking') return 'writing';
+        return 'idle';
       }
-
-      if (lastAliaIndex < 0) return;
+      if (lastAliaIndex < 0) return 'idle';
       const m = filteredMessages[lastAliaIndex];
       const text = getMessageText(m);
       const hasActiveTools = m.toolInvocations?.some(
         (t: ToolInvocation) => t.state === 'call' || t.state === 'partial-call'
       );
-      if (hasActiveTools) setFaceExpression("Searching A");
-      else if (isLoading && !text) setFaceExpression("Thinking");
-      else if (isLoading && text.length > 0) setFaceExpression("Writing E");
-      else setFaceExpression("Idle A");
-    }, [messages, isLoading, voiceAgentState, isVoiceActive]);
+      if (hasActiveTools) return 'working';
+      if (isLoading && !text) return 'thinking';
+      if (isLoading && text.length > 0) return 'writing';
+      return 'idle';
+    }, [filteredMessages, lastAliaIndex, isLoading, voiceAgentState, isVoiceActive]);
 
-    const faceAnimatedStyle = useAnimatedStyle(() => ({
+    const markAnimatedStyle = useAnimatedStyle(() => ({
       position: 'absolute' as const,
       left: 0,
-      top: faceY.value,
+      top: markY.value,
       zIndex: 10,
     }));
 
-    const handleFaceLayout = useCallback((e: LayoutChangeEvent) => {
-      faceY.value = withTiming(e.nativeEvent.layout.y, {
+    const handleMarkLayout = useCallback((e: LayoutChangeEvent) => {
+      markY.value = withTiming(e.nativeEvent.layout.y, {
         duration: 500,
         easing: Easing.bezier(0.4, 0, 0.2, 1),
       });
-    }, [faceY]);
+    }, [markY]);
 
     // Sync messages to the UI store so ThoughtPanel can access them — only when panel is open
     const rightPanel = useUIStore((s) => s.rightPanel);
@@ -653,10 +653,10 @@ export const ChatInterface = React.memo(function ChatInterface({ messages, scrol
           )}
 
           <View style={{ position: 'relative' }}>
-            {/* Single flying AliaFace */}
+            {/* Single flying AliaMark */}
             {lastAliaIndex >= 0 && (
-              <Animated.View style={faceAnimatedStyle}>
-                <AliaFace size={28} expression={faceExpression} />
+              <Animated.View style={markAnimatedStyle}>
+                <AliaMark size={28} state={markState} />
               </Animated.View>
             )}
 
@@ -680,7 +680,7 @@ export const ChatInterface = React.memo(function ChatInterface({ messages, scrol
                   ttsPlaybackState={ttsPlaybackState}
                   chatId={chatId}
                   voiceAgentState={voiceAgentState}
-                  handleFaceLayout={handleFaceLayout}
+                  handleMarkLayout={handleMarkLayout}
                   handleCopyMessage={handleCopyMessage}
                   handleVote={handleVote}
                   readAloud={readAloud}

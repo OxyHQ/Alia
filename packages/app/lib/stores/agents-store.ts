@@ -3,25 +3,6 @@ import apiClient from '../api/client';
 import { API_ROUTES } from '../api/routes';
 import { errorMessage as getErrorMessage, errorStatus, errorResponseData } from '../errors/error-utils';
 
-export interface AgentAccessory {
-  accessoryId: string;
-  position: { x: number; y: number; scale: number; rotation: number };
-}
-
-/** Normalizes accessories from API (may be string[] or AgentAccessory[]) */
-export function normalizeAccessories(raw: unknown): AgentAccessory[] {
-  if (!Array.isArray(raw)) return [];
-  return raw.map((item) => {
-    if (typeof item === 'string') {
-      return { accessoryId: item, position: { x: 0.5, y: 0.5, scale: 1, rotation: 0 } };
-    }
-    if (item && typeof item === 'object' && 'accessoryId' in item) {
-      return item as AgentAccessory;
-    }
-    return null;
-  }).filter(Boolean) as AgentAccessory[];
-}
-
 export interface Agent {
   _id: string;
   name: string;
@@ -48,7 +29,6 @@ export interface Agent {
   isPublished: boolean;
   status: 'active' | 'idle' | 'offline';
   creditBalance: number;
-  accessories: AgentAccessory[];
   allowHiring: boolean;
   systemPrompt?: string;
   allowedModels?: string[];
@@ -96,12 +76,8 @@ export const useAgentsStore = create<AgentsStoreState>((set, get) => ({
   loadAgents: async (params) => {
     try {
       set({ loading: true, error: null });
-      const res = await apiClient.get(API_ROUTES.agents.list, { params });
-      const agents = (res.data.agents as Agent[]).map((a) => ({
-        ...a,
-        accessories: normalizeAccessories(a.accessories),
-      }));
-      set({ agents, total: res.data.total, loading: false });
+      const res = await apiClient.get<{ agents: Agent[]; total: number }>(API_ROUTES.agents.list, { params });
+      set({ agents: res.data.agents, total: res.data.total, loading: false });
     } catch (error: unknown) {
       console.error('Error loading agents:', error);
       set({ error: getErrorMessage(error), loading: false });
@@ -110,9 +86,8 @@ export const useAgentsStore = create<AgentsStoreState>((set, get) => ({
 
   getAgent: async (id: string) => {
     try {
-      const res = await apiClient.get(API_ROUTES.agents.get(id));
-      const agent = res.data.agent;
-      return { ...agent, accessories: normalizeAccessories(agent.accessories) } as Agent;
+      const res = await apiClient.get<{ agent: Agent }>(API_ROUTES.agents.get(id));
+      return res.data.agent;
     } catch (error) {
       console.error('Error getting agent:', error);
       return null;
@@ -121,7 +96,7 @@ export const useAgentsStore = create<AgentsStoreState>((set, get) => ({
 
   createAgent: async (data) => {
     try {
-      const res = await apiClient.post(API_ROUTES.agents.create, data);
+      const res = await apiClient.post<{ agent: Agent }>(API_ROUTES.agents.create, data);
       const agent = res.data.agent;
       set((state) => ({ agents: [agent, ...state.agents] }));
       return agent;
@@ -133,7 +108,7 @@ export const useAgentsStore = create<AgentsStoreState>((set, get) => ({
 
   updateAgent: async (id, updates) => {
     try {
-      const res = await apiClient.patch(API_ROUTES.agents.update(id), updates);
+      const res = await apiClient.patch<{ agent: Agent }>(API_ROUTES.agents.update(id), updates);
       const updated = res.data.agent;
       set((state) => ({
         agents: state.agents.map((a) => (a._id === id ? updated : a)),
@@ -156,7 +131,7 @@ export const useAgentsStore = create<AgentsStoreState>((set, get) => ({
 
   hireAgent: async (id, task) => {
     try {
-      const res = await apiClient.post(API_ROUTES.agents.hire(id), { task });
+      const res = await apiClient.post<{ sessionId?: string }>(API_ROUTES.agents.hire(id), { task });
       return res.data.sessionId || null;
     } catch (error: unknown) {
       const status = errorStatus(error);
