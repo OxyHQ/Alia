@@ -36,6 +36,17 @@ interface PendingCall {
   timer: NodeJS.Timeout;
 }
 
+interface RelayMessage {
+  type?: string;
+  token?: string;
+  serverId?: string;
+  serverName?: string;
+  tools?: LocalTool[];
+  callId?: string;
+  result?: unknown;
+  error?: string;
+}
+
 const AUTH_TIMEOUT_MS = 5_000;
 const TOOL_CALL_TIMEOUT_MS = 60_000;
 const OXY_API_URL = process.env.OXY_API_URL || 'https://api.oxy.so';
@@ -50,9 +61,24 @@ let nextCallId = 0;
  * Initialize the MCP relay WebSocket server on the given HTTP server.
  */
 export function initMcpRelay(server: http.Server): void {
-  wss = new WebSocketServer({ server, path: '/ws/mcp' });
+  // Share the HTTP server without letting `ws` install its own upgrade
+  // listener. With `{ server, path }`, the ws library registers a global
+  // `server.on('upgrade')` that 400s every upgrade whose path doesn't match —
+  // stomping socket.io's already-completed handshake on the same socket. With
+  // `noServer`, we own routing: only `/ws/mcp` upgrades are handled here; every
+  // other path is left untouched so socket.io's engine listener can serve it.
+  const relayServer = new WebSocketServer({ noServer: true });
+  wss = relayServer;
 
-  wss.on('connection', (ws) => {
+  server.on('upgrade', (req, socket, head) => {
+    const { pathname } = new URL(req.url ?? '', 'http://internal');
+    if (pathname !== '/ws/mcp') return;
+    relayServer.handleUpgrade(req, socket, head, (ws) => {
+      relayServer.emit('connection', ws, req);
+    });
+  });
+
+  relayServer.on('connection', (ws) => {
     let userId: string | null = null;
 
     const authTimer = setTimeout(() => {
@@ -60,9 +86,11 @@ export function initMcpRelay(server: http.Server): void {
     }, AUTH_TIMEOUT_MS);
 
     ws.on('message', async (data) => {
-      let msg: any;
+      let msg: RelayMessage;
       try {
-        msg = JSON.parse(data.toString());
+        const parsed: unknown = JSON.parse(data.toString());
+        if (parsed === null || typeof parsed !== 'object') return;
+        msg = parsed as RelayMessage;
       } catch {
         return;
       }
@@ -111,7 +139,7 @@ export function initMcpRelay(server: http.Server): void {
   log.general.info('MCP relay initialized at /ws/mcp');
 }
 
-function handleClientMessage(userId: string, msg: any): void {
+function handleClientMessage(userId: string, msg: RelayMessage): void {
   const client = clients.get(userId);
   if (!client) return;
 
@@ -139,6 +167,7 @@ function handleClientMessage(userId: string, msg: any): void {
     }
 
     case 'tool-result': {
+      if (!msg.callId) return;
       const pending = pendingCalls.get(msg.callId);
       if (!pending) return;
       clearTimeout(pending.timer);
@@ -148,6 +177,7 @@ function handleClientMessage(userId: string, msg: any): void {
     }
 
     case 'tool-error': {
+      if (!msg.callId) return;
       const pending = pendingCalls.get(msg.callId);
       if (!pending) return;
       clearTimeout(pending.timer);
@@ -208,7 +238,7 @@ export function callLocalTool(
 /**
  * Validate API key or JWT token and return the user ID.
  */
-async function validateToken(token: string): Promise<string | null> {
+async function validateToken(token: string | undefined): Promise<string | null> {
   if (!token || typeof token !== 'string') return null;
 
   // API key (alia_sk_*)

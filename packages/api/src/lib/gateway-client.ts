@@ -1,11 +1,16 @@
 /**
  * Gateway Client — Dual-mode facade
  *
- * When GATEWAY_API is available (SERVICE_SECRET is set):
+ * When the gateway API is configured (BOTH SERVICE_SECRET and GATEWAY_API_URL set):
  *   → Routes all calls through the alia-gateway HTTP service
  *
- * When GATEWAY_API is NOT available:
+ * When the gateway API is NOT configured (either variable missing):
  *   → Falls back to direct imports from internal/providers/ modules
+ *
+ * Gateway mode requires EXPLICIT config: without a deployed alia-gateway and a
+ * GATEWAY_API_URL pointing at it, the facade uses its in-process local fallback
+ * (direct Mongo models + internal/providers/*). This mirrors the ecosystem
+ * env-gating convention (e.g. REDIS_URL → BullMQ, else inline).
  *
  * Consumer files always import from this module — the backend is transparent.
  */
@@ -17,16 +22,30 @@ import { getStatusCode } from './errors/index.js';
 // ============== MODE DETECTION ==============
 
 const SERVICE_SECRET = process.env.SERVICE_SECRET;
-const GATEWAY_API_URL = process.env.GATEWAY_API_URL || 'http://localhost:9091';
-const GATEWAY_API_ENABLED = !!SERVICE_SECRET;
+const GATEWAY_API_URL = process.env.GATEWAY_API_URL;
+const GATEWAY_API_ENABLED = !!(SERVICE_SECRET && GATEWAY_API_URL);
 
 if (!GATEWAY_API_ENABLED) {
-  log.general.info('Gateway API not configured (no SERVICE_SECRET) — using local fallback');
+  log.general.info(
+    'Gateway API not configured (requires both SERVICE_SECRET and GATEWAY_API_URL) — using local fallback',
+  );
 }
 
 // ============== HTTP AUTH (only used when GATEWAY_API_ENABLED) ==============
 
 const SERVICE_NAME = 'alia-api';
+
+/**
+ * Resolve the gateway config, narrowing the env vars to concrete strings.
+ * Only reachable from the GATEWAY_API_ENABLED branches; throws otherwise so a
+ * misconfiguration surfaces loudly instead of hitting a bogus localhost URL.
+ */
+function requireGatewayConfig(): { url: string; secret: string } {
+  if (!GATEWAY_API_URL || !SERVICE_SECRET) {
+    throw new Error('Gateway API is not configured (requires SERVICE_SECRET and GATEWAY_API_URL)');
+  }
+  return { url: GATEWAY_API_URL, secret: SERVICE_SECRET };
+}
 
 /**
  * Build service-to-service auth headers. The HMAC binds the method, full path
@@ -35,10 +54,11 @@ const SERVICE_NAME = 'alia-api';
  * MUST match `buildServiceSigningString` in alia-gateway's auth middleware.
  */
 function generateAuthHeaders(method: string, path: string, body: string = ''): Record<string, string> {
+  const { secret } = requireGatewayConfig();
   const timestamp = Date.now().toString();
   const bodyHash = crypto.createHash('sha256').update(body || '').digest('hex');
   const payload = [timestamp, SERVICE_NAME, method.toUpperCase(), path, bodyHash].join('\n');
-  const signature = crypto.createHmac('sha256', SERVICE_SECRET!).update(payload).digest('hex');
+  const signature = crypto.createHmac('sha256', secret).update(payload).digest('hex');
 
   return {
     'X-Service-Name': SERVICE_NAME,
@@ -49,7 +69,8 @@ function generateAuthHeaders(method: string, path: string, body: string = ''): R
 }
 
 async function apiGet<T = unknown>(path: string): Promise<T> {
-  const res = await fetch(`${GATEWAY_API_URL}${path}`, {
+  const { url } = requireGatewayConfig();
+  const res = await fetch(`${url}${path}`, {
     headers: generateAuthHeaders('GET', path),
   });
   if (!res.ok) {
@@ -61,8 +82,9 @@ async function apiGet<T = unknown>(path: string): Promise<T> {
 }
 
 async function apiPost<T = unknown>(path: string, body: unknown, signal?: AbortSignal): Promise<T> {
+  const { url } = requireGatewayConfig();
   const serializedBody = JSON.stringify(body);
-  const res = await fetch(`${GATEWAY_API_URL}${path}`, {
+  const res = await fetch(`${url}${path}`, {
     method: 'POST',
     headers: generateAuthHeaders('POST', path, serializedBody),
     body: serializedBody,
@@ -82,8 +104,9 @@ async function apiPost<T = unknown>(path: string, body: unknown, signal?: AbortS
 }
 
 async function apiPatch<T = unknown>(path: string, body: unknown): Promise<T> {
+  const { url } = requireGatewayConfig();
   const serializedBody = JSON.stringify(body);
-  const res = await fetch(`${GATEWAY_API_URL}${path}`, {
+  const res = await fetch(`${url}${path}`, {
     method: 'PATCH',
     headers: generateAuthHeaders('PATCH', path, serializedBody),
     body: serializedBody,

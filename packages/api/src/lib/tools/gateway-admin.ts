@@ -4,7 +4,7 @@ import crypto from 'crypto';
 import { log } from '../logger.js';
 import { getErrorMessage } from '../errors/index.js';
 
-const GATEWAY_API_URL = process.env.GATEWAY_API_URL || 'http://localhost:9091';
+const GATEWAY_API_URL = process.env.GATEWAY_API_URL;
 const SERVICE_SECRET = process.env.SERVICE_SECRET;
 
 /**
@@ -27,7 +27,7 @@ function generateAuthHeaders(method: string, path: string, body: string = ''): R
   };
 }
 
-async function proxyRequest(method: string, path: string, body?: any): Promise<any> {
+async function proxyRequest(method: string, path: string, body?: unknown): Promise<unknown> {
   const serializedBody = body !== undefined ? JSON.stringify(body) : undefined;
   const res = await fetch(`${GATEWAY_API_URL}${path}`, {
     method,
@@ -71,6 +71,12 @@ export function createGatewayAdminTool() {
     }),
 
     execute: async ({ entity, action, id, filter, data, limit, days }) => {
+      if (!GATEWAY_API_URL || !SERVICE_SECRET) {
+        return {
+          success: false,
+          message: 'Gateway API not configured (requires SERVICE_SECRET and GATEWAY_API_URL)',
+        };
+      }
       try {
         const basePath = ENTITY_PATHS[entity];
         if (!basePath) return { success: false, message: `Unknown entity: ${entity}` };
