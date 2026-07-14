@@ -12,6 +12,7 @@ import { useStore } from '@/lib/globalStore';
 import { useModelStore } from '@/lib/stores/model-store';
 import { useUIStore } from '@/lib/stores/ui-store';
 import { toast } from '@/components/sonner';
+import i18n from '@/lib/i18n';
 
 import type { ToolInvocation } from '@/lib/types/messages';
 import { errorMessage as getErrorMessage, errorStatus, errorCode, errorName } from '../lib/errors/error-utils';
@@ -241,6 +242,12 @@ Use this role to guide your responses, maintaining the specified tone, style, an
           }
         }
 
+        // Session expired or signed out mid-request: friendly sign-in prompt
+        // instead of the raw server error string.
+        if (response.status === 401) {
+          throw new Error(i18n.t('subscribe.signInRequired'));
+        }
+
         // Generic error fallback
         let errorMessage = `Server error (${response.status})`;
         if (errorData) {
@@ -278,7 +285,6 @@ Use this role to guide your responses, maintaining the specified tone, style, an
 
           // Check if we received any content
           if (!fullContent && !error && !hasToolInvocations) {
-            console.error('[useStreamingChat] Stream ended without content');
             setMessages((prev) => {
               const updated = [...prev];
               const lastMessage = updated[updated.length - 1];
@@ -729,8 +735,6 @@ Use this role to guide your responses, maintaining the specified tone, style, an
 
               // Handle error events from server
               if (parsed.type === 'error') {
-                console.error('[useStreamingChat] Server error:', parsed.error);
-
                 // Update the assistant message with error information
                 setMessages((prev) => {
                   const updated = [...prev];
@@ -760,9 +764,9 @@ Use this role to guide your responses, maintaining the specified tone, style, an
                 reader.cancel();
                 return;
               }
-            } catch (e) {
-              // Ignore parse errors for malformed JSON
-              console.warn('[useStreamingChat] Failed to parse SSE event:', e);
+            } catch {
+              // Malformed SSE fragments are expected mid-stream; the next
+              // complete event supersedes them.
             }
           }
         }
@@ -807,7 +811,6 @@ Use this role to guide your responses, maintaining the specified tone, style, an
         }
       }
 
-      console.error('[useStreamingChat] Error:', e);
       const finalError = e instanceof Error
         ? e
         : new Error(typeof e === 'string' ? e : (getErrorMessage(e) || 'An unexpected error occurred'));
