@@ -1,73 +1,25 @@
-import { useMemo, useCallback } from "react";
+import { View } from "react-native";
 import { useAuth } from "@oxyhq/services";
+import { Text } from "@/components/ui/text";
+import { AliaMark } from '@alia.onl/sdk';
 import { useTranslation } from "@/hooks/useTranslation";
-import { useWelcomeSuggestions, useRecordSuggestionUsage } from "@/lib/hooks/use-suggestions";
-import { useUserDataStore } from "@/lib/stores/user-data-store";
-import { PERSONALITY_STYLE_MAP } from "@/lib/personality-styles";
-import { AliaWelcomeMessage } from '@alia.onl/sdk';
 
-type TimeOfDay = "morning" | "afternoon" | "evening";
-
-function getTimeOfDay(): TimeOfDay {
-  const hour = new Date().getHours();
-  if (hour >= 5 && hour < 12) return "morning";
-  if (hour >= 12 && hour < 17) return "afternoon";
-  return "evening";
-}
-
-const PAIRS_COUNT = 8;
-
-type WelcomeMessageProps = {
-  onSuggestionPress?: (message: string) => void;
-};
-
-export const WelcomeMessage = ({ onSuggestionPress }: WelcomeMessageProps) => {
+export const WelcomeMessage = () => {
   const { user, isAuthenticated } = useAuth();
   const { t } = useTranslation();
-  const { data: apiSuggestions } = useWelcomeSuggestions();
-  const recordUsage = useRecordSuggestionUsage();
 
-  const tone = useUserDataStore(s => s.memory?.preferences?.tone);
-  const activeStyle = tone && tone !== 'alia' ? PERSONALITY_STYLE_MAP[tone as keyof typeof PERSONALITY_STYLE_MAP] : null;
-
-  const timeOfDay = useMemo(() => getTimeOfDay(), []);
-  const pairIndex = useMemo(() => Math.floor(Math.random() * PAIRS_COUNT), []);
-
-  const userName = user?.name?.displayName || user?.username || "there";
-  const greeting = isAuthenticated
-    ? t(`welcome.${timeOfDay}Greetings.${pairIndex}`, { name: userName })
-    : t('welcome.appName');
-
-  const styleSubtitleIndex = useMemo(
-    () => activeStyle ? Math.floor(Math.random() * activeStyle.subtitles.length) : 0,
-    [activeStyle]
-  );
-  const subtitle = isAuthenticated
-    ? (activeStyle ? activeStyle.subtitles[styleSubtitleIndex] : t(`welcome.${timeOfDay}Subtitles.${pairIndex}`))
-    : t('welcome.defaultSubtitle');
-
-  const suggestions = useMemo(() =>
-    (apiSuggestions || []).map(s => ({
-      id: s.suggestionId,
-      title: s.title,
-      description: s.description || s.text,
-    })),
-    [apiSuggestions]
-  );
-
-  const recordUsageMutate = recordUsage.mutate;
-  const handleSuggestionPress = useCallback((text: string) => {
-    const match = suggestions.find(s => s.description === text);
-    if (match) recordUsageMutate(match.id);
-    onSuggestionPress?.(text);
-  }, [onSuggestionPress, suggestions, recordUsageMutate]);
+  // Oxy identity rule: displayName with handle fallback.
+  const name = user?.name?.displayName?.trim() || user?.username;
+  const greeting = isAuthenticated && name
+    ? t('welcome.greetingNamed', { name })
+    : t('welcome.greeting');
 
   return (
-    <AliaWelcomeMessage
-      greeting={greeting}
-      subtitle={subtitle}
-      suggestions={suggestions}
-      onSuggestionPress={handleSuggestionPress}
-    />
+    <View className="flex-row items-center justify-center gap-3 px-4">
+      <AliaMark size={38} />
+      <Text className="text-4xl tracking-tight text-foreground">
+        {greeting}
+      </Text>
+    </View>
   );
 };

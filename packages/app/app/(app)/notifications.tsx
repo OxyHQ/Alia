@@ -47,7 +47,7 @@ function timeAgo(dateStr: string): string {
 export default function NotificationsScreen() {
   const { t } = useTranslation();
   const router = useRouter();
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, signIn } = useAuth();
 
   const [pushEnabled, setPushEnabled] = useState(false);
   const [permissionStatus, setPermissionStatus] = useState<string | null>(null);
@@ -61,9 +61,9 @@ export default function NotificationsScreen() {
 
   useEffect(() => {
     if (!isAuthenticated) {
-      router.replace("/login");
+      signIn().catch(() => {});
     }
-  }, [isAuthenticated]);
+  }, [isAuthenticated, signIn]);
 
   useEffect(() => {
     checkPermissions();

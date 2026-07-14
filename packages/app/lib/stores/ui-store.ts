@@ -12,6 +12,7 @@ export interface CanvasArtifact {
 }
 
 interface UIState {
+  /** Desktop sidebar expanded/collapsed. Mobile uses the drawer's own state. */
   sidebarOpen: boolean;
   rightPanel: RightPanel;
   thoughtMessageId: string | null;
@@ -36,7 +37,7 @@ interface UIState {
 }
 
 export const useUIStore = create<UIState>((set) => ({
-  sidebarOpen: false,
+  sidebarOpen: true,
   rightPanel: null,
   thoughtMessageId: null,
   thoughtMessages: [],

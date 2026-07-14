@@ -2,7 +2,8 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { View, ActivityIndicator, Linking, Platform } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import Head from 'expo-router/head';
-import { AuthContainer, AuthLogo } from '@/components/auth';
+import { AuthContainer } from '@/components/auth/auth-container';
+import { AuthLogo } from '@/components/auth/auth-logo';
 import { useAuth, useOxy } from '@oxyhq/services';
 import apiClient, { getSocketToken } from '@/lib/api/client';
 import config from '@/lib/config';
@@ -62,7 +63,7 @@ function getAppConfig(app: string): AppConfig {
 export default function AuthorizeScreen() {
   const router = useRouter();
   const params = useLocalSearchParams();
-  const { isAuthenticated, isLoading: authLoading } = useAuth();
+  const { isAuthenticated, isLoading: authLoading, signIn } = useAuth();
   const { isAuthenticated: isOxyAuth } = useOxy();
   const { t } = useTranslation();
   const { colors } = useColorScheme();
@@ -158,10 +159,7 @@ export default function AuthorizeScreen() {
     if (!isOxyAuth) {
       setStatus('needLogin');
       setMessage(t('authorize.needLogin', { app: appConfig.displayName }));
-      setTimeout(() => {
-        const returnTo = `/authorize?app=${channelType}&token=${token}&channel=${channelType}`;
-        router.replace(`/login?returnTo=${encodeURIComponent(returnTo)}`);
-      }, 1500);
+      signIn().catch(() => {});
       return;
     }
 
@@ -183,7 +181,7 @@ export default function AuthorizeScreen() {
       setStatus('error');
       setMessage(errorMessage);
     }
-  }, [params, isOxyAuth, router, channel, app, appConfig.displayName]);
+  }, [params, isOxyAuth, signIn, channel, app, appConfig.displayName]);
 
   useEffect(() => {
     if (authLoading) return;
@@ -199,25 +197,22 @@ export default function AuthorizeScreen() {
     } else {
       // OAuth flow for Codea/Cowork
       if (!isAuthenticated) {
-        const urlParams = new URLSearchParams();
-        Object.entries(params).forEach(([key, value]) => {
-          if (value) urlParams.set(key, value as string);
-        });
-        const returnTo = `/authorize?${urlParams.toString()}`;
-        router.replace(`/login?returnTo=${encodeURIComponent(returnTo)}`);
+        setStatus('needLogin');
+        setMessage(t('authorize.needLogin', { app: appConfig.displayName }));
+        signIn().catch(() => {});
         return;
       }
       setStatus('authorize');
     }
-  }, [isAuthenticated, authLoading, app, channel, params, router, handleChannelAuth, appConfig.isChannel]);
+  }, [isAuthenticated, authLoading, app, channel, params, signIn, handleChannelAuth, appConfig.isChannel]);
 
   // Real-time socket subscription for Telegram token linking
   useEffect(() => {
     const token = params.token as string | undefined;
     if (app !== 'telegram' || !token) return;
 
-    // The user is already authenticated on the authorize screen (the layout
-    // redirects to /login otherwise), so the connection carries the Oxy bearer
+    // The user is already authenticated on the authorize screen (it opens the
+    // in-app sign-in modal otherwise), so the connection carries the Oxy bearer
     // token expected by the server's authSocket() middleware. The telegram token
     // is the one-time pairing code, distinct from the auth token.
     const socket = socketIO(config.apiUrl, {
@@ -343,9 +338,6 @@ export default function AuthorizeScreen() {
                   </Text>
                   <Text className="text-muted-foreground text-center">
                     {message}
-                  </Text>
-                  <Text className="text-sm text-muted-foreground text-center">
-                    {t('authorize.redirectingToLogin')}
                   </Text>
                 </View>
               </View>

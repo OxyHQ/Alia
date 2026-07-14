@@ -38,8 +38,6 @@ export function useColorScheme() {
       background: c.background,
       // shadcn "foreground" is the primary text color.
       foreground: c.text,
-      // Sidebar / muted are secondary surfaces.
-      sidebar: c.backgroundSecondary,
       // Bloom 0.9.1 has no distinct surface token; surface ≈ card.
       surface: c.card,
       muted: c.backgroundSecondary,

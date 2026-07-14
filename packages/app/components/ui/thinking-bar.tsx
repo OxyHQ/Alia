@@ -10,6 +10,7 @@ import Animated, {
   withSequence,
   withTiming,
 } from "react-native-reanimated";
+import { useTheme } from "@oxyhq/bloom/theme";
 
 type ThinkingBarProps = {
   className?: string;
@@ -58,6 +59,7 @@ export function ThinkingBar({
   stopLabel = "Answer now",
   onPress,
 }: ThinkingBarProps) {
+  const { colors } = useTheme();
   return (
     <View className={cn("w-full flex-row items-center justify-between", className)}>
       {onPress ? (
@@ -78,7 +80,7 @@ export function ThinkingBar({
         >
           <Text
             className="text-sm text-muted-foreground"
-            style={{ borderBottomWidth: 1, borderStyle: "dotted", borderColor: "rgba(128,128,128,0.5)" }}
+            style={{ borderBottomWidth: 1, borderStyle: "dotted", borderColor: colors.border }}
           >
             {stopLabel}
           </Text>

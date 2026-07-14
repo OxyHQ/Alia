@@ -4,6 +4,7 @@ import { View, type ViewProps } from "react-native";
 import { Text } from "@/components/ui/text";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { useTheme } from "@oxyhq/bloom/theme";
 import { AlertCircle, AlertTriangle, Info } from "lucide-react-native";
 
 const systemMessageVariants = cva(
@@ -85,12 +86,13 @@ export function SystemMessage({
   className,
   ...props
 }: SystemMessageProps) {
+  const { colors } = useTheme();
   const iconColor =
     variant === "error"
-      ? "#dc2626"
+      ? colors.error
       : variant === "warning"
-        ? "#d97706"
-        : "#71717a";
+        ? colors.warning
+        : colors.textSecondary;
 
   const getDefaultIcon = () => {
     if (isIconHidden) return null;

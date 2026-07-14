@@ -6,7 +6,10 @@ import { ArrowLeft, Pencil, MessageSquare } from 'lucide-react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useTranslation } from '@/hooks/useTranslation';
 import { useSkillsStore, type Skill } from '@/lib/stores/skills-store';
-import { SectionLabel, BulletList, PromptChipList, GoodAtNotFor } from '@/components/detail';
+import { SectionLabel } from '@/components/detail/section-label';
+import { BulletList } from '@/components/detail/bullet-list';
+import { PromptChipList } from '@/components/detail/prompt-chip-list';
+import { GoodAtNotFor } from '@/components/detail/good-at-not-for';
 import { SkillCover } from '@/components/ui/skill-cover';
 
 function formatDate(dateStr: string): string {

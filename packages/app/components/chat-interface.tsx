@@ -28,6 +28,7 @@ import Animated, {
 } from "react-native-reanimated";
 import * as Clipboard from "expo-clipboard";
 import { Reasoning, ReasoningTrigger } from "@/components/ui/reasoning";
+import { useTheme } from "@oxyhq/bloom/theme";
 import { getToolLabel, getToolActiveLabel, getResearchActiveLabel, getTextFromContent, getImagesFromContent } from '@alia.onl/sdk';
 import { useUIStore } from "@/lib/stores/ui-store";
 import { useStore, type ChatIdState } from "@/lib/globalStore";
@@ -87,7 +88,6 @@ type ChatInterfaceProps = {
   scrollViewRef: React.RefObject<GHScrollView>;
   isLoading?: boolean;
   conversationLoading?: boolean;
-  onSuggestionPress?: (message: string) => void;
   onStartEdit?: (messageId: string, content: string) => void;
   onCopyMessage?: (content: string) => void;
   bottomPadding?: number;
@@ -138,6 +138,7 @@ function getMessageImages(message: Message): string[] {
 
 /** Pulsing colored bullet for tool execution status (alia-codea style). */
 const ToolBullet = React.memo(function ToolBullet({ isRunning }: { isRunning: boolean }) {
+  const { colors } = useTheme();
   const opacity = useSharedValue(1);
   React.useEffect(() => {
     if (isRunning) {
@@ -157,7 +158,7 @@ const ToolBullet = React.memo(function ToolBullet({ isRunning }: { isRunning: bo
   return (
     <Animated.View style={style}>
       <Text
-        style={{ color: isRunning ? '#eab308' : '#22c55e', fontSize: 10 }}
+        style={{ color: isRunning ? colors.warning : colors.success, fontSize: 10 }}
       >
         ●
       </Text>
@@ -495,7 +496,7 @@ const MessageRow = React.memo(function MessageRow({
 
 const imageThumbStyle = { width: 120, height: 120 };
 
-export const ChatInterface = React.memo(function ChatInterface({ messages, scrollViewRef, isLoading, conversationLoading, onSuggestionPress, onStartEdit, onCopyMessage, bottomPadding = 160, isVoiceActive = false, voiceAgentState, onAtBottomChange, agentActivity, agentSessionId, onApprovePlan, onRejectPlan }: ChatInterfaceProps) {
+export const ChatInterface = React.memo(function ChatInterface({ messages, scrollViewRef, isLoading, conversationLoading, onStartEdit, onCopyMessage, bottomPadding = 160, isVoiceActive = false, voiceAgentState, onAtBottomChange, agentActivity, agentSessionId, onApprovePlan, onRejectPlan }: ChatInterfaceProps) {
     const { t } = useTranslation();
     const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
     const [votedMessages, setVotedMessages] = useState<Record<string, 'up' | 'down'>>({});
@@ -648,7 +649,7 @@ export const ChatInterface = React.memo(function ChatInterface({ messages, scrol
                 </View>
               </View>
             ) : (
-              <WelcomeMessage onSuggestionPress={onSuggestionPress} />
+              <WelcomeMessage />
             )
           )}
 

@@ -1,8 +1,8 @@
 import React from "react";
-import { View, Pressable, Platform, NativeSyntheticEvent, NativeScrollEvent, Linking } from "react-native";
+import { View, Pressable, Platform, useWindowDimensions, NativeSyntheticEvent, NativeScrollEvent, Linking } from "react-native";
 import { AliaLogo } from "@/components/ui/alia-logo";
+import { AliaMark } from "@alia.onl/sdk";
 import { Text } from "@/components/ui/text";
-import { Button } from "@/components/ui/button";
 import { BaseSidebar } from "@/components/base-sidebar";
 import {
   Users,
@@ -27,6 +27,9 @@ import {
   Zap,
   ChevronDown,
   ChevronRight,
+  ChevronsLeft,
+  ChevronsRight,
+  History as HistoryIcon,
   Archive,
   Inbox,
   BookMarked,
@@ -41,9 +44,11 @@ import {
   Sparkles,
   type LucideIcon,
 } from "lucide-react-native";
+import { cn } from "@/lib/utils";
 import { useTranslation } from "@/hooks/useTranslation";
 import { useStore } from "@/lib/globalStore";
-import { useRouter, usePathname } from "expo-router";
+import { useRouter, usePathname, useNavigation } from "expo-router";
+import type { DrawerNavigationProp } from "expo-router/drawer";
 import { SettingsSidebar } from "@/components/settings/settings-sidebar";
 import { useOxy, useAuth, ProfileButton } from "@oxyhq/services";
 import { useProjectsStore } from "@/lib/stores/projects-store";
@@ -85,6 +90,94 @@ const ICON_MAP: Record<string, LucideIcon> = {
   BookMarked,
   FolderClosed,
 };
+
+interface SidebarRowProps {
+  icon: LucideIcon;
+  label: string;
+  onPress: () => void;
+  accessibilityLabel?: string;
+  /** Compact variant for nested rows (e.g. the expanded Agents children). */
+  sub?: boolean;
+  /** Icon-rail variant used when the sidebar is collapsed. */
+  iconOnly?: boolean;
+}
+
+/** Ghost menu row shared by every sidebar navigation entry. */
+function SidebarRow({ icon: Icon, label, onPress, accessibilityLabel, sub = false, iconOnly = false }: SidebarRowProps) {
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={accessibilityLabel ?? label}
+      onPress={onPress}
+      className={cn(
+        "flex-row items-center rounded-xl hover:bg-muted active:bg-muted",
+        iconOnly ? "h-9 w-9 justify-center" : "gap-2 px-1.5 w-full",
+        !iconOnly && (sub ? "h-8" : "h-9")
+      )}
+    >
+      <Icon size={sub ? 16 : 18} className="text-foreground" />
+      {!iconOnly && (
+        <Text className={cn("text-foreground", sub ? "text-xs" : "text-sm")}>{label}</Text>
+      )}
+    </Pressable>
+  );
+}
+
+interface SectionHeaderProps {
+  label: string;
+  collapsed: boolean;
+  onToggle: () => void;
+  onAdd: () => void;
+  addAccessibilityLabel: string;
+}
+
+/** Collapsible group header (label + chevron) with a trailing add action. */
+function SectionHeader({ label, collapsed, onToggle, onAdd, addAccessibilityLabel }: SectionHeaderProps) {
+  const Chevron = collapsed ? ChevronRight : ChevronDown;
+  return (
+    <View className="flex-row items-center justify-between pt-4 pb-1 px-2">
+      <Pressable
+        onPress={onToggle}
+        className="flex-row items-center gap-1 flex-1 rounded-lg active:opacity-70"
+      >
+        <Text className="text-xs font-semibold text-foreground select-none">{label}</Text>
+        <Chevron size={12} className="text-foreground" />
+      </Pressable>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={addAccessibilityLabel}
+        onPress={onAdd}
+        className="h-6 w-6 items-center justify-center rounded-lg hover:bg-muted active:bg-muted"
+      >
+        <Plus size={14} className="text-muted-foreground" />
+      </Pressable>
+    </View>
+  );
+}
+
+interface GhostIconButtonProps {
+  icon: LucideIcon;
+  label: string;
+  onPress: () => void;
+  badge?: boolean;
+}
+
+/** Square ghost icon button (header collapse trigger, footer action bar). */
+function GhostIconButton({ icon: Icon, label, onPress, badge = false }: GhostIconButtonProps) {
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      onPress={onPress}
+      className="h-9 w-9 items-center justify-center rounded-xl hover:bg-muted active:bg-muted"
+    >
+      <Icon size={18} className="text-muted-foreground" />
+      {badge && (
+        <View className="absolute top-0.5 right-0.5 h-2.5 w-2.5 rounded-full bg-red-500 border border-background" />
+      )}
+    </Pressable>
+  );
+}
 
 export function Sidebar() {
   const pathname = usePathname();
@@ -171,6 +264,28 @@ const ChatSidebar = React.memo(function ChatSidebar() {
     // Use replace to reset to home
     router.replace("/(app)");
   }, [router]);
+
+  const dimensions = useWindowDimensions();
+  const isLargeScreen = dimensions.width >= 768;
+  const drawerNavigation = useNavigation<DrawerNavigationProp<ReactNavigation.RootParamList>>();
+  const sidebarOpen = useUIStore((s) => s.sidebarOpen);
+  const setSidebarOpen = useUIStore((s) => s.setSidebarOpen);
+  // Desktop icon rail: the drawer narrows and every row renders icon-only.
+  const collapsed = isLargeScreen && !sidebarOpen;
+
+  const handleCollapseSidebar = React.useCallback(() => {
+    // Desktop: the permanent drawer collapses to an icon rail; mobile: the
+    // front drawer simply closes.
+    if (isLargeScreen) {
+      setSidebarOpen(false);
+    } else {
+      drawerNavigation.closeDrawer();
+    }
+  }, [isLargeScreen, setSidebarOpen, drawerNavigation]);
+
+  const handleExpandSidebar = React.useCallback(() => {
+    setSidebarOpen(true);
+  }, [setSidebarOpen]);
 
   const handlePrefetchConversation = React.useCallback((id: string) => {
     prefetchConversation(queryClient, id);
@@ -464,48 +579,73 @@ const ChatSidebar = React.memo(function ChatSidebar() {
     }
   }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
 
-  // Header component
+  // Header — logo chip on the left, collapse trigger on the right
   const header = (
-    <Pressable accessibilityLabel="Home" accessibilityRole="button" onPress={handleLogoPress} style={({ pressed }) => ({ opacity: pressed ? 0.7 : 1 })}>
-      <AliaLogo height={48} />
-    </Pressable>
-  );
-
-  // Top section with New Chat button
-  const topSection = (
-    <View className="gap-2">
-      <Button
-        accessibilityLabel="New chat"
+    <View className={cn("flex-row items-center", collapsed && "justify-center")}>
+      <Pressable
+        accessibilityLabel="Home"
         accessibilityRole="button"
-        onPress={handleNewChat}
-        className="h-11 md:h-9 rounded-full w-full"
+        onPress={handleLogoPress}
+        className="p-1.5 mx-0.5 rounded-xl hover:bg-muted active:bg-muted"
       >
-        <Text className="text-sm md:text-xs font-medium text-primary-foreground">
-          {t('sidebar.newChat')}
-        </Text>
-      </Button>
+        {collapsed ? (
+          <AliaMark size={24} className="text-foreground" />
+        ) : (
+          <AliaLogo height={36} />
+        )}
+      </Pressable>
+      {!collapsed && (
+        <View className="ml-auto">
+          <GhostIconButton
+            icon={ChevronsLeft}
+            label={t('sidebar.collapse')}
+            onPress={handleCollapseSidebar}
+          />
+        </View>
+      )}
     </View>
   );
 
-  // Navigation links
+  // Top section with New Chat as a highlighted menu row (icon-only in the rail)
+  const topSection = (
+    <View className="gap-px">
+      <Pressable
+        accessibilityLabel={t('sidebar.newChat')}
+        accessibilityRole="button"
+        onPress={handleNewChat}
+        className={cn(
+          "h-9 rounded-xl flex-row items-center bg-muted hover:bg-muted/80 active:bg-muted/70",
+          collapsed ? "w-9 justify-center" : "px-1.5 w-full gap-2"
+        )}
+      >
+        <Plus size={18} className="text-foreground" />
+        {!collapsed && (
+          <Text className="text-sm font-semibold text-foreground">
+            {t('sidebar.newChat')}
+          </Text>
+        )}
+      </Pressable>
+    </View>
+  );
+
+  // Navigation links — SidebarRow everywhere; the Agents entry expands a
+  // nested submenu when the sidebar is open and expands the rail otherwise.
   const navigation = (
     <>
-        <Button
-          variant="ghost"
-          className="h-10 md:h-8 flex-row items-center justify-start gap-2 rounded-full px-3 md:px-2 w-full"
-          onPress={handleRoles}
-        >
-          <BrainCircuit size={16} className="text-muted-foreground" />
-          <Text className="text-sm md:text-xs">{t('sidebar.roles')}</Text>
-        </Button>
+      <SidebarRow icon={BrainCircuit} label={t('sidebar.roles')} onPress={handleRoles} iconOnly={collapsed} />
+      {collapsed ? (
+        <SidebarRow icon={Users} label={t('sidebar.agents')} onPress={handleExpandSidebar} iconOnly />
+      ) : (
         <View>
           <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={t('sidebar.agents')}
             onPress={handleToggleAgents}
-            className="h-10 md:h-8 flex-row items-center justify-between rounded-full px-3 md:px-2 w-full active:opacity-70"
+            className="h-9 flex-row items-center justify-between rounded-xl px-1.5 w-full hover:bg-muted active:bg-muted"
           >
             <View className="flex-row items-center gap-2">
-              <Users size={16} className="text-muted-foreground" />
-              <Text className="text-sm md:text-xs text-foreground">{t('sidebar.agents')}</Text>
+              <Users size={18} className="text-foreground" />
+              <Text className="text-sm text-foreground">{t('sidebar.agents')}</Text>
             </View>
             {agentsExpanded ? (
               <ChevronDown size={12} className="text-muted-foreground" />
@@ -514,104 +654,52 @@ const ChatSidebar = React.memo(function ChatSidebar() {
             )}
           </Pressable>
           {agentsExpanded && (
-            <View className="ml-5 gap-0.5">
-              <Button
-                variant="ghost"
-                className="h-9 md:h-7 flex-row items-center justify-start gap-2 rounded-full px-3 md:px-2 w-full"
-                onPress={handleAgents}
-              >
-                <Users size={14} className="text-muted-foreground" />
-                <Text className="text-xs">{t('agents.allAgents')}</Text>
-              </Button>
-              <Button
-                variant="ghost"
-                className="h-9 md:h-7 flex-row items-center justify-start gap-2 rounded-full px-3 md:px-2 w-full"
-                onPress={handleAgentTeams}
-              >
-                <UsersRound size={14} className="text-muted-foreground" />
-                <Text className="text-xs">{t('agents.teams')}</Text>
-              </Button>
+            <View className="ml-7 gap-px">
+              <SidebarRow icon={Users} label={t('agents.allAgents')} onPress={handleAgents} sub />
+              <SidebarRow icon={UsersRound} label={t('agents.teams')} onPress={handleAgentTeams} sub />
             </View>
           )}
         </View>
-        <Button
-          variant="ghost"
-          className="h-10 md:h-8 flex-row items-center justify-start gap-2 rounded-full px-3 md:px-2 w-full"
-          onPress={handleFavorites}
-        >
-          <StarIcon size={16} className="text-muted-foreground" />
-          <Text className="text-sm md:text-xs">Favorites</Text>
-        </Button>
-        <Button
-          accessibilityLabel="Library"
-          accessibilityRole="link"
-          variant="ghost"
-          className="h-10 md:h-8 flex-row items-center justify-start gap-2 rounded-full px-3 md:px-2 w-full"
-          onPress={handleLibrary}
-        >
-          <Library size={16} className="text-muted-foreground" />
-          <Text className="text-sm md:text-xs">{t('sidebar.library')}</Text>
-        </Button>
-        <Button
-          variant="ghost"
-          className="h-10 md:h-8 flex-row items-center justify-start gap-2 rounded-full px-3 md:px-2 w-full"
-          onPress={handleTasks}
-        >
-          <ListTodo size={16} className="text-muted-foreground" />
-          <Text className="text-sm md:text-xs">Tasks</Text>
-        </Button>
-        <Button
-          variant="ghost"
-          className="h-10 md:h-8 flex-row items-center justify-start gap-2 rounded-full px-3 md:px-2 w-full"
-          onPress={handleAutomations}
-        >
-          <CloudCog size={16} className="text-muted-foreground" />
-          <Text className="text-sm md:text-xs">{t('sidebar.automations')}</Text>
-        </Button>
-        <Button
-          variant="ghost"
-          className="h-10 md:h-8 flex-row items-center justify-start gap-2 rounded-full px-3 md:px-2 w-full"
-          onPress={handleSkills}
-        >
-          <BookOpen size={16} className="text-muted-foreground" />
-          <Text className="text-sm md:text-xs">{t('sidebar.skills')}</Text>
-        </Button>
-        <Button
-          variant="ghost"
-          className="h-10 md:h-8 flex-row items-center justify-start gap-2 rounded-full px-3 md:px-2 w-full"
-          onPress={handleShows}
-        >
-          <Mic size={16} className="text-muted-foreground" />
-          <Text className="text-sm md:text-xs">Shows</Text>
-        </Button>
+      )}
+      <SidebarRow icon={StarIcon} label="Favorites" onPress={handleFavorites} iconOnly={collapsed} />
+      <SidebarRow icon={Library} label={t('sidebar.library')} onPress={handleLibrary} iconOnly={collapsed} />
+      <SidebarRow icon={ListTodo} label="Tasks" onPress={handleTasks} iconOnly={collapsed} />
+      <SidebarRow icon={CloudCog} label={t('sidebar.automations')} onPress={handleAutomations} iconOnly={collapsed} />
+      <SidebarRow icon={BookOpen} label={t('sidebar.skills')} onPress={handleSkills} iconOnly={collapsed} />
+      <SidebarRow icon={Mic} label="Shows" onPress={handleShows} iconOnly={collapsed} />
     </>
   );
 
-  // Scrollable content - Projects and History
-  const scrollableContent = (
+  // Scrollable content - Projects and History (rail: icons that expand)
+  const scrollableContent = collapsed ? (
+    <View className="gap-px pt-2">
+      <SidebarRow icon={FolderOpen} label={t('sidebar.projects')} onPress={handleExpandSidebar} iconOnly />
+      <SidebarRow icon={HistoryIcon} label="History" onPress={handleExpandSidebar} iconOnly />
+    </View>
+  ) : (
     <View className="gap-2">
         <View className="gap-2">
             {/* Projects Subsection */}
             <View>
-              <View className="flex-row items-center justify-between px-2 py-1.5 md:py-1">
+              <View className="flex-row items-center justify-between pt-4 pb-1 px-2">
                 <Pressable
                   onPress={handleToggleProjects}
-                  className="flex-row items-center gap-1 flex-1 active:opacity-70"
+                  className="flex-row items-center gap-1 flex-1 rounded-lg active:opacity-70"
                 >
-                  {projectsCollapsed ? (
-                    <ChevronRight size={12} className="text-muted-foreground" />
-                  ) : (
-                    <ChevronDown size={12} className="text-muted-foreground" />
-                  )}
-                  <Text className="text-xs font-medium text-muted-foreground">
+                  <Text className="text-xs font-semibold text-foreground select-none">
                     {t('sidebar.projects')}
                   </Text>
+                  {projectsCollapsed ? (
+                    <ChevronRight size={12} className="text-foreground" />
+                  ) : (
+                    <ChevronDown size={12} className="text-foreground" />
+                  )}
                 </Pressable>
                 <Pressable
                   onPress={handleNewProject}
-                  className="h-5 w-5 md:h-4 md:w-4 rounded active:opacity-70"
+                  className="h-6 w-6 items-center justify-center rounded-lg hover:bg-muted active:bg-muted"
                 >
-                  <Plus size={12} className="text-muted-foreground" />
+                  <Plus size={14} className="text-muted-foreground" />
                 </Pressable>
               </View>
               {!projectsCollapsed && (
@@ -632,10 +720,10 @@ const ChatSidebar = React.memo(function ChatSidebar() {
                   return (
                     <View key={project.id} className="gap-0.5">
                       {/* Project Header */}
-                      <View className="flex-row items-center gap-1 rounded-lg group">
+                      <View className="flex-row items-center gap-1 rounded-xl group hover:bg-muted">
                         <Pressable
                           onPress={() => toggleProject(project.id)}
-                          className="flex-1 flex-row items-center gap-2 py-2 px-2 active:bg-muted/50 rounded-lg"
+                          className="flex-1 h-9 flex-row items-center gap-2 px-2 active:bg-muted/50 rounded-xl"
                         >
                           <ProjectIcon
                             size={16}
@@ -659,7 +747,7 @@ const ChatSidebar = React.memo(function ChatSidebar() {
                         </Pressable>
                         <DropdownMenu.Root>
                           <DropdownMenu.Trigger>
-                            <Pressable className="h-8 w-8 items-center justify-center rounded-full mr-1 active:bg-muted/70">
+                            <Pressable className="h-6 w-6 items-center justify-center rounded-lg mr-1 web:opacity-0 web:group-hover:opacity-100 active:bg-muted/70">
                               <MoreHorizontal size={14} className="text-muted-foreground" />
                             </Pressable>
                           </DropdownMenu.Trigger>
@@ -711,27 +799,27 @@ const ChatSidebar = React.memo(function ChatSidebar() {
 
             {/* History Subsection */}
             <View>
-              <View className="flex-row items-center justify-between px-2 py-1.5 md:py-1">
+              <View className="flex-row items-center justify-between pt-4 pb-1 px-2">
                 <Pressable
                   onPress={handleToggleHistory}
-                  className="flex-row items-center gap-1 flex-1 active:opacity-70"
+                  className="flex-row items-center gap-1 flex-1 rounded-lg active:opacity-70"
                 >
-                  {historyCollapsed ? (
-                    <ChevronRight size={12} className="text-muted-foreground" />
-                  ) : (
-                    <ChevronDown size={12} className="text-muted-foreground" />
-                  )}
-                  <Text className="text-xs font-medium text-muted-foreground">
+                  <Text className="text-xs font-semibold text-foreground select-none">
                     History
                   </Text>
+                  {historyCollapsed ? (
+                    <ChevronRight size={12} className="text-foreground" />
+                  ) : (
+                    <ChevronDown size={12} className="text-foreground" />
+                  )}
                 </Pressable>
                 <Pressable
                   accessibilityLabel="New folder"
                   accessibilityRole="button"
                   onPress={handleNewFolder}
-                  className="h-5 w-5 md:h-4 md:w-4 rounded active:opacity-70"
+                  className="h-6 w-6 items-center justify-center rounded-lg hover:bg-muted active:bg-muted"
                 >
-                  <Plus size={12} className="text-muted-foreground" />
+                  <Plus size={14} className="text-muted-foreground" />
                 </Pressable>
               </View>
               {!historyCollapsed && (
@@ -807,7 +895,6 @@ const ChatSidebar = React.memo(function ChatSidebar() {
                         onMoveToProject={handleMoveConversationToProject}
                         onMoveToFolder={handleMoveConversationToFolder}
                         onDelete={handleDeleteConversation}
-                        compact
                       />
                     ))}
 
@@ -862,7 +949,20 @@ const ChatSidebar = React.memo(function ChatSidebar() {
   // signed-in row + account switcher, signed-out "Sign in" → SDK dialog), so it
   // renders unconditionally — same pattern as Mention's sidebar. Only the
   // account-scoped icon bar is gated on auth.
-  const footer = (
+  const footer = collapsed ? (
+    <View className="gap-2 items-center">
+      <GhostIconButton
+        icon={ChevronsRight}
+        label={t('sidebar.collapse')}
+        onPress={handleExpandSidebar}
+      />
+      <ProfileButton
+        expanded={false}
+        onNavigateManage={handleManageAccount}
+        onAddAccount={handleAddAccount}
+      />
+    </View>
+  ) : (
     <View className="gap-2">
             <ProfileButton
               expanded
@@ -873,89 +973,28 @@ const ChatSidebar = React.memo(function ChatSidebar() {
             {/* Icon Button Bar */}
             {isAuthenticated && (
             <View className="flex-row items-center">
-              {/* Upgrade to Pro */}
-              <Pressable
-                accessibilityLabel={t('sidebar.upgradeToPro')}
-                accessibilityRole="button"
-                onPress={handleUpgrade}
-                className="h-9 w-9 md:h-8 md:w-8 items-center justify-center rounded-lg hover:bg-muted active:bg-muted"
-              >
-                <Sparkles size={18} className="text-muted-foreground" />
-              </Pressable>
-
-              {/* Notifications */}
-              <Pressable
-                accessibilityLabel={t('sidebar.notifications')}
-                accessibilityRole="button"
+              <GhostIconButton icon={Sparkles} label={t('sidebar.upgradeToPro')} onPress={handleUpgrade} />
+              <GhostIconButton
+                icon={Bell}
+                label={t('sidebar.notifications')}
                 onPress={handleNotifications}
-                className="h-9 w-9 md:h-8 md:w-8 items-center justify-center rounded-lg hover:bg-muted active:bg-muted"
-              >
-                <Bell size={18} className="text-muted-foreground" />
-                {(unreadData?.count ?? 0) > 0 && (
-                  <View className="absolute top-0.5 right-0.5 h-2.5 w-2.5 rounded-full bg-red-500 border border-background" />
-                )}
-              </Pressable>
-
-              {/* Billing */}
-              <Pressable
-                accessibilityLabel={t('sidebar.billing')}
-                accessibilityRole="button"
-                onPress={handleBilling}
-                className="h-9 w-9 md:h-8 md:w-8 items-center justify-center rounded-lg hover:bg-muted active:bg-muted"
-              >
-                <CreditCard size={18} className="text-muted-foreground" />
-              </Pressable>
-
-              {/* Settings */}
-              <Pressable
-                accessibilityLabel="Settings"
-                accessibilityRole="button"
-                onPress={handleSettings}
-                className="h-9 w-9 md:h-8 md:w-8 items-center justify-center rounded-lg hover:bg-muted active:bg-muted"
-              >
-                <Settings2 size={18} className="text-muted-foreground" />
-              </Pressable>
-
-              {/* App Download - web only */}
+                badge={(unreadData?.count ?? 0) > 0}
+              />
+              <GhostIconButton icon={CreditCard} label={t('sidebar.billing')} onPress={handleBilling} />
+              <GhostIconButton icon={Settings2} label="Settings" onPress={handleSettings} />
               {Platform.OS === "web" && (
-                <Pressable
-                  onPress={handleAppDownload}
-                  className="h-9 w-9 md:h-8 md:w-8 items-center justify-center rounded-lg hover:bg-muted active:bg-muted"
-                >
-                  <Smartphone size={18} className="text-muted-foreground" />
-                </Pressable>
+                <>
+                  <GhostIconButton icon={Smartphone} label="App download" onPress={handleAppDownload} />
+                  <GhostIconButton icon={Code} label="Console" onPress={handleConsole} />
+                  <GhostIconButton
+                    icon={Keyboard}
+                    label="Keyboard shortcuts"
+                    onPress={() => setShortcutsDialogOpen(true)}
+                  />
+                </>
               )}
-
-              {/* Console - web only */}
-              {Platform.OS === "web" && (
-                <Pressable
-                  onPress={handleConsole}
-                  className="h-9 w-9 md:h-8 md:w-8 items-center justify-center rounded-lg hover:bg-muted active:bg-muted"
-                >
-                  <Code size={18} className="text-muted-foreground" />
-                </Pressable>
-              )}
-
-              {/* Keyboard Shortcuts - web only */}
-              {Platform.OS === "web" && (
-                <Pressable
-                  onPress={() => setShortcutsDialogOpen(true)}
-                  className="h-9 w-9 md:h-8 md:w-8 items-center justify-center rounded-lg hover:bg-muted active:bg-muted"
-                >
-                  <Keyboard size={18} className="text-muted-foreground" />
-                </Pressable>
-              )}
-
-              {/* Spacer */}
               <View className="flex-1" />
-
-              {/* Docs */}
-              <Pressable
-                onPress={handleDocs}
-                className="h-9 w-9 md:h-8 md:w-8 items-center justify-center rounded-lg hover:bg-muted active:bg-muted"
-              >
-                <BookOpen size={18} className="text-muted-foreground" />
-              </Pressable>
+              <GhostIconButton icon={BookOpen} label="Docs" onPress={handleDocs} />
             </View>
             )}
 
@@ -981,13 +1020,14 @@ const ChatSidebar = React.memo(function ChatSidebar() {
   return (
     <>
       <BaseSidebar
+        collapsed={collapsed}
         header={header}
         topSection={topSection}
         navigation={navigation}
         scrollableContent={scrollableContent}
-        scrollOverlay={shareBanner}
+        scrollOverlay={collapsed ? null : shareBanner}
         footer={footer}
-        backgroundColor="bg-sidebar"
+        backgroundColor="bg-background"
         onScroll={handleScroll}
         showScrollIndicator={false}
       />

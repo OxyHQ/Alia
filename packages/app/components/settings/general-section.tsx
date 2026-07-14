@@ -15,17 +15,17 @@ const AppMiniature = React.memo(function AppMiniature({ variant, preset }: { var
   return (
     <View className="flex-row flex-1 rounded overflow-hidden" style={themeVars}>
       {/* Sidebar */}
-      <View className="bg-sidebar p-1 gap-0.5 justify-between" style={{ width: "27%" }}>
+      <View className="bg-background p-1 gap-0.5 justify-between" style={{ width: "27%" }}>
         <View className="gap-0.5">
           <View className="h-1.5 rounded-sm bg-primary" />
-          <View className="h-[1px] w-3/4 rounded-full mt-0.5 bg-sidebar-border" />
-          <View className="h-[1px] w-2/3 rounded-full bg-sidebar-border" />
-          <View className="h-[1px] w-3/4 rounded-full bg-sidebar-border" />
-          <View className="h-[1px] w-1/2 rounded-full bg-sidebar-border" />
+          <View className="h-[1px] w-3/4 rounded-full mt-0.5 bg-border" />
+          <View className="h-[1px] w-2/3 rounded-full bg-border" />
+          <View className="h-[1px] w-3/4 rounded-full bg-border" />
+          <View className="h-[1px] w-1/2 rounded-full bg-border" />
         </View>
         <View className="gap-0.5">
-          <View className="h-[1px] w-2/3 rounded-full bg-sidebar-border" />
-          <View className="h-[1px] w-3/4 rounded-full bg-sidebar-border" />
+          <View className="h-[1px] w-2/3 rounded-full bg-border" />
+          <View className="h-[1px] w-3/4 rounded-full bg-border" />
         </View>
       </View>
       {/* Main content */}

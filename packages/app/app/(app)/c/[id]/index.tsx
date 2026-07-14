@@ -77,7 +77,6 @@ const ChatConversationPage = () => {
         isLoading={isLoading}
         conversationLoading={conversationLoading}
         onSubmit={sendMessage}
-        onSuggestionPress={sendMessage}
         onEditMessage={editMessage}
         onStop={stopGeneration}
         onClear={clearConversation}

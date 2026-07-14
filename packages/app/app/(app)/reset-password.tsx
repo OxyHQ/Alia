@@ -1,7 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
-import { AuthContainer, AuthLogo, AuthInput, AuthButton, AuthError } from '@/components/auth';
+import { useAuth } from '@oxyhq/services';
+import { AuthContainer } from '@/components/auth/auth-container';
+import { AuthLogo } from '@/components/auth/auth-logo';
+import { AuthInput } from '@/components/auth/auth-input';
+import { AuthButton } from '@/components/auth/auth-button';
+import { AuthError } from '@/components/auth/auth-error';
 import apiClient from '@/lib/api/client';
 import { toast } from '@/components/sonner';
 import { useTranslation } from '@/hooks/useTranslation';
@@ -10,6 +15,7 @@ import { errorMessage as getErrorMessage } from '@/lib/errors/error-utils';
 export default function ResetPasswordScreen() {
   const { t } = useTranslation();
   const router = useRouter();
+  const { signIn } = useAuth();
   const { token } = useLocalSearchParams<{ token: string }>();
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -55,7 +61,8 @@ export default function ResetPasswordScreen() {
       });
 
       toast.success(t('resetPassword.successMessage'));
-      router.replace('/login');
+      router.replace('/');
+      signIn().catch(() => {});
     } catch (error: unknown) {
       console.error('Reset password error:', error);
       const errorMessage = getErrorMessage(error, t('resetPassword.failedToReset'));

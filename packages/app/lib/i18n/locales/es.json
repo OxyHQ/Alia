@@ -29,42 +29,6 @@
     "authorize": "Autorizar",
     "tryAgain": "Reintentar"
   },
-  "login": {
-    "title": "Iniciar sesión o registrarse",
-    "subtitle": "para continuar a Alia",
-    "continueWithGoogle": "Continuar con Google",
-    "continueWithMicrosoft": "Continuar con Microsoft",
-    "continueWithApple": "Continuar con Apple",
-    "continueWithTelegram": "Continuar con Telegram",
-    "emailPlaceholder": "Correo electrónico",
-    "passwordPlaceholder": "Contraseña",
-    "forgotPassword": "¿Olvidaste tu contraseña?",
-    "signInButton": "Iniciar sesión",
-    "signingIn": "Iniciando sesión...",
-    "footerText": "¿No tienes una cuenta?",
-    "footerLink": "Registrarse",
-    "termsPrefix": "Al continuar, aceptas los ",
-    "termsOfService": "Términos de Servicio",
-    "termsAnd": " y la ",
-    "privacyPolicy": "Política de Privacidad de Alia"
-  },
-  "register": {
-    "title": "Crear cuenta Oxy",
-    "subtitle": "Regístrate para comenzar con Alia",
-    "firstNamePlaceholder": "Nombre",
-    "lastNamePlaceholder": "Apellido (Opcional)",
-    "emailPlaceholder": "Correo electrónico",
-    "passwordPlaceholder": "Contraseña (mín. 8 caracteres)",
-    "confirmPasswordPlaceholder": "Confirmar contraseña",
-    "createAccountButton": "Continuar",
-    "creatingAccount": "Creando cuenta...",
-    "footerText": "¿Ya tienes una cuenta?",
-    "footerLink": "Iniciar sesión",
-    "termsPrefix": "Al continuar, aceptas los ",
-    "termsOfService": "Términos de Servicio",
-    "termsAnd": " y la ",
-    "privacyPolicy": "Política de Privacidad de Oxy"
-  },
   "errors": {
     "emailRequired": "Por favor ingresa tu dirección de correo electrónico",
     "passwordRequired": "Por favor ingresa tu contraseña",
@@ -228,7 +192,12 @@
     "notifications": "Notificaciones",
     "logOut": "Cerrar sesión",
     "termsOfService": "Términos de Servicio",
-    "privacyPolicy": "Política de Privacidad"
+    "privacyPolicy": "Política de Privacidad",
+    "today": "Hoy",
+    "yesterday": "Ayer",
+    "previous7Days": "Últimos 7 días",
+    "earlier": "Anteriores",
+    "collapse": "Contraer barra lateral"
   },
   "billing": {
     "title": "Facturación",
@@ -576,68 +545,8 @@
     "helpComingSoon": "La función de ayuda estará disponible pronto!"
   },
   "welcome": {
-    "morningGreetings": [
-      "Buenos días, {{name}}",
-      "¡Arriba y adelante, {{name}}!",
-      "¡Buen día, {{name}}!",
-      "¿Qué tal esta mañana, {{name}}?",
-      "Hey {{name}}, ¡tempranero!",
-      "¡Buenos días! ¿Listo para empezar, {{name}}?",
-      "Hola {{name}}, ¡nuevo día, nuevas oportunidades!",
-      "Hey {{name}}, hagamos que hoy sea genial"
-    ],
-    "afternoonGreetings": [
-      "Buenas tardes, {{name}}",
-      "Hey {{name}}, ¿cómo va tu día?",
-      "¡Buenas tardes, {{name}}!",
-      "Espero que tu día vaya bien, {{name}}",
-      "Hey {{name}}, qué bueno verte",
-      "¿Qué onda, {{name}}?",
-      "Hola {{name}}, ¿cómo te trata el día?",
-      "Hey, {{name}}"
-    ],
-    "eveningGreetings": [
-      "Buenas noches, {{name}}",
-      "Hey {{name}}, ¿cómo estuvo tu día?",
-      "¡Buenas noches, {{name}}!",
-      "Hey, {{name}}",
-      "Bienvenido de nuevo, {{name}}",
-      "Hey {{name}}, ¿descansando?",
-      "¡Buenas noches! ¿Qué tienes en mente, {{name}}?",
-      "Hey {{name}}, ¿quemando el aceite de medianoche?"
-    ],
-    "morningSubtitles": [
-      "¿Qué hay en la agenda hoy?",
-      "Empecemos el día con todo",
-      "¿Con qué puedo ayudarte esta mañana?",
-      "Listos para aprovechar el día",
-      "¿Cómo puedo ayudarte esta mañana?",
-      "¿Cuál es el plan para hoy?",
-      "Hagamos una mañana productiva",
-      "¿Qué vamos a resolver hoy?"
-    ],
-    "afternoonSubtitles": [
-      "¿Cómo puedo ayudarte esta tarde?",
-      "¿En qué estamos trabajando?",
-      "¿Necesitas ayuda con algo?",
-      "¿En qué puedo asistirte?",
-      "¿Qué tienes en mente?",
-      "¿Qué puedo hacer por ti?",
-      "Sigamos con el impulso",
-      "¿Con qué necesitas ayuda?"
-    ],
-    "eveningSubtitles": [
-      "¿Cómo puedo ayudarte esta noche?",
-      "¿Qué tienes en mente esta noche?",
-      "¿Necesitas ayuda con algo esta noche?",
-      "¿Qué puedo hacer por ti esta noche?",
-      "¿Descansando o apenas empezando?",
-      "¿Cómo puedo ayudarte esta noche?",
-      "Hagamos algo productivo esta noche",
-      "¿En qué trabajamos esta noche?"
-    ],
-    "defaultSubtitle": "¿Cómo puedo ayudarte hoy?",
-    "appName": "Alia"
+    "greetingNamed": "Hola {{name}}, ¿qué tienes en mente?",
+    "greeting": "Hola, ¿qué tienes en mente?"
   },
   "notifications": {
     "title": "Notificaciones",
@@ -744,7 +653,6 @@
     "linkingAccount": "Vinculando cuenta...",
     "pleaseWait": "Por favor espera mientras configuramos tu acceso",
     "authRequired": "Autenticación requerida",
-    "redirectingToLogin": "Redirigiendo al inicio de sesión...",
     "linked": "¡Vinculado!",
     "authorized": "¡Autorizado!",
     "authSuccess": "¡Autorización exitosa! Redirigiendo a la aplicación...",

@@ -67,7 +67,6 @@ const ChatPage = () => {
         scrollViewRef={scrollViewRef}
         isLoading={isLoading}
         onSubmit={handleSubmit}
-        onSuggestionPress={handleSubmit}
         onEditMessage={editMessage}
         onClear={clearConversation}
         selectedModel={selectedModel}

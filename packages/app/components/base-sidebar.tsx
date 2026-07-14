@@ -1,8 +1,10 @@
 import React, { useState, useCallback } from "react";
 import { View, ScrollView, NativeSyntheticEvent, NativeScrollEvent } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
+import { withAlpha } from "@oxyhq/bloom/theme";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useColorScheme } from "@/lib/useColorScheme";
+import { cn } from "@/lib/utils";
 
 interface BaseSidebarProps {
   /** Header content (logo, branding, etc.) */
@@ -17,12 +19,14 @@ interface BaseSidebarProps {
   scrollOverlay?: React.ReactNode;
   /** Footer content (user menu, auth buttons, etc.) */
   footer: React.ReactNode;
-  /** Background color class (default: bg-background for white) */
+  /** Background color class (default: bg-background, matching the drawer) */
   backgroundColor?: string;
   /** Optional callback for scroll events */
   onScroll?: (event: any) => void;
   /** Show vertical scroll indicator */
   showScrollIndicator?: boolean;
+  /** Icon-rail mode: centers header, rows, and footer on the rail midline. */
+  collapsed?: boolean;
 }
 
 const GRADIENT_HEIGHT = 24;
@@ -35,11 +39,16 @@ export const BaseSidebar = React.memo(function BaseSidebar({
   scrollableContent,
   scrollOverlay,
   footer,
-  backgroundColor = "bg-sidebar",
+  backgroundColor = "bg-background",
   onScroll,
   showScrollIndicator = false,
+  collapsed = false,
 }: BaseSidebarProps) {
   const { colors } = useColorScheme();
+  // The fade must resolve to the EXACT surface color behind it — never the
+  // `transparent` keyword, which fades through black.
+  const edge = colors.background;
+  const edgeClear = withAlpha(edge, 0);
   const insets = useSafeAreaInsets();
   const [showTopGradient, setShowTopGradient] = useState(false);
   const [showBottomGradient, setShowBottomGradient] = useState(true);
@@ -58,9 +67,12 @@ export const BaseSidebar = React.memo(function BaseSidebar({
   }, [onScroll]);
 
   return (
-    <View className={`flex-1 ${backgroundColor} border-r border-sidebar-border`}>
+    <View className={`flex-1 ${backgroundColor} border-r border-border`}>
       {/* Header */}
-      <View className="px-4 pb-4 md:px-3 md:pb-3" style={{ paddingTop: insets.top + 16 }}>
+      <View
+        className={cn("px-2 pb-2", collapsed && "items-center")}
+        style={{ paddingTop: insets.top + 8 }}
+      >
         {header}
       </View>
 
@@ -69,14 +81,17 @@ export const BaseSidebar = React.memo(function BaseSidebar({
         {/* Top gradient */}
         {showTopGradient && (
           <LinearGradient
-            colors={[colors.sidebar, "transparent"]}
+            colors={[edge, edgeClear]}
             style={{ position: "absolute", top: 0, left: 0, right: 0, height: GRADIENT_HEIGHT, zIndex: 10, pointerEvents: "none" }}
           />
         )}
 
         <ScrollView
-          className="flex-1 px-3 md:px-2"
-          contentContainerStyle={scrollOverlay ? { paddingBottom: OVERLAY_PADDING } : undefined}
+          className={cn("flex-1", collapsed ? "px-0" : "px-3 md:px-2")}
+          contentContainerStyle={[
+            scrollOverlay ? { paddingBottom: OVERLAY_PADDING } : null,
+            collapsed ? { alignItems: "center" as const } : null,
+          ]}
           onScroll={handleScroll}
           scrollEventThrottle={16}
           showsVerticalScrollIndicator={showScrollIndicator}
@@ -97,7 +112,7 @@ export const BaseSidebar = React.memo(function BaseSidebar({
         {/* Bottom gradient */}
         {showBottomGradient && !scrollOverlay && (
           <LinearGradient
-            colors={["transparent", colors.sidebar]}
+            colors={[edgeClear, edge]}
             style={{ position: "absolute", bottom: 0, left: 0, right: 0, height: GRADIENT_HEIGHT, zIndex: 10, pointerEvents: "none" }}
           />
         )}
@@ -106,7 +121,7 @@ export const BaseSidebar = React.memo(function BaseSidebar({
         {scrollOverlay && (
           <View style={{ position: "absolute", bottom: 0, left: 0, right: 0, zIndex: 10 }} className="pb-1 px-3 md:px-2">
             <LinearGradient
-              colors={["transparent", colors.sidebar, colors.sidebar]}
+              colors={[edgeClear, edge, edge]}
               locations={[0, 0.8, 1]}
               style={{ position: "absolute", top: -60, left: 0, right: 0, bottom: 0, pointerEvents: "none" }}
             />
@@ -116,7 +131,10 @@ export const BaseSidebar = React.memo(function BaseSidebar({
       </View>
 
       {/* Footer */}
-      <View className="px-3 pt-3 md:px-2 md:pt-2" style={{ paddingBottom: insets.bottom + 12 }}>
+      <View
+        className={cn("pt-3 md:pt-2", collapsed ? "items-center" : "px-3 md:px-2")}
+        style={{ paddingBottom: insets.bottom + 12 }}
+      >
         {footer}
       </View>
     </View>

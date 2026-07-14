@@ -55,7 +55,7 @@ function buildCodeaTiers(
 export default function CodeaSubscribeScreen() {
   const router = useRouter();
   const { success } = useLocalSearchParams();
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, signIn } = useAuth();
   const { width } = useWindowDimensions();
   const isWideLayout = width >= 600;
   const { t } = useTranslation();
@@ -133,7 +133,7 @@ export default function CodeaSubscribeScreen() {
 
   const handleSubscribe = async (planId: string) => {
     if (!isAuthenticated) {
-      router.push('/login' as any);
+      signIn().catch(() => {});
       return;
     }
 

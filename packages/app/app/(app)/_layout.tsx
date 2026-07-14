@@ -13,6 +13,7 @@ import { usePinnedStore } from '@/lib/stores/pinned-store';
 import { useUIStore } from '@/lib/stores/ui-store';
 import { useCallback, useEffect } from 'react';
 import { useColorScheme } from '@/lib/useColorScheme';
+import { useTheme } from '@oxyhq/bloom/theme';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { CommandPalette } from '@/components/command-palette';
 import { KeyboardShortcutsDialog } from '@/components/keyboard-shortcuts-dialog';
@@ -31,6 +32,7 @@ export default function AppLayout() {
   const dimensions = useWindowDimensions();
   const isLargeScreen = dimensions.width >= 768;
   const { colorScheme, colors } = useColorScheme();
+  const { colors: themeColors } = useTheme();
   const insets = useSafeAreaInsets();
   const loadProjects = useProjectsStore((state) => state.loadProjects);
   const loadRoles = useRolesStore((state) => state.loadRoles);
@@ -39,6 +41,7 @@ export default function AppLayout() {
   const loadFavorites = useFavoritesStore((state) => state.loadFavorites);
   const loadPinned = usePinnedStore((state) => state.loadPinned);
   const rightPanel = useUIStore((state) => state.rightPanel);
+  const sidebarOpen = useUIStore((state) => state.sidebarOpen);
 
   // Prefetch welcome suggestions so they're ready before any chat screen mounts
   useWelcomeSuggestions();
@@ -65,7 +68,9 @@ export default function AppLayout() {
       paddingTop: SELF_INSET_ROUTES.has(route.name) || route.name.startsWith('settings/') ? 0 : insets.top,
     },
     drawerStyle: {
-      width: 255,
+      // Desktop collapse: the permanent drawer narrows to an icon rail
+      // (the sidebar renders icon-only rows at this width).
+      width: isLargeScreen && !sidebarOpen ? 64 : 255,
       backgroundColor: colors.background,
       borderRightWidth: 0,
       boxShadow: 'none' as const,
@@ -73,9 +78,9 @@ export default function AppLayout() {
     },
     drawerType: isLargeScreen ? ('permanent' as const) : ('front' as const),
     swipeEnabled: !isLargeScreen,
-    overlayColor: isLargeScreen ? 'transparent' : 'rgba(0, 0, 0, 0.5)',
+    overlayColor: isLargeScreen ? 'transparent' : themeColors.overlay,
     drawerItemStyle: VISIBLE_ROUTES.has(route.name) ? undefined : { display: 'none' as const },
-  }), [insets.top, colors.background, isLargeScreen]);
+  }), [insets.top, colors.background, isLargeScreen, sidebarOpen, themeColors.overlay]);
 
   return (
     <AppErrorBoundary>

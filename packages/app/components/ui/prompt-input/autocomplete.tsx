@@ -3,27 +3,32 @@ import { View, Pressable } from "react-native";
 import { Text } from "@/components/ui/text";
 import { cn } from "@/lib/utils";
 import { usePromptInput } from "./context";
-import { useSearchSuggestions, useRecordSuggestionUsage } from "@/lib/hooks/use-suggestions";
+import { useSearchSuggestions, useWelcomeSuggestions, useRecordSuggestionUsage } from "@/lib/hooks/use-suggestions";
 
 interface Completion {
   text: string;
   matchStart: number;
   matchEnd: number;
   suggestionId?: string;
+  /** Needs user completion (e.g. "edit this image") → fill the input instead of sending. */
+  isTemplate?: boolean;
 }
 
 export type PromptInputAutocompleteProps = {
   enabled?: boolean;
   position?: "top" | "bottom";
   className?: string;
+  /** When true (empty conversation), show default welcome suggestions while the query is short. */
+  showDefaultSuggestions?: boolean;
 };
 
 export function PromptInputAutocomplete({
   enabled = true,
   position = "top",
   className,
+  showDefaultSuggestions = false,
 }: PromptInputAutocompleteProps) {
-  const { value, setValue, setHandleCompletionKey } = usePromptInput();
+  const { value, setValue, setHandleCompletionKey, onSuggestionSend } = usePromptInput();
   const [selectedIndex, setSelectedIndex] = useState(-1);
   const selectedIndexRef = useRef(-1);
   const completionsRef = useRef<Completion[]>([]);
@@ -47,33 +52,57 @@ export function PromptInputAutocomplete({
 
   // API search results (fires when debouncedQuery changes)
   const { data: apiResults } = useSearchSuggestions(debouncedQuery);
+  // Default welcome suggestions (shared cache; prefetched by the app layout)
+  const { data: welcomeResults } = useWelcomeSuggestions();
 
-  // Map API results to completions with match highlighting
+  // Dual mode: query >= 2 chars → search results with match highlighting; empty
+  // conversation + short query → default welcome suggestions; otherwise nothing.
   const completions = useMemo<Completion[]>(() => {
     const trimmed = value.trim();
-    if (!trimmed || trimmed.length < 2 || !apiResults?.length) return [];
 
-    const lower = trimmed.toLowerCase();
-    const results: Completion[] = [];
-    const seen = new Set<string>();
-
-    for (const s of apiResults) {
-      if (results.length >= 6) break;
-      const textLower = s.text.toLowerCase();
-      if (seen.has(textLower)) continue;
-      seen.add(textLower);
-
-      const idx = textLower.indexOf(lower);
-      results.push({
-        text: s.text,
-        matchStart: idx !== -1 ? idx : 0,
-        matchEnd: idx !== -1 ? idx + trimmed.length : 0,
-        suggestionId: s.suggestionId,
-      });
+    if (trimmed.length >= 2) {
+      if (!apiResults?.length) return [];
+      const lower = trimmed.toLowerCase();
+      const results: Completion[] = [];
+      const seen = new Set<string>();
+      for (const s of apiResults) {
+        if (results.length >= 6) break;
+        const textLower = s.text.toLowerCase();
+        if (seen.has(textLower)) continue;
+        seen.add(textLower);
+        const idx = textLower.indexOf(lower);
+        results.push({
+          text: s.text,
+          matchStart: idx !== -1 ? idx : 0,
+          matchEnd: idx !== -1 ? idx + trimmed.length : 0,
+          suggestionId: s.suggestionId,
+          isTemplate: s.isTemplate || (s.templateVariables?.length ?? 0) > 0,
+        });
+      }
+      return results;
     }
 
-    return results;
-  }, [apiResults, value]);
+    if (showDefaultSuggestions) {
+      const results: Completion[] = [];
+      const seen = new Set<string>();
+      for (const s of welcomeResults ?? []) {
+        if (results.length >= 6) break;
+        const textLower = s.text.toLowerCase();
+        if (seen.has(textLower)) continue;
+        seen.add(textLower);
+        results.push({
+          text: s.text,
+          matchStart: 0,
+          matchEnd: 0,
+          suggestionId: s.suggestionId,
+          isTemplate: s.isTemplate || (s.templateVariables?.length ?? 0) > 0,
+        });
+      }
+      return results;
+    }
+
+    return [];
+  }, [apiResults, welcomeResults, value, showDefaultSuggestions]);
 
   // Keep refs in sync
   useEffect(() => {
@@ -85,6 +114,17 @@ export function PromptInputAutocomplete({
     selectedIndexRef.current = -1;
     setSelectedIndex(-1);
   }, [completions]);
+
+  // Select a completion: templates (need user completion) fill the input; plain
+  // suggestions send directly via the chat's send path. Usage recorded either way.
+  const selectCompletion = useCallback((item: Completion) => {
+    if (item.suggestionId) recordUsage(item.suggestionId);
+    if (item.isTemplate || !onSuggestionSend) {
+      setValue(item.text);
+    } else {
+      onSuggestionSend(item.text);
+    }
+  }, [recordUsage, setValue, onSuggestionSend]);
 
   // Arrow key handler — stable callback using refs
   const handleKey = useCallback((key: string): boolean => {
@@ -111,9 +151,7 @@ export function PromptInputAutocomplete({
 
     if (key === "Enter") {
       if (selectedIndexRef.current < 0) return false;
-      const item = items[selectedIndexRef.current];
-      if (item.suggestionId) recordUsage(item.suggestionId);
-      setValue(item.text);
+      selectCompletion(items[selectedIndexRef.current]);
       return true;
     }
 
@@ -125,7 +163,7 @@ export function PromptInputAutocomplete({
     }
 
     return false;
-  }, [setValue, recordUsage]);
+  }, [selectCompletion]);
 
   // Register/unregister the key handler based on completions
   useEffect(() => {
@@ -145,12 +183,7 @@ export function PromptInputAutocomplete({
         {completions.map((item, index) => (
           <Pressable
             key={item.suggestionId || item.text}
-            onPress={() => {
-              if (item.suggestionId) {
-                recordUsage(item.suggestionId);
-              }
-              setValue(item.text);
-            }}
+            onPress={() => selectCompletion(item)}
             className={cn(
               "px-3 py-1.5 rounded-lg active:bg-muted/50",
               index === selectedIndex && "bg-muted"

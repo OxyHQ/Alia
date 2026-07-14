@@ -9,6 +9,7 @@ import { ArrowLeft } from 'lucide-react-native';
 import { Text } from '@/components/ui/text';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
+import { useTheme } from '@oxyhq/bloom/theme';
 
 const PLAY_STORE_URL =
   'https://play.google.com/store/apps/details?id=onl.alia.app';
@@ -22,6 +23,7 @@ function isMobileWeb(): boolean {
 
 export default function DownloadScreen() {
   const router = useRouter();
+  const { colors } = useTheme();
   const [platform, setPlatform] = useState<StorePlatform>('android');
 
   // On mobile web, redirect straight to the store
@@ -68,7 +70,7 @@ export default function DownloadScreen() {
               <MaterialCommunityIcons
                 name="android"
                 size={16}
-                color={platform === 'android' ? '#3ddc84' : '#999'}
+                color={platform === 'android' ? '#3ddc84' : colors.textSecondary}
               />
               <Text className={cn(
                 'text-xs font-medium',
@@ -87,7 +89,7 @@ export default function DownloadScreen() {
               <MaterialCommunityIcons
                 name="apple"
                 size={16}
-                color={platform === 'ios' ? '#999' : '#999'}
+                color={platform === 'ios' ? colors.text : colors.textSecondary}
               />
               <Text className={cn(
                 'text-xs font-medium',

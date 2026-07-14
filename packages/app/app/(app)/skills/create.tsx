@@ -1,7 +1,7 @@
 import React, { useState, useCallback } from 'react';
 import { View, ActivityIndicator } from 'react-native';
 import { Text } from '@/components/ui/text';
-import { PromptInput } from '@/components/ui/prompt-input';
+import { PromptInput } from '@/components/ui/prompt-input/prompt-input';
 import { useRouter } from 'expo-router';
 import { useSkillsStore } from '@/lib/stores/skills-store';
 import { useTranslation } from '@/hooks/useTranslation';

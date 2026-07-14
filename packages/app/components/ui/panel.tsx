@@ -10,6 +10,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { cn } from "@/lib/utils";
+import { useTheme } from "@oxyhq/bloom/theme";
 
 const USE_NATIVE_DRIVER = Platform.OS !== "web";
 
@@ -45,6 +46,7 @@ export function Panel({
   const { width: screenWidth } = useWindowDimensions();
   const isLargeScreen = screenWidth >= 768;
   const insets = useSafeAreaInsets();
+  const { colors } = useTheme();
 
   // Animation values for mobile
   const slideAnim = React.useRef(new Animated.Value(screenWidth)).current;
@@ -123,7 +125,7 @@ export function Panel({
           style={[
             StyleSheet.absoluteFill,
             {
-              backgroundColor: "rgba(0, 0, 0, 0.5)",
+              backgroundColor: colors.overlay,
               opacity: fadeAnim,
             },
           ]}

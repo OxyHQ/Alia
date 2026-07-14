@@ -4,7 +4,8 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import Head from 'expo-router/head';
 import { Users, ArrowRight, LogIn, AlertCircle } from 'lucide-react-native';
 import { useAuth } from '@oxyhq/services';
-import { AuthContainer, AuthLogo } from '@/components/auth';
+import { AuthContainer } from '@/components/auth/auth-container';
+import { AuthLogo } from '@/components/auth/auth-logo';
 import { Text } from '@/components/ui/text';
 import { Button } from '@/components/ui/button';
 import { useOrgInviteInfo, useAcceptOrgInvite } from '@/lib/hooks/use-organization-invites';
@@ -12,7 +13,7 @@ import { useOrgInviteInfo, useAcceptOrgInvite } from '@/lib/hooks/use-organizati
 export default function OrgInviteScreen() {
   const { token } = useLocalSearchParams<{ token: string }>();
   const router = useRouter();
-  const { isAuthenticated, isLoading: authLoading } = useAuth();
+  const { isAuthenticated, isLoading: authLoading, signIn } = useAuth();
   const { data: inviteData, isLoading: infoLoading, error: infoError } = useOrgInviteInfo(token || '');
   const acceptMutation = useAcceptOrgInvite();
   const [accepted, setAccepted] = useState(false);
@@ -181,7 +182,7 @@ export default function OrgInviteScreen() {
 
           <View className="w-full gap-3">
             <Button
-              onPress={() => router.push('/register')}
+              onPress={() => signIn().catch(() => {})}
               className="w-full h-12 rounded-full"
             >
               <View className="flex-row items-center gap-2">
@@ -194,7 +195,7 @@ export default function OrgInviteScreen() {
 
             <Button
               variant="outline"
-              onPress={() => router.push('/login')}
+              onPress={() => signIn().catch(() => {})}
               className="w-full h-12 rounded-full"
             >
               <View className="flex-row items-center gap-2">

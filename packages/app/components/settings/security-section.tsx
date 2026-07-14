@@ -36,6 +36,7 @@ import { useTranslation } from "@/hooks/useTranslation";
 import { toast } from "@/components/sonner";
 import apiClient from "@/lib/api/client";
 import { API_ROUTES } from "@/lib/api/routes";
+import { useTheme } from "@oxyhq/bloom/theme";
 
 interface ThreatEntry {
   id: string;
@@ -83,6 +84,7 @@ export function SecuritySection() {
   const { memory } = useUserData();
   const setMemory = useUserDataStore((state) => state.setMemory);
   const { t } = useTranslation();
+  const { colors } = useTheme();
   const [saving, setSaving] = useState(false);
 
   // Section A: Default permissions
@@ -373,7 +375,7 @@ export function SecuritySection() {
             <RNTextInput
               className={inputClass}
               placeholder="YYYY-MM-DD"
-              placeholderTextColor="#9ca3af"
+              placeholderTextColor={colors.textSecondary}
               value={fromDate}
               onChangeText={setFromDate}
             />
@@ -383,7 +385,7 @@ export function SecuritySection() {
             <RNTextInput
               className={inputClass}
               placeholder="YYYY-MM-DD"
-              placeholderTextColor="#9ca3af"
+              placeholderTextColor={colors.textSecondary}
               value={toDate}
               onChangeText={setToDate}
             />
