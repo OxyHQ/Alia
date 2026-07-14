@@ -17,7 +17,7 @@ import { useAuth } from '@oxyhq/services';
 import { toast } from '@/components/sonner';
 import { useTranslation } from '@/hooks/useTranslation';
 import { queryKeys } from '@/lib/hooks/query-keys';
-import { ConfirmationDialog } from '@/components/ui/confirmation-dialog';
+import { confirm } from '@oxyhq/bloom/alert-dialog';
 import {
   type BillingPeriod,
   type PricingTier,
@@ -63,14 +63,6 @@ export default function SubscribeScreen() {
   const [billingPeriod, setBillingPeriod] = useState<BillingPeriod>('monthly');
   const [loadingPlanId, setLoadingPlanId] = useState<string>();
   const [isMounted, setIsMounted] = useState(false);
-  const [confirmDialog, setConfirmDialog] = useState<{
-    open: boolean;
-    title: string;
-    description: string;
-    confirmText: string;
-    confirmVariant: 'default' | 'destructive';
-    onConfirm: () => Promise<void>;
-  }>({ open: false, title: '', description: '', confirmText: '', confirmVariant: 'default', onConfirm: async () => {} });
 
   const queryClient = useQueryClient();
   const { data: apiPlans = [], isLoading: plansLoading, isError: plansError } = useSubscriptionPlans('alia');
@@ -148,27 +140,26 @@ export default function SubscribeScreen() {
 
     // Downgrade to Free = cancel subscription
     if (targetTier.isFree && hasActiveSub) {
-      setConfirmDialog({
-        open: true,
+      const ok = await confirm({
         title: t('subscribe.downgradeToFreeTitle'),
         description: t('subscribe.downgradeToFreeDescription', {
           date: new Date(subscription.currentPeriodEnd).toLocaleDateString(),
         }),
-        confirmText: t('subscribe.confirmDowngrade'),
-        confirmVariant: 'destructive',
-        onConfirm: async () => {
-          setLoadingPlanId(planId);
-          try {
-            await cancelMutation.mutateAsync();
-            await refetchSubscription();
-            toast.success(t('subscribe.downgradeSuccess'));
-          } catch (error: unknown) {
-            toast.error(getErrorMessage(error) || t('subscribe.failedPlanChange'));
-          } finally {
-            setLoadingPlanId(undefined);
-          }
-        },
+        confirmLabel: t('subscribe.confirmDowngrade'),
+        destructive: true,
       });
+      if (ok) {
+        setLoadingPlanId(planId);
+        try {
+          await cancelMutation.mutateAsync();
+          await refetchSubscription();
+          toast.success(t('subscribe.downgradeSuccess'));
+        } catch (error: unknown) {
+          toast.error(getErrorMessage(error) || t('subscribe.failedPlanChange'));
+        } finally {
+          setLoadingPlanId(undefined);
+        }
+      }
       return;
     }
 
@@ -178,17 +169,15 @@ export default function SubscribeScreen() {
       const isDowngrade = currentTier && targetTier.sortOrder < currentTier.sortOrder;
 
       if (isDowngrade) {
-        setConfirmDialog({
-          open: true,
+        const ok = await confirm({
           title: t('subscribe.confirmDowngradeTitle'),
           description: t('subscribe.confirmDowngradeDescription', {
             from: currentTier?.name || subscription.plan?.name,
             to: targetTier.name,
           }),
-          confirmText: t('subscribe.confirmDowngrade'),
-          confirmVariant: 'default',
-          onConfirm: () => executePlanChange(planId),
+          confirmLabel: t('subscribe.confirmDowngrade'),
         });
+        if (ok) await executePlanChange(planId);
       } else {
         await executePlanChange(planId);
       }
@@ -264,17 +253,6 @@ export default function SubscribeScreen() {
         <InfoBanners t={t} />
         <PageFooter t={t} />
       </View>
-
-      <ConfirmationDialog
-        open={confirmDialog.open}
-        onOpenChange={(open) => setConfirmDialog(prev => ({ ...prev, open }))}
-        title={confirmDialog.title}
-        description={confirmDialog.description}
-        confirmText={confirmDialog.confirmText}
-        confirmVariant={confirmDialog.confirmVariant}
-        onConfirm={confirmDialog.onConfirm}
-        loading={!!loadingPlanId}
-      />
     </ScrollView>
   );
 }

@@ -11,7 +11,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { ConfirmationDialog } from '@/components/ui/confirmation-dialog';
+import { confirm } from '@oxyhq/bloom/alert-dialog';
 import { useOxy } from '@oxyhq/services';
 import { generateAPIUrl } from '@/lib/generate-api-url';
 import {
@@ -143,7 +143,6 @@ export default function WritingStyleScreen() {
   const [profile, setProfile] = useState<WritingStyleProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [showResetDialog, setShowResetDialog] = useState(false);
   const [showEditDialog, setShowEditDialog] = useState(false);
 
   // Edit form state
@@ -204,6 +203,13 @@ export default function WritingStyleScreen() {
   };
 
   const handleReset = async () => {
+    const ok = await confirm({
+      title: 'Reset Writing Style',
+      description: 'This will delete your writing style profile. Alia will start learning again from scratch.',
+      confirmLabel: 'Reset',
+      destructive: true,
+    });
+    if (!ok) return;
     try {
       const res = await fetch(generateAPIUrl('/writing-style'), {
         method: 'DELETE',
@@ -216,7 +222,6 @@ export default function WritingStyleScreen() {
     } catch {
       toast.error('Failed to reset style profile');
     }
-    setShowResetDialog(false);
   };
 
   const openEditDialog = () => {
@@ -446,7 +451,7 @@ export default function WritingStyleScreen() {
                   <Text className="text-sm font-medium">{refreshing ? 'Refreshing...' : 'AI Refresh'}</Text>
                 </Button>
                 <Button
-                  onPress={() => setShowResetDialog(true)}
+                  onPress={handleReset}
                   variant="outline"
                   className="flex-row items-center gap-2 h-10 border-destructive/30"
                 >
@@ -520,17 +525,6 @@ export default function WritingStyleScreen() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-
-      {/* Reset Confirmation */}
-      <ConfirmationDialog
-        open={showResetDialog}
-        onOpenChange={setShowResetDialog}
-        title="Reset Writing Style"
-        description="This will delete your writing style profile. Alia will start learning again from scratch."
-        confirmLabel="Reset"
-        variant="destructive"
-        onConfirm={handleReset}
-      />
     </View>
   );
 }

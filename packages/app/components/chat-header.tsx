@@ -9,8 +9,7 @@ import { useNavigation, useRouter } from "expo-router";
 import type { DrawerNavigationProp } from "expo-router/drawer";
 import * as DropdownMenu from "@/components/ui/dropdown-menu";
 import { toast } from "@/components/sonner";
-import { ConfirmationDialog } from "@/components/ui/confirmation-dialog";
-import { useState } from "react";
+import { confirm } from "@oxyhq/bloom/alert-dialog";
 import { useTranslation } from "@/hooks/useTranslation";
 import { useTheme, withAlpha } from "@oxyhq/bloom/theme";
 
@@ -42,17 +41,19 @@ export function ChatHeader({
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<DrawerNavigationProp<ReactNavigation.RootParamList>>();
   const router = useRouter();
-  const [showClearDialog, setShowClearDialog] = useState(false);
   const handleDrawerToggle = () => {
     navigation.toggleDrawer();
   };
 
-  const handleClearConversation = () => {
-    setShowClearDialog(true);
-  };
-
-  const confirmClearConversation = () => {
-    onClear?.();
+  const handleClearConversation = async () => {
+    const ok = await confirm({
+      title: t('chatHeader.clearConfirmTitle'),
+      description: t('chatHeader.clearConfirmDescription'),
+      confirmLabel: t('chatHeader.clear'),
+      cancelLabel: t('common.cancel'),
+      destructive: true,
+    });
+    if (ok) onClear?.();
   };
 
   const handleExport = () => {
@@ -72,7 +73,6 @@ export function ChatHeader({
   };
 
   return (
-    <>
       <View
         className="flex-row items-center justify-between px-4"
         style={{ paddingTop: insets.top, height: 56 + insets.top }}
@@ -172,18 +172,5 @@ export function ChatHeader({
         </DropdownMenu.Root>
       </View>
     </View>
-
-      {/* Clear Conversation Confirmation Dialog */}
-      <ConfirmationDialog
-        open={showClearDialog}
-        onOpenChange={setShowClearDialog}
-        title={t('chatHeader.clearConfirmTitle')}
-        description={t('chatHeader.clearConfirmDescription')}
-        confirmText={t('chatHeader.clear')}
-        cancelText={t('common.cancel')}
-        confirmVariant="destructive"
-        onConfirm={confirmClearConversation}
-      />
-    </>
   );
 }
