@@ -246,7 +246,7 @@ export function PromptInput({
                       <PromptInputAutocomplete
                         position="top"
                         showDefaultSuggestions={showDefaultSuggestions}
-                        className="rounded-2xl bg-background overflow-hidden shadow-md p-1"
+                        className="rounded-2xl overflow-hidden p-1"
                       />
                     </View>
                   )}
