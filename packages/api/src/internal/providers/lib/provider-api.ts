@@ -12,7 +12,21 @@ import { getBestKeyForModel, recordKeySuccess, recordKeyFailure, recordKeyUsage,
 import { classifyError } from '../../../lib/errors/failover-error.js';
 import { log } from '../../../lib/logger.js';
 import { callDigitalOceanAsyncInvoke, downloadBinaryFromUrl, extractAudioUrl } from './digitalocean-async.js';
+import { pcmToWav, parsePcmSampleRate } from './tts-providers.js';
 import type { FailoverReason } from '../../../lib/errors/error-codes.js';
+
+// Default Gemini prebuilt voice when the caller supplies none (voice translation
+// to a Gemini voice name happens upstream in the TTS synthesis helper).
+const GEMINI_DEFAULT_VOICE = 'Kore';
+
+// Narrow shape of a Gemini generateContent TTS response.
+interface GeminiInlineData {
+  mimeType?: string;
+  data?: string;
+}
+interface GeminiTtsResponse {
+  candidates?: Array<{ content?: { parts?: Array<{ inlineData?: GeminiInlineData }> } }>;
+}
 
 // Provider base URLs — internal knowledge
 const PROVIDER_BASES: Record<string, string> = {
@@ -88,12 +102,10 @@ export interface ProviderAPIOptions {
 export async function callProviderAPI<T = any>(options: ProviderAPIOptions): Promise<T> {
   const { provider, modelId, endpoint, body, formData, maxAttempts = 3, timeout, signal: externalSignal } = options;
 
+  // Base URL is required for the standard synchronous path only. Providers handled
+  // by a special branch (DigitalOcean async-invoke, Google Gemini TTS) build their
+  // own URL, so a missing base is validated at the point of the standard fetch.
   const baseUrl = PROVIDER_BASES[provider];
-  if (!baseUrl) {
-    throw new Error(`Provider "${provider}" has no configured base URL`);
-  }
-
-  const url = `${baseUrl}${endpoint}`;
   let lastReason: FailoverReason = 'unknown';
   let lastMessage = '';
 
@@ -146,7 +158,67 @@ export async function callProviderAPI<T = any>(options: ProviderAPIOptions): Pro
         return output as T;
       }
 
+      // Google Gemini TTS — not OpenAI-compatible. Uses generateContent with the
+      // AUDIO modality and returns raw PCM (base64) that we wrap in a WAV container.
+      if (provider === 'google' && (endpoint === '/v1/audio/speech' || modelId.includes('tts'))) {
+        // API key travels in a header, never the query string (keys in URLs leak
+        // into logs and proxies).
+        const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${modelId}:generateContent`;
+        const geminiRes = await fetch(geminiUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'x-goog-api-key': keyConfig.key },
+          body: JSON.stringify({
+            contents: [{ parts: [{ text: body?.input ?? '' }] }],
+            generationConfig: {
+              responseModalities: ['AUDIO'],
+              speechConfig: {
+                voiceConfig: {
+                  prebuiltVoiceConfig: { voiceName: body?.voice || GEMINI_DEFAULT_VOICE },
+                },
+              },
+            },
+          }),
+          signal: combinedSignal,
+        });
+
+        if (timer) clearTimeout(timer);
+
+        if (!geminiRes.ok) {
+          const errBody = await geminiRes.text().catch(() => `HTTP ${geminiRes.status}`);
+          const reason = classifyError({ status: geminiRes.status, message: errBody });
+          log.keys.warn({ attempt, provider, modelId, status: geminiRes.status, reason }, 'Provider API call failed');
+          lastReason = reason;
+          lastMessage = errBody;
+          if (reason === 'billing') {
+            await markKeyCreditExhausted(keyConfig.keyId);
+          } else {
+            await recordKeyFailure(keyConfig.keyId, `${modelId} ${geminiRes.status}: ${errBody.slice(0, 200)}`);
+          }
+          if (NON_RETRYABLE.has(reason)) break;
+          continue;
+        }
+
+        const geminiData = (await geminiRes.json()) as GeminiTtsResponse;
+        const inline = geminiData.candidates?.[0]?.content?.parts?.find(p => p.inlineData)?.inlineData;
+        if (!inline?.data) {
+          lastReason = 'format';
+          lastMessage = 'Gemini TTS returned no audio';
+          await recordKeyFailure(keyConfig.keyId, `${modelId} no-audio`);
+          break; // a different key won't produce audio
+        }
+
+        await recordKeyUsage(keyConfig.keyId, 0, provider, modelId);
+        await recordKeySuccess(keyConfig.keyId);
+
+        const pcm = Buffer.from(inline.data, 'base64');
+        return pcmToWav(pcm, parsePcmSampleRate(inline.mimeType)) as any as T;
+      }
+
       // Standard synchronous provider call
+      if (!baseUrl) {
+        throw new Error(`Provider "${provider}" has no configured base URL`);
+      }
+
       const headers: Record<string, string> = {
         'Authorization': `Bearer ${keyConfig.key}`,
       };
@@ -159,7 +231,7 @@ export async function callProviderAPI<T = any>(options: ProviderAPIOptions): Pro
         fetchBody = JSON.stringify(body);
       }
 
-      const response = await fetch(url, {
+      const response = await fetch(`${baseUrl}${endpoint}`, {
         method: 'POST',
         headers,
         body: fetchBody,

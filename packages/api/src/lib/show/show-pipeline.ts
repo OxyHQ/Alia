@@ -15,7 +15,7 @@ import { Show, type IShow } from '../../models/show.js';
 import { resolveModel, getAIModel, getDefaultAliaModel } from '../chat-core.js';
 import { callProviderAPI } from '../../internal/providers/lib/provider-api.js';
 import { extractAudioUrl, downloadBinaryFromUrl } from '../../internal/providers/lib/digitalocean-async.js';
-import { getModelMappingsForTier, getProviderTimeout } from '../gateway-client.js';
+import { synthesizeSpeech } from '../synthesize-speech.js';
 import { uploadToS3 } from '../s3.js';
 import { reserveCredits, finalizeCredits } from '../credits-manager.js';
 import { getOrCreateUserCredits } from '../user-credits-helpers.js';
@@ -115,8 +115,6 @@ export async function runShowPipeline(showId: string): Promise<void> {
     // from poisoning the provider key pool before TTS completes.
     await updateShow(show, { status: 'generating_audio' });
 
-    const ttsMappings = await getModelMappingsForTier('v1-tts');
-
     const totalSegments = indexedSegments.length;
     const segmentBuffers: Array<{ index: number; buffer: Buffer }> = [];
 
@@ -131,7 +129,7 @@ export async function runShowPipeline(showId: string): Promise<void> {
       const results = await Promise.allSettled(
         batch.map(async (segment) => {
           if (segment.type === 'dialogue') {
-            return generateTTSSegment(segment.text, speakers, segment.speaker, ttsMappings);
+            return generateTTSSegment(segment.text, speakers, segment.speaker);
           } else if (segment.type === 'sfx' || segment.type === 'transition') {
             return generateSFXSegment(segment.sfxPrompt || 'short transition sound, 2 seconds');
           }
@@ -144,12 +142,12 @@ export async function runShowPipeline(showId: string): Promise<void> {
         const segment = batch[i];
 
         if (result.status === 'fulfilled' && result.value) {
-          segmentBuffers.push({ index: segment.index, buffer: result.value });
+          segmentBuffers.push({ index: segment.index, buffer: result.value.buffer });
 
           // Upload segment to S3 for individual access
           const segmentUrl = await uploadToS3(
-            result.value,
-            'segment.mp3',
+            result.value.buffer,
+            `segment.${result.value.format}`,
             `shows/${userId}/${showId}`,
             `segment-${segment.index}`,
           );
@@ -316,51 +314,34 @@ async function generateScript(show: IShow): Promise<ShowScript | null> {
   return null;
 }
 
+interface SegmentAudio {
+  buffer: Buffer;
+  format: string;
+}
+
 /**
- * Generate TTS audio for a single dialogue segment.
- * Accepts pre-fetched tier mappings to avoid per-segment lookups.
+ * Generate TTS audio for a single dialogue segment via the shared multi-provider
+ * synthesis path (same fail-over the read-aloud endpoint uses).
  */
 async function generateTTSSegment(
   text: string,
   speakers: Array<{ name: string; voiceId: string }>,
   speakerName: string,
-  ttsMappings: Awaited<ReturnType<typeof getModelMappingsForTier>>,
-): Promise<Buffer | null> {
+): Promise<SegmentAudio | null> {
   const speaker = speakers.find(s => s.name === speakerName);
   if (!speaker) {
     log.general.warn({ speakerName }, 'Speaker not found in roster');
     return null;
   }
 
-  for (const mapping of ttsMappings) {
-    try {
-      const audioBuffer = await callProviderAPI<Buffer>({
-        provider: mapping.provider,
-        modelId: mapping.modelId,
-        endpoint: '/v1/audio/speech',
-        body: {
-          model: mapping.modelId,
-          input: text,
-          voice: speaker.voiceId,
-        },
-        responseType: 'arrayBuffer',
-        maxAttempts: 1,
-        timeout: getProviderTimeout(mapping.modelId),
-      });
-      if (audioBuffer) return audioBuffer;
-    } catch (err: unknown) {
-      log.general.warn({ err, provider: mapping.provider }, 'TTS provider failed for show segment');
-      continue;
-    }
-  }
-
-  return null;
+  const synthesized = await synthesizeSpeech({ input: text, voice: speaker.voiceId, format: 'mp3' });
+  return synthesized ? { buffer: synthesized.audio, format: synthesized.format } : null;
 }
 
 /**
  * Generate a sound effect segment.
  */
-async function generateSFXSegment(prompt: string): Promise<Buffer | null> {
+async function generateSFXSegment(prompt: string): Promise<SegmentAudio | null> {
   try {
     const sfxOutput = await callProviderAPI<any>({
       provider: 'digitalocean',
@@ -379,7 +360,7 @@ async function generateSFXSegment(prompt: string): Promise<Buffer | null> {
     const audioUrl = extractAudioUrl(sfxOutput);
     if (!audioUrl) return null;
 
-    return await downloadBinaryFromUrl(audioUrl);
+    return { buffer: await downloadBinaryFromUrl(audioUrl), format: 'mp3' };
   } catch (err: unknown) {
     log.general.warn({ err, prompt }, 'SFX generation failed');
     return null;
