@@ -58,14 +58,14 @@ export async function sendAuthRequest(ctx: Context): Promise<boolean> {
     const { authUrl } = await apiClient.requestAuthToken(telegramId);
 
     await ctx.reply(
-      `👋 <b>Welcome to OxyAI!</b>\n\n` +
+      `👋 <b>Welcome to Alia AI!</b>\n\n` +
       `To get started, please authenticate your account.\n\n` +
-      `Click the button below to sign in through the OxyAI app.\n\n` +
+      `Click the button below to sign in through the Alia app.\n\n` +
       `<i>⏱ This link expires in 15 minutes</i>`,
       {
         parse_mode: 'HTML',
         ...Markup.inlineKeyboard([
-          [Markup.button.url('🔐 Sign In to OxyAI', authUrl)],
+          [Markup.button.url('🔐 Sign In to Alia', authUrl)],
         ]),
       },
     );
@@ -105,7 +105,7 @@ export async function handleStart(ctx: Context) {
       const displayName = botUser.displayName || ctx.from?.first_name || 'there';
       await ctx.reply(
         `👋 <b>Welcome back, ${displayName}!</b>\n\n` +
-        `✅ Your Telegram is already linked to your OxyAI account.\n\n` +
+        `✅ Your Telegram is already linked to your Alia account.\n\n` +
         `You're all set! Just send me a message to start chatting. 💬`,
         {
           parse_mode: 'HTML',
@@ -122,15 +122,15 @@ export async function handleStart(ctx: Context) {
     // Not linked — offer sign-in
     const { authUrl } = await apiClient.requestAuthToken(telegramId);
     await ctx.reply(
-      `👋 <b>Welcome to OxyAI!</b>\n\n` +
-      `To use OxyAI on Telegram, you need to link your Telegram to your existing OxyAI account.\n\n` +
-      `Don't have an OxyAI account yet? Create one at <b>ai.oxy.so</b> first, then come back here to link it!\n\n` +
+      `👋 <b>Welcome to Alia AI!</b>\n\n` +
+      `To use Alia on Telegram, you need to link your Telegram to your existing Alia account.\n\n` +
+      `Don't have an Alia account yet? Create one at <b>alia.onl</b> first, then come back here to link it!\n\n` +
       `<i>⏱ This link expires in 15 minutes</i>`,
       {
         parse_mode: 'HTML',
         ...Markup.inlineKeyboard([
           [Markup.button.url('🔗 Link to Existing Account', authUrl)],
-          [Markup.button.url('🌐 Create Account at ai.oxy.so', 'https://ai.oxy.so')],
+          [Markup.button.url('🌐 Create Account at alia.onl', 'https://alia.onl')],
         ]),
       },
     );
@@ -161,7 +161,7 @@ export async function handleLogout(ctx: Context) {
 
     await ctx.reply(
       '👋 <b>Logged Out Successfully</b>\n\n' +
-      'Your Telegram account has been disconnected from OxyAI.\n\n' +
+      'Your Telegram account has been disconnected from Alia.\n\n' +
       'Use /start whenever you want to sign in again.',
       {
         parse_mode: 'HTML',
@@ -220,7 +220,7 @@ export async function handleStatus(ctx: Context) {
 // ---------------------------------------------------------------------------
 export async function handleHelp(ctx: Context) {
   const helpMessage = `
-🤖 <b>OxyAI Bot - Help Guide</b>
+🤖 <b>Alia AI Bot - Help Guide</b>
 
 <b>📌 Getting Started:</b>
 • /start - Authenticate your account
@@ -239,12 +239,12 @@ export async function handleHelp(ctx: Context) {
 <b>🎯 How It Works:</b>
 1️⃣ Send /start to begin
 2️⃣ Click the sign-in button
-3️⃣ Authenticate in the OxyAI app
+3️⃣ Authenticate in the Alia app
 4️⃣ Return and start chatting!
 
 <b>💡 Example:</b>
 <i>You:</i> Hello, who are you?
-<i>OxyAI:</i> I'm OxyAI, your AI assistant! How can I help you today?
+<i>Alia:</i> I'm Alia, your AI assistant! How can I help you today?
 `;
 
   await ctx.reply(helpMessage, {
@@ -254,7 +254,7 @@ export async function handleHelp(ctx: Context) {
         Markup.button.callback('🚀 Get Started', 'start'),
         Markup.button.callback('📊 My Status', 'status'),
       ],
-      [Markup.button.url('🌐 Visit OxyAI App', 'https://ai.oxy.so')],
+      [Markup.button.url('🌐 Visit Alia App', 'https://alia.onl')],
     ]),
   });
 }

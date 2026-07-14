@@ -91,14 +91,14 @@ function ChatCompletionsPage() {
           <h1 className="text-2xl font-semibold text-foreground">Chat Completions</h1>
         </div>
         <p className="text-sm text-muted-foreground mt-1">
-          Create a chat completion with the OxyAI API
+          Create a chat completion with the Alia API
         </p>
       </div>
 
       {/* Endpoint */}
       <div className="px-6 py-6 border-b border-border">
         <h2 className="text-lg font-semibold text-foreground mb-4">Endpoint</h2>
-        <CodeBlock code="POST https://api.ai.oxy.so/v1/chat/completions" />
+        <CodeBlock code="POST https://api.alia.onl/v1/chat/completions" />
       </div>
 
       {/* Request Body */}
@@ -153,7 +153,7 @@ function ChatCompletionsPage() {
         <h2 className="text-lg font-semibold text-foreground mb-4">Example Request</h2>
         <CodeBlock
           title="cURL"
-          code={`curl https://api.ai.oxy.so/v1/chat/completions \\
+          code={`curl https://api.alia.onl/v1/chat/completions \\
   -H "Authorization: Bearer $ALIA_API_KEY" \\
   -H "Content-Type: application/json" \\
   -d '{
@@ -212,7 +212,7 @@ function ChatCompletionsPage() {
         </p>
         <CodeBlock
           title="Streaming Request"
-          code={`curl https://api.ai.oxy.so/v1/chat/completions \\
+          code={`curl https://api.alia.onl/v1/chat/completions \\
   -H "Authorization: Bearer $ALIA_API_KEY" \\
   -H "Content-Type: application/json" \\
   -d '{

@@ -46,7 +46,7 @@ export const Route = createRootRoute({
         content: 'width=device-width, initial-scale=1',
       },
       {
-        title: 'OxyAI Console',
+        title: 'Alia Console',
       },
     ],
     links: [

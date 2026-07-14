@@ -118,7 +118,7 @@ This installs all dependencies (including devDependencies which are needed for t
 
 **Solution**: Check `alia-gateway` service has correct CORS configuration:
 ```env
-ALLOWED_ORIGINS=https://gateway.alia.onl,https://api.ai.oxy.so
+ALLOWED_ORIGINS=https://gateway.alia.onl,https://api.alia.onl
 ```
 
 ### Environment variables not working

@@ -73,7 +73,7 @@ function ModelsDocPage() {
       <div className="px-6 py-6 border-b border-border">
         <h2 className="text-lg font-semibold text-foreground mb-4">Overview</h2>
         <p className="text-sm text-muted-foreground mb-4">
-          OxyAI offers a range of models optimized for different use cases. All models are
+          Alia offers a range of models optimized for different use cases. All models are
           accessible through the same API endpoint - just change the model parameter.
         </p>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">

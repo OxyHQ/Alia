@@ -18,7 +18,7 @@ export class AliaInlineCompletionProvider implements vscode.InlineCompletionItem
 
   private loadConfig() {
     const config = vscode.workspace.getConfiguration('codea');
-    this.apiBaseUrl = config.get('apiBaseUrl', 'https://api.ai.oxy.so');
+    this.apiBaseUrl = config.get('apiBaseUrl', 'https://api.alia.onl');
     this.model = config.get('model', 'alia-v1-codea');
   }
 

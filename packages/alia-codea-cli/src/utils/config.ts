@@ -21,7 +21,7 @@ export const config = new Conf<ConfigSchema>({
   projectName: 'alia-codea-cli',
   defaults: {
     apiKey: '',
-    apiBaseUrl: 'https://api.ai.oxy.so',
+    apiBaseUrl: 'https://api.alia.onl',
     defaultModel: 'alia-v1-codea',
     sessions: [],
     currentSessionId: null,

@@ -119,7 +119,7 @@ VITE_OAUTH_SCOPE=openid profile email
 
 **Production:**
 ```env
-VITE_GATEWAY_API_URL=https://api.ai.oxy.so/internal/gateway
+VITE_GATEWAY_API_URL=https://api.alia.onl/internal/gateway
 ```
 
 ### Development
@@ -141,7 +141,7 @@ bun run preview
 ### Production Domains
 
 - **Admin Panel**: `https://gateway.alia.onl`
-- **API (providers endpoint)**: `https://api.ai.oxy.so/internal/gateway`
+- **API (providers endpoint)**: `https://api.alia.onl/internal/gateway`
 
 The admin panel communicates with the providers module inside the main API. Ensure the API is deployed and the `VITE_GATEWAY_API_URL` environment variable points to the correct endpoint.
 

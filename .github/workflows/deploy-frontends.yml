@@ -126,7 +126,7 @@ jobs:
           ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
           PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: '1'
           NODE_ENV: production
-          VITE_API_URL: https://api.ai.oxy.so
+          VITE_API_URL: https://api.alia.onl
       - name: Deploy to Cloudflare Pages
         uses: cloudflare/wrangler-action@v3
         with:

@@ -27,7 +27,7 @@ export const openrouterProvider: Provider = {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${key.key}`,
         'HTTP-Referer': 'https://alia-ai.com', // Optional: for rankings
-        'X-Title': 'OxyAI' // Optional: for rankings
+        'X-Title': 'Alia AI' // Optional: for rankings
       },
       body: JSON.stringify(body)
     });

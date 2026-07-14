@@ -36,7 +36,7 @@ function QuickStartPage() {
         </Link>
         <h1 className="text-2xl font-semibold text-foreground">Quick Start</h1>
         <p className="text-sm text-muted-foreground mt-1">
-          Get up and running with the OxyAI API in minutes
+          Get up and running with the Alia API in minutes
         </p>
       </div>
 
@@ -73,7 +73,7 @@ function QuickStartPage() {
           <h2 className="text-lg font-semibold text-foreground">Install the SDK (Optional)</h2>
         </div>
         <p className="text-sm text-muted-foreground mb-4">
-          The OxyAI API is compatible with OpenAI's SDK. You can use any OpenAI-compatible library:
+          The Alia API is compatible with OpenAI's SDK. You can use any OpenAI-compatible library:
         </p>
         <div className="space-y-4">
           <div>
@@ -120,7 +120,7 @@ function QuickStartPage() {
         </p>
         <CodeBlock
           language="bash"
-          code={`curl https://api.ai.oxy.so/v1/chat/completions \\
+          code={`curl https://api.alia.onl/v1/chat/completions \\
   -H "Authorization: Bearer $ALIA_API_KEY" \\
   -H "Content-Type: application/json" \\
   -d '{

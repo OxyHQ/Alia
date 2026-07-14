@@ -1,6 +1,6 @@
 # Codea CLI
 
-AI coding assistant for your terminal by OxyAI.
+AI coding assistant for your terminal by Alia.
 
 ```
    ██████╗ ██████╗ ██████╗ ███████╗ █████╗
@@ -19,7 +19,7 @@ npm install -g @alia-codea/cli
 
 ## Quick Start
 
-1. Login with your OxyAI API key:
+1. Login with your Alia API key:
 ```bash
 codea login
 ```
@@ -121,11 +121,11 @@ Config is stored in `~/.config/alia-codea-cli/config.json`:
 ```json
 {
   "apiKey": "your-api-key",
-  "apiBaseUrl": "https://api.ai.oxy.so",
+  "apiBaseUrl": "https://api.alia.onl",
   "defaultModel": "alia-v1-codea"
 }
 ```
 
 ## License
 
-MIT - Created by [OxyAI](https://ai.oxy.so)
+MIT - Created by [Alia](https://alia.onl)

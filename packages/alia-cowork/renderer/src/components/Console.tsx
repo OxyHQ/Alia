@@ -24,7 +24,7 @@ export function Console() {
     setApiTest({ status: "testing", message: "Connecting to API..." })
 
     try {
-      const response = await fetch("https://api.ai.oxy.so/v1/models")
+      const response = await fetch("https://api.alia.onl/v1/models")
       if (response.ok) {
         const data = await response.json()
         setApiTest({ status: "success", message: `Connected! Found ${data.data?.length || 0} models` })
@@ -99,7 +99,7 @@ export function Console() {
           <Card>
             <CardHeader>
               <CardTitle>API Connection</CardTitle>
-              <CardDescription>Test connection to api.ai.oxy.so</CardDescription>
+              <CardDescription>Test connection to api.alia.onl</CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
               <div className="flex items-center gap-2">
@@ -119,8 +119,8 @@ export function Console() {
                 )}
               </div>
               <div className="space-y-1 text-xs text-muted-foreground">
-                <div>Base URL: https://api.ai.oxy.so</div>
-                <div>Auth URL: https://ai.oxy.so/authorize/codea</div>
+                <div>Base URL: https://api.alia.onl</div>
+                <div>Auth URL: https://alia.onl/authorize/codea</div>
                 <div>Model: alia-v1-codea</div>
               </div>
             </CardContent>

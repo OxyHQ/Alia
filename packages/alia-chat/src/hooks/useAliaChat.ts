@@ -3,10 +3,10 @@ import { useOxy } from '@oxyhq/services';
 import type { ChatMessage, ToolInvocation } from '../types';
 import { getTextFromContent } from '../lib/content-utils';
 
-const API_URL = process.env.EXPO_PUBLIC_ALIA_API_URL ?? 'https://api.ai.oxy.so';
+const API_URL = process.env.EXPO_PUBLIC_ALIA_API_URL ?? 'https://api.alia.onl';
 
 export interface UseAliaChatOptions {
-  /** Alia API base URL (default: EXPO_PUBLIC_ALIA_API_URL or https://api.ai.oxy.so) */
+  /** Alia API base URL (default: EXPO_PUBLIC_ALIA_API_URL or https://api.alia.onl) */
   apiUrl?: string;
   /** Alia model to use (default: 'alia-v1') */
   model?: string;

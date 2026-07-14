@@ -356,7 +356,7 @@ export function UsagePage() {
             <Card>
               <CardHeader>
                 <CardTitle>Cost by Model</CardTitle>
-                <CardDescription>Spending breakdown by OxyAI model</CardDescription>
+                <CardDescription>Spending breakdown by Alia model</CardDescription>
               </CardHeader>
               <CardContent>
                 {costsLoading ? (

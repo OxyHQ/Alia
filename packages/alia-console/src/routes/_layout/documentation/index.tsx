@@ -58,7 +58,7 @@ function DocumentationIndexPage() {
           <h1 className="text-2xl font-semibold text-foreground">Documentation</h1>
         </div>
         <p className="text-sm text-muted-foreground">
-          Everything you need to integrate with the OxyAI API
+          Everything you need to integrate with the Alia API
         </p>
       </div>
 

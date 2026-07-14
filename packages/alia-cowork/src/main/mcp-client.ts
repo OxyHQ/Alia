@@ -103,7 +103,7 @@ export class McpLocalClient {
   }
 
   private async fetchLocalServers(apiKey: string): Promise<McpServerConfig[]> {
-    const baseUrl = (store.get('apiBaseUrl') as string) || 'https://api.ai.oxy.so'
+    const baseUrl = (store.get('apiBaseUrl') as string) || 'https://api.alia.onl'
     const response = await fetch(`${baseUrl}/mcp/installed`, {
       headers: { Authorization: `Bearer ${apiKey}` },
       signal: AbortSignal.timeout(10_000),
@@ -234,7 +234,7 @@ export class McpLocalClient {
   private connectRelay(apiKey: string): void {
     if (this.stopped) return
 
-    const baseUrl = (store.get('apiBaseUrl') as string) || 'https://api.ai.oxy.so'
+    const baseUrl = (store.get('apiBaseUrl') as string) || 'https://api.alia.onl'
     const wsUrl = baseUrl.replace(/^http/, 'ws') + '/ws/mcp'
 
     try {
