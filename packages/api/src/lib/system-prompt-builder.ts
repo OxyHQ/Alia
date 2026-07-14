@@ -6,6 +6,7 @@
  */
 
 import { getAliaModel } from './gateway-client.js';
+import { buildIdentityGuard } from './identity-guard.js';
 import { getOxyServicePromptFragment, getOxyServiceContext } from './tools/oxy-services.js';
 import { buildArchetypeSystemPrompt } from './agent/archetype-prompts.js';
 import { buildAutonomyPromptFragment, type AutonomyRuntimeContext } from './autonomy/runtime.js';
@@ -64,6 +65,8 @@ export class SystemPromptBuilder {
    * Build the complete system message from all layers.
    *
    * Layer order (bottom-up):
+   *   0. Identity guard (prepended LAST — sits at the absolute top so no skill,
+   *      agent, or downstream fragment can override the Alia identity boundary)
    *   1. Skill / Agent archetype (prepended — wraps the base prompt)
    *   2. Base prompt (model-specific identity + capabilities)
    *   3. Date injection
@@ -184,6 +187,11 @@ export class SystemPromptBuilder {
         log.general.info({ agentName: linkedAgent.name, archetype: linkedAgent.archetype }, 'Agent prompt injected');
       }
     }
+
+    // 0. Identity guard — prepended LAST so it sits above the skill/agent
+    // prompts and every other layer. Nothing downstream can override the
+    // Alia identity boundary.
+    systemMessage = `${buildIdentityGuard(aliaModel?.name)}\n\n---\n\n${systemMessage}`;
 
     return systemMessage;
   }
