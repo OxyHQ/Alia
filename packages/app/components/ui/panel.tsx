@@ -11,6 +11,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { cn } from "@/lib/utils";
 import { useTheme } from "@oxyhq/bloom/theme";
+import { MD_BREAKPOINT } from "@/hooks/useIsLargeScreen";
 
 const USE_NATIVE_DRIVER = Platform.OS !== "web";
 
@@ -44,7 +45,7 @@ export function Panel({
   className,
 }: PanelProps) {
   const { width: screenWidth } = useWindowDimensions();
-  const isLargeScreen = screenWidth >= 768;
+  const isLargeScreen = screenWidth >= MD_BREAKPOINT;
   const insets = useSafeAreaInsets();
   const { colors } = useTheme();
 

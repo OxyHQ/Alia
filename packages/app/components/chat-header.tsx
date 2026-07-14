@@ -1,4 +1,4 @@
-import { View, useWindowDimensions, Platform } from "react-native";
+import { View, Platform } from "react-native";
 import { Text } from "@/components/ui/text";
 import { Search, MoreHorizontal, Menu, Ghost, Mic } from "lucide-react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -40,10 +40,8 @@ export function ChatHeader({
   const { t } = useTranslation();
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
-  const dimensions = useWindowDimensions();
   const navigation = useNavigation<DrawerNavigationProp<ReactNavigation.RootParamList>>();
   const router = useRouter();
-  const isLargeScreen = dimensions.width >= 768;
   const [showClearDialog, setShowClearDialog] = useState(false);
   const handleDrawerToggle = () => {
     navigation.toggleDrawer();
@@ -80,16 +78,14 @@ export function ChatHeader({
         style={{ paddingTop: insets.top, height: 56 + insets.top }}
       >
       <View className="flex-row items-center gap-2">
-        {!isLargeScreen && (
-          <Button
-            variant="ghost"
-            size="icon"
-            onPress={handleDrawerToggle}
-            className="h-9 w-9 rounded-full"
-          >
-            <Menu size={20} className="text-muted-foreground" />
-          </Button>
-        )}
+        <Button
+          variant="ghost"
+          size="icon"
+          onPress={handleDrawerToggle}
+          className="h-9 w-9 rounded-full md:hidden"
+        >
+          <Menu size={20} className="text-muted-foreground" />
+        </Button>
         <ModelSelector
           selectedModel={selectedModel}
           onModelChange={onModelChange}

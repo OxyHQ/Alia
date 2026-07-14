@@ -3,8 +3,8 @@ import {
   View,
   Pressable,
   ScrollView,
-  useWindowDimensions,
 } from "react-native";
+import { useIsLargeScreen } from "@/hooks/useIsLargeScreen";
 import { Text } from "@/components/ui/text";
 import { useColorScheme } from "@/lib/useColorScheme";
 import { withAlpha } from "@oxyhq/bloom/theme";
@@ -113,9 +113,8 @@ interface ActivityGridProps {
 }
 
 export function ActivityGrid({ agentId, weeks: weeksProp }: ActivityGridProps) {
-  const { width } = useWindowDimensions();
   const { colors } = useColorScheme();
-  const isLargeScreen = width >= 768;
+  const isLargeScreen = useIsLargeScreen();
   const weeks = weeksProp ?? (isLargeScreen ? 52 : 20);
 
   const { data, isLoading } = useActivityGrid(agentId, weeks);

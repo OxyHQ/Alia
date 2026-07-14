@@ -77,7 +77,11 @@ export function AliaMark({ size = 24, state = 'idle', className }: AliaMarkProps
   return (
     <View style={{ width: size, height: size, alignItems: 'center', justifyContent: 'center' }}>
       <Animated.View style={animatedStyle}>
-        <Text className={cn(className ?? 'text-foreground')} style={{ fontSize: size, lineHeight: size }}>
+        <Text
+          selectable={false}
+          className={cn(className ?? 'text-foreground')}
+          style={{ fontSize: size, lineHeight: size, userSelect: 'none' }}
+        >
           ✱
         </Text>
       </Animated.View>
