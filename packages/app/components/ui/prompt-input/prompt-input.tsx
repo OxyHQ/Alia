@@ -1,14 +1,16 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import {
   View,
   Text,
   Pressable,
+  Platform,
   type TextInput as RNTextInput,
 } from "react-native";
 import { KeyboardAvoidingView } from "@/lib/keyboard";
 import { Maximize2, Minimize2 } from "lucide-react-native";
 import { cn } from "@/lib/utils";
 import { asViewStyle } from "@/lib/types/webStyles";
+import { overflowsSingleLine } from "@/lib/measure-text-fit";
 import { PromptInputContext, type Attachment } from "./context";
 import { PromptInputTextarea } from "./textarea";
 import { PromptInputActions } from "./actions";
@@ -18,9 +20,12 @@ import { PromptInputAttachments } from "./attachments";
 import { PromptInputSubmitButton } from "./submit-button";
 import { PromptInputAddMenu } from "./add-menu";
 
-// Collapsed-state left inset (px) reserved for the pinned + button when measuring
-// whether the current value fits the single-line middle track (see isExpanded).
+// Native onLayout path: left inset (px) reserved for the pinned + button when
+// measuring whether the value fits the collapsed single-line middle track.
 const COLLAPSED_LEFT_INSET = 48;
+// Web canvas path: horizontal padding of the collapsed editor (pl-11 + pr-[185px])
+// subtracted from the input's inner width to get the single-line text track.
+const COLLAPSED_H_PADDING = 44 + 185;
 
 export type PromptInputProps = {
   isLoading?: boolean;
@@ -89,6 +94,12 @@ export function PromptInput({
   const [showFullscreen, setShowFullscreen] = useState(false);
   const [handleCompletionKey, setHandleCompletionKey] = useState<((key: string) => boolean) | null>(null);
   const textareaRef = useRef<RNTextInput>(null);
+  // Stable DOM id for the textarea (colons stripped so it's a clean HTML id).
+  // The web fit test resolves the node by id, not by ref — see overflowsSingleLine.
+  // Strip everything non-alphanumeric: react-native-web sanitizes exotic chars
+  // (React 19's useId wraps ids in punctuation) when writing the DOM `id`, and
+  // the lookup string must be byte-identical to what lands in the DOM.
+  const inputId = `prompt-input-${useId().replace(/[^a-zA-Z0-9]/g, "")}`;
 
   // Two-state (collapsed pill ↔ expanded) measurement — updated via onLayout so
   // the expansion trigger is derived in render, hysteresis-free, with no effect.
@@ -157,18 +168,29 @@ export function PromptInput({
   const currentValue = value ?? internalValue;
   const currentSetValue = onValueChange ?? handleChange;
 
-  // Expanded when the value can't sit on the collapsed single-line track: it
-  // contains a newline, carries attachments, or its measured single-line width
-  // exceeds the middle track (container − left inset − right action cluster).
-  // Derived from measured widths only → deterministic, no oscillation: deleting
-  // back under the fit width collapses again on its own.
-  const middleWidth = containerWidth - COLLAPSED_LEFT_INSET - rightClusterWidth;
+  // Does the value overflow the collapsed single-line track? Web measures the
+  // text with canvas 2D `measureText` against the input's inner width, resolving
+  // the node by DOM id (under NativeWind 5 / react-native-css neither `onLayout`
+  // nor the forwarded ref reach the host node for className'd elements, so both
+  // silently no-op on web). Native falls back to the onLayout-measured mirror vs
+  // the middle track. Derived in render → deterministic, hysteresis-free: delete
+  // back under the fit width and it collapses again on its own.
+  const webOverflow = overflowsSingleLine(inputId, currentValue, COLLAPSED_H_PADDING);
+  const nativeMiddleWidth = containerWidth - COLLAPSED_LEFT_INSET - rightClusterWidth;
+  const overflowsTrack =
+    webOverflow ?? (nativeMiddleWidth > 0 && mirrorWidth > nativeMiddleWidth);
+
+  // Three visual states of the SAME bar. Fullscreen wins; otherwise the value's
+  // fit decides collapsed vs expanded. (Fullscreen is entered via the maximize
+  // affordance, not derived from content.)
   const isExpanded =
     isSimpleMode &&
-    !showFullscreen &&
-    (currentValue.includes("\n") ||
-      attachments.length > 0 ||
-      (middleWidth > 0 && mirrorWidth > middleWidth));
+    (currentValue.includes("\n") || attachments.length > 0 || overflowsTrack);
+  const barState: "collapsed" | "expanded" | "fullscreen" = showFullscreen
+    ? "fullscreen"
+    : isExpanded
+      ? "expanded"
+      : "collapsed";
   const contextValue = useMemo(() => ({
     isLoading,
     value: currentValue,
@@ -201,21 +223,26 @@ export function PromptInput({
       {/* Collapsed: text sits on the single-line track between the pinned + (left)
           and the action cluster (right). Expanded: paddings shrink, a bottom band
           clears the pinned buttons, and text uses the full width above them. */}
+      {/* Verification note: the padding/radius transitions FREEZE in a hidden
+          browser tab (Chrome pauses CSS transitions), so computed styles read
+          from automation stay at the from-value — check state flips in a real
+          foregrounded tab, or read the class attribute instead. */}
       <PromptInputTextarea
+        id={inputId}
         placeholder={placeholder}
-        minHeight={showFullscreen ? undefined : isExpanded ? 0 : 60}
+        minHeight={barState === "fullscreen" ? undefined : barState === "expanded" ? 0 : 60}
         className={
-          showFullscreen
+          barState === "fullscreen"
             ? "text-base"
-            : isExpanded
+            : barState === "expanded"
               ? "min-h-0 max-h-[400px] pl-3.5 pr-3.5 pt-[18px] web:pt-[18px] pb-14 web:pb-14 text-base web:transition-[padding] web:duration-300 web:ease-out"
               : "min-h-[60px] max-h-[400px] pl-11 pr-[185px] pt-[18px] web:pt-[18px] pb-[18px] web:pb-[18px] text-base web:transition-[padding] web:duration-300 web:ease-out"
         }
       />
       <PromptInputActions
-        pointerEvents={showFullscreen ? undefined : "box-none"}
+        pointerEvents={barState === "fullscreen" ? undefined : "box-none"}
         className={
-          showFullscreen
+          barState === "fullscreen"
             ? undefined
             : "absolute left-0 right-0 bottom-0 flex-row items-center p-2"
         }
@@ -251,19 +278,31 @@ export function PromptInput({
       <View
         className={cn(
           "border border-border bg-card shadow-sm relative overflow-hidden web:transition-[border-radius] web:duration-200",
-          isExpanded ? "rounded-[32px]" : "rounded-full",
+          barState === "fullscreen"
+            ? "rounded-none border-0 bg-background"
+            : barState === "expanded"
+              ? "rounded-[32px]"
+              : "rounded-full",
           disabled && "opacity-60",
           className
         )}
         {...props}
+        // Fullscreen is the SAME bar growing to cover the screen (web fixed
+        // positioning; native ignores `fixed` and snaps in place), not a
+        // separate overlay component. After {...props} so it can't be clobbered.
+        style={
+          barState === "fullscreen"
+            ? asViewStyle({ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, zIndex: 9998 })
+            : undefined
+        }
         onLayout={(e) => setContainerWidth(e.nativeEvent.layout.width)}
       >
         {/* Hidden single-line mirror of the current value in the input's font —
-            its width drives the collapsed→expanded fit test. Measured on the
-            wrapping View: react-native-web fires onLayout reliably on View but
-            not on Text, so a bare <Text onLayout> never updates state (the
-            symptom). The absolute row shrinks to the single-line text width. */}
-        {isSimpleMode && (
+            drives the native fit test. Measured on the wrapping View: react-
+            native-web fires onLayout reliably on View but not on Text. On web the
+            fit test uses canvas measureText instead (onLayout is unreliable for
+            className'd elements under NativeWind 5), so this is native-only. */}
+        {isSimpleMode && Platform.OS !== "web" && (
           <View
             pointerEvents="none"
             onLayout={(e) => setMirrorWidth(e.nativeEvent.layout.width)}
@@ -274,15 +313,23 @@ export function PromptInput({
             </Text>
           </View>
         )}
-        {showExpandIcon && !disabled && (
+        {!disabled && (showFullscreen || showExpandIcon) && (
           <Pressable
-            onPress={() => setShowFullscreen(true)}
+            onPress={() => setShowFullscreen(!showFullscreen)}
             className="absolute top-2 right-2 z-10 bg-background rounded-full p-1.5 border border-border active:opacity-70"
           >
-            <Maximize2 size={16} className="text-muted-foreground" />
+            {showFullscreen ? (
+              <Minimize2 size={16} className="text-muted-foreground" />
+            ) : (
+              <Maximize2 size={16} className="text-muted-foreground" />
+            )}
           </Pressable>
         )}
-        {content}
+        {barState === "fullscreen" ? (
+          <View className="flex-1 flex-col">{content}</View>
+        ) : (
+          content
+        )}
       </View>
     </Pressable>
   );
@@ -325,28 +372,6 @@ export function PromptInput({
 
       {autocomplete && autocompletePosition === "bottom" && !floatingAutocomplete && (
         <PromptInputAutocomplete position="bottom" showDefaultSuggestions={showDefaultSuggestions} />
-      )}
-
-      {showFullscreen && (
-        <View
-          style={asViewStyle({
-            position: "fixed",
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            zIndex: 9998,
-          })}
-          className="bg-background"
-        >
-          <Pressable
-            onPress={() => setShowFullscreen(false)}
-            className="absolute top-4 right-4 z-50 p-2 active:opacity-70 bg-background/80 rounded-full"
-          >
-            <Minimize2 size={20} className="text-foreground" />
-          </Pressable>
-          <View className="flex-1 flex-col">{content}</View>
-        </View>
       )}
     </PromptInputContext.Provider>
   );
