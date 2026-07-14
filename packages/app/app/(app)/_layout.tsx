@@ -3,7 +3,7 @@ import { Sidebar } from '@/components/sidebar';
 import { RightPanel } from '@/components/right-panel';
 import { AppErrorBoundary } from '@/components/error-boundary';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
-import { View, useWindowDimensions } from 'react-native';
+import { Platform, View, useWindowDimensions } from 'react-native';
 import { useProjectsStore } from '@/lib/stores/projects-store';
 import { useRolesStore } from '@/lib/stores/roles-store';
 import { useAgentsStore } from '@/lib/stores/agents-store';
@@ -20,6 +20,7 @@ import { KeyboardShortcutsDialog } from '@/components/keyboard-shortcuts-dialog'
 import i18n from '@/lib/i18n';
 import { useWelcomeSuggestions, useSessionSuggestionGeneration } from '@/lib/hooks/use-suggestions';
 import { useNotificationSetup } from '@/lib/hooks/use-notification-setup';
+import { asViewStyle } from '@/lib/types/webStyles';
 
 // Routes visible in the drawer sidebar
 const VISIBLE_ROUTES = new Set(['c/[id]/index', 'settings/index']);
@@ -70,11 +71,15 @@ export default function AppLayout() {
     drawerStyle: {
       // Desktop collapse: the permanent drawer narrows to an icon rail
       // (the sidebar renders icon-only rows at this width).
-      width: isLargeScreen && !sidebarOpen ? 64 : 255,
+      width: isLargeScreen && !sidebarOpen ? 56 : 255,
       backgroundColor: colors.background,
       borderRightWidth: 0,
       boxShadow: 'none' as const,
       elevation: 0,
+      // react-native-web animates the width change; no-op on native.
+      ...(Platform.OS === 'web'
+        ? asViewStyle({ transition: 'width 300ms cubic-bezier(0.22, 1, 0.36, 1)' })
+        : null),
     },
     drawerType: isLargeScreen ? ('permanent' as const) : ('front' as const),
     swipeEnabled: !isLargeScreen,
