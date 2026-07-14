@@ -496,8 +496,8 @@ const ChatSidebar = React.memo(function ChatSidebar() {
         className="p-1.5 mx-0.5 rounded-xl hover:bg-muted active:bg-muted"
       >
         {collapsed ? (
-          <View key={logoSpinCount} className={cn(logoSpinCount > 0 && "animate-spin-once")}>
-            <AliaMark size={24} className="text-foreground select-none" />
+          <View key={logoSpinCount} className="animate-spin-once">
+            <AliaMark size={24} />
           </View>
         ) : (
           <AliaLogo height={36} />
