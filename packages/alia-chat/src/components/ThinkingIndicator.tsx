@@ -1,13 +1,12 @@
 import React, { useState, useEffect } from "react";
 import { View, Text } from "react-native";
 import Animated, {
-  useSharedValue,
   useAnimatedStyle,
   withRepeat,
   withTiming,
   withSequence,
-  Easing,
 } from "react-native-reanimated";
+import { AliaMark } from "./AliaMark";
 
 const thinkingPhrases = [
   "Thinking...",
@@ -44,33 +43,15 @@ export function ThinkingIndicator({ isWorking = false, statusText }: { isWorking
     setPhraseIndex(Math.floor(Math.random() * phrases.length));
   }, [isWorking]);
 
-  // Spinning asterisk animation
-  const rotation = useSharedValue(0);
-  useEffect(() => {
-    rotation.value = withRepeat(
-      withTiming(360, { duration: 2000, easing: Easing.linear }),
-      -1
-    );
-  }, [rotation]);
-
-  const spinStyle = useAnimatedStyle(() => ({
-    transform: [{ rotate: `${rotation.value}deg` }],
-  }));
-
-  // Pulsing cursor animation
-  const cursorOpacity = useSharedValue(1);
-  useEffect(() => {
-    cursorOpacity.value = withRepeat(
+  // Pulsing cursor animation (effect-free, declarative)
+  const cursorStyle = useAnimatedStyle(() => ({
+    opacity: withRepeat(
       withSequence(
         withTiming(0.2, { duration: 400 }),
         withTiming(1, { duration: 400 })
       ),
       -1
-    );
-  }, [cursorOpacity]);
-
-  const cursorStyle = useAnimatedStyle(() => ({
-    opacity: cursorOpacity.value,
+    ),
   }));
 
   // Typewriter effect — skipped when statusText is provided (real-time status shown directly)
@@ -103,9 +84,7 @@ export function ThinkingIndicator({ isWorking = false, statusText }: { isWorking
 
   return (
     <View className="flex-row items-center gap-2 py-2">
-      <Animated.View style={spinStyle}>
-        <Text className="text-base text-muted-foreground">✱</Text>
-      </Animated.View>
+      <AliaMark size={16} state={isWorking ? 'working' : 'thinking'} className="text-muted-foreground" />
       <View className="flex-row items-center">
         <Text className="text-base text-muted-foreground">{shownText}</Text>
         {(statusText || isTyping) && (

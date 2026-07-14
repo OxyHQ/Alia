@@ -291,12 +291,12 @@ router.patch('/:id', authenticateToken, async (req: Request, res: Response) => {
       'skills', 'knowledge',
       'isPublished', 'status', 'creditBalance', 'allowHiring',
       'systemPrompt', 'allowedModels', 'scheduleInterval',
-      'archetype', 'archetypeConfig', 'accessories',
+      'archetype', 'archetypeConfig',
     ];
 
     for (const field of allowedFields) {
       if (req.body[field] !== undefined) {
-        (agent as any)[field] = req.body[field];
+        agent.set(field, req.body[field]);
       }
     }
 

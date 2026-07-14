@@ -1,7 +1,7 @@
 import React from "react";
 import { View, Pressable } from "react-native";
 import { Text } from "@/components/ui/text";
-import { AliaFace } from "@/components/ui/alia-face";
+import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { BadgeCheck, Zap } from "lucide-react-native";
 import { cn } from "@/lib/utils";
@@ -36,6 +36,8 @@ export const AgentCard = React.memo(function AgentCard({
 }: AgentCardProps) {
   const { t } = useTranslation();
   const isFeatured = variant === "featured";
+  const avatarSize = isFeatured ? "h-16 w-16" : "h-14 w-14";
+  const avatarTextSize = isFeatured ? "text-xl" : "text-lg";
   const statusDotSize = isFeatured
     ? "w-3.5 h-3.5 border-[2.5px]"
     : "w-3 h-3 border-2";
@@ -50,10 +52,17 @@ export const AgentCard = React.memo(function AgentCard({
         {/* Top row: Avatar (left) + Chat button (right) — like Twitter avatar + Follow */}
         <View className="flex-row items-start justify-between">
           <View className="relative">
-            <AliaFace
-              size={isFeatured ? 64 : 56}
-              accessories={agent.accessories}
-            />
+            <Avatar className={cn(avatarSize)}>
+              {agent.avatar ? (
+                <AvatarImage source={{ uri: agent.avatar }} />
+              ) : (
+                <AvatarFallback>
+                  <Text className={cn("font-bold text-foreground", avatarTextSize)}>
+                    {agent.name.charAt(0)}
+                  </Text>
+                </AvatarFallback>
+              )}
+            </Avatar>
             <View
               className={cn(
                 "absolute bottom-0 right-0 rounded-full border-surface",

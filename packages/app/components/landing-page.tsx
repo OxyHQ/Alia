@@ -36,7 +36,7 @@ import {
 import { OxySignInButton, useAuth } from "@oxyhq/services";
 import { Text } from "@/components/ui/text";
 import { TextShimmer } from "@/components/ui/text-shimmer";
-import { AliaFace, type AliaExpression } from "@/components/ui/alia-face";
+import { AliaMark } from "@alia.onl/sdk";
 import { useTranslation } from "@/hooks/useTranslation";
 import { useColorScheme } from "@/lib/useColorScheme";
 
@@ -255,14 +255,6 @@ function ScrollIndicator() {
 // ---------------------------------------------------------------------------
 // Constants
 // ---------------------------------------------------------------------------
-const HERO_EXPRESSIONS: AliaExpression[] = [
-  "Greeting",
-  "Interesting",
-  "Idle A",
-  "Thinking",
-  "Searching F",
-];
-
 const DEMO_KEYS = [
   "landing.demo1",
   "landing.demo2",
@@ -288,17 +280,6 @@ export function LandingPage({ returnTo }: LandingPageProps) {
       router.replace((returnTo || "/") as any);
     }
   }, [isAuthenticated, isLoading]);
-
-  // Expression cycling
-  const [expression, setExpression] = useState<AliaExpression>("Greeting");
-  useEffect(() => {
-    let idx = 0;
-    const interval = setInterval(() => {
-      idx = (idx + 1) % HERO_EXPRESSIONS.length;
-      setExpression(HERO_EXPRESSIONS[idx]);
-    }, 4000);
-    return () => clearInterval(interval);
-  }, []);
 
   // Typewriter effect
   const [typedText, setTypedText] = useState("");
@@ -409,7 +390,7 @@ export function LandingPage({ returnTo }: LandingPageProps) {
 
   if (isAuthenticated) return null;
 
-  const faceSize = isLargeScreen ? 200 : 140;
+  const markSize = isLargeScreen ? 200 : 140;
 
   return (
     <View className="flex-1">
@@ -476,7 +457,7 @@ export function LandingPage({ returnTo }: LandingPageProps) {
             entering={FadeIn.duration(800)}
             className="items-center w-full max-w-2xl"
           >
-            <AliaFace expression={expression} size={faceSize} />
+            <AliaMark size={markSize} />
             <View className="mt-6 mb-2">
               <TextShimmer
                 duration={6}

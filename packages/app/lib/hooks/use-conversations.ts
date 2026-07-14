@@ -23,7 +23,6 @@ export interface Message {
     name: string;
     avatar: string | null;
     handle: string;
-    accessories?: string[];
   };
   audioUrl?: string;
 }

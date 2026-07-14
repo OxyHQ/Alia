@@ -2,7 +2,7 @@ import React, { useEffect, useState, useCallback } from "react";
 import { View, ScrollView, Pressable, Share, TextInput, Alert, useWindowDimensions, ActivityIndicator } from "react-native";
 import { Switch } from "@/components/ui/switch";
 import { Text } from "@/components/ui/text";
-import { AliaFace } from "@/components/ui/alia-face";
+import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import * as DropdownMenu from "@/components/ui/dropdown-menu";
 import {
   ArrowLeft,
@@ -557,7 +557,17 @@ export default function AgentDetailScreen() {
           <View className={cn("px-5 pb-6 pt-4", isLargeScreen && "px-6 max-w-2xl")}>
             {/* Avatar */}
             <View className="relative self-start">
-              <AliaFace size={80} accessories={agent.accessories} />
+              <Avatar className="h-20 w-20">
+                {agent.avatar ? (
+                  <AvatarImage source={{ uri: agent.avatar }} />
+                ) : (
+                  <AvatarFallback>
+                    <Text className="text-2xl font-bold text-foreground">
+                      {agent.name.charAt(0)}
+                    </Text>
+                  </AvatarFallback>
+                )}
+              </Avatar>
               <View
                 className={cn(
                   "absolute bottom-1 right-1 w-4 h-4 rounded-full border-2 border-background",

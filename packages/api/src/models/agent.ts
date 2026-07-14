@@ -86,10 +86,6 @@ export interface IAgent extends Document {
   allowedModels: string[];
   scheduleInterval?: number;
   lastScheduledCheck?: Date;
-  accessories: Array<{
-    accessoryId: string;
-    position: { x: number; y: number; scale: number; rotation: number };
-  }>;
   permissions?: IAgentPermissions;
   soul?: IAgentSoul;
   archetype: AgentArchetype;
@@ -144,15 +140,6 @@ const AgentSchema = new Schema<IAgent>({
   },
   creditBalance: { type: Number, default: 0 },
   allowHiring: { type: Boolean, default: false },
-  accessories: [{
-    accessoryId: { type: String, required: true },
-    position: {
-      x: { type: Number, default: 0.5 },
-      y: { type: Number, default: 0.5 },
-      scale: { type: Number, default: 1 },
-      rotation: { type: Number, default: 0 },
-    },
-  }],
   systemPrompt: { type: String },
   preferredImage: { type: String },
   allowedModels: {

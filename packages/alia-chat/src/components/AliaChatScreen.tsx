@@ -13,11 +13,11 @@
  * ```
  */
 
-import React, { useRef, useState, useEffect, useCallback } from 'react';
+import React from 'react';
 import { View, Text, TouchableOpacity } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { AliaChatContent, type AliaChatContentRef } from './AliaChatContent';
-import { AliaFace, type AliaExpression } from './AliaFace';
+import { AliaChatContent } from './AliaChatContent';
+import { AliaMark } from './AliaMark';
 import type { WelcomeSuggestion } from './AliaWelcomeMessage';
 
 export interface AliaChatScreenProps {
@@ -50,56 +50,34 @@ export function AliaChatScreen({
   welcomeSuggestions,
 }: AliaChatScreenProps) {
   const insets = useSafeAreaInsets();
-  const contentRef = useRef<AliaChatContentRef>(null);
-
-  const [faceExpression, setFaceExpression] = useState<AliaExpression>('Idle A');
-  const [hasMessages, setHasMessages] = useState(false);
-
-  // Poll content ref for header state
-  useEffect(() => {
-    const interval = setInterval(() => {
-      if (contentRef.current) {
-        setFaceExpression(contentRef.current.faceExpression);
-        setHasMessages(contentRef.current.messages.length > 0);
-      }
-    }, 200);
-    return () => clearInterval(interval);
-  }, []);
-
-  const handleClear = useCallback(() => {
-    contentRef.current?.clear();
-  }, []);
 
   return (
     <View className="flex-1 bg-background" style={{ paddingTop: insets.top }}>
-      {/* Header */}
-      <View className="flex-row items-center justify-between px-4 py-3">
-        <View className="flex-row items-center gap-2.5">
-          {headerLeft}
-          <AliaFace size={28} expression={faceExpression} />
-          <Text className="text-lg font-semibold text-foreground">Alia</Text>
-        </View>
-        <View className="flex-row items-center gap-2">
-          {hasMessages && (
-            <TouchableOpacity onPress={handleClear} className="px-2.5 py-1.5">
-              <Text className="text-sm text-muted-foreground">Clear</Text>
-            </TouchableOpacity>
-          )}
-          {headerRight}
-        </View>
-      </View>
-
-      {/* Chat content */}
       <AliaChatContent
-        ref={contentRef}
         clientContext={clientContext}
         model={model}
         apiUrl={apiUrl}
         welcomeGreeting={welcomeGreeting}
         welcomeSubtitle={welcomeSubtitle}
         welcomeSuggestions={welcomeSuggestions}
+        header={({ markState, hasMessages, clear }) => (
+          <View className="flex-row items-center justify-between px-4 py-3">
+            <View className="flex-row items-center gap-2.5">
+              {headerLeft}
+              <AliaMark size={28} state={markState} />
+              <Text className="text-lg font-semibold text-foreground">Alia</Text>
+            </View>
+            <View className="flex-row items-center gap-2">
+              {hasMessages && (
+                <TouchableOpacity onPress={clear} className="px-2.5 py-1.5">
+                  <Text className="text-sm text-muted-foreground">Clear</Text>
+                </TouchableOpacity>
+              )}
+              {headerRight}
+            </View>
+          </View>
+        )}
       />
     </View>
   );
 }
-

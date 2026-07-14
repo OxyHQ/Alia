@@ -11,7 +11,6 @@ import { queryKeys } from '@/lib/hooks/query-keys';
 import { useStore } from '@/lib/globalStore';
 import { useModelStore } from '@/lib/stores/model-store';
 import { useUIStore } from '@/lib/stores/ui-store';
-import { normalizeAccessories } from '@/lib/stores/agents-store';
 import { toast } from '@/components/sonner';
 
 import type { ToolInvocation } from '@/lib/types/messages';
@@ -398,7 +397,6 @@ Use this role to guide your responses, maintaining the specified tone, style, an
                           name: am.agentName,
                           avatar: am.agentAvatar,
                           handle: am.agentHandle,
-                          accessories: normalizeAccessories(am.agentAccessories),
                         },
                       };
                       const lastIdx = updated.length - 1;
