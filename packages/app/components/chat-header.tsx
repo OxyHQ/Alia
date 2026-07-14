@@ -1,6 +1,7 @@
 import { View, Platform } from "react-native";
 import { Text } from "@/components/ui/text";
-import { Search, MoreHorizontal, Menu, Ghost, Mic } from "lucide-react-native";
+import { Search, MoreHorizontal, Menu, Mic } from "lucide-react-native";
+import { GhostIcon } from "@/components/ui/ghost-icon";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Button } from "@/components/ui/button";
 import { ModelSelector } from "@/components/model-selector";
@@ -108,11 +109,7 @@ export function ChatHeader({
             onPress={onGhostModePress}
             className="h-9 w-9 rounded-full"
           >
-            <Ghost
-              size={20}
-              fill={ghostModeActive ? colors.text : "none"}
-              className={ghostModeActive ? "text-foreground" : "text-muted-foreground"}
-            />
+            <GhostIcon size={20} filled={ghostModeActive} />
           </Button>
         )}
 
