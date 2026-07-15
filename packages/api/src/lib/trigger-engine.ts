@@ -31,6 +31,7 @@ import { oxyClient } from '../middleware/auth.js';
 import { log } from './logger.js';
 import { getErrorMessage } from './errors/index.js';
 import { sendNotification } from './notification-service.js';
+import type { NotificationChannel } from '../models/notification.js';
 import { buildArchetypeSystemPrompt } from './agent/archetype-prompts.js';
 import { handleRoutingDecision } from './agent/routing-handler.js';
 import { startLeaderElection, type LeaderElectionHandle, type LeaderElectionOptions } from './leader-election.js';
@@ -282,7 +283,7 @@ export async function executeTrigger(
       temperature: 0.3,
       maxRetries: 0,
       stopWhen: stepCountIs(8),
-    } as any);
+    });
 
     const durationMs = Date.now() - startTime;
     const resultText = result.text || 'No response generated';
@@ -297,8 +298,8 @@ export async function executeTrigger(
 
     // Extract token usage
     const tokens = result.usage ? {
-      prompt: (result.usage as any).inputTokens || 0,
-      completion: (result.usage as any).outputTokens || 0,
+      prompt: result.usage.inputTokens || 0,
+      completion: result.usage.outputTokens || 0,
       total: result.usage.totalTokens || 0,
     } : undefined;
 
@@ -335,11 +336,11 @@ export async function executeTrigger(
     // Deliver notification if enabled
     if (trigger.action.notify) {
       // Multi-channel delivery for status_update agents
-      const deliveryChannels = linkedAgent?.archetype === 'status_update'
+      const deliveryChannels: NotificationChannel[] | undefined = linkedAgent?.archetype === 'status_update'
         && linkedAgent.archetypeConfig?.deliveryChannels?.length
-        ? [...linkedAgent.archetypeConfig.deliveryChannels, 'in_app'] as any[]
+        ? [...linkedAgent.archetypeConfig.deliveryChannels, 'in_app'] as NotificationChannel[]
         : trigger.action.channelId
-          ? [trigger.action.channelId as any, 'in_app']
+          ? [trigger.action.channelId as NotificationChannel, 'in_app']
           : undefined;
 
       sendNotification({

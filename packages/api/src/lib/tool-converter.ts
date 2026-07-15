@@ -68,12 +68,11 @@ export function convertOpenAIToolsToToolSet(
     }
 
     // Create tool with dynamic schema from OpenAI format
-    // Use 'as any' to bypass strict typing since schemas are dynamic
     const zodSchema = jsonSchemaToZod(t.function.parameters);
 
     toolSet[sanitizedName] = tool({
       description: t.function.description || `Tool: ${originalName}`,
-      parameters: zodSchema,
+      inputSchema: zodSchema,
       execute: async (params: Record<string, unknown>) => {
         // Return params for client-side execution
         // The actual tool execution happens on the client (Cursor/VS Code)
@@ -83,7 +82,7 @@ export function convertOpenAIToolsToToolSet(
           params,
         };
       },
-    } as any);
+    });
   }
 
   return toolSet;

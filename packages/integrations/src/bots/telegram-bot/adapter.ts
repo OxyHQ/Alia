@@ -24,8 +24,10 @@ import {
   handleHistory,
   sendAuthRequest,
 } from './commands';
+import { createLogger } from '../../shared/logger';
 
 const apiClient = new APIClient('telegram', process.env.TELEGRAM_BOT_SECRET || '');
+const logger = createLogger('TelegramBot');
 
 export class TelegramBotAdapter implements BotAdapter {
   name = 'telegram-bot';
@@ -102,16 +104,16 @@ export class TelegramBotAdapter implements BotAdapter {
 
     // Global error handler
     bot.catch((err: unknown, ctx: Context) => {
-      console.error('[Telegram Bot] Error:', err);
+      logger.error('Error:', err);
       ctx.reply('An error occurred. Please try again later.').catch(() => {});
     });
 
     // Launch with long-polling (fire-and-forget — launch() never resolves
     // because it runs an infinite getUpdates loop)
     bot.launch({ dropPendingUpdates: true }).catch((err) => {
-      console.error('[Telegram Bot] Polling error:', err);
+      logger.error('Polling error:', err);
     });
-    console.log('[Telegram Bot] Bot started (polling)');
+    logger.info('Bot started (polling)');
   }
 
   async shutdown() {
@@ -167,7 +169,7 @@ export class TelegramBotAdapter implements BotAdapter {
             .map((msg) => ({ role: msg.role, content: msg.content }));
         }
       } catch (error) {
-        console.error('[Telegram Bot] Failed to load conversation history:', error);
+        logger.error('Failed to load conversation history:', error);
       }
 
       // Append new user message (multi-part if image is included)
@@ -288,7 +290,7 @@ Be concise and friendly. Use these Telegram features when appropriate.`,
 
       // Conversation is auto-saved by the API when conversationId is provided
     } catch (error: unknown) {
-      console.error('[Telegram Bot] Chat error:', error);
+      logger.error('Chat error:', error);
 
       if (errorCode(error) === 'INSUFFICIENT_CREDITS' || errorStatus(error) === 402) {
         const appUrl = process.env.APP_URL || 'https://alia.onl';
@@ -380,7 +382,7 @@ Be concise and friendly. Use these Telegram features when appropriate.`,
 
       await this.handleChatMessage(ctx, { textOverride: transcribedText });
     } catch (error: unknown) {
-      console.error('[Telegram Bot] Voice message error:', error);
+      logger.error('Voice message error:', error);
 
       if (errorStatus(error) === 402 || errorCode(error) === 'INSUFFICIENT_CREDITS') {
         const appUrl = process.env.APP_URL || 'https://alia.onl';
@@ -430,7 +432,7 @@ Be concise and friendly. Use these Telegram features when appropriate.`,
 
       await this.handleChatMessage(ctx, { textOverride: caption, imageUrl: dataUrl });
     } catch (error: unknown) {
-      console.error('[Telegram Bot] Photo message error:', error);
+      logger.error('Photo message error:', error);
       await ctx.reply('Sorry, I had trouble processing that image. Please try again.').catch(() => {});
     }
   }
@@ -446,7 +448,7 @@ Be concise and friendly. Use these Telegram features when appropriate.`,
       try {
         await ctx.replyWithPhoto(url, caption ? { caption } : undefined);
       } catch (error) {
-        console.error('[Telegram Bot] Failed to send image:', error);
+        logger.error('Failed to send image:', error);
       }
     }
 
@@ -460,7 +462,7 @@ Be concise and friendly. Use these Telegram features when appropriate.`,
           ...(caption ? { caption } : {}),
         });
       } catch (error) {
-        console.error('[Telegram Bot] Failed to send document:', error);
+        logger.error('Failed to send document:', error);
       }
     }
 
@@ -478,7 +480,7 @@ Be concise and friendly. Use these Telegram features when appropriate.`,
           await ctx.reply(title || '🔗 Related links:', Markup.inlineKeyboard(buttons));
         }
       } catch (error) {
-        console.error('[Telegram Bot] Failed to parse links:', error);
+        logger.error('Failed to parse links:', error);
       }
     }
   }

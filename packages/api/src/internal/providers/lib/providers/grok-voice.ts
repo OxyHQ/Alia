@@ -15,6 +15,36 @@ import type { VoiceProvider, VoiceSessionConfig } from '../types-voice.js';
 import type { KeyConfig } from '../types.js';
 import { log } from '../../../../lib/logger.js';
 
+/** Tool definition in the Grok/OpenAI Realtime `session.update` payload. */
+interface GrokRealtimeTool {
+  type: 'function';
+  name: string;
+  description?: string;
+  parameters?: Record<string, unknown>;
+}
+
+/** `session.update` control message sent over the Grok Realtime WebSocket. */
+interface GrokSessionUpdate {
+  type: 'session.update';
+  session: {
+    modalities: string[];
+    instructions: string;
+    voice: string;
+    input_audio_format: string;
+    output_audio_format: string;
+    input_audio_transcription: { model: string };
+    turn_detection: {
+      type: string;
+      threshold: number;
+      prefix_padding_ms: number;
+      silence_duration_ms: number;
+    };
+    temperature: number;
+    max_response_output_tokens: number;
+    tools?: GrokRealtimeTool[];
+  };
+}
+
 export const grokVoiceProvider: VoiceProvider = {
   name: 'Grok Voice',
 
@@ -63,7 +93,7 @@ export const grokVoiceProvider: VoiceProvider = {
           log.providers.info('Connected successfully');
 
           // Send session configuration
-          const sessionConfig = {
+          const sessionConfig: GrokSessionUpdate = {
             type: 'session.update',
             session: {
               modalities: ['text', 'audio'],
@@ -87,7 +117,7 @@ export const grokVoiceProvider: VoiceProvider = {
 
           // Add tools if provided
           if (config.tools && config.tools.length > 0) {
-            (sessionConfig.session as any).tools = config.tools.map(tool => ({
+            sessionConfig.session.tools = config.tools.map(tool => ({
               type: tool.type,
               name: tool.function.name,
               description: tool.function.description,

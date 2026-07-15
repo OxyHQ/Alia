@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import type { AliaAuthenticationProvider } from './authProvider';
+import { log } from './logger';
 
 export class AliaInlineCompletionProvider implements vscode.InlineCompletionItemProvider {
   private apiBaseUrl: string = '';
@@ -63,7 +64,7 @@ export class AliaInlineCompletionProvider implements vscode.InlineCompletionItem
         )
       ];
     } catch (error) {
-      console.error('Alia inline completion error:', error);
+      log.error('Alia inline completion error:', error);
       return null;
     }
   }

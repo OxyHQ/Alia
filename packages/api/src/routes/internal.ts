@@ -201,14 +201,14 @@ router.post('/trigger', oxyServiceAuth, async (req, res) => {
       temperature: 0.3,
       maxRetries: 0,
       stopWhen: stepCountIs(5),
-    } as any);
+    });
 
     const responseTime = Date.now() - startTime;
 
     // Extract token usage (AI SDK uses inputTokens/outputTokens)
     const tokenUsage = result.usage ? {
-      promptTokens: (result.usage as any).inputTokens || 0,
-      completionTokens: (result.usage as any).outputTokens || 0,
+      promptTokens: result.usage.inputTokens || 0,
+      completionTokens: result.usage.outputTokens || 0,
       totalTokens: result.usage.totalTokens || 0,
     } : null;
 

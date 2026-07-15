@@ -12,9 +12,11 @@ import { clipboard, shell, desktopCapturer, BrowserWindow } from 'electron'
 import { Stagehand } from '@browserbasehq/stagehand'
 import Store from 'electron-store'
 import { errorMessage, errorCode } from './errors'
+import { createLogger } from './logger'
 
 const execAsync = promisify(exec)
 const store = new Store()
+const logger = createLogger('ToolExecutor')
 
 export class ToolExecutor {
   private homeDir: string
@@ -370,12 +372,12 @@ export class ToolExecutor {
         extract: str(args.extract)
       }
 
-      console.log('[ToolExecutor] Browser action called with:', JSON.stringify(args, null, 2))
-      console.log('[ToolExecutor] Normalized args:', JSON.stringify(normalizedArgs, null, 2))
+      logger.debug('Browser action called with:', JSON.stringify(args, null, 2))
+      logger.debug('Normalized args:', JSON.stringify(normalizedArgs, null, 2))
 
       // Initialize Stagehand if not already initialized
       if (!this.stagehand) {
-        console.log('[ToolExecutor] Initializing Stagehand in headless mode...')
+        logger.debug('Initializing Stagehand in headless mode...')
         this.stagehand = new Stagehand({
           env: 'LOCAL',
           verbose: 1,
@@ -385,7 +387,7 @@ export class ToolExecutor {
           }
         })
         await this.stagehand.init()
-        console.log('[ToolExecutor] Stagehand initialized in headless mode - browser runs invisibly, screenshots sent to app')
+        logger.debug('Stagehand initialized in headless mode - browser runs invisibly, screenshots sent to app')
       }
 
       // Get the first page
@@ -411,7 +413,7 @@ export class ToolExecutor {
             })
           }
         } catch (error) {
-          console.error('[ToolExecutor] Error capturing screenshot:', error)
+          logger.error('Error capturing screenshot:', error)
         }
       }
 
@@ -429,11 +431,11 @@ export class ToolExecutor {
 
       // If we have an instruction, use the agent for intelligent multi-step execution
       if (instruction) {
-        console.log(`[ToolExecutor] Using agent with instruction: ${instruction}`)
+        logger.debug(`Using agent with instruction: ${instruction}`)
 
         // Navigate to URL first if provided
         if (normalizedArgs.url) {
-          console.log(`[ToolExecutor] Navigating to ${normalizedArgs.url}`)
+          logger.debug(`Navigating to ${normalizedArgs.url}`)
           await page.goto(normalizedArgs.url)
           await page.waitForLoadState('networkidle')
           await capturePreview()
@@ -441,7 +443,7 @@ export class ToolExecutor {
 
         // Use agent for the action if we have one
         if (normalizedArgs.action) {
-          console.log(`[ToolExecutor] Creating agent for action: ${normalizedArgs.action}`)
+          logger.debug(`Creating agent for action: ${normalizedArgs.action}`)
 
           // Get Alia API credentials
           const apiKey = store.get('apiKey') as string
@@ -461,13 +463,13 @@ export class ToolExecutor {
             maxSteps: 10,
             callbacks: {
               onStepFinish: async (event: { finishReason?: string }) => {
-                console.log(`[ToolExecutor] Agent step finished: ${event.finishReason}`)
+                logger.debug(`Agent step finished: ${event.finishReason}`)
                 await capturePreview()
               }
             }
           })
 
-          console.log('[ToolExecutor] Agent result:', JSON.stringify(agentResult, null, 2))
+          logger.debug('Agent result:', JSON.stringify(agentResult, null, 2))
           result += agentResult.message || 'Action completed'
         } else {
           result = `Navigated to ${normalizedArgs.url}`
@@ -476,7 +478,7 @@ export class ToolExecutor {
 
       // Extract data if requested
       if (normalizedArgs.extract) {
-        console.log(`[ToolExecutor] Extracting: ${normalizedArgs.extract}`)
+        logger.debug(`Extracting: ${normalizedArgs.extract}`)
         const extracted = await this.stagehand.extract(normalizedArgs.extract)
         await capturePreview()
         result += `\n\nExtracted data: ${JSON.stringify(extracted, null, 2)}`
@@ -487,7 +489,7 @@ export class ToolExecutor {
 
       return result || 'Browser action completed successfully'
     } catch (error: unknown) {
-      console.error('[ToolExecutor] Browser action failed:', error)
+      logger.error('Browser action failed:', error)
       const msg = errorMessage(error)
 
       // Send error to frontend
@@ -534,7 +536,7 @@ export class ToolExecutor {
         await this.stagehand.close()
         this.stagehand = undefined
       } catch (error) {
-        console.error('[ToolExecutor] Error closing browser during reset:', error)
+        logger.error('Error closing browser during reset:', error)
       }
     }
   }

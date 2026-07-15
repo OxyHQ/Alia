@@ -256,8 +256,16 @@ const VALID_RESERVATION = {
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
+interface RouteStackLayer {
+  route?: {
+    path?: string;
+    methods?: Record<string, boolean>;
+    stack: Array<{ method?: string; handle: (req: unknown, res: unknown, next: unknown) => Promise<void> }>;
+  };
+}
+
 function getHandler(): (req: any, res: any, next: any) => Promise<void> {
-  const stack = (chatCompletionsRouter as any).stack;
+  const stack = (chatCompletionsRouter as unknown as { stack: RouteStackLayer[] }).stack;
   for (const layer of stack) {
     if (layer.route?.path === '/' && layer.route?.methods?.post) {
       // The last handle in the route stack is the actual handler
@@ -529,8 +537,7 @@ describe('504 timeout fixes - /v1/chat/completions', () => {
     });
 
     // streamText throws a retryable 429 error
-    const retryableError = new Error('Rate limit exceeded');
-    (retryableError as any).status = 429;
+    const retryableError = Object.assign(new Error('Rate limit exceeded'), { status: 429 });
     mockStreamText.mockImplementation(() => {
       return {
         // eslint-disable-next-line require-yield -- simulates immediate provider failure

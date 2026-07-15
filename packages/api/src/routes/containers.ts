@@ -21,7 +21,7 @@ router.use(authenticateToken);
 
 router.get('/', async (req, res) => {
   try {
-    const userId = (req as any).user?.id;
+    const userId = req.user?.id;
     if (!userId) {
       res.status(401).json({ error: 'Unauthorized' });
       return;
@@ -43,7 +43,7 @@ router.get('/', async (req, res) => {
 
 router.get('/:id', async (req, res) => {
   try {
-    const userId = (req as any).user?.id;
+    const userId = req.user?.id;
     const container = await Container.findOne({
       containerId: req.params.id,
       userId,
@@ -65,7 +65,7 @@ router.get('/:id', async (req, res) => {
 
 router.delete('/:id', async (req, res) => {
   try {
-    const userId = (req as any).user?.id;
+    const userId = req.user?.id;
     const container = await Container.findOne({
       containerId: req.params.id,
       userId,
@@ -94,7 +94,7 @@ router.delete('/:id', async (req, res) => {
 
 router.get('/templates/list', async (req, res) => {
   try {
-    const userId = (req as any).user?.id;
+    const userId = req.user?.id;
     const templates = await ContainerTemplate.find({ userId }).sort({ createdAt: -1 }).lean();
     res.json({ templates });
   } catch (err: unknown) {
@@ -107,7 +107,7 @@ router.get('/templates/list', async (req, res) => {
 
 router.delete('/templates/:id', async (req, res) => {
   try {
-    const userId = (req as any).user?.id;
+    const userId = req.user?.id;
     const template = await ContainerTemplate.findOneAndDelete({
       _id: req.params.id,
       userId,

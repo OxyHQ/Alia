@@ -259,7 +259,7 @@ async function validateToken(token: string | undefined): Promise<string | null> 
       signal: AbortSignal.timeout(5_000),
     });
     if (!response.ok) return null;
-    const user = (await response.json()) as any;
+    const user = (await response.json()) as { _id?: string; id?: string };
     return user._id || user.id || null;
   } catch {
     return null;

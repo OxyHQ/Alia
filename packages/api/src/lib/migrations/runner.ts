@@ -21,6 +21,12 @@ interface MigrationRecord {
   description: string;
 }
 
+interface MigrationLock {
+  _id: string;
+  locked: boolean;
+  lockedAt?: Date;
+}
+
 const COLLECTION = '_migrations';
 
 /**
@@ -70,9 +76,11 @@ export async function runPendingMigrations(): Promise<void> {
   }
 
   // Simple advisory lock: try to claim the lock
-  const lockCol = mongoose.connection.db!.collection('_migration_lock');
+  const db = mongoose.connection.db;
+  if (!db) throw new Error('MongoDB not connected');
+  const lockCol = db.collection<MigrationLock>('_migration_lock');
   const lockResult = await lockCol.findOneAndUpdate(
-    { _id: 'migration_lock' as any, locked: false },
+    { _id: 'migration_lock', locked: false },
     { $set: { locked: true, lockedAt: new Date() } },
     { upsert: true, returnDocument: 'after' },
   ).catch(() => null);
@@ -110,7 +118,7 @@ export async function runPendingMigrations(): Promise<void> {
   } finally {
     // Release the lock
     await lockCol.updateOne(
-      { _id: 'migration_lock' as any },
+      { _id: 'migration_lock' },
       { $set: { locked: false } },
     ).catch(() => {});
   }

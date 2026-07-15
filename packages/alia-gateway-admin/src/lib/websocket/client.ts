@@ -203,10 +203,12 @@ export class RealtimeClient {
    * Subscribe to a specific channel/event type
    */
   subscribe(channel: string, handler: MessageHandler): () => void {
-    if (!this.messageHandlers.has(channel)) {
-      this.messageHandlers.set(channel, new Set());
+    let handlers = this.messageHandlers.get(channel);
+    if (!handlers) {
+      handlers = new Set();
+      this.messageHandlers.set(channel, handlers);
     }
-    this.messageHandlers.get(channel)!.add(handler);
+    handlers.add(handler);
 
     // Send subscription message to server
     this.send({ type: 'subscribe', channel });

@@ -20,7 +20,7 @@ import {
 import { getUserEntitlements } from '../../lib/plan-access.js';
 import { ToolPipeline } from '../../lib/tool-pipeline.js';
 import { createResponseSSEEmitter } from '../../lib/sse-emitter.js';
-import { SystemPromptBuilder } from '../../lib/system-prompt-builder.js';
+import { SystemPromptBuilder, type OxyUserProfile } from '../../lib/system-prompt-builder.js';
 import { convertToAISDKMessages, type ChatMessage } from '../../lib/message-converter.js';
 import { oxyClient } from '../../middleware/auth.js';
 import { Skill } from '../../models/skill.js';
@@ -237,11 +237,11 @@ export const handleChatCompletions = async (req: Request, res: Response) => {
 
       // User profile from Oxy (HTTP call - add 5s timeout to prevent hanging)
       isDirectUserSession
-        ? Promise.race([
-            (oxyClient.getUserById(req.user!.id) as Promise<unknown>),
-            new Promise(resolve => setTimeout(() => resolve(null), 5000))
+        ? Promise.race<OxyUserProfile | null>([
+            oxyClient.getUserById(req.user!.id),
+            new Promise<null>(resolve => setTimeout(() => resolve(null), 5000)),
           ]).catch(() => null)
-        : Promise.resolve(null),
+        : Promise.resolve<OxyUserProfile | null>(null),
 
       // Skill loading
       (body.skillId && isDirectUserSession)
@@ -365,7 +365,7 @@ export const handleChatCompletions = async (req: Request, res: Response) => {
       accessToken: req.accessToken,
       isDirectSession: isDirectUserSession,
       agentMode,
-      username: (oxyUser as any)?.username,
+      username: oxyUser?.username,
       requestId,
       editorToolDefinitions: body.tools,
       sseEmitter,
@@ -453,8 +453,8 @@ export const handleChatCompletions = async (req: Request, res: Response) => {
       isDirectUserSession,
       userId: req.user?.id,
       accessToken: req.accessToken,
-      oxyUser: oxyUser as any,
-      userMemory: userMemory as any,
+      oxyUser,
+      userMemory,
       recalledMemories,
       skill: skill as { systemPrompt?: string; title?: string } | null,
       linkedAgent: linkedAgent as IAgent | null,

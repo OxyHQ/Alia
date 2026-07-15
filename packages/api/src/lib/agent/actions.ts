@@ -17,7 +17,7 @@
  *   - State instructions via prompt, not tool removal
  */
 
-import { tool } from 'ai';
+import { tool, type ToolSet } from 'ai';
 import { z } from 'zod';
 import { TerminalSession } from './terminal-session.js';
 import { BrowserSession } from './browser-session.js';
@@ -61,7 +61,7 @@ export async function buildActions(ctx: ActionContext) {
   } = ctx;
 
   const userId = session.userId.toString();
-  const actions: Record<string, any> = {};
+  const actions: ToolSet = {};
 
   // ── 1. shell — Persistent terminal ──
 
@@ -92,7 +92,7 @@ export async function buildActions(ctx: ActionContext) {
       query: z.string().optional().describe('Search query (search action)'),
     }),
     execute: async ({ action, url, selector, text, query }) => {
-      const result = await browserSession.execute(action as any, { url, selector, text, query });
+      const result = await browserSession.execute(action, { url, selector, text, query });
 
       // Track sources from browser navigation and content extraction
       if (eventStream && (action === 'goto' || action === 'get_text') && url) {
@@ -106,7 +106,7 @@ export async function buildActions(ctx: ActionContext) {
             url,
             title,
             domain,
-          } as any);
+          });
         } catch {
           // URL parsing failed — skip source tracking
         }
@@ -264,26 +264,12 @@ export async function buildActions(ctx: ActionContext) {
     const denyStub = (capability: string) =>
       async () => `Error: ${capability} access is disabled for this agent. Contact the agent creator to enable it.`;
 
-    if (perms.shell === false && actions.shell) {
-      const origDesc = (actions.shell as any).description;
-      const origSchema = (actions.shell as any).inputSchema;
-      actions.shell = tool({ description: origDesc, inputSchema: origSchema, execute: denyStub('Shell') });
-    }
-    if (perms.network === false && actions.browser) {
-      const origDesc = (actions.browser as any).description;
-      const origSchema = (actions.browser as any).inputSchema;
-      actions.browser = tool({ description: origDesc, inputSchema: origSchema, execute: denyStub('Browser/network') });
-    }
-    if (perms.filesystem === false && actions.file_edit) {
-      const origDesc = (actions.file_edit as any).description;
-      const origSchema = (actions.file_edit as any).inputSchema;
-      actions.file_edit = tool({ description: origDesc, inputSchema: origSchema, execute: denyStub('Filesystem') });
-    }
-    if (perms.delegation === false && actions.delegate) {
-      const origDesc = (actions.delegate as any).description;
-      const origSchema = (actions.delegate as any).inputSchema;
-      actions.delegate = tool({ description: origDesc, inputSchema: origSchema, execute: denyStub('Agent delegation') });
-    }
+    // Swap the execute function in place to keep the original description and
+    // input schema — the model still sees the tool but any call is refused.
+    if (perms.shell === false && actions.shell) actions.shell.execute = denyStub('Shell');
+    if (perms.network === false && actions.browser) actions.browser.execute = denyStub('Browser/network');
+    if (perms.filesystem === false && actions.file_edit) actions.file_edit.execute = denyStub('Filesystem');
+    if (perms.delegation === false && actions.delegate) actions.delegate.execute = denyStub('Agent delegation');
   }
 
   // ── MCP + Integration tools (keep as-is — already well-designed) ──
@@ -302,21 +288,19 @@ export async function buildActions(ctx: ActionContext) {
     // Add MCP tools (skip if mcp_servers disabled)
     if (perms?.mcp_servers !== false) {
       for (const [name, mcpTool] of Object.entries(mcpTools)) {
-        if ((mcpTool as any).execute) {
-          const originalExecute = (mcpTool as any).execute;
-          actions[name] = {
-            ...mcpTool,
-            execute: async (...args: any[]) => {
-              try {
-                return await (originalExecute as (...args: unknown[]) => unknown)(...args);
-              } catch (err: unknown) {
-                return `MCP tool error: ${getErrorMessage(err).slice(0, 150)}`;
-              }
-            },
-          };
-        } else {
+        const originalExecute = mcpTool.execute;
+        if (!originalExecute) {
           log.agents.warn({ toolName: name }, 'MCP tool has no execute function, skipping');
+          continue;
         }
+        mcpTool.execute = async (input, options) => {
+          try {
+            return await originalExecute(input, options);
+          } catch (err: unknown) {
+            return `MCP tool error: ${getErrorMessage(err).slice(0, 150)}`;
+          }
+        };
+        actions[name] = mcpTool;
       }
     }
   } catch (err) {
@@ -327,13 +311,14 @@ export async function buildActions(ctx: ActionContext) {
   // Wraps all tool execute functions with pre-execution threat analysis.
   // Blocked actions return an error string; warnings/criticals are logged.
   for (const [name, action] of Object.entries(actions)) {
-    if (!(action as any)?.execute) continue;
+    const originalExecute = action.execute;
+    if (!originalExecute) continue;
     // Skip plan tool — always safe
     if (name === 'plan') continue;
 
-    const originalExecute = (action as any).execute;
-    (action as any).execute = async (...execArgs: any[]) => {
-      const inputArgs = execArgs[0] || {};
+    action.execute = async (input, options) => {
+      const inputArgs: Record<string, unknown> =
+        input && typeof input === 'object' ? (input as Record<string, unknown>) : {};
       const risk = classifyActionRisk(name, inputArgs);
 
       if (risk.riskLevel === 'R3') {
@@ -406,7 +391,7 @@ export async function buildActions(ctx: ActionContext) {
         }
       }
 
-      const result = await originalExecute(...execArgs);
+      const result = await originalExecute(input, options);
 
       if (risk.riskLevel === 'R1' && autonomyFlags.rollbackEnabled) {
         await createRollbackRecord({
@@ -417,7 +402,7 @@ export async function buildActions(ctx: ActionContext) {
           afterState: { resultPreview: typeof result === 'string' ? result.slice(0, 600) : result },
           diff: typeof result === 'string' ? result.slice(0, 1000) : undefined,
           rollbackAction: { hint: 'Re-run tool with inverse arguments if available' },
-        }).catch(() => {});
+        }).catch((err: unknown) => log.agents.warn({ err, toolName: name }, 'Failed to record rollback window'));
 
         eventStream?.append('system_message', `ROLLBACK WINDOW OPEN [R1]: ${name}`);
       }

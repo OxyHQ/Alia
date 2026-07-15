@@ -5,10 +5,13 @@ import { AliaChatParticipant } from './chatParticipant';
 import { AliaAuthenticationProvider } from './authProvider';
 import { McpLocalClient } from './mcp-client';
 import { errorMessage } from './errors';
+import { log, disposeLogger } from './logger';
 
 let mcpClient: McpLocalClient | null = null;
 
 export function activate(context: vscode.ExtensionContext) {
+  context.subscriptions.push({ dispose: disposeLogger });
+
   const authProvider = new AliaAuthenticationProvider(context);
   context.subscriptions.push(authProvider);
 
@@ -41,7 +44,7 @@ export function activate(context: vscode.ExtensionContext) {
   // Start local MCP client (non-blocking)
   mcpClient = new McpLocalClient(authProvider);
   context.subscriptions.push(mcpClient);
-  mcpClient.start().catch((err) => console.error('[MCP] Startup error:', err));
+  mcpClient.start().catch((err) => log.error('[MCP] Startup error:', err));
 
   // Commands
   context.subscriptions.push(

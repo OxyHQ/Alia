@@ -75,6 +75,7 @@ export class ContainerPool {
 
     // Start health monitoring
     this.healthCheckTimer = setInterval(() => this.healthCheck(), this.config.healthCheckIntervalMs);
+    this.healthCheckTimer.unref?.();
 
     log.agents.info({ ready: this.pool.filter(c => !c.claimed).length }, 'ContainerPool: ready');
   }

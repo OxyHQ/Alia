@@ -92,7 +92,7 @@ describe('conversations route logic', () => {
       mockConversation.find.mockReturnValue(chainable);
 
       const result = Conversation.find({ oxyUserId: 'user-1' });
-      const sorted = await (result as any).select('conversationId title').sort({ updatedAt: -1 }).limit(21);
+      const sorted = await result.select('conversationId title').sort({ updatedAt: -1 }).limit(21);
 
       expect(chainable.sort).toHaveBeenCalledWith({ updatedAt: -1 });
       expect(sorted).toHaveLength(2);
@@ -124,10 +124,10 @@ describe('conversations route logic', () => {
         oxyUserId: 'user-1',
         conversationId: 'conv-123',
       });
-      const messages = await (Message.find({
+      const messages = await Message.find({
         conversationId: 'conv-123',
         oxyUserId: 'user-1',
-      }) as any).sort({ createdAt: 1 }).lean();
+      }).sort({ createdAt: 1 }).lean();
 
       expect(conversation).toBeTruthy();
       expect(conversation!.conversationId).toBe('conv-123');

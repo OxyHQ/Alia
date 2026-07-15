@@ -158,7 +158,7 @@ function broadcastEvent(sessionId: string, type: string, data: Record<string, un
 }
 
 // Cleanup idle sessions
-setInterval(() => {
+const idleSessionCleanupTimer = setInterval(() => {
   const now = Date.now();
   for (const [id, session] of sessions) {
     if (now - session.lastActivity > IDLE_TIMEOUT_MS) {
@@ -166,3 +166,4 @@ setInterval(() => {
     }
   }
 }, 60_000);
+idleSessionCleanupTimer.unref?.();

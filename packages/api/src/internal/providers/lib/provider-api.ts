@@ -152,7 +152,7 @@ export async function callProviderAPI<T = any>(options: ProviderAPIOptions): Pro
             throw new Error(`DO async-invoke: no audio URL in output for ${modelId}`);
           }
           const buffer = await downloadBinaryFromUrl(audioUrl, combinedSignal);
-          return buffer as any as T;
+          return buffer as unknown as T;
         }
 
         return output as T;
@@ -211,7 +211,7 @@ export async function callProviderAPI<T = any>(options: ProviderAPIOptions): Pro
         await recordKeySuccess(keyConfig.keyId);
 
         const pcm = Buffer.from(inline.data, 'base64');
-        return pcmToWav(pcm, parsePcmSampleRate(inline.mimeType)) as any as T;
+        return pcmToWav(pcm, parsePcmSampleRate(inline.mimeType)) as unknown as T;
       }
 
       // Standard synchronous provider call
@@ -273,7 +273,7 @@ export async function callProviderAPI<T = any>(options: ProviderAPIOptions): Pro
 
       if (options.responseType === 'arrayBuffer') {
         const buffer = Buffer.from(await response.arrayBuffer());
-        return buffer as any as T;
+        return buffer as unknown as T;
       }
 
       const data = await response.json() as T;

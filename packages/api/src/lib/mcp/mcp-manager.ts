@@ -9,7 +9,7 @@
  *   - Graceful error handling with circuit breaker
  */
 
-import { type ToolSet } from 'ai';
+import { type ToolSet, type ToolExecuteFunction } from 'ai';
 import { buildMcpTools } from '../tools/mcp.js';
 import { checkToolPermission, recordToolCall, type ToolPermission } from './mcp-permissions.js';
 import { recordSuccess, recordError, isServerHealthy, getAllHealth, type ServerHealth } from './mcp-health.js';
@@ -110,36 +110,40 @@ export class McpManager {
       // Extract server info from tool name (mcp_{server}__{tool})
       const serverMatch = name.match(/^mcp_([^_]+(?:_[^_]+)*)__/);
       const serverName = serverMatch?.[1] || 'unknown';
+      const rawExecute = rawTool.execute;
 
-      wrapped[name] = {
-        ...rawTool,
-        execute: async (...args: any[]) => {
-          // Permission check
-          const permission = checkToolPermission(userId, name, permissions);
-          if (!permission.allowed) {
-            return { error: `Tool blocked: ${permission.reason}` };
-          }
+      const governedExecute: ToolExecuteFunction<unknown, unknown> = async (input, options) => {
+        // Permission check
+        const permission = checkToolPermission(userId, name, permissions);
+        if (!permission.allowed) {
+          return { error: `Tool blocked: ${permission.reason}` };
+        }
 
-          // Health check
-          if (!isServerHealthy(serverName)) {
-            return { error: `MCP server "${serverName}" is currently unhealthy. Try again later.` };
-          }
+        // Health check
+        if (!isServerHealthy(serverName)) {
+          return { error: `MCP server "${serverName}" is currently unhealthy. Try again later.` };
+        }
 
-          // Execute with monitoring
-          const startMs = Date.now();
-          try {
-            const result = await (rawTool as any).execute(...args);
-            recordToolCall(userId, name);
-            recordSuccess(serverName, serverName, Date.now() - startMs);
-            return result;
-          } catch (err: unknown) {
-            const errMsg = getErrorMessage(err);
-            recordError(serverName, serverName, errMsg);
-            log.general.warn({ err, toolName: name, userId }, 'McpManager: tool call failed');
-            return { error: `MCP tool failed: ${errMsg.slice(0, 200)}` };
-          }
-        },
-      } as any;
+        if (typeof rawExecute !== 'function') {
+          return { error: `MCP tool "${name}" is not executable` };
+        }
+
+        // Execute with monitoring
+        const startMs = Date.now();
+        try {
+          const result = await rawExecute(input, options);
+          recordToolCall(userId, name);
+          recordSuccess(serverName, serverName, Date.now() - startMs);
+          return result;
+        } catch (err: unknown) {
+          const errMsg = getErrorMessage(err);
+          recordError(serverName, serverName, errMsg);
+          log.general.warn({ err, toolName: name, userId }, 'McpManager: tool call failed');
+          return { error: `MCP tool failed: ${errMsg.slice(0, 200)}` };
+        }
+      };
+
+      wrapped[name] = { ...rawTool, execute: governedExecute };
     }
 
     return wrapped;

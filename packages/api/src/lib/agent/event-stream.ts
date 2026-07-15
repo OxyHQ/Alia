@@ -45,6 +45,10 @@ export interface EventStreamEntry {
     exitCode?: number;
     durationMs?: number;
     tokenEstimate?: number;
+    /** Source-tracking fields, populated for `source_found` events. */
+    url?: string;
+    title?: string;
+    domain?: string;
   };
 }
 
@@ -106,7 +110,7 @@ export class EventStream {
           args: metadata.args,
           duration: metadata.durationMs,
           // Pass through source metadata for source_found events
-          ...((metadata as any).url && { url: (metadata as any).url, title: (metadata as any).title, domain: (metadata as any).domain }),
+          ...(metadata.url && { url: metadata.url, title: metadata.title, domain: metadata.domain }),
         } : undefined,
         data: socketData,
       });
@@ -318,7 +322,7 @@ function mapEventTypeToActivity(type: EventType): AgentActivityEvent['type'] {
     case 'screenshot':     return 'screenshot';
     case 'plan_progress':  return 'plan_progress';
     case 'file_change':    return 'file_change';
-    case 'source_found':   return 'source_found' as any;
-    case 'threat_detected': return 'threat' as any;
+    case 'source_found':   return 'source_found';
+    case 'threat_detected': return 'threat';
   }
 }

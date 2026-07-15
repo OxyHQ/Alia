@@ -110,13 +110,20 @@ router.post('/', async (req: Request, res: Response) => {
       });
     }
 
+    // Whitelist optional fields — never spread req.body directly into create()
+    const optionalFields: Record<string, unknown> = {};
+    if ('stripePriceId' in rest) optionalFields.stripePriceId = rest.stripePriceId;
+    if ('sortOrder' in rest) optionalFields.sortOrder = rest.sortOrder;
+    if ('isActive' in rest) optionalFields.isActive = rest.isActive;
+    if ('description' in rest) optionalFields.description = rest.description;
+
     const pkg = await CreditPackage.create({
       packageId: packageId.toLowerCase(),
       name,
       credits,
       price,
       currency: currency || 'usd',
-      ...rest,
+      ...optionalFields,
     });
 
     res.status(201).json({
@@ -142,10 +149,19 @@ router.post('/', async (req: Request, res: Response) => {
 router.patch('/:packageId', async (req: Request, res: Response) => {
   try {
     const { packageId } = req.params;
-    const updates = { ...req.body };
 
-    // Don't allow changing packageId
-    delete updates.packageId;
+    // Explicit whitelist — packageId is immutable and excluded on purpose.
+    // Never spread req.body directly into a $set update (mass-assignment).
+    const body = req.body as Record<string, unknown>;
+    const updates: Record<string, unknown> = {};
+    if ('name' in body) updates.name = body.name;
+    if ('credits' in body) updates.credits = body.credits;
+    if ('price' in body) updates.price = body.price;
+    if ('currency' in body) updates.currency = body.currency;
+    if ('stripePriceId' in body) updates.stripePriceId = body.stripePriceId;
+    if ('sortOrder' in body) updates.sortOrder = body.sortOrder;
+    if ('isActive' in body) updates.isActive = body.isActive;
+    if ('description' in body) updates.description = body.description;
 
     if (typeof updates.credits === 'number' && updates.credits < 1) {
       return res.status(400).json({

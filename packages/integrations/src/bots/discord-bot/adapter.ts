@@ -9,8 +9,10 @@ import {
   handleTextCommand,
   sendAuthRequest,
 } from './commands';
+import { createLogger } from '../../shared/logger';
 
 const apiClient = new APIClient('discord', process.env.DISCORD_BOT_SECRET || '');
+const logger = createLogger('Discord');
 
 export class DiscordBotAdapter implements BotAdapter {
   name = 'discord-bot';
@@ -32,7 +34,7 @@ export class DiscordBotAdapter implements BotAdapter {
     initCommands(apiClient);
 
     this.client.once(Events.ClientReady, async (c) => {
-      console.log(`[Discord] Logged in as ${c.user.tag}`);
+      logger.info(`Logged in as ${c.user.tag}`);
       await registerSlashCommands(this.client);
     });
 
@@ -155,7 +157,7 @@ export class DiscordBotAdapter implements BotAdapter {
     });
 
     this.client.on(Events.Error, (error) => {
-      console.error('[Discord] Client error:', error);
+      logger.error('Client error:', error);
     });
 
     await this.client.login(process.env.DISCORD_BOT_TOKEN);
@@ -221,7 +223,10 @@ export class DiscordBotAdapter implements BotAdapter {
               .slice(-20)
               .map((m) => ({ role: m.role, content: typeof m.content === 'string' ? m.content : JSON.stringify(m.content) }));
           }
-        } catch {}
+        } catch (error) {
+          // History load is best-effort — a missing or unreadable conversation just starts fresh.
+          logger.debug('Failed to load conversation history:', error);
+        }
 
         messages_history.push({ role: 'user', content });
 
@@ -264,7 +269,7 @@ export class DiscordBotAdapter implements BotAdapter {
         clearInterval(typingInterval);
       }
     } catch (error: unknown) {
-      console.error('[Discord/Chat] Error:', error);
+      logger.error('Chat error:', error);
       await message.reply('Sorry, an error occurred. Please try again.').catch(() => {});
     }
   }

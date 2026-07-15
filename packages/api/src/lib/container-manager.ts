@@ -36,7 +36,7 @@ async function request<T>(
     signal: AbortSignal.timeout(timeout),
   });
 
-  const data = await res.json() as any;
+  const data = await res.json() as T & { error?: string };
 
   if (!res.ok) {
     const msg = data?.error || `Docker host returned ${res.status}`;
@@ -44,7 +44,7 @@ async function request<T>(
     throw new Error(msg);
   }
 
-  return data as T;
+  return data;
 }
 
 // ── Container lifecycle ──

@@ -9,9 +9,11 @@ import { TelegramMessage } from './models';
 import { handleIncomingMessage } from '../../shared/chat-handler';
 import { APIClient } from '../../shared/api-client';
 import { DedupSet, errorCode, errorMessage } from '../../shared/utils';
+import { createLogger } from '../../shared/logger';
 
 const apiClient = new APIClient('telegram-gateway', process.env.INTEGRATIONS_SECRET || '');
 const dedup = new DedupSet();
+const logger = createLogger('Telegram');
 
 /**
  * Pending QR resolver used while a session is being created and the user
@@ -50,13 +52,13 @@ class SessionManager {
     const activeSessions = await TelegramSession.find({
       status: { $in: ['connected', 'disconnected'] },
     });
-    console.log(`[Telegram] Found ${activeSessions.length} active session(s) to restore`);
+    logger.info(`Found ${activeSessions.length} active session(s) to restore`);
 
     for (const session of activeSessions) {
       try {
         await this.startSession(session.sessionId);
       } catch (err) {
-        console.error(`[Telegram] Failed to restore session ${session.sessionId}:`, err);
+        logger.error(`Failed to restore session ${session.sessionId}:`, err);
       }
     }
   }
@@ -149,10 +151,10 @@ class SessionManager {
                 this.pendingQRs.delete(sessionId);
               }
 
-              console.log(`[Telegram] QR code generated for session ${sessionId}`);
+              logger.debug(`QR code generated for session ${sessionId}`);
             },
             onError: async (error) => {
-              console.error(`[Telegram] QR login error for ${sessionId}:`, error);
+              logger.error(`QR login error for ${sessionId}:`, error);
               const pending = this.pendingQRs.get(sessionId);
               if (pending) {
                 pending.reject(error instanceof Error ? error : new Error(String(error)));
@@ -181,7 +183,7 @@ class SessionManager {
           { $set: { status: 'failed' } }
         );
         this.sessions.delete(sessionId);
-        console.error(`[Telegram] QR login failed for session ${sessionId}:`, err);
+        logger.error(`QR login failed for session ${sessionId}:`, err);
         return;
       }
     } else {
@@ -196,7 +198,7 @@ class SessionManager {
             { $set: { status: 'logged-out', sessionString: null, lastQR: null } }
           );
           this.sessions.delete(sessionId);
-          console.log(`[Telegram] Session ${sessionId} expired, marked as logged-out`);
+          logger.warn(`Session ${sessionId} expired, marked as logged-out`);
           return;
         }
       } catch (err: unknown) {
@@ -211,7 +213,7 @@ class SessionManager {
             { $set: { status: 'logged-out', sessionString: null, lastQR: null } }
           );
           this.sessions.delete(sessionId);
-          console.log(`[Telegram] Session ${sessionId} revoked, marked as logged-out`);
+          logger.warn(`Session ${sessionId} revoked, marked as logged-out`);
           return;
         }
 
@@ -249,7 +251,7 @@ class SessionManager {
       }
     );
 
-    console.log(`[Telegram] Session connected for ${sessionId} (${displayName}, +${phoneNumber})`);
+    logger.info(`Session connected for ${sessionId} (${displayName}, +${phoneNumber})`);
 
     this.setupEventHandlers(sessionId, client);
   }
@@ -305,7 +307,7 @@ class SessionManager {
         );
       } catch (err: unknown) {
         if (errorCode(err) !== 11000) {
-          console.error(`[Telegram] Error persisting message:`, err);
+          logger.error(`Error persisting message:`, err);
         }
       }
 
@@ -342,7 +344,7 @@ class SessionManager {
         );
       } catch (err: unknown) {
         if (errorCode(err) !== 11000) {
-          console.error(`[Telegram] Error updating chat:`, err);
+          logger.error(`Error updating chat:`, err);
         }
       }
 
@@ -350,7 +352,7 @@ class SessionManager {
       try {
         const sessionDoc = await TelegramSession.findOne({ sessionId }).lean();
         if (!sessionDoc || !sessionDoc.oxyUserId) {
-          console.error(`[Telegram] No session or oxyUserId found for ${sessionId}`);
+          logger.error(`No session or oxyUserId found for ${sessionId}`);
           return;
         }
 
@@ -380,7 +382,7 @@ class SessionManager {
           platformContext: 'Accessible via Telegram. Keep responses under 4000 characters when possible.',
         }, apiClient);
       } catch (err) {
-        console.error(`[Telegram] Error handling message for ${sessionId}:`, err);
+        logger.error(`Error handling message for ${sessionId}:`, err);
       }
     }, new NewMessage({}));
 
@@ -389,7 +391,7 @@ class SessionManager {
       // Client disconnected — attempt reconnect
       if (!this.sessions.has(sessionId)) return; // Already cleaned up
 
-      console.log(`[Telegram] Client disconnected for session ${sessionId}`);
+      logger.info(`Client disconnected for session ${sessionId}`);
       this.sessions.delete(sessionId);
 
       await TelegramSession.updateOne(
@@ -412,11 +414,11 @@ class SessionManager {
       TelegramSession.updateOne(
         { sessionId },
         { $set: { status: 'failed', lastDisconnected: new Date() } }
-      ).catch((err) => console.error(`[Telegram] Failed to update session status:`, err));
+      ).catch((err) => logger.error(`Failed to update session status:`, err));
 
       this.reconnectAttempts.delete(sessionId);
-      console.error(
-        `[Telegram] Session ${sessionId} failed after ${SessionManager.MAX_RECONNECT_ATTEMPTS} reconnect attempts`
+      logger.error(
+        `Session ${sessionId} failed after ${SessionManager.MAX_RECONNECT_ATTEMPTS} reconnect attempts`
       );
       return;
     }
@@ -427,8 +429,8 @@ class SessionManager {
         SessionManager.MAX_RECONNECT_MS
       ) + Math.floor(Math.random() * SessionManager.JITTER_MAX_MS);
 
-    console.log(
-      `[Telegram] Session ${sessionId} reconnecting in ${Math.round(delay / 1000)}s (attempt ${attempts}/${SessionManager.MAX_RECONNECT_ATTEMPTS})...`
+    logger.info(
+      `Session ${sessionId} reconnecting in ${Math.round(delay / 1000)}s (attempt ${attempts}/${SessionManager.MAX_RECONNECT_ATTEMPTS})...`
     );
 
     // Clear any existing reconnect timer
@@ -438,7 +440,7 @@ class SessionManager {
     const timer = setTimeout(() => {
       this.reconnectTimers.delete(sessionId);
       this.startSession(sessionId).catch((err) =>
-        console.error(`[Telegram] Reconnect failed for ${sessionId}:`, err)
+        logger.error(`Reconnect failed for ${sessionId}:`, err)
       );
     }, delay);
     this.reconnectTimers.set(sessionId, timer);
@@ -453,7 +455,7 @@ class SessionManager {
       try {
         await client.disconnect();
       } catch (err) {
-        console.error(`[Telegram] Disconnect error for ${sessionId}:`, err);
+        logger.error(`Disconnect error for ${sessionId}:`, err);
       }
       this.sessions.delete(sessionId);
     }
@@ -514,7 +516,7 @@ class SessionManager {
    * Gracefully shut down all active sessions.
    */
   async shutdown(): Promise<void> {
-    console.log(`[Telegram] Shutting down ${this.sessions.size} session(s)...`);
+    logger.info(`Shutting down ${this.sessions.size} session(s)...`);
 
     // Clear all reconnect timers
     for (const [sessionId, timer] of this.reconnectTimers) {
@@ -530,12 +532,12 @@ class SessionManager {
       try {
         await client.disconnect();
       } catch (err) {
-        console.error(`[Telegram] Error disconnecting session ${sessionId}:`, err);
+        logger.error(`Error disconnecting session ${sessionId}:`, err);
       }
     }
     this.sessions.clear();
 
-    console.log('[Telegram] All sessions shut down');
+    logger.info('All sessions shut down');
   }
 
   /**

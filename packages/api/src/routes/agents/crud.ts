@@ -44,7 +44,7 @@ async function syncArchetypeTriggers(
       : 'Generate a comprehensive status update report from all configured data sources.';
 
     if (existing) {
-      existing.schedule = triggerSchedule as any;
+      existing.set('schedule', triggerSchedule);
       existing.action.prompt = reportPrompt;
       existing.name = `${agent.name || 'Agent'} Report`;
       await existing.save();

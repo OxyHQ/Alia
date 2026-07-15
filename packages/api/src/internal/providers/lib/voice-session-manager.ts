@@ -59,28 +59,28 @@ function buildVoiceToolExecutors(userId: string): Map<string, (args: any) => Pro
     const { createSendTelegramTool } = await import('../../../lib/tools/telegram.js');
     const toolInstance = createSendTelegramTool(userId);
     if (!toolInstance.execute) throw new Error('sendTelegramMessage tool has no executor');
-    return await toolInstance.execute(args, {} as any);
+    return await toolInstance.execute(args, { toolCallId: randomUUID(), messages: [] });
   });
 
   executors.set('saveUserMemory', async (args: { key: string; value: string; category?: string }) => {
     const { saveUserMemoryTool } = await import('../../../lib/tools/user-memory.js');
     const toolInstance = saveUserMemoryTool(userId);
     if (!toolInstance.execute) throw new Error('saveUserMemory tool has no executor');
-    return await toolInstance.execute(args, {} as any);
+    return await toolInstance.execute(args, { toolCallId: randomUUID(), messages: [] });
   });
 
-  executors.set('updateUserPreferences', async (args: { language?: string; tone?: string; responseLength?: string }) => {
+  executors.set('updateUserPreferences', async (args: { language?: string; tone?: string; responseLength?: 'short' | 'medium' | 'long' }) => {
     const { updateUserPreferencesTool } = await import('../../../lib/tools/user-memory.js');
     const toolInstance = updateUserPreferencesTool(userId);
     if (!toolInstance.execute) throw new Error('updateUserPreferences tool has no executor');
-    return await toolInstance.execute(args as any, {} as any);
+    return await toolInstance.execute(args, { toolCallId: randomUUID(), messages: [] });
   });
 
   executors.set('updateUserContext', async (args: { occupation?: string; location?: string; timezone?: string }) => {
     const { updateUserContextTool } = await import('../../../lib/tools/user-memory.js');
     const toolInstance = updateUserContextTool(userId);
     if (!toolInstance.execute) throw new Error('updateUserContext tool has no executor');
-    return await toolInstance.execute(args, {} as any);
+    return await toolInstance.execute(args, { toolCallId: randomUUID(), messages: [] });
   });
 
   return executors;
@@ -722,6 +722,7 @@ export class VoiceSessionManager {
       session.cohostBillingTimer = setInterval(() => {
         session.cohostMinutesElapsed++;
       }, BILLING_INTERVAL_MS);
+      session.cohostBillingTimer.unref?.();
 
       // Initialize cohost state
       session.cohostState = {
@@ -1207,6 +1208,7 @@ You are now in a live voice conversation with a second AI called "Cohost" and th
         log.providers.error({ err: e }, 'Error checking credits during billing timer');
       }
     }, BILLING_INTERVAL_MS);
+    session.billingTimer.unref?.();
   }
 
   // ============== USAGE TRACKING ==============

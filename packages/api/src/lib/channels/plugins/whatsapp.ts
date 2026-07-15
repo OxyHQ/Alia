@@ -3,6 +3,10 @@ import type { ChannelPlugin, OutboundContext, OutboundResult, ChannelInboundMess
 import type { Request } from 'express';
 import { getErrorMessage } from '../../errors/index.js';
 
+interface WhatsAppSendResponse {
+  messages?: Array<{ id?: string }>;
+}
+
 export const whatsappPlugin: ChannelPlugin = {
   id: 'whatsapp',
 
@@ -64,7 +68,7 @@ export const whatsappPlugin: ChannelPlugin = {
           return { channel: 'whatsapp', ok: false, error: `WhatsApp API ${res.status}: ${body}` };
         }
 
-        const data = await res.json() as any;
+        const data = await res.json() as WhatsAppSendResponse;
         const messageId = data.messages?.[0]?.id;
         return { channel: 'whatsapp', ok: true, messageId };
       } catch (err: unknown) {

@@ -1,4 +1,5 @@
 import crypto from 'crypto';
+import mongoose from 'mongoose';
 import { Router, Request, Response } from 'express';
 import multer from 'multer';
 import { authenticateToken } from '../middleware/auth';
@@ -85,7 +86,7 @@ router.post('/invites/:token/accept', async (req: Request, res: Response) => {
       // Mark invite as accepted even if already a member
       invite.status = 'accepted';
       invite.acceptedAt = new Date();
-      invite.acceptedBy = userId as any;
+      invite.acceptedBy = new mongoose.Types.ObjectId(userId);
       await invite.save();
 
       return res.status(400).json({ error: 'You are already a member of this organization' });
@@ -102,7 +103,7 @@ router.post('/invites/:token/accept', async (req: Request, res: Response) => {
     // Mark invite as accepted
     invite.status = 'accepted';
     invite.acceptedAt = new Date();
-    invite.acceptedBy = userId as any;
+    invite.acceptedBy = new mongoose.Types.ObjectId(userId);
     await invite.save();
 
     // Fetch the organization to return
@@ -355,7 +356,7 @@ router.post('/:id/image', upload.single('file'), async (req: Request, res: Respo
       return res.status(403).json({ error: 'Insufficient permissions' });
     }
 
-    const file = (req as any).file as { buffer: Buffer; originalname: string } | undefined;
+    const file = req.file;
     if (!file) {
       return res.status(400).json({ error: 'Image file is required' });
     }

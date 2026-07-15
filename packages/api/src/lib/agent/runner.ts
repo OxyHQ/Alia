@@ -13,7 +13,7 @@
  *   - One action per iteration: maximum observability
  */
 
-import { generateText } from 'ai';
+import { generateText, stepCountIs, type ModelMessage } from 'ai';
 import { AgentSession, type IAgentSession } from '../../models/agent-session.js';
 import { Agent, type IAgent } from '../../models/agent.js';
 import { resolveModel, getAIModel, reportModelUsage, getDefaultAliaModel } from '../chat-core.js';
@@ -175,9 +175,6 @@ function selectModelForStep(ctx: StepContext): string {
 
 // ── Context Builder (Manus KV-cache optimization) ──
 
-type MessageContent = string | Array<{ type: 'text'; text: string } | { type: 'image'; image: string; mimeType: string }>;
-type ContextMessage = { role: 'system' | 'user' | 'assistant'; content: MessageContent };
-
 function buildContextMessages(
   systemPrompt: string,
   eventStream: EventStream,
@@ -185,8 +182,8 @@ function buildContextMessages(
   stateMachine: AgentStateMachine,
   iteration: number,
   screenshotBase64?: string | null,
-): ContextMessage[] {
-  const messages: ContextMessage[] = [];
+): ModelMessage[] {
+  const messages: ModelMessage[] = [];
 
   // 1. Stable system prompt (never changes — KV-cache friendly)
   messages.push({ role: 'system', content: systemPrompt });
@@ -222,7 +219,7 @@ function buildContextMessages(
       role: 'user',
       content: [
         { type: 'text', text: tailContent + continuationPrompt },
-        { type: 'image', image: screenshotBase64, mimeType: 'image/png' },
+        { type: 'image', image: screenshotBase64, mediaType: 'image/png' },
         { type: 'text', text: '[This is a screenshot of the current browser page. Use it to understand what you see and decide your next action.]' },
       ],
     });
@@ -272,14 +269,14 @@ export async function runAgentSession(sessionId: string): Promise<void> {
     workspaceMemory,
     image: inferImage(session.task, agent.preferredImage),
     onContainerCreated: async (containerId: string) => {
-      const alreadyTracked = session.resources.some((r: any) => r.type === 'container' && r.resourceId === containerId);
+      const alreadyTracked = session.resources.some((r) => r.type === 'container' && r.resourceId === containerId);
       if (!alreadyTracked) {
         session.resources.push({
           type: 'container',
           resourceId: containerId,
           status: 'active',
           createdAt: new Date(),
-        } as any);
+        });
         try {
           await session.save();
         } catch (saveErr: unknown) {
@@ -298,7 +295,7 @@ export async function runAgentSession(sessionId: string): Promise<void> {
   // Restore event stream and plan if resuming
   await eventStream.loadFromDB();
   if (session.plan) {
-    todoManager.loadFromPersisted(session.plan as any);
+    todoManager.loadFromPersisted(session.plan);
   }
 
   // Mark session as running
@@ -424,7 +421,7 @@ export async function runAgentSession(sessionId: string): Promise<void> {
         session.status = orchResult.success ? 'completed' : 'failed';
         session.result = orchResult.result;
         await eventStream.flush();
-        session.eventStream = eventStream.toJSON() as any;
+        session.eventStream = eventStream.toJSON();
         session.stats.completedAt = new Date();
         session.stats.totalSteps = orchResult.executorResults.length;
         session.stats.lastActivityAt = new Date();
@@ -518,12 +515,12 @@ export async function runAgentSession(sessionId: string): Promise<void> {
         // One action per iteration (Manus principle)
         const result = await generateText({
           model,
-          messages: messages as any,
+          messages,
           tools: allActions,  // ALL actions always present (KV-cache stability)
           temperature: 0.3,
           maxRetries: 0,
-          maxSteps: 1,
-        } as any);
+          stopWhen: stepCountIs(1),  // One action per iteration (Manus principle)
+        });
 
         const latency = Date.now() - startMs;
 
@@ -542,16 +539,18 @@ export async function runAgentSession(sessionId: string): Promise<void> {
             totalSteps++;
 
             // Record tool calls in event stream
-            if ((step as any).toolCalls?.length) {
+            if (step.toolCalls.length > 0) {
               lastStepHadToolCalls = true;
               textOnlyCount = 0; // Reset when model uses actions
-              for (const tc of (step as any).toolCalls) {
+              for (const tc of step.toolCalls) {
                 recentToolNames.push(tc.toolName);
                 if (recentToolNames.length > 5) recentToolNames.shift(); // Keep last 5
-                const argsStr = JSON.stringify(tc.args || {});
+                const toolInput: Record<string, unknown> =
+                  tc.input && typeof tc.input === 'object' ? (tc.input as Record<string, unknown>) : {};
+                const argsStr = JSON.stringify(toolInput);
                 eventStream.append('action', `${tc.toolName}(${argsStr.slice(0, 300)})`, {
                   toolName: tc.toolName,
-                  args: tc.args,
+                  args: toolInput,
                 });
 
                 if (stateMachine.canTransition('action_taken')) {
@@ -561,11 +560,11 @@ export async function runAgentSession(sessionId: string): Promise<void> {
             }
 
             // Record tool results — with workspace memory offloading + error loop detection
-            if ((step as any).toolResults?.length) {
-              for (const tr of (step as any).toolResults) {
-                const resultStr = typeof tr.result === 'string'
-                  ? tr.result
-                  : (tr.result != null ? JSON.stringify(tr.result) : '');
+            if (step.toolResults.length > 0) {
+              for (const tr of step.toolResults) {
+                const resultStr = typeof tr.output === 'string'
+                  ? tr.output
+                  : (tr.output != null ? JSON.stringify(tr.output) : '');
 
                 const offloaded = await workspaceMemory.maybeOffload(resultStr, eventStream.currentSeq());
 
@@ -676,7 +675,7 @@ export async function runAgentSession(sessionId: string): Promise<void> {
 
         // Persist event stream and stats
         await eventStream.flush();
-        session.eventStream = eventStream.toJSON() as any;
+        session.eventStream = eventStream.toJSON();
         session.stats.totalSteps = totalSteps;
         session.stats.totalTokens = totalTokens;
         session.stats.lastActivityAt = new Date();
@@ -770,7 +769,7 @@ export async function runAgentSession(sessionId: string): Promise<void> {
     }
 
     await eventStream.flush();
-    session.eventStream = eventStream.toJSON() as any;
+    session.eventStream = eventStream.toJSON();
     session.stats.completedAt = new Date();
     session.stats.totalSteps = totalSteps;
     session.stats.totalTokens = totalTokens;
@@ -799,7 +798,7 @@ export async function runAgentSession(sessionId: string): Promise<void> {
 
     // Sanitize plan before save — malformed data causes ValidationError
     if (session.plan?.items?.length) {
-      const planValid = (session.plan.items as any[]).every((item: any) => item.text && item.id != null);
+      const planValid = session.plan.items.every((item) => item.text && item.id != null);
       if (!planValid) {
         session.plan = undefined;
       }
@@ -807,7 +806,7 @@ export async function runAgentSession(sessionId: string): Promise<void> {
 
     try {
       await eventStream.flush();
-      session.eventStream = eventStream.toJSON() as any;
+      session.eventStream = eventStream.toJSON();
       session.stats.completedAt = new Date();
       await session.save();
     } catch (saveErr: unknown) {

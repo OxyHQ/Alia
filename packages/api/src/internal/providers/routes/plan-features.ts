@@ -52,7 +52,7 @@ router.get('/matrix', async (_req: Request, res: Response) => {
       success: true,
       data: {
         features,
-        plans: plans.map(p => ({ planId: (p as any).planId, name: p.name, product: p.product })),
+        plans: plans.map(p => ({ planId: p.planId, name: p.name, product: p.product })),
         mappings: mappingMap,
       },
     });

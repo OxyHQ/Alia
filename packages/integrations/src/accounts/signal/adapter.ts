@@ -3,6 +3,9 @@ import { errorMessage } from '../../shared/utils';
 import type { AccountAdapter } from '../types';
 import { sessionManager } from './session-manager';
 import { SignalChat, SignalMessage } from './models';
+import { createLogger } from '../../shared/logger';
+
+const logger = createLogger('Signal');
 
 export class SignalAdapter implements AccountAdapter {
   name = 'signal-gateway';
@@ -34,7 +37,7 @@ export class SignalAdapter implements AccountAdapter {
           message: 'Scan the QR code with Signal to link this device',
         });
       } catch (error: unknown) {
-        console.error('[Signal] Link error:', error);
+        logger.error('Link error:', error);
         return res.status(500).json({ error: errorMessage(error) || 'Failed to link device' });
       }
     });

@@ -9,7 +9,8 @@ import { log } from '../index.js';
 const CLEANUP_INTERVAL_MS = 60_000; // Check every minute
 
 export function startCleanupLoop(): void {
-  setInterval(cleanupIdleContainers, CLEANUP_INTERVAL_MS);
+  const cleanupInterval = setInterval(cleanupIdleContainers, CLEANUP_INTERVAL_MS);
+  cleanupInterval.unref?.();
   log.info('Container cleanup loop started (interval: %ds)', CLEANUP_INTERVAL_MS / 1000);
 }
 

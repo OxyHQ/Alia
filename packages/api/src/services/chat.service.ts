@@ -205,7 +205,7 @@ export async function loadAgentPrompt(agentId: string): Promise<string | null> {
       // Append soul personality data if available
       if (agent.soul) {
         const { formatSoul } = await import('../lib/agent-soul.js');
-        const soulSection = formatSoul(agent.soul as any);
+        const soulSection = formatSoul(agent.soul);
         if (soulSection) {
           prompt += soulSection;
         }
@@ -297,7 +297,7 @@ export function processAndCompactMessages(
   );
 
   const historyBudget = Math.floor(modelContextTokens * 0.6);
-  const compactedMessages = compactHistory(processedMessages as any, historyBudget);
+  const compactedMessages = compactHistory(processedMessages, historyBudget);
 
   return { processedMessages, compactedMessages };
 }
@@ -309,7 +309,7 @@ export function checkContext(
   systemPrompt: string,
   modelContextTokens: number,
 ): { fits: boolean; estimatedTokens?: number; contextLimit?: number; usage?: number } {
-  return checkContextFit(messages as any, systemPrompt, modelContextTokens);
+  return checkContextFit(messages, systemPrompt, modelContextTokens);
 }
 
 // ── Tool Wrapping ──

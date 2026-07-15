@@ -27,8 +27,9 @@ export function jsonSchemaToZod(schema: Record<string, any> | undefined, depth =
     for (const [key, propSchema] of Object.entries(properties)) {
       let zodProp = jsonSchemaToZod(propSchema as Record<string, any>, depth + 1);
 
-      if ((propSchema as any).description) {
-        zodProp = zodProp.describe((propSchema as any).description);
+      const description: unknown = (propSchema as { description?: unknown } | null | undefined)?.description;
+      if (typeof description === 'string') {
+        zodProp = zodProp.describe(description);
       }
 
       if (!required.includes(key)) {

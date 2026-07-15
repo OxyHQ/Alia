@@ -1,3 +1,4 @@
+/// <reference path="./src/types/postcss-plugins.d.ts" />
 import { task, series, parallel, watch as gulpWatch, src, dest } from 'gulp'
 import * as esbuild from 'esbuild'
 import { spawn, type ChildProcess } from 'child_process'
@@ -5,9 +6,7 @@ import * as path from 'path'
 import * as fs from 'fs'
 import { fileURLToPath } from 'url'
 import { createRequire } from 'module'
-// @ts-ignore
 import gulpPostcss from 'gulp-postcss'
-// @ts-ignore
 import postcssImport from 'postcss-import'
 import tailwindcss from '@tailwindcss/postcss'
 import autoprefixer from 'autoprefixer'

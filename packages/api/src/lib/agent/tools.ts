@@ -359,7 +359,7 @@ export async function buildAgentTools(ctx: BuildToolsContext) {
             { containerId },
             { previewUrl, $addToSet: { exposedPorts: port } },
           );
-          (resource as any).previewUrl = previewUrl;
+          resource.previewUrl = previewUrl;
           await session.save();
           return { previewUrl, port };
         } catch (err: unknown) {
