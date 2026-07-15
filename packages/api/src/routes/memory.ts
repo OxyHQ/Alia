@@ -291,8 +291,12 @@ router.put('/:memoryId', async (req, res) => {
   try {
     const { title, summary, type } = req.body;
 
-    if (!title || !summary || !type) {
-      res.status(400).json({ error: 'Title, summary, and type are required' });
+    const validation = AddMemorySchema.safeParse({ title, summary, type });
+    if (!validation.success) {
+      res.status(400).json({
+        error: 'Invalid memory data',
+        details: validation.error.issues
+      });
       return;
     }
 
@@ -309,7 +313,7 @@ router.put('/:memoryId', async (req, res) => {
           'memories.$.updatedAt': new Date()
         }
       },
-      { returnDocument: 'after' }
+      { returnDocument: 'after', runValidators: true }
     );
 
     if (!memory) {

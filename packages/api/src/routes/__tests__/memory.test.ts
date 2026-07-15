@@ -28,9 +28,25 @@ vi.mock('../../lib/memory/user-memory-service.js', () => ({
 import { UserMemory } from '../../models/user-memory.js';
 import { getOrCreateUserMemory } from '../../lib/memory/user-memory-service.js';
 import { AddMemorySchema, MemorySettingsSchema } from '../../lib/validators/memory-validators.js';
+import router from '../memory.js';
 
-const mockUserMemory = UserMemory as unknown as Record<string, ReturnType<typeof vi.fn>>;
 const mockGetOrCreate = getOrCreateUserMemory as unknown as ReturnType<typeof vi.fn>;
+
+function getRouteHandler(method: 'get' | 'post' | 'put' | 'delete', path: string) {
+  const layer = (router as any).stack.find(
+    (l: any) => l.route?.path === path && l.route.methods[method]
+  );
+  if (!layer) throw new Error(`No route handler found for ${method.toUpperCase()} ${path}`);
+  return layer.route.stack[0].handle as (req: any, res: any) => Promise<void>;
+}
+
+function makeMockRes() {
+  const res: any = {};
+  res.statusCode = 200;
+  res.status = vi.fn((code: number) => { res.statusCode = code; return res; });
+  res.json = vi.fn((body: unknown) => { res.body = body; return res; });
+  return res;
+}
 
 describe('memory routes — validators and core logic', () => {
   beforeEach(() => {
@@ -63,18 +79,19 @@ describe('memory routes — validators and core logic', () => {
     };
     mockGetOrCreate.mockResolvedValue(doc);
 
-    // Simulate the POST /add handler's core branch directly against the mock,
-    // mirroring the logic in routes/memory.ts (findIndex -> push).
-    const existingIndex = doc.memories.findIndex((m) => m.title === 'Food');
-    expect(existingIndex).toBe(-1);
-    doc.memories.push({ title: 'Food', summary: 'Loves strawberries', type: 'topic', createdAt: new Date(), updatedAt: new Date() });
-    await doc.save();
+    const handler = getRouteHandler('post', '/add');
+    const req: any = { user: { id: 'user-1' }, body: { title: 'Food', summary: 'Loves strawberries', type: 'topic' } };
+    const res = makeMockRes();
 
+    await handler(req, res);
+
+    expect(res.statusCode).toBe(200);
     expect(doc.memories).toHaveLength(1);
+    expect(doc.memories[0]).toMatchObject({ title: 'Food', summary: 'Loves strawberries', type: 'topic' });
     expect(doc.save).toHaveBeenCalled();
   });
 
-  it('updates settings via getOrCreateUserMemory + save', async () => {
+  it('updates settings via the real PUT /settings handler', async () => {
     const doc = {
       memories: [] as any[],
       settings: { autoSaveEnabled: true, recallEnabled: true },
@@ -82,10 +99,16 @@ describe('memory routes — validators and core logic', () => {
     };
     mockGetOrCreate.mockResolvedValue(doc);
 
-    doc.settings.autoSaveEnabled = false;
-    await doc.save();
+    const handler = getRouteHandler('put', '/settings');
+    const req: any = { user: { id: 'user-1' }, body: { autoSaveEnabled: false } };
+    const res = makeMockRes();
 
+    await handler(req, res);
+
+    expect(res.statusCode).toBe(200);
     expect(doc.settings.autoSaveEnabled).toBe(false);
+    expect(doc.settings.recallEnabled).toBe(true); // untouched — proves this was a partial update, not an overwrite
     expect(doc.save).toHaveBeenCalled();
+    expect(res.body).toEqual(doc.settings);
   });
 });
