@@ -129,6 +129,15 @@ export default function MemoryScreen() {
   const [duplicates, setDuplicates] = useState<DuplicatePair[]>([]);
   const [duplicatesLoading, setDuplicatesLoading] = useState(false);
 
+  // Import-from-provider state
+  const [showProviderImportDialog, setShowProviderImportDialog] = useState(false);
+  const [providerImportStep, setProviderImportStep] = useState<'prompt' | 'paste'>('prompt');
+  const [providerPastedText, setProviderPastedText] = useState('');
+  const [providerImporting, setProviderImporting] = useState(false);
+  const [providerImportResult, setProviderImportResult] = useState<{ title: string; summary: string; type: string }[] | null>(null);
+
+  const PROVIDER_IMPORT_PROMPT = "Please summarize everything you remember or know about me as a numbered list of short facts. For each fact, keep it to one or two sentences. Include preferences, personal details, ongoing projects or topics I care about, and people I've mentioned. Don't add commentary — just the list.";
+
   const memories = memory?.memories || [];
 
   // Redirect if not authenticated
@@ -516,6 +525,47 @@ export default function MemoryScreen() {
     }
   };
 
+  const handleProviderImport = async () => {
+    if (!providerPastedText.trim() || !isAuthenticated) return;
+
+    setProviderImporting(true);
+    try {
+      const response = await fetch(generateAPIUrl('/memory/import/from-text'), {
+        method: 'POST',
+        headers: getAuthHeaders(true),
+        body: JSON.stringify({ text: providerPastedText }),
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        setProviderImportResult(result.saved || []);
+
+        const memResponse = await fetch(generateAPIUrl('/memory'), {
+          headers: getAuthHeaders(),
+        });
+        if (memResponse.ok) {
+          setMemory(await memResponse.json());
+        }
+
+        toast.success(t('memory.providerImportSuccess', { count: (result.saved || []).length }));
+      } else {
+        toast.error(t('memory.providerImportFailed'));
+      }
+    } catch (error) {
+      console.error('Provider import error:', error);
+      toast.error(t('memory.providerImportFailed'));
+    } finally {
+      setProviderImporting(false);
+    }
+  };
+
+  const handleCloseProviderImport = () => {
+    setShowProviderImportDialog(false);
+    setProviderImportStep('prompt');
+    setProviderPastedText('');
+    setProviderImportResult(null);
+  };
+
   if (loading) {
     return (
       <View className="flex-1 items-center justify-center bg-background">
@@ -552,6 +602,15 @@ export default function MemoryScreen() {
               disabled={updatingSettings}
             />
           </View>
+
+          <Button
+            variant="outline"
+            size="sm"
+            className="self-start"
+            onPress={() => setShowProviderImportDialog(true)}
+          >
+            <Text className="text-xs">{t('memory.importFromProvider')}</Text>
+          </Button>
         </View>
 
         {/* Compact Toolbar */}
@@ -985,6 +1044,98 @@ export default function MemoryScreen() {
             <Button onPress={() => setShowDuplicatesDialog(false)}>
               <Text>{t('common.done')}</Text>
             </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Import from other AI provider */}
+      <Dialog open={showProviderImportDialog} onOpenChange={(open) => { if (!open) handleCloseProviderImport(); else setShowProviderImportDialog(true); }}>
+        <DialogContent closeButton={true}>
+          <DialogHeader>
+            <DialogTitle>{t('memory.importFromProvider')}</DialogTitle>
+            <DialogDescription>
+              {providerImportStep === 'prompt'
+                ? t('memory.providerImportStepPromptDescription')
+                : t('memory.providerImportStepPasteDescription')}
+            </DialogDescription>
+          </DialogHeader>
+
+          {providerImportStep === 'prompt' ? (
+            <View className="gap-3">
+              <View className="bg-muted rounded-lg p-3">
+                <Text className="text-sm text-foreground" selectable>
+                  {PROVIDER_IMPORT_PROMPT}
+                </Text>
+              </View>
+              <Button
+                variant="outline"
+                onPress={() => {
+                  if (typeof navigator !== 'undefined' && navigator.clipboard) {
+                    navigator.clipboard.writeText(PROVIDER_IMPORT_PROMPT);
+                    toast.success(t('memory.promptCopied'));
+                  }
+                }}
+              >
+                <View className="flex-row items-center gap-2">
+                  <Copy size={16} className="text-foreground" />
+                  <Text>{t('memory.copyPrompt')}</Text>
+                </View>
+              </Button>
+            </View>
+          ) : (
+            <View className="gap-3">
+              <View className="gap-2">
+                <Label>{t('memory.pasteResponseLabel')}</Label>
+                <Textarea
+                  value={providerPastedText}
+                  onChangeText={setProviderPastedText}
+                  placeholder={t('memory.pasteResponsePlaceholder')}
+                  editable={!providerImporting}
+                  style={{ minHeight: 160 }}
+                />
+              </View>
+
+              {providerImportResult && (
+                <View className="bg-muted rounded-lg p-3 gap-1">
+                  <Text className="text-sm font-medium">{t('memory.providerImportResultHeading')}</Text>
+                  {providerImportResult.length === 0 ? (
+                    <Text className="text-xs text-muted-foreground">{t('memory.providerImportNoneFound')}</Text>
+                  ) : (
+                    providerImportResult.map((m, i) => (
+                      <Text key={i} className="text-xs text-muted-foreground">• {m.title}: {m.summary}</Text>
+                    ))
+                  )}
+                </View>
+              )}
+            </View>
+          )}
+
+          <DialogFooter>
+            {providerImportStep === 'prompt' ? (
+              <Button className="flex-1" onPress={() => setProviderImportStep('paste')}>
+                <Text>{t('memory.nextStep')}</Text>
+              </Button>
+            ) : (
+              <>
+                <Button
+                  variant="outline"
+                  className="flex-1"
+                  onPress={handleCloseProviderImport}
+                  disabled={providerImporting}
+                >
+                  <Text>{providerImportResult ? t('common.done') : t('common.cancel')}</Text>
+                </Button>
+                {!providerImportResult && (
+                  <Button
+                    className="flex-1"
+                    onPress={handleProviderImport}
+                    disabled={!providerPastedText.trim() || providerImporting}
+                  >
+                    <Text>{providerImporting ? t('memory.importing') : t('memory.import')}</Text>
+                  </Button>
+                )}
+              </>
+            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>
