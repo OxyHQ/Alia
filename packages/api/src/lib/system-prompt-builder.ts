@@ -19,7 +19,7 @@ import type { IAgent } from '../models/agent.js';
 // ---------------------------------------------------------------------------
 
 export interface UserMemoryData {
-  memories?: Array<{ key: string; value: string }>;
+  memories?: Array<{ title: string; summary: string }>;
   preferences?: Record<string, any>;
   context?: Record<string, any>;
 }
@@ -45,7 +45,7 @@ export interface SystemPromptOptions {
   /** User's persistent memory */
   userMemory?: UserMemoryData | null;
   /** Recalled memories from before-chat hooks */
-  recalledMemories?: Array<{ key: string; value: string }>;
+  recalledMemories?: Array<{ title: string; summary: string }>;
   /** Active skill document */
   skill?: { title?: string; systemPrompt?: string } | null;
   /** Linked agent (for archetype prompt injection) */
@@ -107,7 +107,7 @@ export class SystemPromptBuilder {
 
     // 4. Recalled memories from hooks
     if (recalledMemories?.length) {
-      const memoryLines = recalledMemories.slice(0, 12).map((m) => `- ${m.key}: ${m.value}`).join('\n');
+      const memoryLines = recalledMemories.slice(0, 12).map((m) => `- ${m.title}: ${m.summary}`).join('\n');
       systemMessage += `\n\n## Recalled Memories\n${memoryLines}`;
     }
 
@@ -153,7 +153,7 @@ export class SystemPromptBuilder {
       systemMessage += '\n\n## User Information';
 
       if (userMemory.memories && userMemory.memories.length > 0) {
-        systemMessage += '\n### Known Facts:\n' + userMemory.memories.map(m => `- ${m.key}: ${m.value}`).join('\n');
+        systemMessage += '\n### Known Facts:\n' + userMemory.memories.map(m => `- ${m.title}: ${m.summary}`).join('\n');
       }
       if (userMemory.preferences && Object.keys(userMemory.preferences).length > 0) {
         const prefs = Object.entries(userMemory.preferences)

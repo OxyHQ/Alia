@@ -126,10 +126,10 @@ export async function buildChatSystemPrompt(
   }
 
   if (recalledMemories && recalledMemories.length > 0) {
-    const memoryItems = recalledMemories.map(m => `- ${m.key}: ${m.value}`).join('\n');
+    const memoryItems = recalledMemories.map(m => `- ${m.title}: ${m.summary}`).join('\n');
     userContextParts.push(`\nRelevant things to remember about the user:\n${memoryItems}`);
   } else if (memory?.memories?.length) {
-    const memoryItems = memory.memories.map(m => `- ${m.key}: ${m.value}`).join('\n');
+    const memoryItems = memory.memories.map(m => `- ${m.title}: ${m.summary}`).join('\n');
     userContextParts.push(`\nThings to remember about the user:\n${memoryItems}`);
   }
 

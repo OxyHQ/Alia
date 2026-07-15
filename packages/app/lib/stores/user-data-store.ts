@@ -4,15 +4,19 @@ import { persist, createJSONStorage } from 'zustand/middleware';
 
 interface Memory {
   _id: string;
-  key: string;
-  value: string;
-  category?: string;
+  title: string;
+  summary: string;
+  type: 'profile' | 'topic' | 'person';
   createdAt: string;
   updatedAt: string;
 }
 
 interface UserMemory {
   memories: Memory[];
+  settings: {
+    autoSaveEnabled: boolean;
+    recallEnabled: boolean;
+  };
   preferences: {
     language?: string;
     tone?: string;
