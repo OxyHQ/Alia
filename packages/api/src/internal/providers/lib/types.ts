@@ -12,7 +12,7 @@ export interface KeyLimits {
 }
 
 export interface KeyConfig {
-  keyId?: string;
+  keyId: string;
   provider: string;
   modelId: string;
   key: string;

@@ -20,7 +20,6 @@
  *   snapshot_* — Container snapshots
  */
 
-import type { AgentState } from './state-machine.js';
 
 /** Maps old tool names to new prefixed names */
 export const TOOL_RENAME_MAP: Record<string, string> = {

@@ -84,7 +84,7 @@ const SECRET_PATTERNS: SecretPattern[] = [
 
   // ── Generic Secrets ──
   { type: 'generic_secret', pattern: /(?:password|passwd|secret|api_key|apikey|access_token|auth_token|private_key)\s*[:=]\s*['"]([^'"]{8,})['"](?!\s*[:=])/gi, severity: 'warning' },
-  { type: 'bearer_token', pattern: /\bBearer\s+[a-zA-Z0-9_.-]{20,}\b/g, severity: 'warning', redact: (m) => 'Bearer ****' },
+  { type: 'bearer_token', pattern: /\bBearer\s+[a-zA-Z0-9_.-]{20,}\b/g, severity: 'warning', redact: () => 'Bearer ****' },
 
   // ── npm token ──
   { type: 'npm_token', pattern: /\bnpm_[a-zA-Z0-9]{36}\b/g, severity: 'critical', redact: prefixRedact(4) },
@@ -108,7 +108,6 @@ export function scanForSecrets(text: string): SecretMatch[] {
 
     let match: RegExpExecArray | null;
     while ((match = sp.pattern.exec(text)) !== null) {
-      const value = match[1] || match[0]; // Use capture group if present, else full match
       const fullMatch = match[0];
 
       // Skip Heroku-like UUIDs that are too common (only flag if in context of a secret assignment)

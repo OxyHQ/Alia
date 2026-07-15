@@ -379,7 +379,7 @@ function scheduleTrigger(trigger: ITrigger): void {
   // Remove existing schedule
   const existing = scheduledTasks.get(triggerId);
   if (existing) {
-    existing.stop();
+    Promise.resolve(existing.stop()).catch((err) => log.triggers.error({ err, triggerId }, 'Failed to stop scheduled task'));
     scheduledTasks.delete(triggerId);
   }
 
@@ -576,7 +576,7 @@ export async function reloadTrigger(triggerId: string): Promise<void> {
     // Trigger deleted or type changed — stop its schedule
     const existing = scheduledTasks.get(triggerId);
     if (existing) {
-      existing.stop();
+      Promise.resolve(existing.stop()).catch((err) => log.triggers.error({ err, triggerId }, 'Failed to stop scheduled task'));
       scheduledTasks.delete(triggerId);
     }
   }
@@ -684,8 +684,6 @@ async function startAgentHeartbeatScheduler(): Promise<void> {
     log.triggers.info({ count: agents.length }, 'Syncing agent heartbeat triggers');
 
     for (const agent of agents) {
-      const agentId = agent._id.toString();
-
       // Check if a heartbeat trigger already exists for this agent
       const existing = await Trigger.findOne({
         type: 'agent_heartbeat',

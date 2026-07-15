@@ -22,7 +22,7 @@ export interface IConnectedAccount extends Document {
   oauthTokens?: {
     accessToken: string;
     refreshToken: string;
-    expiresAt: Date;
+    expiresAt?: Date;
     scope: string;
   };
   metadata: Record<string, any>;

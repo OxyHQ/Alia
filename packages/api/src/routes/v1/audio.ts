@@ -37,7 +37,7 @@ router.post('/speech', async (req: Request, res: Response) => {
       return res.status(401).json({ error: 'Authentication required' });
     }
 
-    const { model, input, voice, response_format, speed, conversationId, messageId } = req.body as {
+    const { input, voice, response_format, speed, conversationId, messageId } = req.body as {
       model?: string;
       input?: string;
       voice?: string;
@@ -210,7 +210,7 @@ router.post('/generate', async (req: Request, res: Response) => {
     res.status(202).json({ jobId: job._id.toString(), status: 'processing' });
 
     // Background: generate audio, upload to S3, finalize credits
-    processAudioGeneration({ jobId: job._id.toString(), userId, prompt, duration, reservation, conversationId, messageId });
+    void processAudioGeneration({ jobId: job._id.toString(), userId, prompt, duration, reservation, conversationId, messageId });
   } catch (error: unknown) {
     log.general.error({ err: error, userId: req.user?.id }, 'Audio generation submission failed');
     res.status(500).json({ error: { message: getSafeErrorMessage(error, 'Audio generation failed'), type: 'server_error' } });

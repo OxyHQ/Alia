@@ -17,7 +17,6 @@
  * Records FallbackEvents asynchronously for analytics (fire-and-forget).
  */
 
-import type { KeyConfig } from './types';
 import type { FailoverReason } from '../../../lib/errors/error-codes';
 import type { ResolvedModel } from './model-resolver';
 import type { AliaModel, ModelMapping } from './alia-models';

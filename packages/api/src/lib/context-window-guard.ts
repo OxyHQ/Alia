@@ -4,7 +4,7 @@
  * that would exceed the model's context window.
  */
 
-import { estimateMessageTokens, estimateTokenCount } from './token-counter.js';
+import { estimateMessageTokens } from './token-counter.js';
 import { log } from './logger.js';
 
 export interface ContextCheckResult {

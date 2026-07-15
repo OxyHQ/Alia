@@ -126,7 +126,7 @@ export function convertToAISDKMessages(messages: ChatMessage[], toolNameMapping:
       }
     } else if (msg.role === 'tool') {
       // Convert OpenAI tool result to AI SDK format
-      const toolCallId = msg.tool_call_id;
+      const toolCallId = msg.tool_call_id ?? '';
       const toolInfo = toolCallsMap.get(toolCallId);
       let toolName = toolInfo?.name || msg.name || 'unknown';
 

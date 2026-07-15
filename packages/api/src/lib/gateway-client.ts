@@ -398,7 +398,7 @@ export function reportModelUsage(
   }
 
   // Local fallback — fire-and-forget
-  (async () => {
+  void (async () => {
     try {
       const { recordKeySuccess, recordKeyFailure } = await import('../internal/providers/lib/key-manager.js');
       const { recordSuccess, recordFailure } = await import('../internal/providers/lib/provider-health.js');

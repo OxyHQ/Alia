@@ -428,11 +428,6 @@ const SUGGESTIONS_DICT: Record<string, { texts: string[]; category: string; tags
 for (const [triggerWord, data] of Object.entries(SUGGESTIONS_DICT)) {
   for (let i = 0; i < data.texts.length; i++) {
     const text = data.texts[i];
-    const slug = text
-      .toLowerCase()
-      .replace(/[^a-z0-9\s-]/g, '')
-      .replace(/\s+/g, '-')
-      .slice(0, 60);
     AUTOCOMPLETE_SUGGESTIONS.push({
       suggestionId: `auto-${triggerWord}-${i}`,
       title: text.split(' ').slice(0, 4).join(' '),

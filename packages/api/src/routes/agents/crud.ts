@@ -1,9 +1,6 @@
 import { Router } from 'express';
 import { Agent, type IAgent } from '../../models/agent.js';
-import { AgentSession } from '../../models/agent-session.js';
 import { authenticateToken, optionalAuth } from '../../middleware/auth.js';
-import { cleanupSessionResources } from '../../lib/agent-tools.js';
-import { cancelJob } from '../../lib/task-queue.js';
 import { getAgentCapabilities } from '../../lib/agent/health.js';
 import { Trigger } from '../../models/trigger.js';
 import { reloadTrigger, generateWebhookToken } from '../../lib/trigger-engine.js';

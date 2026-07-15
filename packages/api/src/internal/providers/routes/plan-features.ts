@@ -85,7 +85,7 @@ router.put('/:planId/:featureId', async (req: Request, res: Response) => {
     );
 
     res.json({ success: true, data: mapping });
-    broadcastPlanFeaturesUpdate();
+    void broadcastPlanFeaturesUpdate();
   } catch (error: unknown) {
     log.providers.error({ err: error }, 'Error upserting plan-feature');
     res.status(500).json({ success: false, error: 'An internal error occurred', code: 'INTERNAL_ERROR' });
@@ -127,7 +127,7 @@ router.post('/bulk', async (req: Request, res: Response) => {
       modified: result.modifiedCount,
       total: ops.length,
     });
-    broadcastPlanFeaturesUpdate();
+    void broadcastPlanFeaturesUpdate();
   } catch (error: unknown) {
     log.providers.error({ err: error }, 'Error bulk upserting plan-features');
     res.status(500).json({ success: false, error: 'An internal error occurred', code: 'INTERNAL_ERROR' });
@@ -146,7 +146,7 @@ router.delete('/:planId/:featureId', async (req: Request, res: Response) => {
       return res.status(404).json({ success: false, error: 'Mapping not found', code: 'MAPPING_NOT_FOUND' });
     }
     res.json({ success: true, message: 'Mapping deleted' });
-    broadcastPlanFeaturesUpdate();
+    void broadcastPlanFeaturesUpdate();
   } catch (error: unknown) {
     log.providers.error({ err: error }, 'Error deleting plan-feature');
     res.status(500).json({ success: false, error: 'An internal error occurred', code: 'INTERNAL_ERROR' });

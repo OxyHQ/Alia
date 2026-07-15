@@ -29,7 +29,7 @@ export interface DeepResearchContext {
  */
 export async function handleDeepResearch(ctx: DeepResearchContext): Promise<boolean> {
   const { res, requestId, aliasModelId, userId, conversationId, messages, autonomyRuntime, requestStartTime, globalTimer } = ctx;
-  let { creditReservation } = ctx;
+  const { creditReservation } = ctx;
 
   const userQuery = messages.filter((m: ChatMessage) => m.role === 'user').pop()?.content || '';
   const queryText = typeof userQuery === 'string' ? userQuery : '';

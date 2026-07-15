@@ -11,7 +11,7 @@ import { Bot } from '../models/bot.js';
 import { Conversation } from '../models/conversation.js';
 import { Message } from '../models/message.js';
 import { getOrCreateUserCredits } from '../lib/user-credits-helpers.js';
-import { reserveCredits, finalizeCredits, type CreditReservation, type CreditUsage } from '../lib/credits-manager.js';
+import { reserveCredits, finalizeCredits, type CreditUsage } from '../lib/credits-manager.js';
 import type { ChannelId, ChannelInboundMessage } from '../lib/channels/types.js';
 import { log } from '../lib/logger.js';
 

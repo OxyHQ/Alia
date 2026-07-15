@@ -308,7 +308,7 @@ export async function buildActions(ctx: ActionContext) {
             ...mcpTool,
             execute: async (...args: any[]) => {
               try {
-                return await (originalExecute as Function)(...args);
+                return await (originalExecute as (...args: unknown[]) => unknown)(...args);
               } catch (err: unknown) {
                 return `MCP tool error: ${getErrorMessage(err).slice(0, 150)}`;
               }

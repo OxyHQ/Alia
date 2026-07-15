@@ -15,7 +15,6 @@
 import { tool, generateText, stepCountIs } from 'ai';
 import { z } from 'zod';
 import { Agent } from '../../models/agent.js';
-import { AgentSession } from '../../models/agent-session.js';
 import { resolveModel, getAIModel } from '../chat-core.js';
 import { getCurrentDateTool } from './date.js';
 import { webScraperTool } from './web-scraper.js';

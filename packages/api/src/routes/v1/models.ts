@@ -1,9 +1,7 @@
 import { Router } from 'express';
 import { log } from '../../lib/logger.js';
 import {
-  getAllAliaModels,
   getAliaModel,
-  getAliaModelsByCategory,
   getDefaultModelForCategory,
   getAvailableModels,
   type ModelCategory,

@@ -50,7 +50,7 @@ import oxyServiceEventsRouter from './routes/oxy-service-events.js';
 
 // Register hooks (side-effect import)
 import './lib/hooks/index.js';
-import { authenticateToken, oxyClient } from './middleware/auth.js';
+import { authenticateToken } from './middleware/auth.js';
 import { resolveWorkspace } from './middleware/workspace.js';
 import { syncZeroEval } from './scripts/sync-zeroeval.js';
 import { seedSkills } from './lib/seed-skills.js';
@@ -382,7 +382,7 @@ server.listen(PORT, '0.0.0.0', () => {
     } else {
       log.general.info('Redis not configured (REDIS_URL not set) — rate limiting disabled');
     }
-  });
+  }).catch((err) => log.general.warn({ err }, 'Redis readiness check init failed'));
 });
 
 // Graceful shutdown handler

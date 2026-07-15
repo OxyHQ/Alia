@@ -94,9 +94,6 @@ const LANG_TRIGRAMS: Record<string, string[]> = {
   de: ['der', 'die', 'und', 'den', 'ein', 'das', 'ist', 'ich', 'cht', 'sch', 'ung', 'ber', 'ver', 'auf', 'eit'],
 };
 
-// ── Contraction indicators (informality markers) ───────────────────────
-const CONTRACTIONS_RE = /\b(i'm|i've|i'll|i'd|can't|won't|don't|doesn't|didn't|isn't|aren't|wasn't|weren't|hasn't|haven't|hadn't|couldn't|wouldn't|shouldn't|it's|that's|there's|here's|what's|who's|let's|we're|they're|you're|he's|she's|we've|they've|you've|we'll|they'll|you'll|we'd|they'd|you'd|gonna|wanna|gotta|kinda|sorta|ain't)\b/gi;
-
 // ── Helper functions ───────────────────────────────────────────────────
 
 function splitSentences(text: string): string[] {

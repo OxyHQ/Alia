@@ -237,7 +237,7 @@ router.get('/plans', async (req: Request, res: Response) => {
     }
 
     // Load all Alia models from providers API
-    let modelMap: Record<string, { displayName: string; description?: string }> = {};
+    const modelMap: Record<string, { displayName: string; description?: string }> = {};
     try {
       const aliaModels = await getAllAliaModels();
       for (const m of aliaModels) {
@@ -346,8 +346,6 @@ router.post('/checkout/subscription', authenticateToken, async (req: Request, re
 
     const userCredits = await getOrCreateUserCredits(userId);
     const customerId = await getOrCreateStripeCustomer(userId, userCredits);
-
-    const isAnnual = billingPeriod === 'annual';
 
     let stripePriceId: string;
     try {

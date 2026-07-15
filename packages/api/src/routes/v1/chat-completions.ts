@@ -1,6 +1,6 @@
 import crypto from 'crypto';
 import { Router, Request, Response } from 'express';
-import { streamText, generateText, stepCountIs, type ToolSet } from 'ai';
+import { streamText, generateText, stepCountIs } from 'ai';
 import { resolveModel, getAIModel, getDefaultAliaModel, reportModelUsage } from '../../lib/chat-core.js';
 import { getAliaModel, getModelMappingsForTier } from '../../lib/gateway-client.js';
 import { UserMemory } from '../../models/user-memory.js';
@@ -30,7 +30,7 @@ import { wrapToolsWithTruncation, getToolResultBudget } from '../../lib/tools/re
 import { log } from '../../lib/logger.js';
 import { recordEvent } from '../../lib/observability/index.js';
 import { classifyError, getRetryAfterHeader } from '../../lib/errors/index.js';
-import { setupSSEHeaders, writeTextChunk, writeStopChunk, writeContentChunk, filterThinking, makeChunk } from '../../lib/streaming-helpers.js';
+import { setupSSEHeaders, writeTextChunk, writeStopChunk, writeContentChunk, makeChunk } from '../../lib/streaming-helpers.js';
 import type { FailoverReason } from '../../lib/errors/error-codes.js';
 import { Agent as AgentModel, type IAgent } from '../../models/agent.js';
 import {
@@ -133,7 +133,7 @@ export const handleChatCompletions = async (req: Request, res: Response) => {
     // Extract optional parameters for Alia internal features
     const conversationId = body.conversationId as string | undefined;
     const thinkingMode = body.thinkingMode as boolean | undefined;
-    const agentMode = body.agentMode as boolean | undefined;
+    const agentMode = (body.agentMode as boolean | undefined) ?? false;
     const deepResearch = body.deepResearch as boolean | undefined;
     const streamOptions = body.stream_options as { include_usage?: boolean } | undefined;
     const includeUsage = streamOptions?.include_usage === true;
@@ -149,7 +149,7 @@ export const handleChatCompletions = async (req: Request, res: Response) => {
 
     // Determine if this is a direct user session (not API key)
     // API key requests should be neutral and not include creator's personal info
-    const isDirectUserSession = req.user && !req.apiKey;
+    const isDirectUserSession = !!req.user && !req.apiKey;
     const requestedModel = body.model || getDefaultAliaModel();
 
     // Extract client context from first system message if present (from editor/client)
@@ -352,7 +352,6 @@ export const handleChatCompletions = async (req: Request, res: Response) => {
       editorToolDefinitions: body.tools,
       sseEmitter,
     });
-    const hasEditorTools = Array.isArray(body.tools) && body.tools.length > 0;
 
     // Agent mode: full agent escalation for linked conversations
     const agentMessages: Array<{ role: 'assistant'; content: string; agentInfo: { id: string; name: string; avatar: string | null; handle: string } }> = [];
@@ -887,7 +886,7 @@ export const handleChatCompletions = async (req: Request, res: Response) => {
         ensureSSEHeaders();
         hasStreamedContent = true;
 
-        const originalToolName = toolNameMapping.get((chunk as ExtendedChunk).toolName) || (chunk as ExtendedChunk).toolName;
+        const originalToolName = toolNameMapping.get((chunk as ExtendedChunk).toolName ?? '') || (chunk as ExtendedChunk).toolName;
         log.v1.error({ err: (chunk as ExtendedChunk).error, toolName: originalToolName }, 'Tool error');
 
         // Send tool error as text content so the user sees what happened
@@ -1011,7 +1010,7 @@ export const handleChatCompletions = async (req: Request, res: Response) => {
       }]))}\n\n`);
 
       try {
-        const toolOutput = await (toolFn.execute as Function)(args);
+        const toolOutput = await (toolFn.execute as (...args: unknown[]) => unknown)(args);
 
         res.write(`event: alia.tool_result\ndata: ${JSON.stringify({
           eventVersion: 1,

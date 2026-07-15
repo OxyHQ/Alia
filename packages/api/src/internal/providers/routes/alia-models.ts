@@ -153,7 +153,7 @@ router.post('/', async (req: Request, res: Response) => {
       data: model,
     });
 
-    broadcastAliaModelsUpdate();
+    void broadcastAliaModelsUpdate();
   } catch (error: unknown) {
     log.providers.error({ err: error }, 'Error creating alia model');
     res.status(500).json({
@@ -229,7 +229,7 @@ router.patch('/:aliasModelId', async (req: Request, res: Response) => {
       data: model,
     });
 
-    broadcastAliaModelsUpdate();
+    void broadcastAliaModelsUpdate();
   } catch (error: unknown) {
     log.providers.error({ err: error }, 'Error updating alia model');
     res.status(500).json({
@@ -263,7 +263,7 @@ router.delete('/:aliasModelId', async (req: Request, res: Response) => {
       message: 'Alia model deleted successfully',
     });
 
-    broadcastAliaModelsUpdate();
+    void broadcastAliaModelsUpdate();
   } catch (error: unknown) {
     log.providers.error({ err: error }, 'Error deleting alia model');
     res.status(500).json({

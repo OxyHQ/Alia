@@ -10,7 +10,7 @@
  */
 
 import { type ToolSet } from 'ai';
-import { resolveModel, getAIModel, getDefaultAliaModel, reportModelUsage } from '../lib/chat-core.js';
+import { resolveModel, getDefaultAliaModel } from '../lib/chat-core.js';
 import { markKeyCreditExhausted, getAliaModel, getModelMappingsForTier } from '../lib/gateway-client.js';
 import { getCurrentDateTool, webSearchTool, browseTool, saveUserMemoryTool, updateUserPreferencesTool, updateUserContextTool, createGetDeviceInfoTool, createSendTelegramTool, createGatewayAdminTool, webScraperTool, generateFileTool, canvasTool, createTriggerTool, listTriggersTool, updateTriggerTool, deleteTriggerTool, createDeepResearchTool, type DeviceInfo } from '../lib/tools/index.js';
 import { buildMcpTools } from '../lib/tools/mcp.js';
@@ -22,9 +22,8 @@ import { Skill } from '../models/skill.js';
 import { Agent } from '../models/agent.js';
 import type { IUserMemory } from '../models/user-memory.js';
 import { processMessagesForPlatform } from '../lib/message-processor.js';
-import { reserveCredits, finalizeCredits, safeRefund, type CreditReservation, type CreditUsage } from '../lib/credits-manager.js';
+import { reserveCredits, type CreditReservation } from '../lib/credits-manager.js';
 import { getOrCreateUserMemory } from '../lib/memory/user-memory-service.js';
-import { estimateMessageTokens } from '../lib/token-counter.js';
 import { getUserTier } from '../middleware/api-key-rate-limit.js';
 import { runBeforeChatHooks } from '../lib/hooks/index.js';
 import type { RecalledMemory } from '../lib/memory/recall.js';

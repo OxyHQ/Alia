@@ -56,6 +56,7 @@ router.get('/:id', async (req, res) => {
 
     res.json({ container });
   } catch (err: unknown) {
+    log.general.error({ err }, 'Failed to get container');
     res.status(500).json({ error: 'Failed to get container' });
   }
 });
@@ -97,6 +98,7 @@ router.get('/templates/list', async (req, res) => {
     const templates = await ContainerTemplate.find({ userId }).sort({ createdAt: -1 }).lean();
     res.json({ templates });
   } catch (err: unknown) {
+    log.general.error({ err }, 'Failed to list templates');
     res.status(500).json({ error: 'Failed to list templates' });
   }
 });
@@ -118,6 +120,7 @@ router.delete('/templates/:id', async (req, res) => {
 
     res.json({ deleted: true });
   } catch (err: unknown) {
+    log.general.error({ err }, 'Failed to delete template');
     res.status(500).json({ error: 'Failed to delete template' });
   }
 });

@@ -124,7 +124,7 @@ router.post('/', async (req: Request, res: Response) => {
       data: pkg,
     });
 
-    broadcastCreditPackagesUpdate();
+    void broadcastCreditPackagesUpdate();
   } catch (error: unknown) {
     log.providers.error({ err: error }, 'Error creating credit package');
     res.status(500).json({
@@ -182,7 +182,7 @@ router.patch('/:packageId', async (req: Request, res: Response) => {
       data: pkg,
     });
 
-    broadcastCreditPackagesUpdate();
+    void broadcastCreditPackagesUpdate();
   } catch (error: unknown) {
     log.providers.error({ err: error }, 'Error updating credit package');
     res.status(500).json({
@@ -216,7 +216,7 @@ router.delete('/:packageId', async (req: Request, res: Response) => {
       message: 'Credit package deleted successfully',
     });
 
-    broadcastCreditPackagesUpdate();
+    void broadcastCreditPackagesUpdate();
   } catch (error: unknown) {
     log.providers.error({ err: error }, 'Error deleting credit package');
     res.status(500).json({
