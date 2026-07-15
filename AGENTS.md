@@ -86,3 +86,12 @@ TTS fails over across providers via `packages/api/src/lib/synthesize-speech.ts` 
 - Web-only CSS in RN styles (transitions, sticky positioning, cursor, etc.) goes through the typed `asViewStyle`/`asTextStyle` bridge in `lib/types/webStyles.ts` — never `as any`.
 - Hover-reveal actions must be web-scoped (`web:opacity-0 web:group-hover:opacity-100`) so they stay visible on native.
 - Sidebar primitives live in `components/sidebar.tsx`: `SidebarRow` / `SectionHeader` / `GhostIconButton` — reuse them, don't inline duplicate row markup. Desktop collapse is a 56px icon rail driven by the `ui-store` `sidebarOpen` flag.
+
+## `@alia.onl/sdk` (packages/alia-chat)
+
+Published as RAW SOURCE — consumers' own Metro/tsc compile `src/` directly, so the package must resolve and typecheck cleanly under a real external install, not just inside this monorepo.
+
+- **No phantom deps, no hard-imported optional peers.** Anything `src/` imports unconditionally (static `import`, top-level `export * from`) MUST be a regular `dependency` or a REQUIRED peer. An optional peer is not installed by consumers, so a hard import only "worked" via orphaned entries in a consumer's own lockfile and fails Metro resolution on a clean consumer install. Truly optional integrations must use lazy `import()` / guarded `require()`.
+- **Never ship an ambient `declare module` shim for a package that has real installed types.** It shadows that package's REAL `.d.ts` program-wide in every consumer, not just locally — this can silently break the consumer's own valid calls against the real package AND mask a real SDK bug (code compiling against an invented export name instead of erroring). Always validate types against the real package's own `.d.ts`. The only sanctioned `/// <reference>` is a real package's own type augmentation (e.g. `nativewind/types`) — never a hand-written shim.
+- `package.json` carries a `files` allowlist (`["src", "tsconfig.json"]`) — keep it. Without it a stray local artifact (e.g. a `bun pm pack` tarball left in the package dir) can get swept into the published tarball.
+- **Known debt:** `clsx`, `tailwind-merge`, `class-variance-authority` are hard-imported but still declared as optional peers (should become regular deps); `react-native-svg` is hard-imported and optional (should become a REQUIRED peer — it's a native singleton); `livekit-client`, `expo-image`, `expo-image-picker`, `expo-document-picker` are statically imported peers (should be promoted to required, or converted to lazy imports if genuinely optional).
