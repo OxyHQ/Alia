@@ -1017,14 +1017,14 @@ git commit -m "feat(api): rewrite recallRelevantMemories for title/summary + rec
 
 **Files:**
 - Modify: `packages/api/src/routes/internal.ts:77`
-- Modify: `packages/api/src/lib/system-prompt-builder.ts:110,156`
+- Modify: `packages/api/src/lib/system-prompt-builder.ts:22,48,110,156` (includes two local type declarations, not just the `.map()` bodies — see Step 2)
 - Modify: `packages/api/src/lib/user-context.ts:42`
 - Modify: `packages/api/src/lib/trigger-engine.ts:154`
 - Modify: `packages/api/src/services/chat.service.ts:129,132`
 
 **Interfaces:**
 - Consumes: `RecalledMemory.title`/`.summary` (Task 5), `IUserMemory.memories[].title`/`.summary` (Task 1).
-- Produces: nothing new — these are leaf prompt-string builders with no downstream consumers in this plan.
+- Produces: `UserMemoryData.memories` and `SystemPromptOptions.recalledMemories` (both in `system-prompt-builder.ts`) now typed `{title, summary}` — resolves the `routes/v1/chat-completions.ts` tsc error surfaced by Task 1 as a side effect, with no edit needed in that file itself (it just passes real `IUserMemory`/`RecalledMemory[]` values through, which now structurally match).
 
 - [ ] **Step 1: `routes/internal.ts`**
 
@@ -1036,6 +1036,30 @@ git commit -m "feat(api): rewrite recallRelevantMemories for title/summary + rec
 ```
 
 - [ ] **Step 2: `lib/system-prompt-builder.ts`**
+
+This file declares its OWN narrow local types (`UserMemoryData`, and the `recalledMemories` field), decoupled from `IUserMemory`/`RecalledMemory` on purpose (interface segregation — this module only needs a minimal shape). These two type declarations must be updated too, not just the `.map()` bodies — otherwise the mechanical rename below would introduce a NEW compile error (`m.title` not existing on the old `{key, value}` type) instead of fixing one. This is also why `routes/v1/chat-completions.ts` shows a tsc error after Task 1 even though it isn't in Task 1's expected file list: it passes the real (already-renamed) `IUserMemory`/`RecalledMemory[]` into `SystemPromptBuilder.build(...)`, which still expects the stale local shape — fixing the two type declarations below resolves that call site automatically, with no edit needed in `chat-completions.ts` itself.
+
+```typescript
+// old (line 21-25):
+export interface UserMemoryData {
+  memories?: Array<{ key: string; value: string }>;
+  preferences?: Record<string, any>;
+  context?: Record<string, any>;
+}
+// new:
+export interface UserMemoryData {
+  memories?: Array<{ title: string; summary: string }>;
+  preferences?: Record<string, any>;
+  context?: Record<string, any>;
+}
+```
+
+```typescript
+// old (line 48):
+  recalledMemories?: Array<{ key: string; value: string }>;
+// new:
+  recalledMemories?: Array<{ title: string; summary: string }>;
+```
 
 ```typescript
 // old (line 110):
@@ -1088,7 +1112,7 @@ git commit -m "feat(api): rewrite recallRelevantMemories for title/summary + rec
 - [ ] **Step 6: Typecheck**
 
 Run: `cd packages/api && bun run typecheck`
-Expected: none of these 5 files appear in the error list anymore.
+Expected: none of these 5 files appear in the error list anymore. `src/routes/v1/chat-completions.ts` (not in Task 1's original expected list, but a real side effect of the schema rename — see Step 2's note) should also no longer appear.
 
 - [ ] **Step 7: Commit**
 
