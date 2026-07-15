@@ -75,7 +75,7 @@ export const handleChatCompletions = async (req: Request, res: Response) => {
   const requestStartTime = Date.now();
   const requestId = `chatcmpl-${crypto.randomUUID()}`;
   let autonomyRuntime: AutonomyRuntimeContext | null = null;
-  let recalledMemories: Array<{ key: string; value: string }> | undefined;
+  let recalledMemories: Array<{ title: string; summary: string }> | undefined;
 
   // Global request timeout guard — send a proper error BEFORE DO's gateway timeout (~120s)
   const GLOBAL_TIMEOUT_MS = 80_000;
@@ -337,7 +337,7 @@ export const handleChatCompletions = async (req: Request, res: Response) => {
         platform: req.apiKey ? 'telegram' as const : 'app' as const,
         metadata: {},
       }).catch(() => null);
-      recalledMemories = hookResult?.metadata?.recalledMemories as Array<{ key: string; value: string }> | undefined;
+      recalledMemories = hookResult?.metadata?.recalledMemories as Array<{ title: string; summary: string }> | undefined;
     }
 
     // ── Deep Research Mode ──
