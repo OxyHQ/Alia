@@ -181,17 +181,51 @@ describe('credits-manager', () => {
       expect(result.creditsRemaining).toBe(0);
     });
 
-    it('throws when user not found', async () => {
+    it('throws when user not found on the zero-adjustment read path', async () => {
+      // reserved 5, actual 5 → no adjustment → balance is read, not written
       mockUserCredits.findById.mockResolvedValue(null);
 
       await expect(
         finalizeCredits(reservation, {
-          promptTokens: 0,
-          completionTokens: 0,
-          totalTokens: 1000,
+          promptTokens: 2500,
+          completionTokens: 2500,
+          totalTokens: 5000,
           systemPromptTokens: 0,
         })
       ).rejects.toThrow('User credits not found');
+      expect(mockUserCredits.findByIdAndUpdate).not.toHaveBeenCalled();
+    });
+
+    it('finalizes via a single write with no separate existence read', async () => {
+      // reserved 5, actual 2 → refund 3 (refund path)
+      mockUserCredits.findByIdAndUpdate.mockResolvedValue(makeCreditsDoc(8, 10));
+
+      const result = await finalizeCredits(reservation, {
+        promptTokens: 1000,
+        completionTokens: 1000,
+        totalTokens: 2000,
+        systemPromptTokens: 0,
+      });
+
+      // The redundant existence read is gone: only the atomic update runs.
+      expect(mockUserCredits.findById).not.toHaveBeenCalled();
+      expect(mockUserCredits.findByIdAndUpdate).toHaveBeenCalledTimes(1);
+      expect(result).toEqual({ creditsCharged: 2, creditsRemaining: 18 });
+    });
+
+    it('derives not-found from a null update result (user vanished mid-request)', async () => {
+      // reserved 5, actual 2 → refund path; the update matches no document.
+      mockUserCredits.findByIdAndUpdate.mockResolvedValue(null);
+
+      await expect(
+        finalizeCredits(reservation, {
+          promptTokens: 1000,
+          completionTokens: 1000,
+          totalTokens: 2000,
+          systemPromptTokens: 0,
+        })
+      ).rejects.toThrow('User credits not found');
+      expect(mockUserCredits.findById).not.toHaveBeenCalled();
     });
   });
 

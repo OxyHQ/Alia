@@ -1,4 +1,4 @@
-import { UserCredits } from '../models/user-credits.js';
+import { UserCredits, type IUserCredits } from '../models/user-credits.js';
 import { getAliaModel } from './chat-core.js';
 import { log } from './logger.js';
 
@@ -147,68 +147,73 @@ async function _adjustReservation(
   const creditAdjustment = reservation.creditsReserved - actualCreditsNeeded;
   log.credits.info({ userId: reservation.userId, reserved: reservation.creditsReserved, actualNeeded: actualCreditsNeeded, creditAdjustment }, `Finalizing ${label}`);
 
-  let updatedCredits = await UserCredits.findById(reservation.userId);
+  // Each branch resolves the up-to-date doc in a single round trip; a null result
+  // is the not-found signal (no separate existence read needed).
+  let updatedCredits: IUserCredits | null;
 
-  if (!updatedCredits) {
-    throw new Error('User credits not found');
-  }
-
-  if (creditAdjustment !== 0) {
-    if (creditAdjustment > 0) {
-      updatedCredits = await UserCredits.findByIdAndUpdate(
-        reservation.userId,
-        { $inc: { 'credits.free': creditAdjustment } },
-        { returnDocument: 'after', runValidators: false }
-      );
+  if (creditAdjustment > 0) {
+    updatedCredits = await UserCredits.findByIdAndUpdate(
+      reservation.userId,
+      { $inc: { 'credits.free': creditAdjustment } },
+      { returnDocument: 'after', runValidators: false }
+    );
+    if (updatedCredits) {
       log.credits.info({ refunded: creditAdjustment }, `Refunded ${label} credits`);
-    } else {
-      const additionalCredits = Math.abs(creditAdjustment);
+    }
+  } else if (creditAdjustment < 0) {
+    const additionalCredits = Math.abs(creditAdjustment);
 
-      updatedCredits = await UserCredits.findOneAndUpdate(
+    updatedCredits = await UserCredits.findOneAndUpdate(
+      {
+        _id: reservation.userId,
+        $expr: {
+          $gte: [{ $add: ['$credits.free', '$credits.paid'] }, additionalCredits]
+        }
+      },
+      [
         {
-          _id: reservation.userId,
-          $expr: {
-            $gte: [{ $add: ['$credits.free', '$credits.paid'] }, additionalCredits]
-          }
-        },
-        [
-          {
-            $set: {
-              'credits.free': {
-                $cond: {
-                  if: { $gte: ['$credits.free', additionalCredits] },
-                  then: { $subtract: ['$credits.free', additionalCredits] },
-                  else: 0
-                }
-              },
-              'credits.paid': {
-                $cond: {
-                  if: { $gte: ['$credits.free', additionalCredits] },
-                  then: '$credits.paid',
-                  else: { $subtract: ['$credits.paid', { $subtract: [additionalCredits, '$credits.free'] }] }
-                }
+          $set: {
+            'credits.free': {
+              $cond: {
+                if: { $gte: ['$credits.free', additionalCredits] },
+                then: { $subtract: ['$credits.free', additionalCredits] },
+                else: 0
+              }
+            },
+            'credits.paid': {
+              $cond: {
+                if: { $gte: ['$credits.free', additionalCredits] },
+                then: '$credits.paid',
+                else: { $subtract: ['$credits.paid', { $subtract: [additionalCredits, '$credits.free'] }] }
               }
             }
           }
-        ],
-        { returnDocument: 'after', runValidators: false, updatePipeline: true }
-      );
+        }
+      ],
+      { returnDocument: 'after', runValidators: false, updatePipeline: true }
+    );
 
-      if (!updatedCredits) {
-        updatedCredits = await UserCredits.findByIdAndUpdate(
-          reservation.userId,
-          { $set: { 'credits.free': 0, 'credits.paid': 0 } },
-          { returnDocument: 'after' }
-        );
+    if (!updatedCredits) {
+      // Guard matched nothing: either insufficient balance (user exists) or the
+      // user is gone. Zero-out succeeds for the former, returns null for the latter.
+      updatedCredits = await UserCredits.findByIdAndUpdate(
+        reservation.userId,
+        { $set: { 'credits.free': 0, 'credits.paid': 0 } },
+        { returnDocument: 'after' }
+      );
+      if (updatedCredits) {
         log.credits.warn(`Insufficient credits for additional ${label} charge, set to 0`);
-      } else {
-        log.credits.info({ additionalCredits }, `Charged additional ${label} credits`);
       }
+    } else {
+      log.credits.info({ additionalCredits }, `Charged additional ${label} credits`);
     }
+  } else {
+    // No adjustment needed: read current balance to report remaining credits.
+    updatedCredits = await UserCredits.findById(reservation.userId);
   }
 
   if (!updatedCredits) {
-    throw new Error('Failed to update credits');
+    throw new Error('User credits not found');
   }
 
   const totalRemaining = updatedCredits.credits.free + updatedCredits.credits.paid;
