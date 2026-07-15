@@ -32,7 +32,7 @@ const router = express.Router();
  */
 router.post('/resolve', async (req: Request, res: Response) => {
   try {
-    const { aliasModelId, estimatedTokens = 0, skipProviders = [], keyPreference = {} } = req.body;
+    const { aliasModelId, estimatedTokens = 0, skipProviders = [] } = req.body;
 
     if (!aliasModelId) {
       return res.status(400).json({
@@ -90,7 +90,7 @@ router.post('/resolve', async (req: Request, res: Response) => {
 router.post('/:provider/proxy', async (req: Request, res: Response) => {
   try {
     const provider = req.params.provider as string;
-    const { modelId, messages, tools, config, keyPreference = {} } = req.body;
+    const { modelId, messages, tools, config } = req.body;
 
     // Validate inputs
     if (!modelId || !messages || !Array.isArray(messages)) {
@@ -164,7 +164,7 @@ router.post('/:provider/proxy', async (req: Request, res: Response) => {
           if (match) {
             totalTokens = parseInt(match[1], 10);
           }
-        } catch (e) {
+        } catch {
           // Ignore parsing errors
         }
       }
@@ -201,7 +201,7 @@ router.post('/:provider/proxy', async (req: Request, res: Response) => {
       const estimatedInputTokens = estimatedTokens;
       const estimatedOutputTokens = Math.max(0, totalTokens - estimatedInputTokens);
       const costUSD = calculateCost(provider, modelId, estimatedInputTokens, estimatedOutputTokens);
-      recordKeySpend(keyConfig.keyId, costUSD);
+      void recordKeySpend(keyConfig.keyId, costUSD);
     }
 
   } catch (error: unknown) {
@@ -285,7 +285,7 @@ router.post('/health/record', async (req: Request, res: Response) => {
       },
     });
 
-    broadcastHealthUpdate(provider, modelId);
+    void broadcastHealthUpdate(provider, modelId);
   } catch (error: unknown) {
     log.providers.error({ err: error }, 'Error recording health');
     res.status(500).json({

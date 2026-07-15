@@ -36,6 +36,9 @@ registerHook({
         profile = analyzeMessage(msg, profile);
       }
 
+      // userMessages is non-empty (guarded above), so the loop always produces a profile
+      if (!profile) return;
+
       // Check if LLM refinement is due
       const shouldRefine = profile.messagesAnalyzed >= STYLE_LLM_REFINE_MIN_MESSAGES
         && (!profile.lastLLMRefinedAt

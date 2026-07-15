@@ -21,8 +21,6 @@ import { WorkspaceMemory } from './workspace-memory.js';
 
 /** Token thresholds for triggering compaction */
 const COMPACTION_TRIGGER_TOKENS = 40_000;
-/** Target token count after compaction */
-const COMPACTION_TARGET_TOKENS = 25_000;
 /** Minimum entries to keep verbatim (hot context) */
 const MIN_HOT_ENTRIES = 10;
 

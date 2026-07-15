@@ -306,7 +306,7 @@ export async function invalidateCache(model?: string): Promise<number> {
 
     // Clear hot cache
     if (model) {
-      for (const [key, value] of hotCache.entries()) {
+      for (const [key] of hotCache.entries()) {
         if (key.includes(model)) {
           hotCache.delete(key);
         }

@@ -4,7 +4,6 @@ import { Subscription } from '../models/subscription.js';
 import { authenticateToken } from '../middleware/auth.js';
 import {
   AddMemorySchema,
-  UpdateMemorySchema,
   ImportMemorySchema,
   MergeStrategySchema,
 } from '../lib/validators/memory-validators.js';

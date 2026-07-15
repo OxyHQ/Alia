@@ -11,7 +11,6 @@
  * Exposes a /metrics endpoint compatible with Prometheus scraping.
  */
 
-import { log } from '../logger.js';
 
 export interface MetricSample {
   value: number;

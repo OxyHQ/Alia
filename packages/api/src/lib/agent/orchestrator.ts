@@ -15,7 +15,6 @@
 
 import { generateText } from 'ai';
 import { resolveModel, getAIModel, getDefaultAliaModel } from '../chat-core.js';
-import { log } from '../logger.js';
 import { generatePlan, type ExecutionPlan } from './planner-agent.js';
 import { executeSubtasks, type ExecutorResult } from './executor-pool.js';
 import { verifyResults, type VerificationResult } from './verifier-agent.js';
@@ -116,7 +115,7 @@ export async function orchestrate(opts: OrchestrationOptions): Promise<Orchestra
   const maxTokensPerExecutor = Math.max(5000, Math.floor(opts.session.config.maxTokens / plan.subtasks.length));
   const timeoutMs = Math.max(30_000, Math.floor(300_000 / plan.subtasks.length) * plan.subtasks.length);
 
-  let executorResults = await executeSubtasks(plan.subtasks, {
+  const executorResults = await executeSubtasks(plan.subtasks, {
     maxConcurrency,
     maxStepsPerExecutor,
     maxTokensPerExecutor,

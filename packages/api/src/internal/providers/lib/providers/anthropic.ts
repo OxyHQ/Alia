@@ -137,7 +137,7 @@ function convertAnthropicStreamToOpenAI(anthropicStream: ReadableStream): Readab
                   };
                   controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify(openaiChunk)}\n\n`));
                 }
-              } catch (e) {
+              } catch {
                 // Ignore JSON parse errors
               }
             }

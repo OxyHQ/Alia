@@ -9,7 +9,6 @@ import { tool } from 'ai';
 import { z } from 'zod';
 import mongoose from 'mongoose';
 import { Trigger } from '../../models/trigger.js';
-import { TriggerExecution } from '../../models/trigger-execution.js';
 import { reloadTrigger } from '../trigger-engine.js';
 import { generateWebhookToken } from '../trigger-engine.js';
 import { log } from '../logger.js';

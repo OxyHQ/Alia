@@ -4,7 +4,7 @@ import { z } from 'zod';
 import { Suggestion } from '../models/suggestion.js';
 import { UserMemory } from '../models/user-memory.js';
 import { authenticateToken, optionalAuth } from '../middleware/auth.js';
-import { resolveModel, getAIModel, getDefaultAliaModel } from '../lib/chat-core.js';
+import { resolveModel, getAIModel } from '../lib/chat-core.js';
 import { log } from '../lib/logger.js';
 
 const aiSuggestionSchema = z.object({
@@ -235,7 +235,7 @@ router.post('/create', authenticateToken, async (req: Request, res: Response) =>
     }
 
     // Generate suggestionId
-    let suggestionId = `user-${title.toLowerCase().replace(/[^a-z0-9\s-]/g, '').replace(/\s+/g, '-').slice(0, 40)}-${Date.now().toString(36).slice(-4)}`;
+    const suggestionId = `user-${title.toLowerCase().replace(/[^a-z0-9\s-]/g, '').replace(/\s+/g, '-').slice(0, 40)}-${Date.now().toString(36).slice(-4)}`;
 
     const suggestion = await Suggestion.create({
       suggestionId,

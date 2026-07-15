@@ -6,10 +6,8 @@
  */
 
 import { Router, Request, Response } from 'express';
-import { getAllAliaModels, type AliaModel } from '../lib/chat-core.js';
+import { getAllAliaModels } from '../lib/chat-core.js';
 import { getTierMappings, getProviderHealth } from '../lib/gateway-client.js';
-import { connectDB } from '../lib/db.js';
-import mongoose from 'mongoose';
 import { log } from '../lib/logger.js';
 
 const router = Router();

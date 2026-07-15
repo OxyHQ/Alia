@@ -68,7 +68,7 @@ export function optionalAuth(
   // Check if this is a Telegram bot request
   const telegramBotSecret = req.headers['x-telegram-bot-secret'] as string;
   if (telegramBotSecret) {
-    authenticateTelegramBot(req, res, next);
+    void authenticateTelegramBot(req, res, next);
     return;
   }
 
@@ -193,14 +193,14 @@ export function authenticateTokenOrApiKey(
   // Check for Telegram bot authentication first
   const telegramBotSecret = req.headers['x-telegram-bot-secret'] as string;
   if (telegramBotSecret) {
-    authenticateTelegramBot(req, res, next);
+    void authenticateTelegramBot(req, res, next);
     return;
   }
 
   // Channel bot secret (used by integrations service)
   const channelBotSecret = req.headers['x-channel-bot-secret'] as string;
   if (channelBotSecret) {
-    authenticateChannelBotSecret(req, res, next);
+    void authenticateChannelBotSecret(req, res, next);
     return;
   }
 
@@ -231,7 +231,7 @@ export function authenticateTokenOrApiKey(
 
   // API key auth
   if (token.startsWith('alia_sk_')) {
-    authenticateApiKey(req, res, next);
+    void authenticateApiKey(req, res, next);
     return;
   }
 

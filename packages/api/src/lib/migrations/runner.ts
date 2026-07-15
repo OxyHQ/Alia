@@ -69,8 +69,6 @@ export async function runPendingMigrations(): Promise<void> {
     return;
   }
 
-  const col = await getMigrationCollection();
-
   // Simple advisory lock: try to claim the lock
   const lockCol = mongoose.connection.db!.collection('_migration_lock');
   const lockResult = await lockCol.findOneAndUpdate(

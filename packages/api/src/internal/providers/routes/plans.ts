@@ -143,7 +143,7 @@ router.post('/', async (req: Request, res: Response) => {
       data: plan,
     });
 
-    broadcastPlansUpdate();
+    void broadcastPlansUpdate();
   } catch (error: unknown) {
     log.providers.error({ err: error }, 'Error creating plan');
     res.status(500).json({
@@ -216,7 +216,7 @@ router.patch('/:planId', async (req: Request, res: Response) => {
       data: plan,
     });
 
-    broadcastPlansUpdate();
+    void broadcastPlansUpdate();
   } catch (error: unknown) {
     log.providers.error({ err: error }, 'Error updating plan');
     res.status(500).json({
@@ -250,7 +250,7 @@ router.delete('/:planId', async (req: Request, res: Response) => {
       message: 'Plan deleted successfully',
     });
 
-    broadcastPlansUpdate();
+    void broadcastPlansUpdate();
   } catch (error: unknown) {
     log.providers.error({ err: error }, 'Error deleting plan');
     res.status(500).json({

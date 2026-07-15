@@ -5,7 +5,6 @@
  * Enables fine-grained access control per user, per tool, or per server.
  */
 
-import { log } from '../logger.js';
 
 export interface ToolPermission {
   /** Glob pattern matching tool names (e.g. "mcp_github__*", "mcp_*__delete*") */

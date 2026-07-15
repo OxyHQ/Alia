@@ -72,7 +72,7 @@ router.post('/', async (req: Request, res: Response) => {
     });
 
     res.status(201).json({ success: true, data: feature });
-    broadcastFeaturesUpdate();
+    void broadcastFeaturesUpdate();
   } catch (error: unknown) {
     log.providers.error({ err: error }, 'Error creating feature');
     res.status(500).json({ success: false, error: 'An internal error occurred', code: 'INTERNAL_ERROR' });
@@ -102,7 +102,7 @@ router.patch('/:featureId', async (req: Request, res: Response) => {
     }
 
     res.json({ success: true, data: feature });
-    broadcastFeaturesUpdate();
+    void broadcastFeaturesUpdate();
   } catch (error: unknown) {
     log.providers.error({ err: error }, 'Error updating feature');
     res.status(500).json({ success: false, error: 'An internal error occurred', code: 'INTERNAL_ERROR' });
@@ -119,7 +119,7 @@ router.delete('/:featureId', async (req: Request, res: Response) => {
       return res.status(404).json({ success: false, error: 'Feature not found', code: 'FEATURE_NOT_FOUND' });
     }
     res.json({ success: true, message: 'Feature deleted successfully' });
-    broadcastFeaturesUpdate();
+    void broadcastFeaturesUpdate();
   } catch (error: unknown) {
     log.providers.error({ err: error }, 'Error deleting feature');
     res.status(500).json({ success: false, error: 'An internal error occurred', code: 'INTERNAL_ERROR' });

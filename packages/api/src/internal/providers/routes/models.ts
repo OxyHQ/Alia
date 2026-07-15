@@ -138,7 +138,7 @@ router.post('/', async (req: Request, res: Response) => {
       data: model,
     });
 
-    broadcastModelsUpdate(modelData.provider);
+    void broadcastModelsUpdate(modelData.provider);
   } catch (error: unknown) {
     log.models.error({ err: error }, 'Error creating model');
     res.status(500).json({
@@ -181,7 +181,7 @@ router.patch('/:provider/:modelId', async (req: Request, res: Response) => {
       data: model,
     });
 
-    broadcastModelsUpdate(provider as string);
+    void broadcastModelsUpdate(provider as string);
   } catch (error: unknown) {
     log.models.error({ err: error }, 'Error updating model');
     res.status(500).json({
@@ -215,7 +215,7 @@ router.delete('/:provider/:modelId', async (req: Request, res: Response) => {
       message: 'Model deleted successfully',
     });
 
-    broadcastModelsUpdate(provider as string);
+    void broadcastModelsUpdate(provider as string);
   } catch (error: unknown) {
     log.models.error({ err: error }, 'Error deleting model');
     res.status(500).json({

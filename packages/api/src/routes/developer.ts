@@ -215,12 +215,12 @@ router.post('/apps/:appId/keys', async (req: Request, res: Response) => {
 
     await apiKey.save();
 
-    // Return the plain key only this one time
+    // Return the plain key only this one time — omit the stored hash
+    const { keyHash: _keyHash, ...keyFields } = apiKey.toObject();
     const keyResponse = {
-      ...apiKey.toObject(),
+      ...keyFields,
       key: plainKey, // Only returned on creation
     };
-    delete keyResponse.keyHash;
 
     res.status(201).json({
       apiKey: keyResponse,
@@ -448,7 +448,7 @@ router.get('/apps/:appId/usage', async (req: Request, res: Response) => {
 
     // Calculate date range
     const now = new Date();
-    let startDate = new Date();
+    const startDate = new Date();
 
     switch (period) {
       case '24h':
@@ -581,7 +581,7 @@ router.get('/apps/:appId/keys/:keyId/usage', async (req: Request, res: Response)
 
     // Calculate date range
     const now = new Date();
-    let startDate = new Date();
+    const startDate = new Date();
 
     switch (period) {
       case '24h':
@@ -679,7 +679,7 @@ router.get('/usage', async (req: Request, res: Response) => {
 
     // Calculate date range
     const now = new Date();
-    let startDate = new Date();
+    const startDate = new Date();
 
     switch (period) {
       case '24h':

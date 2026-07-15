@@ -17,7 +17,6 @@ import type {
   VoiceSession,
   VoiceSessionConfig,
   VoiceProvider,
-  CohostState,
   AgentDataMessage,
   ClientDataMessage,
 } from './types-voice.js';
@@ -59,24 +58,28 @@ function buildVoiceToolExecutors(userId: string): Map<string, (args: any) => Pro
   executors.set('sendTelegramMessage', async (args: { message: string }) => {
     const { createSendTelegramTool } = await import('../../../lib/tools/telegram.js');
     const toolInstance = createSendTelegramTool(userId);
+    if (!toolInstance.execute) throw new Error('sendTelegramMessage tool has no executor');
     return await toolInstance.execute(args, {} as any);
   });
 
   executors.set('saveUserMemory', async (args: { key: string; value: string; category?: string }) => {
     const { saveUserMemoryTool } = await import('../../../lib/tools/user-memory.js');
     const toolInstance = saveUserMemoryTool(userId);
+    if (!toolInstance.execute) throw new Error('saveUserMemory tool has no executor');
     return await toolInstance.execute(args, {} as any);
   });
 
   executors.set('updateUserPreferences', async (args: { language?: string; tone?: string; responseLength?: string }) => {
     const { updateUserPreferencesTool } = await import('../../../lib/tools/user-memory.js');
     const toolInstance = updateUserPreferencesTool(userId);
+    if (!toolInstance.execute) throw new Error('updateUserPreferences tool has no executor');
     return await toolInstance.execute(args as any, {} as any);
   });
 
   executors.set('updateUserContext', async (args: { occupation?: string; location?: string; timezone?: string }) => {
     const { updateUserContextTool } = await import('../../../lib/tools/user-memory.js');
     const toolInstance = updateUserContextTool(userId);
+    if (!toolInstance.execute) throw new Error('updateUserContext tool has no executor');
     return await toolInstance.execute(args, {} as any);
   });
 
@@ -261,7 +264,7 @@ export class VoiceSessionManager {
       };
 
       agentBridge.onUserDisconnected = () => {
-        this.closeSession(sessionId, 'client_disconnected');
+        void this.closeSession(sessionId, 'client_disconnected');
       };
 
       this.setupProviderHandlers(session, providerImpl, 'primary');
@@ -367,7 +370,6 @@ export class VoiceSessionManager {
     const bridge = role === 'primary' ? session.agentBridge : session.cohostBridge;
     if (!providerSocket || !bridge) return;
 
-    let currentTranscript = '';
     let hasEmittedSpeaking = false;
 
     providerSocket.on('message', async (data: Buffer) => {
@@ -404,7 +406,6 @@ export class VoiceSessionManager {
 
         // Transcript streaming → data channel
         if (event.type === 'response.audio_transcript.delta' && event.delta) {
-          currentTranscript += event.delta;
           await bridge.publishData({
             type: 'transcript.delta', delta: event.delta, speaker: role,
           } satisfies AgentDataMessage);
@@ -412,7 +413,6 @@ export class VoiceSessionManager {
 
         // Transcript complete
         if (event.type === 'response.audio_transcript.done' && event.transcript) {
-          currentTranscript = '';
           await bridge.publishData({
             type: 'transcript.done', transcript: event.transcript, speaker: role,
           } satisfies AgentDataMessage);
@@ -528,18 +528,18 @@ export class VoiceSessionManager {
     providerSocket.on('error', (error) => {
       log.providers.error({ err: error, role }, 'Provider socket error');
       if (role === 'primary') {
-        this.closeSession(session.sessionId, 'provider_error');
+        void this.closeSession(session.sessionId, 'provider_error');
       } else {
-        this.disableCohost(session.sessionId, 'cohost_provider_error');
+        void this.disableCohost(session.sessionId, 'cohost_provider_error');
       }
     });
 
     providerSocket.on('close', (code, reason) => {
       log.providers.info({ sessionId: session.sessionId, code, reason: reason?.toString(), role }, 'Provider socket closed');
       if (role === 'primary') {
-        this.closeSession(session.sessionId, 'provider_closed');
+        void this.closeSession(session.sessionId, 'provider_closed');
       } else {
-        this.disableCohost(session.sessionId, 'cohost_provider_closed');
+        void this.disableCohost(session.sessionId, 'cohost_provider_closed');
       }
     });
   }
@@ -628,10 +628,10 @@ export class VoiceSessionManager {
   private handleClientDataMessage(sessionId: string, message: ClientDataMessage): void {
     switch (message.type) {
       case 'cohost.enable':
-        this.enableCohost(sessionId);
+        this.enableCohost(sessionId).catch((err) => log.providers.error({ err, sessionId }, 'Failed to enable cohost'));
         break;
       case 'cohost.disable':
-        this.disableCohost(sessionId, 'user_disabled');
+        void this.disableCohost(sessionId, 'user_disabled');
         break;
       case 'cohost.continue':
         this.continueCohostRound(sessionId);
@@ -761,7 +761,7 @@ export class VoiceSessionManager {
         type: 'error', code: 'cohost_failed', message: getErrorMessage(error),
       } satisfies AgentDataMessage);
       // Clean up partial state
-      this.disableCohost(sessionId, 'setup_failed');
+      void this.disableCohost(sessionId, 'setup_failed');
     }
   }
 
@@ -1127,7 +1127,7 @@ You are now in a live voice conversation with a second AI called "Cohost" and th
 
     session.userSilenceTimer = setTimeout(() => {
       log.providers.info({ sessionId: session.sessionId }, 'User silence timeout (10s)');
-      this.closeSession(session.sessionId, 'user_silent');
+      void this.closeSession(session.sessionId, 'user_silent');
     }, USER_SILENCE_TIMEOUT_MS);
   }
 
@@ -1173,7 +1173,7 @@ You are now in a live voice conversation with a second AI called "Cohost" and th
     // Wait 15s more, then close if still no response
     session.cohostInactivityTimer = setTimeout(() => {
       log.providers.info({ sessionId: session.sessionId }, 'User unresponsive after check-in, closing session');
-      this.closeSession(session.sessionId, 'user_unresponsive');
+      void this.closeSession(session.sessionId, 'user_unresponsive');
     }, COHOST_CHECKIN_WAIT_MS);
   }
 
@@ -1187,7 +1187,7 @@ You are now in a live voice conversation with a second AI called "Cohost" and th
       const maxDuration = session.config.maxDuration || 30;
       if (session.minutesElapsed >= maxDuration) {
         log.providers.info({ sessionId: session.sessionId, maxDuration }, 'Max duration reached');
-        this.closeSession(session.sessionId, 'max_duration_exceeded');
+        void this.closeSession(session.sessionId, 'max_duration_exceeded');
         return;
       }
 
@@ -1201,7 +1201,7 @@ You are now in a live voice conversation with a second AI called "Cohost" and th
 
         if (totalCredits < creditsForNextMinute) {
           log.providers.info({ sessionId: session.sessionId, totalCredits, creditsForNextMinute }, 'Credits exhausted during voice session');
-          this.closeSession(session.sessionId, 'credits_exhausted');
+          void this.closeSession(session.sessionId, 'credits_exhausted');
         }
       } catch (e) {
         log.providers.error({ err: e }, 'Error checking credits during billing timer');

@@ -204,7 +204,7 @@ export async function recordSuccess(
       if (health.latencySamples.length > 100) {
         health.latencySamples = health.latencySamples.slice(-100);
       }
-      health.averageLatencyMs = health.latencySamples.reduce((a, b) => a + b, 0) / health.latencySamples.length;
+      health.averageLatencyMs = health.latencySamples.reduce((a: number, b: number) => a + b, 0) / health.latencySamples.length;
 
       // Update success rate
       health.successRate = (health.successCount / health.totalRequests) * 100;
@@ -437,8 +437,6 @@ export function startHealthCheckMonitor(): void {
       const healths = await ProviderHealth.find({ circuitState: { $in: ['open', 'half-open'] } });
 
       for (const health of healths) {
-        const timeSinceLastCheck = Date.now() - health.lastHealthCheck.getTime();
-
         // Auto-transition open circuits to half-open after cooldown
         if (health.circuitState === 'open' && health.circuitOpenedAt) {
           const timeSinceOpen = Date.now() - health.circuitOpenedAt.getTime();

@@ -67,7 +67,7 @@ export function initSocket(server: http.Server) {
       // Telegram link tokens are short-lived, single-use codes minted for the
       // authenticated user who initiated linking; the room is the token itself.
       if (typeof token !== 'string' || token.length === 0 || token.length > 256) return;
-      socket.join(`telegram-token:${token}`);
+      Promise.resolve(socket.join(`telegram-token:${token}`)).catch((err) => log.general.warn({ err }, 'socket.join telegram-token failed'));
     });
 
     socket.on('subscribe-workflow', async (executionId: string) => {
@@ -75,7 +75,7 @@ export function initSocket(server: http.Server) {
       if (!userId) return;
       const execution = await WorkflowExecution.findOne({ executionId }).select('oxyUserId').lean();
       if (!execution || execution.oxyUserId?.toString() !== userId) return;
-      socket.join(`workflow:${executionId}`);
+      Promise.resolve(socket.join(`workflow:${executionId}`)).catch((err) => log.general.warn({ err }, 'socket.join workflow failed'));
     });
 
     socket.on('subscribe-canvas', async (conversationId: string) => {
@@ -83,7 +83,7 @@ export function initSocket(server: http.Server) {
       if (!userId) return;
       const canvas = await CanvasSession.findOne({ oxyUserId: userId, conversationId }).select('_id').lean();
       if (!canvas) return;
-      socket.join(`canvas:${conversationId}`);
+      Promise.resolve(socket.join(`canvas:${conversationId}`)).catch((err) => log.general.warn({ err }, 'socket.join canvas failed'));
     });
 
     socket.on('subscribe-agent', async (agentId: string) => {
@@ -97,20 +97,20 @@ export function initSocket(server: http.Server) {
         ? true
         : !!(await AgentSession.exists({ agentId, userId }));
       if (!authored && !hasSession) return;
-      socket.join(`agent:${agentId}`);
+      Promise.resolve(socket.join(`agent:${agentId}`)).catch((err) => log.general.warn({ err }, 'socket.join agent failed'));
     });
 
     socket.on('subscribe-agent-session', async (sessionId: string) => {
       if (typeof sessionId !== 'string' || sessionId.length === 0 || sessionId.length > 256) return;
       if (!userId || !(await ownsAgentSession(userId, sessionId))) return;
-      socket.join(`agent-session:${sessionId}`);
+      Promise.resolve(socket.join(`agent-session:${sessionId}`)).catch((err) => log.general.warn({ err }, 'socket.join agent-session failed'));
     });
 
     socket.on('subscribe-notifications', () => {
       // Room is always derived from the authenticated user — any client-supplied
       // userId is ignored to prevent subscribing to another user's notifications.
       if (!userId) return;
-      socket.join(`user:${userId}`);
+      Promise.resolve(socket.join(`user:${userId}`)).catch((err) => log.general.warn({ err }, 'socket.join notifications failed'));
     });
 
     // Agent action approval response from user

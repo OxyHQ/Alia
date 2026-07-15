@@ -15,7 +15,6 @@
 import { generateText } from 'ai';
 import { resolveModel, getAIModel } from '../chat-core.js';
 import { webSearchTool } from '../tools/web-search.js';
-import type { WebSearchResult } from '../tools/web-search.js';
 import { SourceTracker } from './source-tracker.js';
 import { log } from '../logger.js';
 
@@ -57,7 +56,6 @@ interface ResearchOptions {
 
 const MAX_SOURCES_PER_QUERY = 5;
 const MAX_FOLLOW_UP_ITERATIONS = 2;
-const MAX_CONTENT_LENGTH = 3000; // Per source content extraction
 
 // ── Main Entry Point ──
 
@@ -109,6 +107,7 @@ export async function runDeepResearch(
         for (const q of queries) {
           totalSearches++;
           try {
+            if (!webSearchTool.execute) throw new Error('webSearchTool has no executor');
             const searchResult = await webSearchTool.execute(
               { query: q },
               { messages: [], toolCallId: `research-${totalSearches}`, abortSignal: signal },
@@ -168,6 +167,7 @@ export async function runDeepResearch(
     for (const gap of gaps.slice(0, 3)) {
       totalSearches++;
       try {
+        if (!webSearchTool.execute) throw new Error('webSearchTool has no executor');
         const searchResult = await webSearchTool.execute({ query: gap }, { messages: [], toolCallId: `followup-${totalSearches}`, abortSignal: signal });
         if ('results' in searchResult && searchResult.results) {
           for (const result of searchResult.results.slice(0, 3)) {
@@ -214,7 +214,7 @@ export async function runDeepResearch(
 async function decomposeQuery(
   query: string,
   messages: Array<{ role: string; content: string }>,
-  userId: string,
+  _userId: string,
 ): Promise<string[]> {
   try {
     const resolved = await resolveModel('alia-lite');
@@ -260,7 +260,7 @@ function reformulateQuery(query: string): string {
 async function extractFindings(
   question: string,
   sources: Array<{ id: number; url: string; title: string; excerpt: string }>,
-  userId: string,
+  _userId: string,
 ): Promise<string> {
   if (sources.length === 0) return 'No sources found.';
 
@@ -293,7 +293,7 @@ async function synthesize(
   subQuestions: string[],
   findings: string[],
   sourceTracker: SourceTracker,
-  userId: string,
+  _userId: string,
 ): Promise<string> {
   try {
     const resolved = await resolveModel('alia-v1');
@@ -328,7 +328,7 @@ Do NOT include a references section — it will be added automatically.`,
 async function identifyGaps(
   originalQuery: string,
   currentReport: string,
-  userId: string,
+  _userId: string,
 ): Promise<string[]> {
   try {
     const resolved = await resolveModel('alia-lite');

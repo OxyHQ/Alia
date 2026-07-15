@@ -11,7 +11,6 @@
 import type { KeyConfig } from './types';
 import {
   ALIA_MODELS,
-  TIER_MODEL_MAPPINGS,
   isAliaModel,
   getAliaModel,
   type AliaModel,

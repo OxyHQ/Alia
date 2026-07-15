@@ -10,7 +10,7 @@
  */
 
 import mongoose from 'mongoose';
-import Expo, { type ExpoPushMessage, type ExpoPushTicket, type ExpoPushReceiptId } from 'expo-server-sdk';
+import Expo, { type ExpoPushMessage, type ExpoPushReceiptId } from 'expo-server-sdk';
 import { Notification, type INotification, type NotificationType, type NotificationChannel, type NotificationPriority } from '../models/notification.js';
 import { ConnectedAccount } from '../models/connected-account.js';
 import { PushToken } from '../models/push-token.js';

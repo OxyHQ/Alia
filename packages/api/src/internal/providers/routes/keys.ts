@@ -307,7 +307,7 @@ router.post('/', async (req: Request, res: Response) => {
       },
     });
 
-    broadcastKeysUpdate(provider);
+    void broadcastKeysUpdate(provider);
   } catch (error: unknown) {
     log.keys.error({ err: error }, 'Error adding key');
     res.status(500).json({
@@ -365,7 +365,7 @@ router.patch('/:keyId', async (req: Request, res: Response) => {
       data: key,
     });
 
-    broadcastKeysUpdate(key.provider);
+    void broadcastKeysUpdate(key.provider);
   } catch (error: unknown) {
     log.keys.error({ err: error }, 'Error updating key');
     res.status(500).json({
@@ -402,7 +402,7 @@ router.delete('/:keyId', async (req: Request, res: Response) => {
       message: 'Key deleted successfully',
     });
 
-    broadcastKeysUpdate(key.provider);
+    void broadcastKeysUpdate(key.provider);
   } catch (error: unknown) {
     log.keys.error({ err: error }, 'Error deleting key');
     res.status(500).json({
@@ -473,7 +473,7 @@ router.post('/:keyId/rotate', async (req: Request, res: Response) => {
       },
     });
 
-    broadcastKeysUpdate(key.provider);
+    void broadcastKeysUpdate(key.provider);
   } catch (error: unknown) {
     log.keys.error({ err: error }, 'Error rotating key');
     res.status(500).json({
@@ -515,7 +515,7 @@ router.post('/:keyId/reset-spend', async (req: Request, res: Response) => {
       message: 'Key spend reset successfully',
     });
 
-    broadcastKeysUpdate(key.provider);
+    void broadcastKeysUpdate(key.provider);
   } catch (error: unknown) {
     log.keys.error({ err: error }, 'Error resetting key spend');
     res.status(500).json({
@@ -557,7 +557,7 @@ router.post('/:keyId/deactivate', async (req: Request, res: Response) => {
       message: 'Key deactivated successfully',
     });
 
-    broadcastKeysUpdate(key.provider);
+    void broadcastKeysUpdate(key.provider);
   } catch (error: unknown) {
     log.keys.error({ err: error }, 'Error deactivating key');
     res.status(500).json({
@@ -599,7 +599,7 @@ router.post('/:keyId/activate', async (req: Request, res: Response) => {
       message: 'Key activated successfully',
     });
 
-    broadcastKeysUpdate(key.provider);
+    void broadcastKeysUpdate(key.provider);
   } catch (error: unknown) {
     log.keys.error({ err: error }, 'Error activating key');
     res.status(500).json({

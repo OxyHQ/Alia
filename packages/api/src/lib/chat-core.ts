@@ -8,7 +8,6 @@
 import { createGoogleGenerativeAI } from '@ai-sdk/google';
 import { createOpenAI } from '@ai-sdk/openai';
 import { createAnthropic } from '@ai-sdk/anthropic';
-import { log } from './logger.js';
 
 import {
   resolveAliaModel as internalResolveAliaModel,

@@ -226,7 +226,7 @@ router.get('/gmail/callback', async (req, res) => {
       account.email = email;
       account.displayName = profile.name || email;
       account.connectedAt = new Date();
-      account.oauthTokens = {
+      const oauthTokens = {
         accessToken: tokenData.access_token,
         refreshToken: tokenData.refresh_token,
         expiresAt: tokenData.expires_in
@@ -234,6 +234,7 @@ router.get('/gmail/callback', async (req, res) => {
           : undefined,
         scope: tokenData.scope || GMAIL_SCOPES.join(' '),
       };
+      account.oauthTokens = oauthTokens;
       await account.save();
 
       // Create session in integrations service
@@ -252,7 +253,7 @@ router.get('/gmail/callback', async (req, res) => {
                 accountId: stateData.accountId,
                 accessToken: tokenData.access_token,
                 refreshToken: tokenData.refresh_token,
-                expiresAt: account.oauthTokens.expiresAt?.toISOString(),
+                expiresAt: oauthTokens.expiresAt?.toISOString(),
                 email,
               }),
               signal: AbortSignal.timeout(10_000),

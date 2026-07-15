@@ -23,7 +23,6 @@ import { getErrorMessage } from '../errors/index.js';
 import { emitAgentActivity } from '../../socket.js';
 
 const MAX_CONTENT_CHARS = 12_000;
-const SCREENSHOT_DIR = '/workspace/.alia/screenshots';
 const PAGE_TIMEOUT = 15_000;
 
 export type BrowserAction =

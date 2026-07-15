@@ -23,7 +23,6 @@ import {
   TrackSource,
   TrackKind,
 } from '@livekit/rtc-node';
-import type WebSocket from 'ws';
 import type { AgentDataMessage, LiveKitAgentBridgeRef } from '../internal/providers/lib/types-voice.js';
 import { log } from './logger.js';
 
@@ -88,7 +87,7 @@ export class LiveKitAgentBridge implements LiveKitAgentBridgeRef {
       log.providers.info({ kind: track.kind, participant: participant.identity, identity: this.identity }, '[Voice] TrackSubscribed event');
       // Only subscribe to audio from non-agent participants
       if (track.kind === TrackKind.KIND_AUDIO && !participant.identity.startsWith('alia-')) {
-        this.startAudioCapture(track, participant.identity);
+        this.startAudioCapture(track, participant.identity).catch((err) => log.providers.error({ err, identity: this.identity }, 'Audio capture failed'));
       }
     });
 
@@ -122,7 +121,7 @@ export class LiveKitAgentBridge implements LiveKitAgentBridgeRef {
       if (participant.identity.startsWith('alia-')) continue;
       for (const [, publication] of participant.trackPublications) {
         if (publication.track && publication.track.kind === TrackKind.KIND_AUDIO) {
-          this.startAudioCapture(publication.track, participant.identity);
+          this.startAudioCapture(publication.track, participant.identity).catch((err) => log.providers.error({ err, identity: this.identity }, 'Audio capture failed'));
         }
       }
     }
@@ -276,7 +275,7 @@ export class LiveKitAgentBridge implements LiveKitAgentBridgeRef {
     this.publishChain = Promise.resolve();
 
     if (this.audioStreamReader) {
-      try { this.audioStreamReader.cancel(); } catch { /* already closed */ }
+      try { await this.audioStreamReader.cancel(); } catch { /* already closed */ }
       this.audioStreamReader = null;
     }
 

@@ -21,7 +21,7 @@ export function registerHook(hook: ChatHook): void {
 }
 
 export async function runBeforeChatHooks(ctx: ChatHookContext): Promise<ChatHookResult> {
-  let result: ChatHookResult = {};
+  const result: ChatHookResult = {};
   for (const hook of sortedHooks()) {
     if (hook.beforeChat) {
       try {

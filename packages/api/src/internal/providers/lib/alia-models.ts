@@ -305,7 +305,7 @@ export async function getAvailableModels(): Promise<AliaModelWithAvailability[]>
   const results: AliaModelWithAvailability[] = [];
 
   // Fetch legacy flags from MongoDB
-  let legacyMap = new Map<string, boolean>();
+  const legacyMap = new Map<string, boolean>();
   try {
     const dbModels = await AliaModelDB.find({}).select('aliasModelId isLegacy').lean();
     for (const doc of dbModels) {

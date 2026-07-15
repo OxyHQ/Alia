@@ -83,7 +83,7 @@ export function wrapToolsWithTruncation(tools: ToolSet, maxChars: number = DEFAU
     wrapped[name] = {
       ...tool,
       execute: async (...args: any[]) => {
-        const result = await (originalExecute as Function)(...args);
+        const result = await (originalExecute as (...args: unknown[]) => unknown)(...args);
         if (typeof result === 'string') {
           return truncateToolResult(result, maxChars);
         }

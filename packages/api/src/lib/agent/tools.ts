@@ -47,7 +47,7 @@ export interface BuildToolsContext {
 }
 
 export async function buildAgentTools(ctx: BuildToolsContext) {
-  const { agent, session, onComplete, onHireAgent, todoManager, workspaceMemory } = ctx;
+  const { session, onComplete, onHireAgent, todoManager, workspaceMemory } = ctx;
   const userId = session.userId.toString();
 
   const tools: Record<string, any> = {};
@@ -89,7 +89,7 @@ export async function buildAgentTools(ctx: BuildToolsContext) {
           ...mcpTool,
           execute: async (...args: any[]) => {
             try {
-              return await (originalExecute as Function)(...args);
+              return await (originalExecute as (...args: unknown[]) => unknown)(...args);
             } catch (err: unknown) {
               log.agents.warn({ err, toolName: name }, 'MCP tool error in agent');
               return { error: `MCP tool failed: ${getErrorMessage(err).slice(0, 150)}` };
