@@ -9,6 +9,7 @@ import { createGoogleGenerativeAI } from '@ai-sdk/google';
 import { createOpenAI } from '@ai-sdk/openai';
 import { createAnthropic } from '@ai-sdk/anthropic';
 
+import { TTLCache } from './ttl-cache.js';
 import {
   resolveAliaModel as internalResolveAliaModel,
   getDefaultAliaModel,
@@ -71,140 +72,128 @@ export async function resolveModel(
 }
 
 /**
+ * Provider-instance cache. `createOpenAI`/`createAnthropic`/`createGoogleGenerativeAI`
+ * return stateless factories bound to an apiKey (+ baseURL); reusing them across
+ * requests is exactly what the AI SDK recommends. We memoize the factory and
+ * build the per-request model object on top of it. Keyed by provider + baseURL
+ * + apiKey so a key rotation produces a fresh instance.
+ */
+type ProviderInstance =
+  | ReturnType<typeof createOpenAI>
+  | ReturnType<typeof createAnthropic>
+  | ReturnType<typeof createGoogleGenerativeAI>;
+
+const providerCache = new TTLCache<ProviderInstance>({ ttlMs: 10 * 60 * 1000, maxSize: 200 });
+
+function getProvider<T extends ProviderInstance>(
+  provider: string,
+  baseURL: string | undefined,
+  apiKey: string,
+  factory: () => T,
+): T {
+  const key = `${provider}|${baseURL ?? ''}|${apiKey}`;
+  const cached = providerCache.get(key);
+  if (cached) return cached as T;
+  const created = factory();
+  providerCache.set(key, created);
+  return created;
+}
+
+/** Memoized OpenAI-compatible provider (Groq, Together, xAI, DeepSeek, …). */
+function openAICompatibleProvider(provider: string, apiKey: string, baseURL: string) {
+  return getProvider(provider, baseURL, apiKey, () => createOpenAI({ apiKey, baseURL }));
+}
+
+/**
  * Create an AI SDK model instance based on the resolved key config.
  */
 export function getAIModel(keyConfig: KeyConfig) {
   const apiKey = keyConfig.key;
   const modelId = keyConfig.modelId;
+  const provider = keyConfig.provider;
 
-  switch (keyConfig.provider) {
+  switch (provider) {
     case 'google': {
-      const google = createGoogleGenerativeAI({ apiKey });
+      const google = getProvider(provider, undefined, apiKey, () => createGoogleGenerativeAI({ apiKey }));
       return google(modelId || 'gemini-2.5-flash');
     }
     case 'openai': {
-      const openai = createOpenAI({ apiKey });
+      const openai = getProvider(provider, undefined, apiKey, () => createOpenAI({ apiKey }));
       return openai.chat(modelId || 'gpt-4o-mini');
     }
     case 'anthropic': {
-      const anthropic = createAnthropic({ apiKey });
+      const anthropic = getProvider(provider, undefined, apiKey, () => createAnthropic({ apiKey }));
       return anthropic(modelId || 'claude-sonnet-4-20250514');
     }
     case 'groq': {
-      const groq = createOpenAI({
-        apiKey,
-        baseURL: 'https://api.groq.com/openai/v1',
-      });
+      const groq = openAICompatibleProvider(provider, apiKey, 'https://api.groq.com/openai/v1');
       return groq.chat(modelId || 'llama-3.3-70b-versatile');
     }
     case 'together': {
-      const together = createOpenAI({
-        apiKey,
-        baseURL: 'https://api.together.ai/v1',
-      });
+      const together = openAICompatibleProvider(provider, apiKey, 'https://api.together.ai/v1');
       return together.chat(modelId || 'meta-llama/Llama-3.3-70B-Instruct-Turbo');
     }
     case 'cerebras': {
-      const cerebras = createOpenAI({
-        apiKey,
-        baseURL: 'https://api.cerebras.ai/v1',
-      });
+      const cerebras = openAICompatibleProvider(provider, apiKey, 'https://api.cerebras.ai/v1');
       return cerebras.chat(modelId || 'llama3.1-8b');
     }
     case 'mistral': {
-      const mistral = createOpenAI({
-        apiKey,
-        baseURL: 'https://api.mistral.ai/v1',
-      });
+      const mistral = openAICompatibleProvider(provider, apiKey, 'https://api.mistral.ai/v1');
       return mistral.chat(modelId || 'mistral-large-latest');
     }
     case 'deepseek': {
-      const deepseek = createOpenAI({
-        apiKey,
-        baseURL: 'https://api.deepseek.com',
-      });
+      const deepseek = openAICompatibleProvider(provider, apiKey, 'https://api.deepseek.com');
       return deepseek.chat(modelId || 'deepseek-chat');
     }
     case 'openrouter': {
-      const openrouter = createOpenAI({
-        apiKey,
-        baseURL: 'https://openrouter.ai/api/v1',
-      });
+      const openrouter = openAICompatibleProvider(provider, apiKey, 'https://openrouter.ai/api/v1');
       return openrouter.chat(modelId || 'meta-llama/llama-3.3-70b-instruct');
     }
     case 'replicate': {
-      const replicate = createOpenAI({
-        apiKey,
-        baseURL: 'https://api.replicate.com/v1',
-      });
+      const replicate = openAICompatibleProvider(provider, apiKey, 'https://api.replicate.com/v1');
       return replicate.chat(modelId || 'meta/meta-llama-3.3-70b-instruct');
     }
     case 'cloudflare': {
       const [accountId, apiToken] = apiKey.split(':');
-      const cf = createOpenAI({
-        apiKey: apiToken || apiKey,
-        baseURL: `https://api.cloudflare.com/client/v4/accounts/${accountId}/ai/v1`,
-      });
+      const cfKey = apiToken || apiKey;
+      const cfBaseURL = `https://api.cloudflare.com/client/v4/accounts/${accountId}/ai/v1`;
+      const cf = getProvider(provider, cfBaseURL, cfKey, () => createOpenAI({ apiKey: cfKey, baseURL: cfBaseURL }));
       return cf.chat(modelId || '@cf/meta/llama-3.2-11b-vision-instruct');
     }
     case 'cohere': {
-      const cohere = createOpenAI({
-        apiKey,
-        baseURL: 'https://api.cohere.ai/compatibility/v1',
-      });
+      const cohere = openAICompatibleProvider(provider, apiKey, 'https://api.cohere.ai/compatibility/v1');
       return cohere.chat(modelId || 'command-a-03-2025');
     }
     case 'xai': {
-      const xai = createOpenAI({
-        apiKey,
-        baseURL: 'https://api.x.ai/v1',
-      });
+      const xai = openAICompatibleProvider(provider, apiKey, 'https://api.x.ai/v1');
       return xai.chat(modelId || 'grok-4-fast');
     }
     case 'fireworks': {
-      const fireworks = createOpenAI({
-        apiKey,
-        baseURL: 'https://api.fireworks.ai/inference/v1',
-      });
+      const fireworks = openAICompatibleProvider(provider, apiKey, 'https://api.fireworks.ai/inference/v1');
       return fireworks.chat(modelId || 'accounts/fireworks/models/deepseek-v3');
     }
     case 'perplexity': {
-      const perplexity = createOpenAI({
-        apiKey,
-        baseURL: 'https://api.perplexity.ai',
-      });
+      const perplexity = openAICompatibleProvider(provider, apiKey, 'https://api.perplexity.ai');
       return perplexity.chat(modelId || 'sonar');
     }
     case 'sambanova': {
-      const sambanova = createOpenAI({
-        apiKey,
-        baseURL: 'https://api.sambanova.ai/v1',
-      });
+      const sambanova = openAICompatibleProvider(provider, apiKey, 'https://api.sambanova.ai/v1');
       return sambanova.chat(modelId || 'Meta-Llama-3.3-70B-Instruct');
     }
     case 'hyperbolic': {
-      const hyperbolic = createOpenAI({
-        apiKey,
-        baseURL: 'https://api.hyperbolic.xyz/v1',
-      });
+      const hyperbolic = openAICompatibleProvider(provider, apiKey, 'https://api.hyperbolic.xyz/v1');
       return hyperbolic.chat(modelId || 'deepseek-ai/DeepSeek-V3');
     }
     case 'novita': {
-      const novita = createOpenAI({
-        apiKey,
-        baseURL: 'https://api.novita.ai/v3/openai',
-      });
+      const novita = openAICompatibleProvider(provider, apiKey, 'https://api.novita.ai/v3/openai');
       return novita.chat(modelId || 'meta-llama/llama-3.3-70b-instruct');
     }
     case 'digitalocean': {
-      const digitalocean = createOpenAI({
-        apiKey,
-        baseURL: 'https://inference.do-ai.run/v1',
-      });
+      const digitalocean = openAICompatibleProvider(provider, apiKey, 'https://inference.do-ai.run/v1');
       return digitalocean.chat(modelId || 'openai-gpt-5-nano');
     }
     default:
-      throw new Error(`Provider "${keyConfig.provider}" not supported`);
+      throw new Error(`Provider "${provider}" not supported`);
   }
 }
 

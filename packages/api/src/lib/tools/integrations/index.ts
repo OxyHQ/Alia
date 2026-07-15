@@ -10,15 +10,16 @@ import type { ToolSet } from 'ai';
 import mongoose from 'mongoose';
 import { Integration } from '../../../models/integration.js';
 import { log } from '../../logger.js';
+import { TTLCache } from '../../ttl-cache.js';
 import { buildGitHubTools } from './github.js';
 import { buildNotionTools } from './notion.js';
 import { buildGoogleCalendarTools } from './google-calendar.js';
 import { buildLinearTools } from './linear.js';
 import { buildGoogleDriveTools } from './google-drive.js';
 
-// Short-lived cache (same pattern as MCP tools)
-const cache = new Map<string, { tools: ToolSet; expiresAt: number }>();
-const CACHE_TTL_MS = 30_000;
+// Short-lived per-user cache (same pattern as MCP tools). Tool closures capture
+// only oxyUserId, so caching by user stays correct across callers.
+const cache = new TTLCache<ToolSet>({ ttlMs: 30_000, maxSize: 2000 });
 
 /**
  * Build integration tools for a user based on their connected OAuth services.
@@ -27,7 +28,7 @@ export async function buildIntegrationTools(oxyUserId: string): Promise<ToolSet>
   if (!mongoose.Types.ObjectId.isValid(oxyUserId)) return {};
 
   const cached = cache.get(oxyUserId);
-  if (cached && cached.expiresAt > Date.now()) return cached.tools;
+  if (cached) return cached;
 
   const tools: ToolSet = {};
 
@@ -58,7 +59,7 @@ export async function buildIntegrationTools(oxyUserId: string): Promise<ToolSet>
       Object.assign(tools, buildGoogleDriveTools(oxyUserId));
     }
 
-    cache.set(oxyUserId, { tools, expiresAt: Date.now() + CACHE_TTL_MS });
+    cache.set(oxyUserId, tools);
 
     const toolCount = Object.keys(tools).length;
     if (toolCount > 0) {

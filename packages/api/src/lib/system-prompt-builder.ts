@@ -133,7 +133,7 @@ export class SystemPromptBuilder {
         try {
           const [oxyServicePrompt, oxyServiceCtx] = await Promise.all([
             getOxyServicePromptFragment(userId),
-            getOxyServiceContext(accessToken),
+            getOxyServiceContext(userId, accessToken),
           ] as const);
           if (oxyServicePrompt) systemMessage += oxyServicePrompt;
           if (oxyServiceCtx) systemMessage += oxyServiceCtx;

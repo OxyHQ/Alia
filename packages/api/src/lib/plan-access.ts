@@ -6,6 +6,7 @@
 
 import { Subscription } from '../models/subscription.js';
 import { getPlans, getPlanFeatures } from './gateway-client.js';
+import { TTLCache } from './ttl-cache.js';
 
 const FREE_MODEL_IDS = ['alia-lite', 'alia-v1', 'alia-v1-audio'];
 
@@ -15,12 +16,11 @@ export interface Entitlements {
   planId: string | null;
 }
 
-const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
-const cache = new Map<string, { data: Entitlements; expires: number }>();
+const cache = new TTLCache<Entitlements>({ ttlMs: 5 * 60 * 1000, maxSize: 5000 });
 
 export async function getUserEntitlements(userId: string): Promise<Entitlements> {
   const cached = cache.get(userId);
-  if (cached && cached.expires > Date.now()) return cached.data;
+  if (cached) return cached;
 
   const subscriptions = await Subscription.find({
     oxyUserId: userId,
@@ -67,7 +67,7 @@ export async function getUserEntitlements(userId: string): Promise<Entitlements>
     planId: highestPlan,
   };
 
-  cache.set(userId, { data: result, expires: Date.now() + CACHE_TTL });
+  cache.set(userId, result);
   return result;
 }
 
