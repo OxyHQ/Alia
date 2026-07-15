@@ -578,7 +578,7 @@ export default function MemoryScreen() {
         {/* Settings toggles */}
         <View className="px-4 pt-2 pb-1">
           <View className="flex-row items-center justify-between gap-4 py-3 border-b border-border">
-            <View className="flex-1 min-w-0 gap-0.5">
+            <View className="flex-1 min-w-0 gap-1">
               <Text className="text-sm text-foreground">{t('memory.recallToggleLabel')}</Text>
               <Text className="text-sm text-muted-foreground">{t('memory.recallToggleDescription')}</Text>
             </View>
@@ -589,7 +589,7 @@ export default function MemoryScreen() {
             />
           </View>
           <View className="flex-row items-center justify-between gap-4 py-3 border-b border-border">
-            <View className="flex-1 min-w-0 gap-0.5">
+            <View className="flex-1 min-w-0 gap-1">
               <Text className="text-sm text-foreground">{t('memory.autoSaveToggleLabel')}</Text>
               <Text className="text-sm text-muted-foreground">{t('memory.autoSaveToggleDescription')}</Text>
             </View>
@@ -600,7 +600,7 @@ export default function MemoryScreen() {
             />
           </View>
           <View className="flex-row items-center justify-between gap-4 py-3">
-            <View className="flex-1 min-w-0 gap-0.5">
+            <View className="flex-1 min-w-0 gap-1">
               <Text className="text-sm text-foreground">{t('memory.importFromProvider')}</Text>
               <Text className="text-sm text-muted-foreground">{t('memory.providerImportRowDescription')}</Text>
             </View>

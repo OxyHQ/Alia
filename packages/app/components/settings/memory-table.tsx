@@ -46,20 +46,21 @@ export function MemoryTable({ heading, rows, emptyLabel, onRowPress, onDelete }:
               key={row._id}
               onPress={() => onRowPress(row._id)}
               className={cn(
-                "flex-row items-center h-9 gap-3 px-1 group active:bg-accent/50 web:hover:bg-accent/40 rounded-md",
-                index !== rows.length - 1 && "border-b border-border"
+                "flex-row items-center h-9 gap-4 px-3 group active:bg-accent/50 active:rounded-md web:hover:bg-accent/40 web:hover:rounded-md",
+                "border-b border-border",
+                index === 0 && "border-t border-border"
               )}
             >
-              <Text className="w-32 shrink-0 text-sm text-foreground" numberOfLines={1}>
+              <Text className="w-40 shrink-0 text-sm text-foreground" numberOfLines={1}>
                 {row.title}
               </Text>
               <Text className="flex-1 min-w-0 text-sm text-muted-foreground" numberOfLines={1}>
                 {row.summary}
               </Text>
-              <Text className="w-28 shrink-0 text-xs text-muted-foreground md:block hidden" numberOfLines={1}>
+              <Text className="w-36 shrink-0 text-xs text-muted-foreground md:block hidden" numberOfLines={1}>
                 Updated {formatRelativeTime(row.updatedAt)}
               </Text>
-              <View className="w-9 shrink-0 items-end">
+              <View className="w-10 shrink-0 items-end">
                 <Pressable
                   onPress={(e) => {
                     e.stopPropagation();
